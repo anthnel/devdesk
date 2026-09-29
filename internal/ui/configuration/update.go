@@ -2,6 +2,7 @@ package configuration
 
 import (
 	"log"
+	"strings"
 
 	tea "github.com/charmbracelet/bubbletea"
 
@@ -9,6 +10,7 @@ import (
 	"github.com/anthnel/devdesk/internal/config"
 	"github.com/anthnel/devdesk/internal/shared"
 	sharedcomponents "github.com/anthnel/devdesk/internal/ui/components"
+	"github.com/anthnel/devdesk/internal/ui/filebrowser"
 	"github.com/anthnel/devdesk/internal/ui/keymap"
 )
 
@@ -32,6 +34,9 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case shared.ScanToolsMsg:
 		m.tools = msg.Report
 		return m, nil
+
+	case filebrowser.PathPickedMsg:
+		return m.handlePathPicked(msg)
 
 	case MCPCommandCopiedMsg:
 		return m.handleMCPCommandCopied(msg)
@@ -77,6 +82,10 @@ func (m Model) handleKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		return m.cycleField(1)
 	case " ":
 		return m.toggleField()
+	case "enter":
+		if m.current().path {
+			return m.requestPick()
+		}
 	case "esc":
 		return m.commitField()
 	case "ctrl+r":
@@ -454,3 +463,63 @@ func (m Model) onToolsTab() bool {
 
 // toolsTab is the tab whose headings read the detection.
 const toolsTab = "tools"
+
+// ── Browse (§3.95) ──────────────────────────────────────────────────────────
+
+// pickTag names a path field for the picker's answer. A label alone is not
+// unique — every scanner has a "Binary" — so the tool it belongs to is part of
+// it.
+func pickTag(f field) string {
+	return f.Tool + "/" + f.Label
+}
+
+// requestPick lends the file browser, opened where the field points — what is
+// in the input, typed or not: that is the path on screen.
+func (m Model) requestPick() (tea.Model, tea.Cmd) {
+	f := m.current()
+	req := filebrowser.PickRequestMsg{
+		Kind:   f.pick,
+		Start:  m.input.Value(),
+		Prompt: "Choose the " + strings.ToLower(f.Label) + " — enter chooses, esc goes back",
+		Tag:    pickTag(f),
+	}
+	return m, func() tea.Msg { return req }
+}
+
+// handlePathPicked writes the chosen path as if it had been typed: through the
+// field's Apply, so a validation it carries still has its say, then saved.
+//
+// It is written absolute, not folded to ~: the config is expanded once at load
+// (config.ExpandPaths), and what the running session reads is what is in
+// memory — a "~/bin/trivy" stored here would reach the scanner unexpanded until
+// the next start. The form shortens it on screen anyway.
+func (m Model) handlePathPicked(msg filebrowser.PathPickedMsg) (tea.Model, tea.Cmd) {
+	f, ok := m.pathFieldTagged(msg.Tag)
+	if !ok {
+		return m, nil
+	}
+	if err := f.Apply(m.config, msg.Path); err != nil {
+		log.Printf("ERROR [configuration] %s: %v", f.Label, err)
+		return m, m.footer.Error(err.Error())
+	}
+	// The input still holds what was there before the picker opened; the
+	// field is the focused one, so it shows the answer from here on.
+	if pickTag(m.current()) == msg.Tag {
+		m.bindInput()
+	}
+	return m, m.persist(saved{})
+}
+
+// pathFieldTagged finds the path field an answer is for, across every tab —
+// the answer can only be for the tab on screen, but searching all of them costs
+// nothing and cannot be wrong about it.
+func (m Model) pathFieldTagged(tag string) (field, bool) {
+	for _, sec := range m.sections {
+		for _, f := range sec.Fields {
+			if f.path && pickTag(f) == tag {
+				return f, true
+			}
+		}
+	}
+	return field{}, false
+}

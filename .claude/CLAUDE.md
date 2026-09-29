@@ -463,6 +463,7 @@ touching, and update it in the same commit as the code.
 | [`configuration.md`](../docs/architecture/configuration.md) | the config schema, the contexts, the migrations (`gitlab:` → `forge:`, `docker:` → `network:`), and the configuration view |
 | [`forge.md`](../docs/architecture/forge.md) | `internal/forge` and its two backends, `forge.Vocabulary`, the explorer's clone pipeline, and how the explorer reads the forge index (`internal/forgeindex`) and its `g` |
 | [`workspaces.md`](../docs/architecture/workspaces.md) | the `ws` file icons (`internal/ui/fileicon`) and the sync (`F`) |
+| [`filebrowser.md`](../docs/architecture/filebrowser.md) | `:files` (`internal/ui/filebrowser`, `internal/fsbrowse`), the path picker a form's path field opens with enter, and `theme.ShortPath` |
 | [`viewer.md`](../docs/architecture/viewer.md) | `internal/viewer` + `internal/ui/viewer` — kinds, displays, colouring, search, follow |
 | [`scanning.md`](../docs/architecture/scanning.md) | Trivy, Gitleaks, plumber, `scan.Categorize`, the `:sec` inventory, the two scan caches, image signatures (`internal/trust`, the cosign verifier) |
 | [`registries.md`](../docs/architecture/registries.md) | the registry/group model and the discovered-members cache |

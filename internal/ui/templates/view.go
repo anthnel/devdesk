@@ -53,7 +53,7 @@ func (m Model) GetShortcuts() shortcut.Shortcuts {
 			// Structural: ←→ only means something on the source field, and there
 			// is nothing to explain about a lost arrow key (Rule 130).
 			{Key: "←→", Description: "Change source", Disabled: !m.form.OnCycleField()},
-			{Key: "enter", Description: "Next field"},
+			{Key: "enter", Description: m.form.EnterDescription()},
 			{Key: "esc", Description: "Cancel"},
 		}
 	}
@@ -172,7 +172,7 @@ func (m Model) GetHelpContent() help.Content {
 			{
 				Title: "Sources",
 				Body: "git: a remote repository. Give the clone URL, optionally a subdirectory to use as the template's root, and a branch, tag or commit.\n" +
-					"local: a git repository on this machine. Only what is committed is used — no .git, nothing ignored, no uncommitted edit — so a template never depends on the state of a working tree.\n" +
+					"local: a git repository on this machine. Only what is committed is used — no .git, nothing ignored, no uncommitted edit — so a template never depends on the state of a working tree. Enter on the directory (" + theme.IconBrowse + ") opens the file browser to choose it, and ~ stands for your home.\n" +
 					"oci: an artifact in a registry — the registry URL, the repository and the tag.\n\n" +
 					"A URL may be https, ssh, git or the scp form (git@host:path). Nothing else is accepted: the catalog file can be shared, and a URL is not trusted.",
 			},

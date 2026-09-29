@@ -1,8 +1,6 @@
 package security
 
 import (
-	"os"
-	"path/filepath"
 	"strconv"
 	"strings"
 	"time"
@@ -121,7 +119,7 @@ func (t scanTarget) kindIconRole() theme.IconRole {
 // written into.
 func (t scanTarget) shortName() string {
 	if t.Kind == kindRepo {
-		return shortenHome(t.Name)
+		return theme.FoldHome(t.Name)
 	}
 	if t.Display != "" {
 		return t.Display
@@ -176,26 +174,9 @@ func labelForResult(cfg *config.Config, result *scan.Result) string {
 		return ""
 	}
 	if result.TargetType != scan.TargetImage {
-		return shortenHome(result.Target)
+		return theme.FoldHome(result.Target)
 	}
 	return docker.ApplyAliases(result.Target, registryalias.From(cfg.Registry.Registries))
-}
-
-// shortenHome replaces the home directory prefix with "~". It is the inverse of
-// the expansion the workspaces view does on the configured root.
-func shortenHome(path string) string {
-	home, err := os.UserHomeDir()
-	if err != nil || home == "" {
-		return path
-	}
-	rel, err := filepath.Rel(home, path)
-	if err != nil || rel == ".." || strings.HasPrefix(rel, ".."+string(filepath.Separator)) {
-		return path
-	}
-	if rel == "." {
-		return "~"
-	}
-	return "~" + string(filepath.Separator) + rel
 }
 
 // countColumnWidth holds the four severity columns to one width. datatable

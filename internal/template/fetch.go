@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 
+	"github.com/anthnel/devdesk/internal/fsbrowse"
 	"github.com/anthnel/devdesk/internal/git"
 	"github.com/anthnel/devdesk/internal/oci"
 )
@@ -104,7 +105,8 @@ func fetch(ctx context.Context, src Source, creds Credentials) ([]File, error) {
 		return readArchive(raw)
 
 	case KindLocal:
-		raw, err := git.ArchiveLocal(ctx, src.Path, src.Ref, "", archiveCap)
+		// "~/templates/x" is what a user types; git needs it expanded.
+		raw, err := git.ArchiveLocal(ctx, fsbrowse.ExpandHome(src.Path), src.Ref, "", archiveCap)
 		if err != nil {
 			return nil, tooLargeOr(err, err)
 		}

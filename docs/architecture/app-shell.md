@@ -34,6 +34,7 @@ App (Router)
     ├── configuration   - Every scalar setting in the current context
     ├── jobs            - Long-running work: runs, then their targets
     ├── templates       - Catalog of repository templates: git, local or OCI sources
+    ├── files           - Whole-filesystem browser, and the path picker forms borrow
     ├── about           - Which build is running, and where it keeps its files
     └── viewer          - One document, read-only (router-only: no `:viewer`)
 ```
@@ -53,6 +54,7 @@ Press `ctrl+p` to enter command mode, then type:
 - `configuration`, `config` or `cfg` - Switch to the configuration view
 - `jobs` or `j` - Switch to the jobs view: what is running, and what ran this session
 - `templates` or `tpl` - Switch to the repository template catalog (see [templates.md](templates.md))
+- `files` or `fs` - Browse the whole filesystem: create and delete files and directories; also the picker a form's path field opens with enter (see [filebrowser.md](filebrowser.md))
 - `about` or `version` - Which build is running: version, commit, build date, and where the config, cache and log live
 - `context <name>` or `ctx <name>` - Switch configuration context
 - `context list` - Show available contexts

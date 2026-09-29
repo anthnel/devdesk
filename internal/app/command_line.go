@@ -10,6 +10,7 @@ import (
 	"github.com/anthnel/devdesk/internal/ui/configuration"
 	"github.com/anthnel/devdesk/internal/ui/containers"
 	"github.com/anthnel/devdesk/internal/ui/dashboard"
+	"github.com/anthnel/devdesk/internal/ui/filebrowser"
 	"github.com/anthnel/devdesk/internal/ui/forge/auth"
 	"github.com/anthnel/devdesk/internal/ui/forge/explorer"
 	"github.com/anthnel/devdesk/internal/ui/jobsview"
@@ -122,6 +123,12 @@ func (a *App) resetSelectionModeFor(view command.ViewType) {
 	switch view {
 	case command.ViewWorkspaces:
 		delete(a.views, view)
+	case command.ViewFiles:
+		// A picker left behind — the user typed a command instead of choosing —
+		// answers a borrower; the name asks for the browser.
+		if held, ok := a.views[view].(filebrowser.Model); ok && held.Picking() {
+			delete(a.views, view)
+		}
 	case command.ViewSecurity:
 		if held, ok := a.views[view].(security.Model); ok && held.OriginView != "" {
 			delete(a.views, view)
@@ -221,6 +228,8 @@ func (a *App) createView(view command.ViewType) {
 		a.views[view] = templates.New(a.config, a.sharedState.Secrets.Storage)
 	case command.ViewAbout:
 		a.views[view] = about.New(a.config)
+	case command.ViewFiles:
+		a.views[view] = filebrowser.New(a.config)
 	case command.ViewViewer:
 		// Empty: the viewer is normally installed with its source by
 		// handleViewerOpenRequest, and this case exists so the router can build

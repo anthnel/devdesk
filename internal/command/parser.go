@@ -45,6 +45,10 @@ const (
 	// that every view answers for itself.
 	ViewAbout ViewType = "about"
 
+	// ViewFiles browses the whole filesystem (§3.95). It is also what the
+	// router lends a form's Browse button, as a picker.
+	ViewFiles ViewType = "files"
+
 	// ViewViewer is opened by the router on another view's request — a file in
 	// workspaces, an inspect or a log in containers — and never by name. It is
 	// deliberately absent from viewNames: `:viewer` would open a pane saying
@@ -115,6 +119,8 @@ var viewNames = map[string]ViewType{
 	// No one-letter alias: `a` is worth more than this view, which is opened
 	// once to read a version and not returned to.
 	"version": ViewAbout,
+	"files":   ViewFiles,
+	"fs":      ViewFiles,
 }
 
 // resolveView looks a spelling up in viewNames, the single source for both

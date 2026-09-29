@@ -341,7 +341,7 @@ func (m Model) openResolvedPipeline() (tea.Model, tea.Cmd) {
 	}
 	source := pipelineSource{
 		RepoPath: m.result.Target,
-		Label:    shortenHome(m.result.Target),
+		Label:    theme.FoldHome(m.result.Target),
 		Forge:    m.config.Forge,
 		Secrets:  m.secrets,
 		Findings: m.result.Findings,

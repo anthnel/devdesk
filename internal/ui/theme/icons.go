@@ -103,6 +103,11 @@ var (
 	IconVolume  = "\U000F01BC" // 󰆼 nf-md-database
 )
 
+// IconBrowse follows the label of a path field (§3.95), the way IconSelect
+// follows a closed-list one: enter on the field opens the file browser. An
+// octicon like IconSelect, so the two markers read as one family.
+var IconBrowse = IconDirectoryOpen
+
 // Aliases (avoid duplicating literals)
 var (
 	IconService = IconPlay //  status view title

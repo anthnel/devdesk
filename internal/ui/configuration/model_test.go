@@ -550,7 +550,7 @@ func TestEveryCheckboxStartsOnTheSameColumn(t *testing.T) {
 			if m.lockReason(f) == reasonTrivyServer {
 				locked++
 			}
-			row := ansi.Strip(m.renderField(f, false))
+			row := ansi.Strip(m.renderField(f, false, 200))
 			// A nested box starts its depth's indent further right, on purpose.
 			indent := len(row) - len(strings.TrimLeft(row, " ")) - len(depthIndent(f.Depth))
 			indents[indent] = append(indents[indent], f.Label)
@@ -658,7 +658,7 @@ func TestValuesLineUpWithinATab(t *testing.T) {
 			if f.Kind == kindToggle {
 				continue // no chevron, no value
 			}
-			got := chevronAt(m.renderField(f, false))
+			got := chevronAt(m.renderField(f, false, 200))
 			if got < 0 {
 				t.Errorf("tab %q: %q renders no chevron", s.Title, f.Label)
 				continue
@@ -685,12 +685,12 @@ func TestACheckboxIsNotIndentedTwice(t *testing.T) {
 	m := focusOn(t, newModel(t), "Auto refresh")
 	f := m.current()
 
-	focused := stripANSI(m.renderField(f, true))
+	focused := stripANSI(m.renderField(f, true, 200))
 	if !strings.HasPrefix(focused, theme.IconCircleSmall) {
 		t.Errorf("a focused checkbox renders %q; Rule 120 puts the indicator at column 0", firstCells(focused))
 	}
 
-	blurred := stripANSI(m.renderField(f, false))
+	blurred := stripANSI(m.renderField(f, false, 200))
 	if !strings.HasPrefix(blurred, "  "+theme.IconCheckbox) && !strings.HasPrefix(blurred, "  "+theme.IconChecked) {
 		t.Errorf("a blurred checkbox renders %q; want two spaces then the box", firstCells(blurred))
 	}

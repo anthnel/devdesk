@@ -10,6 +10,7 @@ import (
 	"github.com/anthnel/devdesk/internal/jobs"
 	"github.com/anthnel/devdesk/internal/template"
 	sharedcomponents "github.com/anthnel/devdesk/internal/ui/components"
+	"github.com/anthnel/devdesk/internal/ui/filebrowser"
 	"github.com/anthnel/devdesk/internal/ui/keymap"
 	"github.com/anthnel/devdesk/internal/ui/shortcut"
 	uiviewer "github.com/anthnel/devdesk/internal/ui/viewer"
@@ -64,6 +65,12 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	case FormSubmitMsg:
 		return m.handleFormSubmit(msg)
+
+	case filebrowser.PathPickedMsg:
+		if m.form != nil {
+			m.form.SetPath(msg.Path)
+		}
+		return m, nil
 
 	case FormCancelMsg:
 		m.form = nil

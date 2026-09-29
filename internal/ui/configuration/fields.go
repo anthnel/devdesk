@@ -9,6 +9,7 @@ import (
 	"github.com/anthnel/devdesk/internal/config"
 	"github.com/anthnel/devdesk/internal/forge"
 	"github.com/anthnel/devdesk/internal/scan"
+	"github.com/anthnel/devdesk/internal/ui/filebrowser"
 	"github.com/anthnel/devdesk/internal/ui/theme"
 )
 
@@ -93,6 +94,14 @@ type field struct {
 	guard func(*config.Config, bool) string
 	fact  string // kindStatic only — read once, never written
 
+	// path marks a text field holding a filesystem path (§3.95): its label
+	// carries theme.IconBrowse, enter on it lends the file browser, and it is
+	// shown shortened when not being edited (theme.ShortPath). It stays a text
+	// field — typing a path is still the fast way when it is known.
+	path bool
+	// pick is what enter asks the picker for.
+	pick filebrowser.PickKind
+
 	min, max int                // integer bounds, inclusive
 	validate func(string) error // text only, beyond emptiness
 	hint     string             // shown when the field is focused
@@ -122,6 +131,14 @@ func group(title, icon string, fields ...field) []field {
 
 func text(label string, ref func(*config.Config) *string, hint string) field {
 	return field{Label: label, Kind: kindText, str: ref, hint: hint}
+}
+
+// pathField is a text field holding a filesystem path, browsable with enter.
+func pathField(label string, ref func(*config.Config) *string, hint string, kind filebrowser.PickKind) field {
+	f := text(label, ref, hint)
+	f.path = true
+	f.pick = kind
+	return f
 }
 
 func validated(label string, ref func(*config.Config) *string, hint string, v func(string) error) field {
@@ -307,13 +324,13 @@ func sections(themes, views []string, configPath, contextName, forgeType string,
 					"The view DevDesk opens on"),
 			),
 			group("Paths", theme.IconDirectory,
-				text("Workspaces dir", func(c *config.Config) *string { return &c.App.WorkspacesDir },
-					"Root the workspaces view browses"),
+				pathField("Workspaces dir", func(c *config.Config) *string { return &c.App.WorkspacesDir },
+					"Root the workspaces view browses", filebrowser.PickDir),
 				// Where the keystrokes land. It is the one path the user cannot
 				// change from here, so it is shown rather than edited — and it
 				// belongs beside the other two, not alone in the header.
 				static("Config file", configPath, "Written as you edit; there is no save step"),
-				text("Log file", func(c *config.Config) *string { return &c.App.LogFile }, ""),
+				pathField("Log file", func(c *config.Config) *string { return &c.App.LogFile }, "", filebrowser.PickFile),
 				// Last of the group: it qualifies the paths above it, and a
 				// checkbox wedged between two value rows breaks the column they
 				// share.
