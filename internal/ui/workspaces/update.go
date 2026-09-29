@@ -9,6 +9,7 @@ import (
 
 	tea "github.com/charmbracelet/bubbletea"
 
+	"github.com/anthnel/devdesk/internal/fsbrowse"
 	"github.com/anthnel/devdesk/internal/jobs"
 	sharedcomponents "github.com/anthnel/devdesk/internal/ui/components"
 	"github.com/anthnel/devdesk/internal/ui/fuzzy"
@@ -566,6 +567,11 @@ func (m Model) handleRenameSubmit(msg RenameInputSubmitMsg) (tea.Model, tea.Cmd)
 func (m Model) renameEntry(oldPath, newName string) tea.Cmd {
 	newPath := filepath.Join(filepath.Dir(oldPath), newName)
 	return func() tea.Msg {
+		// A rename stays in its directory: a separator would move the entry
+		// somewhere the prompt never said (§1.1 D79).
+		if err := fsbrowse.ValidName(newName); err != nil {
+			return EntryRenamedMsg{Error: err}
+		}
 		if err := os.Rename(oldPath, newPath); err != nil {
 			return EntryRenamedMsg{Error: err}
 		}

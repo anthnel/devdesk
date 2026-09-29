@@ -5,6 +5,7 @@ import (
 
 	"github.com/anthnel/devdesk/internal/config"
 	"github.com/anthnel/devdesk/internal/scan"
+	"github.com/anthnel/devdesk/internal/ui/filebrowser"
 	"github.com/anthnel/devdesk/internal/ui/theme"
 )
 
@@ -240,14 +241,14 @@ func toolSettings(tool scan.Tool) []field {
 		cycle("Source", func(c *config.Config) *string { return &set(c).Source },
 			[]string{config.ToolSourceAuto, config.ToolSourceBinary, config.ToolSourceImage},
 			"binary fails rather than falling back to an image"),
-		text("Binary", func(c *config.Config) *string { return &set(c).Binary },
-			"Empty resolves "+tool.Binary+" on PATH"),
-		text("Image", func(c *config.Config) *string { return &set(c).Image },
-			"Empty uses "+tool.DefaultImage),
 	}
+	fields = append(fields, pathField("Binary", func(c *config.Config) *string { return &set(c).Binary },
+		"Empty resolves "+tool.Binary+" on PATH", filebrowser.PickFile))
+	fields = append(fields, text("Image", func(c *config.Config) *string { return &set(c).Image },
+		"Empty uses "+tool.DefaultImage))
 	if tool.HasConfig {
-		fields = append(fields, text("Config", func(c *config.Config) *string { return &set(c).Config },
-			"Path to a rules file, made absolute when saved"))
+		fields = append(fields, pathField("Config", func(c *config.Config) *string { return &set(c).Config },
+			"Path to a rules file, made absolute when saved", filebrowser.PickFile))
 	}
 	fields = append(fields, argsField(tool, func(c *config.Config) *[]string { return &set(c).Args }))
 	fields = append(fields, ownSettings[tool.ID]()...)

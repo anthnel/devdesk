@@ -62,6 +62,42 @@ func TestCreateWorkspaceUsesTheBrowsedDirectory(t *testing.T) {
 	}
 }
 
+// A name is one path segment (§1.1 D79): "a/b" made two directories the screen
+// never showed, and "../x" one outside the directory being browsed.
+func TestCreateWorkspaceRefusesANameThatIsAPath(t *testing.T) {
+	root := t.TempDir()
+	cfg := config.Default()
+	cfg.App.WorkspacesDir = filepath.Join(root, "ws")
+	m := New(cfg, nil)
+
+	for _, name := range []string{"a/b", "../escape", ".."} {
+		msg := m.createWorkspace(name)().(WorkspaceCreatedMsg)
+		if msg.Error == nil {
+			t.Errorf("createWorkspace(%q) was accepted", name)
+		}
+	}
+	if _, err := os.Stat(filepath.Join(root, "escape")); err == nil {
+		t.Error("a directory was created outside the workspaces root")
+	}
+}
+
+func TestRenameRefusesANameThatIsAPath(t *testing.T) {
+	root := t.TempDir()
+	old := filepath.Join(root, "project")
+	if err := os.Mkdir(old, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	m := New(config.Default(), nil)
+
+	msg := m.renameEntry(old, "../moved")().(EntryRenamedMsg)
+	if msg.Error == nil {
+		t.Error("a rename out of the directory was accepted")
+	}
+	if _, err := os.Stat(old); err != nil {
+		t.Error("the refused rename moved the entry anyway")
+	}
+}
+
 // The workspaces root may not exist yet on a first run.
 func TestCreateWorkspaceCreatesTheRootIfMissing(t *testing.T) {
 	root := filepath.Join(t.TempDir(), "not-yet")

@@ -94,6 +94,18 @@ decided together and fixed in one pass; see [§1.2](#12-the-five-parked-defects)
 
 ### 1.1 Fixed
 
+**D79 — `N` et `M` dans `ws` acceptaient un chemin pour un nom. Corrigé.**
+Relevé le 2026-09-29 en préparant §3.95, et fermé le même jour.
+
+`createWorkspace` faisait `MkdirAll(filepath.Join(dir, name))` avec un nom
+seulement passé par `TrimSpace` : `a/b` créait deux répertoires que l'écran
+n'avait jamais montrés, et `../x` en créait un hors du répertoire parcouru.
+`renameEntry` avait le même trou avec `os.Rename`. Les deux passent maintenant
+par `fsbrowse.ValidName` (un seul segment : ni vide, ni `.`/`..`, ni
+séparateur, ni NUL). Au passage, `createWorkspace` capture le répertoire
+parcouru avant sa closure au lieu de lire `m.currentPath` dans le Cmd
+(règle 110).
+
 **D78 — un clone SSH en échec affichait « and the repository exists. » au
 lieu de sa cause. Corrigé.** Signalé et fermé le 2026-09-27.
 
@@ -16022,6 +16034,39 @@ marques. C'est la branche qui est raccourcie au-delà de 24 runes
 (`feature/JIRA-1234-rewri… !2`), en gardant son début.
 `IconGitModified`, `IconGitUnpushed` et `IconGitUnpulled` disparaissent avec
 leur dernier appelant ; `IconGitUntracked` reste, les conteneurs l'utilisent.
+
+### 3.95 Un navigateur de fichiers, et le sélecteur de chemin des formulaires — **done**
+
+Demandé le 2026-09-29 : une vue pour parcourir l'arborescence, créer et
+supprimer fichiers et répertoires, que les formulaires utilisent pour saisir un
+chemin, avec une représentation concise des chemins trop longs.
+
+- **`:files`** (`:fs`) parcourt tout le système de fichiers. Elle s'ouvre dans
+  `$HOME`, `←` remonte jusqu'à `/`, `N` crée (type `directory`/`file` en champ
+  cyclique), `D` supprime après une confirmation à Non par défaut, qui compte
+  ce qu'un répertoire contient. La racine et `$HOME` ne sont jamais supprimés :
+  `D` y est grisé.
+- **Sélecteur** : un champ de chemin porte `theme.IconBrowse` après son
+  libellé, comme un champ cyclique porte `IconSelect`, et `enter` sur le champ
+  ouvre la vue en sélecteur ; on peut toujours taper le chemin. Une première
+  version mettait une rangée *Browse…* sous chaque champ : jugée polluante, elle
+  a été remplacée le jour même. `enter` était libre sur ces champs — il ne
+  faisait rien dans `:cfg`, et passait au champ suivant dans le formulaire des
+  templates. Premier lot : `:cfg` Workspaces dir, Log file, Binary et Config de chaque scanner, et
+  le répertoire d'un template local.
+- **Chemins courts** : `~`, puis réduction à la fish (`~/p/w/a/devdesk`) de
+  gauche à droite jusqu'à ce que ça tienne, le nom final entier, `...` en tête
+  en dernier recours (`theme.ShortPath`).
+
+Décisions prises avec l'utilisateur : un marqueur sur le libellé et `enter` sur le champ,
+style fish plutôt qu'ellipse au milieu, tout le système plutôt que `$HOME`
+seulement. Une décision prise en cours de route : un chemin choisi est écrit
+**absolu**, pas replié en `~`. La config n'est dépliée qu'au chargement, et un
+`~/bin/trivy` en mémoire aurait atteint le scanner tel quel jusqu'au prochain
+démarrage. Détail : [`filebrowser.md`](architecture/filebrowser.md).
+
+`internal/fsbrowse` porte ce que `ws` et `:files` partagent (`IsHidden`,
+`LeadsToDir`, `ValidName`) ; c'est en l'extrayant que D79 est apparu.
 
 ## 4. Existing plans
 

@@ -19,6 +19,7 @@ import (
 	"github.com/anthnel/devdesk/internal/jobs"
 	"github.com/anthnel/devdesk/internal/shared"
 	"github.com/anthnel/devdesk/internal/ui/configuration"
+	"github.com/anthnel/devdesk/internal/ui/filebrowser"
 	"github.com/anthnel/devdesk/internal/ui/forge/auth"
 	"github.com/anthnel/devdesk/internal/ui/forge/explorer"
 	"github.com/anthnel/devdesk/internal/ui/netdiag"
@@ -106,6 +107,8 @@ type App struct {
 	// not always the same one: workspaces for a directory, templates for a
 	// template.
 	selectionLent command.ViewType
+	// pickerReturnView is the view a lent path picker answers (picker.go).
+	pickerReturnView command.ViewType
 
 	// Long-running work. The registry is the one bookkeeping of what is
 	// running (internal/jobs); the router owns it, and owns the single spinner
@@ -553,6 +556,9 @@ func (a *App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		// it sets is cleared here or not at all.
 		return a.routeWork(command.ViewWorkspaces, msg)
 
+	case filebrowser.EntryDeletedMsg:
+		return a.routeWork(command.ViewFiles, msg)
+
 	// A template's scan is a directory scan like the workspaces one, reported
 	// the same way; it reaches the templates view even after the user has gone
 	// elsewhere, and the registry hears about it either way.
@@ -631,6 +637,16 @@ func (a *App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	case templates.SelectionCancelledMsg:
 		return a.handleTemplateSelectionCancelled()
+
+	// ── The path picker (§3.95) ──────────────────────────────────────────
+	case filebrowser.PickRequestMsg:
+		return a.handlePickRequest(msg)
+
+	case filebrowser.PathPickedMsg:
+		return a.handlePickAnswer(msg)
+
+	case filebrowser.PickCancelledMsg:
+		return a.handlePickAnswer(msg)
 
 	// ── The document viewer ──────────────────────────────────────────────
 	// One message, three producers: a file in workspaces, an inspect and a log

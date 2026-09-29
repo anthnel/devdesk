@@ -10,6 +10,7 @@ import (
 
 	"github.com/anthnel/devdesk/internal/template"
 	sharedcomponents "github.com/anthnel/devdesk/internal/ui/components"
+	"github.com/anthnel/devdesk/internal/ui/filebrowser"
 	"github.com/anthnel/devdesk/internal/ui/theme"
 )
 
@@ -113,6 +114,50 @@ func (f *entryForm) fields() []formField {
 	return append(list, fieldPath, fieldRef, fieldSubmit)
 }
 
+// browsable reports whether the path field is a directory on this machine,
+// which only a local source's is (§3.95): a git subdirectory or an OCI
+// repository is not, and enter there keeps moving to the next field.
+func (f *entryForm) browsable() bool {
+	return f.currentKind() == template.KindLocal
+}
+
+// EnterDescription is what enter does on the focused field.
+func (f *entryForm) EnterDescription() string {
+	switch f.focused() {
+	case fieldSubmit:
+		return "Confirm"
+	case fieldPath:
+		if f.browsable() {
+			return "Browse"
+		}
+	}
+	return "Next field"
+}
+
+// pathTag is what the picker's answer is matched back by.
+const pathTag = "template-path"
+
+// pathDisplayWidth bounds the directory shown at rest (theme.ShortPath): the
+// input is 60 cells wide, and the path is read whole while it is edited.
+const pathDisplayWidth = 60
+
+// browse lends the file browser for the local directory.
+func (f *entryForm) browse() tea.Cmd {
+	req := filebrowser.PickRequestMsg{
+		Kind:   filebrowser.PickDir,
+		Start:  f.path.Value(),
+		Prompt: "Choose the template's directory — enter chooses, esc goes back",
+		Tag:    pathTag,
+	}
+	return func() tea.Msg { return req }
+}
+
+// SetPath writes the picker's answer into the directory field.
+func (f *entryForm) SetPath(path string) {
+	f.path.SetValue(path)
+	f.err = ""
+}
+
 func (f *entryForm) focused() formField { return f.fields()[f.focus] }
 
 // Cycling is only meaningful on the kind field; the header greys ←→ elsewhere.
@@ -164,8 +209,13 @@ func (f *entryForm) Update(msg tea.KeyMsg) tea.Cmd {
 		return nil
 
 	case "enter":
-		if f.focused() == fieldSubmit {
+		switch f.focused() {
+		case fieldSubmit:
 			return f.submit()
+		case fieldPath:
+			if f.browsable() {
+				return f.browse()
+			}
 		}
 		f.move(1)
 		return nil
@@ -311,7 +361,7 @@ func (f *entryForm) View() string {
 		case fieldURL:
 			b.WriteString(f.line(field, labels.url, f.url.View()) + "\n\n")
 		case fieldPath:
-			b.WriteString(f.line(field, labels.path, f.path.View()) + "\n\n")
+			b.WriteString(f.line(field, f.pathHead(labels.path), f.pathValue()) + "\n\n")
 		case fieldRef:
 			b.WriteString(f.line(field, labels.ref, f.ref.View()) + "\n\n")
 		case fieldSubmit:
@@ -323,6 +373,25 @@ func (f *entryForm) View() string {
 		}
 	}
 	return b.String()
+}
+
+// pathValue is the directory as shown: whole while it is edited, and for a
+// local template shortened at rest. A git subdirectory or an OCI repository is
+// not a path on this machine, so it is shown as typed.
+func (f *entryForm) pathValue() string {
+	if f.focused() == fieldPath || !f.browsable() || f.path.Value() == "" {
+		return f.path.View()
+	}
+	return theme.Bg(theme.ShortPath(f.path.Value(), pathDisplayWidth))
+}
+
+// pathHead is the directory's label, with the browse marker when enter opens
+// the file browser — the way the Source label carries its select icon.
+func (f *entryForm) pathHead(label string) string {
+	if f.browsable() {
+		return label + " " + theme.IconBrowse
+	}
+	return label
 }
 
 // kindLabels names the three source fields for the kind on screen. The same

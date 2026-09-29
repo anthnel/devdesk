@@ -470,13 +470,13 @@ func TestTheMCPTokenIsMaskedUntilItIsRevealed(t *testing.T) {
 		t.Error("the Token row cannot be focused, so space can never reveal it")
 	}
 
-	rendered := m.renderField(f, true)
+	rendered := m.renderField(f, true, 200)
 	if strings.Contains(rendered, "s3cr3t-token") {
 		t.Error("the token is on screen before anyone asked for it")
 	}
 
 	m.shown[f.Label] = true
-	if !strings.Contains(m.renderField(f, true), "s3cr3t-token") {
+	if !strings.Contains(m.renderField(f, true, 200), "s3cr3t-token") {
 		t.Error("revealing the row did not show the token")
 	}
 }

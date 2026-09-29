@@ -171,7 +171,7 @@ func (m Model) blocks(fields []field, width int) []block {
 		}
 		b := &out[len(out)-1]
 		b.fields[i] = len(b.lines)
-		b.lines = append(b.lines, fit(m.renderField(f, i == m.focusedField), width))
+		b.lines = append(b.lines, fit(m.renderField(f, i == m.focusedField, width), width))
 	}
 	return out
 }
@@ -296,7 +296,7 @@ func (m Model) GetHeaderInfo(context string) []shortcut.HeaderInfo {
 // wherever their label happened to end reads as noise, and a cycle field's
 // select icon makes its prefix two cells wider than a text field's, so the
 // padding has to be measured on the whole prefix rather than on the label.
-func (m Model) renderField(f field, focused bool) string {
+func (m Model) renderField(f field, focused bool, width int) string {
 	// A checkbox brings its own focus indicator and needs no value column.
 	// Both helpers already emit the two-cell indent, so the view must not add
 	// one — a locked checkbox would otherwise sit two cells right of the rest.
@@ -343,7 +343,12 @@ func (m Model) renderField(f field, focused bool) string {
 		}
 		return theme.KeyStyle.Render(prefix) + m.input.View()
 	}
-	return theme.Bg(prefix) + theme.Bg(f.Value(m.config))
+	value := f.Value(m.config)
+	if f.path {
+		// Shortened only at rest: the input shows it whole while it is edited.
+		value = theme.ShortPath(value, width-lipgloss.Width(prefix))
+	}
+	return theme.Bg(prefix) + theme.Bg(value)
 }
 
 // renderCheckbox draws a checkbox at its depth, locked or not, with its note
@@ -387,8 +392,13 @@ const maskedSecret = "••••••••••••"
 // fieldHead is everything before the chevron: the label, plus the select icon a
 // closed-list field carries (Rule 132's ordering).
 func fieldHead(f field) string {
-	if f.Kind == kindCycle {
+	switch {
+	case f.Kind == kindCycle:
 		return f.Label + " " + theme.IconSelect
+	case f.path:
+		// The browse marker (§3.95): enter opens the file browser, the way
+		// the select icon says ←→ cycles.
+		return f.Label + " " + theme.IconBrowse
 	}
 	return f.Label
 }
@@ -465,6 +475,7 @@ func (m Model) GetShortcuts() shortcut.Shortcuts {
 	return []shortcut.Shortcut{
 		{Key: "↑↓", Description: move},
 		{Key: "←→", Description: "Change value", Disabled: field.Kind != kindCycle},
+		{Key: "enter", Description: "Browse", Disabled: !field.path},
 		{Key: "space", Description: "Toggle", Disabled: field.Kind != kindToggle},
 		{Key: "esc", Description: "Save this field", Disabled: !m.settlesOnBlur(field)},
 		{Key: "ctrl+r", Description: "Detect tools again", Disabled: !m.onToolsTab()},
@@ -487,11 +498,20 @@ func (m Model) GetHelpContent() help.Content {
 			{Key: "←→", Description: "Change a closed-list value"},
 			{Key: "space", Description: "Toggle a checkbox, or reveal the MCP token"},
 			{Key: "esc", Description: "Save the focused field without moving off it"},
+			{Key: "enter", Description: "On a path field (" + theme.IconBrowse + "): choose the path in the file browser"},
 			{Key: "ctrl+r", Description: "Detect the tools again (tools tab)"},
 			{Key: keymap.Copy, Description: "Copy the Claude Code connect command, token included (mcp tab)"},
 			{Key: "ctrl+p", Description: "Open the command line"},
 		},
 		Sections: []help.Section{
+			{
+				Title: "Paths",
+				Body: "A path field carries " + theme.IconBrowse + " after its label. Type the path, or press\n" +
+					"enter to open the file browser where it points: choose with enter, and the path\n" +
+					"is written as if you had typed it; esc there comes back without changing it.\n" +
+					"A path is shown shortened when it does not fit — ~ for your home, then the\n" +
+					"folders on the way reduced to their first letter — and whole while you edit it.",
+			},
 			{
 				Title: "What is not here",
 				Body: "Monitors are edited in the status view, registries in the OCI view.\n" +

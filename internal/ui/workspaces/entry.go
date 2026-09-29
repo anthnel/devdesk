@@ -6,21 +6,14 @@ import (
 	"path/filepath"
 	"strings"
 
+	"github.com/anthnel/devdesk/internal/fsbrowse"
 	"github.com/anthnel/devdesk/internal/git"
 )
 
-// isHidden decides what the workspaces view leaves out.
-//
-// One rule, consulted by the listing and by the nested-repo walk both: what the
-// view shows is what S and F act on, and two rules for that question would let
-// a repository be a visible row and an invisible target at once.
-//
-// The consequence of showHidden is worth stating rather than discovering: the
-// walk will then descend into .venv, .terraform and .cache, so S on a directory
-// reaches whatever they vendor. What bounds the walk is not a depth limit — see
-// walkSubRepos — but the fact that it stops at every repository it finds.
+// isHidden is fsbrowse.IsHidden: one rule for what the listing, the
+// nested-repo walk and the file browser leave out (§3.95).
 func isHidden(name string, showHidden bool) bool {
-	return !showHidden && strings.HasPrefix(name, ".")
+	return fsbrowse.IsHidden(name, showHidden)
 }
 
 // enrichEntry populates git and project type metadata for a directory entry
@@ -243,30 +236,10 @@ func mayFollow(link string, crossed *[]os.FileInfo) (bool, error) {
 	return true, nil
 }
 
-// leadsToDir reports whether a listing entry leads to a directory, following a
-// symbolic link or a Windows junction to answer.
-//
-// DirEntry.IsDir() reports on the link itself, so it said false for a junction
-// pointing at a directory full of repositories: everything behind it was
-// invisible to S, F and A, and the row rendered as a file — neither browsable
-// nor scannable, with nothing saying why (§1.3 D59, cause 2).
-//
-//	entry a         IsDir=true   type=d---------  statIsDir=true
-//	entry linked    IsDir=false  type=?---------  statIsDir=true   ← ignored
-//
-// The test is "not a plain file" rather than "is a symlink" on purpose: Go has
-// reported a Windows junction as ModeSymlink and as ModeIrregular depending on
-// the version, and os.Stat answers the same either way. A regular file costs no
-// syscall, which is what keeps this affordable on a tree with no links in it.
+// leadsToDir is fsbrowse.LeadsToDir, kept under its old name for the walks in
+// this package (§1.3 D59 explains why a link has to be followed).
 func leadsToDir(e os.DirEntry, path string) bool {
-	if e.IsDir() {
-		return true
-	}
-	if e.Type().IsRegular() {
-		return false
-	}
-	info, err := os.Stat(path)
-	return err == nil && info.IsDir()
+	return fsbrowse.LeadsToDir(e, path)
 }
 
 // isRepo reports whether dir is a git repository, from its own listing.

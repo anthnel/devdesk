@@ -11,6 +11,7 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 
 	"github.com/anthnel/devdesk/internal/cache"
+	"github.com/anthnel/devdesk/internal/fsbrowse"
 	"github.com/anthnel/devdesk/internal/jobs"
 	"github.com/anthnel/devdesk/internal/scan"
 	sharedcomponents "github.com/anthnel/devdesk/internal/ui/components"
@@ -380,16 +381,22 @@ func (m Model) copyTarget() (string, bool) {
 	return entry.Path, true
 }
 
-// createWorkspace creates a new workspace directory
+// createWorkspace creates a new workspace directory.
+//
+// The name is one path segment (fsbrowse.ValidName): "a/b" used to create two
+// directories the screen never showed being made, and "../x" one outside the
+// directory the view said it wrote into (§1.1 D79). The browsed directory is
+// captured here rather than read in the closure (Rule 110).
 func (m Model) createWorkspace(name string) tea.Cmd {
-	workspacesDir := m.getExpandedWorkspacesDir()
+	baseDir := m.getExpandedWorkspacesDir()
+	if m.currentPath != "" {
+		baseDir = m.currentPath
+	}
 
 	return func() tea.Msg {
-		baseDir := workspacesDir
-		if m.currentPath != "" {
-			baseDir = m.currentPath
+		if err := fsbrowse.ValidName(name); err != nil {
+			return WorkspaceCreatedMsg{Error: err}
 		}
-
 		if err := os.MkdirAll(baseDir, 0755); err != nil {
 			return WorkspaceCreatedMsg{Error: err}
 		}

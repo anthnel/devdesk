@@ -239,6 +239,12 @@ func (m Model) hint(f field) string {
 		}
 		return f.hintOff
 	}
+	if f.path {
+		if f.hint == "" {
+			return "enter opens the file browser"
+		}
+		return f.hint + " — enter opens the file browser"
+	}
 	return f.hint
 }
 
