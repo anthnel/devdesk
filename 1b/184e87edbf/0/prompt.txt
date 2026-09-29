@@ -1,0 +1,1 @@
+je trouve que les boutons browse poluent l'affichage, je souhaiterais un indicateur visuel sur le label du champ pour dire que c'est un browser de fichier et enter permet de rentrer dans la vue. Un indicateur comme les champs avec un set borné de valeur : Source 

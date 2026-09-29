@@ -1,0 +1,73 @@
+{
+  "cli_version": "0.11.3",
+  "checkpoint_id": "1b184e87edbf",
+  "strategy": "manual-commit",
+  "branch": "feat/file-browser",
+  "checkpoints_count": 4,
+  "files_touched": [
+    "docs/architecture/app-shell.md",
+    "docs/architecture/filebrowser.md",
+    "docs/backlog.md",
+    "internal/app/app.go",
+    "internal/app/command_line.go",
+    "internal/app/picker.go",
+    "internal/app/picker_test.go",
+    "internal/command/parser.go",
+    "internal/fsbrowse/fsbrowse.go",
+    "internal/fsbrowse/fsbrowse_test.go",
+    "internal/template/fetch.go",
+    "internal/ui/configuration/browse_test.go",
+    "internal/ui/configuration/fields.go",
+    "internal/ui/configuration/fields_test.go",
+    "internal/ui/configuration/model.go",
+    "internal/ui/configuration/model_test.go",
+    "internal/ui/configuration/scan_fields.go",
+    "internal/ui/configuration/update.go",
+    "internal/ui/configuration/view.go",
+    "internal/ui/filebrowser/availability.go",
+    "internal/ui/filebrowser/columns.go",
+    "internal/ui/filebrowser/form.go",
+    "internal/ui/filebrowser/jobs.go",
+    "internal/ui/filebrowser/messages.go",
+    "internal/ui/filebrowser/model.go",
+    "internal/ui/filebrowser/model_test.go",
+    "internal/ui/filebrowser/update.go",
+    "internal/ui/filebrowser/view.go",
+    "internal/ui/security/findings.go",
+    "internal/ui/security/inventory_table.go",
+    "internal/ui/templates/browse_test.go",
+    "internal/ui/templates/form.go",
+    "internal/ui/templates/update.go",
+    "internal/ui/templates/view.go",
+    "internal/ui/theme/icons.go",
+    "internal/ui/theme/path.go",
+    "internal/ui/theme/path_test.go",
+    "internal/ui/workspaces/actions.go",
+    "internal/ui/workspaces/entry.go",
+    "internal/ui/workspaces/entry_test.go",
+    "internal/ui/workspaces/update.go"
+  ],
+  "sessions": [
+    {
+      "metadata": "/1b/184e87edbf/0/metadata.json",
+      "transcript": "/1b/184e87edbf/0/full.jsonl",
+      "compact_transcript": "/1b/184e87edbf/0/transcript.jsonl",
+      "content_hash": "/1b/184e87edbf/0/content_hash.txt",
+      "prompt": "/1b/184e87edbf/0/prompt.txt"
+    }
+  ],
+  "token_usage": {
+    "input_tokens": 218,
+    "cache_creation_tokens": 349087,
+    "cache_read_tokens": 27043656,
+    "output_tokens": 108435,
+    "api_call_count": 107,
+    "subagent_tokens": {
+      "input_tokens": 98,
+      "cache_creation_tokens": 241468,
+      "cache_read_tokens": 3672483,
+      "output_tokens": 14467,
+      "api_call_count": 49
+    }
+  }
+}

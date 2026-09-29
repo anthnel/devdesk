@@ -1,0 +1,150 @@
+{
+  "cli_version": "0.11.3",
+  "checkpoint_id": "1b184e87edbf",
+  "session_id": "1caf4f59-f5ca-4c38-a1e6-394e25ac0171",
+  "strategy": "manual-commit",
+  "created_at": "2026-09-29T06:12:49.432876455Z",
+  "branch": "feat/file-browser",
+  "checkpoints_count": 4,
+  "save_step_count": 2,
+  "files_touched": [
+    "docs/architecture/app-shell.md",
+    "docs/architecture/filebrowser.md",
+    "docs/backlog.md",
+    "internal/app/app.go",
+    "internal/app/command_line.go",
+    "internal/app/picker.go",
+    "internal/app/picker_test.go",
+    "internal/command/parser.go",
+    "internal/fsbrowse/fsbrowse.go",
+    "internal/fsbrowse/fsbrowse_test.go",
+    "internal/template/fetch.go",
+    "internal/ui/configuration/browse_test.go",
+    "internal/ui/configuration/fields.go",
+    "internal/ui/configuration/fields_test.go",
+    "internal/ui/configuration/model.go",
+    "internal/ui/configuration/model_test.go",
+    "internal/ui/configuration/scan_fields.go",
+    "internal/ui/configuration/update.go",
+    "internal/ui/configuration/view.go",
+    "internal/ui/filebrowser/availability.go",
+    "internal/ui/filebrowser/columns.go",
+    "internal/ui/filebrowser/form.go",
+    "internal/ui/filebrowser/jobs.go",
+    "internal/ui/filebrowser/messages.go",
+    "internal/ui/filebrowser/model.go",
+    "internal/ui/filebrowser/model_test.go",
+    "internal/ui/filebrowser/update.go",
+    "internal/ui/filebrowser/view.go",
+    "internal/ui/security/findings.go",
+    "internal/ui/security/inventory_table.go",
+    "internal/ui/templates/browse_test.go",
+    "internal/ui/templates/form.go",
+    "internal/ui/templates/update.go",
+    "internal/ui/templates/view.go",
+    "internal/ui/theme/icons.go",
+    "internal/ui/theme/path.go",
+    "internal/ui/theme/path_test.go",
+    "internal/ui/workspaces/actions.go",
+    "internal/ui/workspaces/entry.go",
+    "internal/ui/workspaces/entry_test.go",
+    "internal/ui/workspaces/update.go"
+  ],
+  "agent": "Claude Code",
+  "model": "claude-sonnet-5",
+  "turn_id": "d7a6834fe137",
+  "compact_transcript_start": 0,
+  "token_usage": {
+    "input_tokens": 218,
+    "cache_creation_tokens": 349087,
+    "cache_read_tokens": 27043656,
+    "output_tokens": 108435,
+    "api_call_count": 107,
+    "subagent_tokens": {
+      "input_tokens": 98,
+      "cache_creation_tokens": 241468,
+      "cache_read_tokens": 3672483,
+      "output_tokens": 14467,
+      "api_call_count": 49
+    }
+  },
+  "skill_events_version": 1,
+  "skill_events": [
+    {
+      "id": "prompt-skill-claude-code-plan-2026-09-29T05:35:13.127491589Z",
+      "event_type": "prompt_invocation",
+      "skill": {
+        "name": "plan"
+      },
+      "source": {
+        "agent": "claude-code",
+        "signal": "prompt_slash_command",
+        "confidence": "explicit"
+      },
+      "turn_id": "c1619d354a4c",
+      "timestamp": "2026-09-29T05:35:13.127491589Z",
+      "native": {
+        "command": "/plan"
+      },
+      "collapse": {
+        "target": "user_message",
+        "label": "/plan",
+        "default_collapsed": true
+      }
+    }
+  ],
+  "session_metrics": {
+    "turn_count": 4
+  },
+  "initial_attribution": {
+    "calculated_at": "2026-09-29T06:12:49.376864903Z",
+    "agent_lines": 2779,
+    "agent_removed": 55,
+    "human_added": 32,
+    "human_modified": 62,
+    "human_removed": 0,
+    "total_committed": 2842,
+    "total_lines_changed": 2928,
+    "agent_percentage": 96.7896174863388,
+    "metric_version": 2
+  },
+  "prompt_attributions": [
+    {
+      "checkpoint_number": 1,
+      "user_lines_added": 0,
+      "user_lines_removed": 0,
+      "agent_lines_added": 0,
+      "agent_lines_removed": 0
+    },
+    {
+      "checkpoint_number": 2,
+      "user_lines_added": 1,
+      "user_lines_removed": 0,
+      "agent_lines_added": 2895,
+      "agent_lines_removed": 103,
+      "user_added_per_file": {
+        ".claude/CLAUDE.md": 1
+      }
+    },
+    {
+      "checkpoint_number": 3,
+      "user_lines_added": 47,
+      "user_lines_removed": 31,
+      "agent_lines_added": 2856,
+      "agent_lines_removed": 86,
+      "user_added_per_file": {
+        ".claude/CLAUDE.md": 1,
+        "docs/architecture/filebrowser.md": 24,
+        "internal/ui/filebrowser/model.go": 1,
+        "internal/ui/filebrowser/view.go": 2,
+        "internal/ui/templates/browse_test.go": 19
+      },
+      "user_removed_per_file": {
+        "docs/architecture/filebrowser.md": 16,
+        "internal/ui/filebrowser/model.go": 1,
+        "internal/ui/filebrowser/view.go": 2,
+        "internal/ui/templates/browse_test.go": 12
+      }
+    }
+  ]
+}
