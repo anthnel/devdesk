@@ -1,0 +1,35 @@
+{
+  "cli_version": "0.11.3",
+  "checkpoint_id": "9ecf69ea1acb",
+  "strategy": "manual-commit",
+  "branch": "feat/gauge-glyph-option",
+  "checkpoints_count": 12,
+  "files_touched": [
+    "docs/backlog.md",
+    "internal/ui/configuration/fields.go",
+    "internal/ui/configuration/view.go"
+  ],
+  "sessions": [
+    {
+      "metadata": "/9e/cf69ea1acb/0/metadata.json",
+      "transcript": "/9e/cf69ea1acb/0/full.jsonl",
+      "compact_transcript": "/9e/cf69ea1acb/0/transcript.jsonl",
+      "content_hash": "/9e/cf69ea1acb/0/content_hash.txt",
+      "prompt": "/9e/cf69ea1acb/0/prompt.txt"
+    }
+  ],
+  "token_usage": {
+    "input_tokens": 68,
+    "cache_creation_tokens": 1114187,
+    "cache_read_tokens": 12018164,
+    "output_tokens": 17768,
+    "api_call_count": 34,
+    "subagent_tokens": {
+      "input_tokens": 0,
+      "cache_creation_tokens": 0,
+      "cache_read_tokens": 0,
+      "output_tokens": 0,
+      "api_call_count": 0
+    }
+  }
+}

@@ -1,0 +1,306 @@
+/plan nouvelle vue, browser de fichier, cette vue permet de se déplacer dans l'arborescence de fichier. De créer, supprimer des fichiers / répertoires. Dans les formulaires ou il faut entrer un path de fichier/répertoire on devrait pouvoir le faire via cette nouvelle vue. Dans les formulaires, le path vers le fichier/répertoire devrait avoir un longueur max et donc il faut un moyen pour représenter le path de manière concise.
+
+---
+
+<task-notification>
+<task-id>a072aebe909e18ba8</task-id>
+<tool-use-id>REDACTED</tool-use-id>
+<output-file>/tmp/claude-1000/-home-anthoni-projects-workspace-entire-anthnel-devdesk/1caf4f59-f5ca-4c38-a1e6-394e25ac0171/tasks/a072aebe909e18ba8.output</output-file>
+<status>completed</status>
+<summary>Agent "Find path input fields in forms" finished</summary>
+<note>A task-notification fires each time this agent stops with no live background children of its own. The user can send it another message and resume it, so the same task-id may notify more than once.</note>
+<result>I found fewer path fields than the request expected. There is no form input for a clone destination, a Dockerfile path, an SSH key path, a scan target or a template destination. The forge clone code in `internal/ui/forge/explorer/clone_list.go` has no destination field. Template scans write to a fixed folder (`internal/template/materialize.go:15`). The SSH key is only mentioned in help text (`internal/ui/setup/fields.go:123`). Scan targets come from rows the user selects, not from typing.
+
+## A. Path fields that do exist
+
+### A1. Configuration view (`:cfg`)
+One shared `textinput.Model` serves every text field in this view. It is not one input per field and not a `WrappedInput`.
+
+- **Input:** declared at `internal/ui/configuration/model.go:57`, created at `model.go:130` (`CharLimit = 512`).
+- **Binding:** `bindInput()` at `internal/ui/configuration/update.go:399` loads the focused field's value into the input with `SetValue(f.Value(cfg))`, `CursorEnd` and `Focus`. `resizeInput()` sets the width from the column width.
+- **Field model:** a `field` struct with a `fieldKind` enum at `internal/ui/configuration/fields.go:17-39` (`kindText`, `kindInteger`, `kindToggle`, `kindCycle`, `kindStatic`, `kindSecret`). The `text()` and `validated()` constructors are at `fields.go:123` and `:127`, and `field.validate func(string) error` is at `:97`.
+- **Focus:** `Model.activeTab` and `focusedField int` index into `sections[activeTab].Fields`.
+- **Keys:** `handleKey` at `update.go:64`. Tab switches tabs, up/down move between fields (`moveField` at `:118`), left/right cycle values. Changes are written when the field loses focus, via `commitFocused` (around `update.go:209`) and then `field.Apply` at `fields.go:256`.
+- **Rendering:** `renderField(f field, focused bool)` at `internal/ui/configuration/view.go:299`. A focused text field shows `KeyStyle(prefix) + m.input.View()`. An unfocused one shows the raw `f.Value(cfg)` with no shortening.
+
+| Field | Location | Validation | `~` expansion |
+|---|---|---|---|
+| "Workspaces dir" (`App.WorkspacesDir`) | `fields.go:310` | `Apply` only trims spaces; no `validate` function | Not in the form. Expanded when the config loads (`config.go:819`). The dashboard and workspaces views also expand it themselves (see B) |
+| "Config file" (static, read-only) | `fields.go:315` | n/a | Absolute path from `config.GetContextPath` |
+| "Log file" (`App.LogFile`) | `fields.go:316` | trim only | Only when the config loads (`config.go:818`) |
+| "IDE command" / "Terminal command" | `fields.go:324,326` | trim only | none (these are commands, but may contain paths) |
+| Per-tool "Binary" (`scan.Tools[id].Binary`) | `internal/ui/configuration/scan_fields.go:243` | trim only | Only when the config loads (`config.go:824`) |
+| Per-tool "Config" (rules file; only if `tool.HasConfig`) | `scan_fields.go:249`, hint "Path to a rules file, made absolute when saved" | trim only | Only when the config loads: `absolute(expand(...))` at `config.go:825`, with `absolute()` at `config.go:841` |
+
+Four things to know about this view:
+- `Apply` (`fields.go:256-281`) stores `strings.TrimSpace(raw)` as typed. It never expands `~`.
+- `config.SaveContext` (`internal/config/config.go:853`) marshals the config as it is. So a typed `~/foo` is written to the file literally and stays literal in memory until the next load, when `ExpandPaths` (`config.go:810-827`, called at `:802`) expands it.
+- After any load the in-memory values are absolute, so the form shows paths like `/home/anthoni/...`. Nothing folds them back to `~`.
+- The Config field's hint says "made absolute when saved", but that actually happens at load time.
+
+### A2. Template catalog form: the Path field
+The `path` input is a `textinput.Model`. Its label changes with the source kind.
+
+- **Declaration:** `internal/ui/templates/form.go:39` (`name, tags, url, path, ref textinput.Model`). The description field is a `sharedcomponents.WrappedInput` at `:40`.
+- **Construction:** `newInput("", 300)` at `form.go:62`, helper at `:88` (width 60, `theme.StyleTextInput`).
+- **Field enum:** `formField` at `form.go:18-29` (`fieldName`, `fieldDescription`, `fieldTags`, `fieldKind`, `fieldURL`, `fieldPath`, `fieldRef`, `fieldSubmit`). The focus value is an index into `fields()` (`:108`), and `fieldURL` is left out for the local kind.
+- **Keys:** `Update` at `form.go:150`. Up/down move, Enter moves to the next field or submits, left/right cycle the kind, Tab does nothing, other keys go to `forward()` at `:201`.
+- **Rendering:** `View()` at `:292` calls `line(field, label, value)` at `:345`. Labels come from `labels()` at `:333`: "Directory" for the local kind, "Subdirectory" for git, "Repository" for OCI.
+- **Validation:** `entry()` at `form.go:221` then `Source.Validate()` at `internal/template/template.go:75`. For the local kind it only checks that the path is not empty (`:81-84`), and it rejects a leading `-` (`:95-99`).
+- **`~` expansion:** none. The path goes straight to `git.ArchiveLocal(ctx, src.Path, ...)` (`internal/template/fetch.go:106`, `internal/git/archive.go:18`), which runs git with `repoPath` as its working directory. A `~/x` path would fail.
+
+### A3. Workspaces view: new folder / rename name
+This is a `textinput.Model` for a name inside the current directory, not a full path.
+
+- **Location:** `internal/ui/workspaces/input.go:22`. `NewWorkspaceInput` is at `:29` (placeholder "directory-name", CharLimit 100, width 40). `NewRenameInput` is at `:46`.
+- **Focus:** an `iota` enum at `input.go:14-18` (`focusInput`, `focusCreate`, `focusCancel`).
+- **Keys:** `Update` at `:77`. Up/down move focus, Enter calls `handleEnter` at `:137`, Esc cancels.
+- **Rendering:** `View` at `:163`, with the label "Name".
+- **Validation:** only a non-empty trimmed value. The name is joined onto the current directory in `createWorkspace` (`internal/ui/workspaces/actions.go:384-403`, `MkdirAll(filepath.Join(baseDir, name))`) and in `renameEntry` (`internal/ui/workspaces/update.go:566-567`). Nothing rejects `/` or `..`, so a nested path or an escape out of the directory is possible.
+- **`~` expansion:** only for the base directory, via `getExpandedWorkspacesDir` (`update.go:433-440`).
+
+### A4. Launch form: Volumes (host path is optional)
+- **Location:** `volInput textinput.Model` at `internal/ui/oci_resources/launch_form.go:81`, placeholder "myvolume:/app/data" at `:110`.
+- **Focus:** `focusedField int` with methods such as `fieldVolumes()` returning 3 (`:255`).
+- **Rendering:** `internal/ui/oci_resources/launch_form_render.go:178`.
+- **Handling:** split on commas at `launch_form.go:482-486` and passed through as `-v` arguments (`internal/docker/launch.go:61`).
+- **Validation:** none. **`~` expansion:** none.
+
+The Entrypoint input (`launch_form.go:79`, `:108`) holds a path inside the container and is checked against the image, not the host.
+
+## B. Existing `~` and path-shortening helpers
+
+**Folding `$HOME` into `~`:**
+- `shortenHome(path)` at `internal/ui/security/inventory_table.go:186-199` uses `filepath.Rel` against `os.UserHomeDir()`. It returns `~` or `~/rel`, and leaves paths outside home unchanged. It is used at `:124`, `:179` and `internal/ui/security/findings.go:344`. This is the only home-to-`~` helper in the codebase, and it is private to the security package.
+
+**Expanding `~` (all duplicated, each only handles a leading `~/`):**
+- `Config.ExpandPaths` at `internal/config/config.go:810-827`, called at load time (`:802`)
+- `expandHome` at `internal/ui/dashboard/model.go:547`
+- `getExpandedWorkspacesDir` at `internal/ui/workspaces/update.go:433`
+- `readKey` in `internal/trust/policy.go:213-218` (cosign key path, relative paths resolved against the policy directory)
+- `absolute()` at `internal/config/config.go:841` (`filepath.Abs`)
+
+**Truncation (all keep the end of the path; there is no middle truncation and no fish-style abbreviation):**
+- `theme.TruncateTailWidth(s, max)` at `internal/ui/theme/text.go:46`. Its doc comment says it is meant for filesystem paths, and it prefixes `theme.Ellipsis = "..."` (`text.go:8`). The grep found no callers outside `text.go`, so it appears unused.
+- `theme.TruncateWidth` at `text.go:25` keeps the start and appends `...`.
+- `truncatePath(path, width)` at `internal/ui/dashboard/sections.go:1175` keeps the end with a `…` prefix and measures width in terminal cells (helper `countKept` at `:1188`). It is used for WorkspacesDir at `:108` and `:136`.
+- `truncateHead` at `internal/ui/datatable/render.go:165` backs the `Column.TruncateHead` option for table cells.
+- `theme.Truncate(line, width)` at `internal/ui/theme/box.go:105` is a plain ANSI-safe cut, not path-aware.
+
+**Basename:**
+- `pathBaseName` at `internal/ui/workspaces/view.go:173` (`filepath.Base`) is used for the breadcrumb tabs (`:154`, `:159`) and the header's "Directory" value (`:607-609`, which falls back to a literal `"~"` at the root).
+
+No function in `internal/` is named `Abbrev`, `Shorten`, `TruncateMiddle` or `TruncatePath`. `shortSHA` in `internal/version/version.go:117` is unrelated.</result>
+<usage><subagent_tokens>71280</subagent_tokens><tool_uses>25</tool_uses><duration_ms>135272</duration_ms></usage>
+</task-notification>
+
+---
+
+<task-notification>
+<task-id>a968a5b783f80bb48</task-id>
+<tool-use-id>REDACTED</tool-use-id>
+<output-file>/tmp/claude-1000/-home-anthoni-projects-workspace-entire-anthnel-devdesk/1caf4f59-f5ca-4c38-a1e6-394e25ac0171/tasks/a968a5b783f80bb48.output</output-file>
+<status>completed</status>
+<summary>Agent "Study view structure and ws browsing" finished</summary>
+<note>A task-notification fires each time this agent stops with no live background children of its own. The user can send it another message and resume it, so the same task-id may notify more than once.</note>
+<result>I've mapped all four areas. One premise needs correcting first: the security view no longer borrows workspaces. That flow was removed (`app/app.go:610-613`, `app/command_line.go:107-110`). Today the only borrower is the forge explorer, which borrows two views: workspaces (clone destination) and templates (template choice). I didn't write a plan file; everything is below.
+
+## 1. Router (`internal/app`)
+
+**View interfaces.** The router checks for each of these with a type assertion. None is required at compile time.
+- `HeaderView` (`app_header.go:13-18`) has four methods: `GetShortcuts() shortcut.Shortcuts`, `GetTitle()`, `GetIcon()` and `GetHeaderInfo(context string) []shortcut.HeaderInfo`. A view that implements only some of them matches nothing and gets an empty title (`app-shell.md:202-207`).
+- `FooterView` (`app_header.go:22-25`): `GetFooterHeight() int` and `RenderFooter(width int) string`. The footer height is subtracted from the viewport in `layoutOnce` (`app.go:337-363`). `forwardToActiveView` re-runs the layout when the footer height changes (`keys.go:81-92`).
+- `FormView.InEditMode()` (`app.go:35-37`): while it returns true, bare `:`, `q` and `?` go to the view instead of the router (`keys.go:109-141`, `help_overlay.go:26`). `ctrl+p` always opens command mode (`keys.go:56`). `esc` always goes to the view (`keys.go:64-72`).
+- Other optional interfaces: `LeavingView.Leave()` (`app.go:51-53`), `FilterBarView.FilterBarVisible()` (`app.go:58-60`), and `FramelessView` (`app_header.go:34`, dashboard only, enforced by a test).
+- `help.Provider.GetHelpContent() help.Content` (`internal/ui/help/help.go:32`), used by `maybeOpenHelp` (`help_overlay.go:30`).
+- Contract test: `TestEveryViewSuppliesItsHeaderAndHelp` (`view_contract_test.go:26-55`) runs over `command.AllViewNames()`. Each view needs a `createView` case, a `HeaderView`, a non-empty title, at least one shortcut, and a `help.Provider`. `TestOnlyTheDashboardIsFrameless` (`:60`) also applies.
+
+**`:command` to view.** Everything is in `internal/command/parser.go`:
+- The `ViewType` constants are at `:12-54`.
+- `viewNames` (`:85-118`) is the single map from spellings (including aliases) to views, used by both parsing and completion.
+- `routerViews` (`:59`) holds views with no command name, such as `viewer`. They appear in `AllViewNames()` but not `ViewNames()`.
+- `ParseCommand` is at `:149-172`.
+- Tests that would catch a new view:
+  - `command/doc_test.go:132 TestEveryTypeableViewIsDocumented`: the bullet list in `docs/architecture/app-shell.md:43-59` must list it.
+  - `completion_test.go:38/55`.
+  - The configuration view's `default_view` field offers everything in `ViewNames()` (`configuration/model.go:146`).
+
+**Switching views.**
+- `runCommand` (`command_line.go:64-100`) calls `resetSelectionModeFor(view)` (`:121-138`), then `switchView` (`:141-166`).
+- `switchView` first calls `settleCurrentView` / `Leave` (`:177-189`). It builds the view lazily with `createView` (`:192-232`, one `case` per view), then returns `Init()`, a resize and `sendJobsTo`.
+- The view picker (Tab in command mode) follows the same path (`:277-296`).
+
+**Cross-view messages.**
+- Messages defined in the router: `SwitchViewMsg` (`messages.go:13`). Most messages are defined in the view packages and have a `case` in `App.Update` (`app.go:390-662`).
+- The "open with an argument, return with esc" pattern:
+  - `uiviewer.OpenRequestMsg` goes to `handleViewerOpenRequest` (`viewer.go:17-31`). It builds the view, sets `OriginView = a.currentView` and installs it.
+  - `BackToOriginMsg{Origin}` goes to `switchView(msg.Origin)` (`app.go:642-643`).
+  - netdiag works the same way (`netdiag.go:16-29`, `app.go:648-652`).
+- Background work is routed by view name with `routeToView` / `routeWork` (`app.go:673-681`). Any `jobs.Reporter` message needs a `case` in the router, or `TestEveryJobReporterIsRoutedToTheRegistry` fails (`reporter_routes_test.go:26`).
+
+**The existing "pick and return" flow is `internal/app/selection.go`.**
+- State: `App.selectionReturnView` and `App.selectionLent` (`app.go:102-108`).
+- Request:
+  1. The borrower sends a request message, e.g. `explorer.CloneSelectionRequestMsg{}` (`forge/explorer/clone.go:77`).
+  2. The router runs `handleExplorerCloneRequest` (`selection.go:31-38`). It saves the return view and calls `openBrowser(ViewWorkspaces, workspaces.NewForSelection(cfg, prompt))` (`:41-46`), which puts a fresh selection-mode instance into `a.views`.
+- Answer:
+  1. The lent view sends `workspaces.DirectorySelectedMsg{Path}` or `SelectionCancelledMsg{}`.
+  2. The router's handler (`selection.go:49-60`) calls `leaveSelectionMode()` (`:85-89`), which deletes the lent view so it is rebuilt normally later.
+  3. `returnToOrigin(explorer.CloneDestinationSelectedMsg{Path})` (`:92-101`) sends the answer to the borrower's `Update`.
+- Each borrow has its own request/answer/cancel message types, and the router translates them into the borrower's own message types. The templates borrow repeats the pattern (`selection.go:63-81`, `app.go:626-633`).
+- Typing `:workspaces` always deletes the workspaces view first (`command_line.go:122-124`), so a view left in selection mode never shows up.
+- Tests: `lifecycle_test.go:417-470` (`TestTheExplorerBorrowsWorkspacesForACloneDestination`, `TestThePickedDirectoryGoesBackToTheExplorer`).
+- For a generic file picker this would mean a `NewForSelection`-style constructor with options (dirs only / files allowed), one `PathSelectedMsg` / `PickCancelledMsg` pair, and a router step that turns the answer into the requester's message.
+
+## 2. Workspaces (`internal/ui/workspaces`)
+
+**Model and modes.**
+- Modes are defined at `model.go:18-29`: Normal, Adding, ConfirmingDelete, Renaming, Selecting, ConfirmingScanAll, FuzzyFinding.
+- Navigation state (`model.go:40-55`):
+  - `currentPath` is `""` at the workspaces root.
+  - `listingPath` guards against stale listings.
+  - `navigationStack` and `cursorStack` hold the path and cursor for each level.
+  - `pendingCursor` and `pendingSelectPath` restore the cursor after a load.
+- `New` is at `:165-177`. `NewForSelection(cfg, message)` (`:182-187`) sets `ModeSelecting` and the prompt.
+- `Entry` (`:133-159`) mixes filesystem fields (Name, Path, ModTime, IsDir) with git fields.
+
+**Navigation (`update.go`).**
+- `→` calls `navigateIn` (`:357-377`). It refuses while `listingPath != currentPath`, pushes onto the stacks, then runs `loadEntries`.
+- `←` and `esc` call `navigateUp` (`:380-404`).
+- The key switch is at `:275-316`.
+- `EntriesLoadedMsg` / `LoadErrorMsg` stamped with a different path are dropped (`:62-96`).
+- In selection mode (`:407-430`), `enter` picks the directory being browsed, not the highlighted row. `esc` goes up one level and cancels only at the root.
+- The root is `getExpandedWorkspacesDir()` (`:433-440`), which expands `~/` itself. Navigation cannot go above the workspaces root, and `jumpToPath` also bails out if the target is outside it (`:478-485`).
+
+**Listing (`table.go:61-126`).**
+- `loadEntries` is a Cmd that captures its values before running (Rule 110). It creates the root if missing, then `os.ReadDir`.
+- Hidden entries are filtered with `isHidden(name, cfg.App.ShowHiddenFiles)` (`entry.go:22-24`).
+- `IsDir` comes from `leadsToDir`, which follows symlinks and junctions (`entry.go:261-270`).
+- Every directory is passed to `enrichEntry`, which runs git status and a recursive walk for nested repos (`entry.go:27-36`, `139-197`). That is expensive and a file browser doesn't need it.
+
+**Create (`N`).**
+- `startAdd` (`update.go:443-447`) opens `NewWorkspaceInput()` (`input.go:29-43`). `WorkspaceInput` is a package-local text input with Create/Cancel buttons and ↑↓ focus. It emits `WorkspaceInputSubmitMsg{Name}` / `WorkspaceInputCancelMsg` (`:68-74`). The same component in rename mode emits `RenameInputSubmitMsg` (`:46-61`).
+- `handleInputSubmit` calls `createWorkspace` (`actions.go:384-404`), which does `MkdirAll(filepath.Join(base, name))`. The result comes back as `WorkspaceCreatedMsg` and triggers a reload (`update.go:614-620`).
+- Two defects worth not copying:
+  - The closure reads `m.currentPath` at run time (`actions.go:389`) instead of capturing it, which breaks Rule 110.
+  - The name is only `TrimSpace`d (`input.go:140`). `a/b` or `../x` is accepted, and `MkdirAll` would create nested directories or write outside the browsed directory.
+- `N` is deliberately never greyed (`availability.go:33-40`).
+
+**Delete (`D`).**
+- `startDelete` (`update.go:515-541`) checks `busy`, stores `pendingEntry` and opens `components.NewConfirmModal(title, msg)`. The title is "Delete File" or "Delete Directory".
+- The modal is in `components/confirm_modal.go`:
+  - It defaults to No.
+  - ←/→ toggle, enter or space confirm the focused button.
+  - `y/Y` and `n/N/esc` answer directly.
+  - It emits `ConfirmModalYesMsg` / `ConfirmModalNoMsg`.
+- `handleConfirmDelete` (`update.go:593-611`) checks `busy` again, then `jobs.Start(m.deleteRun(path), m.deleteEntry(path))`.
+  - `deleteEntry` is `os.RemoveAll` (`actions.go:412-416`).
+  - `deleteRun` uses `jobs.KindDelete` with owner `command.ViewWorkspaces` (`jobs.go:35-37`).
+  - `EntryDeletedMsg` implements `jobs.Reporter` (`jobs.go:173-191`) and is routed at `app.go:551-554`.
+  - A new view doing the same needs its own Reporter message and a router `case`.
+
+**Rename (`M`):** `startRename` → `NewRenameInput` → `renameEntry` (`os.Rename`) → `EntryRenamedMsg` (`update.go:544-583`).
+
+**Availability pattern (`availability.go`).**
+- `actionState = shortcut.Availability` (`:22`); `available` and `unavailable(reason)` are defined at `:26-29`.
+- `actionSet` (`:41-50`) and the reason constants (`:54-61`) sit beside `actions()` (`:74-148`), which works out each key's state from the selected row.
+- `guard(state, act)` (`:155-160`) refuses a greyed key with `footer.Warn(reason)`.
+- `GetShortcuts` greys from the same set (`view.go:567-592`). Handlers use `m.guard(a.X, ...)` (`update.go:273-306`).
+- Tests are in `availability_test.go` (130 lines).
+
+**datatable usage.**
+- `datatable.New(datatable.Config[workspaceRow]{Columns, SortColumn:-1})` (`model.go:169-172`).
+- Columns are in `columns.go:122-190`. The first is an untitled glyph column of width `datatable.IconColumnWidth`, with `Cell: entryIcon` and `Style: theme.IconStyle(entryIconRole)`. Then Name (`SizingContent`, has `Search`), and so on.
+- `Column` fields are documented at `datatable/datatable.go:57-171`. `Sizing` is mandatory, and a test rejects a column without it.
+- API calls used by the view: `SetItems` + `Remeasure` (`table.go:23-26`), `Selected()` (`:55-58`), `Resize(w, h-1)` (`:15-17`), `SetCursor`, `FilterBar()`, `InEditMode()`, and `Update(msg)` for up/down/pgup/pgdown/home/end and `/`.
+
+**fileicon.**
+- `fileicon.For(name) string` (`fileicon/fileicon.go:244-260`) checks the basename first, then the `dockerfile.` and `readme.` prefixes, then the extension, and falls back to `theme.IconFile`. It never returns empty.
+- It is already its own package with no dependencies besides `theme`, so it can be reused directly.
+- Workspaces wraps it in `entryIcon` / `entryIconRole` (`view.go:271-302`), which choose between repository, directory and file.
+
+**Footer and help.**
+- `GetFooterHeight` / `RenderFooter` (`view.go:98-136`) render the filter bar, then the breadcrumb tab bar (`renderTabBar` `:149-163`, `theme.RenderTabs`), then a blank line, then the info line from `components.FooterMessage`.
+- Selection mode renders the tab bar plus the prompt (`:115-117`).
+- Help content is at `view.go:619-697`.
+
+**Can the listing logic be reused?** Not as it stands.
+- Everything is unexported in package `workspaces`: `loadEntries`, `isHidden`, `leadsToDir`, `holdsRepo`/`isRepo`, `mayFollow`, `pathBaseName`.
+- The load returns workspaces-specific messages (`EntriesLoadedMsg`, `LoadErrorMsg`), is tied to `Model.currentPath` and the workspaces root, and always runs git enrichment.
+- A new view would need to either extract a small domain package (for example `internal/fsbrowse` with `List(dir, showHidden) ([]Entry, error)`, `LeadsToDir`, `IsHidden`) and have workspaces call it, or copy the code. Copying would break the "one rule for hidden entries" invariant described at `entry.go:12-21`.
+- `WorkspaceInput` is also private to the package. The shared building blocks are in `internal/ui/components`: `ConfirmModal`, `ChoiceModal`, `OptionConfirmModal`, `FooterMessage`, `FilterBar` and `WrappedInput`. `CreationForm` is forge-specific.
+- `ModeSelecting` in workspaces is limited to directories: `enter` returns the browsed directory, and files cannot be picked.
+
+## 3. `internal/ui/keymap`
+
+**Vocabulary (`keymap.go`).**
+- 24 uppercase actions (`:56-86`, table at `:102-127`). The ones a file browser would use: `New`=N, `Delete`=D, `Rename`=M, `Copy`=Y, `Terminal`=T, `IDE`=O, `Edit`=E, `Pager`=V.
+- `CommandMode = "ctrl+p"` (`:98`).
+- `modalKeys` y/Y/n/N (`:152-155`).
+- `free = {"Q","Z"}` (`:180`).
+- `localToggles []Surface{Name, Path, Keys}` (`:210-224`). For example, `{"workspaces","ui/workspaces/",["g"]}` and `{"viewer","ui/viewer/",[f c w v t n g s]}`. Surfaces are matched on the file path by longest prefix (`SurfaceFor` `:233-245`). A file under no surface may bind no lowercase letter.
+- Exceptions `o`, `ctrl+y`, `ctrl+o` (`:257-285`).
+
+**Tests that a new view's code must pass.** `keymap_test.go` parses every non-test `.go` file under `internal/app` and `internal/ui`. A `switch` counts as a key switch if any case has a structural key (esc, enter, tab, arrows, pgup/pgdown, home/end, space, `/`, `?`) or a `ctrl+`/`alt+`/`shift+` string.
+- `TestNoViewBindsAnUndeclaredUppercaseKey` (`:108`): any uppercase letter must be an action, except y/n inside a modal switch.
+- `TestNoBareLetterIsNavigation` (`:139`): no letter may share a case with an arrow or page key, and `j`/`k` are banned outright.
+- `TestOnlyThreeCtrlCombinationsSurvive` (`:169`): only ctrl+c, ctrl+r and ctrl+p, plus the declared exceptions.
+- `TestEveryLowercaseBindingIsDeclared` (`:197`): if the new view wants `g` (fuzzy find), `.` hidden toggle or similar, add a `Surface` for `ui/filebrowser/`. `q` is always allowed.
+- `announced_test.go`:
+  - `TestNoAnnouncementSpellsAnActionOutInFull` (`:54`): shortcuts must be written as `Key: keymap.New`, never `"N"`.
+  - `TestEveryAnnouncedActionIsBoundInItsPackage` (`:72`) and `TestEveryAnnouncedToggleIsBoundInItsPackage` (`:100`): anything announced in `{Key, Description}` literals, including help `KeyBinding`s, must be bound somewhere in the same package.
+- Also `TestNoShortcutAdvertisesAGlyphAsAKey` (`app-shell.md:281-286`).
+
+## 4. Test helpers and a typical view test
+
+**`internal/ui/testutil/testutil.go`.**
+- Keys and messages:
+  - `Key(name)`: named keys, `alt+`, or runes.
+  - `Keys(...)`.
+  - `Type(s)`: one rune per character, for text inputs.
+  - `Resize(w, h)`.
+- Running commands:
+  - `Msgs(cmd)`: runs the command and flattens Batch and Sequence.
+  - `Msg(cmd)`.
+  - `MsgOf[T](cmd)`.
+  - Commands that sleep or do I/O must not be run through these.
+- Shortcut assertions: `HasShortcut`, `ShortcutDisabled`, `ShortcutEnabled` and `ShortcutKeys`, for Rule 130 "greyed, not dropped".
+- Setup:
+  - `FastTimers(t, &amp;components.FooterMsgDuration)`.
+  - `TrueColor(t)` for styling assertions.
+
+**A typical view test (workspaces).**
+- `workspaces_test.go:34-58` has a `TestMain` that discards logs, shortens `FooterMsgDuration` and redirects `HOME` to a temp dir.
+- Fixtures:
+  - `testConfig()` (`:60`) sets `WorkspacesDir = "/tmp/workspaces"`.
+  - `entryFixtures()` (`:69`).
+  - `newTestModel` → `loadedModel` → `scannedModel` (`:98-122`).
+- Helpers:
+  - `feed(t, m, msgs...)` (`:124`).
+  - `step(t, m, msg)`, which type-asserts back to `Model` (`:201-209`).
+  - `refused(t, m, key, reason)` checks the footer reason and that no run started (`:146`).
+  - `startedRun` / `wantRun` inspect `jobs.StartMsg` (`:163-200`).
+- Tests inject `EntriesLoadedMsg` instead of running the load command, drive keys with `testutil.Key(keymap.X)`, and assert on model fields and `testutil.MsgOf[...]`. Examples:
+  - Selection: `model_test.go:374-441`.
+  - Create, rename and delete flows: `:443-553`.
+  - Navigation and stale-listing guards: `:98-293`.
+- Real-disk tests use `t.TempDir()` (e.g. `TestDetectSubRepoPaths :1117`).
+
+**Router-level tests (`internal/app/harness_test.go`).**
+- `fakeView` (`:88-110`) implements every interface and records what it receives; `receivedOf[T]` reads that record.
+- `router(t, view)` / `routerAt` (`:153-185`) and `feedKey`.
+- For real views: `newWithSize(testConfig(), w, h)` plus `createView`.
+
+## To add a file-browser view
+- **Parser:** a `ViewType` constant and its `viewNames` spellings (`parser.go:12-118`).
+- **Router:**
+  - A `createView` case (`command_line.go:197-229`).
+  - Possibly a `resetSelectionModeFor` case (`:121-138`).
+  - Picker request/answer `case`s in `App.Update` and handlers in `selection.go`.
+  - A `routeWork` case for any delete Reporter message.
+- **Keymap:** a `localToggles` surface if the view uses lowercase letters.
+- **Docs:** the `app-shell.md` bullet list (`:43-59`) and the view tree (`:24-38`).
+
+The likeliest picker clients are text fields in the configuration view: "Workspaces dir" and "Log file" (`configuration/fields.go:310,316`) and scanner "Binary" (`scan_fields.go:243`). The templates form may also have a local-path source (`templates/form.go`).</result>
+<usage><subagent_tokens>182143</subagent_tokens><tool_uses>47</tool_uses><duration_ms>161348</duration_ms></usage>
+</task-notification>
