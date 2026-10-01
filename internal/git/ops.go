@@ -79,6 +79,12 @@ func nonInteractiveEnv(token string) []string {
 		// BatchMode turns both into an immediate failure, which is a row that
 		// says so rather than a row that never moves.
 		"GIT_SSH_COMMAND=ssh -o BatchMode=yes",
+		// git's messages are translated by the user's locale, and DevDesk
+		// reads them: StateOf matches "not a git repository", and the clone
+		// list's Detail column shows git's last line (Rule 129: English).
+		// LC_ALL wins over LANG, LC_MESSAGES and LANGUAGE, and being last it
+		// wins over any copy already in the inherited environment.
+		"LC_ALL=C",
 	)
 
 	// A stalled transfer is aborted by git itself rather than by killing the

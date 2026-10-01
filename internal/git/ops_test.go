@@ -31,6 +31,7 @@ func seedRepo(t *testing.T) string {
 	run := func(args ...string) {
 		t.Helper()
 		cmd := exec.Command("git", append([]string{"-C", dir}, args...)...)
+		cmd.Env = cLocaleEnv()
 		if out, err := cmd.CombinedOutput(); err != nil {
 			t.Fatalf("git %v: %v\n%s", args, err, out)
 		}
@@ -251,5 +252,32 @@ func TestDirExists(t *testing.T) {
 				t.Errorf("DirExists(%q) = %v, want %v", tt.path, got, tt.want)
 			}
 		})
+	}
+}
+
+// cLocaleEnv is the environment every test-side git command runs under: the
+// machine's own, with git's messages forced to English. Without it a test that
+// reads git's output — or a failure message — depends on the developer's
+// locale, and the suite passes on one machine and fails on the next.
+func cLocaleEnv() []string {
+	return append(os.Environ(), "LC_ALL=C")
+}
+
+// The production environment forces the same locale: StateOf matches an
+// English message, so a French git would turn "outside any repository" into an
+// error.
+func TestGitSubprocessesRunInTheCLocale(t *testing.T) {
+	t.Setenv("LC_ALL", "fr_FR.UTF-8")
+
+	env := nonInteractiveEnv("")
+
+	last := ""
+	for _, kv := range env {
+		if strings.HasPrefix(kv, "LC_ALL=") {
+			last = kv
+		}
+	}
+	if last != "LC_ALL=C" {
+		t.Errorf("effective LC_ALL = %q, want LC_ALL=C", last)
 	}
 }
