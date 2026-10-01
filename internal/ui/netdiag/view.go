@@ -210,8 +210,8 @@ func phaseLines(phases []netcheck.Phase, total time.Duration, width int) []strin
 			pct = float64(p.Duration) / float64(total) * 100
 		}
 		fill := theme.GaugeFillWidth(pct, theme.TimingBarWidth)
-		bar := theme.TimingFillStyle().Render(theme.Gauge(fill)) +
-			theme.GaugeTrackStyle().Render(theme.Gauge(theme.TimingBarWidth-fill))
+		bar := theme.TimingFillStyle().Render(theme.GaugeFill(fill)) +
+			theme.GaugeTrackStyle().Render(theme.GaugeTrack(theme.TimingBarWidth-fill))
 		label := theme.KeyStyle.Render(fmt.Sprintf("  %-*s", phaseLabelWidth, p.Name))
 		pctText := theme.Bg(fmt.Sprintf(" %3.0f%%", pct))
 		lines = append(lines, theme.PadWithBg(label+bar+pctText, width))

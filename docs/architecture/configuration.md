@@ -6,7 +6,7 @@
 ## Configuration System
 
 Config loaded from `~/.devdesk/config.yaml` with schema defined in `internal/config/config.go`:
-- `App` - Global settings (theme, default view, workspaces dir, `show_hidden_files`, `secret_backend`)
+- `App` - Global settings (theme, default view, workspaces dir, `show_hidden_files`, `secret_backend`, `gauge_glyph`)
 - `Status` - Monitoring settings (refresh interval, components)
 - `Forge` - the platform this context targets: `type`, URL and clone settings
 - `Registry` - OCI registry configuration (see Registry model below)
@@ -83,6 +83,15 @@ cleared so they leave the file on the next save. Two points of its own:
 
 A category's `tools` list is a slice, so a `Config` copied by value shares it:
 `CategoryConfig.With` always builds a new one rather than editing in place.
+
+**`app.gauge_glyph`** picks the fill of the containers load gauges and of the
+netdiag waterfall: `shade` (the default — `░` for fill and track alike, told
+apart by colour) or `block` (`█` over a `░` track). `block` is an opt-in because
+`█` is East Asian ambiguous width and overflows the gauge columns on a terminal
+that draws it double-width. It is not derived from the locale: the locale says
+how the process *measures*, not what the terminal *draws* (§3.96). It is applied
+through `theme.SetGaugeGlyph` at startup, on a context switch and on every save,
+and anything but `block` stays on the safe glyph.
 
 **`app.container_engine`** names the engine every container, image, network and
 volume comes from: `auto` (the default — docker if it is on PATH, else podman),

@@ -244,8 +244,8 @@ nothing to break down — TCP, TLS). `stage_http.go`'s `httpPhases` derives
 measured from the start of the request and already contains DNS+connect+TLS —
 charting it as a fifth independent share would double-count that overlap.
 `internal/ui/netdiag/view.go`'s `phaseLines` renders one proportional bar per
-phase, reusing the load-gauge machinery (`theme.Gauge`, `GaugeFillWidth`,
-`GaugeTrackStyle`) with a new neutral fill colour, `theme.TimingFillStyle` —
+phase, reusing the load-gauge machinery (`theme.GaugeFill`, `GaugeTrack`,
+`GaugeFillWidth`, `GaugeTrackStyle`) with a new neutral fill colour, `theme.TimingFillStyle` —
 a phase taking most of the time is a fact to read, not a severity to spot.
 
 **Opened prefilled, from elsewhere (§3.66).** `netdiag.NewWithTarget` builds a

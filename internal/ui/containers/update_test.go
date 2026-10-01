@@ -185,7 +185,7 @@ func TestOnlyAStoppedContainerRendersAPlaceholderGauge(t *testing.T) {
 		columnMemGauge = columnImage + 5
 	)
 	want := map[string][2]string{
-		"idle":    {theme.Gauge(theme.GaugeWidth), theme.Gauge(theme.GaugeWidth)},
+		"idle":    {theme.Gauge(0.4, theme.GaugeWidth), theme.Gauge(0.2, theme.GaugeWidth)},
 		"stopped": {"-", "-"},
 	}
 	seen := map[string]bool{}
@@ -1508,5 +1508,22 @@ func TestJumpAsksForTheSelectedContainersImage(t *testing.T) {
 	}
 	if msg.Image != want {
 		t.Errorf("Image = %q, want the selected container's %q", msg.Image, want)
+	}
+}
+
+// With the block style the cell text itself carries the fill, so Cut and the
+// text agree on where the colour changes.
+func TestABlockGaugeCellCarriesTheFill(t *testing.T) {
+	t.Cleanup(func() { theme.SetGaugeGlyph(config.GaugeGlyphShade) })
+	theme.SetGaugeGlyph(config.GaugeGlyphBlock)
+
+	col := gaugeColumn("CPU", func(c docker.Container) float64 { return c.CPUPercent })
+	c := docker.Container{State: "running", CPUPercent: 50}
+	cell := col.Cell(c)
+	if want := "█████░░░░░"; cell != want {
+		t.Errorf("cell = %q, want %q", cell, want)
+	}
+	if cut := col.Cut(c); cut != 5 {
+		t.Errorf("Cut = %d, want 5", cut)
 	}
 }
