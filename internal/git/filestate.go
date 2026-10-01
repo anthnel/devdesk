@@ -38,7 +38,7 @@ func StateOf(path string) (FileState, error) {
 	}
 
 	if _, err := run(dir, "", "rev-parse", "--git-dir"); err != nil {
-		if strings.Contains(strings.ToLower(err.Error()), "not a git repository") {
+		if isNotARepository(err) {
 			return FileOutsideRepo, nil
 		}
 		return FileOutsideRepo, err
@@ -55,4 +55,16 @@ func StateOf(path string) (FileState, error) {
 		return FileModified, nil
 	}
 	return FileClean, nil
+}
+
+// isNotARepository reports whether err is git saying the directory is not in a
+// working copy. run keeps only git's last line, and a directory on another
+// filesystem than its parents gets two — "not a git repository (or any parent
+// up to mount point /)" and then "Stopping at filesystem boundary" — so both
+// spellings count. The text is English because nonInteractiveEnv forces
+// LC_ALL=C.
+func isNotARepository(err error) bool {
+	msg := strings.ToLower(err.Error())
+	return strings.Contains(msg, "not a git repository") ||
+		strings.Contains(msg, "stopping at filesystem boundary")
 }

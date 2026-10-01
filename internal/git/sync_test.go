@@ -21,6 +21,7 @@ func gitIn(t *testing.T, dir string, args ...string) string {
 		"-c", "commit.gpgsign=false"}, args...)
 	cmd := exec.Command("git", full...)
 	cmd.Dir = dir
+	cmd.Env = cLocaleEnv()
 	out, err := cmd.CombinedOutput()
 	if err != nil {
 		t.Fatalf("git %v in %s: %v\n%s", args, dir, err, out)
@@ -335,6 +336,24 @@ func TestSyncKeepsATagOnlyTheWorkingCopyHas(t *testing.T) {
 	}
 	if len(result.MovedTags) != 0 {
 		t.Errorf("MovedTags = %v, want none: a new tag did not move", result.MovedTags)
+	}
+}
+
+// A global `fetch.prune = true` makes git delete the local tags a tag refspec
+// does not list. The test above passes or fails with the developer's own
+// ~/.gitconfig; this one sets the option on the repository so the suite catches
+// it on every machine.
+func TestSyncKeepsALocalTagEvenWhenFetchPruneIsOn(t *testing.T) {
+	upstream, working := clonePair(t)
+	gitIn(t, working, "config", "fetch.prune", "true")
+	gitIn(t, working, "tag", "local-only")
+	gitIn(t, upstream, "tag", "v2")
+
+	if _, err := Sync(working, SyncOptions{}); err != nil {
+		t.Fatalf("Sync() error = %v", err)
+	}
+	if out := gitIn(t, working, "tag", "--list", "local-only"); strings.TrimSpace(out) != "local-only" {
+		t.Error("fetch.prune made the sync delete a tag the remote does not have")
 	}
 }
 

@@ -94,6 +94,31 @@ decided together and fixed in one pass; see [§1.2](#12-the-five-parked-defects)
 
 ### 1.1 Fixed
 
+**D80 — `git` lu dans la locale de l'utilisateur ; `Sync` supprimait les tags
+locaux sous `fetch.prune` ; `StateOf` se trompait hors dépôt. Corrigé.**
+Relevé le 2026-10-01 : quatre tests de `internal/git` échouaient sur une machine
+en `fr_BE`, et en les creusant, trois défauts de production sont apparus — aucun
+n'était un problème de test.
+
+- **La locale.** DevDesk lit les messages de git (`StateOf` cherche
+  « not a git repository ») et en montre la dernière ligne dans la colonne Detail
+  d'un clone. `nonInteractiveEnv` force maintenant `LC_ALL=C`, pour tous les
+  sous-processus git de production ; les helpers de test font de même, et
+  `TestGitSubprocessesRunInTheCLocale` le verrouille.
+- **`fetch.prune`.** Un `fetch.prune = true` global — courant — appliqué au
+  refspec `+refs/tags/*:refs/tags/*` de `syncTags` supprimait tout tag local que
+  le remote n'a pas : un tag jamais poussé disparaissait sur un `F`. Le commentaire
+  disait « never prunes » ; la configuration de l'utilisateur disait le
+  contraire. `--no-prune` est passé explicitement, et
+  `TestSyncKeepsALocalTagEvenWhenFetchPruneIsOn` pose l'option sur le dépôt pour
+  que la suite l'attrape sur toute machine, pas seulement sur celles dont le
+  `~/.gitconfig` la contient.
+- **`StateOf`.** Un répertoire sur un autre système de fichiers que ses parents
+  fait écrire deux lignes à git ; `run` ne garde que la dernière
+  (« Stopping at filesystem boundary »), qui ne contient pas le texte cherché, et
+  un fichier hors dépôt revenait en erreur au lieu de `FileOutsideRepo`.
+  `isNotARepository` accepte les deux formes.
+
 **D79 — `N` et `M` dans `ws` acceptaient un chemin pour un nom. Corrigé.**
 Relevé le 2026-09-29 en préparant §3.95, et fermé le même jour.
 

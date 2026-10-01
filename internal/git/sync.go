@@ -159,7 +159,9 @@ func skipped(reason string) SyncResult {
 // from, and returns the local tags that now point somewhere else.
 //
 // It never prunes: `--prune` with a tag refspec deletes every tag the remote
-// does not have, which is a tag someone made here and never pushed.
+// does not have, which is a tag someone made here and never pushed. That is
+// also what a global `fetch.prune = true` does to this refspec, so the flag is
+// passed explicitly rather than assumed absent.
 //
 // A repository with no such remote — a local-only one, or a branch tracking
 // "." — has no tags to follow, and that is not an error: the branch fetch
@@ -173,7 +175,7 @@ func syncTags(repoPath, token string) ([]string, error) {
 	if err != nil {
 		return nil, err
 	}
-	if _, err := run(repoPath, token, "fetch", "--quiet", "--no-tags", remote, "+refs/tags/*:refs/tags/*"); err != nil {
+	if _, err := run(repoPath, token, "fetch", "--quiet", "--no-tags", "--no-prune", remote, "+refs/tags/*:refs/tags/*"); err != nil {
 		return nil, err
 	}
 	after, err := tagTargets(repoPath)
