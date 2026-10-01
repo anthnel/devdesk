@@ -6,6 +6,8 @@ import (
 
 	"github.com/charmbracelet/lipgloss"
 	"github.com/mattn/go-runewidth"
+
+	"github.com/anthnel/devdesk/internal/config"
 )
 
 // Gauge is now just width copies of one glyph — the value lives entirely in
@@ -20,7 +22,7 @@ func TestAGaugeIsExactlyAsWideAsItAsksFor(t *testing.T) {
 	eastAsian := &runewidth.Condition{EastAsianWidth: true}
 
 	for _, width := range []int{1, 2, 6, 10, 20} {
-		bar := Gauge(width)
+		bar := Gauge(50, width)
 		if got := runewidth.StringWidth(bar); got != width {
 			t.Fatalf("Gauge(%d) measures %d cells, want %d: %q", width, got, width, bar)
 		}
@@ -34,7 +36,7 @@ func TestAGaugeIsExactlyAsWideAsItAsksFor(t *testing.T) {
 // Gauge does not depend on a value at all: every cell is the same glyph,
 // whatever the caller will go on to colour.
 func TestGaugeIsUniform(t *testing.T) {
-	if got, want := Gauge(6), "░░░░░░"; got != want {
+	if got, want := Gauge(50, 6), "░░░░░░"; got != want {
 		t.Errorf("Gauge(6) = %q, want %q", got, want)
 	}
 }
@@ -42,7 +44,7 @@ func TestGaugeIsUniform(t *testing.T) {
 // A width of zero or less renders nothing rather than a negative repeat count.
 func TestGaugeSurvivesAnEmptyWidth(t *testing.T) {
 	for _, width := range []int{0, -1} {
-		if got := Gauge(width); got != "" {
+		if got := Gauge(50, width); got != "" {
 			t.Errorf("Gauge(%d) = %q, want the empty string", width, got)
 		}
 	}
@@ -121,7 +123,12 @@ func TestGaugeTrackStyleIsFixed(t *testing.T) {
 // The gauge glyph is pinned here rather than in a comment: swapping it for a
 // block element would pass every other test in this file and overflow the
 // column on a terminal nobody in this repository runs.
-func TestTheGaugeGlyphIsNotAmbiguousWidth(t *testing.T) {
+func TestTheDefaultGaugeGlyphIsNotAmbiguousWidth(t *testing.T) {
+	t.Cleanup(func() { SetGaugeGlyph(config.GaugeGlyphShade) })
+	SetGaugeGlyph(config.GaugeGlyphShade)
+	if gaugeFillGlyph != gaugeGlyph {
+		t.Fatalf("default fill = %q, want %q", gaugeFillGlyph, gaugeGlyph)
+	}
 	for _, r := range gaugeGlyph {
 		if runewidth.IsAmbiguousWidth(r) {
 			t.Errorf("gauge glyph %q (U+%04X) is East Asian ambiguous: it renders double-width on some terminals and breaks Rule 116", string(r), r)
@@ -129,5 +136,35 @@ func TestTheGaugeGlyphIsNotAmbiguousWidth(t *testing.T) {
 	}
 	if strings.ContainsAny(gaugeGlyph, "█▓▒▉▊▋▌▍▎▏▁▂▃▄▅▆▇") {
 		t.Error("a different Block Elements glyph is in gaugeGlyph; every one but ░ is ambiguous-width")
+	}
+}
+
+// "block" is opt-in, so anything else — empty, a typo — must stay on the safe
+// glyph rather than silently turning the ambiguous one on.
+func TestOnlyBlockSelectsTheSolidFill(t *testing.T) {
+	t.Cleanup(func() { SetGaugeGlyph(config.GaugeGlyphShade) })
+	for _, style := range []string{"", config.GaugeGlyphShade, "Block", "solid", "auto"} {
+		SetGaugeGlyph(style)
+		if gaugeFillGlyph != gaugeGlyph {
+			t.Errorf("SetGaugeGlyph(%q) fill = %q, want the safe %q", style, gaugeFillGlyph, gaugeGlyph)
+		}
+	}
+	SetGaugeGlyph(config.GaugeGlyphBlock)
+	if gaugeFillGlyph != "█" {
+		t.Errorf("SetGaugeGlyph(block) fill = %q, want █", gaugeFillGlyph)
+	}
+}
+
+func TestBlockGaugeTextCarriesTheFillAndKeepsTheTrackShaded(t *testing.T) {
+	t.Cleanup(func() { SetGaugeGlyph(config.GaugeGlyphShade) })
+	SetGaugeGlyph(config.GaugeGlyphBlock)
+	if got, want := Gauge(30, 10), "███░░░░░░░"; got != want {
+		t.Errorf("Gauge(30, 10) = %q, want %q", got, want)
+	}
+	if got, want := Gauge(0, 4), "░░░░"; got != want {
+		t.Errorf("Gauge(0, 4) = %q, want %q", got, want)
+	}
+	if got := runewidth.StringWidth(Gauge(100, 10)); got != 10 {
+		t.Errorf("block gauge width = %d, want 10 in the default condition", got)
 	}
 }

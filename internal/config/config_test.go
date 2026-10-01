@@ -334,3 +334,14 @@ func TestAConfigCarryingRetiredKeysStillLoads(t *testing.T) {
 		})
 	}
 }
+
+// The default gauge glyph is the safe one, and a config with no key — every
+// file written before it existed — normalizes to it rather than to "".
+func TestGaugeGlyphDefaultsToTheSafeGlyph(t *testing.T) {
+	if got := Default().App.GaugeGlyph; got != GaugeGlyphShade {
+		t.Errorf("Default().App.GaugeGlyph = %q, want %q", got, GaugeGlyphShade)
+	}
+	if got := GaugeGlyphs()[0]; got != GaugeGlyphShade {
+		t.Errorf("GaugeGlyphs()[0] = %q: the safe glyph must head the cycle", got)
+	}
+}

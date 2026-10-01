@@ -27,6 +27,8 @@ import (
 // screen, holds the cursor, and edits the very config object being handed back.
 func (a *App) handleConfigSaved(msg configuration.ConfigSavedMsg) (tea.Model, tea.Cmd) {
 	a.config = msg.Config
+	// Cheap and idempotent, so no flag: every view is rebuilt below anyway.
+	theme.SetGaugeGlyph(msg.Config.App.GaugeGlyph)
 
 	if msg.ThemeChanged {
 		a.applyThemeNow(msg.Config.App.Theme)

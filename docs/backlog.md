@@ -16068,6 +16068,36 @@ démarrage. Détail : [`filebrowser.md`](architecture/filebrowser.md).
 `internal/fsbrowse` porte ce que `ws` et `:files` partagent (`IsHidden`,
 `LeadsToDir`, `ValidName`) ; c'est en l'extrayant que D79 est apparu.
 
+### 3.96 Un remplissage plein pour les jauges, en option — **done**
+
+Demandé le 2026-10-01 : `dtop` dessine ses jauges avec des blocs pleins, pourquoi
+pas DevDesk. La réponse du §3.71 tient toujours — `█` est de largeur *ambiguë*
+et déborde la colonne sur un terminal qui le rend sur deux cellules (Rule 116) —
+mais le coût de ce choix, une jauge uniforme sous le curseur, justifiait un
+réglage.
+
+**`app.gauge_glyph`** : `shade` (défaut) ou `block`. `shade` est le §3.71
+inchangé ; `block` rend le remplissage en `█` sur une piste `░`, ce qui garde la
+forme de la barre sous la sélection. Un champ cyclique dans la section
+Appearance de la vue de configuration, appliqué à la sauvegarde.
+
+Décisions prises avec l'utilisateur :
+- **Le défaut est le glyphe sûr, `block` est un opt-in.** Se tromper vers `░`
+  coûte un peu de lisibilité ; se tromper vers `█` casse la mise en page.
+- **Pas de valeur `auto` fondée sur la locale.** Ce qui compte est la largeur
+  que *le terminal* rend, et la locale du processus n'en est qu'un proxy : faux
+  sous SSH vers une machine en `LANG=C`, absente sous Windows. `go-runewidth`
+  la lit pourtant déjà — l'application *mesure* donc selon la locale, ce qui ne
+  dit rien de ce que le terminal *dessine*.
+- **Une valeur hors de l'ensemble, ou vide, retombe sur `░`.** `SetGaugeGlyph`
+  n'active `█` que sur `block` exactement.
+
+Ce qui change dans le code : `theme.Gauge` reprend un pourcentage —
+`Gauge(pct, width)` — parce que le texte de la cellule porte maintenant la
+coupure en mode `block` ; `GaugeFill(n)` et `GaugeTrack(n)` servent à l'appelant
+qui style lui-même les deux tronçons (la cascade de netdiag). La piste est
+toujours `░`. `Cut`/`TailStyle` restent inchangés : ils colorent après la mesure.
+
 ## 4. Existing plans
 
 Detailed plans live in `.claude/plans/`. One is outstanding:

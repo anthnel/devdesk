@@ -192,7 +192,24 @@ type AppConfig struct {
 	// deliberately not in `network`, which carries only netcheck's dials
 	// despite once being called `docker` (§3.67).
 	ContainerEngine string `yaml:"container_engine"`
+
+	// GaugeGlyph picks the fill of the load gauges: "shade" (default, `░` for
+	// fill and track alike, told apart by colour) or "block" (`█` over a `░`
+	// track). "block" is opt-in because `█` is East Asian ambiguous width and
+	// overflows the gauge columns on a terminal that draws it double-width —
+	// something only the user can know, which is why it is not guessed from
+	// the locale (§3.71).
+	GaugeGlyph string `yaml:"gauge_glyph"`
 }
+
+// Values app.gauge_glyph accepts.
+const (
+	GaugeGlyphShade = "shade"
+	GaugeGlyphBlock = "block"
+)
+
+// GaugeGlyphs lists the values app.gauge_glyph names, safe default first.
+func GaugeGlyphs() []string { return []string{GaugeGlyphShade, GaugeGlyphBlock} }
 
 // ForgeConfig is the code-hosting platform this context targets — exactly one,
 // never two (§3.6).
@@ -460,6 +477,10 @@ func applyDefaults(cfg *Config) error {
 	if cfg.App.ContainerEngine == "" {
 		cfg.App.ContainerEngine = EngineAuto
 	}
+	// Same reason: the configuration view cycles a closed set.
+	if cfg.App.GaugeGlyph == "" {
+		cfg.App.GaugeGlyph = GaugeGlyphShade
+	}
 	// Written rather than left empty for the reason above: the configuration
 	// view cycles a closed set. A value outside it is left alone — remediation
 	// reads it as same-line — so a typo in the file is not silently rewritten.
@@ -568,6 +589,7 @@ func Default() *Config {
 			IDECommand:      "code",
 			SecretBackend:   "auto",
 			ContainerEngine: EngineAuto,
+			GaugeGlyph:      GaugeGlyphShade,
 		},
 		Status: StatusConfig{
 			RefreshInterval: 10,

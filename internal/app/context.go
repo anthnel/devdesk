@@ -168,6 +168,7 @@ func (a *App) handleContextSwitchComplete(msg ContextSwitchCompleteMsg) (tea.Mod
 	a.switchingTo = ""
 	a.config = msg.Config
 	a.currentContext = msg.ContextName
+	theme.SetGaugeGlyph(msg.Config.App.GaugeGlyph)
 	a.sharedState.Secrets = msg.Secrets
 	a.sharedState.SecretNotices = msg.Notices
 

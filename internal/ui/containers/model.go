@@ -301,7 +301,7 @@ func gaugeColumn(scale string, pct func(docker.Container) float64) datatable.Col
 			if c.State != "running" {
 				return "-"
 			}
-			return theme.Gauge(theme.GaugeWidth)
+			return theme.Gauge(pct(c), theme.GaugeWidth)
 		},
 		Style: func(c docker.Container) lipgloss.Style {
 			if c.State != "running" {

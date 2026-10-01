@@ -5,27 +5,54 @@ import (
 	"strings"
 
 	"github.com/charmbracelet/lipgloss"
+
+	"github.com/anthnel/devdesk/internal/config"
 )
 
 // A load gauge: a bar that answers "is something hot" without reading a
 // number (§3.71).
 //
-// Every cell is the same glyph — `░` — used or not. What used to tell a
-// filled cell from an empty one by shape now does it by colour alone:
+// By default every cell is the same glyph — `░` — used or not. What used to
+// tell a filled cell from an empty one by shape then does it by colour alone:
 // LoadTextStyle on the fill, GaugeTrackStyle on the track, split by
-// datatable.Column.Cut after the text is already measured (Rule 122). A
-// value survives the row disappearing under the cursor only through the
-// number beside the gauge — Style is not consulted on the selected row, and
-// with one glyph the bar itself has nothing left to say once its colour is
-// gone.
+// datatable.Column.Cut after the text is already measured (Rule 122). A value
+// survives the row disappearing under the cursor only through the number
+// beside the gauge — Style is not consulted on the selected row, and with one
+// glyph the bar itself has nothing left to say once its colour is gone.
+//
+// `app.gauge_glyph: block` opts into a solid `█` fill over the `░` track,
+// which keeps that shape under the cursor. It is an opt-in because `█` is
+// East Asian ambiguous width (see gaugeGlyph): the user, not the locale,
+// knows how their terminal draws it.
 
-// gaugeGlyph is the one character a gauge ever renders. `░` is a Block
-// Elements glyph, and the *only* one of the family that measures 1 cell in
-// both the default and the East Asian `runewidth` condition — every other
+// gaugeGlyph is the glyph of the track, and of the fill by default. `░` is a
+// Block Elements glyph, and the *only* one of the family that measures 1 cell
+// in both the default and the East Asian `runewidth` condition — every other
 // glyph in the range (`█`, `▓`, `▇`, the partial blocks `▏▎▍▌`) is *ambiguous*
 // and renders double-width on some terminals, which would overflow the
 // column and break Rule 116. Measured, not assumed.
 const gaugeGlyph = "░"
+
+// gaugeBlockGlyph is the fill the "block" gauge style swaps in. Ambiguous
+// width, hence never the default: a terminal that draws it double-width
+// overflows every gauge column, and only the user can know that.
+const gaugeBlockGlyph = "█"
+
+// gaugeFillGlyph is the glyph the filled cells render, set once from
+// app.gauge_glyph by SetGaugeGlyph. Process-wide state like the palette
+// ApplyTheme writes: it is only touched from Update() and read while
+// rendering, both on the Bubble Tea loop.
+var gaugeFillGlyph = gaugeGlyph
+
+// SetGaugeGlyph selects the fill glyph from an app.gauge_glyph value. Anything
+// but "block" — including a typo in the file — is the safe `░`.
+func SetGaugeGlyph(style string) {
+	if style == config.GaugeGlyphBlock {
+		gaugeFillGlyph = gaugeBlockGlyph
+		return
+	}
+	gaugeFillGlyph = gaugeGlyph
+}
 
 // GaugeWidth is the width of a gauge column, in cells.
 //
@@ -47,18 +74,31 @@ const (
 	LoadCriticalPercent = 90
 )
 
-// Gauge renders a bar of width cells, as plain text.
-//
-// Every cell is gaugeGlyph: the value lives entirely in how many of them a
-// caller colours with LoadTextStyle rather than GaugeTrackStyle (see
-// GaugeFillWidth), not in what Cell returns — which is why this function no
-// longer takes a percentage. That split happens after measurement, through
-// datatable.Column.Cut, never inside this string.
-func Gauge(width int) string {
-	if width <= 0 {
+// Gauge renders a bar of width cells at pct, as plain text: GaugeFillWidth
+// fill glyphs, then track glyphs. In the default style the two are the same
+// character and the value lives entirely in how many cells a caller colours
+// with LoadTextStyle rather than GaugeTrackStyle (datatable.Column.Cut, after
+// measurement — never inside this string); with "block" the text carries the
+// split too.
+func Gauge(pct float64, width int) string {
+	return GaugeFill(GaugeFillWidth(pct, width)) + GaugeTrack(width-GaugeFillWidth(pct, width))
+}
+
+// GaugeFill renders n filled cells, for a caller that styles the two runs
+// itself (a waterfall bar).
+func GaugeFill(n int) string {
+	if n <= 0 {
 		return ""
 	}
-	return strings.Repeat(gaugeGlyph, width)
+	return strings.Repeat(gaugeFillGlyph, n)
+}
+
+// GaugeTrack renders n empty cells. Always `░`, whatever the fill is.
+func GaugeTrack(n int) string {
+	if n <= 0 {
+		return ""
+	}
+	return strings.Repeat(gaugeGlyph, n)
 }
 
 // GaugeFillWidth reports how many of Gauge's width cells count as filled —

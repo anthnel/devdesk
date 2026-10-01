@@ -560,6 +560,14 @@ func (m Model) GetHelpContent() help.Content {
 					"process in your session, so paste it and move on.",
 			},
 			{
+				Title: "Gauge glyph",
+				Body: "shade (default) draws every gauge cell as ░ and tells fill from track by\n" +
+					"colour. block fills with a solid █ over a ░ track, which keeps the bar\n" +
+					"readable under the cursor. █ is drawn double-width by some terminals\n" +
+					"(East Asian ambiguous width); if the gauge columns overflow, go back\n" +
+					"to shade. It is not picked from your locale: only you know the terminal.",
+			},
+			{
 				Title: "Secret backend",
 				Body: "Changing it is confirmed, and stored secrets are not migrated:\n" +
 					"the " + m.vocab().Name + " token and registry passwords have to be entered again.",

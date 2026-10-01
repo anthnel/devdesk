@@ -88,6 +88,8 @@ func runTUI() {
 		}
 	}
 
+	theme.SetGaugeGlyph(cfg.App.GaugeGlyph)
+
 	// Create the application with the router
 	m := app.New(cfg)
 
