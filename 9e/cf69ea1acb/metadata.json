@@ -3,7 +3,7 @@
   "checkpoint_id": "9ecf69ea1acb",
   "strategy": "manual-commit",
   "branch": "feat/gauge-glyph-option",
-  "checkpoints_count": 12,
+  "checkpoints_count": 15,
   "files_touched": [
     "docs/backlog.md",
     "internal/ui/configuration/fields.go",
@@ -16,14 +16,21 @@
       "compact_transcript": "/9e/cf69ea1acb/0/transcript.jsonl",
       "content_hash": "/9e/cf69ea1acb/0/content_hash.txt",
       "prompt": "/9e/cf69ea1acb/0/prompt.txt"
+    },
+    {
+      "metadata": "/9e/cf69ea1acb/1/metadata.json",
+      "transcript": "/9e/cf69ea1acb/1/full.jsonl",
+      "compact_transcript": "/9e/cf69ea1acb/1/transcript.jsonl",
+      "content_hash": "/9e/cf69ea1acb/1/content_hash.txt",
+      "prompt": "/9e/cf69ea1acb/1/prompt.txt"
     }
   ],
   "token_usage": {
-    "input_tokens": 68,
-    "cache_creation_tokens": 1114187,
-    "cache_read_tokens": 12018164,
-    "output_tokens": 17768,
-    "api_call_count": 34,
+    "input_tokens": 96,
+    "cache_creation_tokens": 1258376,
+    "cache_read_tokens": 13560766,
+    "output_tokens": 31960,
+    "api_call_count": 48,
     "subagent_tokens": {
       "input_tokens": 0,
       "cache_creation_tokens": 0,

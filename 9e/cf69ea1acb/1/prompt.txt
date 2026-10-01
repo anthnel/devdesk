@@ -1,0 +1,1 @@
+quel est l'avantage de pouvoir accéder à un profil distant par rapport au fait d'avoir dk sur le remote et accéder à dk en ssh
