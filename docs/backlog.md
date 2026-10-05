@@ -16123,6 +16123,120 @@ coupure en mode `block` ; `GaugeFill(n)` et `GaugeTrack(n)` servent à l'appelan
 qui style lui-même les deux tronçons (la cascade de netdiag). La piste est
 toujours `░`. `Cut`/`TailStyle` restent inchangés : ils colorent après la mesure.
 
+### 3.97 Changer de police depuis DevDesk — **à explorer**
+
+Demandé le 2026-10-05 : pouvoir « switcher de font », par exemple vers
+[Inter](https://rsms.me/inter/).
+
+**Le point de départ, avant toute envie : DevDesk ne choisit pas sa police.**
+Une TUI écrit des cellules dans une grille ; la police qui les dessine est celle
+de l'émulateur de terminal, et rien dans `dk` ne peut la changer par un appel
+portable. Ce que la demande recouvre est donc l'une de quatre choses, très
+différentes en coût et en valeur.
+
+**Inter elle-même ne convient pas, et c'est la contrainte qui décide.** Inter
+est une police **proportionnelle** : un `i` y est plus étroit qu'un `m`. Tout ce
+que DevDesk dessine suppose une grille de cellules égales — `internal/ui/datatable`
+mesure en cellules (`runewidth`), la Rule 116 exige que la ligne remplisse
+exactement l'intérieur du viewport, les jauges (§3.71, §3.96) comptent des
+cellules. Dans un terminal, un émulateur force de toute façon une police
+proportionnelle dans sa grille, avec des espacements irréguliers ou des glyphes
+rognés. À ma connaissance Inter n'a pas de variante à chasse fixe officielle ;
+des dérivés communautaires existent, **à vérifier** avant d'en recommander un.
+
+Il y a une seconde contrainte, moins visible : les icônes. DevDesk dessine des
+glyphes **Nerd Font** partout (`theme.Icon*`, le gabarit de la colonne d'icônes de
+la Rule 125). Une police qui ne les porte pas les rend en carrés vides. L'assistant
+de premier lancement le sait déjà : sa première étape est un contrôle de police
+(`stepFontCheck`).
+
+**Les quatre lectures possibles :**
+
+1. **Documenter, sans code.** Dire dans l'aide et dans `docs/` quelles polices
+   à chasse fixe et à glyphes Nerd Font marchent, et comment les régler dans les
+   émulateurs courants. Rapide et honnête, mais ce n'est pas un « switch ».
+2. **Étendre le contrôle de police de l'assistant.** Aujourd'hui il demande si
+   ça « looks correct ». Il pourrait dire *pourquoi* des carrés apparaissent et
+   quoi installer, et vérifier les glyphes de largeur ambiguë que le §3.96 laisse
+   à l'utilisateur.
+3. **Un repli sans icônes.** La vraie dépendance à la police est le jeu de glyphes.
+   Un réglage `app.icons: nerd | ascii` rendrait DevDesk utilisable avec
+   n'importe quelle police, Inter comprise pour ce qui est des icônes — mais pas
+   de la grille. Creusé en [§3.98](#398-une-apparence-soignée-sans-nerd-font--à-explorer).
+4. **Demander à l'émulateur de changer de police.** Certains le permettent par
+   une séquence d'échappement ou un contrôle à distance (iTerm2, kitty, WezTerm,
+   xterm ont chacun le leur). Aucun n'est portable, plusieurs ne portent que la
+   taille, et un `dk` qui reconfigure le terminal de l'utilisateur sort de ce
+   qu'une application de terminal fait d'ordinaire. **À vérifier** terminal par
+   terminal avant de décider quoi que ce soit.
+
+**Recommandation provisoire** : 1 et 2 d'abord, parce que ce sont les seuls qui
+tiennent sans condition ; 3 si une vraie demande de repli ASCII apparaît ; 4
+seulement si un terminal précis le justifie. Si l'intention est le *look* d'Inter
+plutôt que la police elle-même, la question change : ce sont les couleurs et
+l'espacement (thèmes), pas la police.
+
+**À trancher avec l'utilisateur** : est-ce l'aspect d'Inter qui est voulu, ou le
+fait de pouvoir changer de police sans quitter DevDesk ? La réponse décide entre
+« documenter » et « un champ dans la configuration ».
+
+### 3.98 Une apparence soignée sans Nerd Font — **à explorer**
+
+Demandé le 2026-10-05, en prolongement du §3.97 : si l'utilisateur n'a pas de
+Nerd Font, DevDesk peut-il rester pro et agréable plutôt que d'afficher des
+carrés ? C'est la vraie dépendance à la police : pas la police, mais le jeu de
+glyphes que l'application suppose.
+
+**Pourquoi c'est réaliste.** Les icônes sont des `var` dans un seul fichier,
+`internal/ui/theme/icons.go` : environ 80 définitions, lues sous 79 noms dans
+55 fichiers. Un jeu de repli se branche donc à cet endroit, par une fonction qui
+réaffecte les variables — le même mécanisme que `theme.SetGaugeGlyph` (§3.96) —
+et aucune vue n'a à changer. Reste à examiner une vingtaine de lignes qui
+écrivent un point de code en dehors de ce fichier. Un endroit pour demander
+existe déjà : la première étape de l'assistant est un contrôle de police
+(`stepFontCheck`), dont la réponse « Broken (boxes or question marks) » ne
+persiste rien aujourd'hui et n'affiche qu'un texte de remédiation.
+
+**Pourquoi ce ne peut être qu'un réglage.** Un terminal ne dit pas quelle police
+il utilise, et une police qui n'a pas le glyphe dessine un carré **de la même
+largeur** que le vrai : mesurer ne distingue rien. Le choix est donc explicite —
+`app.icons: nerd | unicode`, proposé par l'assistant et cyclable dans la vue de
+configuration (Rule 132). Le défaut reste à décider : `nerd` ne change rien pour
+qui l'a, `unicode` est le choix prudent, comme `shade` l'est pour les jauges.
+
+**Ce qui fait « pro » sans icône.** Les icônes sont la partie la moins
+essentielle du rendu ; ce qui reste fonctionne dans toute police :
+- les bordures, en box-drawing, que `IconTreeBranch` utilise déjà ;
+- la couleur par **rôle** (Rule 125) : une pastille colorée passe par le même
+  chemin qu'un glyphe ;
+- les statuts (Rule 121) : un cercle plein coloré **et un mot** — la couleur et
+  le texte portent l'information, pas la forme ;
+- la hiérarchie typographique : gras, atténué, espacement.
+
+**Là où c'est difficile :**
+1. **Les icônes d'objet** — Docker, un dossier, git, GitLab — n'ont aucun
+   équivalent Unicode. Pour la colonne d'icônes (Rule 125), trois voies : une
+   lettre colorée en pastille (`D`, `G`), `▸`/`▾` pour les répertoires, ou aucune
+   colonne, ce qui rend deux cellules à la table. La Rule 125 exige une colonne
+   sans titre et de largeur `IconColumnWidth` ; la retirer en repli est un
+   changement de gabarit, pas de glyphe.
+2. **La largeur ambiguë, encore.** `● ▶ ✓ ■` sont eux aussi ambigus ou absents de
+   certaines polices ; le jeu « sûr » est plus étroit qu'on ne le croit.
+   Il se **mesure** avec `runewidth` plutôt que de se supposer.
+3. **Le rendu ne se juge qu'à l'œil**, dans un vrai terminal sans Nerd Font. Les
+   tests peuvent interdire un glyphe ambigu ; ils ne diront pas si c'est joli.
+
+**Esquisse, à confirmer :**
+1. un jeu `unicode` restreint aux glyphes mesurés à une cellule, et des pastilles
+   de lettre pour les objets ;
+2. le branchement sur l'étape « Broken » de l'assistant, plus le champ de
+   configuration ;
+3. un test qui rejette un glyphe de largeur ambiguë dans ce jeu, sur le modèle de
+   `TestTheDefaultGaugeGlyphIsNotAmbiguousWidth`.
+
+**À trancher avec l'utilisateur** : le défaut (`nerd` ou `unicode`), et ce que
+devient la colonne d'icônes en repli — pastille, ou retrait.
+
 ## 4. Existing plans
 
 Detailed plans live in `.claude/plans/`. One is outstanding:
