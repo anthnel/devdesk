@@ -16123,6 +16123,64 @@ coupure en mode `block` ; `GaugeFill(n)` et `GaugeTrack(n)` servent à l'appelan
 qui style lui-même les deux tronçons (la cascade de netdiag). La piste est
 toujours `░`. `Cut`/`TailStyle` restent inchangés : ils colorent après la mesure.
 
+### 3.97 Changer de police depuis DevDesk — **à explorer**
+
+Demandé le 2026-10-05 : pouvoir « switcher de font », par exemple vers
+[Inter](https://rsms.me/inter/).
+
+**Le point de départ, avant toute envie : DevDesk ne choisit pas sa police.**
+Une TUI écrit des cellules dans une grille ; la police qui les dessine est celle
+de l'émulateur de terminal, et rien dans `dk` ne peut la changer par un appel
+portable. Ce que la demande recouvre est donc l'une de quatre choses, très
+différentes en coût et en valeur.
+
+**Inter elle-même ne convient pas, et c'est la contrainte qui décide.** Inter
+est une police **proportionnelle** : un `i` y est plus étroit qu'un `m`. Tout ce
+que DevDesk dessine suppose une grille de cellules égales — `internal/ui/datatable`
+mesure en cellules (`runewidth`), la Rule 116 exige que la ligne remplisse
+exactement l'intérieur du viewport, les jauges (§3.71, §3.96) comptent des
+cellules. Dans un terminal, un émulateur force de toute façon une police
+proportionnelle dans sa grille, avec des espacements irréguliers ou des glyphes
+rognés. À ma connaissance Inter n'a pas de variante à chasse fixe officielle ;
+des dérivés communautaires existent, **à vérifier** avant d'en recommander un.
+
+Il y a une seconde contrainte, moins visible : les icônes. DevDesk dessine des
+glyphes **Nerd Font** partout (`theme.Icon*`, le gabarit de la colonne d'icônes de
+la Rule 125). Une police qui ne les porte pas les rend en carrés vides. L'assistant
+de premier lancement le sait déjà : sa première étape est un contrôle de police
+(`stepFontCheck`).
+
+**Les quatre lectures possibles :**
+
+1. **Documenter, sans code.** Dire dans l'aide et dans `docs/` quelles polices
+   à chasse fixe et à glyphes Nerd Font marchent, et comment les régler dans les
+   émulateurs courants. Rapide et honnête, mais ce n'est pas un « switch ».
+2. **Étendre le contrôle de police de l'assistant.** Aujourd'hui il demande si
+   ça « looks correct ». Il pourrait dire *pourquoi* des carrés apparaissent et
+   quoi installer, et vérifier les glyphes de largeur ambiguë que le §3.96 laisse
+   à l'utilisateur.
+3. **Un repli sans icônes.** La vraie dépendance à la police est le jeu de glyphes.
+   Un réglage `app.icons: nerd | ascii` rendrait DevDesk utilisable avec
+   n'importe quelle police, Inter comprise pour ce qui est des icônes — mais pas
+   de la grille. Le plus gros chantier : chaque `theme.Icon*` passe par une
+   table, et les colonnes d'icônes (Rule 125) changent de largeur.
+4. **Demander à l'émulateur de changer de police.** Certains le permettent par
+   une séquence d'échappement ou un contrôle à distance (iTerm2, kitty, WezTerm,
+   xterm ont chacun le leur). Aucun n'est portable, plusieurs ne portent que la
+   taille, et un `dk` qui reconfigure le terminal de l'utilisateur sort de ce
+   qu'une application de terminal fait d'ordinaire. **À vérifier** terminal par
+   terminal avant de décider quoi que ce soit.
+
+**Recommandation provisoire** : 1 et 2 d'abord, parce que ce sont les seuls qui
+tiennent sans condition ; 3 si une vraie demande de repli ASCII apparaît ; 4
+seulement si un terminal précis le justifie. Si l'intention est le *look* d'Inter
+plutôt que la police elle-même, la question change : ce sont les couleurs et
+l'espacement (thèmes), pas la police.
+
+**À trancher avec l'utilisateur** : est-ce l'aspect d'Inter qui est voulu, ou le
+fait de pouvoir changer de police sans quitter DevDesk ? La réponse décide entre
+« documenter » et « un champ dans la configuration ».
+
 ## 4. Existing plans
 
 Detailed plans live in `.claude/plans/`. One is outstanding:
