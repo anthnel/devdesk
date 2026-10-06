@@ -1,0 +1,33 @@
+{
+  "cli_version": "0.11.3",
+  "checkpoint_id": "e733d33fa289",
+  "strategy": "manual-commit",
+  "branch": "fix/wsl-clipboard-accents",
+  "checkpoints_count": 12,
+  "files_touched": [
+    "docs/backlog.md",
+    "internal/clipboard/clipboard.go",
+    "internal/clipboard/clipboard_test.go",
+    "internal/ui/configuration/mcp_copy.go",
+    "internal/ui/filebrowser/update.go",
+    "internal/ui/oci_resources/commands.go",
+    "internal/ui/viewer/update.go",
+    "internal/ui/workspaces/commands.go"
+  ],
+  "sessions": [
+    {
+      "metadata": "/e7/33d33fa289/0/metadata.json",
+      "transcript": "/e7/33d33fa289/0/full.jsonl",
+      "compact_transcript": "/e7/33d33fa289/0/transcript.jsonl",
+      "content_hash": "/e7/33d33fa289/0/content_hash.txt",
+      "prompt": ""
+    }
+  ],
+  "token_usage": {
+    "input_tokens": 152,
+    "cache_creation_tokens": 462428,
+    "cache_read_tokens": 10736763,
+    "output_tokens": 55527,
+    "api_call_count": 76
+  }
+}
