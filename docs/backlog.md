@@ -94,6 +94,20 @@ decided together and fixed in one pass; see [§1.2](#12-the-five-parked-defects)
 
 ### 1.1 Fixed
 
+**D81 — sous WSL, une copie (`Y`) collait « Ã© » au lieu de « é ». Corrigé.**
+Signalé et fermé le 2026-10-06, depuis le viewer.
+
+Sans xclip, xsel ni wl-copy, `atotto/clipboard` retombe sur `clip.exe` et lui
+passe de l'UTF-8 ; `clip.exe` lit son entrée dans la page de code de la console,
+donc chaque caractère non ASCII arrivait en mojibake. Les cinq copies de
+l'application (viewer, `ws`, `:files`, OCI, la commande MCP) passent maintenant
+par `internal/clipboard` : sous WSL (`WSL_DISTRO_NAME`, le signal que
+`internal/ui/terminal` lit déjà) il écrit à `clip.exe` de l'UTF-16LE précédé
+d'un BOM, que `clip.exe` lit comme Unicode ; ailleurs il délègue à `atotto`,
+sans changement. `clip.exe` est préféré sous WSL même quand xclip est installé :
+il écrit directement le presse-papiers Windows, celui où l'on colle, et xclip
+sans serveur X échoue.
+
 **D80 — `git` lu dans la locale de l'utilisateur ; `Sync` supprimait les tags
 locaux sous `fetch.prune` ; `StateOf` se trompait hors dépôt. Corrigé.**
 Relevé le 2026-10-01 : quatre tests de `internal/git` échouaient sur une machine

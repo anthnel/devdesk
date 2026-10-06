@@ -5,7 +5,7 @@ import (
 	"os/exec"
 	"time"
 
-	"github.com/atotto/clipboard"
+	"github.com/anthnel/devdesk/internal/clipboard"
 	"github.com/charmbracelet/bubbles/spinner"
 	tea "github.com/charmbracelet/bubbletea"
 
