@@ -7,7 +7,7 @@ import (
 	"strings"
 	"sync"
 
-	"github.com/atotto/clipboard"
+	"github.com/anthnel/devdesk/internal/clipboard"
 	tea "github.com/charmbracelet/bubbletea"
 
 	"github.com/anthnel/devdesk/internal/cache"
