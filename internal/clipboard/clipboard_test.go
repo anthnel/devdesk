@@ -1,36 +1,62 @@
 package clipboard
 
 import (
-	"bytes"
+	"encoding/base64"
+	"os"
+	"path/filepath"
 	"testing"
 )
 
-// clip.exe reads UTF-8 in the console code page and pastes "é" as "Ã©"; the
-// bytes it is handed must be UTF-16LE behind a BOM instead.
-func TestUTF16LEWithBOM(t *testing.T) {
-	tests := []struct {
-		name string
-		in   string
-		want []byte
-	}{
-		{"empty is the BOM alone", "", []byte{0xFF, 0xFE}},
-		{"ascii", "a", []byte{0xFF, 0xFE, 'a', 0x00}},
-		{"accented", "é", []byte{0xFF, 0xFE, 0xE9, 0x00}},
-		{"beyond the BMP is a surrogate pair", "😀", []byte{0xFF, 0xFE, 0x3D, 0xD8, 0x00, 0xDE}},
+// fakePowerShell puts a powershell.exe on PATH that records its stdin, and
+// returns where the recording lands.
+func fakePowerShell(t *testing.T) string {
+	t.Helper()
+	dir := t.TempDir()
+	out := filepath.Join(dir, "stdin")
+	script := "#!/bin/sh\ncat > '" + out + "'\n"
+	if err := os.WriteFile(filepath.Join(dir, powerShellExe), []byte(script), 0o755); err != nil {
+		t.Fatal(err)
 	}
-	for _, tc := range tests {
-		t.Run(tc.name, func(t *testing.T) {
-			if got := utf16LEWithBOM(tc.in); !bytes.Equal(got, tc.want) {
-				t.Errorf("utf16LEWithBOM(%q) = % X, want % X", tc.in, got, tc.want)
-			}
-		})
+	t.Setenv("PATH", dir+string(os.PathListSeparator)+os.Getenv("PATH"))
+	t.Setenv("WSL_DISTRO_NAME", "Debian")
+	return out
+}
+
+// What reaches PowerShell is the exact UTF-8 text, base64-encoded: no BOM to
+// end up in the clipboard (D81), no byte a code page could reinterpret.
+func TestWSLHandsPowerShellTheExactTextAsBase64(t *testing.T) {
+	if os.PathListSeparator != ':' {
+		t.Skip("the fake powershell.exe is a shell script")
+	}
+	out := fakePowerShell(t)
+
+	const text = "/home/me/café/😀.txt"
+	if err := WriteAll(text); err != nil {
+		t.Fatalf("WriteAll() error = %v", err)
+	}
+
+	raw, err := os.ReadFile(out)
+	if err != nil {
+		t.Fatal(err)
+	}
+	decoded, err := base64.StdEncoding.DecodeString(string(raw))
+	if err != nil {
+		t.Fatalf("stdin is not base64: %q", raw)
+	}
+	if got := string(decoded); got != text {
+		t.Errorf("decoded stdin = %q, want %q", got, text)
+	}
+	for _, b := range raw {
+		if b >= 0x80 {
+			t.Fatalf("stdin carries a non-ASCII byte %#x; a code page could alter it", b)
+		}
 	}
 }
 
 // Outside WSL nothing changes: atotto keeps the clipboard.
-func TestClipExeIsOnlyUsedUnderWSL(t *testing.T) {
+func TestPowerShellIsOnlyUsedUnderWSL(t *testing.T) {
 	t.Setenv("WSL_DISTRO_NAME", "")
-	if _, ok := wslClipExe(); ok {
-		t.Error("wslClipExe() chose clip.exe without WSL_DISTRO_NAME")
+	if _, ok := wslPowerShell(); ok {
+		t.Error("wslPowerShell() chose PowerShell without WSL_DISTRO_NAME")
 	}
 }
