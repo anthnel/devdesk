@@ -108,6 +108,17 @@ sans changement. `clip.exe` est préféré sous WSL même quand xclip est instal
 il écrit directement le presse-papiers Windows, celui où l'on colle, et xclip
 sans serveur X échoue.
 
+**Second temps, le 2026-10-07 : le BOM restait dans le presse-papiers.** Les
+accents passaient, mais `clip.exe` garde le BOM qui lui a servi à reconnaître
+l'UTF-16 : invisible dans une application Windows, il ressortait en `<feff>` en
+tête d'un chemin collé dans un terminal WSL. Sans BOM, `clip.exe` devine
+l'encodage (`IsTextUnicode`), et sa devinette est la moins fiable sur un texte
+court — un chemin, justement. `internal/clipboard` passe donc sous WSL par
+`powershell.exe` : le texte, encodé en base64, traverse le tube en ASCII pur,
+qu'aucune page de code ne peut altérer, et `Set-Clipboard` reçoit la chaîne
+exacte. Le prix est le démarrage de PowerShell, quelques centaines de
+millisecondes, dans un Cmd.
+
 **D80 — `git` lu dans la locale de l'utilisateur ; `Sync` supprimait les tags
 locaux sous `fetch.prune` ; `StateOf` se trompait hors dépôt. Corrigé.**
 Relevé le 2026-10-01 : quatre tests de `internal/git` échouaient sur une machine
