@@ -1,0 +1,29 @@
+le projet aqua:amir20/dtop utilise des block plein pour afficher les jauges, pq devdesk ne peut pas utiliser des block plein
+
+---
+
+est-ce qu'une option concernant la locale aurait du sens pour adapter l'affichage en fonction de l'option , ne code rien on raisonne
+
+---
+
+vas-y avec le défaut sûr `░` et `block` en opt-in
+
+---
+
+donne moi quelques commandes powershell pour lancer des conteneurs et vérifier les jauges
+
+---
+
+les tests git doivent forcer LC_ALL=C
+
+---
+
+ajoute au backlog la possibilité de switcher de font, par exemple utiliser https://rsms.me/inter/
+
+---
+
+oui
+
+---
+
+le copy dans le viewer ne préserve pas les caractères avec accent
