@@ -4,6 +4,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"slices"
 	"testing"
 )
 
@@ -109,5 +110,47 @@ func write(t *testing.T, path, content string) {
 	t.Helper()
 	if err := os.WriteFile(path, []byte(content), 0o600); err != nil {
 		t.Fatalf("write %s: %v", path, err)
+	}
+}
+
+// One commit often carries a whole version family. describe picks one of them,
+// and which one is not reliable; every tag on that commit is listed, highest
+// version first — annotated ones included, through --points-at's peeling.
+func TestEveryTagOnTheNearestTaggedCommitIsListed(t *testing.T) {
+	repo := initRepo(t)
+	write(t, filepath.Join(repo, "a.txt"), "a\n")
+	commit(t, repo)
+	git(t, repo, "tag", "old")
+	write(t, filepath.Join(repo, "a.txt"), "b\n")
+	commit(t, repo)
+	git(t, repo, "tag", "2")
+	git(t, repo, "tag", "2.4.2")
+	git(t, repo, "-c", "tag.gpgSign=false", "tag", "-a", "2.4", "-m", "annotated")
+	// A commit after the tagged one: the tags are the nearest *reachable*
+	// ones, not those on HEAD itself.
+	write(t, filepath.Join(repo, "a.txt"), "c\n")
+	commit(t, repo)
+
+	status, err := ReadStatus(repo)
+	if err != nil {
+		t.Fatalf("ReadStatus: %v", err)
+	}
+	want := []string{"2.4.2", "2.4", "2"}
+	if !slices.Equal(status.LastTags, want) {
+		t.Errorf("LastTags = %q, want %q", status.LastTags, want)
+	}
+}
+
+func TestAnUntaggedRepositoryHasNoLastTags(t *testing.T) {
+	repo := initRepo(t)
+	write(t, filepath.Join(repo, "a.txt"), "a\n")
+	commit(t, repo)
+
+	status, err := ReadStatus(repo)
+	if err != nil {
+		t.Fatalf("ReadStatus: %v", err)
+	}
+	if status.LastTags != nil {
+		t.Errorf("LastTags = %q, want nil", status.LastTags)
 	}
 }

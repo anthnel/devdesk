@@ -55,7 +55,7 @@ func detectGitStatus(entry *Entry) {
 	entry.GitUnpushed = status.Ahead
 	entry.GitUnpulled = status.Behind
 	entry.GitNoUpstream = !status.HasUpstream
-	entry.GitLastTag = status.LastTag
+	entry.GitLastTags = status.LastTags
 
 	if status.Remote != "" {
 		entry.GitRemote = extractRemotePath(status.Remote)

@@ -1,6 +1,7 @@
 package workspaces
 
 import (
+	"strings"
 	"unicode/utf8"
 
 	"github.com/charmbracelet/lipgloss"
@@ -14,8 +15,15 @@ const (
 	colNameMin = 16
 	// colGitMin is the title's width: the cell itself can be as short as a
 	// four-letter branch, and a spinner's "⠋ deleting" is ten as well.
-	colGitMin         = 10
-	colLastTagFixed   = 10
+	colGitMin = 10
+	// colLastTagMin is the title's width. The column grows to the tags it
+	// shows, up to colLastTagMax: three version tags like "2.4.2, 2.4, 2" fit,
+	// and a longer list is truncated from the right, where the lowest — least
+	// specific — version sits.
+	colLastTagMin = 10
+	colLastTagMax = 24
+	// maxTagsShown caps the tags listed for one commit.
+	maxTagsShown      = 3
 	colSensitiveFixed = 7
 	colCFixed         = 4
 	colHFixed         = 4
@@ -155,8 +163,9 @@ func workspaceColumns(withCI, withMisconfig bool) []datatable.Column[workspaceRo
 			TailStyle: gitMarkersStyle,
 		},
 		{
-			Title: "Last Tag", Sizing: datatable.SizingFixed, Optional: true, MinWidth: colLastTagFixed,
-			Cell:  func(r workspaceRow) string { return r.Entry.GitLastTag },
+			Title: "Last Tag", Sizing: datatable.SizingContent, Optional: true,
+			MinWidth: colLastTagMin, MaxWidth: colLastTagMax,
+			Cell:  func(r workspaceRow) string { return lastTagsText(r.Entry.GitLastTags) },
 			Style: lastTagStyle,
 		},
 		{
@@ -235,12 +244,18 @@ func gitMarkersStyle(r workspaceRow) lipgloss.Style {
 	return lipgloss.NewStyle()
 }
 
+// lastTagsText lists the tags of the nearest tagged commit, at most
+// maxTagsShown of them, separated by ", ".
+func lastTagsText(tags []string) string {
+	return strings.Join(tags[:min(len(tags), maxTagsShown)], ", ")
+}
+
 // lastTagStyle dims the cell for the common case — a repository with no tag
 // reachable from HEAD — the same way count() dims a zero count, rather than
 // leaving an untagged repository looking identical to a tagged one in
 // ordinary text color.
 func lastTagStyle(r workspaceRow) lipgloss.Style {
-	if r.Entry.GitLastTag == "" {
+	if len(r.Entry.GitLastTags) == 0 {
 		return theme.DimStyle
 	}
 	return lipgloss.NewStyle()

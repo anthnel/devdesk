@@ -38,11 +38,13 @@ type RepoStatus struct {
 	// Sync is what makes it true, because it fetches first and always.
 	Behind int
 
-	// LastTag is the nearest tag reachable from HEAD, lightweight or
-	// annotated. Empty means what it says for a repository — no tag reachable
-	// from here — and not an error: most repositories are never tagged at
-	// all, so this is the ordinary case rather than the exception.
-	LastTag string
+	// LastTags are the tags on the commit of the nearest tag reachable from
+	// HEAD, lightweight or annotated — several when one commit carries 2, 2.4
+	// and 2.4.2 — highest version first. Empty means what it says for a
+	// repository — no tag reachable from here — and not an error: most
+	// repositories are never tagged at all, so this is the ordinary case
+	// rather than the exception.
+	LastTags []string
 }
 
 // ReadStatus reads a working copy. It runs no network operation, so what it
@@ -81,7 +83,7 @@ func ReadStatus(repoPath string) (RepoStatus, error) {
 		status.Behind, status.Ahead = behind, ahead
 	}
 
-	status.LastTag = lastTagOf(repoPath)
+	status.LastTags = lastTagsOf(repoPath)
 
 	return status, nil
 }
@@ -101,15 +103,26 @@ func branchOf(repoPath string) string {
 	return ""
 }
 
-// lastTagOf names the nearest tag reachable from HEAD, or "" when the
-// repository has none — that is the common case, not a failure, so the error
-// `git describe` returns for it is discarded rather than propagated.
-func lastTagOf(repoPath string) string {
+// lastTagsOf names every tag on the commit of the nearest tag reachable from
+// HEAD, highest version first, or nil when the repository has none — that is
+// the common case, not a failure, so the error `git describe` returns for it
+// is discarded rather than propagated.
+//
+// describe picks one tag when several share a commit, and which one is not
+// something to rely on; listing the commit's tags is what makes the answer
+// whole. `^{commit}` peels an annotated tag to the commit it names, and
+// --points-at matches annotated tags through the same peeling.
+func lastTagsOf(repoPath string) []string {
 	out, err := run(repoPath, "", "describe", "--tags", "--abbrev=0")
 	if err != nil {
-		return ""
+		return nil
 	}
-	return strings.TrimSpace(out)
+	nearest := strings.TrimSpace(out)
+	out, err = run(repoPath, "", "tag", "--points-at", nearest+"^{commit}", "--sort=-v:refname")
+	if tags := strings.Fields(out); err == nil && len(tags) > 0 {
+		return tags
+	}
+	return []string{nearest}
 }
 
 // countPorcelain splits `git status --porcelain` into what is tracked and

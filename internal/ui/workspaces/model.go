@@ -155,7 +155,7 @@ type Entry struct {
 	// above are zero because there is nothing to count against. Negative on
 	// purpose: an Entry that was never asked reads as "no opinion".
 	GitNoUpstream bool
-	GitLastTag    string // nearest tag reachable from HEAD, or "" if none
+	GitLastTags   []string // tags on the nearest tagged commit, highest first; nil if none
 }
 
 // New creates a new instance of the workspaces model.
