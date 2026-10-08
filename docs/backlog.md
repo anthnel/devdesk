@@ -16262,6 +16262,20 @@ essentielle du rendu ; ce qui reste fonctionne dans toute police :
 **À trancher avec l'utilisateur** : le défaut (`nerd` ou `unicode`), et ce que
 devient la colonne d'icônes en repli — pastille, ou retrait.
 
+### 3.99 `ws` — tous les tags du dernier commit taggé — **done**
+
+Demandé le 2026-10-08 : un commit porte souvent plusieurs tags (`2`, `2.4`,
+`2.4.2`), et la colonne Last Tag n'en montrait qu'un, choisi par `git describe`
+sans règle sur laquelle compter. `internal/git` liste maintenant tous les tags
+de ce commit (`git tag --points-at`), version la plus haute d'abord ; la cellule
+les joint par `", "`, trois au plus, et la colonne passe d'une largeur fixe de
+10 à une largeur au contenu, plafonnée à 24.
+
+L'ordre décroissant est un choix fait ici : la demande citait `2, 2.4, 2.4.2`,
+mais tronquée — à droite, par la colonne, ou au quatrième tag — une liste
+croissante perdrait la version la plus précise et garderait la moins utile.
+Détail : [`workspaces.md`](architecture/workspaces.md).
+
 ## 4. Existing plans
 
 Detailed plans live in `.claude/plans/`. One is outstanding:

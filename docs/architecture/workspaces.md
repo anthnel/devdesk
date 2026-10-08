@@ -104,6 +104,19 @@ all of it.
 are the point — so the branch is shortened in the cell instead, past 24 runes
 (`displayBranch`), keeping its start where the prefix and ticket number sit.
 
+## The Last Tag column — every tag on the nearest tagged commit
+
+`git.RepoStatus.LastTags` is not one tag but every tag on the commit of the
+nearest tag reachable from HEAD: `git describe --tags --abbrev=0` finds that
+commit, then `git tag --points-at <tag>^{commit} --sort=-v:refname` lists its
+tags, annotated ones included. A release commonly carries a family — `2`,
+`2.4`, `2.4.2` — and `describe` alone picks one of them, without saying which.
+
+The cell joins them with `", "`, three at most (`maxTagsShown`), highest
+version first: when the column is truncated, or a fourth tag dropped, what is
+lost is the least specific version. The column sizes to its content between
+`colLastTagMin` and `colLastTagMax` cells, and stays `Optional`.
+
 ## The workspaces sync
 
 `F` fetches a repository and fast-forwards it (§3.17). It is the other half of
