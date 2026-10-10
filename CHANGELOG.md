@@ -1,5 +1,22 @@
 # Changelog
 
+## [1.7.0](https://github.com/anthnel/devdesk/compare/v1.6.0...v1.7.0) (2026-10-08)
+
+
+### Features
+
+* **files:** add a file browser view and a path picker for forms (§3.95) ([#277](https://github.com/anthnel/devdesk/issues/277)) ([2bda519](https://github.com/anthnel/devdesk/commit/2bda519b88c7d44a57b53dfe59bbd199e335a24d))
+* **theme:** add app.gauge_glyph to opt into a solid block gauge fill (§3.96) ([#278](https://github.com/anthnel/devdesk/issues/278)) ([9ab452a](https://github.com/anthnel/devdesk/commit/9ab452a2c909d8956701a30e2ae696380cb95802))
+* **workspaces:** show every tag on the nearest tagged commit (§3.99) ([#283](https://github.com/anthnel/devdesk/issues/283)) ([62faea0](https://github.com/anthnel/devdesk/commit/62faea0474643b935ae77c8e49c327d6643da3f1))
+
+
+### Bug Fixes
+
+* **clipboard:** set the WSL clipboard through PowerShell, not clip.exe (D81) ([#282](https://github.com/anthnel/devdesk/issues/282)) ([a2fcae5](https://github.com/anthnel/devdesk/commit/a2fcae514aad5c25c491bf93c3707bfdf9d10e10))
+* **clipboard:** write UTF-16 to clip.exe under WSL so accents survive (D81) ([#281](https://github.com/anthnel/devdesk/issues/281)) ([28e3364](https://github.com/anthnel/devdesk/commit/28e33640010e9df1b86f7c2baf51a1fb20c540fd))
+* **git:** force the C locale, and stop sync pruning local tags (D80) ([#279](https://github.com/anthnel/devdesk/issues/279)) ([ddf0e42](https://github.com/anthnel/devdesk/commit/ddf0e425a29a4b709d1ee8cf9d21dae4fee89cfc))
+* **git:** show ssh's reason when a clone cannot reach the remote (D78) ([#275](https://github.com/anthnel/devdesk/issues/275)) ([d432a60](https://github.com/anthnel/devdesk/commit/d432a60b50699e6641dd175820722ecea27fa687))
+
 ## [1.6.0](https://github.com/anthnel/devdesk/compare/v1.5.0...v1.6.0) (2026-09-26)
 
 
