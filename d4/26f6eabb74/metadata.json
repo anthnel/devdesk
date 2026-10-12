@@ -1,0 +1,24 @@
+{
+  "cli_version": "0.11.3",
+  "checkpoint_id": "d426f6eabb74",
+  "strategy": "manual-commit",
+  "branch": "docs/backlog-stale-template-cache",
+  "checkpoints_count": 3,
+  "files_touched": null,
+  "sessions": [
+    {
+      "metadata": "/d4/26f6eabb74/0/metadata.json",
+      "transcript": "/d4/26f6eabb74/0/full.jsonl",
+      "compact_transcript": "/d4/26f6eabb74/0/transcript.jsonl",
+      "content_hash": "/d4/26f6eabb74/0/content_hash.txt",
+      "prompt": "/d4/26f6eabb74/0/prompt.txt"
+    }
+  ],
+  "token_usage": {
+    "input_tokens": 48,
+    "cache_creation_tokens": 476538,
+    "cache_read_tokens": 5236024,
+    "output_tokens": 11914,
+    "api_call_count": 24
+  }
+}
