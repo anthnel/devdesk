@@ -16276,6 +16276,58 @@ mais tronquée — à droite, par la colonne, ou au quatrième tag — une liste
 croissante perdrait la version la plus précise et garderait la moins utile.
 Détail : [`workspaces.md`](architecture/workspaces.md).
 
+### 3.100 Un template créé depuis une copie périmée, sans que rien le dise — **à explorer**
+
+Signalé le 2026-10-12 : un projet créé depuis le template
+`go/http-api` (branche `main`, dépôt GitLab, sous-répertoire `go/http-api`)
+n'a pas reçu `.gitlab-ci.yml`, `.releaserc.json` ni `.dockerignore`, seul
+`.gitignore` était là. **Cause probable, non confirmée** : la copie en cache
+date d'avant l'ajout de ces fichiers au template.
+
+**Ce qui a été vérifié** (en lisant tout le chemin, de `Fetch` à
+`InitialCommit`, et en l'exécutant sur un dépôt local) : DevDesk ne filtre aucun
+fichier caché et ne génère pas de `.gitignore` — celui qui arrive vient du
+template. Les fichiers manquent donc parce que la source ne les renvoie pas ou
+que la copie utilisée n'est pas la source. Le test a reproduit le second cas :
+un template qui gagne des fichiers après sa première mise en cache continue à
+renvoyer l'ancien contenu, jusqu'à un `F`.
+
+**Le défaut est de conception, pas un oubli.** `template.Cache` est documenté
+comme ne remarquant jamais que la source a bougé : une branche est servie telle
+qu'elle était jusqu'à ce que `F` relise la source, et seul un template épinglé
+sur un SHA y échappe. Le choix est défendable — un aperçu, un scan et une
+création ne retournent pas chacun au réseau, et un template qui marchait hier
+ne se perd pas dans une panne d'aujourd'hui. Mais le coût est silencieux :
+l'âge de la copie est visible dans la colonne **Synced** de `:templates`, et nulle
+part ailleurs. Au moment de créer un projet, rien ne dit que ce qui va être
+commité n'est peut-être pas la dernière version.
+
+**Pistes, de la plus légère à la plus lourde :**
+1. **Montrer l'âge dans le formulaire de création.** À côté du nom du template,
+   « synced 3 weeks ago ». Aucune décision de fraîcheur n'est prise à la place
+   de l'utilisateur ; la colonne `Synced` fournit déjà la donnée
+   (`Cache.FetchedAt`). Ne règle rien, mais l'information devient visible là où
+   elle compte.
+2. **Vérifier la fraîcheur avant de créer.** Retenir dans l'en-tête du cache le
+   commit auquel la référence résolvait, et le comparer à un `git ls-remote` au
+   moment de la création : un seul appel léger, sans télécharger l'archive. Un
+   écart relit la source. Un SHA épinglé n'en a pas besoin. À décider : que
+   faire quand `ls-remote` échoue — la copie en cache, avec un avertissement,
+   est cohérente avec le principe « une panne n'abîme pas ce qui marchait ».
+   Attention aux identifiants : `ls-remote` en demande les mêmes que le fetch
+   (`CredentialsFor`).
+3. **Une durée de vie.** Relire au-delà d'un âge fixé. Simple, mais elle relit
+   sans savoir si c'était nécessaire, et un âge « raisonnable » est arbitraire.
+
+**Recommandation provisoire** : 2, avec 1 en complément — la création est le
+seul moment où une copie périmée a un coût, et c'est celui où un appel réseau est
+déjà attendu. 3 seul laisserait le même silence entre deux relectures.
+
+**À trancher avec l'utilisateur** : le comportement hors ligne (copie en cache
+avec avertissement, ou refus), et si un `export-ignore` dans le `.gitattributes`
+du template mérite lui aussi d'être signalé — c'est l'autre cause qui retire des
+fichiers sans rien dire, et elle se voit dans l'aperçu `V`, pas à la création.
+
 ## 4. Existing plans
 
 Detailed plans live in `.claude/plans/`. One is outstanding:
