@@ -94,6 +94,25 @@ decided together and fixed in one pass; see [§1.2](#12-the-five-parked-defects)
 
 ### 1.1 Fixed
 
+**D82 — dans `ws`, `F` ne rafraîchissait pas la colonne Last Tag : il fallait
+`ctrl+r` en plus. Corrigé.** Signalé et fermé le 2026-10-13.
+
+Un sync relit tout le statut git du dépôt (`readGitStatus`, y compris
+`GitLastTags`), puis `applyGitStatus` le copie sur la ligne — par une liste de
+champs écrite à la main, où le tag n'a jamais figuré depuis l'ajout de la colonne
+(#214). Or un sync est précisément ce qui récupère les nouveaux tags : la
+colonne montrait l'ancien jusqu'à un `ctrl+r`, qui relit la ligne en entier.
+La copie est maintenant une seule fonction, `Entry.copyGitFrom`, et
+`TestCopyGitFromTakesEveryGitField` remplit par réflexion chaque champ `Git*` de
+`Entry` : un champ ajouté sans ligne dans la copie fait échouer le test au lieu
+de rester périmé en silence.
+
+**Ce que ça ne change pas : la colonne Modified.** C'est la date du répertoire,
+lue dans le listing, et un test impose que `readGitStatus` n'y touche pas — le
+listing en est propriétaire. Un fast-forward peut pourtant la faire bouger, et
+`ctrl+r` la met alors à jour. Faire relire un `Lstat` au sync est bon marché,
+mais c'est renverser ce choix : à décider séparément.
+
 **D81 — sous WSL, une copie (`Y`) collait « Ã© » au lieu de « é ». Corrigé.**
 Signalé et fermé le 2026-10-06, depuis le viewer.
 

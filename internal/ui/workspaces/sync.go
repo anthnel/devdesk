@@ -166,16 +166,26 @@ func (m *Model) applyGitStatus(repoPath string, status Entry) {
 		if entries[i].Path != repoPath || !status.IsGitRepo {
 			continue
 		}
-		entries[i].GitBranch = status.GitBranch
-		entries[i].GitRemote = status.GitRemote
-		entries[i].GitRemoteURL = status.GitRemoteURL
-		entries[i].GitModified = status.GitModified
-		entries[i].GitUntracked = status.GitUntracked
-		entries[i].GitUnpushed = status.GitUnpushed
-		entries[i].GitUnpulled = status.GitUnpulled
-		entries[i].GitNoUpstream = status.GitNoUpstream
+		entries[i].copyGitFrom(status)
 	}
 	m.setEntries(entries)
+}
+
+// copyGitFrom takes every git field of status. It is one function so that a
+// field added to Entry has one place to be forgotten in, and
+// TestCopyGitFromTakesEveryGitField fails when it is: GitLastTags was left out
+// of a hand-written list, and a sync that fetched new tags showed none of them
+// until ctrl+r.
+func (e *Entry) copyGitFrom(status Entry) {
+	e.GitBranch = status.GitBranch
+	e.GitRemote = status.GitRemote
+	e.GitRemoteURL = status.GitRemoteURL
+	e.GitModified = status.GitModified
+	e.GitUntracked = status.GitUntracked
+	e.GitUnpushed = status.GitUnpushed
+	e.GitUnpulled = status.GitUnpulled
+	e.GitNoUpstream = status.GitNoUpstream
+	e.GitLastTags = status.GitLastTags
 }
 
 // tokenForRemote returns the configured GitLab token when the repository's
