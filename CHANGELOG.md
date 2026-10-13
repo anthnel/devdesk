@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.7.1](https://github.com/anthnel/devdesk/compare/v1.7.0...v1.7.1) (2026-10-13)
+
+
+### Bug Fixes
+
+* **workspaces:** refresh the Last Tag column after a sync (D82) ([#285](https://github.com/anthnel/devdesk/issues/285)) ([2c674fc](https://github.com/anthnel/devdesk/commit/2c674fcddbb34b2081ffa89ea454ae7990bfe75e))
+
 ## [1.7.0](https://github.com/anthnel/devdesk/compare/v1.6.0...v1.7.0) (2026-10-08)
 
 
