@@ -16375,6 +16375,77 @@ avec avertissement, ou refus), et si un `export-ignore` dans le `.gitattributes`
 du template mérite lui aussi d'être signalé — c'est l'autre cause qui retire des
 fichiers sans rien dire, et elle se voit dans l'aperçu `V`, pas à la création.
 
+### 3.101 Le monitoring Docker du tableau de bord : un flux plutôt qu'un sondage — **à explorer**
+
+Demandé le 2026-10-18 : la partie monitoring Docker du tableau de bord paraît
+lourde ; existe-t-il une alternative plus légère, qui marche avec docker **et**
+podman ? Et le flux continu de `docker stats`, évoqué pour la vue `containers`
+(§ D83), tient-il ?
+
+**Où va le temps.** À partir des mesures déjà consignées plus haut dans ce
+fichier (`stats --no-stream` : 1365 / 1982 / 1993 ms ; `system df` : 603 ms ;
+`info` : 240 ms, dans `FetchCapacity`), et des cadences du code :
+
+| Appel | Cadence | Par minute | Part du temps |
+|---|---|---|---|
+| `stats --no-stream` | 5 s | 16–24 s | **27–40 %** |
+| `info` | 5 s | 2,9 s | 5 % |
+| `system df` | 30 s | 1,2 s | 2 % |
+
+Un seul poste domine : `stats`. Chaque appel crée un collecteur par conteneur,
+attend deux échantillons pour avoir un CPU%, puis le détruit — et recommence
+cinq secondes plus tard. Le reste ne pèse presque rien.
+
+**Ce qui ne vaut pas la peine, malgré l'apparence.**
+- *Mémoïser `info`* : économise 5 % au mieux, et reviendrait sur une décision
+  documentée dans `FetchCapacity` — ne pas mémoïser, parce qu'un Docker Desktop
+  reconfiguré change le dénominateur en cours de session et qu'un pourcentage
+  faux reste plausible. Un TTL borne l'erreur sans la supprimer.
+- *Allonger la durée de vie de `system df`* : il est déjà sur l'horloge lente
+  (30 s) ; 2 % du temps.
+- *Sauter `stats` quand aucun conteneur ne tourne* : l'appel revient alors
+  presque aussitôt ; il n'y a rien à gagner.
+
+**Les pistes qui changent quelque chose :**
+1. **Espacer l'horloge Docker** (5 s → 10 s). Divise le coût par deux, sans
+   changer l'architecture. C'est une carte agrégée : dix secondes y suffisent
+   sans doute. Décision de produit, pas technique.
+2. **Un flux `stats` continu** (sans `--no-stream`) : un seul processus, les
+   collecteurs restent allumés, et l'attente de deux échantillons disparaît. Il
+   sert la vue `containers` (jauges à ~1 s) comme le tableau de bord (agrégat),
+   à condition de partager le flux. Réserves, **non vérifiées** faute de moteur
+   dans l'environnement de travail : le format du flux (docker répète des
+   images complètes précédées d'une séquence d'effacement d'écran, même redirigé
+   — à découper dessus ; podman a le sien), le cycle de vie du processus
+   (lancer à l'ouverture, tuer à la sortie, relancer si le démon tombe) et le
+   comportement quand un conteneur apparaît ou disparaît en cours de flux.
+3. **`events` pour la liste** : `docker events` / `podman events` en flux
+   remplacent le `ps -a` à 2 s de la vue `containers`. Indépendant de 2.
+4. **L'API du moteur par socket** (échantillon instantané, CPU% calculé ici sur
+   deux relevés comme l'hôte). Le plus léger en théorie, mais il faut trouver le
+   socket (`DOCKER_HOST`, contextes, Docker Desktop, rootless, Windows), et sous
+   podman le service `system service` n'est souvent pas démarré : le CLI reste
+   nécessaire en repli. Un projet à part ; non recommandé d'abord.
+
+**Sous podman**, il n'y a pas de démon : chaque appel CLI fait le travail dans
+son propre processus, donc le coût du sondage est celui d'un processus de
+l'utilisateur, et `podman info` est lui aussi plus lourd. Aucun de ces points
+n'a été mesuré ici.
+
+**Une erreur de cadrage, corrigée ici.** La première analyse présentait trois
+« gains rapides » (mémoïser `info`, sauter `stats` à vide, allonger `system df`)
+avant d'avoir relu ces mesures et la décision de `FetchCapacity`. Pris
+ensemble, ils économisent moins de 7 % et l'un défait un choix délibéré : ils
+n'ont pas été implémentés.
+
+**À mesurer chez l'utilisateur avant de choisir** : `time docker stats
+--no-stream` (et `podman`), sur sa machine et avec ses conteneurs. Si l'appel y
+coûte bien moins de deux secondes, 1 suffit ; s'il y dépasse cinq secondes, 2
+devient nécessaire.
+
+**À trancher avec l'utilisateur** : 1 seul, ou 1 puis 2 ; et si le flux sert
+les deux vues ou seulement la vue `containers`.
+
 ## 4. Existing plans
 
 Detailed plans live in `.claude/plans/`. One is outstanding:
