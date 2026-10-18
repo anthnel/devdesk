@@ -16487,6 +16487,58 @@ la charge est faible, laisser tel quel est une réponse valable.
 **À trancher avec l'utilisateur** : 1 seul, ou 1 puis 2 ; et si le flux sert
 les deux vues ou seulement la vue `containers`.
 
+### 3.102 Un template épinglé sur un tag ne dit pas qu'un plus récent existe — **à explorer**
+
+Signalé le 2026-10-18 : la vue `:templates` affichait `v0.1.0` alors que
+`v0.2.0` était publiée. Ce n'est pas un défaut d'affichage. La colonne **Ref**
+montre ce que l'entrée du catalogue (`~/.devdesk/templates.yaml`) déclare, et
+DevDesk ne cherche jamais un tag plus récent : `Synced` dit seulement que la
+copie en cache de *cette* référence est fraîche, et un tag est immuable. Pour
+passer à `v0.2.0`, il faut éditer l'entrée (`E`) et changer `ref`.
+
+**C'est voulu, et c'est la raison pour laquelle un manque subsiste.** Une
+référence épinglée rend un template reproductible : « ce que contiendra le
+dépôt » ne dépend pas du jour où on le crée. La conséquence est qu'**aucun
+signal** ne dit qu'une version plus récente existe, alors que la colonne Update
+des images (`internal/imageupdate`, §3.88) fait exactement cela pour une image
+épinglée : elle compare et informe, sans jamais rien changer.
+
+**Pistes :**
+1. **Un indicateur, sans rien changer.** Pour une source `git`, un
+   `git ls-remote --tags` (un appel léger, sans archive) donne les tags ; si l'un
+   d'eux est plus récent que `ref`, la cellule le dit (« → v0.2.0 »), sur le
+   modèle de la colonne Update. Le catalogue, le cache et la reproductibilité ne
+   bougent pas ; l'utilisateur décide encore de l'édition. C'est ma
+   recommandation.
+2. **Une référence symbolique** (`ref: latest`, ou une plage semver comme
+   `v0.*`) résolue au dernier tag. Pratique, mais elle défait la propriété qui
+   justifie l'épinglage : un template change sans que personne l'ait décidé, et
+   le cache — qui ne remarque jamais que la source a bougé (§3.100) — servirait
+   l'ancienne résolution jusqu'à `F`. À n'envisager qu'en option, jamais par
+   défaut.
+3. **Un raccourci pour adopter la version signalée** (`E` pré-rempli avec le tag
+   plus récent). Utile *après* 1, inutile sans.
+
+**À décider avant de coder :**
+- *Qu'est-ce qu'« un tag plus récent » ?* Comparer des versions n'a de sens que
+  pour des tags en semver ; un tag libre (`release-2026-10`) ou une branche n'a
+  pas d'ordre. L'indicateur ne doit parler que quand la comparaison est sûre, et
+  se taire sinon — un faux « plus récent » est pire que pas d'indicateur.
+- *Quand interroger ?* `ls-remote` est un appel réseau par source distincte :
+  à l'ouverture de la vue, en tâche de fond, avec les mêmes identifiants que le
+  fetch (`CredentialsFor`) et sans jamais bloquer le tableau (Rule 139). Comme
+  pour les images, un échec se tait.
+- *Les sources `local` et `oci`.* `local` est un dépôt de la machine (`git tag`
+  suffit) ; pour `oci`, la liste des tags d'un dépôt passe par le registre — le
+  client `oci` la connaît déjà pour le navigateur de registres.
+- *Un tag pré-version* (`v0.2.0-rc1`) ne doit pas passer pour « plus récent »
+  qu'un `v0.1.0` stable.
+
+**Lié** : §3.100 (la copie en cache d'une branche est servie périmée) est le
+même défaut vu côté contenu ; ici, c'est la *référence* elle-même qui est
+périmée. Les deux demandent que la vue `:templates` dise ce qu'elle sait de la
+fraîcheur, et pas seulement l'âge de la copie.
+
 ## 4. Existing plans
 
 Detailed plans live in `.claude/plans/`. One is outstanding:
