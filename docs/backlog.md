@@ -16375,6 +16375,104 @@ avec avertissement, ou refus), et si un `export-ignore` dans le `.gitattributes`
 du template mérite lui aussi d'être signalé — c'est l'autre cause qui retire des
 fichiers sans rien dire, et elle se voit dans l'aperçu `V`, pas à la création.
 
+### 3.101 Le monitoring Docker du tableau de bord : un flux plutôt qu'un sondage — **à explorer**
+
+Demandé le 2026-10-18 : la partie monitoring Docker du tableau de bord paraît
+lourde ; existe-t-il une alternative plus légère, qui marche avec docker **et**
+podman ? Et le flux continu de `docker stats`, évoqué pour la vue `containers`
+(§ D83), tient-il ?
+
+**Où va le temps.** À partir des mesures déjà consignées plus haut dans ce
+fichier (`stats --no-stream` : 1365 / 1982 / 1993 ms ; `system df` : 603 ms ;
+`info` : 240 ms, dans `FetchCapacity`), et des cadences du code :
+
+| Appel | Cadence | Par minute | Part du temps |
+|---|---|---|---|
+| `stats --no-stream` | 5 s | 16–24 s | **27–40 %** |
+| `info` | 5 s | 2,9 s | 5 % |
+| `system df` | 30 s | 1,2 s | 2 % |
+
+**Une mesure de l'utilisateur (2026-10-18, Git Bash sous Windows, un seul
+conteneur) corrige cette lecture :** `real 1,463 s`, mais `user 0,030 s` et
+`sys 0,061 s`. Le temps du tableau est donc du **temps d'attente** — le second
+échantillon, une seconde — et non de la charge : le processus client use
+environ 0,09 s de CPU par appel, soit près de 1,1 s par minute à la cadence de
+5 s, autour de 2 % d'un cœur. Le plancher de 1,4 s ne dépend pas du nombre de
+conteneurs ; le coût côté démon, lui, dépend de leur nombre et n'a pas été
+mesuré avec plus d'un. Sans charge observée, rien ne justifie un chantier.
+
+**Deuxième et troisième mesures (même machine, Docker Desktop, 15 plugins du
+CLI installés).** `docker info` en entier : `real 1,595 s`, `user+sys 0,075 s` —
+le CLI y lance chaque plugin pour remplir la section Client. Mais l'appel de
+`FetchCapacity` est `info --format '{{.NCPU}}\t{{.MemTotal}}'`, et il tombe à
+`real 0,605 s`, `user+sys 0,075 s` : le format évite les plugins. L'hypothèse
+« quinze lancements de processus toutes les 5 s » est donc **réfutée**. Par cycle
+de 5 s, `stats` + `info` font environ 2,1 s de temps écoulé et 0,17 s de CPU
+client, soit 2 s par minute — autour de 3 % d'un cœur. Mémoïser `info` ne
+retirerait que 0,6 s d'attente et environ 1,4 % d'un cœur par minute.
+
+**Ce que ces mesures ne voient pas** : `time` ne compte que le processus
+`docker` lui-même. L'analyse en temps réel de l'antivirus sur chaque exécutable
+lancé (`MsMpEng` sous Windows), le travail du démon et le backend de Docker
+Desktop (`vmmem`, `com.docker.backend`) n'y sont pas. Si le tableau de bord est
+« lourd » à l'usage, c'est là qu'il faut regarder : le gestionnaire de tâches
+pendant une minute sur le tableau de bord, comparé à une autre vue.
+
+Un seul poste domine le temps écoulé : `stats`. Chaque appel crée un collecteur par conteneur,
+attend deux échantillons pour avoir un CPU%, puis le détruit — et recommence
+cinq secondes plus tard. Le reste ne pèse presque rien.
+
+**Ce qui ne vaut pas la peine, malgré l'apparence.**
+- *Mémoïser `info`* : économise 5 % au mieux, et reviendrait sur une décision
+  documentée dans `FetchCapacity` — ne pas mémoïser, parce qu'un Docker Desktop
+  reconfiguré change le dénominateur en cours de session et qu'un pourcentage
+  faux reste plausible. Un TTL borne l'erreur sans la supprimer.
+- *Allonger la durée de vie de `system df`* : il est déjà sur l'horloge lente
+  (30 s) ; 2 % du temps.
+- *Sauter `stats` quand aucun conteneur ne tourne* : l'appel revient alors
+  presque aussitôt ; il n'y a rien à gagner.
+
+**Les pistes qui changent quelque chose :**
+1. **Espacer l'horloge Docker** (5 s → 10 s). Divise le coût par deux, sans
+   changer l'architecture. C'est une carte agrégée : dix secondes y suffisent
+   sans doute. Décision de produit, pas technique.
+2. **Un flux `stats` continu** (sans `--no-stream`) : un seul processus, les
+   collecteurs restent allumés, et l'attente de deux échantillons disparaît. Il
+   sert la vue `containers` (jauges à ~1 s) comme le tableau de bord (agrégat),
+   à condition de partager le flux. Réserves, **non vérifiées** faute de moteur
+   dans l'environnement de travail : le format du flux (docker répète des
+   images complètes précédées d'une séquence d'effacement d'écran, même redirigé
+   — à découper dessus ; podman a le sien), le cycle de vie du processus
+   (lancer à l'ouverture, tuer à la sortie, relancer si le démon tombe) et le
+   comportement quand un conteneur apparaît ou disparaît en cours de flux.
+3. **`events` pour la liste** : `docker events` / `podman events` en flux
+   remplacent le `ps -a` à 2 s de la vue `containers`. Indépendant de 2.
+4. **L'API du moteur par socket** (échantillon instantané, CPU% calculé ici sur
+   deux relevés comme l'hôte). Le plus léger en théorie, mais il faut trouver le
+   socket (`DOCKER_HOST`, contextes, Docker Desktop, rootless, Windows), et sous
+   podman le service `system service` n'est souvent pas démarré : le CLI reste
+   nécessaire en repli. Un projet à part ; non recommandé d'abord.
+
+**Sous podman**, il n'y a pas de démon : chaque appel CLI fait le travail dans
+son propre processus, donc le coût du sondage est celui d'un processus de
+l'utilisateur, et `podman info` est lui aussi plus lourd. Aucun de ces points
+n'a été mesuré ici.
+
+**Une erreur de cadrage, corrigée ici.** La première analyse présentait trois
+« gains rapides » (mémoïser `info`, sauter `stats` à vide, allonger `system df`)
+avant d'avoir relu ces mesures et la décision de `FetchCapacity`. Pris
+ensemble, ils économisent moins de 7 % et l'un défait un choix délibéré : ils
+n'ont pas été implémentés.
+
+**Reste à mesurer avant de choisir** : le CPU de `dk`, de l'antivirus et de
+Docker Desktop (`vmmem`) dans le gestionnaire de tâches, une minute sur le
+tableau de bord puis une minute sur une autre vue ; et `time docker stats
+--no-stream` avec **beaucoup** de conteneurs, car la mesure n'en avait qu'un. Si
+la charge est faible, laisser tel quel est une réponse valable.
+
+**À trancher avec l'utilisateur** : 1 seul, ou 1 puis 2 ; et si le flux sert
+les deux vues ou seulement la vue `containers`.
+
 ## 4. Existing plans
 
 Detailed plans live in `.claude/plans/`. One is outstanding:
