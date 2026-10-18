@@ -516,7 +516,7 @@ func (m Model) handleContainersList(msg ContainersListMsg) (tea.Model, tea.Cmd) 
 		return m, m.footer.Error("Failed to load containers — check logs")
 	}
 	m.footer.Clear()
-	m.containerTable.SetItems(msg.Containers)
+	m.containerTable.SetItems(withKnownMetrics(msg.Containers, m.containerTable.Items()))
 	// A new list is a new population — a container started, stopped, or
 	// published a port — and the table only measures the first one on its own.
 	// Remeasuring on the periodic reload does not make the columns dance: the
@@ -540,20 +540,48 @@ func (m Model) handleContainerMetrics(msg ContainerMetricsMsg) (tea.Model, tea.C
 	containers := slices.Clone(m.containerTable.Items())
 	for i, c := range containers {
 		if metrics, ok := msg.Metrics[c.ID]; ok {
-			containers[i].CPUPercent = metrics.CPUPercent
-			containers[i].MemUsage = metrics.MemUsage
-			containers[i].MemPercent = metrics.MemPercent
-			containers[i].NetIO = metrics.NetIO
-			containers[i].NetRX = metrics.NetRX
-			containers[i].NetTX = metrics.NetTX
-			containers[i].BlockIO = metrics.BlockIO
-			containers[i].BlockRX = metrics.BlockRX
-			containers[i].BlockTX = metrics.BlockTX
+			setMetrics(&containers[i], metrics)
 		}
 	}
 
 	m.containerTable.SetItems(containers)
 	return m, nil
+}
+
+// setMetrics copies the live sample of src onto dst: what `stats` reports, and
+// nothing `ps` does.
+func setMetrics(dst *docker.Container, src docker.Container) {
+	dst.CPUPercent = src.CPUPercent
+	dst.MemUsage = src.MemUsage
+	dst.MemPercent = src.MemPercent
+	dst.NetIO = src.NetIO
+	dst.NetRX = src.NetRX
+	dst.NetTX = src.NetTX
+	dst.BlockIO = src.BlockIO
+	dst.BlockRX = src.BlockRX
+	dst.BlockTX = src.BlockTX
+}
+
+// withKnownMetrics carries the metrics already on screen over to a fresh list.
+//
+// The list and the metrics come from two commands, and the list is the quick
+// one: `ps` answers in a fraction of the second `stats --no-stream` spends
+// waiting for its second sample. A list that replaced the items as it came
+// would blank every metric cell until the next sample arrived, on every tick —
+// the "-" the columns flashed between refreshes. A container that is gone from
+// the list is gone with its numbers.
+func withKnownMetrics(fresh, known []docker.Container) []docker.Container {
+	byID := make(map[string]docker.Container, len(known))
+	for _, c := range known {
+		byID[c.ID] = c
+	}
+	merged := slices.Clone(fresh)
+	for i, c := range merged {
+		if previous, ok := byID[c.ID]; ok {
+			setMetrics(&merged[i], previous)
+		}
+	}
+	return merged
 }
 
 // handleContainerAction processes action results.

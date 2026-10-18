@@ -94,6 +94,20 @@ decided together and fixed in one pass; see [§1.2](#12-the-five-parked-defects)
 
 ### 1.1 Fixed
 
+**D84 — dans `containers`, les colonnes de métriques repassaient à « - » entre
+deux ticks. Corrigé.** Signalé et fermé le 2026-10-18, juste après D83.
+
+Un effet de D83 : tant que le tick ne se réarmait pas, la liste n'était
+rechargée qu'une fois et le défaut restait invisible. La liste (`ps`) et les
+métriques (`stats --no-stream`) viennent de deux commandes, et la première
+répond bien avant la seconde, qui attend un second échantillon. `handleContainersList`
+remplaçait les éléments par la liste brute, sans métriques : chaque cellule se
+vidait, puis se remplissait de nouveau une à deux secondes plus tard — à chaque
+tick. `withKnownMetrics` reporte maintenant sur la liste fraîche les métriques
+déjà connues, par identifiant ; un conteneur qui n'est plus listé disparaît avec
+ses chiffres. `setMetrics` est partagée avec le traitement des métriques, qui
+recopiait la même liste de champs à la main.
+
 **D83 — la vue `containers` ne se rafraîchissait qu'une fois : les jauges
 n'avançaient qu'avec `ctrl+r`. Corrigé.** Signalé et fermé le 2026-10-18.
 
