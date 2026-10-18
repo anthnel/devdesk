@@ -1,0 +1,24 @@
+{
+  "cli_version": "0.11.5",
+  "checkpoint_id": "ebe253619ea0",
+  "strategy": "manual-commit",
+  "branch": "fix/containers-auto-refresh",
+  "checkpoints_count": 2,
+  "files_touched": null,
+  "sessions": [
+    {
+      "metadata": "/eb/e253619ea0/0/metadata.json",
+      "transcript": "/eb/e253619ea0/0/full.jsonl",
+      "compact_transcript": "/eb/e253619ea0/0/transcript.jsonl",
+      "content_hash": "/eb/e253619ea0/0/content_hash.txt",
+      "prompt": "/eb/e253619ea0/0/prompt.txt"
+    }
+  ],
+  "token_usage": {
+    "input_tokens": 38,
+    "cache_creation_tokens": 294045,
+    "cache_read_tokens": 5311316,
+    "output_tokens": 17326,
+    "api_call_count": 19
+  }
+}
