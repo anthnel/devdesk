@@ -1,73 +1,139 @@
-le projet aqua:amir20/dtop utilise des block plein pour afficher les jauges, pq devdesk ne peut pas utiliser des block plein
+<pasted_content id="468a">
+anthoni@zeffo MINGW64 ~
+$ time docker stats --no-stream
+CONTAINER ID   NAME             CPU %     MEM USAGE / LIMIT     MEM %     NET I/O         BLOCK I/O     PIDS
+258446bf1302   local-registry   0.00%     5.516MiB / 15.18GiB   0.04%     1.75kB / 126B   19.1MB / 0B   6
+
+real    0m1,463s
+user    0m0,030s
+sys     0m0,061s
+</pasted_content id="468a">
 
 ---
 
-est-ce qu'une option concernant la locale aurait du sens pour adapter l'affichage en fonction de l'option , ne code rien on raisonne
+<pasted_content id="468a">
+anthoni@zeffo MINGW64 ~
+$ time docker info
+Client:
+ Version:    29.8.2
+ Context:    desktop-linux
+ Debug Mode: false
+ Plugins:
+  agent: Docker AI Agent Runner (Docker Inc.)
+    Version:  v1.144.0
+    Path:     C:\Program Files\Docker\cli-plugins\docker-agent.exe
+  ai: Docker AI Agent - Ask Gordon (Docker Inc.)
+    Version:  v1.31.0
+    Path:     C:\Program Files\Docker\cli-plugins\docker-ai.exe
+  buildx: Docker Buildx (Docker Inc.)
+    Version:  v0.37.2
+    Path:     C:\Program Files\Docker\cli-plugins\docker-buildx.exe
+  compose: Docker Compose (Docker Inc.)
+    Version:  v5.5.1
+    Path:     C:\Program Files\Docker\cli-plugins\docker-compose.exe
+  debug: Get a shell into any image or container (Docker Inc.)
+    Version:  0.0.47
+    Path:     C:\Program Files\Docker\cli-plugins\docker-debug.exe
+  desktop: Docker Desktop commands (Docker Inc.)
+    Version:  v0.4.4
+    Path:     C:\Program Files\Docker\cli-plugins\docker-desktop.exe
+  dhi: CLI for managing Docker Hardened Images (Docker Inc.)
+    Version:  v0.0.7
+    Path:     C:\Program Files\Docker\cli-plugins\docker-dhi.exe
+  extension: Manages Docker extensions (Docker Inc.)
+    Version:  v0.2.31
+    Path:     C:\Program Files\Docker\cli-plugins\docker-extension.exe
+  init: Creates Docker-related starter files for your project (Docker Inc.)
+    Version:  v1.4.0
+    Path:     C:\Program Files\Docker\cli-plugins\docker-init.exe
+  mcp: Docker MCP Plugin (Docker Inc.)
+    Version:  v0.44.1
+    Path:     C:\Program Files\Docker\cli-plugins\docker-mcp.exe
+  model: Docker Model Runner (Docker Inc.)
+    Version:  v1.2.6
+    Path:     C:\Program Files\Docker\cli-plugins\docker-model.exe
+  offload: Docker Offload (Docker Inc.)
+    Version:  v0.6.53
+    Path:     C:\Program Files\Docker\cli-plugins\docker-offload.exe
+  pass: Docker Pass Secrets Manager Plugin (beta) (Docker Inc.)
+    Version:  v0.2.4
+    Path:     C:\Program Files\Docker\cli-plugins\docker-pass.exe
+  sandbox: "docker sandbox" is deprecated, use Docker Sandboxes instead (Docker Inc.)
+    Version:  v0.13.0
+    Path:     C:\Program Files\Docker\cli-plugins\docker-sandbox.exe
+  scout: Docker Scout (Docker Inc.)
+    Version:  v1.25.0
+    Path:     C:\Program Files\Docker\cli-plugins\docker-scout.exe
+
+Server:
+ Containers: 1
+  Running: 1
+  Paused: 0
+  Stopped: 0
+ Images: 7
+ Server Version: 29.8.2
+ Storage Driver: overlayfs
+  driver-type: io.containerd.snapshotter.v1
+ Logging Driver: local
+ Cgroup Driver: cgroupfs
+ Cgroup Version: 2
+ Plugins:
+  Volume: local
+  Network: bridge host ipvlan macvlan null overlay
+  Log: awslogs fluentd gcplogs gelf journald json-file local splunk syslog
+ CDI spec directories:
+  /etc/cdi
+  /var/run/cdi
+ Discovered Devices:
+  cdi: docker.com/gpu=webgpu
+ Swarm: inactive
+ Runtimes: io.containerd.runc.v2 nvidia runc
+ Default Runtime: runc
+ Init Binary: docker-init
+ containerd version: ee2735368117d2eb259779949d5e75cdafec9761
+ runc version: v1.5.1-0-g8f2685a4
+ init version: de40ad0
+ Security Options:
+  seccomp
+   Profile: builtin
+  cgroupns
+ Kernel Version: 6.18.33.2-microsoft-standard-WSL2
+ Operating System: Docker Desktop
+ OSType: linux
+ Architecture: x86_64
+ CPUs: 16
+ Total Memory: 15.18GiB
+ Name: docker-desktop
+ ID: 97f5fee6-4d30-41b2-bb38-a453d3dc8ab6
+ Docker Root Dir: /var/lib/docker
+ Debug Mode: false
+ HTTP Proxy: http.docker.internal:3128
+ HTTPS Proxy: http.docker.internal:3128
+ No Proxy: hubproxy.docker.internal
+ Labels:
+  com.docker.desktop.address=npipe://\\.\pipe\docker_cli
+ Experimental: false
+ Insecure Registries:
+  hubproxy.docker.internal:5555
+  127.0.0.0/8
+  ::1/128
+ Live Restore Enabled: false
+ Firewall Backend: iptables
+
+
+real    0m1,595s
+user    0m0,045s
+sys     0m0,030s
+</pasted_content id="468a">
 
 ---
 
-vas-y avec le défaut sûr `░` et `block` en opt-in
+<pasted_content id="468a">
+anthoni@zeffo MINGW64 ~
+$ time docker info --format $'{{.NCPU}}\t{{.MemTotal}}'
+16      16298700800
 
----
-
-donne moi quelques commandes powershell pour lancer des conteneurs et vérifier les jauges
-
----
-
-les tests git doivent forcer LC_ALL=C
-
----
-
-ajoute au backlog la possibilité de switcher de font, par exemple utiliser https://rsms.me/inter/
-
----
-
-oui
-
----
-
-le copy dans le viewer ne préserve pas les caractères avec accent
-
----
-
-je viens de tester le copy / paste de contenu de fichier depuis wsl vers windows et les accents passent bien. Par contre un copy paste dans wsl d'un path de fichier mets <feff> comme tout premier caractère
-
----
-
-dans la vue ws le dernier tag est affiché, parfois il y a plusieurs tag pour un commit , ex 2, 2.4, 2.4.2 quand c'est le cas, je voudrais que les différents commit soient affichés séparés par ", ". maximum 3 affichés
-
----
-
-pq l'image zot-home/golang-demo:v1.1.0 n'est pas considérée comme signée dans devdesk, vue oci
-
----
-
-il me faut le chemin de la clé publique cosign avec laquelle tu signes
-
----
-
-devdesk n'a pas copié .gitlab-ci.yml, .releaserc.json ni .dockerignore. Seul .gitignore est là, sans que je sache si devdesk le copie ou le génère. Vérifie si lors de la création d'un projet avec template les fichiers sont créés
-
----
-
-https://gitlab.com/anthnell/devsecops/devex/project-templates/-/tree/main/go/http-api?ref_type=heads c'est sans doute le cache, ajoute au backlog
-
----
-
-je trouve que c'est aussi embêtant dans ws que le sync et ctrl+r  ne se déclenche pas automatiquement, ça coute cher ?
-
----
-
-quand je fais F je dois faire en plus ctrl+r
-
----
-
-vérifie la vue container, le refresh des gauje n'est pas automatique je dois appuyer sur ctrl+r
-
----
-
-analyse cette possibilité et aussi sur la page dashboard, la partie monitoring docker semble lourde est-ce qu'il y a une alternative plus légère, ça doit fonctionner avec docker et podman
-
----
-
-oui
+real    0m0,605s
+user    0m0,045s
+sys     0m0,030s
+</pasted_content id="468a">
