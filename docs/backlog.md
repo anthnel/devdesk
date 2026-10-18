@@ -16401,6 +16401,23 @@ environ 0,09 s de CPU par appel, soit près de 1,1 s par minute à la cadence de
 conteneurs ; le coût côté démon, lui, dépend de leur nombre et n'a pas été
 mesuré avec plus d'un. Sans charge observée, rien ne justifie un chantier.
 
+**Deuxième et troisième mesures (même machine, Docker Desktop, 15 plugins du
+CLI installés).** `docker info` en entier : `real 1,595 s`, `user+sys 0,075 s` —
+le CLI y lance chaque plugin pour remplir la section Client. Mais l'appel de
+`FetchCapacity` est `info --format '{{.NCPU}}\t{{.MemTotal}}'`, et il tombe à
+`real 0,605 s`, `user+sys 0,075 s` : le format évite les plugins. L'hypothèse
+« quinze lancements de processus toutes les 5 s » est donc **réfutée**. Par cycle
+de 5 s, `stats` + `info` font environ 2,1 s de temps écoulé et 0,17 s de CPU
+client, soit 2 s par minute — autour de 3 % d'un cœur. Mémoïser `info` ne
+retirerait que 0,6 s d'attente et environ 1,4 % d'un cœur par minute.
+
+**Ce que ces mesures ne voient pas** : `time` ne compte que le processus
+`docker` lui-même. L'analyse en temps réel de l'antivirus sur chaque exécutable
+lancé (`MsMpEng` sous Windows), le travail du démon et le backend de Docker
+Desktop (`vmmem`, `com.docker.backend`) n'y sont pas. Si le tableau de bord est
+« lourd » à l'usage, c'est là qu'il faut regarder : le gestionnaire de tâches
+pendant une minute sur le tableau de bord, comparé à une autre vue.
+
 Un seul poste domine le temps écoulé : `stats`. Chaque appel crée un collecteur par conteneur,
 attend deux échantillons pour avoir un CPU%, puis le détruit — et recommence
 cinq secondes plus tard. Le reste ne pèse presque rien.
@@ -16447,11 +16464,11 @@ avant d'avoir relu ces mesures et la décision de `FetchCapacity`. Pris
 ensemble, ils économisent moins de 7 % et l'un défait un choix délibéré : ils
 n'ont pas été implémentés.
 
-**À mesurer avant de choisir** : la charge réelle, pas la durée. Le CPU de `dk`
-(et de Docker Desktop, `vmmem` sous Windows) pendant que le tableau de bord est
-ouvert ; `time docker stats --no-stream` avec **beaucoup** de conteneurs, car la
-mesure ci-dessus n'en avait qu'un ; et `time docker info`. Si la charge est
-faible, laisser tel quel est une réponse valable.
+**Reste à mesurer avant de choisir** : le CPU de `dk`, de l'antivirus et de
+Docker Desktop (`vmmem`) dans le gestionnaire de tâches, une minute sur le
+tableau de bord puis une minute sur une autre vue ; et `time docker stats
+--no-stream` avec **beaucoup** de conteneurs, car la mesure n'en avait qu'un. Si
+la charge est faible, laisser tel quel est une réponse valable.
 
 **À trancher avec l'utilisateur** : 1 seul, ou 1 puis 2 ; et si le flux sert
 les deux vues ou seulement la vue `containers`.
