@@ -1,0 +1,24 @@
+{
+  "cli_version": "0.11.5",
+  "checkpoint_id": "f55975228357",
+  "strategy": "manual-commit",
+  "branch": "perf/dashboard-docker-lighter",
+  "checkpoints_count": 1,
+  "files_touched": null,
+  "sessions": [
+    {
+      "metadata": "/f5/5975228357/0/metadata.json",
+      "transcript": "/f5/5975228357/0/full.jsonl",
+      "compact_transcript": "/f5/5975228357/0/transcript.jsonl",
+      "content_hash": "/f5/5975228357/0/content_hash.txt",
+      "prompt": "/f5/5975228357/0/prompt.txt"
+    }
+  ],
+  "token_usage": {
+    "input_tokens": 4,
+    "cache_creation_tokens": 4179,
+    "cache_read_tokens": 690151,
+    "output_tokens": 3195,
+    "api_call_count": 2
+  }
+}
