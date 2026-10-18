@@ -1084,6 +1084,45 @@ func TestRefreshTickFetchesListAndMetrics(t *testing.T) {
 	}
 }
 
+// The tick has to ask for the next one, or the view refreshes once and goes
+// stale: the gauges only moved on ctrl+r. The Docker calls fail at once here —
+// PATH holds no engine — so running the whole command only waits for the tick.
+func TestRefreshTickRearmsItself(t *testing.T) {
+	t.Setenv("PATH", t.TempDir())
+	testutil.FastTimers(t, &refreshInterval)
+	m := loadedModel(t)
+
+	_, cmd := step(t, m, RefreshTickMsg(time.Now()))
+
+	if !hasRefreshTick(testutil.Msgs(cmd)) {
+		t.Error("the refresh tick did not schedule the next one: the view refreshes once, then goes stale")
+	}
+}
+
+// Coming back from a shell used to start a tick chain by hand, which was
+// harmless while chains died after one tick. They no longer do, so a second one
+// would double every refresh until the view is left.
+func TestReturningFromAShellDoesNotStartASecondTickChain(t *testing.T) {
+	t.Setenv("PATH", t.TempDir())
+	testutil.FastTimers(t, &refreshInterval)
+	m := loadedModel(t)
+
+	_, cmd := step(t, m, PagerExitMsg{})
+
+	if hasRefreshTick(testutil.Msgs(cmd)) {
+		t.Error("PagerExitMsg started a tick chain of its own")
+	}
+}
+
+func hasRefreshTick(msgs []tea.Msg) bool {
+	for _, msg := range msgs {
+		if _, ok := msg.(RefreshTickMsg); ok {
+			return true
+		}
+	}
+	return false
+}
+
 func TestCtrlRRefreshes(t *testing.T) {
 	m := loadedModel(t)
 

@@ -94,6 +94,34 @@ decided together and fixed in one pass; see [§1.2](#12-the-five-parked-defects)
 
 ### 1.1 Fixed
 
+**D83 — la vue `containers` ne se rafraîchissait qu'une fois : les jauges
+n'avançaient qu'avec `ctrl+r`. Corrigé.** Signalé et fermé le 2026-10-18.
+
+`Init` lançait un tick de deux secondes, et le traitement de ce tick relançait
+la liste et les métriques — sans jamais redemander le tick suivant. La vue se
+mettait donc à jour une fois, deux secondes après son ouverture, puis plus
+jamais ; l'aide (« fetched every 2 seconds ») et `network.md` décrivaient un
+comportement que le code n'avait pas, et le seul test posé, qui vérifiait
+qu'une commande revenait, ne pouvait pas le voir. Le tick se réarme maintenant
+lui-même, et la chaîne s'arrête d'elle-même quand la vue n'est plus celle à
+l'écran : le routeur remet alors le tick à la vue active, qui l'ignore, et
+`Init` en démarre une neuve au retour.
+
+Le retour d'un shell (`T`) démarrait à la main une chaîne de tick — inoffensif
+tant que les chaînes mouraient après un tour, mais qui aurait doublé chaque
+rafraîchissement pour la suite de la session. Il ne le fait plus.
+
+**Ce qui n'est pas traité, faute de mesure ici** (pas de moteur de conteneurs
+dans cet environnement) :
+- `docker stats --no-stream` échantillonne deux fois ; sur beaucoup de
+  conteneurs il peut dépasser deux secondes, et le tick, à cadence fixe, lance
+  alors un appel de plus sans attendre la fin du précédent. Le tableau de bord
+  prend cinq secondes pour ce même appel. À mesurer sur un hôte chargé avant
+  d'ajouter une garde (sans drapeau « en cours » qui resterait coincé si le
+  message de fin était perdu au changement de vue).
+- Quitter la vue et y revenir en moins de deux secondes laisse deux chaînes
+  vivantes jusqu'à la sortie suivante.
+
 **D82 — dans `ws`, `F` ne rafraîchissait pas la colonne Last Tag : il fallait
 `ctrl+r` en plus. Corrigé.** Signalé et fermé le 2026-10-13.
 

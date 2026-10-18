@@ -8,9 +8,15 @@ import (
 	"github.com/anthnel/devdesk/internal/docker"
 )
 
-const refreshInterval = 2 * time.Second
+// refreshInterval is the cadence of the view's reload. A variable so a test can
+// shorten it: tea.Tick sleeps for the whole duration.
+var refreshInterval = 2 * time.Second
 
-// tickCmd returns a tick command for periodic refresh
+// tickCmd returns the next tick of the periodic refresh. It is a single shot:
+// each RefreshTickMsg asks for the one after it, and the chain ends by itself
+// when the view stops being the active one, because the router then hands the
+// tick to the view on screen, which ignores it. Init starts a new chain on the
+// way back in.
 func tickCmd() tea.Cmd {
 	return tea.Tick(refreshInterval, func(t time.Time) tea.Msg {
 		return RefreshTickMsg(t)
