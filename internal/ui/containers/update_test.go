@@ -1123,6 +1123,35 @@ func hasRefreshTick(msgs []tea.Msg) bool {
 	return false
 }
 
+// The list arrives long before the metrics, and carries none. Replacing the
+// items with it blanked every metric cell until the next sample, on every tick.
+func TestAFreshListKeepsTheMetricsAlreadyKnown(t *testing.T) {
+	m := loadedModel(t)
+	list := []docker.Container{
+		{ID: "a", Name: "web", State: "running"},
+		{ID: "b", Name: "db", State: "running"},
+	}
+	m = feed(t, m,
+		ContainersListMsg{Containers: list},
+		ContainerMetricsMsg{Metrics: map[string]docker.Container{
+			"a": {ID: "a", CPUPercent: 42, MemUsage: "10MiB / 1GiB", MemPercent: 1, NetIO: "1kB / 2kB"},
+		}},
+		// The next tick's list: the same containers, no metrics, and one gone.
+		ContainersListMsg{Containers: []docker.Container{{ID: "a", Name: "web", State: "running"}}},
+	)
+
+	items := m.containerTable.Items()
+	if len(items) != 1 {
+		t.Fatalf("items = %d, want the one container still listed", len(items))
+	}
+	if got := items[0].CPUPercent; got != 42 {
+		t.Errorf("CPUPercent = %v after a fresh list, want the 42 already known", got)
+	}
+	if got := items[0].MemUsage; got != "10MiB / 1GiB" {
+		t.Errorf("MemUsage = %q after a fresh list, want it kept", got)
+	}
+}
+
 func TestCtrlRRefreshes(t *testing.T) {
 	m := loadedModel(t)
 
