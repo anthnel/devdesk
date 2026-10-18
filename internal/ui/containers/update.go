@@ -61,7 +61,10 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 
 	case RefreshTickMsg:
-		return m, tea.Batch(fetchContainers(), fetchMetrics())
+		// The next tick is requested here: a tick that does not re-arm itself
+		// refreshes once, two seconds after Init, and never again — which is
+		// what made ctrl+r the only way to see the gauges move.
+		return m, tea.Batch(tickCmd(), fetchContainers(), fetchMetrics())
 
 	case ContainersListMsg:
 		return m.handleContainersList(msg)
@@ -78,7 +81,10 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case PagerExitMsg:
 		// Only the shell path comes back here now. The logs pane went to the
 		// viewer, and its pager and follow went with it (sources.go).
-		return m, tea.Batch(tickCmd(), fetchContainers())
+		// No tickCmd here: the chain survives the suspension (the tick is queued
+		// and handled on the way back), and a second one would double every
+		// refresh for the rest of the session.
+		return m, fetchContainers()
 
 	case sharedcomponents.ConfirmModalYesMsg:
 		return m.handleConfirmYes()
