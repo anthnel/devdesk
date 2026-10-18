@@ -16392,7 +16392,16 @@ fichier (`stats --no-stream` : 1365 / 1982 / 1993 ms ; `system df` : 603 ms ;
 | `info` | 5 s | 2,9 s | 5 % |
 | `system df` | 30 s | 1,2 s | 2 % |
 
-Un seul poste domine : `stats`. Chaque appel crée un collecteur par conteneur,
+**Une mesure de l'utilisateur (2026-10-18, Git Bash sous Windows, un seul
+conteneur) corrige cette lecture :** `real 1,463 s`, mais `user 0,030 s` et
+`sys 0,061 s`. Le temps du tableau est donc du **temps d'attente** — le second
+échantillon, une seconde — et non de la charge : le processus client use
+environ 0,09 s de CPU par appel, soit près de 1,1 s par minute à la cadence de
+5 s, autour de 2 % d'un cœur. Le plancher de 1,4 s ne dépend pas du nombre de
+conteneurs ; le coût côté démon, lui, dépend de leur nombre et n'a pas été
+mesuré avec plus d'un. Sans charge observée, rien ne justifie un chantier.
+
+Un seul poste domine le temps écoulé : `stats`. Chaque appel crée un collecteur par conteneur,
 attend deux échantillons pour avoir un CPU%, puis le détruit — et recommence
 cinq secondes plus tard. Le reste ne pèse presque rien.
 
@@ -16438,10 +16447,11 @@ avant d'avoir relu ces mesures et la décision de `FetchCapacity`. Pris
 ensemble, ils économisent moins de 7 % et l'un défait un choix délibéré : ils
 n'ont pas été implémentés.
 
-**À mesurer chez l'utilisateur avant de choisir** : `time docker stats
---no-stream` (et `podman`), sur sa machine et avec ses conteneurs. Si l'appel y
-coûte bien moins de deux secondes, 1 suffit ; s'il y dépasse cinq secondes, 2
-devient nécessaire.
+**À mesurer avant de choisir** : la charge réelle, pas la durée. Le CPU de `dk`
+(et de Docker Desktop, `vmmem` sous Windows) pendant que le tableau de bord est
+ouvert ; `time docker stats --no-stream` avec **beaucoup** de conteneurs, car la
+mesure ci-dessus n'en avait qu'un ; et `time docker info`. Si la charge est
+faible, laisser tel quel est une réponse valable.
 
 **À trancher avec l'utilisateur** : 1 seul, ou 1 puis 2 ; et si le flux sert
 les deux vues ou seulement la vue `containers`.
