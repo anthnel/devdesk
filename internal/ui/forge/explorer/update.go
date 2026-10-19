@@ -2,12 +2,11 @@ package explorer
 
 import (
 	"log"
-	"os/exec"
-	"runtime"
 
 	"github.com/charmbracelet/bubbles/spinner"
 	tea "github.com/charmbracelet/bubbletea"
 
+	"github.com/anthnel/devdesk/internal/browser"
 	"github.com/anthnel/devdesk/internal/jobs"
 	"github.com/anthnel/devdesk/internal/shared"
 	"github.com/anthnel/devdesk/internal/ui/components"
@@ -243,15 +242,6 @@ func (m Model) handleOpenInBrowser() (tea.Model, tea.Cmd) {
 	node, _ := m.selectedNode()
 	url := node.WebURL
 	return m, func() tea.Msg {
-		var cmd *exec.Cmd
-		switch runtime.GOOS {
-		case "darwin":
-			cmd = exec.Command("open", url)
-		case "windows":
-			cmd = exec.Command("cmd", "/c", "start", url)
-		default:
-			cmd = exec.Command("xdg-open", url)
-		}
-		return BrowserOpenedMsg{Error: cmd.Start()}
+		return BrowserOpenedMsg{Error: browser.Open(url)}
 	}
 }

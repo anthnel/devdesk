@@ -3,13 +3,12 @@ package security
 import (
 	"fmt"
 	"log"
-	"os/exec"
-	"runtime"
 	"strings"
 
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
 
+	"github.com/anthnel/devdesk/internal/browser"
 	"github.com/anthnel/devdesk/internal/scan"
 	"github.com/anthnel/devdesk/internal/ui/keymap"
 	"github.com/anthnel/devdesk/internal/ui/theme"
@@ -51,16 +50,7 @@ func (m Model) handleDetailsOpenReference() (tea.Model, tea.Cmd) {
 	}
 	url := f.References[0]
 	return m, func() tea.Msg {
-		var cmd *exec.Cmd
-		switch runtime.GOOS {
-		case "darwin":
-			cmd = exec.Command("open", url)
-		case "windows":
-			cmd = exec.Command("cmd", "/c", "start", url)
-		default:
-			cmd = exec.Command("xdg-open", url)
-		}
-		if err := cmd.Start(); err != nil {
+		if err := browser.Open(url); err != nil {
 			log.Printf("ERROR [security] open URL %s: %v", url, err)
 		}
 		return nil
