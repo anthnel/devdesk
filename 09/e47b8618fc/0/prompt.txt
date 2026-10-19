@@ -1,0 +1,19 @@
+dans la vue ws, le W ne fonctionne pas
+
+---
+
+<task-notification>
+<task-id>b6cy12kgc</task-id>
+<tool-use-id>REDACTED</tool-use-id>
+<output-file>/tmp/claude-1000/-home-anthoni-projects-entire-devdesk/c7c5fd2b-a1a6-462b-811f-adc1dbac3ad4/tasks/b6cy12kgc.output</output-file>
+<status>failed</status>
+<summary>Background command "sed -n 140,165p internal/ui/workspaces/update.go; grep -n "WSL\|wsl" internal/ui/workspaces/*.go | grep -v _test | head; xdg-open https://example.com; echo "exit=$?"; grep -i microsoft /proc/version | head -c 80" failed with exit code 144</summary>
+</task-notification>
+
+---
+
+ça fonctionnait avant, et ici j'ai eu une dizaine d'onglet qui se sont ouverts 1 à 2 min après mes tests, comme si c'était en queue quelque part
+
+---
+
+oui, regarde pourquoi xdg-open est lent

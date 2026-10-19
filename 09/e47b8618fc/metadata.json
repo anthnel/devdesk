@@ -1,0 +1,26 @@
+{
+  "cli_version": "0.10.0",
+  "checkpoint_id": "09e47b8618fc",
+  "strategy": "manual-commit",
+  "branch": "fix/ws-open-browser-wsl",
+  "checkpoints_count": 3,
+  "files_touched": [
+    "internal/ui/workspaces/actions.go"
+  ],
+  "sessions": [
+    {
+      "metadata": "/09/e47b8618fc/0/metadata.json",
+      "transcript": "/09/e47b8618fc/0/full.jsonl",
+      "compact_transcript": "/09/e47b8618fc/0/transcript.jsonl",
+      "content_hash": "/09/e47b8618fc/0/content_hash.txt",
+      "prompt": "/09/e47b8618fc/0/prompt.txt"
+    }
+  ],
+  "token_usage": {
+    "input_tokens": 40,
+    "cache_creation_tokens": 102745,
+    "cache_read_tokens": 2282527,
+    "output_tokens": 7350,
+    "api_call_count": 20
+  }
+}
