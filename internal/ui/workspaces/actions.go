@@ -348,10 +348,23 @@ func (m Model) openInBrowser() (tea.Model, tea.Cmd) {
 		case "windows":
 			cmd = exec.Command("cmd", "/c", "start", url)
 		default:
-			cmd = exec.Command("xdg-open", url)
+			cmd = linuxBrowserCommand(url)
 		}
 		return BrowserOpenedMsg{Error: cmd.Start()}
 	}
+}
+
+// linuxBrowserCommand returns the command that opens url on Linux. Under WSL
+// xdg-open has no browser to talk to and Start still succeeds, so W did
+// nothing and said nothing; explorer.exe hands the URL to the Windows default
+// browser instead.
+func linuxBrowserCommand(url string) *exec.Cmd {
+	if os.Getenv("WSL_DISTRO_NAME") != "" {
+		if path, err := exec.LookPath("explorer.exe"); err == nil {
+			return exec.Command(path, url)
+		}
+	}
+	return exec.Command("xdg-open", url)
 }
 
 // copyPath puts the selected entry's absolute path on the system clipboard.
