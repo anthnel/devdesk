@@ -5,11 +5,11 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
-	"runtime"
 	"strings"
 
 	tea "github.com/charmbracelet/bubbletea"
 
+	"github.com/anthnel/devdesk/internal/browser"
 	"github.com/anthnel/devdesk/internal/cache"
 	"github.com/anthnel/devdesk/internal/fsbrowse"
 	"github.com/anthnel/devdesk/internal/jobs"
@@ -341,30 +341,8 @@ func (m Model) openInBrowser() (tea.Model, tea.Cmd) {
 		return m, nil
 	}
 	return m, func() tea.Msg {
-		var cmd *exec.Cmd
-		switch runtime.GOOS {
-		case "darwin":
-			cmd = exec.Command("open", url)
-		case "windows":
-			cmd = exec.Command("cmd", "/c", "start", url)
-		default:
-			cmd = linuxBrowserCommand(url)
-		}
-		return BrowserOpenedMsg{Error: cmd.Start()}
+		return BrowserOpenedMsg{Error: browser.Open(url)}
 	}
-}
-
-// linuxBrowserCommand returns the command that opens url on Linux. Under WSL
-// xdg-open has no browser to talk to and Start still succeeds, so W did
-// nothing and said nothing; explorer.exe hands the URL to the Windows default
-// browser instead.
-func linuxBrowserCommand(url string) *exec.Cmd {
-	if os.Getenv("WSL_DISTRO_NAME") != "" {
-		if path, err := exec.LookPath("explorer.exe"); err == nil {
-			return exec.Command(path, url)
-		}
-	}
-	return exec.Command("xdg-open", url)
 }
 
 // copyPath puts the selected entry's absolute path on the system clipboard.
