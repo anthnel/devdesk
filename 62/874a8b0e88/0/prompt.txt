@@ -1,0 +1,11 @@
+<task-notification>
+<task-id>b3fm8vost</task-id>
+<tool-use-id>REDACTED</tool-use-id>
+<output-file>/tmp/claude-1000/-home-anthoni-projects-entire-devdesk/c7c5fd2b-a1a6-462b-811f-adc1dbac3ad4/tasks/b3fm8vost.output</output-file>
+<status>completed</status>
+<summary>Background command "echo "BROWSER=$BROWSER DISPLAY=$DISPLAY XDG_CURRENT_DESKTOP=$XDG_CURRENT_DESKTOP DE=$DE"; xdg-settings get default-web-browser 2&gt;&amp;1; xdg-mime query default x-scheme-handler/https 2&gt;&amp;1; ls /usr/share/applications 2&gt;/dev/null | head; which gio kde-open gnome-open exo-open w3m lynx links elinks firefox chromium google-chrome 2&gt;&amp;1 | grep -v "not found"; ps -eo pid,ppid,etime,args --forest | grep -B1 -A4 "[x]dg-open https" | head -20" completed (exit code 0)</summary>
+</task-notification>
+
+---
+
+dans la même pr, corrige les autres vues qui ont le même problème
