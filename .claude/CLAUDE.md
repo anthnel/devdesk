@@ -386,6 +386,31 @@ gh pr list -R anthnel/devdesk --label "autorelease: pending"
 gh pr merge -R anthnel/devdesk <n> --squash   # ← this merge is what publishes
 ```
 
+#### When to propose a release
+
+Publishing is never automatic, but it should not be forgotten either. The `pm`
+**proposes** merging the release PR at key moments; **the user alone decides**.
+No agent merges the release PR without the user's explicit agreement.
+
+Any one of these is enough to trigger a proposal:
+
+1. **Story delivered**: a Plane story moves to Done (its `feat:`/`fix:` PR is merged on `main`).
+2. **Module finished**: every story of a Plane module (epic) is Done.
+3. **Security fix**: a fix touching security (auth, secrets, external input,
+   vulnerable dependencies, image signatures) lands on `main`. Propose immediately.
+4. **Accumulation**: the open release PR
+   (`gh pr list -R anthnel/devdesk --label "autorelease: pending"`) holds at
+   least 5 changelog entries, or 2 weeks have passed since the last release
+   (`gh release list -R anthnel/devdesk --limit 1`).
+
+A subagent never speaks on its own, so the check belongs to the session that
+orchestrates (orchestrator, `/feature`, `/bugfix`): **after every merge on
+`main`**, it evaluates the triggers above. If one is met, it delegates to the
+`pm` to draft the proposal: proposed version, content (taken from the release
+PR body), the trigger met, and anything still in progress that would justify
+waiting. It then asks the user. On yes, `devops` merges the release PR; on no,
+nothing happens and the PR keeps accumulating.
+
 **Why not semantic-release**, which would achieve the same thing in a single
 merge: it pushes the tag directly to `main`, and this repository forbids
 that — the Entire mirror rejects that push, and this refusal is the *only*
