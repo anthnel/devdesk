@@ -1,0 +1,59 @@
+{
+  "cli_version": "0.11.5",
+  "checkpoint_id": "3639bd6a6908",
+  "session_id": "95aef106-fcb4-4e68-9c0f-86543e07a13d",
+  "strategy": "manual-commit",
+  "created_at": "2026-10-22T16:28:39.347320815Z",
+  "branch": "chore/team-init",
+  "checkpoints_count": 1,
+  "save_step_count": 1,
+  "files_touched": [
+    "CLAUDE.md"
+  ],
+  "agent": "Claude Code",
+  "model": "claude-opus-5-5",
+  "turn_id": "798c3d01c4f8",
+  "compact_transcript_start": 0,
+  "token_usage": {
+    "input_tokens": 12,
+    "cache_creation_tokens": 107042,
+    "cache_read_tokens": 490653,
+    "output_tokens": 5595,
+    "api_call_count": 6,
+    "subagent_tokens": {
+      "input_tokens": 2,
+      "cache_creation_tokens": 81129,
+      "cache_read_tokens": 0,
+      "output_tokens": 20,
+      "api_call_count": 1
+    }
+  },
+  "skill_events_version": 1,
+  "skill_events": [
+    {
+      "id": "prompt-skill-claude-code-team-core:team-init-2026-10-22T16:26:10.675943531Z",
+      "event_type": "prompt_invocation",
+      "skill": {
+        "name": "team-core:team-init"
+      },
+      "source": {
+        "agent": "claude-code",
+        "signal": "prompt_slash_command",
+        "confidence": "explicit"
+      },
+      "turn_id": "798c3d01c4f8",
+      "timestamp": "2026-10-22T16:26:10.675943531Z",
+      "native": {
+        "command": "/team-core:team-init"
+      },
+      "collapse": {
+        "target": "user_message",
+        "label": "/team-core:team-init",
+        "default_collapsed": true
+      }
+    }
+  ],
+  "session_metrics": {
+    "turn_count": 1
+  }
+}
