@@ -8,7 +8,8 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 >   in scope. Planning is no longer delegated to Gemini (Antigravity).
 > - Implementation plans go in `.claude/plans/` (see
 >   [rules/planning.md](rules/planning.md)); design decisions that outlive a plan
->   are recorded in `docs/backlog.md`.
+>   are recorded in `docs/backlog.md`. Open work (stories, tasks, bugs) is tracked
+>   in Plane, see the `## Plane` section of the root `CLAUDE.md`.
 > - Always refer to [project-context.md](../project-context.md) for global project rules.
 >   It sits in this repository, at the root. The absolute path this line used to
 >   carry named a GitLab checkout that is no longer where DevDesk lives.

@@ -1,11 +1,15 @@
 # DevDesk Backlog
 
-**Last Updated:** 2026-09-26
+**Last Updated:** 2026-10-22
 
 Open work for DevDesk: known defects, technical debt, and planned features.
 Replaces the former `todo.md` at the repository root. Items completed there
 (network topology visualisation, inter-container ping/curl) have been dropped
 rather than carried over.
+
+Since 2026-10-22, open work is tracked in Plane (project DEVDESK). This file remains
+the register of design decisions and their reasoning; an open entry carries its
+identifier as `DEVDESK-N`.
 
 ---
 
@@ -3859,6 +3863,8 @@ Carried over from `todo.md`, except §3.7.
 
 ### 3.1 Network diagnostics — **redirecteur fait, sans le pré-remplissage conteneur**
 
+**Plane:** DEVDESK-15
+
 Reporté de `todo.md` en une ligne : « *Port-forwarding manager — an interactive
 dashboard to manage port redirections to the host machine* ». Ce qui a été
 livré est un **redirecteur TCP non privilégié**, en quatrième onglet de `:net`.
@@ -3967,6 +3973,8 @@ Le cas « joindre un port non publié sans redémarrer » reste **ouvert** :
   été vérifié contre le code non corrigé.
 
 ### 3.2 Remédiation de sécurité — **SAST local fait, auto-patch : phases A, B et C faites**
+
+**Plane:** DEVDESK-4, DEVDESK-5, DEVDESK-6
 
 Reporté de `todo.md` en deux puces : « *Auto-patch assistance* » (après un scan
 Trivy, proposer un `Dockerfile` dont l'image de base est montée pour effacer
@@ -4220,6 +4228,8 @@ Plan : `.claude/plans/2026-09-21-security-remediation.md` (un plan, trois PR).
 
 ### 3.3 OCI build and cache analyser
 
+**Plane:** DEVDESK-21, DEVDESK-22
+
 - **Layer visualisation** — analyse a local image and show the size of each
   layer, in the spirit of `dive`. Intended approach:
   - Integrated via `google/go-containerregistry` ("daemonless", no dependency on
@@ -4232,6 +4242,8 @@ Plan : `.claude/plans/2026-09-21-security-remediation.md` (un plan, trois PR).
   "`package.json` changed, invalidating the cache".
 
 ### 3.4 Spontaneous dev containers
+
+**Plane:** DEVDESK-23, DEVDESK-24
 
 - **Configuration injection** — inject the developer's dotfiles (vim, zsh,
   aliases) when opening a terminal inside a container.
@@ -7888,6 +7900,8 @@ ligne que l'utilisateur ne voit pas correspondre.
 
 ### 3.28 Un état juste et invisible — la garde qui manque aux tests
 
+**Plane:** DEVDESK-28
+
 Deux bugs livrés le même jour, dans deux vues, avec la même forme : **l'état
 était correct et l'écran ne le montrait pas.**
 
@@ -9083,6 +9097,8 @@ plutôt que supprimé.
 moitiés de l'asymétrie.
 
 ### 3.40 Un verdict global `UNKNOWN` sur un hôte parfaitement sain
+
+**Plane:** DEVDESK-16
 
 Trouvé en vérifiant `net_check` à la main le 2026-08-23, contre
 `example.com:443` sous Windows :
@@ -10947,6 +10963,8 @@ le point 1 de « Ce qui reste ouvert » de §3.42.
 
 ### 3.51 Le YAML fusionné dans le viewer, et un finding plumber qui sait où il pointe — **fait, autrement que prévu**
 
+**Plane:** DEVDESK-7
+
 Deux moitiés séparables, nées de la même mesure : **plumber n'analyse pas le
 `.gitlab-ci.yml` du dépôt, il analyse ce que GitLab en fait**, et rien dans
 DevDesk ne montre ce que c'est.
@@ -12622,6 +12640,8 @@ lui, et lui seul, qui doit être conforme.
 
 ### 3.63 Les sous-réseaux qui se recouvrent — Docker contre la machine
 
+**Plane:** DEVDESK-17
+
 `docker compose up` crée un bridge dont le sous-réseau recouvre celui du VPN, et
 le VPN meurt. Docker ne prévient pas, DevDesk non plus, et le diagnostic se fait
 à la main en lisant deux tables qui sont déjà toutes les deux dans
@@ -12673,6 +12693,8 @@ préfixes, pas son remplacement.
 
 ### 3.64 Ce qu'un conteneur expose, et que personne ne scanne
 
+**Plane:** DEVDESK-8
+
 Trivy note l'image, plumber note le pipeline, gitleaks note le dépôt. **Personne
 ne note le conteneur qui tourne.** Publier sur `0.0.0.0` plutôt que sur
 `127.0.0.1`, `--network host`, `--privileged`, une capability ajoutée, le socket
@@ -12708,6 +12730,8 @@ démarrés différemment n'ont pas la même exposition, et c'est tout le sujet.
 ---
 
 ### 3.65 Les en-têtes de sécurité, et ce que le handshake accepterait
+
+**Plane:** DEVDESK-18, DEVDESK-19
 
 #### Ce que le pipeline regarde aujourd'hui — vérifié le 2026-09-07
 
@@ -12746,6 +12770,8 @@ d'en-têtes, et `Check.Facts` est la forme qui existe déjà pour l'exposer.
 ---
 
 ### 3.66 « C'est lent » — où, exactement — **étapes 1 et 2 faites**
+
+**Plane:** DEVDESK-20
 
 `net/http/httptrace` sépare DNS / connexion / handshake TLS / TTFB / total pour
 une requête, avec la bibliothèque standard seule.
@@ -15464,6 +15490,8 @@ en-têtes C) : à lancer depuis l'hôte avant le merge.
 
 ### 3.83 Préférer les images minimales (Wolfi, distroless) dès la création d'un dépôt — **à explorer**
 
+**Plane:** DEVDESK-9
+
 Trouvé au chapitre 4 (§4.4, §4.4.1, §4.4.2) : au-delà de corriger une image de
 base existante (§3.2), le livre recommande de partir d'une base minimale —
 Wolfi ou distroless plutôt qu'Alpine ou Debian slim — pour réduire la surface
@@ -15611,6 +15639,8 @@ Sources vérifiées le 2026-09-22 :
 ---
 
 ### 3.85 Kyverno — politiques apportées par l'utilisateur, et ce que kube-linter aurait vu — **à explorer**
+
+**Plane:** DEVDESK-10, DEVDESK-11
 
 §3.80 a écarté Kyverno et kube-linter pour ne pas multiplier les outils. Deux
 besoins restent, et ils ne se ressemblent pas.
@@ -15947,6 +15977,8 @@ touche propre à `ct`. Les lettres libres passent à `Q Z`.
 
 ### 3.90 Une CI qui pousse une image sans la signer — **à explorer**
 
+**Plane:** DEVDESK-12
+
 Née de la discussion de §3.82 (2026-09-25). §3.82 *vérifie* la signature d'une
 image de base avant de la recommander ; la question voisine était de savoir si
 DevDesk devait aussi *signer*. **Non, décidé avec l'utilisateur**, pour trois
@@ -15990,6 +16022,8 @@ Lié : §3.82 (vérifier), §3.42 (le score CI), §3.83 (templates).
 
 ### 3.91 Le SBOM signé de l'éditeur comme entrée de Trivy — **à explorer**
 
+**Plane:** DEVDESK-13
+
 Sorti de §3.82 le 2026-09-25. Un éditeur qui publie un SBOM signé (attestation
 `spdxjson` ou `cyclonedx`) décrit l'image mieux que Trivy ne la devine sur ce
 qui n'a pas de base de paquets — binaires statiques, distroless. `trivy sbom`
@@ -16003,6 +16037,8 @@ résultat diffère assez de `trivy image` pour valoir un second chemin, et que
 faire quand les deux se contredisent.
 
 ### 3.92 Adopter une nouvelle clé d'éditeur à l'exécution, sur approbation — **à explorer**
+
+**Plane:** DEVDESK-14
 
 Née de §3.82 (2026-09-25). Les clés de B sont embarquées dans le binaire : une
 rotation chez l'éditeur (DHI en a déjà connu une, `dhi-1` → `dhi-2`) bloque les
@@ -16211,6 +16247,8 @@ toujours `░`. `Cut`/`TailStyle` restent inchangés : ils colorent après la me
 
 ### 3.97 Changer de police depuis DevDesk — **à explorer**
 
+**Plane:** DEVDESK-29
+
 Demandé le 2026-10-05 : pouvoir « switcher de font », par exemple vers
 [Inter](https://rsms.me/inter/).
 
@@ -16267,6 +16305,8 @@ fait de pouvoir changer de police sans quitter DevDesk ? La réponse décide ent
 « documenter » et « un champ dans la configuration ».
 
 ### 3.98 Une apparence soignée sans Nerd Font — **à explorer**
+
+**Plane:** DEVDESK-30
 
 Demandé le 2026-10-05, en prolongement du §3.97 : si l'utilisateur n'a pas de
 Nerd Font, DevDesk peut-il rester pro et agréable plutôt que d'afficher des
@@ -16339,6 +16379,8 @@ Détail : [`workspaces.md`](architecture/workspaces.md).
 
 ### 3.100 Un template créé depuis une copie périmée, sans que rien le dise — **à explorer**
 
+**Plane:** DEVDESK-26
+
 Signalé le 2026-10-12 : un projet créé depuis le template
 `go/http-api` (branche `main`, dépôt GitLab, sous-répertoire `go/http-api`)
 n'a pas reçu `.gitlab-ci.yml`, `.releaserc.json` ni `.dockerignore`, seul
@@ -16390,6 +16432,8 @@ du template mérite lui aussi d'être signalé — c'est l'autre cause qui retir
 fichiers sans rien dire, et elle se voit dans l'aperçu `V`, pas à la création.
 
 ### 3.101 Le monitoring Docker du tableau de bord : un flux plutôt qu'un sondage — **à explorer**
+
+**Plane:** DEVDESK-25
 
 Demandé le 2026-10-18 : la partie monitoring Docker du tableau de bord paraît
 lourde ; existe-t-il une alternative plus légère, qui marche avec docker **et**
@@ -16488,6 +16532,8 @@ la charge est faible, laisser tel quel est une réponse valable.
 les deux vues ou seulement la vue `containers`.
 
 ### 3.102 Un template épinglé sur un tag ne dit pas qu'un plus récent existe — **à explorer**
+
+**Plane:** DEVDESK-27
 
 Signalé le 2026-10-18 : la vue `:templates` affichait `v0.1.0` alors que
 `v0.2.0` était publiée. Ce n'est pas un défaut d'affichage. La colonne **Ref**
