@@ -91,5 +91,19 @@
     "deny": [
       "Read(./.entire/metadata/**)"
     ]
+  },
+  "extraKnownMarketplaces": {
+    "anthnel-agents": {
+      "source": {
+        "source": "github",
+        "repo": "anthnel/claude-agent-team"
+      }
+    }
+  },
+  "enabledPlugins": {
+    "team-core@anthnel-agents": true,
+    "dev-team@anthnel-agents": true,
+    "product-team@anthnel-agents": true,
+    "plane-integration@anthnel-agents": true
   }
 }
