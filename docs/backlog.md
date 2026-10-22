@@ -12771,7 +12771,7 @@ d'en-têtes, et `Check.Facts` est la forme qui existe déjà pour l'exposer.
 
 ### 3.66 « C'est lent » — où, exactement — **étapes 1 et 2 faites**
 
-**Plane:** DEVDESK-20
+**Plane:** DEVDESK-20, DEVDESK-33, DEVDESK-34
 
 `net/http/httptrace` sépare DNS / connexion / handshake TLS / TTFB / total pour
 une requête, avec la bibliothèque standard seule.
