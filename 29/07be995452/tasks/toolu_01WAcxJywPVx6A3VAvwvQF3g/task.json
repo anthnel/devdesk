@@ -1,0 +1,15 @@
+{
+  "tool_use_id": "toolu_01WAcxJywPVx6A3VAvwvQF3g",
+  "agent_id": "a81413651da3d3cbc",
+  "subagent_type": "product-team:pm",
+  "task_description": "Migrate open backlog to Plane",
+  "token_usage": {
+    "input_tokens": 44,
+    "cache_creation_tokens": 206892,
+    "cache_read_tokens": 2767590,
+    "output_tokens": 301,
+    "api_call_count": 22
+  },
+  "started_at": "2026-10-22T18:53:41.981330878+02:00",
+  "completed_at": "2026-10-22T18:59:35.127381667+02:00"
+}

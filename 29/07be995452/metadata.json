@@ -1,0 +1,33 @@
+{
+  "cli_version": "0.11.5",
+  "checkpoint_id": "2907be995452",
+  "strategy": "manual-commit",
+  "branch": "docs/backlog-plane-links",
+  "checkpoints_count": 2,
+  "files_touched": [
+    "docs/backlog.md"
+  ],
+  "sessions": [
+    {
+      "metadata": "/29/07be995452/0/metadata.json",
+      "transcript": "/29/07be995452/0/full.jsonl",
+      "compact_transcript": "/29/07be995452/0/transcript.jsonl",
+      "content_hash": "/29/07be995452/0/content_hash.txt",
+      "prompt": "/29/07be995452/0/prompt.txt"
+    }
+  ],
+  "token_usage": {
+    "input_tokens": 22,
+    "cache_creation_tokens": 100034,
+    "cache_read_tokens": 993434,
+    "output_tokens": 8595,
+    "api_call_count": 10,
+    "subagent_tokens": {
+      "input_tokens": 50,
+      "cache_creation_tokens": 268411,
+      "cache_read_tokens": 2884706,
+      "output_tokens": 337,
+      "api_call_count": 25
+    }
+  }
+}
