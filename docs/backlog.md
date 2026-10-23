@@ -110,12 +110,16 @@ Dans un espace de noms réseau à 1 000 ports éphémères, 7 exécutions du paq
 sur 10 échouaient, dont la ligne 316 vue en CI. Le port est maintenant réservé
 sous Linux par un socket lié avec `SO_REUSEADDR`, sans `listen`, gardé jusqu'à
 la fin du test : `bind(0)` et `connect()` l'évitent, alors que le `net.Listen`
-du proxy le prend. 0 échec sur 10 après. Hors Linux, la fenêtre reste
-(`port_other_test.go` dit pourquoi). Le code de production n'est pas en cause :
-le port du proxy vient de `network.proxy_port`, jamais d'un `bind(0)`.
+du proxy le prend. 0 échec sur 10 après. Le code de production n'est pas en
+cause : le port du proxy vient de `network.proxy_port`, jamais d'un `bind(0)`.
 
-**Ce qui n'est pas traité :** `internal/app` a sa propre copie de `freePort`,
-suivie du même schéma (`routerServingOn(t, freePort(t))` puis `httpBackend`).
+`internal/app` avait sa propre copie de `freePort`, avec le même schéma
+(`routerServingOn(t, freePort(t))` puis `httpBackend`) et en plus
+`freePort(t), freePort(t)`, qui pouvait rendre deux fois le même port. Les deux
+copies passent maintenant par `loopback.ReservePort`
+(`internal/testutil/loopback`, importé des seuls `_test.go`) : deux
+réservations tenues en même temps ne partagent jamais un port. Hors Linux, la
+fenêtre reste (`reserve_other.go` dit pourquoi).
 
 **D84 — dans `containers`, les colonnes de métriques repassaient à « - » entre
 deux ticks. Corrigé.** Signalé et fermé le 2026-10-18, juste après D83.

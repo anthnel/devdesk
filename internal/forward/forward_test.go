@@ -9,6 +9,8 @@ import (
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/anthnel/devdesk/internal/testutil/loopback"
 )
 
 // echoServer starts a loopback server that writes back whatever it reads, and
@@ -36,14 +38,11 @@ func echoServer(t *testing.T) string {
 	return ln.Addr().String()
 }
 
-// freePort returns a loopback port nothing is listening on, kept out of the
-// kernel's reach until the test ends: see reservePort. A released port is not
-// enough — the code under test binds it later (the proxy only on its first
-// route), and any bind(0) in between, including the test's own backend, may be
-// handed that very port (DEVDESK-35).
+// freePort returns a loopback port nothing is listening on, held out of the
+// kernel's reach until the test ends (see loopback.ReservePort, DEVDESK-35).
 func freePort(t *testing.T) int {
 	t.Helper()
-	return reservePort(t)
+	return loopback.ReservePort(t)
 }
 
 func TestAForwardCarriesBytesBothWays(t *testing.T) {
