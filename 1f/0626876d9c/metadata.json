@@ -1,0 +1,36 @@
+{
+  "cli_version": "0.11.5",
+  "checkpoint_id": "1f0626876d9c",
+  "strategy": "manual-commit",
+  "branch": "fix/forward-test-proxy-port",
+  "checkpoints_count": 4,
+  "files_touched": [
+    "docs/backlog.md",
+    "internal/forward/forward_test.go",
+    "internal/forward/port_linux_test.go",
+    "internal/forward/port_other_test.go"
+  ],
+  "sessions": [
+    {
+      "metadata": "/1f/0626876d9c/0/metadata.json",
+      "transcript": "/1f/0626876d9c/0/full.jsonl",
+      "compact_transcript": "/1f/0626876d9c/0/transcript.jsonl",
+      "content_hash": "/1f/0626876d9c/0/content_hash.txt",
+      "prompt": "/1f/0626876d9c/0/prompt.txt"
+    }
+  ],
+  "token_usage": {
+    "input_tokens": 26,
+    "cache_creation_tokens": 157482,
+    "cache_read_tokens": 1516459,
+    "output_tokens": 6310,
+    "api_call_count": 10,
+    "subagent_tokens": {
+      "input_tokens": 94,
+      "cache_creation_tokens": 176762,
+      "cache_read_tokens": 4209183,
+      "output_tokens": 630,
+      "api_call_count": 47
+    }
+  }
+}
