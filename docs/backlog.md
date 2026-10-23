@@ -98,6 +98,29 @@ decided together and fixed in one pass; see [§1.2](#12-the-five-parked-defects)
 
 ### 1.1 Fixed
 
+**D85 — un test de `internal/forward` échouait par intermittence sur « the
+proxy port is already in use ». Corrigé.** Vu en CI le 2026-10-22, fermé le
+2026-10-23. **Plane:** DEVDESK-35
+
+`freePort` (tests) obtenait un port par `listen` sur `:0` puis le relâchait ; le
+proxy ne s'y lie qu'à la première route, et entre les deux le test démarre son
+backend — un autre `bind(0)`, auquel le noyau peut rendre exactement le port
+qu'on vient de libérer (mesuré : 29 fois sur 200 000 pour le `bind(0)` suivant).
+Dans un espace de noms réseau à 1 000 ports éphémères, 7 exécutions du paquet
+sur 10 échouaient, dont la ligne 316 vue en CI. Le port est maintenant réservé
+sous Linux par un socket lié avec `SO_REUSEADDR`, sans `listen`, gardé jusqu'à
+la fin du test : `bind(0)` et `connect()` l'évitent, alors que le `net.Listen`
+du proxy le prend. 0 échec sur 10 après. Le code de production n'est pas en
+cause : le port du proxy vient de `network.proxy_port`, jamais d'un `bind(0)`.
+
+`internal/app` avait sa propre copie de `freePort`, avec le même schéma
+(`routerServingOn(t, freePort(t))` puis `httpBackend`) et en plus
+`freePort(t), freePort(t)`, qui pouvait rendre deux fois le même port. Les deux
+copies passent maintenant par `loopback.ReservePort`
+(`internal/testutil/loopback`, importé des seuls `_test.go`) : deux
+réservations tenues en même temps ne partagent jamais un port. Hors Linux, la
+fenêtre reste (`reserve_other.go` dit pourquoi).
+
 **D84 — dans `containers`, les colonnes de métriques repassaient à « - » entre
 deux ticks. Corrigé.** Signalé et fermé le 2026-10-18, juste après D83.
 

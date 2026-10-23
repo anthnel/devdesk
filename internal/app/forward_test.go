@@ -12,6 +12,7 @@ import (
 
 	"github.com/anthnel/devdesk/internal/command"
 	"github.com/anthnel/devdesk/internal/forward"
+	"github.com/anthnel/devdesk/internal/testutil/loopback"
 )
 
 // echoServer starts a loopback server that writes back what it reads, so an
@@ -38,17 +39,11 @@ func echoServer(t *testing.T) string {
 	return ln.Addr().String()
 }
 
+// freePort returns a loopback port nothing is listening on, held out of the
+// kernel's reach until the test ends (see loopback.ReservePort, DEVDESK-35).
 func freePort(t *testing.T) int {
 	t.Helper()
-	ln, err := net.Listen("tcp", "127.0.0.1:0")
-	if err != nil {
-		t.Fatalf("reserving a port: %v", err)
-	}
-	port := ln.Addr().(*net.TCPAddr).Port
-	if err := ln.Close(); err != nil {
-		t.Fatalf("releasing the reserved port: %v", err)
-	}
-	return port
+	return loopback.ReservePort(t)
 }
 
 // runCmd drains a Cmd to the message it produces. An OpenMsg is answered with
