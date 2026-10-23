@@ -36,20 +36,14 @@ func echoServer(t *testing.T) string {
 	return ln.Addr().String()
 }
 
-// freePort returns a loopback port nothing is listening on. The gap between
-// the close and the caller's bind is a race in principle; in a test process
-// binding one port at a time it does not happen.
+// freePort returns a loopback port nothing is listening on, kept out of the
+// kernel's reach until the test ends: see reservePort. A released port is not
+// enough — the code under test binds it later (the proxy only on its first
+// route), and any bind(0) in between, including the test's own backend, may be
+// handed that very port (DEVDESK-35).
 func freePort(t *testing.T) int {
 	t.Helper()
-	ln, err := net.Listen("tcp", "127.0.0.1:0")
-	if err != nil {
-		t.Fatalf("reserving a port: %v", err)
-	}
-	port := ln.Addr().(*net.TCPAddr).Port
-	if err := ln.Close(); err != nil {
-		t.Fatalf("releasing the reserved port: %v", err)
-	}
-	return port
+	return reservePort(t)
 }
 
 func TestAForwardCarriesBytesBothWays(t *testing.T) {
