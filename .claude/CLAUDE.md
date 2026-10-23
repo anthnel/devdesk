@@ -558,6 +558,25 @@ Test files follow Go conventions (`*_test.go`):
 
 Use table-driven tests where appropriate.
 
+**Never get a "free" port by `net.Listen("tcp", "127.0.0.1:0")`, reading the
+port, then `Close()`, and letting the code under test bind it later.** Between
+the close and the bind, any `bind(0)` can be handed that very port: an
+`httptest.NewServer` in the same test, another test, another process on the
+runner. The symptom is an intermittent `address already in use`, mostly in CI
+(Linux gave the just-closed port back to about 1 `bind(0)` in 7,000; DEVDESK-35,
+D85 in `docs/backlog.md`).
+
+- If the code under test takes a port, call `loopback.ReservePort(t)`
+  (`internal/testutil/loopback`). On Linux it holds a socket bound with
+  `SO_REUSEADDR`, never listening, until `t.Cleanup`: `bind(0)` and `connect()`
+  cannot take the port, but `net.Listen` can.
+- Otherwise let the server bind `:0` and read the real port, or keep the
+  listener open and hand it to the code under test.
+- Off Linux, `ReservePort` keeps the old behavior and the window stays open
+  (on Windows Go does not set `SO_REUSEADDR`). That is known, not a local bug.
+- `internal/testutil/loopback` is imported from `_test.go` files only; nothing
+  enforces it yet.
+
 ## Dependencies
 
 Key libraries (see `go.mod`):
