@@ -1,0 +1,15 @@
+{
+  "tool_use_id": "toolu_019x47QkPnf7GnK6cKh14neh",
+  "agent_id": "a11a7389f5d112939",
+  "subagent_type": "dev-team:reviewer",
+  "task_description": "Review DEVDESK-35 fix",
+  "token_usage": {
+    "input_tokens": 14,
+    "cache_creation_tokens": 101421,
+    "cache_read_tokens": 554241,
+    "output_tokens": 71,
+    "api_call_count": 7
+  },
+  "started_at": "2026-10-23T10:04:34.329940496+02:00",
+  "completed_at": "2026-10-23T10:06:26.308524132+02:00"
+}

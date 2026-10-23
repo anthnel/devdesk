@@ -1,0 +1,31 @@
+{
+  "cli_version": "0.11.5",
+  "checkpoint_id": "9f0fe0df8e45",
+  "strategy": "manual-commit",
+  "branch": "docs/claude-loopback-port-pitfall",
+  "checkpoints_count": 8,
+  "files_touched": null,
+  "sessions": [
+    {
+      "metadata": "/9f/0fe0df8e45/0/metadata.json",
+      "transcript": "/9f/0fe0df8e45/0/full.jsonl",
+      "compact_transcript": "/9f/0fe0df8e45/0/transcript.jsonl",
+      "content_hash": "/9f/0fe0df8e45/0/content_hash.txt",
+      "prompt": "/9f/0fe0df8e45/0/prompt.txt"
+    }
+  ],
+  "token_usage": {
+    "input_tokens": 58,
+    "cache_creation_tokens": 52097,
+    "cache_read_tokens": 4824916,
+    "output_tokens": 21700,
+    "api_call_count": 24,
+    "subagent_tokens": {
+      "input_tokens": 80,
+      "cache_creation_tokens": 377683,
+      "cache_read_tokens": 4538133,
+      "output_tokens": 526,
+      "api_call_count": 39
+    }
+  }
+}
