@@ -1,0 +1,15 @@
+{
+  "tool_use_id": "toolu_01DfgY9199jxJg5mknLVfFQf",
+  "agent_id": "a0da51bf62e357c0f",
+  "subagent_type": "dev-team:reviewer",
+  "task_description": "Revue correctif DEVDESK-36",
+  "token_usage": {
+    "input_tokens": 18,
+    "cache_creation_tokens": 156014,
+    "cache_read_tokens": 991868,
+    "output_tokens": 92,
+    "api_call_count": 9
+  },
+  "started_at": "2026-10-24T16:17:08.210378881+02:00",
+  "completed_at": "2026-10-24T16:20:08.049247932+02:00"
+}

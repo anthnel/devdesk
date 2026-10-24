@@ -1,0 +1,15 @@
+{
+  "tool_use_id": "toolu_012G1x8veHceWW7ALPUhhMeU",
+  "agent_id": "ab1ff36a2505860a0",
+  "subagent_type": "team-core:archivist",
+  "task_description": "Archiver le piège HOME",
+  "token_usage": {
+    "input_tokens": 6,
+    "cache_creation_tokens": 105693,
+    "cache_read_tokens": 132596,
+    "output_tokens": 13,
+    "api_call_count": 3
+  },
+  "started_at": "2026-10-24T16:21:03.176421067+02:00",
+  "completed_at": "2026-10-24T16:21:17.712408715+02:00"
+}

@@ -1,0 +1,15 @@
+{
+  "tool_use_id": "toolu_01P5Uhov3qEp1PnAA1eBBE31",
+  "agent_id": "a5a82f32553609c93",
+  "subagent_type": "project-tester",
+  "task_description": "Vérification DEVDESK-36",
+  "token_usage": {
+    "input_tokens": 4,
+    "cache_creation_tokens": 58692,
+    "cache_read_tokens": 55740,
+    "output_tokens": 46,
+    "api_call_count": 2
+  },
+  "started_at": "2026-10-24T16:20:13.597318154+02:00",
+  "completed_at": "2026-10-24T16:20:50.681768792+02:00"
+}

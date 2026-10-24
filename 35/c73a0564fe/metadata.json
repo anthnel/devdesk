@@ -1,0 +1,33 @@
+{
+  "cli_version": "0.11.5",
+  "checkpoint_id": "35c73a0564fe",
+  "strategy": "manual-commit",
+  "branch": "fix/devdesk-36-test-state-leak",
+  "checkpoints_count": 8,
+  "files_touched": [
+    "internal/app/harness_test.go"
+  ],
+  "sessions": [
+    {
+      "metadata": "/35/c73a0564fe/0/metadata.json",
+      "transcript": "/35/c73a0564fe/0/full.jsonl",
+      "compact_transcript": "/35/c73a0564fe/0/transcript.jsonl",
+      "content_hash": "/35/c73a0564fe/0/content_hash.txt",
+      "prompt": "/35/c73a0564fe/0/prompt.txt"
+    }
+  ],
+  "token_usage": {
+    "input_tokens": 60,
+    "cache_creation_tokens": 103748,
+    "cache_read_tokens": 2621959,
+    "output_tokens": 11449,
+    "api_call_count": 25,
+    "subagent_tokens": {
+      "input_tokens": 56,
+      "cache_creation_tokens": 453001,
+      "cache_read_tokens": 2623403,
+      "output_tokens": 1568,
+      "api_call_count": 28
+    }
+  }
+}

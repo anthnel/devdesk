@@ -1,0 +1,15 @@
+{
+  "tool_use_id": "toolu_01N629kU2poavdP3uN8SCfBV",
+  "agent_id": "a987c970b6b5add2e",
+  "subagent_type": "dev-team:debugger",
+  "task_description": "Debug tests -count=2",
+  "token_usage": {
+    "input_tokens": 28,
+    "cache_creation_tokens": 132602,
+    "cache_read_tokens": 1443199,
+    "output_tokens": 1417,
+    "api_call_count": 14
+  },
+  "started_at": "2026-10-24T16:13:23.509176984+02:00",
+  "completed_at": "2026-10-24T16:16:59.877072862+02:00"
+}
