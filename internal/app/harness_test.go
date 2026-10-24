@@ -151,6 +151,18 @@ func (v *bareView) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 }
 func (v *bareView) View() string { return "bare" }
 
+// isolateHome gives the test a HOME of its own. The one TestMain sets lives as
+// long as the process, so under -count=N a test met the files its own previous
+// run had written: a context already created, a forge index still fresh enough
+// to skip the walk (DEVDESK-36). TestMain's HOME stays as the fallback for code
+// that runs outside a router.
+func isolateHome(t *testing.T) {
+	t.Helper()
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+	t.Setenv("USERPROFILE", home)
+}
+
 // router builds an App hosting view as the dashboard, laid out at 180x40.
 func router(t *testing.T, view tea.Model) *App {
 	t.Helper()
@@ -159,6 +171,7 @@ func router(t *testing.T, view tea.Model) *App {
 
 func routerAt(t *testing.T, view tea.Model, width, height int) *App {
 	t.Helper()
+	isolateHome(t)
 	a := &App{
 		config:         testConfig(),
 		currentContext: "default",
