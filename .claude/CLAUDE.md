@@ -564,8 +564,11 @@ the files its own previous run wrote (context config, forge index cache), and
 it fails from `-count=2` while `-count=1` passes (DEVDESK-36). A test that
 writes under HOME isolates it with `t.Setenv("HOME", t.TempDir())` and
 `USERPROFILE` too; in `internal/app`, call `isolateHome(t)` from
-`harness_test.go` (already done by `routerAt`). `internal/ui/setup` has the
-same default, not fixed yet (`TestThemeFetchAddsNewThemesAndTheyBecomeCyclable`).
+`harness_test.go` (already done by `routerAt`). `internal/ui/setup` is fixed
+(DEVDESK-38): its `isolateHome(t)` helper in `model_test.go` is called by the
+tests that write under HOME. Other packages whose TestMain does
+`os.Setenv("HOME", …)` may have the same default. To find them:
+`grep -rn 'os.Setenv("HOME"' --include=*_test.go`, then `go test -count=2` on each package.
 
 **Never get a "free" port by `net.Listen("tcp", "127.0.0.1:0")`, reading the
 port, then `Close()`, and letting the code under test bind it later.** Between

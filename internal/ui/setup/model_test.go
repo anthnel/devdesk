@@ -38,6 +38,19 @@ func TestMain(m *testing.M) {
 	os.Exit(code)
 }
 
+// isolateHome gives the test a HOME of its own. The one TestMain sets lives as
+// long as the process, so under -count=N a test met the files its own previous
+// run had written: the remote themes already downloaded, so the fetch added
+// none (DEVDESK-38, the same defect as DEVDESK-36 in internal/app). Every test
+// that writes under HOME calls it, which keeps TestMain's HOME empty for the
+// tests that only read it.
+func isolateHome(t *testing.T) {
+	t.Helper()
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+	t.Setenv("USERPROFILE", home)
+}
+
 // feed applies messages to the model in order.
 func feed(t *testing.T, m Model, msgs ...tea.Msg) Model {
 	t.Helper()
@@ -294,6 +307,7 @@ func TestEnterOnTheLastStepWithNoTokenGoesStraightToSaving(t *testing.T) {
 }
 
 func TestThemeFetchAddsNewThemesAndTheyBecomeCyclable(t *testing.T) {
+	isolateHome(t)
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		_, _ = w.Write([]byte(`{"name":"test","color_ok":"#000000","color_error":"#000000","color_warn":"#000000","color_primary":"#000000","color_secondary":"#000000","color_border":"#000000","color_text":"#000000","color_dim":"#000000","color_highlight":"#000000","color_white":"#000000","color_black":"#000000","color_background":"#000000"}`))
 	}))
@@ -353,6 +367,7 @@ func (m Model) currentQuestionAt(step int) (string, string, string) {
 }
 
 func TestSaveContextCmdWritesTheFileAndSetCurrentContextCmdPointsAtIt(t *testing.T) {
+	isolateHome(t)
 	m := New()
 	m.contextNameInput.SetValue("integration-test")
 
@@ -377,6 +392,7 @@ func TestSaveContextCmdWritesTheFileAndSetCurrentContextCmdPointsAtIt(t *testing
 }
 
 func TestCheckContextExistsCmdReportsFalseForAFreshName(t *testing.T) {
+	isolateHome(t)
 	msg, ok := testutil.MsgOf[ContextExistsMsg](checkContextExistsCmd("never-created"))
 	if !ok {
 		t.Fatal("checkContextExistsCmd returned no ContextExistsMsg")
