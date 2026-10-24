@@ -558,6 +558,15 @@ Test files follow Go conventions (`*_test.go`):
 
 Use table-driven tests where appropriate.
 
+**HOME is shared across a test process.** `TestMain` in `internal/app` sets
+`HOME` once for the whole process, so under `go test -count=N` a test finds
+the files its own previous run wrote (context config, forge index cache), and
+it fails from `-count=2` while `-count=1` passes (DEVDESK-36). A test that
+writes under HOME isolates it with `t.Setenv("HOME", t.TempDir())` and
+`USERPROFILE` too; in `internal/app`, call `isolateHome(t)` from
+`harness_test.go` (already done by `routerAt`). `internal/ui/setup` has the
+same default, not fixed yet (`TestThemeFetchAddsNewThemesAndTheyBecomeCyclable`).
+
 **Never get a "free" port by `net.Listen("tcp", "127.0.0.1:0")`, reading the
 port, then `Close()`, and letting the code under test bind it later.** Between
 the close and the bind, any `bind(0)` can be handed that very port: an
