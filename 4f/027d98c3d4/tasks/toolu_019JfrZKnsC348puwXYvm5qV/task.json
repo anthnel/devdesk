@@ -1,0 +1,15 @@
+{
+  "tool_use_id": "toolu_019JfrZKnsC348puwXYvm5qV",
+  "agent_id": "abff19294102f370c",
+  "subagent_type": "dev-team:architect",
+  "task_description": "Investigation du spike S-01",
+  "token_usage": {
+    "input_tokens": 66,
+    "cache_creation_tokens": 184281,
+    "cache_read_tokens": 4863330,
+    "output_tokens": 6349,
+    "api_call_count": 33
+  },
+  "started_at": "2026-10-24T20:13:22.261144338+02:00",
+  "completed_at": "2026-10-24T20:20:20.309640243+02:00"
+}

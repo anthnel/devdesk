@@ -1,0 +1,18 @@
+{
+  "tool_use_id": "toolu_017M8eBA7ujKZRncL33zTUvd",
+  "agent_id": "a58678814e5e6be96",
+  "subagent_type": "product-team:pm",
+  "task_description": "Mettre à jour stories et Plane",
+  "files": [
+    "docs/product/agent-usage-monitor/stories.md"
+  ],
+  "token_usage": {
+    "input_tokens": 10,
+    "cache_creation_tokens": 180360,
+    "cache_read_tokens": 580403,
+    "output_tokens": 4571,
+    "api_call_count": 5
+  },
+  "started_at": "2026-10-24T20:22:12.219213539+02:00",
+  "completed_at": "2026-10-24T20:23:28.010072104+02:00"
+}

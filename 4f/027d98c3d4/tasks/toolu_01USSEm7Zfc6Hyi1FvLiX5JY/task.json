@@ -1,0 +1,15 @@
+{
+  "tool_use_id": "toolu_01USSEm7Zfc6Hyi1FvLiX5JY",
+  "agent_id": "ae6efbd4c2ddf36e3",
+  "subagent_type": "dev-team:devops",
+  "task_description": "Créer worktree et déplacer les docs",
+  "token_usage": {
+    "input_tokens": 8,
+    "cache_creation_tokens": 95425,
+    "cache_read_tokens": 279474,
+    "output_tokens": 139,
+    "api_call_count": 4
+  },
+  "started_at": "2026-10-24T20:12:45.79698438+02:00",
+  "completed_at": "2026-10-24T20:13:06.120411463+02:00"
+}

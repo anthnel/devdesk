@@ -1,0 +1,15 @@
+{
+  "tool_use_id": "toolu_01E7KBVQpuGtsKg2SkNc2qUF",
+  "agent_id": "add3912d56f315124",
+  "subagent_type": "team-core:archivist",
+  "task_description": "Journal : réversion de décision",
+  "token_usage": {
+    "input_tokens": 10,
+    "cache_creation_tokens": 123645,
+    "cache_read_tokens": 326090,
+    "output_tokens": 501,
+    "api_call_count": 5
+  },
+  "started_at": "2026-10-24T20:22:12.217944433+02:00",
+  "completed_at": "2026-10-24T20:22:37.953849103+02:00"
+}
