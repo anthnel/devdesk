@@ -3,6 +3,39 @@
 Dated entries, most recent first (AAAA-MM-JJ). Each entry records what was
 decided, why, and which alternative was rejected. Sources live in `docs/product/`.
 
+## 2026-10-24 — agent-usage-monitor: spike S-01 result (DEVDESK-39)
+
+Source: `docs/product/agent-usage-monitor/spike-s01.md`. Recommendation: **go with
+changes**. Supersedes item 6 of the entry below.
+
+1. **Reference for the 2 % accuracy target: ccusage, at session level.** Reverses
+   the `cost-state` reference of item 6.
+   - Why: `cost-state` is 19 to 22 % above the transcripts, per model rather than
+     per agent, and is written only when the session closes. ccusage 20.0.43 matches
+     the deduplicated transcript sum at 0.00 % on the 3 sessions measured.
+   - Rejected: `cost-state` as the reference.
+
+2. **ccusage gives no total per sub-agent.** The gap is confirmed. Its JSON entries
+   carry no agent id, and `--by-agent` means per CLI, not per sub-agent.
+
+3. **Sub-agent output tokens are a lower bound.** On the last line per `message.id`,
+   `stop_reason` is null in 94 % of cases (Claude Code 2.1.302), and `output_tokens`
+   is a streaming placeholder. The effect is at most 0.3 % of total tokens: ranking
+   by tokens holds, but the cost per agent is under-estimated.
+
+4. **Story changes validated.**
+   - S-02: output is a lower bound, optional fields, synthetic fixture for an unseen
+     version. Criterion 5 becomes: session total (sum of agents) within 2 % of ccusage.
+   - S-03b and S-04: a sub-agent's "Out" is shown as partial (`≥`). Sort and share
+     stay as specified.
+   - S-06: tool calls are counted from the transcript (`tool_use` blocks), not from
+     the completion notification.
+   - S-07: billed session total plus an "Unattributed" remainder.
+
+5. **Open question: `sbx` transcript visibility is not verified.** `sbx` is not
+   installed on this machine. S-08 stays blocked until the criterion 2 commands in
+   the spike are run on the host that runs `sbx`.
+
 ## 2026-10-24 — agent-usage-monitor: product discussion
 
 Idea: a live DevDesk view of Claude Code agent and sub-agent token usage.
