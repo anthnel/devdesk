@@ -1,0 +1,15 @@
+{
+  "tool_use_id": "toolu_018D1NGWH1s5J2MytsGvTfp6",
+  "agent_id": "af1183975781bc09a",
+  "subagent_type": "team-core:archivist",
+  "task_description": "Mettre à jour le piège HOME",
+  "token_usage": {
+    "input_tokens": 6,
+    "cache_creation_tokens": 105487,
+    "cache_read_tokens": 132089,
+    "output_tokens": 27,
+    "api_call_count": 3
+  },
+  "started_at": "2026-10-24T16:43:02.074279232+02:00",
+  "completed_at": "2026-10-24T16:43:11.817677107+02:00"
+}

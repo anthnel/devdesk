@@ -1,0 +1,15 @@
+{
+  "tool_use_id": "toolu_01TyrKQ3rRodEubCohbkadhi",
+  "agent_id": "a9b4a47611412ffeb",
+  "subagent_type": "dev-team:debugger",
+  "task_description": "Debug DEVDESK-38 setup HOME",
+  "token_usage": {
+    "input_tokens": 18,
+    "cache_creation_tokens": 79434,
+    "cache_read_tokens": 592431,
+    "output_tokens": 125,
+    "api_call_count": 9
+  },
+  "started_at": "2026-10-24T16:40:29.675549537+02:00",
+  "completed_at": "2026-10-24T16:41:35.64385338+02:00"
+}
