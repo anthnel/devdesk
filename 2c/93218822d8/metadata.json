@@ -1,0 +1,30 @@
+{
+  "cli_version": "0.11.5",
+  "checkpoint_id": "2c93218822d8",
+  "strategy": "manual-commit",
+  "branch": "main",
+  "checkpoints_count": 3,
+  "files_touched": [
+    ".worktrees/feat-ws-all-tags-on-commit/internal/ui/workspaces/columns.go",
+    ".worktrees/fix-wsl-clipboard-accents/internal/clipboard/clipboard.go",
+    ".worktrees/fix-wsl-clipboard-accents/internal/clipboard/clipboard_test.go",
+    ".worktrees/fix-wsl-clipboard-bom/internal/clipboard/clipboard.go",
+    ".worktrees/fix-wsl-clipboard-bom/internal/clipboard/clipboard_test.go"
+  ],
+  "sessions": [
+    {
+      "metadata": "/2c/93218822d8/0/metadata.json",
+      "transcript": "/2c/93218822d8/0/full.jsonl",
+      "compact_transcript": "/2c/93218822d8/0/transcript.jsonl",
+      "content_hash": "/2c/93218822d8/0/content_hash.txt",
+      "prompt": "/2c/93218822d8/0/prompt.txt"
+    }
+  ],
+  "token_usage": {
+    "input_tokens": 20,
+    "cache_creation_tokens": 368477,
+    "cache_read_tokens": 3454242,
+    "output_tokens": 5344,
+    "api_call_count": 10
+  }
+}
