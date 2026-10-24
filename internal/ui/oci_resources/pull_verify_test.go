@@ -5,6 +5,7 @@ import (
 	"errors"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"testing"
 
@@ -27,9 +28,17 @@ func unverifiedPull() imagepull.Deps {
 	return imagepull.Deps{Pull: func(ctx context.Context, ref string) error { return pullImageContext(ctx, ref) }}
 }
 
-type answer struct{ verdict trust.Verdict }
+// answer is a verifier that always returns verdict, and logs each check to
+// events when set — so a test can see where it falls among the engine calls.
+type answer struct {
+	verdict trust.Verdict
+	events  *[]string
+}
 
-func (a answer) Verify(context.Context, string, trust.Rule) (trust.Verdict, error) {
+func (a answer) Verify(_ context.Context, ref string, _ trust.Rule) (trust.Verdict, error) {
+	if a.events != nil {
+		*a.events = append(*a.events, "verify "+ref)
+	}
 	return a.verdict, nil
 }
 
@@ -39,20 +48,33 @@ func (answer) Identities(context.Context, string) ([]trust.Identity, error) { re
 // records what reached the engine.
 func verifyingPull(t *testing.T, verdict trust.Verdict, rule trust.Rule) *[]string {
 	t.Helper()
+	return verifyingPullLogged(t, verdict, rule, nil)
+}
+
+// verifyingPullLogged is verifyingPull, also logging every signature check and
+// every pull to events, in the order they happen.
+func verifyingPullLogged(t *testing.T, verdict trust.Verdict, rule trust.Rule, events *[]string) *[]string {
+	t.Helper()
 	var calls []string
 	prev := newPullDeps
 	newPullDeps = func(*config.Config, *scan.Report) imagepull.Deps {
 		return imagepull.Deps{
 			Enabled:  true,
 			Policy:   func() (trust.Policy, error) { return trust.Policy{Rules: []trust.Rule{rule}}, nil },
-			Verifier: answer{verdict},
+			Verifier: answer{verdict: verdict, events: events},
 			Digest:   func(string) (string, error) { return "sha256:new", nil },
 			Current:  func(string) string { return "" },
 			Tag:      func(string, string) error { return nil },
 		}
 	}
 	prevPull := pullImageContext
-	pullImageContext = func(_ context.Context, ref string) error { calls = append(calls, ref); return nil }
+	pullImageContext = func(_ context.Context, ref string) error {
+		calls = append(calls, ref)
+		if events != nil {
+			*events = append(*events, "pull "+ref)
+		}
+		return nil
+	}
 	t.Cleanup(func() { newPullDeps, pullImageContext = prev, prevPull })
 	return &calls
 }
@@ -100,22 +122,52 @@ func TestAWarnedPullSaysSoAfterPulling(t *testing.T) {
 	}
 }
 
-func TestAnUpdateIsVerifiedToo(t *testing.T) {
-	calls := verifyingPull(t, trust.IdentityMismatch, corpRule)
+// updateThroughTheCmd runs an update of old to target and returns its
+// completion. Every engine call the update makes is stubbed and logged in
+// e.calls — the in-use check, the pull, the removal — and so is each signature
+// check, so the log reads the order in which they happened.
+func updateThroughTheCmd(t *testing.T, verdict trust.Verdict, target string, old docker.Image) (Model, RegistryPullCompleteMsg, *engineStub) {
+	t.Helper()
+	e := &engineStub{newID: "sha256:fresh"}
+	stubEngine(t, e)                                    // first, so the pull below replaces its stub
+	verifyingPullLogged(t, verdict, corpRule, &e.calls) // and is restored before it
 	m := newTestModel(t)
 	var done RegistryPullCompleteMsg
-	for _, msg := range testutil.Msgs(updateImageCmd("registry.example.com/api:v2", imageFixtures()[0], m.pullDeps())) {
+	for _, msg := range testutil.Msgs(updateImageCmd(target, old, m.pullDeps())) {
 		if d, ok := msg.(RegistryPullCompleteMsg); ok {
 			done = d
 		}
 	}
-	if !isBlocked(done.Err) || len(*calls) != 0 {
-		t.Fatalf("err %v, pulled %q", done.Err, *calls)
+	return m, done, e
+}
+
+func TestAnUpdateIsVerifiedToo(t *testing.T) {
+	old := imageFixtures()[0]
+	m, done, e := updateThroughTheCmd(t, trust.IdentityMismatch, "registry.example.com/api:v2", old)
+	// The in-use check is the only engine call before the signature check, and
+	// it only lists containers: nothing is pulled, nothing removed.
+	want := []string{"ps " + old.ID, "verify registry.example.com/api@sha256:new"}
+	if !isBlocked(done.Err) || !slices.Equal(e.calls, want) {
+		t.Fatalf("err %v, calls %q, want %q", done.Err, e.calls, want)
 	}
 	done.Replaces = "registry.example.com/api:v1"
 	m = feed(t, m, done)
 	if !strings.Contains(m.footer.Text(), "refused") {
 		t.Errorf("footer = %q", m.footer.Text())
+	}
+}
+
+func TestAnUpdateVerifiesBeforeItPulls(t *testing.T) {
+	old := imageFixtures()[0]
+	_, done, e := updateThroughTheCmd(t, trust.Verified, "registry.example.com/api:v2", old)
+	want := []string{
+		"ps " + old.ID,
+		"verify registry.example.com/api@sha256:new",
+		"pull registry.example.com/api@sha256:new",
+		"rmi " + old.ID,
+	}
+	if done.Err != nil || !slices.Equal(e.calls, want) {
+		t.Fatalf("err %v, calls %q, want %q", done.Err, e.calls, want)
 	}
 }
 
