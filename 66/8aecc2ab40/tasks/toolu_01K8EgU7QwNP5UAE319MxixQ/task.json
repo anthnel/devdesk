@@ -1,0 +1,15 @@
+{
+  "tool_use_id": "toolu_01K8EgU7QwNP5UAE319MxixQ",
+  "agent_id": "a805b380a6a7f2aab",
+  "subagent_type": "team-core:archivist",
+  "task_description": "Document free-port test pitfall",
+  "token_usage": {
+    "input_tokens": 8,
+    "cache_creation_tokens": 59510,
+    "cache_read_tokens": 170868,
+    "output_tokens": 62,
+    "api_call_count": 4
+  },
+  "started_at": "2026-10-23T10:27:43.484479369+02:00",
+  "completed_at": "2026-10-23T10:28:04.224196424+02:00"
+}
