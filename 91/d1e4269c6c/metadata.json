@@ -3,7 +3,7 @@
   "checkpoint_id": "91d1e4269c6c",
   "strategy": "manual-commit",
   "branch": "chore/gitignore-agent-progress",
-  "checkpoints_count": 4,
+  "checkpoints_count": 7,
   "files_touched": [
     ".gitignore"
   ],
@@ -21,20 +21,27 @@
       "compact_transcript": "/91/d1e4269c6c/1/transcript.jsonl",
       "content_hash": "/91/d1e4269c6c/1/content_hash.txt",
       "prompt": ""
+    },
+    {
+      "metadata": "/91/d1e4269c6c/2/metadata.json",
+      "transcript": "/91/d1e4269c6c/2/full.jsonl",
+      "compact_transcript": "/91/d1e4269c6c/2/transcript.jsonl",
+      "content_hash": "/91/d1e4269c6c/2/content_hash.txt",
+      "prompt": "/91/d1e4269c6c/2/prompt.txt"
     }
   ],
   "token_usage": {
-    "input_tokens": 12,
-    "cache_creation_tokens": 122040,
-    "cache_read_tokens": 330464,
-    "output_tokens": 2972,
-    "api_call_count": 5,
+    "input_tokens": 30,
+    "cache_creation_tokens": 129276,
+    "cache_read_tokens": 1394191,
+    "output_tokens": 5939,
+    "api_call_count": 13,
     "subagent_tokens": {
-      "input_tokens": 12,
-      "cache_creation_tokens": 80966,
-      "cache_read_tokens": 372975,
-      "output_tokens": 68,
-      "api_call_count": 6
+      "input_tokens": 20,
+      "cache_creation_tokens": 175437,
+      "cache_read_tokens": 650087,
+      "output_tokens": 160,
+      "api_call_count": 10
     }
   }
 }
