@@ -1,5 +1,15 @@
 # Changelog
 
+## [1.7.1](https://github.com/anthnel/devdesk/compare/v1.7.0...v1.7.1) (2026-10-24)
+
+
+### Bug Fixes
+
+* **containers:** keep known metrics when a fresh list arrives (D84) ([#289](https://github.com/anthnel/devdesk/issues/289)) ([2026927](https://github.com/anthnel/devdesk/commit/202692766be09370b1e2118813ea4ccbcc5273b7))
+* **containers:** re-arm the refresh tick so the gauges move on their own (D83) ([#287](https://github.com/anthnel/devdesk/issues/287)) ([b4aa887](https://github.com/anthnel/devdesk/commit/b4aa887d0d7cf6cacf7605835ba8c1a3a78af321))
+* **workspaces:** open the remote through explorer.exe under WSL ([#291](https://github.com/anthnel/devdesk/issues/291)) ([e7d2377](https://github.com/anthnel/devdesk/commit/e7d2377481af60031b7122eb07cd064e82267c42))
+* **workspaces:** refresh the Last Tag column after a sync (D82) ([#285](https://github.com/anthnel/devdesk/issues/285)) ([2c674fc](https://github.com/anthnel/devdesk/commit/2c674fcddbb34b2081ffa89ea454ae7990bfe75e))
+
 ## [1.7.0](https://github.com/anthnel/devdesk/compare/v1.6.0...v1.7.0) (2026-10-08)
 
 
