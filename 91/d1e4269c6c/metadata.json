@@ -3,7 +3,7 @@
   "checkpoint_id": "91d1e4269c6c",
   "strategy": "manual-commit",
   "branch": "chore/gitignore-agent-progress",
-  "checkpoints_count": 3,
+  "checkpoints_count": 4,
   "files_touched": [
     ".gitignore"
   ],
@@ -14,14 +14,21 @@
       "compact_transcript": "/91/d1e4269c6c/0/transcript.jsonl",
       "content_hash": "/91/d1e4269c6c/0/content_hash.txt",
       "prompt": "/91/d1e4269c6c/0/prompt.txt"
+    },
+    {
+      "metadata": "/91/d1e4269c6c/1/metadata.json",
+      "transcript": "/91/d1e4269c6c/1/full.jsonl",
+      "compact_transcript": "/91/d1e4269c6c/1/transcript.jsonl",
+      "content_hash": "/91/d1e4269c6c/1/content_hash.txt",
+      "prompt": ""
     }
   ],
   "token_usage": {
-    "input_tokens": 10,
-    "cache_creation_tokens": 70118,
-    "cache_read_tokens": 305668,
-    "output_tokens": 2648,
-    "api_call_count": 4,
+    "input_tokens": 12,
+    "cache_creation_tokens": 122040,
+    "cache_read_tokens": 330464,
+    "output_tokens": 2972,
+    "api_call_count": 5,
     "subagent_tokens": {
       "input_tokens": 12,
       "cache_creation_tokens": 80966,
