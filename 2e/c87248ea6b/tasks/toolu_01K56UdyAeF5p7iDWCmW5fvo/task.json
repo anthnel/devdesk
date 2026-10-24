@@ -1,0 +1,18 @@
+{
+  "tool_use_id": "toolu_01K56UdyAeF5p7iDWCmW5fvo",
+  "agent_id": "abde4ab078d40d73d",
+  "subagent_type": "product-team:pm",
+  "task_description": "Créer le backlog dans Plane",
+  "files": [
+    "docs/product/agent-usage-monitor/stories.md"
+  ],
+  "token_usage": {
+    "input_tokens": 18,
+    "cache_creation_tokens": 145487,
+    "cache_read_tokens": 990356,
+    "output_tokens": 2860,
+    "api_call_count": 9
+  },
+  "started_at": "2026-10-24T19:45:53.885215528+02:00",
+  "completed_at": "2026-10-24T19:47:58.987953182+02:00"
+}

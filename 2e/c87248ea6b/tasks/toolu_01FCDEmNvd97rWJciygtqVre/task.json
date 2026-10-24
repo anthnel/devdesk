@@ -1,0 +1,18 @@
+{
+  "tool_use_id": "toolu_01FCDEmNvd97rWJciygtqVre",
+  "agent_id": "a2fd0f9804bff70e1",
+  "subagent_type": "product-team:researcher",
+  "task_description": "Recherche alternatives et sources",
+  "files": [
+    "docs/product/agent-usage-monitor/research.md"
+  ],
+  "token_usage": {
+    "input_tokens": 16,
+    "cache_creation_tokens": 96084,
+    "cache_read_tokens": 536566,
+    "output_tokens": 9632,
+    "api_call_count": 8
+  },
+  "started_at": "2026-10-24T19:28:55.439647477+02:00",
+  "completed_at": "2026-10-24T19:31:17.638518328+02:00"
+}

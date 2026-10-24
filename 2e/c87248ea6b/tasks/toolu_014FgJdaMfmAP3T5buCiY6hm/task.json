@@ -1,0 +1,15 @@
+{
+  "tool_use_id": "toolu_014FgJdaMfmAP3T5buCiY6hm",
+  "agent_id": "a635807a1994bf4c1",
+  "subagent_type": "product-team:critic",
+  "task_description": "Critique de l'idée",
+  "token_usage": {
+    "input_tokens": 18,
+    "cache_creation_tokens": 79904,
+    "cache_read_tokens": 553141,
+    "output_tokens": 2363,
+    "api_call_count": 9
+  },
+  "started_at": "2026-10-24T19:28:55.44148998+02:00",
+  "completed_at": "2026-10-24T19:30:16.849149488+02:00"
+}
