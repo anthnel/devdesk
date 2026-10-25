@@ -1,0 +1,15 @@
+{
+  "tool_use_id": "toolu_0148AiQfqQtdehP8yVeRde1n",
+  "agent_id": "a04220507f5bece9b",
+  "subagent_type": "project-tester",
+  "task_description": "Étape 1 rouge: tests ListSessions",
+  "token_usage": {
+    "input_tokens": 10,
+    "cache_creation_tokens": 132958,
+    "cache_read_tokens": 432578,
+    "output_tokens": 331,
+    "api_call_count": 5
+  },
+  "started_at": "2026-10-25T16:32:27.520896729+01:00",
+  "completed_at": "2026-10-25T16:33:31.672125687+01:00"
+}

@@ -1,0 +1,20 @@
+{
+  "tool_use_id": "toolu_01HGBjJrpskx4HFL2t4ZkLyz",
+  "agent_id": "aa74316e7910479c2",
+  "subagent_type": "project-coder",
+  "task_description": "Corrections revue étape 2",
+  "files": [
+    "internal/ui/agentusageview/agentusageview_test.go",
+    "internal/ui/agentusageview/columns.go",
+    "internal/ui/agentusageview/help.go"
+  ],
+  "token_usage": {
+    "input_tokens": 8,
+    "cache_creation_tokens": 108552,
+    "cache_read_tokens": 290265,
+    "output_tokens": 1299,
+    "api_call_count": 4
+  },
+  "started_at": "2026-10-25T16:42:39.563255589+01:00",
+  "completed_at": "2026-10-25T16:42:58.258570245+01:00"
+}

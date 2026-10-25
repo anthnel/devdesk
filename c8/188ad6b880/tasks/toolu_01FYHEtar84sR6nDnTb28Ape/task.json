@@ -1,0 +1,15 @@
+{
+  "tool_use_id": "toolu_01FYHEtar84sR6nDnTb28Ape",
+  "agent_id": "a2bb979fbee83bf70",
+  "subagent_type": "team-core:tech-writer",
+  "task_description": "Corriger deux phrases de doc",
+  "token_usage": {
+    "input_tokens": 6,
+    "cache_creation_tokens": 55674,
+    "cache_read_tokens": 118696,
+    "output_tokens": 58,
+    "api_call_count": 3
+  },
+  "started_at": "2026-10-25T16:46:35.402800375+01:00",
+  "completed_at": "2026-10-25T16:46:46.464990442+01:00"
+}

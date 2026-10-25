@@ -1,0 +1,18 @@
+{
+  "tool_use_id": "toolu_01XLvKCmx7bDogr76SnNhZDn",
+  "agent_id": "a822c25abb00c90a9",
+  "subagent_type": "project-tester",
+  "task_description": "Étape 3 rouge: tests parser/routeur",
+  "files": [
+    "internal/app/agent_usage_test.go"
+  ],
+  "token_usage": {
+    "input_tokens": 12,
+    "cache_creation_tokens": 69852,
+    "cache_read_tokens": 334839,
+    "output_tokens": 130,
+    "api_call_count": 6
+  },
+  "started_at": "2026-10-25T16:43:09.120769703+01:00",
+  "completed_at": "2026-10-25T16:43:51.337871435+01:00"
+}

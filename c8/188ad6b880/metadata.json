@@ -3,12 +3,30 @@
   "checkpoint_id": "c8188ad6b880",
   "strategy": "manual-commit",
   "branch": "feat/devdesk-41-agent-usage-sessions",
-  "checkpoints_count": 10,
+  "checkpoints_count": 27,
   "files_touched": [
+    "docs/architecture/agent-usage.md",
+    "docs/architecture/app-shell.md",
     "internal/agentusage/hardening_test.go",
     "internal/agentusage/limits.go",
+    "internal/agentusage/sessions.go",
+    "internal/agentusage/sessions_test.go",
     "internal/agentusage/testdata/README.md",
-    "internal/app/harness_test.go"
+    "internal/app/agent_usage_test.go",
+    "internal/app/command_line.go",
+    "internal/app/command_line_test.go",
+    "internal/app/harness_test.go",
+    "internal/command/parser.go",
+    "internal/command/parser_test.go",
+    "internal/ui/agentusageview/agentusageview_test.go",
+    "internal/ui/agentusageview/cmd.go",
+    "internal/ui/agentusageview/columns.go",
+    "internal/ui/agentusageview/help.go",
+    "internal/ui/agentusageview/model.go",
+    "internal/ui/agentusageview/update.go",
+    "internal/ui/agentusageview/view.go",
+    "internal/ui/components/footer_guard_test.go",
+    "internal/ui/theme/icons.go"
   ],
   "sessions": [
     {
@@ -24,20 +42,27 @@
       "compact_transcript": "/c8/188ad6b880/1/transcript.jsonl",
       "content_hash": "/c8/188ad6b880/1/content_hash.txt",
       "prompt": "/c8/188ad6b880/1/prompt.txt"
+    },
+    {
+      "metadata": "/c8/188ad6b880/2/metadata.json",
+      "transcript": "/c8/188ad6b880/2/full.jsonl",
+      "compact_transcript": "/c8/188ad6b880/2/transcript.jsonl",
+      "content_hash": "/c8/188ad6b880/2/content_hash.txt",
+      "prompt": "/c8/188ad6b880/2/prompt.txt"
     }
   ],
   "token_usage": {
-    "input_tokens": 46,
-    "cache_creation_tokens": 17836,
-    "cache_read_tokens": 2266472,
-    "output_tokens": 9306,
-    "api_call_count": 18,
+    "input_tokens": 174,
+    "cache_creation_tokens": 172596,
+    "cache_read_tokens": 8810061,
+    "output_tokens": 34646,
+    "api_call_count": 66,
     "subagent_tokens": {
-      "input_tokens": 42,
-      "cache_creation_tokens": 257256,
-      "cache_read_tokens": 1783624,
-      "output_tokens": 438,
-      "api_call_count": 21
+      "input_tokens": 326,
+      "cache_creation_tokens": 2053513,
+      "cache_read_tokens": 14870182,
+      "output_tokens": 6403,
+      "api_call_count": 163
     }
   }
 }

@@ -1,0 +1,19 @@
+{
+  "tool_use_id": "toolu_011Cym1XkjKiXahsayga4nTp",
+  "agent_id": "aa7532189f97a5519",
+  "subagent_type": "project-tester",
+  "task_description": "Étape 2 rouge: tests de la vue",
+  "files": [
+    "internal/ui/agentusageview/agentusageview_test.go",
+    "internal/ui/agentusageview/stub.go"
+  ],
+  "token_usage": {
+    "input_tokens": 18,
+    "cache_creation_tokens": 97029,
+    "cache_read_tokens": 634495,
+    "output_tokens": 139,
+    "api_call_count": 9
+  },
+  "started_at": "2026-10-25T16:37:28.730465961+01:00",
+  "completed_at": "2026-10-25T16:39:16.947343619+01:00"
+}
