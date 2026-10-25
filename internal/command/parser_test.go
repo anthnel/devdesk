@@ -132,3 +132,17 @@ func TestParseCommand_Netdiag(t *testing.T) {
 		})
 	}
 }
+
+// TestParse_AgentUsage covers the name, the alias, and the case and colon
+// forms the command line accepts for every other view.
+func TestParse_AgentUsage(t *testing.T) {
+	for _, input := range []string{"agent-usage", "au", ":au", ":AU", "Agent-Usage"} {
+		t.Run(input, func(t *testing.T) {
+			result := ParseCommand(input)
+			if result.Type != CommandView || result.View != ViewAgentUsage {
+				t.Errorf("ParseCommand(%q) = {%v, %v}, want {CommandView, ViewAgentUsage}",
+					input, result.Type, result.View)
+			}
+		})
+	}
+}

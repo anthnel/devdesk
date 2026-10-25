@@ -42,6 +42,7 @@ var (
 	IconRefresh               = "\U000F0450" // 󰑐 nf-md-refresh
 	IconTarget                = "\U000F04FE" // 󰓾 nf-md-target
 	IconHourglass             = "\U000F051F" // 󰔟 nf-md-timer_sand
+	IconAgentUsage            = "\U000F06A9" // 󰚩 nf-md-robot
 	IconHelpCircle            = "\U000F0625" // 󰘥 nf-md-help_circle_outline
 	IconHammer                = "\U000F08EA" // 󰣪 nf-md-hammer
 	IconCloud                 = "\U000F0163" // 󰅣 nf-md-cloud_outline

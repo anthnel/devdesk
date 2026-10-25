@@ -7,6 +7,7 @@ import (
 
 	"github.com/anthnel/devdesk/internal/command"
 	"github.com/anthnel/devdesk/internal/ui/about"
+	"github.com/anthnel/devdesk/internal/ui/agentusageview"
 	"github.com/anthnel/devdesk/internal/ui/configuration"
 	"github.com/anthnel/devdesk/internal/ui/containers"
 	"github.com/anthnel/devdesk/internal/ui/dashboard"
@@ -220,6 +221,8 @@ func (a *App) createView(view command.ViewType) {
 		a.views[view] = ociresources.New(a.config)
 	case command.ViewNetdiag:
 		a.views[view] = netdiag.New(a.config)
+	case command.ViewAgentUsage:
+		a.views[view] = agentusageview.New(a.config)
 	case command.ViewConfiguration:
 		a.views[view] = configuration.New(a.config, a.mcpFacts())
 	case command.ViewJobs:
