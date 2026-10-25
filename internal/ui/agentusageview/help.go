@@ -9,9 +9,11 @@ func (m Model) GetHelpContent() help.Content {
 		Description: "The Claude Code sessions found on this machine, newest first. " +
 			"Only where and when a session ran is read — nothing a session says.",
 		KeyBindings: []help.KeyBinding{
-			{Key: "ctrl+r", Description: "Read the sessions again"},
+			{Key: "ctrl+r", Description: "Read the sessions, or the open session, again"},
+			{Key: "→/enter", Description: "Open the selected session's agents"},
+			{Key: "←/esc", Description: "Back to the sessions"},
 			{Key: "/", Description: "Filter by project or session ID"},
-			{Key: ".", Description: "Cycle the sort column"},
+			{Key: ".", Description: "Cycle the sort column (sessions only)"},
 			{Key: "ctrl+p", Description: "Open command mode"},
 			{Key: "?", Description: "Show this help"},
 		},
@@ -32,9 +34,18 @@ func (m Model) GetHelpContent() help.Content {
 					"or sessions beyond the listing cap) are counted as Skipped in the header.",
 			},
 			{
+				Title: "Agents",
+				Body: "Opening a session lists its agents: the orchestrator first, then each sub-agent with its type, " +
+					"as a tree, with the models used and the tokens in, out, and cached.\n" +
+					"A ≥ before an Out count means a floor: that sub-agent's transcript was still being written, so the real figure is higher.\n" +
+					"The orchestrator is the main conversation; its figures are never a floor.\n" +
+					"When part of a transcript could not be read, the footer says the totals are approximate.",
+			},
+			{
 				Title: "Privacy",
-				Body: "Only the working directory and the file date are shown. " +
-					"Prompts, replies and tool output are never read into this view, never displayed and never logged.",
+				Body: "The sessions list reads the working directory and the file date alone. " +
+					"Opening a session also reads its token counts, model names and agent types, and shows only the project's working directory, the date, the session ID, the agent types, the models and the tokens. " +
+					"Prompts, replies, tool output and the paths of files a session touched are never displayed and never logged.",
 			},
 		},
 	}

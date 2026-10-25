@@ -18,3 +18,16 @@ func listSessionsCmd(gen int) tea.Cmd {
 		return sessionListLoadedMsg{gen: gen, root: root, listing: listing, err: err}
 	}
 }
+
+// parseSessionCmd locates and parses a session's transcripts, all inside the
+// Cmd (Rule 110). parent is copied in by the caller; the answer carries gen.
+func parseSessionCmd(gen int, parent string) tea.Cmd {
+	return func() tea.Msg {
+		files, err := agentusage.LocateSession(parent)
+		if err != nil {
+			return sessionUsageLoadedMsg{gen: gen, err: err}
+		}
+		usage, err := agentusage.ParseSession(files)
+		return sessionUsageLoadedMsg{gen: gen, usage: usage, err: err}
+	}
+}
