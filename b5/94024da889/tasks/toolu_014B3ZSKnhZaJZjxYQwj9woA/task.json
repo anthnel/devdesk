@@ -1,0 +1,18 @@
+{
+  "tool_use_id": "toolu_014B3ZSKnhZaJZjxYQwj9woA",
+  "agent_id": "a66d6204a4c49856c",
+  "subagent_type": "project-coder",
+  "task_description": "Green hardening fixes",
+  "files": [
+    "internal/agentusage/limits.go"
+  ],
+  "token_usage": {
+    "input_tokens": 16,
+    "cache_creation_tokens": 139033,
+    "cache_read_tokens": 789578,
+    "output_tokens": 1024,
+    "api_call_count": 8
+  },
+  "started_at": "2026-10-25T00:13:17.924998606+02:00",
+  "completed_at": "2026-10-25T00:15:04.425774653+02:00"
+}

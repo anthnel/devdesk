@@ -1,0 +1,34 @@
+{
+  "tool_use_id": "toolu_01LQyn6Fbkci27yNxpHR8d9J",
+  "agent_id": "afb8b19a646e1ff12",
+  "subagent_type": "project-tester",
+  "task_description": "Red tests step 5 ParseSession",
+  "files": [
+    "internal/agentusage/parse.go",
+    "internal/agentusage/parse_test.go",
+    "internal/agentusage/testdata/README.md",
+    "internal/agentusage/testdata/damaged/projects/-synthetic-proj-damaged/00000000-0000-4000-8000-000000000400.jsonl",
+    "internal/agentusage/testdata/damaged/projects/-synthetic-proj-damaged/00000000-0000-4000-8000-000000000400/subagents/agent-d1.jsonl",
+    "internal/agentusage/testdata/damaged/projects/-synthetic-proj-damaged/00000000-0000-4000-8000-000000000400/subagents/agent-d1.meta.json",
+    "internal/agentusage/testdata/synthetic-other-version/projects/-synthetic-proj-other/00000000-0000-4000-8000-000000000900.jsonl",
+    "internal/agentusage/testdata/synthetic-other-version/projects/-synthetic-proj-other/00000000-0000-4000-8000-000000000900/subagents/agent-x1.jsonl",
+    "internal/agentusage/testdata/synthetic-other-version/projects/-synthetic-proj-other/00000000-0000-4000-8000-000000000900/subagents/agent-x1.meta.json",
+    "internal/agentusage/testdata/v2.1.302-basic/projects/-synthetic-proj-basic/00000000-0000-4000-8000-000000000302.jsonl",
+    "internal/agentusage/testdata/v2.1.302-basic/projects/-synthetic-proj-basic/00000000-0000-4000-8000-000000000302/subagents/agent-a01.jsonl",
+    "internal/agentusage/testdata/v2.1.302-basic/projects/-synthetic-proj-basic/00000000-0000-4000-8000-000000000302/subagents/agent-a01.meta.json",
+    "internal/agentusage/testdata/v2.1.302-basic/projects/-synthetic-proj-basic/00000000-0000-4000-8000-000000000302/subagents/agent-a02.jsonl",
+    "internal/agentusage/testdata/v2.1.302-basic/projects/-synthetic-proj-basic/00000000-0000-4000-8000-000000000302/subagents/agent-a02.meta.json",
+    "internal/agentusage/testdata/v2.1.302-basic/projects/-synthetic-proj-basic/00000000-0000-4000-8000-000000000302/subagents/agent-a03.jsonl",
+    "internal/agentusage/testdata/v2.1.302-basic/projects/-synthetic-proj-basic/00000000-0000-4000-8000-000000000302/subagents/agent-a03.meta.json",
+    "internal/agentusage/testdata/v2.1.302-basic/projects/-synthetic-proj-basic/00000000-0000-4000-8000-000000000302/tool-results/x.jsonl"
+  ],
+  "token_usage": {
+    "input_tokens": 18,
+    "cache_creation_tokens": 98290,
+    "cache_read_tokens": 637227,
+    "output_tokens": 88,
+    "api_call_count": 9
+  },
+  "started_at": "2026-10-24T20:59:45.431587454+02:00",
+  "completed_at": "2026-10-24T21:01:57.392903488+02:00"
+}

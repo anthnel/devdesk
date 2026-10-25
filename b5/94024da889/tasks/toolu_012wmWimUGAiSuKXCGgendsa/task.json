@@ -1,0 +1,15 @@
+{
+  "tool_use_id": "toolu_012wmWimUGAiSuKXCGgendsa",
+  "agent_id": "aa0bced4f32078426",
+  "subagent_type": "team-core:tech-writer",
+  "task_description": "Fix architecture doc inaccuracies",
+  "token_usage": {
+    "input_tokens": 12,
+    "cache_creation_tokens": 133807,
+    "cache_read_tokens": 563202,
+    "output_tokens": 327,
+    "api_call_count": 6
+  },
+  "started_at": "2026-10-25T00:20:03.178909149+02:00",
+  "completed_at": "2026-10-25T00:20:56.314991073+02:00"
+}

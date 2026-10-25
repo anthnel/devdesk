@@ -1,0 +1,15 @@
+{
+  "tool_use_id": "toolu_01NoUnoqHmoUH29Wr66Xxa79",
+  "agent_id": "a1451666a79cd37b5",
+  "subagent_type": "project-coder",
+  "task_description": "Green step 5 ParseSession",
+  "token_usage": {
+    "input_tokens": 24,
+    "cache_creation_tokens": 86560,
+    "cache_read_tokens": 894973,
+    "output_tokens": 115,
+    "api_call_count": 12
+  },
+  "started_at": "2026-10-24T21:02:12.123488591+02:00",
+  "completed_at": "2026-10-24T21:03:35.85366649+02:00"
+}

@@ -1,0 +1,18 @@
+{
+  "tool_use_id": "toolu_01EKnR3mY1FK1pxVGRCvK2Bz",
+  "agent_id": "add4383cd280c60d8",
+  "subagent_type": "project-tester",
+  "task_description": "Crosscheck test vs ccusage",
+  "files": [
+    "internal/agentusage/crosscheck_test.go"
+  ],
+  "token_usage": {
+    "input_tokens": 10,
+    "cache_creation_tokens": 118045,
+    "cache_read_tokens": 352023,
+    "output_tokens": 437,
+    "api_call_count": 5
+  },
+  "started_at": "2026-10-25T00:15:40.887304616+02:00",
+  "completed_at": "2026-10-25T00:16:34.01009742+02:00"
+}

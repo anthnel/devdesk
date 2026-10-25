@@ -1,0 +1,67 @@
+{
+  "cli_version": "0.11.5",
+  "checkpoint_id": "b594024da889",
+  "strategy": "manual-commit",
+  "branch": "feat/devdesk-40-agentusage",
+  "checkpoints_count": 31,
+  "files_touched": [
+    "internal/agentusage/aggregate.go",
+    "internal/agentusage/aggregate_test.go",
+    "internal/agentusage/crosscheck_test.go",
+    "internal/agentusage/hardening_test.go",
+    "internal/agentusage/layout.go",
+    "internal/agentusage/layout_test.go",
+    "internal/agentusage/limits.go",
+    "internal/agentusage/lines.go",
+    "internal/agentusage/lines_test.go",
+    "internal/agentusage/meta.go",
+    "internal/agentusage/meta_test.go",
+    "internal/agentusage/parse.go",
+    "internal/agentusage/parse_test.go",
+    "internal/agentusage/record.go",
+    "internal/agentusage/record_test.go",
+    "internal/agentusage/safeopen.go",
+    "internal/agentusage/testdata/README.md",
+    "internal/agentusage/testdata/damaged/projects/-synthetic-proj-damaged/00000000-0000-4000-8000-000000000400.jsonl",
+    "internal/agentusage/testdata/damaged/projects/-synthetic-proj-damaged/00000000-0000-4000-8000-000000000400/subagents/agent-d1.jsonl",
+    "internal/agentusage/testdata/damaged/projects/-synthetic-proj-damaged/00000000-0000-4000-8000-000000000400/subagents/agent-d1.meta.json",
+    "internal/agentusage/testdata/synthetic-other-version/projects/-synthetic-proj-other/00000000-0000-4000-8000-000000000900.jsonl",
+    "internal/agentusage/testdata/synthetic-other-version/projects/-synthetic-proj-other/00000000-0000-4000-8000-000000000900/subagents/agent-x1.jsonl",
+    "internal/agentusage/testdata/synthetic-other-version/projects/-synthetic-proj-other/00000000-0000-4000-8000-000000000900/subagents/agent-x1.meta.json",
+    "internal/agentusage/testdata/v2.1.302-basic/projects/-synthetic-proj-basic/00000000-0000-4000-8000-000000000302.jsonl",
+    "internal/agentusage/testdata/v2.1.302-basic/projects/-synthetic-proj-basic/00000000-0000-4000-8000-000000000302/subagents/agent-a01.jsonl",
+    "internal/agentusage/testdata/v2.1.302-basic/projects/-synthetic-proj-basic/00000000-0000-4000-8000-000000000302/subagents/agent-a01.meta.json",
+    "internal/agentusage/testdata/v2.1.302-basic/projects/-synthetic-proj-basic/00000000-0000-4000-8000-000000000302/subagents/agent-a02.jsonl",
+    "internal/agentusage/testdata/v2.1.302-basic/projects/-synthetic-proj-basic/00000000-0000-4000-8000-000000000302/subagents/agent-a02.meta.json",
+    "internal/agentusage/testdata/v2.1.302-basic/projects/-synthetic-proj-basic/00000000-0000-4000-8000-000000000302/subagents/agent-a03.jsonl",
+    "internal/agentusage/testdata/v2.1.302-basic/projects/-synthetic-proj-basic/00000000-0000-4000-8000-000000000302/subagents/agent-a03.meta.json",
+    "internal/agentusage/testdata/v2.1.302-basic/projects/-synthetic-proj-basic/00000000-0000-4000-8000-000000000302/tool-results/x.jsonl",
+    "internal/agentusage/tokens.go",
+    "internal/agentusage/tokens_test.go",
+    "internal/agentusage/usage.go",
+    "mise.toml"
+  ],
+  "sessions": [
+    {
+      "metadata": "/b5/94024da889/0/metadata.json",
+      "transcript": "/b5/94024da889/0/full.jsonl",
+      "compact_transcript": "/b5/94024da889/0/transcript.jsonl",
+      "content_hash": "/b5/94024da889/0/content_hash.txt",
+      "prompt": "/b5/94024da889/0/prompt.txt"
+    }
+  ],
+  "token_usage": {
+    "input_tokens": 196,
+    "cache_creation_tokens": 542629,
+    "cache_read_tokens": 11673295,
+    "output_tokens": 63782,
+    "api_call_count": 71,
+    "subagent_tokens": {
+      "input_tokens": 418,
+      "cache_creation_tokens": 2915329,
+      "cache_read_tokens": 16538518,
+      "output_tokens": 17917,
+      "api_call_count": 209
+    }
+  }
+}

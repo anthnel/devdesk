@@ -1,0 +1,15 @@
+{
+  "tool_use_id": "toolu_018RqM81sNKvGY8EVjrwvaee",
+  "agent_id": "a6646f96e1c09895e",
+  "subagent_type": "project-coder",
+  "task_description": "Mise task agentusage-ref",
+  "token_usage": {
+    "input_tokens": 14,
+    "cache_creation_tokens": 59534,
+    "cache_read_tokens": 378241,
+    "output_tokens": 110,
+    "api_call_count": 7
+  },
+  "started_at": "2026-10-25T00:15:40.886851547+02:00",
+  "completed_at": "2026-10-25T00:16:19.555910694+02:00"
+}

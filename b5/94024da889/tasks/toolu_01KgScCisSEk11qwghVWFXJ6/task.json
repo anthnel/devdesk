@@ -1,0 +1,15 @@
+{
+  "tool_use_id": "toolu_01KgScCisSEk11qwghVWFXJ6",
+  "agent_id": "a2b8e567d87385bb9",
+  "subagent_type": "team-core:tech-writer",
+  "task_description": "Architecture doc agent-usage",
+  "token_usage": {
+    "input_tokens": 12,
+    "cache_creation_tokens": 80174,
+    "cache_read_tokens": 349169,
+    "output_tokens": 121,
+    "api_call_count": 6
+  },
+  "started_at": "2026-10-25T00:15:40.8886307+02:00",
+  "completed_at": "2026-10-25T00:16:23.72567082+02:00"
+}

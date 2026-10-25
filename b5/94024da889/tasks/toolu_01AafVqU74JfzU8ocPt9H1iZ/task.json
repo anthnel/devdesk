@@ -1,0 +1,15 @@
+{
+  "tool_use_id": "toolu_01AafVqU74JfzU8ocPt9H1iZ",
+  "agent_id": "a2869033e0f78b311",
+  "subagent_type": "dev-team:security-reviewer",
+  "task_description": "Security review agentusage package",
+  "token_usage": {
+    "input_tokens": 18,
+    "cache_creation_tokens": 96189,
+    "cache_read_tokens": 666193,
+    "output_tokens": 134,
+    "api_call_count": 9
+  },
+  "started_at": "2026-10-24T21:03:51.331100403+02:00",
+  "completed_at": "2026-10-24T21:05:51.740904694+02:00"
+}
