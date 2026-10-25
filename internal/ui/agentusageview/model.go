@@ -97,7 +97,7 @@ func New(_ *config.Config) Model {
 		}),
 		agentTable: datatable.New(datatable.Config[agentRow]{
 			Columns: agentColumns(),
-			// The order is the tree: orchestrator, then sub-agents.
+			// Opens as the tree (orchestrator, then sub-agents); `.` sorts by Total.
 			SortColumn: -1,
 		}),
 	}

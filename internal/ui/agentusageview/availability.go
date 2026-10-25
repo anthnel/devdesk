@@ -9,10 +9,9 @@ import (
 // The reasons, written once so the header, the footer and the tests cannot
 // drift apart on the wording (Rule 129 — English US).
 const (
-	reasonNoSession      = "No session to open"
-	reasonInsideSession  = "Already inside a session"
-	reasonTopLevel       = "Already at the session list"
-	reasonAgentsUnsorted = "Agents are listed as a tree — nothing to sort"
+	reasonNoSession     = "No session to open"
+	reasonInsideSession = "Already inside a session"
+	reasonTopLevel      = "Already at the session list"
 )
 
 // actions is what the keys allow right now, computed once and read by both
@@ -21,15 +20,13 @@ const (
 type actions struct {
 	Open  shortcut.Availability // → and enter
 	Close shortcut.Availability // ← and esc
-	Sort  shortcut.Availability // .
 }
 
-// availability computes the three answers from the level and the selected row.
+// availability computes the answers from the level and the selected row.
 func (m Model) availability() actions {
 	var a actions
 	if m.level == levelAgents {
 		a.Open = shortcut.Unavailable(reasonInsideSession)
-		a.Sort = shortcut.Unavailable(reasonAgentsUnsorted)
 		return a
 	}
 	a.Close = shortcut.Unavailable(reasonTopLevel)

@@ -41,8 +41,8 @@ func footerText(m Model) string { return m.RenderFooter(120) }
 
 // ── Rule 130: same keys, Disabled follows the level ──────────────────────────
 
-func TestAgentsLevelAdvertisesTheSameFiveKeys(t *testing.T) {
-	want := []string{"ctrl+r", openKey, closeKey, "/", "?"}
+func TestAgentsLevelAdvertisesTheSameSixKeys(t *testing.T) {
+	want := []string{"ctrl+r", openKey, closeKey, "/", ".", "?"}
 	states := map[string]Model{
 		"sessions loading": newModel(t),
 		"sessions empty":   loaded(t, newModel(t)),
@@ -59,6 +59,14 @@ func TestAgentsLevelAdvertisesTheSameFiveKeys(t *testing.T) {
 		got := testutil.ShortcutKeys(m.GetShortcuts())
 		if strings.Join(got, ",") != strings.Join(want, ",") {
 			t.Errorf("%s: keys %v, want %v", name, got, want)
+		}
+		if !testutil.ShortcutEnabled(m.GetShortcuts(), ".") {
+			t.Errorf("%s: `.` sorts at both levels, it must never be greyed", name)
+		}
+		for _, sc := range m.GetShortcuts() {
+			if sc.Key == "." && sc.Description != "Sort" {
+				t.Errorf("%s: `.` description = %q, want %q", name, sc.Description, "Sort")
+			}
 		}
 	}
 }
@@ -89,7 +97,7 @@ func TestShortcutsAreGreyedByLevelAndByRow(t *testing.T) {
 			if got := testutil.ShortcutEnabled(s, closeKey); got != tt.closeEnabled {
 				t.Errorf("%s enabled = %v, want %v", closeKey, got, tt.closeEnabled)
 			}
-			for _, k := range []string{"ctrl+r", "/", "?"} {
+			for _, k := range []string{"ctrl+r", "/", ".", "?"} {
 				if !testutil.ShortcutEnabled(s, k) {
 					t.Errorf("%q always acts, it must not be greyed", k)
 				}
@@ -154,28 +162,15 @@ func TestOpeningInsideASessionWarnsAndStays(t *testing.T) {
 	}
 }
 
-func TestDotAtTheAgentsLevelIsRefusedWithAReason(t *testing.T) {
-	m := atAgents(t, threeSubs())
-	next, cmd := opened(t, m, ".")
-	if cmd == nil {
-		t.Fatal("the refusal must come with its footer timer")
-	}
-	if !strings.Contains(footerText(next), reasonAgentsUnsorted) {
-		t.Errorf("footer lacks %q:\n%s", reasonAgentsUnsorted, footerText(next))
-	}
-	before, after := m.agentTable.Visible(), next.agentTable.Visible()
-	for i := range before {
-		if before[i].ID != after[i].ID {
-			t.Fatalf("`.` must not reorder the tree: %v -> %v", before, after)
-		}
-	}
-}
+// `.` at the agents level now sorts: the old refusal is replaced by
+// TestDotSortsTheAgentsLargestFirst in agents_level_test.go.
 
 func TestDotAtTheSessionsLevelStillCyclesTheSort(t *testing.T) {
 	m := withSessions(t, "/p/a.jsonl")
+	beforeCol, beforeDesc := m.table.SortState()
 	next, _ := opened(t, m, ".")
-	if strings.Contains(footerText(next), reasonAgentsUnsorted) {
-		t.Error("the agents-level refusal must not leak to the sessions level")
+	if col, desc := next.table.SortState(); col == beforeCol && desc == beforeDesc {
+		t.Errorf("`.` must cycle the sessions sort, state stayed (%d, %v)", col, desc)
 	}
 }
 
@@ -425,9 +420,11 @@ func TestHelpDocumentsTheAgentsLevel(t *testing.T) {
 			t.Errorf("help lacks key %q", k)
 		}
 	}
-	var agents, privacy string
+	var agents, privacy, columns string
 	for _, s := range c.Sections {
 		switch s.Title {
+		case "Agent columns":
+			columns = strings.ToLower(s.Body)
 		case "Agents":
 			agents = strings.ToLower(s.Body)
 		case "Privacy":
@@ -436,6 +433,11 @@ func TestHelpDocumentsTheAgentsLevel(t *testing.T) {
 	}
 	if agents == "" {
 		t.Fatal("help needs a section titled Agents")
+	}
+	for _, want := range []string{"share", "id", "largest first", "smallest first", "tree"} {
+		if !strings.Contains(columns, want) {
+			t.Errorf("the Agent columns section should mention %q", want)
+		}
 	}
 	for _, want := range []string{"≥", "orchestrator", "approximate"} {
 		if !strings.Contains(agents, want) {

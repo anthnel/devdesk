@@ -273,9 +273,25 @@ and when a session ran at this level (see the privacy amendment above). `→` or
 
 | Column | Content |
 |---|---|
-| Agent | `orchestrator`, then each sub-agent's type behind `├─ ` / `└─ ` (`unknown` when the meta file gave none). `/` also matches the agent ID, which no column shows. |
-| Model | the models the agent used, comma-separated; `-` (dim) when none |
-| In, Out, Cache read, Cache write, Total | token counts. `Cache write` is the first column dropped on a narrow terminal, then `Cache read`. |
+| Agent | `orchestrator`, then each sub-agent's type behind `├─ ` / `└─ ` in tree order, bare when sorted (`unknown` when the meta file gave none). `/` matches the role only. |
+| ID | the sub-agent's short ID (`shortAgentIDs`): the smallest common length >= 8 runes at which all IDs of the session differ, capped at each ID's own length. `-` for the orchestrator, `?` for a sub-agent with an empty ID. `/` matches the full ID here. Never dropped, so two agents of one type stay apart. |
+| Model | the models the agent used, comma-separated; `-` (dim) when none. `Optional`. |
+| In, Out, Cache read, Cache write, Total | token counts. On a narrow terminal the drop order is `Cache write`, `Cache read`, `In`, `Model`. `Out` and `Total` stay. |
+| Share | the agent's part of the session total (`Usage.Total().Total()`), see below. Fixed width. |
+
+- **Share (`share.go`).** Tenths of a percent, floored, computed on 128 bits
+  (`bits.Mul64`/`Div64`) so no product overflows; a part is clamped to
+  `[0, total]`. The orchestrator absorbs the rounding residue, so the column
+  sums to `100.0%`; the residue is clamped at 0 when saturated totals overshoot.
+  With no orchestrator row nothing is absorbed. A session with no tokens gives
+  `noShare` and the cell shows a dim `-`. Rendered as `12.3%`.
+- **Sort.** Only `Total` is sortable (`Less`, `DescFirst`). `.` cycles tree,
+  `Total ▼`, `Total ▲`, tree. A table that opened unsorted returns to the tree
+  after the last step. `agentRows(usage, tree)` draws the branches only when no
+  sort is active: a sorted list is flat, and a branch there would lie about who
+  is whose child. `cycleAgentSort` rebuilds the rows after each press and
+  remeasures the Agent column. The sort lives in the table, so it survives
+  opening another session and `ctrl+r`.
 
 - **Compact tokens.** `formatTokens` floors to one decimal (`1099` is `1.0k`,
   never `1.1k`) and drops the decimal from 100 of a unit up. Units: `k M B T`.
@@ -285,7 +301,7 @@ and when a session ran at this level (see the privacy amendment above). `→` or
   an exact value. The orchestrator never does.
 - **Flat tree, two levels.** Whatever `SpawnDepth` a sub-agent has, it is a
   direct child of the orchestrator in the table. Order: orchestrator first, then
-  sub-agents sorted by ID (stable). No column sorts, and `.` is greyed out.
+  sub-agents sorted by ID (stable) until the user sorts by Total.
 - **Breadcrumb.** `Sessions › <project> › <short ID>` sits in the footer, one row
   above the filter bar and the message line (Rule 123), and adds one row to
   `GetFooterHeight`.
@@ -298,7 +314,7 @@ and when a session ran at this level (see the privacy amendment above). `→` or
   only `Disabled` changes, computed once in `availability()` and read by
   `GetShortcuts` and by the handlers through `guard`, which refuses with a Warn
   carrying the reason. `→` is greyed with no session selected or already inside
-  a session; `esc` at the session list; `.` at the agents level.
+  a session; `esc` at the session list. `.` is always available, at both levels, and shown as `. Sort` in the header.
 - **Rule 110.** `parseSessionCmd` calls `ParseSession` inside a `Cmd`. Each parse
   carries `agentGen`, bumped on open, on `ctrl+r` and on leaving the level; an
   answer with another generation, or arriving after the user went back, is

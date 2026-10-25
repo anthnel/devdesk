@@ -80,6 +80,10 @@ type Column[T any] struct {
 	// combinations exist: the interface error counters have an exact width and
 	// are also the first thing worth losing.
 	Optional bool
+	// DescFirst makes the first `.` that lands on this column sort it
+	// descending, the second ascending. For count columns, where ascending is
+	// the useless end (see Config.SortDesc). Meaningless without Less.
+	DescFirst bool
 	// DropFirst moves an Optional column to the head of the queue: it goes
 	// before every other Optional one, wherever it sits on screen. Meaningless
 	// without Optional, which is the flag that decides whether a column may go
@@ -466,7 +470,8 @@ func (m *Model[T]) titleFor(i int) string {
 	return m.cfg.Columns[i].Title + sortArrowAsc
 }
 
-// CycleSort advances the sort: ascending, descending, then on to the next
+// CycleSort advances the sort: the column's first direction (ascending, or
+// descending when it is DescFirst), then the other, then on to the next
 // sortable column (Rule 111's `.`). Returns to no sort after the last one when
 // the table opened unsorted, so the original order stays reachable.
 func (m *Model[T]) CycleSort() {
@@ -476,11 +481,13 @@ func (m *Model[T]) CycleSort() {
 	}
 	switch {
 	case m.sortColumn < 0:
-		m.sortColumn, m.sortDesc = sortable[0], false
-	case !m.sortDesc:
-		m.sortDesc = true
+		m.sortColumn = sortable[0]
+		m.sortDesc = m.cfg.Columns[m.sortColumn].DescFirst
+	case m.sortDesc == m.cfg.Columns[m.sortColumn].DescFirst: // first direction shown
+		m.sortDesc = !m.sortDesc
 	default:
-		m.sortColumn, m.sortDesc = m.nextSortable(sortable), false
+		next := m.nextSortable(sortable)
+		m.sortColumn, m.sortDesc = next, next >= 0 && m.cfg.Columns[next].DescFirst
 	}
 	m.rebuild()
 	m.Resize(m.width, 0) // the arrow moved

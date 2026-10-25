@@ -99,7 +99,7 @@ func (m Model) handleUsageLoaded(msg sessionUsageLoadedMsg) (tea.Model, tea.Cmd)
 	}
 	m.agentsErr = false
 	m.usage = msg.usage
-	m.agentTable.SetItems(agentRows(msg.usage))
+	m.agentTable.SetItems(agentRows(msg.usage, m.agentsTree()))
 	m.agentTable.Remeasure() // another session is another population
 	return m, nil
 }
@@ -124,11 +124,27 @@ func (m Model) handleKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 			return m.closeAgents()
 		}
 	case ".":
-		if !a.Sort.Enabled() {
-			return m, m.footer.Warn(a.Sort.Reason)
+		if m.level == levelAgents {
+			return m.cycleAgentSort(msg)
 		}
 	}
 	return m, m.activeTable(msg)
+}
+
+// agentsTree reports whether the agents table shows the tree: no sort active.
+func (m Model) agentsTree() bool {
+	column, _ := m.agentTable.SortState()
+	return column < 0
+}
+
+// cycleAgentSort hands `.` to the agents table, then rebuilds the rows so the
+// branches follow the new order: a sorted list is flat, a branch there would
+// lie about who is whose child.
+func (m Model) cycleAgentSort(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
+	cmd := m.agentTable.Update(msg)
+	m.agentTable.SetItems(agentRows(m.usage, m.agentsTree()))
+	m.agentTable.Remeasure() // the Agent column narrows or widens by the branch
+	return m, cmd
 }
 
 // activeTable hands a key to the table of the level on screen.
