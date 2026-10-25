@@ -1,0 +1,38 @@
+{
+  "cli_version": "0.11.5",
+  "checkpoint_id": "e3a20ff0d308",
+  "strategy": "manual-commit",
+  "branch": "main",
+  "checkpoints_count": 3,
+  "files_touched": [
+    "docs/journal.md",
+    "docs/product/agent-usage-monitor/brief.md",
+    "docs/product/agent-usage-monitor/feasibility.md",
+    "docs/product/agent-usage-monitor/research.md",
+    "docs/product/agent-usage-monitor/spike-s01.md",
+    "docs/product/agent-usage-monitor/stories.md"
+  ],
+  "sessions": [
+    {
+      "metadata": "/e3/a20ff0d308/0/metadata.json",
+      "transcript": "/e3/a20ff0d308/0/full.jsonl",
+      "compact_transcript": "/e3/a20ff0d308/0/transcript.jsonl",
+      "content_hash": "/e3/a20ff0d308/0/content_hash.txt",
+      "prompt": "/e3/a20ff0d308/0/prompt.txt"
+    }
+  ],
+  "token_usage": {
+    "input_tokens": 18,
+    "cache_creation_tokens": 6232,
+    "cache_read_tokens": 1206321,
+    "output_tokens": 3403,
+    "api_call_count": 7,
+    "subagent_tokens": {
+      "input_tokens": 18,
+      "cache_creation_tokens": 192313,
+      "cache_read_tokens": 652726,
+      "output_tokens": 179,
+      "api_call_count": 9
+    }
+  }
+}

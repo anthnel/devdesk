@@ -1,0 +1,15 @@
+{
+  "tool_use_id": "toolu_01UEZfziXjFEvRWKZCjbvsmK",
+  "agent_id": "a905bd9113cd14223",
+  "subagent_type": "dev-team:devops",
+  "task_description": "Fusionner la PR 300",
+  "token_usage": {
+    "input_tokens": 10,
+    "cache_creation_tokens": 96471,
+    "cache_read_tokens": 373541,
+    "output_tokens": 84,
+    "api_call_count": 5
+  },
+  "started_at": "2026-10-24T20:31:28.789823029+02:00",
+  "completed_at": "2026-10-24T20:31:57.481801752+02:00"
+}
