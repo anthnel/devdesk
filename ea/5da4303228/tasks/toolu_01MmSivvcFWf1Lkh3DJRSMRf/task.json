@@ -1,0 +1,15 @@
+{
+  "tool_use_id": "toolu_01MmSivvcFWf1Lkh3DJRSMRf",
+  "agent_id": "abe88a4602cd4790e",
+  "subagent_type": "product-team:pm",
+  "task_description": "Proposition de release (pm)",
+  "token_usage": {
+    "input_tokens": 10,
+    "cache_creation_tokens": 80731,
+    "cache_read_tokens": 425667,
+    "output_tokens": 80,
+    "api_call_count": 5
+  },
+  "started_at": "2026-10-25T17:01:36.219243083+01:00",
+  "completed_at": "2026-10-25T17:02:14.347155646+01:00"
+}

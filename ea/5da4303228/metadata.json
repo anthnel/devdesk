@@ -3,7 +3,7 @@
   "checkpoint_id": "ea5da4303228",
   "strategy": "manual-commit",
   "branch": "feat/devdesk-42-agent-tree",
-  "checkpoints_count": 16,
+  "checkpoints_count": 21,
   "files_touched": [
     "docs/architecture/agent-usage.md",
     "docs/backlog.md",
@@ -26,20 +26,27 @@
       "compact_transcript": "/ea/5da4303228/0/transcript.jsonl",
       "content_hash": "/ea/5da4303228/0/content_hash.txt",
       "prompt": "/ea/5da4303228/0/prompt.txt"
+    },
+    {
+      "metadata": "/ea/5da4303228/1/metadata.json",
+      "transcript": "/ea/5da4303228/1/full.jsonl",
+      "compact_transcript": "/ea/5da4303228/1/transcript.jsonl",
+      "content_hash": "/ea/5da4303228/1/content_hash.txt",
+      "prompt": "/ea/5da4303228/1/prompt.txt"
     }
   ],
   "token_usage": {
-    "input_tokens": 110,
-    "cache_creation_tokens": 402163,
-    "cache_read_tokens": 6298749,
-    "output_tokens": 21005,
-    "api_call_count": 41,
+    "input_tokens": 140,
+    "cache_creation_tokens": 412718,
+    "cache_read_tokens": 8532328,
+    "output_tokens": 24883,
+    "api_call_count": 53,
     "subagent_tokens": {
-      "input_tokens": 260,
-      "cache_creation_tokens": 1736477,
-      "cache_read_tokens": 12264267,
-      "output_tokens": 5378,
-      "api_call_count": 131
+      "input_tokens": 290,
+      "cache_creation_tokens": 1980753,
+      "cache_read_tokens": 13469232,
+      "output_tokens": 5726,
+      "api_call_count": 146
     }
   }
 }

@@ -1,0 +1,15 @@
+{
+  "tool_use_id": "toolu_01Er7Z8uBZb6M5GaTCoReAeQ",
+  "agent_id": "a3bcbe5cec94e3d49",
+  "subagent_type": "dev-team:devops",
+  "task_description": "Merger la PR 302",
+  "token_usage": {
+    "input_tokens": 10,
+    "cache_creation_tokens": 67322,
+    "cache_read_tokens": 403899,
+    "output_tokens": 162,
+    "api_call_count": 5
+  },
+  "started_at": "2026-10-25T17:00:53.073161176+01:00",
+  "completed_at": "2026-10-25T17:01:29.620360345+01:00"
+}
