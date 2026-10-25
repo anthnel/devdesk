@@ -32,11 +32,43 @@ type sessionListLoadedMsg struct {
 	err     error
 }
 
+// sessionUsageLoadedMsg carries one parsed session. gen is agentGen at the time
+// the parse started: it drops the answer for a session left or re-read since.
+type sessionUsageLoadedMsg struct {
+	gen   int
+	usage agentusage.Usage
+	err   error
+}
+
+// level is the screen on view: the sessions, or the agents of one session.
+type level int
+
+const (
+	levelSessions level = iota
+	levelAgents
+)
+
 // Model is the agent usage view.
 type Model struct {
 	table   datatable.Model[sessionRow]
 	spinner spinner.Model
 	footer  sharedcomponents.FooterMessage
+
+	// level says which table is on screen. The sessions table keeps its cursor
+	// and filter while the agents level is open.
+	level level
+	// agentTable lists the agents of open.
+	agentTable datatable.Model[agentRow]
+	open       agentusage.Session
+	// usage is the last parse of open, kept for what the footer says about it.
+	usage agentusage.Usage
+	// agentGen numbers the parses, as gen numbers the listings.
+	agentGen      int
+	agentsLoading bool
+	// agentsErr says the most recent parse failed (a state, like loadErr).
+	agentsErr bool
+	// width and height are the last viewport size, for both tables.
+	width, height int
 
 	// gen numbers the reads; only the answer to the latest one is kept.
 	gen     int
@@ -63,10 +95,19 @@ func New(_ *config.Config) Model {
 			// The listing arrives newest first, which is the order wanted.
 			SortColumn: -1,
 		}),
+		agentTable: datatable.New(datatable.Config[agentRow]{
+			Columns: agentColumns(),
+			// The order is the tree: orchestrator, then sub-agents.
+			SortColumn: -1,
+		}),
 	}
 }
 
 // Init starts the first read and the spinner.
 func (m Model) Init() tea.Cmd {
-	return tea.Batch(listSessionsCmd(m.gen), m.spinner.Tick)
+	cmds := []tea.Cmd{listSessionsCmd(m.gen), m.spinner.Tick}
+	if m.level == levelAgents {
+		cmds = append(cmds, parseSessionCmd(m.agentGen, m.open.Parent))
+	}
+	return tea.Batch(cmds...)
 }

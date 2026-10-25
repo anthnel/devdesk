@@ -232,8 +232,8 @@ counter must be added to `Degraded()`.
 
 `internal/ui/agentusageview`, opened with `:agent-usage` or `:au`. It lists the
 Claude Code sessions found on this machine, newest first, and reads only where
-and when a session ran (see the privacy amendment above). No token count is
-shown yet.
+and when a session ran at this level (see the privacy amendment above). `→` or
+`enter` opens the selected session's agents (DEVDESK-42, below).
 
 | Column | Content |
 |---|---|
@@ -265,6 +265,49 @@ shown yet.
 - **Rule 110.** `listSessionsCmd` resolves `ProjectsRoot()` and calls
   `ListSessions` inside the `Cmd` and returns a message; `Update` alone touches
   the model.
+
+### Second level: the session's agents (DEVDESK-42)
+
+`→`/`enter` on a session opens its agents; `←`/`esc` goes back to the list.
+`agents.go` builds the table, `availability.go` decides what the keys allow.
+
+| Column | Content |
+|---|---|
+| Agent | `orchestrator`, then each sub-agent's type behind `├─ ` / `└─ ` (`unknown` when the meta file gave none). `/` also matches the agent ID, which no column shows. |
+| Model | the models the agent used, comma-separated; `-` (dim) when none |
+| In, Out, Cache read, Cache write, Total | token counts. `Cache write` is the first column dropped on a narrow terminal, then `Cache read`. |
+
+- **Compact tokens.** `formatTokens` floors to one decimal (`1099` is `1.0k`,
+  never `1.1k`) and drops the decimal from 100 of a unit up. Units: `k M B T`.
+  Zeros are dim (Rule 122).
+- **`≥` on Out.** A sub-agent whose output is partial (`Agent.PartialOutput()`,
+  transcript still being written) shows `≥ ` before its Out count: a floor, not
+  an exact value. The orchestrator never does.
+- **Flat tree, two levels.** Whatever `SpawnDepth` a sub-agent has, it is a
+  direct child of the orchestrator in the table. Order: orchestrator first, then
+  sub-agents sorted by ID (stable). No column sorts, and `.` is greyed out.
+- **Breadcrumb.** `Sessions › <project> › <short ID>` sits in the footer, one row
+  above the filter bar and the message line (Rule 123), and adds one row to
+  `GetFooterHeight`.
+- **Header**: `Agents` and `Tokens` (sum of Total), both following the filter.
+- **Footer status**: a failed read (red, "Failed to read this session — check
+  logs"), then loading (spinner, "Reading session..."), then, when
+  `Diagnostics.Degraded()`, a warning "Totals are approximate — some transcript
+  data could not be read".
+- **Availability (Rule 130).** The shortcut keys are identical at both levels;
+  only `Disabled` changes, computed once in `availability()` and read by
+  `GetShortcuts` and by the handlers through `guard`, which refuses with a Warn
+  carrying the reason. `→` is greyed with no session selected or already inside
+  a session; `esc` at the session list; `.` at the agents level.
+- **Rule 110.** `parseSessionCmd` calls `ParseSession` inside a `Cmd`. Each parse
+  carries `agentGen`, bumped on open, on `ctrl+r` and on leaving the level; an
+  answer with another generation, or arriving after the user went back, is
+  dropped. `ctrl+r` at the agents level re-parses the open session.
+
+**Privacy.** The view displays the project directory, the date, the session ID,
+agent types, models and token counts. It never displays or logs the paths of
+files a session touched, nor any content (prompt, reply, tool input or output):
+`Usage` holds numbers and labels only, as stated in "Privacy" above.
 
 Known limits: the FIFO risk and the lack of a memory or time bound before the
 10000-session cap (see "Limits and caps") both apply to this view's read. Claude

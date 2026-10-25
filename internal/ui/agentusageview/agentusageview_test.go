@@ -506,7 +506,7 @@ func TestShortcutKeysAreTheSameInEveryState(t *testing.T) {
 	if len(want) == 0 {
 		t.Fatal("the view advertises no shortcuts")
 	}
-	for _, k := range []string{"ctrl+r", "/", "?"} {
+	for _, k := range []string{"ctrl+r", "→", "esc", "/", "?"} {
 		if !testutil.HasShortcut(loading.GetShortcuts(), k) {
 			t.Errorf("missing shortcut %q", k)
 		}
@@ -518,10 +518,12 @@ func TestShortcutKeysAreTheSameInEveryState(t *testing.T) {
 			t.Errorf("%s: keys %v differ from loading's %v", name, got, want)
 		}
 	}
+	// Amended for DEVDESK-42: → and esc are greyed by level and row (see
+	// availability_test.go); the three keys below act in every state.
 	for name, m := range map[string]Model{"loading": loading, "empty": empty, "loaded": rows, "error": failed, "filtering": filtering} {
-		for _, s := range m.GetShortcuts() {
-			if s.Disabled {
-				t.Errorf("%s: %q is greyed, but every key always acts here", name, s.Key)
+		for _, k := range []string{"ctrl+r", "/", "?"} {
+			if !testutil.ShortcutEnabled(m.GetShortcuts(), k) {
+				t.Errorf("%s: %q must stay enabled, it always acts here", name, k)
 			}
 		}
 	}
@@ -556,7 +558,7 @@ func TestHelpDocumentsTheViewAndItsPrivacy(t *testing.T) {
 	for _, b := range c.KeyBindings {
 		keys[b.Key] = true
 	}
-	for _, k := range []string{"ctrl+r", "/", "?"} {
+	for _, k := range []string{"ctrl+r", "/", ".", "?"} {
 		if !keys[k] {
 			t.Errorf("help lacks key %q", k)
 		}
@@ -576,6 +578,23 @@ func TestHelpDocumentsTheViewAndItsPrivacy(t *testing.T) {
 		if !strings.Contains(text, want) {
 			t.Errorf("help should mention %q", want)
 		}
+	}
+	var privacy string
+	for _, s := range c.Sections {
+		if s.Title == "Privacy" {
+			privacy = strings.ToLower(s.Body)
+		}
+	}
+	for _, want := range []string{
+		"working directory", "date", "session id", "agent types", "models", "tokens",
+		"the paths of files a session touched",
+	} {
+		if !strings.Contains(privacy, want) {
+			t.Errorf("privacy section should mention %q: %q", want, privacy)
+		}
+	}
+	if strings.Contains(privacy, "file paths are never displayed") {
+		t.Errorf("privacy section must not use the ambiguous %q wording", "file paths")
 	}
 }
 

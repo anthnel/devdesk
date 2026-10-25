@@ -98,6 +98,17 @@ decided together and fixed in one pass; see [§1.2](#12-the-five-parked-defects)
 
 ### 1.1 Fixed
 
+**D86 — le fil d'Ariane de `:jobs` et d'`:agent-usage` s'intercale entre le
+viewport et la barre de filtre ; le routeur ne ferme donc pas le rectangle de la
+Rule 136 quand la barre est visible. Ouvert.** **Plane:** DEVDESK-42
+
+Dans les deux vues, `RenderFooter` place le fil d'Ariane (Rule 123) sous le
+viewport, puis la barre de filtre. Le routeur (`internal/app/view.go`, vers la
+ligne 66) suppose que la barre est la première ligne du pied de page pour
+raccorder la bordure basse du viewport à son rectangle ; avec une ligne entre
+les deux, le rectangle reste ouvert. À traiter pour `:jobs` et `:agent-usage`
+ensemble (une seule correction du routeur ou de `BarFrame`).
+
 **D85 — un test de `internal/forward` échouait par intermittence sur « the
 proxy port is already in use ». Corrigé.** Vu en CI le 2026-10-22, fermé le
 2026-10-23. **Plane:** DEVDESK-35
