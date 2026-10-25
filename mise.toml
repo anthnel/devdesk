@@ -180,3 +180,29 @@ run = """
 cp CHANGELOG.md docs-site/docs/changelog.md
 uv tool run --with mkdocs-material==9.6.14 mkdocs build -f docs-site/mkdocs.yml --site-dir site
 """
+
+[tasks.agentusage-ref]
+description = "Write the ccusage reference file for internal/agentusage/crosscheck_test.go: mise run agentusage-ref -- <uuid>... > /path/outside/repo/ref.json (output outside the repo, never committed)"
+# POSIX shell, npx and jq required, hence no Windows support. ccusage is pinned
+# so the reference does not move under us. Its per-session JSON has a flat
+# `totalTokens` plus an `entries` array carrying inputTokens, outputTokens,
+# cacheReadTokens and cacheCreationTokens; ccusage's totalTokens is the sum of
+# the four, which is what the crosscheck compares against. Only stdout is the
+# reference: ccusage progress noise stays on stderr.
+shell = "bash -c"
+# mise appends trailing arguments to the script text rather than binding them to
+# "$@", so the ids are declared with a usage spec and read from usage_ids.
+usage = 'arg "<ids>" var=#true'
+run = '''
+set -euo pipefail
+for id in $usage_ids; do
+  npx --yes ccusage@20.0.43 claude session --id "$id" --json
+done | jq -s '{sessions: map({
+  id: .sessionId,
+  total: .totalTokens,
+  input: ([.entries[].inputTokens] | add // 0),
+  output: ([.entries[].outputTokens] | add // 0),
+  cacheRead: ([.entries[].cacheReadTokens] | add // 0),
+  cacheWrite: ([.entries[].cacheCreationTokens] | add // 0)
+})}'
+'''
