@@ -1,0 +1,15 @@
+{
+  "tool_use_id": "toolu_01Sbs6bxyhF5GNvy8yZYiVbP",
+  "agent_id": "a7b04bd0c9b0452fb",
+  "subagent_type": "dev-team:devops",
+  "task_description": "Nettoyage après merge DEVDESK-40",
+  "token_usage": {
+    "input_tokens": 6,
+    "cache_creation_tokens": 63781,
+    "cache_read_tokens": 214142,
+    "output_tokens": 43,
+    "api_call_count": 3
+  },
+  "started_at": "2026-10-25T16:22:59.214200695+01:00",
+  "completed_at": "2026-10-25T16:23:11.94524054+01:00"
+}

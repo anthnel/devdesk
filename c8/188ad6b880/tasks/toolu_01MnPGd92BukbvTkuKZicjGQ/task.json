@@ -1,0 +1,15 @@
+{
+  "tool_use_id": "toolu_01MnPGd92BukbvTkuKZicjGQ",
+  "agent_id": "a847aa872cd47c3a0",
+  "subagent_type": "product-team:pm",
+  "task_description": "Proposition de release après DEVDESK-40",
+  "token_usage": {
+    "input_tokens": 8,
+    "cache_creation_tokens": 115010,
+    "cache_read_tokens": 314993,
+    "output_tokens": 50,
+    "api_call_count": 4
+  },
+  "started_at": "2026-10-25T16:20:03.721079545+01:00",
+  "completed_at": "2026-10-25T16:20:33.426118656+01:00"
+}

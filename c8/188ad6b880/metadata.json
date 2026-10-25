@@ -3,8 +3,11 @@
   "checkpoint_id": "c8188ad6b880",
   "strategy": "manual-commit",
   "branch": "feat/devdesk-41-agent-usage-sessions",
-  "checkpoints_count": 2,
+  "checkpoints_count": 10,
   "files_touched": [
+    "internal/agentusage/hardening_test.go",
+    "internal/agentusage/limits.go",
+    "internal/agentusage/testdata/README.md",
     "internal/app/harness_test.go"
   ],
   "sessions": [
@@ -14,20 +17,27 @@
       "compact_transcript": "/c8/188ad6b880/0/transcript.jsonl",
       "content_hash": "/c8/188ad6b880/0/content_hash.txt",
       "prompt": "/c8/188ad6b880/0/prompt.txt"
+    },
+    {
+      "metadata": "/c8/188ad6b880/1/metadata.json",
+      "transcript": "/c8/188ad6b880/1/full.jsonl",
+      "compact_transcript": "/c8/188ad6b880/1/transcript.jsonl",
+      "content_hash": "/c8/188ad6b880/1/content_hash.txt",
+      "prompt": "/c8/188ad6b880/1/prompt.txt"
     }
   ],
   "token_usage": {
-    "input_tokens": 12,
-    "cache_creation_tokens": 5470,
-    "cache_read_tokens": 881710,
-    "output_tokens": 2277,
-    "api_call_count": 5,
+    "input_tokens": 46,
+    "cache_creation_tokens": 17836,
+    "cache_read_tokens": 2266472,
+    "output_tokens": 9306,
+    "api_call_count": 18,
     "subagent_tokens": {
-      "input_tokens": 6,
-      "cache_creation_tokens": 2918,
-      "cache_read_tokens": 282178,
-      "output_tokens": 75,
-      "api_call_count": 3
+      "input_tokens": 42,
+      "cache_creation_tokens": 257256,
+      "cache_read_tokens": 1783624,
+      "output_tokens": 438,
+      "api_call_count": 21
     }
   }
 }
