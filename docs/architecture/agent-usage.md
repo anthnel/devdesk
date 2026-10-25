@@ -3,6 +3,10 @@
 > DevDesk architecture notes. Referenced from `.claude/CLAUDE.md`;
 > read this file when working on the code it describes.
 
+Two pieces: the data layer `internal/agentusage` (sections up to
+"Verification") and the `:agent-usage` view `internal/ui/agentusageview`
+(last section, DEVDESK-41).
+
 ## What the package is for
 
 `internal/agentusage` reads the transcripts Claude Code writes under its
@@ -14,12 +18,13 @@ What it does **not** do:
 
 - no cost, price or quota computation;
 - no storage, no cache, nothing written to disk;
-- no UI, no Bubble Tea import;
+- no UI, no Bubble Tea import (the view lives in `internal/ui/agentusageview`);
 - no dependency beyond the Go standard library.
 
 **The public API is a contract.** Every exported symbol in the table below
 (`Tokens`, `Agent`, `State`, `Usage`, `Diagnostics`, `FileIssue`, `IssueKind`,
-`SessionFiles`, `SubAgentFiles`, `ParseSession`, `LocateSession`, `ProjectsRoot`)
+`SessionFiles`, `SubAgentFiles`, `ParseSession`, `LocateSession`, `ProjectsRoot`,
+`ListSessions`, `Session`, `Listing`)
 is consumed by S-03b, S-04 and S-05a. Changing a field is a change to those
 stories; add, do not rename.
 
@@ -32,6 +37,9 @@ stories; add, do not rename.
 | `SessionFiles` | `ID`, `Parent` (path of the parent transcript), `SubAgents []SubAgentFiles` |
 | `SubAgentFiles` | `ID`, `Transcript`, `Meta` (`""` if the meta file is absent) |
 | `ParseSession(SessionFiles)` | returns `Usage`. Fails only if the parent transcript cannot be opened: a missing file, a symbolic link or a non-regular file is an **error**, not an ignored input. |
+| `ListSessions(root)` | lists `<root>/<project>/<uuid>.jsonl`, one level deep, never recursively. Returns `Listing`. A missing root is an empty `Listing` and no error; a root that is not a directory or cannot be read is an error naming the base name only. The root itself may be a symbolic link (the user's own choice); anything below it may not. |
+| `Session{ID, Parent, Project, ModTime}` | `Parent` is a full path, for `LocateSession`, and is never logged. `Project` is the working directory read from the transcript (`cwd`), sanitized and capped at 4096 bytes, or `""` if none. `ModTime` is the transcript's modification time. |
+| `Listing{Sessions, Omitted}` | `Sessions` newest `ModTime` first, ties by ID ascending. `Omitted` counts what was not listed: linked or non-regular transcripts, linked or unreadable project directories, and sessions past the cap. |
 | `Tokens{Input, Output, CacheRead, CacheWrite}` | `int64` counters; `Total()` and `Add()` saturate at `math.MaxInt64` |
 | `Agent` | `ID` (empty for the orchestrator), `Main`, `Type`, `Models`, `Tokens`, `Messages`, `PartialMessages`, `State`, `SpawnDepth`; `PartialOutput()` |
 | `State` | `StateUnknown`, `StateFinished`, `StateUnfinished` |
@@ -112,15 +120,29 @@ The format is not a documented API, so the parser degrades rather than fails.
 
 ## Privacy
 
-The package returns **numeric aggregates only**. No prompt, answer, tool input,
-description or path is ever stored in a `Usage`.
+`ParseSession` returns **numeric aggregates only**. No prompt, answer, tool
+input, description or path is ever stored in a `Usage`.
+
+**Amendment (DEVDESK-41): `cwd` is now read and displayed.** `ListSessions`
+alone reads it, to tell sessions apart by project. It is the first non-empty
+string `cwd` found in the first 8 MiB of a transcript (twice `MaxLineBytes`, so
+one maximal line can be skipped); the scan stops there and nothing else of the
+transcript is kept. The view shows the **full path**, with the home folder
+folded to `~`. The path is sanitized and capped, and is **never logged**: the
+view logs a failed listing, but its error carries a base name only. A `Usage`
+still carries no path. This replaces the earlier wording that no path was ever
+read.
 
 - Errors carry the base name of a file, never its full path (`baseOnly`), and
   fixed messages instead of `encoding/json` errors, which can quote content.
-- Labels that come from disk (model, version, agent type, session and agent
-  IDs, file names) go through `sanitizeLabel`: control characters become `?`
-  and the label is cut to 128 bytes. Text read from disk reaches a terminal,
-  where an escape sequence would be interpreted.
+- Text that comes from disk goes through `sanitize`: labels (model, version,
+  agent type, session and agent IDs, file names; `sanitizeLabel`, cut to 128
+  bytes) and the `cwd` (cut to 4096 bytes). Replaced by `?`: invalid UTF-8
+  bytes, every control character (C0, DEL and **C1**, so a raw or encoded
+  0x9B CSI is caught) and every format character (Unicode category **Cf**:
+  bidi overrides and isolates, zero-width marks). Text read from disk reaches a
+  terminal, where an escape sequence would be interpreted and a bidi override
+  would reorder what follows.
 - `FileIssue.File` is a base name, never a path.
 - The fixtures plant `SENTINEL-DO-NOT-LEAK` in the `content`, `description`,
   `cwd` and tool `input` fields of the transcripts and in the `description`
@@ -139,6 +161,14 @@ Memory and output size do not depend on what a transcript contains.
 | Models per agent / versions per session | 64 | extra ones dropped |
 | Label length | 128 bytes | truncated |
 | Meta file | 1 MiB | refused (`MetaUnreadable`) |
+| Sessions listed (`ListSessions`) | 10000 | the oldest are dropped and counted in `Listing.Omitted` |
+| `cwd` probe (`ListSessions`) | first 8 MiB of each kept transcript | `Project` is `""` |
+| `Session.Project` length | 4096 bytes | truncated |
+
+The 10000 cap applies after the directories are read: there is **no bound on
+memory or time before it**. Every entry of every project directory is read and
+stat-ed first, so a very large projects tree costs that much before the cap
+trims the result. Only the `cwd` probe, run on the kept sessions, is bounded.
 
 ## Known risk: a FIFO swapped in between `Lstat` and `Open`
 
@@ -149,7 +179,10 @@ for a regular file replaced by a **FIFO** between `Lstat` and `Open`: `os.Open`
 blocks until a writer appears, before `SameFile` can run. Closing it would need
 `O_NONBLOCK`, which the `os` package does not offer portably. The window is tiny
 and the attacker must already control the transcripts directory. Accepted and
-documented in the code.
+documented in the code. `ListSessions` has the same exposure: it opens each
+kept transcript through `openPlain` to read its `cwd`, so a FIFO swapped in
+there can block the listing (and so the view's read, which runs in a `Cmd`).
+Carried over unchanged, not closed.
 
 ## Diagnostics and `Degraded`
 
@@ -194,3 +227,46 @@ counter must be added to `Degraded()`.
   optional per session: when present, each is compared too, and each must be
   within the tolerance (2 %, strictly below). A session whose transcript is not
   found, or whose parsing fails, fails the test.
+
+## The `:agent-usage` view
+
+`internal/ui/agentusageview`, opened with `:agent-usage` or `:au`. It lists the
+Claude Code sessions found on this machine, newest first, and reads only where
+and when a session ran (see the privacy amendment above). No token count is
+shown yet.
+
+| Column | Content |
+|---|---|
+| Project | the `cwd`, **full path** with home folded to `~` (`theme.FoldHome`, done once per row in `Update`, never in a `Cell`). Cut from the left when too narrow, so the leaf stays visible. `-` (dim) when the transcript named none. |
+| Last active | the transcript's `ModTime`, local time, `2006-01-02 15:04` |
+| Session | the first 8 characters of the ID. `Optional`: the first column dropped on a narrow terminal. The filter (`/`) matches the full ID. |
+
+- **Rule 139.** The body is always `m.table.View()`. Loading, an empty
+  machine and a filter with no match all leave a table with its header.
+- **Header** (`GetHeaderInfo`): `Sessions` (rows visible after the filter) and,
+  only when non-zero, `Skipped` (`Listing.Omitted`).
+- **Footer** (Rule 128), derived on every frame with no timer, in this order:
+  a failed read (red, "Failed to list Claude Code sessions — check logs"; the
+  error is logged, never shown, since it can name a path), then loading (spinner,
+  "Reading Claude Code sessions..."), then "No Claude Code sessions found in
+  <root>" when the listing is empty before any filter.
+- **Shortcuts**: `ctrl+r` Refresh, `/` Filter, `?` Help. The same keys in every
+  state, none greyed (Rule 130): each always acts. `.` cycles the sort column
+  and is listed in `?` only (Rule 138).
+- **Reload on every entry.** The view is built once and stays cached in the
+  router (`createView` stops if it already exists). The reload comes from
+  `switchView` (`internal/app/command_line.go`), which calls `Init()` on every
+  entry, and `Init` starts a read. The rows from the previous visit stay on
+  screen until the answer arrives. Unlike `ctrl+r`, this entry reload shows no
+  spinner and no "Reading..." line, because `Init` cannot set `loading` to
+  true. `ctrl+r` reads again under a new generation number, and a stale answer
+  (older generation) is dropped. A failed refresh keeps the previous rows: they
+  are dated, not wrong.
+- **Rule 110.** `listSessionsCmd` resolves `ProjectsRoot()` and calls
+  `ListSessions` inside the `Cmd` and returns a message; `Update` alone touches
+  the model.
+
+Known limits: the FIFO risk and the lack of a memory or time bound before the
+10000-session cap (see "Limits and caps") both apply to this view's read. Claude
+Code deletes old transcripts itself (30 days by default), so older sessions
+disappear from the list.

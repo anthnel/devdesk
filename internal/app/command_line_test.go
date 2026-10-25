@@ -81,6 +81,8 @@ func TestEveryNamedViewCanBeReached(t *testing.T) {
 		{"containers", command.ViewContainers},
 		{"oci-resources", command.ViewOCIResources},
 		{"netdiag", command.ViewNetdiag},
+		{"agent-usage", command.ViewAgentUsage},
+		{"au", command.ViewAgentUsage},
 	}
 
 	for _, tt := range views {

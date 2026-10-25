@@ -333,3 +333,17 @@ func TestReadMetaNegativeSpawnDepthIsZero(t *testing.T) {
 		t.Fatalf("SpawnDepth = %d, err %v, want 0", m.SpawnDepth, err)
 	}
 }
+
+func TestSanitizeExtendedControls(t *testing.T) {
+	for in, want := range map[string]string{
+		"a\u009bb":        "a?b",     // C1 CSI
+		"a\x9bb":          "a?b",     // raw byte, invalid UTF-8
+		"a\u202eb":        "a?b",     // bidi override
+		"a\u2066b\u2069c": "a?b?c",   // bidi isolates
+		"héllo ✓":         "héllo ✓", // ordinary non-ASCII is kept
+	} {
+		if got := sanitize(in, 128); got != want {
+			t.Errorf("sanitize(%q) = %q, want %q", in, got, want)
+		}
+	}
+}

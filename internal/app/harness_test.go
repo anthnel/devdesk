@@ -41,6 +41,8 @@ func TestMain(m *testing.M) {
 	}
 	_ = os.Setenv("HOME", home)
 	_ = os.Setenv("USERPROFILE", home)
+	// :agent-usage reads Claude Code transcripts from here; never the real ones.
+	_ = os.Unsetenv("CLAUDE_CONFIG_DIR")
 
 	code := m.Run()
 
@@ -161,6 +163,7 @@ func isolateHome(t *testing.T) {
 	home := t.TempDir()
 	t.Setenv("HOME", home)
 	t.Setenv("USERPROFILE", home)
+	t.Setenv("CLAUDE_CONFIG_DIR", "")
 }
 
 // router builds an App hosting view as the dashboard, laid out at 180x40.

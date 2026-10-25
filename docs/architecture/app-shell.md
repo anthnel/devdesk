@@ -53,6 +53,7 @@ Press `ctrl+p` to enter command mode, then type:
 - `netdiag` or `net` - Switch to network diagnostics view
 - `configuration`, `config` or `cfg` - Switch to the configuration view
 - `jobs` or `j` - Switch to the jobs view: what is running, and what ran this session
+- `agent-usage` or `au` - Switch to the agent usage view: Claude Code sessions found on disk, by project and date
 - `templates` or `tpl` - Switch to the repository template catalog (see [templates.md](templates.md))
 - `files` or `fs` - Browse the whole filesystem: create and delete files and directories; also the picker a form's path field opens with enter (see [filebrowser.md](filebrowser.md))
 - `about` or `version` - Which build is running: version, commit, build date, and where the config, cache and log live

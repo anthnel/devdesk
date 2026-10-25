@@ -25,6 +25,7 @@ DevDesk is a terminal-based TUI (Text User Interface) application built with Go 
 - Network diagnostics (DNS, route, ICMP, TCP, TLS, HTTP) + real-time port monitoring + this machine's interfaces + local port forwarding (unprivileged, loopback only)
 - Multi-context configuration management via YAML
 - Local workspaces management with git metadata
+- Claude Code session list (`:agent-usage` / `:au`): sessions found on this machine, by project and date
 
 ## Build and Development Commands
 
@@ -497,7 +498,7 @@ touching, and update it in the same commit as the code.
 | [`mcp.md`](../docs/architecture/mcp.md) | the MCP server the TUI serves over HTTP |
 | [`templates.md`](../docs/architecture/templates.md) | `internal/template` + `internal/ui/templates` — the repository-template catalog, its three sources, how files are fetched, and the `:templates` view |
 | [`ui-components.md`](../docs/architecture/ui-components.md) | `components.FooterMessage` and `internal/ui/datatable` |
-| [`agent-usage.md`](../docs/architecture/agent-usage.md) | `internal/agentusage` — per-agent token counts from Claude Code transcripts: format, aggregation rules, tolerance, privacy, caps, ccusage cross-check |
+| [`agent-usage.md`](../docs/architecture/agent-usage.md) | `internal/agentusage` — per-agent token counts from Claude Code transcripts: format, aggregation rules, tolerance, privacy (`cwd` amendment), caps, ccusage cross-check; `ListSessions`; the `:agent-usage` view (`internal/ui/agentusageview`) |
 
 ### Status Monitoring System
 

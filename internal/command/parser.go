@@ -17,13 +17,16 @@ const (
 	// authentication screen and one explorer, and both adapt to whichever it
 	// is. A `gitlab-` prefix would have to be typed as `github-` half the time
 	// for the same view.
-	ViewGitAuth       ViewType = "git-auth"
-	ViewGitExplorer   ViewType = "git-explorer"
-	ViewWorkspaces    ViewType = "workspaces"
-	ViewSecurity      ViewType = "security"
-	ViewContainers    ViewType = "containers"
-	ViewOCIResources  ViewType = "oci-resources"
-	ViewNetdiag       ViewType = "netdiag"
+	ViewGitAuth      ViewType = "git-auth"
+	ViewGitExplorer  ViewType = "git-explorer"
+	ViewWorkspaces   ViewType = "workspaces"
+	ViewSecurity     ViewType = "security"
+	ViewContainers   ViewType = "containers"
+	ViewOCIResources ViewType = "oci-resources"
+	ViewNetdiag      ViewType = "netdiag"
+	// ViewAgentUsage lists the coding-agent sessions found on disk. A view, not
+	// a key, for the reason ViewJobs is.
+	ViewAgentUsage    ViewType = "agent-usage"
 	ViewConfiguration ViewType = "configuration"
 
 	// ViewJobs lists what is running and what has run this session. It is
@@ -108,6 +111,8 @@ var viewNames = map[string]ViewType{
 	"oci":           ViewOCIResources,
 	"netdiag":       ViewNetdiag,
 	"net":           ViewNetdiag,
+	"agent-usage":   ViewAgentUsage,
+	"au":            ViewAgentUsage,
 	"configuration": ViewConfiguration,
 	"config":        ViewConfiguration,
 	"cfg":           ViewConfiguration,

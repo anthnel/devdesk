@@ -6,7 +6,9 @@ invented. No real prompt, answer, path, description or token count was copied.
 `SENTINEL-DO-NOT-LEAK` sits in the `content`, `description`, `cwd` and tool
 `input` fields of the transcripts, and in the `description` of the `.meta.json`
 files, on purpose: a test checks that it never reaches a `Usage` value or an
-error.
+error. That check guards `ParseSession`/`Usage` only: since DEVDESK-41 `ListSessions`
+does read `cwd` on purpose, and its tests (`sessions_test.go`) build their own
+trees in a temp directory instead of using these fixtures.
 
 Layout: `<fixture>/projects/<project>/<session>.jsonl`, sub-agents in
 `<session>/subagents/agent-<id>.jsonl` with `agent-<id>.meta.json` beside them.

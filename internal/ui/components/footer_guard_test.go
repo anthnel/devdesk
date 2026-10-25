@@ -100,6 +100,8 @@ var viewsWithATableBody = []string{
 	"netdiag/ports_model.go",
 	"netdiag/interfaces_model.go",
 	"netdiag/forward_model.go",
+	// The sessions table of :agent-usage; its load belongs to the footer.
+	"agentusageview/view.go",
 }
 
 // TestEveryGuardedFileExists rejects a suffix in viewsWithATableBody that
