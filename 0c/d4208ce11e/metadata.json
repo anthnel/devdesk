@@ -3,9 +3,10 @@
   "checkpoint_id": "0cd4208ce11e",
   "strategy": "manual-commit",
   "branch": "feat/devdesk-43-agent-share-sort",
-  "checkpoints_count": 8,
+  "checkpoints_count": 20,
   "files_touched": [
     "docs/architecture/agent-usage.md",
+    "docs/architecture/ui-components.md",
     "internal/ui/agentusageview/agents.go",
     "internal/ui/agentusageview/agents_level_test.go",
     "internal/ui/agentusageview/agents_test.go",
@@ -14,8 +15,12 @@
     "internal/ui/agentusageview/availability_test.go",
     "internal/ui/agentusageview/help.go",
     "internal/ui/agentusageview/model.go",
+    "internal/ui/agentusageview/share.go",
+    "internal/ui/agentusageview/share_test.go",
     "internal/ui/agentusageview/update.go",
-    "internal/ui/agentusageview/view.go"
+    "internal/ui/agentusageview/view.go",
+    "internal/ui/datatable/datatable.go",
+    "internal/ui/datatable/datatable_test.go"
   ],
   "sessions": [
     {
@@ -31,20 +36,27 @@
       "compact_transcript": "/0c/d4208ce11e/1/transcript.jsonl",
       "content_hash": "/0c/d4208ce11e/1/content_hash.txt",
       "prompt": "/0c/d4208ce11e/1/prompt.txt"
+    },
+    {
+      "metadata": "/0c/d4208ce11e/2/metadata.json",
+      "transcript": "/0c/d4208ce11e/2/full.jsonl",
+      "compact_transcript": "/0c/d4208ce11e/2/transcript.jsonl",
+      "content_hash": "/0c/d4208ce11e/2/content_hash.txt",
+      "prompt": "/0c/d4208ce11e/2/prompt.txt"
     }
   ],
   "token_usage": {
-    "input_tokens": 18,
-    "cache_creation_tokens": 14968,
-    "cache_read_tokens": 1625860,
-    "output_tokens": 3725,
-    "api_call_count": 7,
+    "input_tokens": 94,
+    "cache_creation_tokens": 144084,
+    "cache_read_tokens": 5036827,
+    "output_tokens": 21730,
+    "api_call_count": 35,
     "subagent_tokens": {
-      "input_tokens": 24,
-      "cache_creation_tokens": 162336,
-      "cache_read_tokens": 966778,
-      "output_tokens": 291,
-      "api_call_count": 12
+      "input_tokens": 192,
+      "cache_creation_tokens": 1325771,
+      "cache_read_tokens": 9197615,
+      "output_tokens": 7496,
+      "api_call_count": 96
     }
   }
 }

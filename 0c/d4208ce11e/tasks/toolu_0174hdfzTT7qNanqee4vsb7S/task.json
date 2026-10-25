@@ -1,0 +1,15 @@
+{
+  "tool_use_id": "toolu_0174hdfzTT7qNanqee4vsb7S",
+  "agent_id": "a599068c3d64323a4",
+  "subagent_type": "project-coder",
+  "task_description": "Vert étapes 1 et 2",
+  "token_usage": {
+    "input_tokens": 12,
+    "cache_creation_tokens": 85488,
+    "cache_read_tokens": 380139,
+    "output_tokens": 89,
+    "api_call_count": 6
+  },
+  "started_at": "2026-10-25T21:32:17.545978458+01:00",
+  "completed_at": "2026-10-25T21:32:52.934151324+01:00"
+}

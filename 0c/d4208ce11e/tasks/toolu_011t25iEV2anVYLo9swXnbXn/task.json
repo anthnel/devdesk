@@ -1,0 +1,15 @@
+{
+  "tool_use_id": "toolu_011t25iEV2anVYLo9swXnbXn",
+  "agent_id": "a267ef627488f1eb4",
+  "subagent_type": "project-tester",
+  "task_description": "Tests rouges étapes 1 et 2",
+  "token_usage": {
+    "input_tokens": 16,
+    "cache_creation_tokens": 139211,
+    "cache_read_tokens": 727752,
+    "output_tokens": 591,
+    "api_call_count": 8
+  },
+  "started_at": "2026-10-25T21:31:05.059591594+01:00",
+  "completed_at": "2026-10-25T21:32:11.155813871+01:00"
+}
