@@ -6,6 +6,7 @@ import (
 	"log"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"testing"
 	"time"
@@ -419,31 +420,293 @@ func TestBothTablesAreResizedTogether(t *testing.T) {
 	}
 }
 
-func TestNarrowTerminalsDropTheCacheColumnsLastWriteFirst(t *testing.T) {
-	tests := []struct {
-		width       int
-		read, write bool
-	}{
-		{80, true, false},
-		{60, false, false},
+// header returns the column titles of the rendered header row.
+func header(t *testing.T, view string) []string {
+	t.Helper()
+	for _, line := range strings.Split(stripANSI(view), "\n") {
+		line = strings.NewReplacer("│", " ", "▲", " ", "▼", " ").Replace(line)
+		if strings.Contains(line, "Agent") && strings.Contains(line, "Total") {
+			return splitTitles(line)
+		}
 	}
-	for _, tt := range tests {
-		m := withSessions(t, "/p/a.jsonl")
-		m = feed(t, m, testutil.Resize(tt.width, 20))
-		m, _ = opened(t, m, "right")
-		m = answer(t, m, threeSubs())
-		view := m.View()
-		if got := strings.Contains(view, "Cache read"); got != tt.read {
-			t.Errorf("width %d: Cache read shown = %v, want %v", tt.width, got, tt.read)
-		}
-		if got := strings.Contains(view, "Cache write"); got != tt.write {
-			t.Errorf("width %d: Cache write shown = %v, want %v", tt.width, got, tt.write)
-		}
-		for _, title := range []string{"Agent", "Model", "In", "Out", "Total"} {
-			if !strings.Contains(view, title) {
-				t.Errorf("width %d: column %q must stay:\n%s", tt.width, title, view)
+	t.Fatalf("no header row in:\n%s", view)
+	return nil
+}
+
+// splitTitles reads known titles off a header line, "Cache read" being two words.
+func splitTitles(line string) []string {
+	var got []string
+	for _, title := range []string{"Agent", "ID", "Model", "In", "Out", "Cache read", "Cache write", "Total", "Share"} {
+		for _, f := range strings.Split(line, "  ") {
+			if strings.TrimSpace(f) == title {
+				got = append(got, title)
 			}
 		}
+	}
+	return got
+}
+
+func TestNarrowTerminalsDropColumnsInTheOrderThePlanComputed(t *testing.T) {
+	tests := []struct {
+		width int
+		want  []string
+	}{
+		{100, []string{"Agent", "ID", "Model", "In", "Out", "Cache read", "Total", "Share"}},
+		{80, []string{"Agent", "ID", "Model", "In", "Out", "Total", "Share"}},
+		{60, []string{"Agent", "ID", "Out", "Total", "Share"}},
+	}
+	for _, tt := range tests {
+		t.Run(strconv.Itoa(tt.width), func(t *testing.T) {
+			m := withSessions(t, "/p/a.jsonl")
+			m = feed(t, m, testutil.Resize(tt.width, 20))
+			m, _ = opened(t, m, "right")
+			m = answer(t, m, threeSubs())
+			if got := m.agentTable.RenderedWidth(); got != tt.width-2 {
+				t.Errorf("rendered width = %d, want %d (Rule 116)", got, tt.width-2)
+			}
+			got := header(t, m.View())
+			if strings.Join(got, ",") != strings.Join(tt.want, ",") {
+				t.Errorf("columns at %d = %v, want %v:\n%s", tt.width, got, tt.want, m.View())
+			}
+		})
+	}
+}
+
+// Criterion 3 on screen: two agents of one type stay apart on a narrow terminal.
+func TestTwoCodersStayDistinctOnANarrowTerminal(t *testing.T) {
+	u := agentusage.Usage{Agents: []agentusage.Agent{
+		orchestrator(1, 0),
+		subAgent("a0044dcf4954e5b04", "coder", 1, 0),
+		subAgent("a029ee8f056637296", "coder", 1, 0),
+	}}
+	for _, width := range []int{80, 60} {
+		m := withSessions(t, "/p/a.jsonl")
+		m = feed(t, m, testutil.Resize(width, 20))
+		m, _ = opened(t, m, "right")
+		m = answer(t, m, u)
+		var ids []string
+		for _, line := range strings.Split(stripANSI(m.View()), "\n") {
+			if !strings.Contains(line, "coder") {
+				continue
+			}
+			for _, id := range []string{"a0044dcf", "a029ee8f"} {
+				if strings.Contains(line, id) {
+					ids = append(ids, id)
+				}
+			}
+		}
+		if len(ids) != 2 || ids[0] == ids[1] {
+			t.Errorf("width %d: the two coder lines must show two different IDs, got %v:\n%s", width, ids, m.View())
+		}
+	}
+}
+
+// ── Sort and share (DEVDESK-43) ──────────────────────────────────────────────
+
+// totalled sets an agent's tokens: output out, the rest as input.
+func totalled(a agentusage.Agent, total, out int64) agentusage.Agent {
+	a.Tokens = agentusage.Tokens{Input: total - out, Output: out}
+	return a
+}
+
+// sortUsage is the plan's usage U: totals 1000 / 5000 / 3000 / 200 of 9200,
+// the tester's output being a floor.
+func sortUsage(testerPartial int) agentusage.Usage {
+	return agentusage.Usage{Agents: []agentusage.Agent{
+		totalled(orchestrator(0, 0), 1000, 0),
+		totalled(subAgent("a01", "coder", 0, 0), 5000, 0),
+		totalled(subAgent("a02", "tester", 0, testerPartial), 3000, 38),
+		totalled(subAgent("a03", "reviewer", 0, 0), 200, 0),
+	}}
+}
+
+func visibleIDs(m Model) string {
+	var ids []string
+	for _, r := range m.agentTable.Visible() {
+		ids = append(ids, r.ID)
+	}
+	return strings.Join(ids, ",")
+}
+
+// atWideAgents is the agents level at 120 columns, so no column gives way.
+func atWideAgents(t *testing.T, u agentusage.Usage) Model {
+	t.Helper()
+	m := withSessions(t, "/p/a.jsonl", "/p/b.jsonl")
+	m = feed(t, m, testutil.Resize(120, 20))
+	m, _ = opened(t, m, "right")
+	return answer(t, m, u)
+}
+
+func lineOf(t *testing.T, m Model, role string) string {
+	t.Helper()
+	for _, line := range strings.Split(stripANSI(m.View()), "\n") {
+		if strings.Contains(line, role) {
+			return line
+		}
+	}
+	t.Fatalf("no line for %s:\n%s", role, m.View())
+	return ""
+}
+
+// Criteria 1 and 4: the largest agent comes first, with no branches.
+func TestDotSortsTheAgentsLargestFirst(t *testing.T) {
+	m := atWideAgents(t, sortUsage(1))
+	if got := visibleIDs(m); got != ",a01,a02,a03" {
+		t.Fatalf("tree order = %q", got)
+	}
+	m, _ = opened(t, m, ".")
+	if got := visibleIDs(m); got != "a01,a02,,a03" {
+		t.Errorf("sorted order = %q, want a01,a02,,a03", got)
+	}
+	if col, desc := m.agentTable.SortState(); col != 7 || !desc {
+		t.Errorf("SortState = (%d, %v), want (7 Total, descending)", col, desc)
+	}
+	view := m.View()
+	if !strings.Contains(view, "Total ▼") {
+		t.Errorf("header lacks the descending arrow:\n%s", view)
+	}
+	if strings.Contains(view, "├─") || strings.Contains(view, "└─") {
+		t.Errorf("a sorted list is flat, no branches:\n%s", view)
+	}
+	if line := lineOf(t, m, "tester"); !strings.Contains(line, "≥ 38") {
+		t.Errorf("the partial Out keeps its ≥: %q", line)
+	}
+	if line := lineOf(t, m, "orchestrator"); !strings.Contains(line, "orchestrator") {
+		t.Errorf("orchestrator row = %q", line)
+	}
+}
+
+// A partial sub-agent ranks on its total alone.
+func TestAPartialOutputDoesNotChangeTheRanking(t *testing.T) {
+	for _, partial := range []int{1, 0} {
+		m := atWideAgents(t, sortUsage(partial))
+		m, _ = opened(t, m, ".")
+		ids := strings.Split(visibleIDs(m), ",")
+		if ids[1] != "a02" || ids[2] != "" {
+			t.Errorf("partial=%d: order %v, the tester (3000) must rank above the orchestrator (1000)", partial, ids)
+		}
+	}
+}
+
+func TestDotCyclesTreeDescendingAscendingTree(t *testing.T) {
+	m := atWideAgents(t, sortUsage(1))
+	m, _ = opened(t, m, ".")
+	m, _ = opened(t, m, ".")
+	if got := visibleIDs(m); got != "a03,,a02,a01" {
+		t.Errorf("ascending order = %q, want a03,,a02,a01", got)
+	}
+	if !strings.Contains(m.View(), "Total ▲") {
+		t.Errorf("header lacks the ascending arrow:\n%s", m.View())
+	}
+	m, _ = opened(t, m, ".")
+	if got := visibleIDs(m); got != ",a01,a02,a03" {
+		t.Errorf("third press = %q, want the tree back", got)
+	}
+	if col, _ := m.agentTable.SortState(); col != -1 {
+		t.Errorf("sort column = %d, want -1 (unsorted)", col)
+	}
+	view := m.View()
+	for _, want := range []string{"├─ coder", "└─ reviewer"} {
+		if !strings.Contains(view, want) {
+			t.Errorf("the tree must come back with %q:\n%s", want, view)
+		}
+	}
+	if strings.Contains(view, "▲") || strings.Contains(view, "▼") {
+		t.Errorf("no arrow once unsorted:\n%s", view)
+	}
+}
+
+// Equal totals keep ID order, descending and ascending alike.
+func TestTiesKeepIDOrderInBothDirections(t *testing.T) {
+	u := agentusage.Usage{Agents: []agentusage.Agent{
+		totalled(orchestrator(0, 0), 100, 0),
+		totalled(subAgent("a01", "x", 0, 0), 500, 0),
+		totalled(subAgent("a02", "x", 0, 0), 500, 0),
+		totalled(subAgent("a03", "x", 0, 0), 900, 0),
+	}}
+	m := atWideAgents(t, u)
+	m, _ = opened(t, m, ".")
+	if got := visibleIDs(m); got != "a03,a01,a02," {
+		t.Errorf("descending = %q, want a03,a01,a02,", got)
+	}
+	m, _ = opened(t, m, ".")
+	if got := visibleIDs(m); got != ",a01,a02,a03" {
+		t.Errorf("ascending = %q, want ,a01,a02,a03", got)
+	}
+}
+
+// Criterion 2 on screen: 543 / 326 / 21 tenths, the orchestrator taking the rest.
+func TestSharesAddUpAndSortDoesNotChangeThem(t *testing.T) {
+	want := map[string]string{"coder": "54.3%", "tester": "32.6%", "reviewer": "2.1%", "orchestrator": "11.0%"}
+	m := atWideAgents(t, sortUsage(1))
+	for _, sorted := range []bool{false, true} {
+		sum := 0
+		for _, r := range m.agentTable.Visible() {
+			sum += r.share
+		}
+		if sum != shareScale {
+			t.Errorf("sorted=%v: shares add up to %d tenths, want %d", sorted, sum, shareScale)
+		}
+		for role, pct := range want {
+			if line := lineOf(t, m, role); !strings.Contains(line, pct) {
+				t.Errorf("sorted=%v: %s line lacks %s: %q", sorted, role, pct, line)
+			}
+		}
+		m, _ = opened(t, m, ".")
+	}
+}
+
+func TestAFilterKeepsTheShareOfTheWholeSession(t *testing.T) {
+	m := atWideAgents(t, sortUsage(1))
+	m = send(t, m, testutil.Key("/"))
+	for _, k := range testutil.Type("coder") {
+		m = feed(t, m, k)
+	}
+	if n := len(m.agentTable.Visible()); n != 1 {
+		t.Fatalf("%d rows after filtering, want 1", n)
+	}
+	if line := lineOf(t, m, "coder"); !strings.Contains(line, "54.3%") {
+		t.Errorf("a filter does not change a share: %q", line)
+	}
+	if got := headerValue(t, m, "Tokens"); got != "5.0k" {
+		t.Errorf("Tokens header = %q, want 5.0k", got)
+	}
+}
+
+func TestDotWhileTheParseIsInFlightIsHarmless(t *testing.T) {
+	m := withSessions(t, "/p/a.jsonl")
+	m, _ = opened(t, m, "right")
+	m, _ = opened(t, m, ".")
+	m = answer(t, m, sortUsage(1))
+	if got := visibleIDs(m); got != "a01,a02,,a03" {
+		t.Errorf("the answer must arrive sorted, got %q", got)
+	}
+	if strings.Contains(m.View(), "├─") {
+		t.Error("no branches in a sorted answer")
+	}
+}
+
+// H8: the sort belongs to the table, not to a session.
+func TestTheSortSurvivesAnotherSessionAndARefresh(t *testing.T) {
+	m := atWideAgents(t, sortUsage(1))
+	m, _ = opened(t, m, ".")
+	m, _ = opened(t, m, "esc")
+	m, _ = opened(t, m, "down")
+	m, _ = opened(t, m, "right")
+	m = answer(t, m, sortUsage(1))
+	if got := visibleIDs(m); got != "a01,a02,,a03" {
+		t.Errorf("another session opens sorted, got %q", got)
+	}
+	if strings.Contains(m.View(), "├─") || strings.Contains(m.View(), "└─") {
+		t.Error("the other session must open flat")
+	}
+	m, _ = opened(t, m, "ctrl+r")
+	m = answer(t, m, sortUsage(1))
+	if got := visibleIDs(m); got != "a01,a02,,a03" {
+		t.Errorf("ctrl+r keeps the sort, got %q", got)
+	}
+	if strings.Contains(m.View(), "├─") {
+		t.Error("ctrl+r must not bring the branches back under an active sort")
 	}
 }
 
@@ -487,6 +750,43 @@ func TestTheBasicFixtureShowsItsFourAgents(t *testing.T) {
 		if role != "tester" && strings.Contains(line, "≥") {
 			t.Errorf("only the tester's output is a floor: %q", line)
 		}
+	}
+	if strings.Contains(m.View(), sentinel) || strings.Contains(footer(m), sentinel) {
+		t.Error("the fixture's sentinel text reached the screen")
+	}
+}
+
+func TestTheBasicFixtureSortsByTotalTokens(t *testing.T) {
+	m := withSessions(t, fixtureParent)
+	m = feed(t, m, testutil.Resize(120, 20))
+	m, cmd := opened(t, m, "enter")
+	got := usageMsgs(batchMsgs(t, cmd))
+	if len(got) != 1 || got[0].err != nil {
+		t.Fatalf("the fixture must parse cleanly, got %+v", got)
+	}
+	m = feed(t, m, got[0])
+	m, _ = opened(t, m, ".")
+
+	rows := m.agentTable.Visible()
+	totals := make(map[string]int64)
+	for _, a := range got[0].usage.Agents {
+		totals[a.ID] = a.Tokens.Total()
+	}
+	if len(rows) != len(totals) {
+		t.Fatalf("%d rows, want %d", len(rows), len(totals))
+	}
+	sum := 0
+	for i, r := range rows {
+		sum += r.share
+		if i > 0 && totals[r.ID] > totals[rows[i-1].ID] {
+			t.Errorf("row %d (%d tokens) outranks row %d (%d)", i, totals[r.ID], i-1, totals[rows[i-1].ID])
+		}
+	}
+	if sum != shareScale {
+		t.Errorf("shares add up to %d, want %d", sum, shareScale)
+	}
+	if line := lineOf(t, m, "tester"); !strings.Contains(line, "≥") {
+		t.Errorf("the tester row keeps its ≥: %q", line)
 	}
 	if strings.Contains(m.View(), sentinel) || strings.Contains(footer(m), sentinel) {
 		t.Error("the fixture's sentinel text reached the screen")

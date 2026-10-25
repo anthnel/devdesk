@@ -890,3 +890,87 @@ func TestAnUnsortableColumnIsNotWidenedForAnArrow(t *testing.T) {
 		t.Errorf("the column is %d wide, want the 4 it asked for", got)
 	}
 }
+
+// ── DescFirst ────────────────────────────────────────────────────────────────
+
+// descFirstConfig has a plain column A and a count column B that sorts
+// descending first. sortColumn and sortDesc set how the table opens.
+func descFirstConfig(sortColumn int, sortDesc bool) Config[row] {
+	return Config[row]{
+		SortColumn: sortColumn,
+		SortDesc:   sortDesc,
+		Columns: []Column[row]{
+			{
+				Title: "A", Sizing: SizingContent, MinWidth: 10,
+				Cell: func(r row) string { return r.Name },
+				Less: func(a, b row) bool { return a.Name < b.Name },
+			},
+			{
+				Title: "B", Sizing: SizingFixed, MinWidth: 6, DescFirst: true,
+				Cell: func(r row) string { return strings.Repeat("#", r.Size) },
+				Less: func(a, b row) bool { return a.Size < b.Size },
+			},
+		},
+	}
+}
+
+type sortStop struct {
+	col  int
+	desc bool
+}
+
+func assertCycle(t *testing.T, m Model[row], want []sortStop) {
+	t.Helper()
+	for i, w := range want {
+		m.CycleSort()
+		if col, desc := m.SortState(); col != w.col || desc != w.desc {
+			t.Fatalf("press %d: SortState = (%d, %v), want (%d, %v)", i+1, col, desc, w.col, w.desc)
+		}
+	}
+}
+
+func TestCycleSortStartsDescendingOnADescFirstColumn(t *testing.T) {
+	cfg := Config[row]{
+		SortColumn: -1,
+		Columns:    []Column[row]{descFirstConfig(-1, false).Columns[1]},
+	}
+	m := New(cfg)
+	m.Resize(120, 10)
+	m.SetItems(fixtures())
+
+	assertCycle(t, m, []sortStop{{0, true}, {0, false}, {-1, false}})
+}
+
+func TestCycleSortMixesPlainAndDescFirstColumns(t *testing.T) {
+	m := New(descFirstConfig(-1, false))
+	m.Resize(120, 10)
+	m.SetItems(fixtures())
+
+	assertCycle(t, m, []sortStop{{0, false}, {0, true}, {1, true}, {1, false}, {-1, false}})
+}
+
+// A table that opened sorted never goes back to "no sort", DescFirst or not.
+func TestADescFirstTableThatOpenedSortedWraps(t *testing.T) {
+	m := New(descFirstConfig(1, true))
+	m.Resize(120, 10)
+	m.SetItems(fixtures())
+
+	assertCycle(t, m, []sortStop{{1, false}, {0, false}})
+}
+
+func TestTheFirstPressOnADescFirstColumnShowsTheDescendingArrowAndRows(t *testing.T) {
+	cfg := descFirstConfig(-1, false)
+	cfg.Columns = cfg.Columns[1:] // B alone
+	m := New(cfg)
+	m.Resize(120, 10)
+	m.SetItems(fixtures()) // sizes 3, 1, 2
+
+	m.CycleSort()
+
+	if title := m.Table().Columns()[0].Title; !strings.Contains(title, "B ▼") {
+		t.Errorf("header = %q, want it to hold %q", title, "B ▼")
+	}
+	if got := names(m.Visible()); !equal(got, []string{"api", "web", "cache"}) {
+		t.Errorf("visible = %v, want them by descending size", got)
+	}
+}

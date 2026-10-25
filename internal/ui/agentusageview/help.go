@@ -13,7 +13,7 @@ func (m Model) GetHelpContent() help.Content {
 			{Key: "→/enter", Description: "Open the selected session's agents"},
 			{Key: "←/esc", Description: "Back to the sessions"},
 			{Key: "/", Description: "Filter by project or session ID"},
-			{Key: ".", Description: "Cycle the sort column (sessions only)"},
+			{Key: ".", Description: "Cycle the sort column (agents: tree, Total largest first, Total smallest first)"},
 			{Key: "ctrl+p", Description: "Open command mode"},
 			{Key: "?", Description: "Show this help"},
 		},
@@ -40,6 +40,17 @@ func (m Model) GetHelpContent() help.Content {
 					"A ≥ before an Out count means a floor: that sub-agent's transcript was still being written, so the real figure is higher.\n" +
 					"The orchestrator is the main conversation; its figures are never a floor.\n" +
 					"When part of a transcript could not be read, the footer says the totals are approximate.",
+			},
+			{
+				Title: "Agent columns",
+				Body: "Agent: the orchestrator, or the sub-agent's type. ID: the start of the sub-agent's ID, long enough to tell two agents of the same type apart; " +
+					"the orchestrator shows a dash. The filter matches the full ID.\n" +
+					"Model, In, Out, Cache read, Cache write, Total: models used and token counts. " +
+					"On a narrow terminal Cache write goes first, then Cache read, In, and Model. Agent, ID, Out, Total and Share stay.\n" +
+					"Share: the agent's part of the session total, to one decimal, rounded down. " +
+					"The orchestrator takes the rounding remainder, so the column adds up to 100%. A dash means the session has no tokens.\n" +
+					"Press . to cycle: tree, then Total largest first, then Total smallest first, then the tree again. " +
+					"Sorted, the list is flat: the branches go away. The sort stays when you open another session or press ctrl+r.",
 			},
 			{
 				Title: "Privacy",

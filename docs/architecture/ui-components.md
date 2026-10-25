@@ -228,7 +228,12 @@ spans and fails on a layout that is correct. That disagreement was D61 seen from
 the other side.
 
 `SortDesc` exists for count columns: ascending is their useless end, and cycling
-`.` past it on every open is not a default. A direction with no sortable column
+`.` past it on every open is not a default.
+`Column.DescFirst` is the same idea per column: the first `.` that lands on the
+column sorts it descending, the second ascending, then on to the next sortable
+column. A table that opened sorted never goes back to "no sort", DescFirst or
+not; one that opened unsorted returns to it after the last column. Meaningless
+without `Less`. The `:agent-usage` agents table uses it on `Total`. A direction with no sortable column
 to apply it to is dropped with the column, or the first `.` opens descending
 with the arrow on nothing.
 

@@ -506,7 +506,7 @@ func TestShortcutKeysAreTheSameInEveryState(t *testing.T) {
 	if len(want) == 0 {
 		t.Fatal("the view advertises no shortcuts")
 	}
-	for _, k := range []string{"ctrl+r", "→", "esc", "/", "?"} {
+	for _, k := range []string{"ctrl+r", "→", "esc", "/", ".", "?"} {
 		if !testutil.HasShortcut(loading.GetShortcuts(), k) {
 			t.Errorf("missing shortcut %q", k)
 		}
@@ -521,7 +521,7 @@ func TestShortcutKeysAreTheSameInEveryState(t *testing.T) {
 	// Amended for DEVDESK-42: → and esc are greyed by level and row (see
 	// availability_test.go); the three keys below act in every state.
 	for name, m := range map[string]Model{"loading": loading, "empty": empty, "loaded": rows, "error": failed, "filtering": filtering} {
-		for _, k := range []string{"ctrl+r", "/", "?"} {
+		for _, k := range []string{"ctrl+r", "/", ".", "?"} {
 			if !testutil.ShortcutEnabled(m.GetShortcuts(), k) {
 				t.Errorf("%s: %q must stay enabled, it always acts here", name, k)
 			}

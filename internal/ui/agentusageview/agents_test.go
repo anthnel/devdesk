@@ -84,34 +84,51 @@ func TestOutCell(t *testing.T) {
 
 func TestAgentRows(t *testing.T) {
 	tests := []struct {
-		name     string
-		usage    agentusage.Usage
-		wantIDs  []string
-		wantLast []bool
+		name        string
+		usage       agentusage.Usage
+		tree        bool
+		wantIDs     []string
+		wantBranch  []string
+		wantShortID []string
 	}{
 		{
-			name: "orchestrator and three sub-agents, sorted by ID",
+			name: "tree: orchestrator and three sub-agents, sorted by ID",
 			usage: agentusage.Usage{Agents: []agentusage.Agent{
 				orchestrator(1, 0),
 				subAgent("a03", "x", 1, 0), subAgent("a01", "x", 1, 0), subAgent("a02", "x", 1, 0),
 			}},
-			wantIDs:  []string{"", "a01", "a02", "a03"},
-			wantLast: []bool{false, false, false, true},
+			tree:        true,
+			wantIDs:     []string{"", "a01", "a02", "a03"},
+			wantBranch:  []string{"", stem, stem, lastStem},
+			wantShortID: []string{"", "a01", "a02", "a03"},
 		},
 		{
-			name:     "orchestrator alone has no stem",
-			usage:    agentusage.Usage{Agents: []agentusage.Agent{orchestrator(1, 0)}},
-			wantIDs:  []string{""},
-			wantLast: []bool{false},
+			name: "flat: no branch on any row",
+			usage: agentusage.Usage{Agents: []agentusage.Agent{
+				orchestrator(1, 0), subAgent("a02", "x", 1, 0), subAgent("a01", "x", 1, 0),
+			}},
+			tree:        false,
+			wantIDs:     []string{"", "a01", "a02"},
+			wantBranch:  []string{"", "", ""},
+			wantShortID: []string{"", "a01", "a02"},
+		},
+		{
+			name:        "orchestrator alone has no stem",
+			usage:       agentusage.Usage{Agents: []agentusage.Agent{orchestrator(1, 0)}},
+			tree:        true,
+			wantIDs:     []string{""},
+			wantBranch:  []string{""},
+			wantShortID: []string{""},
 		},
 		{
 			name:  "no agents",
 			usage: agentusage.Usage{},
+			tree:  true,
 		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			rows := agentRows(tt.usage)
+			rows := agentRows(tt.usage, tt.tree)
 			if len(rows) != len(tt.wantIDs) {
 				t.Fatalf("got %d rows, want %d", len(rows), len(tt.wantIDs))
 			}
@@ -119,12 +136,111 @@ func TestAgentRows(t *testing.T) {
 				if r.ID != tt.wantIDs[i] {
 					t.Errorf("row %d ID = %q, want %q", i, r.ID, tt.wantIDs[i])
 				}
-				if r.last != tt.wantLast[i] {
-					t.Errorf("row %d last = %v, want %v", i, r.last, tt.wantLast[i])
+				if r.branch != tt.wantBranch[i] {
+					t.Errorf("row %d branch = %q, want %q", i, r.branch, tt.wantBranch[i])
+				}
+				if r.shortID != tt.wantShortID[i] {
+					t.Errorf("row %d shortID = %q, want %q", i, r.shortID, tt.wantShortID[i])
 				}
 			}
 			if len(rows) > 0 && !rows[0].Main {
 				t.Error("the orchestrator is not first")
+			}
+		})
+	}
+}
+
+// The shares of a session add up to exactly 1000 tenths, the orchestrator
+// absorbing the rounding residue.
+func TestAgentRowsSharesAddUpAndTheOrchestratorAbsorbsTheResidue(t *testing.T) {
+	// Totals 1000 / 5000 / 3000 / 200 of 9200 (the plan's criterion 2 case).
+	withTotal := func(a agentusage.Agent, total int64) agentusage.Agent {
+		a.Tokens = agentusage.Tokens{Output: total}
+		return a
+	}
+	u := agentusage.Usage{Agents: []agentusage.Agent{
+		withTotal(orchestrator(0, 0), 1000),
+		withTotal(subAgent("a01", "coder", 0, 0), 5000),
+		withTotal(subAgent("a02", "tester", 0, 1), 3000),
+		withTotal(subAgent("a03", "reviewer", 0, 0), 200),
+	}}
+	rows := agentRows(u, true)
+	if len(rows) != 4 {
+		t.Fatalf("got %d rows, want 4", len(rows))
+	}
+	want := map[string]int{"a01": 543, "a02": 326, "a03": 21, "": 110}
+	sum := 0
+	for _, r := range rows {
+		sum += r.share
+		if r.share != want[r.ID] {
+			t.Errorf("share of %q = %d, want %d", r.ID, r.share, want[r.ID])
+		}
+	}
+	if sum != shareScale {
+		t.Errorf("shares add up to %d, want %d", sum, shareScale)
+	}
+}
+
+func TestAgentRowsOfASessionWithNoTokensHaveNoShare(t *testing.T) {
+	u := agentusage.Usage{Agents: []agentusage.Agent{
+		{Main: true}, {ID: "a01", Type: "coder"},
+	}}
+	for _, r := range agentRows(u, true) {
+		if r.share != noShare {
+			t.Errorf("share of %q = %d, want noShare", r.ID, r.share)
+		}
+	}
+}
+
+// Criterion 3: two agents of the same type stay distinct.
+func TestTwoAgentsOfTheSameTypeStayDistinct(t *testing.T) {
+	u := agentusage.Usage{Agents: []agentusage.Agent{
+		orchestrator(1, 0),
+		subAgent("a0044dcf4954e5b04", "coder", 1, 0),
+		subAgent("a029ee8f056637296", "coder", 1, 0),
+	}}
+	rows := agentRows(u, false)
+	if len(rows) != 3 {
+		t.Fatalf("got %d rows, want 3", len(rows))
+	}
+	a, b := rows[1], rows[2]
+	if roleCell(a) != roleCell(b) {
+		t.Fatalf("role cells differ (%q, %q): the test needs the same role", roleCell(a), roleCell(b))
+	}
+	if a.shortID == b.shortID || a.shortID == "" || b.shortID == "" {
+		t.Errorf("short IDs = %q and %q, want two distinct non-empty values", a.shortID, b.shortID)
+	}
+}
+
+func TestShortAgentIDs(t *testing.T) {
+	tests := []struct {
+		name string
+		in   []string
+		want []string
+	}{
+		{"distinct at the minimum length",
+			[]string{"a0044dcf4954e5b04", "a029ee8f056637296"},
+			[]string{"a0044dcf", "a029ee8f"}},
+		{"one common length when a pair collides",
+			[]string{"a0044dcf4954e5b04", "a0044dcf9954e5b04", "a1111111111111111"},
+			[]string{"a0044dcf4", "a0044dcf9", "a11111111"}},
+		{"shorter than the minimum shows whole", []string{"x1"}, []string{"x1"}},
+		{"identical IDs terminate and stay whole", []string{"abc", "abc"}, []string{"abc", "abc"}},
+		{"multibyte IDs are cut on runes",
+			[]string{"éééééééé1", "éééééééé2"},
+			[]string{"éééééééé1", "éééééééé2"}},
+		{"nil", nil, nil},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := shortAgentIDs(tt.in)
+			if len(got) != len(tt.want) {
+				t.Fatalf("shortAgentIDs(%v) = %v, want %v", tt.in, got, tt.want)
+			}
+			for i := range got {
+				if got[i] != tt.want[i] {
+					t.Errorf("shortAgentIDs(%v)[%d] = %q, want %q", tt.in, i, got[i], tt.want[i])
+				}
 			}
 		})
 	}
@@ -137,10 +253,12 @@ func TestRoleCell(t *testing.T) {
 		want string
 	}{
 		{"orchestrator", agentRow{Agent: orchestrator(1, 0)}, "orchestrator"},
-		{"sub-agent", agentRow{Agent: subAgent("a1", "coder", 1, 0)}, "├─ coder"},
-		{"last sub-agent", agentRow{Agent: subAgent("a1", "coder", 1, 0), last: true}, "└─ coder"},
-		{"unknown type", agentRow{Agent: subAgent("a1", "", 1, 0)}, "├─ unknown"},
-		{"unknown type, last", agentRow{Agent: subAgent("a1", "", 1, 0), last: true}, "└─ unknown"},
+		{"sub-agent", agentRow{Agent: subAgent("a1", "coder", 1, 0), branch: stem}, "├─ coder"},
+		{"last sub-agent", agentRow{Agent: subAgent("a1", "coder", 1, 0), branch: lastStem}, "└─ coder"},
+		{"sub-agent in a sorted list", agentRow{Agent: subAgent("a1", "coder", 1, 0)}, "coder"},
+		{"unknown type", agentRow{Agent: subAgent("a1", "", 1, 0), branch: stem}, "├─ unknown"},
+		{"unknown type, last", agentRow{Agent: subAgent("a1", "", 1, 0), branch: lastStem}, "└─ unknown"},
+		{"unknown type, sorted list", agentRow{Agent: subAgent("a1", "", 1, 0)}, "unknown"},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -174,10 +292,11 @@ func TestModelsCell(t *testing.T) {
 
 func TestAgentColumnsLayout(t *testing.T) {
 	cols := agentColumns()
-	wantTitles := []string{"Agent", "Model", "In", "Out", "Cache read", "Cache write", "Total"}
+	wantTitles := []string{"Agent", "ID", "Model", "In", "Out", "Cache read", "Cache write", "Total", "Share"}
 	if len(cols) != len(wantTitles) {
 		t.Fatalf("got %d columns, want %d", len(cols), len(wantTitles))
 	}
+	optional := map[string]bool{"Model": true, "In": true, "Cache read": true, "Cache write": true}
 	for i, col := range cols {
 		if col.Title != wantTitles[i] {
 			t.Errorf("column %d = %q, want %q", i, col.Title, wantTitles[i])
@@ -185,16 +304,86 @@ func TestAgentColumnsLayout(t *testing.T) {
 		if col.Sizing == datatable.SizingUnset {
 			t.Errorf("column %q has no Sizing", col.Title)
 		}
-		if col.Less != nil {
-			t.Errorf("column %q has a Less, sorting is out of scope", col.Title)
+		if (col.Less != nil) != (col.Title == "Total") {
+			t.Errorf("column %q Less set = %v: only Total sorts", col.Title, col.Less != nil)
 		}
-		wantOptional := col.Title == "Cache read" || col.Title == "Cache write"
-		if col.Optional != wantOptional {
-			t.Errorf("column %q Optional = %v, want %v", col.Title, col.Optional, wantOptional)
+		if col.DescFirst != (col.Title == "Total") {
+			t.Errorf("column %q DescFirst = %v: only Total sorts largest first", col.Title, col.DescFirst)
+		}
+		if col.Optional != optional[col.Title] {
+			t.Errorf("column %q Optional = %v, want %v", col.Title, col.Optional, optional[col.Title])
 		}
 		if col.DropFirst != (col.Title == "Cache write") {
 			t.Errorf("column %q DropFirst = %v", col.Title, col.DropFirst)
 		}
+	}
+}
+
+// column returns the agents column with the given title.
+func column(t *testing.T, title string) datatable.Column[agentRow] {
+	t.Helper()
+	for _, c := range agentColumns() {
+		if c.Title == title {
+			return c
+		}
+	}
+	t.Fatalf("no %q column", title)
+	return datatable.Column[agentRow]{}
+}
+
+func TestTotalColumnSortsByTotalTokens(t *testing.T) {
+	less := column(t, "Total").Less
+	if less == nil {
+		t.Fatal("Total has no Less")
+	}
+	at := func(total int64) agentRow {
+		return agentRow{Agent: agentusage.Agent{Tokens: agentusage.Tokens{Input: total / 2, Output: total - total/2}}}
+	}
+	if !less(at(100), at(200)) {
+		t.Error("100 must sort before 200")
+	}
+	if less(at(200), at(100)) || less(at(100), at(100)) {
+		t.Error("larger or equal must not sort before")
+	}
+	// A partial sub-agent's output changes nothing in the ranking.
+	partial := agentRow{Agent: subAgent("a1", "x", 100, 1)}
+	exact := agentRow{Agent: subAgent("a1", "x", 100, 0)}
+	if less(partial, exact) || less(exact, partial) {
+		t.Error("PartialMessages must not change the ranking")
+	}
+}
+
+func TestIDAndShareCells(t *testing.T) {
+	id, share := column(t, "ID"), column(t, "Share")
+	tests := []struct {
+		name         string
+		row          agentRow
+		wantID, want string
+	}{
+		{"orchestrator", agentRow{Agent: orchestrator(1, 0), share: 110}, "-", "11.0%"},
+		{"sub-agent", agentRow{Agent: subAgent("a0044dcf4954e5b04", "coder", 1, 0), shortID: "a0044dcf", share: 543}, "a0044dcf", "54.3%"},
+		{"no tokens", agentRow{Agent: subAgent("a1", "coder", 0, 0), shortID: "a1", share: noShare}, "a1", "-"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := id.Cell(tt.row); got != tt.wantID {
+				t.Errorf("ID cell = %q, want %q", got, tt.wantID)
+			}
+			if got := share.Cell(tt.row); got != tt.want {
+				t.Errorf("Share cell = %q, want %q", got, tt.want)
+			}
+		})
+	}
+}
+
+func TestIDColumnSearchesTheFullID(t *testing.T) {
+	r := agentRow{Agent: subAgent("a0044dcf4954e5b04", "coder", 1, 0), shortID: "a0044dcf"}
+	col := column(t, "ID")
+	if col.Search == nil || !strings.Contains(col.Search(r), "a0044dcf4954e5b04") {
+		t.Error("`/` must keep matching the full agent ID, now through the ID column")
+	}
+	if got := agentSearch(r); strings.Contains(got, "a0044dcf4954e5b04") {
+		t.Errorf("the ID moved to its own column, agentSearch still holds it: %q", got)
 	}
 }
 
@@ -209,7 +398,8 @@ func TestNoAgentCellCarriesAnEscapeSequence(t *testing.T) {
 	rows := []agentRow{
 		{Agent: orchestrator(320, 3)},
 		{Agent: subAgent("a1", "coder", 8, 1)},
-		{Agent: subAgent("a2", "", 0, 0), last: true},
+		{Agent: subAgent("a2", "", 0, 0), branch: lastStem, shortID: "a2", share: noShare},
+		{Agent: subAgent("a4", "coder", 5, 0), shortID: "a4", share: 123},
 		{Agent: agentusage.Agent{ID: "a3", Type: "\x1b[31mred", Models: []string{"\x1b[31mm"}}},
 	}
 	for _, row := range rows {
@@ -239,11 +429,22 @@ func TestAgentColumnsDimZeroesAndPlaceholders(t *testing.T) {
 		got := func(r agentRow) bool { return col.Style(r).GetForeground() == dim }
 		switch col.Title {
 		case "Agent":
-			if !got(agentRow{Agent: agentusage.Agent{ID: "u"}, last: true}) {
+			if !got(agentRow{Agent: agentusage.Agent{ID: "u"}, branch: lastStem}) {
 				t.Errorf("Agent %q must be dim", unknownType)
 			}
 			if got(full) || got(agentRow{Agent: agentusage.Agent{Main: true}}) {
 				t.Error("a known role keeps the default colour")
+			}
+		case "ID":
+			if !got(agentRow{Agent: agentusage.Agent{Main: true}}) {
+				t.Error("the orchestrator's placeholder ID must be dim")
+			}
+			if got(agentRow{Agent: agentusage.Agent{ID: "a1"}, shortID: "a1"}) {
+				t.Error("a real ID keeps the default colour")
+			}
+		case "Share":
+			if !got(agentRow{share: 0}) || !got(agentRow{share: noShare}) || got(agentRow{share: 123}) {
+				t.Error("Share: only 0 and the placeholder are dim")
 			}
 		case "Model":
 			if !got(zero) || got(full) {

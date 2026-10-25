@@ -13,8 +13,13 @@ import (
 )
 
 const (
+	// noValue is the dash of a cell with nothing to show.
+	noValue = "-"
 	// noModel stands for an agent whose transcript named no model.
-	noModel = "-"
+	noModel = noValue
+	// unknownID stands for a sub-agent whose ID is empty, so it cannot be
+	// mistaken for the orchestrator, which has no short ID by design.
+	unknownID = "?"
 	// unknownType stands for a sub-agent whose meta file gave no type.
 	unknownType = "unknown"
 	// orchestratorLabel is the Agent cell of the main agent.
@@ -26,16 +31,21 @@ const (
 	lastStem = "└─ "
 )
 
-// agentRow is one line of the agents table: an agent, and whether it is the
-// last sub-agent, which decides the shape of its branch.
+// agentIDPrefix is the shortest agent ID shown.
+const agentIDPrefix = 8
+
+// agentRow is one line of the agents table.
 type agentRow struct {
 	agentusage.Agent
-	last bool
+	branch  string // stem, lastStem, or "" (orchestrator, or a sorted list)
+	shortID string // ID prefix, distinct within the session; "" for the orchestrator
+	share   int    // tenths of a percent of the session total, or noShare
 }
 
-// agentRows orders a session's agents: the orchestrator first, then the
-// sub-agents by ID. The sort is stable so equal IDs keep their input order.
-func agentRows(u agentusage.Usage) []agentRow {
+// agentRows orders a session's agents (orchestrator, then sub-agents by ID),
+// gives each its short ID and share, and draws the branches when tree is true.
+// The sort is stable so equal IDs keep their input order.
+func agentRows(u agentusage.Usage, tree bool) []agentRow {
 	var main, subs []agentusage.Agent
 	for _, a := range u.Agents {
 		if a.Main {
@@ -46,18 +56,82 @@ func agentRows(u agentusage.Usage) []agentRow {
 	}
 	sort.SliceStable(subs, func(i, j int) bool { return subs[i].ID < subs[j].ID })
 
-	rows := make([]agentRow, 0, len(u.Agents))
-	for _, a := range main {
-		rows = append(rows, agentRow{Agent: a})
+	ordered := append(append([]agentusage.Agent{}, main...), subs...)
+	totals := make([]int64, len(ordered))
+	for i, a := range ordered {
+		totals[i] = a.Tokens.Total()
 	}
+	mainIdx := -1
+	if len(main) > 0 {
+		mainIdx = 0
+	}
+	parts := shares(totals, u.Total().Total(), mainIdx)
+
+	ids := make([]string, len(subs))
 	for i, a := range subs {
-		rows = append(rows, agentRow{Agent: a, last: i == len(subs)-1})
+		ids[i] = a.ID
+	}
+	short := shortAgentIDs(ids)
+
+	rows := make([]agentRow, 0, len(ordered))
+	for i, a := range ordered {
+		row := agentRow{Agent: a, share: parts[i]}
+		if !a.Main {
+			j := i - len(main)
+			row.shortID = short[j]
+			if tree {
+				row.branch = stem
+				if j == len(subs)-1 {
+					row.branch = lastStem
+				}
+			}
+		}
+		rows = append(rows, row)
 	}
 	return rows
 }
 
-// agentColumns describes the agents table. Nothing sorts: the order is the
-// tree. Cache columns give way first on a narrow terminal, writes before reads.
+// shortAgentIDs cuts every ID to one common length, the smallest n >=
+// agentIDPrefix (in runes) at which all of them differ, capped at each ID's
+// own length.
+func shortAgentIDs(ids []string) []string {
+	if len(ids) == 0 {
+		return nil
+	}
+	longest := 0
+	runes := make([][]rune, len(ids))
+	for i, id := range ids {
+		runes[i] = []rune(id)
+		longest = max(longest, len(runes[i]))
+	}
+	cut := func(n int) []string {
+		out := make([]string, len(runes))
+		for i, r := range runes {
+			out[i] = string(r[:min(n, len(r))])
+		}
+		return out
+	}
+	for n := agentIDPrefix; n < longest; n++ {
+		seen := make(map[string]bool, len(ids))
+		distinct := true
+		for _, s := range cut(n) {
+			if seen[s] {
+				distinct = false
+				break
+			}
+			seen[s] = true
+		}
+		if distinct {
+			return cut(n)
+		}
+	}
+	return cut(longest)
+}
+
+// agentColumns describes the agents table. Only Total sorts, largest first;
+// without a sort the order is the tree. Columns give way on a narrow terminal
+// in this order: Cache write, Cache read, In, Model. The ID never does, so two
+// agents of one type stay apart.
 func agentColumns() []datatable.Column[agentRow] {
 	count := func(title string, width int, tokens func(agentRow) int64) datatable.Column[agentRow] {
 		return datatable.Column[agentRow]{
@@ -67,11 +141,14 @@ func agentColumns() []datatable.Column[agentRow] {
 		}
 	}
 	in := count("In", 6, func(r agentRow) int64 { return r.Tokens.Input })
+	in.Optional = true
 	cacheRead := count("Cache read", len("Cache read"), func(r agentRow) int64 { return r.Tokens.CacheRead })
 	cacheRead.Optional = true
 	cacheWrite := count("Cache write", len("Cache write"), func(r agentRow) int64 { return r.Tokens.CacheWrite })
 	cacheWrite.Optional, cacheWrite.DropFirst = true, true
 	total := count("Total", 6, func(r agentRow) int64 { return r.Tokens.Total() })
+	total.Less = func(a, b agentRow) bool { return a.Tokens.Total() < b.Tokens.Total() }
+	total.DescFirst = true
 
 	out := count("Out", 7, nil)
 	out.Cell = outCell
@@ -80,9 +157,14 @@ func agentColumns() []datatable.Column[agentRow] {
 	return []datatable.Column[agentRow]{
 		{Title: "Agent", Sizing: datatable.SizingContent, MinWidth: 14, Cell: roleCell, Search: agentSearch,
 			Style: func(r agentRow) lipgloss.Style { return dimWhen(!r.Main && r.Type == "") }},
-		{Title: "Model", Sizing: datatable.SizingContent, MinWidth: 12, Flex: 2, Cell: modelsCell, Search: modelsCell,
+		{Title: "ID", Sizing: datatable.SizingContent, MinWidth: agentIDPrefix, Cell: idCell,
+			Search: func(r agentRow) string { return r.ID },
+			Style:  func(r agentRow) lipgloss.Style { return dimWhen(idCell(r) == noValue || idCell(r) == unknownID) }},
+		{Title: "Model", Sizing: datatable.SizingContent, MinWidth: 12, Flex: 2, Optional: true, Cell: modelsCell, Search: modelsCell,
 			Style: func(r agentRow) lipgloss.Style { return dimWhen(len(r.Models) == 0) }},
 		in, out, cacheRead, cacheWrite, total,
+		{Title: "Share", Sizing: datatable.SizingFixed, MinWidth: len("100.0%"), Cell: shareCell,
+			Style: func(r agentRow) lipgloss.Style { return dimWhen(r.share <= 0) }},
 	}
 }
 
@@ -95,9 +177,24 @@ func dimWhen(dim bool) lipgloss.Style {
 	return lipgloss.NewStyle()
 }
 
-// agentSearch is what `/` matches in the Agent column: the role and the ID,
-// which no column shows.
-func agentSearch(r agentRow) string { return roleCell(r) + " " + r.ID }
+// agentSearch is what `/` matches in the Agent column: the role. The full ID is
+// searched through the ID column.
+func agentSearch(r agentRow) string { return roleCell(r) }
+
+// idCell is the ID column: the short ID of a sub-agent, a dash for the
+// orchestrator, which has none.
+func idCell(r agentRow) string {
+	switch {
+	case r.Main:
+		return noValue
+	case r.shortID == "":
+		return unknownID
+	}
+	return r.shortID
+}
+
+// shareCell is the Share column.
+func shareCell(r agentRow) string { return formatShare(r.share) }
 
 // roleCell is the Agent cell: "orchestrator", or the sub-agent's type behind
 // its branch.
@@ -109,10 +206,7 @@ func roleCell(r agentRow) string {
 	if typ == "" {
 		typ = unknownType
 	}
-	if r.last {
-		return lastStem + typ
-	}
-	return stem + typ
+	return r.branch + typ
 }
 
 // modelsCell lists the models the agent used.

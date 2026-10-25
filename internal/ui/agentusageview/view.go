@@ -84,6 +84,7 @@ func (m Model) GetShortcuts() shortcut.Shortcuts {
 		{Key: "→", Description: "Open agents", Disabled: !a.Open.Enabled()},
 		{Key: "esc", Description: "Go back", Disabled: !a.Close.Enabled()},
 		{Key: "/", Description: "Filter"},
+		{Key: ".", Description: "Sort"},
 		{Key: "?", Description: "Help"},
 	}
 }
