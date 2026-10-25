@@ -1,0 +1,19 @@
+{
+  "tool_use_id": "toolu_01X71F8W4ckQg2TvBaAzP6d2",
+  "agent_id": "a0f97812af8a7cb63",
+  "subagent_type": "project-coder",
+  "task_description": "Fix Privacy help text",
+  "files": [
+    "internal/ui/agentusageview/agentusageview_test.go",
+    "internal/ui/agentusageview/help.go"
+  ],
+  "token_usage": {
+    "input_tokens": 12,
+    "cache_creation_tokens": 114138,
+    "cache_read_tokens": 508859,
+    "output_tokens": 538,
+    "api_call_count": 6
+  },
+  "started_at": "2026-10-25T21:12:42.853187928+01:00",
+  "completed_at": "2026-10-25T21:13:07.67266256+01:00"
+}

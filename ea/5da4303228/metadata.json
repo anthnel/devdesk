@@ -1,0 +1,45 @@
+{
+  "cli_version": "0.11.5",
+  "checkpoint_id": "ea5da4303228",
+  "strategy": "manual-commit",
+  "branch": "feat/devdesk-42-agent-tree",
+  "checkpoints_count": 16,
+  "files_touched": [
+    "docs/architecture/agent-usage.md",
+    "docs/backlog.md",
+    "internal/ui/agentusageview/agents.go",
+    "internal/ui/agentusageview/agents_level_test.go",
+    "internal/ui/agentusageview/agents_test.go",
+    "internal/ui/agentusageview/agentusageview_test.go",
+    "internal/ui/agentusageview/availability.go",
+    "internal/ui/agentusageview/availability_test.go",
+    "internal/ui/agentusageview/cmd.go",
+    "internal/ui/agentusageview/help.go",
+    "internal/ui/agentusageview/model.go",
+    "internal/ui/agentusageview/update.go",
+    "internal/ui/agentusageview/view.go"
+  ],
+  "sessions": [
+    {
+      "metadata": "/ea/5da4303228/0/metadata.json",
+      "transcript": "/ea/5da4303228/0/full.jsonl",
+      "compact_transcript": "/ea/5da4303228/0/transcript.jsonl",
+      "content_hash": "/ea/5da4303228/0/content_hash.txt",
+      "prompt": "/ea/5da4303228/0/prompt.txt"
+    }
+  ],
+  "token_usage": {
+    "input_tokens": 110,
+    "cache_creation_tokens": 402163,
+    "cache_read_tokens": 6298749,
+    "output_tokens": 21005,
+    "api_call_count": 41,
+    "subagent_tokens": {
+      "input_tokens": 260,
+      "cache_creation_tokens": 1736477,
+      "cache_read_tokens": 12264267,
+      "output_tokens": 5378,
+      "api_call_count": 131
+    }
+  }
+}

@@ -1,0 +1,18 @@
+{
+  "tool_use_id": "toolu_01HZAYJsGJRdUXcgs2czAhpP",
+  "agent_id": "a53caac39404a35d8",
+  "subagent_type": "project-coder",
+  "task_description": "Step 3 green coder",
+  "files": [
+    "internal/ui/agentusageview/availability.go"
+  ],
+  "token_usage": {
+    "input_tokens": 22,
+    "cache_creation_tokens": 143403,
+    "cache_read_tokens": 1307991,
+    "output_tokens": 109,
+    "api_call_count": 11
+  },
+  "started_at": "2026-10-25T17:24:39.474980657+01:00",
+  "completed_at": "2026-10-25T17:26:40.18202838+01:00"
+}
