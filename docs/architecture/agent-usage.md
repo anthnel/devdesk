@@ -495,9 +495,10 @@ and when a session ran at this level (see the privacy amendment above). `→` or
 - **Breadcrumb.** `Sessions › <project> › <short ID>` sits in the footer, one row
   above the filter bar and the message line (Rule 123), and adds one row to
   `GetFooterHeight`.
-- **Header**: `Agents` and `Tokens` (sum of Total), both following the filter.
+- **Header**: `Agents`, `Tokens` (sum of Total), both following the filter, and
+  `Updates` (`live` or `paused`, see "Live updates").
 - **Footer status**: a failed read (red, "Failed to read this session — check
-  logs"), then loading (spinner, "Reading session..."), then, when
+  logs"), then loading (a full read only; spinner, "Reading session..."), then, when
   `Diagnostics.Degraded()`, a warning "Totals are approximate — some transcript
   data could not be read".
 - **Availability (Rule 130).** The shortcut keys are identical at both levels;
@@ -505,10 +506,112 @@ and when a session ran at this level (see the privacy amendment above). `→` or
   `GetShortcuts` and by the handlers through `guard`, which refuses with a Warn
   carrying the reason. `→` is greyed with no session selected or already inside
   a session; `esc` at the session list. `.` is always available, at both levels, and shown as `. Sort` in the header.
-- **Rule 110.** `parseSessionCmd` calls `ParseSession` inside a `Cmd`. Each parse
-  carries `agentGen`, bumped on open, on `ctrl+r` and on leaving the level; an
-  answer with another generation, or arriving after the user went back, is
-  dropped. `ctrl+r` at the agents level re-parses the open session.
+- **Rule 110.** `readDeltaCmd` calls `ReadDelta` inside a `Cmd` on a copy of the
+  `Cursor` and returns a message; `Update` alone touches the model and the
+  `Aggregate`. Each read carries `agentGen`, bumped on open, on a full `ctrl+r`,
+  on leaving the level (`closeAgents`), on `Leave` and on resume; an answer with
+  another generation, or arriving after the user went back, is dropped.
+  `ctrl+r` at the agents level reads the open session again from the start.
+
+#### Live updates (DEVDESK-45)
+
+The agents level follows a session that is still being written. It uses the
+incremental API of DEVDESK-44 (`Cursor`, `Delta`, `Aggregate`), not
+`ParseSession`: the model holds one `*Aggregate` per open session, and each
+read applies a `Delta` to it.
+
+**The polling chain.** Opening a session starts a full read (cursor
+`Rewound()`, spinner, "Reading session..."). Each answer schedules the next
+step: wait `pollInterval` (2 s, `pollTickCmd`), then `startRead(false)` reads
+from the cursor, silently (no spinner). At most one read and one tick exist per
+`agentGen`: `reading` blocks a tick that arrives while a read is in flight, and
+a tick or an answer of another generation is dropped. An empty delta changes
+nothing on screen; a non-empty or full one rebuilds the rows (`withUsage`).
+If `Aggregate.Apply` rejects a delta (not read from the current cursor), the
+view logs it and reads again from the aggregate's own cursor.
+
+**When the chain stops.** After a successful read, the chain ends if
+`Activity().Settled(at, quietPeriod)` is true: `quietPeriod` is 5 min, and a
+session with any sub-agent not finished is never settled (see "Activity and
+`Settled`"). It also ends on `os.ErrNotExist` (the parent transcript was
+deleted). Any other error retries after another 2 s from the same cursor and
+keeps the rows already shown; the footer says "Failed to read this session —
+check logs", and only the first failure of a streak is logged. A successful
+read clears the error.
+
+**`pollStopped`.** The model records the end of the chain as `pollStopped`
+(true = stopped). The plan spoke of a `live` field; the code has the opposite
+sense, so that the zero value of a fresh model is "polling". It makes a late
+tick of the same generation start nothing, and every full read clears it.
+
+**The `Updates` header.** `Updates › live` while an aggregate is open and
+`pollStopped` is false, `paused` otherwise. It is derived on every frame
+(`updatesState`), not stored. Pressing `ctrl+r` on a settled session clears
+`pollStopped` for the duration of the full read, so the header can go
+`paused → live → paused` in a few frames when the session is still quiet.
+
+**`ctrl+r` is a full read.** It rewinds the cursor (`Cursor.Rewound()`), reads
+everything again, and shows the spinner. If a read is already in flight, it is
+never doubled (one per `Aggregate`): `fullPending` is set and the full read
+starts when that read answers, whether it succeeded or failed.
+
+**Leaving and coming back** (`LeavingView`, see `app-shell.md`).
+- `Leave()` bumps `agentGen`, which drops any tick or read in flight, and
+  clears `reading` and `agentsLoading`. The open session and its rows stay. If
+  a full read was in flight (a `ctrl+r`, or the open's first read), `Leave` sets
+  `fullPending`, so the resume repeats it. It always returns `true`.
+- `switchView` calls `Init()` on every entry; at the agents level `Init` adds
+  `resumeCmd()`, which answers `agentsResumeMsg`. `handleResume` bumps
+  `agentGen` again, clears `pollStopped` and starts a read from the cursor,
+  silent: coming back reads what changed while away, and goes back to live if
+  the session is still being written. With `fullPending`, the read is full and
+  has its spinner.
+
+**The cursor stays on the same agent.** `selection.go` gives each agent a
+stable key: `main` for the orchestrator, `sub:<ID>#n` for a sub-agent, `n`
+counting the earlier agents with the same ID (two twins with one ID keep their
+own keys). Keys are computed on the canonical order (`agentRows`), never on the
+sorted or filtered one, otherwise twins would swap keys whenever they swap
+ranks. `withUsage` records the key under the cursor before rebuilding the rows
+and puts the cursor back on it, whatever the filter and the sort did to the
+order; if the agent is gone, the cursor is clamped.
+
+**Column widths are not reshuffled every two seconds.** `withUsage` calls
+`Remeasure()` only after a full read, or when the *population* changed. The
+population is the list of keys plus the models of each row (`populationOf`):
+counts change on every delta and do not count. An agent's type can arrive late
+(its meta file is written after its transcript); the type is deliberately not
+part of the population, so a late type stays truncated to the width measured
+earlier until the next `ctrl+r` or change of population.
+
+**The sessions list is not live.** Only the open session is polled. The list
+of sessions is read on entry and by `ctrl+r` at the sessions level.
+
+**Privacy.** `usageDeltaMsg` implements `String` and `GoString` so that `%v`
+and `%+v`, `%#v` print only `gen`, the delta's own redacted form and whether
+the read failed. A `Delta` holds file paths behind unexported fields, which
+`fmt` cannot hand to the `Delta`'s redacting methods when the message is
+dumped. Read errors are logged and never shown.
+
+**Known limits, deliberate.**
+1. *An unreadable parent shows an empty orchestrator.* If the parent
+   transcript exists but cannot be read (for instance `chmod 000`),
+   `ReadDelta` returns `err == nil`: the screen shows an orchestrator at 0 and
+   the warning "Totals are approximate…", where the earlier `ParseSession`
+   path showed the red "Failed to read this session" footer. Accepted by the
+   product owner; it is documented here rather than worked around.
+2. *A session that resumes after `Settled` stays `paused`.* Once the chain has
+   stopped on a quiet session, nothing polls the file any more. The header
+   keeps saying `paused` until `ctrl+r` or until the user leaves the view and
+   comes back (the resume reads the cursor and restarts the chain).
+3. *A failed `ctrl+r` full read is not replayed.* If the full read started by
+   `ctrl+r` fails for a cause other than `ErrNotExist`, the retry starts from
+   the aggregate's cursor and does not rewind it: the `ctrl+r` is lost, and
+   only the red footer says that something failed. Press `ctrl+r` again.
+4. *Some exits do not call `Leave`.* The paths that leave the view by another
+   means than `switchView` (the viewer, netdiag, the path picker) are not
+   reachable from `:agent-usage` today. If one is added, it has to stop the
+   chain the way `Leave` does, or a poll would continue under another view.
 
 **Privacy.** The view displays the project directory, the date, the session ID,
 agent types, models and token counts. It never displays or logs the paths of

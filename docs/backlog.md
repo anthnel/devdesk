@@ -1,6 +1,6 @@
 # DevDesk Backlog
 
-**Last Updated:** 2026-10-22
+**Last Updated:** 2026-10-29
 
 Open work for DevDesk: known defects, technical debt, and planned features.
 Replaces the former `todo.md` at the repository root. Items completed there
@@ -131,6 +131,36 @@ laissé de côté, et pourquoi.
 
 Windows n'est pas couvert par la CI (Linux seul) : l'identité de fichier y est
 prise sur le handle ouvert, à vérifier à la main avant une release.
+
+**Consigne S-05b (DEVDESK-45, 2026-10-29) — appliquée.** One read in flight per
+`Aggregate`: within one `agentGen` the chain alternates tick → read → tick, so
+no overlap happens by construction (`internal/ui/agentusageview/update.go`). The
+two overlaps that remain are user-driven (re-entering the view, opening another
+session while a read is blocked): one per action, never per tick. Decisions and
+limits, as accepted:
+
+- **Stop rule: 5 minutes of silence, full stop (option A, user).** Polling ends
+  when every agent is finished and nothing was written for `quietPeriod`, or when
+  the transcript is gone (`os.ErrNotExist`). Option C (a slow stat-only probe
+  that resumes polling) was considered and rejected. Cost, accepted: an
+  orchestrator alone that runs a long tool call and then resumes shows stale
+  totals until `ctrl+r` or re-entry; the header then reads `Updates › paused`.
+- **Unreadable transcript: no red footer, « Totals are approximate » (accepted
+  by the user).** It is a degraded status, not an error. The only red error is
+  the deleted transcript. Candidate for a ticket: a more precise message.
+- **A `ctrl+r` that fails with an error other than `ErrNotExist` is lost.**
+  `failRead` consumes the pending full read and resumes incremental polling,
+  which was not rewound: a same-size rewrite stays invisible until the next
+  `ctrl+r`. Accepted for now. The fix would keep the rewind pending until a full
+  read succeeds.
+- **An agent type that arrives late stays truncated until `ctrl+r`.** The meta
+  file is read after the transcript, and `populationOf` ignores the type, so
+  the Agent column is remeasured only on `ctrl+r` or a change of population.
+  Accepted: a two-second delta must not reshuffle the widths.
+- **The sessions list is not live (H1).** Its « Last active » column can lag
+  while a session runs.
+- No ADR written: `docs/` has no `adr/` or `decisions/` directory, so there is
+  no ADR convention to follow here.
 
 **D86 — le fil d'Ariane de `:jobs` et d'`:agent-usage` s'intercale entre le
 viewport et la barre de filtre ; le routeur ne ferme donc pas le rectangle de la

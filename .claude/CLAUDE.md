@@ -25,7 +25,7 @@ DevDesk is a terminal-based TUI (Text User Interface) application built with Go 
 - Network diagnostics (DNS, route, ICMP, TCP, TLS, HTTP) + real-time port monitoring + this machine's interfaces + local port forwarding (unprivileged, loopback only)
 - Multi-context configuration management via YAML
 - Local workspaces management with git metadata
-- Claude Code session list (`:agent-usage` / `:au`): sessions found on this machine, by project and date, and per session the agent tree (orchestrator and sub-agents: types, models, tokens, share of the total; sortable by Total)
+- Claude Code session list (`:agent-usage` / `:au`): sessions found on this machine, by project and date, and per session the agent tree (orchestrator and sub-agents: types, models, tokens, share of the total; sortable by Total). An open session updates live: read again every 2 s while active, only what was appended; paused after 5 min with no write and no unfinished sub-agent, or when its transcript is gone (header `Updates › paused`); `ctrl+r` reads it again in full. The sessions list itself is not live.
 
 ## Build and Development Commands
 

@@ -177,8 +177,9 @@ func (a *App) switchView(view command.ViewType) tea.Cmd {
 // holds, and lets it refuse to be left.
 //
 // A view that does not implement LeavingView is left without ceremony, which is
-// every view but one: the configuration form is the only screen that keeps a
-// value in a widget rather than in the model until a key moves the cursor.
+// every view but two: the configuration form keeps a value in a widget rather
+// than in the model until a key moves the cursor, and the agent usage view has a
+// live poll to stop.
 //
 // Returning false keeps the current view *and* whatever it wants to say about
 // why — the caller passes that Cmd on rather than the switch it did not make.

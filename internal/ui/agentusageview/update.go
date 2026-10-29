@@ -1,7 +1,9 @@
 package agentusageview
 
 import (
+	"errors"
 	"log"
+	"os"
 
 	"github.com/charmbracelet/bubbles/spinner"
 	tea "github.com/charmbracelet/bubbletea"
@@ -18,8 +20,12 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m.handleResize(msg)
 	case sessionListLoadedMsg:
 		return m.handleListLoaded(msg)
-	case sessionUsageLoadedMsg:
-		return m.handleUsageLoaded(msg)
+	case usageDeltaMsg:
+		return m.handleUsageDelta(msg)
+	case usagePollTickMsg:
+		return m.handlePollTick(msg)
+	case agentsResumeMsg:
+		return m.handleResume()
 	case spinner.TickMsg:
 		return m.handleSpinnerTick(msg)
 	case tea.KeyMsg:
@@ -84,24 +90,109 @@ func (m Model) handleSpinnerTick(msg spinner.TickMsg) (tea.Model, tea.Cmd) {
 	return m, cmd
 }
 
-// handleUsageLoaded takes a parsed session, or ignores one for a session that
-// was left or re-read since. A failed refresh keeps the rows already shown.
-func (m Model) handleUsageLoaded(msg sessionUsageLoadedMsg) (tea.Model, tea.Cmd) {
-	if msg.gen != m.agentGen || m.level != levelAgents {
+// handleUsageDelta takes the answer to the read in flight, or drops one that
+// is for another generation or that nobody is waiting for. A failed read keeps
+// the rows already shown.
+func (m Model) handleUsageDelta(msg usageDeltaMsg) (tea.Model, tea.Cmd) {
+	if msg.gen != m.agentGen || m.level != levelAgents || !m.reading || m.agg == nil {
 		return m, nil
 	}
-	m.agentsLoading = false
+	m.reading = false
 	if msg.err != nil {
-		// The error names the file by base name only; the path stays out.
-		log.Printf("ERROR [agentusageview] read session: %v", msg.err)
-		m.agentsErr = true
-		return m, nil
+		return m.failRead(msg.err)
+	}
+	if err := m.agg.Apply(msg.delta); err != nil {
+		// Not read from the current cursor: read again from where it is now.
+		log.Printf("ERROR [agentusageview] apply delta: %v", err)
+		m.reading = true
+		return m, readDeltaCmd(m.agentGen, m.agg.Cursor())
 	}
 	m.agentsErr = false
-	m.usage = msg.usage
-	m.agentTable.SetItems(agentRows(msg.usage, m.agentsTree()))
-	m.agentTable.Remeasure() // another session is another population
-	return m, nil
+	if msg.delta.Full() || !msg.delta.Empty() {
+		m = m.withUsage(m.agg.Usage(), msg.delta.Full())
+	}
+	if m.fullPending {
+		m.fullPending = false
+		return m, m.startRead(true)
+	}
+	m.agentsLoading = false
+	if m.agg.Activity().Settled(msg.at, quietPeriod) {
+		m.pollStopped = true
+		return m, nil // nothing left to wait for: the chain ends here
+	}
+	return m, pollTickCmd(m.agentGen)
+}
+
+// failRead records a failed read. Only the first failure of a streak is
+// logged. The error names files by base name only; it never reaches the UI.
+// A deleted transcript ends the poll chain; any other failure retries, after
+// the full read a ctrl+r left pending, if there is one.
+func (m Model) failRead(err error) (tea.Model, tea.Cmd) {
+	if !m.agentsErr {
+		log.Printf("ERROR [agentusageview] read session: %v", err)
+	}
+	m.agentsErr = true
+	if errors.Is(err, os.ErrNotExist) {
+		m.agentsLoading, m.fullPending, m.pollStopped = false, false, true
+		return m, nil
+	}
+	if m.fullPending {
+		m.fullPending = false
+		return m, m.startRead(true)
+	}
+	m.agentsLoading = false
+	return m, pollTickCmd(m.agentGen)
+}
+
+// handlePollTick starts the incremental read a tick asks for, unless the tick
+// belongs to a superseded chain or a read is already in flight. No spinner:
+// polling is silent.
+func (m Model) handlePollTick(msg usagePollTickMsg) (tea.Model, tea.Cmd) {
+	if msg.gen != m.agentGen || m.level != levelAgents || m.agg == nil || m.reading || m.pollStopped {
+		return m, nil
+	}
+	return m, m.startRead(false)
+}
+
+// Leave stops the open session's chain when the router switches away: the new
+// generation drops any tick or read still in flight, and nothing is awaited
+// any more. The session stays open and coming back resumes it (handleResume).
+// A pending ctrl+r is kept, and so is a full read lost in flight (a ctrl+r, or
+// the open's first read): the resume repeats it as a full read. It never refuses.
+func (m Model) Leave() (tea.Model, tea.Cmd, bool) {
+	if m.level == levelAgents {
+		m.agentGen++
+		m.fullPending = m.fullPending || (m.reading && m.agentsLoading)
+		m.reading, m.agentsLoading = false, false
+	}
+	return m, nil, true
+}
+
+// handleResume restarts the open session's chain under a new generation, which
+// drops the answers of any earlier chain. It reads from the cursor, silently;
+// a ctrl+r left pending by Leave becomes a full read, with its spinner.
+func (m Model) handleResume() (tea.Model, tea.Cmd) {
+	if m.level != levelAgents || m.agg == nil {
+		return m, nil
+	}
+	m.agentGen++
+	m.pollStopped = false
+	if m.fullPending {
+		m.fullPending = false
+		return m, tea.Batch(m.startRead(true), m.spinner.Tick)
+	}
+	return m, m.startRead(false)
+}
+
+// startRead marks a read in flight and returns it; full reads everything again.
+func (m *Model) startRead(full bool) tea.Cmd {
+	c := m.agg.Cursor()
+	if full {
+		c = c.Rewound()
+		m.agentsLoading, m.fullPending, m.pollStopped = true, false, false
+	}
+	m.reading = true
+	return readDeltaCmd(m.agentGen, c)
 }
 
 // handleKey gives the filter the keyboard first; ctrl+r refreshes the level on
@@ -141,9 +232,13 @@ func (m Model) agentsTree() bool {
 // branches follow the new order: a sorted list is flat, a branch there would
 // lie about who is whose child.
 func (m Model) cycleAgentSort(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
+	selected, hadSelection := m.selectedAgentKey()
 	cmd := m.agentTable.Update(msg)
 	m.agentTable.SetItems(agentRows(m.usage, m.agentsTree()))
 	m.agentTable.Remeasure() // the Agent column narrows or widens by the branch
+	if hadSelection {
+		m.selectAgentKey(selected)
+	}
 	return m, cmd
 }
 
@@ -163,10 +258,11 @@ func (m Model) openSelected() (tea.Model, tea.Cmd) {
 	m.level = levelAgents
 	m.open = row.Session
 	m.agentGen++
-	m.agentsLoading, m.agentsErr = true, false
+	m.agg = agentusage.NewAggregate(row.Parent)
+	m.fullPending, m.agentsErr = false, false
 	m.agentTable.FilterBar().ClearSearch() // a filter typed for another session
 	m.agentTable.SetItems(nil)
-	return m, tea.Batch(parseSessionCmd(m.agentGen, m.open.Parent), m.spinner.Tick)
+	return m, tea.Batch(m.startRead(true), m.spinner.Tick)
 }
 
 // closeAgents returns to the sessions, cursor and filter as they were. Bumping
@@ -175,6 +271,7 @@ func (m Model) closeAgents() (tea.Model, tea.Cmd) {
 	m.level = levelSessions
 	m.agentGen++
 	m.agentsLoading, m.agentsErr = false, false
+	m.agg, m.reading, m.fullPending = nil, false, false
 	m.usage = agentusage.Usage{}
 	m.agentTable.SetItems(nil)
 	return m, nil
@@ -184,14 +281,30 @@ func (m Model) closeAgents() (tea.Model, tea.Cmd) {
 // The rows stay on screen.
 func (m Model) refresh() (tea.Model, tea.Cmd) {
 	if m.level == levelAgents {
-		m.agentGen++
-		m.agentsLoading = true
-		return m, tea.Batch(parseSessionCmd(m.agentGen, m.open.Parent), m.spinner.Tick)
+		return m.refreshAgents()
 	}
 	m.gen++
 	m.loading = true
 	m.loadErr = false
 	return m, tea.Batch(listSessionsCmd(m.gen), m.spinner.Tick)
+}
+
+// refreshAgents reads the open session from the start. A read already in
+// flight is never doubled (one per Aggregate): the full read follows its answer.
+func (m Model) refreshAgents() (tea.Model, tea.Cmd) {
+	if m.agg == nil {
+		m.agg = agentusage.NewAggregate(m.open.Parent)
+	}
+	if m.reading {
+		spin := !m.agentsLoading // a spinner chain already runs otherwise
+		m.fullPending, m.agentsLoading = true, true
+		if spin {
+			return m, m.spinner.Tick
+		}
+		return m, nil
+	}
+	m.agentGen++
+	return m, tea.Batch(m.startRead(true), m.spinner.Tick)
 }
 
 // InEditMode tells the router the filter has the keyboard.

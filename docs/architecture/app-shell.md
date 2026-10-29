@@ -109,8 +109,11 @@ view's own `Cmd` on in place of it. `switchContext` calls it too, since it
 rebuilds every view against a different file.
 
 The interface is optional and probed for silently, like the other four — the
-configuration view is the only one that implements it, and every other view is
-left without ceremony. Re-entering the view already on screen settles nothing:
+configuration view and the agent usage view are the only two that implement it,
+and every other view is left without ceremony. The configuration view uses it to
+settle an edit; the agent usage view uses it for something else, to stop a timer
+and abandon a read in flight (`Leave` bumps its generation, see `agent-usage.md`),
+and it never refuses. Re-entering the view already on screen settles nothing:
 `:cfg` from `:cfg` is not a save.
 
 ## The keyboard — `internal/ui/keymap`
