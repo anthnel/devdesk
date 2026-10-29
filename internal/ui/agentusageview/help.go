@@ -9,7 +9,7 @@ func (m Model) GetHelpContent() help.Content {
 		Description: "The Claude Code sessions found on this machine, newest first. " +
 			"Only where and when a session ran is read — nothing a session says.",
 		KeyBindings: []help.KeyBinding{
-			{Key: "ctrl+r", Description: "Read the sessions, or the open session, again"},
+			{Key: "ctrl+r", Description: "Re-read the whole session from the start (at the sessions level: read the sessions again)"},
 			{Key: "→/enter", Description: "Open the selected session's agents"},
 			{Key: "←/esc", Description: "Back to the sessions"},
 			{Key: "/", Description: "Filter by project or session ID"},
@@ -51,6 +51,13 @@ func (m Model) GetHelpContent() help.Content {
 					"The orchestrator takes the rounding remainder, so the column adds up to 100%. A dash means the session has no tokens.\n" +
 					"Press . to cycle: tree, then Total largest first, then Total smallest first, then the tree again. " +
 					"Sorted, the list is flat: the branches go away. The sort stays when you open another session or press ctrl+r.",
+			},
+			{
+				Title: "Live updates",
+				Body: "While a session is open and still active, its figures are refreshed every 2 s and the header shows Updates: live.\n" +
+					"Updates pause after 5 min without activity once every agent has finished (a session with an unfinished sub-agent stays live), or when its transcript is deleted: the header shows Updates: paused.\n" +
+					"Press ctrl+r to resume. Re-read the whole session from the start with ctrl+r; coming back to the view only reads what changed since the last point read, and goes back to live if the session is being written to.\n" +
+					"The list of sessions itself is not live: refresh it with ctrl+r at the sessions level.",
 			},
 			{
 				Title: "Privacy",

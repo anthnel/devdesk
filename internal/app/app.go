@@ -38,7 +38,8 @@ type FormView interface {
 }
 
 // LeavingView is implemented by a view that holds an edit the user has not
-// settled yet, and that would otherwise be lost when the router switches away.
+// settled yet, and that would otherwise be lost when the router switches away,
+// or that has a timer or a read in flight to stop (the :agent-usage poll chain).
 //
 // The router had no such point at all: switchView told nobody, so the
 // configuration view's focused text field was written only by ↑↓ or tab. A path

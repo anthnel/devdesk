@@ -40,6 +40,7 @@ type agentRow struct {
 	branch  string // stem, lastStem, or "" (orchestrator, or a sorted list)
 	shortID string // ID prefix, distinct within the session; "" for the orchestrator
 	share   int    // tenths of a percent of the session total, or noShare
+	key     string // identity across rebuilds, see agentKeys
 }
 
 // agentRows orders a session's agents (orchestrator, then sub-agents by ID),
@@ -73,9 +74,10 @@ func agentRows(u agentusage.Usage, tree bool) []agentRow {
 	}
 	short := shortAgentIDs(ids)
 
+	keys := agentKeys(ordered)
 	rows := make([]agentRow, 0, len(ordered))
 	for i, a := range ordered {
-		row := agentRow{Agent: a, share: parts[i]}
+		row := agentRow{Agent: a, share: parts[i], key: keys[i]}
 		if !a.Main {
 			j := i - len(main)
 			row.shortID = short[j]

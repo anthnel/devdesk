@@ -60,10 +60,15 @@ func opened(t *testing.T, m Model, key string) (Model, tea.Cmd) {
 	return next, cmd
 }
 
-// answer delivers a parse result for the model's current agent generation.
+// answer shows u as the answer to the read in flight: it goes through the same
+// entry the delta handler uses once the aggregate has applied the delta
+// (withUsage), then marks the read as answered. Synthetic usage cannot travel
+// as a Delta, whose fields are private to internal/agentusage.
 func answer(t *testing.T, m Model, u agentusage.Usage) Model {
 	t.Helper()
-	return feed(t, m, sessionUsageLoadedMsg{gen: m.agentGen, usage: u})
+	m = m.withUsage(u, true)
+	m.reading = false
+	return m
 }
 
 // batchMsgs runs every Cmd of a batch concurrently and returns what they
@@ -100,10 +105,10 @@ func batchMsgs(t *testing.T, cmd tea.Cmd) []tea.Msg {
 	return msgs
 }
 
-func usageMsgs(msgs []tea.Msg) []sessionUsageLoadedMsg {
-	var got []sessionUsageLoadedMsg
+func usageMsgs(msgs []tea.Msg) []usageDeltaMsg {
+	var got []usageDeltaMsg
 	for _, m := range msgs {
-		if u, ok := m.(sessionUsageLoadedMsg); ok {
+		if u, ok := m.(usageDeltaMsg); ok {
 			got = append(got, u)
 		}
 	}
@@ -235,7 +240,7 @@ func TestAStaleParseIsIgnored(t *testing.T) {
 		t.Fatalf("agentGen = %d, open/back/open must advance it past %d", m.agentGen, genA+1)
 	}
 
-	m = feed(t, m, sessionUsageLoadedMsg{gen: genA, usage: threeSubs()})
+	m = feed(t, m, usageDeltaMsg{gen: genA})
 	if !m.agentsLoading {
 		t.Error("the answer for A must not end B's loading")
 	}
@@ -249,7 +254,7 @@ func TestAnAnswerAfterBackIsIgnored(t *testing.T) {
 	m, _ = opened(t, m, "right")
 	gen := m.agentGen
 	m, _ = opened(t, m, "esc")
-	m = feed(t, m, sessionUsageLoadedMsg{gen: gen, usage: threeSubs()})
+	m = feed(t, m, usageDeltaMsg{gen: gen})
 	if m.level != levelSessions {
 		t.Errorf("level = %v, a late answer must not reopen the level", m.level)
 	}
@@ -298,7 +303,7 @@ func TestARefreshFailureKeepsTheAgentRows(t *testing.T) {
 	m, _ = opened(t, m, "right")
 	m = answer(t, m, threeSubs())
 	m, _ = opened(t, m, "ctrl+r")
-	m = feed(t, m, sessionUsageLoadedMsg{gen: m.agentGen, err: errors.New("boom")})
+	m = feed(t, m, usageDeltaMsg{gen: m.agentGen, err: errors.New("boom")})
 	if !m.agentsErr {
 		t.Fatal("agentsErr must be set")
 	}
@@ -334,28 +339,43 @@ func TestCtrlRAtTheAgentsLevelParsesAgain(t *testing.T) {
 	}
 }
 
-func TestInitAtTheAgentsLevelParsesTheOpenSessionToo(t *testing.T) {
+// Init at the agents level keeps listing and also resumes the open session:
+// it cannot change the model, so it asks Update to (agentsResumeMsg). It reads
+// no session itself; the resume does, once Update has the message.
+func TestInitAtTheAgentsLevelRelistsAndResumes(t *testing.T) {
 	m := withSessions(t, "/p/a.jsonl")
 	m, _ = opened(t, m, "right")
 
 	msgs := batchMsgs(t, m.Init())
-	if got := usageMsgs(msgs); len(got) != 1 || got[0].gen != m.agentGen {
-		t.Errorf("Init must parse the open session for gen %d, got %+v", m.agentGen, got)
-	}
-	var lists int
+	var lists, resumes int
 	for _, msg := range msgs {
-		if _, ok := msg.(sessionListLoadedMsg); ok {
+		switch msg.(type) {
+		case sessionListLoadedMsg:
 			lists++
+		case agentsResumeMsg:
+			resumes++
 		}
 	}
 	if lists != 1 {
 		t.Errorf("Init must still re-list, got %d listings", lists)
 	}
+	if resumes != 1 {
+		t.Errorf("Init must ask to resume the open session, got %d agentsResumeMsg in %+v", resumes, msgs)
+	}
+	if got := usageMsgs(msgs); len(got) != 0 {
+		t.Errorf("Init reads no session by itself, got %+v", got)
+	}
 
-	// At the sessions level Init parses nothing.
+	// At the sessions level Init reads no session and resumes nothing.
 	top := withSessions(t, "/p/a.jsonl")
-	if got := usageMsgs(batchMsgs(t, top.Init())); len(got) != 0 {
-		t.Errorf("sessions-level Init must not parse, got %+v", got)
+	topMsgs := batchMsgs(t, top.Init())
+	if got := usageMsgs(topMsgs); len(got) != 0 {
+		t.Errorf("sessions-level Init must not read a session, got %+v", got)
+	}
+	for _, msg := range topMsgs {
+		if _, ok := msg.(agentsResumeMsg); ok {
+			t.Error("sessions-level Init must not resume")
+		}
 	}
 }
 
@@ -769,7 +789,7 @@ func TestTheBasicFixtureSortsByTotalTokens(t *testing.T) {
 
 	rows := m.agentTable.Visible()
 	totals := make(map[string]int64)
-	for _, a := range got[0].usage.Agents {
+	for _, a := range m.usage.Agents {
 		totals[a.ID] = a.Tokens.Total()
 	}
 	if len(rows) != len(totals) {

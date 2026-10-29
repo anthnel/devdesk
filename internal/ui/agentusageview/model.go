@@ -32,14 +32,6 @@ type sessionListLoadedMsg struct {
 	err     error
 }
 
-// sessionUsageLoadedMsg carries one parsed session. gen is agentGen at the time
-// the parse started: it drops the answer for a session left or re-read since.
-type sessionUsageLoadedMsg struct {
-	gen   int
-	usage agentusage.Usage
-	err   error
-}
-
 // level is the screen on view: the sessions, or the agents of one session.
 type level int
 
@@ -63,7 +55,20 @@ type Model struct {
 	// usage is the last parse of open, kept for what the footer says about it.
 	usage agentusage.Usage
 	// agentGen numbers the parses, as gen numbers the listings.
-	agentGen      int
+	agentGen int
+	// agg reads the open session incrementally. Update owns it; a Cmd only
+	// ever gets a copy of its Cursor (Rule 110). nil at the sessions level.
+	agg *agentusage.Aggregate
+	// reading is true while a read of agentGen is in flight: one at a time.
+	reading bool
+	// fullPending records a ctrl+r pressed during a read; the full read starts
+	// when that read answers.
+	fullPending bool
+	// pollStopped says the poll chain ended (settled session, deleted
+	// transcript): a late tick of the same generation starts nothing. A full
+	// read clears it.
+	pollStopped bool
+	// agentsLoading says a full read is in flight (the footer spinner).
 	agentsLoading bool
 	// agentsErr says the most recent parse failed (a state, like loadErr).
 	agentsErr bool
@@ -107,7 +112,8 @@ func New(_ *config.Config) Model {
 func (m Model) Init() tea.Cmd {
 	cmds := []tea.Cmd{listSessionsCmd(m.gen), m.spinner.Tick}
 	if m.level == levelAgents {
-		cmds = append(cmds, parseSessionCmd(m.agentGen, m.open.Parent))
+		// Init cannot change the model: Update restarts the open session's chain.
+		cmds = append(cmds, resumeCmd())
 	}
 	return tea.Batch(cmds...)
 }

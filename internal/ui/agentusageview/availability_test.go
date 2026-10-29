@@ -50,8 +50,8 @@ func TestAgentsLevelAdvertisesTheSameSixKeys(t *testing.T) {
 		"agents loading":   agentsLoadingModel(t),
 		"agents loaded":    atAgents(t, threeSubs()),
 	}
-	failed := atAgents(t, threeSubs())
-	failed = feed(t, failed, sessionUsageLoadedMsg{gen: failed.agentGen, err: os.ErrNotExist})
+	failed := agentsLoadingModel(t) // a read is in flight, so its error is accepted
+	failed = feed(t, failed, usageDeltaMsg{gen: failed.agentGen, err: os.ErrNotExist})
 	states["agents error"] = failed
 	states["agents filtering"] = feed(t, atAgents(t, threeSubs()), testutil.Key("/"))
 

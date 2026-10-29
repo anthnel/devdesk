@@ -71,7 +71,17 @@ func (m Model) agentsHeaderInfo() []shortcut.HeaderInfo {
 	return []shortcut.HeaderInfo{
 		{Key: "Agents", Value: strconv.Itoa(len(rows)), Style: theme.HeaderValueStyle},
 		{Key: "Tokens", Value: formatTokens(total), Style: theme.HeaderValueStyle},
+		{Key: "Updates", Value: m.updatesState(), Style: theme.HeaderValueStyle},
 	}
+}
+
+// updatesState says whether the open session is polled: live while the chain
+// runs, paused once it stopped (settled session, deleted transcript).
+func (m Model) updatesState() string {
+	if m.level == levelAgents && m.agg != nil && !m.pollStopped {
+		return "live"
+	}
+	return "paused"
 }
 
 // GetShortcuts returns the same keys at both levels and in every state; what
