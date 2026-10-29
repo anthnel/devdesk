@@ -1,0 +1,18 @@
+{
+  "tool_use_id": "toolu_015rnnuzDNdQGPZKeWd5fFmM",
+  "agent_id": "af613048a826a9dd6",
+  "subagent_type": "project-tester",
+  "task_description": "Red tests step 3",
+  "files": [
+    "internal/ui/agentusageview/poll_test.go"
+  ],
+  "token_usage": {
+    "input_tokens": 28,
+    "cache_creation_tokens": 165703,
+    "cache_read_tokens": 1908757,
+    "output_tokens": 190,
+    "api_call_count": 14
+  },
+  "started_at": "2026-10-29T11:27:03.152396992+01:00",
+  "completed_at": "2026-10-29T11:29:44.689530183+01:00"
+}

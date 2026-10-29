@@ -1,0 +1,15 @@
+{
+  "tool_use_id": "toolu_01QBYnkJZxruLD6xAKf64tWa",
+  "agent_id": "a4f3a79b4b395e726",
+  "subagent_type": "team-core:tech-writer",
+  "task_description": "Docs: agent-usage and app-shell",
+  "token_usage": {
+    "input_tokens": 16,
+    "cache_creation_tokens": 135196,
+    "cache_read_tokens": 694846,
+    "output_tokens": 1896,
+    "api_call_count": 7
+  },
+  "started_at": "2026-10-29T15:11:21.526663433+01:00",
+  "completed_at": "2026-10-29T15:12:15.334368101+01:00"
+}

@@ -1,0 +1,15 @@
+{
+  "tool_use_id": "toolu_0124FXLq99kXkTkpbvjy4QU5",
+  "agent_id": "a4a1ac2666f98bb69",
+  "subagent_type": "project-coder",
+  "task_description": "Fix Leave lost full read",
+  "token_usage": {
+    "input_tokens": 12,
+    "cache_creation_tokens": 130853,
+    "cache_read_tokens": 556913,
+    "output_tokens": 772,
+    "api_call_count": 6
+  },
+  "started_at": "2026-10-29T14:39:55.872801255+01:00",
+  "completed_at": "2026-10-29T14:41:23.326447705+01:00"
+}

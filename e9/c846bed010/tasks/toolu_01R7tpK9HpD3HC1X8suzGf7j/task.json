@@ -1,0 +1,18 @@
+{
+  "tool_use_id": "toolu_01R7tpK9HpD3HC1X8suzGf7j",
+  "agent_id": "ad4d3b53479eb0f40",
+  "subagent_type": "project-tester",
+  "task_description": "Fill step 4 gap, red step 5",
+  "files": [
+    "internal/ui/agentusageview/leave_test.go"
+  ],
+  "token_usage": {
+    "input_tokens": 26,
+    "cache_creation_tokens": 100074,
+    "cache_read_tokens": 988704,
+    "output_tokens": 181,
+    "api_call_count": 13
+  },
+  "started_at": "2026-10-29T14:31:14.302702733+01:00",
+  "completed_at": "2026-10-29T14:33:19.258415237+01:00"
+}

@@ -1,0 +1,18 @@
+{
+  "tool_use_id": "toolu_01TTfdec9nNWg486qxYnJe4m",
+  "agent_id": "ac95543d1ea81682a",
+  "subagent_type": "project-tester",
+  "task_description": "Red tests step 4",
+  "files": [
+    "internal/ui/agentusageview/live_test.go"
+  ],
+  "token_usage": {
+    "input_tokens": 20,
+    "cache_creation_tokens": 170254,
+    "cache_read_tokens": 1270975,
+    "output_tokens": 11343,
+    "api_call_count": 10
+  },
+  "started_at": "2026-10-29T12:09:00.17351971+01:00",
+  "completed_at": "2026-10-29T12:12:08.145520468+01:00"
+}
