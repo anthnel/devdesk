@@ -3,10 +3,18 @@
   "checkpoint_id": "ae6f33f2f51b",
   "strategy": "manual-commit",
   "branch": "feat/devdesk-44-incremental-reader",
-  "checkpoints_count": 3,
+  "checkpoints_count": 11,
   "files_touched": [
     "docs/architecture/agent-usage.md",
-    "docs/backlog.md"
+    "docs/backlog.md",
+    "internal/agentusage/aggregate.go",
+    "internal/agentusage/aggregate_test.go",
+    "internal/agentusage/hardening_test.go",
+    "internal/agentusage/layout.go",
+    "internal/agentusage/lines.go",
+    "internal/agentusage/lines_test.go",
+    "internal/agentusage/parse.go",
+    "internal/agentusage/usage.go"
   ],
   "sessions": [
     {
@@ -15,6 +23,13 @@
       "compact_transcript": "/ae/6f33f2f51b/0/transcript.jsonl",
       "content_hash": "/ae/6f33f2f51b/0/content_hash.txt",
       "prompt": "/ae/6f33f2f51b/0/prompt.txt"
+    },
+    {
+      "metadata": "/ae/6f33f2f51b/1/metadata.json",
+      "transcript": "/ae/6f33f2f51b/1/full.jsonl",
+      "compact_transcript": "/ae/6f33f2f51b/1/transcript.jsonl",
+      "content_hash": "/ae/6f33f2f51b/1/content_hash.txt",
+      "prompt": "/ae/6f33f2f51b/1/prompt.txt"
     }
   ],
   "token_usage": {
