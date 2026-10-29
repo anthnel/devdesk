@@ -1,0 +1,41 @@
+{
+  "cli_version": "0.11.5",
+  "checkpoint_id": "adc616f50fc0",
+  "strategy": "manual-commit",
+  "branch": "main",
+  "checkpoints_count": 2,
+  "files_touched": [
+    "docs/architecture/agent-usage.md",
+    "docs/architecture/ui-components.md",
+    "internal/ui/agentusageview/agents.go",
+    "internal/ui/agentusageview/agents_level_test.go",
+    "internal/ui/agentusageview/agents_test.go",
+    "internal/ui/agentusageview/agentusageview_test.go",
+    "internal/ui/agentusageview/availability.go",
+    "internal/ui/agentusageview/availability_test.go",
+    "internal/ui/agentusageview/help.go",
+    "internal/ui/agentusageview/model.go",
+    "internal/ui/agentusageview/share.go",
+    "internal/ui/agentusageview/share_test.go",
+    "internal/ui/agentusageview/update.go",
+    "internal/ui/agentusageview/view.go",
+    "internal/ui/datatable/datatable.go",
+    "internal/ui/datatable/datatable_test.go"
+  ],
+  "sessions": [
+    {
+      "metadata": "/ad/c616f50fc0/0/metadata.json",
+      "transcript": "/ad/c616f50fc0/0/full.jsonl",
+      "compact_transcript": "/ad/c616f50fc0/0/transcript.jsonl",
+      "content_hash": "/ad/c616f50fc0/0/content_hash.txt",
+      "prompt": "/ad/c616f50fc0/0/prompt.txt"
+    }
+  ],
+  "token_usage": {
+    "input_tokens": 0,
+    "cache_creation_tokens": 0,
+    "cache_read_tokens": 0,
+    "output_tokens": 0,
+    "api_call_count": 0
+  }
+}
