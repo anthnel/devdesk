@@ -1,0 +1,48 @@
+{
+  "cli_version": "0.11.5",
+  "checkpoint_id": "f95cd0ba906f",
+  "strategy": "manual-commit",
+  "branch": "main",
+  "checkpoints_count": 5,
+  "files_touched": [
+    "docs/architecture/agent-usage.md",
+    "docs/architecture/app-shell.md",
+    "internal/agentusage/hardening_test.go",
+    "internal/agentusage/limits.go",
+    "internal/agentusage/sessions.go",
+    "internal/agentusage/sessions_test.go",
+    "internal/agentusage/testdata/README.md",
+    "internal/app/agent_usage_test.go",
+    "internal/app/command_line.go",
+    "internal/app/command_line_test.go",
+    "internal/app/harness_test.go",
+    "internal/command/parser.go",
+    "internal/command/parser_test.go",
+    "internal/ui/agentusageview/agentusageview_test.go",
+    "internal/ui/agentusageview/cmd.go",
+    "internal/ui/agentusageview/columns.go",
+    "internal/ui/agentusageview/help.go",
+    "internal/ui/agentusageview/model.go",
+    "internal/ui/agentusageview/stub.go",
+    "internal/ui/agentusageview/update.go",
+    "internal/ui/agentusageview/view.go",
+    "internal/ui/components/footer_guard_test.go",
+    "internal/ui/theme/icons.go"
+  ],
+  "sessions": [
+    {
+      "metadata": "/f9/5cd0ba906f/0/metadata.json",
+      "transcript": "/f9/5cd0ba906f/0/full.jsonl",
+      "compact_transcript": "/f9/5cd0ba906f/0/transcript.jsonl",
+      "content_hash": "/f9/5cd0ba906f/0/content_hash.txt",
+      "prompt": "/f9/5cd0ba906f/0/prompt.txt"
+    }
+  ],
+  "token_usage": {
+    "input_tokens": 0,
+    "cache_creation_tokens": 0,
+    "cache_read_tokens": 0,
+    "output_tokens": 0,
+    "api_call_count": 0
+  }
+}
