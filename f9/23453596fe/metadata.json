@@ -1,0 +1,38 @@
+{
+  "cli_version": "0.11.5",
+  "checkpoint_id": "f923453596fe",
+  "strategy": "manual-commit",
+  "branch": "main",
+  "checkpoints_count": 3,
+  "files_touched": [
+    "docs/architecture/agent-usage.md",
+    "docs/backlog.md",
+    "internal/ui/agentusageview/agents.go",
+    "internal/ui/agentusageview/agents_level_test.go",
+    "internal/ui/agentusageview/agents_test.go",
+    "internal/ui/agentusageview/agentusageview_test.go",
+    "internal/ui/agentusageview/availability.go",
+    "internal/ui/agentusageview/availability_test.go",
+    "internal/ui/agentusageview/cmd.go",
+    "internal/ui/agentusageview/help.go",
+    "internal/ui/agentusageview/model.go",
+    "internal/ui/agentusageview/update.go",
+    "internal/ui/agentusageview/view.go"
+  ],
+  "sessions": [
+    {
+      "metadata": "/f9/23453596fe/0/metadata.json",
+      "transcript": "/f9/23453596fe/0/full.jsonl",
+      "compact_transcript": "/f9/23453596fe/0/transcript.jsonl",
+      "content_hash": "/f9/23453596fe/0/content_hash.txt",
+      "prompt": "/f9/23453596fe/0/prompt.txt"
+    }
+  ],
+  "token_usage": {
+    "input_tokens": 0,
+    "cache_creation_tokens": 0,
+    "cache_read_tokens": 0,
+    "output_tokens": 0,
+    "api_call_count": 0
+  }
+}
