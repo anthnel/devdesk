@@ -1,0 +1,18 @@
+{
+  "tool_use_id": "toolu_01KZ4H4xBg21P1MTsbBkZpRS",
+  "agent_id": "adf5648c329bcc7b7",
+  "subagent_type": "project-coder",
+  "task_description": "Green step 2 merge table",
+  "files": [
+    "internal/agentusage/table.go"
+  ],
+  "token_usage": {
+    "input_tokens": 26,
+    "cache_creation_tokens": 167767,
+    "cache_read_tokens": 1795701,
+    "output_tokens": 6837,
+    "api_call_count": 13
+  },
+  "started_at": "2026-10-25T22:16:10.761157358+01:00",
+  "completed_at": "2026-10-25T22:19:31.617654607+01:00"
+}

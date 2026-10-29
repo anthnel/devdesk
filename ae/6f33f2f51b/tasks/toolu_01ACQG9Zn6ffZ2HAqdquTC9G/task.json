@@ -1,0 +1,20 @@
+{
+  "tool_use_id": "toolu_01ACQG9Zn6ffZ2HAqdquTC9G",
+  "agent_id": "a4864b843958f3821",
+  "subagent_type": "project-tester",
+  "task_description": "Red tests step 3 readFile",
+  "files": [
+    "internal/agentusage/incremental.go",
+    "internal/agentusage/incremental_file_test.go",
+    "internal/agentusage/incremental_file_unix_test.go"
+  ],
+  "token_usage": {
+    "input_tokens": 24,
+    "cache_creation_tokens": 157139,
+    "cache_read_tokens": 1401389,
+    "output_tokens": 496,
+    "api_call_count": 12
+  },
+  "started_at": "2026-10-25T22:37:40.633816035+01:00",
+  "completed_at": "2026-10-25T22:41:08.463590957+01:00"
+}

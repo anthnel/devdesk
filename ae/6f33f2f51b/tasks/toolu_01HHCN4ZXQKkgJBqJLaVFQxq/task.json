@@ -1,0 +1,15 @@
+{
+  "tool_use_id": "toolu_01HHCN4ZXQKkgJBqJLaVFQxq",
+  "agent_id": "a22b7069fe16d57b6",
+  "subagent_type": "dev-team:security-reviewer",
+  "task_description": "Security review incremental reader",
+  "token_usage": {
+    "input_tokens": 16,
+    "cache_creation_tokens": 168814,
+    "cache_read_tokens": 916021,
+    "output_tokens": 373,
+    "api_call_count": 8
+  },
+  "started_at": "2026-10-26T02:27:49.528497134+01:00",
+  "completed_at": "2026-10-26T02:30:02.397424908+01:00"
+}

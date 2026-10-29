@@ -1,0 +1,18 @@
+{
+  "tool_use_id": "toolu_011CH9fVGm1pgavQtAjo6PcU",
+  "agent_id": "a3745cfda7e1fdfbb",
+  "subagent_type": "project-tester",
+  "task_description": "Red tests step 5 Activity/Settled",
+  "files": [
+    "internal/agentusage/activity_test.go"
+  ],
+  "token_usage": {
+    "input_tokens": 20,
+    "cache_creation_tokens": 150088,
+    "cache_read_tokens": 840234,
+    "output_tokens": 140,
+    "api_call_count": 9
+  },
+  "started_at": "2026-10-29T09:36:18.646952687+01:00",
+  "completed_at": "2026-10-29T09:38:31.739863153+01:00"
+}

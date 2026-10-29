@@ -1,0 +1,18 @@
+{
+  "tool_use_id": "toolu_01XbwtczYHpwwMgPh8i8f6Ly",
+  "agent_id": "a8af3d9d963980072",
+  "subagent_type": "project-tester",
+  "task_description": "Red tests step 4 ReadDelta",
+  "files": [
+    "internal/agentusage/incremental_test.go"
+  ],
+  "token_usage": {
+    "input_tokens": 38,
+    "cache_creation_tokens": 212667,
+    "cache_read_tokens": 2988295,
+    "output_tokens": 27783,
+    "api_call_count": 19
+  },
+  "started_at": "2026-10-26T02:14:13.356731425+01:00",
+  "completed_at": "2026-10-26T02:21:02.619593484+01:00"
+}

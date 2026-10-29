@@ -1,0 +1,15 @@
+{
+  "tool_use_id": "toolu_01AJ3bRdzRLLWKKTBf8wgnLA",
+  "agent_id": "ab952c0d05702bba3",
+  "subagent_type": "project-coder",
+  "task_description": "Fix Settled and LastChange per review",
+  "token_usage": {
+    "input_tokens": 12,
+    "cache_creation_tokens": 119050,
+    "cache_read_tokens": 420129,
+    "output_tokens": 117,
+    "api_call_count": 6
+  },
+  "started_at": "2026-10-29T10:07:30.271533859+01:00",
+  "completed_at": "2026-10-29T10:09:20.530779112+01:00"
+}

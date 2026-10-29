@@ -1,0 +1,18 @@
+{
+  "tool_use_id": "toolu_01EKH16k9r5dozbxv8KRTC1d",
+  "agent_id": "a276e34edecbf317a",
+  "subagent_type": "project-tester",
+  "task_description": "Red test: read error during skip",
+  "files": [
+    "internal/agentusage/lines_test.go"
+  ],
+  "token_usage": {
+    "input_tokens": 10,
+    "cache_creation_tokens": 110758,
+    "cache_read_tokens": 399444,
+    "output_tokens": 1623,
+    "api_call_count": 5
+  },
+  "started_at": "2026-10-25T22:13:06.502733912+01:00",
+  "completed_at": "2026-10-25T22:13:39.854576216+01:00"
+}

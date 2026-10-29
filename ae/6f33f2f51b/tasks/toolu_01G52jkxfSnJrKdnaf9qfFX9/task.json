@@ -1,0 +1,15 @@
+{
+  "tool_use_id": "toolu_01G52jkxfSnJrKdnaf9qfFX9",
+  "agent_id": "a47bb87331895a496",
+  "subagent_type": "team-core:archivist",
+  "task_description": "Update CLAUDE.md for incremental reader",
+  "token_usage": {
+    "input_tokens": 14,
+    "cache_creation_tokens": 111458,
+    "cache_read_tokens": 463496,
+    "output_tokens": 73,
+    "api_call_count": 7
+  },
+  "started_at": "2026-10-29T10:09:36.915779034+01:00",
+  "completed_at": "2026-10-29T10:10:17.554719286+01:00"
+}

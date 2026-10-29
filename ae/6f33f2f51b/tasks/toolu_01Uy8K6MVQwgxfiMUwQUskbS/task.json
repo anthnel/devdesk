@@ -1,0 +1,18 @@
+{
+  "tool_use_id": "toolu_01Uy8K6MVQwgxfiMUwQUskbS",
+  "agent_id": "adb899ebbdbb13e0b",
+  "subagent_type": "project-tester",
+  "task_description": "Red test: sanitized ID collision",
+  "files": [
+    "internal/agentusage/table_collision_test.go"
+  ],
+  "token_usage": {
+    "input_tokens": 10,
+    "cache_creation_tokens": 70682,
+    "cache_read_tokens": 259947,
+    "output_tokens": 72,
+    "api_call_count": 5
+  },
+  "started_at": "2026-10-25T22:35:35.302094788+01:00",
+  "completed_at": "2026-10-25T22:36:12.58419307+01:00"
+}

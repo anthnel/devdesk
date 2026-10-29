@@ -1,0 +1,18 @@
+{
+  "tool_use_id": "toolu_01Mztconaq1otx5k9HWcscNe",
+  "agent_id": "a8d51d5744ef40b15",
+  "subagent_type": "project-tester",
+  "task_description": "Red tests step 1 scanFrom",
+  "files": [
+    "internal/agentusage/lines.go"
+  ],
+  "token_usage": {
+    "input_tokens": 8,
+    "cache_creation_tokens": 150446,
+    "cache_read_tokens": 347663,
+    "output_tokens": 62,
+    "api_call_count": 4
+  },
+  "started_at": "2026-10-25T22:08:45.483994932+01:00",
+  "completed_at": "2026-10-25T22:09:52.563347247+01:00"
+}

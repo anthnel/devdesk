@@ -3,17 +3,29 @@
   "checkpoint_id": "ae6f33f2f51b",
   "strategy": "manual-commit",
   "branch": "feat/devdesk-44-incremental-reader",
-  "checkpoints_count": 11,
+  "checkpoints_count": 45,
   "files_touched": [
     "docs/architecture/agent-usage.md",
     "docs/backlog.md",
+    "internal/agentusage/activity_test.go",
     "internal/agentusage/aggregate.go",
     "internal/agentusage/aggregate_test.go",
     "internal/agentusage/hardening_test.go",
+    "internal/agentusage/incremental.go",
+    "internal/agentusage/incremental_file_test.go",
+    "internal/agentusage/incremental_file_unix_test.go",
+    "internal/agentusage/incremental_fuzz_test.go",
+    "internal/agentusage/incremental_meta_unix_test.go",
+    "internal/agentusage/incremental_race_test.go",
+    "internal/agentusage/incremental_review_test.go",
+    "internal/agentusage/incremental_test.go",
     "internal/agentusage/layout.go",
     "internal/agentusage/lines.go",
     "internal/agentusage/lines_test.go",
     "internal/agentusage/parse.go",
+    "internal/agentusage/table.go",
+    "internal/agentusage/table_collision_test.go",
+    "internal/agentusage/table_test.go",
     "internal/agentusage/usage.go"
   ],
   "sessions": [
@@ -30,13 +42,27 @@
       "compact_transcript": "/ae/6f33f2f51b/1/transcript.jsonl",
       "content_hash": "/ae/6f33f2f51b/1/content_hash.txt",
       "prompt": "/ae/6f33f2f51b/1/prompt.txt"
+    },
+    {
+      "metadata": "/ae/6f33f2f51b/2/metadata.json",
+      "transcript": "/ae/6f33f2f51b/2/full.jsonl",
+      "compact_transcript": "/ae/6f33f2f51b/2/transcript.jsonl",
+      "content_hash": "/ae/6f33f2f51b/2/content_hash.txt",
+      "prompt": "/ae/6f33f2f51b/2/prompt.txt"
     }
   ],
   "token_usage": {
-    "input_tokens": 0,
-    "cache_creation_tokens": 0,
-    "cache_read_tokens": 0,
-    "output_tokens": 0,
-    "api_call_count": 0
+    "input_tokens": 236,
+    "cache_creation_tokens": 645059,
+    "cache_read_tokens": 15151808,
+    "output_tokens": 60282,
+    "api_call_count": 90,
+    "subagent_tokens": {
+      "input_tokens": 544,
+      "cache_creation_tokens": 4585311,
+      "cache_read_tokens": 30630687,
+      "output_tokens": 64497,
+      "api_call_count": 273
+    }
   }
 }
