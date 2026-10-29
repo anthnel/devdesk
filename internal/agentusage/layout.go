@@ -44,6 +44,25 @@ func ProjectsRoot() (string, error) {
 // missing session directory means no sub-agents. Symbolic links are ignored
 // and nothing is searched recursively.
 func LocateSession(parentTranscript string) (SessionFiles, error) {
+	return locateSession(parentTranscript, metaOpens)
+}
+
+// metaPresence tells whether the meta file at path exists as a plain file.
+type metaPresence func(path string) bool
+
+// metaOpens checks a meta file by opening it through openPlain.
+func metaOpens(path string) bool {
+	mf, _ := openPlain(path, false)
+	if mf == nil {
+		return false
+	}
+	_ = mf.Close()
+	return true
+}
+
+// locateSession is LocateSession with the meta presence check chosen by the
+// caller: a poller passes an Lstat-only one so it never opens a meta file.
+func locateSession(parentTranscript string, present metaPresence) (SessionFiles, error) {
 	base := filepath.Base(parentTranscript)
 	if !strings.HasSuffix(base, transcriptExt) {
 		return SessionFiles{}, fmt.Errorf("agentusage: %s does not end in %s", base, transcriptExt)
@@ -67,14 +86,14 @@ func LocateSession(parentTranscript string) (SessionFiles, error) {
 		}
 		return files, baseOnly(err)
 	}
-	files.SubAgents, err = subAgentFiles(filepath.Join(sessionDir, subagentsDir))
+	files.SubAgents, err = subAgentFiles(filepath.Join(sessionDir, subagentsDir), present)
 	return files, baseOnly(err)
 }
 
 // subAgentFiles lists agent-<id>.jsonl files directly inside dir, sorted by
 // ID, each with its meta file if one exists. A missing dir or a symbolic
 // link yields nothing.
-func subAgentFiles(dir string) ([]SubAgentFiles, error) {
+func subAgentFiles(dir string, present metaPresence) ([]SubAgentFiles, error) {
 	f, err := openPlain(dir, true)
 	if f == nil {
 		if err == nil || errors.Is(err, os.ErrNotExist) {
@@ -89,7 +108,7 @@ func subAgentFiles(dir string) ([]SubAgentFiles, error) {
 	}
 	var out []SubAgentFiles
 	for _, e := range entries {
-		if sa, ok := subAgentEntry(dir, e); ok {
+		if sa, ok := subAgentEntry(dir, e, present); ok {
 			out = append(out, sa)
 		}
 	}
@@ -99,7 +118,7 @@ func subAgentFiles(dir string) ([]SubAgentFiles, error) {
 
 // subAgentEntry turns a directory entry into a sub-agent, if it is a
 // regular agent-<id>.jsonl file.
-func subAgentEntry(dir string, e os.DirEntry) (SubAgentFiles, bool) {
+func subAgentEntry(dir string, e os.DirEntry, present metaPresence) (SubAgentFiles, bool) {
 	name := e.Name()
 	if !e.Type().IsRegular() || !strings.HasPrefix(name, agentPrefix) || !strings.HasSuffix(name, transcriptExt) {
 		return SubAgentFiles{}, false
@@ -110,8 +129,7 @@ func subAgentEntry(dir string, e os.DirEntry) (SubAgentFiles, bool) {
 	}
 	sa := SubAgentFiles{ID: sanitizeLabel(id), Transcript: filepath.Join(dir, name)}
 	metaPath := filepath.Join(dir, agentPrefix+id+metaExt)
-	if mf, _ := openPlain(metaPath, false); mf != nil {
-		_ = mf.Close()
+	if present(metaPath) {
 		sa.Meta = metaPath
 	}
 	return sa, true

@@ -13,7 +13,7 @@ const readerBufferBytes = 64 << 10
 // MaxLineBytes is the longest line (newline excluded) kept in memory.
 const MaxLineBytes = 4 << 20
 
-// scanResult describes what scanLines consumed.
+// scanResult describes what scanLines and scanFrom consumed.
 type scanResult struct {
 	// Consumed is the offset just past the last complete line.
 	Consumed int64
@@ -23,29 +23,32 @@ type scanResult struct {
 	OversizedAt []int64
 	// Tail holds the bytes after the last newline (an incomplete line).
 	Tail []byte
+	// End is base + the number of bytes read (base is 0 for scanLines).
+	End int64
+	// SkipFrom is the start of an oversized line cut by EOF or a read error, or -1.
+	SkipFrom int64
 }
 
-// scanLines calls fn for every complete, non-empty line of r no longer
-// than maxLen bytes. off is the offset of the line's first byte; line has no
-// trailing "\n" or "\r" and is only valid during the call: fn must copy it
-// to keep it. Complete lines longer than maxLen are skipped without being held
-// in memory. An incomplete final line is returned in Tail whatever its
-// length, unless it already exceeds maxLen: it is then dropped, and counted in
-// neither Consumed nor Oversized (it may never be completed). A Tail of
-// maxLen+1 or maxLen+2 bytes is still kept (the cutoff is maxLen+2, since a
-// "\r" may follow); one longer than that is dropped.
-func scanLines(r io.Reader, maxLen int, fn func(line []byte, off int64)) (scanResult, error) {
+// scanFrom is scanLines for a stream positioned at byte base of a file:
+// offsets given to fn and returned are absolute. If skipFrom >= 0 the stream
+// starts inside an oversized line that began at skipFrom: bytes up to the
+// first "\n" are skipped and that line is counted once, at skipFrom.
+// Consumed starts at base, End is base plus the bytes read, and SkipFrom is
+// the start of an oversized line still unfinished at EOF (-1 otherwise).
+func scanFrom(r io.Reader, base, skipFrom int64, maxLen int, fn func(line []byte, off int64)) (scanResult, error) {
 	br := bufio.NewReaderSize(r, readerBufferBytes)
+	res := scanResult{Consumed: base, End: base, SkipFrom: -1}
 	var (
-		res      scanResult
 		pending  []byte // line prefix reassembled across buffer fills
-		skipping bool   // the current line is already known to be too long
-		pos      int64  // bytes read so far
+		skipping = skipFrom >= 0
+		start    = base // offset of the current line's first byte
 	)
-	start := int64(0) // offset of the current line's first byte
+	if skipping {
+		start = skipFrom
+	}
 	for {
 		chunk, err := br.ReadSlice('\n')
-		pos += int64(len(chunk))
+		res.End += int64(len(chunk))
 		if !skipping {
 			// maxLen+1 bytes are kept so a trailing "\r" does not count against maxLen.
 			if len(pending)+len(chunk) > maxLen+2 { // +1 more: chunk may end with "\n"
@@ -61,18 +64,36 @@ func scanLines(r io.Reader, maxLen int, fn func(line []byte, off int64)) (scanRe
 			} else {
 				res.emit(pending, start, maxLen, fn)
 			}
-			res.Consumed = pos
-			start, pending, skipping = pos, pending[:0], false
+			res.Consumed = res.End
+			start, pending, skipping = res.End, pending[:0], false
 		case errors.Is(err, bufio.ErrBufferFull):
 		case errors.Is(err, io.EOF):
-			if !skipping {
+			if skipping {
+				res.SkipFrom = start
+			} else {
 				res.Tail = bytes.Clone(pending)
 			}
 			return res, nil
 		default:
+			if skipping {
+				res.SkipFrom = start // keep the oversized line resumable
+			}
 			return res, err
 		}
 	}
+}
+
+// scanLines calls fn for every complete, non-empty line of r no longer
+// than maxLen bytes. off is the offset of the line's first byte; line has no
+// trailing "\n" or "\r" and is only valid during the call: fn must copy it
+// to keep it. Complete lines longer than maxLen are skipped without being held
+// in memory. An incomplete final line is returned in Tail whatever its
+// length, unless it already exceeds maxLen: it is then dropped, and counted in
+// neither Consumed nor Oversized (it may never be completed). A Tail of
+// maxLen+1 or maxLen+2 bytes is still kept (the cutoff is maxLen+2, since a
+// "\r" may follow); one longer than that is dropped.
+func scanLines(r io.Reader, maxLen int, fn func(line []byte, off int64)) (scanResult, error) {
+	return scanFrom(r, 0, -1, maxLen, fn)
 }
 
 // emit trims the line terminator from raw (which ends with "\n") and hands

@@ -37,14 +37,14 @@ func TestFilesCappedPerFileCountersKeepCounting(t *testing.T) {
 }
 
 func TestFilesCapIsPerFile(t *testing.T) {
-	a := newAggregator([]Agent{{Main: true}})
+	a := newTestAgg([]Agent{{Main: true}})
 	for _, f := range []string{"a.jsonl", "b.jsonl"} {
 		for i := 0; i < 150; i++ {
 			a.addLine(0, f, int64(i*10), []byte("garbage"))
 		}
 	}
-	if a.diag.UnreadableLines != 300 || len(a.diag.Files) != 2*maxFileIssuesPerFile {
-		t.Fatalf("Unreadable=%d len(Files)=%d, want 300 and %d", a.diag.UnreadableLines, len(a.diag.Files), 2*maxFileIssuesPerFile)
+	if a.diag().UnreadableLines != 300 || len(a.diag().Files) != 2*maxFileIssuesPerFile {
+		t.Fatalf("Unreadable=%d len(Files)=%d, want 300 and %d", a.diag().UnreadableLines, len(a.diag().Files), 2*maxFileIssuesPerFile)
 	}
 }
 
@@ -53,25 +53,25 @@ func TestFilesCapIsPerFile(t *testing.T) {
 // per-message table entry (it can no longer be deduplicated; as no-id lines
 // are keyed by offset they were never deduplicated anyway).
 func TestNoIDEntriesCapped(t *testing.T) {
-	a := newAggregator([]Agent{{Main: true}})
+	a := newTestAgg([]Agent{{Main: true}})
 	const extra = 50
 	n := maxNoIDEntries + extra
 	for i := 0; i < n; i++ {
 		a.addLine(0, "p.jsonl", int64(i), msgLine("", "m", "end_turn", 1, 0, 0, 0))
 	}
-	if len(a.entries) > maxNoIDEntries {
-		t.Fatalf("entries = %d, want <= %d", len(a.entries), maxNoIDEntries)
+	if len(a.t.entries) > maxNoIDEntries {
+		t.Fatalf("entries = %d, want <= %d", len(a.t.entries), maxNoIDEntries)
 	}
 	got := a.finish()[0]
-	if a.diag.NoMessageID != n || got.Tokens.Input != int64(n) || got.Messages != n {
-		t.Fatalf("NoMessageID=%d input=%d messages=%d, want %d each", a.diag.NoMessageID, got.Tokens.Input, got.Messages, n)
+	if a.diag().NoMessageID != n || got.Tokens.Input != int64(n) || got.Messages != n {
+		t.Fatalf("NoMessageID=%d input=%d messages=%d, want %d each", a.diag().NoMessageID, got.Tokens.Input, got.Messages, n)
 	}
 }
 
 // --- 2. models and versions ---
 
 func TestModelsCappedFirstSeenFirst(t *testing.T) {
-	a := newAggregator([]Agent{{Main: true}})
+	a := newTestAgg([]Agent{{Main: true}})
 	for i := 0; i < 10000; i++ {
 		a.addLine(0, "p.jsonl", int64(i), msgLine(fmt.Sprintf("id%d", i), fmt.Sprintf("model-%d", i), "end_turn", 1, 0, 0, 0))
 	}
@@ -91,7 +91,7 @@ func TestModelsCappedFirstSeenFirst(t *testing.T) {
 
 func TestLongModelTruncated(t *testing.T) {
 	long := strings.Repeat("m", 4000)
-	a := newAggregator([]Agent{{Main: true}})
+	a := newTestAgg([]Agent{{Main: true}})
 	a.addLine(0, "p.jsonl", 0, msgLine("i1", long, "end_turn", 1, 0, 0, 0))
 	got := a.finish()[0]
 	if len(got.Models) != 1 || got.Models[0] != long[:maxLabelLen] {
@@ -100,17 +100,17 @@ func TestLongModelTruncated(t *testing.T) {
 }
 
 func TestVersionsCappedAndTruncated(t *testing.T) {
-	a := newAggregator([]Agent{{Main: true}})
+	a := newTestAgg([]Agent{{Main: true}})
 	for i := 0; i < 500; i++ {
 		l := fmt.Sprintf(`{"version":"v%d","message":null}`, i)
 		a.addLine(0, "p.jsonl", int64(i), []byte(l))
 	}
-	a.noteVersion(strings.Repeat("v", 4000))
+	a.addLine(0, "p.jsonl", 1000, []byte(`{"version":"`+strings.Repeat("v", 4000)+`","message":null}`))
 	if v := a.versions(); len(v) != maxVersions || v[0] != "v0" {
 		t.Fatalf("len(versions) = %d (first %q), want %d", len(v), v[0], maxVersions)
 	}
-	b := newAggregator([]Agent{{Main: true}})
-	b.noteVersion(strings.Repeat("v", 4000))
+	b := newTestAgg([]Agent{{Main: true}})
+	b.addLine(0, "p.jsonl", 0, []byte(`{"version":"`+strings.Repeat("v", 4000)+`","message":null}`))
 	if v := b.versions(); len(v) != 1 || len(v[0]) != maxLabelLen {
 		t.Fatalf("versions = %q, want one of %d bytes", v, maxLabelLen)
 	}
@@ -291,18 +291,18 @@ var _ io.Reader = (*diskFailReader)(nil)
 func TestParseReaderMidFileReadError(t *testing.T) {
 	l1 := string(msgLine("m1", "x", "end_turn", 3, 4, 0, 0)) + "\n"
 	l2 := string(msgLine("m2", "x", "end_turn", 5, 6, 0, 0)) + "\n"
-	a := newAggregator([]Agent{{Main: true}})
-	parseReader(a, 0, "p.jsonl", &diskFailReader{data: l1 + l2 + `{"message":{"id`})
+	a := newTestAgg([]Agent{{Main: true}})
+	parseReader(a.t, "", "p.jsonl", parentRank, &diskFailReader{data: l1 + l2 + `{"message":{"id`})
 	got := a.finish()[0]
 	if got.Tokens.Input != 8 || got.Messages != 2 {
 		t.Fatalf("kept tokens=%+v messages=%d, want both complete lines", got.Tokens, got.Messages)
 	}
-	if a.diag.UnreadableLines != 0 {
-		t.Errorf("UnreadableLines = %d, want 0 (a read error is not an unreadable line)", a.diag.UnreadableLines)
+	if a.diag().UnreadableLines != 0 {
+		t.Errorf("UnreadableLines = %d, want 0 (a read error is not an unreadable line)", a.diag().UnreadableLines)
 	}
 	want := FileIssue{File: "p.jsonl", Offset: int64(len(l1) + len(l2)), Kind: IssueReadError}
-	if len(a.diag.Files) != 1 || a.diag.Files[0] != want {
-		t.Fatalf("Files = %+v, want [%+v]", a.diag.Files, want)
+	if len(a.diag().Files) != 1 || a.diag().Files[0] != want {
+		t.Fatalf("Files = %+v, want [%+v]", a.diag().Files, want)
 	}
 }
 

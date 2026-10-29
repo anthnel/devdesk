@@ -24,9 +24,10 @@ What it does **not** do:
 **The public API is a contract.** Every exported symbol in the table below
 (`Tokens`, `Agent`, `State`, `Usage`, `Diagnostics`, `FileIssue`, `IssueKind`,
 `SessionFiles`, `SubAgentFiles`, `ParseSession`, `LocateSession`, `ProjectsRoot`,
-`ListSessions`, `Session`, `Listing`)
-is consumed by S-03b, S-04 and S-05a. Changing a field is a change to those
-stories; add, do not rename.
+`ListSessions`, `Session`, `Listing`, and, since DEVDESK-44, `Cursor`, `Delta`,
+`ReadDelta`, `Aggregate`, `NewAggregate`, `Activity`, `ErrStaleDelta`)
+is consumed by S-03b, S-04, S-05a and S-05b (DEVDESK-45). Changing a field is a
+change to those stories; add, do not rename.
 
 ## Public API
 
@@ -36,7 +37,14 @@ stories; add, do not rename.
 | `LocateSession(parentTranscript)` | from `<dir>/<uuid>.jsonl`, finds `<dir>/<uuid>/subagents/agent-<id>.jsonl` and their meta files. Returns `SessionFiles{ID, Parent, SubAgents}`. A missing session directory means no sub-agents. Returns an error if the parent is missing, is a symbolic link or is not a regular file. |
 | `SessionFiles` | `ID`, `Parent` (path of the parent transcript), `SubAgents []SubAgentFiles` |
 | `SubAgentFiles` | `ID`, `Transcript`, `Meta` (`""` if the meta file is absent) |
-| `ParseSession(SessionFiles)` | returns `Usage`. Fails only if the parent transcript cannot be opened: a missing file, a symbolic link or a non-regular file is an **error**, not an ignored input. |
+| `ParseSession(SessionFiles)` | returns `Usage`. Fails only if the parent transcript cannot be opened: a missing file, a symbolic link or a non-regular file is an **error**, not an ignored input. Since DEVDESK-44 it is one full delta applied to an empty `Aggregate` (see "Incremental reading"): same result as before, one code path. |
+| `Cursor` | how far each file of one session has been read. A plain value: copying it is safe and `ReadDelta` never mutates it. Holds full paths, so `String`/`GoString` redact them (`agentusage.Cursor{files: N}`). `Rewound()` returns it with every position cleared (next read is Full): the `ctrl+r` path. |
+| `Delta` | what `ReadDelta` found since a `Cursor`. `Full()`: read from the start of every file. `Empty()`: nothing changed. `String`/`GoString` show counts only. Applied once, by `Aggregate.Apply`, which takes ownership. |
+| `ReadDelta(Cursor)` | lists the session again (`Lstat` only for the parent, `subagents/` and the meta files) and reads what was appended since the cursor. Returns `(Delta, error)`. Errors name base names only; on error there is nothing to apply. |
+| `NewAggregate(parentTranscript)` | an empty `*Aggregate` for `<dir>/<uuid>.jsonl`. No I/O. |
+| `Aggregate` | the session's usage built from successive deltas. Methods: `Cursor()` (a copy, to hand to `ReadDelta`), `Apply(Delta) error`, `Usage() Usage` (a deep copy, same shape and rules as `ParseSession`), `Activity() Activity`. **Not safe for concurrent use**: one goroutine owns it. `String`/`GoString` show counts only. |
+| `ErrStaleDelta` | returned by `Apply`, with nothing changed, for a delta that was not read from the aggregate's current cursor. Read again from `Cursor()`. |
+| `Activity{LastChange, Unfinished}` | what the applied reads say about the session's life. `Settled(now, quiet)` tells a poller it can stop. See "Activity and `Settled`". |
 | `ListSessions(root)` | lists `<root>/<project>/<uuid>.jsonl`, one level deep, never recursively. Returns `Listing`. A missing root is an empty `Listing` and no error; a root that is not a directory or cannot be read is an error naming the base name only. The root itself may be a symbolic link (the user's own choice); anything below it may not. |
 | `Session{ID, Parent, Project, ModTime}` | `Parent` is a full path, for `LocateSession`, and is never logged. `Project` is the working directory read from the transcript (`cwd`), sanitized and capped at 4096 bytes, or `""` if none. `ModTime` is the transcript's modification time. |
 | `Listing{Sessions, Omitted}` | `Sessions` newest `ModTime` first, ties by ID ascending. `Omitted` counts what was not listed: linked or non-regular transcripts, linked or unreadable project directories, and sessions past the cap. |
@@ -118,6 +126,181 @@ The format is not a documented API, so the parser degrades rather than fails.
 - A missing meta file counts in `MetaMissing`; an unreadable one in
   `MetaUnreadable`.
 
+## Incremental reading (DEVDESK-44)
+
+`ParseSession` reads a whole session once. A view that keeps a session open
+needs to follow it as it grows without reading a multi-MB transcript again on
+every update. `incremental.go` (reading, `Aggregate`, `Activity`) and `table.go`
+(the merge) do that. There is no tick, no `gen` and no UI here: wiring them is
+S-05b (DEVDESK-45).
+
+```go
+agg := agentusage.NewAggregate(parent)       // no I/O
+d, err := agentusage.ReadDelta(agg.Cursor()) // in a tea.Cmd (Rule 110)
+err = agg.Apply(d)                           // in Update(); ErrStaleDelta if d is not from agg.Cursor()
+u := agg.Usage()                             // same shape as ParseSession
+agg.Cursor().Rewound()                       // ctrl+r: next ReadDelta is Full
+```
+
+### How a file is read
+
+Each file of the session has a read position (`fileCursor`): the `offset` just
+past the last complete line folded in, the `size` seen at the last read, the
+identity (`os.FileInfo`) of the handle opened, and a few flags below.
+
+- **Unchanged file: `Lstat` only.** If the `Lstat` size equals the size seen and
+  `os.SameFile` matches the identity, the file is not opened. A session that
+  no longer writes costs one `Lstat` per transcript, one per meta file and one
+  `ReadDir` of `subagents/`, and no content read. A cursor holding an
+  `IssueReadError` is never "quiet": the bytes after the failure are read again.
+- **Append: read from `offset`.** The file is opened (through `openPlain`), the
+  handle is `Stat`-ed, and the read resumes at `offset`.
+- **A half-written last line is held back and read again.** `offset` stops at
+  the end of the last complete line. The next read seeks there and reads the
+  incomplete line from its start, now hopefully complete. No bytes are kept in
+  the cursor, so a `Cursor` stays a small copyable value and a `\r\n` or a
+  UTF-8 sequence split across two reads needs no stitching. The file is listed
+  in `Diagnostics.TruncatedFiles` while the incomplete line lasts. Cost: at most
+  `MaxLineBytes+2` bytes read again per file per update, only while a line is
+  half written.
+- **An oversized line still being written is skipped, not held.** If the
+  incomplete tail already exceeds `MaxLineBytes+2`, the cursor stores where that
+  line started (`skipFrom`) and the next read resumes at the end of what was
+  read (the stored size), skipping up to the next `\n`. The line is counted
+  **once** in `OversizedLines`, at its start. If the newline never comes, it is
+  dropped silently, as `ParseSession` does.
+- **Anything that is not an append restarts the whole session.** The delta is
+  then `Full()` and every file is read from byte 0, by the same code as
+  `ParseSession`. Triggers: a file read before is gone, is a link or not
+  regular, fails to open, has another identity (`os.SameFile` from the open
+  handle, so a rotation is seen), is smaller than the size seen, or the byte
+  just before `offset` is not `\n` (a 1-byte `ReadAt` guard against a
+  truncate-and-regrow). A per-file patch is not possible: a message overwritten
+  across files cannot be un-counted. A file that appears (a new sub-agent) is
+  not a trigger: it is read from 0 inside a normal delta. A first read, or a
+  `Rewound` cursor, is Full too.
+- **Read errors and open failures are states, not events.** An `IssueReadError`
+  or `IssueOpenFailed` describes the *last* read of that file and is cleared by
+  a later successful read, as a fresh `ParseSession` would show. Unreadable and
+  oversized lines are events: counted once each, since each byte range is
+  folded once.
+
+### Meta files
+
+`ReadDelta` never opens a meta file whose `Lstat` size and mtime did not change
+(and that was already known). It lists them with `Lstat` instead of
+`openPlain`; `LocateSession` is unchanged and still opens them. A meta file is
+read again when it appears or when its size or mtime differs.
+
+### The incremental result equals `ParseSession`
+
+This is the oracle of the whole feature: for the same final files,
+`Apply`-ing any sequence of deltas gives the `Usage` `ParseSession` gives
+(the tests compare them with `reflect.DeepEqual`: fixtures fed in chunks, seeded
+random sessions, a fuzz target). It holds because every line gets a position
+(`pos{rank, off}`: the file rank in `ParseSession`'s reading order, then the
+byte offset) and the rules are functions of positions, not of arrival time:
+
+- per message key, the line with the **greatest** position wins;
+- `CrossFileDuplicates` is, over all keys, the number of distinct files minus one;
+- models, versions and `Diagnostics.Files` follow the **smallest** position,
+  which is first appearance in a sequential read.
+
+The merge is associative and commutative. Sub-agents may therefore be read in
+any order and appear between two updates.
+
+### Declared exceptions to the equality
+
+These are deliberate. A test that expects strict equality must avoid them.
+
+1. **The 100-issue cap per file keeps the smallest positions.** The cap on
+   `IssueUnreadable`/`IssueOversized` entries (see "Limits and caps") used to
+   keep the first 100 *to arrive*. It now keeps the 100 *smallest positions* of
+   the file, which is what makes it independent of how reads were cut. Only
+   *which* 100 changes, and only for a file with more than 100; the counters
+   are unaffected. Accepted by the user (DEVDESK-44).
+2. **`maxNoIDEntries` is applied in the `Aggregate`.** Past 100000 lines
+   without a message id, which lines get no table entry (are "spilled": still
+   counted in tokens, `Messages` and `NoMessageID`) depends on how reads were
+   cut, not only on position. Totals stay exact; this is the one place the
+   merge is not commutative. Within a single merge the earliest positions are
+   kept. The models a spill contributes are also kept by arrival order (up to
+   the 64-per-agent cap). Not asserted equal by the tests.
+3. **An unreadable meta file** (for example `chmod 000`) is `MetaUnreadable`
+   through `ReadDelta` but `MetaMissing` through `ParseSession(LocateSession(…))`,
+   because `LocateSession` opens the meta file to check it and treats a failure
+   as absent. Because metas are compared by `Lstat` size and mtime, an
+   unreadable meta stays unreadable after `chmod +r` until it is rewritten.
+4. **An unopenable listed file is not a `ReadDelta` error.** `ReadDelta` fails
+   when the session cannot be listed: the parent is missing, a link, not a
+   regular file, or the directories cannot be read. If a listed file cannot be
+   opened (for example `chmod 000`), or is removed between the `Lstat` and the
+   open, the delta carries an `IssueOpenFailed` on that file: it is `Full()`
+   the first time, then `Empty()` while the issue persists. The caller can look
+   at the file's `FileIssue`, in `Usage().Diagnostics.Files`. `ParseSession`
+   turns the same case on the parent into an error. When `ReadDelta` does
+   return an error, the caller must not treat the session as settled:
+   `Activity` keeps its last applied state.
+
+### Ownership and stale deltas
+
+`Aggregate` has no mutex: the goroutine of `Update()` owns it (Rule 110). A
+`Cursor` is a deep copy holding no pointer, map or shared slice except the
+immutable `os.FileInfo`, so `ReadDelta` can run in a `Cmd` while `Update()`
+goes on. `Apply` takes ownership of the `Delta`; `Usage()` returns a deep copy.
+
+A `Cursor` carries the aggregate's identity and a sequence number bumped by every
+`Apply`. A delta read from anything but the aggregate's current cursor makes
+`Apply` return `ErrStaleDelta` and change nothing: two reads started from the
+same cursor cannot both be applied. The caller's own generation counter stays
+its first filter. **Rule for S-05b: keep a single read in flight per
+`Aggregate`.**
+
+### Activity and `Settled`
+
+`Aggregate.Activity()` returns `Activity{LastChange, Unfinished}`.
+
+- `LastChange` is the newest mtime among the parent, the sub-agents and the
+  metas, as of the last applied delta that found a change, capped at the time
+  of that read (an mtime in the future counts as "now"). It is zero before the
+  first `Apply`. A delta that is `Empty()` does not advance it, so a bare
+  `touch` (mtime changes, content does not) does not count as activity.
+- `Unfinished` counts sub-agents whose readable meta says `finished: false`
+  (`StateUnfinished`). `StateUnknown` does **not** count: the quiet period covers
+  them, otherwise a session from a client that writes no `finished` key would
+  be polled forever.
+- `LastChange` never moves back: if the newest file disappears, the previous
+  value is kept.
+- `Settled(now, quiet)` is true when something was applied, no transcript
+  (parent or sub-agent) has an `IssueOpenFailed` or `IssueReadError` (the
+  poller keeps trying while such a failure lasts), no sub-agent is unfinished, and
+  `now - LastChange >= quiet`. `quiet` is the caller's parameter. A poller
+  that stops on `Settled` stays stale if the session resumes after more than
+  `quiet` of idleness, until `ctrl+r` or re-entering the session.
+
+### Known limits and risks
+
+- **Append-only is assumed, not verified.** A file rewritten **at the same
+  size**, or rewritten so that the byte before `offset` is still `\n`, is not
+  detected until the next Full read (`ctrl+r`). A reused inode on ext4 is only
+  protected by the size comparison and the guard byte.
+- **Check-then-open window (`safeopen.go`).** Between the `Lstat` in
+  `readFile` and the `os.Open` in `openPlain`, a file swapped for a FIFO blocks
+  the call. This already existed (see "Known risk" below); it is now exercised on
+  every update that sees growth, not once per open. Possible direction:
+  `O_NONBLOCK` on Unix. Until then, S-05b must keep one read in flight per
+  `Aggregate`, so a blocked read cannot pile up.
+- **The message-id table is not bounded.** The table holds one entry per
+  distinct `message.id` for as long as the `Aggregate` lives. `ParseSession`
+  had the same property for the duration of one call. Only line length and
+  lines without id are bounded.
+- **Very long `MessageID`s are not hashed.** An id of up to a line's length is
+  kept as the map key.
+- **Windows is not covered by CI** (Linux only). File identity is taken from
+  the open handle's `Stat()`, not from `Lstat`, because Go fills the Windows
+  identity lazily by path and would read the *new* file after a rotation.
+  Check by hand before a release.
+
 ## Privacy
 
 `ParseSession` returns **numeric aggregates only**. No prompt, answer, tool
@@ -144,6 +327,9 @@ read.
   terminal, where an escape sequence would be interpreted and a bidi override
   would reorder what follows.
 - `FileIssue.File` is a base name, never a path.
+- `Cursor`, `Delta` and `Aggregate` hold full paths in unexported fields. They
+  are never logged: `String`/`GoString` (and so `%v`, `%+v`, `%#v`) print counts
+  only. Errors from `ReadDelta` name base names. A `Usage` still holds no path.
 - The fixtures plant `SENTINEL-DO-NOT-LEAK` in the `content`, `description`,
   `cwd` and tool `input` fields of the transcripts and in the `description`
   of the `.meta.json` files. Tests check that it never appears in a `Usage` or
@@ -156,8 +342,10 @@ Memory and output size do not depend on what a transcript contains.
 | Bound | Value | Behavior past it |
 |---|---|---|
 | Line length (`MaxLineBytes`) | 4 MiB | line skipped, counted in `OversizedLines`, never held in memory |
-| `FileIssue` entries per file | 100, for `IssueUnreadable` and `IssueOversized` only | counters keep counting, entries stop. `IssueOpenFailed` and `IssueReadError` occur once per file and are always kept |
-| Lines without id in the table | 100000, for the whole session (all files together) | still counted in tokens, `Messages` and `NoMessageID`, but aggregated without a table entry |
+| `FileIssue` entries per file | 100, for `IssueUnreadable` and `IssueOversized` only | counters keep counting, entries stop. The 100 kept are the **smallest positions** of the file, not the first to arrive (declared exception, see "Incremental reading"). `IssueOpenFailed` and `IssueReadError` occur once per file and are always kept |
+| Lines without id in the table | 100000, for the whole session (all files together), enforced in the `Aggregate` | still counted in tokens, `Messages` and `NoMessageID`, but aggregated without a table entry. Which lines spill can depend on how reads were cut (declared exception) |
+| Bytes read per update (`ReadDelta`) | the appended bytes, plus at most `MaxLineBytes+2` per file with a half-written line, plus 1 guard byte per file read | a Full delta costs what `ParseSession` costs |
+| Message-id entries | **not bounded** | one entry per distinct `message.id`, held as long as the `Aggregate` lives |
 | Models per agent / versions per session | 64 | extra ones dropped |
 | Label length | 128 bytes | truncated |
 | Meta file | 1 MiB | refused (`MetaUnreadable`) |
@@ -182,7 +370,9 @@ and the attacker must already control the transcripts directory. Accepted and
 documented in the code. `ListSessions` has the same exposure: it opens each
 kept transcript through `openPlain` to read its `cwd`, so a FIFO swapped in
 there can block the listing (and so the view's read, which runs in a `Cmd`).
-Carried over unchanged, not closed.
+Carried over unchanged, not closed. `ReadDelta` opens transcripts through the
+same `openPlain`, so it has the same exposure, now repeated on every update that
+sees growth (see "Known limits and risks" under "Incremental reading").
 
 ## Diagnostics and `Degraded`
 

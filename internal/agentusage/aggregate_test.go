@@ -20,12 +20,45 @@ func msgLine(id, model, stop string, in, out, cr, cw int64) []byte {
 		idKey, model, sr, in, out, cr, cw))
 }
 
-func twoAgents() *aggregator {
-	return newAggregator([]Agent{{ID: "main", Main: true}, {ID: "a1", Type: "coder", SpawnDepth: 1, State: StateFinished}})
+// testAgg drives a table the way the former aggregator was driven: lines go
+// to an agent by index, and its rank follows from the agent and the file.
+type testAgg struct {
+	t      *table
+	agents []Agent
+}
+
+func newTestAgg(agents []Agent) *testAgg { return &testAgg{t: newTable(), agents: agents} }
+
+func (a *testAgg) addLine(idx int, file string, off int64, line []byte) {
+	ag := a.agents[idx]
+	if ag.Main {
+		a.t.addLine("", file, pos{rank: parentRank, off: off}, line)
+		return
+	}
+	a.t.addLine(ag.ID, file, pos{rank: subAgentRank(ag.ID, file), off: off}, line)
+}
+
+func (a *testAgg) finish() []Agent {
+	agents, _, _ := a.t.finish(a.agents)
+	return agents
+}
+
+func (a *testAgg) diag() Diagnostics {
+	_, d, _ := a.t.finish(a.agents)
+	return d
+}
+
+func (a *testAgg) versions() []string {
+	_, _, v := a.t.finish(a.agents)
+	return v
+}
+
+func twoAgents() *testAgg {
+	return newTestAgg([]Agent{{ID: "main", Main: true}, {ID: "a1", Type: "coder", SpawnDepth: 1, State: StateFinished}})
 }
 
 func TestAggregateLastLineWins(t *testing.T) {
-	a := newAggregator([]Agent{{ID: "main", Main: true}})
+	a := newTestAgg([]Agent{{ID: "main", Main: true}})
 	a.addLine(0, "p.jsonl", 0, msgLine("m1", "x", "", 1, 8, 2, 3))
 	a.addLine(0, "p.jsonl", 100, msgLine("m1", "x", "", 4, 120, 5, 6))
 	a.addLine(0, "p.jsonl", 200, msgLine("m1", "x", "end_turn", 7, 340, 8, 9))
@@ -42,7 +75,7 @@ func TestAggregateLastLineWins(t *testing.T) {
 }
 
 func TestAggregateDistinctIDsAdd(t *testing.T) {
-	a := newAggregator([]Agent{{ID: "main", Main: true}})
+	a := newTestAgg([]Agent{{ID: "main", Main: true}})
 	a.addLine(0, "p.jsonl", 0, msgLine("m1", "x", "end_turn", 1, 2, 3, 4))
 	a.addLine(0, "p.jsonl", 50, msgLine("m2", "x", "end_turn", 10, 20, 30, 40))
 	got := a.finish()[0]
@@ -63,8 +96,8 @@ func TestAggregateCrossFileDuplicate(t *testing.T) {
 	if got[1].Messages != 1 || got[1].Tokens != (Tokens{5, 5, 5, 5}) {
 		t.Fatalf("sub-agent = %+v, want m1 attributed to the last file", got[1])
 	}
-	if a.diag.CrossFileDuplicates != 1 {
-		t.Fatalf("CrossFileDuplicates = %d, want 1", a.diag.CrossFileDuplicates)
+	if a.diag().CrossFileDuplicates != 1 {
+		t.Fatalf("CrossFileDuplicates = %d, want 1", a.diag().CrossFileDuplicates)
 	}
 }
 
@@ -73,13 +106,13 @@ func TestAggregateSameFileRepeatIsNotCrossFile(t *testing.T) {
 	a.addLine(0, "p.jsonl", 0, msgLine("m1", "x", "", 1, 1, 1, 1))
 	a.addLine(0, "p.jsonl", 9, msgLine("m1", "x", "end_turn", 1, 2, 1, 1))
 	a.finish()
-	if a.diag.CrossFileDuplicates != 0 {
-		t.Fatalf("CrossFileDuplicates = %d, want 0", a.diag.CrossFileDuplicates)
+	if a.diag().CrossFileDuplicates != 0 {
+		t.Fatalf("CrossFileDuplicates = %d, want 0", a.diag().CrossFileDuplicates)
 	}
 }
 
 func TestAggregateNoIDCountedOnceEach(t *testing.T) {
-	a := newAggregator([]Agent{{ID: "main", Main: true}})
+	a := newTestAgg([]Agent{{ID: "main", Main: true}})
 	// Same content, different offsets: two messages, never merged.
 	a.addLine(0, "p.jsonl", 0, msgLine("", "x", "end_turn", 1, 2, 3, 4))
 	a.addLine(0, "p.jsonl", 80, msgLine("", "x", "end_turn", 1, 2, 3, 4))
@@ -87,8 +120,8 @@ func TestAggregateNoIDCountedOnceEach(t *testing.T) {
 	if got.Messages != 2 || got.Tokens != (Tokens{2, 4, 6, 8}) {
 		t.Fatalf("messages=%d tokens=%+v, want 2 and doubled", got.Messages, got.Tokens)
 	}
-	if a.diag.NoMessageID != 2 {
-		t.Fatalf("NoMessageID = %d, want 2", a.diag.NoMessageID)
+	if a.diag().NoMessageID != 2 {
+		t.Fatalf("NoMessageID = %d, want 2", a.diag().NoMessageID)
 	}
 }
 
@@ -100,8 +133,8 @@ func TestAggregateNoIDSameOffsetDifferentFiles(t *testing.T) {
 	if got[0].Messages != 1 || got[1].Messages != 1 {
 		t.Fatalf("messages = %d/%d, want 1/1 (key includes the file)", got[0].Messages, got[1].Messages)
 	}
-	if a.diag.CrossFileDuplicates != 0 {
-		t.Fatalf("CrossFileDuplicates = %d, want 0", a.diag.CrossFileDuplicates)
+	if a.diag().CrossFileDuplicates != 0 {
+		t.Fatalf("CrossFileDuplicates = %d, want 0", a.diag().CrossFileDuplicates)
 	}
 }
 
@@ -120,7 +153,7 @@ func TestAggregatePartialMessages(t *testing.T) {
 	for _, tt := range tests {
 		for _, main := range []bool{true, false} { // orchestrator included
 			t.Run(fmt.Sprintf("%s/main=%v", tt.name, main), func(t *testing.T) {
-				a := newAggregator([]Agent{{ID: "x", Main: main}})
+				a := newTestAgg([]Agent{{ID: "x", Main: main}})
 				for i, l := range tt.lines {
 					a.addLine(0, "f.jsonl", int64(i*100), l)
 				}
@@ -134,7 +167,7 @@ func TestAggregatePartialMessages(t *testing.T) {
 }
 
 func TestAggregateModels(t *testing.T) {
-	a := newAggregator([]Agent{{ID: "main", Main: true}})
+	a := newTestAgg([]Agent{{ID: "main", Main: true}})
 	a.addLine(0, "p.jsonl", 0, msgLine("m1", "opus", "end_turn", 1, 1, 0, 0))
 	a.addLine(0, "p.jsonl", 10, msgLine("m2", "sonnet", "end_turn", 1, 1, 0, 0))
 	a.addLine(0, "p.jsonl", 20, msgLine("m3", "<synthetic>", "stop_sequence", 0, 0, 0, 0))
@@ -146,25 +179,25 @@ func TestAggregateModels(t *testing.T) {
 }
 
 func TestAggregateSyntheticExcluded(t *testing.T) {
-	a := newAggregator([]Agent{{ID: "main", Main: true}})
+	a := newTestAgg([]Agent{{ID: "main", Main: true}})
 	a.addLine(0, "p.jsonl", 0, msgLine("s1", "<synthetic>", "stop_sequence", 100, 100, 100, 100))
 	got := a.finish()[0]
 	if got.Tokens != (Tokens{}) || got.Messages != 0 || len(got.Models) != 0 {
 		t.Fatalf("synthetic counted: %+v", got)
 	}
-	if a.diag.Degraded() {
-		t.Fatalf("synthetic must not degrade: %+v", a.diag)
+	if a.diag().Degraded() {
+		t.Fatalf("synthetic must not degrade: %+v", a.diag())
 	}
 }
 
 func TestAggregateLineDiagnostics(t *testing.T) {
-	a := newAggregator([]Agent{{ID: "main", Main: true}})
+	a := newTestAgg([]Agent{{ID: "main", Main: true}})
 	a.addLine(0, "p.jsonl", 0, []byte(`not json`))
 	a.addLine(0, "p.jsonl", 10, []byte(`{"message":{"id":"n","model":"x"}}`))
 	a.addLine(0, "p.jsonl", 20, []byte(`{"type":"queue-operation"}`))
 	got := a.finish()[0]
-	if a.diag.UnreadableLines != 1 || a.diag.NoUsage != 1 {
-		t.Fatalf("diag = %+v, want 1 unreadable and 1 no-usage", a.diag)
+	if a.diag().UnreadableLines != 1 || a.diag().NoUsage != 1 {
+		t.Fatalf("diag = %+v, want 1 unreadable and 1 no-usage", a.diag())
 	}
 	if got.Messages != 0 || got.Tokens != (Tokens{}) {
 		t.Fatalf("agent = %+v", got)
@@ -181,7 +214,7 @@ func TestAggregateKeepsAgentIdentity(t *testing.T) {
 }
 
 func TestAggregateSaturatingTotals(t *testing.T) {
-	a := newAggregator([]Agent{{ID: "main", Main: true}})
+	a := newTestAgg([]Agent{{ID: "main", Main: true}})
 	a.addLine(0, "p.jsonl", 0, msgLine("a", "x", "end_turn", maxI, 0, 0, 0))
 	a.addLine(0, "p.jsonl", 10, msgLine("b", "x", "end_turn", maxI, 0, 0, 0))
 	if got := a.finish()[0].Tokens.Input; got != maxI {
@@ -246,7 +279,7 @@ func TestAggregateCrossFileDependsOnlyOnFile(t *testing.T) {
 	a.addLine(0, "p.jsonl", 0, msgLine("m1", "x", "", 1, 1, 1, 1))
 	a.addLine(1, "p.jsonl", 9, msgLine("m1", "x", "end_turn", 1, 2, 1, 1))
 	a.finish()
-	if a.diag.CrossFileDuplicates != 0 {
-		t.Fatalf("CrossFileDuplicates = %d, want 0 (same file)", a.diag.CrossFileDuplicates)
+	if a.diag().CrossFileDuplicates != 0 {
+		t.Fatalf("CrossFileDuplicates = %d, want 0 (same file)", a.diag().CrossFileDuplicates)
 	}
 }

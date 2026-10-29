@@ -12,6 +12,9 @@ type Agent struct {
 	PartialMessages int // messages whose last line has no stop reason
 	State           State
 	SpawnDepth      int
+	// key is the table's identity for the agent's lines (the rank of its
+	// transcript); empty means ID. finish clears it from its output.
+	key string
 }
 
 // PartialOutput reports whether some message of the agent was still being
