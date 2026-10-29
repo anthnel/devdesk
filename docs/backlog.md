@@ -98,6 +98,40 @@ decided together and fixed in one pass; see [§1.2](#12-the-five-parked-defects)
 
 ### 1.1 Fixed
 
+**D87 — le lecteur incrémental d'`internal/agentusage` livre avec quatre points
+différés : un FIFO échangé entre `Lstat` et `Open`, un garde de fin de fichier
+d'un seul octet, des `MessageID` non hachés et une table de messages non
+bornée. Ouvert.** **Plane:** DEVDESK-44
+
+DEVDESK-44 ajoute `ReadDelta` / `Aggregate` (voir
+[`agent-usage.md`](architecture/agent-usage.md), « Incremental reading »). Les
+choix faits y sont documentés ; ce qui suit est ce qui a été volontairement
+laissé de côté, et pourquoi.
+
+- **`O_NONBLOCK` / FIFO.** Un fichier régulier remplacé par un FIFO entre le
+  `Lstat` et l'`os.Open` de `openPlain` bloque l'appel avant que `os.SameFile`
+  puisse le refuser. Le défaut préexiste (S-02, `ListSessions`), mais le lecteur
+  incrémental l'exerce à chaque mise à jour qui voit une croissance. Piste :
+  `O_NONBLOCK` sous Unix, ce que le paquet `os` n'offre pas de façon portable.
+  Consigne pour S-05b (DEVDESK-45) : **une seule lecture en vol par
+  `Aggregate`**, pour qu'un appel bloqué ne s'empile pas.
+- **Garde d'un octet.** Un fichier réécrit sans changer de taille, ou dont
+  l'octet avant `offset` reste `\n`, n'est pas vu avant un `ctrl+r`, de même
+  qu'un inode réutilisé sur ext4 (protégé par la seule taille et cet octet).
+  L'audit suggère de hacher les 64 derniers octets lus avant `offset` à la place.
+  Non fait : le format est supposé append-only (les lignes `compact_boundary`
+  sont ajoutées, jamais réécrites).
+- **`MessageID` non hachés.** Un identifiant jusqu'à la taille d'une ligne
+  (4 MiB) est gardé tel quel comme clé de la table. Le hacher bornerait la clé.
+- **Table des `message.id` non bornée.** Une entrée par identifiant distinct, tant
+  que l'`Aggregate` vit ; `ParseSession` avait la même propriété le temps d'un
+  appel. Seules la longueur des lignes et les lignes sans identifiant sont bornées.
+  Une borne ferait perdre de l'exactitude aux totaux ; la décision est à prendre
+  avec les chiffres réels d'une session longue.
+
+Windows n'est pas couvert par la CI (Linux seul) : l'identité de fichier y est
+prise sur le handle ouvert, à vérifier à la main avant une release.
+
 **D86 — le fil d'Ariane de `:jobs` et d'`:agent-usage` s'intercale entre le
 viewport et la barre de filtre ; le routeur ne ferme donc pas le rectangle de la
 Rule 136 quand la barre est visible. Ouvert.** **Plane:** DEVDESK-42

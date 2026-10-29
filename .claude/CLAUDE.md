@@ -498,7 +498,7 @@ touching, and update it in the same commit as the code.
 | [`mcp.md`](../docs/architecture/mcp.md) | the MCP server the TUI serves over HTTP |
 | [`templates.md`](../docs/architecture/templates.md) | `internal/template` + `internal/ui/templates` — the repository-template catalog, its three sources, how files are fetched, and the `:templates` view |
 | [`ui-components.md`](../docs/architecture/ui-components.md) | `components.FooterMessage` and `internal/ui/datatable` |
-| [`agent-usage.md`](../docs/architecture/agent-usage.md) | `internal/agentusage` — per-agent token counts from Claude Code transcripts: format, aggregation rules, tolerance, privacy (`cwd` amendment), caps, ccusage cross-check; `ListSessions`; the `:agent-usage` view and its agents level (`internal/ui/agentusageview`) |
+| [`agent-usage.md`](../docs/architecture/agent-usage.md) | `internal/agentusage` — per-agent token counts from Claude Code transcripts: format, aggregation rules, tolerance, privacy (`cwd` amendment), caps, ccusage cross-check; `ListSessions`; incremental reading (`ReadDelta`, `Aggregate`, `Activity.Settled`); the `:agent-usage` view and its agents level (`internal/ui/agentusageview`) |
 
 ### Status Monitoring System
 
@@ -559,6 +559,11 @@ Test files follow Go conventions (`*_test.go`):
 - `internal/app/app_test.go` - App router tests
 
 Use table-driven tests where appropriate.
+
+**`go test` does not detect races or explore fuzz targets.** `mise run test` runs
+only the fuzz seeds, so `internal/agentusage` concurrency tests
+(`TestConcurrent*`) need `mise run test-race`. To explore `FuzzIncrementalMatchesFull`
+run `go test -fuzz=FuzzIncrementalMatchesFull -fuzztime=60s ./internal/agentusage`.
 
 **HOME is shared across a test process.** `TestMain` in `internal/app` sets
 `HOME` once for the whole process, so under `go test -count=N` a test finds
