@@ -6,6 +6,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/anthnel/devdesk/internal/agentusage"
 	"github.com/anthnel/devdesk/internal/ui/testutil"
 )
 
@@ -149,8 +150,17 @@ func TestShortcutKeysDoNotChangeBetweenLivePausedLoadingAndError(t *testing.T) {
 	failed, _, _ := openedFixture(t)
 	failed = feed(t, failed, usageDeltaMsg{gen: failed.agentGen, err: os.ErrNotExist})
 
+	tn := time.Now()
+	idle := sizedAgents(t, 120, agentusage.Usage{Agents: []agentusage.Agent{
+		stamped(orchestrator(5, 0), 1, tn.Add(-time.Hour), tn),
+		stamped(withState(subAgent("a01", "coder", 1, 0), agentusage.StateUnfinished), 2, tn.Add(-time.Hour), tn.Add(-20*time.Minute)),
+	}}, statusClock{now: tn, alive: true})
+	if got := stateOf(t, idle, "a01"); got != stateIdle {
+		t.Fatalf("precondition: a01 = %s, want idle", got.label())
+	}
+
 	want := strings.Join(testutil.ShortcutKeys(live.GetShortcuts()), ",")
-	for name, m := range map[string]Model{"paused": paused, "loading": loading, "error": failed} {
+	for name, m := range map[string]Model{"paused": paused, "loading": loading, "error": failed, "idle": idle} {
 		if got := strings.Join(testutil.ShortcutKeys(m.GetShortcuts()), ","); got != want {
 			t.Errorf("%s: keys %s, want %s", name, got, want)
 		}
@@ -194,5 +204,34 @@ func TestHelpDescribesLiveUpdates(t *testing.T) {
 	}
 	if !found {
 		t.Error("help lacks ctrl+r")
+	}
+}
+
+func TestHeaderCountsIdleAgentsOnlyWhenThereAreSome(t *testing.T) {
+	tn := time.Now()
+	idle := activityUsage(tn)
+	idle.Agents[1].LastActivity = tn.Add(-20 * time.Minute) // unfinished and quiet
+	m := sizedAgents(t, 120, idle, statusClock{now: tn, alive: true})
+	if got := headerValue(t, m, "Idle"); got != "1" {
+		t.Errorf("Idle = %q, want 1", got)
+	}
+
+	calm := sizedAgents(t, 120, activityUsage(tn), statusClock{now: tn, alive: true})
+	for _, h := range calm.agentsHeaderInfo() {
+		if h.Key == "Idle" {
+			t.Errorf("no agent is idle but the header shows Idle %s", h.Value)
+		}
+	}
+}
+
+func TestHelpDescribesActivity(t *testing.T) {
+	var body string
+	for _, s := range New(nil).GetHelpContent().Sections {
+		body += strings.ToLower(s.Body) + "\n"
+	}
+	for _, want := range []string{"state", "tools", "duration", "idle", "5 min", "names, inputs and results are never read"} {
+		if !strings.Contains(body, want) {
+			t.Errorf("help should mention %q", want)
+		}
 	}
 }

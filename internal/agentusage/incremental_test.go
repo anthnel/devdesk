@@ -147,6 +147,10 @@ func assertMatchesParse(t *testing.T, a *Aggregate, s *sess) {
 		t.Fatalf("ParseSession: %v", err)
 	}
 	assertSameUsage(t, a.Usage(), want)
+	// Privacy guard: no tool id (one carries the sentinel) reaches a Usage.
+	if out := fmt.Sprintf("%+v", a.Usage()); strings.Contains(out, "SENTINEL") || strings.Contains(out, "toolu_") {
+		t.Errorf("Usage leaks a tool id or content: %s", out)
+	}
 }
 
 func agentByID(t *testing.T, u Usage, id string) Agent {
@@ -253,7 +257,7 @@ func TestReadDeltaEquivalenceFixtures(t *testing.T) {
 		name string
 		size int // 0: line by line
 	}{{"1 byte", 1}, {"7 bytes", 7}, {"64 bytes", 64}, {"4096 bytes", 4096}, {"line by line", 0}}
-	for _, name := range []string{"v2.1.302-basic", "synthetic-other-version", "damaged"} {
+	for _, name := range []string{"v2.1.302-basic", "v2.1.302-activity", "synthetic-other-version", "damaged"} {
 		for _, ck := range chunkings {
 			t.Run(name+"/"+ck.name, func(t *testing.T) {
 				orig := fixtureSession(t, name)
@@ -307,13 +311,16 @@ func randomLines(rng *rand.Rand) []byte {
 	stops := []string{"end_turn", "", "tool_use"}
 	var buf bytes.Buffer
 	for n := rng.Intn(12); n > 0; n-- {
-		switch rng.Intn(10) {
+		switch rng.Intn(14) {
 		case 0:
 			buf.WriteString("not json {{{\n")
 		case 1:
 			buf.WriteString("\n")
 		case 2, 3:
 			buf.Write(msgLine("", "claude-n", stops[rng.Intn(3)], int64(rng.Intn(9)), 1, 2, 3))
+			buf.WriteByte('\n')
+		case 10, 11, 12, 13:
+			buf.Write(randomActivityLine(rng, pool))
 			buf.WriteByte('\n')
 		default:
 			buf.Write(msgLine(pool[rng.Intn(len(pool))], "claude-"+strconv.Itoa(rng.Intn(3)),
@@ -326,6 +333,43 @@ func randomLines(rng *rand.Rand) []byte {
 		buf.Write(whole[:1+rng.Intn(len(whole)-1)])
 	}
 	return buf.Bytes()
+}
+
+// activityIDs is the pool of tool ids of the random generator; one carries
+// the sentinel, which must never reach a Usage.
+var activityIDs = []string{"t1", "t2", "toolu_SENTINEL-DO-NOT-LEAK_1", "t4", ""}
+
+// activityStamps is out of order on purpose, holds a non-UTC spelling of an
+// instant, and "" (no timestamp).
+var activityStamps = []string{at(10, 5, 0), at(10, 1, 0), at(10, 9, 0), "2026-10-24T12:04:00+02:00", at(10, 3, 0), ""}
+
+// randomActivityLine returns an assistant line with 0 to 3 tool_use blocks
+// (sometimes without a message id or a tool id), a user tool-result line, or
+// an api-request-blob replaying tool_use blocks.
+func randomActivityLine(rng *rand.Rand, msgIDs []string) []byte {
+	stamp := activityStamps[rng.Intn(len(activityStamps))]
+	switch rng.Intn(4) {
+	case 0:
+		if stamp == "" {
+			stamp = at(10, 2, 0)
+		}
+		return userLine(stamp)
+	case 1:
+		var ids []string
+		for n := rng.Intn(3); n > 0; n-- {
+			ids = append(ids, activityIDs[rng.Intn(len(activityIDs))])
+		}
+		return blobLine(ids...)
+	}
+	var blocks []string
+	for n := rng.Intn(4); n > 0; n-- {
+		blocks = append(blocks, tuBlock(activityIDs[rng.Intn(len(activityIDs))]))
+	}
+	id := msgIDs[rng.Intn(len(msgIDs))]
+	if rng.Intn(4) == 0 {
+		id = ""
+	}
+	return blocksLine("assistant", id, rng.Intn(3), stamp, blocks...)
 }
 
 // Random sessions, random chunking, sub-agents appearing late, metas added

@@ -1,0 +1,2 @@
+{"type":"user","version":"2.1.302","message":{"role":"user","content":"please SENTINEL-DO-NOT-LEAK"}}
+{"type":"assistant","version":"2.1.302","apiBlockIndex":0,"message":{"id":"msg_c1","model":"model-gamma","role":"assistant","stop_reason":"end_turn","content":[{"type":"tool_use","id":"toolu_b02_a","name":"Bash","input":{"command":"echo SENTINEL-DO-NOT-LEAK","description":"SENTINEL-DO-NOT-LEAK"}}],"usage":{"input_tokens":1,"output_tokens":2,"cache_read_input_tokens":3,"cache_creation_input_tokens":4}}}

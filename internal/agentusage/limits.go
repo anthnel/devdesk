@@ -15,7 +15,11 @@ const (
 	// maxNoIDEntries caps the per-message table for lines without a message
 	// id. Past it a line still counts in NoMessageID, Messages and tokens,
 	// but gets no table entry.
-	maxNoIDEntries    = 100000
+	maxNoIDEntries = 100000
+	// maxToolEntries caps the table of distinct tool calls. Past it a new call
+	// is counted without being remembered, so a repeat of it would count again:
+	// the total can then overshoot, and never undershoot.
+	maxToolEntries    = 100000
 	maxModelsPerAgent = 64
 	maxVersions       = 64
 	// maxLabelLen is the longest label (model, version, id, file name) kept, in bytes.

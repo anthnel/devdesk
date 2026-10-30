@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"sort"
 	"strings"
+	"time"
 
 	"github.com/charmbracelet/lipgloss"
 
@@ -37,16 +38,17 @@ const agentIDPrefix = 8
 // agentRow is one line of the agents table.
 type agentRow struct {
 	agentusage.Agent
-	branch  string // stem, lastStem, or "" (orchestrator, or a sorted list)
-	shortID string // ID prefix, distinct within the session; "" for the orchestrator
-	share   int    // tenths of a percent of the session total, or noShare
-	key     string // identity across rebuilds, see agentKeys
+	branch  string   // stem, lastStem, or "" (orchestrator, or a sorted list)
+	shortID string   // ID prefix, distinct within the session; "" for the orchestrator
+	share   int      // tenths of a percent of the session total, or noShare
+	key     string   // identity across rebuilds, see agentKeys
+	state   runState // what the State column shows
 }
 
 // agentRows orders a session's agents (orchestrator, then sub-agents by ID),
 // gives each its short ID and share, and draws the branches when tree is true.
 // The sort is stable so equal IDs keep their input order.
-func agentRows(u agentusage.Usage, tree bool) []agentRow {
+func agentRows(u agentusage.Usage, tree bool, c statusClock) []agentRow {
 	var main, subs []agentusage.Agent
 	for _, a := range u.Agents {
 		if a.Main {
@@ -75,9 +77,10 @@ func agentRows(u agentusage.Usage, tree bool) []agentRow {
 	short := shortAgentIDs(ids)
 
 	keys := agentKeys(ordered)
+	states := agentStates(ordered, c)
 	rows := make([]agentRow, 0, len(ordered))
 	for i, a := range ordered {
-		row := agentRow{Agent: a, share: parts[i], key: keys[i]}
+		row := agentRow{Agent: a, share: parts[i], key: keys[i], state: states[i]}
 		if !a.Main {
 			j := i - len(main)
 			row.shortID = short[j]
@@ -132,7 +135,7 @@ func shortAgentIDs(ids []string) []string {
 
 // agentColumns describes the agents table. Only Total sorts, largest first;
 // without a sort the order is the tree. Columns give way on a narrow terminal
-// in this order: Cache write, Cache read, In, Model. The ID never does, so two
+// in this order: Cache write, Cache read, In, Model, Duration, Tools, State. The ID never does, so two
 // agents of one type stay apart.
 func agentColumns() []datatable.Column[agentRow] {
 	count := func(title string, width int, tokens func(agentRow) int64) datatable.Column[agentRow] {
@@ -162,11 +165,50 @@ func agentColumns() []datatable.Column[agentRow] {
 		{Title: "ID", Sizing: datatable.SizingContent, MinWidth: agentIDPrefix, Cell: idCell,
 			Search: func(r agentRow) string { return r.ID },
 			Style:  func(r agentRow) lipgloss.Style { return dimWhen(idCell(r) == noValue || idCell(r) == unknownID) }},
+		stateColumn(), toolsColumn(), durationColumn(),
 		{Title: "Model", Sizing: datatable.SizingContent, MinWidth: 12, Flex: 2, Optional: true, Cell: modelsCell, Search: modelsCell,
 			Style: func(r agentRow) lipgloss.Style { return dimWhen(len(r.Models) == 0) }},
 		in, out, cacheRead, cacheWrite, total,
 		{Title: "Share", Sizing: datatable.SizingFixed, MinWidth: len("100.0%"), Cell: shareCell,
 			Style: func(r agentRow) lipgloss.Style { return dimWhen(r.share <= 0) }},
+	}
+}
+
+// stateColumn is the State column: the label is searchable, so `/idle` keeps
+// the idle agents. Idle is the one state that reads as a warning.
+func stateColumn() datatable.Column[agentRow] {
+	label := func(r agentRow) string { return r.state.label() }
+	return datatable.Column[agentRow]{
+		Title: "State", Sizing: datatable.SizingFixed, MinWidth: len("running"), Optional: true,
+		Cell: label, Search: label,
+		Style: func(r agentRow) lipgloss.Style {
+			switch r.state {
+			case stateIdle:
+				return theme.SeverityTextStyle("MEDIUM")
+			case stateUnknown:
+				return theme.DimStyle
+			}
+			return lipgloss.NewStyle()
+		},
+	}
+}
+
+// toolsColumn is the Tools column: distinct tool calls read from the transcript.
+func toolsColumn() datatable.Column[agentRow] {
+	return datatable.Column[agentRow]{
+		Title: "Tools", Sizing: datatable.SizingFixed, MinWidth: 5, Optional: true,
+		Cell:  func(r agentRow) string { return formatTokens(int64(r.ToolCalls)) },
+		Style: func(r agentRow) lipgloss.Style { return dimWhen(r.ToolCalls == 0) },
+	}
+}
+
+// durationColumn is the Duration column: first to last line of the transcript.
+func durationColumn() datatable.Column[agentRow] {
+	cell := func(r agentRow) string { return formatDuration(r.Duration(), !r.FirstActivity.IsZero()) }
+	return datatable.Column[agentRow]{
+		Title: "Duration", Sizing: datatable.SizingFixed, MinWidth: len("Duration"), Optional: true,
+		Cell:  cell,
+		Style: func(r agentRow) lipgloss.Style { c := cell(r); return dimWhen(c == noValue || c == "0s") },
 	}
 }
 
@@ -249,4 +291,23 @@ func formatTokens(n int64) string {
 		return fmt.Sprintf("%d.%d%s", tenths/10, tenths%10, u.suffix)
 	}
 	return fmt.Sprintf("%d", n)
+}
+
+// formatDuration renders a duration compactly; known is false when the
+// transcript carried no timestamp.
+func formatDuration(d time.Duration, known bool) string {
+	if !known {
+		return noValue
+	}
+	switch {
+	case d < time.Minute:
+		return fmt.Sprintf("%ds", max(int(d/time.Second), 0))
+	case d < time.Hour:
+		return fmt.Sprintf("%dm%02ds", int(d/time.Minute), int(d%time.Minute/time.Second))
+	case d < 24*time.Hour:
+		return fmt.Sprintf("%dh%02dm", int(d/time.Hour), int(d%time.Hour/time.Minute))
+	case d < 100*24*time.Hour:
+		return fmt.Sprintf("%dd%02dh", int(d/(24*time.Hour)), int(d%(24*time.Hour)/time.Hour))
+	}
+	return ">99d"
 }

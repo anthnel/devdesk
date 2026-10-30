@@ -456,7 +456,7 @@ func header(t *testing.T, view string) []string {
 // splitTitles reads known titles off a header line, "Cache read" being two words.
 func splitTitles(line string) []string {
 	var got []string
-	for _, title := range []string{"Agent", "ID", "Model", "In", "Out", "Cache read", "Cache write", "Total", "Share"} {
+	for _, title := range []string{"Agent", "ID", "State", "Tools", "Duration", "Model", "In", "Out", "Cache read", "Cache write", "Total", "Share"} {
 		for _, f := range strings.Split(line, "  ") {
 			if strings.TrimSpace(f) == title {
 				got = append(got, title)
@@ -471,8 +471,8 @@ func TestNarrowTerminalsDropColumnsInTheOrderThePlanComputed(t *testing.T) {
 		width int
 		want  []string
 	}{
-		{100, []string{"Agent", "ID", "Model", "In", "Out", "Cache read", "Total", "Share"}},
-		{80, []string{"Agent", "ID", "Model", "In", "Out", "Total", "Share"}},
+		{100, []string{"Agent", "ID", "State", "Tools", "Duration", "Model", "Out", "Total", "Share"}},
+		{80, []string{"Agent", "ID", "State", "Tools", "Duration", "Out", "Total", "Share"}},
 		{60, []string{"Agent", "ID", "Out", "Total", "Share"}},
 	}
 	for _, tt := range tests {
@@ -552,7 +552,7 @@ func visibleIDs(m Model) string {
 func atWideAgents(t *testing.T, u agentusage.Usage) Model {
 	t.Helper()
 	m := withSessions(t, "/p/a.jsonl", "/p/b.jsonl")
-	m = feed(t, m, testutil.Resize(120, 20))
+	m = feed(t, m, testutil.Resize(160, 20))
 	m, _ = opened(t, m, "right")
 	return answer(t, m, u)
 }
@@ -578,8 +578,8 @@ func TestDotSortsTheAgentsLargestFirst(t *testing.T) {
 	if got := visibleIDs(m); got != "a01,a02,,a03" {
 		t.Errorf("sorted order = %q, want a01,a02,,a03", got)
 	}
-	if col, desc := m.agentTable.SortState(); col != 7 || !desc {
-		t.Errorf("SortState = (%d, %v), want (7 Total, descending)", col, desc)
+	if col, desc := m.agentTable.SortState(); col != 10 || !desc {
+		t.Errorf("SortState = (%d, %v), want (10 Total, descending)", col, desc)
 	}
 	view := m.View()
 	if !strings.Contains(view, "Total ▼") {
@@ -817,7 +817,7 @@ func TestTheBasicFixtureSortsByTotalTokens(t *testing.T) {
 
 func TestOpeningAnotherSessionRemeasuresTheAgentColumn(t *testing.T) {
 	m := withSessions(t, "/p/a.jsonl", "/p/b.jsonl")
-	m = feed(t, m, testutil.Resize(130, 20))
+	m = feed(t, m, testutil.Resize(160, 20))
 	m, _ = opened(t, m, "right")
 	m = answer(t, m, threeSubs())
 	m, _ = opened(t, m, "esc")

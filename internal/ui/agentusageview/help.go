@@ -45,8 +45,14 @@ func (m Model) GetHelpContent() help.Content {
 				Title: "Agent columns",
 				Body: "Agent: the orchestrator, or the sub-agent's type. ID: the start of the sub-agent's ID, long enough to tell two agents of the same type apart; " +
 					"the orchestrator shows a dash. The filter matches the full ID.\n" +
+					"State: running, idle, done or unknown. A sub-agent that finished is done. " +
+					"One still running with no new transcript line for more than 5 min is idle. " +
+					"The orchestrator is never done: it is running or idle while updates are live, and unknown once they pause. " +
+					"A sub-agent whose state the files do not say is unknown once updates pause.\n" +
+					"Tools: distinct tool calls read from the transcript.\n" +
+					"Duration: first to last line of the transcript, wall clock, pauses included; a dash when the transcript has no timestamps.\n" +
 					"Model, In, Out, Cache read, Cache write, Total: models used and token counts. " +
-					"On a narrow terminal Cache write goes first, then Cache read, In, and Model. Agent, ID, Out, Total and Share stay.\n" +
+					"On a narrow terminal Cache write goes first, then Cache read, In, Model, Duration, Tools and State. Agent, ID, Out, Total and Share stay.\n" +
 					"Share: the agent's part of the session total, to one decimal, rounded down. " +
 					"The orchestrator takes the rounding remainder, so the column adds up to 100%. A dash means the session has no tokens.\n" +
 					"Press . to cycle: tree, then Total largest first, then Total smallest first, then the tree again. " +
@@ -56,6 +62,7 @@ func (m Model) GetHelpContent() help.Content {
 				Title: "Live updates",
 				Body: "While a session is open and still active, its figures are refreshed every 2 s and the header shows Updates: live.\n" +
 					"Updates pause after 5 min without activity once every agent has finished (a session with an unfinished sub-agent stays live), or when its transcript is deleted: the header shows Updates: paused.\n" +
+					"An agent still running with no new transcript line for more than 5 min is shown idle; a long tool call does that too. The header counts the idle agents.\n" +
 					"Press ctrl+r to resume. Re-read the whole session from the start with ctrl+r; coming back to the view only reads what changed since the last point read, and goes back to live if the session is being written to.\n" +
 					"The list of sessions itself is not live: refresh it with ctrl+r at the sessions level.",
 			},
@@ -63,7 +70,8 @@ func (m Model) GetHelpContent() help.Content {
 				Title: "Privacy",
 				Body: "The sessions list reads the working directory and the file date alone. " +
 					"Opening a session also reads its token counts, model names and agent types, and shows only the project's working directory, the date, the session ID, the agent types, the models and the tokens. " +
-					"Prompts, replies, tool output and the paths of files a session touched are never displayed and never logged.",
+					"Prompts, replies, tool output and the paths of files a session touched are never displayed and never logged.\n" +
+					"Tool calls are counted by their block type alone; their names, inputs and results are never read into DevDesk's data, displayed or logged.",
 			},
 		},
 	}
