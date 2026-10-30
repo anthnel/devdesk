@@ -1,0 +1,9 @@
+actuellement pour changer de contexte je dois faire ctrl+p -> ctx -> choisir contexte -> enter, est-ce que tu proposerais autre chose pour la devex
+
+---
+
+A + B, ok pour ctx new pour la création d'un contexte
+
+---
+
+crée la story pour le pm
