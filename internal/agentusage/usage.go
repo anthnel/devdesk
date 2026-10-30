@@ -10,8 +10,9 @@ type Agent struct {
 	Type            string // sub-agent type from its meta file; "" if unknown
 	Models          []string
 	Tokens          Tokens
-	Messages        int // distinct message ids
-	PartialMessages int // messages whose last line has no stop reason
+	ByModel         []ModelUsage // per-model split of Tokens; the "" bucket (no model, or past maxModelsPerAgent) last
+	Messages        int          // distinct message ids
+	PartialMessages int          // messages whose last line has no stop reason
 	State           State
 	SpawnDepth      int
 	ToolCalls       int       // distinct tool_use blocks of the agent's assistant lines
@@ -21,6 +22,18 @@ type Agent struct {
 	// transcript); empty means ID. finish clears it from its output.
 	key string
 }
+
+// ModelUsage is the part of an agent's tokens billed to one model, with the
+// share of its cache writes that used the 1 h cache. Summed over an agent's
+// ByModel it equals Agent.Tokens.
+type ModelUsage struct {
+	Model        string // "" for messages that name no model, and for models past maxModelsPerAgent
+	Tokens       Tokens
+	CacheWrite1h int64 // of Tokens.CacheWrite, written with the 1 h cache
+}
+
+// CacheWrite5m is the cache writes that used the 5 min cache.
+func (m ModelUsage) CacheWrite5m() int64 { return m.Tokens.CacheWrite - m.CacheWrite1h }
 
 // Duration is LastActivity - FirstActivity, or 0 unless both are known.
 func (a Agent) Duration() time.Duration {
@@ -77,6 +90,17 @@ type Usage struct {
 	Agents      []Agent
 	Versions    []string
 	Diagnostics Diagnostics
+	Billed      Billed
+}
+
+// Billed is the session cost Claude Code recorded itself, in the last
+// cost-state line of the parent transcript.
+type Billed struct {
+	USD float64 // 0 unless Known
+	// Known is false while the session runs (no cost-state yet), when any line
+	// follows the last cost-state (the session was resumed), or when that line
+	// is invalid or names another session.
+	Known bool
 }
 
 // Total returns the tokens of every agent.

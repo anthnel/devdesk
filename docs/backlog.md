@@ -1,6 +1,6 @@
 # DevDesk Backlog
 
-**Last Updated:** 2026-10-29
+**Last Updated:** 2026-10-30
 
 Open work for DevDesk: known defects, technical debt, and planned features.
 Replaces the former `todo.md` at the repository root. Items completed there
@@ -97,6 +97,66 @@ so they needed a deliberate call rather than a drive-by fix. All five were then
 decided together and fixed in one pass; see [§1.2](#12-the-five-parked-defects).
 
 ### 1.1 Fixed
+
+**D89 — le coût estimé par agent d'`:agent-usage` repose sur quatre choix durables : tarifs dans le YAML, appariement sans préfixe, `Est. cost` en `DropFirst`, `Unattributed` dans l'en-tête. Décidé.** **Plane:** DEVDESK-47
+
+DEVDESK-47 ajoute `Agent.ByModel`, `Usage.Billed`, le paquet
+`internal/agentusage/pricing`, la section `agent_usage.prices` et la colonne
+`Est. cost` (voir [`agent-usage.md`](architecture/agent-usage.md), « Pricing », et
+[`configuration.md`](architecture/configuration.md), `agent_usage.prices`). Ce qui
+suit est ce qui a été tranché, et ce que ça coûte.
+
+- **Les tarifs sont dans le YAML du contexte, pas dans le binaire.** Aucun prix
+  compilé : rien ne devient périmé dans le binaire, et la table se change sans
+  recompiler (critère de la story). Coût accepté : rien n'est estimé tant que
+  l'utilisateur n'a pas écrit ses tarifs (cinq taux par modèle, un bloc par
+  contexte) ; le pied de page et l'aide le disent, `Billed` marche sans aucun
+  tarif. Rejetés : un bloc prérempli à la création d'un contexte (valeurs dans le
+  binaire, n'atteint pas les contextes existants), un bloc d'exemple commenté
+  (la première sauvegarde de `:cfg` le supprime, `SaveContext` est
+  `yaml.Marshal`). **Mise à jour automatique des tarifs : une story ultérieure.**
+  Source possible, non vérifiée : le JSON communautaire de LiteLLM ; ne pas
+  l'adopter sans l'avoir lu (format, licence, fraîcheur). Pas d'éditeur dans
+  `:cfg` (décision de l'utilisateur). Conséquence connue : une édition à la main
+  pendant que DevDesk tourne est écrasée par la prochaine sauvegarde de `:cfg`,
+  d'où des tarifs lus une seule fois (`New`, changement de contexte,
+  `ConfigSavedMsg`), pas par `ctrl+r`.
+- **Un `Rate` tolérant : une faute de frappe coûte son entrée, pas le contexte.**
+  Sans cela, `input: "5$"` fait échouer `LoadContext` en entier. L'entrée
+  invalide est conservée telle quelle à la sauvegarde ; `pricing.FromConfig` la
+  refuse avec un WARN. Les cinq taux sont obligatoires : un taux absent n'est pas
+  0.
+- **Appariement modèle → tarif : exact (casse et espaces ignorés), puis sans un
+  suffixe `-YYYYMMDD`, jamais par préfixe.** Mesuré : avec la seule clé
+  `claude-sonnet-5`, un préfixe aurait tarifé 5699 lignes de `claude-sonnet-5-5`
+  au tarif de Sonnet 5, sans rien dire. `[1m]` et les graphies de fournisseur ne
+  sont pas retirés : on ajoute une clé. Deux clés égales après normalisation sont
+  toutes deux écartées. Un agent dont un modèle n'a pas de tarif affiche `-`, pas
+  une somme partielle sous `~` (qui sous-estimerait sans le dire).
+- **`Est. cost` est une colonne `Optional` + `DropFirst`, visible dès environ 126
+  colonnes.** Placée sans `DropFirst` juste après `ID`, elle aurait pris la place
+  de `Model` à 100 colonnes et de `Duration` à 80 : la mise en page à 80 colonnes
+  que DEVDESK-46 a réglée est préservée. Coût : à 80 colonnes la colonne n'est pas
+  visible, seul l'en-tête (`Est. cost`) donne le total.
+- **`Unattributed` est un champ de l'en-tête, pas une ligne épinglée du tableau.**
+  Une ligne épinglée demandait un `Pinned` dans `datatable` (le tri applique un
+  seul comparateur dans les deux sens), plus des exclusions dans `Agents`, `Idle`,
+  Share, la sélection et le filtre. Non ajouté. Coût : l'en-tête est plein au pire
+  cas (`Agents`, `Tokens`, `Est. cost`, `Billed`, `Unattributed`, `Updates`,
+  `Idle` : 7 lignes, `headerMinHeight`) ; tout champ de plus force un choix. Si
+  `Billed` est connu mais qu'un agent n'a pas de tarif, `Unattributed` vaut `-` ;
+  négatif, il s'affiche `−$0.40` en orange (la table est au-dessus de ce qui a été
+  enregistré) ; sans tokens il vaut `Billed`.
+- **`Billed` n'est connu que si la dernière ligne complète du parent est un
+  `cost-state` valide.** Règle de position, qui garde l'égalité avec
+  `ParseSession` (maxima commutatifs). Limite connue : après une ligne sans
+  horodatage ni usage, le `Billed` affiché reste périmé jusqu'à la prochaine ligne
+  horodatée ou `ctrl+r`. Le format de `cost-state` n'est pas documenté par Claude
+  Code ; la règle repose sur 46 transcripts sur 49 (toujours en dernier,
+  cumulatif).
+- **Non tarifé, donc dans `Unattributed` par construction** : recherche web,
+  `speed` / `service_tier` / `inference_geo`, appels d'arrière-plan d'un modèle
+  absent des transcripts.
 
 **D88 — l'activité par agent d'`:agent-usage` (état, appels d'outils, durée) repose sur cinq choix durables qui ne se lisent pas dans le code. Décidé.** **Plane:** DEVDESK-46
 

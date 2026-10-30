@@ -3,6 +3,7 @@ package agentusage
 import (
 	"fmt"
 	"reflect"
+	"strings"
 	"testing"
 )
 
@@ -18,6 +19,16 @@ func msgLine(id, model, stop string, in, out, cr, cw int64) []byte {
 	}
 	return []byte(fmt.Sprintf(`{"version":"2.1.302","message":{%s"model":"%s","stop_reason":%s,"usage":{"input_tokens":%d,"output_tokens":%d,"cache_read_input_tokens":%d,"cache_creation_input_tokens":%d}}}`,
 		idKey, model, sr, in, out, cr, cw))
+}
+
+// msgLineSplit is msgLine with the cache_creation object: write1h goes to
+// ephemeral_1h_input_tokens and the rest of cw to ephemeral_5m_input_tokens.
+// write1h may exceed cw, which the decoder must clamp.
+func msgLineSplit(id, model, stop string, in, out, cr, cw, write1h int64) []byte {
+	line := string(msgLine(id, model, stop, in, out, cr, cw))
+	split := fmt.Sprintf(`"cache_creation_input_tokens":%d,"cache_creation":{"ephemeral_5m_input_tokens":%d,"ephemeral_1h_input_tokens":%d}`,
+		cw, max(cw-write1h, 0), write1h)
+	return []byte(strings.Replace(line, fmt.Sprintf(`"cache_creation_input_tokens":%d`, cw), split, 1))
 }
 
 // testAgg drives a table the way the former aggregator was driven: lines go

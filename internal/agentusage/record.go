@@ -3,6 +3,7 @@ package agentusage
 import (
 	"encoding/json"
 	"errors"
+	"math"
 	"strconv"
 	"time"
 )
@@ -16,6 +17,7 @@ const (
 	kindIgnored                    // valid JSON without a message, or a message with neither id, model nor usage
 	kindUnreadable                 // not JSON, truncated, or bad counters
 	kindSynthetic                  // model "<synthetic>": never counts
+	kindCostState                  // root type "cost-state": the session's recorded cost
 )
 
 // record is what decodeLine extracts from a line; only these fields are read.
@@ -24,9 +26,16 @@ type record struct {
 	Model     string
 	Version   string
 	Usage     Tokens
-	StopNull  bool
-	At        time.Time // root timestamp in UTC; zero if absent or not a date
-	Tools     []toolRef // tool_use blocks of a non-synthetic assistant line
+	// CacheWrite1h is the 1 h part of Usage.CacheWrite: 0 when absent or
+	// invalid, never above Usage.CacheWrite.
+	CacheWrite1h int64
+	StopNull     bool
+	At           time.Time // root timestamp in UTC; zero if absent or not a date
+	Tools        []toolRef // tool_use blocks of a non-synthetic assistant line
+	// The cost-state fields are set for kindCostState lines only.
+	CostUSD     float64 // totalCostUSD; 0 unless CostOK
+	CostOK      bool    // totalCostUSD is a finite number >= 0
+	CostSession string  // sessionId; "" when absent, costBadSession when not a string
 }
 
 // toolRef is one tool_use block of an assistant line.
@@ -97,6 +106,10 @@ type wireLine struct {
 	APIBlockIndex json.RawMessage `json:"apiBlockIndex"`
 	Version       json.RawMessage `json:"version"`
 	Message       *wireMessage    `json:"message"`
+	// SessionID and TotalCostUSD are read for cost-state lines only; nothing
+	// else of such a line (modelUsage, counters) is declared, so none is kept.
+	SessionID    json.RawMessage `json:"sessionId"`
+	TotalCostUSD json.RawMessage `json:"totalCostUSD"`
 }
 
 type wireMessage struct {
@@ -114,6 +127,28 @@ type wireUsage struct {
 	Output     json.RawMessage `json:"output_tokens"`
 	CacheRead  json.RawMessage `json:"cache_read_input_tokens"`
 	CacheWrite json.RawMessage `json:"cache_creation_input_tokens"`
+	// CacheCreation is decoded apart (wireCacheCreation) so that a value of
+	// another shape costs the split and nothing else.
+	CacheCreation json.RawMessage `json:"cache_creation"`
+}
+
+// wireCacheCreation is the split of cache writes by lifetime.
+type wireCacheCreation struct {
+	OneHour json.RawMessage `json:"ephemeral_1h_input_tokens"`
+}
+
+// cacheWrite1h reads the 1 h cache writes, clamped to total; anything absent
+// or invalid is 0.
+func (u *wireUsage) cacheWrite1h(total int64) int64 {
+	var cc wireCacheCreation
+	if len(u.CacheCreation) == 0 || json.Unmarshal(u.CacheCreation, &cc) != nil {
+		return 0
+	}
+	n, ok := parseCounter(cc.OneHour)
+	if !ok {
+		return 0
+	}
+	return min(n, total)
 }
 
 // decodeLine extracts the usage fields of one transcript line. A message
@@ -125,6 +160,9 @@ func decodeLine(b []byte) (record, lineKind) {
 	var w wireLine
 	if err := json.Unmarshal(b, &w); err != nil {
 		return record{}, kindUnreadable
+	}
+	if optString(w.Type) == costStateType {
+		return decodeCostState(w), kindCostState
 	}
 	m := w.Message
 	at := parseTimestamp(w.Timestamp)
@@ -155,6 +193,7 @@ func decodeLine(b []byte) (record, lineKind) {
 		return record{}, kindUnreadable
 	}
 	rec.Usage = tokens
+	rec.CacheWrite1h = m.Usage.cacheWrite1h(tokens.CacheWrite)
 	return rec, kindUsage
 }
 
@@ -230,4 +269,37 @@ func toolRefs(blocks wireBlocks, abi int) []toolRef {
 		refs = append(refs, toolRef{id: b.ID, abi: abi, idx: b.idx})
 	}
 	return refs
+}
+
+// costStateType is the root type of the line Claude Code appends when a
+// session closes, holding its cumulative cost.
+const costStateType = "cost-state"
+
+// costBadSession is the CostSession of a line whose sessionId is present but
+// not a string. A sanitized label never contains a NUL, so it matches nothing.
+const costBadSession = "\x00"
+
+// decodeCostState reads the three keys of a cost-state line. It has no
+// timestamp, version or message that counts: only the cost.
+func decodeCostState(w wireLine) record {
+	// A null sessionId is read like an absent one (accepted, plan H5); any
+	// other non-string value matches no session.
+	rec := record{CostSession: sanitizeLabel(optString(w.SessionID))}
+	if len(w.SessionID) > 0 && string(w.SessionID) != "null" && w.SessionID[0] != '"' {
+		rec.CostSession = costBadSession
+	}
+	rec.CostUSD, rec.CostOK = parseCost(w.TotalCostUSD)
+	return rec
+}
+
+// parseCost reads totalCostUSD: a JSON number that is finite and >= 0.
+func parseCost(raw json.RawMessage) (float64, bool) {
+	if len(raw) == 0 || (raw[0] != '-' && (raw[0] < '0' || raw[0] > '9')) {
+		return 0, false
+	}
+	v, err := strconv.ParseFloat(string(raw), 64)
+	if err != nil || math.IsNaN(v) || math.IsInf(v, 0) || v < 0 {
+		return 0, false
+	}
+	return v + 0, true // + 0 turns -0 into +0: never shown as "-0.00"
 }

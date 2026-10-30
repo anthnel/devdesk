@@ -19,6 +19,20 @@ const fuzzMaxInput = 64 << 10
 func FuzzIncrementalMatchesFull(f *testing.F) {
 	ok := string(msgLine("m1", "claude-f", "end_turn", 1, 2, 3, 4)) + "\n"
 	ok2 := string(msgLine("m1", "claude-f", "tool_use", 5, 6, 7, 8)) + "\n"
+	// Two models and a 5 min / 1 h cache-write split, one 1 h value above the total.
+	split := string(msgLineSplit("m1", "claude-f", "end_turn", 1, 2, 3, 40, 25)) + "\n" +
+		string(msgLineSplit("m2", "claude-g", "end_turn", 1, 2, 3, 10, 99)) + "\n" +
+		string(msgLineSplit("", "claude-f", "tool_use", 4, 5, 6, 7, 7)) + "\n"
+	f.Add([]byte(split), []byte(split[len(split)/3:]), uint8(9))
+	f.Add([]byte(split[:len(split)-9]), []byte(split), uint8(0))
+	// cost-state lines: last line of the parent, followed by a normal line, a
+	// bad total, another session, and cut in half.
+	cs := string(costLine(incSessUUID, "7.08"))
+	f.Add([]byte(ok+cs), []byte(cs), uint8(0))
+	f.Add([]byte(ok+cs+ok2), []byte(ok), uint8(3))
+	f.Add([]byte(ok+cs+string(costLine(incSessUUID, "-1"))), []byte(ok), uint8(5))
+	f.Add([]byte(ok+string(costLine("other", "1"))+cs[:len(cs)/2]), []byte(cs), uint8(7))
+	f.Add([]byte(ok+cs), []byte(ok), uint8(1))
 	f.Add([]byte(ok+ok2), []byte(ok), uint8(7))
 	f.Add([]byte(strings.ReplaceAll(ok+ok2, "\n", "\r\n")), []byte(ok), uint8(1))
 	f.Add([]byte(ok[:len(ok)/2]), []byte(ok+ok[:10]), uint8(3))

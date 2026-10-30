@@ -25,7 +25,7 @@ DevDesk is a terminal-based TUI (Text User Interface) application built with Go 
 - Network diagnostics (DNS, route, ICMP, TCP, TLS, HTTP) + real-time port monitoring + this machine's interfaces + local port forwarding (unprivileged, loopback only)
 - Multi-context configuration management via YAML
 - Local workspaces management with git metadata
-- Claude Code session list (`:agent-usage` / `:au`): sessions found on this machine, by project and date, and per session the agent tree (orchestrator and sub-agents: types, models, tokens, share of the total; sortable by Total; also per agent a state (running / idle / done / unknown, idle after 5 min without a transcript line), tool calls and duration). An open session updates live: read again every 2 s while active, only what was appended; paused after 5 min with no write and no unfinished sub-agent, or when its transcript is gone (header `Updates › paused`); `ctrl+r` reads it again in full. The sessions list itself is not live.
+- Claude Code session list (`:agent-usage` / `:au`): sessions found on this machine, by project and date, and per session the agent tree (orchestrator and sub-agents: types, models, tokens, share of the total; sortable by Total; also per agent a state (running / idle / done / unknown, idle after 5 min without a transcript line), tool calls and duration; and an indicative cost per agent, `Est. cost`, from prices you write in the context YAML (`agent_usage.prices`, none shipped), with the session's `Billed` cost and `Unattributed` in the header, DEVDESK-47). An open session updates live: read again every 2 s while active, only what was appended; paused after 5 min with no write and no unfinished sub-agent, or when its transcript is gone (header `Updates › paused`); `ctrl+r` reads it again in full. The sessions list itself is not live.
 
 ## Build and Development Commands
 
@@ -487,7 +487,7 @@ touching, and update it in the same commit as the code.
 | File | Covers |
 |---|---|
 | [`app-shell.md`](../docs/architecture/app-shell.md) | the router and its views, `ctrl+p` and the command parser, the keyboard vocabulary (`internal/ui/keymap`), greyed shortcuts, `shared.State`, cross-view messages, the jobs registry (`internal/jobs`), the one spinner chain and the `:jobs` view |
-| [`configuration.md`](../docs/architecture/configuration.md) | the config schema, the contexts, the migrations (`gitlab:` → `forge:`, `docker:` → `network:`), and the configuration view |
+| [`configuration.md`](../docs/architecture/configuration.md) | the config schema, the contexts, the migrations (`gitlab:` → `forge:`, `docker:` → `network:`), `agent_usage.prices`, and the configuration view |
 | [`forge.md`](../docs/architecture/forge.md) | `internal/forge` and its two backends, `forge.Vocabulary`, the explorer's clone pipeline, and how the explorer reads the forge index (`internal/forgeindex`) and its `g` |
 | [`workspaces.md`](../docs/architecture/workspaces.md) | the `ws` file icons (`internal/ui/fileicon`) and the sync (`F`) |
 | [`filebrowser.md`](../docs/architecture/filebrowser.md) | `:files` (`internal/ui/filebrowser`, `internal/fsbrowse`), the path picker a form's path field opens with enter, and `theme.ShortPath` |
@@ -498,7 +498,7 @@ touching, and update it in the same commit as the code.
 | [`mcp.md`](../docs/architecture/mcp.md) | the MCP server the TUI serves over HTTP |
 | [`templates.md`](../docs/architecture/templates.md) | `internal/template` + `internal/ui/templates` — the repository-template catalog, its three sources, how files are fetched, and the `:templates` view |
 | [`ui-components.md`](../docs/architecture/ui-components.md) | `components.FooterMessage` and `internal/ui/datatable` |
-| [`agent-usage.md`](../docs/architecture/agent-usage.md) | `internal/agentusage` — per-agent token counts from Claude Code transcripts: format, aggregation rules, tolerance, privacy (`cwd` amendment), caps, ccusage cross-check; `ListSessions`; incremental reading (`ReadDelta`, `Aggregate`, `Activity.Settled`); tool calls and time span per agent (DEVDESK-46); the `:agent-usage` view and its agents level and State/Tools/Duration columns (`internal/ui/agentusageview`) |
+| [`agent-usage.md`](../docs/architecture/agent-usage.md) | `internal/agentusage` — per-agent token counts from Claude Code transcripts: format, aggregation rules, tolerance, privacy (`cwd` amendment), caps, ccusage cross-check; `ListSessions`; incremental reading (`ReadDelta`, `Aggregate`, `Activity.Settled`); tool calls and time span per agent (DEVDESK-46); per-model tokens, `Billed`, and the cost estimate (`internal/agentusage/pricing`, prices from `agent_usage.prices`, DEVDESK-47); the `:agent-usage` view and its agents level and State/Tools/Duration/Est. cost columns (`internal/ui/agentusageview`) |
 
 ### Status Monitoring System
 

@@ -9,6 +9,7 @@ import (
 	"github.com/charmbracelet/lipgloss"
 
 	"github.com/anthnel/devdesk/internal/agentusage"
+	"github.com/anthnel/devdesk/internal/agentusage/pricing"
 	"github.com/anthnel/devdesk/internal/ui/datatable"
 	"github.com/anthnel/devdesk/internal/ui/theme"
 )
@@ -43,12 +44,13 @@ type agentRow struct {
 	share   int      // tenths of a percent of the session total, or noShare
 	key     string   // identity across rebuilds, see agentKeys
 	state   runState // what the State column shows
+	cost    pricing.Estimate
 }
 
 // agentRows orders a session's agents (orchestrator, then sub-agents by ID),
 // gives each its short ID and share, and draws the branches when tree is true.
 // The sort is stable so equal IDs keep their input order.
-func agentRows(u agentusage.Usage, tree bool, c statusClock) []agentRow {
+func agentRows(u agentusage.Usage, tree bool, c statusClock, prices pricing.Table) []agentRow {
 	var main, subs []agentusage.Agent
 	for _, a := range u.Agents {
 		if a.Main {
@@ -80,7 +82,7 @@ func agentRows(u agentusage.Usage, tree bool, c statusClock) []agentRow {
 	states := agentStates(ordered, c)
 	rows := make([]agentRow, 0, len(ordered))
 	for i, a := range ordered {
-		row := agentRow{Agent: a, share: parts[i], key: keys[i], state: states[i]}
+		row := agentRow{Agent: a, share: parts[i], key: keys[i], state: states[i], cost: prices.Agent(a)}
 		if !a.Main {
 			j := i - len(main)
 			row.shortID = short[j]
@@ -135,8 +137,9 @@ func shortAgentIDs(ids []string) []string {
 
 // agentColumns describes the agents table. Only Total sorts, largest first;
 // without a sort the order is the tree. Columns give way on a narrow terminal
-// in this order: Cache write, Cache read, In, Model, Duration, Tools, State. The ID never does, so two
-// agents of one type stay apart.
+// in this order: Cache write, Est. cost, Cache read, In, Model, Duration, Tools, State
+// (Cache write and Est. cost are DropFirst, the rightmost first). Est. cost is visible
+// from about 126 columns (it depends on the content of the Agent and ID columns). The ID never gives way, so two agents of one type stay apart.
 func agentColumns() []datatable.Column[agentRow] {
 	count := func(title string, width int, tokens func(agentRow) int64) datatable.Column[agentRow] {
 		return datatable.Column[agentRow]{
@@ -165,7 +168,7 @@ func agentColumns() []datatable.Column[agentRow] {
 		{Title: "ID", Sizing: datatable.SizingContent, MinWidth: agentIDPrefix, Cell: idCell,
 			Search: func(r agentRow) string { return r.ID },
 			Style:  func(r agentRow) lipgloss.Style { return dimWhen(idCell(r) == noValue || idCell(r) == unknownID) }},
-		stateColumn(), toolsColumn(), durationColumn(),
+		costColumn(), stateColumn(), toolsColumn(), durationColumn(),
 		{Title: "Model", Sizing: datatable.SizingContent, MinWidth: 12, Flex: 2, Optional: true, Cell: modelsCell, Search: modelsCell,
 			Style: func(r agentRow) lipgloss.Style { return dimWhen(len(r.Models) == 0) }},
 		in, out, cacheRead, cacheWrite, total,

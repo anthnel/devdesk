@@ -17,6 +17,7 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 
 	"github.com/anthnel/devdesk/internal/agentusage"
+	sharedcomponents "github.com/anthnel/devdesk/internal/ui/components"
 	"github.com/anthnel/devdesk/internal/ui/testutil"
 )
 
@@ -270,7 +271,9 @@ func TestATickOfTheCurrentGenerationStartsExactlyOneRead(t *testing.T) {
 }
 
 func TestAPollReadAndItsAnswerLeaveTheFooterQuiet(t *testing.T) {
-	m, parent := atFixture(t)
+	m, parent, cmd := openedFixture(t)
+	m = withAllPriced(t, m)
+	m = feed(t, m, firstDelta(t, cmd))
 	appendLine(t, parent, usageLine("msg_quiet", "model-alpha", 1, 7))
 
 	m, msgs := pollTick(t, m, m.agentGen)
@@ -286,6 +289,10 @@ func TestAPollReadAndItsAnswerLeaveTheFooterQuiet(t *testing.T) {
 	// Not footer(m): at the agents level that includes the breadcrumb line.
 	if m.footer.IsSet() {
 		t.Errorf("a poll must not set a footer message, got %q", m.footer.Text())
+	}
+	// With every model priced there is no status either: no text, no spinner.
+	if st := m.status(); st != (sharedcomponents.Status{}) {
+		t.Errorf("status = %+v after a poll, want none (level, spinner and text)", st)
 	}
 	if got := strings.TrimSpace(ansiRe.ReplaceAllString(m.footer.View(120, m.status()), "")); got != "" {
 		t.Errorf("a poll must not write a footer message, got %q", got)

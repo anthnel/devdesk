@@ -60,8 +60,9 @@ func (m Model) withRows(u agentusage.Usage, full bool) Model {
 	selected, hadSelection := m.selectedAgentKey()
 	cursor := m.agentTable.Cursor()
 
-	rows := agentRows(u, m.agentsTree(), m.clock)
+	rows := agentRows(u, m.agentsTree(), m.clock, m.prices)
 	m.usage = u
+	m.cost = m.prices.Session(u)
 	m.agentTable.SetItems(rows)
 
 	if full || !slices.Equal(before, populationOf(rows)) {

@@ -51,12 +51,34 @@ func (m Model) GetHelpContent() help.Content {
 					"A sub-agent whose state the files do not say is unknown once updates pause.\n" +
 					"Tools: distinct tool calls read from the transcript.\n" +
 					"Duration: first to last line of the transcript, wall clock, pauses included; a dash when the transcript has no timestamps.\n" +
+					"Est. cost: the estimated cost in USD, see Costs. A sub-agent's is a floor (≥ ~) while its transcript may be incomplete; a dash means it cannot be computed.\n" +
 					"Model, In, Out, Cache read, Cache write, Total: models used and token counts. " +
-					"On a narrow terminal Cache write goes first, then Cache read, In, Model, Duration, Tools and State. Agent, ID, Out, Total and Share stay.\n" +
+					"On a narrow terminal Cache write goes first, then Est. cost, Cache read, In, Model, Duration, Tools and State. Agent, ID, Out, Total and Share stay.\n" +
 					"Share: the agent's part of the session total, to one decimal, rounded down. " +
 					"The orchestrator takes the rounding remainder, so the column adds up to 100%. A dash means the session has no tokens.\n" +
 					"Press . to cycle: tree, then Total largest first, then Total smallest first, then the tree again. " +
 					"Sorted, the list is flat: the branches go away. The sort stays when you open another session or press ctrl+r.",
+			},
+			{
+				Title: "Costs",
+				Body: "Est. cost is an estimate, marked ~: tokens times the prices you set, not a bill. DevDesk ships no price. " +
+					"An agent whose model has no price shows a dash, never 0, and so does the header total. " +
+					"A sub-agent's cost is a floor (≥ ~) because its transcript may be incomplete.\n" +
+					"Billed is Claude Code's own total for the session, when it recorded one; a session still running has none. " +
+					"Unattributed is Billed minus the estimates: what the estimate does not explain (web search is never priced). " +
+					"A negative Unattributed, in orange, means your prices are higher than what was billed. " +
+					"When there are no tokens in any agent, Unattributed is Billed (the whole bill). Est. cost follows the filter; Billed and Unattributed do not.\n" +
+					"Set agent_usage.prices in the context's config file, in USD per million tokens, all five rates per model:\n" +
+					"agent_usage:\n" +
+					"  prices:\n" +
+					"    claude-example-model:\n" +
+					"      input: 3\n" +
+					"      output: 15\n" +
+					"      cache_write_5m: 3.75\n" +
+					"      cache_write_1h: 6\n" +
+					"      cache_read: 0.3\n" +
+					"Model names match case-insensitively, with or without a trailing -YYYYMMDD date suffix. " +
+					"Prices are read again on restart or when you change context; ctrl+r does not re-read them.",
 			},
 			{
 				Title: "Live updates",

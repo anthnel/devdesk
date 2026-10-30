@@ -70,3 +70,60 @@ func (s *modelSet) add(model string) {
 	s.seen[model] = true
 	s.list = append(s.list, model)
 }
+
+// modelTally accumulates per-model tokens in first-appearance order. At most
+// maxModelsPerAgent named models get a slot; what the cap refuses is folded
+// into the unnamed ("") bucket, so the sum stays exact.
+type modelTally struct {
+	list []ModelUsage
+	idx  map[string]int
+}
+
+// add folds one message's tokens and its 1 h cache writes into model's slot.
+func (m *modelTally) add(model string, t Tokens, write1h int64) {
+	i, ok := m.idx[model]
+	// A model already capped in a spill arrives here as "" and passes through
+	// untouched; a named one that finds the cap reached is folded into "".
+	if !ok && model != "" && len(m.list) >= maxModelsPerAgent {
+		model = ""
+		i, ok = m.idx[model]
+	}
+	if !ok {
+		if m.idx == nil {
+			m.idx = map[string]int{}
+		}
+		i = len(m.list)
+		m.idx[model] = i
+		m.list = append(m.list, ModelUsage{Model: model})
+	}
+	u := &m.list[i]
+	u.Tokens = u.Tokens.Add(t)
+	u.CacheWrite1h = satAdd(u.CacheWrite1h, write1h)
+}
+
+// merge folds o into m.
+func (m *modelTally) merge(o *modelTally) {
+	for _, u := range o.list {
+		m.add(u.Model, u.Tokens, u.CacheWrite1h)
+	}
+}
+
+// result returns the tally with the unnamed bucket last; nil when empty.
+func (m *modelTally) result() []ModelUsage {
+	if len(m.list) == 0 {
+		return nil
+	}
+	out := make([]ModelUsage, 0, len(m.list))
+	var unnamed *ModelUsage // there is at most one: add keys it by name
+	for i, u := range m.list {
+		if u.Model == "" {
+			unnamed = &m.list[i]
+			continue
+		}
+		out = append(out, u)
+	}
+	if unnamed != nil {
+		out = append(out, *unnamed)
+	}
+	return out
+}
