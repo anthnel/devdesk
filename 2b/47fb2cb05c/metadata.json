@@ -1,0 +1,44 @@
+{
+  "cli_version": "0.11.5",
+  "checkpoint_id": "2b47fb2cb05c",
+  "strategy": "manual-commit",
+  "branch": "feat/DEVDESK-46-agent-activity",
+  "checkpoints_count": 6,
+  "files_touched": [
+    "docs/architecture/agent-usage.md",
+    "docs/backlog.md",
+    "internal/ui/agentusageview/agents.go",
+    "internal/ui/agentusageview/agents_level_test.go",
+    "internal/ui/agentusageview/cmd.go",
+    "internal/ui/agentusageview/header_live_test.go",
+    "internal/ui/agentusageview/help.go",
+    "internal/ui/agentusageview/model.go",
+    "internal/ui/agentusageview/selection.go",
+    "internal/ui/agentusageview/selection_test.go",
+    "internal/ui/agentusageview/update.go",
+    "internal/ui/agentusageview/view.go"
+  ],
+  "sessions": [
+    {
+      "metadata": "/2b/47fb2cb05c/0/metadata.json",
+      "transcript": "/2b/47fb2cb05c/0/full.jsonl",
+      "compact_transcript": "/2b/47fb2cb05c/0/transcript.jsonl",
+      "content_hash": "/2b/47fb2cb05c/0/content_hash.txt",
+      "prompt": "/2b/47fb2cb05c/0/prompt.txt"
+    }
+  ],
+  "token_usage": {
+    "input_tokens": 30,
+    "cache_creation_tokens": 12329,
+    "cache_read_tokens": 3479818,
+    "output_tokens": 6400,
+    "api_call_count": 13,
+    "subagent_tokens": {
+      "input_tokens": 20,
+      "cache_creation_tokens": 173153,
+      "cache_read_tokens": 813418,
+      "output_tokens": 216,
+      "api_call_count": 10
+    }
+  }
+}
