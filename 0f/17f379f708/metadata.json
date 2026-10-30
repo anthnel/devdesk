@@ -1,0 +1,48 @@
+{
+  "cli_version": "0.12.2",
+  "checkpoint_id": "0f17f379f708",
+  "strategy": "manual-commit",
+  "branch": "feat/devdesk-89-registry",
+  "checkpoints_count": 6,
+  "files_touched": [
+    "internal/command/registry.go",
+    "internal/command/registry_test.go"
+  ],
+  "sessions": [
+    {
+      "metadata": "/0f/17f379f708/0/metadata.json",
+      "transcript": "/0f/17f379f708/0/full.jsonl",
+      "compact_transcript": "/0f/17f379f708/0/transcript.jsonl",
+      "content_hash": "/0f/17f379f708/0/content_hash.txt",
+      "prompt": "/0f/17f379f708/0/prompt.txt"
+    }
+  ],
+  "token_usage": {
+    "input_tokens": 50,
+    "cache_creation_tokens": 146063,
+    "cache_read_tokens": 2605868,
+    "output_tokens": 15607,
+    "api_call_count": 19,
+    "subagent_tokens": {
+      "input_tokens": 46,
+      "cache_creation_tokens": 294024,
+      "cache_read_tokens": 2420896,
+      "output_tokens": 468,
+      "api_call_count": 23
+    }
+  },
+  "redaction": {
+    "replacements": 0,
+    "layers": {
+      "betterleaks": 0,
+      "connection_string": 0,
+      "credential_key": 0,
+      "credential_value": 0,
+      "credentialed_uri": 0,
+      "entropy": 0,
+      "key_context": 0,
+      "provider_token": 0,
+      "shell_stdin": 0
+    }
+  }
+}
