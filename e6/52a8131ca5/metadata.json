@@ -1,0 +1,59 @@
+{
+  "cli_version": "0.12.2",
+  "checkpoint_id": "e652a8131ca5",
+  "strategy": "manual-commit",
+  "branch": "main",
+  "checkpoints_count": 6,
+  "files_touched": [
+    "docs/architecture/agent-usage.md",
+    "docs/architecture/app-shell.md",
+    "docs/backlog.md",
+    "internal/app/app.go",
+    "internal/app/command_line.go",
+    "internal/ui/agentusageview/agents.go",
+    "internal/ui/agentusageview/agents_level_test.go",
+    "internal/ui/agentusageview/availability_test.go",
+    "internal/ui/agentusageview/cmd.go",
+    "internal/ui/agentusageview/cmd_test.go",
+    "internal/ui/agentusageview/header_live_test.go",
+    "internal/ui/agentusageview/help.go",
+    "internal/ui/agentusageview/leave_test.go",
+    "internal/ui/agentusageview/live_test.go",
+    "internal/ui/agentusageview/model.go",
+    "internal/ui/agentusageview/poll_test.go",
+    "internal/ui/agentusageview/selection.go",
+    "internal/ui/agentusageview/selection_test.go",
+    "internal/ui/agentusageview/update.go",
+    "internal/ui/agentusageview/view.go"
+  ],
+  "sessions": [
+    {
+      "metadata": "/e6/52a8131ca5/0/metadata.json",
+      "transcript": "/e6/52a8131ca5/0/full.jsonl",
+      "compact_transcript": "/e6/52a8131ca5/0/transcript.jsonl",
+      "content_hash": "/e6/52a8131ca5/0/content_hash.txt",
+      "prompt": "/e6/52a8131ca5/0/prompt.txt"
+    }
+  ],
+  "token_usage": {
+    "input_tokens": 0,
+    "cache_creation_tokens": 0,
+    "cache_read_tokens": 0,
+    "output_tokens": 0,
+    "api_call_count": 0
+  },
+  "redaction": {
+    "replacements": 0,
+    "layers": {
+      "betterleaks": 0,
+      "connection_string": 0,
+      "credential_key": 0,
+      "credential_value": 0,
+      "credentialed_uri": 0,
+      "entropy": 0,
+      "key_context": 0,
+      "provider_token": 0,
+      "shell_stdin": 0
+    }
+  }
+}
