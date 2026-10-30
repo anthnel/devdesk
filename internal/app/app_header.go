@@ -323,11 +323,11 @@ func splitArrayIntoChunks(arr []shortcut.Shortcut, chunkSize int) []shortcut.Sho
 // the keyboard. It replaces the view's own: tab and enter stay in place and
 // grey out when no row is highlighted (Rule 130).
 func (a *App) commandLineShortcuts() shortcut.Shortcuts {
-	_, highlighted := a.highlightedEntry()
+	_, runnable := a.runnableText()
 	return shortcut.Shortcuts{
 		{Key: "↑↓", Description: "Choose"},
 		{Key: "tab", Description: "Complete", Disabled: !a.canComplete()},
-		{Key: "enter", Description: "Open", Disabled: !highlighted},
+		{Key: "enter", Description: "Open", Disabled: !runnable},
 		{Key: "esc", Description: "Close"},
 	}
 }

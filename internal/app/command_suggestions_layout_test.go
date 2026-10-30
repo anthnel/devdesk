@@ -297,3 +297,109 @@ func TestNarrowWidthsNeverWrapTheHeaderAndKeepRowsExact(t *testing.T) {
 		})
 	}
 }
+
+// ── enter's availability: one computation, two readers (Rule 130) ────────────
+
+// With no list drawn, enter is lit as soon as there is text to run, and the
+// header's key set is the one it has with a list: only Disabled moves.
+func TestEnterIsLitWithTypedTextWhenThereIsNoList(t *testing.T) {
+	a := routerAt(t, &fakeView{body: "body"}, 80, 12)
+	press(t, a, "ctrl+p")
+	empty := a.commandLineShortcuts()
+	if !testutil.ShortcutDisabled(empty, "enter") {
+		t.Error("enter is lit on an empty line")
+	}
+
+	typeCommand(t, a, "containers")
+	typed := a.commandLineShortcuts()
+	if testutil.ShortcutDisabled(typed, "enter") {
+		t.Error("enter is greyed while runCommand would run the typed name")
+	}
+	if !testutil.ShortcutDisabled(typed, "tab") {
+		t.Error("tab is lit with nothing highlighted")
+	}
+	if got, want := testutil.ShortcutKeys(typed), testutil.ShortcutKeys(empty); strings.Join(got, ",") != strings.Join(want, ",") {
+		t.Errorf("key set changed between states: %v vs %v", got, want)
+	}
+
+	press(t, a, "enter")
+	if a.currentView != command.ViewContainers {
+		t.Errorf("view = %s: the lit enter did not act", a.currentView)
+	}
+}
+
+// ── fitHeight ────────────────────────────────────────────────────────────────
+
+func numbered(prefix string, n int) string {
+	lines := make([]string, n)
+	for i := range lines {
+		lines[i] = fmt.Sprintf("%s%d", prefix, i)
+	}
+	return strings.Join(lines, "\n")
+}
+
+func TestFitHeightLeavesAFittingStackAlone(t *testing.T) {
+	got := fitHeight(numbered("h", 2), numbered("b", 2), numbered("f", 2), 10)
+	if want := "h0\nh1\nb0\nb1\nf0\nf1"; got != want {
+		t.Errorf("got %q, want %q", got, want)
+	}
+}
+
+func TestFitHeightCutsTheBodyBottomFirstThenKeepsHeaderAndFooter(t *testing.T) {
+	got := fitHeight(numbered("h", 2), numbered("b", 4), numbered("f", 2), 6)
+	if want := "h0\nh1\nb0\nb1\nf0\nf1"; got != want {
+		t.Errorf("got %q, want %q", got, want)
+	}
+	// The body is gone entirely before the footer loses a line.
+	got = fitHeight(numbered("h", 2), numbered("b", 4), numbered("f", 2), 4)
+	if want := "h0\nh1\nf0\nf1"; got != want {
+		t.Errorf("got %q, want %q", got, want)
+	}
+}
+
+func TestFitHeightCutsTheFooterBeforeTheHeaderWhenNoBodyIsLeft(t *testing.T) {
+	got := fitHeight(numbered("h", 3), numbered("b", 2), numbered("f", 3), 4)
+	if want := "h0\nh1\nh2\nf0"; got != want {
+		t.Errorf("got %q, want %q", got, want)
+	}
+}
+
+func TestFitHeightWithAHeaderTallerThanTheTerminalKeepsItsFirstLines(t *testing.T) {
+	got := fitHeight(numbered("h", 10), numbered("b", 3), numbered("f", 2), 4)
+	if want := "h0\nh1\nh2\nh3"; got != want {
+		t.Errorf("got %q, want %q", got, want)
+	}
+}
+
+func TestFitHeightNonPositiveHeightCutsNothing(t *testing.T) {
+	for _, h := range []int{0, -3} {
+		got := fitHeight(numbered("h", 2), numbered("b", 2), numbered("f", 2), h)
+		if want := "h0\nh1\nb0\nb1\nf0\nf1"; got != want {
+			t.Errorf("height %d: got %q, want %q", h, got, want)
+		}
+	}
+}
+
+// The command line and the footer's info line stay on screen at the heights
+// where the viewport has been squeezed out.
+func TestTheCommandLineAndTheFooterSurviveShortTerminals(t *testing.T) {
+	for _, h := range []int{13, 12} {
+		t.Run(fmt.Sprintf("80x%d", h), func(t *testing.T) {
+			a := routerAt(t, &fakeView{body: "body", footerHeight: 1, footer: "FOOTERINFO"}, 80, h)
+			press(t, a, "ctrl+p")
+			typeCommand(t, a, "co")
+			lines := screen(a)
+			if len(lines) != h {
+				t.Fatalf("View is %d lines, want %d", len(lines), h)
+			}
+			all := strings.Join(lines, "\n")
+			header := strings.Join(lines[:10], "\n")
+			if !strings.Contains(header, "co") {
+				t.Errorf("the command line is cut off:\n%s", all)
+			}
+			if !strings.Contains(all, "FOOTERINFO") {
+				t.Errorf("the footer is cut off:\n%s", all)
+			}
+		})
+	}
+}
