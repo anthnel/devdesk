@@ -1,7 +1,6 @@
 package app
 
 import (
-	"fmt"
 	"strings"
 
 	"github.com/anthnel/devdesk/internal/ui/shortcut"
@@ -54,8 +53,8 @@ func (a *App) renderHeader() string {
 	if view, ok := a.views[a.currentView]; ok {
 		if headerView, implementsHeaderView := view.(HeaderView); implementsHeaderView {
 			shortcuts := headerView.GetShortcuts()
-			if a.commandMode && a.viewPicker {
-				shortcuts = viewPickerShortcuts()
+			if a.commandMode {
+				shortcuts = a.commandLineShortcuts()
 			}
 			info := headerView.GetHeaderInfo(a.currentContext)
 
@@ -63,10 +62,8 @@ func (a *App) renderHeader() string {
 
 			pad := theme.Bg(" ")
 			var cmdLine string
-			if a.commandMode && a.viewPicker {
-				cmdLine = a.renderViewPicker(a.width)
-			} else if a.commandMode {
-				cmdLine = pad + theme.CommandLineStyle.Width(a.width-2).Render(a.renderCommandLineWithCompletion()) + pad
+			if a.commandMode {
+				cmdLine = pad + theme.CommandLineStyle.Width(a.width-2).Render(a.commandInput.View()) + pad
 			} else {
 				cmdLine = pad + theme.CommandLineInactiveStyle.Width(a.width-2).Render("❯") + pad
 			}
@@ -322,86 +319,15 @@ func splitArrayIntoChunks(arr []shortcut.Shortcut, chunkSize int) []shortcut.Sho
 	return chunks
 }
 
-// renderCommandLineWithCompletion generates input + preview + hint
-func (a *App) renderCommandLineWithCompletion() string {
-	inputView := a.commandInput.View()
-
-	if len(a.completionSuggestions) == 0 {
-		return inputView
-	}
-
-	current := a.completionSuggestions[a.completionIndex]
-	currentInput := a.commandInput.Value()
-
-	previewText := ""
-	if strings.HasPrefix(strings.ToLower(current.Text), strings.ToLower(currentInput)) &&
-		len(currentInput) > 0 {
-		previewText = current.Text[len(currentInput):]
-	}
-
-	cmdBgStyle := lipgloss.NewStyle().Background(theme.ColorCmdLineBg)
-
-	preview := cmdBgStyle.Foreground(theme.ColorDim).Render(previewText)
-
-	hint := cmdBgStyle.Foreground(theme.ColorDim).Italic(true).
-		Render(fmt.Sprintf(" %s [%d/%d]",
-			current.Display,
-			a.completionIndex+1,
-			len(a.completionSuggestions)))
-
-	contentWidth := lipgloss.Width(inputView) + lipgloss.Width(preview)
-	hintWidth := lipgloss.Width(hint)
-	// width - 2 (outer padding) - 1 (slack, so the hint never touches the edge)
-	spacerWidth := (a.width - 3) - contentWidth - hintWidth
-	spacer := ""
-	if spacerWidth > 0 {
-		spacer = cmdBgStyle.Render(strings.Repeat(" ", spacerWidth))
-	}
-
-	return inputView + preview + spacer + hint
-}
-
-// renderViewPicker renders the view breadcrumb that replaces the command line.
-// The row is windowed around the selection when it is wider than the terminal,
-// so the active tab is always visible.
-func (a *App) renderViewPicker(width int) string {
-	inner := width - 2
-	start, end := pickerWindow(a.viewPickerViews, a.viewPickerIdx, inner)
-	items := make([]theme.TabItem, 0, end-start)
-	for _, name := range a.viewPickerViews[start:end] {
-		items = append(items, theme.TabItem{Label: name})
-	}
-	row := theme.RenderTabs(items, a.viewPickerIdx-start)
-	return theme.PadWithBg(theme.Bg(" ")+row, width)
-}
-
-// pickerWindow returns the [start,end) slice of names that fits in width cells
-// (each tab costs its label + 2 padding + 1 separator) and contains sel.
-func pickerWindow(names []string, sel, width int) (int, int) {
-	cost := func(i int) int { return len(names[i]) + 3 }
-	start, end, used := sel, sel+1, cost(sel)
-	for grew := true; grew; {
-		grew = false
-		if end < len(names) && used+cost(end) <= width {
-			used += cost(end)
-			end++
-			grew = true
-		}
-		if start > 0 && used+cost(start-1) <= width {
-			start--
-			used += cost(start)
-			grew = true
-		}
-	}
-	return start, end
-}
-
-// viewPickerShortcuts is the header's vocabulary while the breadcrumb owns the
-// keyboard.
-func viewPickerShortcuts() shortcut.Shortcuts {
+// commandLineShortcuts is the header's vocabulary while the command line owns
+// the keyboard. It replaces the view's own: tab and enter stay in place and
+// grey out when no row is highlighted (Rule 130).
+func (a *App) commandLineShortcuts() shortcut.Shortcuts {
+	_, highlighted := a.highlightedEntry()
 	return shortcut.Shortcuts{
-		{Key: "←→", Description: "Select view"},
-		{Key: "enter", Description: "Open view"},
-		{Key: "esc", Description: "Back to command line"},
+		{Key: "↑↓", Description: "Choose"},
+		{Key: "tab", Description: "Complete", Disabled: !a.canComplete()},
+		{Key: "enter", Description: "Open", Disabled: !highlighted},
+		{Key: "esc", Description: "Close"},
 	}
 }

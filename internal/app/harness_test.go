@@ -186,11 +186,12 @@ func routerAt(t *testing.T, view tea.Model, width, height int) *App {
 		sharedState: &shared.State{
 			Secrets: credentials.SessionOnly("under test"),
 		},
-		commandInput:     newCommandInput(),
-		completionEngine: command.NewCompletionEngine(),
-		jobs:             jobs.New(),
-		width:            width,
-		height:           height,
+		commandInput: newCommandInput(),
+		suggester:    command.NewSuggester(),
+		sugCursor:    -1,
+		jobs:         jobs.New(),
+		width:        width,
+		height:       height,
 	}
 	// Lay it out once, as New() does, so the viewport height a test measures
 	// against is the one the router actually computed.

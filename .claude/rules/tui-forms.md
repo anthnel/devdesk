@@ -39,6 +39,11 @@ Files:
 - `internal/ui/help/help.go` — component and `Provider` interface
 - `internal/ui/*/view.go` or `model.go` — per-view implementation
 
+**Declared gap: the command line has no in-app help.** It is not a view; its
+keys (`↑↓`, `tab`, `enter`, `esc`) are in the header while it is open and
+documented in `docs-site/docs/reference/commands.md` (DEVDESK-89, decision of
+the user).
+
 ### Rule 120 : Focus indicator and form field rendering
 
 **Indentation: 2 characters.** When focused, `theme.IconCircleSmall` sits at column 0.
@@ -259,6 +264,10 @@ Forbidden:
 | `Enter` | Validate an action button or trigger a specific action — **never** to toggle a checkbox |
 | `← / →` | Change level in a table (drill-down/up) **and** cycle the values of a closed-list field |
 | `Esc` | Cancel / close / return to the parent level |
+
+**Declared exception: the command line.** `tab` completes the highlighted
+suggestion there (`keymap.DeclaredExceptions()`, surface `app/command-line`). The
+command line has no tabs and no fields, so neither job of `tab` exists on it.
 
 #### Detailed rules
 

@@ -61,9 +61,43 @@ Press `ctrl+p` to enter command mode, then type:
 - `context list` - Show available contexts
 - `quit` - Exit application
 
-In command mode, `tab` swaps the command line for a circular breadcrumb of every view by full name (`command.ViewNames()`): ←/→ (or `tab`) move, `enter` opens, `esc` returns to the command line with its text kept. State is `App.viewPicker*`; rendering is `renderViewPicker` in `app_header.go`.
+**The command line shows a suggestion list (DEVDESK-89).** Opening it (`ctrl+p`
+or `:`) draws a list of every view and action over the top of the viewport; each
+keystroke ranks it again. The pieces:
 
-Command parsing and tab-completion live in `internal/command/`. `ParseCommand()` returns a structured `Command{Type, View, Args}` supporting `CommandView`, `CommandContext`, `CommandQuit`, `CommandUnknown`.
+- `command.Entries()` (`internal/command/registry.go`) is the one ordered
+  registry — name, aliases, description, argument placeholder, kind. The parser,
+  the listings and the suggestions all derive from it.
+- `command.Suggester` (`internal/command/suggest.go`) ranks the registry for the
+  input: exact name or alias, then name prefix, then alias prefix. Once the first
+  word names a command that takes an argument and a space follows, it switches to
+  the argument stage (`Suggestions.Stage`) with that single entry.
+- `internal/ui/cmdsuggest` renders the list as pure lines (state in, lines out):
+  whole lines, never a cut of styled text, with a bottom rule carrying the count
+  (`3 of 17`, `▲ n more · ▼ m more`) or the warning. `VisibleRows` caps it at
+  eight rows and at the usable viewport height minus the rule; below two usable
+  lines there is no list.
+- The router (`internal/app/command_suggestions.go`) holds the result, the
+  highlighted row (`sugCursor`, -1 for none), the scroll offset and the notice;
+  `renderBody` swaps the viewport's top lines for the list (`FrameJoined` ├─┤, or
+  `FrameClosed` └─┘ for a frameless view such as the dashboard).
+
+Keys in the command line: typing ranks again and highlights the best row; `↑`/`↓`
+move the highlight without wrapping (from no highlight, `↓` takes the first
+visible row and `↑` the last); `tab` writes the highlighted name into the line,
+plus a space when it takes an argument, and runs nothing; `enter` opens the
+highlighted row, or at the argument stage runs the text as typed (`ctx work`
+creates or switches); `esc` closes the line and the list together. `shift+tab` does
+nothing. With nothing highlighted `tab` and `enter` are greyed in the header
+(`commandLineShortcuts`, which replaces the view's own shortcuts), and `enter`
+says why on the bottom rule: `Type a name or choose one` for an empty line (it
+never quits and changes nothing), `"zz" is not a view or a command` for no match.
+The notice lasts until the next key, with no timer. The ghost completion text and
+the `[i/n]` position that used to follow the input, and the breadcrumb of views
+`tab` used to open, are gone. `tab` here is a declared exception to Rule 135
+(`keymap.DeclaredExceptions()`, surface `app/command-line`).
+
+Command parsing lives in `internal/command/`. `ParseCommand()` returns a structured `Command{Type, View, Args}` supporting `CommandView`, `CommandContext`, `CommandQuit`, `CommandUnknown`.
 
 **The forge views are `git-auth` and `git-explorer`, named after the role.**
 A context targets one forge (§3.6), so there is one authentication screen and

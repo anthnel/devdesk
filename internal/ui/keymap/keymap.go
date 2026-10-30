@@ -282,6 +282,14 @@ var exceptions = []Exception{
 			"a browser or web-terminal tab, ctrl+s is flow control, and ctrl+d is " +
 			"end-of-file.",
 	},
+	{
+		Key:     "tab",
+		Surface: "app/command-line",
+		Why: "Complete the highlighted suggestion. The command line has no tabs " +
+			"and no fields, so tab's usual jobs (Rule 135: switch tabs, never " +
+			"move between fields) do not exist there, and completing is what " +
+			"tab means in every shell. Nothing is run: enter does that.",
+	},
 }
 
 // DeclaredExceptions returns the declared exceptions.

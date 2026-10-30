@@ -482,6 +482,11 @@ Applies to all `shortcut.Shortcut{Key: "...", Description: "..."}` definitions a
 
 ### Rule 138 : Only non-obvious shortcuts in GetShortcuts()
 
+**Declared exception: `↑↓ Choose` under the command line.** While the command
+line is open the header lists `↑↓ Choose`, `tab Complete`, `enter Open`,
+`esc Close`. The arrows are not obvious there: the focus is in a text input,
+where `↑↓` would normally do nothing (DEVDESK-89).
+
 **`GetShortcuts()` must only surface shortcuts that are not self-evident to the user. Omit universally-known navigation shortcuts.**
 
 #### Always omit from GetShortcuts()

@@ -24,80 +24,88 @@ import (
 	"github.com/anthnel/devdesk/internal/ui/workspaces"
 )
 
-// handleCommandMode handles command mode
+// handleCommandMode handles a key while the command line owns the keyboard.
+// Every key first clears the warning on the list's bottom rule: it lasts until
+// the next keystroke, with no timer.
 func (a *App) handleCommandMode(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
-	if a.viewPicker {
-		return a.handleViewPicker(msg)
-	}
+	a.sugNotice = ""
 
 	switch msg.Type {
 	case tea.KeyEsc:
 		return a, a.closeCommandLine()
-
 	case tea.KeyTab:
-		a.openViewPicker()
+		a.completeHighlighted()
 		return a, nil
-
+	case tea.KeyShiftTab:
+		return a, nil
+	case tea.KeyUp:
+		a.moveHighlight(-1)
+		return a, nil
+	case tea.KeyDown:
+		a.moveHighlight(1)
+		return a, nil
 	case tea.KeyEnter:
 		return a.runCommand()
-
-	default:
-		// Update the input
-		var cmd tea.Cmd
-		a.commandInput, cmd = a.commandInput.Update(msg)
-		// Update the suggestions after each keystroke
-		a.updateCompletions()
-		return a, cmd
 	}
+	return a.handleCommandInput(msg)
+}
+
+// handleCommandInput feeds an ordinary key to the input and ranks the registry
+// again for the new text.
+func (a *App) handleCommandInput(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
+	var cmd tea.Cmd
+	a.commandInput, cmd = a.commandInput.Update(msg)
+	a.refreshSuggestions()
+	return a, cmd
 }
 
 // closeCommandLine leaves command mode and asks for the re-layout that gives
-// the row back to the inactive prompt.
+// the row back to the inactive prompt. The list goes with the line.
 func (a *App) closeCommandLine() tea.Cmd {
 	a.commandMode = false
-	a.viewPicker = false
 	a.commandInput.Blur()
-	a.resetCompletion()
+	a.resetSuggestions()
 	return a.requestResize()
 }
 
-// runCommand executes what the command line holds — or the highlighted
-// suggestion, which is what makes tab-then-enter work.
+// runCommand executes the highlighted row, or at the argument stage the text
+// as typed. With nothing to run it says so on the list's bottom rule and
+// leaves the line open.
 func (a *App) runCommand() (tea.Model, tea.Cmd) {
 	input := a.commandInput.Value()
-	if len(a.completionSuggestions) > 0 {
-		input = a.completionSuggestions[a.completionIndex].Text
+	if a.suggestions.Stage != command.StageArgument {
+		entry, ok := a.highlightedEntry()
+		if !ok {
+			a.sugNotice = a.nothingToRunNotice(input)
+			return a, nil
+		}
+		input = entry.Name
 	}
 
 	cmd := command.ParseCommand(input)
 
 	switch cmd.Type {
 	case command.CommandQuit:
-		a.resetCompletion()
+		a.resetSuggestions()
 		return a, tea.Quit
 
 	case command.CommandView:
 		a.commandMode = false
-		a.viewPicker = false
 		a.commandInput.Blur()
-		a.resetCompletion()
+		a.resetSuggestions()
 		a.resetSelectionModeFor(cmd.View)
 		return a, a.switchView(cmd.View)
 
 	case command.CommandContext:
 		a.commandMode = false
 		a.commandInput.Blur()
-		a.resetCompletion()
+		a.resetSuggestions()
 		if len(cmd.Args) > 0 {
 			// Create/switch to a named context
 			return a, a.switchContext(cmd.Args[0])
 		}
 		// No args -> open the interactive modal
 		return a, a.listContexts()
-
-	case command.CommandUnknown:
-		// Invalid command - stay in command mode
-		return a, nil
 	}
 
 	return a, nil
@@ -255,62 +263,4 @@ func (a *App) newAuthView() tea.Model {
 		authView.SetAuth(a.sharedState.Forge, a.sharedState.CurrentUser)
 	}
 	return authView
-}
-
-// updateCompletions updates the suggestions based on the current input
-func (a *App) updateCompletions() {
-	input := a.commandInput.Value()
-
-	// Reset index if input changes
-	if input != a.completionInput {
-		a.completionIndex = 0
-		a.completionInput = input
-	}
-
-	a.completionSuggestions = a.completionEngine.GetSuggestions(input)
-}
-
-// openViewPicker swaps the command line for the view breadcrumb, with the
-// current view selected. The typed text is left untouched.
-func (a *App) openViewPicker() {
-	a.viewPickerViews = command.ViewNames()
-	a.viewPickerIdx = 0
-	for i, name := range a.viewPickerViews {
-		if name == string(a.currentView) {
-			a.viewPickerIdx = i
-			break
-		}
-	}
-	a.viewPicker = true
-}
-
-// handleViewPicker drives the breadcrumb: ←/→ move the selection, tab goes
-// right and shift+tab left, and it wraps at both ends; enter opens the view; esc returns to the command
-// line.
-func (a *App) handleViewPicker(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
-	n := len(a.viewPickerViews)
-	switch msg.Type {
-	case tea.KeyEsc:
-		a.viewPicker = false
-	case tea.KeyLeft, tea.KeyShiftTab:
-		a.viewPickerIdx = (a.viewPickerIdx - 1 + n) % n
-	case tea.KeyRight, tea.KeyTab:
-		a.viewPickerIdx = (a.viewPickerIdx + 1) % n
-	case tea.KeyEnter:
-		view := command.ViewType(a.viewPickerViews[a.viewPickerIdx])
-		a.commandMode = false
-		a.viewPicker = false
-		a.commandInput.Blur()
-		a.resetCompletion()
-		a.resetSelectionModeFor(view)
-		return a, a.switchView(view)
-	}
-	return a, nil
-}
-
-// resetCompletion clears the completion state
-func (a *App) resetCompletion() {
-	a.completionSuggestions = nil
-	a.completionIndex = 0
-	a.completionInput = ""
 }

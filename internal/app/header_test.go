@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	"github.com/charmbracelet/lipgloss"
+	"github.com/charmbracelet/x/ansi"
 
 	"github.com/anthnel/devdesk/internal/ui/shortcut"
 	"github.com/anthnel/devdesk/internal/ui/testutil"
@@ -195,56 +196,18 @@ func TestAViewWithoutAHeaderRendersNothing(t *testing.T) {
 	a.resize(120, 40) // must not panic
 }
 
-// The completion preview shows only the part still to be typed, so the line
-// reads as one command rather than the prefix twice.
-func TestTheCompletionPreviewShowsOnlyTheRemainder(t *testing.T) {
+// The command line row is the bare input: no ghost text completing the typed
+// prefix, and no [i/n] position (DEVDESK-89).
+func TestTheCommandLineRowIsTheBareInput(t *testing.T) {
 	a := commanding(t, &fakeView{})
 	typeCommand(t, a, "stat")
 
-	rendered := a.renderCommandLineWithCompletion()
-
-	if strings.Contains(rendered, "statstatus") {
-		t.Errorf("the preview repeats the typed prefix:\n%s", rendered)
+	header := ansi.Strip(a.renderHeader())
+	if strings.Contains(header, "statstatus") || strings.Contains(header, "stat"+"us") {
+		t.Errorf("the line shows a completion preview:\n%s", header)
 	}
-	if !strings.Contains(rendered, "us") {
-		t.Errorf("the preview does not complete stat to status:\n%s", rendered)
-	}
-}
-
-// The counter says how many suggestions there are and which one enter would
-// run.
-func TestTheCompletionCounterNamesThePosition(t *testing.T) {
-	a := commanding(t, &fakeView{})
-	typeCommand(t, a, "s")
-	if len(a.completionSuggestions) == 0 {
-		t.Skip("no suggestion for \"s\"")
-	}
-
-	rendered := a.renderCommandLineWithCompletion()
-
-	if !strings.Contains(rendered, "[1/") {
-		t.Errorf("the command line does not show the position:\n%s", rendered)
-	}
-}
-
-func TestTheCommandLineIsPlainWithoutSuggestions(t *testing.T) {
-	a := commanding(t, &fakeView{})
-	typeCommand(t, a, "zzz")
-
-	if got, want := a.renderCommandLineWithCompletion(), a.commandInput.View(); got != want {
-		t.Errorf("with nothing to suggest the line renders %q, want the bare input %q", got, want)
-	}
-}
-
-// The breadcrumb must be what the command-line row shows while the picker is
-// open — not just the header shortcuts.
-func TestThePickerReplacesTheCommandLineRow(t *testing.T) {
-	a := commanding(t, &fakeView{})
-	a.width = 120
-	feedKey(t, a, testutil.Key("tab"))
-
-	if !strings.Contains(a.renderHeader(), "about") {
-		t.Error("the header does not render the view breadcrumb")
+	if !strings.Contains(header, "❯stat") {
+		t.Errorf("the line does not show the typed text:\n%s", header)
 	}
 }
 

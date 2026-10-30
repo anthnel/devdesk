@@ -67,7 +67,7 @@ func (a *App) renderBody() string {
 			body = replaceViewportBottomCorners(body)
 		}
 	}
-	return body
+	return a.overlaySuggestions(body)
 }
 
 // renderTitleLine draws the viewport's top border carrying the view's title —
