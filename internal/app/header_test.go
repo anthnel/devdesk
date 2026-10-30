@@ -247,3 +247,60 @@ func TestThePickerReplacesTheCommandLineRow(t *testing.T) {
 		t.Error("the header does not render the view breadcrumb")
 	}
 }
+
+// ── Narrow terminals (DEVDESK-89) ────────────────────────────────────────────
+
+// logoMarker is a run of the logo's last row that appears nowhere else in the
+// header, so finding it means the logo column was rendered.
+func logoMarker() string { return strings.TrimSpace(logoLines[len(logoLines)-1]) }
+
+// The logo column is fixed at logoWidth cells; when the window cannot hold it
+// next to the info column the column goes away, rather than pushing every row
+// past the window and wrapping (Rule 108). Nothing changes where it fits.
+func TestTheHeaderNeverOverflowsANarrowTerminal(t *testing.T) {
+	info := []shortcut.HeaderInfo{{Key: "Context", Value: "default"}}
+	cases := []struct {
+		width    int
+		wantLogo bool
+	}{
+		{40, false},
+		{50, false},
+		{58, true},
+		{60, true},
+		{80, true},
+		{120, true},
+	}
+	for _, tc := range cases {
+		rendered := renderHeaderContent(info, manyShortcuts(12), tc.width)
+		lines := strings.Split(rendered, "\n")
+
+		if len(lines) != headerMinHeight {
+			t.Errorf("width %d: the header is %d rows, want %d", tc.width, len(lines), headerMinHeight)
+		}
+		for i, line := range lines {
+			if got := lipgloss.Width(line); got != tc.width {
+				t.Errorf("width %d: row %d is %d cells wide, want exactly %d", tc.width, i, got, tc.width)
+			}
+		}
+		if got := strings.Contains(rendered, logoMarker()); got != tc.wantLogo {
+			t.Errorf("width %d: logo present = %v, want %v", tc.width, got, tc.wantLogo)
+		}
+	}
+}
+
+// The whole block the router renders (header, blank, command line, blank) keeps
+// its ten rows and wraps nowhere at 40 columns.
+func TestTheHeaderBlockKeepsItsHeightAtFortyColumns(t *testing.T) {
+	a := routerAt(t, &fakeView{shortcuts: manyShortcuts(12)}, 40, 20)
+
+	lines := strings.Split(a.renderHeader(), "\n")
+
+	if len(lines) != headerMinHeight+3 {
+		t.Errorf("the header block is %d rows, want %d", len(lines), headerMinHeight+3)
+	}
+	for i, line := range lines {
+		if got := lipgloss.Width(line); got > 40 {
+			t.Errorf("row %d is %d cells wide in a 40-column window", i, got)
+		}
+	}
+}

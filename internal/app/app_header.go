@@ -87,6 +87,11 @@ func renderHeaderContent(info []shortcut.HeaderInfo, shortcuts shortcut.Shortcut
 	// Column widths
 	col1Width := innerWidth / 4
 	col3Width := logoWidth
+	// The logo column is fixed-width: drop it when it cannot sit next to the
+	// info column, rather than pushing every row past the window (Rule 108).
+	if innerWidth < col1Width+logoWidth {
+		col3Width = 0
+	}
 	col2Width := innerWidth - col1Width - col3Width
 	if col2Width < 0 {
 		col2Width = 0
@@ -99,7 +104,10 @@ func renderHeaderContent(info []shortcut.HeaderInfo, shortcuts shortcut.Shortcut
 	col2Lines := buildShortcutLines(shortcuts, col2Width)
 
 	// Build column 3: logo (centered vertically — 1 empty line on top since 6 logo lines / 7 header lines)
-	col3Lines := buildLogoLines(col3Width)
+	var col3Lines []string
+	if col3Width > 0 {
+		col3Lines = buildLogoLines(col3Width)
+	}
 
 	// Assemble rows
 	rows := make([]string, headerMinHeight)
@@ -125,8 +133,9 @@ func renderHeaderContent(info []shortcut.HeaderInfo, shortcuts shortcut.Shortcut
 	return strings.Join(rows, "\n")
 }
 
-// buildInfoLines builds the key-value info lines for column 1, aligning values on the longest key
-func buildInfoLines(info []shortcut.HeaderInfo, _ int) []string {
+// buildInfoLines builds the key-value info lines for column 1, aligning values on the longest key.
+// Lines wider than col1Width are clipped, so a narrow column never overflows into the next one.
+func buildInfoLines(info []shortcut.HeaderInfo, col1Width int) []string {
 	// Find max key length for alignment
 	maxKeyLen := 0
 	for _, h := range info {
@@ -150,6 +159,10 @@ func buildInfoLines(info []shortcut.HeaderInfo, _ int) []string {
 			}
 
 			lines[i] = label + value
+			if col1Width > 0 {
+				// MaxWidth truncates on rune boundaries and keeps escape sequences intact.
+				lines[i] = lipgloss.NewStyle().MaxWidth(col1Width).Render(lines[i])
+			}
 		} else {
 			lines[i] = ""
 		}
