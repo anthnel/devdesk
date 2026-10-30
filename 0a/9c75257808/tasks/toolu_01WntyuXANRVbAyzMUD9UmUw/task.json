@@ -1,0 +1,15 @@
+{
+  "tool_use_id": "toolu_01WntyuXANRVbAyzMUD9UmUw",
+  "agent_id": "a595ab470d2753712",
+  "subagent_type": "dev-team:security-reviewer",
+  "task_description": "Revue sécurité étape 5",
+  "token_usage": {
+    "input_tokens": 18,
+    "cache_creation_tokens": 86401,
+    "cache_read_tokens": 624342,
+    "output_tokens": 89,
+    "api_call_count": 9
+  },
+  "started_at": "2026-10-30T21:30:06.392659632+01:00",
+  "completed_at": "2026-10-30T21:31:07.96789786+01:00"
+}
