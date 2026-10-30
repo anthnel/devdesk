@@ -16,13 +16,51 @@ func (a *App) View() string {
 			lipgloss.WithWhitespaceBackground(theme.ColorBackground))
 	}
 
-	inner := a.renderHeader() + "\n" + a.renderTitleLine() + "\n" + a.renderBody()
-	if footer := a.renderViewFooter(); footer != "" {
-		inner += "\n" + footer
-	}
+	header := a.renderHeader() + "\n" + a.renderTitleLine()
+	body := a.renderBody()
+	footer := a.renderViewFooter()
+	inner := fitHeight(header, body, footer, a.height)
 
 	return lipgloss.Place(a.width, a.height, lipgloss.Left, lipgloss.Top, inner,
 		lipgloss.WithWhitespaceBackground(theme.ColorBackground))
+}
+
+// fitHeight stacks header, body and footer in at most height lines.
+// lipgloss.Place pads a short block but never crops a tall one, so on a very
+// small terminal (header 10 + title 1 + the viewport's minimum + footer) the
+// frame would be taller than the screen. The surplus is taken from the body
+// first, bottom lines first: the header carries the command line and the
+// footer carries the messages, so both outrank viewport rows. If the header
+// alone is taller than the terminal, the whole stack is cut to its first
+// height lines, the simplest floor. At normal heights nothing is cut.
+func fitHeight(header, body, footer string, height int) string {
+	parts := []string{header}
+	if body != "" {
+		parts = append(parts, body)
+	}
+	if footer != "" {
+		parts = append(parts, footer)
+	}
+	lines := strings.Split(strings.Join(parts, "\n"), "\n")
+	excess := len(lines) - height
+	if height <= 0 || excess <= 0 {
+		return strings.Join(lines, "\n")
+	}
+
+	headerLen := strings.Count(header, "\n") + 1
+	bodyLen := 0
+	if body != "" {
+		bodyLen = strings.Count(body, "\n") + 1
+	}
+	cut := min(excess, bodyLen)
+	if cut > 0 {
+		end := headerLen + bodyLen
+		lines = append(lines[:end-cut], lines[end:]...)
+	}
+	if len(lines) > height {
+		lines = lines[:height]
+	}
+	return strings.Join(lines, "\n")
 }
 
 // activeOverlay returns the overlay to draw instead of the view, or "" when

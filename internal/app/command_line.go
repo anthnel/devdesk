@@ -76,7 +76,9 @@ func (a *App) closeCommandLine() tea.Cmd {
 // leaves the line open.
 func (a *App) runCommand() (tea.Model, tea.Cmd) {
 	input := a.commandInput.Value()
-	if a.suggestions.Stage != command.StageArgument {
+	// Without a visible list (too short a viewport) the typed text runs as is,
+	// like the argument stage: a prefix such as "co" runs nothing.
+	if a.suggestions.Stage != command.StageArgument && a.listVisible() > 0 {
 		entry, ok := a.highlightedEntry()
 		if !ok {
 			a.sugNotice = a.nothingToRunNotice()
