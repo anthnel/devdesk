@@ -1,0 +1,45 @@
+{
+  "cli_version": "0.12.2",
+  "checkpoint_id": "cd2a29550172",
+  "strategy": "manual-commit",
+  "branch": "docs/entire-gates-approval",
+  "checkpoints_count": 6,
+  "files_touched": null,
+  "sessions": [
+    {
+      "metadata": "/cd/2a29550172/0/metadata.json",
+      "transcript": "/cd/2a29550172/0/full.jsonl",
+      "compact_transcript": "/cd/2a29550172/0/transcript.jsonl",
+      "content_hash": "/cd/2a29550172/0/content_hash.txt",
+      "prompt": "/cd/2a29550172/0/prompt.txt"
+    }
+  ],
+  "token_usage": {
+    "input_tokens": 44,
+    "cache_creation_tokens": 16501,
+    "cache_read_tokens": 4790173,
+    "output_tokens": 10464,
+    "api_call_count": 15,
+    "subagent_tokens": {
+      "input_tokens": 33,
+      "cache_creation_tokens": 279066,
+      "cache_read_tokens": 1315956,
+      "output_tokens": 459,
+      "api_call_count": 17
+    }
+  },
+  "redaction": {
+    "replacements": 0,
+    "layers": {
+      "betterleaks": 0,
+      "connection_string": 0,
+      "credential_key": 0,
+      "credential_value": 0,
+      "credentialed_uri": 0,
+      "entropy": 0,
+      "key_context": 0,
+      "provider_token": 0,
+      "shell_stdin": 0
+    }
+  }
+}
