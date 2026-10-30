@@ -1,0 +1,18 @@
+{
+  "tool_use_id": "toolu_019y4bGMBfCMHoaxz7Xeo6o6",
+  "agent_id": "a470e447a00d63dd6",
+  "subagent_type": "project-tester",
+  "task_description": "Tests rouges étape 6 en-tête",
+  "files": [
+    "internal/ui/agentusageview/cost_summary_test.go"
+  ],
+  "token_usage": {
+    "input_tokens": 29,
+    "cache_creation_tokens": 186601,
+    "cache_read_tokens": 2087232,
+    "output_tokens": 12588,
+    "api_call_count": 15
+  },
+  "started_at": "2026-10-30T16:28:43.3436578+01:00",
+  "completed_at": "2026-10-30T16:32:05.576282832+01:00"
+}

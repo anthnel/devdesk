@@ -1,0 +1,15 @@
+{
+  "tool_use_id": "toolu_013TfRNyZtZxFkLk5VPvdfU6",
+  "agent_id": "a844445ed0c45cdb3",
+  "subagent_type": "dev-team:architect",
+  "task_description": "Plan DEVDESK-47 coût par agent",
+  "token_usage": {
+    "input_tokens": 74,
+    "cache_creation_tokens": 242096,
+    "cache_read_tokens": 5989526,
+    "output_tokens": 8861,
+    "api_call_count": 37
+  },
+  "started_at": "2026-10-30T11:13:25.083653999+01:00",
+  "completed_at": "2026-10-30T11:27:29.935734914+01:00"
+}

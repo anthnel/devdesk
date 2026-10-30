@@ -1,0 +1,18 @@
+{
+  "tool_use_id": "toolu_01PDr6rrbs7RfWZALPLvQpVS",
+  "agent_id": "afeb07ea79233ba61",
+  "subagent_type": "project-coder",
+  "task_description": "Vert étape 5 colonne coût",
+  "files": [
+    "internal/ui/agentusageview/cost.go"
+  ],
+  "token_usage": {
+    "input_tokens": 29,
+    "cache_creation_tokens": 145676,
+    "cache_read_tokens": 1647534,
+    "output_tokens": 480,
+    "api_call_count": 15
+  },
+  "started_at": "2026-10-30T14:17:01.314989317+01:00",
+  "completed_at": "2026-10-30T14:20:32.694308036+01:00"
+}

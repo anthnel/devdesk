@@ -1,0 +1,15 @@
+{
+  "tool_use_id": "toolu_01B7v6rGTGtAht57q7jomtZA",
+  "agent_id": "a071d6c0de53f13da",
+  "subagent_type": "project-coder",
+  "task_description": "Vert DropFirst Est. cost",
+  "token_usage": {
+    "input_tokens": 11,
+    "cache_creation_tokens": 116922,
+    "cache_read_tokens": 465841,
+    "output_tokens": 93,
+    "api_call_count": 6
+  },
+  "started_at": "2026-10-30T16:23:47.338692608+01:00",
+  "completed_at": "2026-10-30T16:25:14.612475795+01:00"
+}

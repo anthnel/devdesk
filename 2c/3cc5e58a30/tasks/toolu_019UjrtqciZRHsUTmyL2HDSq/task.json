@@ -1,0 +1,15 @@
+{
+  "tool_use_id": "toolu_019UjrtqciZRHsUTmyL2HDSq",
+  "agent_id": "a01312849b1cfd26c",
+  "subagent_type": "project-coder",
+  "task_description": "Vert étape 2 Billed",
+  "token_usage": {
+    "input_tokens": 22,
+    "cache_creation_tokens": 118040,
+    "cache_read_tokens": 909807,
+    "output_tokens": 148,
+    "api_call_count": 11
+  },
+  "started_at": "2026-10-30T11:57:31.698021139+01:00",
+  "completed_at": "2026-10-30T12:00:54.923719019+01:00"
+}

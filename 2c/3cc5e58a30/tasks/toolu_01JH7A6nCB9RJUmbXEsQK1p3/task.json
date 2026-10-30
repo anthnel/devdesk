@@ -1,0 +1,15 @@
+{
+  "tool_use_id": "toolu_01JH7A6nCB9RJUmbXEsQK1p3",
+  "agent_id": "acf39e96fa44bad77",
+  "subagent_type": "project-tester",
+  "task_description": "Adapter tests DropFirst Est. cost",
+  "token_usage": {
+    "input_tokens": 19,
+    "cache_creation_tokens": 128701,
+    "cache_read_tokens": 980290,
+    "output_tokens": 108,
+    "api_call_count": 10
+  },
+  "started_at": "2026-10-30T16:22:31.636935794+01:00",
+  "completed_at": "2026-10-30T16:23:40.650320988+01:00"
+}

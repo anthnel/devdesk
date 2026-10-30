@@ -1,0 +1,19 @@
+{
+  "tool_use_id": "toolu_0164H1KkJo4K5PT1ARSocjBP",
+  "agent_id": "afd813afbaaecf886",
+  "subagent_type": "project-tester",
+  "task_description": "Tests rouges étape 4 pricing",
+  "files": [
+    "internal/agentusage/pricing/estimate_test.go",
+    "internal/agentusage/pricing/pricing_test.go"
+  ],
+  "token_usage": {
+    "input_tokens": 13,
+    "cache_creation_tokens": 133956,
+    "cache_read_tokens": 635716,
+    "output_tokens": 385,
+    "api_call_count": 7
+  },
+  "started_at": "2026-10-30T12:11:34.89235+01:00",
+  "completed_at": "2026-10-30T12:13:26.601000058+01:00"
+}

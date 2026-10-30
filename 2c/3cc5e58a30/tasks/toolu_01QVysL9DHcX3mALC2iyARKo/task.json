@@ -1,0 +1,20 @@
+{
+  "tool_use_id": "toolu_01QVysL9DHcX3mALC2iyARKo",
+  "agent_id": "a3713a15f6ec76d82",
+  "subagent_type": "project-coder",
+  "task_description": "Corrections revue étape 2",
+  "files": [
+    "internal/agentusage/testdata/v2.1.302-cost/projects/-synthetic-proj-cost/00000000-0000-4000-8000-000000000470.jsonl",
+    "internal/agentusage/testdata/v2.1.302-cost/projects/-synthetic-proj-cost/00000000-0000-4000-8000-000000000470/subagents/agent-c01.jsonl",
+    "internal/agentusage/testdata/v2.1.302-cost/projects/-synthetic-proj-cost/00000000-0000-4000-8000-000000000470/subagents/agent-c01.meta.json"
+  ],
+  "token_usage": {
+    "input_tokens": 16,
+    "cache_creation_tokens": 76643,
+    "cache_read_tokens": 507236,
+    "output_tokens": 111,
+    "api_call_count": 8
+  },
+  "started_at": "2026-10-30T12:04:22.303130494+01:00",
+  "completed_at": "2026-10-30T12:06:45.113366271+01:00"
+}

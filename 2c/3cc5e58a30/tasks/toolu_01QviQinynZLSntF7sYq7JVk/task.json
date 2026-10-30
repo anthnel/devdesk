@@ -1,0 +1,18 @@
+{
+  "tool_use_id": "toolu_01QviQinynZLSntF7sYq7JVk",
+  "agent_id": "a7b8b6088ce2e01e3",
+  "subagent_type": "project-tester",
+  "task_description": "Tests rouges étape 5 colonne coût",
+  "files": [
+    "internal/ui/agentusageview/cost_test.go"
+  ],
+  "token_usage": {
+    "input_tokens": 25,
+    "cache_creation_tokens": 170300,
+    "cache_read_tokens": 1657658,
+    "output_tokens": 106,
+    "api_call_count": 13
+  },
+  "started_at": "2026-10-30T14:13:28.535598597+01:00",
+  "completed_at": "2026-10-30T14:16:44.855894091+01:00"
+}

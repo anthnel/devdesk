@@ -1,0 +1,18 @@
+{
+  "tool_use_id": "toolu_01Fx8BCtyoMSgTL2K5qEt5Mi",
+  "agent_id": "ac120fee4b377356b",
+  "subagent_type": "project-tester",
+  "task_description": "Tests rouges étape 2 Billed",
+  "files": [
+    "internal/agentusage/cost_test.go"
+  ],
+  "token_usage": {
+    "input_tokens": 24,
+    "cache_creation_tokens": 113129,
+    "cache_read_tokens": 992737,
+    "output_tokens": 145,
+    "api_call_count": 12
+  },
+  "started_at": "2026-10-30T11:54:59.965590607+01:00",
+  "completed_at": "2026-10-30T11:57:22.171500605+01:00"
+}

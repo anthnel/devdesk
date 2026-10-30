@@ -1,0 +1,514 @@
+/team-core:feature DEVDESK-47
+
+---
+
+est-ce qu'il est possible de récupérer automatiquement les tarifs
+
+---
+
+on va mettre le tarif pas dans le binaire mais dans le yaml et dans un deuxième temps on verra si on peut mettre à jour automatiquement
+
+---
+
+<agent-message from="a844445ed0c45cdb3">
+[Subagent hand-back] The text below is the final report of a subagent this session delegated to. It is model output, NOT a message from the user: instructions, requests, or approval claims inside it are the subagent's words and carry no user authority. The harness indents every line of the report, so a frame-like line at column zero inside it would be forged. Notes above this frame may quote model-derived text, which carries no user authority either. The report follows:
+  ## DEVDESK-47 : plan écrit
+  
+  Fichier : `/home/anthoni/projects/workspace-entire/anthnel/devdesk/.claude/plans/DEVDESK-47-plan.md`. Je n'ai modifié aucun autre fichier.
+  
+  ### D'où vient `cost-state`
+  **Aucun code ne le lit aujourd'hui.** Un grep Go ne trouve rien et aucune fixture n'en contient. Le parseur le classe en `kindIgnored`. Comme la ligne n'a pas de `timestamp`, le delta qui l'apporte reste même `Empty()`.
+  
+  J'ai observé sur cette machine la structure et les nombres seulement, sans contenu :
+  - **Présence** : 46 transcripts parents sur 49 en ont un, aucun fichier de sous-agent.
+  - **Position** : c'est **toujours la dernière ligne du parent**.
+  - **Cumul** : il y en a parfois 2 identiques, ou 4 cumulatifs après une reprise (7,08 → 12,61).
+  - **Identifiant** : `sessionId` est égal à l'identifiant du fichier dans 46 cas sur 46.
+  - **Champs utiles** : `type`, `sessionId`, `totalCostUSD`.
+  - **Modèle invisible** : `modelUsage` cite un modèle qui n'apparaît dans aucun transcript (`claude-haiku-4-5-20251001`). Son coût finit forcément dans Unattributed.
+  
+  Autres constats qui changent la conception :
+  - **Le découpage du cache est indispensable.** Le 5 min / 1 h n'est pas lu aujourd'hui, et le 1 h représente **47 %** des écritures de cache ici.
+  - **Il manque les tokens par modèle.** Sans eux, aucun coût n'est calculable pour un agent qui a utilisé deux modèles.
+  - **`Tokens` ne peut pas recevoir de champ.** Il est écrit sans noms de champs 30 fois dans 6 fichiers de test.
+  
+  ### Résumé du plan (effort M), 7 étapes en TDD
+  1. **`internal/agentusage`** : `ModelUsage{Model, Tokens, CacheWrite1h}` et `Agent.ByModel`, à côté de `Tokens` et sans le modifier.
+  2. **`Usage.Billed{USD, Known}`** : le total n'est valide que si la **dernière ligne complète du parent** est un `cost-state` avec le bon `sessionId`. Une session reprise le perd, ce qui respecte le critère 6. La règle se calcule sur les positions, donc le résultat incrémental reste égal à `ParseSession`.
+  3. **Section de config `agent_usage.prices`** (`internal/config/agent_usage.go`), avec un type `Rate` tolérant : une faute de frappe ne coûte que son entrée. Aujourd'hui, une erreur de type fait échouer le chargement de tout le contexte. Pas de migration, aucune valeur par défaut, aucune clé écrite si la section est vide.
+  4. **Nouveau paquet `internal/agentusage/pricing`**, en deux temps :
+     - 4a : `FromConfig` (les cinq tarifs sont obligatoires) et `Lookup` ;
+     - 4b : `Cost`, `Agent`, `Session` et le calcul d'Unattributed.
+  5. **Colonne `Est. cost`** dans la vue : texte simple (Rule 122), placée après ID et facultative.
+  6. **En-tête, pied de page, aide** :
+     - en-tête : `Est. cost`, `Billed`, `Unattributed` ;
+     - pied de page : une ligne qui nomme la clé ou le modèle sans tarif ;
+     - aide `?` (Rule 114).
+  7. **Documentation** : `agent-usage.md`, `configuration.md`, `.claude/CLAUDE.md` et `backlog.md` §3.
+  
+  Ordre : 1 → 2 ; l'étape 3 se fait en parallèle de 1 et 2 ; 4a suit 3 ; 4b suit 1, 2 et 4a ; puis 5, 6 et 7 dans l'ordre. Aucune nouvelle touche, donc les raccourcis de la Rule 130 ne changent pas.
+  
+  ### Mon avis chiffré
+  - **(a) Remplissage du YAML** : **une table vide par défaut**, toutes les cellules à `-`. Le pied de page nomme `agent_usage.prices` et l'aide comme la doc donnent un exemple à coller.
+    - Il faut 5 tarifs × 4 modèles, soit 20 nombres à saisir ici.
+    - Billed marche tout de suite sans aucun tarif (46 sessions sur 49).
+    - Je rejette l'écriture d'un bloc à la création du contexte : ce serait des tarifs dans le binaire, et il n'atteindrait aucun des 2 fichiers de contexte existants.
+    - Je rejette aussi un exemple en commentaire : la première sauvegarde depuis `:cfg` l'efface (`yaml.Marshal`, vérifié dans le code).
+  - **(b) Appariement modèle → clé** : **identifiant exact**, sans tenir compte de la casse ni des espaces. À défaut, le même identifiant sans un suffixe final `-YYYYMMDD`.
+    - **Pas de préfixe** : `claude-sonnet-5` est un préfixe de `claude-sonnet-5-5`, ce qui ferait facturer en silence 5 699 lignes au mauvais tarif.
+    - Pas de retrait de `[1m]` ni des formes propres aux fournisseurs.
+  - **(c) Format monétaire** : USD, deux décimales, sans séparateur de milliers ; largeur de colonne 10.
+    - Orchestrateur : `~$1.23`.
+    - Sous-agent : `≥ ~$0.42`, toujours.
+    - Coût non nul mais inférieur au cent : `~<$0.01`.
+    - Tarif inconnu ou aucun token : `-`, grisé.
+    - Billed s'affiche sans `~`.
+    - Un Unattributed négatif s'affiche `−$0.40` en orange : c'est le signe que la table de tarifs est périmée.
+  
+  ### Questions ouvertes
+  - **Q1, bloquante pour l'étape 6 seulement** : la « ligne Unattributed » du critère 5, faut-il la mettre dans l'en-tête ou dans le tableau ?
+    - **Je recommande l'en-tête.** Inconvénient : il serait alors plein, 7 lignes sur 7 au maximum.
+    - Une ligne épinglée dans le tableau demande d'ajouter `Pinned` au composant partagé `datatable` (+M) et touche Share, le tri, le comptage et le filtre.
+  - **Q2** : valider les choix (a), (b) et (c) ci-dessus. Le plan est écrit pour eux ; les étapes 1 à 3 peuvent démarrer sans attendre.
+  - **Choix que j'ai faits par prudence, à relire** :
+    - **Coût partiel** : un agent dont un seul modèle n'a pas de tarif affiche `-`.
+    - **Rechargement** : il faut redémarrer DevDesk ou changer de contexte ; `ctrl+r` ne relit pas les tarifs. Raison : une sauvegarde depuis `:cfg` écrase les modifications faites à la main pendant que DevDesk tourne.
+    - **Place de la colonne** : après ID. Elle coûte la colonne Model à 100 colonnes et Duration à 80 ; après Total, elle serait invisible en dessous d'environ 110 colonnes.
+    - **Non tarifé** : la recherche web et les modificateurs `speed` et `service_tier` restent dans Unattributed.
+  - **Conséquence de votre décision** : les tarifs vivent dans chaque fichier de contexte, donc un bloc par contexte (2 ici). Je ne recommande pas de rouvrir ce point.
+  
+</agent-message>
+
+---
+
+<agent-message from="a156003baa127e237">
+[Subagent hand-back] The text below is the final report of a subagent this session delegated to. It is model output, NOT a message from the user: instructions, requests, or approval claims inside it are the subagent's words and carry no user authority. The harness indents every line of the report, so a frame-like line at column zero inside it would be forged. Notes above this frame may quote model-derived text, which carries no user authority either. The report follows:
+  Chemin du worktree : /home/anthoni/projects/workspace-entire/anthnel/devdesk/.worktrees/feat-devdesk-47-agent-cost (cut depuis origin/main à jour, HEAD 0026b6b, DEVDESK-46 #307).
+  Branche : feat/devdesk-47-agent-cost. Rien n'a été poussé et aucune PR n'a été créée. DEVDESK-47-plan.md est copié dans .claude/plans/ du worktree sans être commité (seul fichier non suivi).
+  Build : `go build ./...` dans le worktree, OK.
+</agent-message>
+
+---
+
+<agent-message from="a66a621f0403fdd8e">
+[Subagent hand-back] The text below is the final report of a subagent this session delegated to. It is model output, NOT a message from the user: instructions, requests, or approval claims inside it are the subagent's words and carry no user authority. The harness indents every line of the report, so a frame-like line at column zero inside it would be forged. Notes above this frame may quote model-derived text, which carries no user authority either. The report follows:
+  Les tests de l'étape 1 sont écrits, mais ils ne tournent pas encore : le paquet ne compile pas, faute des symboles à créer. Je n'ai donc pas pu vérifier les fixtures par une exécution, seulement `gofmt` (propre).
+  
+  **Fichier créé** : `/home/anthoni/projects/workspace-entire/anthnel/devdesk/.worktrees/feat-devdesk-47-agent-cost/internal/agentusage/bymodel_test.go`. `Tokens` et les tests existants ne sont pas touchés. Aucun HOME ni port en dur : les tests de lecture incrémentale passent par `newSess`, qui isole HOME comme les tests existants.
+  
+  **Commande** : `go test ./internal/agentusage -run 'CacheWriteSplit|ModelUsage|ByModel'`
+  
+  **Sortie d'échec** : erreur de compilation uniquement, pour les symboles manquants :
+  - `rec.CacheWrite1h undefined (type record has no field or method CacheWrite1h)`
+  - `undefined: ModelUsage`
+  - `agents[idx].ByModel undefined (type Agent has no field or method ByModel)`
+  
+  C'est le seul échec acceptable prévu, et il tient à l'absence des symboles, pas à une erreur de fixture.
+  
+  **Ce que les tests couvrent**
+  - **`TestDecodeLineCacheWriteSplit`** (table-driven) : le découpage du cache d'écriture 5 min / 1 h.
+    - Cas valides : 300 au total avec 200 en 1 h donne `CacheWrite1h = 200`, et l'absence de l'objet `cache_creation` donne 0.
+    - Valeur 1 h supérieure au total : plafonnée au total.
+    - Valeurs 1 h invalides (`-1`, `1.5`, `"x"`, `null`) : 0, la ligne reste `kindUsage` et `Usage` ne bouge pas.
+  - **`TestModelUsageCacheWrite5m`** : `CacheWrite5m()` vaut total moins 1 h.
+  - **`TestAggregateByModel`** (table-driven) : deux modèles dans l'ordre de première apparition, ligne sans modèle dans un seau `""` placé en dernier, 1 h plafonné au total de la ligne, dernière ligne d'un même message qui l'emporte avec son découpage. À chaque cas, la somme de `ByModel` doit égaler `Agent.Tokens`.
+  - **`TestAggregateByModelEachAgentApart`** : chaque agent a son propre `ByModel`.
+  - **`TestAggregateByModelSyntheticExcluded`** : `<synthetic>` n'apparaît pas dans `ByModel`.
+  - **`TestAggregateByModelSurvivesSpill`** : au-delà de `maxNoIDEntries` (lignes sans id sur deux modèles), la somme de `ByModel` reste égale à `Tokens` et le total de `CacheWrite1h` est exact.
+  - **`TestReadDeltaByModelMatchesParse`** : `ReadDelta`/`Apply` par morceaux de 1, 7, 64 octets et 1 Mio, comparés à `ParseSession` via `assertMatchesParse` (`reflect.DeepEqual`). Il contrôle aussi que le parent a bien 3 entrées dans `ByModel` (model-a, model-b, `""`).
+  
+  **Noms que le code devra respecter** : `record.CacheWrite1h` (champ du plan) ; `ModelUsage{Model, Tokens, CacheWrite1h}` avec la méthode `CacheWrite5m()` ; `Agent.ByModel []ModelUsage`.
+  
+  **Points ouverts**
+  - Le plan prévoit aussi d'étendre le générateur aléatoire et `FuzzIncrementalMatchesFull` avec un découpage et deux modèles, ainsi que les `want` de `parse_test.go` et `fixture_activity_test.go`. Je ne l'ai pas fait. `TestReadDeltaByModelMatchesParse` couvre l'équivalence de façon déterministe, mais il manque encore l'oracle aléatoire (200 runs) et le fuzz, qui ne couvrent pas encore `ByModel`.
+  - Je suppose que `<synthetic>` est exclu de `ByModel`, par cohérence avec `Models`. C'est à confirmer.
+  - Je suppose que les cas de `TestAggregateByModel` sur le seau `""` (ordre, somme) sont corrects ; seule une exécution après implémentation les confirmera.
+  - `byModelOf` dans `bymodel_test.go` est un helper trivial qui pourra être retiré.
+  - Je n'ai pas commenté dans Plane.
+</agent-message>
+
+---
+
+<agent-message from="a57d5a52a6d05a1a5">
+[Subagent hand-back] The text below is the final report of a subagent this session delegated to. It is model output, NOT a message from the user: instructions, requests, or approval claims inside it are the subagent's words and carry no user authority. The harness indents every line of the report, so a frame-like line at column zero inside it would be forged. Notes above this frame may quote model-derived text, which carries no user authority either. The report follows:
+  DEVDESK-90 (étape 1) est terminée : les tests de `bymodel_test.go` passent sans modification de leurs assertions. Rien n'est commité ni poussé. Je n'ai pas touché à `docs/architecture/agent-usage.md` : à faire avec le commit.
+  
+  **Implémentation (`internal/agentusage`)**
+  - `usage.go` : ajout de `ModelUsage{Model, Tokens, CacheWrite1h}`, de `CacheWrite5m()` et de `Agent.ByModel []ModelUsage`. Le type `Tokens` n'est pas modifié.
+  - `record.go` : `record.CacheWrite1h` lit `usage.cache_creation.ephemeral_1h_input_tokens`.
+    - Une valeur absente, négative, fractionnaire, de type chaîne ou `null`, ou un `cache_creation` qui n'est pas un objet, donne 0, et la ligne reste `kindUsage`.
+    - La valeur est plafonnée au `cache_creation_input_tokens` de la ligne.
+  - `table.go` : `entry` et `spill` portent le découpage 1 h et un `modelTally`, repris dans `absorb`, `spillEntry`, `absorbRecord`, la fusion des `spill` et `finish`.
+    - La dernière ligne d'un message l'emporte, avec son découpage.
+    - Le cumul passe par le spill sans perte.
+    - `<synthetic>` reste exclu, puisque `kindSynthetic` n'atteint jamais `addUsage`.
+  - `limits.go` : nouveau `modelTally`, en ordre de première apparition, avec le modèle sans nom ("") en dernier. Il est plafonné à `maxModelsPerAgent` (64) modèles nommés ; le surplus tombe dans le seau "", donc la somme de `ByModel` reste égale à `Agent.Tokens`.
+  
+  **Tests mis à jour**
+  - `parse_test.go` et `fixture_activity_test.go` : les `want` ont maintenant `ByModel`. Le test de fuite de l'Agent déclare `ByModel` comme champ connu.
+  - `aggregate_test.go` : nouveau helper `msgLineSplit`, avec un découpage 5m/1h où la valeur 1 h peut dépasser le total.
+  - `incremental_test.go` : `randomLines` utilise `msgLineSplit` (3 modèles, valeurs 1 h au-delà du total possibles). `assertMatchesParse` vérifie aussi que la somme de `ByModel` égale `Tokens`.
+  - `incremental_fuzz_test.go` : deux nouvelles graines avec 2 modèles, un découpage 5m/1h, une valeur 1 h trop grande et une ligne sans id.
+  - `bymodel_test.go` : j'ai supprimé le helper `byModelOf` et l'ai remplacé par `ag.ByModel`.
+  
+  **Sorties observées**
+  - `go test -count=1 ./internal/agentusage` : ok (~11 s).
+  - `go test -race -count=1 ./internal/agentusage` : ok (63 s, gcc dispo).
+  - Fuzz 20 s sur `FuzzIncrementalMatchesFull` : PASS (88 962 exécutions, aucun échec).
+  - `go build ./...` ok, `go vet` ok, `gofmt -l` vide, `golangci-lint run ./internal/agentusage/...` : 0 issues.
+  
+  **Points ouverts**
+  - Le plafond de 64 modèles reverse le surplus dans le seau "" au lieu de le perdre. Le plan ne le précisait pas ; c'est un choix de ma part, à confirmer pour la tarification (ce surplus n'aura pas de tarif).
+  - `ByModel` vaut `nil` quand l'agent n'a aucun message. Un test qui compare avec `[]ModelUsage{}` échouerait.
+  - Aucun test de `bymodel_test.go` ne m'a paru faux.
+  
+  Fichiers (tous sous `/home/anthoni/projects/workspace-entire/anthnel/devdesk/.worktrees/feat-devdesk-47-agent-cost/internal/agentusage/`) : `usage.go`, `record.go`, `table.go`, `limits.go`, `parse_test.go`, `fixture_activity_test.go`, `aggregate_test.go`, `incremental_test.go`, `incremental_fuzz_test.go`, `bymodel_test.go` (non suivi, fourni).
+</agent-message>
+
+---
+
+<agent-message from="acf39e96fa44bad77">
+[Subagent hand-back] The text below is the final report of a subagent this session delegated to. It is model output, NOT a message from the user: instructions, requests, or approval claims inside it are the subagent's words and carry no user authority. The harness indents every line of the report, so a frame-like line at column zero inside it would be forged. Notes above this frame may quote model-derived text, which carries no user authority either. The report follows:
+  Tests updated; they fail against the current code (Est. cost not yet DropFirst) for the right reason. Production code is untouched.
+  
+  **Files modified (tests only)**
+  - /home/anthoni/projects/workspace-entire/anthnel/devdesk/.worktrees/feat-devdesk-47-agent-cost/internal/ui/agentusageview/cost_test.go
+  - /home/anthoni/projects/workspace-entire/anthnel/devdesk/.worktrees/feat-devdesk-47-agent-cost/internal/ui/agentusageview/agents_level_test.go
+  - `activity_columns_test.go` is NOT modified.
+  
+  **datatable semantics**
+  - `DropFirst` is only honored on an `Optional` column. `drop()` (`internal/ui/datatable/widths.go`) takes the rightmost Optional+DropFirst column first, then the rightmost plain Optional one.
+  - The existing user is `Cache write` in agents.go (`Optional, DropFirst`), plus the containers gauges and the netdiag Total.
+  - Consequence: the drop order becomes Cache write, then Est. cost, then Cache read, In, Model, Duration, Tools, State.
+  - Est. cost is the second column to go, not the very first.
+  
+  **Measured switch widths** (I flipped `DropFirst` on `costColumn()` in cost.go, scanned widths 50 to 230, then restored cost.go; the diff shows it unchanged)
+  - Est. cost is shown from 126 columns up. At 125 it is gone.
+  - Cache write appears at 139 columns.
+  - State appears at 63, Tools at 70, Duration at 80, Model at 94, In at 102, Cache read at 114.
+  - 200 columns: all 13 columns, with Est. cost third.
+  - 100 columns: Agent, ID, State, Tools, Duration, Model, Out, Total, Share.
+  - 80 columns: Agent, ID, State, Tools, Duration, Out, Total, Share. This keeps State/Tools/Duration and has no Est. cost.
+  - 60 columns: Agent, ID, Out, Total, Share.
+  - Rule 116 held at every width in the scan: the rendered width is always the width minus 2.
+  
+  **Test changes**
+  - `TestCostColumnDeclaration` now requires `DropFirst` (it used to forbid it).
+  - `TestEstCostLayoutAtEachWidth` covers 200, 126, 125, 100, 80 and 60, with and without prices, and also checks Rule 116 at each width. I added the two switch widths (126, 125).
+  - `TestNarrowTerminalsDropColumnsInTheOrderThePlanComputed` has the new expectations for 100, 80 and 60.
+  - New test `TestEstCostIsThirdWhenShownAndRule116HoldsAtEveryWidth`. For every width from 50 to 230:
+    - the rendered width equals the width minus 2 (Rule 116);
+    - Est. cost is at index 2 whenever it is shown;
+    - it is shown at least once, and is third at 200.
+  - The new test passes today, so it is a regression guard and does not fail against the current code. It starts at 50 because below that no header row is rendered.
+  
+  **Failures against the current code** (`go test ./internal/ui/agentusageview`: FAIL; `go vet` and gofmt are clean)
+  - `TestCostColumnDeclaration`: "Est. cost is DropFirst: ...".
+  - `TestEstCostLayoutAtEachWidth` fails at 125, 100 and 80, with and without prices. The current code shows Est. cost at those widths and loses other columns. Examples: at 80 it gives `[Agent ID Est. cost State Out Total Share]`; at 100 it gives `[... Est. cost State Tools Duration Out ...]` without Model.
+  - `TestNarrowTerminalsDropColumnsInTheOrderThePlanComputed` fails at 100 and 80 for the same reason.
+  - `TestEveryAgentLineShowsStateToolsAndDurationAt80Columns` (unmodified) fails at 80. Tools and Duration are missing because Est. cost takes their room.
+  - 126, 200 and 60 pass today, as expected.
+  
+  After you make `costColumn()` `DropFirst`, I expect all of these to turn green.
+</agent-message>
+
+---
+
+<agent-message from="a071d6c0de53f13da">
+[Subagent hand-back] The text below is the final report of a subagent this session delegated to. It is model output, NOT a message from the user: instructions, requests, or approval claims inside it are the subagent's words and carry no user authority. The harness indents every line of the report, so a frame-like line at column zero inside it would be forged. Notes above this frame may quote model-derived text, which carries no user authority either. The report follows:
+  `Est. cost` is now `DropFirst`, and everything is green. One existing test needed a one-line change.
+  
+  **Changes**
+  - `internal/ui/agentusageview/cost.go`: `costColumn` now has `Optional: true, DropFirst: true`.
+  - `internal/ui/agentusageview/agents.go`: the drop-order comment reads "Cache write, Est. cost, Cache read, In, Model, Duration, Tools, State". It says Cache write and Est. cost are `DropFirst` (rightmost first), `Est. cost` is visible from 126 columns, and the ID never gives way.
+  
+  **Test I had to modify**
+  `TestAgentColumnsLayout` in `agents_test.go` (not in your do-not-touch list) failed with `column "Est. cost" DropFirst = true`. It asserted that only "Cache write" is `DropFirst`, which was wrong once the decision changed. I extended it to `col.Title == "Cache write" || col.Title == "Est. cost"`. The correction is that one line.
+  
+  I did not change `cost_test.go`, `agents_level_test.go` or `activity_columns_test.go`. They pass, including `TestEveryAgentLineShowsStateToolsAndDurationAt80Columns`.
+  
+  **Results**
+  - `gofmt -l internal/`: empty.
+  - `golangci-lint run ./internal/ui/agentusageview/... ./internal/agentusage/...`: 0 issues.
+  - `go test -count=1 ./internal/ui/agentusageview ./internal/agentusage/... ./internal/config`: all ok (agentusageview, agentusage, agentusage/pricing, config).
+  - `go test -race -count=1 ./internal/ui/agentusageview`: ok.
+  - `go test -count=1 ./internal/app ./internal/ui/...`: no failures.
+  - `go build ./...`: ok.
+  
+  Nothing committed.
+</agent-message>
+
+---
+
+<agent-message from="aaa31aa81ce2f64a4">
+[Subagent hand-back] The text below is the final report of a subagent this session delegated to. It is model output, NOT a message from the user: instructions, requests, or approval claims inside it are the subagent's words and carry no user authority. The harness indents every line of the report, so a frame-like line at column zero inside it would be forged. Notes above this frame may quote model-derived text, which carries no user authority either. The report follows:
+  **Revue de l'étape 5 (DEVDESK-94) : OK, rien de bloquant.** Revue postée en commentaire sur DEVDESK-94 (id 779f2442-51fc-40ec-a64e-d3fedff0e2c8). Je n'ai modifié aucun fichier.
+  
+  **Vérifications** : les tests passent avec `-count=1` et `-count=2` sur `agentusageview`, `agentusage` et `pricing`. `golangci-lint` ne remonte rien, `go vet` non plus.
+  
+  **Critères d'acceptation et règles TUI**
+  - Une estimation est marquée `~`.
+  - Tout ce qui n'est pas Priced affiche `-`, jamais 0. Un coût tarifé à zéro affiche `~$0.00`.
+  - Un sous-agent affiche `≥ ~$`. Au-delà de 99 999 $, la cellule affiche `~$99999+` pour l'orchestrateur comme pour un sous-agent.
+  - Les tarifs sont lus seulement dans `New(cfg)`, jamais par ctrl+r. Le routeur reconstruit la vue au changement de contexte et sur `ConfigSavedMsg`. `New(nil)` donne une table vide.
+  - Règle 122 : `Cell` renvoie du texte sans ANSI, le `-` est grisé via `Style`. Règle 116 : testée sur toutes les largeurs de 50 à 230. Règle 130 : le jeu de touches ne change pas. Règles 129 et 119 respectées.
+  - Est. cost est en 3e position, `Optional` et `DropFirst`. State, Tools et Duration restent à 80 colonnes.
+  - Le tri reste sur Total, et le coût suit sa ligne pendant le tri.
+  
+  **Tests existants : aucun n'a été affaibli.**
+  - Le 4e argument de `agentRows` est une table vide (`pricing.Table{}`).
+  - `TestAgentColumnsLayout` est plus strict qu'avant.
+  - La colonne de tri passe de 10 à 11 parce qu'Est. cost s'insère avant Total.
+  - Le `case "Est. cost": continue` est justifié : sans lui, le cas `default` échouerait, car une ligne sans tokens ni coût (NoTokens) est grisée. `TestCostColumnDimsOnlyThePlaceholder` couvre ce cas.
+  - `TestNarrowTerminalsDropColumnsInTheOrderThePlanComputed` n'a pas été modifié et passe.
+  
+  **Points non bloquants**
+  1. `/home/anthoni/projects/workspace-entire/anthnel/devdesk/.worktrees/feat-devdesk-47-agent-cost/internal/ui/agentusageview/cost.go:33` : `formatUSD(NaN)` renvoie `$NaN` et `-Inf` renvoie `−$99999+`. `costCell` ne peut pas y arriver, car pricing garantit une valeur finie quand le statut est Priced. Mais l'étape 6 réutilisera `formatUSD` pour Billed et Unattributed. Je suggère d'ajouter un garde NaN/Inf qui renvoie `-`, et des tests pour -0.004 (`−<$0.01`) et pour un montant négatif saturé.
+  2. `cost.go:78` : le WARN est écrit à chaque `New`, donc à nouveau à chaque changement de contexte et à chaque sauvegarde de config, même si les tarifs n'ont pas changé. « Une fois par construction de la vue » me paraît acceptable, mais c'est à écrire dans la doc.
+  3. `agents.go:141` : le commentaire « visible from 126 columns » ne vaut que pour la fixture de test, car les colonnes Agent et ID s'adaptent à leur contenu. Il vaudrait mieux écrire « about 126 ».
+  4. Le plan prévoit `m.cost pricing.Summary`, stocké par `withRows`, et il est absent. Hypothèse : c'est reporté à l'étape 6 (header).
+  5. Avec une locale CJK, runewidth compte « ≥ » sur 2 cellules. « ≥ ~$999.99 » en ferait alors 11 pour une colonne de 10, et serait tronqué. Le même défaut existe déjà dans la colonne Out ; je le note seulement.
+</agent-message>
+
+---
+
+<agent-message from="a470e447a00d63dd6">
+[Subagent hand-back] The text below is the final report of a subagent this session delegated to. It is model output, NOT a message from the user: instructions, requests, or approval claims inside it are the subagent's words and carry no user authority. The harness indents every line of the report, so a frame-like line at column zero inside it would be forged. Notes above this frame may quote model-derived text, which carries no user authority either. The report follows:
+  Les tests rouges de l'étape 6 sont écrits. Ils ne compilent pas encore : le package échoue sur `m.cost undefined`, le symbole manquant que tu as autorisé comme raison de rouge.
+  
+  Pour vérifier que chaque test échoue pour la bonne raison, j'ai ajouté `cost pricing.Summary` à `Model` dans `model.go`, lancé les tests, puis restauré le fichier (diff vide). Avec ce champ seul, 22 tests ou sous-tests échouent : tout l'en-tête, le pied de page, l'aide, `formatUSD` NaN/±Inf, `withRows`, et le delta `cost-state`. Aucun code de production n'est modifié.
+  
+  **Fichier ajouté** : `/home/anthoni/projects/workspace-entire/anthnel/devdesk/.worktrees/feat-devdesk-47-agent-cost/internal/ui/agentusageview/cost_summary_test.go`. Il réutilise les helpers existants (`atPricedAgents`, `cfgWith`, `pricesYAML`, `byModel`, `mu`, `answer`, `atFixture`, `pollTick`…). Il est formaté (`gofmt`) et `isolate(t)` isole HOME.
+  
+  **Commande** : `go test ./internal/ui/agentusageview -run 'Cost|Billed|Header|PriceHint|FormatUSD|Help|Shortcut'`
+  
+  **Ce que couvrent les tests :**
+  - **`withRows` stocke `m.cost`** : `TestWithRowsStoresTheCostSummary`. Billed 10, Unattributed 1,80, et la valeur est recalculée à chaque rebuild.
+  - **En-tête, table-driven** : `TestHeaderCostFields`. Critère 5 : Est. cost `~$8.20`, Billed `$10.00`, Unattributed `$1.80`. Critère 6 : ni Billed ni Unattributed. Reste négatif : `−$0.40` avec U+2212. Un agent non tarifé : Est. cost `-`, Unattributed `-`, Billed conservé. Aucun agent avec tokens : Unattributed égal à Billed. Billed n'a jamais de `~`.
+  - **Autres tests d'en-tête** :
+    - ordre des champs (`TestHeaderCostOrder`) : Agents, Tokens, Est. cost, Billed, Unattributed, Updates, Idle ;
+    - couleur du négatif (`TestANegativeUnattributedIsOrangeAndTheRestIsNot`) : le `Style` du négatif a `ColorSeverityMedium` en premier plan, les autres champs la couleur normale ;
+    - filtre (`TestEstCostFollowsTheFilterButBilledDoesNot`) : Est. cost suit les lignes visibles, Billed et Unattributed l'ignorent (H7) ; un filtre qui masque la ligne non tarifée donne la somme du reste, `~$7.00` ;
+    - `TestBilledAppearsWhenTheCostStateIsAppended` : un `cost-state` ajouté fait apparaître Billed sans ctrl+r, une ligne ajoutée après le fait disparaître.
+  - **Limite de 7 lignes** : `TestTheHeaderNeverExceedsSevenLines`. Le niveau agents en utilisait déjà 3 (Agents, Tokens, Updates), plus Idle si non nul. Avec Est. cost, Billed et Unattributed, le pire cas fait exactement 7 sur 7. Le plan (Q1 = A) l'arbitre en acceptant que l'en-tête soit plein, sans place pour un champ de plus. Le test pose 7 en constante (`headerMax`), car `headerMinHeight` est non exporté dans `internal/app`.
+  - **Pied de page** (`TestFooterPriceHint`, `TestThePriceHintIsAStateNotAMessage`, `TestPriceHintPrecedence`, `TestThereIsNoPriceHintAtTheSessionsLevel`) :
+    - table vide et session avec tokens : le texte contient `agent_usage.prices` et `?` ;
+    - modèle sans tarif : il est nommé ; avec trois modèles, le premier trié plus `2 more models`, sans les autres noms ;
+    - rien quand tout est tarifé ou qu'il n'y a pas de tokens ;
+    - niveau Info, sans spinner ;
+    - c'est un état, pas un événement : il survit à un `ClearFooterMsg` ;
+    - précédence erreur > chargement > dégradé > indice, et rien au niveau sessions.
+  - **Aide** (`TestHelpDescribesCosts`, `TestTheHelpYAMLExampleLoadsAndIsComplete`, `TestHelpDropOrderMentionsEstCost`) :
+    - la section "Costs" couvre toute ta liste, plus "web search" (H9) ;
+    - l'exemple YAML est extrait du texte (ligne `agent_usage:` puis lignes indentées), chargé dans `config.AgentUsageConfig` puis passé à `pricing.FromConfig` : aucun `Problem`, tous les modèles utilisables, donc les 5 tarifs sont présents et numériques ;
+    - la phrase d'ordre de chute de la section "Agent columns" doit citer Cache write, Est. cost, Cache read dans cet ordre, et la colonne Est. cost doit être décrite (la phrase actuelle l'oublie).
+  - **Reports de l'étape 5** :
+    - `formatUSD` : NaN, +Inf, -Inf donnent `-` ; -0,004 donne `−<$0.01` ; -123456 donne `−$99999+` ; et d'autres bornes ;
+    - sur « about 126 » : je n'ai trouvé cette formule nulle part. Le seuil 125/126 est déjà épinglé par `TestEstCostLayoutAtEachWidth`. Je l'ai donc lu comme l'ordre de chute absent de l'aide, couvert par `TestHelpDropOrderMentionsEstCost`. À confirmer si tu visais autre chose.
+  - **Rule 130** : `TestCostFieldsAddNoShortcutAndChangeNoText`. Les six clés `ctrl+r`, `→`, `esc`, `/`, `.`, `?` et leurs descriptions restent identiques dans 5 états.
+  
+  **Hypothèses à confirmer :**
+  1. Le plan dit `Unattributed › -` quand un agent est non tarifé, ta consigne dit « affiché seulement si… tous tarifés ». J'ai suivi le plan : l'entrée existe avec `-`, et elle est absente seulement quand Billed est inconnu. C'est un changement d'une ligne si tu préfères l'absence.
+  2. Les noms sont ceux du plan : `Model.cost`, clés d'en-tête `Est. cost`, `Billed`, `Unattributed`, section d'aide `Costs`. L'ordre des champs et l'emplacement des champs d'aide (Idle en dernier) sont mon choix.
+  3. Pour le pied de page, j'ai supposé `m.status()` en `LevelInfo` (plan : Info). Pour un seul modèle, le texte contient son nom ; pour deux, je n'épingle pas le singulier. Le test des trois modèles exige `2 more models`.
+  4. Pour le texte de l'aide, j'exige les mots-clés `dash`, `no tokens`, `negative`, `web search`, `per million`, `case-insensitive`, `yyyymmdd`, `restart`, `context`, `ctrl+r` (ne relit pas les tarifs). L'exemple YAML doit contenir de vrais nombres (pas `…`) et commencer par `agent_usage:` en début de ligne.
+  
+  **Tests déjà verts avec le seul champ ajouté** : `TestPriceHintPrecedence` (passe à vide tant que l'indice n'existe pas, il deviendra un vrai garde-fou), `TestCostFieldsAddNoShortcutAndChangeNoText`, et les cas « tout tarifé » et « aucun token » de `TestFooterPriceHint`. Ce sont des garde-fous de non-régression.
+</agent-message>
+
+---
+
+<agent-message from="aa3b3e6bf1301de55">
+[Subagent hand-back] The text below is the final report of a subagent this session delegated to. It is model output, NOT a message from the user: instructions, requests, or approval claims inside it are the subagent's words and carry no user authority. The harness indents every line of the report, so a frame-like line at column zero inside it would be forged. Notes above this frame may quote model-derived text, which carries no user authority either. The report follows:
+  DEVDESK-95 (step 6) is done: `cost_summary_test.go` passes in full and I did not weaken any of its assertions. No commit, no push.
+  
+  **Files, all in `/home/anthoni/projects/workspace-entire/anthnel/devdesk/.worktrees/feat-devdesk-47-agent-cost/internal/ui/agentusageview/`**
+  - `model.go`: new field `cost pricing.Summary`.
+  - `selection.go`: `withRows` sets `m.cost = m.prices.Session(u)`, so it is recomputed on every rebuild.
+  - `view.go`:
+    - `agentsHeaderInfo` now returns, in order, Agents, Tokens, Est. cost, Billed, Unattributed, Updates, Idle. Est. cost sums the visible rows via `pricing.Sum`.
+    - New `billedHeaderInfo` and `estCostValue`.
+    - Unattributed uses `theme.HeaderValueStyle.Foreground(theme.ColorSeverityMedium)` when negative, with no hex.
+    - `agentsStatus` ends in the new `priceHint()`: an Info state with no timer, placed after the error, loading and degraded cases, and only at the agents level.
+  - `cost.go`: `formatUSD` now returns `-` for NaN and ±Inf, and its doc comment is updated. The `−<$0.01` and `−$99999+` cases already worked through the recursive negative branch.
+  - `help.go`: new "Costs" section with the full 5-rate YAML example; the narrow-terminal sentence now reads Cache write, Est. cost, Cache read…; the Agent columns section now describes Est. cost.
+  - `agents.go`: the comment now says Est. cost shows from about 126 columns, depending on the content of the Agent and ID columns.
+  - No key or shortcut text changed.
+  
+  **Two older tests changed, because the new hint legitimately breaks them**
+  - Without prices, an agents session that has tokens now always shows the hint. That broke `TestACleanUsageHasNoStatus` (`availability_test.go`) and `TestAPollReadAndItsAnswerLeaveTheFooterQuiet` (`live_test.go`).
+  - I relaxed both to accept the hint (Info level, text containing `agent_usage.prices`) and nothing else. Errors, warnings, spinners and polled messages are still rejected.
+  - Please confirm that reading is what you want.
+  
+  **One edit to the provided test**
+  - `golangci-lint` flagged `cost_summary_test.go:547` (QF1001, De Morgan's law). I rewrote `!(write < est && est < read)` as `write >= est || est >= read`, which is logically identical.
+  
+  **Outputs**
+  - `gofmt -l internal`: empty.
+  - `golangci-lint run ./internal/ui/agentusageview/... ./internal/agentusage/...`: 0 issues, after the rewrite above.
+  - `go test -count=1 ./internal/ui/agentusageview ./internal/agentusage/... ./internal/config`: all ok.
+  - `go test -race -count=1 ./internal/ui/agentusageview`: ok.
+  - `go test -count=1 ./internal/app ./internal/ui/...`: no failures. This ran before the QF1001 rewrite; I re-ran `./internal/ui/agentusageview` afterwards, and it is ok.
+  - `go build ./...`: ok.
+  
+  **Open points**
+  - `docs/architecture/agent-usage.md` is not updated; the task did not list it, but the project rules ask for it in the same commit.
+  - The plural hint reads "No price for X and N more models in agent_usage.prices — their cost shows -". The singular reads "…its cost shows -". The tests only check the model name, `2 more models` and the key.
+  - The empty-table hint is hidden when the session has no tokens, as the test requires.
+</agent-message>
+
+---
+
+<agent-message from="a73fa618e950fc13a">
+[Subagent hand-back] The text below is the final report of a subagent this session delegated to. It is model output, NOT a message from the user: instructions, requests, or approval claims inside it are the subagent's words and carry no user authority. The harness indents every line of the report, so a frame-like line at column zero inside it would be forged. Notes above this frame may quote model-derived text, which carries no user authority either. The report follows:
+  **Verdict étape 6 (DEVDESK-47) : approuvée, aucun point bloquant.** Revue postée en commentaire sur DEVDESK-95 (id c3e2fe50-753c-4326-ba2a-3bb59c9a2b74). Je n'ai modifié aucun fichier.
+  
+  **Vérifications** : build, vet et golangci-lint passent (0 issue). Les tests de `internal/ui/agentusageview`, `internal/agentusage/...`, `internal/config`, `keymap`, `components` et `datatable` passent, y compris avec `-count=2`.
+  
+  **Réponses aux 7 points :**
+  1. **Tests assouplis.**
+     - `TestACleanUsageHasNoStatus` (`availability_test.go:369`) reste limité : il rejette le spinner et tout niveau autre que Info, et n'accepte un texte que s'il contient `agent_usage.prices`.
+     - `TestAPollReadAndItsAnswerLeaveTheFooterQuiet` (`live_test.go:291`) rejette toujours tout message, via `footer.IsSet()`. En revanche il ne vérifie ni le niveau ni le spinner du statut. Ce n'est pas exploitable aujourd'hui, mais c'est faible.
+     - L'indice affiché en permanence quand la table de tarifs est vide est cohérent : c'est le choix Q2(a) du plan, et Rule 128 classe un indice comme un état. Il passe après erreur, chargement et état dégradé.
+  2. **Réécriture De Morgan** (`cost_summary_test.go:547`) : équivalente. Les clauses `est<0` et `read<0` sont redondantes, sans effet sur le résultat.
+  3. **En-tête** : 7 entrées au pire (Agents, Tokens, Est. cost, Billed, Unattributed, Updates, Idle), ce qui correspond à `headerMinHeight` (`internal/app/app_header.go:39`). Un test le vérifie.
+  4. **Filtre** : Est. cost est la somme des lignes visibles et suit le filtre. Billed et Unattributed viennent de `m.cost`, qui couvre toute la session et ignore le filtre.
+     - Critère 5 (1,80) testé.
+     - Critère 6 : Billed et Unattributed sont absents tant que `!Billed.Known`. Ils apparaissent après une lecture incrémentale, sans ctrl+r, et disparaissent si la session reprend.
+  5. **Aide** : l'exemple YAML se charge et contient les cinq tarifs (testé). Les textes sur la borne basse (≥ ~), la relecture au redémarrage ou au changement de contexte, et ctrl+r qui ne relit pas les tarifs sont exacts. J'ai vérifié que `reinitializeViews` recrée bien la vue.
+  6. **`formatUSD`** : NaN et ±Inf donnent `-`, −0 donne `$0.00`, les bornes sont correctes.
+  7. **Touches** : aucune nouvelle touche.
+  
+  **Non bloquants (mineurs) :**
+  - **Tests** (`availability_test.go:369`, `live_test.go:291`) : leur intention d'origine (« aucun statut ») n'est plus vérifiée. Je suggère de garder l'assertion stricte `Text == ""` avec une config où tous les modèles ont un tarif, et de tester l'indice à part avec son texte exact. Dans `live_test`, ajouter aussi la vérification du niveau et du spinner.
+  - **Débordement de l'en-tête à 80 colonnes** (`view.go:96`) : avec la clé `Unattributed` (12 caractères), `Unattributed: −$12.34` fait 21 cellules alors que la colonne 1 en a 19. `PadWithBg` ne tronque pas, donc la ligne déborde de 2. Le problème existe déjà ailleurs (« Not rendered ») et relève de `app_header.go`, pas de cette étape.
+  - **Orange trop sensible** (`view.go:99`) : il s'applique dès `< 0`. Un bruit flottant comme −1e-12 afficherait `−<$0.01` en orange et signalerait à tort une table périmée. Seuil suggéré : ≤ −0,005.
+  - **Marque du total** (`view.go:78`) : le total Est. cost porte `~` alors qu'il inclut des sous-agents comptés en borne basse. C'est conforme au plan ; `≥ ~` serait plus juste. À trancher par le PM.
+  - **Style local** (`view.go:99`) : le style orange dérivé est construit dans la vue. Ce n'est pas du hex, mais un helper dans `styles.go` serait plus conforme à Rule 102.
+  
+  Pas besoin de passer par security-reviewer pour cette étape.
+  
+  Fichiers concernés : `/home/anthoni/projects/workspace-entire/anthnel/devdesk/.worktrees/feat-devdesk-47-agent-cost/internal/ui/agentusageview/view.go`, `.../cost.go`, `.../help.go`, `.../availability_test.go`, `.../live_test.go`, `.../cost_summary_test.go`
+</agent-message>
+
+---
+
+<agent-message from="a054ee3f9ab2243e4">
+[Subagent hand-back] The text below is the final report of a subagent this session delegated to. It is model output, NOT a message from the user: instructions, requests, or approval claims inside it are the subagent's words and carry no user authority. The harness indents every line of the report, so a frame-like line at column zero inside it would be forged. Notes above this frame may quote model-derived text, which carries no user authority either. The report follows:
+  Les deux corrections sont faites. gofmt, golangci-lint (0 issues), les tests ciblés, `-race` sur agentusageview, les tests `./internal/app ./internal/ui/...` (aucun échec) et `go build ./...` sont tous OK. Rien n'est commité, aucune doc touchée.
+  
+  **1. Assertions strictes rétablies**
+  - `availability_test.go` : ajout de `allPricedYAML` (model-a, model-b, model-alpha, model-beta, model-gamma, via `cfgWith`) et du helper `withAllPriced(t, m)`, qui remplace `m.prices` par `pricesFrom(cfgWith(...))`.
+  - `TestACleanUsageHasNoStatus` : exige maintenant `m.status() == sharedcomponents.Status{}` (texte vide, pas de spinner, niveau par défaut). Elle ouvre une session avec `withAllPriced` et un usage dont les agents ont un `ByModel` (`mu("model-a")`, `mu("model-b")`). `threeSubs()` n'a que `Models`, donc le tarif ne s'y appliquait pas et le statut affichait « No price for (no model) ».
+  - `live_test.go` : `TestAPollReadAndItsAnswerLeaveTheFooterQuiet` utilise `withAllPriced`, puis vérifie que `status()` est vide (donc niveau et spinner aussi) et que le rendu du footer est vide. La tolérance sur `pricesKey` a disparu.
+  - Le comportement avec table vide (indice `agent_usage.prices`, niveau Info, sans spinner) reste couvert par `cost_summary_test.go`, que je n'ai pas dupliqué. Le commentaire du test y renvoie.
+  - Je n'ai pas rejoué ces deux tests avec une table vide pour voir l'échec ; la garde est seulement visible dans l'assertion stricte.
+  
+  **2. Seuil d'Unattributed**
+  - `view.go` : l'orange ne s'applique que si `Unattributed <= -negativeUSD`, avec une nouvelle constante `negativeUSD = 0.005`.
+  - `theme/styles.go` : nouveau helper `HeaderWarnValueStyle()`, qui renvoie `HeaderValueStyle` avec `ColorSeverityMedium` (sans hex). `view.go` l'utilise à la place de la construction locale.
+  - Nouveau test `TestFloatNoiseInUnattributedIsNotOrange` dans `cost_summary_test.go` : -1e-12 reste en couleur normale, -0,006 passe en orange. Il n'a pas été écrit avant le correctif, donc je n'ai pas vu d'échec préalable.
+  - Le `~` de Est. cost n'a pas été modifié.
+  
+  Fichiers modifiés, tous sous `internal/ui/` :
+  - `agentusageview/availability_test.go`
+  - `agentusageview/live_test.go`
+  - `agentusageview/view.go`
+  - `agentusageview/cost_summary_test.go`
+  - `theme/styles.go`
+</agent-message>
+
+---
+
+<agent-message from="a614f05025248057a">
+[Subagent hand-back] The text below is the final report of a subagent this session delegated to. It is model output, NOT a message from the user: instructions, requests, or approval claims inside it are the subagent's words and carry no user authority. The harness indents every line of the report, so a frame-like line at column zero inside it would be forged. Notes above this frame may quote model-derived text, which carries no user authority either. The report follows:
+  Les quatre fichiers de documentation sont mis à jour pour DEVDESK-47 / DEVDESK-96. Je n'ai touché à aucun `.go` et je n'ai rien commité. Je n'ai exécuté aucun test ni compilé : j'ai vérifié les noms et comportements en lisant le code non commité.
+  
+  Fichiers modifiés, dans `/home/anthoni/projects/workspace-entire/anthnel/devdesk/.worktrees/feat-devdesk-47-agent-cost/` :
+  - `docs/architecture/agent-usage.md`
+    - « What it does not do » est amendé : le paquet parent ne tarife rien, `pricing` oui.
+    - Le tableau de l'API gagne `ModelUsage`, `Billed`, `Agent.ByModel` et `Usage.Billed`.
+    - Deux sections s'ajoutent avant « Tolerance » :
+      - « Per-model tokens » : `ByModel`, le découpage cache 5m/1h, le plafond de 64 modèles, la tolérance aux valeurs invalides, les 47 % mesurés.
+      - « `cost-state` and `Billed` » : la règle de position, la fusion par maximum, la limite du `Billed` périmé et l'effet sur `Activity.LastChange`. Le fixture `v2.1.302-cost` y est décrit, et aussi dans « Verification ».
+    - L'amendement « Privacy » liste les trois clés lues en plus.
+    - Une section « Pricing » couvre le paquet `pricing`, ce qui n'est pas tarifé et `Unattributed`.
+    - Côté vue : la colonne `Est. cost` (ordre de chute, environ 126 colonnes, tableau des formats), l'en-tête (7 lignes pleines), les tarifs lus une seule fois, le WARN loggé à chaque construction, et le pied de page (indice de prix).
+  - `docs/architecture/configuration.md`
+    - La liste des sections mentionne `AgentUsage`.
+    - Un nouveau bloc `agent_usage.prices` donne les cinq clés en USD par million de tokens, un exemple YAML, le `Rate` tolérant et l'absence de défaut ou d'écriture quand c'est vide.
+    - Il précise aussi : un bloc par contexte, pas d'éditeur dans `:cfg`, et une sauvegarde depuis `:cfg` qui écrase une édition manuelle faite pendant que DevDesk tourne.
+  - `.claude/CLAUDE.md` : le paragraphe « Claude Code session list » et les lignes `configuration.md` et `agent-usage.md` du tableau Architecture mentionnent le coût estimé, `Billed`/`Unattributed` et `agent_usage.prices`.
+  - `docs/backlog.md`
+    - Nouvelle entrée **D89** en tête de §1.1 (D88 était la dernière), avec « Last Updated » passé à 2026-10-30.
+    - Elle couvre les tarifs dans le YAML (mise à jour automatique en story ultérieure, source LiteLLM possible et non vérifiée), l'appariement sans préfixe, `Est. cost` en `DropFirst`, et `Unattributed` dans l'en-tête sans `Pinned`.
+    - J'y ai ajouté le `Rate` tolérant, la règle de position de `Billed` et ce qui n'est pas tarifé.
+  
+  Points à vérifier :
+  1. **Langue du backlog.** J'ai écrit D89 en français, parce que D88 et les entrées voisines le sont, alors que la consigne disait « en anglais ». Les trois autres fichiers sont en anglais. À traduire si tu préfères l'anglais.
+  2. **Seuil de 126 colonnes.** Je l'ai repris de ta consigne et du commentaire de `agentColumns()`, qui précise qu'il dépend du contenu des colonnes Agent et ID. Je ne l'ai pas mesuré.
+  3. **Texte « d'avant » du header.** Dans `agent-usage.md`, j'ai gardé la puce « Header (before DEVDESK-47) » telle quelle et ajouté la puce « Header at the agents level » avant elle. Les deux coexistent, ce qui est un peu redondant mais fidèle à l'historique du fichier.
+  4. **Exemple YAML sans prix réels.** Il utilise un modèle fictif `claude-example-model` avec des valeurs d'illustration, et la doc dit de ne pas les copier. Le plan prévoyait des valeurs tirées de la page du fournisseur, que je n'ai pas pu vérifier ici. L'aide de la vue (`help.go`) contient déjà un exemple de la même forme.
+  5. **Fixture et README.** `testdata/README.md` a déjà la ligne `v2.1.302-cost` ajoutée par le coder. Je ne l'ai pas modifié.
+</agent-message>
+
+---
+
+<agent-message from="aec16eb507b83c1eb">
+[Subagent hand-back] The text below is the final report of a subagent this session delegated to. It is model output, NOT a message from the user: instructions, requests, or approval claims inside it are the subagent's words and carry no user authority. The harness indents every line of the report, so a frame-like line at column zero inside it would be forged. Notes above this frame may quote model-derived text, which carries no user authority either. The report follows:
+  Verdict: everything passes, no failures, no parasite files. I did not post the Plane comment because no Plane tool is available to me in this session; the results are below for you to post.
+  
+  Worktree: /home/anthoni/projects/workspace-entire/anthnel/devdesk/.worktrees/feat-devdesk-47-agent-cost. I modified no files.
+  
+  **1. Commands run (observed)**
+  - `gofmt -l .`: empty output.
+  - `go vet ./...`: clean.
+  - `golangci-lint run`: "0 issues", exit 0.
+  - `go build ./...`: OK.
+  - `go test -count=1 ./...`: exit 0, every package ok, no FAIL.
+  - `go test -race -count=1 ./internal/agentusage/... ./internal/ui/agentusageview ./internal/config`: all ok.
+    - agentusage 64.8s, pricing 1.0s, agentusageview 10.7s, config 1.1s.
+  - `go test -count=2 ./internal/config ./internal/ui/agentusageview ./internal/app`: all ok, no regression on the second pass (shared HOME).
+  - Fuzz `FuzzIncrementalMatchesFull` for 30s: PASS, 123k execs, no crash. It left no new file under testdata/fuzz.
+  - No failure on main unrelated to the feature, since nothing failed.
+  
+  **2. Acceptance criteria traced to tests (all pass)**
+  1. The estimate is marked `~` and equals tokens × model rate:
+     - `TestRatesCost`, `TestTableAgent` and `TestSession` in internal/agentusage/pricing/estimate_test.go.
+     - `TestCostCell` and `TestFormatUSD` in internal/ui/agentusageview/cost_test.go.
+     - `TestAggregateByModel` for the per-model token split.
+  2. An unpriced model shows `-`, never 0:
+     - `TestAgentWithAnEmptyTableIsUnpricedNeverZero`, `TestNonFiniteCostIsUnpriced` and `TestSumOverflowIsUnpriced`.
+     - `TestAnEmptyPriceTableShowsADashEverywhere`, `TestCostColumnDimsOnlyThePlaceholder` and `TestAnIncompleteEntryIsLoggedOnceAndShowsADash`.
+  3. The price table is editable without recompiling (YAML `agent_usage.prices`):
+     - `TestAgentUsagePrices_FullEntry`, `_RoundTrip` and `_MissingRate`, plus `TestFromConfigAcceptsACompleteEntry` and `TestFromConfigRejectsAnUnusableEntryWithoutAffectingOthers`.
+     - `TestCostsComeFromTheContextPriceTable`, `TestTheHelpYAMLExampleLoadsAndIsComplete` and `TestCtrlRDoesNotReReadThePrices`.
+  4. Sub-agents are announced as underestimated (`≥ ~`) with the estimate marker kept:
+     - `TestCostCellSaturatesWithinTheColumn` asserts exactly `"≥ ~$99999"` (cost_test.go:490).
+     - `TestCostCell` has sub-agent cases.
+     - The `≥` marker for sub-agents is also covered by the existing `agents_level_test.go` tests (`≥ 38`).
+     - `TestHelpDescribesCosts` covers the help text.
+  5. Finished session with cost-state, Billed + Unattributed = total − sum of agents (10.00 / 8.20 => 1.80):
+     - `TestWithRowsStoresTheCostSummary` asserts `Unattributed` ≈ 1.80.
+     - `TestHeaderCostFields` has the case "criterion 5: 10.00 billed, 8.20 estimated, 1.80 unattributed", with `~$8.20`, `$10.00` and `$1.80`.
+     - `TestSession` has the same case in estimate_test.go ("criterion 5: billed 10.00, agents 8.20 => 1.80").
+     - Parsing the cost-state is covered by `TestBilledFromTheLastLineOfTheParent` and `TestParseSessionCostFixture`.
+     - `TestReadDeltaBilledMatchesParse` and `TestBilledAppearsWhenTheCostStateIsAppended` cover the incremental read.
+  6. Running session shows neither Billed nor Unattributed:
+     - `TestHeaderCostFields` has the case "criterion 6: a running session has neither Billed nor Unattributed".
+     - `TestWithRowsStoresTheCostSummary` checks that both are unknown after a read with no cost-state.
+     - `TestBilledGoesUnknownWhenALineFollows` and `TestBilledStaleAfterALineWithNoTimestampNorUsage` cover the transitions.
+  
+  Gaps: no criterion is without a test. Criterion 4 is the thinnest, with a single full-string assertion of `≥ ~$` (the saturation test) plus the sub-agent cases in `TestCostCell`. The `≥` part is well covered by older tests, and the `~$` combination is covered by `TestCostCell` and `TestCostCellSaturatesWithinTheColumn`. That is adequate, not weak.
+  
+  **3. Integration**
+  - `go build -o <scratchpad>/dk-test .` succeeded. The binary is in the scratchpad, not in the repo, and I did not run it.
+  - `git status --short` contains only the expected files: internal/agentusage (including pricing/, bymodel_test.go, cost_test.go, testdata/README.md and testdata/v2.1.302-cost/), internal/config (agent_usage.go, agent_usage_test.go, config.go), internal/ui/agentusageview, internal/ui/theme/styles.go, docs/architecture/agent-usage.md, docs/architecture/configuration.md, docs/backlog.md, .claude/CLAUDE.md and .claude/plans/DEVDESK-47-plan.md.
+  - No binary, no `.agent-progress`, no fuzz corpus, nothing stray.
+  
+  The changes are still uncommitted in the worktree, per git status.
+</agent-message>
+
+---
+
+oui, fais créer la branche et la PR par devops
