@@ -36,9 +36,10 @@ func (a *App) resetSuggestions() {
 	a.sugNotice = ""
 }
 
-// highlightedEntry returns the highlighted row, if there is one.
+// highlightedEntry returns the highlighted row, if there is one. With no list
+// drawn there is no highlight: a choice nobody can see is never made.
 func (a *App) highlightedEntry() (command.Entry, bool) {
-	if a.sugCursor < 0 || a.sugCursor >= len(a.suggestions.Entries) {
+	if a.listVisible() == 0 || a.sugCursor < 0 || a.sugCursor >= len(a.suggestions.Entries) {
 		return command.Entry{}, false
 	}
 	return a.suggestions.Entries[a.sugCursor], true

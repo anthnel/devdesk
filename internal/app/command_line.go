@@ -2,6 +2,7 @@ package app
 
 import (
 	"log"
+	"strings"
 
 	tea "github.com/charmbracelet/bubbletea"
 
@@ -71,18 +72,32 @@ func (a *App) closeCommandLine() tea.Cmd {
 	return a.requestResize()
 }
 
+// runnableText is the single availability question for enter, read by the
+// header (to grey it) and by runCommand (to refuse). With a list drawn it is
+// the highlighted row's name. At the argument stage, or with no list drawn
+// (too short a viewport), it is the text as typed: a prefix such as "co" is
+// not a name and runs nothing, but an empty line has nothing to run.
+func (a *App) runnableText() (string, bool) {
+	if a.suggestions.Stage != command.StageArgument && a.listVisible() > 0 {
+		entry, ok := a.highlightedEntry()
+		return entry.Name, ok
+	}
+	input := a.commandInput.Value()
+	return input, strings.TrimSpace(input) != ""
+}
+
 // runCommand executes the highlighted row, or at the argument stage the text
 // as typed. With nothing to run it says so on the list's bottom rule and
 // leaves the line open.
 func (a *App) runCommand() (tea.Model, tea.Cmd) {
-	input := a.commandInput.Value()
-	if a.suggestions.Stage != command.StageArgument {
-		entry, ok := a.highlightedEntry()
-		if !ok {
+	input, ok := a.runnableText()
+	if !ok {
+		// Only a drawn list has a rule to carry the notice; without one the
+		// refusal is silent, a documented exception to Rule 130.
+		if a.listVisible() > 0 {
 			a.sugNotice = a.nothingToRunNotice()
-			return a, nil
 		}
-		input = entry.Name
+		return a, nil
 	}
 
 	cmd := command.ParseCommand(input)

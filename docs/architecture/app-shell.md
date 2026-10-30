@@ -92,6 +92,18 @@ nothing. With nothing highlighted `tab` and `enter` are greyed in the header
 (`commandLineShortcuts`, which replaces the view's own shortcuts), and `enter`
 says why on the bottom rule: `Type a name or choose one` for an empty line (it
 never quits and changes nothing), `"zz" is not a view or a command` for no match.
+With no list drawn (viewport below two usable lines) nothing is highlighted and
+`enter` runs the text as typed, like the argument stage: `containers` opens the
+view, `co` runs nothing and the line stays open (no notice, there is no rule to
+carry it). `View` is cut to the terminal's height by `fitHeight` (`view.go`):
+the surplus comes off the bottom of the viewport first, so the header's command
+line and the footer outrank viewport rows; no change at normal heights.
+Its floor: below 9 lines the command line itself (the header's 9th line) is cut,
+and at 13 lines or fewer the FilterBar's top edge can disappear with the viewport.
+`enter` is greyed or lit by `runnableText` (`command_line.go`), the one function
+`commandLineShortcuts` and `runCommand` both read. **Declared exception to Rule
+130:** with no list drawn (unknown name, empty line, terminal under 14 lines) a
+refused `enter` is silent, there being no rule to carry the notice.
 The notice lasts until the next key, with no timer. The ghost completion text and
 the `[i/n]` position that used to follow the input, and the breadcrumb of views
 `tab` used to open, are gone. `tab` here is a declared exception to Rule 135

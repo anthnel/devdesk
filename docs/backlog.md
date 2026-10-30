@@ -116,6 +116,9 @@ La liste remplace le sélecteur horizontal et la complétion fantôme (voir
   quelle ligne `enter` ouvrira ; deux indications concurrentes se contredisaient
   dès que les flèches déplaçaient le surlignage. Le fil d'Ariane des vues part avec
   `tab`.
+- **Règle 130 : refus muet de `enter` sans liste visible.** Nom inconnu, ligne vide
+  ou terminal de moins de 14 lignes : aucune règle basse ne porte l'avertissement,
+  donc le refus est silencieux. Exception acceptée par l'utilisateur.
 - **Thèmes recopiés à la main.** Trois thèmes ont dû être corrigés à la main pour
   atteindre 4,5:1 de contraste (étape 4) ; les copies que des utilisateurs ont faites
   de ces fichiers ne reçoivent pas la correction. À mentionner dans le changelog.
