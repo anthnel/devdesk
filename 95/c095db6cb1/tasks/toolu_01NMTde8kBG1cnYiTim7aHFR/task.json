@@ -1,0 +1,15 @@
+{
+  "tool_use_id": "toolu_01NMTde8kBG1cnYiTim7aHFR",
+  "agent_id": "a3ef54d59b15c6e2a",
+  "subagent_type": "project-coder",
+  "task_description": "Code étape 1 registre",
+  "token_usage": {
+    "input_tokens": 21,
+    "cache_creation_tokens": 133960,
+    "cache_read_tokens": 1216512,
+    "output_tokens": 447,
+    "api_call_count": 11
+  },
+  "started_at": "2026-10-30T17:37:31.931323503+01:00",
+  "completed_at": "2026-10-30T17:39:24.528165014+01:00"
+}
