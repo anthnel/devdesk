@@ -82,6 +82,11 @@ func (a *App) renderHeader() string {
 // renderHeaderContent generates the header block with a fixed height (headerMinHeight).
 // Layout: 3 columns — info (25%), shortcuts (flexible), logo (fixed width).
 func renderHeaderContent(info []shortcut.HeaderInfo, shortcuts shortcut.Shortcuts, width int) string {
+	// Two padding cells are the minimum a row can hold; below that the header
+	// is blank rather than wider than the window.
+	if width < 2 {
+		return strings.Join(blankHeaderRows(width), "\n")
+	}
 	innerWidth := width - 2 // 1 padding each side
 
 	// Column widths
@@ -133,6 +138,15 @@ func renderHeaderContent(info []shortcut.HeaderInfo, shortcuts shortcut.Shortcut
 	return strings.Join(rows, "\n")
 }
 
+// blankHeaderRows returns headerMinHeight background-filled rows of the given width.
+func blankHeaderRows(width int) []string {
+	rows := make([]string, headerMinHeight)
+	for i := range rows {
+		rows[i] = theme.EmptyLineBg(width)
+	}
+	return rows
+}
+
 // buildInfoLines builds the key-value info lines for column 1, aligning values on the longest key.
 // Lines wider than col1Width are clipped, so a narrow column never overflows into the next one.
 func buildInfoLines(info []shortcut.HeaderInfo, col1Width int) []string {
@@ -162,6 +176,9 @@ func buildInfoLines(info []shortcut.HeaderInfo, col1Width int) []string {
 			if col1Width > 0 {
 				// MaxWidth truncates on rune boundaries and keeps escape sequences intact.
 				lines[i] = lipgloss.NewStyle().MaxWidth(col1Width).Render(lines[i])
+			} else {
+				// No room at all: show nothing rather than overflow.
+				lines[i] = ""
 			}
 		} else {
 			lines[i] = ""
@@ -172,7 +189,9 @@ func buildInfoLines(info []shortcut.HeaderInfo, col1Width int) []string {
 
 // buildShortcutLines builds the shortcut lines for column 2
 func buildShortcutLines(shortcuts shortcut.Shortcuts, col2Width int) []string {
-	if len(shortcuts) == 0 {
+	// A column with no width shows no shortcut: PadWithBg returns a long line
+	// untouched, so anything rendered here would spill past the window.
+	if len(shortcuts) == 0 || col2Width <= 0 {
 		lines := make([]string, headerMinHeight)
 		for i := range lines {
 			lines[i] = ""

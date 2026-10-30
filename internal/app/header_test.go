@@ -304,3 +304,56 @@ func TestTheHeaderBlockKeepsItsHeightAtFortyColumns(t *testing.T) {
 		}
 	}
 }
+
+// Every width from 0 up must give seven rows no wider than the window, and
+// exactly as wide from 2 columns (the two padding cells) on. The sampled widths
+// around 55 are where the logo fits but leaves the shortcut column no room.
+func TestTheHeaderNeverExceedsTheWindowAtAnyWidth(t *testing.T) {
+	infos := map[string][]shortcut.HeaderInfo{
+		"short": {{Key: "Context", Value: "default"}},
+		"long": {
+			{Key: "Context", Value: strings.Repeat("very-long-value-", 12)},
+			{Key: "Workspace", Value: strings.Repeat("x", 200)},
+		},
+		"wide": {{Key: "コンテキスト", Value: "日本語の長い値日本語の長い値日本語の長い値日本語の長い値"}},
+	}
+	var widths []int
+	for w := 0; w <= 8; w++ {
+		widths = append(widths, w)
+	}
+	widths = append(widths, 20, 40, 54, 55, 56, 57, 58, 59, 60, 62, 64, 66, 80)
+
+	for name, info := range infos {
+		for _, w := range widths {
+			rendered := renderHeaderContent(info, manyShortcuts(12), w)
+			lines := strings.Split(rendered, "\n")
+			if len(lines) != headerMinHeight {
+				t.Errorf("%s width %d: %d rows, want %d", name, w, len(lines), headerMinHeight)
+			}
+			for i, line := range lines {
+				got := lipgloss.Width(line)
+				if got > w {
+					t.Errorf("%s width %d: row %d is %d cells wide", name, w, i, got)
+				}
+				if w >= 2 && got != w {
+					t.Errorf("%s width %d: row %d is %d cells wide, want exactly %d", name, w, i, got, w)
+				}
+			}
+		}
+	}
+}
+
+// At 55 the logo is kept and the shortcut column has no width left: it must be
+// empty rather than spill past the window.
+func TestAnEmptyShortcutColumnRendersNoShortcut(t *testing.T) {
+	for _, line := range buildShortcutLines(manyShortcuts(12), 0) {
+		if lipgloss.Width(line) != 0 {
+			t.Errorf("a zero-width shortcut column rendered %q", line)
+		}
+	}
+	for _, line := range buildInfoLines([]shortcut.HeaderInfo{{Key: "Context", Value: "default"}}, 0) {
+		if lipgloss.Width(line) != 0 {
+			t.Errorf("a zero-width info column rendered %q", line)
+		}
+	}
+}
