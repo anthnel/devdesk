@@ -22,16 +22,19 @@ func TestParseSessionActivity(t *testing.T) {
 		// timestamps are 10:00:00, 10:00:30, 10:20:00 and 10:10:00 (out of order);
 		// the api-request-blob replaying toolu_p1 has a null timestamp and counts nothing.
 		{ID: "", Main: true, State: StateUnknown, Tokens: Tokens{6, 80, 1200, 1000}, Messages: 2,
-			ToolCalls: 2, FirstActivity: utc(10, 0, 0), LastActivity: utc(10, 20, 0), Models: []string{"model-alpha"}},
+			ToolCalls: 2, FirstActivity: utc(10, 0, 0), LastActivity: utc(10, 20, 0), Models: []string{"model-alpha"},
+			ByModel: []ModelUsage{{Model: "model-alpha", Tokens: Tokens{6, 80, 1200, 1000}}}},
 		// 5 distinct tool_use blocks over 7 assistant lines (one message spread
 		// over 3 lines, one streamed twice), 2 blobs replaying calls and 2
 		// tool results. Span 10:01:00 to 10:07:30 although msg_b2 is
 		// written with 10:03:00 then 10:02:30.
 		{ID: "b01", Type: "coder", State: StateUnfinished, SpawnDepth: 1, Tokens: Tokens{26, 180, 1400, 50}, Messages: 4,
-			ToolCalls: 5, FirstActivity: utc(10, 1, 0), LastActivity: utc(10, 7, 30), Models: []string{"model-beta"}},
+			ToolCalls: 5, FirstActivity: utc(10, 1, 0), LastActivity: utc(10, 7, 30), Models: []string{"model-beta"},
+			ByModel: []ModelUsage{{Model: "model-beta", Tokens: Tokens{26, 180, 1400, 50}}}},
 		// 1 call and no timestamp anywhere: the duration is unknown.
 		{ID: "b02", Type: "tester", State: StateFinished, SpawnDepth: 1, Tokens: Tokens{1, 2, 3, 4}, Messages: 1,
-			ToolCalls: 1, Models: []string{"model-gamma"}},
+			ToolCalls: 1, Models: []string{"model-gamma"},
+			ByModel: []ModelUsage{{Model: "model-gamma", Tokens: Tokens{1, 2, 3, 4}}}},
 	}
 	if len(u.Agents) != len(want) {
 		t.Fatalf("agents = %d, want %d: %+v", len(u.Agents), len(want), u.Agents)
@@ -78,9 +81,9 @@ func TestActivityFixtureNeverLeaks(t *testing.T) {
 	if _, err := ParseSession(files); err == nil || strings.Contains(err.Error(), "SENTINEL") || strings.Contains(err.Error(), "toolu_") {
 		t.Errorf("error = %v", err)
 	}
-	// The only new fields of Agent are an int and two times.
+	// Apart from ByModel (counters and model names), the only new fields of Agent are an int and two times.
 	known := map[string]bool{"ID": true, "Main": true, "Type": true, "Models": true, "Tokens": true, "Messages": true,
-		"PartialMessages": true, "State": true, "SpawnDepth": true, "key": true}
+		"PartialMessages": true, "ByModel": true, "State": true, "SpawnDepth": true, "key": true}
 	timeType := reflect.TypeOf(time.Time{})
 	at := reflect.TypeOf(Agent{})
 	for i := range at.NumField() {

@@ -11,6 +11,7 @@ import (
 	"github.com/charmbracelet/lipgloss"
 
 	"github.com/anthnel/devdesk/internal/agentusage"
+	"github.com/anthnel/devdesk/internal/agentusage/pricing"
 	"github.com/anthnel/devdesk/internal/ui/datatable"
 	"github.com/anthnel/devdesk/internal/ui/testutil"
 	"github.com/anthnel/devdesk/internal/ui/theme"
@@ -80,7 +81,7 @@ func TestAgentRowsCarryTheirState(t *testing.T) {
 		stamped(withState(subAgent("a02", "tester", 1, 0), agentusage.StateFinished), 2, tn.Add(-time.Hour), tn.Add(-30*time.Minute)),
 		stamped(withState(subAgent("a03", "reviewer", 1, 0), agentusage.StateUnfinished), 2, tn.Add(-time.Hour), tn.Add(-10*time.Minute)),
 	}}
-	got := agentRows(u, true, statusClock{now: tn, alive: true})
+	got := agentRows(u, true, statusClock{now: tn, alive: true}, pricing.Table{})
 	want := []runState{stateRunning, stateRunning, stateDone, stateIdle}
 	for i, r := range got {
 		if r.state != want[i] {

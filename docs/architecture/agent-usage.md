@@ -17,7 +17,7 @@ agent usage monitor (DEVDESK-40, spike S-01 then step S-02).
 
 What it does **not** do:
 
-- no cost, price or quota computation;
+- no price or quota computation: this package holds no price and multiplies nothing. It exposes the per-model tokens and the recorded bill (DEVDESK-47); turning them into money is `internal/agentusage/pricing`, see "Pricing";
 - no storage, no cache, nothing written to disk;
 - no UI, no Bubble Tea import (the view lives in `internal/ui/agentusageview`);
 - no dependency beyond the Go standard library.
@@ -25,7 +25,7 @@ What it does **not** do:
 **The public API is a contract.** Every exported symbol in the table below
 (`Tokens`, `Agent`, `State`, `Usage`, `Diagnostics`, `FileIssue`, `IssueKind`,
 `SessionFiles`, `SubAgentFiles`, `ParseSession`, `LocateSession`, `ProjectsRoot`,
-`ListSessions`, `Session`, `Listing`, and, since DEVDESK-44, `Cursor`, `Delta`,
+`ListSessions`, `Session`, `Listing`, `ModelUsage`, `Billed` (DEVDESK-47), and, since DEVDESK-44, `Cursor`, `Delta`,
 `ReadDelta`, `Aggregate`, `NewAggregate`, `Activity`, `ErrStaleDelta`)
 is consumed by S-03b, S-04, S-05a, S-05b (DEVDESK-45) and S-06 (DEVDESK-46). Changing a
 field is a change to those stories; add, do not rename.
@@ -50,9 +50,11 @@ field is a change to those stories; add, do not rename.
 | `Session{ID, Parent, Project, ModTime}` | `Parent` is a full path, for `LocateSession`, and is never logged. `Project` is the working directory read from the transcript (`cwd`), sanitized and capped at 4096 bytes, or `""` if none. `ModTime` is the transcript's modification time. |
 | `Listing{Sessions, Omitted}` | `Sessions` newest `ModTime` first, ties by ID ascending. `Omitted` counts what was not listed: linked or non-regular transcripts, linked or unreadable project directories, and sessions past the cap. |
 | `Tokens{Input, Output, CacheRead, CacheWrite}` | `int64` counters; `Total()` and `Add()` saturate at `math.MaxInt64` |
-| `Agent` | `ID` (empty for the orchestrator), `Main`, `Type`, `Models`, `Tokens`, `Messages`, `PartialMessages`, `State`, `SpawnDepth`; since DEVDESK-46 `ToolCalls`, `FirstActivity`, `LastActivity`; `PartialOutput()`, `Duration()` |
+| `Agent` | `ID` (empty for the orchestrator), `Main`, `Type`, `Models`, `Tokens`, `Messages`, `PartialMessages`, `State`, `SpawnDepth`; since DEVDESK-46 `ToolCalls`, `FirstActivity`, `LastActivity`; since DEVDESK-47 `ByModel`; `PartialOutput()`, `Duration()` |
+| `ModelUsage{Model, Tokens, CacheWrite1h}` | the part of an agent's tokens recorded under one model (DEVDESK-47). `CacheWrite1h` is the part of `Tokens.CacheWrite` written with the 1 h cache; `CacheWrite5m()` is the rest. See "Per-model tokens". |
+| `Billed{USD, Known}` | the session cost Claude Code recorded itself (DEVDESK-47). See "`cost-state` and `Billed`". |
 | `State` | `StateUnknown`, `StateFinished`, `StateUnfinished` |
-| `Usage` | `SessionID`, `Agents` (orchestrator first, then sub-agents by ID), `Versions`, `Diagnostics`; `Total()` |
+| `Usage` | `SessionID`, `Agents` (orchestrator first, then sub-agents by ID), `Versions`, `Diagnostics`, since DEVDESK-47 `Billed`; `Total()` |
 | `Diagnostics` | `UnreadableLines`, `OversizedLines`, `NoUsage`, `NoMessageID`, `CrossFileDuplicates`, `MetaMissing`, `MetaUnreadable`, `TruncatedFiles`, `Files []FileIssue`; `Degraded()` |
 | `FileIssue{File, Offset, Kind}` | one skipped line or file problem. `File` is a base name. `Offset` is the byte offset of the line (for `IssueReadError`, the offset consumed; for `IssueOpenFailed`, 0). Entries are sorted by offset within each file. |
 | `IssueKind` | `IssueUnreadable` (not JSON, truncated, or bad counters), `IssueOversized` (longer than `MaxLineBytes`), `IssueOpenFailed` (a sub-agent transcript could not be opened), `IssueReadError` (reading stopped on an I/O error) |
@@ -156,6 +158,65 @@ their own table.
   `LastActivity`. **The span is min to max, not first line to last**: timestamps
   are not monotonic within a file (hundreds of backward steps in one real
   transcript). It is wall clock: pauses and a resumed session are included.
+
+### Per-model tokens (DEVDESK-47)
+
+`Agent.ByModel` splits `Agent.Tokens` by model, in first-appearance order, with
+the bucket of `Model == ""` last. That bucket holds messages that name no model
+and the models past the cap of 64 per agent (`maxModelsPerAgent`, the cap that
+already applies to `Models`). The sum of `ByModel` is `Agent.Tokens`, also past
+the cap and for the lines that spill (`modelTally`, in `limits.go`).
+
+Each usage line may carry `usage.cache_creation.ephemeral_1h_input_tokens`: the
+part of `cache_creation_input_tokens` written with the 1 h cache, which is
+priced differently from the 5 min one. It is decoded apart, so a value of
+another shape costs the split and nothing else: an absent, negative,
+fractional, text or null value is 0, the line stays a usage line, and the token
+totals do not move. A value above the total is clamped to the total. As for the
+other counters, the last line of a message wins. `ModelUsage.CacheWrite5m()` is
+`Tokens.CacheWrite - CacheWrite1h`. Checked on 49 real parent transcripts: the
+field is on every usage line, 5 min + 1 h equals the total write on all of
+them, and 1 h writes are 47 % of the cache written. Pricing every write at one
+rate would be wrong by a large factor, which is why the split exists.
+
+### `cost-state` and `Billed` (DEVDESK-47)
+
+Claude Code appends a line of root `type` `cost-state` when a session closes. It
+has no `message` and no `timestamp`; the package reads three keys of it, and no
+others: `type`, `sessionId`, `totalCostUSD`. It is a `kindCostState` line
+(`record.go`): it counts for nothing else (no tokens, no version, no activity).
+
+`Usage.Billed` is `Billed{USD, Known}`. `Known` is true only when all of these
+hold:
+
+- the cost-state line with the greatest position **in the parent transcript** is
+  also the parent's last complete line (`parentEnd`, the greatest position of
+  any complete parent line, readable or not, oversized included);
+- its `totalCostUSD` is a finite number >= 0;
+- its `sessionId` equals the session's, or is absent or null (any other value
+  matches no session).
+
+A cost-state line in a sub-agent file is ignored. Both positions are maxima, so
+a merge is commutative and the incremental result still equals `ParseSession`
+(see "Incremental reading"). `table.hasLines()` counts the cost-state, so the
+delta that brings it is not `Empty()` and the view rebuilds; as a consequence a
+cost-state counts as file activity for `Activity.LastChange`, and updates pause
+up to 5 min later than before.
+
+What 46 of 49 real parents here show (one client version line, 2.1.28x to
+2.1.30x): the line is always last in the file; a session resumed and closed again
+appends a new **cumulative** cost-state (7.08 then 12.61 in one file), so the
+last one is the bill. This is observed, not documented by Claude Code.
+
+**Known limit, declared.** Billed goes stale after a line that carries no
+timestamp and no usage (the delta has no activity to move the view), because the
+view only rebuilds on a non-empty delta that changes something. It is corrected
+by the next line with a timestamp, or by `ctrl+r`. The test file states it.
+
+The fixture `testdata/v2.1.302-cost/` holds a parent with two models, a 5 min /
+1 h split, a first cost-state (7.08), more usage, then a second cumulative one
+(12.61) as the last line; and a sub-agent file with its own cost-state (99,
+ignored).
 
 ## Tolerance
 
@@ -384,6 +445,13 @@ view logs a failed listing, but its error carries a base name only. A `Usage`
 still carries no path. This replaces the earlier wording that no path was ever
 read.
 
+**Amendment (DEVDESK-47): three more keys are read.** `usage.cache_creation.ephemeral_1h_input_tokens`
+(a number) and, on a `cost-state` line only, `sessionId` (a label, sanitized) and
+`totalCostUSD` (a number). The `modelUsage` object and the other counters of a
+`cost-state` line are not declared, so never kept. The fixture plants
+`SENTINEL-DO-NOT-LEAK` in an unknown key of a cost-state line; tests check it
+appears in no rendering of the `Usage` nor in an error.
+
 - Errors carry the base name of a file, never its full path (`baseOnly`), and
   fixed messages instead of `encoding/json` errors, which can quote content.
 - Text that comes from disk goes through `sanitize`: labels (model, version,
@@ -460,7 +528,8 @@ counter must be added to `Degraded()`.
   `synthetic-other-version/` (renamed or absent usage, unknown line type) and
   `damaged/` (bad line, file cut mid-JSON), and, since DEVDESK-46,
   `v2.1.302-activity/` (tool calls, timestamps out of order, a replaying
-  `api-request-blob`). Expected totals are written by hand
+  `api-request-blob`) and, since DEVDESK-47, `v2.1.302-cost/` (`cost-state`, two
+  models, the 5 min / 1 h split). Expected totals are written by hand
   in `parse_test.go`. See `testdata/README.md`.
 - **Cross-check against ccusage** (step 6 of S-02, DEVDESK-54), reference
   version `ccusage@20.0.43`. `crosscheck_test.go` compares `ParseSession` with
@@ -488,6 +557,28 @@ counter must be added to `Degraded()`.
   optional per session: when present, each is compared too, and each must be
   within the tolerance (2 %, strictly below). A session whose transcript is not
   found, or whose parsing fails, fails the test.
+
+## Pricing — `internal/agentusage/pricing` (DEVDESK-47)
+
+The only package that turns tokens into money. It imports `agentusage` and
+`internal/config`, and **ships no price**: the table comes from the context's
+`agent_usage.prices` (see `configuration.md`). A model with no rate has no cost,
+never a zero one.
+
+| Symbol | Role |
+|---|---|
+| `FromConfig(prices)` | builds a `Table` and returns `[]Problem{Key, Reason}`, sorted by key. An entry is left out when a rate is missing (`incomplete: missing cache_read`), not a number, not finite or negative, when its name is empty, or when two keys are equal once trimmed and lower-cased (both are dropped: choosing one would be a guess). The other entries are unaffected. |
+| `Table.Lookup(model)` | exact match (trimmed, case-insensitive); failing that, the same match after removing **one** trailing `-YYYYMMDD` (8 digits). **Never a prefix**: a `claude-sonnet-5` key does not price `claude-sonnet-5-5`, which would be silent and wrong. `[1m]` and provider spellings are not stripped; add them as keys. An exact dated key wins over the fallback. |
+| `Rates.Cost(ModelUsage)` | `(input x In + output x Out + 5m write x w5 + 1h write x w1 + read x CacheRead) / 1e6`, rates in USD per million tokens. |
+| `Table.Agent(agent)` | an `Estimate{USD, Status, Unpriced}`. **Never a partial cost**: one model with tokens and no rate makes the agent `Unpriced`, and a cost that is not finite does too. A bucket with no tokens is ignored; no tokens at all is `NoTokens`. The `""` bucket with tokens is unpriced and named `(no model)`. |
+| `Sum(estimates)` | `Unpriced` if any is, `NoTokens` if all are, else `Priced` with the total. |
+| `Table.Session(usage)` | a `Summary{Agents, Billed, Unattributed, UnattributedKnown, Unpriced}`. `Unattributed` is `Billed.USD` minus the sum of the agents; known only when `Billed.Known` and no agent is `Unpriced`. It can be negative (the table is above what was recorded). With no tokens in any agent it equals `Billed`. |
+
+Not priced, so always in Unattributed: web search requests, the `speed`,
+`service_tier` and `inference_geo` modifiers, long-context premiums, and Claude
+Code's own background calls (a model that never appears in a transcript, such as
+the Haiku calls seen in `cost-state`). Arithmetic is `float64`, rounded for
+display only.
 
 ## The `:agent-usage` view
 
@@ -537,10 +628,11 @@ and when a session ran at this level (see the privacy amendment above). `→` or
 | Agent | `orchestrator`, then each sub-agent's type behind `├─ ` / `└─ ` in tree order, bare when sorted (`unknown` when the meta file gave none). `/` matches the role only. |
 | ID | the sub-agent's short ID (`shortAgentIDs`): the smallest common length >= 8 runes at which all IDs of the session differ, capped at each ID's own length. `-` for the orchestrator, `?` for a sub-agent with an empty ID. `/` matches the full ID here. Never dropped, so two agents of one type stay apart. |
 | Model | the models the agent used, comma-separated; `-` (dim) when none. `Optional`. |
-| In, Out, Cache read, Cache write, Total | token counts. On a narrow terminal the drop order is `Cache write`, `Cache read`, `In`, `Model`, `Duration`, `Tools`, `State`. `Out` and `Total` stay. |
+| In, Out, Cache read, Cache write, Total | token counts. On a narrow terminal the drop order is `Cache write`, `Est. cost`, `Cache read`, `In`, `Model`, `Duration`, `Tools`, `State`. `Out` and `Total` stay. |
 | State | `running`, `idle`, `done` or `unknown` (DEVDESK-46, see "Agent state and activity"). Fixed width, `Optional`. `/` matches the label. |
 | Tools | `Agent.ToolCalls`, compact like tokens; a dim `0`. Fixed, `Optional`. |
 | Duration | `Agent.Duration()` (`formatDuration`): `45s`, `3m07s`, `1h05m`, `2d03h`, `>99d`, floored, at most 6 cells; a dim `-` when the transcript has no timestamp. Fixed, `Optional`. |
+| Est. cost | the estimated cost in USD (DEVDESK-47), see "Est. cost" below. Fixed width 10, `Optional` and `DropFirst`. No sort. |
 | Share | the agent's part of the session total (`Usage.Total().Total()`), see below. Fixed width. |
 
 - **Share (`share.go`).** Tenths of a percent, floored, computed on 128 bits
@@ -549,12 +641,12 @@ and when a session ran at this level (see the privacy amendment above). `→` or
   sums to `100.0%`; the residue is clamped at 0 when saturated totals overshoot.
   With no orchestrator row nothing is absorbed. A session with no tokens gives
   `noShare` and the cell shows a dim `-`. Rendered as `12.3%`.
-- **Column order and width.** Agent, ID, State, Tools, Duration, Model, In, Out,
+- **Column order and width.** Agent, ID, Est. cost, State, Tools, Duration, Model, In, Out,
   Cache read, Cache write, Total, Share. With three sub-agents, 100 columns show
   Agent, ID, State, Tools, Duration, Model, Out, Total, Share; 80 columns drop
   Model as well; 60 columns drop Duration, Tools and State and show the five
   columns DEVDESK-43 delivered. Rule 116 holds at each width (rendered extent =
-  width - 2). The new columns have no sort: `.` keeps its cycle.
+  width - 2). The new columns have no sort: `.` keeps its cycle. Est. cost is visible from about 126 columns: it is `DropFirst`, so it goes right after Cache write and the 80-column layout DEVDESK-46 settled is unchanged (the exact threshold depends on the content of the Agent and ID columns).
 - **Sort.** Only `Total` is sortable (`Less`, `DescFirst`). `.` cycles tree,
   `Total ▼`, `Total ▲`, tree. A table that opened unsorted returns to the tree
   after the last step. `agentRows(usage, tree, clock)` draws the branches only when no
@@ -575,12 +667,49 @@ and when a session ran at this level (see the privacy amendment above). `→` or
 - **Breadcrumb.** `Sessions › <project> › <short ID>` sits in the footer, one row
   above the filter bar and the message line (Rule 123), and adds one row to
   `GetFooterHeight`.
-- **Header**: `Agents`, `Tokens` (sum of Total), both following the filter, and
-  `Updates` (`live` or `paused`, see "Live updates").
+- **Est. cost (DEVDESK-47, `cost.go`).** The third column, after ID. The cost is
+  computed in `Update` (`agentRows` gets the `pricing.Table`, `withRows` stores
+  the `pricing.Summary`), never in a `Cell`. Formats, USD only, no thousands
+  separator, always plain text (Rule 122), `-` dim when unknown:
+
+  | Cell | Meaning |
+  |---|---|
+  | `~$1.23` | orchestrator, priced: `~` marks an estimate |
+  | `≥ ~$0.42` | sub-agent, priced: a floor, whose transcript may be incomplete (always, not only on partial output) |
+  | `~<$0.01` | a non-zero amount under half a cent, never `$0.00` |
+  | `~$1235` | whole dollars from $999.995 |
+  | `~$99999+` | saturated from $99999.5 (a sub-agent drops its `≥ ` here to stay within the width) |
+  | `-` | an unpriced model among the agent's, or no tokens |
+
+- **Header at the agents level.** `Agents`, `Tokens`, `Est. cost` (sum of the
+  visible rows, so it follows the filter; `-` if one visible row is unpriced),
+  then, only when `Billed.Known`, `Billed` and `Unattributed` (session facts,
+  they ignore the filter, like `Idle`), `Updates`, and `Idle` when non-zero.
+  `Billed` has no `~`: it is Claude Code's own figure, what `/cost` shows,
+  which on a subscription plan is not an invoice. `Unattributed` is `-` when an
+  agent is unpriced; negative, it shows `−$0.40` (U+2212) in the MEDIUM orange,
+  the one signal that the price table is stale. The worst case is 7 full lines,
+  `headerMinHeight`: **the header is full**, and any further field forces a
+  choice. Unattributed is a header field, not a pinned table row: that would
+  need a `Pinned` option in `datatable`, which was not added (see D89 in
+  `docs/backlog.md`).
+- **Prices are read once.** `New(cfg)` builds the table (`pricesFrom`); the
+  router rebuilds the view on a context switch and on `ConfigSavedMsg`, so
+  those re-read it. `ctrl+r` does **not**: see `configuration.md` for why. Each
+  rejected entry is logged by every construction of the view:
+  `WARN [agentusageview] agent_usage.prices "<key>": <reason>`.
+
+- **Header** (before DEVDESK-47): `Agents`, `Tokens` (sum of Total), both following the filter, and
+  `Updates` (`live` or `paused`, see "Live updates"); the list above adds the cost fields.
 - **Footer status**: a failed read (red, "Failed to read this session — check
   logs"), then loading (a full read only; spinner, "Reading session..."), then, when
   `Diagnostics.Degraded()`, a warning "Totals are approximate — some transcript
-  data could not be read".
+  data could not be read", then a price hint (Info, a state derived on every frame):
+  with no price configured and tokens in the session, "Set agent_usage.prices in this
+  context's config file to estimate costs — see ?"; with prices but a model without
+  one, "No price for <model> in agent_usage.prices — its cost shows -" ("<model> and N
+  more models" past one). Nothing at the sessions level, nor when all are priced.
+  The help (`?`) has a "Costs" section with a pasteable example.
 - **Availability (Rule 130).** The shortcut keys are identical at both levels;
   only `Disabled` changes, computed once in `availability()` and read by
   `GetShortcuts` and by the handlers through `guard`, which refuses with a Warn

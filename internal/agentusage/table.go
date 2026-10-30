@@ -56,6 +56,7 @@ type entry struct {
 	otherFiles  []string
 	model       string
 	tokens      Tokens
+	write1h     int64 // of tokens.CacheWrite, written with the 1 h cache
 	stopNull    bool
 }
 
@@ -71,7 +72,7 @@ func (e *entry) addFile(name string) {
 // gives first, and the files are united.
 func (e *entry) absorb(o *entry) {
 	if o.last.compare(e.last) >= 0 {
-		e.last, e.agent, e.model, e.tokens, e.stopNull = o.last, o.agent, o.model, o.tokens, o.stopNull
+		e.last, e.agent, e.model, e.tokens, e.write1h, e.stopNull = o.last, o.agent, o.model, o.tokens, o.write1h, o.stopNull
 	}
 	if o.first.compare(e.first) < 0 {
 		e.first = o.first
@@ -125,6 +126,7 @@ type spill struct {
 	messages int
 	partial  int
 	models   modelSet
+	byModel  modelTally
 }
 
 // issueAt is a FileIssue with the position of the line it describes.
@@ -175,6 +177,20 @@ type table struct {
 	// versions maps a distinct client version to its first position, at most
 	// maxVersions of them (the smallest positions).
 	versions map[string]pos
+	// billed is the cost-state line of the parent with the greatest position,
+	// valid or not; parentEnd is the greatest position of any complete line of
+	// the parent, readable or not. Both are maxima, so merging is commutative
+	// and an incremental read agrees with a full one.
+	billed    *billedAt
+	parentEnd pos
+}
+
+// billedAt is a parent cost-state line.
+type billedAt struct {
+	p       pos
+	usd     float64
+	ok      bool   // totalCostUSD was a finite number >= 0
+	session string // sessionId as sanitized; "" when absent
 }
 
 func newTable() *table {
@@ -194,6 +210,14 @@ func newTable() *table {
 // parent) and folds it. Synthetic and ignored lines never count.
 func (t *table) addLine(agent, name string, p pos, line []byte) {
 	r, kind := decodeLine(line)
+	t.noteParentEnd(p)
+	if kind == kindCostState {
+		// No timestamp, version or count: only the parent's one is kept.
+		if p.rank == parentRank {
+			t.noteBilled(billedAt{p: p, usd: r.CostUSD, ok: r.CostOK, session: r.CostSession})
+		}
+		return
+	}
 	if kind != kindUnreadable {
 		t.noteVersion(r.Version, p)
 		t.noteActivity(agent, p, r)
@@ -206,8 +230,34 @@ func (t *table) addLine(agent, name string, p pos, line []byte) {
 	case kindUnreadable:
 		t.unreadable++
 		t.addFileIssue(name, p, IssueUnreadable)
-	case kindIgnored, kindSynthetic:
+	case kindIgnored, kindSynthetic, kindCostState:
 	}
+}
+
+// noteParentEnd moves parentEnd up to p when p is a line of the parent.
+func (t *table) noteParentEnd(p pos) {
+	if p.rank == parentRank && p.compare(t.parentEnd) > 0 {
+		t.parentEnd = p
+	}
+}
+
+// noteBilled keeps the parent cost-state of the greatest position.
+func (t *table) noteBilled(b billedAt) {
+	if t.billed == nil || b.p.compare(t.billed.p) > 0 {
+		t.billed = &b
+	}
+}
+
+// billedFor returns the session's recorded cost: known only when the last
+// complete line of the parent is a valid cost-state of session (or one that
+// names none). A line after it, even an unreadable one, means the session
+// went on and the figure is stale.
+func (t *table) billedFor(session string) Billed {
+	b := t.billed
+	if b == nil || !b.ok || b.p != t.parentEnd || (b.session != "" && b.session != session) {
+		return Billed{}
+	}
+	return Billed{USD: b.usd, Known: true}
 }
 
 // noteActivity folds the timestamp and the tool calls of a readable line.
@@ -336,6 +386,7 @@ func (t *table) greatestToolKeys(n int) []toolKey {
 // addOversized counts a line longer than MaxLineBytes that started at p.
 func (t *table) addOversized(name string, p pos) {
 	t.oversized++
+	t.noteParentEnd(p)
 	t.addFileIssue(name, p, IssueOversized)
 }
 
@@ -355,7 +406,7 @@ func (t *table) addUsage(agent, name string, p pos, r record) {
 	}
 	t.put(key, &entry{
 		first: p, last: p, agent: agent, file: name,
-		model: r.Model, tokens: r.Usage, stopNull: r.StopNull,
+		model: r.Model, tokens: r.Usage, write1h: r.CacheWrite1h, stopNull: r.StopNull,
 	})
 }
 
@@ -393,6 +444,7 @@ func (t *table) spillEntry(e *entry) {
 		sp.partial++
 	}
 	sp.models.add(e.model)
+	sp.byModel.add(e.model, e.tokens, e.write1h)
 }
 
 func (s *spill) absorbRecord(r record) {
@@ -402,6 +454,7 @@ func (s *spill) absorbRecord(r record) {
 		s.partial++
 	}
 	s.models.add(r.Model)
+	s.byModel.add(r.Model, r.Usage, r.CacheWrite1h)
 }
 
 // noteVersion records a client version with its first position, keeping the
@@ -507,8 +560,13 @@ func (t *table) mergeSkipping(o *table, skip map[msgKey]bool) {
 		for _, m := range sp.models.list {
 			dst.models.add(m)
 		}
+		dst.byModel.merge(&sp.byModel)
 	}
 	t.mergeActivity(o)
+	t.noteParentEnd(o.parentEnd)
+	if o.billed != nil {
+		t.noteBilled(*o.billed)
+	}
 	t.unreadable += o.unreadable
 	t.noUsage += o.noUsage
 	t.noMessageID += o.noMessageID
@@ -572,7 +630,7 @@ func (t *table) finishWith(agents []Agent, extra []issueAt) ([]Agent, Diagnostic
 	out := slices.Clone(agents)
 	idx := make(map[string]int, len(out))
 	for i := range out {
-		out[i].Tokens, out[i].Models = Tokens{}, nil
+		out[i].Tokens, out[i].Models, out[i].ByModel = Tokens{}, nil, nil
 		out[i].Messages, out[i].PartialMessages = 0, 0
 		out[i].ToolCalls, out[i].FirstActivity, out[i].LastActivity = 0, time.Time{}, time.Time{}
 		id := cmp.Or(out[i].key, out[i].ID)
@@ -583,21 +641,22 @@ func (t *table) finishWith(agents []Agent, extra []issueAt) ([]Agent, Diagnostic
 		idx[id] = i
 	}
 	models := make([]modelSet, len(out))
+	tallies := make([]modelTally, len(out))
 	cross := 0
 	for _, k := range t.orderedKeys() {
 		e := t.entries[k]
 		cross += len(e.otherFiles)
 		if i, ok := idx[e.agent]; ok {
-			addEntry(&out[i], &models[i], e)
+			addEntry(&out[i], &models[i], &tallies[i], e)
 		}
 	}
 	for agent, sp := range t.spill {
 		if i, ok := idx[agent]; ok {
-			addSpill(&out[i], &models[i], sp)
+			addSpill(&out[i], &models[i], &tallies[i], sp)
 		}
 	}
 	for i := range out {
-		out[i].Models = models[i].list
+		out[i].Models, out[i].ByModel = models[i].list, tallies[i].result()
 	}
 	t.addActivity(out, idx)
 	return out, t.diagnostics(cross, extra), t.orderedVersions()
@@ -625,23 +684,25 @@ func (t *table) addActivity(out []Agent, idx map[string]int) {
 }
 
 // addEntry adds one message's final state to its agent.
-func addEntry(ag *Agent, ms *modelSet, e *entry) {
+func addEntry(ag *Agent, ms *modelSet, mt *modelTally, e *entry) {
 	ag.Tokens = ag.Tokens.Add(e.tokens)
 	ag.Messages++
 	if e.stopNull {
 		ag.PartialMessages++
 	}
 	ms.add(e.model)
+	mt.add(e.model, e.tokens, e.write1h)
 }
 
 // addSpill adds a spill's totals to its agent.
-func addSpill(ag *Agent, ms *modelSet, sp *spill) {
+func addSpill(ag *Agent, ms *modelSet, mt *modelTally, sp *spill) {
 	ag.Tokens = ag.Tokens.Add(sp.tokens)
 	ag.Messages += sp.messages
 	ag.PartialMessages += sp.partial
 	for _, m := range sp.models.list {
 		ms.add(m)
 	}
+	mt.merge(&sp.byModel)
 }
 
 // diagnostics builds the line diagnostics; cross is the number of cross-file
@@ -679,5 +740,5 @@ func (t *table) hasLines() bool {
 	if t == nil {
 		return false
 	}
-	return len(t.entries) > 0 || len(t.spill) > 0 || len(t.spans) > 0 || len(t.tools) > 0 || len(t.noIDTools) > 0 || len(t.extraTools) > 0 || t.unreadable+t.noUsage+t.noMessageID+t.oversized > 0
+	return t.billed != nil || len(t.entries) > 0 || len(t.spill) > 0 || len(t.spans) > 0 || len(t.tools) > 0 || len(t.noIDTools) > 0 || len(t.extraTools) > 0 || t.unreadable+t.noUsage+t.noMessageID+t.oversized > 0
 }

@@ -1,11 +1,13 @@
 package agentusageview
 
 import (
+	"fmt"
 	"path/filepath"
 	"strconv"
 
 	"github.com/charmbracelet/lipgloss"
 
+	"github.com/anthnel/devdesk/internal/agentusage/pricing"
 	sharedcomponents "github.com/anthnel/devdesk/internal/ui/components"
 	"github.com/anthnel/devdesk/internal/ui/shortcut"
 	"github.com/anthnel/devdesk/internal/ui/theme"
@@ -65,18 +67,57 @@ func (m Model) GetHeaderInfo(_ string) []shortcut.HeaderInfo {
 func (m Model) agentsHeaderInfo() []shortcut.HeaderInfo {
 	rows := m.agentTable.Visible()
 	var total int64
-	for _, r := range rows {
+	estimates := make([]pricing.Estimate, len(rows))
+	for i, r := range rows {
 		total += r.Tokens.Total()
+		estimates[i] = r.cost
 	}
 	info := []shortcut.HeaderInfo{
 		{Key: "Agents", Value: strconv.Itoa(len(rows)), Style: theme.HeaderValueStyle},
 		{Key: "Tokens", Value: formatTokens(total), Style: theme.HeaderValueStyle},
-		{Key: "Updates", Value: m.updatesState(), Style: theme.HeaderValueStyle},
+		{Key: "Est. cost", Value: estCostValue(pricing.Sum(estimates)), Style: theme.HeaderValueStyle},
 	}
+	info = append(info, m.billedHeaderInfo()...)
+	info = append(info, shortcut.HeaderInfo{Key: "Updates", Value: m.updatesState(), Style: theme.HeaderValueStyle})
 	if n := m.idleCount(); n > 0 {
 		info = append(info, shortcut.HeaderInfo{Key: "Idle", Value: strconv.Itoa(n), Style: theme.HeaderValueStyle})
 	}
 	return info
+}
+
+// negativeUSD is half a cent: an Unattributed amount at or below its negative
+// shows as -$0.01 or lower, so only then is the price table "above the bill".
+// Float noise (-1e-12) renders $0.00 and must not look stale.
+const negativeUSD = 0.005
+
+// billedHeaderInfo is Billed and Unattributed, both facts of the whole session
+// that ignore the filter. Neither shows while Claude Code has not recorded a
+// bill. Unattributed is a dash when an agent has no price, and a negative one
+// (the price table is above what was billed) is orange.
+func (m Model) billedHeaderInfo() []shortcut.HeaderInfo {
+	if !m.cost.Billed.Known {
+		return nil
+	}
+	unattributed := shortcut.HeaderInfo{Key: "Unattributed", Value: noValue, Style: theme.HeaderValueStyle}
+	if m.cost.UnattributedKnown {
+		unattributed.Value = formatUSD(m.cost.Unattributed)
+		if m.cost.Unattributed <= -negativeUSD {
+			unattributed.Style = theme.HeaderWarnValueStyle()
+		}
+	}
+	return []shortcut.HeaderInfo{
+		{Key: "Billed", Value: formatUSD(m.cost.Billed.USD), Style: theme.HeaderValueStyle},
+		unattributed,
+	}
+}
+
+// estCostValue is the Est. cost header value: an estimate, or a dash when the
+// sum is unknown or there is nothing to price.
+func estCostValue(e pricing.Estimate) string {
+	if e.Status != pricing.Priced {
+		return noValue
+	}
+	return estimateMark + formatUSD(e.USD)
 }
 
 // idleCount counts the idle agents over every row, not just the visible ones:
@@ -188,5 +229,26 @@ func (m Model) agentsStatus() sharedcomponents.Status {
 			Level: sharedcomponents.LevelWarning,
 		}
 	}
-	return sharedcomponents.Status{}
+	return m.priceHint()
+}
+
+// priceHint is the footer state about missing prices: where to set them when
+// the table is empty, which model lacks one otherwise. It is a state derived on
+// every frame, not a message (Rule 128).
+func (m Model) priceHint() sharedcomponents.Status {
+	if m.prices.Len() == 0 {
+		if m.usage.Total().Total() == 0 {
+			return sharedcomponents.Status{}
+		}
+		return sharedcomponents.Status{Text: "Set agent_usage.prices in this context's config file to estimate costs — see ?"}
+	}
+	switch n := len(m.cost.Unpriced); n {
+	case 0:
+		return sharedcomponents.Status{}
+	case 1:
+		return sharedcomponents.Status{Text: "No price for " + m.cost.Unpriced[0] + " in agent_usage.prices — its cost shows -"}
+	default:
+		return sharedcomponents.Status{Text: fmt.Sprintf(
+			"No price for %s and %d more models in agent_usage.prices — their cost shows -", m.cost.Unpriced[0], n-1)}
+	}
 }

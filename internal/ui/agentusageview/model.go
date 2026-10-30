@@ -10,6 +10,7 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 
 	"github.com/anthnel/devdesk/internal/agentusage"
+	"github.com/anthnel/devdesk/internal/agentusage/pricing"
 	"github.com/anthnel/devdesk/internal/config"
 	sharedcomponents "github.com/anthnel/devdesk/internal/ui/components"
 	"github.com/anthnel/devdesk/internal/ui/datatable"
@@ -51,7 +52,11 @@ type Model struct {
 	level level
 	// agentTable lists the agents of open.
 	agentTable datatable.Model[agentRow]
-	open       agentusage.Session
+	// prices is the context's price table, read once in New: ctrl+r keeps it.
+	prices pricing.Table
+	// cost is the cost picture of usage, recomputed by every withRows.
+	cost pricing.Summary
+	open agentusage.Session
 	// usage is the last parse of open, kept for what the footer says about it.
 	usage agentusage.Usage
 	// agentGen numbers the parses, as gen numbers the listings.
@@ -89,13 +94,14 @@ type Model struct {
 }
 
 // New builds the view with its first read pending.
-func New(_ *config.Config) Model {
+func New(cfg *config.Config) Model {
 	sp := spinner.New()
 	sp.Spinner = spinner.Dot
 	sp.Style = theme.SpinnerStyle()
 
 	return Model{
 		loading: true,
+		prices:  pricesFrom(cfg),
 		spinner: sp,
 		table: datatable.New(datatable.Config[sessionRow]{
 			Columns: sessionColumns(),

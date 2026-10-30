@@ -366,9 +366,34 @@ func TestDegradedUsageWarnsThatTotalsAreApproximate(t *testing.T) {
 	}
 }
 
+// allPricedYAML prices every model the tests' usages and fixture mention.
+const allPricedYAML = `prices:
+  model-a: {input: 1, output: 10, cache_write_5m: 2, cache_write_1h: 4, cache_read: 0.1}
+  model-b: {input: 2, output: 20, cache_write_5m: 4, cache_write_1h: 8, cache_read: 0.2}
+  model-alpha: {input: 1, output: 10, cache_write_5m: 2, cache_write_1h: 4, cache_read: 0.1}
+  model-beta: {input: 1, output: 10, cache_write_5m: 2, cache_write_1h: 4, cache_read: 0.1}
+  model-gamma: {input: 1, output: 10, cache_write_5m: 2, cache_write_1h: 4, cache_read: 0.1}
+`
+
+// withAllPriced gives m a price table covering every model of the fixtures.
+// An empty table has its own status, tested in cost_summary_test.go.
+func withAllPriced(t *testing.T, m Model) Model {
+	t.Helper()
+	m.prices = pricesFrom(cfgWith(t, allPricedYAML))
+	return m
+}
+
 func TestACleanUsageHasNoStatus(t *testing.T) {
-	if st := atAgents(t, threeSubs()).status(); st.Text != "" {
-		t.Errorf("status = %+v, want none", st)
+	m := withSessions(t, "/p/a.jsonl")
+	m = withAllPriced(t, m)
+	m, _ = opened(t, m, "right")
+	u := agentusage.Usage{Agents: []agentusage.Agent{
+		byModel(agentusage.Agent{Main: true}, mu("model-a", agentusage.Tokens{Output: 320}, 0)),
+		byModel(agentusage.Agent{ID: "a01", Type: "coder"}, mu("model-b", agentusage.Tokens{Output: 140}, 0)),
+	}}
+	m = answer(t, m, u)
+	if st := m.status(); st != (sharedcomponents.Status{}) {
+		t.Errorf("status = %+v, want none (the empty-table hint is cost_summary_test.go's)", st)
 	}
 }
 

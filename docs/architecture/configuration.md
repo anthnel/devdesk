@@ -18,6 +18,8 @@ Config loaded from `~/.devdesk/config.yaml` with schema defined in `internal/con
   1024, and replaced by the default with a log line when it is not
 - `MCP` - the read-only MCP server (§3.38): `enabled`, off by default, and
   `expose`, an allow-list of tool names
+- `AgentUsage` - `agent_usage.prices`, the price table of the `:agent-usage` cost
+  estimate (DEVDESK-47); no default, see below
 
 **`forge:` was `gitlab:`, and the rename is migrated rather than announced.**
 A context targets one platform (§3.6), so the section is named after the role
@@ -124,6 +126,51 @@ weaken a rule in silence). It is edited by hand; the configuration view does not
 touch it. Whether to verify at all is per context: `scan.image_verification`,
 `on` or `off`, a string rather than a bool so a file written before the key
 reads as `on` (D12) — and only `off` turns it off, so a typo verifies.
+
+**`agent_usage.prices` — the price table of the cost estimate (DEVDESK-47).**
+`internal/config/agent_usage.go`. DevDesk ships **no price**: the table is
+written by hand in the context file, keyed by model name (kept exactly as
+written; the matching rules are in `agent-usage.md`, "Pricing"). Each entry has
+five rates, **all required**, in **USD per million tokens**:
+
+```yaml
+agent_usage:
+  prices:
+    claude-example-model:      # replace with the model id and the vendor's current prices
+      input: 3
+      output: 15
+      cache_write_5m: 3.75
+      cache_write_1h: 6
+      cache_read: 0.3
+```
+
+The numbers above are an illustration of the shape, not prices to copy: take
+the real ones from the vendor's price page. `0` is a valid explicit rate; a
+missing rate is not 0, so an entry without all five keys is ignored (and logged),
+which stops a forgotten `cache_read` from under-pricing silently.
+
+- **`Rate` is tolerant.** A rate decodes through `config.Rate`, whose
+  `UnmarshalYAML` never fails: an int or float is a number (`RateSet`), a
+  missing key is `RateMissing`, anything else (`input: "5$"`, a list) is
+  `RateInvalid`. A typo therefore costs **its own entry**, not the context:
+  without this, a type error anywhere makes `LoadContext` fail with `failed to
+  parse context`. An invalid value is kept as read and written back unchanged on
+  save. `.nan`, `.inf` and negative numbers decode as values; rejecting them is
+  `pricing.FromConfig`'s job, which logs `WARN [agentusageview]
+  agent_usage.prices "<key>": <reason>` for each entry it leaves out.
+- **No default, no migration, nothing written when empty.** `applyDefaults` and
+  `Default()` do not touch the section, and a context with no prices saves
+  without an `agent_usage` key. The format is user-written: renaming a key
+  later needs a migration like `gitlab:` → `forge:`.
+- **One block per context.** The section lives in the context file, so each
+  context needs its own prices.
+- **Not editable in `:cfg`.** There is no tab for it.
+- **Read once.** The `:agent-usage` view reads the table when it is built:
+  at startup, on a context switch and on `ConfigSavedMsg`. `ctrl+r` does not
+  re-read it. **A save from `:cfg` rewrites the whole context file from the
+  router's in-memory `Config`, so a hand edit made while DevDesk runs is
+  overwritten by the next save** (comments in the file are lost on the first
+  save too). Edit the prices while DevDesk is closed, or restart afterwards.
 
 Config is injected into views at creation. Use `config.Save()` to persist changes.
 

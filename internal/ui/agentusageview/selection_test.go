@@ -6,6 +6,7 @@ import (
 	"unicode/utf8"
 
 	"github.com/anthnel/devdesk/internal/agentusage"
+	"github.com/anthnel/devdesk/internal/agentusage/pricing"
 	"github.com/anthnel/devdesk/internal/ui/testutil"
 )
 
@@ -59,7 +60,7 @@ func TestAgentKeysIdentifyRowsAcrossRebuilds(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			var got []string
-			for _, r := range agentRows(agentusage.Usage{Agents: tt.agents}, true, statusClock{}) {
+			for _, r := range agentRows(agentusage.Usage{Agents: tt.agents}, true, statusClock{}, pricing.Table{}) {
 				got = append(got, r.key)
 			}
 			if strings.Join(got, "|") != strings.Join(tt.want, "|") {

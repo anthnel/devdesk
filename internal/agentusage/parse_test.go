@@ -40,10 +40,10 @@ func TestParseSessionBasic(t *testing.T) {
 		t.Errorf("SessionID = %q", u.SessionID)
 	}
 	want := []Agent{
-		{ID: "", Main: true, State: StateUnknown, Type: "", Tokens: Tokens{13, 320, 1200, 1050}, Messages: 2, ToolCalls: 2, Models: []string{"model-alpha"}},
-		{ID: "a01", Type: "coder", State: StateFinished, SpawnDepth: 1, Tokens: Tokens{9, 140, 1400, 200}, Messages: 2, ToolCalls: 2, Models: []string{"model-beta"}},
-		{ID: "a02", Type: "tester", State: StateUnfinished, SpawnDepth: 1, Tokens: Tokens{5, 38, 2000, 300}, Messages: 2, ToolCalls: 2, PartialMessages: 1, Models: []string{"model-beta"}},
-		{ID: "a03", Type: "reviewer", State: StateFinished, SpawnDepth: 2, Tokens: Tokens{6, 90, 40, 10}, Messages: 1, ToolCalls: 1, Models: []string{"model-gamma"}},
+		{ID: "", Main: true, State: StateUnknown, Type: "", Tokens: Tokens{13, 320, 1200, 1050}, Messages: 2, ToolCalls: 2, Models: []string{"model-alpha"}, ByModel: []ModelUsage{{Model: "model-alpha", Tokens: Tokens{13, 320, 1200, 1050}}}},
+		{ID: "a01", Type: "coder", State: StateFinished, SpawnDepth: 1, Tokens: Tokens{9, 140, 1400, 200}, Messages: 2, ToolCalls: 2, Models: []string{"model-beta"}, ByModel: []ModelUsage{{Model: "model-beta", Tokens: Tokens{9, 140, 1400, 200}}}},
+		{ID: "a02", Type: "tester", State: StateUnfinished, SpawnDepth: 1, Tokens: Tokens{5, 38, 2000, 300}, Messages: 2, ToolCalls: 2, PartialMessages: 1, Models: []string{"model-beta"}, ByModel: []ModelUsage{{Model: "model-beta", Tokens: Tokens{5, 38, 2000, 300}}}},
+		{ID: "a03", Type: "reviewer", State: StateFinished, SpawnDepth: 2, Tokens: Tokens{6, 90, 40, 10}, Messages: 1, ToolCalls: 1, Models: []string{"model-gamma"}, ByModel: []ModelUsage{{Model: "model-gamma", Tokens: Tokens{6, 90, 40, 10}}}},
 	}
 	// Criterion 1: four agents, four exact totals each.
 	if len(u.Agents) != len(want) {

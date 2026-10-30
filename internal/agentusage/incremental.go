@@ -381,7 +381,7 @@ func (a *Aggregate) Usage() Usage {
 	}
 	agents, diag2, versions := a.t.finishWith(agents, issues)
 	diag2.MetaMissing, diag2.MetaUnreadable, diag2.TruncatedFiles = diag.MetaMissing, diag.MetaUnreadable, truncated
-	return Usage{SessionID: a.sessionID, Agents: agents, Versions: versions, Diagnostics: diag2}
+	return Usage{SessionID: a.sessionID, Agents: agents, Versions: versions, Diagnostics: diag2, Billed: a.t.billedFor(a.sessionID)}
 }
 
 // subAgent builds a sub-agent's identity from its meta cursor, counting a

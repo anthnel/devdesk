@@ -251,7 +251,7 @@ func (m Model) agentsTree() bool {
 func (m Model) cycleAgentSort(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	selected, hadSelection := m.selectedAgentKey()
 	cmd := m.agentTable.Update(msg)
-	m.agentTable.SetItems(agentRows(m.usage, m.agentsTree(), m.clock))
+	m.agentTable.SetItems(agentRows(m.usage, m.agentsTree(), m.clock, m.prices))
 	m.agentTable.Remeasure() // the Agent column narrows or widens by the branch
 	if hadSelection {
 		m.selectAgentKey(selected)

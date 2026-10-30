@@ -21,6 +21,9 @@ type Config struct {
 	Network  NetworkConfig  `yaml:"network"`
 	MCP      MCPConfig      `yaml:"mcp"`
 
+	// AgentUsage prices the :agent-usage view. No default, no migration.
+	AgentUsage AgentUsageConfig `yaml:"agent_usage,omitempty"`
+
 	// GitLab is what `forge:` replaced. Same treatment as Docker above, and for
 	// the same reason: a context targets one forge, so the section is named
 	// after the role rather than after the one implementation there was.

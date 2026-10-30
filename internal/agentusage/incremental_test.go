@@ -147,6 +147,9 @@ func assertMatchesParse(t *testing.T, a *Aggregate, s *sess) {
 		t.Fatalf("ParseSession: %v", err)
 	}
 	assertSameUsage(t, a.Usage(), want)
+	for _, ag := range want.Agents {
+		assertByModelSumsToTokens(t, ag)
+	}
 	// Privacy guard: no tool id (one carries the sentinel) reaches a Usage.
 	if out := fmt.Sprintf("%+v", a.Usage()); strings.Contains(out, "SENTINEL") || strings.Contains(out, "toolu_") {
 		t.Errorf("Usage leaks a tool id or content: %s", out)
@@ -316,15 +319,18 @@ func randomLines(rng *rand.Rand) []byte {
 			buf.WriteString("not json {{{\n")
 		case 1:
 			buf.WriteString("\n")
+		case 4, 5:
+			buf.Write(randomCostLine(rng))
 		case 2, 3:
-			buf.Write(msgLine("", "claude-n", stops[rng.Intn(3)], int64(rng.Intn(9)), 1, 2, 3))
+			buf.Write(msgLineSplit("", "claude-n", stops[rng.Intn(3)], int64(rng.Intn(9)), 1, 2, 3, int64(rng.Intn(5))))
 			buf.WriteByte('\n')
 		case 10, 11, 12, 13:
 			buf.Write(randomActivityLine(rng, pool))
 			buf.WriteByte('\n')
 		default:
-			buf.Write(msgLine(pool[rng.Intn(len(pool))], "claude-"+strconv.Itoa(rng.Intn(3)),
-				stops[rng.Intn(3)], int64(rng.Intn(50)), int64(rng.Intn(50)), int64(rng.Intn(50)), int64(rng.Intn(50))))
+			cw := int64(rng.Intn(50))
+			buf.Write(msgLineSplit(pool[rng.Intn(len(pool))], "claude-"+strconv.Itoa(rng.Intn(3)),
+				stops[rng.Intn(3)], int64(rng.Intn(50)), int64(rng.Intn(50)), int64(rng.Intn(50)), cw, int64(rng.Intn(60))))
 			buf.WriteByte('\n')
 		}
 	}
@@ -333,6 +339,14 @@ func randomLines(rng *rand.Rand) []byte {
 		buf.Write(whole[:1+rng.Intn(len(whole)-1)])
 	}
 	return buf.Bytes()
+}
+
+// randomCostLine is a cost-state line (also written to sub-agent files, where
+// it must be ignored): this session or another, a valid total or a bad one.
+func randomCostLine(rng *rand.Rand) []byte {
+	ids := []string{incSessUUID, incSessUUID, incSessUUID, "33333333-3333-4333-8333-333333333333", ""}
+	totals := []string{"0", "7.08", "12.61", "-1", `"x"`, "null", ""}
+	return costLine(ids[rng.Intn(len(ids))], totals[rng.Intn(len(totals))])
 }
 
 // activityIDs is the pool of tool ids of the random generator; one carries

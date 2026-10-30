@@ -212,6 +212,12 @@ func SpinnerStyle() lipgloss.Style {
 		Background(ColorBackground)
 }
 
+// HeaderWarnValueStyle returns HeaderValueStyle in the warning (MEDIUM) color,
+// for a header value that deserves a second look.
+func HeaderWarnValueStyle() lipgloss.Style {
+	return HeaderValueStyle.Foreground(ColorSeverityMedium)
+}
+
 // SpinnerMessage renders a spinner + text with consistent styling (spinner in secondary, text in dim)
 func SpinnerMessage(spinnerView, text string) string {
 	return SpinnerStyle().Render(spinnerView) + Bg(" ") + DimStyle.Render(text)
