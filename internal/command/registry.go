@@ -47,6 +47,8 @@ type spec struct {
 // aliases keep their declaration order. ViewViewer is deliberately absent, for
 // the reason given on its declaration.
 var registry = []spec{
+	// No one-letter alias for about: `a` is worth more than this view, which is
+	// opened once to read a version and not returned to.
 	{Entry{Name: "about", Aliases: []string{"version"}, Description: "Build version and where files are kept"}, ViewAbout, ""},
 	{Entry{Name: "agent-usage", Aliases: []string{"au"}, Description: "Claude Code sessions and token usage"}, ViewAgentUsage, ""},
 	{Entry{Name: "configuration", Aliases: []string{"config", "cfg"}, Description: "Settings of the current context"}, ViewConfiguration, ""},
@@ -55,7 +57,7 @@ var registry = []spec{
 	{Entry{Name: "files", Aliases: []string{"fs"}, Description: "Browse the whole filesystem"}, ViewFiles, ""},
 	{Entry{Name: "git-auth", Aliases: []string{"ga"}, Description: "Sign in to your forge"}, ViewGitAuth, ""},
 	{Entry{Name: "git-explorer", Aliases: []string{"ge"}, Description: "Browse and clone forge projects"}, ViewGitExplorer, ""},
-	{Entry{Name: "jobs", Aliases: []string{"j"}, Description: "Scans, syncs and pulls of this session"}, ViewJobs, ""},
+	{Entry{Name: "jobs", Aliases: []string{"j"}, Description: "Long-running jobs started this session"}, ViewJobs, ""},
 	{Entry{Name: "netdiag", Aliases: []string{"net"}, Description: "Reachability, ports, interfaces, forwarding"}, ViewNetdiag, ""},
 	{Entry{Name: "oci-resources", Aliases: []string{"oci"}, Description: "Images, networks, volumes and registries"}, ViewOCIResources, ""},
 	{Entry{Name: "security", Aliases: []string{"sec"}, Description: "CVE, secret and license scans"}, ViewSecurity, ""},

@@ -130,6 +130,18 @@ func TestEveryAliasIsInExactlyOneEntryOfItsTarget(t *testing.T) {
 	}
 }
 
+func TestNoWordIsUsedByTwoEntries(t *testing.T) {
+	owner := map[string]string{}
+	for _, e := range Entries() {
+		for _, w := range append([]string{e.Name}, e.Aliases...) {
+			if prev, dup := owner[w]; dup {
+				t.Errorf("word %q is used by both %q and %q", w, prev, e.Name)
+			}
+			owner[w] = e.Name
+		}
+	}
+}
+
 func TestEntriesAreStableAcrossCalls(t *testing.T) {
 	first := Entries()
 	if len(first) == 0 {

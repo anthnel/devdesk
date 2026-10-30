@@ -162,7 +162,7 @@ func GetAliases() map[string]string {
 // ViewNames lists the canonical view names, sorted.
 //
 // FullNames() is not the same list: it also carries the action commands
-// (`context`, `theme`, `quit`), which is right for completion and wrong for
+// (`context`, `quit`), which is right for completion and wrong for
 // anything that means "a view". app.default_view is the case that showed it —
 // offering `quit` as a landing view.
 func ViewNames() []string {
