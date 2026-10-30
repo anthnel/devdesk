@@ -1,0 +1,15 @@
+{
+  "tool_use_id": "toolu_015oGyNhdYkH1zP3o7NosgVu",
+  "agent_id": "a7f142c4eeb792f4d",
+  "subagent_type": "product-team:pm",
+  "task_description": "Créer la story changement de contexte",
+  "token_usage": {
+    "input_tokens": 12,
+    "cache_creation_tokens": 137499,
+    "cache_read_tokens": 573571,
+    "output_tokens": 69,
+    "api_call_count": 6
+  },
+  "started_at": "2026-10-29T15:46:22.273154007+01:00",
+  "completed_at": "2026-10-29T15:47:29.509383795+01:00"
+}
