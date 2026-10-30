@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"os"
 	"path/filepath"
+	"sort"
 	"strings"
 	"testing"
 
@@ -43,19 +44,31 @@ func TestPaletteContrastOnEveryTheme(t *testing.T) {
 		themes[strings.TrimSuffix(filepath.Base(f), ".json")] = &th
 	}
 
-	for name, th := range themes {
-		theme.ApplyTheme(th)
-		for _, p := range Palette() {
-			ratio, err := theme.ContrastRatio(p.Fg, p.Bg)
-			if err != nil {
-				t.Errorf("theme %q, pair %q: %v", name, p.Name, err)
-				continue
+	names := make([]string, 0, len(themes))
+	for name := range themes {
+		names = append(names, name)
+	}
+	sort.Strings(names)
+
+	for _, name := range names {
+		th := themes[name]
+		t.Run(name, func(t *testing.T) {
+			// Start from the default theme, as the app does, so a theme
+			// missing a key does not inherit the previous theme's value.
+			theme.ApplyTheme(theme.DefaultTheme())
+			theme.ApplyTheme(th)
+			for _, p := range Palette() {
+				ratio, err := theme.ContrastRatio(p.Fg, p.Bg)
+				if err != nil {
+					t.Errorf("pair %q: %v", p.Name, err)
+					continue
+				}
+				if ratio < minContrast {
+					t.Errorf("pair %q: contrast %.2f:1 (fg %s on bg %s), want >= %.1f:1",
+						p.Name, ratio, p.Fg, p.Bg, minContrast)
+				}
 			}
-			if ratio < minContrast {
-				t.Errorf("theme %q, pair %q: contrast %.2f:1 (fg %s on bg %s), want >= %.1f:1",
-					name, p.Name, ratio, p.Fg, p.Bg, minContrast)
-			}
-		}
+		})
 	}
 }
 
