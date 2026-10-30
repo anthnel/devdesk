@@ -1,0 +1,15 @@
+{
+  "tool_use_id": "toolu_013spr5F7vNL5xXf9rhsKk37",
+  "agent_id": "a260c2bab6d752e2b",
+  "subagent_type": "dev-team:devops",
+  "task_description": "Remove merged story worktrees",
+  "token_usage": {
+    "input_tokens": 4,
+    "cache_creation_tokens": 63560,
+    "cache_read_tokens": 120932,
+    "output_tokens": 19,
+    "api_call_count": 2
+  },
+  "started_at": "2026-10-29T15:46:56.776471599+01:00",
+  "completed_at": "2026-10-29T15:47:16.964022094+01:00"
+}

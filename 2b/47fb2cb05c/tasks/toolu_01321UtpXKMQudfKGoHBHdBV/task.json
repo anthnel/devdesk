@@ -1,0 +1,15 @@
+{
+  "tool_use_id": "toolu_01321UtpXKMQudfKGoHBHdBV",
+  "agent_id": "a159e558ffe8e503b",
+  "subagent_type": "dev-team:devops",
+  "task_description": "Force-remove merged worktrees",
+  "token_usage": {
+    "input_tokens": 4,
+    "cache_creation_tokens": 63060,
+    "cache_read_tokens": 120737,
+    "output_tokens": 40,
+    "api_call_count": 2
+  },
+  "started_at": "2026-10-29T15:47:45.956295213+01:00",
+  "completed_at": "2026-10-29T15:47:58.984432579+01:00"
+}

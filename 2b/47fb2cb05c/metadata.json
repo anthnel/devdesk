@@ -3,7 +3,7 @@
   "checkpoint_id": "2b47fb2cb05c",
   "strategy": "manual-commit",
   "branch": "feat/DEVDESK-46-agent-activity",
-  "checkpoints_count": 16,
+  "checkpoints_count": 29,
   "files_touched": [
     "docs/architecture/agent-usage.md",
     "docs/backlog.md",
@@ -62,20 +62,27 @@
       "compact_transcript": "/2b/47fb2cb05c/2/transcript.jsonl",
       "content_hash": "/2b/47fb2cb05c/2/content_hash.txt",
       "prompt": "/2b/47fb2cb05c/2/prompt.txt"
+    },
+    {
+      "metadata": "/2b/47fb2cb05c/3/metadata.json",
+      "transcript": "/2b/47fb2cb05c/3/full.jsonl",
+      "compact_transcript": "/2b/47fb2cb05c/3/transcript.jsonl",
+      "content_hash": "/2b/47fb2cb05c/3/content_hash.txt",
+      "prompt": "/2b/47fb2cb05c/3/prompt.txt"
     }
   ],
   "token_usage": {
-    "input_tokens": 89,
-    "cache_creation_tokens": 195005,
-    "cache_read_tokens": 6592861,
-    "output_tokens": 21972,
-    "api_call_count": 35,
+    "input_tokens": 177,
+    "cache_creation_tokens": 328722,
+    "cache_read_tokens": 10810623,
+    "output_tokens": 40571,
+    "api_call_count": 69,
     "subagent_tokens": {
-      "input_tokens": 161,
-      "cache_creation_tokens": 1171638,
-      "cache_read_tokens": 9667097,
-      "output_tokens": 2947,
-      "api_call_count": 82
+      "input_tokens": 379,
+      "cache_creation_tokens": 2329762,
+      "cache_read_tokens": 22401066,
+      "output_tokens": 6315,
+      "api_call_count": 189
     }
   }
 }

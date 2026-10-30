@@ -1,0 +1,15 @@
+{
+  "tool_use_id": "toolu_01CPsbP7Jr9zSHLaPp3pB66W",
+  "agent_id": "a7389d5b73bac2b9f",
+  "subagent_type": "dev-team:security-reviewer",
+  "task_description": "Security review étapes 1-2",
+  "token_usage": {
+    "input_tokens": 14,
+    "cache_creation_tokens": 83414,
+    "cache_read_tokens": 448833,
+    "output_tokens": 71,
+    "api_call_count": 7
+  },
+  "started_at": "2026-10-29T15:51:41.098381645+01:00",
+  "completed_at": "2026-10-29T15:52:43.492030408+01:00"
+}
