@@ -83,50 +83,10 @@ type Command struct {
 }
 
 // viewNames maps every accepted spelling to the view it names. The key equal to
-// the ViewType is its full name; every other key is an alias.
-//
-// This map is the single source for both parsing and completion. They used to
-// be separate lists and had drifted: four views could be typed in full but not
-// tab-completed, and `netdiag` was documented everywhere while only `net`
-// parsed (§1.3 D16, D17).
-var viewNames = map[string]ViewType{
-	"dashboard":     ViewDashboard,
-	"dash":          ViewDashboard,
-	"d":             ViewDashboard,
-	"status":        ViewStatus,
-	"s":             ViewStatus,
-	"git-auth":      ViewGitAuth,
-	"ga":            ViewGitAuth,
-	"git-explorer":  ViewGitExplorer,
-	"ge":            ViewGitExplorer,
-	"workspaces":    ViewWorkspaces,
-	"ws":            ViewWorkspaces,
-	"w":             ViewWorkspaces,
-	"security":      ViewSecurity,
-	"sec":           ViewSecurity,
-	"containers":    ViewContainers,
-	"cont":          ViewContainers,
-	"ct":            ViewContainers,
-	"oci-resources": ViewOCIResources,
-	"oci":           ViewOCIResources,
-	"netdiag":       ViewNetdiag,
-	"net":           ViewNetdiag,
-	"agent-usage":   ViewAgentUsage,
-	"au":            ViewAgentUsage,
-	"configuration": ViewConfiguration,
-	"config":        ViewConfiguration,
-	"cfg":           ViewConfiguration,
-	"jobs":          ViewJobs,
-	"j":             ViewJobs,
-	"templates":     ViewTemplates,
-	"tpl":           ViewTemplates,
-	"about":         ViewAbout,
-	// No one-letter alias: `a` is worth more than this view, which is opened
-	// once to read a version and not returned to.
-	"version": ViewAbout,
-	"files":   ViewFiles,
-	"fs":      ViewFiles,
-}
+// the ViewType is its full name; every other key is an alias. It is derived
+// from the registry (registry.go), the single source for parsing and
+// completion: they used to be separate lists and had drifted (§1.3 D16, D17).
+var viewNames = buildViewNames()
 
 // resolveView looks a spelling up in viewNames, the single source for both
 // parsing and completion.
@@ -136,19 +96,13 @@ func resolveView(name string) (ViewType, bool) {
 }
 
 // actionNames are the commands that do not name a view. They take arguments
-// (`context work`, `theme mocha`) or none at all (`quit`).
-var actionNames = map[string]CommandType{
-	"context": CommandContext,
-	"quit":    CommandQuit,
-}
+// (`context work`) or none at all (`quit`). Derived from the registry.
+var actionNames = buildActionNames()
 
 // actionAliases maps a short form to the full command in actionNames. Kept
 // apart from viewNames because completion displays the two differently.
-var actionAliases = map[string]string{
-	"ctx": "context",
-	"c":   "context",
-	"q":   "quit",
-}
+// Derived from the registry.
+var actionAliases = buildActionAliases()
 
 // normalize strips the leading colon and the case, so `:Status ` and `status`
 // are the same command.
@@ -205,8 +159,6 @@ func GetAliases() map[string]string {
 	return aliases
 }
 
-// FullNames returns the full name of each command — a view or an action —
-// without the aliases. This is what completion offers first.
 // ViewNames lists the canonical view names, sorted.
 //
 // FullNames() is not the same list: it also carries the action commands
@@ -241,15 +193,12 @@ func AllViewNames() []string {
 	return names
 }
 
+// FullNames returns the full name of each command — a view or an action —
+// without the aliases, in registry order. This is what completion offers first.
 func FullNames() []string {
-	names := make([]string, 0, len(viewNames)+len(actionNames))
-	for name, view := range viewNames {
-		if name == string(view) {
-			names = append(names, name)
-		}
-	}
-	for name := range actionNames {
-		names = append(names, name)
+	names := make([]string, len(registry))
+	for i, s := range registry {
+		names[i] = s.Name
 	}
 	return names
 }
