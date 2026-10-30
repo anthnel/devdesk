@@ -65,6 +65,9 @@ const (
 	aliasSep      = " · "
 	currentTag    = "(current)"
 	ellipsis      = "…"
+	// minRenderWidth is the narrowest width that holds a frame, a margin, a
+	// marker and one name cell.
+	minRenderWidth = 6
 )
 
 // VisibleRows returns how many list rows fit: the matches, at least one row
@@ -110,7 +113,7 @@ func Columns(width int) Layout {
 
 // first returns the index of the first row drawn, kept inside the list.
 func first(in Input) int {
-	return max(min(in.Offset, len(in.Rows)-in.Visible), 0)
+	return max(min(in.Offset, len(in.Rows)-max(in.Visible, 0)), 0)
 }
 
 // FiletLabel returns the text of the bottom rule: the notice as a warning
@@ -119,6 +122,7 @@ func FiletLabel(in Input) string {
 	if in.Notice != "" {
 		return theme.IconWarning + " " + in.Notice
 	}
+	in.Visible = max(in.Visible, 0)
 	label := fmt.Sprintf("%d of %d", len(in.Rows), in.Total)
 	if strings.TrimSpace(in.Query) == "" {
 		label = fmt.Sprintf("%d available", len(in.Rows))
@@ -177,6 +181,10 @@ func Palette() []Pair {
 // Width cells wide. Every line is assembled from separately styled segments;
 // no already-styled text is ever cut.
 func Render(in Input) []string {
+	in.Visible = max(in.Visible, 0)
+	if in.Width < minRenderWidth {
+		return degenerate(in)
+	}
 	inner := max(in.Width-2, 0)
 	layout := Columns(in.Width)
 	border := lipgloss.NewStyle().Foreground(theme.ColorViewportBorder).Background(theme.ColorBackground)
@@ -184,9 +192,12 @@ func Render(in Input) []string {
 
 	lines := make([]string, 0, in.Visible+1)
 	if len(in.Rows) == 0 {
-		lines = append(lines, side+row(noMatchText(in.Query), layout, inner, false)+side)
-		for i := 1; i < in.Visible; i++ {
-			lines = append(lines, side+theme.EmptyLineBg(inner)+side)
+		for i := 0; i < in.Visible; i++ {
+			body := theme.EmptyLineBg(inner)
+			if i == 0 {
+				body = row(noMatchText(in.Query), layout, inner, false)
+			}
+			lines = append(lines, side+body+side)
 		}
 	} else {
 		start := first(in)
@@ -200,6 +211,18 @@ func Render(in Input) []string {
 		}
 	}
 	return append(lines, filet(in, inner, border))
+}
+
+// degenerate renders the lines of a terminal too narrow for a frame: blank
+// background lines and a bare rule, each exactly Width cells (possibly zero).
+func degenerate(in Input) []string {
+	w := max(in.Width, 0)
+	lines := make([]string, 0, in.Visible+1)
+	for i := 0; i < in.Visible; i++ {
+		lines = append(lines, theme.EmptyLineBg(w))
+	}
+	rule := lipgloss.NewStyle().Foreground(theme.ColorViewportBorder).Background(theme.ColorBackground)
+	return append(lines, rule.Render(strings.Repeat("─", w)))
 }
 
 // cells is the plain text of each column of one row.

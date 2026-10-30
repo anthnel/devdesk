@@ -1,6 +1,7 @@
 package cmdsuggest
 
 import (
+	"regexp"
 	"strings"
 	"testing"
 
@@ -256,9 +257,8 @@ func TestFiletLabel(t *testing.T) {
 	scrolled := base(80)
 	scrolled.Visible, scrolled.Cursor = 8, 8
 	scrolled.Offset = Window(8, 0, 8)
-	if got := FiletLabel(scrolled); got != "17 available · ▲ 1 more · ▼ 8 more" && got != "▲ 1 more · ▼ 8 more" &&
-		!strings.HasSuffix(got, "▲ 1 more · ▼ 8 more") {
-		t.Errorf("scrolled: %q", got)
+	if got, want := FiletLabel(scrolled), "17 available · ▲ 1 more · ▼ 8 more"; got != want {
+		t.Errorf("scrolled: %q, want %q", got, want)
 	}
 
 	typed := base(80)
@@ -302,6 +302,96 @@ func TestPalette(t *testing.T) {
 	for _, pair := range p {
 		if pair.Name == "" || pair.Fg == "" || pair.Bg == "" {
 			t.Errorf("incomplete pair %+v", pair)
+		}
+	}
+}
+
+// bgSequence returns the SGR parameters lipgloss emits for a background
+// color ("48;2;r;g;b" in true color), which sit inside a longer sequence once
+// a foreground and bold are combined.
+func bgSequence(t *testing.T, c lipgloss.Color) string {
+	t.Helper()
+	out := lipgloss.NewStyle().Background(c).Render("x")
+	m := regexp.MustCompile(`48;[0-9;]+`).FindString(out)
+	if m == "" {
+		t.Fatalf("no background sequence in %q", out)
+	}
+	return m
+}
+
+func TestHighlightedRowPaintsTheSelectionBackground(t *testing.T) {
+	testutil.TrueColor(t)
+	in := base(80)
+	in.Cursor = 2
+	raw := render(t, in)
+	sel := bgSequence(t, theme.ColorTableLineSelected)
+	if !strings.Contains(raw[2], sel) {
+		t.Errorf("highlighted row lacks the selection background %q: %q", sel, raw[2])
+	}
+	for i, l := range raw {
+		if i != 2 && strings.Contains(l, sel) {
+			t.Errorf("line %d carries the selection background", i)
+		}
+	}
+}
+
+func TestNoMatchWithNoUsableRowDrawsNoListLine(t *testing.T) {
+	in := Input{Total: 17, Query: "zz", Cursor: -1, Width: 80, Visible: 0}
+	lines := plain(render(t, in))
+	if len(lines) != 1 || !strings.Contains(lines[0], "0 of 17") {
+		t.Errorf("want only the filet, got %q", lines)
+	}
+}
+
+func TestRenderTinyWidthsKeepExactWidth(t *testing.T) {
+	testutil.TrueColor(t)
+	for w := 0; w <= 7; w++ {
+		for _, rows := range [][]Row{allRows(), nil} {
+			in := base(w)
+			in.Rows, in.Query, in.Cursor, in.Notice = rows, "zz", 0, ""
+			for _, notice := range []string{"", "something went wrong"} {
+				in.Notice = notice
+				for i, l := range render(t, in) {
+					if got := lipgloss.Width(l); got != w {
+						t.Errorf("w=%d rows=%d notice=%q line %d: width %d: %q", w, len(rows), notice, i, got, ansi.Strip(l))
+					}
+				}
+			}
+		}
+	}
+}
+
+func TestRenderNegativeVisibleDoesNotPanic(t *testing.T) {
+	in := base(80)
+	in.Visible, in.Offset = -2, 3
+	lines := Render(in)
+	if len(lines) != 1 {
+		t.Fatalf("got %d lines, want only the filet", len(lines))
+	}
+	if got := lipgloss.Width(lines[0]); got != 80 {
+		t.Errorf("filet width %d, want 80", got)
+	}
+	_ = FiletLabel(in)
+}
+
+func TestWideCharactersKeepExactWidth(t *testing.T) {
+	testutil.TrueColor(t)
+	cjk := command.Entry{Name: "コマンド名前長い", Aliases: []string{"別名一つ", "別名二つ"}, Description: "これは非常に長い説明文です。日本語の幅を確認します"}
+	for _, w := range []int{120, 80, 60, 40, 30, 20, 8} {
+		in := Input{Rows: []Row{{Entry: cjk}, {Entry: cjk, Current: true}}, Total: 2, Cursor: 0, Width: w, Visible: 3, Notice: ""}
+		for _, q := range []string{"", "漢字漢字漢字漢字漢字漢字漢字漢字漢字漢字漢字漢字"} {
+			in.Query = q
+			for i, l := range render(t, in) {
+				if got := lipgloss.Width(l); got != w {
+					t.Errorf("w=%d line %d: width %d, want %d: %q", w, i, got, w, ansi.Strip(l))
+				}
+			}
+		}
+		in.Rows, in.Query = nil, "漢字漢字漢字漢字漢字漢字漢字漢字"
+		for i, l := range render(t, in) {
+			if got := lipgloss.Width(l); got != w {
+				t.Errorf("no-match w=%d line %d: width %d: %q", w, i, got, ansi.Strip(l))
+			}
 		}
 	}
 }
