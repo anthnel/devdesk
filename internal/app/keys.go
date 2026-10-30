@@ -100,9 +100,10 @@ func (a *App) forwardToActiveView(msg tea.Msg) tea.Cmd {
 // is read-only).
 func (a *App) enterCommandMode() tea.Cmd {
 	a.commandMode = true
-	a.viewPicker = false
 	a.commandInput.Reset()
 	a.commandInput.Focus()
+	a.sugNotice = ""
+	a.refreshSuggestions()
 	return a.requestResize()
 }
 

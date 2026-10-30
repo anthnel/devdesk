@@ -206,7 +206,6 @@ func TestThemeIsNoLongerACommand(t *testing.T) {
 func TestAnUnknownCommandKeepsTheLineOpen(t *testing.T) {
 	a := commanding(t, &fakeView{})
 	typeCommand(t, a, "zzz")
-	a.completionSuggestions = nil // nothing matched
 
 	feedKey(t, a, testutil.Key("enter"))
 
@@ -225,137 +224,15 @@ func TestTypingNarrowsTheSuggestions(t *testing.T) {
 
 	typeCommand(t, a, "sec")
 
-	if len(a.completionSuggestions) == 0 {
-		t.Fatal("typing sec produced no suggestions")
-	}
-	for _, s := range a.completionSuggestions {
-		if len(s.Text) < 3 || s.Text[:3] != "sec" {
-			t.Errorf("suggestion %q does not start with the typed prefix", s.Text)
-		}
-	}
-}
-
-func TestTabOpensThePickerOnTheCurrentViewKeepingTheText(t *testing.T) {
-	a := commanding(t, &fakeView{})
-	a.currentView = command.ViewSecurity
-	typeCommand(t, a, "zz")
-
-	feedKey(t, a, testutil.Key("tab"))
-
-	if !a.viewPicker {
-		t.Fatal("tab did not open the view picker")
-	}
-	if got := a.viewPickerViews[a.viewPickerIdx]; got != string(command.ViewSecurity) {
-		t.Errorf("selection = %s, want the current view", got)
-	}
-	if a.commandInput.Value() != "zz" {
-		t.Errorf("typed text = %q, want it kept", a.commandInput.Value())
-	}
-}
-
-func TestPickerIsCircular(t *testing.T) {
-	a := commanding(t, &fakeView{})
-	feedKey(t, a, testutil.Key("tab"))
-	n := len(a.viewPickerViews)
-	a.viewPickerIdx = 0
-
-	feedKey(t, a, testutil.Key("left"))
-	if a.viewPickerIdx != n-1 {
-		t.Errorf("left from first = %d, want %d", a.viewPickerIdx, n-1)
-	}
-	feedKey(t, a, testutil.Key("right"))
-	if a.viewPickerIdx != 0 {
-		t.Errorf("right from last = %d, want 0", a.viewPickerIdx)
-	}
-}
-
-func TestShiftTabMovesLeftInThePicker(t *testing.T) {
-	a := commanding(t, &fakeView{})
-	feedKey(t, a, testutil.Key("tab"))
-	n := len(a.viewPickerViews)
-	a.viewPickerIdx = 1
-
-	feedKey(t, a, testutil.Key("shift+tab"))
-	if a.viewPickerIdx != 0 {
-		t.Errorf("shift+tab from 1 = %d, want 0", a.viewPickerIdx)
-	}
-	feedKey(t, a, testutil.Key("shift+tab"))
-	if a.viewPickerIdx != n-1 {
-		t.Errorf("shift+tab from first = %d, want %d", a.viewPickerIdx, n-1)
-	}
-}
-
-func TestPickerListHasNoActionsOrRouterViews(t *testing.T) {
-	a := commanding(t, &fakeView{})
-	feedKey(t, a, testutil.Key("tab"))
-	for _, name := range a.viewPickerViews {
-		if name == "quit" || name == "context" || name == string(command.ViewViewer) {
-			t.Errorf("picker lists %q", name)
-		}
-	}
-}
-
-func TestPickerEnterOpensTheSelectedView(t *testing.T) {
-	a := commanding(t, &fakeView{})
-	feedKey(t, a, testutil.Key("tab"))
-	for i, name := range a.viewPickerViews {
-		if name == string(command.ViewAbout) {
-			a.viewPickerIdx = i
-		}
-	}
-
-	feedKey(t, a, testutil.Key("enter"))
-
-	if a.currentView != command.ViewAbout || a.commandMode || a.viewPicker {
-		t.Errorf("view=%s commandMode=%v picker=%v, want about, both closed", a.currentView, a.commandMode, a.viewPicker)
-	}
-}
-
-func TestPickerEscReturnsToTheCommandLine(t *testing.T) {
-	a := commanding(t, &fakeView{})
-	typeCommand(t, a, "ab")
-	feedKey(t, a, testutil.Key("tab"))
-
-	feedKey(t, a, testutil.Key("esc"))
-
-	if a.viewPicker || !a.commandMode || a.commandInput.Value() != "ab" {
-		t.Errorf("picker=%v commandMode=%v text=%q", a.viewPicker, a.commandMode, a.commandInput.Value())
-	}
-}
-
-func TestPickerWindowKeepsTheSelectionVisible(t *testing.T) {
-	names := []string{"aaaaaaaa", "bbbbbbbb", "cccccccc", "dddddddd", "eeeeeeee"}
-	for sel := range names {
-		start, end := pickerWindow(names, sel, 25)
-		if sel < start || sel >= end {
-			t.Errorf("sel %d outside window [%d,%d)", sel, start, end)
-		}
-	}
-}
-
-// Enter runs the highlighted suggestion, not the half-typed text — that is what
-// makes tab-then-enter work.
-func TestEnterRunsTheHighlightedSuggestion(t *testing.T) {
-	a := commanding(t, &fakeView{})
-	typeCommand(t, a, "cont")
-	if len(a.completionSuggestions) == 0 {
-		t.Skip("no suggestion for \"cont\"")
-	}
-	chosen := command.ParseCommand(a.completionSuggestions[0].Text)
-	if chosen.Type != command.CommandView {
-		t.Skipf("the first suggestion for \"cont\" is %v, not a view", chosen.Type)
-	}
-
-	feedKey(t, a, testutil.Key("enter"))
-
-	if a.currentView != chosen.View {
-		t.Errorf("current view = %s, want the highlighted %s", a.currentView, chosen.View)
+	rows := listRows(t, a)
+	if len(rows) != 1 || !strings.Contains(rows[0], "security") {
+		t.Errorf("typing sec lists %q, want the single security row", rows)
 	}
 }
 
 // ── Leaving ──────────────────────────────────────────────────────────────────
 
-func TestEscapeClosesTheCommandLineAndClearsCompletion(t *testing.T) {
+func TestEscapeClosesTheCommandLine(t *testing.T) {
 	a := commanding(t, &fakeView{})
 	typeCommand(t, a, "sec")
 
@@ -363,9 +240,6 @@ func TestEscapeClosesTheCommandLineAndClearsCompletion(t *testing.T) {
 
 	if a.commandMode {
 		t.Error("esc did not close the command line")
-	}
-	if a.completionSuggestions != nil {
-		t.Errorf("%d suggestion(s) survived the close", len(a.completionSuggestions))
 	}
 	if _, ok := testutil.MsgOf[tea.WindowSizeMsg](cmd); !ok {
 		t.Error("closing the command line did not ask for a re-layout")

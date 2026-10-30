@@ -75,17 +75,16 @@ type App struct {
 	commandMode  bool
 	commandInput textinput.Model
 
-	// View picker: Tab in the command line swaps it for a circular breadcrumb
-	// of every view. The typed text is kept underneath.
-	viewPicker      bool
-	viewPickerViews []string
-	viewPickerIdx   int
-
-	// Command completion state
-	completionEngine      *command.CompletionEngine
-	completionSuggestions []command.Suggestion
-	completionIndex       int    // Highlighted suggestion (always the first one)
-	completionInput       string // Change detection
+	// Command suggestions (DEVDESK-89): the list drawn over the viewport while
+	// the command line is open.
+	suggester   *command.Suggester
+	suggestions command.Suggestions
+	// sugCursor is the highlighted row, or -1 when none is.
+	sugCursor int
+	sugOffset int // first row drawn when the list scrolls
+	// sugNotice is the warning on the list's bottom rule. It lasts until the
+	// next key, with no timer.
+	sugNotice string
 
 	// Context list overlay
 	showContextList    bool
@@ -165,7 +164,6 @@ func newCommandInput() textinput.Model {
 	// Create the input for command mode
 	cmdInput := textinput.New()
 	cmdInput.Prompt = "❯"
-	cmdInput.SetSuggestions([]string{"status", "workspaces"})
 	cmdInput.CharLimit = 50
 
 	return cmdInput
@@ -246,17 +244,18 @@ func newWithSize(cfg *config.Config, width, height int) *App {
 	_ = sharedState.Forwards.SetProxyPort(cfg.Network.ProxyPort)
 
 	app := &App{
-		config:           cfg,
-		currentContext:   currentContext,
-		viewport:         newViewport(width, height),
-		currentView:      defaultView(cfg),
-		views:            make(map[command.ViewType]tea.Model),
-		sharedState:      sharedState,
-		jobs:             jobs.New(),
-		commandInput:     newCommandInput(),
-		completionEngine: command.NewCompletionEngine(),
-		width:            width,
-		height:           height,
+		config:         cfg,
+		currentContext: currentContext,
+		viewport:       newViewport(width, height),
+		currentView:    defaultView(cfg),
+		views:          make(map[command.ViewType]tea.Model),
+		sharedState:    sharedState,
+		jobs:           jobs.New(),
+		commandInput:   newCommandInput(),
+		suggester:      command.NewSuggester(),
+		sugCursor:      -1,
+		width:          width,
+		height:         height,
 	}
 	app.wantedProxyPort.Store(int64(cfg.Network.ProxyPort))
 
@@ -326,6 +325,7 @@ func (a *App) requestResize() tea.Cmd {
 func (a *App) resize(width, height int) {
 	a.width = width
 	a.height = height
+	defer a.keepHighlightVisible()
 
 	const passes = 2
 	for range passes {

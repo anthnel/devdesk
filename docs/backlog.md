@@ -98,6 +98,28 @@ decided together and fixed in one pass; see [§1.2](#12-the-five-parked-defects)
 
 ### 1.1 Fixed
 
+**D90 — la ligne de commande affiche une liste de suggestions (DEVDESK-89) : trois écarts aux règles, un fantôme supprimé, des thèmes recopiés à la main.**
+
+La liste remplace le sélecteur horizontal et la complétion fantôme (voir
+[`app-shell.md`](architecture/app-shell.md)). Ce qui a été tranché, et ce que ça coûte :
+
+- **Règle 135 : `tab` complète dans la ligne de commande.** Déclaré dans
+  `keymap.DeclaredExceptions()` (surface `app/command-line`). Il n'y a ni onglet ni
+  champ à parcourir dans la ligne, et `tab` complète dans tous les shells.
+- **Règle 138 : `↑↓ Choose` est affiché.** Sous un champ de saisie, les flèches ne
+  sont pas évidentes. Les quatre entrées (`↑↓`, `tab`, `enter`, `esc`) remplacent
+  celles de la vue ; `tab` et `enter` se grisent sans ligne surlignée (règle 130).
+- **Règle 114 : pas d'aide `?` pour la ligne de commande.** Décision de
+  l'utilisateur ; la documentation seule la couvre
+  (`docs-site/docs/reference/commands.md`).
+- **Le fantôme de saisie et l'indice `[i/n]` sont supprimés.** La liste dit déjà
+  quelle ligne `enter` ouvrira ; deux indications concurrentes se contredisaient
+  dès que les flèches déplaçaient le surlignage. Le fil d'Ariane des vues part avec
+  `tab`.
+- **Thèmes recopiés à la main.** Trois thèmes ont dû être corrigés à la main pour
+  atteindre 4,5:1 de contraste (étape 4) ; les copies que des utilisateurs ont faites
+  de ces fichiers ne reçoivent pas la correction. À mentionner dans le changelog.
+
 **D89 — le coût estimé par agent d'`:agent-usage` repose sur quatre choix durables : tarifs dans le YAML, appariement sans préfixe, `Est. cost` en `DropFirst`, `Unattributed` dans l'en-tête. Décidé.** **Plane:** DEVDESK-47
 
 DEVDESK-47 ajoute `Agent.ByModel`, `Usage.Billed`, le paquet

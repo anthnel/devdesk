@@ -39,6 +39,24 @@ opens the command line, from anywhere. A bare `:` does the same, but only
 when nothing is focused — inside a text field it's an ordinary character,
 which values like `https://trivy-server:4954` need.
 
+## Suggestions
+
+Opening the command line shows a list of every view and command, with its
+aliases and a one-line description. Typing narrows it, best match first, and
+highlights the first row.
+
+| Key | Effect |
+|---|---|
+| `↑` / `↓` | Move the highlight (no wrap) |
+| `tab` | Write the highlighted name into the line, without running it |
+| `enter` | Open the highlighted row; after `context `, run the name as typed |
+| `esc` | Close the line and the list |
+
+`tab` and `enter` are greyed in the header while no row is highlighted. An
+`enter` on an empty line, or on text that matches nothing, says so on the
+list's bottom line and changes nothing; the message goes at the next key.
+`context` takes a name: complete it with `tab`, then type the context name.
+
 ## CLI subcommands
 
 The `dk` binary itself takes one subcommand:
