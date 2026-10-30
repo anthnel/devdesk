@@ -1,0 +1,15 @@
+{
+  "tool_use_id": "toolu_01TLp89h1MuE9fDqKhhdcc5S",
+  "agent_id": "aa358d96056457e04",
+  "subagent_type": "team-core:tech-writer",
+  "task_description": "Fix privacy doc claims",
+  "token_usage": {
+    "input_tokens": 8,
+    "cache_creation_tokens": 61353,
+    "cache_read_tokens": 176258,
+    "output_tokens": 87,
+    "api_call_count": 4
+  },
+  "started_at": "2026-10-30T10:22:16.643086212+01:00",
+  "completed_at": "2026-10-30T10:22:35.672240627+01:00"
+}

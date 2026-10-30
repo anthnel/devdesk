@@ -1,0 +1,15 @@
+{
+  "tool_use_id": "toolu_01KUiji9VCUHZXzbZNBxpJ67",
+  "agent_id": "a90eeafb767771863",
+  "subagent_type": "dev-team:security-reviewer",
+  "task_description": "Security review of privacy doc",
+  "token_usage": {
+    "input_tokens": 17,
+    "cache_creation_tokens": 141106,
+    "cache_read_tokens": 937644,
+    "output_tokens": 87,
+    "api_call_count": 9
+  },
+  "started_at": "2026-10-30T10:20:27.226847619+01:00",
+  "completed_at": "2026-10-30T10:22:08.109180125+01:00"
+}
