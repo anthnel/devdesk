@@ -1,0 +1,15 @@
+{
+  "tool_use_id": "toolu_01PYRqGiEt2uYp8viauqVdAt",
+  "agent_id": "a5721c2b367e0f601",
+  "subagent_type": "project-coder",
+  "task_description": "Corrections revue étape 2",
+  "token_usage": {
+    "input_tokens": 9,
+    "cache_creation_tokens": 114786,
+    "cache_read_tokens": 415888,
+    "output_tokens": 69,
+    "api_call_count": 5
+  },
+  "started_at": "2026-10-30T19:15:34.888048038+01:00",
+  "completed_at": "2026-10-30T19:16:26.059139862+01:00"
+}
