@@ -1,0 +1,18 @@
+{
+  "tool_use_id": "toolu_01P4EvBX9LWZrNbdLY2n9vEE",
+  "agent_id": "a7eb6e73d41300d42",
+  "subagent_type": "project-coder",
+  "task_description": "Apply review fixes DEVDESK-46",
+  "files": [
+    "internal/agentusage/record.go"
+  ],
+  "token_usage": {
+    "input_tokens": 31,
+    "cache_creation_tokens": 139527,
+    "cache_read_tokens": 1825599,
+    "output_tokens": 202,
+    "api_call_count": 16
+  },
+  "started_at": "2026-10-30T09:55:51.597721613+01:00",
+  "completed_at": "2026-10-30T10:00:45.978209411+01:00"
+}

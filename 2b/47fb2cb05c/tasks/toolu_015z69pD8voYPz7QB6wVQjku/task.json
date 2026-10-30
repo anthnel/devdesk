@@ -1,0 +1,15 @@
+{
+  "tool_use_id": "toolu_015z69pD8voYPz7QB6wVQjku",
+  "agent_id": "ae74cf2f69418f2de",
+  "subagent_type": "project-tester",
+  "task_description": "Full suite and criteria check",
+  "token_usage": {
+    "input_tokens": 5,
+    "cache_creation_tokens": 129067,
+    "cache_read_tokens": 182104,
+    "output_tokens": 384,
+    "api_call_count": 3
+  },
+  "started_at": "2026-10-30T10:01:15.990569801+01:00",
+  "completed_at": "2026-10-30T10:02:37.651679456+01:00"
+}

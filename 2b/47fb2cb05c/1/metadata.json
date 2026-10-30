@@ -1,0 +1,93 @@
+{
+  "cli_version": "0.11.5",
+  "checkpoint_id": "2b47fb2cb05c",
+  "session_id": "3af5f877-8a8c-4f01-864b-aef06314b165",
+  "strategy": "manual-commit",
+  "created_at": "2026-10-30T09:12:48.106013197Z",
+  "branch": "feat/DEVDESK-46-agent-activity",
+  "checkpoints_count": 9,
+  "save_step_count": 9,
+  "files_touched": [
+    "docs/architecture/agent-usage.md",
+    "docs/backlog.md",
+    "internal/agentusage/bench_activity_test.go",
+    "internal/agentusage/fixture_activity_test.go",
+    "internal/agentusage/hardening_activity_test.go",
+    "internal/agentusage/incremental_activity_test.go",
+    "internal/agentusage/incremental_fuzz_test.go",
+    "internal/agentusage/incremental_test.go",
+    "internal/agentusage/limits.go",
+    "internal/agentusage/parse_test.go",
+    "internal/agentusage/record.go",
+    "internal/agentusage/record_activity_test.go",
+    "internal/agentusage/table.go",
+    "internal/agentusage/table_activity_test.go",
+    "internal/agentusage/testdata/README.md",
+    "internal/agentusage/testdata/v2.1.302-activity/projects/-synthetic-proj-activity/00000000-0000-4000-8000-000000000460.jsonl",
+    "internal/agentusage/testdata/v2.1.302-activity/projects/-synthetic-proj-activity/00000000-0000-4000-8000-000000000460/subagents/agent-b01.jsonl",
+    "internal/agentusage/testdata/v2.1.302-activity/projects/-synthetic-proj-activity/00000000-0000-4000-8000-000000000460/subagents/agent-b01.meta.json",
+    "internal/agentusage/testdata/v2.1.302-activity/projects/-synthetic-proj-activity/00000000-0000-4000-8000-000000000460/subagents/agent-b02.jsonl",
+    "internal/agentusage/testdata/v2.1.302-activity/projects/-synthetic-proj-activity/00000000-0000-4000-8000-000000000460/subagents/agent-b02.meta.json",
+    "internal/agentusage/usage.go",
+    "internal/ui/agentusageview/activity_columns_test.go",
+    "internal/ui/agentusageview/agents.go",
+    "internal/ui/agentusageview/agents_level_test.go",
+    "internal/ui/agentusageview/agents_test.go",
+    "internal/ui/agentusageview/cmd.go",
+    "internal/ui/agentusageview/header_live_test.go",
+    "internal/ui/agentusageview/help.go",
+    "internal/ui/agentusageview/model.go",
+    "internal/ui/agentusageview/selection.go",
+    "internal/ui/agentusageview/selection_test.go",
+    "internal/ui/agentusageview/status.go",
+    "internal/ui/agentusageview/status_test.go",
+    "internal/ui/agentusageview/update.go",
+    "internal/ui/agentusageview/view.go"
+  ],
+  "agent": "Claude Code",
+  "model": "claude-sonnet-5-5",
+  "turn_id": "a09a09b033d0",
+  "compact_transcript_start": 0,
+  "token_usage": {
+    "input_tokens": 59,
+    "cache_creation_tokens": 182676,
+    "cache_read_tokens": 3113043,
+    "output_tokens": 15572,
+    "api_call_count": 22,
+    "subagent_tokens": {
+      "input_tokens": 141,
+      "cache_creation_tokens": 998485,
+      "cache_read_tokens": 8853679,
+      "output_tokens": 2731,
+      "api_call_count": 72
+    }
+  },
+  "skill_events_version": 1,
+  "skill_events": [
+    {
+      "id": "prompt-skill-claude-code-resume-work-2026-10-30T08:43:41.756017567Z",
+      "event_type": "prompt_invocation",
+      "skill": {
+        "name": "resume-work"
+      },
+      "source": {
+        "agent": "claude-code",
+        "signal": "prompt_slash_command",
+        "confidence": "explicit"
+      },
+      "turn_id": "5aa918d79c7a",
+      "timestamp": "2026-10-30T08:43:41.756017567Z",
+      "native": {
+        "command": "/resume-work"
+      },
+      "collapse": {
+        "target": "user_message",
+        "label": "/resume-work",
+        "default_collapsed": true
+      }
+    }
+  ],
+  "session_metrics": {
+    "turn_count": 9
+  }
+}

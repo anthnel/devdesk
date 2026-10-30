@@ -1,0 +1,15 @@
+{
+  "tool_use_id": "toolu_01RmMUVgkyUvwuq3ibumK9XL",
+  "agent_id": "ae263310dd938dade",
+  "subagent_type": "dev-team:security-reviewer",
+  "task_description": "Security review DEVDESK-46 diff",
+  "token_usage": {
+    "input_tokens": 18,
+    "cache_creation_tokens": 95148,
+    "cache_read_tokens": 664150,
+    "output_tokens": 127,
+    "api_call_count": 9
+  },
+  "started_at": "2026-10-30T09:50:02.750619677+01:00",
+  "completed_at": "2026-10-30T09:51:42.396301024+01:00"
+}
