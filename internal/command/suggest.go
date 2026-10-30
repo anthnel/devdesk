@@ -2,6 +2,7 @@ package command
 
 import (
 	"cmp"
+	"reflect"
 	"slices"
 	"strings"
 	"unicode"
@@ -20,7 +21,10 @@ const (
 // ArgSuggestion is one candidate argument with an optional note.
 type ArgSuggestion struct{ Value, Note string }
 
-// ArgProvider supplies argument candidates for one command.
+// ArgProvider supplies argument candidates for one command. The prefix is
+// passed raw: case is preserved (the provider decides how to compare) and
+// trailing whitespace is trimmed. ready is false while the provider is still
+// loading its candidates.
 type ArgProvider interface {
 	SuggestArgs(prefix string) (args []ArgSuggestion, ready bool)
 }
@@ -32,6 +36,9 @@ type Suggestions struct {
 	Entries []Entry
 	Total   int
 	Args    []ArgSuggestion
+	// ArgsReady is false while the argument provider is still loading, so the
+	// caller can tell "no candidates yet" from "no candidates".
+	ArgsReady bool
 }
 
 // Ranks of a match, best first.
@@ -53,10 +60,20 @@ func NewSuggester() *Suggester {
 	return &Suggester{entries: Entries(), providers: map[string]ArgProvider{}}
 }
 
-// WithProvider registers the argument provider of a command, keyed by its
-// canonical name, and returns the suggester.
+// WithProvider registers the argument provider of a command and returns the
+// suggester. The command is resolved like typed input, so an alias registers
+// under the canonical name; an unknown command or a nil provider (including a
+// typed nil pointer) is ignored.
 func (s *Suggester) WithProvider(command string, p ArgProvider) *Suggester {
-	s.providers[command] = p
+	if p == nil {
+		return s
+	}
+	if v := reflect.ValueOf(p); v.Kind() == reflect.Pointer && v.IsNil() {
+		return s
+	}
+	if e, ok := s.exact(normalize(command)); ok {
+		s.providers[e.Name] = p
+	}
 	return s
 }
 
@@ -64,10 +81,10 @@ func (s *Suggester) WithProvider(command string, p ArgProvider) *Suggester {
 // it names an entry that takes an argument and is followed by a space, the
 // result switches to the argument stage.
 func (s *Suggester) Suggest(input string) Suggestions {
-	raw := strings.TrimPrefix(strings.TrimLeftFunc(input, unicode.IsSpace), ":")
+	raw := strings.TrimLeftFunc(strings.TrimPrefix(strings.TrimLeftFunc(input, unicode.IsSpace), ":"), unicode.IsSpace)
 	head, rest, hasRest := raw, "", false
 	if i := strings.IndexFunc(raw, unicode.IsSpace); i >= 0 {
-		head, rest, hasRest = raw[:i], strings.TrimLeftFunc(raw[i:], unicode.IsSpace), true
+		head, rest, hasRest = raw[:i], strings.TrimSpace(raw[i:]), true
 	}
 	word := normalize(head)
 	out := Suggestions{Query: word, Total: len(s.entries)}
@@ -77,7 +94,7 @@ func (s *Suggester) Suggest(input string) Suggestions {
 			out.Stage = StageArgument
 			out.Entries = []Entry{e}
 			if p := s.providers[e.Name]; p != nil {
-				out.Args, _ = p.SuggestArgs(rest)
+				out.Args, out.ArgsReady = p.SuggestArgs(rest)
 			}
 			return out
 		}
