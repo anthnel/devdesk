@@ -55,8 +55,8 @@ func TestParseSessionActivity(t *testing.T) {
 	}
 }
 
-// Criterion 3: counters only. The sentinel sits in tool inputs, names, text,
-// thinking and in one tool_use id; none of it may reach any rendering of the
+// Criterion 3: counters only. The sentinel sits in a tool input, a thinking
+// block, a description, a tool result, a user prompt and one tool_use.id; none of it may reach any rendering of the
 // result, and Agent holds no new string.
 func TestActivityFixtureNeverLeaks(t *testing.T) {
 	u := parseFixture(t, "v2.1.302-activity")

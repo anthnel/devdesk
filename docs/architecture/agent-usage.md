@@ -82,7 +82,7 @@ Each transcript line is a JSON object. Only the root `type`, `timestamp`,
 `apiBlockIndex` and `version`, and `message.{id, model, stop_reason, usage}` are
 read; the four counters are `input_tokens`, `output_tokens`,
 `cache_read_input_tokens` and `cache_creation_input_tokens`. Of
-`message.content` (since DEVDESK-46) only the `type` and `id` of each block are
+`message.content` (since DEVDESK-46) only the `type` and `id` of each block (plus its rank) are
 decoded, and only `tool_use` blocks are kept (`wireBlocks`). Text, thinking, tool
 `name`, `input` and results, and descriptions are not declared in the decoding
 structs, so `encoding/json` skips them without keeping them. Nothing is searched
@@ -146,7 +146,7 @@ their own table.
   exact there.
 - **Ids are bounded.** A message or tool id longer than `maxLabelLen` (128 bytes)
   is replaced in the key by its SHA-256, so keys have a fixed size and two long
-  ids never collide.
+  ids collide only with SHA-256 odds.
 - **Timestamps.** The root `timestamp` is parsed as RFC 3339 and normalised with
   `.UTC()` (the oracle compares `Usage` with `reflect.DeepEqual`, so two spellings
   of one instant need one representation). Anything else (absent, null, not a
@@ -370,12 +370,9 @@ input, description or path is ever stored in a `Usage`.
 
 **Amendment (DEVDESK-46): the content array is walked, for block type and id
 only.** `message.content` is decoded on every line, but `wireBlocks` keeps the
-`type` and `id` of `tool_use` blocks and nothing else; text, thinking, tool name,
-input and result are never declared. A tool id stays inside the package as a
-(possibly hashed) map key and never reaches a `Usage`: `Agent` gains an `int` and
-two `time.Time`, no string. The `SENTINEL-DO-NOT-LEAK` fixture plants the marker
-in a tool `input`, `name`, `text`, `thinking` and in one `tool_use.id`, and the
-tests check that no rendering of the `Usage` contains it.
+`type`, `id` and position of `tool_use` blocks and nothing else; text, thinking, tool name,
+input and result are never declared. A tool id is held only in unexported fields (the line record, the tool table's key, a `Delta`'s partial table), verbatim up to 128 bytes and as its SHA-256 beyond — a size bound, not a redaction — and never reaches a `Usage`: `Agent` gains an `int` and
+two `time.Time`, no string. The `v2.1.302-activity` fixture plants `SENTINEL-DO-NOT-LEAK` in a tool `input`, a `thinking` block, a `description`, a tool result, a user prompt and one `tool_use.id`; the tests check that no rendering of the `Usage` (nor of the parse error) contains it or the `toolu_` prefix. A tool `name` and a `text` block are covered by `record_test.go`, at the record level.
 
 **Amendment (DEVDESK-41): `cwd` is now read and displayed.** `ListSessions`
 alone reads it, to tell sessions apart by project. It is the first non-empty
