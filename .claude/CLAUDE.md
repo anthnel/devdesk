@@ -172,6 +172,19 @@ to `main` was, until now, the *only* protection — a second remote pointing
 straight at GitHub would have sailed through (see the warning against adding
 one, below). Now GitHub itself refuses that push too.
 
+**The `Entire Gates` check is expected to stay red on this repository.** It is
+a PR check from the `entire` app, and its **Approvals** gate fails until another
+reviewer approves the trail. That approval cannot arrive: the repository has one
+developer, so the gate cannot be green, and no second account or dummy reviewer
+should be added to satisfy it. The check is not required by `main-protection`
+(GitHub reports the PR as `UNSTABLE` but `MERGEABLE`), so a red `Entire Gates`
+alone does not block a merge. Merge once `Lint and build` and `Test` pass. The
+Findings, Checks and Up to date gates must stay green: if any of them fails, it
+is a real signal, so stop and raise it with the user. Agents (orchestrator,
+devops) must not stop to ask for agreement over the Approvals failure alone.
+To read the reason:
+`gh api repos/anthnel/devdesk/commits/<sha>/check-runs --jq '.check_runs[] | select(.name=="Entire Gates") | .output.summary'`.
+
 Every other branch, including `entire/checkpoints/v1`, pushes through the mirror
 and is forwarded to GitHub.
 
