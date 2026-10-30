@@ -220,6 +220,11 @@ There are **three** name lists, and each answers a different question:
 | `AllViewNames()` | what can appear in the viewport | the router's contract tests |
 | `FullNames()` | every command, views and actions | completion |
 
+All three, and the parser maps, derive from one ordered registry
+(`internal/command/registry.go`, `command.Entries()`): 15 views A-Z, then the
+actions `context` and `quit`, each with its aliases, a description of at most 45
+runes and an optional argument placeholder. `FullNames()` follows that order.
+
 `FullNames()` also carries the action commands (`context`, `quit`), which is
 right for completion and wrong for anything meaning "a view" — the configuration
 view's `default_view` field offered `quit` as a landing view until they were
