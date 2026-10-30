@@ -7,7 +7,7 @@
 
 **Key Exports:**
 - `ParseCommand(input string) Command` — Parse `:view`, `:context`, `:quit`
-- `CompletionEngine` — Tab completion for commands
+- `Suggester` — ranks the command registry for the suggestion list
 - `ViewType` enum — 9 view types (dashboard, status, gitlab-*, workspaces, security, containers, oci-resources, net)
 
 **ViewType to View Mapping:**
@@ -281,7 +281,7 @@ type ComponentStatus struct {
 
 **Command Mode:**
 - `handleCommand(input string)` — Parse + execute `:cmd`
-- `completionEngine.Suggest(input)` — Tab completion
+- `Suggester.Suggest(input)` — ranked suggestions for the command line
 
 **Selection Mode:**
 - `startSelection(returnView)` — Enter cross-view picker

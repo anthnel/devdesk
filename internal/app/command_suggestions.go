@@ -16,13 +16,13 @@ const minListHeight = 2
 const noticeEmptyLine = "Type a name or choose one"
 
 // refreshSuggestions ranks the registry for the text in the command line. The
-// first row is highlighted when there is something typed and something found;
-// otherwise nothing is, so enter cannot run a command nobody chose.
+// first row is highlighted when a query is typed (a bare ":" is none) and
+// something is found; otherwise nothing is, so enter cannot run a command nobody chose.
 func (a *App) refreshSuggestions() {
 	a.suggestions = a.suggester.Suggest(a.commandInput.Value())
 	a.sugOffset = 0
 	a.sugCursor = -1
-	if strings.TrimSpace(a.commandInput.Value()) != "" && len(a.suggestions.Entries) > 0 {
+	if a.suggestions.Query != "" && len(a.suggestions.Entries) > 0 {
 		a.sugCursor = 0
 	}
 }
@@ -52,13 +52,10 @@ func (a *App) canComplete() bool {
 }
 
 // nothingToRunNotice is the warning for an enter with no highlighted row.
-func (a *App) nothingToRunNotice(input string) string {
-	if strings.TrimSpace(input) == "" {
-		return noticeEmptyLine
-	}
+func (a *App) nothingToRunNotice() string {
 	q := a.suggestions.Query
 	if q == "" {
-		q = strings.TrimSpace(input)
+		return noticeEmptyLine
 	}
 	return fmt.Sprintf("%q is not a view or a command", q)
 }

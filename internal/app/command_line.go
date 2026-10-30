@@ -54,8 +54,11 @@ func (a *App) handleCommandMode(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 // again for the new text.
 func (a *App) handleCommandInput(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	var cmd tea.Cmd
+	before := a.commandInput.Value()
 	a.commandInput, cmd = a.commandInput.Update(msg)
-	a.refreshSuggestions()
+	if a.commandInput.Value() != before {
+		a.refreshSuggestions()
+	}
 	return a, cmd
 }
 
@@ -76,7 +79,7 @@ func (a *App) runCommand() (tea.Model, tea.Cmd) {
 	if a.suggestions.Stage != command.StageArgument {
 		entry, ok := a.highlightedEntry()
 		if !ok {
-			a.sugNotice = a.nothingToRunNotice(input)
+			a.sugNotice = a.nothingToRunNotice()
 			return a, nil
 		}
 		input = entry.Name

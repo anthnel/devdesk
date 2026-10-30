@@ -279,6 +279,8 @@ func TestEnterOnAnEmptyLineChangesNothingAndWarns(t *testing.T) {
 	setups := map[string]func(*testing.T, *App){
 		"opened empty":            func(*testing.T, *App) {},
 		"letter typed and erased": func(t *testing.T, a *App) { typeCommand(t, a, "q"); press(t, a, "backspace") },
+		"only a colon":            func(t *testing.T, a *App) { typeCommand(t, a, ":") },
+		"a colon and a space":     func(t *testing.T, a *App) { typeCommand(t, a, ": ") },
 	}
 	for name, setup := range setups {
 		t.Run(name, func(t *testing.T) {
@@ -302,6 +304,17 @@ func TestEnterOnAnEmptyLineChangesNothingAndWarns(t *testing.T) {
 				t.Errorf("rule %q lacks %q", got, want)
 			}
 		})
+	}
+}
+
+// A key that does not edit the text (arrows, home, end) keeps the chosen row.
+func TestAMotionKeyKeepsTheChosenRow(t *testing.T) {
+	a := commanding(t, &fakeView{})
+	typeCommand(t, a, "co")
+	press(t, a, "down", "left", "right", "enter")
+
+	if a.currentView != command.ViewContainers {
+		t.Errorf("view=%s, want containers", a.currentView)
 	}
 }
 
