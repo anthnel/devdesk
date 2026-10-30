@@ -1,0 +1,18 @@
+{
+  "tool_use_id": "toolu_01JVw6SMWfUcuYxHkhakgFSj",
+  "agent_id": "a94ed179aa151f9d3",
+  "subagent_type": "product-team:pm",
+  "task_description": "Rédiger stories visualisation tokens/coûts",
+  "files": [
+    "docs/product/agent-usage-monitor/stories.md"
+  ],
+  "token_usage": {
+    "input_tokens": 24,
+    "cache_creation_tokens": 191810,
+    "cache_read_tokens": 1686349,
+    "output_tokens": 4528,
+    "api_call_count": 12
+  },
+  "started_at": "2026-10-30T17:13:12.4092741+01:00",
+  "completed_at": "2026-10-30T17:18:19.858750243+01:00"
+}

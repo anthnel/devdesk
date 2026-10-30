@@ -1,0 +1,15 @@
+{
+  "tool_use_id": "toolu_01BKWBEccbjP27fAHMLJaoer",
+  "agent_id": "ae5227345a9607540",
+  "subagent_type": "dev-team:devops",
+  "task_description": "PR note gate Entire",
+  "token_usage": {
+    "input_tokens": 10,
+    "cache_creation_tokens": 67205,
+    "cache_read_tokens": 410428,
+    "output_tokens": 72,
+    "api_call_count": 5
+  },
+  "started_at": "2026-10-30T16:59:53.820169249+01:00",
+  "completed_at": "2026-10-30T17:01:37.996492934+01:00"
+}

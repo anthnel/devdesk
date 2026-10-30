@@ -1,0 +1,47 @@
+{
+  "cli_version": "0.12.2",
+  "checkpoint_id": "9bcda6ead9ea",
+  "strategy": "manual-commit",
+  "branch": "docs/agent-usage-stories-s09-s12",
+  "checkpoints_count": 8,
+  "files_touched": [
+    "docs/product/agent-usage-monitor/stories.md"
+  ],
+  "sessions": [
+    {
+      "metadata": "/9b/cda6ead9ea/0/metadata.json",
+      "transcript": "/9b/cda6ead9ea/0/full.jsonl",
+      "compact_transcript": "/9b/cda6ead9ea/0/transcript.jsonl",
+      "content_hash": "/9b/cda6ead9ea/0/content_hash.txt",
+      "prompt": "/9b/cda6ead9ea/0/prompt.txt"
+    }
+  ],
+  "token_usage": {
+    "input_tokens": 50,
+    "cache_creation_tokens": 17342,
+    "cache_read_tokens": 5453244,
+    "output_tokens": 12565,
+    "api_call_count": 16,
+    "subagent_tokens": {
+      "input_tokens": 52,
+      "cache_creation_tokens": 385658,
+      "cache_read_tokens": 2712304,
+      "output_tokens": 4733,
+      "api_call_count": 25
+    }
+  },
+  "redaction": {
+    "replacements": 0,
+    "layers": {
+      "betterleaks": 0,
+      "connection_string": 0,
+      "credential_key": 0,
+      "credential_value": 0,
+      "credentialed_uri": 0,
+      "entropy": 0,
+      "key_context": 0,
+      "provider_token": 0,
+      "shell_stdin": 0
+    }
+  }
+}

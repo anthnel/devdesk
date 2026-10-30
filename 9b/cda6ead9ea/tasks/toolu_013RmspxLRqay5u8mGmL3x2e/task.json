@@ -1,0 +1,15 @@
+{
+  "tool_use_id": "toolu_013RmspxLRqay5u8mGmL3x2e",
+  "agent_id": "a6b5e7a855ac703f6",
+  "subagent_type": "dev-team:devops",
+  "task_description": "Sync main, retirer worktree doc",
+  "token_usage": {
+    "input_tokens": 6,
+    "cache_creation_tokens": 93998,
+    "cache_read_tokens": 184244,
+    "output_tokens": 58,
+    "api_call_count": 3
+  },
+  "started_at": "2026-10-30T17:07:53.489571129+01:00",
+  "completed_at": "2026-10-30T17:08:10.846849824+01:00"
+}
