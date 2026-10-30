@@ -247,3 +247,113 @@ func TestThePickerReplacesTheCommandLineRow(t *testing.T) {
 		t.Error("the header does not render the view breadcrumb")
 	}
 }
+
+// ── Narrow terminals (DEVDESK-89) ────────────────────────────────────────────
+
+// logoMarker is a run of the logo's last row that appears nowhere else in the
+// header, so finding it means the logo column was rendered.
+func logoMarker() string { return strings.TrimSpace(logoLines[len(logoLines)-1]) }
+
+// The logo column is fixed at logoWidth cells; when the window cannot hold it
+// next to the info column the column goes away, rather than pushing every row
+// past the window and wrapping (Rule 108). Nothing changes where it fits.
+func TestTheHeaderNeverOverflowsANarrowTerminal(t *testing.T) {
+	info := []shortcut.HeaderInfo{{Key: "Context", Value: "default"}}
+	cases := []struct {
+		width    int
+		wantLogo bool
+	}{
+		{40, false},
+		{50, false},
+		{58, true},
+		{60, true},
+		{80, true},
+		{120, true},
+	}
+	for _, tc := range cases {
+		rendered := renderHeaderContent(info, manyShortcuts(12), tc.width)
+		lines := strings.Split(rendered, "\n")
+
+		if len(lines) != headerMinHeight {
+			t.Errorf("width %d: the header is %d rows, want %d", tc.width, len(lines), headerMinHeight)
+		}
+		for i, line := range lines {
+			if got := lipgloss.Width(line); got != tc.width {
+				t.Errorf("width %d: row %d is %d cells wide, want exactly %d", tc.width, i, got, tc.width)
+			}
+		}
+		if got := strings.Contains(rendered, logoMarker()); got != tc.wantLogo {
+			t.Errorf("width %d: logo present = %v, want %v", tc.width, got, tc.wantLogo)
+		}
+	}
+}
+
+// The whole block the router renders (header, blank, command line, blank) keeps
+// its ten rows and wraps nowhere at 40 columns.
+func TestTheHeaderBlockKeepsItsHeightAtFortyColumns(t *testing.T) {
+	a := routerAt(t, &fakeView{shortcuts: manyShortcuts(12)}, 40, 20)
+
+	lines := strings.Split(a.renderHeader(), "\n")
+
+	if len(lines) != headerMinHeight+3 {
+		t.Errorf("the header block is %d rows, want %d", len(lines), headerMinHeight+3)
+	}
+	for i, line := range lines {
+		if got := lipgloss.Width(line); got > 40 {
+			t.Errorf("row %d is %d cells wide in a 40-column window", i, got)
+		}
+	}
+}
+
+// Every width from 0 up must give seven rows no wider than the window, and
+// exactly as wide from 2 columns (the two padding cells) on. The sampled widths
+// around 55 are where the logo fits but leaves the shortcut column no room.
+func TestTheHeaderNeverExceedsTheWindowAtAnyWidth(t *testing.T) {
+	infos := map[string][]shortcut.HeaderInfo{
+		"short": {{Key: "Context", Value: "default"}},
+		"long": {
+			{Key: "Context", Value: strings.Repeat("very-long-value-", 12)},
+			{Key: "Workspace", Value: strings.Repeat("x", 200)},
+		},
+		"wide": {{Key: "コンテキスト", Value: "日本語の長い値日本語の長い値日本語の長い値日本語の長い値"}},
+	}
+	var widths []int
+	for w := 0; w <= 8; w++ {
+		widths = append(widths, w)
+	}
+	widths = append(widths, 20, 40, 54, 55, 56, 57, 58, 59, 60, 62, 64, 66, 80)
+
+	for name, info := range infos {
+		for _, w := range widths {
+			rendered := renderHeaderContent(info, manyShortcuts(12), w)
+			lines := strings.Split(rendered, "\n")
+			if len(lines) != headerMinHeight {
+				t.Errorf("%s width %d: %d rows, want %d", name, w, len(lines), headerMinHeight)
+			}
+			for i, line := range lines {
+				got := lipgloss.Width(line)
+				if got > w {
+					t.Errorf("%s width %d: row %d is %d cells wide", name, w, i, got)
+				}
+				if w >= 2 && got != w {
+					t.Errorf("%s width %d: row %d is %d cells wide, want exactly %d", name, w, i, got, w)
+				}
+			}
+		}
+	}
+}
+
+// At 55 the logo is kept and the shortcut column has no width left: it must be
+// empty rather than spill past the window.
+func TestAnEmptyShortcutColumnRendersNoShortcut(t *testing.T) {
+	for _, line := range buildShortcutLines(manyShortcuts(12), 0) {
+		if lipgloss.Width(line) != 0 {
+			t.Errorf("a zero-width shortcut column rendered %q", line)
+		}
+	}
+	for _, line := range buildInfoLines([]shortcut.HeaderInfo{{Key: "Context", Value: "default"}}, 0) {
+		if lipgloss.Width(line) != 0 {
+			t.Errorf("a zero-width info column rendered %q", line)
+		}
+	}
+}
