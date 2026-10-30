@@ -72,6 +72,8 @@ type Model struct {
 	agentsLoading bool
 	// agentsErr says the most recent parse failed (a state, like loadErr).
 	agentsErr bool
+	// clock is what the agent states are computed against; written in Update only.
+	clock statusClock
 	// width and height are the last viewport size, for both tables.
 	width, height int
 

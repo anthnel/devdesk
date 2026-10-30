@@ -48,13 +48,20 @@ func populationOf(rows []agentRow) []string {
 // loading and error states. The columns are remeasured only on a full read or
 // when the population changed, so a two-second delta never reshuffles them.
 func (m Model) withUsage(u agentusage.Usage, full bool) Model {
+	m = m.withRows(u, full)
+	m.agentsLoading, m.agentsErr = false, false
+	return m
+}
+
+// withRows rebuilds the agents table from u without touching the loading and
+// error states, so a red footer survives the rebuild.
+func (m Model) withRows(u agentusage.Usage, full bool) Model {
 	before := populationOf(m.agentTable.Items())
 	selected, hadSelection := m.selectedAgentKey()
 	cursor := m.agentTable.Cursor()
 
-	rows := agentRows(u, m.agentsTree())
+	rows := agentRows(u, m.agentsTree(), m.clock)
 	m.usage = u
-	m.agentsLoading, m.agentsErr = false, false
 	m.agentTable.SetItems(rows)
 
 	if full || !slices.Equal(before, populationOf(rows)) {

@@ -99,7 +99,7 @@ func (m Model) handleUsageDelta(msg usageDeltaMsg) (tea.Model, tea.Cmd) {
 	}
 	m.reading = false
 	if msg.err != nil {
-		return m.failRead(msg.err)
+		return m.failRead(msg)
 	}
 	if err := m.agg.Apply(msg.delta); err != nil {
 		// Not read from the current cursor: read again from where it is now.
@@ -107,16 +107,32 @@ func (m Model) handleUsageDelta(msg usageDeltaMsg) (tea.Model, tea.Cmd) {
 		m.reading = true
 		return m, readDeltaCmd(m.agentGen, m.agg.Cursor())
 	}
+	return m.applyRead(msg)
+}
+
+// applyRead shows what a successful read brought and decides what comes next.
+// The rows are rebuilt on every read, even an empty one: an agent turns idle
+// precisely because nothing arrives, so the clock must move with each answer.
+// Whether the session is settled is computed once, for the states and for the
+// decision to stop polling.
+func (m Model) applyRead(msg usageDeltaMsg) (tea.Model, tea.Cmd) {
 	m.agentsErr = false
+	// While a ctrl+r full read is pending, the session is shown as alive even if
+	// the delta just applied would settle it: that state is transient and
+	// intended. The full read about to start decides, and a header that flipped
+	// to paused for one frame and back would read as a glitch.
+	settled := !m.fullPending && m.agg.Activity().Settled(msg.at, quietPeriod)
+	m.clock = statusClock{now: msg.at, alive: !settled}
+	u := m.usage
 	if msg.delta.Full() || !msg.delta.Empty() {
-		m = m.withUsage(m.agg.Usage(), msg.delta.Full())
+		u = m.agg.Usage()
 	}
+	m = m.withUsage(u, msg.delta.Full())
 	if m.fullPending {
 		m.fullPending = false
 		return m, m.startRead(true)
 	}
-	m.agentsLoading = false
-	if m.agg.Activity().Settled(msg.at, quietPeriod) {
+	if settled {
 		m.pollStopped = true
 		return m, nil // nothing left to wait for: the chain ends here
 	}
@@ -127,14 +143,15 @@ func (m Model) handleUsageDelta(msg usageDeltaMsg) (tea.Model, tea.Cmd) {
 // logged. The error names files by base name only; it never reaches the UI.
 // A deleted transcript ends the poll chain; any other failure retries, after
 // the full read a ctrl+r left pending, if there is one.
-func (m Model) failRead(err error) (tea.Model, tea.Cmd) {
+func (m Model) failRead(msg usageDeltaMsg) (tea.Model, tea.Cmd) {
 	if !m.agentsErr {
-		log.Printf("ERROR [agentusageview] read session: %v", err)
+		log.Printf("ERROR [agentusageview] read session: %v", msg.err)
 	}
 	m.agentsErr = true
-	if errors.Is(err, os.ErrNotExist) {
+	if errors.Is(msg.err, os.ErrNotExist) {
 		m.agentsLoading, m.fullPending, m.pollStopped = false, false, true
-		return m, nil
+		m.clock = statusClock{now: msg.at}
+		return m.withRows(m.usage, false), nil
 	}
 	if m.fullPending {
 		m.fullPending = false
@@ -234,7 +251,7 @@ func (m Model) agentsTree() bool {
 func (m Model) cycleAgentSort(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	selected, hadSelection := m.selectedAgentKey()
 	cmd := m.agentTable.Update(msg)
-	m.agentTable.SetItems(agentRows(m.usage, m.agentsTree()))
+	m.agentTable.SetItems(agentRows(m.usage, m.agentsTree(), m.clock))
 	m.agentTable.Remeasure() // the Agent column narrows or widens by the branch
 	if hadSelection {
 		m.selectAgentKey(selected)
@@ -254,7 +271,7 @@ func (m *Model) activeTable(msg tea.KeyMsg) tea.Cmd {
 // headers included, until the parse answers (Rule 139).
 func (m Model) openSelected() (tea.Model, tea.Cmd) {
 	row, _ := m.table.Selected() // availability checked a row exists
-	m.usage = agentusage.Usage{}
+	m.usage, m.clock = agentusage.Usage{}, statusClock{}
 	m.level = levelAgents
 	m.open = row.Session
 	m.agentGen++
@@ -272,7 +289,7 @@ func (m Model) closeAgents() (tea.Model, tea.Cmd) {
 	m.agentGen++
 	m.agentsLoading, m.agentsErr = false, false
 	m.agg, m.reading, m.fullPending = nil, false, false
-	m.usage = agentusage.Usage{}
+	m.usage, m.clock = agentusage.Usage{}, statusClock{}
 	m.agentTable.SetItems(nil)
 	return m, nil
 }

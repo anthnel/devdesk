@@ -1,5 +1,7 @@
 package agentusage
 
+import "time"
+
 // Agent is the usage of one agent of a session: the orchestrator (Main) or a
 // sub-agent.
 type Agent struct {
@@ -12,9 +14,20 @@ type Agent struct {
 	PartialMessages int // messages whose last line has no stop reason
 	State           State
 	SpawnDepth      int
+	ToolCalls       int       // distinct tool_use blocks of the agent's assistant lines
+	FirstActivity   time.Time // earliest line timestamp (UTC); zero if none
+	LastActivity    time.Time // latest line timestamp (UTC); zero if none
 	// key is the table's identity for the agent's lines (the rank of its
 	// transcript); empty means ID. finish clears it from its output.
 	key string
+}
+
+// Duration is LastActivity - FirstActivity, or 0 unless both are known.
+func (a Agent) Duration() time.Duration {
+	if a.FirstActivity.IsZero() || a.LastActivity.IsZero() {
+		return 0
+	}
+	return a.LastActivity.Sub(a.FirstActivity)
 }
 
 // PartialOutput reports whether some message of the agent was still being

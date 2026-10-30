@@ -11,7 +11,8 @@ Two pieces: the data layer `internal/agentusage` (sections up to
 
 `internal/agentusage` reads the transcripts Claude Code writes under its
 projects directory and returns, for one session, the **token counts per
-agent** (the orchestrator and each sub-agent). It is the data layer of the
+agent** (the orchestrator and each sub-agent) and, since DEVDESK-46, each
+agent's **tool-call count** and **time span**. It is the data layer of the
 agent usage monitor (DEVDESK-40, spike S-01 then step S-02).
 
 What it does **not** do:
@@ -26,8 +27,8 @@ What it does **not** do:
 `SessionFiles`, `SubAgentFiles`, `ParseSession`, `LocateSession`, `ProjectsRoot`,
 `ListSessions`, `Session`, `Listing`, and, since DEVDESK-44, `Cursor`, `Delta`,
 `ReadDelta`, `Aggregate`, `NewAggregate`, `Activity`, `ErrStaleDelta`)
-is consumed by S-03b, S-04, S-05a and S-05b (DEVDESK-45). Changing a field is a
-change to those stories; add, do not rename.
+is consumed by S-03b, S-04, S-05a, S-05b (DEVDESK-45) and S-06 (DEVDESK-46). Changing a
+field is a change to those stories; add, do not rename.
 
 ## Public API
 
@@ -49,7 +50,7 @@ change to those stories; add, do not rename.
 | `Session{ID, Parent, Project, ModTime}` | `Parent` is a full path, for `LocateSession`, and is never logged. `Project` is the working directory read from the transcript (`cwd`), sanitized and capped at 4096 bytes, or `""` if none. `ModTime` is the transcript's modification time. |
 | `Listing{Sessions, Omitted}` | `Sessions` newest `ModTime` first, ties by ID ascending. `Omitted` counts what was not listed: linked or non-regular transcripts, linked or unreadable project directories, and sessions past the cap. |
 | `Tokens{Input, Output, CacheRead, CacheWrite}` | `int64` counters; `Total()` and `Add()` saturate at `math.MaxInt64` |
-| `Agent` | `ID` (empty for the orchestrator), `Main`, `Type`, `Models`, `Tokens`, `Messages`, `PartialMessages`, `State`, `SpawnDepth`; `PartialOutput()` |
+| `Agent` | `ID` (empty for the orchestrator), `Main`, `Type`, `Models`, `Tokens`, `Messages`, `PartialMessages`, `State`, `SpawnDepth`; since DEVDESK-46 `ToolCalls`, `FirstActivity`, `LastActivity`; `PartialOutput()`, `Duration()` |
 | `State` | `StateUnknown`, `StateFinished`, `StateUnfinished` |
 | `Usage` | `SessionID`, `Agents` (orchestrator first, then sub-agents by ID), `Versions`, `Diagnostics`; `Total()` |
 | `Diagnostics` | `UnreadableLines`, `OversizedLines`, `NoUsage`, `NoMessageID`, `CrossFileDuplicates`, `MetaMissing`, `MetaUnreadable`, `TruncatedFiles`, `Files []FileIssue`; `Degraded()` |
@@ -61,6 +62,13 @@ is `StateFinished`, `false` is `StateUnfinished`. An absent, null or
 wrongly typed key, a missing or unreadable meta file, and the orchestrator
 are `StateUnknown`.
 
+`ToolCalls` is the number of distinct `tool_use` blocks in the agent's own
+transcript (see "Tool calls and time span"). `FirstActivity` and `LastActivity`
+are the earliest and latest line timestamps of that transcript, in UTC, zero
+when it has none. `Duration()` is `LastActivity - FirstActivity`, or 0 unless
+both are known; a caller that must tell "unknown" from "instant" tests
+`FirstActivity.IsZero()`.
+
 ## Transcript format
 
 ```
@@ -70,11 +78,14 @@ projects/<project>/<uuid>/subagents/agent-<id>.meta.json agentType, finished, sp
 projects/<project>/<uuid>/tool-results/                  never read
 ```
 
-Each transcript line is a JSON object. Only `version` and `message.{id, model,
-stop_reason, usage}` are read; the four counters are `input_tokens`,
-`output_tokens`, `cache_read_input_tokens` and `cache_creation_input_tokens`.
-Content, tools and descriptions are not declared in the decoding structs, so
-`encoding/json` skips them without keeping them. Nothing is searched
+Each transcript line is a JSON object. Only the root `type`, `timestamp`,
+`apiBlockIndex` and `version`, and `message.{id, model, stop_reason, usage}` are
+read; the four counters are `input_tokens`, `output_tokens`,
+`cache_read_input_tokens` and `cache_creation_input_tokens`. Of
+`message.content` (since DEVDESK-46) only the `type` and `id` of each block are
+decoded, and only `tool_use` blocks are kept (`wireBlocks`). Text, thinking, tool
+`name`, `input` and results, and descriptions are not declared in the decoding
+structs, so `encoding/json` skips them without keeping them. Nothing is searched
 recursively. Symbolic links are handled by position:
 
 - a **parent transcript** that is a symbolic link or not a regular file is an
@@ -104,9 +115,47 @@ recursively. Symbolic links are handled by position:
   true. Its output count is a floor. This is computed for every agent; the UI
   decides how to show it.
 - **Saturation**: sums stop at `math.MaxInt64` instead of wrapping.
+- **Tool calls and time span are folded on their own keys, not by the last line
+  of a message** (DEVDESK-46, below).
 - An incomplete last line (no newline) is not counted and its file is listed in
   `Diagnostics.TruncatedFiles`. If it already exceeds the line cap it is dropped
   silently.
+
+### Tool calls and time span (DEVDESK-46)
+
+Claude Code 2.1.302 writes **one content block per `assistant` line**: a message
+with a thinking block and two tool calls is three lines sharing one `message.id`.
+"Last line wins" would keep one block and lose the others, so tool calls have
+their own table.
+
+- **Only root `type == "assistant"` lines count**, and `<synthetic>` ones never
+  do. `api-request-blob` lines replay earlier `tool_use` blocks in their
+  `message.content` and would double count; a line with no root `type` counts
+  none. A `queued_command.usage.toolUses` (completion notification) is never
+  read: the count comes from the transcript.
+- **Key: `(message.id, tool_use.id)`.** The same pair on several lines (streaming
+  repeats) is one call; the same tool id in two messages is two calls. The
+  greatest position wins, as for tokens, so a call seen in two files goes to
+  the later one.
+- **Fallbacks, with their limits.** A block with no `tool_use.id` is keyed by
+  `(message.id, apiBlockIndex, rank in content)`. With neither an id nor an
+  `apiBlockIndex`, two calls of one message split over two lines both fall on
+  rank 0 and count once: an undercount, accepted (2.1.302 always writes an id).
+  A line with no `message.id` counts its blocks once per line (a tool id repeated
+  inside the line counts once); each byte range is folded once, so a counter is
+  exact there.
+- **Ids are bounded.** A message or tool id longer than `maxLabelLen` (128 bytes)
+  is replaced in the key by its SHA-256, so keys have a fixed size and two long
+  ids never collide.
+- **Timestamps.** The root `timestamp` is parsed as RFC 3339 and normalised with
+  `.UTC()` (the oracle compares `Usage` with `reflect.DeepEqual`, so two spellings
+  of one instant need one representation). Anything else (absent, null, not a
+  string, not a date) is the zero time and costs only the timestamp. Every
+  readable line of the agent's own transcript counts, whatever its kind
+  (`<synthetic>`, tool results, attachments), so a tool-result line moves
+  `LastActivity`. **The span is min to max, not first line to last**: timestamps
+  are not monotonic within a file (hundreds of backward steps in one real
+  transcript). It is wall clock: pauses and a resumed session are included.
 
 ## Tolerance
 
@@ -120,6 +169,9 @@ The format is not a documented API, so the parser degrades rather than fails.
   `spawnDepth`) costs that field only, not the line.
 - A counter that is negative, fractional or not a number makes the line
   unreadable (`UnreadableLines`). An absent or null counter is 0.
+- A `message.content` that is not an array, or an element that is not an object,
+  yields no tool call and never an error: it costs the tool count of that line,
+  not its usage. A timestamp that is not a date costs that timestamp only.
 - A sub-agent that cannot be opened stays in `Agents` with no tokens and an
   `IssueOpenFailed` entry. A read error mid-file keeps what was read and adds
   `IssueReadError` at the offset consumed.
@@ -206,6 +258,14 @@ byte offset) and the rules are functions of positions, not of arrival time:
 - models, versions and `Diagnostics.Files` follow the **smallest** position,
   which is first appearance in a sequential read.
 
+Tool calls and spans follow the same rule: a tool key keeps the greatest
+position, a span is a min and a max, so both merge in any order.
+`hasLines()` also counts them: **a part holding only a timestamped line (a tool
+result, an attachment) is a non-empty delta** and advances `Activity.LastChange`,
+while a line with neither a timestamp nor a message (`mode`, `last-prompt`) stays
+empty. The tests' random sessions and the fuzz target generate tool and
+timestamp lines, so the new fields are under the same oracle.
+
 The merge is associative and commutative. Sub-agents may therefore be read in
 any order and appear between two updates.
 
@@ -219,10 +279,11 @@ These are deliberate. A test that expects strict equality must avoid them.
    the file, which is what makes it independent of how reads were cut. Only
    *which* 100 changes, and only for a file with more than 100; the counters
    are unaffected. Accepted by the user (DEVDESK-44).
-2. **`maxNoIDEntries` is applied in the `Aggregate`.** Past 100000 lines
+2. **`maxNoIDEntries` and `maxToolEntries` are applied in the `Aggregate`.** Past 100000 lines
    without a message id, which lines get no table entry (are "spilled": still
    counted in tokens, `Messages` and `NoMessageID`) depends on how reads were
-   cut, not only on position. Totals stay exact; this is the one place the
+   cut, not only on position. Totals stay exact (for tool calls, see "Limits and
+   caps": a call evicted from the table counts once more if it repeats); this is the one place the
    merge is not commutative. Within a single merge the earliest positions are
    kept. The models a spill contributes are also kept by arrival order (up to
    the 64-per-agent cap). Not asserted equal by the tests.
@@ -290,12 +351,13 @@ its first filter. **Rule for S-05b: keep a single read in flight per
   every update that sees growth, not once per open. Possible direction:
   `O_NONBLOCK` on Unix. Until then, S-05b must keep one read in flight per
   `Aggregate`, so a blocked read cannot pile up.
+- **Tool calls overshoot, never undershoot, past the cap.** See "Limits and caps".
 - **The message-id table is not bounded.** The table holds one entry per
   distinct `message.id` for as long as the `Aggregate` lives. `ParseSession`
   had the same property for the duration of one call. Only line length and
   lines without id are bounded.
 - **Very long `MessageID`s are not hashed.** An id of up to a line's length is
-  kept as the map key.
+  kept as the map key. (The tool-call keys of DEVDESK-46 do hash ids past 128 bytes; the message table does not.)
 - **Windows is not covered by CI** (Linux only). File identity is taken from
   the open handle's `Stat()`, not from `Lstat`, because Go fills the Windows
   identity lazily by path and would read the *new* file after a rotation.
@@ -305,6 +367,15 @@ its first filter. **Rule for S-05b: keep a single read in flight per
 
 `ParseSession` returns **numeric aggregates only**. No prompt, answer, tool
 input, description or path is ever stored in a `Usage`.
+
+**Amendment (DEVDESK-46): the content array is walked, for block type and id
+only.** `message.content` is decoded on every line, but `wireBlocks` keeps the
+`type` and `id` of `tool_use` blocks and nothing else; text, thinking, tool name,
+input and result are never declared. A tool id stays inside the package as a
+(possibly hashed) map key and never reaches a `Usage`: `Agent` gains an `int` and
+two `time.Time`, no string. The `SENTINEL-DO-NOT-LEAK` fixture plants the marker
+in a tool `input`, `name`, `text`, `thinking` and in one `tool_use.id`, and the
+tests check that no rendering of the `Usage` contains it.
 
 **Amendment (DEVDESK-41): `cwd` is now read and displayed.** `ListSessions`
 alone reads it, to tell sessions apart by project. It is the first non-empty
@@ -345,6 +416,7 @@ Memory and output size do not depend on what a transcript contains.
 | `FileIssue` entries per file | 100, for `IssueUnreadable` and `IssueOversized` only | counters keep counting, entries stop. The 100 kept are the **smallest positions** of the file, not the first to arrive (declared exception, see "Incremental reading"). `IssueOpenFailed` and `IssueReadError` occur once per file and are always kept |
 | Lines without id in the table | 100000, for the whole session (all files together), enforced in the `Aggregate` | still counted in tokens, `Messages` and `NoMessageID`, but aggregated without a table entry. Which lines spill can depend on how reads were cut (declared exception) |
 | Bytes read per update (`ReadDelta`) | the appended bytes, plus at most `MaxLineBytes+2` per file with a half-written line, plus 1 guard byte per file read | a Full delta costs what `ParseSession` costs |
+| Tool-call entries (`maxToolEntries`) | 100000, for the whole session | a call new to a full table is counted (`extraTools`) without being remembered; a repeat of it would count again, so the total can **overshoot, never undershoot**. On a merge the greatest positions are evicted (`trimTools`, one pass over the excess when it is small, a full sort past 256) so the entries kept do not depend on map order |
 | Message-id entries | **not bounded** | one entry per distinct `message.id`, held as long as the `Aggregate` lives |
 | Models per agent / versions per session | 64 | extra ones dropped |
 | Label length | 128 bytes | truncated |
@@ -389,7 +461,9 @@ counter must be added to `Degraded()`.
 - **Fixtures** in `internal/agentusage/testdata/` are synthetic: shape follows
   Claude Code 2.1.302, every value is invented. `v2.1.302-basic/`,
   `synthetic-other-version/` (renamed or absent usage, unknown line type) and
-  `damaged/` (bad line, file cut mid-JSON). Expected totals are written by hand
+  `damaged/` (bad line, file cut mid-JSON), and, since DEVDESK-46,
+  `v2.1.302-activity/` (tool calls, timestamps out of order, a replaying
+  `api-request-blob`). Expected totals are written by hand
   in `parse_test.go`. See `testdata/README.md`.
 - **Cross-check against ccusage** (step 6 of S-02, DEVDESK-54), reference
   version `ccusage@20.0.43`. `crosscheck_test.go` compares `ParseSession` with
@@ -466,7 +540,10 @@ and when a session ran at this level (see the privacy amendment above). `→` or
 | Agent | `orchestrator`, then each sub-agent's type behind `├─ ` / `└─ ` in tree order, bare when sorted (`unknown` when the meta file gave none). `/` matches the role only. |
 | ID | the sub-agent's short ID (`shortAgentIDs`): the smallest common length >= 8 runes at which all IDs of the session differ, capped at each ID's own length. `-` for the orchestrator, `?` for a sub-agent with an empty ID. `/` matches the full ID here. Never dropped, so two agents of one type stay apart. |
 | Model | the models the agent used, comma-separated; `-` (dim) when none. `Optional`. |
-| In, Out, Cache read, Cache write, Total | token counts. On a narrow terminal the drop order is `Cache write`, `Cache read`, `In`, `Model`. `Out` and `Total` stay. |
+| In, Out, Cache read, Cache write, Total | token counts. On a narrow terminal the drop order is `Cache write`, `Cache read`, `In`, `Model`, `Duration`, `Tools`, `State`. `Out` and `Total` stay. |
+| State | `running`, `idle`, `done` or `unknown` (DEVDESK-46, see "Agent state and activity"). Fixed width, `Optional`. `/` matches the label. |
+| Tools | `Agent.ToolCalls`, compact like tokens; a dim `0`. Fixed, `Optional`. |
+| Duration | `Agent.Duration()` (`formatDuration`): `45s`, `3m07s`, `1h05m`, `2d03h`, `>99d`, floored, at most 6 cells; a dim `-` when the transcript has no timestamp. Fixed, `Optional`. |
 | Share | the agent's part of the session total (`Usage.Total().Total()`), see below. Fixed width. |
 
 - **Share (`share.go`).** Tenths of a percent, floored, computed on 128 bits
@@ -475,9 +552,15 @@ and when a session ran at this level (see the privacy amendment above). `→` or
   sums to `100.0%`; the residue is clamped at 0 when saturated totals overshoot.
   With no orchestrator row nothing is absorbed. A session with no tokens gives
   `noShare` and the cell shows a dim `-`. Rendered as `12.3%`.
+- **Column order and width.** Agent, ID, State, Tools, Duration, Model, In, Out,
+  Cache read, Cache write, Total, Share. With three sub-agents, 100 columns show
+  Agent, ID, State, Tools, Duration, Model, Out, Total, Share; 80 columns drop
+  Model as well; 60 columns drop Duration, Tools and State and show the five
+  columns DEVDESK-43 delivered. Rule 116 holds at each width (rendered extent =
+  width - 2). The new columns have no sort: `.` keeps its cycle.
 - **Sort.** Only `Total` is sortable (`Less`, `DescFirst`). `.` cycles tree,
   `Total ▼`, `Total ▲`, tree. A table that opened unsorted returns to the tree
-  after the last step. `agentRows(usage, tree)` draws the branches only when no
+  after the last step. `agentRows(usage, tree, clock)` draws the branches only when no
   sort is active: a sorted list is flat, and a branch there would lie about who
   is whose child. `cycleAgentSort` rebuilds the rows after each press and
   remeasures the Agent column. The sort lives in the table, so it survives
@@ -512,6 +595,64 @@ and when a session ran at this level (see the privacy amendment above). `→` or
   on leaving the level (`closeAgents`), on `Leave` and on resume; an answer with
   another generation, or arriving after the user went back, is dropped.
   `ctrl+r` at the agents level reads the open session again from the start.
+
+#### Agent state and activity (DEVDESK-46)
+
+`status.go` derives the State column. The package describes what the transcripts
+say; what counts as "idle" is a display policy that depends on the view's clock,
+so it lives here, not in `internal/agentusage`. `agentStates` is pure: the clock
+is a parameter (`statusClock{now, alive}`).
+
+- **`alive`** means the poll chain is live: `!Settled(at, quietPeriod)`. There is
+  no other source (no process probe, no session registry): it also works for a
+  transcript copied from elsewhere.
+- **`quiet`** means `now - LastActivity > idleAfter` (5 min), **strictly**: at
+  exactly 5 min an agent is still running. No timestamp, or a timestamp in the
+  future (clock skew), is never quiet.
+- **`now` is `usageDeltaMsg.at`**, the moment the read finished, not the wall
+  clock at render time, so the same answer gives the same states on every frame.
+
+| Agent | Condition | State |
+|---|---|---|
+| sub-agent | meta `finished: true` | `done` |
+| sub-agent | meta `finished: false` | `running`, or `idle` when quiet, whether or not the session is alive |
+| sub-agent | no `finished` key, session alive | `running` / `idle` as above |
+| sub-agent | no `finished` key, session not alive | `unknown` |
+| orchestrator | session alive | `running`, or `idle` when quiet **and no sub-agent is `running`** |
+| orchestrator | session not alive | `unknown` |
+
+The orchestrator is **never `done`**: Claude Code writes no end marker for it. A
+foreground `Agent` call leaves it silent for as long as the sub-agent runs, so it
+is not idle while one runs; if every running sub-agent is itself idle, it is idle
+too. Once updates pause it reads `unknown`, so a session waiting at the prompt for
+more than 5 min shows `unknown` and `Updates › paused`. Colours (Rule 122): `idle`
+in the MEDIUM orange, `unknown` dim, `running` and `done` in the text colour.
+
+**The rows are rebuilt on every successful read, even an empty one** (`applyRead`
+in `update.go`). An agent turns idle precisely because nothing arrives, so an
+empty delta must still move the clock. `settled` is computed once and used for
+both the clock and the decision to stop polling; while a `ctrl+r` full read is
+pending the session counts as alive, so the header does not flash `paused`.
+`withUsage` is `withRows` plus clearing the loading and error flags; population
+is unchanged on an empty delta, so there is no `Remeasure` and the selection
+stays on its agent. On `os.ErrNotExist`, `failRead` marks the clock not alive and
+calls `withRows` (not `withUsage`), so the red footer stays. Opening or leaving a
+session resets the clock.
+
+**Header.** `Idle › N` follows `Updates`, only when N > 0, counted over every row
+(`agentTable.Items()`), not the filtered ones: an alert must not hide behind a
+filter. No shortcut was added, so Rule 130's key set is unchanged.
+
+**Known limits.**
+1. *Idle is a hint.* A long tool call (a 10-minute test run) writes nothing and
+   reads idle. The help says so.
+2. *Duration is wall clock.* A resumed session spans days between its first and
+   last line.
+3. *Clock skew.* The idle test compares the transcript's clock with this
+   machine's; a sandbox with a skewed clock shows wrong flags (a future timestamp
+   is never idle, a past one is).
+4. *A lone orchestrator pauses when it would turn idle.* The chain stops at the
+   same 5 min, so it reads `unknown`, not `idle` (see "Known limits, deliberate").
 
 #### Live updates (DEVDESK-45)
 
@@ -614,8 +755,9 @@ dumped. Read errors are logged and never shown.
    chain the way `Leave` does, or a poll would continue under another view.
 
 **Privacy.** The view displays the project directory, the date, the session ID,
-agent types, models and token counts. It never displays or logs the paths of
-files a session touched, nor any content (prompt, reply, tool input or output):
+agent types, models, token counts, states, tool-call counts and durations. It
+never displays or logs the paths of files a session touched, nor any content
+(prompt, reply, tool name, input or output):
 `Usage` holds numbers and labels only, as stated in "Privacy" above.
 
 Known limits: the FIFO risk and the lack of a memory or time bound before the

@@ -68,11 +68,27 @@ func (m Model) agentsHeaderInfo() []shortcut.HeaderInfo {
 	for _, r := range rows {
 		total += r.Tokens.Total()
 	}
-	return []shortcut.HeaderInfo{
+	info := []shortcut.HeaderInfo{
 		{Key: "Agents", Value: strconv.Itoa(len(rows)), Style: theme.HeaderValueStyle},
 		{Key: "Tokens", Value: formatTokens(total), Style: theme.HeaderValueStyle},
 		{Key: "Updates", Value: m.updatesState(), Style: theme.HeaderValueStyle},
 	}
+	if n := m.idleCount(); n > 0 {
+		info = append(info, shortcut.HeaderInfo{Key: "Idle", Value: strconv.Itoa(n), Style: theme.HeaderValueStyle})
+	}
+	return info
+}
+
+// idleCount counts the idle agents over every row, not just the visible ones:
+// an alert must not hide behind a filter.
+func (m Model) idleCount() int {
+	n := 0
+	for _, r := range m.agentTable.Items() {
+		if r.state == stateIdle {
+			n++
+		}
+	}
+	return n
 }
 
 // updatesState says whether the open session is polled: live while the chain

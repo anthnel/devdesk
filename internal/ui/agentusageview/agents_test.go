@@ -128,7 +128,7 @@ func TestAgentRows(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			rows := agentRows(tt.usage, tt.tree)
+			rows := agentRows(tt.usage, tt.tree, statusClock{})
 			if len(rows) != len(tt.wantIDs) {
 				t.Fatalf("got %d rows, want %d", len(rows), len(tt.wantIDs))
 			}
@@ -164,7 +164,7 @@ func TestAgentRowsSharesAddUpAndTheOrchestratorAbsorbsTheResidue(t *testing.T) {
 		withTotal(subAgent("a02", "tester", 0, 1), 3000),
 		withTotal(subAgent("a03", "reviewer", 0, 0), 200),
 	}}
-	rows := agentRows(u, true)
+	rows := agentRows(u, true, statusClock{})
 	if len(rows) != 4 {
 		t.Fatalf("got %d rows, want 4", len(rows))
 	}
@@ -185,7 +185,7 @@ func TestAgentRowsOfASessionWithNoTokensHaveNoShare(t *testing.T) {
 	u := agentusage.Usage{Agents: []agentusage.Agent{
 		{Main: true}, {ID: "a01", Type: "coder"},
 	}}
-	for _, r := range agentRows(u, true) {
+	for _, r := range agentRows(u, true, statusClock{}) {
 		if r.share != noShare {
 			t.Errorf("share of %q = %d, want noShare", r.ID, r.share)
 		}
@@ -199,7 +199,7 @@ func TestTwoAgentsOfTheSameTypeStayDistinct(t *testing.T) {
 		subAgent("a0044dcf4954e5b04", "coder", 1, 0),
 		subAgent("a029ee8f056637296", "coder", 1, 0),
 	}}
-	rows := agentRows(u, false)
+	rows := agentRows(u, false, statusClock{})
 	if len(rows) != 3 {
 		t.Fatalf("got %d rows, want 3", len(rows))
 	}
@@ -292,11 +292,11 @@ func TestModelsCell(t *testing.T) {
 
 func TestAgentColumnsLayout(t *testing.T) {
 	cols := agentColumns()
-	wantTitles := []string{"Agent", "ID", "Model", "In", "Out", "Cache read", "Cache write", "Total", "Share"}
+	wantTitles := []string{"Agent", "ID", "State", "Tools", "Duration", "Model", "In", "Out", "Cache read", "Cache write", "Total", "Share"}
 	if len(cols) != len(wantTitles) {
 		t.Fatalf("got %d columns, want %d", len(cols), len(wantTitles))
 	}
-	optional := map[string]bool{"Model": true, "In": true, "Cache read": true, "Cache write": true}
+	optional := map[string]bool{"State": true, "Tools": true, "Duration": true, "Model": true, "In": true, "Cache read": true, "Cache write": true}
 	for i, col := range cols {
 		if col.Title != wantTitles[i] {
 			t.Errorf("column %d = %q, want %q", i, col.Title, wantTitles[i])
@@ -446,6 +446,8 @@ func TestAgentColumnsDimZeroesAndPlaceholders(t *testing.T) {
 			if !got(agentRow{share: 0}) || !got(agentRow{share: noShare}) || got(agentRow{share: 123}) {
 				t.Error("Share: only 0 and the placeholder are dim")
 			}
+		case "State", "Tools", "Duration":
+			continue // covered by activity_columns_test.go
 		case "Model":
 			if !got(zero) || got(full) {
 				t.Error("Model: only the placeholder is dim")

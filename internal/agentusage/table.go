@@ -2,7 +2,10 @@ package agentusage
 
 import (
 	"cmp"
+	"crypto/sha256"
+	"encoding/hex"
 	"slices"
+	"time"
 )
 
 // pos orders lines the way ParseSession reads them (D3).
@@ -79,6 +82,43 @@ func (e *entry) absorb(o *entry) {
 	}
 }
 
+// toolKey identifies one tool call of a message: its tool_use id, or, when
+// the block has none, its place (apiBlockIndex and rank in content).
+type toolKey struct {
+	msg, id  string
+	abi, idx int
+}
+
+// boundedID returns s, or, if it is longer than maxLabelLen, the hex SHA-256 of
+// s (64 bytes): a fixed size, and no two long ids share a key.
+func boundedID(s string) string {
+	if len(s) <= maxLabelLen {
+		return s
+	}
+	h := sha256.Sum256([]byte(s))
+	return hex.EncodeToString(h[:])
+}
+
+// toolSeen is where a tool call was last seen; the agent of the greatest
+// position gets the call, like a message's tokens.
+type toolSeen struct {
+	p     pos
+	agent string
+}
+
+// span is the earliest and latest timestamp seen for an agent.
+type span struct{ first, last time.Time }
+
+// fold widens s to include at.
+func (s *span) fold(at time.Time) {
+	if s.first.IsZero() || at.Before(s.first) {
+		s.first = at
+	}
+	if at.After(s.last) {
+		s.last = at
+	}
+}
+
 // spill totals the lines that no longer get a table entry.
 type spill struct {
 	tokens   Tokens
@@ -113,6 +153,18 @@ type table struct {
 	entries map[msgKey]*entry
 	noID    int // entries holding a line without message id
 	spill   map[string]*spill
+	// tools holds the tool calls of lines with a message id, deduplicated by
+	// toolKey; noIDTools counts, per agent, those of lines without one (each
+	// line is its own event, so a counter is exact and needs no key). spans is
+	// the timestamp range per agent. Only tools is capped (maxToolEntries, the
+	// overflow going to extraTools); the others are bounded by the agents.
+	tools     map[toolKey]toolSeen
+	noIDTools map[string]int
+	// extraTools counts, per agent, the calls past maxToolEntries, which get
+	// no entry. Like the cap on lines without id, which calls spill follows
+	// position on a merge but arrival on a single pass.
+	extraTools map[string]int
+	spans      map[string]*span
 	// counters of lines; CrossFileDuplicates is derived by finish.
 	unreadable, noUsage, noMessageID, oversized int
 	// capped holds the unreadable/oversized issues per file name, trimmed to
@@ -127,10 +179,14 @@ type table struct {
 
 func newTable() *table {
 	return &table{
-		entries:  map[msgKey]*entry{},
-		spill:    map[string]*spill{},
-		capped:   map[string][]issueAt{},
-		versions: map[string]pos{},
+		entries:    map[msgKey]*entry{},
+		spill:      map[string]*spill{},
+		tools:      map[toolKey]toolSeen{},
+		noIDTools:  map[string]int{},
+		extraTools: map[string]int{},
+		spans:      map[string]*span{},
+		capped:     map[string][]issueAt{},
+		versions:   map[string]pos{},
 	}
 }
 
@@ -140,6 +196,7 @@ func (t *table) addLine(agent, name string, p pos, line []byte) {
 	r, kind := decodeLine(line)
 	if kind != kindUnreadable {
 		t.noteVersion(r.Version, p)
+		t.noteActivity(agent, p, r)
 	}
 	switch kind {
 	case kindUsage:
@@ -151,6 +208,129 @@ func (t *table) addLine(agent, name string, p pos, line []byte) {
 		t.addFileIssue(name, p, IssueUnreadable)
 	case kindIgnored, kindSynthetic:
 	}
+}
+
+// noteActivity folds the timestamp and the tool calls of a readable line.
+func (t *table) noteActivity(agent string, p pos, r record) {
+	if !r.At.IsZero() {
+		t.foldSpan(agent, r.At)
+	}
+	if r.MessageID == "" {
+		if n := countLineTools(r.Tools); n > 0 {
+			t.noIDTools[agent] += n
+		}
+		return
+	}
+	msg := boundedID(r.MessageID)
+	for _, ref := range r.Tools {
+		k := toolKey{msg: msg, id: boundedID(ref.id)}
+		// Without a tool_use id the call is keyed by place: apiBlockIndex and
+		// rank in content. Limit: with neither an id nor an apiBlockIndex, two
+		// calls of one message split over two lines both fall on idx 0 and
+		// count once (an undercount). Claude Code 2.1.302 always writes an id.
+		if ref.id == "" {
+			k.abi, k.idx = ref.abi, ref.idx
+		}
+		t.putTool(k, toolSeen{p: p, agent: agent})
+	}
+}
+
+// countLineTools counts the tool calls of one line without message id: a
+// tool_use id repeated in the line is one call, blocks without id each count.
+func countLineTools(refs []toolRef) int {
+	seen := make(map[string]bool, len(refs))
+	n := 0
+	for _, ref := range refs {
+		if ref.id != "" && seen[ref.id] {
+			continue
+		}
+		seen[ref.id] = true
+		n++
+	}
+	return n
+}
+
+// foldSpan widens the span of agent to include at.
+func (t *table) foldSpan(agent string, at time.Time) {
+	sp := t.spans[agent]
+	if sp == nil {
+		sp = &span{}
+		t.spans[agent] = sp
+	}
+	sp.fold(at)
+}
+
+// putTool keeps the greatest position seen for k. A call new to a full table
+// is counted in extraTools instead.
+func (t *table) putTool(k toolKey, s toolSeen) {
+	cur, ok := t.tools[k]
+	switch {
+	case ok && s.p.compare(cur.p) < 0:
+	case !ok && len(t.tools) >= maxToolEntries:
+		t.extraTools[s.agent]++
+	default:
+		t.tools[k] = s
+	}
+}
+
+// maxSelectInsertion is the largest excess trimTools selects by insertion;
+// past it a full sort is cheaper.
+const maxSelectInsertion = 256
+
+// trimTools moves the entries past maxToolEntries, the greatest positions
+// first, to extraTools. With a table already at the cap, as on every poll of
+// a long session, the excess is small: the entries to evict are selected in
+// one pass instead of sorting every key.
+func (t *table) trimTools() {
+	excess := len(t.tools) - maxToolEntries
+	if excess <= 0 {
+		return
+	}
+	var evict []toolKey
+	if excess > maxSelectInsertion {
+		evict = t.sortedToolKeys()[maxToolEntries:]
+	} else {
+		evict = t.greatestToolKeys(excess)
+	}
+	for _, k := range evict {
+		t.extraTools[t.tools[k].agent]++
+		delete(t.tools, k)
+	}
+}
+
+// compareTools orders two tool calls by position, then by key: a total order,
+// so the entries kept do not depend on map iteration.
+func (t *table) compareTools(a, b toolKey) int {
+	return cmp.Or(t.tools[a].p.compare(t.tools[b].p),
+		cmp.Compare(a.msg, b.msg), cmp.Compare(a.id, b.id), cmp.Compare(a.abi, b.abi), cmp.Compare(a.idx, b.idx))
+}
+
+// sortedToolKeys returns every tool key in ascending order.
+func (t *table) sortedToolKeys() []toolKey {
+	keys := make([]toolKey, 0, len(t.tools))
+	for k := range t.tools {
+		keys = append(keys, k)
+	}
+	slices.SortFunc(keys, t.compareTools)
+	return keys
+}
+
+// greatestToolKeys returns the n greatest tool keys in ascending order,
+// scanning the table once.
+func (t *table) greatestToolKeys(n int) []toolKey {
+	top := make([]toolKey, 0, n)
+	for k := range t.tools {
+		if len(top) == n {
+			if t.compareTools(k, top[0]) <= 0 {
+				continue
+			}
+			copy(top, top[1:])
+			top = top[:n-1]
+		}
+		i, _ := slices.BinarySearchFunc(top, k, t.compareTools)
+		top = slices.Insert(top, i, k)
+	}
+	return top
 }
 
 // addOversized counts a line longer than MaxLineBytes that started at p.
@@ -328,6 +508,7 @@ func (t *table) mergeSkipping(o *table, skip map[msgKey]bool) {
 			dst.models.add(m)
 		}
 	}
+	t.mergeActivity(o)
 	t.unreadable += o.unreadable
 	t.noUsage += o.noUsage
 	t.noMessageID += o.noMessageID
@@ -338,6 +519,26 @@ func (t *table) mergeSkipping(o *table, skip map[msgKey]bool) {
 	t.stateIssues = append(t.stateIssues, o.stateIssues...)
 	for v, p := range o.versions {
 		t.noteVersion(v, p)
+	}
+}
+
+// mergeActivity folds o's tool calls and spans into t.
+func (t *table) mergeActivity(o *table) {
+	for k, s := range o.tools {
+		if cur, ok := t.tools[k]; !ok || s.p.compare(cur.p) >= 0 {
+			t.tools[k] = s // the cap is applied once below, by position
+		}
+	}
+	t.trimTools()
+	for agent, n := range o.noIDTools {
+		t.noIDTools[agent] += n
+	}
+	for agent, n := range o.extraTools {
+		t.extraTools[agent] += n
+	}
+	for agent, sp := range o.spans {
+		t.foldSpan(agent, sp.first)
+		t.foldSpan(agent, sp.last)
 	}
 }
 
@@ -373,6 +574,7 @@ func (t *table) finishWith(agents []Agent, extra []issueAt) ([]Agent, Diagnostic
 	for i := range out {
 		out[i].Tokens, out[i].Models = Tokens{}, nil
 		out[i].Messages, out[i].PartialMessages = 0, 0
+		out[i].ToolCalls, out[i].FirstActivity, out[i].LastActivity = 0, time.Time{}, time.Time{}
 		id := cmp.Or(out[i].key, out[i].ID)
 		if out[i].Main {
 			id = ""
@@ -397,7 +599,29 @@ func (t *table) finishWith(agents []Agent, extra []issueAt) ([]Agent, Diagnostic
 	for i := range out {
 		out[i].Models = models[i].list
 	}
+	t.addActivity(out, idx)
 	return out, t.diagnostics(cross, extra), t.orderedVersions()
+}
+
+// addActivity sets the tool calls and the activity span of the agents.
+func (t *table) addActivity(out []Agent, idx map[string]int) {
+	for _, s := range t.tools {
+		if i, ok := idx[s.agent]; ok {
+			out[i].ToolCalls++
+		}
+	}
+	for _, counts := range []map[string]int{t.noIDTools, t.extraTools} {
+		for agent, n := range counts {
+			if i, ok := idx[agent]; ok {
+				out[i].ToolCalls += n
+			}
+		}
+	}
+	for agent, sp := range t.spans {
+		if i, ok := idx[agent]; ok {
+			out[i].FirstActivity, out[i].LastActivity = sp.first, sp.last
+		}
+	}
 }
 
 // addEntry adds one message's final state to its agent.
@@ -455,5 +679,5 @@ func (t *table) hasLines() bool {
 	if t == nil {
 		return false
 	}
-	return len(t.entries) > 0 || len(t.spill) > 0 || t.unreadable+t.noUsage+t.noMessageID+t.oversized > 0
+	return len(t.entries) > 0 || len(t.spill) > 0 || len(t.spans) > 0 || len(t.tools) > 0 || len(t.noIDTools) > 0 || len(t.extraTools) > 0 || t.unreadable+t.noUsage+t.noMessageID+t.oversized > 0
 }

@@ -29,6 +29,8 @@ func listSessionsCmd(gen int) tea.Cmd {
 var (
 	pollInterval = 2 * time.Second
 	quietPeriod  = 5 * time.Minute
+	// idleAfter is how long a "running" agent may stay silent before it reads idle.
+	idleAfter = 5 * time.Minute
 )
 
 // now is the clock the poll chain reads, replaceable in tests.

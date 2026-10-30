@@ -98,6 +98,50 @@ decided together and fixed in one pass; see [§1.2](#12-the-five-parked-defects)
 
 ### 1.1 Fixed
 
+**D88 — l'activité par agent d'`:agent-usage` (état, appels d'outils, durée) repose sur cinq choix durables qui ne se lisent pas dans le code. Décidé.** **Plane:** DEVDESK-46
+
+DEVDESK-46 ajoute `Agent.ToolCalls`, `FirstActivity`, `LastActivity`, `Duration()`
+et les colonnes State, Tools, Duration (voir
+[`agent-usage.md`](architecture/agent-usage.md), « Tool calls and time span » et
+« Agent state and activity »). Ce qui suit est ce qui a été tranché, et ce que ça
+coûte.
+
+- **États : `running` / `idle` / `done` / `unknown`, dérivés dans la vue.** Le
+  paquet décrit ce que disent les transcripts ; « idle » est une politique
+  d'affichage qui dépend de l'horloge et de la chaîne de la vue. « Vivante » =
+  la chaîne de lecture tourne (`!Settled`), sans second signal (pas de registre
+  `~/.claude/sessions`, pas de sonde de PID : surface de confidentialité en plus,
+  invisible depuis un sandbox). Conséquence acceptée : l'orchestrateur n'est
+  **jamais `done`** (Claude Code n'écrit aucune marque de fin) et lit `unknown`
+  dès que la chaîne est en pause, y compris une session qui attend au prompt
+  depuis plus de 5 min.
+- **Seuil idle : 5 min, strictement supérieur** (`idleAfter`, comme le critère de
+  la story). À 5 min pile l'agent est encore `running`. L'orchestrateur n'est pas
+  idle tant qu'un sous-agent `running` existe (un appel `Agent` au premier plan le
+  laisse muet). Un appel d'outil long (10 min de tests) lit idle : un indice, dit
+  dans l'aide.
+- **Un horodatage dans le futur n'est jamais idle** (`now - LastActivity < 0`), de
+  même qu'un agent sans horodatage. Un sandbox à l'horloge décalée se trompe donc
+  vers « running », pas vers une fausse alerte.
+- **Clé d'un appel d'outil : `(message.id, tool_use.id)`**, avec repli sur
+  `(message.id, apiBlockIndex, rang)` sans id d'outil, et un compte par ligne sans
+  `message.id`. Limite connue : sans id d'outil **ni** `apiBlockIndex`, deux appels
+  d'un même message répartis sur deux lignes comptent pour un (sous-comptage ;
+  2.1.302 écrit toujours l'id). Seules les lignes racine `assistant` comptent : les
+  `api-request-blob` rejouent d'anciens `tool_use` et doubleraient le compte.
+- **Table des appels bornée à `maxToolEntries` (100000), le total peut dépasser,
+  jamais être inférieur.** Au-delà, un appel nouveau est compté sans être retenu ;
+  son doublon compterait deux fois. `trimTools` retire l'excès en O(n) : une
+  sélection en une passe quand l'excès est petit (le cas de chaque poll d'une
+  longue session), un tri complet passé 256. Un tri de toutes les clés à chaque
+  lecture coûtait O(n log n) pour rien.
+- **Durée = max - min des horodatages**, pas première ligne - dernière : ils ne
+  sont pas monotones dans un fichier. C'est du temps réel, pauses et reprises
+  comprises (une session reprise peut afficher des jours).
+
+Non fait : trier par les nouvelles colonnes (`.` garde son cycle S-04), afficher
+les noms d'outils, un `Idle` dans le paquet.
+
 **D87 — le lecteur incrémental d'`internal/agentusage` livre avec quatre points
 différés : un FIFO échangé entre `Lstat` et `Open`, un garde de fin de fichier
 d'un seul octet, des `MessageID` non hachés et une table de messages non
