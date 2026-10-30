@@ -1,0 +1,61 @@
+{
+  "cli_version": "0.12.2",
+  "checkpoint_id": "76b98078b234",
+  "strategy": "manual-commit",
+  "branch": "feat/devdesk-44-incremental-reader",
+  "checkpoints_count": 1,
+  "files_touched": [
+    "docs/architecture/agent-usage.md",
+    "docs/backlog.md",
+    "internal/agentusage/activity_test.go",
+    "internal/agentusage/aggregate.go",
+    "internal/agentusage/aggregate_test.go",
+    "internal/agentusage/hardening_test.go",
+    "internal/agentusage/incremental.go",
+    "internal/agentusage/incremental_file_test.go",
+    "internal/agentusage/incremental_file_unix_test.go",
+    "internal/agentusage/incremental_fuzz_test.go",
+    "internal/agentusage/incremental_meta_unix_test.go",
+    "internal/agentusage/incremental_race_test.go",
+    "internal/agentusage/incremental_review_test.go",
+    "internal/agentusage/incremental_test.go",
+    "internal/agentusage/layout.go",
+    "internal/agentusage/lines.go",
+    "internal/agentusage/lines_test.go",
+    "internal/agentusage/parse.go",
+    "internal/agentusage/table.go",
+    "internal/agentusage/table_collision_test.go",
+    "internal/agentusage/table_test.go",
+    "internal/agentusage/usage.go"
+  ],
+  "sessions": [
+    {
+      "metadata": "/76/b98078b234/0/metadata.json",
+      "transcript": "/76/b98078b234/0/full.jsonl",
+      "compact_transcript": "/76/b98078b234/0/transcript.jsonl",
+      "content_hash": "/76/b98078b234/0/content_hash.txt",
+      "prompt": "/76/b98078b234/0/prompt.txt"
+    }
+  ],
+  "token_usage": {
+    "input_tokens": 0,
+    "cache_creation_tokens": 0,
+    "cache_read_tokens": 0,
+    "output_tokens": 0,
+    "api_call_count": 0
+  },
+  "redaction": {
+    "replacements": 4,
+    "layers": {
+      "betterleaks": 0,
+      "connection_string": 0,
+      "credential_key": 0,
+      "credential_value": 0,
+      "credentialed_uri": 0,
+      "entropy": 4,
+      "key_context": 0,
+      "provider_token": 0,
+      "shell_stdin": 0
+    }
+  }
+}
