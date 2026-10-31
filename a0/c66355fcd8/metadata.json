@@ -1,0 +1,77 @@
+{
+  "cli_version": "0.12.2",
+  "checkpoint_id": "a0c66355fcd8",
+  "strategy": "manual-commit",
+  "branch": "feat/devdesk-109-command-palette",
+  "checkpoints_count": 19,
+  "files_touched": [
+    "docs-site/docs/explanation/app-shell.md",
+    "docs-site/docs/explanation/configuration.md",
+    "docs-site/docs/how-to/configure-a-context.md",
+    "docs-site/docs/reference/commands.md",
+    "docs-site/docs/reference/keybindings.md",
+    "docs/architecture/app-shell.md",
+    "docs/backlog.md",
+    "internal/app/app.go",
+    "internal/app/app_header.go",
+    "internal/app/command_line.go",
+    "internal/app/command_line_test.go",
+    "internal/app/command_mode_test.go",
+    "internal/app/command_suggestions.go",
+    "internal/app/command_suggestions_layout_test.go",
+    "internal/app/command_suggestions_test.go",
+    "internal/app/harness_test.go",
+    "internal/app/header_test.go",
+    "internal/app/keys.go",
+    "internal/app/router_test.go",
+    "internal/app/view.go",
+    "internal/ui/cmdsuggest/args_test.go",
+    "internal/ui/cmdsuggest/cmdsuggest.go",
+    "internal/ui/cmdsuggest/cmdsuggest_test.go",
+    "internal/ui/cmdsuggest/contrast_test.go",
+    "internal/ui/cmdsuggest/palette_test.go",
+    "internal/ui/keymap/keymap.go",
+    "internal/ui/overlay/overlay.go",
+    "internal/ui/overlay/overlay_test.go",
+    "internal/ui/theme/colors.go",
+    "internal/ui/theme/manager.go",
+    "internal/ui/theme/styles.go"
+  ],
+  "sessions": [
+    {
+      "metadata": "/a0/c66355fcd8/0/metadata.json",
+      "transcript": "/a0/c66355fcd8/0/full.jsonl",
+      "compact_transcript": "/a0/c66355fcd8/0/transcript.jsonl",
+      "content_hash": "/a0/c66355fcd8/0/content_hash.txt",
+      "prompt": "/a0/c66355fcd8/0/prompt.txt"
+    }
+  ],
+  "token_usage": {
+    "input_tokens": 140,
+    "cache_creation_tokens": 181377,
+    "cache_read_tokens": 7627324,
+    "output_tokens": 38095,
+    "api_call_count": 51,
+    "subagent_tokens": {
+      "input_tokens": 405,
+      "cache_creation_tokens": 2451438,
+      "cache_read_tokens": 25677225,
+      "output_tokens": 33650,
+      "api_call_count": 208
+    }
+  },
+  "redaction": {
+    "replacements": 0,
+    "layers": {
+      "betterleaks": 0,
+      "connection_string": 0,
+      "credential_key": 0,
+      "credential_value": 0,
+      "credentialed_uri": 0,
+      "entropy": 0,
+      "key_context": 0,
+      "provider_token": 0,
+      "shell_stdin": 0
+    }
+  }
+}

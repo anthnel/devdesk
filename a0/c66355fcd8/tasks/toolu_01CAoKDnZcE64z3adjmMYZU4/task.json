@@ -1,0 +1,15 @@
+{
+  "tool_use_id": "toolu_01CAoKDnZcE64z3adjmMYZU4",
+  "agent_id": "a1ef5dfe1cfc9921a",
+  "subagent_type": "team-core:tech-writer",
+  "task_description": "Docs-site palette",
+  "token_usage": {
+    "input_tokens": 9,
+    "cache_creation_tokens": 121470,
+    "cache_read_tokens": 360982,
+    "output_tokens": 1090,
+    "api_call_count": 5
+  },
+  "started_at": "2026-10-31T16:04:50.836170182+01:00",
+  "completed_at": "2026-10-31T16:05:25.390467271+01:00"
+}
