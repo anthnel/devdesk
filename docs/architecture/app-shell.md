@@ -109,6 +109,11 @@ wins. The border is `ColorPaletteBorder` (a closed alias of `ColorPrimary`:
 `ColorText`; the panel is `ColorBackground`, not `ColorCmdLineBg`, because the
 selected row falls back to the latter. The header carries a permanent hint,
 `ctrl+p Commands`, on its last row (`ShortcutHintStyle`, never `ColorDim`).
+That hint is the only discoverability of the palette: views do not list `ctrl+p`
+in `GetShortcuts()` (it would show twice and take room from real shortcuts),
+only in their `?` help `KeyBindings`. `TestNoViewListsTheCommandModeKeyInItsShortcuts`
+(`internal/ui/keymap/header_hint_scan_test.go`) scans the sources and rejects it
+(DEVDESK-124).
 
 **The input** is the router's `textinput.Model`, sized by `sizePaletteInput` (from
 `resize`, an Update path) to the frame minus borders, margins, the prompt and the

@@ -30,7 +30,6 @@ func (m Model) GetShortcuts() shortcut.Shortcuts {
 			// the key that worked was never shown — Rule 130's hazard seen
 			// from the other side.
 			{Key: keymap.Web, Description: "Open ref", Disabled: f == nil || len(f.References) == 0},
-			{Key: "ctrl+p", Description: "Command"},
 		}
 	}
 	return nil
@@ -85,7 +84,6 @@ func (m Model) resultsShortcuts() shortcut.Shortcuts {
 		{Key: keymap.Exclude, Description: "Exclude", Disabled: !m.canExclude().Enabled()},
 		{Key: openPipelineKey, Description: "Open resolved pipeline", Disabled: !m.canOpenPipeline().Enabled()},
 		{Key: "ctrl+r", Description: "New scan"},
-		{Key: "ctrl+p", Description: "Command"},
 		{Key: "?", Description: "Help"},
 	}
 }
@@ -106,7 +104,6 @@ func (m Model) inventoryShortcuts() shortcut.Shortcuts {
 		{Key: keymap.ScanAll, Description: "Rescan all", Disabled: !m.canRescanAll().Enabled()},
 		{Key: "/", Description: "Filter", Disabled: !hasRow},
 		{Key: "ctrl+r", Description: "Refresh"},
-		{Key: "ctrl+p", Description: "Command"},
 		{Key: "?", Description: "Help"},
 	}
 }
