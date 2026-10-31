@@ -1,0 +1,15 @@
+{
+  "tool_use_id": "toolu_019t6tJxEDPPimyNdmeEzYfj",
+  "agent_id": "af22427c24da2c14b",
+  "subagent_type": "project-tester",
+  "task_description": "Test rouge garde-fou ctrl+p",
+  "token_usage": {
+    "input_tokens": 16,
+    "cache_creation_tokens": 75515,
+    "cache_read_tokens": 477434,
+    "output_tokens": 128,
+    "api_call_count": 8
+  },
+  "started_at": "2026-10-31T17:10:08.051265248+01:00",
+  "completed_at": "2026-10-31T17:11:12.740559077+01:00"
+}

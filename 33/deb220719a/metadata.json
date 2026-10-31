@@ -1,0 +1,58 @@
+{
+  "cli_version": "0.12.2",
+  "checkpoint_id": "33deb220719a",
+  "strategy": "manual-commit",
+  "branch": "fix/drop-ctrl-p-from-view-shortcuts",
+  "checkpoints_count": 13,
+  "files_touched": [
+    "docs/architecture/app-shell.md",
+    "internal/app/command_suggestions_layout_test.go",
+    "internal/ui/about/view.go",
+    "internal/ui/dashboard/view.go",
+    "internal/ui/filebrowser/view.go",
+    "internal/ui/forge/auth/view.go",
+    "internal/ui/forge/explorer/view.go",
+    "internal/ui/forge/explorer/view_test.go",
+    "internal/ui/keymap/header_hint_scan_test.go",
+    "internal/ui/security/header.go",
+    "internal/ui/status/view.go",
+    "internal/ui/workspaces/view.go"
+  ],
+  "sessions": [
+    {
+      "metadata": "/33/deb220719a/0/metadata.json",
+      "transcript": "/33/deb220719a/0/full.jsonl",
+      "compact_transcript": "/33/deb220719a/0/transcript.jsonl",
+      "content_hash": "/33/deb220719a/0/content_hash.txt",
+      "prompt": "/33/deb220719a/0/prompt.txt"
+    }
+  ],
+  "token_usage": {
+    "input_tokens": 82,
+    "cache_creation_tokens": 282583,
+    "cache_read_tokens": 5854762,
+    "output_tokens": 16438,
+    "api_call_count": 28,
+    "subagent_tokens": {
+      "input_tokens": 109,
+      "cache_creation_tokens": 912761,
+      "cache_read_tokens": 3689972,
+      "output_tokens": 11608,
+      "api_call_count": 54
+    }
+  },
+  "redaction": {
+    "replacements": 4,
+    "layers": {
+      "betterleaks": 0,
+      "connection_string": 0,
+      "credential_key": 0,
+      "credential_value": 0,
+      "credentialed_uri": 0,
+      "entropy": 4,
+      "key_context": 0,
+      "provider_token": 0,
+      "shell_stdin": 0
+    }
+  }
+}

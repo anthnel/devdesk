@@ -1,0 +1,15 @@
+{
+  "tool_use_id": "toolu_01HuRNPweMwKLmDerT2s852S",
+  "agent_id": "a1e6b2c2d31a3ed82",
+  "subagent_type": "project-coder",
+  "task_description": "Vert DEVDESK-124 retirer ctrl+p",
+  "token_usage": {
+    "input_tokens": 14,
+    "cache_creation_tokens": 67373,
+    "cache_read_tokens": 383242,
+    "output_tokens": 139,
+    "api_call_count": 7
+  },
+  "started_at": "2026-10-31T17:11:22.469786128+01:00",
+  "completed_at": "2026-10-31T17:12:30.499325556+01:00"
+}
