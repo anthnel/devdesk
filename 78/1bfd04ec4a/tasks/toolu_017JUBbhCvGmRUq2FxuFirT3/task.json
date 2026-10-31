@@ -1,0 +1,15 @@
+{
+  "tool_use_id": "toolu_017JUBbhCvGmRUq2FxuFirT3",
+  "agent_id": "a3bbe38b438c28a1d",
+  "subagent_type": "project-tester",
+  "task_description": "Red test wizard reserved names",
+  "token_usage": {
+    "input_tokens": 10,
+    "cache_creation_tokens": 62497,
+    "cache_read_tokens": 255216,
+    "output_tokens": 1207,
+    "api_call_count": 5
+  },
+  "started_at": "2026-10-31T12:45:15.056619951+01:00",
+  "completed_at": "2026-10-31T12:45:38.467095765+01:00"
+}

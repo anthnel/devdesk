@@ -1,0 +1,79 @@
+{
+  "cli_version": "0.12.2",
+  "checkpoint_id": "781bfd04ec4a",
+  "strategy": "manual-commit",
+  "branch": "feat/devdesk-88-ctx-switch",
+  "checkpoints_count": 35,
+  "files_touched": [
+    "README.md",
+    "docs-site/docs/how-to/configure-a-context.md",
+    "docs-site/docs/reference/commands.md",
+    "docs/architecture/app-shell.md",
+    "docs/backlog.md",
+    "internal/app/app.go",
+    "internal/app/command_args.go",
+    "internal/app/command_args_reserved_test.go",
+    "internal/app/command_args_test.go",
+    "internal/app/command_line.go",
+    "internal/app/command_line_test.go",
+    "internal/app/command_suggestions.go",
+    "internal/app/command_suggestions_test.go",
+    "internal/app/context.go",
+    "internal/app/context_args.go",
+    "internal/app/context_exec_test.go",
+    "internal/app/keys.go",
+    "internal/app/lifecycle_test.go",
+    "internal/app/overlay_test.go",
+    "internal/command/parser.go",
+    "internal/command/parser_test.go",
+    "internal/command/suggest.go",
+    "internal/command/suggest_test.go",
+    "internal/config/config.go",
+    "internal/config/context_new_test.go",
+    "internal/ui/cmdsuggest/cmdsuggest.go",
+    "internal/ui/components/footer_message.go",
+    "internal/ui/configuration/view.go",
+    "internal/ui/forge/auth/model.go",
+    "internal/ui/forge/auth/update.go",
+    "internal/ui/forge/auth/view.go",
+    "internal/ui/setup/model.go",
+    "internal/ui/setup/model_test.go"
+  ],
+  "sessions": [
+    {
+      "metadata": "/78/1bfd04ec4a/0/metadata.json",
+      "transcript": "/78/1bfd04ec4a/0/full.jsonl",
+      "compact_transcript": "/78/1bfd04ec4a/0/transcript.jsonl",
+      "content_hash": "/78/1bfd04ec4a/0/content_hash.txt",
+      "prompt": "/78/1bfd04ec4a/0/prompt.txt"
+    }
+  ],
+  "token_usage": {
+    "input_tokens": 238,
+    "cache_creation_tokens": 274502,
+    "cache_read_tokens": 17732318,
+    "output_tokens": 59898,
+    "api_call_count": 85,
+    "subagent_tokens": {
+      "input_tokens": 544,
+      "cache_creation_tokens": 3735270,
+      "cache_read_tokens": 24370001,
+      "output_tokens": 22501,
+      "api_call_count": 279
+    }
+  },
+  "redaction": {
+    "replacements": 15,
+    "layers": {
+      "betterleaks": 0,
+      "connection_string": 0,
+      "credential_key": 0,
+      "credential_value": 0,
+      "credentialed_uri": 0,
+      "entropy": 15,
+      "key_context": 0,
+      "provider_token": 0,
+      "shell_stdin": 0
+    }
+  }
+}
