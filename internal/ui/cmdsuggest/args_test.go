@@ -150,7 +150,7 @@ func TestArgEmptyMessage(t *testing.T) {
 
 func TestArgWindowScrollsWithinEightRows(t *testing.T) {
 	rows := manyCtx(12)
-	in := Input{Rows: rows, Total: 12, Heading: "Contexts · 12 of 12", Cursor: 9, Width: 80, Visible: VisibleRows(len(rows), 30)}
+	in := Input{Rows: rows, Total: 12, Heading: "Contexts · 12 of 12", Cursor: 9, Width: 80, Visible: MaxVisibleRows}
 	if in.Visible != 8 {
 		t.Fatalf("Visible = %d, want 8", in.Visible)
 	}
@@ -209,7 +209,6 @@ func TestArgLinesHaveExactWidth(t *testing.T) {
 			"notice":  {Rows: ctxRows(), Notice: `"w" matches web, work — type more letters or press tab`, Cursor: 1, Width: w, Visible: 4},
 		}
 		for name, in := range cases {
-			in.Frame = Frame(w % 2)
 			for i, l := range render(t, in) {
 				if got := lipgloss.Width(l); got != w {
 					t.Errorf("%s w=%d line %d: width %d: %q", name, w, i, got, ansi.Strip(l))

@@ -85,7 +85,7 @@ const (
 	Copy = "Y" // Copy the obvious thing to the clipboard — a path, a document's content, the MCP connect command
 )
 
-// CommandMode opens the command line, from anywhere — including from a
+// CommandMode opens the command palette, from anywhere — including from a
 // focused text field.
 //
 // ctrl+p, and not ctrl+: : ":" is 0x3A, outside the 0x40-0x5F range Ctrl
@@ -285,7 +285,7 @@ var exceptions = []Exception{
 	{
 		Key:     "tab",
 		Surface: "app/command-line",
-		Why: "Complete the highlighted suggestion. The command line has no tabs " +
+		Why: "Complete the highlighted suggestion. The command palette has no tabs " +
 			"and no fields, so tab's usual jobs (Rule 135: switch tabs, never " +
 			"move between fields) do not exist there, and completing is what " +
 			"tab means in every shell. Nothing is run: enter does that.",

@@ -63,9 +63,10 @@ Press `ctrl+p` to enter command mode, then type:
 - `context list` - Show available contexts
 - `quit` - Exit application
 
-**The command line shows a suggestion list (DEVDESK-89).** Opening it (`ctrl+p`
-or `:`) draws a list of every view and action over the top of the viewport; each
-keystroke ranks it again. The pieces:
+**The command palette (DEVDESK-109, after DEVDESK-89).** There is no permanent
+command line any more. `ctrl+p` or `:` (`:` stays a character inside a field being
+edited) opens a modal palette: one frame holding the input and the suggestion list.
+The pieces:
 
 - `command.Entries()` (`internal/command/registry.go`) is the one ordered
   registry — name, aliases, description, argument placeholder, kind. The parser,
@@ -74,42 +75,70 @@ keystroke ranks it again. The pieces:
   input: exact name or alias, then name prefix, then alias prefix. Once the first
   word names a command that takes an argument and a space follows, it switches to
   the argument stage (`Suggestions.Stage`) with that single entry.
-- `internal/ui/cmdsuggest` renders the list as pure lines (state in, lines out):
-  whole lines, never a cut of styled text, with a bottom rule carrying the count
-  (`3 of 17`, `▲ n more · ▼ m more`) or the warning. `VisibleRows` caps it at
-  eight rows and at the usable viewport height minus the rule; below two usable
-  lines there is no list.
+- `internal/ui/cmdsuggest` is pure (state in, lines out). `Geometry(width, height,
+  headerLines, footerLines)` returns the `Rect`; `RenderPalette` returns exactly
+  `Rect.Height` lines of `Rect.Width` cells, each with an explicit background.
+- `internal/ui/overlay` (`Compose`, `Splice`) draws a box over already rendered
+  lines with `x/ansi` (`Truncate`, `TruncateLeft`): it never cuts an escape
+  sequence, and a row that cannot be spliced exactly falls back to the box cut to
+  the room right of `x`, that row only.
 - The router (`internal/app/command_suggestions.go`) holds the result, the
-  highlighted row (`sugCursor`, -1 for none), the scroll offset and the notice;
-  `renderBody` swaps the viewport's top lines for the list (`FrameJoined` ├─┤, or
-  `FrameClosed` └─┘ for a frameless view such as the dashboard).
+  highlighted row (`sugCursor`, -1 for none), the scroll offset and the notice.
+  `paletteRect`, `paletteRows`, `paletteLines` and `paletteTitle` derive the frame
+  from `a.width`, `a.height`, `a.lastHeaderHeight` and `a.lastFooterHeight`.
 
-Keys in the command line: typing ranks again and highlights the best row; `↑`/`↓`
+**Layout.** Closed, `View()` is the header (7 rows + 1 blank line), the title
+line, the bordered viewport and the footer: the viewport has two more lines than
+with the old command line. Open, `View()` is built the same way (so opening or
+closing changes no height, sends no `WindowSizeMsg`, and `esc` leaves the view
+byte-identical), then `View` composes the palette over the final `H` lines, after
+`fitHeight` and `lipgloss.Place` (`withPalette`, `view.go`). The frame sits right
+under the header's blank line (`y = headerLines`), centered, `min(W-4, 80)` cells
+wide, the whole line when `W < 54`. With `V = H - headerLines - footerLines` free
+lines, it has `n = clamp(min(8, V-4), 0, 8)` suggestion rows and is `n+4` lines
+high, constant while typing: top border carrying the title (`Go to`, or `Contexts`
+at the `:ctx` argument stage), input, separator, `n` rows (blank when there are
+fewer matches), bottom rule carrying the count or the warning. With `n = 0`
+(`V < 5`) the frame is reduced to title, input and rule. The view stays visible
+left, right and below. Header rows 1-7 are never covered; the frame is pulled up
+one row onto the blank line when it would not fit, and what still does not is
+clipped at the bottom, so the input is visible down to a 9-line terminal and
+`View()` is always exactly `H` lines, without panic. Below 9 lines the header
+wins. The border is `ColorPaletteBorder` (a closed alias of `ColorPrimary`:
+`ColorViewportBorder` is under 3:1 in 10 of the 12 shipped themes); text is
+`ColorText`; the panel is `ColorBackground`, not `ColorCmdLineBg`, because the
+selected row falls back to the latter. The header carries a permanent hint,
+`ctrl+p Commands`, on its last row (`ShortcutHintStyle`, never `ColorDim`).
+
+**The input** is the router's `textinput.Model`, sized by `sizePaletteInput` (from
+`resize`, an Update path) to the frame minus borders, margins, the prompt and the
+cursor cell, so a long line scrolls instead of being cut; `paletteInputView` styles
+a *copy* at render time (Rule 110).
+
+Keys in the palette: typing ranks again and highlights the best row; `↑`/`↓`
 move the highlight without wrapping (from no highlight, `↓` takes the first
 visible row and `↑` the last); `tab` writes the highlighted name into the line,
 plus a space when it takes an argument, and runs nothing; `enter` opens the
 highlighted row, or at the argument stage runs the text as typed (`ctx work`
-switches; `ctx new work` creates); `esc` closes the line and the list together. `shift+tab` does
+switches; `ctx new work` creates); `esc` closes the palette. `shift+tab` does
 nothing. With nothing highlighted `tab` and `enter` are greyed in the header
 (`commandLineShortcuts`, which replaces the view's own shortcuts), and `enter`
 says why on the bottom rule: `Type a name or choose one` for an empty line (it
 never quits and changes nothing), `"zz" is not a view or a command` for no match.
-With no list drawn (viewport below two usable lines) nothing is highlighted and
-`enter` runs the text as typed, like the argument stage: `containers` opens the
-view, `co` runs nothing and the line stays open (no notice, there is no rule to
-carry it). `View` is cut to the terminal's height by `fitHeight` (`view.go`):
-the surplus comes off the bottom of the viewport first, so the header's command
-line and the footer outrank viewport rows; no change at normal heights.
-Its floor: below 9 lines the command line itself (the header's 9th line) is cut,
-and at 13 lines or fewer the FilterBar's top edge can disappear with the viewport.
+With no row drawn (`n = 0`) nothing is highlighted and `enter` runs the text as
+typed, like the argument stage: `containers` opens the view, `co` warns on the
+rule and the palette stays open. **The refusal is never silent:** the frame always
+has a bottom rule, so the former declared exception to Rule 130 is gone.
 `enter` is greyed or lit by `runnableText` (`command_line.go`), the one function
-`commandLineShortcuts` and `runCommand` both read. **Declared exception to Rule
-130:** with no list drawn (unknown name, empty line, terminal under 14 lines) a
-refused `enter` is silent, there being no rule to carry the notice.
-The notice lasts until the next key, with no timer. The ghost completion text and
-the `[i/n]` position that used to follow the input, and the breadcrumb of views
-`tab` used to open, are gone. `tab` here is a declared exception to Rule 135
-(`keymap.DeclaredExceptions()`, surface `app/command-line`).
+`commandLineShortcuts` and `runCommand` both read. `fitHeight` (`view.go`) takes the
+surplus off the bottom of the viewport first, then cuts the stack to `H` lines. At
+13 lines or fewer the FilterBar's top edge can disappear with the viewport, and
+while the palette is open on a very short terminal it may cover the footer (the
+view's footer is back on close). The notice lasts until the next key, with no timer.
+The ghost completion text and the `[i/n]` position that used to follow the input,
+and the breadcrumb of views `tab` used to open, are gone. `tab` here is a declared
+exception to Rule 135 (`keymap.DeclaredExceptions()`, surface `app/command-line`,
+id kept).
 
 **`:ctx` (DEVDESK-88).** `ctx <name>` switches to an *existing* context and never
 creates one; creation is `ctx new <name>`, and `ctx -` returns to the previous
@@ -128,7 +157,7 @@ context. The pieces:
   `previousContext` (memory only, set in `handleContextSwitchComplete` when the
   context changes; never written to `~/.devdesk/`, so two instances do not share
   it) and `contextArgs`, a snapshot of the context names. The snapshot is read
-  off the disk by `loadContextNamesCmd` when the command line opens and after
+  off the disk by `loadContextNamesCmd` when the palette opens and after
   each switch, and written only from `Update()` (Rule 110). Until it is `ready`,
   `Resolve` answers `Contexts are still loading — try again`.
 - `command.ArgProvider` (`internal/command/suggest.go`) is how the suggester asks
@@ -137,7 +166,7 @@ context. The pieces:
   The rows are the matching contexts (the current one flagged `(current)`), then
   `-` (`Previous context`) and `new` (`Create a context`).
 - `internal/app/command_args.go` draws and drives the argument stage: the list is
-  `internal/ui/cmdsuggest` rows capped at eight, the rule reads `Contexts · n of
+  `internal/ui/cmdsuggest` rows in the same frame (titled `Contexts`), the rule reads `Contexts · n of
   m`, and `tab` first highlights a row, then writes it into the line. `enter`
   runs `Resolve` with the highlighted row as a hint, and a `tab`-chosen row wins
   over a prefix that matches several contexts. `enter` on an ambiguous prefix

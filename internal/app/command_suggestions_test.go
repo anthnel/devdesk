@@ -21,55 +21,13 @@ import (
 	"github.com/anthnel/devdesk/internal/ui/theme"
 )
 
-// DEVDESK-89 step 5 (with step 0 / DEVDESK-101): the command line shows the
-// suggestion list of docs/ux/command-suggestions.md instead of the horizontal
-// view picker. These tests read the screen (View, stripped of ANSI) and the
-// header's shortcuts; they do not touch the router's fields.
+// DEVDESK-89 step 5 (with step 0 / DEVDESK-101) then DEVDESK-109: the command
+// palette shows the suggestion list of docs/ux/command-suggestions.md in a
+// frame drawn over the view. These tests read the screen (View, stripped of
+// ANSI, the frame cut out by findPaletteFrame) and the header's shortcuts; they
+// do not touch the router's fields.
 
 const maxListRows = 8
-
-func screen(a *App) []string { return strings.Split(ansi.Strip(a.View()), "\n") }
-
-// filetIndex returns the line of the list's bottom rule, or -1.
-func filetIndex(lines []string) int {
-	for i, l := range lines {
-		if strings.HasPrefix(l, "├─") {
-			return i
-		}
-	}
-	return -1
-}
-
-// listRows returns the list rows (between the title line and the rule).
-func listRows(t *testing.T, a *App) []string {
-	t.Helper()
-	lines := screen(a)
-	end := filetIndex(lines)
-	if end < 0 {
-		t.Fatalf("no list rule on screen:\n%s", strings.Join(lines, "\n"))
-	}
-	start := -1
-	for i, l := range lines[:end] {
-		if strings.HasPrefix(l, "┌") {
-			start = i
-		}
-	}
-	if start < 0 {
-		t.Fatalf("no title line above the list:\n%s", strings.Join(lines, "\n"))
-	}
-	return lines[start+1 : end]
-}
-
-// filet returns the text of the bottom rule.
-func filet(t *testing.T, a *App) string {
-	t.Helper()
-	lines := screen(a)
-	i := filetIndex(lines)
-	if i < 0 {
-		t.Fatalf("no list rule on screen:\n%s", strings.Join(lines, "\n"))
-	}
-	return lines[i]
-}
 
 func highlighted(rows []string) []string {
 	var out []string
@@ -109,10 +67,14 @@ func TestCtrlPShowsTheFullListWithNothingHighlighted(t *testing.T) {
 	if got := filet(t, a); !strings.Contains(got, want) {
 		t.Errorf("rule %q lacks %q", got, want)
 	}
+	// The frame is min(W-4, 80) wide and its rows fill it exactly.
 	for _, r := range rows {
-		if w := ansi.StringWidth(r); w != 80 {
-			t.Errorf("row is %d cells wide, want 80: %q", w, r)
+		if w := ansi.StringWidth(r); w != 76 {
+			t.Errorf("row is %d cells wide, want 76: %q", w, r)
 		}
+	}
+	if h := lipgloss.Height(a.View()); h != 24 {
+		t.Errorf("View is %d lines, want 24", h)
 	}
 }
 
@@ -390,6 +352,7 @@ func TestEscClosesTheLineAndTheListInOnePressLeavingTheViewUntouched(t *testing.
 	a := routerAt(t, view, 80, 24)
 	before := *view
 	beforeView := a.currentView
+	beforeScreen := a.View()
 
 	press(t, a, "ctrl+p")
 	typeCommand(t, a, "co")
@@ -399,11 +362,14 @@ func TestEscClosesTheLineAndTheListInOnePressLeavingTheViewUntouched(t *testing.
 	if a.commandMode {
 		t.Error("esc left the line open")
 	}
-	if filetIndex(screen(a)) >= 0 {
-		t.Error("the list survived esc")
+	if _, open := findPaletteFrame(screen(a)); open {
+		t.Error("the palette survived esc")
 	}
 	if a.currentView != beforeView || !reflect.DeepEqual(before, *view) {
-		t.Error("the view changed between opening and closing the line")
+		t.Error("the view changed (or received a message) between opening and closing the palette")
+	}
+	if a.View() != beforeScreen {
+		t.Error("the screen after esc is not byte-identical to the screen before ctrl+p")
 	}
 }
 
@@ -473,9 +439,9 @@ func TestTheShortcutKeysDoNotChangeAcrossTheFourStates(t *testing.T) {
 
 // ── Layout ───────────────────────────────────────────────────────────────────
 
-// Hauteur utile < 2 (no list, usable line, no overflow) is left to step 7.
-func TestTheLayoutHoldsWithTheLineOpen(t *testing.T) {
-	sizes := [][2]int{{80, 24}, {120, 40}, {60, 30}, {40, 16}}
+// The frame is n+4 rows tall and every screen line keeps the terminal's width,
+// at every step and size. The header is 8 lines: the command line is gone.
+func TestTheLayoutHoldsWithThePaletteOpen(t *testing.T) {
 	steps := map[string]func(*testing.T, *App){
 		"empty":    func(*testing.T, *App) {},
 		"matches":  func(t *testing.T, a *App) { typeCommand(t, a, "co") },
@@ -485,22 +451,30 @@ func TestTheLayoutHoldsWithTheLineOpen(t *testing.T) {
 			press(t, a, "down", "down", "down", "down", "down", "down", "down", "down", "down")
 		},
 	}
-	for _, sz := range sizes {
+	for _, sz := range paletteSizes {
 		for name, step := range steps {
 			t.Run(fmt.Sprintf("%dx%d/%s", sz[0], sz[1], name), func(t *testing.T) {
-				a := routerAt(t, &fakeView{body: "body"}, sz[0], sz[1])
+				a := routerAt(t, footedFake(fullWidthBody()), sz[0], sz[1])
 				press(t, a, "ctrl+p")
 				step(t, a)
 
 				if h := lipgloss.Height(a.View()); h != sz[1] {
 					t.Errorf("View is %d lines, want %d", h, sz[1])
 				}
-				if h := lipgloss.Height(a.renderHeader()); h != 10 {
-					t.Errorf("header is %d lines, want 10", h)
+				if h := lipgloss.Height(a.renderHeader()); h != paletteHeaderLines {
+					t.Errorf("header is %d lines, want %d", h, paletteHeaderLines)
 				}
-				for _, r := range listRows(t, a) {
-					if w := ansi.StringWidth(r); w != sz[0] {
-						t.Errorf("list row is %d cells wide, want %d: %q", w, sz[0], r)
+				f := mustFrame(t, a)
+				wantW := min(sz[0]-4, 80)
+				if sz[0] < 54 {
+					wantW = sz[0]
+				}
+				if f.Width != wantW {
+					t.Errorf("frame is %d cells wide, want %d", f.Width, wantW)
+				}
+				for _, r := range f.Lines {
+					if w := ansi.StringWidth(r); w != f.Width {
+						t.Errorf("frame line is %d cells wide, want %d: %q", w, f.Width, r)
 					}
 				}
 			})
@@ -521,7 +495,10 @@ func TestTabIsADeclaredExceptionOfTheCommandLine(t *testing.T) {
 
 // The picker and the completion engine are gone, and stay gone.
 func TestTheOldPickerAndCompletionCodeIsGone(t *testing.T) {
-	banned := []string{"viewPicker", "renderViewPicker", "pickerWindow", "completionEngine", "SetSuggestions", "CompletionEngine"}
+	banned := []string{"viewPicker", "renderViewPicker", "pickerWindow", "completionEngine", "SetSuggestions", "CompletionEngine",
+		// DEVDESK-109: the permanent command line and the list joined to the viewport.
+		"FrameJoined", "overlaySuggestions", "listVisible", "listUsable", "suggestionLines", "minListHeight",
+		"CommandLineStyle", "CommandLineInactiveStyle"}
 	root := filepath.Join("..", "..", "internal")
 	_ = filepath.WalkDir(root, func(path string, d os.DirEntry, err error) error {
 		if err != nil || d.IsDir() || !strings.HasSuffix(path, ".go") || strings.HasSuffix(path, "_test.go") {

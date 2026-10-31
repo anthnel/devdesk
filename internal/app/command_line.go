@@ -63,13 +63,13 @@ func (a *App) handleCommandInput(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	return a, cmd
 }
 
-// closeCommandLine leaves command mode and asks for the re-layout that gives
-// the row back to the inactive prompt. The list goes with the line.
+// closeCommandLine leaves command mode. The list goes with the line. No
+// re-layout is requested: the palette is an overlay and changes no height.
 func (a *App) closeCommandLine() tea.Cmd {
 	a.commandMode = false
 	a.commandInput.Blur()
 	a.resetSuggestions()
-	return a.requestResize()
+	return nil
 }
 
 // runnableText is the single availability question for enter, read by the
@@ -78,7 +78,7 @@ func (a *App) closeCommandLine() tea.Cmd {
 // (too short a viewport), it is the text as typed: a prefix such as "co" is
 // not a name and runs nothing, but an empty line has nothing to run.
 func (a *App) runnableText() (string, bool) {
-	if a.suggestions.Stage != command.StageArgument && a.listVisible() > 0 {
+	if a.suggestions.Stage != command.StageArgument && a.paletteRows() > 0 {
 		entry, ok := a.highlightedEntry()
 		return entry.Name, ok
 	}
@@ -92,11 +92,9 @@ func (a *App) runnableText() (string, bool) {
 func (a *App) runCommand() (tea.Model, tea.Cmd) {
 	input, ok := a.runnableText()
 	if !ok {
-		// Only a drawn list has a rule to carry the notice; without one the
-		// refusal is silent, a documented exception to Rule 130.
-		if a.listVisible() > 0 {
-			a.sugNotice = a.nothingToRunNotice()
-		}
+		// The frame always has a bottom rule, even without rows, so the refusal
+		// is never silent (Rule 130).
+		a.sugNotice = a.nothingToRunNotice()
 		return a, nil
 	}
 
@@ -118,6 +116,8 @@ func (a *App) runCommand() (tea.Model, tea.Cmd) {
 		return a.runContext(cmd.Args)
 	}
 
+	// Typed text that names nothing (a prefix, with no row to choose from).
+	a.sugNotice = a.nothingToRunNotice()
 	return a, nil
 }
 

@@ -361,6 +361,7 @@ func ApplyTheme(t *Theme) {
 
 	// A disabled shortcut's key (Rule 130), same kind of alias.
 	ColorShortcutDisabled = ColorDim
+	ColorPaletteBorder = ColorPrimary
 
 	// Refresh the styles that depend on the colors
 	RefreshStyles()

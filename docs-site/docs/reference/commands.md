@@ -1,7 +1,8 @@
 # Commands
 
 Press `ctrl+p` (or `:` when no text field has focus) to open the command
-line, then type any of these:
+palette, then type any of these. The header always shows the hint
+`ctrl+p Commands`.
 
 | Command | Alias | Switches to |
 |---|---|---|
@@ -37,26 +38,31 @@ One spelling per command — there is no forge-prefixed alternative
 ## `ctrl+p` vs `:`
 
 `ctrl+p` is handled before any form's edit mode can claim it, so it always
-opens the command line, from anywhere. A bare `:` does the same, but only
+opens the command palette, from anywhere. A bare `:` does the same, but only
 when nothing is focused — inside a text field it's an ordinary character,
 which values like `https://trivy-server:4954` need.
 
 ## Suggestions
 
-Opening the command line shows a list of every view and command, with its
-aliases and a one-line description. Typing narrows it, best match first, and
-highlights the first row.
+The palette is a framed box under the header: your input on top, a list of
+suggestions below. It is titled `Go to`, or `Contexts` once you are choosing a
+context (see below). The view stays visible around it. Opening it shows every
+view and command, with its aliases and a one-line description. Typing narrows
+the list, best match first, and highlights the first row. The list shows up to
+eight rows; on a short terminal it shows fewer.
 
 | Key | Effect |
 |---|---|
 | `↑` / `↓` | Move the highlight (no wrap) |
 | `tab` | Write the highlighted name into the line, without running it |
 | `enter` | Open the highlighted row; after `context `, run the text as typed (see below) |
-| `esc` | Close the line and the list |
+| `esc` | Close the palette |
 
 `tab` and `enter` are greyed in the header while no row is highlighted. An
 `enter` on an empty line, or on text that matches nothing, says so on the
-list's bottom line and changes nothing; the message goes at the next key.
+palette's bottom edge and changes nothing; the message goes at the next key.
+The palette keeps the keyboard while it is open: other keys do not reach the
+view behind it.
 
 ### Context names
 
@@ -69,7 +75,7 @@ the current one is marked `(current)`, then come `-` (previous context) and
 - `enter` runs what you typed. If the text is a prefix of several contexts
   (`ctx w` with `web` and `work`), nothing switches and a warning says which
   names match; press `tab` to choose one, then `enter`.
-- `esc` closes the line without doing anything.
+- `esc` closes the palette without doing anything.
 
 A name that matches no context is an error, not a new context:
 `Context "wrok" not found — did you mean "work"? Use :ctx new wrok to create it`.

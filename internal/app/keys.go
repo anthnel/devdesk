@@ -91,8 +91,8 @@ func (a *App) forwardToActiveView(msg tea.Msg) tea.Cmd {
 	return cmd
 }
 
-// enterCommandMode opens the command line unconditionally and asks for a
-// re-layout, since the command line replaces the inactive prompt.
+// enterCommandMode opens the command palette unconditionally. It asks for no
+// re-layout: the palette is an overlay and changes no height.
 //
 // Focus is taken here rather than while rendering: a bubbles/textinput drops
 // every key it receives while blurred, so granting focus from View() would make
@@ -104,7 +104,7 @@ func (a *App) enterCommandMode() tea.Cmd {
 	a.commandInput.Focus()
 	a.sugNotice = ""
 	a.refreshSuggestions()
-	return tea.Batch(a.requestResize(), loadContextNamesCmd())
+	return loadContextNamesCmd()
 }
 
 // inEditMode reports whether the active view has a focused field, which is what

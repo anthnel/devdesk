@@ -6,6 +6,7 @@ import (
 	"github.com/anthnel/devdesk/internal/ui/shortcut"
 	"github.com/anthnel/devdesk/internal/ui/theme"
 	"github.com/charmbracelet/lipgloss"
+	"github.com/charmbracelet/x/ansi"
 )
 
 // HeaderView is the interface each view must implement to provide the header data
@@ -34,7 +35,7 @@ type FramelessView interface {
 	Frameless() bool
 }
 
-// headerMinHeight is the fixed header height (without the command line).
+// headerMinHeight is the fixed header height (without the blank line under it).
 const headerMinHeight = 7
 
 // ASCII logo for the header
@@ -48,7 +49,12 @@ var logoLines = []string{
 
 const logoWidth = 40 // max width of a logo line
 
-// renderHeader generates the header (fixed height) followed by the command line (1 line).
+// paletteHintText is the permanent header hint that advertises the command palette
+// (DEVDESK-109). It sits on the header's last row, flush right.
+const paletteHintText = "ctrl+p Commands"
+
+// renderHeader generates the header (fixed height) and the blank line under it.
+// The command palette is an overlay (DEVDESK-109): it adds no row here.
 func (a *App) renderHeader() string {
 	if view, ok := a.views[a.currentView]; ok {
 		if headerView, implementsHeaderView := view.(HeaderView); implementsHeaderView {
@@ -58,18 +64,7 @@ func (a *App) renderHeader() string {
 			}
 			info := headerView.GetHeaderInfo(a.currentContext)
 
-			header := renderHeaderContent(info, shortcuts, a.width)
-
-			pad := theme.Bg(" ")
-			var cmdLine string
-			if a.commandMode {
-				cmdLine = pad + theme.CommandLineStyle.Width(a.width-2).Render(a.commandInput.View()) + pad
-			} else {
-				cmdLine = pad + theme.CommandLineInactiveStyle.Width(a.width-2).Render("❯") + pad
-			}
-
-			// A blank line under the command line keeps it from touching the title rule.
-			return header + "\n" + theme.EmptyLineBg(a.width) + "\n" + cmdLine + "\n" + theme.EmptyLineBg(a.width)
+			return renderHeaderContent(info, shortcuts, a.width) + "\n" + theme.EmptyLineBg(a.width)
 		}
 	}
 
@@ -128,11 +123,31 @@ func renderHeaderContent(info []shortcut.HeaderInfo, shortcuts shortcut.Shortcut
 		}
 
 		pad := theme.Bg(" ")
+		if i == headerMinHeight-1 {
+			// The hint takes the right end of the shortcut and logo columns.
+			rows[i] = pad + theme.PadWithBg(c1, col1Width) + withPaletteHint(c2, col2Width+col3Width, col2Width) + pad
+			continue
+		}
 		row := pad + theme.PadWithBg(c1, col1Width) + theme.PadWithBg(c2, col2Width) + theme.PadWithBg(c3, col3Width) + pad
 		rows[i] = row
 	}
 
 	return strings.Join(rows, "\n")
+}
+
+// withPaletteHint returns a line of exactly width cells: shortcuts on the left,
+// the palette hint flush right. The shortcuts are clipped to maxShortcuts cells
+// and to what the hint leaves free; ansi.Truncate cuts on cell boundaries and
+// never inside an escape sequence.
+func withPaletteHint(shortcuts string, width, maxShortcuts int) string {
+	hint := ansi.Truncate(theme.ShortcutHintStyle.Render(paletteHintText), width, "")
+	free := min(maxShortcuts, width-lipgloss.Width(hint)-1)
+	if free < 0 {
+		free = 0
+	}
+	left := ansi.Truncate(shortcuts, free, "")
+	gap := width - lipgloss.Width(left) - lipgloss.Width(hint)
+	return left + theme.EmptyLineBg(gap) + hint
 }
 
 // blankHeaderRows returns headerMinHeight background-filled rows of the given width.

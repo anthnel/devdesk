@@ -169,11 +169,11 @@ once.
     menu" on `Shift+S` this rule used to announce never existed in the code,
     and `S` belongs to the vocabulary of actions.
 - **Global**:
-  - `ctrl+p`: Open command mode — from anywhere, including a focused field.
+  - `ctrl+p`: Open the command palette — from anywhere, including a focused field.
     Replaces `alt+:`, which did not reach Terminal.app or iTerm2 (Option is
     not Meta there by default) even though it was the only path that crossed
     a field. See `internal/ui/keymap.CommandMode`.
-  - `:`: Open command mode, except while editing — there it is a character,
+  - `:`: Open the command palette, except while editing — there it is a character,
     which values like `https://trivy-server:4954` need.
   - `/`: Search/Filter.
   - `?`: Open help menu.
@@ -217,6 +217,7 @@ func (m Model) View() string {
 | **Form** | Full viewport | Group/project creation, adding a monitor, editing |
 | **Confirmation** | Centered modal | Deletion, dangerous actions |
 | **Information** | Centered modal | Reports, detailed error messages |
+| **Selector / palette** | Modal anchored under the header, centered horizontally, the view visible around it; no buttons | The command palette (`ctrl+p`): one input and one list, to choose a destination; holds the keyboard |
 
 ### Rule 123 : Placement of the tab row attached to a table
 
@@ -255,10 +256,8 @@ Strict vertical structure (top to bottom):
 
 1. **Header** (fixed): 7 lines
 2. **Blank line**: 1 line
-3. **Command line**: 1 line
-3b. **Blank line**: 1 line (under the command line)
-4. **Viewport** (dynamic): `NormalBorder` border, takes the remaining space
-5. **Footer** (fixed):
+3. **Viewport** (dynamic): title line + `NormalBorder` border, takes the remaining space
+4. **Footer** (fixed):
    - **Without tabs**: blank line (1 line) + info line (1 line) = **2 lines**
    - **With tabs**: tab row (1 line) + blank line (1 line) + info line (1 line) = **3 lines**
 
@@ -274,8 +273,12 @@ Footer rules:
 footerHeight := 2
 // With tabs: tab row + blank line + info line
 if showTabs { footerHeight = 3 }
-viewportHeight := windowHeight - 7 - 1 - 1 - 1 - footerHeight
+viewportHeight := windowHeight - 7 - 1 - footerHeight // the title line is inside it
 ```
+
+There is no command line row (DEVDESK-109): the command palette is an overlay
+composed over the final screen (`overlay.Compose`), so opening or closing it never
+changes a height. The header's last row carries a permanent hint, `ctrl+p Commands`.
 
 Footer rendering:
 ```go
@@ -482,8 +485,8 @@ Applies to all `shortcut.Shortcut{Key: "...", Description: "..."}` definitions a
 
 ### Rule 138 : Only non-obvious shortcuts in GetShortcuts()
 
-**Declared exception: `↑↓ Choose` under the command line.** While the command
-line is open the header lists `↑↓ Choose`, `tab Complete`, `enter Open`,
+**Declared exception: `↑↓ Choose` under the command palette.** While the palette
+is open the header lists `↑↓ Choose`, `tab Complete`, `enter Open`,
 `esc Close`. The arrows are not obvious there: the focus is in a text input,
 where `↑↓` would normally do nothing (DEVDESK-89).
 

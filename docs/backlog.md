@@ -98,6 +98,10 @@ decided together and fixed in one pass; see [§1.2](#12-the-five-parked-defects)
 
 ### 1.1 Fixed
 
+**D92 — The command line is a modal palette. Decided.** **Plane:** DEVDESK-109
+
+The permanent command line cost two viewport rows and the list (DEVDESK-89) hid the top of the view under a full-width block. Decision: a frame anchored under the header, centered, constant height `n+4`, composed over the final screen with `x/ansi` (`Truncate`/`TruncateLeft`) after `fitHeight` and `Place` (`internal/ui/overlay`); the header keeps a permanent `ctrl+p Commands` hint. Opening or closing changes no height. The silent refusal of `enter` with no list drawn (the declared exception to Rule 130) is gone: the frame always has a bottom rule. Rejected: lipgloss v2 compositing (API break across all views); whole-line replacement only (hides the view on both sides, which the story rules out); a vertically centered palette (out of scope). The border colour is a closed alias of `ColorPrimary` (`ColorPaletteBorder`) because `ColorViewportBorder` is below 3:1 in 10 of 12 shipped themes. Rules updated: 112 (selector / palette type), 104 (palette variant), 115/117 (`overlay.Compose`), 124 (no command line row), 138.
+
 **D91 — `:ctx` completion, `ctx -` and `ctx new`: an unknown name no longer creates a context, and the rules that decide it are written down. Decided.** **Plane:** DEVDESK-88
 
 DEVDESK-88 adds the completion of `:ctx` (the suggestion list under the command

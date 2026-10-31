@@ -169,20 +169,21 @@ func TestTheLogoIsVerticallyCentred(t *testing.T) {
 	}
 }
 
-// ── The command line ─────────────────────────────────────────────────────────
+// ── The header block (DEVDESK-109) ───────────────────────────────────────────
 
-// Closed, the header shows the ":" prompt that says the command line is there.
-func TestTheClosedCommandLineShowsThePrompt(t *testing.T) {
+// Closed, the header block is the 7 rows and one blank line: the permanent
+// command line, its inactive prompt and the blank line under it are gone.
+func TestTheClosedHeaderBlockHasNoCommandLine(t *testing.T) {
 	a := router(t, &fakeView{})
 
 	rendered := a.renderHeader()
 
-	if !strings.Contains(rendered, "❯") {
-		t.Error("the inactive command line does not show its prompt")
+	if strings.Contains(rendered, "❯") {
+		t.Error("the closed header still shows a command line prompt")
 	}
-	if lipgloss.Height(rendered) != headerMinHeight+3 {
-		t.Errorf("the header block is %d rows, want %d (header + blank + command line + blank)",
-			lipgloss.Height(rendered), headerMinHeight+3)
+	if lipgloss.Height(rendered) != headerMinHeight+1 {
+		t.Errorf("the header block is %d rows, want %d (header + blank)",
+			lipgloss.Height(rendered), headerMinHeight+1)
 	}
 }
 
@@ -196,18 +197,23 @@ func TestAViewWithoutAHeaderRendersNothing(t *testing.T) {
 	a.resize(120, 40) // must not panic
 }
 
-// The command line row is the bare input: no ghost text completing the typed
-// prefix, and no [i/n] position (DEVDESK-89).
-func TestTheCommandLineRowIsTheBareInput(t *testing.T) {
+// The input is a row of the palette's frame, not of the header: the header
+// shows neither the typed text nor a prompt, and the frame shows the bare input
+// (no ghost completion, no [i/n] position, DEVDESK-89).
+func TestTheTypedTextIsInTheFrameNotInTheHeader(t *testing.T) {
 	a := commanding(t, &fakeView{})
 	typeCommand(t, a, "stat")
 
 	header := ansi.Strip(a.renderHeader())
-	if strings.Contains(header, "statstatus") || strings.Contains(header, "stat"+"us") {
-		t.Errorf("the line shows a completion preview:\n%s", header)
+	if strings.Contains(header, "❯") || strings.Contains(header, "stat") {
+		t.Errorf("the header carries the command line:\n%s", header)
 	}
-	if !strings.Contains(header, "❯stat") {
-		t.Errorf("the line does not show the typed text:\n%s", header)
+	input := mustFrame(t, a).input()
+	if strings.Contains(input, "statstatus") || strings.Contains(input, "stat"+"us") {
+		t.Errorf("the input shows a completion preview: %q", input)
+	}
+	if !strings.Contains(input, "❯ stat") {
+		t.Errorf("the input row does not show the typed text: %q", input)
 	}
 }
 
@@ -251,15 +257,15 @@ func TestTheHeaderNeverOverflowsANarrowTerminal(t *testing.T) {
 	}
 }
 
-// The whole block the router renders (header, blank, command line, blank) keeps
-// its ten rows and wraps nowhere at 40 columns.
+// The whole block the router renders (header, blank) keeps its eight rows and
+// wraps nowhere at 40 columns.
 func TestTheHeaderBlockKeepsItsHeightAtFortyColumns(t *testing.T) {
 	a := routerAt(t, &fakeView{shortcuts: manyShortcuts(12)}, 40, 20)
 
 	lines := strings.Split(a.renderHeader(), "\n")
 
-	if len(lines) != headerMinHeight+3 {
-		t.Errorf("the header block is %d rows, want %d", len(lines), headerMinHeight+3)
+	if len(lines) != headerMinHeight+1 {
+		t.Errorf("the header block is %d rows, want %d", len(lines), headerMinHeight+1)
 	}
 	for i, line := range lines {
 		if got := lipgloss.Width(line); got > 40 {

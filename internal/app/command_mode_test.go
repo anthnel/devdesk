@@ -41,6 +41,9 @@ func TestAltColonEntersCommandModeFromInsideATextField(t *testing.T) {
 	if !a.commandMode {
 		t.Fatal("ctrl+p did not open the command line while the view was editing")
 	}
+	if _, drawn := findPaletteFrame(screen(a)); !drawn {
+		t.Error("ctrl+p opened the palette but nothing is drawn")
+	}
 	if len(view.keysSeen()) != 0 {
 		t.Errorf("ctrl+p was forwarded to the view as %v; the router must consume it", view.keysSeen())
 	}
@@ -53,6 +56,9 @@ func TestAltColonEntersCommandModeWithNothingFocused(t *testing.T) {
 
 	if !a.commandMode {
 		t.Error("ctrl+p did not open the command line")
+	}
+	if _, drawn := findPaletteFrame(screen(a)); !drawn {
+		t.Error("ctrl+p opened the palette but nothing is drawn")
 	}
 }
 
@@ -87,19 +93,30 @@ func TestBareColonStillDependsOnTheView(t *testing.T) {
 	})
 }
 
-// Entering command mode asks for a re-layout: the command line replaces the
-// inactive prompt, and a stale height leaves the viewport one row off.
-func TestEnteringCommandModeRequestsAResize(t *testing.T) {
-	a := router(t, &editingView{editing: true})
+// Opening the palette changes no height: it is drawn over the view, so neither
+// ctrl+p nor ":" asks for a re-layout (the view must not even receive a
+// WindowSizeMsg), and the viewport keeps the height it had.
+func TestOpeningThePaletteDoesNotResize(t *testing.T) {
+	for _, key := range []string{commandModeKey, ":"} {
+		t.Run(key, func(t *testing.T) {
+			view := &fakeView{}
+			a := router(t, view)
+			height := a.viewport.Height
+			received := len(view.received)
 
-	_, cmd := a.handleKeyMsg(testutil.Key(commandModeKey))
+			_, cmd := a.handleKeyMsg(testutil.Key(key))
 
-	size, ok := testutil.MsgOf[tea.WindowSizeMsg](cmd)
-	if !ok {
-		t.Fatalf("entering command mode returned %T, want a resize", testutil.Msg(cmd))
-	}
-	if size.Width != a.width || size.Height != a.height {
-		t.Errorf("resize is %dx%d, want the router's %dx%d", size.Width, size.Height, a.width, a.height)
+			if !a.commandMode {
+				t.Fatalf("%s did not open the palette", key)
+			}
+			if requestsResize(cmd) {
+				t.Errorf("opening the palette with %s requested a resize", key)
+			}
+			if a.viewport.Height != height || len(view.received) != received {
+				t.Errorf("opening changed the layout: viewport %d -> %d, view messages %d -> %d",
+					height, a.viewport.Height, received, len(view.received))
+			}
+		})
 	}
 }
 

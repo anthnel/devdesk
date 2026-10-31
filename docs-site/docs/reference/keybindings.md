@@ -85,15 +85,15 @@ its own set — see `internal/ui/keymap` for the full, per-view list.
 
 | Key | Action |
 |---|---|
-| `ctrl+p` | Open command mode — from anywhere, including inside a focused field |
-| `:` | Open command mode too, except while editing a text field |
+| `ctrl+p` | Open the command palette — from anywhere, including inside a focused field |
+| `:` | Open the command palette too, except while editing a text field |
 | `/` | Search / filter |
 | `?` | Open help |
 | `q` | Quit view/app |
 | `ctrl+r` | Refresh — nothing else |
 
 Only three `Ctrl` combinations exist in the whole app: `ctrl+c` (SIGINT),
-`ctrl+r` (refresh), `ctrl+p` (command line). Most other `Ctrl` letters are
+`ctrl+r` (refresh), `ctrl+p` (command palette). Most other `Ctrl` letters are
 already claimed by the terminal, `screen`, or `tmux` (`ctrl+a`, `ctrl+b`,
 flow control on `ctrl+s`/`ctrl+q`, and `ctrl+i`/`m`/`j`/`h` are literally
 Tab/Enter/LF/Backspace), so a fourth would be reclaiming ground `Shift`

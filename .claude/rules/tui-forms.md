@@ -15,6 +15,11 @@
 - Help instructions with `theme.HelpStyle` at the very bottom
 - Safe choice by default (e.g. "No" for delete confirmations)
 
+**Palette variant (selector, Rule 112).** Border and title only: the title sits in
+the top border, the border is `theme.ColorPaletteBorder`, there are no buttons and
+no help line (Rule 134; the header lists the keys). Every line has an explicit
+background and the exact width of the frame.
+
 ### Rule 113 : Form field spacing
 
 | Layout | Separator after the field |
@@ -39,7 +44,7 @@ Files:
 - `internal/ui/help/help.go` — component and `Provider` interface
 - `internal/ui/*/view.go` or `model.go` — per-view implementation
 
-**Declared gap: the command line has no in-app help.** It is not a view; its
+**Declared gap: the command palette has no in-app help.** It is not a view; its
 keys (`↑↓`, `tab`, `enter`, `esc`) are in the header while it is open and
 documented in `docs-site/docs/reference/commands.md` (DEVDESK-89, decision of
 the user).

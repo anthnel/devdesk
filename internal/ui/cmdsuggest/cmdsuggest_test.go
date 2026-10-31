@@ -50,18 +50,6 @@ func TestRegistryHasSeventeenEntries(t *testing.T) {
 	}
 }
 
-func TestVisibleRows(t *testing.T) {
-	tests := []struct{ matches, usable, want int }{
-		{5, 0, 0}, {5, 1, 0}, {5, 2, 1}, {5, 9, 5}, {17, 9, 8},
-		{17, 30, 8}, {0, 9, 1}, {0, 2, 1}, {3, 3, 2},
-	}
-	for _, tt := range tests {
-		if got := VisibleRows(tt.matches, tt.usable); got != tt.want {
-			t.Errorf("VisibleRows(%d,%d) = %d, want %d", tt.matches, tt.usable, got, tt.want)
-		}
-	}
-}
-
 func TestWindow(t *testing.T) {
 	tests := []struct {
 		name                          string
@@ -119,31 +107,21 @@ func TestColumns(t *testing.T) {
 func TestRenderEveryLineHasExactWidth(t *testing.T) {
 	testutil.TrueColor(t)
 	for _, w := range []int{120, 80, 60, 50, 40, 30} {
-		for _, frame := range []Frame{FrameJoined, FrameClosed} {
-			in := base(w)
-			in.Cursor, in.Frame = 1, frame
-			lines := render(t, in)
-			for i, l := range lines {
-				if got := lipgloss.Width(l); got != w {
-					t.Errorf("w=%d line %d: width %d, want %d: %q", w, i, got, w, ansi.Strip(l))
-				}
+		in := base(w)
+		in.Cursor = 1
+		for i, l := range render(t, in) {
+			if got := lipgloss.Width(l); got != w {
+				t.Errorf("w=%d line %d: width %d, want %d: %q", w, i, got, w, ansi.Strip(l))
 			}
 		}
 	}
 }
 
-func TestRenderFrameCorners(t *testing.T) {
-	in := base(60)
-	last := func(f Frame) string {
-		in.Frame = f
-		l := plain(render(t, in))
-		return l[len(l)-1]
-	}
-	if j := last(FrameJoined); !strings.HasPrefix(j, "├") || !strings.HasSuffix(j, "┤") {
-		t.Errorf("joined filet = %q", j)
-	}
-	if c := last(FrameClosed); !strings.HasPrefix(c, "└") || !strings.HasSuffix(c, "┘") {
-		t.Errorf("closed filet = %q", c)
+// The palette's list always closes with a bottom rule on └ and ┘.
+func TestRenderBottomRuleIsClosed(t *testing.T) {
+	l := plain(render(t, base(60)))
+	if last := l[len(l)-1]; !strings.HasPrefix(last, "└") || !strings.HasSuffix(last, "┘") {
+		t.Errorf("bottom rule = %q", last)
 	}
 }
 

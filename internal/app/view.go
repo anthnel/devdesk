@@ -5,6 +5,7 @@ import (
 
 	"github.com/charmbracelet/lipgloss"
 
+	"github.com/anthnel/devdesk/internal/ui/overlay"
 	"github.com/anthnel/devdesk/internal/ui/theme"
 )
 
@@ -21,18 +22,32 @@ func (a *App) View() string {
 	footer := a.renderViewFooter()
 	inner := fitHeight(header, body, footer, a.height)
 
-	return lipgloss.Place(a.width, a.height, lipgloss.Left, lipgloss.Top, inner,
+	placed := lipgloss.Place(a.width, a.height, lipgloss.Left, lipgloss.Top, inner,
 		lipgloss.WithWhitespaceBackground(theme.ColorBackground))
+	return a.withPalette(placed)
+}
+
+// withPalette draws the open command palette over the final screen. The
+// composition happens after fitHeight and Place, on exactly height lines of
+// width cells, so the geometry is in screen rows whatever the view is.
+func (a *App) withPalette(screen string) string {
+	lines := a.paletteLines()
+	if len(lines) == 0 {
+		return screen
+	}
+	r := a.paletteRect()
+	composed := overlay.Compose(strings.Split(screen, "\n"), lines, r.X, r.Y, a.width)
+	return strings.Join(composed, "\n")
 }
 
 // fitHeight stacks header, body and footer in at most height lines.
 // lipgloss.Place pads a short block but never crops a tall one, so on a very
-// small terminal (header 10 + title 1 + the viewport's minimum + footer) the
+// small terminal (header 8 + title 1 + the viewport's minimum + footer) the
 // frame would be taller than the screen. The surplus is taken from the body
-// first, bottom lines first: the header carries the command line and the
-// footer carries the messages, so both outrank viewport rows. If the header
-// alone is taller than the terminal, the whole stack is cut to its first
-// height lines, the simplest floor. At normal heights nothing is cut.
+// first, bottom lines first: the footer carries the messages, so it outranks
+// viewport rows. If header and footer alone are taller than the terminal, the
+// stack is cut to its first height lines, the simplest floor. At normal
+// heights nothing is cut.
 func fitHeight(header, body, footer string, height int) string {
 	parts := []string{header}
 	if body != "" {
@@ -105,7 +120,7 @@ func (a *App) renderBody() string {
 			body = replaceViewportBottomCorners(body)
 		}
 	}
-	return a.overlaySuggestions(body)
+	return body
 }
 
 // renderTitleLine draws the viewport's top border carrying the view's title —

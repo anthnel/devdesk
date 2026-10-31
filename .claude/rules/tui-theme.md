@@ -32,6 +32,11 @@
 
 `lipgloss.Place` → always use `WithWhitespaceBackground(theme.ColorBackground)`.
 
+**Drawing over an already rendered screen** (the command palette) goes through
+`overlay.Compose` (`internal/ui/overlay`) and nothing else: it splices with
+`x/ansi` and never cuts an escape sequence. `lipgloss.Place` stays for full-screen
+modals. Never slice a styled line by bytes or runes.
+
 ### Rule 117 : Centralized helpers of the `theme` package
 
 **Never recreate `bg()`, `padWithBg()`, `bgWrap()` locally.**
@@ -44,6 +49,7 @@
 | `theme.BgWrap(s, width)` | Background + pad on each line (multi-line) |
 | `theme.EmptyLineBg(width)` | Blank line filled with background |
 | `theme.OverlayBoxStyle()` | Standard style for overlay modals |
+| `overlay.Compose(base, box, x, y, width)` | Box drawn over rendered lines, ANSI-safe |
 
 - **Inline text** → `theme.Bg("text")`
 - **Full line** → `theme.BgLine("text", width)`
