@@ -459,3 +459,13 @@ func TestTheInputAndTheFooterSurviveShortTerminals(t *testing.T) {
 		})
 	}
 }
+
+// The shell supplies "ctrl+p Commands" on the header's last row; the shortcut
+// column of the open palette must not repeat it (DEVDESK-124).
+func TestOpenPaletteShortcutsDoNotRepeatTheHint(t *testing.T) {
+	a := routerAt(t, &fakeView{body: "body"}, 80, 12)
+	press(t, a, "ctrl+p")
+	if testutil.HasShortcut(a.commandLineShortcuts(), "ctrl+p") {
+		t.Error("commandLineShortcuts lists ctrl+p; the permanent hint already shows it")
+	}
+}

@@ -587,7 +587,6 @@ func (m Model) GetShortcuts() shortcut.Shortcuts {
 		{Key: "ctrl+r", Description: "Refresh"},
 		{Key: "/", Description: "Search"},
 		{Key: "g", Description: "Fuzzy find"},
-		{Key: "ctrl+p", Description: "Command"},
 		{Key: "?", Description: "Help"},
 	}
 }

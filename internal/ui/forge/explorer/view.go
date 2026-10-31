@@ -455,7 +455,6 @@ func (m Model) GetShortcuts() shortcut.Shortcuts {
 		{Key: ".", Description: "Sort", Disabled: loading},
 		{Key: "/", Description: "Search", Disabled: loading},
 		{Key: "ctrl+r", Description: "Refresh", Disabled: out},
-		{Key: "ctrl+p", Description: "Command"},
 		{Key: "?", Description: "Help"},
 	}
 }

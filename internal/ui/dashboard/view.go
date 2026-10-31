@@ -308,7 +308,6 @@ func (m Model) GetShortcuts() shortcut.Shortcuts {
 		{Key: "ctrl+r", Description: "Refresh"},
 		{Key: keymap.Requests, Description: "Open MRs", Disabled: !links.Enabled()},
 		{Key: keymap.Issues, Description: "Open issues", Disabled: !links.Enabled()},
-		{Key: "ctrl+p", Description: "Command"},
 		{Key: "?", Description: "Help"},
 	}
 }

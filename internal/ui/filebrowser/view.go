@@ -87,7 +87,6 @@ func (m Model) GetShortcuts() shortcut.Shortcuts {
 		{Key: keymap.Delete, Description: "Delete", Disabled: !a.Delete.Enabled()},
 		{Key: "ctrl+r", Description: "Refresh"},
 		{Key: "/", Description: "Search"},
-		{Key: "ctrl+p", Description: "Command"},
 		{Key: "?", Description: "Help"},
 	}
 }
