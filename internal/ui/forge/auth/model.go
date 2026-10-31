@@ -10,6 +10,7 @@ import (
 
 	"github.com/anthnel/devdesk/internal/config"
 	"github.com/anthnel/devdesk/internal/credentials"
+	"github.com/anthnel/devdesk/internal/ui/components"
 	"github.com/anthnel/devdesk/internal/ui/theme"
 )
 
@@ -51,6 +52,9 @@ type Model struct {
 	error          string
 	success        string
 	warning        string // Non-blocking warning (e.g. credentials save failure)
+
+	// footer carries the messages other parts of the app post to this view (Rule 128).
+	footer components.FooterMessage
 
 	width  int
 	height int

@@ -18,7 +18,9 @@ line, then type any of these:
 | `configuration` | `config`, `cfg` | Configuration |
 | `jobs` | `j` | Jobs |
 | `about` | `version` | Build info |
-| `context <name>` | `ctx <name>` | Switch to context `<name>` |
+| `context <name>` | `ctx <name>` | Switch to the existing context `<name>` (it never creates one) |
+| `context -` | `ctx -` | Return to the previous context of this session |
+| `context new <name>` | `ctx new <name>` | Create context `<name>` and switch to it |
 | `context list` | | List available contexts |
 | `quit` | `q` | Exit |
 
@@ -49,13 +51,31 @@ highlights the first row.
 |---|---|
 | `↑` / `↓` | Move the highlight (no wrap) |
 | `tab` | Write the highlighted name into the line, without running it |
-| `enter` | Open the highlighted row; after `context `, run the name as typed |
+| `enter` | Open the highlighted row; after `context `, run the text as typed (see below) |
 | `esc` | Close the line and the list |
 
 `tab` and `enter` are greyed in the header while no row is highlighted. An
 `enter` on an empty line, or on text that matches nothing, says so on the
 list's bottom line and changes nothing; the message goes at the next key.
-`context` takes a name: complete it with `tab`, then type the context name.
+
+### Context names
+
+After `context ` (or `ctx `) the list shows your contexts instead of commands:
+the current one is marked `(current)`, then come `-` (previous context) and
+`new` (create a context). The list shows eight rows at a time and scrolls.
+
+- `tab` highlights the first row; a second `tab` writes the highlighted name
+  into the line.
+- `enter` runs what you typed. If the text is a prefix of several contexts
+  (`ctx w` with `web` and `work`), nothing switches and a warning says which
+  names match; press `tab` to choose one, then `enter`.
+- `esc` closes the line without doing anything.
+
+A name that matches no context is an error, not a new context:
+`Context "wrok" not found — did you mean "work"? Use :ctx new wrok to create it`.
+`ctx -` flips between the two last contexts of the session; at startup it says
+`No previous context in this session`. The previous context is kept in memory
+only. You cannot create a context named `new`, `list` or `-`. `ctx` alone, or `ctx list`, opens the list of contexts.
 
 ## CLI subcommands
 

@@ -135,42 +135,6 @@ func TestSwitchingResetsTheBrowsersThatCanBeStuckInSelectionMode(t *testing.T) {
 	})
 }
 
-// ":context work" creates the context when it does not exist yet, which is the
-// documented way to start a new one.
-func TestContextCommandCreatesAnUnknownContext(t *testing.T) {
-	a := commanding(t, &fakeView{})
-	typeCommand(t, a, "context phase5")
-
-	cmd := feedKey(t, a, testutil.Key("enter"))
-
-	done, ok := testutil.MsgOf[ContextSwitchCompleteMsg](cmd)
-	if !ok {
-		t.Fatalf("the switch produced %T, want a completed switch", testutil.Msg(cmd))
-	}
-	if done.ContextName != "phase5" {
-		t.Errorf("switched to %q, want phase5", done.ContextName)
-	}
-	if !done.Created {
-		t.Error("the context was not reported as created")
-	}
-	if done.Config == nil {
-		t.Error("the switch carried no configuration")
-	}
-}
-
-// A name that cannot be a directory has to be refused before anything is
-// written.
-func TestContextCommandRefusesAnInvalidName(t *testing.T) {
-	a := commanding(t, &fakeView{})
-	typeCommand(t, a, "context ../escape")
-
-	cmd := feedKey(t, a, testutil.Key("enter"))
-
-	if _, ok := testutil.MsgOf[ContextSwitchErrorMsg](cmd); !ok {
-		t.Errorf("an invalid context name produced %T, want an error", testutil.Msg(cmd))
-	}
-}
-
 // Bare ":context" opens the picker instead of switching blindly.
 func TestBareContextCommandListsThem(t *testing.T) {
 	a := commanding(t, &fakeView{})

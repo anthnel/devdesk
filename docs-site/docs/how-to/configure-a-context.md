@@ -12,16 +12,25 @@ see [Run the setup wizard](run-the-setup-wizard.md). It asks one question at
 a time (context name, secret backend, container engine, theme, forge) and
 writes the same file this page describes editing by hand.
 
-From inside the TUI, open the command palette (`ctrl+p`) and go to the
-**Configuration** view (`:config`), or:
+From inside the TUI, open the command line (`ctrl+p`) and run:
 
 ```
-:ctx my-context
+:ctx new my-context
 ```
 
-`ctx <name>` switches to a context, creating it with defaults if it doesn't
-exist yet. Context names must be `default` or match `^[a-z0-9-]+$` —
-lowercase letters, digits, hyphens.
+`ctx new <name>` creates the context with defaults, then switches to it. A
+new context has no forge credentials yet, so you land on the authentication
+screen (`:git-auth`); a `Context "my-context" created` notice confirms it.
+
+Context names must be `default` or match `^[a-z0-9-]+$` — lowercase letters,
+digits, hyphens. You cannot create a context named `new`, `list` or `-`: they
+are command words. A name that already exists gives a warning and changes
+nothing.
+
+!!! warning "`ctx <name>` no longer creates a context"
+    Earlier versions created a context when you switched to a name that did
+    not exist. Now `ctx <name>` only switches to an existing one, so a typo
+    cannot leave an empty context behind. Use `ctx new <name>` to create.
 
 ## Where it lives on disk
 
@@ -35,9 +44,39 @@ The active context's name is tracked in `~/.devdesk/.current-context`.
 ## List and switch
 
 ```
-:context list      # show every context
+:ctx               # show every context (same as :ctx list)
 :ctx work          # switch to "work"
+:ctx -             # go back to the previous context
 ```
+
+`ctx -` works like `cd -`: run it twice and you are back where you started.
+The previous context is remembered for the current session only. Right after
+startup there is none, and DevDesk says `No previous context in this session`.
+
+If the name does not exist, nothing is created:
+
+```
+Context "wrok" not found — did you mean "work"? Use :ctx new wrok to create it
+```
+
+A name with capitals or other invalid characters gets `Invalid context name`.
+Switching to the context you are already on says `Already on context "work"`.
+
+### Complete a name
+
+After `ctx ` the suggestion list shows your contexts. The current one is
+marked `(current)`; `-` (previous context) and `new` (create a context)
+follow. Eight rows show at once; the list scrolls.
+
+1. Type the start of a name: `ctx wo`.
+2. Press `tab` to highlight the first row, and `tab` again to write it into
+   the line.
+3. Press `enter` to switch.
+
+If your text is the start of several contexts (`ctx w` with `web` and `work`),
+`enter` does not guess: nothing switches and the list says which names match.
+Press `tab` to pick one, then `enter`. `esc` closes the line without any
+effect.
 
 ## Edit settings
 

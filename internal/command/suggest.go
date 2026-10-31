@@ -18,12 +18,18 @@ const (
 	StageArgument
 )
 
-// ArgSuggestion is one candidate argument with an optional note.
-type ArgSuggestion struct{ Value, Note string }
+// ArgSuggestion is one candidate argument with an optional note. Current marks
+// the candidate that is already in effect (the renderer labels it), so its Note
+// stays empty rather than saying the same thing twice.
+type ArgSuggestion struct {
+	Value, Note string
+	Current     bool
+}
 
 // ArgProvider supplies argument candidates for one command. The prefix is
 // passed raw: case is preserved (the provider decides how to compare) and
-// trailing whitespace is trimmed. ready is false while the provider is still
+// trailing whitespace is kept, so "new " differs from "new". Only the
+// whitespace between the command and its arguments is removed. ready is false while the provider is still
 // loading its candidates.
 type ArgProvider interface {
 	SuggestArgs(prefix string) (args []ArgSuggestion, ready bool)
@@ -84,7 +90,7 @@ func (s *Suggester) Suggest(input string) Suggestions {
 	raw := strings.TrimLeftFunc(strings.TrimPrefix(strings.TrimLeftFunc(input, unicode.IsSpace), ":"), unicode.IsSpace)
 	head, rest, hasRest := raw, "", false
 	if i := strings.IndexFunc(raw, unicode.IsSpace); i >= 0 {
-		head, rest, hasRest = raw[:i], strings.TrimSpace(raw[i:]), true
+		head, rest, hasRest = raw[:i], strings.TrimLeftFunc(raw[i:], unicode.IsSpace), true
 	}
 	word := normalize(head)
 	out := Suggestions{Query: word, Total: len(s.entries)}

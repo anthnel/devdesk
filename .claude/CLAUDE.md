@@ -632,6 +632,7 @@ Key libraries (see `go.mod`):
 - Config changes must call `config.Save()` to persist
 - All colors defined in `theme/colors.go`, all styles in `theme/styles.go`
 - Message naming: `[ComponentName][Action]Msg` (e.g., `ComponentFormSubmitMsg`)
+- Context names: the rule exists twice (`config.ValidateContextName`, `contextcmd.ValidName`); change both or neither (`TestContextNameRulesAgree`). Creation refuses `-`, `new`, `list` (`config.ValidateNewContextName`); loading does not (D91)
 
 ## Critical Bubble Tea Rules
 

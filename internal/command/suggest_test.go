@@ -155,11 +155,20 @@ func TestSuggestArgumentStageEmptyPrefix(t *testing.T) {
 	}
 }
 
-func TestSuggestArgumentPrefixKeepsCaseAndDropsTrailingSpace(t *testing.T) {
-	p := &fakeProvider{}
-	NewSuggester().WithProvider("context", p).Suggest("ctx  Wo  ")
-	if !slices.Equal(p.got, []string{"Wo"}) {
-		t.Errorf("provider prefixes = %q, want [Wo]", p.got)
+func TestSuggestArgumentPrefixKeepsCaseAndTrailingSpace(t *testing.T) {
+	for _, tc := range []struct{ in, want string }{
+		{"ctx  Wo", "Wo"},
+		{"ctx  Wo  ", "Wo  "},
+		{"ctx new", "new"},
+		{"ctx new ", "new "},
+		{"ctx new x", "new x"},
+		{"ctx   ", ""},
+	} {
+		p := &fakeProvider{}
+		NewSuggester().WithProvider("context", p).Suggest(tc.in)
+		if !slices.Equal(p.got, []string{tc.want}) {
+			t.Errorf("Suggest(%q): provider prefixes = %q, want [%q]", tc.in, p.got, tc.want)
+		}
 	}
 }
 

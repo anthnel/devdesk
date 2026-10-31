@@ -520,7 +520,10 @@ func (m Model) GetHelpContent() help.Content {
 			{
 				Title: "Contexts",
 				Body: "A configuration belongs to one context. This view edits " + m.context + ".\n" +
-					"Switch with :context <name> — every view is rebuilt against the new file.",
+					"Switch with :ctx <name> — every view is rebuilt against the new file.\n" +
+					":ctx - returns to the previous context of this session.\n" +
+					":ctx new <name> creates a context explicitly. :ctx <unknown> never creates\n" +
+					"one: an unknown name is refused. Press tab to complete context names.",
 			},
 			{
 				Title: "Categories and tools",

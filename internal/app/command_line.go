@@ -115,15 +115,7 @@ func (a *App) runCommand() (tea.Model, tea.Cmd) {
 		return a, a.switchView(cmd.View)
 
 	case command.CommandContext:
-		a.commandMode = false
-		a.commandInput.Blur()
-		a.resetSuggestions()
-		if len(cmd.Args) > 0 {
-			// Create/switch to a named context
-			return a, a.switchContext(cmd.Args[0])
-		}
-		// No args -> open the interactive modal
-		return a, a.listContexts()
+		return a.runContext(cmd.Args)
 	}
 
 	return a, nil

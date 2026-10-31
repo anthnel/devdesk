@@ -1,6 +1,6 @@
 # DevDesk Backlog
 
-**Last Updated:** 2026-10-30
+**Last Updated:** 2026-10-31
 
 Open work for DevDesk: known defects, technical debt, and planned features.
 Replaces the former `todo.md` at the repository root. Items completed there
@@ -97,6 +97,47 @@ so they needed a deliberate call rather than a drive-by fix. All five were then
 decided together and fixed in one pass; see [§1.2](#12-the-five-parked-defects).
 
 ### 1.1 Fixed
+
+**D91 — `:ctx` completion, `ctx -` and `ctx new`: an unknown name no longer creates a context, and the rules that decide it are written down. Decided.** **Plane:** DEVDESK-88
+
+DEVDESK-88 adds the completion of `:ctx` (the suggestion list under the command
+line, `ArgProvider` wired through `ArgSuggestion.Current`), `ctx -` (the previous
+context, session memory only), `ctx new <name>` and `ctx list` (an alias of
+`ctx`). The pure logic lives in `internal/contextcmd` (`Resolve`, `Match`,
+`DidYouMean`). What was decided, and what it costs:
+
+- **Breaking change: `:ctx <unknown>` no longer creates a context.** The only
+  creation path is `:ctx new <name>`; the `dk setup` wizard refuses `-`, `new`
+  and `list` as well. Why: a typo used to create an empty context and rebuild
+  every view, restart the MCP server and re-filter the jobs. Users who relied on
+  the typo-creation must now type `new`. To mention in the changelog.
+- **Reserved names `-`, `new`, `list` are refused at creation only**
+  (`config.ValidateNewContextName`). `config.ValidateContextName` is unchanged, so a
+  context that already carries one of these names still loads; it is reachable only
+  through the `:ctx` overlay, not by typing its name.
+- **Strict case matching.** `ctx Work` is a name error, not a switch to `work`.
+  `ParseCommand` lowercases only the command word now, not its arguments.
+- **"Previous" is session memory only.** Nothing is written under `~/.devdesk`.
+  Persistence across sessions is out of scope.
+- **Architecture.** `internal/contextcmd` is pure. The suggester passes the trailing
+  space through. Router messages go through `components.PostFooter`. The forge/auth
+  view now carries a `FooterMessage`. Errors E2 and E6 show on the suggestion
+  list's rail (the list is open); the others show in the footer (the list is
+  closed).
+- **Deviations from the story, accepted.** The did-you-mean "common prefix ≥ 3" is
+  implemented literally as "shares a leading run of at least 3 characters". The list
+  is an 8-line scrolling window, not a hard cap of 10. `ctx list` is an alias of
+  `ctx`.
+- **Known debt.**
+  - The name rule exists twice: `config.ValidateContextName` and
+    `contextcmd.ValidName`. `TestContextNameRulesAgree` and
+    `TestReservedWordsAgree` (`internal/app`) keep them aligned; change both or
+    neither.
+  - The cmdsuggest palette looks `argument note`, `highlighted argument note` and
+    `message` have the same colours as `rowLook`. The two-segment rendering has no
+    visible effect.
+  - `handleContextExists` (setup) prints `err.Error()` raw.
+  - `ctx list` opens the list even when the context snapshot is not ready yet.
 
 **D90 — la ligne de commande affiche une liste de suggestions (DEVDESK-89) : trois écarts aux règles, un fantôme supprimé, des thèmes recopiés à la main.**
 

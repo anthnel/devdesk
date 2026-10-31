@@ -2,6 +2,8 @@ package app
 
 import (
 	"context"
+	"errors"
+	"fmt"
 	"log"
 	"strings"
 
@@ -9,9 +11,11 @@ import (
 
 	"github.com/anthnel/devdesk/internal/command"
 	"github.com/anthnel/devdesk/internal/config"
+	"github.com/anthnel/devdesk/internal/contextcmd"
 	"github.com/anthnel/devdesk/internal/credentials"
 	"github.com/anthnel/devdesk/internal/forge"
 	"github.com/anthnel/devdesk/internal/forge/session"
+	"github.com/anthnel/devdesk/internal/ui/components"
 	"github.com/anthnel/devdesk/internal/ui/theme"
 )
 
@@ -19,7 +23,7 @@ import (
 type ContextSwitchCompleteMsg struct {
 	ContextName string
 	Config      *config.Config
-	Created     bool // true if the context was created automatically
+	Created     bool // true if the switch followed a ":ctx new" creation
 	Forge       forge.Forge
 	GitLabUser  forge.User
 
@@ -32,8 +36,19 @@ type ContextSwitchCompleteMsg struct {
 
 // ContextSwitchErrorMsg reports an error during the switch
 type ContextSwitchErrorMsg struct {
+	Name  string
+	Op    contextOp
 	Error error
 }
+
+// contextOp names the operation a ContextSwitchErrorMsg reports on.
+type contextOp string
+
+const (
+	opSwitch contextOp = "switch"
+	opCreate contextOp = "create"
+	opList   contextOp = "list"
+)
 
 // ContextListMsg holds the list of available contexts
 type ContextListMsg struct {
@@ -41,12 +56,16 @@ type ContextListMsg struct {
 	Current  string
 }
 
-// switchContext handles context switching with auto-creation.
+// switchContext loads an existing context and makes it current; it never
+// creates one (":ctx new" does, through createContext).
 //
 // It settles the current view first, for the reason switchView does: a context
 // switch rebuilds every view against a different file, so an uncommitted edit
 // would be dropped — and dropped against the config it was *not* meant for.
 func (a *App) switchContext(contextName string) tea.Cmd {
+	if contextName == a.currentContext {
+		return components.PostFooter(components.LevelInfo, contextcmd.AlreadyText(contextName))
+	}
 	if cmd, ok := a.settleCurrentView(); !ok {
 		return cmd
 	}
@@ -54,70 +73,93 @@ func (a *App) switchContext(contextName string) tea.Cmd {
 
 	return func() tea.Msg {
 		log.Printf("Context switch requested: %s", contextName)
-
-		cfg, created, err := loadOrCreateContext(contextName)
-		if err != nil {
-			return ContextSwitchErrorMsg{Error: err}
+		if err := config.ValidateContextName(contextName); err != nil {
+			return ContextSwitchErrorMsg{Name: contextName, Op: opSwitch, Error: err}
 		}
-
-		// Each context gets its own store: the backend preference is per
-		// context because the configuration file is, and the secrets are keyed
-		// by context so two of them pointing at the same host stay separate.
-		secrets := credentials.Select(contextName, cfg.App.SecretBackend)
-		notices := credentials.MigrateLegacySecrets(secrets.Storage, contextName)
-
-		backend, user := autoLoginForContext(contextName, cfg, secrets.Storage)
-
-		log.Printf("Context switch successful: %s (created: %v, secrets: %s)", contextName, created, secrets.Backend)
-		return ContextSwitchCompleteMsg{
-			ContextName: contextName,
-			Config:      cfg,
-			Created:     created,
-			Forge:       backend,
-			GitLabUser:  user,
-			Secrets:     secrets,
-			Notices:     notices,
-		}
+		return loadContext(contextName, opSwitch, false)
 	}
 }
 
-// loadOrCreateContext validates the name, creates the context when it does not
-// exist yet, loads its configuration and persists it as current.
-func loadOrCreateContext(contextName string) (*config.Config, bool, error) {
-	if err := config.ValidateContextName(contextName); err != nil {
-		log.Printf("ERROR: Context validation failed: %v", err)
-		return nil, false, err
+// createContext creates a context with the default configuration, then loads
+// it and makes it current.
+func (a *App) createContext(contextName string) tea.Cmd {
+	if cmd, ok := a.settleCurrentView(); !ok {
+		return cmd
 	}
+	a.switchingTo = contextName
 
-	exists, err := config.ContextExists(contextName)
-	if err != nil {
-		log.Printf("ERROR: Failed to check context existence: %v", err)
-		return nil, false, err
-	}
-
-	created := false
-	if !exists {
-		log.Printf("Context '%s' does not exist, creating automatically", contextName)
+	return func() tea.Msg {
+		log.Printf("Context creation requested: %s", contextName)
 		if err := config.CreateContext(contextName); err != nil {
-			log.Printf("ERROR: Failed to create context '%s': %v", contextName, err)
-			return nil, false, err
+			return ContextSwitchErrorMsg{Name: contextName, Op: opCreate, Error: err}
 		}
-		created = true
-		log.Printf("Context '%s' created successfully", contextName)
+		return loadContext(contextName, opCreate, true)
 	}
+}
 
+// loadContext is the path both operations share: it loads the context's
+// configuration, persists it as current, resolves its secret store and tries
+// its auto-login. It returns the message describing the outcome.
+func loadContext(contextName string, op contextOp, created bool) tea.Msg {
 	cfg, err := config.LoadContext(contextName)
 	if err != nil {
-		log.Printf("ERROR: Failed to load context '%s': %v", contextName, err)
-		return nil, created, err
+		return ContextSwitchErrorMsg{Name: contextName, Op: op, Error: err}
 	}
-
 	if err := config.SetCurrentContext(contextName); err != nil {
-		log.Printf("ERROR: Failed to persist context switch: %v", err)
-		return nil, created, err
+		return ContextSwitchErrorMsg{Name: contextName, Op: op, Error: err}
 	}
 
-	return cfg, created, nil
+	// Each context gets its own store: the backend preference is per
+	// context because the configuration file is, and the secrets are keyed
+	// by context so two of them pointing at the same host stay separate.
+	secrets := credentials.Select(contextName, cfg.App.SecretBackend)
+	notices := credentials.MigrateLegacySecrets(secrets.Storage, contextName)
+
+	backend, user := autoLoginForContext(contextName, cfg, secrets.Storage)
+
+	log.Printf("Context switch successful: %s (created: %v, secrets: %s)", contextName, created, secrets.Backend)
+	return ContextSwitchCompleteMsg{
+		ContextName: contextName,
+		Config:      cfg,
+		Created:     created,
+		Forge:       backend,
+		GitLabUser:  user,
+		Secrets:     secrets,
+		Notices:     notices,
+	}
+}
+
+// handleContextSwitchError reports a failed switch or creation. The previous
+// views stay on screen; the cause goes to the log, the footer gets a sentence.
+func (a *App) handleContextSwitchError(msg ContextSwitchErrorMsg) (tea.Model, tea.Cmd) {
+	if msg.Op == opList {
+		log.Printf("ERROR [app/context] %s: %v", msg.Op, msg.Error)
+	} else {
+		log.Printf("ERROR [app/context] %s %q: %v", msg.Op, msg.Name, msg.Error)
+	}
+	a.switchingTo = ""
+	level, text := contextErrorFooter(msg)
+	return a, components.PostFooter(level, text)
+}
+
+// contextErrorFooter maps the error of a context operation to a footer message.
+func contextErrorFooter(msg ContextSwitchErrorMsg) (components.Level, string) {
+	switch {
+	case msg.Op == opList:
+		return components.LevelError, "Failed to list contexts — check logs"
+	case errors.Is(msg.Error, config.ErrReservedContextName):
+		return components.LevelError, contextcmd.ReservedText(msg.Name)
+	case errors.Is(msg.Error, config.ErrContextExists):
+		return components.LevelWarning, contextcmd.ExistsText(msg.Name)
+	case !contextcmd.ValidName(msg.Name):
+		return components.LevelError, contextcmd.InvalidText(msg.Name)
+	case errors.Is(msg.Error, config.ErrContextNotFound):
+		return components.LevelError, contextcmd.NotFoundText(msg.Name)
+	}
+	if msg.Op == opCreate {
+		return components.LevelError, fmt.Sprintf("Failed to create context %q — check logs", msg.Name)
+	}
+	return components.LevelError, fmt.Sprintf("Failed to switch to %q — check logs", msg.Name)
 }
 
 // autoLoginForContext tries the new context's own credentials. A failure is not
@@ -150,7 +192,7 @@ func (a *App) listContexts() tea.Cmd {
 		contexts, err := config.ListContexts()
 		if err != nil {
 			log.Printf("ERROR: Failed to list contexts: %v", err)
-			return ContextSwitchErrorMsg{Error: err}
+			return ContextSwitchErrorMsg{Op: opList, Error: err}
 		}
 
 		current, _ := config.GetCurrentContext()
@@ -166,6 +208,9 @@ func (a *App) listContexts() tea.Cmd {
 // handleContextSwitchComplete processes successful context switches
 func (a *App) handleContextSwitchComplete(msg ContextSwitchCompleteMsg) (tea.Model, tea.Cmd) {
 	a.switchingTo = ""
+	if msg.ContextName != a.currentContext {
+		a.previousContext = a.currentContext
+	}
 	a.config = msg.Config
 	a.currentContext = msg.ContextName
 	theme.SetGaugeGlyph(msg.Config.App.GaugeGlyph)
@@ -195,8 +240,12 @@ func (a *App) handleContextSwitchComplete(msg ContextSwitchCompleteMsg) (tea.Mod
 	// did not stop: a run is stamped with the context it was started in and
 	// kept for the session (D8), so a switch changes which runs are relevant,
 	// never whether they exist. Telling the new views is the whole of it.
+	var created tea.Cmd
+	if msg.Created {
+		created = components.PostFooter(components.LevelInfo, fmt.Sprintf("Context %q created", msg.ContextName))
+	}
 	return a, tea.Batch(a.requestResize(), initCmd, a.jobsChanged(), a.restartMCPCmd(), a.syncProxyPortCmd(),
-		a.detectScanTools(), indexCmd)
+		a.detectScanTools(), indexCmd, loadContextNamesCmd(), created)
 }
 
 // handleContextList opens the picker with the cursor on the context in use, so

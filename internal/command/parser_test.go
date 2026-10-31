@@ -146,3 +146,49 @@ func TestParse_AgentUsage(t *testing.T) {
 		})
 	}
 }
+
+// TestParseCommand_ArgumentsKeepTheirCase — only the command name is
+// case-insensitive. Arguments are data (a context name, DEVDESK-88): `:ctx Work`
+// must reach the handler as "Work" so it can be rejected as an invalid name
+// instead of silently becoming "work".
+func TestParseCommand_ArgumentsKeepTheirCase(t *testing.T) {
+	tests := []struct {
+		name         string
+		input        string
+		expectedType CommandType
+		expectedView ViewType
+		expectedArgs []string
+	}{
+		{"upper-case name, mixed-case arg", ":CTX Work", CommandContext, "", []string{"Work"}},
+		{"subcommand and arg keep case", "ctx new Staging", CommandContext, "", []string{"new", "Staging"}},
+		{"full name, mixed-case arg", "context Work", CommandContext, "", []string{"Work"}},
+		{"colon, spaces, mixed case", "  :Ctx   New   MyCtx ", CommandContext, "", []string{"New", "MyCtx"}},
+		{"lower-case input unchanged", "ctx work", CommandContext, "", []string{"work"}},
+		{"no args", "CTX", CommandContext, "", nil},
+		{"Status opens status", "Status", CommandView, ViewStatus, nil},
+		{"STATUS opens status", "STATUS", CommandView, ViewStatus, nil},
+		{":STATUS opens status", ":STATUS", CommandView, ViewStatus, nil},
+		{"alias is case-insensitive", "S", CommandView, ViewStatus, nil},
+		{"QUIT quits", "QUIT", CommandQuit, "", nil},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := ParseCommand(tt.input)
+			if got.Type != tt.expectedType {
+				t.Fatalf("ParseCommand(%q).Type = %v, want %v", tt.input, got.Type, tt.expectedType)
+			}
+			if got.View != tt.expectedView {
+				t.Errorf("ParseCommand(%q).View = %q, want %q", tt.input, got.View, tt.expectedView)
+			}
+			if len(got.Args) != len(tt.expectedArgs) {
+				t.Fatalf("ParseCommand(%q).Args = %q, want %q", tt.input, got.Args, tt.expectedArgs)
+			}
+			for i, arg := range tt.expectedArgs {
+				if got.Args[i] != arg {
+					t.Errorf("ParseCommand(%q).Args[%d] = %q, want %q", tt.input, i, got.Args[i], arg)
+				}
+			}
+		})
+	}
+}

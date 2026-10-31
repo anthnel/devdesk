@@ -4,6 +4,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/anthnel/devdesk/internal/config"
 	"github.com/anthnel/devdesk/internal/ui/help"
 	"github.com/anthnel/devdesk/internal/ui/testutil"
 )
@@ -97,6 +98,9 @@ func TestOverlaysRefuseVimNavigation(t *testing.T) {
 
 func TestChoosingAContextClosesTheListAndSwitches(t *testing.T) {
 	a := router(t, &fakeView{})
+	if err := config.SaveContext(testConfig(), "overlay-pick"); err != nil {
+		t.Fatal(err)
+	}
 	a.Update(ContextListMsg{Contexts: []string{"default", "overlay-pick"}, Current: "default"})
 	a.handleKeyMsg(testutil.Key("down"))
 

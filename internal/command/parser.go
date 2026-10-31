@@ -112,12 +112,14 @@ func normalize(input string) string {
 
 // ParseCommand parses a command and returns a structured Command
 func ParseCommand(input string) Command {
-	parts := strings.Fields(normalize(input))
+	// Only the command word is case-insensitive; arguments (a context name,
+	// for instance) keep the case the user typed.
+	parts := strings.Fields(strings.TrimPrefix(strings.TrimSpace(input), ":"))
 	if len(parts) == 0 {
 		return Command{Type: CommandUnknown}
 	}
 
-	mainCmd, args := parts[0], parts[1:]
+	mainCmd, args := strings.ToLower(parts[0]), parts[1:]
 	if full, isAlias := actionAliases[mainCmd]; isAlias {
 		mainCmd = full
 	}
