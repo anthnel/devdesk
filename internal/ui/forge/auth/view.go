@@ -27,7 +27,6 @@ func (m Model) InEditMode() bool {
 func (m Model) GetShortcuts() shortcut.Shortcuts {
 	return []shortcut.Shortcut{
 		{Key: "enter", Description: "Submit / Advance field"},
-		{Key: "ctrl+p", Description: "Command mode"},
 		{Key: "?", Description: "Help"},
 	}
 }

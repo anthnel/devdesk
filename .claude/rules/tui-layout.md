@@ -490,6 +490,14 @@ is open the header lists `↑↓ Choose`, `tab Complete`, `enter Open`,
 `esc Close`. The arrows are not obvious there: the focus is in a text input,
 where `↑↓` would normally do nothing (DEVDESK-89).
 
+**A global shortcut the shell already shows stays out of `GetShortcuts()`.** The
+command-palette hint (`ctrl+p Commands`, on the header's last row) is drawn by
+the shell on every view, so a view that lists `ctrl+p` too shows it twice and
+pushes a real shortcut out of a narrow header. The view's `?` help keeps it in
+its `KeyBindings`. `TestNoViewListsTheCommandModeKeyInItsShortcuts`
+(`internal/ui/keymap`) scans the sources and fails on a `ctrl+p` entry in a
+shortcut list (DEVDESK-124).
+
 **`GetShortcuts()` must only surface shortcuts that are not self-evident to the user. Omit universally-known navigation shortcuts.**
 
 #### Always omit from GetShortcuts()

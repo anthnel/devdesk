@@ -45,7 +45,6 @@ func (m Model) GetHeaderInfo(_ string) []shortcut.HeaderInfo {
 // (Rule 130).
 func (m Model) GetShortcuts() shortcut.Shortcuts {
 	return []shortcut.Shortcut{
-		{Key: "ctrl+p", Description: "Open command mode"},
 		{Key: "?", Description: "Help"},
 	}
 }

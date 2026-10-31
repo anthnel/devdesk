@@ -48,7 +48,6 @@ func (m Model) GetShortcuts() shortcut.Shortcuts {
 		shortcut.Shortcut{Key: "tab", Description: "Switch tab"},
 		shortcut.Shortcut{Key: ".", Description: "Sort"},
 		shortcut.Shortcut{Key: "/", Description: "Search"},
-		shortcut.Shortcut{Key: "ctrl+p", Description: "Command mode"},
 		shortcut.Shortcut{Key: "?", Description: "Help"},
 	)
 }

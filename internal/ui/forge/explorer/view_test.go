@@ -102,9 +102,10 @@ func TestSignedOutGreysTheVocabulary(t *testing.T) {
 			t.Errorf("%q still acts while signed out", key)
 		}
 	}
-	// ctrl+p is what gets you out of here, so it is the one thing that stays lit.
-	if !testutil.ShortcutEnabled(out, "ctrl+p") {
-		t.Error("ctrl+p is greyed while signed out; it is the way to the auth view")
+	// ctrl+p is the header's permanent hint, supplied by the shell; the view
+	// must not list it too (DEVDESK-124).
+	if testutil.HasShortcut(out, "ctrl+p") {
+		t.Error("the view lists ctrl+p; the header already shows \"ctrl+p Commands\"")
 	}
 
 	in := testutil.ShortcutKeys(drilledModel(t).GetShortcuts())
