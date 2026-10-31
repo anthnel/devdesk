@@ -22,9 +22,26 @@ func (a *App) refreshSuggestions() {
 	a.suggestions = a.suggester.Suggest(a.commandInput.Value())
 	a.sugOffset = 0
 	a.sugCursor = -1
+	if a.argStage() {
+		a.sugCursor = a.defaultArgCursor()
+		return
+	}
 	if a.suggestions.Query != "" && len(a.suggestions.Entries) > 0 {
 		a.sugCursor = 0
 	}
+}
+
+// refreshSuggestionsKeepCursor recomputes the list after an asynchronous load
+// without undoing a move the user already made: the cursor stays where it was,
+// bounded to the new number of rows.
+func (a *App) refreshSuggestionsKeepCursor() {
+	cursor, offset := a.sugCursor, a.sugOffset
+	a.refreshSuggestions()
+	if cursor < 0 || a.sugCursor < 0 {
+		return
+	}
+	a.sugCursor = min(cursor, a.listRowCount()-1)
+	a.sugOffset = max(min(offset, a.sugCursor), 0)
 }
 
 // resetSuggestions forgets the list; the command line is closed or about to be
@@ -48,6 +65,9 @@ func (a *App) highlightedEntry() (command.Entry, bool) {
 // canComplete reports whether tab has something to complete: a highlighted
 // row, at the command stage (an argument is typed, not chosen).
 func (a *App) canComplete() bool {
+	if a.argStage() {
+		return a.listVisible() > 0 && len(a.suggestions.Args) > 0
+	}
 	_, ok := a.highlightedEntry()
 	return ok && a.suggestions.Stage == command.StageCommand
 }
@@ -64,6 +84,10 @@ func (a *App) nothingToRunNotice() string {
 // completeHighlighted writes the highlighted row's name into the line, with a
 // trailing space when the command takes an argument. It runs nothing.
 func (a *App) completeHighlighted() {
+	if a.argStage() {
+		a.completeArg()
+		return
+	}
 	if !a.canComplete() {
 		return
 	}
@@ -91,13 +115,13 @@ func (a *App) listVisible() int {
 	if usable < minListHeight {
 		return 0
 	}
-	return cmdsuggest.VisibleRows(len(a.suggestions.Entries), usable)
+	return cmdsuggest.VisibleRows(a.listRowCount(), usable)
 }
 
 // moveHighlight moves the highlight by delta rows without wrapping. With no
 // highlighted row, down takes the first visible row and up the last.
 func (a *App) moveHighlight(delta int) {
-	n := len(a.suggestions.Entries)
+	n := a.listRowCount()
 	if n == 0 {
 		return
 	}
@@ -125,9 +149,13 @@ func (a *App) suggestionLines() []string {
 	if !a.commandMode || visible == 0 {
 		return nil
 	}
-	rows := make([]cmdsuggest.Row, len(a.suggestions.Entries))
-	for i, e := range a.suggestions.Entries {
-		rows[i] = cmdsuggest.Row{Entry: e, Current: e.Kind == command.KindView && e.Name == string(a.currentView)}
+	rows := a.entryRows()
+	var heading, empty string
+	var loading bool
+	if a.argStage() {
+		rows = a.argRows()
+		heading, empty = a.argHeading(), a.argEmpty()
+		loading = !a.suggestions.ArgsReady
 	}
 	frame := cmdsuggest.FrameJoined
 	if a.frameless() {
@@ -140,10 +168,22 @@ func (a *App) suggestionLines() []string {
 		Cursor:  a.sugCursor,
 		Offset:  a.sugOffset,
 		Notice:  a.sugNotice,
+		Heading: heading,
+		Empty:   empty,
+		Loading: loading,
 		Width:   a.viewport.Width,
 		Visible: visible,
 		Frame:   frame,
 	})
+}
+
+// entryRows renders the command-stage suggestions as list rows.
+func (a *App) entryRows() []cmdsuggest.Row {
+	rows := make([]cmdsuggest.Row, len(a.suggestions.Entries))
+	for i, e := range a.suggestions.Entries {
+		rows[i] = cmdsuggest.Row{Entry: e, Current: e.Kind == command.KindView && e.Name == string(a.currentView)}
+	}
+	return rows
 }
 
 // overlaySuggestions replaces the top lines of the viewport with the list.

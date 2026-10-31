@@ -104,7 +104,7 @@ func (a *App) enterCommandMode() tea.Cmd {
 	a.commandInput.Focus()
 	a.sugNotice = ""
 	a.refreshSuggestions()
-	return a.requestResize()
+	return tea.Batch(a.requestResize(), loadContextNamesCmd())
 }
 
 // inEditMode reports whether the active view has a focused field, which is what

@@ -57,7 +57,9 @@ Press `ctrl+p` to enter command mode, then type:
 - `templates` or `tpl` - Switch to the repository template catalog (see [templates.md](templates.md))
 - `files` or `fs` - Browse the whole filesystem: create and delete files and directories; also the picker a form's path field opens with enter (see [filebrowser.md](filebrowser.md))
 - `about` or `version` - Which build is running: version, commit, build date, and where the config, cache and log live
-- `context <name>` or `ctx <name>` - Switch configuration context
+- `context <name>` or `ctx <name>` - Switch to an existing configuration context (never creates one)
+- `context -` or `ctx -` - Return to the previous context of this session
+- `context new <name>` or `ctx new <name>` - Create a context and switch to it
 - `context list` - Show available contexts
 - `quit` - Exit application
 
@@ -87,7 +89,7 @@ move the highlight without wrapping (from no highlight, `↓` takes the first
 visible row and `↑` the last); `tab` writes the highlighted name into the line,
 plus a space when it takes an argument, and runs nothing; `enter` opens the
 highlighted row, or at the argument stage runs the text as typed (`ctx work`
-creates or switches); `esc` closes the line and the list together. `shift+tab` does
+switches; `ctx new work` creates); `esc` closes the line and the list together. `shift+tab` does
 nothing. With nothing highlighted `tab` and `enter` are greyed in the header
 (`commandLineShortcuts`, which replaces the view's own shortcuts), and `enter`
 says why on the bottom rule: `Type a name or choose one` for an empty line (it
@@ -108,6 +110,48 @@ The notice lasts until the next key, with no timer. The ghost completion text an
 the `[i/n]` position that used to follow the input, and the breadcrumb of views
 `tab` used to open, are gone. `tab` here is a declared exception to Rule 135
 (`keymap.DeclaredExceptions()`, surface `app/command-line`).
+
+**`:ctx` (DEVDESK-88).** `ctx <name>` switches to an *existing* context and never
+creates one; creation is `ctx new <name>`, and `ctx -` returns to the previous
+context. The pieces:
+
+- `internal/contextcmd` is pure (no I/O, no UI imports). `Resolve(args,
+  highlighted, Snapshot)` returns an `Action` (`List`, `Switch`, `Create`,
+  `Refuse`, `KeepOpen`) with the footer level and text; `Match`, `DidYouMean`
+  (edit distance <= min(2, half the shorter length), or a common start of 3+
+  characters) and `ValidName` live there too. `new`, `list` and `-` are
+  reserved words: refused as names to create, and `config.CreateContext` refuses
+  them as well (`ValidateNewContextName`, `ErrReservedContextName`,
+  `ErrContextExists`). Loading does not refuse them, so a context file that
+  already carries one of these names still loads (from the list overlay).
+- The router keeps the state `Resolve` decides against (`internal/app/context_args.go`):
+  `previousContext` (memory only, set in `handleContextSwitchComplete` when the
+  context changes; never written to `~/.devdesk/`, so two instances do not share
+  it) and `contextArgs`, a snapshot of the context names. The snapshot is read
+  off the disk by `loadContextNamesCmd` when the command line opens and after
+  each switch, and written only from `Update()` (Rule 110). Until it is `ready`,
+  `Resolve` answers `Contexts are still loading — try again`.
+- `command.ArgProvider` (`internal/command/suggest.go`) is how the suggester asks
+  a command for argument rows without knowing about contexts; `*contextArgs`
+  implements it from the snapshot alone, so `SuggestArgs` never touches the disk.
+  The rows are the matching contexts (the current one flagged `(current)`), then
+  `-` (`Previous context`) and `new` (`Create a context`).
+- `internal/app/command_args.go` draws and drives the argument stage: the list is
+  `internal/ui/cmdsuggest` rows capped at eight, the rule reads `Contexts · n of
+  m`, and `tab` first highlights a row, then writes it into the line. `enter`
+  runs `Resolve` with the highlighted row as a hint, and a `tab`-chosen row wins
+  over a prefix that matches several contexts. `enter` on an ambiguous prefix
+  (`ctx w` with `web` and `work`) switches nothing: `KeepOpen` leaves the line
+  open and puts the warning on the list's rule. Commands that take no argument
+  keep the old rule (`enter` opens the highlighted row).
+- Results are posted with `components.PostFooter` at one of the three levels of
+  Rule 128 (not found and invalid name: error; ambiguous, no previous context,
+  already exists: warning; already on the context, created: info). A failure
+  after the decision (a race with the disk) goes through `contextErrorFooter`.
+- A context created by `ctx new` has no forge credentials, so the switch lands on
+  the forge authentication screen. That view owns a `components.FooterMessage`
+  (`internal/ui/forge/auth`) so the `Context "x" created` notice posted at the
+  same moment is shown there instead of being dropped.
 
 Command parsing lives in `internal/command/`. `ParseCommand()` returns a structured `Command{Type, View, Args}` supporting `CommandView`, `CommandContext`, `CommandQuit`, `CommandUnknown`.
 

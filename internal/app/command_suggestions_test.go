@@ -407,43 +407,7 @@ func TestEscClosesTheLineAndTheListInOnePressLeavingTheViewUntouched(t *testing.
 	}
 }
 
-// ── Q3: the argument stage ───────────────────────────────────────────────────
-
-func TestAnArgumentShowsTheSingleContextRow(t *testing.T) {
-	a := commanding(t, &fakeView{})
-	typeCommand(t, a, "ctx work")
-
-	rows := listRows(t, a)
-	h := highlighted(rows)
-	if len(rows) < 1 || len(h) != 1 || !strings.Contains(h[0], "context <name>") {
-		t.Errorf("rows %q, want the highlighted context <name> row", rows)
-	}
-	if got := filet(t, a); !strings.Contains(got, fmt.Sprintf("1 of %d", nEntries())) {
-		t.Errorf("rule %q lacks the 1 count", got)
-	}
-}
-
-func TestEnterOnAnArgumentRunsTheTypedTextAsIs(t *testing.T) {
-	a := commanding(t, &fakeView{})
-	typeCommand(t, a, "ctx phaseq")
-
-	cmd := press(t, a, "enter")
-
-	done, ok := testutil.MsgOf[ContextSwitchCompleteMsg](cmd)
-	if !ok || done.ContextName != "phaseq" {
-		t.Errorf("enter produced %T (%+v), want a switch to phaseq", testutil.Msg(cmd), done)
-	}
-}
-
-func TestTabDoesNothingOnAnArgument(t *testing.T) {
-	a := commanding(t, &fakeView{})
-	typeCommand(t, a, "ctx work")
-	press(t, a, "tab")
-
-	if got := a.commandInput.Value(); got != "ctx work" {
-		t.Errorf("tab rewrote the argument line to %q", got)
-	}
-}
+// The argument stage (Q3) is covered by command_args_test.go.
 
 // ── Header shortcuts ─────────────────────────────────────────────────────────
 

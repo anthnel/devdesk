@@ -65,7 +65,11 @@ type FilterBarView interface {
 type App struct {
 	config         *config.Config
 	currentContext string
-	viewport       viewport.Model
+	// previousContext is the context left by the last switch, "" before any.
+	previousContext string
+	// ctxArgs is the snapshot behind the :ctx argument suggestions.
+	ctxArgs  *contextArgs
+	viewport viewport.Model
 
 	// Navigation
 	currentView command.ViewType
@@ -257,6 +261,8 @@ func newWithSize(cfg *config.Config, width, height int) *App {
 		width:          width,
 		height:         height,
 	}
+	app.ctxArgs = &contextArgs{}
+	app.suggester.WithProvider("context", app.ctxArgs)
 	app.wantedProxyPort.Store(int64(cfg.Network.ProxyPort))
 
 	// Other views are created on demand (lazy loading).
@@ -404,6 +410,9 @@ func (a *App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case configuration.ConfigSavedMsg:
 		return a.handleConfigSaved(msg)
 
+	case contextNamesLoadedMsg:
+		return a.handleContextNamesLoaded(msg)
+
 	case MCPServerStartedMsg:
 		return a.handleMCPServerStarted(msg)
 
@@ -426,9 +435,7 @@ func (a *App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return a.handleContextSwitchComplete(msg)
 
 	case ContextSwitchErrorMsg:
-		log.Printf("ERROR: Context operation failed: %v", msg.Error)
-		a.switchingTo = ""
-		return a, nil
+		return a.handleContextSwitchError(msg)
 
 	case ContextListMsg:
 		return a.handleContextList(msg)

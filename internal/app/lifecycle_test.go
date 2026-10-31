@@ -207,6 +207,9 @@ func TestSwitchingContextAdoptsTheNewStore(t *testing.T) {
 // write to the model off the Update goroutine (Rule 110).
 func TestTheSwitchCommandCarriesAStore(t *testing.T) {
 	a := router(t, &fakeView{})
+	if err := config.SaveContext(testConfig(), "secretsctx"); err != nil {
+		t.Fatal(err)
+	}
 
 	done, ok := testutil.MsgOf[ContextSwitchCompleteMsg](a.switchContext("secretsctx"))
 	if !ok {

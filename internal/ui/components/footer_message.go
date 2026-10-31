@@ -117,14 +117,9 @@ type ClearFooterMsg struct{ ID uint64 }
 // both, so the rule that a message set without its timer never clears holds
 // here too (Rule 128).
 //
-// **It lands only where a view holds a FooterMessage.** internal/ui/forge/auth
-// renders a footer but declares none, so a broadcast posted while that view is
-// on screen reaches nobody — and the router switches to it whenever a context
-// has no forge credentials. That is a real gap and not a silent one: the only
-// broadcast today is the MCP server's, and its state is also on the `mcp` tab
-// of the configuration view, which holds it for as long as it is true rather
-// than for three seconds. A second use of this door would need auth to declare
-// a footer first.
+// **It lands only where a view holds a FooterMessage.** A view without one
+// receives the broadcast and ignores it. internal/ui/forge/auth now holds a
+// FooterMessage, so the message reaches it like any other view.
 type PostFooterMsg struct {
 	ID    uint64
 	Level Level

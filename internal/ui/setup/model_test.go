@@ -3,10 +3,12 @@ package setup
 import (
 	"errors"
 	"io"
+	"io/fs"
 	"log"
 	"net/http"
 	"net/http/httptest"
 	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 
@@ -536,5 +538,66 @@ func TestCheckContainerEngineCmdReturnsAWellFormedMessage(t *testing.T) {
 	}
 	if !msg.Missing && msg.Name == "" {
 		t.Error("a non-missing result must name the engine it checked")
+	}
+}
+
+// DEVDESK-88: the wizard creates a context, so it must refuse the names the
+// `dk context` subcommands own (config.ValidateNewContextName).
+func TestSubmitContextNameRefusesReservedNamesAndAcceptsOrdinaryOnes(t *testing.T) {
+	tests := []struct {
+		name     string
+		input    string
+		rejected bool
+	}{
+		{"dash is reserved", "-", true},
+		{"new is reserved", "new", true},
+		{"list is reserved", "list", true},
+		{"ordinary name passes", "staging", false},
+		{"name merely containing a reserved word passes", "new-prod", false},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			isolateHome(t)
+			m := New()
+			m = feed(t, m, testutil.Key("enter")) // font check -> context name
+			m.contextNameInput.SetValue(tc.input)
+
+			m = feed(t, m, testutil.Key("enter")) // submit the name
+
+			if m.step != stepContextName {
+				t.Fatalf("step = %d, want stepContextName", m.step)
+			}
+			hasErr := m.footer.IsSet() && m.footer.Level() == components.LevelError
+			if tc.rejected {
+				if !hasErr {
+					t.Errorf("%q was not refused: no footer error", tc.input)
+				}
+				if m.pending != "" {
+					t.Errorf("%q was refused but the existence check started (pending = %q)", tc.input, m.pending)
+				}
+			} else {
+				if hasErr {
+					t.Errorf("%q was refused unexpectedly", tc.input)
+				}
+				if m.pending == "" {
+					t.Errorf("%q did not start the existence check", tc.input)
+				}
+			}
+
+			home, err := os.UserHomeDir()
+			if err != nil {
+				t.Fatal(err)
+			}
+			var written []string
+			_ = filepath.WalkDir(filepath.Join(home, ".devdesk"), func(p string, d fs.DirEntry, err error) error {
+				if err == nil && !d.IsDir() {
+					written = append(written, p)
+				}
+				return nil
+			})
+			if len(written) != 0 {
+				t.Errorf("files written while submitting the name: %v", written)
+			}
+		})
 	}
 }

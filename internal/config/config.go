@@ -1,6 +1,7 @@
 package config
 
 import (
+	"errors"
 	"fmt"
 	"log"
 	"os"
@@ -418,7 +419,7 @@ func Load() (*Config, error) {
 	cfg, err := LoadContext(ctx)
 	if err != nil {
 		// If the file does not exist, return the default config
-		if os.IsNotExist(err) || strings.Contains(err.Error(), "does not exist") {
+		if os.IsNotExist(err) || errors.Is(err, ErrContextNotFound) {
 			return Default(), nil
 		}
 		// Otherwise (parsing error, permission error, etc.), propagate the error
@@ -804,7 +805,7 @@ func LoadContext(contextName string) (*Config, error) {
 
 	// Check whether the file exists
 	if _, err := os.Stat(configPath); os.IsNotExist(err) {
-		return nil, fmt.Errorf("context '%s' does not exist (no file at %s)", contextName, configPath)
+		return nil, fmt.Errorf("context '%s' does not exist (no file at %s): %w", contextName, configPath, ErrContextNotFound)
 	}
 
 	// Read and parse YAML
@@ -963,10 +964,38 @@ func ValidateContextName(name string) error {
 	return nil
 }
 
+// Sentinel errors for context management; callers match them with errors.Is.
+var (
+	// ErrReservedContextName reports a name that cannot be used for a new context.
+	ErrReservedContextName = errors.New("reserved context name")
+	// ErrContextExists reports an attempt to create a context that already exists.
+	ErrContextExists = errors.New("context already exists")
+	// ErrContextNotFound reports a context with no config file.
+	ErrContextNotFound = errors.New("context not found")
+)
+
+// reservedContextNames are rejected when creating a context (they stay
+// loadable when a file already exists, so ValidateContextName accepts them).
+var reservedContextNames = []string{"-", "new", "list"}
+
+// ValidateNewContextName applies ValidateContextName, then refuses the
+// reserved names. Use it only when creating a context.
+func ValidateNewContextName(name string) error {
+	if err := ValidateContextName(name); err != nil {
+		return err
+	}
+	for _, r := range reservedContextNames {
+		if name == r {
+			return fmt.Errorf("%q is reserved — choose another name: %w", name, ErrReservedContextName)
+		}
+	}
+	return nil
+}
+
 // CreateContext creates a new context with a default configuration
 // Empty monitors, empty GitLab URL, other values default
 func CreateContext(contextName string) error {
-	if err := ValidateContextName(contextName); err != nil {
+	if err := ValidateNewContextName(contextName); err != nil {
 		return err
 	}
 
@@ -976,7 +1005,7 @@ func CreateContext(contextName string) error {
 		return err
 	}
 	if exists {
-		return fmt.Errorf("context '%s' already exists", contextName)
+		return fmt.Errorf("context '%s' already exists: %w", contextName, ErrContextExists)
 	}
 
 	// Create config with defaults

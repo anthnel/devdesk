@@ -76,7 +76,9 @@ Press `ctrl+p` (or `:`, outside a text field) to open the command palette:
 | `configuration`   | `config`, `cfg` | Configuration view           |
 | `jobs`            | `j`          | Background jobs (scans, pulls)  |
 | `about`           | `version`    | Build info                      |
-| `ctx <name>`      |              | Switch context                  |
+| `ctx <name>`      |              | Switch to an existing context   |
+| `ctx -`           |              | Back to the previous context    |
+| `ctx new <name>`  |              | Create a context and switch     |
 | `context list`    |              | List available contexts         |
 | `quit`            | `q`          | Exit                             |
 

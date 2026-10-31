@@ -20,6 +20,8 @@ const MaxVisibleRows = 8
 type Row struct {
 	Entry   command.Entry
 	Current bool
+	// Arg, when non-nil, makes this an argument row: Entry is ignored.
+	Arg *command.ArgSuggestion
 }
 
 // Frame selects the corners of the bottom rule.
@@ -34,12 +36,18 @@ const (
 
 // Input is everything Render needs.
 type Input struct {
-	Rows    []Row
-	Total   int
-	Query   string
-	Cursor  int // -1 means no highlighted row
-	Offset  int
-	Notice  string
+	Rows   []Row
+	Total  int
+	Query  string
+	Cursor int // -1 means no highlighted row
+	Offset int
+	Notice string
+	// Heading replaces the "N of M" count in the filet (argument stage).
+	Heading string
+	// Empty is the message shown when there are no rows and Loading is false.
+	Empty string
+	// Loading shows "Loading contexts…" in place of the rows.
+	Loading bool
 	Width   int
 	Visible int
 	Frame   Frame
@@ -65,6 +73,10 @@ const (
 	aliasSep      = " · "
 	currentTag    = "(current)"
 	ellipsis      = "…"
+	// minNoteWidth is the narrowest note column worth drawing; below it the
+	// note disappears before the name or the (current) tag lose a cell.
+	minNoteWidth = 8
+	loadingText  = "Loading contexts…"
 	// minRenderWidth is the narrowest width that holds a frame, a margin, a
 	// marker and one name cell.
 	minRenderWidth = 6
@@ -124,7 +136,10 @@ func FiletLabel(in Input) string {
 	}
 	in.Visible = max(in.Visible, 0)
 	label := fmt.Sprintf("%d of %d", len(in.Rows), in.Total)
-	if strings.TrimSpace(in.Query) == "" {
+	switch {
+	case in.Heading != "":
+		label = in.Heading
+	case strings.TrimSpace(in.Query) == "":
 		label = fmt.Sprintf("%d available", len(in.Rows))
 	}
 	start := first(in)
@@ -158,6 +173,18 @@ func highlightLook() look {
 	return look{name: "highlighted row", fg: theme.ColorText, bg: theme.ColorTableLineSelected, bold: true}
 }
 
+func argNoteLook() look {
+	return look{name: "argument note", fg: theme.ColorText, bg: theme.ColorBackground}
+}
+
+func highlightedArgNoteLook() look {
+	return look{name: "highlighted argument note", fg: theme.ColorText, bg: theme.ColorTableLineSelected}
+}
+
+func messageLook() look {
+	return look{name: "message", fg: theme.ColorText, bg: theme.ColorBackground}
+}
+
 func filetLook() look {
 	return look{name: "filet label", fg: theme.ColorText, bg: theme.ColorBackground}
 }
@@ -171,7 +198,7 @@ func warningLook() look {
 // listed.
 func Palette() []Pair {
 	var out []Pair
-	for _, k := range []look{rowLook(), highlightLook(), filetLook(), warningLook()} {
+	for _, k := range []look{rowLook(), highlightLook(), argNoteLook(), highlightedArgNoteLook(), messageLook(), filetLook(), warningLook()} {
 		out = append(out, Pair{Name: k.name, Fg: k.fg, Bg: k.bg})
 	}
 	return out
@@ -195,7 +222,7 @@ func Render(in Input) []string {
 		for i := 0; i < in.Visible; i++ {
 			body := theme.EmptyLineBg(inner)
 			if i == 0 {
-				body = row(noMatchText(in.Query), layout, inner, false)
+				body = row(emptyText(in), layout, inner, false)
 			}
 			lines = append(lines, side+body+side)
 		}
@@ -207,7 +234,7 @@ func Render(in Input) []string {
 				lines = append(lines, side+theme.EmptyLineBg(inner)+side)
 				continue
 			}
-			lines = append(lines, side+row(columnsOf(in.Rows[idx], layout), layout, inner, idx == in.Cursor)+side)
+			lines = append(lines, side+row(columnsOf(in.Rows[idx], layout, inner), layout, inner, idx == in.Cursor)+side)
 		}
 	}
 	return append(lines, filet(in, inner, border))
@@ -227,16 +254,31 @@ func degenerate(in Input) []string {
 
 // cells is the plain text of each column of one row.
 // A message spans every column.
-type cells struct{ name, alias, desc, message string }
+type cells struct {
+	name, alias, desc, message string
+	// arg marks an argument row: name and desc arrive already fitted.
+	arg bool
+}
 
-func noMatchText(query string) cells {
-	return cells{message: fmt.Sprintf("No match for %q", query)}
+// emptyText returns the message of a list with no rows: loading wins, then the
+// caller's own wording, then the command stage's "No match".
+func emptyText(in Input) cells {
+	switch {
+	case in.Loading:
+		return cells{message: loadingText}
+	case in.Empty != "":
+		return cells{message: in.Empty}
+	}
+	return cells{message: fmt.Sprintf("No match for %q", in.Query)}
 }
 
 // columnsOf returns the plain text of a row for a layout. The current marker
 // leads the description, or stands in for the aliases when the description
 // is hidden; it is dropped when neither column exists.
-func columnsOf(r Row, l Layout) cells {
+func columnsOf(r Row, l Layout, inner int) cells {
+	if r.Arg != nil {
+		return argCells(r, l, inner)
+	}
 	c := cells{
 		name:  r.Entry.Label(),
 		alias: strings.Join(r.Entry.Aliases, aliasSep),
@@ -265,23 +307,62 @@ func fit(text string, width int) string {
 	return text + strings.Repeat(" ", max(width-lipgloss.Width(text), 0))
 }
 
+// argCells lays out an argument row: the value, then " (current)" glued to
+// it, then the note. A long value gives way first, and the note disappears
+// before either. The tag is kept whole only while the row has room for it
+// (about 12 cells and more); below that the final fit() cuts the line.
+func argCells(r Row, l Layout, inner int) cells {
+	avail := max(inner-margin-markerWidth, 0)
+	text := r.Arg.Value
+	if r.Current {
+		tag := " " + currentTag
+		if room := avail - lipgloss.Width(tag) - 1; lipgloss.Width(text) > room {
+			text = ansi.Truncate(text, max(room, 1), ellipsis)
+		}
+		text += tag
+	}
+	nameCol := min(max(lipgloss.Width(text)+1, l.Name), avail)
+	c := cells{name: fit(text, nameCol), arg: true}
+	if noteW := avail - nameCol; r.Arg.Note != "" && noteW >= minNoteWidth {
+		c.desc = fit(r.Arg.Note, noteW)
+	}
+	return c
+}
+
 // row assembles one list line from styled segments, filled up to inner cells.
 // A highlighted row fills with its own background so it reaches the border.
 func row(c cells, l Layout, inner int, highlighted bool) string {
-	k, marker := rowLook(), strings.Repeat(" ", markerWidth)
+	k, note, marker := rowLook(), argNoteLook(), strings.Repeat(" ", markerWidth)
 	if highlighted {
-		k, marker = highlightLook(), theme.IconCircleSmall+" "
+		k, note, marker = highlightLook(), highlightedArgNoteLook(), theme.IconCircleSmall+" "
 	}
-	st := k.style()
+	if c.message != "" {
+		k = messageLook()
+		marker = strings.Repeat(" ", markerWidth)
+	}
+	if c.arg {
+		return argLine(c, inner, k, note, marker)
+	}
 	body := fit(c.name, l.Name) + fit(c.alias, l.Alias) + fit(c.desc, l.Desc)
 	if c.message != "" {
 		body = fit(c.message, max(inner-margin-markerWidth, 0))
 	}
-	plain := strings.Repeat(" ", margin) + marker + body
-	if w := lipgloss.Width(plain); w < inner {
-		plain += strings.Repeat(" ", inner-w)
+	return k.style().Render(padTo(strings.Repeat(" ", margin)+marker+body, inner))
+}
+
+// argLine renders an argument row as two segments, the name and the note, so
+// the note can carry its own look.
+func argLine(c cells, inner int, k, note look, marker string) string {
+	head := strings.Repeat(" ", margin) + marker + c.name
+	if c.desc == "" {
+		return k.style().Render(padTo(head, inner))
 	}
-	return st.Render(plain)
+	return k.style().Render(head) + note.style().Render(padTo(c.desc, inner-lipgloss.Width(head)))
+}
+
+// padTo pads plain text with spaces up to width cells.
+func padTo(plain string, width int) string {
+	return plain + strings.Repeat(" ", max(width-lipgloss.Width(plain), 0))
 }
 
 // filet builds the bottom rule with its label.

@@ -6,6 +6,7 @@
 package setup
 
 import (
+	"errors"
 	"log"
 	"strings"
 
@@ -456,7 +457,10 @@ func indexOf(opts []string, v string) int {
 // link: does a context by this name already exist?
 func (m Model) submitContextName() (tea.Model, tea.Cmd) {
 	name := strings.TrimSpace(m.contextNameInput.Value())
-	if err := config.ValidateContextName(name); err != nil {
+	if err := config.ValidateNewContextName(name); err != nil {
+		if errors.Is(err, config.ErrReservedContextName) {
+			return m, m.footer.Error("\"" + name + "\" is reserved — choose another name")
+		}
 		return m, m.footer.Error(err.Error())
 	}
 	m.contextNameInput.SetValue(name)

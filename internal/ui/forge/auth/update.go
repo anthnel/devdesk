@@ -51,6 +51,7 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m.handleLogoutComplete()
 	}
 
+	m.footer.Handle(msg)
 	return m, nil
 }
 
