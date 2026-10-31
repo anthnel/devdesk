@@ -11,10 +11,12 @@ import (
 
 	"github.com/anthnel/devdesk/internal/command"
 	"github.com/anthnel/devdesk/internal/ui/testutil"
+	"github.com/anthnel/devdesk/internal/ui/theme"
 )
 
-// DEVDESK-89 step 7 (DEVDESK-108): the command line and its suggestion list
-// keep the layout whole at awkward sizes, on both frames, and across resizes.
+// DEVDESK-89 step 7 (DEVDESK-108), redone for the palette (DEVDESK-109): the
+// command palette and its suggestion list keep the layout whole at awkward
+// sizes, on both frames, and across resizes.
 
 // framelessFake is a fakeView that draws its own frames, like the dashboard.
 type framelessFake struct{ fakeView }
@@ -34,24 +36,32 @@ func resizeTo(t *testing.T, a *App, w, h int) {
 	a.Update(tea.WindowSizeMsg{Width: w, Height: h})
 }
 
-// tinyHeights are terminal heights where the viewport has less than 2 usable
-// lines for a list (header 10 + title 1 + viewport; a framed view keeps its bottom border).
-var tinyHeights = []int{13, 12, 11}
+// tinyHeights are terminal heights where the free height V = H - 8 (a fakeView
+// has no footer) is 4 or less, so the palette has no row to draw: it shrinks to
+// title, input and rule. n = min(8, V-4) is 0 up to H = 12.
+var tinyHeights = []int{12, 11, 10}
 
-// ── Usable height under 2: no list, the line stays usable ────────────────────
+// ── Free height of 4 or less: no rows, the input stays usable ────────────────
 
-func TestNoListWhenTheViewportIsTooShortButTheLineStaysUsable(t *testing.T) {
+func TestNoRowsWhenTheViewportIsTooShortButTheInputStaysUsable(t *testing.T) {
 	for _, h := range tinyHeights {
 		t.Run(fmt.Sprintf("80x%d", h), func(t *testing.T) {
 			a := routerAt(t, &fakeView{body: "body"}, 80, h)
 			press(t, a, "ctrl+p")
 			typeCommand(t, a, "co")
 
-			if got := a.commandInput.Value(); got != "co" {
-				t.Errorf("typed text = %q, want co: the line is not usable", got)
+			f := mustFrame(t, a)
+			if len(f.Lines) != 3 {
+				t.Errorf("the reduced frame is %d lines, want 3 (title, input, rule):\n%s", len(f.Lines), strings.Join(f.Lines, "\n"))
 			}
-			if i := filetIndex(screen(a)); i >= 0 {
-				t.Errorf("a list rule is drawn at line %d with no room for a list", i)
+			if !strings.Contains(f.input(), "❯ co") {
+				t.Errorf("the input row %q does not show the typed text", f.input())
+			}
+			if r := f.rows(); len(r) != 0 {
+				t.Errorf("rows drawn with no room for a list: %q", r)
+			}
+			if f.rule() == "" || !strings.HasPrefix(f.rule(), "└") || !strings.HasSuffix(f.rule(), "┘") {
+				t.Errorf("the reduced frame is not closed by └…┘: %q", f.rule())
 			}
 			if got := lipgloss.Height(a.View()); got != h {
 				t.Errorf("View is %d lines, want %d", got, h)
@@ -92,7 +102,9 @@ func TestEnterRunsTheExactTypedNameWhenThereIsNoList(t *testing.T) {
 	}
 }
 
-func TestEnterOnAnEmptyLineWithNoListChangesNothing(t *testing.T) {
+// The silent refusal, a declared exception to Rule 130, is gone: the reduced
+// frame has a bottom rule, and it carries the notice.
+func TestEnterOnAnEmptyLineWithNoRowsChangesNothingAndWarns(t *testing.T) {
 	a := routerAt(t, &fakeView{body: "body"}, 80, 12)
 	press(t, a, "ctrl+p")
 	cmd := press(t, a, "enter")
@@ -103,9 +115,28 @@ func TestEnterOnAnEmptyLineWithNoListChangesNothing(t *testing.T) {
 	if a.currentView != command.ViewDashboard || !a.commandMode {
 		t.Errorf("view=%s commandMode=%v: the empty enter acted", a.currentView, a.commandMode)
 	}
+	if got, want := filet(t, a), theme.IconWarning+" Type a name or choose one"; !strings.Contains(got, want) {
+		t.Errorf("rule %q lacks %q: the refusal is silent", got, want)
+	}
 }
 
-func TestEscStillClosesTheLineWhenThereIsNoList(t *testing.T) {
+// A prefix is not a name: with no rows, enter on "co" warns instead of staying
+// mute, and the exact name still opens the view.
+func TestEnterOnAPrefixWithNoRowsWarnsOnTheRule(t *testing.T) {
+	a := routerAt(t, &fakeView{body: "body"}, 80, 12)
+	press(t, a, "ctrl+p")
+	typeCommand(t, a, "co")
+	press(t, a, "enter")
+
+	if got, want := filet(t, a), theme.IconWarning+` "co" is not a view or a command`; !strings.Contains(got, want) {
+		t.Errorf("rule %q lacks %q", got, want)
+	}
+	if a.currentView != command.ViewDashboard || !a.commandMode {
+		t.Errorf("view=%s commandMode=%v: enter acted on a prefix", a.currentView, a.commandMode)
+	}
+}
+
+func TestEscStillClosesThePaletteWhenThereAreNoRows(t *testing.T) {
 	a := routerAt(t, &fakeView{body: "body"}, 80, 12)
 	press(t, a, "ctrl+p")
 	typeCommand(t, a, "co")
@@ -115,10 +146,13 @@ func TestEscStillClosesTheLineWhenThereIsNoList(t *testing.T) {
 	}
 }
 
-// ── Height of View() without a list, and with a short terminal ───────────────
+// ── Height of View(), closed or open ─────────────────────────────────────────
 
-func TestViewHeightIsTheTerminalsWithTheLineClosedOrListless(t *testing.T) {
-	sizes := [][2]int{{80, 24}, {120, 40}, {60, 30}, {40, 16}, {40, 8}, {80, 6}}
+// View is exactly H lines at every size, down to 1x1, with the palette closed or
+// open: the floor of 9 lines the permanent command line imposed is gone, and
+// nothing replaces it.
+func TestViewHeightIsTheTerminalsWithThePaletteClosedOrOpen(t *testing.T) {
+	sizes := [][2]int{{80, 24}, {120, 40}, {60, 30}, {40, 16}, {40, 8}, {80, 6}, {20, 5}, {10, 3}, {1, 1}}
 	for _, sz := range sizes {
 		t.Run(fmt.Sprintf("%dx%d/closed", sz[0], sz[1]), func(t *testing.T) {
 			a := routerAt(t, &fakeView{body: "body"}, sz[0], sz[1])
@@ -137,91 +171,95 @@ func TestViewHeightIsTheTerminalsWithTheLineClosedOrListless(t *testing.T) {
 	}
 }
 
-// ── Frames ───────────────────────────────────────────────────────────────────
+// From 9 lines the typed text is on screen (the frame is pulled up onto the
+// blank line under the header); below that the header wins, the input is off
+// screen, and nothing panics.
+func TestTheInputIsVisibleDownToNineLines(t *testing.T) {
+	for _, h := range []int{10, 9} {
+		t.Run(fmt.Sprintf("80x%d", h), func(t *testing.T) {
+			a := routerAt(t, &fakeView{body: "body"}, 80, h)
+			press(t, a, "ctrl+p")
+			typeCommand(t, a, "co")
 
-func TestAFramelessViewKeepsItsSidesAndClosesTheRule(t *testing.T) {
-	a := routerAt(t, &framelessFake{fakeView{body: "body"}}, 80, 30)
-	press(t, a, "ctrl+p")
-	typeCommand(t, a, "co")
+			if !strings.Contains(strings.Join(screen(a), "\n"), "❯ co") {
+				t.Errorf("the typed text is not on screen:\n%s", strings.Join(screen(a), "\n"))
+			}
+		})
+	}
+	t.Run("80x8", func(t *testing.T) {
+		a := routerAt(t, &fakeView{body: "body"}, 80, 8)
+		press(t, a, "ctrl+p")
+		typeCommand(t, a, "co")
 
-	lines := screen(a)
-	var rule = -1
-	for i, l := range lines {
-		if strings.HasPrefix(l, "└") && strings.HasSuffix(l, "┘") {
-			rule = i
-			break
+		lines := screen(a)
+		if len(lines) != 8 {
+			t.Fatalf("View is %d lines, want 8", len(lines))
 		}
-	}
-	if rule < 0 {
-		t.Fatalf("no closed └…┘ rule:\n%s", strings.Join(lines, "\n"))
-	}
-	if filetIndex(lines) >= 0 {
-		t.Error("a joined ├…┤ rule is drawn on a frameless view")
-	}
-	// The rows sit above the rule, after the title rule, and carry their sides.
-	n := 0
-	for i := rule - 1; i >= 0 && strings.HasPrefix(lines[i], "│"); i-- {
-		if !strings.HasSuffix(lines[i], "│") {
-			t.Errorf("row %q lacks its right side", lines[i])
-		}
-		n++
-	}
-	if n == 0 {
-		t.Errorf("no row with │ sides above the rule:\n%s", strings.Join(lines, "\n"))
-	}
-	if got := lipgloss.Height(a.View()); got != 30 {
-		t.Errorf("View is %d lines, want 30", got)
-	}
-}
-
-func TestAFramedViewClosesTheRuleWithTJunctions(t *testing.T) {
-	a := routerAt(t, &fakeView{body: "body"}, 80, 30)
-	press(t, a, "ctrl+p")
-	typeCommand(t, a, "co")
-
-	r := filet(t, a)
-	if !strings.HasPrefix(r, "├") || !strings.HasSuffix(r, "┤") {
-		t.Errorf("rule %q is not ├…┤", r)
-	}
-}
-
-func TestAVisibleFilterBarKeepsTheViewportsBottomCorners(t *testing.T) {
-	// Closed line: the viewport's own corners become ├…┤ above the bar.
-	a := routerAt(t, &fakeView{body: "body", filterBar: true, footerHeight: 2, footer: "bar\nbar"}, 80, 30)
-	var bottom string
-	for _, l := range screen(a) {
-		if strings.HasPrefix(l, "├") && strings.HasSuffix(l, "┤") {
-			bottom = l
-		}
-	}
-	if bottom == "" {
-		t.Fatalf("no ├…┤ above the filter bar:\n%s", strings.Join(screen(a), "\n"))
-	}
-
-	// Open line: the list's rule must be that same single ├…┤, no stray corner.
-	press(t, a, "ctrl+p")
-	typeCommand(t, a, "co")
-	lines := screen(a)
-	count := 0
-	for _, l := range lines {
-		if strings.ContainsAny(l, "└┘") && strings.HasPrefix(l, "└") {
-			count++
-		}
-		if strings.HasPrefix(l, "├") {
-			if !strings.HasSuffix(l, "┤") {
-				t.Errorf("rule %q lost its right T-junction", l)
+		openHeader := strings.Split(ansi.Strip(a.renderHeader()), "\n")
+		for i := 0; i < 7; i++ {
+			if lines[i] != openHeader[i] {
+				t.Errorf("header row %d was covered: %q, want %q", i, lines[i], openHeader[i])
 			}
 		}
+	})
+}
+
+// ── Frames ───────────────────────────────────────────────────────────────────
+
+// The palette closes with └…┘ whatever frame the view has: it is a box of its
+// own, not the continuation of the viewport. A filter bar's ├…┤ under the view
+// is untouched while the frame does not reach it.
+func TestThePaletteAlwaysClosesWithCornersWhateverTheView(t *testing.T) {
+	views := map[string]func() tea.Model{
+		"framed":    func() tea.Model { return &fakeView{body: "body"} },
+		"frameless": func() tea.Model { return &framelessFake{fakeView{body: "body"}} },
+		"filterbar": func() tea.Model {
+			return &fakeView{body: "body", filterBar: true, footerHeight: 2, footer: "bar\nbar"}
+		},
 	}
-	if filetIndex(lines) < 0 {
-		t.Fatalf("no ├…┤ rule with the filter bar visible:\n%s", strings.Join(lines, "\n"))
+	for name, mk := range views {
+		t.Run(name, func(t *testing.T) {
+			a := routerAt(t, mk(), 80, 30)
+			press(t, a, "ctrl+p")
+			typeCommand(t, a, "co")
+
+			f := mustFrame(t, a)
+			if r := f.rule(); !strings.HasPrefix(r, "└") || !strings.HasSuffix(r, "┘") {
+				t.Errorf("rule %q is not └…┘", r)
+			}
+			if len(f.rows()) == 0 {
+				t.Fatalf("no rows in the frame:\n%s", strings.Join(f.Lines, "\n"))
+			}
+			for _, r := range f.rows() {
+				if !strings.HasPrefix(r, "│") || !strings.HasSuffix(r, "│") {
+					t.Errorf("row %q lacks its sides", r)
+				}
+			}
+			if got := lipgloss.Height(a.View()); got != 30 {
+				t.Errorf("View is %d lines, want 30", got)
+			}
+		})
 	}
-	if count != 0 {
-		t.Errorf("%d └ corner(s) on a viewport joined to a filter bar", count)
-	}
-	if got := lipgloss.Height(a.View()); got != 30 {
-		t.Errorf("View is %d lines, want 30", got)
-	}
+
+	t.Run("filter bar junctions survive", func(t *testing.T) {
+		a := routerAt(t, &fakeView{body: "body", filterBar: true, footerHeight: 2, footer: "bar\nbar"}, 80, 30)
+		hasJunction := func() bool {
+			for _, l := range screen(a) {
+				if strings.HasPrefix(l, "├") && strings.HasSuffix(l, "┤") {
+					return true
+				}
+			}
+			return false
+		}
+		if !hasJunction() {
+			t.Fatalf("no ├…┤ above the filter bar when closed:\n%s", strings.Join(screen(a), "\n"))
+		}
+		press(t, a, "ctrl+p")
+		typeCommand(t, a, "co")
+		if !hasJunction() {
+			t.Errorf("the palette removed the viewport's ├…┤ above the filter bar:\n%s", strings.Join(screen(a), "\n"))
+		}
+	})
 }
 
 // ── Resize while the list is open ────────────────────────────────────────────
@@ -275,17 +313,22 @@ func TestNarrowWidthsNeverWrapTheHeaderAndKeepRowsExact(t *testing.T) {
 			typeCommand(t, a, "co")
 
 			header := ansi.Strip(a.renderHeader())
-			if h := lipgloss.Height(a.renderHeader()); h != 10 {
-				t.Errorf("header is %d lines, want 10", h)
+			if h := lipgloss.Height(a.renderHeader()); h != paletteHeaderLines {
+				t.Errorf("header is %d lines, want %d", h, paletteHeaderLines)
 			}
 			for _, l := range strings.Split(header, "\n") {
 				if got := ansi.StringWidth(l); got > w {
 					t.Errorf("header line is %d cells, wider than %d: %q", got, w, l)
 				}
 			}
-			for _, r := range listRows(t, a) {
+			// Under 54 columns the frame takes the whole width.
+			f := mustFrame(t, a)
+			if f.X != 0 || f.Width != w {
+				t.Errorf("frame at x=%d, %d wide; want the full %d columns", f.X, f.Width, w)
+			}
+			for _, r := range f.rows() {
 				if got := ansi.StringWidth(r); got != w {
-					t.Errorf("list row is %d cells, want %d: %q", got, w, r)
+					t.Errorf("row is %d cells, want %d: %q", got, w, r)
 				}
 			}
 			if got := ansi.StringWidth(filet(t, a)); got != w {
@@ -380,10 +423,11 @@ func TestFitHeightNonPositiveHeightCutsNothing(t *testing.T) {
 	}
 }
 
-// The command line and the footer's info line stay on screen at the heights
-// where the viewport has been squeezed out.
-func TestTheCommandLineAndTheFooterSurviveShortTerminals(t *testing.T) {
-	for _, h := range []int{13, 12} {
+// The input is inside the frame at every height from 9, and the footer's info
+// line stays on screen while the free height V = H - 8 - footer is at least 3.
+// Below that the frame may cover the footer; that is a documented floor.
+func TestTheInputAndTheFooterSurviveShortTerminals(t *testing.T) {
+	for _, h := range []int{13, 12} { // V = 4 and 3 with a one-line footer
 		t.Run(fmt.Sprintf("80x%d", h), func(t *testing.T) {
 			a := routerAt(t, &fakeView{body: "body", footerHeight: 1, footer: "FOOTERINFO"}, 80, h)
 			press(t, a, "ctrl+p")
@@ -393,12 +437,24 @@ func TestTheCommandLineAndTheFooterSurviveShortTerminals(t *testing.T) {
 				t.Fatalf("View is %d lines, want %d", len(lines), h)
 			}
 			all := strings.Join(lines, "\n")
-			header := strings.Join(lines[:10], "\n")
-			if !strings.Contains(header, "co") {
-				t.Errorf("the command line is cut off:\n%s", all)
+			if f := mustFrame(t, a); !strings.Contains(f.input(), "❯ co") {
+				t.Errorf("the input is cut off:\n%s", all)
 			}
 			if !strings.Contains(all, "FOOTERINFO") {
 				t.Errorf("the footer is cut off:\n%s", all)
+			}
+		})
+	}
+	for _, h := range []int{11, 10, 9} { // V < 3: only the input is guaranteed
+		t.Run(fmt.Sprintf("80x%d/input", h), func(t *testing.T) {
+			a := routerAt(t, &fakeView{body: "body", footerHeight: 1, footer: "FOOTERINFO"}, 80, h)
+			press(t, a, "ctrl+p")
+			typeCommand(t, a, "co")
+			if got := len(screen(a)); got != h {
+				t.Fatalf("View is %d lines, want %d", got, h)
+			}
+			if !strings.Contains(strings.Join(screen(a), "\n"), "❯ co") {
+				t.Errorf("the input is off screen at %d lines", h)
 			}
 		})
 	}

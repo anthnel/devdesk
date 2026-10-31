@@ -24,16 +24,6 @@ var (
 				Foreground(ColorPrimary).
 				Bold(true)
 
-	CommandLineStyle = lipgloss.NewStyle().
-				Background(ColorCmdLineBg).
-				Foreground(ColorCmdLineFg).
-				Padding(0, 1, 0, 1)
-
-	CommandLineInactiveStyle = lipgloss.NewStyle().
-					Background(ColorBackground).
-					Foreground(ColorCmdLineInactiveFg).
-					Padding(0, 1, 0, 1)
-
 	ShortcutKeyStyle = lipgloss.NewStyle().
 				Background(ColorBackground).
 				Foreground(ColorSecondary).
@@ -51,6 +41,12 @@ var (
 					Background(ColorBackground).
 					Foreground(ColorDim).
 					Bold(false)
+
+	// ShortcutHintStyle is a header hint that must stay readable (4.5:1), such as
+	// "ctrl+p Commands": ColorText rather than the dim decoration tone.
+	ShortcutHintStyle = lipgloss.NewStyle().
+				Background(ColorBackground).
+				Foreground(ColorText)
 
 	TitleStyle = lipgloss.NewStyle().
 			Background(ColorBackground).
@@ -606,16 +602,6 @@ func RefreshStyles() {
 		Foreground(ColorPrimary).
 		Bold(true)
 
-	CommandLineStyle = lipgloss.NewStyle().
-		Background(ColorCmdLineBg).
-		Foreground(ColorCmdLineFg).
-		Padding(0)
-
-	CommandLineInactiveStyle = lipgloss.NewStyle().
-		Background(ColorBackground).
-		Foreground(ColorCmdLineInactiveFg).
-		Padding(0)
-
 	ShortcutKeyStyle = lipgloss.NewStyle().
 		Background(ColorBackground).
 		Foreground(ColorSecondary).
@@ -630,6 +616,12 @@ func RefreshStyles() {
 		Background(ColorBackground).
 		Foreground(ColorDim).
 		Bold(false)
+
+	// ShortcutHintStyle is a header hint that must stay readable (4.5:1), such as
+	// "ctrl+p Commands": ColorText rather than the dim decoration tone.
+	ShortcutHintStyle = lipgloss.NewStyle().
+		Background(ColorBackground).
+		Foreground(ColorText)
 
 	TitleStyle = lipgloss.NewStyle().
 		Background(ColorBackground).

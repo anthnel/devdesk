@@ -24,16 +24,6 @@ type Row struct {
 	Arg *command.ArgSuggestion
 }
 
-// Frame selects the corners of the bottom rule.
-type Frame int
-
-const (
-	// FrameJoined draws ├─┤ (the list sits above more viewport content).
-	FrameJoined Frame = iota
-	// FrameClosed draws └─┘.
-	FrameClosed
-)
-
 // Input is everything Render needs.
 type Input struct {
 	Rows   []Row
@@ -50,7 +40,6 @@ type Input struct {
 	Loading bool
 	Width   int
 	Visible int
-	Frame   Frame
 }
 
 // Layout holds column widths in cells.
@@ -81,13 +70,6 @@ const (
 	// marker and one name cell.
 	minRenderWidth = 6
 )
-
-// VisibleRows returns how many list rows fit: the matches, at least one row
-// (the "no match" line), capped by MaxVisibleRows and by the usable height
-// minus the filet.
-func VisibleRows(matches, usable int) int {
-	return max(min(max(matches, 1), MaxVisibleRows, usable-1), 0)
-}
 
 // Window returns the first visible row so that cursor stays in view. The
 // window never wraps and, with no highlighted row, keeps the current offset.
@@ -141,6 +123,10 @@ func FiletLabel(in Input) string {
 		label = in.Heading
 	case strings.TrimSpace(in.Query) == "":
 		label = fmt.Sprintf("%d available", len(in.Rows))
+	}
+	if in.Visible == 0 {
+		// No row is drawn, so nothing can be announced as hidden.
+		return label
 	}
 	start := first(in)
 	if above := start; above > 0 {
@@ -198,7 +184,7 @@ func warningLook() look {
 // listed.
 func Palette() []Pair {
 	var out []Pair
-	for _, k := range []look{rowLook(), highlightLook(), argNoteLook(), highlightedArgNoteLook(), messageLook(), filetLook(), warningLook()} {
+	for _, k := range []look{rowLook(), highlightLook(), argNoteLook(), highlightedArgNoteLook(), messageLook(), filetLook(), warningLook(), titleLook(), inputLook()} {
 		out = append(out, Pair{Name: k.name, Fg: k.fg, Bg: k.bg})
 	}
 	return out
@@ -208,13 +194,19 @@ func Palette() []Pair {
 // Width cells wide. Every line is assembled from separately styled segments;
 // no already-styled text is ever cut.
 func Render(in Input) []string {
+	return renderWith(in, theme.ColorViewportBorder)
+}
+
+// renderWith is Render with the border color chosen by the caller: the
+// palette draws its frame in ColorPaletteBorder.
+func renderWith(in Input, borderColor lipgloss.Color) []string {
 	in.Visible = max(in.Visible, 0)
 	if in.Width < minRenderWidth {
-		return degenerate(in)
+		return degenerate(in, borderColor)
 	}
 	inner := max(in.Width-2, 0)
 	layout := Columns(in.Width)
-	border := lipgloss.NewStyle().Foreground(theme.ColorViewportBorder).Background(theme.ColorBackground)
+	border := lipgloss.NewStyle().Foreground(borderColor).Background(theme.ColorBackground)
 	side := border.Render("│")
 
 	lines := make([]string, 0, in.Visible+1)
@@ -242,13 +234,13 @@ func Render(in Input) []string {
 
 // degenerate renders the lines of a terminal too narrow for a frame: blank
 // background lines and a bare rule, each exactly Width cells (possibly zero).
-func degenerate(in Input) []string {
+func degenerate(in Input, borderColor lipgloss.Color) []string {
 	w := max(in.Width, 0)
 	lines := make([]string, 0, in.Visible+1)
 	for i := 0; i < in.Visible; i++ {
 		lines = append(lines, theme.EmptyLineBg(w))
 	}
-	rule := lipgloss.NewStyle().Foreground(theme.ColorViewportBorder).Background(theme.ColorBackground)
+	rule := lipgloss.NewStyle().Foreground(borderColor).Background(theme.ColorBackground)
 	return append(lines, rule.Render(strings.Repeat("─", w)))
 }
 
@@ -367,10 +359,7 @@ func padTo(plain string, width int) string {
 
 // filet builds the bottom rule with its label.
 func filet(in Input, inner int, border lipgloss.Style) string {
-	left, right := "├", "┤"
-	if in.Frame == FrameClosed {
-		left, right = "└", "┘"
-	}
+	const left, right = "└", "┘"
 	k := filetLook()
 	if in.Notice != "" {
 		k = warningLook()

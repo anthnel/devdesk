@@ -130,6 +130,12 @@ var (
 	// third grey declares it here without touching a single caller.
 	ColorShortcutDisabled lipgloss.Color
 
+	// ColorPaletteBorder is the border and prompt glyph of the command palette
+	// overlay. A closed alias of ColorPrimary assigned in ApplyTheme: no theme
+	// file gains a key, so a user theme cannot break the 3:1 border contrast
+	// unseen.
+	ColorPaletteBorder lipgloss.Color
+
 	// Icon colours, one per role rather than one per glyph (iconcolors.go).
 	//
 	// A glyph is a value, not a name: a table keyed on U+F0849 says nothing about

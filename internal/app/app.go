@@ -162,12 +162,13 @@ type App struct {
 	width            int
 	height           int
 	lastFooterHeight int // tracks current view's footer height for re-resize detection
+	lastHeaderHeight int // header block height (rows + blank line), read by the palette geometry
 }
 
 func newCommandInput() textinput.Model {
 	// Create the input for command mode
 	cmdInput := textinput.New()
-	cmdInput.Prompt = "❯"
+	cmdInput.Prompt = paletteInputPrompt
 	cmdInput.CharLimit = 50
 
 	return cmdInput
@@ -331,6 +332,7 @@ func (a *App) requestResize() tea.Cmd {
 func (a *App) resize(width, height int) {
 	a.width = width
 	a.height = height
+	a.sizePaletteInput()
 	defer a.keepHighlightVisible()
 
 	const passes = 2
@@ -350,6 +352,7 @@ func (a *App) layoutOnce(width, height int) (changed bool) {
 	a.lastFooterHeight = footerHeight
 
 	headerHeight := lipgloss.Height(a.renderHeader())
+	a.lastHeaderHeight = headerHeight
 	availableHeight := height - headerHeight - footerHeight
 	a.viewport.Width = width
 	a.viewport.Height = availableHeight - 1 // -1 for the custom title border line

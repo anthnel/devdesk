@@ -2,15 +2,21 @@ package app
 
 import (
 	"fmt"
-	"strings"
+
+	"github.com/charmbracelet/bubbles/textinput"
+	"github.com/charmbracelet/lipgloss"
 
 	"github.com/anthnel/devdesk/internal/command"
 	"github.com/anthnel/devdesk/internal/ui/cmdsuggest"
+	"github.com/anthnel/devdesk/internal/ui/theme"
 )
 
-// minListHeight is the smallest usable viewport height that holds a list: one
-// row and the bottom rule.
-const minListHeight = 2
+// paletteInputPrompt is the prompt glyph and the cell after it.
+const paletteInputPrompt = "❯ "
+
+// paletteInputChrome is the cells of an input row that are not the prompt or
+// the text: two borders and one margin on each side.
+const paletteInputChrome = 4
 
 // noticeEmptyLine is the warning for an enter on a line with nothing typed.
 const noticeEmptyLine = "Type a name or choose one"
@@ -56,7 +62,7 @@ func (a *App) resetSuggestions() {
 // highlightedEntry returns the highlighted row, if there is one. With no list
 // drawn there is no highlight: a choice nobody can see is never made.
 func (a *App) highlightedEntry() (command.Entry, bool) {
-	if a.listVisible() == 0 || a.sugCursor < 0 || a.sugCursor >= len(a.suggestions.Entries) {
+	if a.paletteRows() == 0 || a.sugCursor < 0 || a.sugCursor >= len(a.suggestions.Entries) {
 		return command.Entry{}, false
 	}
 	return a.suggestions.Entries[a.sugCursor], true
@@ -66,7 +72,7 @@ func (a *App) highlightedEntry() (command.Entry, bool) {
 // row, at the command stage (an argument is typed, not chosen).
 func (a *App) canComplete() bool {
 	if a.argStage() {
-		return a.listVisible() > 0 && len(a.suggestions.Args) > 0
+		return a.paletteRows() > 0 && len(a.suggestions.Args) > 0
 	}
 	_, ok := a.highlightedEntry()
 	return ok && a.suggestions.Stage == command.StageCommand
@@ -101,21 +107,14 @@ func (a *App) completeHighlighted() {
 	a.refreshSuggestions()
 }
 
-// listUsable is the number of viewport content lines the list may cover.
-func (a *App) listUsable() int {
-	if a.frameless() {
-		return a.viewport.Height
-	}
-	return a.viewport.Height - 1 // the bottom border stays
+// paletteRect is where the palette sits for the current size.
+func (a *App) paletteRect() cmdsuggest.Rect {
+	return cmdsuggest.Geometry(a.width, a.height, a.lastHeaderHeight, a.lastFooterHeight)
 }
 
-// listVisible is how many suggestion rows are drawn; 0 means no list.
-func (a *App) listVisible() int {
-	usable := a.listUsable()
-	if usable < minListHeight {
-		return 0
-	}
-	return cmdsuggest.VisibleRows(a.listRowCount(), usable)
+// paletteRows is how many suggestion rows the palette draws; 0 means none.
+func (a *App) paletteRows() int {
+	return a.paletteRect().Rows
 }
 
 // moveHighlight moves the highlight by delta rows without wrapping. With no
@@ -125,7 +124,7 @@ func (a *App) moveHighlight(delta int) {
 	if n == 0 {
 		return
 	}
-	visible := a.listVisible()
+	visible := a.paletteRows()
 	switch {
 	case a.sugCursor < 0 && delta > 0:
 		a.sugCursor = a.sugOffset
@@ -139,16 +138,15 @@ func (a *App) moveHighlight(delta int) {
 
 // keepHighlightVisible re-windows the list after the viewport changed size.
 func (a *App) keepHighlightVisible() {
-	a.sugOffset = cmdsuggest.Window(a.sugCursor, a.sugOffset, a.listVisible())
+	a.sugOffset = cmdsuggest.Window(a.sugCursor, a.sugOffset, a.paletteRows())
 }
 
-// suggestionLines renders the list and its bottom rule, or nil when the command
-// line is closed or the viewport is too short for a list.
-func (a *App) suggestionLines() []string {
-	visible := a.listVisible()
-	if !a.commandMode || visible == 0 {
+// paletteLines renders the open palette, or nil when it is closed.
+func (a *App) paletteLines() []string {
+	if !a.commandMode {
 		return nil
 	}
+	r := a.paletteRect()
 	rows := a.entryRows()
 	var heading, empty string
 	var loading bool
@@ -157,24 +155,53 @@ func (a *App) suggestionLines() []string {
 		heading, empty = a.argHeading(), a.argEmpty()
 		loading = !a.suggestions.ArgsReady
 	}
-	frame := cmdsuggest.FrameJoined
-	if a.frameless() {
-		frame = cmdsuggest.FrameClosed
+	return cmdsuggest.RenderPalette(cmdsuggest.PaletteInput{
+		Title: a.paletteTitle(),
+		Input: paletteInputView(a.commandInput),
+		List: cmdsuggest.Input{
+			Rows:    rows,
+			Total:   a.suggestions.Total,
+			Query:   a.suggestions.Query,
+			Cursor:  a.sugCursor,
+			Offset:  a.sugOffset,
+			Notice:  a.sugNotice,
+			Heading: heading,
+			Empty:   empty,
+			Loading: loading,
+		},
+	}, r)
+}
+
+// paletteTitle is "Contexts" at the ctx argument stage, else "Go to".
+func (a *App) paletteTitle() string {
+	if a.argStage() {
+		return "Contexts"
 	}
-	return cmdsuggest.Render(cmdsuggest.Input{
-		Rows:    rows,
-		Total:   a.suggestions.Total,
-		Query:   a.suggestions.Query,
-		Cursor:  a.sugCursor,
-		Offset:  a.sugOffset,
-		Notice:  a.sugNotice,
-		Heading: heading,
-		Empty:   empty,
-		Loading: loading,
-		Width:   a.viewport.Width,
-		Visible: visible,
-		Frame:   frame,
-	})
+	return "Go to"
+}
+
+// sizePaletteInput gives the command input the width of the open frame minus
+// borders, margins, the prompt and the cursor cell the input draws after its
+// Width when the line scrolls, and re-seats the cursor so the scroll window
+// follows. Called from Update paths only (resize), never from View.
+func (a *App) sizePaletteInput() {
+	prompt := lipgloss.Width(a.commandInput.Prompt)
+	a.commandInput.Width = max(a.paletteRect().Width-paletteInputChrome-prompt-1, 1)
+	a.commandInput.SetCursor(a.commandInput.Position())
+}
+
+// paletteInputView renders a styled copy of the command input. Styling a copy
+// in View() mutates nothing (Rule 110) and follows a theme applied at run
+// time. The prompt is the border colour, the text is ColorText, every segment
+// carries an explicit background.
+func paletteInputView(in textinput.Model) string {
+	bg := lipgloss.NewStyle().Background(theme.ColorBackground)
+	in.PromptStyle = bg.Foreground(theme.ColorPaletteBorder)
+	in.TextStyle = bg.Foreground(theme.ColorText)
+	in.PlaceholderStyle = bg.Foreground(theme.ColorText)
+	in.Cursor.Style = bg.Foreground(theme.ColorText)
+	in.Cursor.TextStyle = bg.Foreground(theme.ColorText)
+	return in.View()
 }
 
 // entryRows renders the command-stage suggestions as list rows.
@@ -184,16 +211,4 @@ func (a *App) entryRows() []cmdsuggest.Row {
 		rows[i] = cmdsuggest.Row{Entry: e, Current: e.Kind == command.KindView && e.Name == string(a.currentView)}
 	}
 	return rows
-}
-
-// overlaySuggestions replaces the top lines of the viewport with the list.
-// Whole lines are swapped, so no styled text is ever cut.
-func (a *App) overlaySuggestions(body string) string {
-	list := a.suggestionLines()
-	if len(list) == 0 {
-		return body
-	}
-	lines := strings.Split(body, "\n")
-	copy(lines, list)
-	return strings.Join(lines, "\n")
 }

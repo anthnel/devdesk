@@ -196,7 +196,7 @@ func TestTypingNarrowsTheSuggestions(t *testing.T) {
 
 // ── Leaving ──────────────────────────────────────────────────────────────────
 
-func TestEscapeClosesTheCommandLine(t *testing.T) {
+func TestEscapeClosesThePaletteWithoutAResize(t *testing.T) {
 	a := commanding(t, &fakeView{})
 	typeCommand(t, a, "sec")
 
@@ -205,8 +205,8 @@ func TestEscapeClosesTheCommandLine(t *testing.T) {
 	if a.commandMode {
 		t.Error("esc did not close the command line")
 	}
-	if _, ok := testutil.MsgOf[tea.WindowSizeMsg](cmd); !ok {
-		t.Error("closing the command line did not ask for a re-layout")
+	if requestsResize(cmd) {
+		t.Error("closing the palette asked for a re-layout: it changes no height")
 	}
 }
 

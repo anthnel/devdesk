@@ -30,7 +30,7 @@ App (Router)
 
 ## View switching and command mode
 
-`ctrl+p` opens a command line from anywhere, including from inside a text field — it is intercepted before any field can claim it. A bare `:` does the same, but only when nothing is focused, since a value like `https://trivy-server:4954` needs the colon as an ordinary character. Command parsing lives in `internal/command/`; `ParseCommand()` returns a structured `Command{Type, View, Args}`.
+`ctrl+p` opens the command palette from anywhere, including from inside a text field — it is intercepted before any field can claim it. A bare `:` does the same, but only when nothing is focused, since a value like `https://trivy-server:4954` needs the colon as an ordinary character. The palette is a modal box drawn over the finished screen, so opening or closing it never changes the layout; the header keeps a permanent `ctrl+p Commands` hint. Command parsing lives in `internal/command/`; `ParseCommand()` returns a structured `Command{Type, View, Args}`.
 
 The forge views are named `git-auth` and `git-explorer` rather than `gitlab-*` / `github-*`. A single context targets exactly one forge (GitLab or GitHub, never both at once), so there is one authentication screen and one explorer, and both adapt their wording to whichever backend is configured. Naming them after a specific backend would have meant typing `github-auth` half the time for what is, mechanically, the same view.
 
