@@ -1,0 +1,81 @@
+{
+  "cli_version": "0.12.2",
+  "checkpoint_id": "f7d9a297a9a4",
+  "strategy": "manual-commit",
+  "branch": "main",
+  "checkpoints_count": 3,
+  "files_touched": [
+    "docs/architecture/agent-usage.md",
+    "docs/backlog.md",
+    "internal/agentusage/bench_activity_test.go",
+    "internal/agentusage/fixture_activity_test.go",
+    "internal/agentusage/hardening_activity_test.go",
+    "internal/agentusage/incremental_activity_test.go",
+    "internal/agentusage/incremental_fuzz_test.go",
+    "internal/agentusage/incremental_test.go",
+    "internal/agentusage/limits.go",
+    "internal/agentusage/parse_test.go",
+    "internal/agentusage/record.go",
+    "internal/agentusage/record_activity_test.go",
+    "internal/agentusage/table.go",
+    "internal/agentusage/table_activity_test.go",
+    "internal/agentusage/testdata/README.md",
+    "internal/agentusage/testdata/v2.1.302-activity/projects/-synthetic-proj-activity/00000000-0000-4000-8000-000000000460.jsonl",
+    "internal/agentusage/testdata/v2.1.302-activity/projects/-synthetic-proj-activity/00000000-0000-4000-8000-000000000460/subagents/agent-b01.jsonl",
+    "internal/agentusage/testdata/v2.1.302-activity/projects/-synthetic-proj-activity/00000000-0000-4000-8000-000000000460/subagents/agent-b01.meta.json",
+    "internal/agentusage/testdata/v2.1.302-activity/projects/-synthetic-proj-activity/00000000-0000-4000-8000-000000000460/subagents/agent-b02.jsonl",
+    "internal/agentusage/testdata/v2.1.302-activity/projects/-synthetic-proj-activity/00000000-0000-4000-8000-000000000460/subagents/agent-b02.meta.json",
+    "internal/agentusage/usage.go",
+    "internal/ui/agentusageview/activity_columns_test.go",
+    "internal/ui/agentusageview/agents.go",
+    "internal/ui/agentusageview/agents_level_test.go",
+    "internal/ui/agentusageview/agents_test.go",
+    "internal/ui/agentusageview/cmd.go",
+    "internal/ui/agentusageview/header_live_test.go",
+    "internal/ui/agentusageview/help.go",
+    "internal/ui/agentusageview/model.go",
+    "internal/ui/agentusageview/selection.go",
+    "internal/ui/agentusageview/selection_test.go",
+    "internal/ui/agentusageview/status.go",
+    "internal/ui/agentusageview/status_test.go",
+    "internal/ui/agentusageview/update.go",
+    "internal/ui/agentusageview/view.go"
+  ],
+  "sessions": [
+    {
+      "metadata": "/f7/d9a297a9a4/0/metadata.json",
+      "transcript": "/f7/d9a297a9a4/0/full.jsonl",
+      "compact_transcript": "/f7/d9a297a9a4/0/transcript.jsonl",
+      "content_hash": "/f7/d9a297a9a4/0/content_hash.txt",
+      "prompt": "/f7/d9a297a9a4/0/prompt.txt"
+    }
+  ],
+  "token_usage": {
+    "input_tokens": 20,
+    "cache_creation_tokens": 8120,
+    "cache_read_tokens": 1555568,
+    "output_tokens": 3735,
+    "api_call_count": 7,
+    "subagent_tokens": {
+      "input_tokens": 12,
+      "cache_creation_tokens": 101215,
+      "cache_read_tokens": 467713,
+      "output_tokens": 142,
+      "api_call_count": 6
+    }
+  },
+  "redaction": {
+    "replacements": 0,
+    "layers": {
+      "betterleaks": 0,
+      "connection_string": 0,
+      "credential_key": 0,
+      "credential_value": 0,
+      "credentialed_uri": 0,
+      "entropy": 0,
+      "key_context": 0,
+      "provider_token": 0,
+      "shell_stdin": 0
+    }
+  }
+}
