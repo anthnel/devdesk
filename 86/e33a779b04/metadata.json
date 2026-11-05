@@ -1,0 +1,57 @@
+{
+  "cli_version": "0.12.2",
+  "checkpoint_id": "86e33a779b04",
+  "strategy": "manual-commit",
+  "branch": "main",
+  "checkpoints_count": 4,
+  "files_touched": [
+    "docs/backlog.md",
+    "internal/app/command_args_reserved_test.go",
+    "internal/app/context_args.go",
+    "internal/app/context_args_test.go",
+    "internal/app/context_errors_test.go",
+    "internal/app/context_names_parity_test.go",
+    "internal/contextcmd/contextcmd.go",
+    "internal/contextcmd/contextcmd_test.go",
+    "internal/ui/cmdsuggest/args_test.go",
+    "internal/ui/configuration/help_contexts_test.go",
+    "internal/ui/forge/auth/footer_test.go"
+  ],
+  "sessions": [
+    {
+      "metadata": "/86/e33a779b04/0/metadata.json",
+      "transcript": "/86/e33a779b04/0/full.jsonl",
+      "compact_transcript": "/86/e33a779b04/0/transcript.jsonl",
+      "content_hash": "/86/e33a779b04/0/content_hash.txt",
+      "prompt": "/86/e33a779b04/0/prompt.txt"
+    }
+  ],
+  "token_usage": {
+    "input_tokens": 28,
+    "cache_creation_tokens": 37109,
+    "cache_read_tokens": 3287221,
+    "output_tokens": 7121,
+    "api_call_count": 10,
+    "subagent_tokens": {
+      "input_tokens": 38,
+      "cache_creation_tokens": 331262,
+      "cache_read_tokens": 1493091,
+      "output_tokens": 1985,
+      "api_call_count": 18
+    }
+  },
+  "redaction": {
+    "replacements": 15,
+    "layers": {
+      "betterleaks": 0,
+      "connection_string": 0,
+      "credential_key": 0,
+      "credential_value": 0,
+      "credentialed_uri": 0,
+      "entropy": 15,
+      "key_context": 0,
+      "provider_token": 0,
+      "shell_stdin": 0
+    }
+  }
+}

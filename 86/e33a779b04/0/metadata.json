@@ -1,0 +1,145 @@
+{
+  "cli_version": "0.12.2",
+  "checkpoint_id": "86e33a779b04",
+  "session_id": "ca7305a3-5dba-4167-83ff-9e119bcd93fb",
+  "strategy": "manual-commit",
+  "created_at": "2026-11-05T17:44:40.440965515Z",
+  "branch": "main",
+  "checkpoints_count": 4,
+  "save_step_count": 1,
+  "files_touched": [
+    "docs/backlog.md",
+    "internal/app/command_args_reserved_test.go",
+    "internal/app/context_args.go",
+    "internal/app/context_args_test.go",
+    "internal/app/context_errors_test.go",
+    "internal/app/context_names_parity_test.go",
+    "internal/contextcmd/contextcmd.go",
+    "internal/contextcmd/contextcmd_test.go",
+    "internal/ui/cmdsuggest/args_test.go",
+    "internal/ui/configuration/help_contexts_test.go",
+    "internal/ui/forge/auth/footer_test.go"
+  ],
+  "agent": "Claude Code",
+  "model": "claude-sonnet-5-5",
+  "turn_id": "fdd7b438e8c5",
+  "compact_transcript_start": 0,
+  "token_usage": {
+    "input_tokens": 28,
+    "cache_creation_tokens": 37109,
+    "cache_read_tokens": 3287221,
+    "output_tokens": 7121,
+    "api_call_count": 10,
+    "subagent_tokens": {
+      "input_tokens": 38,
+      "cache_creation_tokens": 331262,
+      "cache_read_tokens": 1493091,
+      "output_tokens": 1985,
+      "api_call_count": 18
+    }
+  },
+  "redaction": {
+    "replacements": 15,
+    "layers": {
+      "betterleaks": 0,
+      "connection_string": 0,
+      "credential_key": 0,
+      "credential_value": 0,
+      "credentialed_uri": 0,
+      "entropy": 15,
+      "key_context": 0,
+      "provider_token": 0,
+      "shell_stdin": 0
+    }
+  },
+  "skill_events_version": 1,
+  "skill_events": [
+    {
+      "id": "prompt-skill-claude-code-team-core:feature-2026-10-31T11:32:56.898165678Z",
+      "event_type": "prompt_invocation",
+      "skill": {
+        "name": "team-core:feature"
+      },
+      "source": {
+        "agent": "claude-code",
+        "signal": "prompt_slash_command",
+        "confidence": "explicit"
+      },
+      "turn_id": "2d2062c39f6f",
+      "timestamp": "2026-10-31T11:32:56.898165678Z",
+      "native": {
+        "command": "/team-core:feature"
+      },
+      "collapse": {
+        "target": "user_message",
+        "label": "/team-core:feature",
+        "default_collapsed": true
+      }
+    },
+    {
+      "id": "claude-skill-toolu_015TMzqT8oTNKNPqnMKe56vg",
+      "event_type": "tool_invocation",
+      "skill": {
+        "name": "team-core:resume-work"
+      },
+      "source": {
+        "agent": "claude-code",
+        "signal": "skill_tool_use",
+        "confidence": "explicit"
+      },
+      "turn_id": "172a684407f7",
+      "transcript_anchor": {
+        "unit": "line",
+        "start": 33,
+        "end": 34,
+        "entry_ids": [
+          "b0892c60-c5e6-4252-a0c4-2b8266e2902d"
+        ],
+        "tool_use_id": "toolu_015TMzqT8oTNKNPqnMKe56vg"
+      },
+      "native": {
+        "tool_name": "Skill",
+        "tool_use_id": "toolu_015TMzqT8oTNKNPqnMKe56vg"
+      },
+      "collapse": {
+        "target": "tool_pair",
+        "label": "Skill: team-core:resume-work",
+        "default_collapsed": true
+      }
+    },
+    {
+      "id": "claude-skill-toolu_01TB4tFH22Dyng3qup39BQug",
+      "event_type": "tool_invocation",
+      "skill": {
+        "name": "plane-integration:plane-conventions"
+      },
+      "source": {
+        "agent": "claude-code",
+        "signal": "skill_tool_use",
+        "confidence": "explicit"
+      },
+      "turn_id": "172a684407f7",
+      "transcript_anchor": {
+        "unit": "line",
+        "start": 37,
+        "end": 38,
+        "entry_ids": [
+          "965cadb3-1596-4a34-a505-fef8eb77d0b7"
+        ],
+        "tool_use_id": "toolu_01TB4tFH22Dyng3qup39BQug"
+      },
+      "native": {
+        "tool_name": "Skill",
+        "tool_use_id": "toolu_01TB4tFH22Dyng3qup39BQug"
+      },
+      "collapse": {
+        "target": "tool_pair",
+        "label": "Skill: plane-integration:plane-conventions",
+        "default_collapsed": true
+      }
+    }
+  ],
+  "session_metrics": {
+    "turn_count": 39
+  }
+}
