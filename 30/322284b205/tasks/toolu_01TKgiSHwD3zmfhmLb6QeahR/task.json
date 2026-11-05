@@ -1,0 +1,15 @@
+{
+  "tool_use_id": "toolu_01TKgiSHwD3zmfhmLb6QeahR",
+  "agent_id": "ac37cf3550e9721f4",
+  "subagent_type": "dev-team:devops",
+  "task_description": "Story Done dans Plane",
+  "token_usage": {
+    "input_tokens": 10,
+    "cache_creation_tokens": 111974,
+    "cache_read_tokens": 314086,
+    "output_tokens": 264,
+    "api_call_count": 4
+  },
+  "started_at": "2026-10-30T22:05:21.160732948+01:00",
+  "completed_at": "2026-10-30T22:05:33.947449534+01:00"
+}

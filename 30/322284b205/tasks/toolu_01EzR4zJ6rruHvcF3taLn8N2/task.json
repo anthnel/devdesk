@@ -1,0 +1,15 @@
+{
+  "tool_use_id": "toolu_01EzR4zJ6rruHvcF3taLn8N2",
+  "agent_id": "a4fa9cec2070d93c9",
+  "subagent_type": "product-team:pm",
+  "task_description": "Story palette modale dans Plane",
+  "token_usage": {
+    "input_tokens": 10,
+    "cache_creation_tokens": 120318,
+    "cache_read_tokens": 430649,
+    "output_tokens": 102,
+    "api_call_count": 5
+  },
+  "started_at": "2026-10-31T12:30:30.661692271+01:00",
+  "completed_at": "2026-10-31T12:31:36.952961627+01:00"
+}

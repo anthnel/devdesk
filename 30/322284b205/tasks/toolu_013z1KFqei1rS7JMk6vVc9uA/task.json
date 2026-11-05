@@ -1,0 +1,15 @@
+{
+  "tool_use_id": "toolu_013z1KFqei1rS7JMk6vVc9uA",
+  "agent_id": "afe4f842acfff4bb4",
+  "subagent_type": "product-team:pm",
+  "task_description": "Proposition de release DEVDESK-89",
+  "token_usage": {
+    "input_tokens": 4,
+    "cache_creation_tokens": 101130,
+    "cache_read_tokens": 93083,
+    "output_tokens": 42,
+    "api_call_count": 2
+  },
+  "started_at": "2026-10-30T22:05:21.204588221+01:00",
+  "completed_at": "2026-10-30T22:05:33.239628435+01:00"
+}
