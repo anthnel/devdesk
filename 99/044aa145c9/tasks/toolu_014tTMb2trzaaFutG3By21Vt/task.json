@@ -1,0 +1,15 @@
+{
+  "tool_use_id": "toolu_014tTMb2trzaaFutG3By21Vt",
+  "agent_id": "a00f85a823d0eab31",
+  "subagent_type": "dev-team:devops",
+  "task_description": "Merger la PR 320",
+  "token_usage": {
+    "input_tokens": 12,
+    "cache_creation_tokens": 100039,
+    "cache_read_tokens": 476457,
+    "output_tokens": 143,
+    "api_call_count": 6
+  },
+  "started_at": "2026-10-31T21:47:33.114566722+01:00",
+  "completed_at": "2026-10-31T21:48:17.679174526+01:00"
+}
