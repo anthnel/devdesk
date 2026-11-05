@@ -1,0 +1,84 @@
+{
+  "cli_version": "0.12.2",
+  "checkpoint_id": "5e875686c74d",
+  "strategy": "manual-commit",
+  "branch": "main",
+  "checkpoints_count": 2,
+  "files_touched": [
+    "docs/product/agent-usage-monitor/stories.md",
+    "docs/ux/command-suggestions.md",
+    "docs/ux/context-switch.md",
+    "internal/agentusage/aggregate_test.go",
+    "internal/agentusage/bymodel_test.go",
+    "internal/agentusage/cost_test.go",
+    "internal/agentusage/fixture_activity_test.go",
+    "internal/agentusage/incremental.go",
+    "internal/agentusage/incremental_fuzz_test.go",
+    "internal/agentusage/incremental_test.go",
+    "internal/agentusage/limits.go",
+    "internal/agentusage/parse_test.go",
+    "internal/agentusage/pricing/estimate.go",
+    "internal/agentusage/pricing/estimate_test.go",
+    "internal/agentusage/pricing/match.go",
+    "internal/agentusage/pricing/pricing.go",
+    "internal/agentusage/pricing/pricing_test.go",
+    "internal/agentusage/record.go",
+    "internal/agentusage/table.go",
+    "internal/agentusage/testdata/README.md",
+    "internal/agentusage/testdata/v2.1.302-cost/projects/-synthetic-proj-cost/00000000-0000-4000-8000-000000000470.jsonl",
+    "internal/agentusage/testdata/v2.1.302-cost/projects/-synthetic-proj-cost/00000000-0000-4000-8000-000000000470/subagents/agent-c01.jsonl",
+    "internal/agentusage/testdata/v2.1.302-cost/projects/-synthetic-proj-cost/00000000-0000-4000-8000-000000000470/subagents/agent-c01.meta.json",
+    "internal/agentusage/usage.go",
+    "internal/config/agent_usage.go",
+    "internal/config/agent_usage_test.go",
+    "internal/config/config.go",
+    "internal/ui/agentusageview/activity_columns_test.go",
+    "internal/ui/agentusageview/agents.go",
+    "internal/ui/agentusageview/agents_level_test.go",
+    "internal/ui/agentusageview/agents_test.go",
+    "internal/ui/agentusageview/cost.go",
+    "internal/ui/agentusageview/cost_summary_test.go",
+    "internal/ui/agentusageview/cost_test.go",
+    "internal/ui/agentusageview/model.go",
+    "internal/ui/agentusageview/selection.go",
+    "internal/ui/agentusageview/selection_test.go",
+    "internal/ui/agentusageview/update.go"
+  ],
+  "sessions": [
+    {
+      "metadata": "/5e/875686c74d/0/metadata.json",
+      "transcript": "/5e/875686c74d/0/full.jsonl",
+      "compact_transcript": "/5e/875686c74d/0/transcript.jsonl",
+      "content_hash": "/5e/875686c74d/0/content_hash.txt",
+      "prompt": "/5e/875686c74d/0/prompt.txt"
+    }
+  ],
+  "token_usage": {
+    "input_tokens": 12,
+    "cache_creation_tokens": 2328,
+    "cache_read_tokens": 1419779,
+    "output_tokens": 1151,
+    "api_call_count": 4,
+    "subagent_tokens": {
+      "input_tokens": 8,
+      "cache_creation_tokens": 99041,
+      "cache_read_tokens": 284139,
+      "output_tokens": 93,
+      "api_call_count": 4
+    }
+  },
+  "redaction": {
+    "replacements": 0,
+    "layers": {
+      "betterleaks": 0,
+      "connection_string": 0,
+      "credential_key": 0,
+      "credential_value": 0,
+      "credentialed_uri": 0,
+      "entropy": 0,
+      "key_context": 0,
+      "provider_token": 0,
+      "shell_stdin": 0
+    }
+  }
+}
