@@ -1,0 +1,15 @@
+{
+  "tool_use_id": "toolu_01AU1oXMStzqvkHbPY8yw2ie",
+  "agent_id": "acf769fe750fe2cad",
+  "subagent_type": "dev-team:debugger",
+  "task_description": "Diagnose internal/git test failures",
+  "token_usage": {
+    "input_tokens": 40,
+    "cache_creation_tokens": 290893,
+    "cache_read_tokens": 2095378,
+    "output_tokens": 13256,
+    "api_call_count": 18
+  },
+  "started_at": "2026-11-06T14:08:10.607231066+01:00",
+  "completed_at": "2026-11-06T14:08:56.186181757+01:00"
+}

@@ -1,0 +1,15 @@
+{
+  "tool_use_id": "toolu_01TTyQKK4g1HYxxgPe2rjPke",
+  "agent_id": "a35fd1b0cd0e4d8af",
+  "subagent_type": "dev-team:reviewer",
+  "task_description": "Review DEVDESK-135 fix",
+  "token_usage": {
+    "input_tokens": 20,
+    "cache_creation_tokens": 118706,
+    "cache_read_tokens": 972702,
+    "output_tokens": 8426,
+    "api_call_count": 10
+  },
+  "started_at": "2026-11-06T14:18:21.683812509+01:00",
+  "completed_at": "2026-11-06T14:19:51.598695125+01:00"
+}
