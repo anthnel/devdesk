@@ -3,6 +3,11 @@
 ## Requirements
 
 - Go 1.25.5+
+- git 2.31 or later — cloning, workspace status and sync run the `git` binary.
+  DevDesk passes the token and the low-speed limits through `GIT_CONFIG_COUNT`,
+  which older git ignores silently: HTTPS clone and sync of a private
+  repository then fail to authenticate. The sync's `git fetch --no-prune-tags`
+  (git 2.17) is covered by this minimum.
 - A terminal with [Nerd Font](https://www.nerdfonts.com/) support — DevDesk
   uses icons throughout the UI; without one, boxes or missing glyphs appear
   instead of icons.

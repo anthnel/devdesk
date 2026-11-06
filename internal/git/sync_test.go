@@ -357,6 +357,27 @@ func TestSyncKeepsALocalTagEvenWhenFetchPruneIsOn(t *testing.T) {
 	}
 }
 
+// `fetch.pruneTags = true` adds refs/tags/* to every pruning fetch, so the
+// branch fetch alone would delete a tag the remote does not have (DEVDESK-135).
+// The option is set on the repository so the test does not depend on the
+// machine's own git configuration.
+func TestSyncKeepsALocalTagEvenWhenFetchPruneTagsIsOn(t *testing.T) {
+	upstream, working := clonePair(t)
+	gitIn(t, working, "config", "fetch.pruneTags", "true")
+	gitIn(t, working, "tag", "local-only")
+	gitIn(t, upstream, "tag", "v2")
+
+	if _, err := Sync(working, SyncOptions{}); err != nil {
+		t.Fatalf("Sync() error = %v", err)
+	}
+	if out := gitIn(t, working, "tag", "--list", "local-only"); strings.TrimSpace(out) != "local-only" {
+		t.Error("fetch.pruneTags made the sync delete a tag the remote does not have")
+	}
+	if out := gitIn(t, working, "tag", "--list", "v2"); strings.TrimSpace(out) != "v2" {
+		t.Error("a new upstream tag was not fetched")
+	}
+}
+
 func assertTagFollowsUpstream(t *testing.T, upstream, working, tag string) {
 	t.Helper()
 	want := strings.TrimSpace(gitIn(t, upstream, "rev-parse", tag))

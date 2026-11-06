@@ -218,6 +218,20 @@ repository with `tagOpt = --tags` failed its whole fetch on it instead. Pruning
 would delete tags made here and never pushed, so it is not done. A tag has no
 reflog, so every one that moved is logged and counted in the summary.
 
+The branch fetch that follows does prune (`--prune`, so a branch deleted
+upstream leaves its remote-tracking ref behind), and that prune must not reach
+the tags either: `fetch.pruneTags = true`, a common global setting, extends it
+to `refs/tags/*` and deleted every local-only tag on each sync (DEVDESK-135).
+It therefore passes `--no-prune-tags` (git 2.17). The binary's minimum is
+**git 2.31**, set by `nonInteractiveEnv` (`internal/git/ops.go`): it passes
+`http.extraHeader` (the token) and `http.lowSpeed*` through `GIT_CONFIG_COUNT` /
+`GIT_CONFIG_KEY_n` / `GIT_CONFIG_VALUE_n`, which older git ignores silently, so
+an HTTPS clone or sync of a private repository fails to authenticate. The
+version is not checked at startup. `TestSyncKeepsALocalTagEvenWhenFetchPruneTagsIsOn` sets the option on
+the repository; the package's `TestMain` cuts git off from the machine's global
+and system config, so no other test passes or fails on the developer's own
+`~/.gitconfig`.
+
 No merge commit, no rebase, no stash, and **never a push**. A divergence is a
 decision about someone's unpublished work, and a tool that guesses at it
 destroys hours in a keystroke that cannot be undone.
