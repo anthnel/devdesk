@@ -585,12 +585,12 @@ func TestBreakdownTabFooterHeights(t *testing.T) {
 		want int
 	}{
 		{"sessions", withSessions(t, "/p/a.jsonl"), 2},
-		{"agents", atAgents(t, threeSubs()), 4},
-		{"agents with the bar (typing)", typing, 6},
-		{"agents with the bar (confirmed)", filtered, 6},
-		{"breakdown", atBreakdown(t, threeSubs()), 4},
-		{"breakdown, a query set on Agents", feed(t, filtered, testutil.Key("tab")), 4},
-		{"agents loading", agentsLoadingModel(t), 4},
+		{"agents", atAgents(t, threeSubs()), 3},
+		{"agents with the bar (typing)", typing, 5},
+		{"agents with the bar (confirmed)", filtered, 5},
+		{"breakdown", atBreakdown(t, threeSubs()), 3},
+		{"breakdown, a query set on Agents", feed(t, filtered, testutil.Key("tab")), 3},
+		{"agents loading", agentsLoadingModel(t), 3},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -608,15 +608,15 @@ func TestBreakdownTabFooterOrderOnBothTabs(t *testing.T) {
 	for name, m := range map[string]Model{"agents": atAgents(t, threeSubs()), "breakdown": atBreakdown(t, threeSubs())} {
 		t.Run(name, func(t *testing.T) {
 			lines := strings.Split(footerText(m), "\n")
-			if !strings.Contains(lines[0], "›") {
-				t.Errorf("line 0 is the breadcrumb, got %q", lines[0])
-			}
-			row := ansi.Strip(lines[1])
+			row := ansi.Strip(lines[0])
 			if !strings.Contains(row, "Agents") || !strings.Contains(row, "Breakdown") {
-				t.Errorf("line 1 is the tab row, got %q", row)
+				t.Errorf("line 0 is the tab row, got %q", row)
 			}
-			if strings.TrimSpace(ansi.Strip(lines[2])) != "" {
-				t.Errorf("line 2 is blank (Rule 124), got %q", lines[2])
+			if strings.TrimSpace(ansi.Strip(lines[1])) != "" {
+				t.Errorf("line 1 is blank (Rule 124), got %q", lines[1])
+			}
+			if strings.Contains(ansi.Strip(footerText(m)), "›") {
+				t.Errorf("no breadcrumb in the footer, it is on the frame:\n%s", footerText(m))
 			}
 		})
 	}

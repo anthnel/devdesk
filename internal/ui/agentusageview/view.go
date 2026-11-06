@@ -198,18 +198,18 @@ func (m Model) GetFooterHeight() int {
 		h += bar.ExtraHeight()
 	}
 	if m.level == levelAgents {
-		h += 2 // the breadcrumb row and the tab row
+		h++ // the tab row; the breadcrumb is on the frame (DEVDESK-134)
 	}
 	return h
 }
 
 // RenderFooter renders, top to bottom: the filter bar when visible (it closes
-// the viewport's rectangle, Rule 136), at the agents level the breadcrumb and
-// the tab row, a blank line, and the message line.
+// the viewport's rectangle, Rule 136), at the agents level the tab row, a blank
+// line, and the message line.
 func (m Model) RenderFooter(width int) string {
 	line := theme.EmptyLineBg(width) + "\n" + m.footer.View(width, m.status())
 	if m.level == levelAgents {
-		line = m.breadcrumb(width) + "\n" + m.tabRow(width) + "\n" + line
+		line = m.tabRow(width) + "\n" + line
 	}
 	if bar := m.activeFilterBar(); bar != nil && bar.IsVisible() {
 		line = bar.View() + "\n" + line
@@ -224,17 +224,36 @@ func (m Model) tabRow(width int) string {
 	return theme.PadWithBg(theme.Bg(" ")+theme.RenderTabs(tabs, int(m.tab)), width)
 }
 
-// breadcrumb is Sessions › project › ID, the last one active and its parents
-// dim, with the one cell of left padding Rule 123 asks for.
-func (m Model) breadcrumb(width int) string {
+// minTrailProject is the narrowest the project path may get before the whole
+// frame trail is dropped: a path cut below it no longer says anything.
+const minTrailProject = 8
+
+// FrameTrail is the breadcrumb the router draws on the frame's top border:
+// "Sessions › project › ID", with no parentheses and no margin (the border adds
+// them). It is empty at the sessions level, and whenever it cannot fit in
+// maxWidth cells with the project at its minTrailProject floor. The text is
+// measured plain, then styled (Rule 122).
+func (m Model) FrameTrail(maxWidth int) string {
+	if m.level != levelAgents {
+		return ""
+	}
+	const head, sep = "Sessions › ", " › "
+	id := shortID(m.open.ID)
+	budget := maxWidth - lipgloss.Width(head+sep+id)
+	if budget < minTrailProject {
+		return ""
+	}
 	project := noProject
 	if m.open.Project != "" {
-		project = theme.ShortPath(m.open.Project, max(width/2, 1))
+		project = theme.ShortPath(m.open.Project, budget)
+	}
+	if lipgloss.Width(project) > budget {
+		return ""
 	}
 	base := lipgloss.NewStyle().Background(theme.ColorBackground)
-	parents := base.Foreground(theme.ColorDim).Render("Sessions › " + project + " › ")
-	active := base.Foreground(theme.ColorSecondary).Bold(true).Render(shortID(m.open.ID))
-	return theme.PadWithBg(theme.Bg(" ")+parents+active, width)
+	parents := base.Foreground(theme.ColorDim).Render(head + project + sep)
+	active := base.Foreground(theme.ColorSecondary).Bold(true).Render(id)
+	return parents + active
 }
 
 // status is derived on every frame, with no timer (Rule 128).

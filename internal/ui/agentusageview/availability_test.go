@@ -9,6 +9,7 @@ import (
 	"github.com/anthnel/devdesk/internal/agentusage"
 	sharedcomponents "github.com/anthnel/devdesk/internal/ui/components"
 	"github.com/anthnel/devdesk/internal/ui/testutil"
+	"github.com/charmbracelet/lipgloss"
 )
 
 // Step 3 of DEVDESK-42: Rules 130, 123, 128 and 114 for the two levels.
@@ -277,91 +278,139 @@ func TestAgentsTitleFallsBackToTheShortID(t *testing.T) {
 	}
 }
 
-// ── Footer: breadcrumb (Rule 123), height (Rule 124) ─────────────────────────
+// ── Frame trail (DEVDESK-134), footer height (Rule 124) ──────────────────────
 
-func TestFooterHeightGainsTheBreadcrumbAtTheAgentsLevel(t *testing.T) {
+func TestFooterHeightAtTheAgentsLevelIsTheTabRow(t *testing.T) {
 	if got := withSessions(t, "/p/a.jsonl").GetFooterHeight(); got != 2 {
 		t.Errorf("sessions level footer = %d, want 2", got)
 	}
 	m := atAgents(t, threeSubs())
-	if got := m.GetFooterHeight(); got != 4 {
-		t.Errorf("agents level footer = %d, want 4 (breadcrumb, tab row, blank, message)", got)
+	if got := m.GetFooterHeight(); got != 3 {
+		t.Errorf("agents level footer = %d, want 3 (tab row, blank, message)", got)
 	}
 	m = feed(t, m, testutil.Key("/"))
-	if got := m.GetFooterHeight(); got != 4+m.agentTable.FilterBar().ExtraHeight() || got < 6 {
-		t.Errorf("agents level footer with the filter bar = %d, want at least 6", got)
+	if got := m.GetFooterHeight(); got != 3+m.agentTable.FilterBar().ExtraHeight() || got != 5 {
+		t.Errorf("agents level footer with the filter bar = %d, want 5", got)
 	}
 }
 
-func TestBreadcrumbReadsSessionsProjectAndShortID(t *testing.T) {
+// trailModel opens a session whose project is $HOME/<rel>.
+func trailModel(t *testing.T, rel ...string) Model {
+	t.Helper()
 	m := newModel(t) // isolates HOME, so read it afterwards
-	home := os.Getenv("HOME")
-	s := session(wideID, filepath.Join(home, "w", "app"), 0)
+	project := ""
+	if len(rel) > 0 {
+		project = filepath.Join(append([]string{os.Getenv("HOME")}, rel...)...)
+	}
+	s := session(wideID, project, 0)
 	s.Parent = "/p/a.jsonl"
 	m = loaded(t, m, s)
 	m, _ = opened(t, m, "right")
+	return m
+}
 
-	lines := strings.Split(footerText(m), "\n")
-	if len(lines) != m.GetFooterHeight() {
-		t.Fatalf("footer has %d lines, budget is %d:\n%s", len(lines), m.GetFooterHeight(), footerText(m))
-	}
-	first := lines[0]
+func TestFrameTrailReadsSessionsProjectAndShortID(t *testing.T) {
+	m := trailModel(t, "w", "app")
+	trail := stripANSI(m.FrameTrail(120))
 	for _, want := range []string{"Sessions", "~/w/app", wideID[:8], "›"} {
-		if !strings.Contains(first, want) {
-			t.Errorf("breadcrumb line lacks %q: %q", want, first)
+		if !strings.Contains(trail, want) {
+			t.Errorf("trail lacks %q: %q", want, trail)
 		}
 	}
-	if strings.Contains(first, wideID[:9]) {
-		t.Errorf("the ID is cut to 8 characters: %q", first)
+	if strings.Contains(trail, wideID[:9]) {
+		t.Errorf("the ID is cut to 8 characters: %q", trail)
 	}
-	if !strings.HasPrefix(stripANSI(first), " ") || strings.HasPrefix(stripANSI(first), "  ") {
-		t.Errorf("Rule 123: exactly one cell of left padding, got %q", stripANSI(first))
-	}
-}
-
-func TestBreadcrumbWithNoProjectShowsADash(t *testing.T) {
-	s := session(wideID, "", 0)
-	s.Parent = "/p/a.jsonl"
-	m := loaded(t, newModel(t), s)
-	m, _ = opened(t, m, "right")
-	first := strings.Split(footerText(m), "\n")[0]
-	if !strings.Contains(first, "- › "+wideID[:8]) {
-		t.Errorf("breadcrumb = %q, want a dash for the unknown project", first)
+	if want := "Sessions › ~/w/app › " + wideID[:8]; trail != want {
+		t.Errorf("trail = %q, want %q", trail, want)
 	}
 }
 
-func TestSessionsLevelFooterHasNoBreadcrumb(t *testing.T) {
+// The border adds the parentheses and the spacing around the trail; the view's
+// text carries none.
+func TestFrameTrailHasNoParenthesesNorMargin(t *testing.T) {
+	trail := stripANSI(trailModel(t, "w", "app").FrameTrail(120))
+	if strings.ContainsAny(trail, "()") {
+		t.Errorf("the border adds the parentheses: %q", trail)
+	}
+	if trail != strings.TrimSpace(trail) {
+		t.Errorf("no leading or trailing space: %q", trail)
+	}
+}
+
+func TestFrameTrailWithNoProjectShowsADash(t *testing.T) {
+	trail := stripANSI(trailModel(t).FrameTrail(120))
+	if !strings.Contains(trail, "- › "+wideID[:8]) {
+		t.Errorf("trail = %q, want a dash for the unknown project", trail)
+	}
+}
+
+func TestSessionsLevelHasNoFrameTrail(t *testing.T) {
 	m := withSessions(t, "/p/a.jsonl")
+	if got := m.FrameTrail(120); got != "" {
+		t.Errorf("FrameTrail at the sessions level = %q, want empty", got)
+	}
 	if strings.Contains(footerText(m), "›") {
-		t.Errorf("no breadcrumb at the top level:\n%s", footerText(m))
+		t.Errorf("no breadcrumb in the footer at the top level:\n%s", footerText(m))
 	}
 }
 
-// Q1 (DEVDESK-98): bar, then breadcrumb, then tab row, blank, message. The
-// breadcrumb no longer sits between the viewport's bottom edge and the bar,
-// which closes Rule 136's rectangle. Replaces TestBreadcrumbSitsAboveTheFilterBar.
-func TestFooterOrderIsFilterBarBreadcrumbTabRowBlankMessage(t *testing.T) {
+func TestFrameTrailNeverExceedsItsBudget(t *testing.T) {
+	for name, m := range map[string]Model{
+		"long path": trailModel(t, "projects", "workspace-entire", "anthnel", "app"),
+		"no path":   trailModel(t),
+	} {
+		t.Run(name, func(t *testing.T) {
+			for w := 0; w <= 120; w++ {
+				if got := lipgloss.Width(m.FrameTrail(w)); got > w {
+					t.Errorf("FrameTrail(%d) is %d cells wide", w, got)
+				}
+			}
+		})
+	}
+}
+
+// fixed is "Sessions › " + " › " + the 8-character ID: 22 cells.
+func TestFrameTrailShortensThePathThenDrops(t *testing.T) {
+	m := trailModel(t, "projects", "workspace-entire", "anthnel", "app")
+	const full = "~/projects/workspace-entire/anthnel/app"
+	const fixed = 11 + 3 + 8 // cells, not bytes: "›" is one cell
+
+	if got := stripANSI(m.FrameTrail(120)); !strings.Contains(got, full) {
+		t.Errorf("a wide budget keeps the whole path, got %q", got)
+	}
+	mid := stripANSI(m.FrameTrail(fixed + 12))
+	if mid == "" || strings.Contains(mid, full) || !strings.Contains(mid, "app") || !strings.Contains(mid, wideID[:8]) {
+		t.Errorf("a medium budget shortens the path but keeps app and the ID, got %q", mid)
+	}
+	if got := m.FrameTrail(fixed + minTrailProject); got == "" {
+		t.Error("the trail still fits with the path at its 8-cell floor")
+	}
+	if got := m.FrameTrail(fixed + minTrailProject - 1); got != "" {
+		t.Errorf("below the floor the whole trail is dropped, got %q", stripANSI(got))
+	}
+}
+
+func TestFooterOrderIsFilterBarTabRowBlankMessage(t *testing.T) {
 	m := feed(t, atAgents(t, threeSubs()), testutil.Key("/"))
 	lines := strings.Split(footerText(m), "\n")
 	if len(lines) != m.GetFooterHeight() {
 		t.Fatalf("footer has %d lines, budget is %d", len(lines), m.GetFooterHeight())
 	}
 	bar := m.agentTable.FilterBar().ExtraHeight()
-	if bar != 2 || len(lines) != 6 {
-		t.Fatalf("precondition: a 2-line bar and a 6-line footer, got %d and %d", bar, len(lines))
+	if bar != 2 || len(lines) != 5 {
+		t.Fatalf("precondition: a 2-line bar and a 5-line footer, got %d and %d", bar, len(lines))
 	}
-	if strings.Contains(stripANSI(strings.Join(lines[:bar], "\n")), "›") {
-		t.Errorf("the filter bar comes first, right under the viewport: %q", lines[:bar])
+	for i, l := range lines {
+		if strings.Contains(stripANSI(l), "›") {
+			t.Errorf("line %d holds a breadcrumb, which now lives on the frame: %q", i, l)
+		}
 	}
-	if !strings.Contains(lines[bar], "›") {
-		t.Errorf("line %d is the breadcrumb, got %q", bar, lines[bar])
-	}
-	row := stripANSI(lines[bar+1])
+	row := stripANSI(lines[bar])
 	if !strings.Contains(row, "Agents") || !strings.Contains(row, "Breakdown") {
-		t.Errorf("line %d is the tab row, got %q", bar+1, row)
+		t.Errorf("line %d is the tab row, got %q", bar, row)
 	}
-	if strings.TrimSpace(stripANSI(lines[bar+2])) != "" {
-		t.Errorf("line %d is the blank line (Rule 124), got %q", bar+2, lines[bar+2])
+	if strings.TrimSpace(stripANSI(lines[bar+1])) != "" {
+		t.Errorf("line %d is the blank line (Rule 124), got %q", bar+1, lines[bar+1])
 	}
 }
 
@@ -513,4 +562,23 @@ func stripANSI(s string) string {
 		b.WriteByte(s[i])
 	}
 	return b.String()
+}
+
+// DEVDESK-134: the Agents section says where the breadcrumb went.
+func TestHelpDescribesTheBreadcrumbOnTheFrame(t *testing.T) {
+	var body string
+	for _, s := range New(nil).GetHelpContent().Sections {
+		if s.Title == "Agents" {
+			body = strings.ToLower(s.Body)
+		}
+	}
+	if body == "" {
+		t.Fatal("help has no Agents section")
+	}
+	if !strings.Contains(body, "breadcrumb") && !strings.Contains(body, "top border") {
+		t.Errorf("the Agents section must describe the trail on the frame (breadcrumb / top border):\n%s", body)
+	}
+	if !strings.Contains(body, "border") && !strings.Contains(body, "frame") {
+		t.Errorf("the Agents section must say it sits on the border or frame:\n%s", body)
+	}
 }

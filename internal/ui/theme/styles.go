@@ -584,6 +584,46 @@ func RenderBorderTitle(title string, width int) string {
 	return left + renderedTitle + right + fill + corner
 }
 
+// BorderTrailChrome is the number of cells RenderBorderTitleTrail spends
+// besides the title and the trail: "┌─ ", " (", ")", " ", at least one "─",
+// and "┐".
+const BorderTrailChrome = 9
+
+// BorderTrailBudget returns how many cells a trail may take on a top border
+// carrying title at the given width. It is zero or negative when there is no
+// room for any trail. The title is measured as rendered (cells, not bytes).
+func BorderTrailBudget(title string, width int) int {
+	return width - lipgloss.Width(title) - BorderTrailChrome
+}
+
+// RenderBorderTitleTrail builds a top border line whose title is followed by a
+// trail in parentheses, then filler up to the corner:
+// ┌─ Title (trail) ───────────────┐
+// The trail is an already-styled string, inserted as given and never cut; the
+// parentheses and spacing belong to the theme. When the trail is empty, wider
+// than BorderTrailBudget, or there is no room, the result is byte-identical to
+// RenderBorderTitle.
+func RenderBorderTitleTrail(title, trail string, width int) string {
+	budget := BorderTrailBudget(title, width)
+	trailWidth := lipgloss.Width(trail)
+	if trail == "" || budget <= 0 || trailWidth > budget {
+		return RenderBorderTitle(title, width)
+	}
+	border := lipgloss.NormalBorder()
+	borderStyle := lipgloss.NewStyle().Foreground(ColorViewportBorder).Background(ColorBackground)
+	titleStyle := lipgloss.NewStyle().Foreground(ColorTitleFg).Background(ColorBackground).Bold(true)
+
+	// The filler takes what the trail leaves of the budget, plus the one dash
+	// the chrome already counts.
+	fill := budget - trailWidth + 1
+
+	return borderStyle.Render(border.TopLeft+border.Top+" ") +
+		titleStyle.Render(title) +
+		borderStyle.Render(" (") +
+		trail +
+		borderStyle.Render(") "+strings.Repeat(border.Top, fill)+border.TopRight)
+}
+
 // RefreshStyles rebuilds all global styles from the current colors.
 // Must be called after every theme change via ApplyTheme.
 func RefreshStyles() {
