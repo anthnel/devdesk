@@ -7,6 +7,7 @@ import (
 	"github.com/charmbracelet/lipgloss"
 	"github.com/mattn/go-runewidth"
 
+	"github.com/anthnel/devdesk/internal/ui/indicator"
 	"github.com/anthnel/devdesk/internal/ui/theme"
 )
 
@@ -123,9 +124,23 @@ func (m *Model[T]) rowLine(cols []table.Column, item T, selected bool) string {
 		if i >= len(cols) || cols[i].Width <= 0 {
 			continue
 		}
+		state := indicator.Idle
+		if c.Indicator != nil {
+			state = m.indicatorState(c, item, busy)
+		}
 		text := c.Cell(item)
-		if busy && i == m.cfg.StatusColumn {
+		switch {
+		case state != indicator.Idle:
+			text = indicator.Glyph(state, m.blinkOn)
+		case busy && m.indicatorAt < 0 && i == m.cfg.StatusColumn:
 			text = m.spinnerFrame
+		}
+		if state != indicator.Idle {
+			// Padded with runewidth, not lipgloss: lipgloss always counts an
+			// ambiguous-width glyph as one cell, runewidth follows the terminal.
+			fitted := runewidth.FillRight(text, cols[i].Width)
+			line.WriteString(m.indicatorCellStyle(state, selected).Render(fitted))
+			continue
 		}
 		fitted := fit(text, cols[i].Width, c.TruncateHead)
 		if !busy && (!selected || m.preserveColumnColors) {
@@ -137,9 +152,50 @@ func (m *Model[T]) rowLine(cols []table.Column, item T, selected bool) string {
 		line.WriteString(m.cellStyle(c, item, selected, busy, i).Render(fitted))
 	}
 	if selected {
-		return m.styles.Selected.Render(line.String())
+		return m.styles.Selected.Render(m.padToContent(line.String()))
 	}
 	return line.String()
+}
+
+// padToContent pins the selected row to the full content width (m.width-2) so
+// the highlight reaches the right border when the columns span less than the
+// viewport. The gap is computed from the column widths, never by re-measuring
+// the rendered line: cells are fitted by lipgloss (ansi widths) and a second
+// measure with another library disagrees on emoji and flags. On the plain
+// "normal" selection the gap is painted with ColorTableLineSelected itself, as
+// every cell is, because it follows the last cell's reset.
+func (m *Model[T]) padToContent(line string) string {
+	gap := m.width - 2 - m.RenderedWidth()
+	if m.width <= 2 || gap <= 0 {
+		return line
+	}
+	pad := strings.Repeat(" ", gap)
+	if m.preserveColumnColors {
+		pad = lipgloss.NewStyle().Background(theme.ColorTableLineSelected).Bold(true).Render(pad)
+	}
+	return line + pad
+}
+
+// indicatorState is the one place the precedence is written: a busy row is
+// Running whatever the view says, otherwise the column's own state.
+func (m *Model[T]) indicatorState(c Column[T], item T, busy bool) indicator.State {
+	if busy {
+		return indicator.Running
+	}
+	return c.Indicator(item)
+}
+
+// indicatorCellStyle styles a non-Idle indicator cell like cellStyle styles any
+// other: background forced off the selection, repainted on the plain "normal"
+// selection, left to styles.Selected when a view coloured the whole row.
+func (m *Model[T]) indicatorCellStyle(state indicator.State, selected bool) lipgloss.Style {
+	if selected {
+		if !m.preserveColumnColors {
+			return m.styles.Cell
+		}
+		return indicator.Style(state).Padding(0, 1).Background(theme.ColorTableLineSelected).Bold(true)
+	}
+	return indicator.Style(state).Padding(0, 1).Background(theme.ColorBackground)
 }
 
 // fit truncates the text to the column and pads it out, emitting no escape
@@ -234,7 +290,7 @@ func (m *Model[T]) cellStyle(c Column[T], item T, selected, busy bool, at int) l
 	}
 	if busy {
 		style := theme.DimStyle
-		if at == m.cfg.StatusColumn {
+		if m.indicatorAt < 0 && at == m.cfg.StatusColumn {
 			style = lipgloss.NewStyle().Foreground(theme.ColorHighlight)
 		}
 		return style.Padding(0, 1).Background(theme.ColorBackground)

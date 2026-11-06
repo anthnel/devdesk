@@ -450,6 +450,12 @@ Deliberately outside this:
   nested paths, a sync targets a tree rather than a row, and the spinner does
   not spend the same cell for every operation.
 
+**An `Indicator` column supersedes `StatusColumn`** (DEVDESK-137, next section).
+On a table that has one, a busy row shows `●` / `○` in that column and
+`StatusColumn` no longer picks a cell for the spinner. Both mechanisms coexist
+until the last view has migrated; a table with no `Indicator` column behaves
+exactly as described here.
+
 **Every table in the application is a `datatable`** (§3.21 moved the last four:
 Registries, the registry browser's tags, network-inspect and netdiag's results).
 A new table uses it; there is no second way to build one, and `bubbles/table` is
@@ -482,6 +488,67 @@ back on the default order.
 `Focus` and `Blur` carry the styles with them (Rule 118), so a tab switch does
 not touch `SetStyles`.
 
+
+### The activity indicator column (DEVDESK-137)
+
+`internal/ui/indicator` is a pure package (no import of `theme`, `jobs` or
+`datatable` in `indicator.go`) that names what a row's first column can say.
+
+| State | Glyph | Meaning |
+|---|---|---|
+| `Idle` (zero value) | none | the row's own icon, or an empty cell |
+| `Running` | `●` / `○` (blinks) | an operation is running; busy counts as Running |
+| `Queued` | `◴` | waiting |
+| `Failed` | `⊗` | failed, or container dead / exited non-zero |
+| `Suspended` | `◐` | agent idle, container paused |
+| `Restarting` | `◕` | container restarting |
+| `Done` | `◉` | job or agent done |
+| `Cancelled` | `⊘` | job cancelled |
+| `Skipped` | `⊖` | job skipped, container exited 0 |
+| `Unknown` | `◌` | agent unknown, container created |
+
+`Resolve(Activity{Running, Queued, Failed, Observed})` applies one order:
+**running > queued > remembered failure > observed > idle.** `Observed` is the
+state the view computes itself (a container's status, an agent's age).
+`Glyph(state, on)`, `Animated(state)` and `States()` are the only sources of
+glyphs; `Color` and `Style` (`style.go`) map states to the four
+`theme.ColorActivity*` aliases.
+
+`Legend(extension...)` returns the "Activity indicator" help section every
+migrated view shows; the per-view rows are `JobsLegend`, `AgentsLegend` and
+`ContainersLegend`.
+
+On the table side:
+
+```go
+datatable.IndicatorColumn(
+    func(j job) indicator.State { return j.state },   // the state
+    func(j job) string { return "" },                 // rest: the row's icon, nil ⇒ empty
+    nil,                                              // rest style
+)
+m.table.SetBlinkPhase(on) // from Update, on the view's tick; default on = steady ●
+```
+
+- `Column.Indicator func(T) indicator.State` is set by `IndicatorColumn` only.
+  If several columns carry one, only the first is honoured (`indicatorAt`).
+- **Precedence at render** (`indicatorState`, `render.go`): a row that is busy
+  (`MarkBusy`) is `Running` whatever the column says; otherwise the column's
+  own state. Busy still wins over the view's state, as in §3.22.
+- The phase is **read at render**, so `SetBlinkPhase` rebuilds nothing, and a
+  table never calls it in a test that wants the steady glyph.
+- **Padding follows the terminal.** The glyphs `● ○ ◐ ◕ ◉` have ambiguous
+  width. lipgloss always counts them as one cell; a terminal in East Asian mode
+  draws two. An indicator cell is therefore padded with
+  `runewidth.FillRight`, which follows `runewidth.DefaultCondition`.
+- **The selected row is padded structurally**, not by measuring the rendered
+  line: `padToContent` adds `gap = width - 2 - RenderedWidth()` spaces, computed
+  from the column widths. A second measurement with another library would
+  disagree on the same glyphs. `TestRule116HoldsUnderEastAsianWidth` pins it.
+
+**Known limit.** The header's sort arrow `▲` is also ambiguous-width and is not
+fitted by `runewidth`: under East Asian width the header line can be one cell
+off. Only the header, not the rows. It is accepted for now and the test skips
+line 0.
 
 ## `PostFooterMsg` — the router's one line
 

@@ -332,6 +332,14 @@ func ApplyTheme(t *Theme) {
 	ColorFooterWarn = ColorSeverityMedium
 	ColorFooterError = ColorSeverityCritical
 
+	// Activity indicator colours (DEVDESK-137). Closed aliases, no theme key:
+	// running follows the structural colour, suspended and failed follow the
+	// footer warning and error levels assigned just above.
+	ColorActivityRunning = ColorSecondary
+	ColorActivityNeutral = ColorText
+	ColorActivitySuspended = ColorFooterWarn
+	ColorActivityFailed = ColorFooterError
+
 	// The image update arrow (§3.88), in the structural colour: news, not a
 	// finding.
 	ColorUpdateAvailable = ColorSecondary
