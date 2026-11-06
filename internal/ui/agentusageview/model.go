@@ -41,6 +41,14 @@ const (
 	levelAgents
 )
 
+// agentsTab is the tab on screen at the agents level.
+type agentsTab int
+
+const (
+	tabAgents agentsTab = iota
+	tabBreakdown
+)
+
 // Model is the agent usage view.
 type Model struct {
 	table   datatable.Model[sessionRow]
@@ -52,6 +60,13 @@ type Model struct {
 	level level
 	// agentTable lists the agents of open.
 	agentTable datatable.Model[agentRow]
+	// tab says which tab the agents level shows; the sessions level has none.
+	tab agentsTab
+	// breakdown is the Breakdown tab's content, rebuilt by every withRows from
+	// all the rows in canonical order, whatever the table's sort and filter.
+	breakdown breakdown
+	// breakdownTop is the first panel line on screen, clamped in Update.
+	breakdownTop int
 	// prices is the context's price table, read once in New: ctrl+r keeps it.
 	prices pricing.Table
 	// cost is the cost picture of usage, recomputed by every withRows.

@@ -12,6 +12,10 @@ const (
 	reasonNoSession     = "No session to open"
 	reasonInsideSession = "Already inside a session"
 	reasonTopLevel      = "Already at the session list"
+
+	reasonNoTabs            = "No tabs at the session list"
+	reasonBreakdownNoFilter = "The breakdown covers the whole session — switch to Agents to filter"
+	reasonBreakdownNoSort   = "Nothing to sort in the breakdown"
 )
 
 // actions is what the keys allow right now, computed once and read by both
@@ -20,6 +24,10 @@ const (
 type actions struct {
 	Open  shortcut.Availability // → and enter
 	Close shortcut.Availability // ← and esc
+	Tab   shortcut.Availability // tab and shift+tab
+	// Filter and Sort are unavailable on the Breakdown tab.
+	Filter shortcut.Availability // /
+	Sort   shortcut.Availability // .
 }
 
 // availability computes the answers from the level and the selected row.
@@ -27,8 +35,13 @@ func (m Model) availability() actions {
 	var a actions
 	if m.level == levelAgents {
 		a.Open = shortcut.Unavailable(reasonInsideSession)
+		if m.tab == tabBreakdown {
+			a.Filter = shortcut.Unavailable(reasonBreakdownNoFilter)
+			a.Sort = shortcut.Unavailable(reasonBreakdownNoSort)
+		}
 		return a
 	}
+	a.Tab = shortcut.Unavailable(reasonNoTabs)
 	a.Close = shortcut.Unavailable(reasonTopLevel)
 	if _, ok := m.table.Selected(); !ok {
 		a.Open = shortcut.Unavailable(reasonNoSession)

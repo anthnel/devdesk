@@ -160,7 +160,8 @@ func TestShortcutKeysDoNotChangeBetweenLivePausedLoadingAndError(t *testing.T) {
 	}
 
 	want := strings.Join(testutil.ShortcutKeys(live.GetShortcuts()), ",")
-	for name, m := range map[string]Model{"paused": paused, "loading": loading, "error": failed, "idle": idle} {
+	breakdown := feed(t, live, testutil.Key("tab"))
+	for name, m := range map[string]Model{"paused": paused, "loading": loading, "error": failed, "idle": idle, "breakdown": breakdown} {
 		if got := strings.Join(testutil.ShortcutKeys(m.GetShortcuts()), ","); got != want {
 			t.Errorf("%s: keys %s, want %s", name, got, want)
 		}

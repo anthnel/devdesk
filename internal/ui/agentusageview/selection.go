@@ -61,6 +61,8 @@ func (m Model) withRows(u agentusage.Usage, full bool) Model {
 	cursor := m.agentTable.Cursor()
 
 	rows := agentRows(u, m.agentsTree(), m.clock, m.prices)
+	m.breakdown = buildBreakdown(u, agentRows(u, true, m.clock, m.prices))
+	m.clampBreakdown()
 	m.usage = u
 	m.cost = m.prices.Session(u)
 	m.agentTable.SetItems(rows)

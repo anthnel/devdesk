@@ -93,7 +93,10 @@ apart by colour) or `block` (`█` over a `░` track). `block` is an opt-in bec
 that draws it double-width. It is not derived from the locale: the locale says
 how the process *measures*, not what the terminal *draws* (§3.96). It is applied
 through `theme.SetGaugeGlyph` at startup, on a context switch and on every save,
-and anything but `block` stays on the safe glyph.
+and anything but `block` stays on the safe glyph. The setting also drives the glyph of the `:agent-usage` Breakdown bar
+(`theme.GaugeFill`, in the agents table column and the Breakdown tab); `block` has
+the same ambiguous width there, with the same accepted risk as for the gauges: a
+line can overflow by one cell on a terminal that draws it double-width.
 
 **`app.container_engine`** names the engine every container, image, network and
 volume comes from: `auto` (the default — docker if it is on PATH, else podman),

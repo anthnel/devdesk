@@ -44,6 +44,7 @@ field is a change to those stories; add, do not rename.
 | `ReadDelta(Cursor)` | lists the session again (`Lstat` only for the parent, `subagents/` and the meta files) and reads what was appended since the cursor. Returns `(Delta, error)`. Errors name base names only; on error there is nothing to apply. |
 | `NewAggregate(parentTranscript)` | an empty `*Aggregate` for `<dir>/<uuid>.jsonl`. No I/O. |
 | `Aggregate` | the session's usage built from successive deltas. Methods: `Cursor()` (a copy, to hand to `ReadDelta`), `Apply(Delta) error`, `Usage() Usage` (a deep copy, same shape and rules as `ParseSession`), `Activity() Activity`. **Not safe for concurrent use**: one goroutine owns it. `String`/`GoString` show counts only. |
+| `Usage.Categories()` / `Usage.ModelTotals()` | session-wide sums (DEVDESK-98). `Categories` (`Input`, `Output`, `CacheWrite5m`, `CacheWrite1h`, `CacheRead`; `Total()` saturates) comes from `Agent.Tokens`; 1 h is the sum of `ByModel.CacheWrite1h` clamped to the total write, 5 min is the rest (an agent without `ByModel` counts all writes as 5 min). `ModelTotals` merges `ByModel` by exact model name; an agent with tokens and no `ByModel` adds to the `""` bucket. Order: tokens descending, then name, `""` last; nil on an empty usage. |
 | `ErrStaleDelta` | returned by `Apply`, with nothing changed, for a delta that was not read from the aggregate's current cursor. Read again from `Cursor()`. |
 | `Activity{LastChange, Unfinished}` | what the applied reads say about the session's life. `Settled(now, quiet)` tells a poller it can stop. See "Activity and `Settled`". |
 | `ListSessions(root)` | lists `<root>/<project>/<uuid>.jsonl`, one level deep, never recursively. Returns `Listing`. A missing root is an empty `Listing` and no error; a root that is not a directory or cannot be read is an error naming the base name only. The root itself may be a symbolic link (the user's own choice); anything below it may not. |
@@ -178,6 +179,16 @@ other counters, the last line of a message wins. `ModelUsage.CacheWrite5m()` is
 field is on every usage line, 5 min + 1 h equals the total write on all of
 them, and 1 h writes are 47 % of the cache written. Pricing every write at one
 rate would be wrong by a large factor, which is why the split exists.
+
+**Session-wide sums (DEVDESK-98).** `Usage.Categories()` and
+`Usage.ModelTotals()` (`internal/agentusage/breakdown.go`) feed the Breakdown tab.
+`Categories` takes Input, Output and CacheRead from `Agent.Tokens`, so its
+`Total()` equals `Usage.Total().Total()`. The 1 h cache write is the sum of every
+entry's `CacheWrite1h`, each entry bounded to `[0, its own CacheWrite]` so one
+inconsistent entry cannot eat another's share, then clamped to the total write;
+the 5 min part is the rest. `ModelTotals` merges `ByModel` by exact model name
+(no date-suffix folding, unlike `pricing`); tokens with no `ByModel` land in the
+`""` bucket, which the view labels `unknown`.
 
 ### `cost-state` and `Billed` (DEVDESK-47)
 
@@ -628,7 +639,7 @@ and when a session ran at this level (see the privacy amendment above). `→` or
 | Agent | `orchestrator`, then each sub-agent's type behind `├─ ` / `└─ ` in tree order, bare when sorted (`unknown` when the meta file gave none). `/` matches the role only. |
 | ID | the sub-agent's short ID (`shortAgentIDs`): the smallest common length >= 8 runes at which all IDs of the session differ, capped at each ID's own length. `-` for the orchestrator, `?` for a sub-agent with an empty ID. `/` matches the full ID here. Never dropped, so two agents of one type stay apart. |
 | Model | the models the agent used, comma-separated; `-` (dim) when none. `Optional`. |
-| Breakdown | the token mix as a 10-cell bar (DEVDESK-128): `Cell` is `theme.GaugeFill(10)` (plain text), `Spans` paints `agentRow.mix` with the four `theme.TokenStyle` roles in the order Input, Output, Cache write, Cache read; a dim `-` when the agent has no token. `mix`/`hasMix` are computed once in `agentRows` via `segmentCells`. Fixed width 10, `Optional`, no sort or search. Visible from 106 columns with short agent types (110 with `general-purpose`, 125 with a 30-character type). |
+| Breakdown | the token mix as a 10-cell bar (DEVDESK-128): `Cell` is `theme.GaugeFill(10)` (plain text), `Spans` paints `agentRow.mix` with the four `theme.TokenStyle` roles in the order Input, Output, Cache write, Cache read; a dim `-` when the agent has no token. `mix`/`hasMix` are computed once in `agentRows` via `segmentCells`. Fixed width 10, `Optional`, no sort or search. The glyph is `app.gauge_glyph`'s (`theme.GaugeFill`); the bar has no track, so colour is the only thing that separates its parts (Rule 122, fifth declared exception). `apportion` (`breakdown_bar.go`) splits the 10 cells with the largest-remainder method on 128-bit-safe `math/big` integers: a category worth less than half a cell gets no cell of its own, leftover cells go to the largest part, ties go to the larger part then the lowest index. A bar therefore always fills its 10 cells when the agent has any token, and a small category can vanish: the exact figures are in the In/Out/Cache columns and in the Breakdown tab. Visible from 106 columns with short agent types (110 with `general-purpose`, 125 with a 30-character type). |
 | In, Out, Cache read, Cache write, Total | token counts. On a narrow terminal the drop order is `Cache write`, `Est. cost`, `Cache read`, `In`, `Breakdown`, `Model`, `Duration`, `Tools`, `State`. `Out` and `Total` stay. |
 | State | `running`, `idle`, `done` or `unknown` (DEVDESK-46, see "Agent state and activity"). Fixed width, `Optional`. `/` matches the label. |
 | Tools | `Agent.ToolCalls`, compact like tokens; a dim `0`. Fixed, `Optional`. |
@@ -722,6 +733,54 @@ and when a session ran at this level (see the privacy amendment above). `→` or
   on leaving the level (`closeAgents`), on `Leave` and on resume; an answer with
   another generation, or arriving after the user went back, is dropped.
   `ctrl+r` at the agents level reads the open session again from the start.
+
+#### Breakdown tab (DEVDESK-98)
+
+Inside a session, `tab` (or `shift+tab`) switches between two tabs, **Agents**
+(the table above) and **Breakdown** (`breakdown.go`, `breakdown_view.go`). With
+two tabs both directions land on the other one. `esc` and `←` leave the session
+from either tab. Every open and every close resets the tab to Agents and the
+panel scroll to the top (`openSelected`, `closeAgents`), so a session never opens
+on the previous one's tab.
+
+- **Content.** Three blocks, each a title row (with `Share` and `Tokens` column
+  titles), its lines and a `Total` line; one blank line between blocks.
+  *By category*: Input, Output, Cache write 5 min, Cache write 1 h, Cache read
+  (always the five, even at zero), each with a one-cell swatch in the bar's colour
+  (`theme.TokenStyle`; both cache-write lines use the cache-write role). *By
+  model*: `Usage.ModelTotals()`, the unnamed bucket shown as `unknown`. *By agent*:
+  the rows of `agentRows(..., tree=true)`, labelled `orchestrator` or
+  `<type> <short ID>`, whose share is the one the Share column shows.
+- **Percent of tokens.** Every share is a part of `Usage.Total().Total()`, never of
+  the cost. Tenths of a percent, floored (`shares`); in the category and model
+  blocks the rounding residue goes to the largest line (first on a tie), so each
+  block sums to 100.0%; in the agent block the orchestrator takes it, as in the
+  Share column. A session with no token shows a dim `-` for every share, `Total`
+  included.
+- **Whole session.** The panel is built from the whole `Usage` by `withRows`, so it
+  ignores the filter and the sort. The agents header (`Agents`, `Tokens`,
+  `Est. cost`) counts `agentTable.Items()` on Breakdown (`headerRows`) and
+  `Visible()` on Agents: the header always describes what the body shows.
+  `/` is greyed on Breakdown (`reasonBreakdownNoFilter`), `.` as well
+  (`reasonBreakdownNoSort`); `Billed` and `Unattributed` are unchanged.
+- **Live.** `withRows` rebuilds the panel on every delta and `ctrl+r`, then clamps
+  the scroll offset; nothing else is needed.
+- **Scrolling.** The panel is the viewport's body, exactly `m.height` lines
+  (`breakdownWindow`), padded with background lines, so the border does not move
+  between tabs (Rule 139). `up`/`down`, `pgup`/`pgdown`, `home`/`end` move
+  `breakdownTop`, clamped to `[0, lines - height]` (`clampTop`). Lines are built at
+  `width - 2`.
+- **Width.** Margin of one cell; Tokens then Share are dropped when the label would
+  keep fewer than 8 cells (`fitColumns`); labels are cut with `…`. All text is
+  measured plain and styled afterwards (Rule 122), each segment on the app
+  background.
+- **Footer.** Top to bottom: the filter bar when visible (Agents only; it closes
+  the viewport's rectangle, Rule 136), the breadcrumb, the tab row, a blank line,
+  the message line. `GetFooterHeight` adds 2 at the agents level for the breadcrumb
+  and the tab row.
+- **Shortcuts.** `tab Switch tab` is listed at the agents level and greyed when
+  there is nothing to switch (structural key, no footer reason, Rule 130). The
+  scroll keys are obvious and stay out of the header (Rule 138); `?` lists them.
 
 #### Agent state and activity (DEVDESK-46)
 
