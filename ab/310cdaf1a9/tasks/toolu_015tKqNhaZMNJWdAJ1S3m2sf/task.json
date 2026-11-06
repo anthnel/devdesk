@@ -1,0 +1,15 @@
+{
+  "tool_use_id": "toolu_015tKqNhaZMNJWdAJ1S3m2sf",
+  "agent_id": "ad11419b72d592d72",
+  "subagent_type": "team-core:tech-writer",
+  "task_description": "Step 4 documentation",
+  "token_usage": {
+    "input_tokens": 10,
+    "cache_creation_tokens": 151914,
+    "cache_read_tokens": 269096,
+    "output_tokens": 4050,
+    "api_call_count": 6
+  },
+  "started_at": "2026-11-06T10:16:25.20876428+01:00",
+  "completed_at": "2026-11-06T12:41:17.78085933+01:00"
+}

@@ -1,0 +1,15 @@
+{
+  "tool_use_id": "toolu_011nSYbaSFCejz9uv8MGkbeU",
+  "agent_id": "a04fa93de7f1eb37a",
+  "subagent_type": "dev-team:architect",
+  "task_description": "Design breadcrumb on frame",
+  "token_usage": {
+    "input_tokens": 38,
+    "cache_creation_tokens": 199895,
+    "cache_read_tokens": 2421361,
+    "output_tokens": 23246,
+    "api_call_count": 17
+  },
+  "started_at": "2026-11-06T09:58:53.471977287+01:00",
+  "completed_at": "2026-11-06T10:02:48.808061799+01:00"
+}
