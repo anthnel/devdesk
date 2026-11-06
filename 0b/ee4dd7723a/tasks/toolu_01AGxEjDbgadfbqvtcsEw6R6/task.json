@@ -1,0 +1,18 @@
+{
+  "tool_use_id": "toolu_01AGxEjDbgadfbqvtcsEw6R6",
+  "agent_id": "aaf102a83348ba4f0",
+  "subagent_type": "project-tester",
+  "task_description": "Step 6 red tests",
+  "files": [
+    "internal/ui/agentusageview/breakdown_test.go"
+  ],
+  "token_usage": {
+    "input_tokens": 16,
+    "cache_creation_tokens": 77776,
+    "cache_read_tokens": 490996,
+    "output_tokens": 9293,
+    "api_call_count": 8
+  },
+  "started_at": "2026-11-06T08:51:07.339672382+01:00",
+  "completed_at": "2026-11-06T08:52:30.726084098+01:00"
+}

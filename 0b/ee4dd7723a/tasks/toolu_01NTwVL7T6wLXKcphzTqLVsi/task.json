@@ -1,0 +1,15 @@
+{
+  "tool_use_id": "toolu_01NTwVL7T6wLXKcphzTqLVsi",
+  "agent_id": "a6da3a2644647461f",
+  "subagent_type": "dev-team:devops",
+  "task_description": "Create PR 2 worktree",
+  "token_usage": {
+    "input_tokens": 6,
+    "cache_creation_tokens": 97504,
+    "cache_read_tokens": 191491,
+    "output_tokens": 712,
+    "api_call_count": 3
+  },
+  "started_at": "2026-11-06T08:47:38.596866913+01:00",
+  "completed_at": "2026-11-06T08:48:05.552657394+01:00"
+}
