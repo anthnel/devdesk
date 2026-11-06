@@ -336,6 +336,21 @@ renders an empty viewport title — with nothing to say so.
 `command.AllViewNames()` and `TestEveryViewSuppliesItsHeaderAndHelp` turn that
 into a contract every view is checked against.
 
+**`FrameTrailView` is optional.** A view that implements
+`FrameTrail(maxWidth int) string` (`internal/app/app_header.go`) puts a trail on
+the viewport's top border, in parentheses right after the title.
+`App.renderTitleLine` computes the budget with `theme.BorderTrailBudget(title,
+width)` (`width - W(title) - 9`, where 9 is `theme.BorderTrailChrome`: `┌─ `,
+` (`, `) `, at least one `─`, `┐`) and passes it to the view. The view returns a
+styled string, measured plain first (Rule 122), or `""` for none.
+`theme.RenderBorderTitleTrail` adds the parentheses and spaces in the border's
+style and pads with `─` to exactly `width` cells. The router never cuts a trail:
+one wider than its budget is dropped, and so is one when the budget is 0 or
+less. With no trail the line is byte-identical to `RenderBorderTitle`. A
+`FramelessView` gets none (its title is a rule, not a border). Only
+`agentusageview` implements it, at the agents level:
+`┌─ 󰚩 Agent usage › app (Sessions › ~/w/app › 1a2b3c4d) ───┐`.
+
 There are **three** name lists, and each answers a different question:
 
 | | Answers | Read by |

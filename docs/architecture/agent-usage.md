@@ -676,9 +676,13 @@ and when a session ran at this level (see the privacy amendment above). `→` or
 - **Flat tree, two levels.** Whatever `SpawnDepth` a sub-agent has, it is a
   direct child of the orchestrator in the table. Order: orchestrator first, then
   sub-agents sorted by ID (stable) until the user sorts by Total.
-- **Breadcrumb.** `Sessions › <project> › <short ID>` sits in the footer, one row
-  above the filter bar and the message line (Rule 123), and adds one row to
-  `GetFooterHeight`.
+- **Breadcrumb (DEVDESK-134).** `Sessions › <project> › <short ID>` sits on the
+  viewport's top border, in parentheses right after the title (`FrameTrail`,
+  `FrameTrailView` in `app-shell.md`; Rule 123 declares the exception):
+  `┌─ 󰚩 Agent usage › app (Sessions › ~/w/app › 1a2b3c4d) ───┐`. It is empty at
+  the sessions level. When the budget is short, the project path shrinks first
+  (`theme.ShortPath`, floor `minTrailProject`), then the whole trail disappears.
+  It no longer touches `GetFooterHeight`.
 - **Est. cost (DEVDESK-47, `cost.go`).** The third column, after ID. The cost is
   computed in `Update` (`agentRows` gets the `pricing.Table`, `withRows` stores
   the `pricing.Summary`), never in a `Cell`. Formats, USD only, no thousands
@@ -775,9 +779,9 @@ on the previous one's tab.
   measured plain and styled afterwards (Rule 122), each segment on the app
   background.
 - **Footer.** Top to bottom: the filter bar when visible (Agents only; it closes
-  the viewport's rectangle, Rule 136), the breadcrumb, the tab row, a blank line,
-  the message line. `GetFooterHeight` adds 2 at the agents level for the breadcrumb
-  and the tab row.
+  the viewport's rectangle, Rule 136), the tab row, a blank line, the message
+  line. `GetFooterHeight` adds 1 at the agents level for the tab row. Heights:
+  sessions 2, agents 3, agents with the filter bar 5, Breakdown 3.
 - **Shortcuts.** `tab Switch tab` is listed at the agents level and greyed when
   there is nothing to switch (structural key, no footer reason, Rule 130). The
   scroll keys are obvious and stay out of the header (Rule 138); `?` lists them.

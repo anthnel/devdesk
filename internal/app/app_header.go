@@ -35,6 +35,15 @@ type FramelessView interface {
 	Frameless() bool
 }
 
+// FrameTrailView is implemented by a view that adds a trail (a breadcrumb, an
+// identifier) to the viewport's top border, in parentheses right after the
+// title. The router passes the width the trail may take; the view returns an
+// already-styled string no wider than that, or "" for none. A trail that is too
+// wide is dropped, never cut. Frameless views never get one.
+type FrameTrailView interface {
+	FrameTrail(maxWidth int) string
+}
+
 // headerMinHeight is the fixed header height (without the blank line under it).
 const headerMinHeight = 7
 

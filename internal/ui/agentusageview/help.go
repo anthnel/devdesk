@@ -39,6 +39,8 @@ func (m Model) GetHelpContent() help.Content {
 				Title: "Agents",
 				Body: "Opening a session lists its agents: the orchestrator first, then each sub-agent with its type, " +
 					"as a tree, with the models used and the tokens in, out, and cached.\n" +
+					"The breadcrumb (Sessions › project › session ID) sits on the top border of the frame, not in the footer; " +
+					"it is shortened on a narrow terminal and hidden when it no longer fits.\n" +
 					"A ≥ before an Out count means a floor: that sub-agent's transcript was still being written, so the real figure is higher.\n" +
 					"The orchestrator is the main conversation; its figures are never a floor.\n" +
 					"When part of a transcript could not be read, the footer says the totals are approximate.",

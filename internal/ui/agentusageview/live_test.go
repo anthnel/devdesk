@@ -286,7 +286,7 @@ func TestAPollReadAndItsAnswerLeaveTheFooterQuiet(t *testing.T) {
 	if m.agentsLoading || m.agentsErr {
 		t.Errorf("agentsLoading=%v agentsErr=%v after a poll, want false, false", m.agentsLoading, m.agentsErr)
 	}
-	// Not footer(m): at the agents level that includes the breadcrumb line.
+	// Not footer(m): at the agents level that includes the tab row.
 	if m.footer.IsSet() {
 		t.Errorf("a poll must not set a footer message, got %q", m.footer.Text())
 	}

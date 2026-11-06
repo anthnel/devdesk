@@ -245,6 +245,17 @@ return theme.PadWithBg(theme.Bg(" ") + theme.RenderTabs(tabs, activeIdx), width)
 return theme.PadWithBg(theme.RenderTabs(tabs, activeIdx), width)
 ```
 
+**Declared exception: `:agent-usage` at the agents level (DEVDESK-134).** Its
+breadcrumb is not a row under the table: it sits on the viewport's top border, in
+parentheses right after the title (`FrameTrailView`, see `app-shell.md`):
+
+```
+┌─ 󰚩 Agent usage › app (Sessions › ~/w/app › 1a2b3c4d) ─────────┐
+```
+
+The Agents/Breakdown tab row stays under the table, with its one-cell margin.
+`:jobs` keeps its breadcrumb under the table (not migrated).
+
 Forbidden:
 - ❌ Tabs ABOVE the table
 - ❌ Tabs INSIDE the viewport (would get scrolled)
@@ -279,6 +290,10 @@ viewportHeight := windowHeight - 7 - 1 - footerHeight // the title line is insid
 There is no command line row (DEVDESK-109): the command palette is an overlay
 composed over the final screen (`overlay.Compose`), so opening or closing it never
 changes a height. The header's last row carries a permanent hint, `ctrl+p Commands`.
+
+The title line may carry, in parentheses after the title, the trail of a
+`FrameTrailView`; it changes no height. At the agents level, `:agent-usage`'s
+footer is 3 lines (tab row, blank line, info line).
 
 Footer rendering:
 ```go

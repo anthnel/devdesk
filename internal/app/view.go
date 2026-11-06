@@ -136,7 +136,30 @@ func (a *App) renderTitleLine() string {
 	if a.frameless() {
 		return theme.RenderTitledRule(title, a.width)
 	}
-	return theme.RenderBorderTitle(title, a.width)
+	return theme.RenderBorderTitleTrail(title, a.frameTrail(title), a.width)
+}
+
+// frameTrail asks the active view for its border trail, within the budget the
+// theme leaves after title. It returns "" when there is no room, the view has
+// no trail, or the trail is wider than its budget.
+func (a *App) frameTrail(title string) string {
+	view, ok := a.views[a.currentView]
+	if !ok {
+		return ""
+	}
+	tv, ok := view.(FrameTrailView)
+	if !ok {
+		return ""
+	}
+	budget := theme.BorderTrailBudget(title, a.width)
+	if budget <= 0 {
+		return ""
+	}
+	trail := tv.FrameTrail(budget)
+	if lipgloss.Width(trail) > budget {
+		return ""
+	}
+	return trail
 }
 
 // frameless reports whether the active view draws its own frames (see
