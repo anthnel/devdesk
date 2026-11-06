@@ -48,7 +48,9 @@ func Sync(repoPath string, opts SyncOptions) (SyncResult, error) {
 	if err != nil {
 		return SyncResult{}, err
 	}
-	if _, err := run(repoPath, opts.Token, "fetch", "--quiet", "--prune"); err != nil {
+	// --prune drops remote-tracking branches the remote deleted; --no-prune-tags
+	// keeps fetch.pruneTags from extending that to local tags (see syncTags).
+	if _, err := run(repoPath, opts.Token, "fetch", "--quiet", "--prune", "--no-prune-tags"); err != nil {
 		return SyncResult{}, err
 	}
 	result, err := reconcile(repoPath)
@@ -162,6 +164,11 @@ func skipped(reason string) SyncResult {
 // does not have, which is a tag someone made here and never pushed. That is
 // also what a global `fetch.prune = true` does to this refspec, so the flag is
 // passed explicitly rather than assumed absent.
+//
+// The branch fetch in Sync prunes, and `fetch.pruneTags = true` (or
+// `remote.<name>.pruneTags`) would make that prune cover refs/tags/* too,
+// deleting the same local-only tags this function keeps. Sync therefore passes
+// `--no-prune-tags` there (git 2.17+, DEVDESK-135).
 //
 // A repository with no such remote — a local-only one, or a branch tracking
 // "." — has no tags to follow, and that is not an error: the branch fetch
