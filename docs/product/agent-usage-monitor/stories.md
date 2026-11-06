@@ -136,17 +136,20 @@ Epic : E2 — Priorité : Should — Effort : L (à livrer en deux parts : barre
 En tant qu'utilisateur de DevDesk, je veux voir la répartition des tokens d'une session (barre empilée par agent, puis panneau par catégorie, modèle et agent, en pourcentages), afin de comprendre de quoi est faite la consommation.
 
 **Critères d'acceptation**
-1. Étant donné une session ouverte, quand le tableau s'affiche, alors une colonne montre par agent une barre empilée Input / Output / Cache write / Cache read de largeur fixe.
+1. Étant donné une session ouverte, quand le tableau s'affiche, alors une colonne, placée entre Model et In, montre par agent une barre empilée Input / Output / Cache write / Cache read de largeur fixe.
 2. Les segments arrondis (plus grand reste) somment la largeur ; une catégorie sous une demi-cellule peut tenir 0 cellule ; un agent sans token affiche `-`.
-3. Chaque catégorie a son propre glyphe, la couleur n'étant jamais le seul porteur (test : quatre glyphes différents).
-4. Le panneau « Breakdown » affiche trois blocs en pourcentages (catégorie avec écriture 5 min / 1 h, modèle, agent), chacun sommant 100,0 % et égal au total de l'en-tête.
+3. La barre n'utilise qu'un seul glyphe, celui de la jauge des containers (`app.gauge_glyph` : `░` par défaut, `█` en mode block), et les quatre segments se distinguent par quatre couleurs de rôle du thème : `token_input`, `token_output`, `token_cache_write`, `token_cache_read`. Test d'acceptation, sur le thème par défaut et sur chaque thème livré : les quatre couleurs sont distinctes (ΔE76 >= 20 entre chaque paire), contraste >= 3:1 sur le fond et sur la ligne sélectionnée, éloignées des couleurs de sévérité et de jauge. (Remplace l'ancien critère « quatre glyphes différents sans couleur », décision du 2026-11-05.)
+4. Le panneau « Breakdown » (onglet sous le tableau, Rule 123, `tab` / `shift+tab`) affiche trois blocs en pourcentages de tokens (catégorie avec écriture 5 min / 1 h, modèle, agent), chacun sommant 100,0 % et égal au total de l'en-tête ; sur cet onglet, l'en-tête Tokens compte la session entière.
 5. Session sans token : cellules `-`, sans division par zéro.
 6. Session active : barre et panneau suivent les lectures ; le panneau ignore le filtre.
-7. Rules 130, 114, 108, 116 ; uniquement des compteurs.
+7. Rules 130, 114, 108, 116 ; le fil d'Ariane est sur la bordure haute du cadre, entre parenthèses après le titre (« Agent usage › <projet> (Sessions › <chemin> › <id>) », décision D95, exception déclarée à la Rule 123) ; le pied de page au niveau des agents = barre de filtre éventuelle, rangée d'onglets, ligne vide, message (3 lignes hors barre ; hauteur budgétée, Rule 124) ; uniquement des compteurs.
+8. `datatable` est étendu à N plages de couleur (aujourd'hui deux : `Cut`/`TailStyle`), avec une exception déclarée à la Rule 122 (la couleur est le seul porteur, le glyphe étant unique).
 
 **Hors périmètre** : répartition en dollars, barre dans la liste, courbe dans le temps (S-12), export.
-**Hypothèses** : Hypothèse: `cache_read` domine en volume (à mesurer) ; barre à glyphes distincts, sans teinte par segment (évite d'étendre `datatable`).
-**Questions ouvertes** : tokens ou coût estimé ; où vit le panneau (onglets Rule 123, troisième niveau, modale) ; touche ; garder le bloc « par agent » qui double Share ; teintes par segment.
+**Hypothèses** : Hypothèse: `cache_read` domine en volume (à mesurer) ; Hypothèse: les quatre couleurs de rôle satisfont ΔE76 >= 20, contraste 3:1 et éloignement des couleurs de sévérité/jauge sur chaque thème livré (à vérifier par le test d'acceptation, quitte à retoucher une teinte de thème).
+**Décisions (utilisateur, 2026-11-05)** : pourcentages en tokens (une colonne « % du coût » : piste possible, hors périmètre, pas de story, aucun engagement) ; panneau en onglets sous le tableau, `tab` / `shift+tab` ; pied de page filtre, fil d'Ariane, onglets (amendé le 2026-11-06 : fil d'Ariane sur la bordure haute, D95, à la demande de l'utilisateur après la PR #322 ; d'abord demandé au bord droit, finalement entre parenthèses après le titre) ; bloc « par agent » gardé ; un seul glyphe + quatre couleurs de rôle, `datatable` étendu à N plages avec exception déclarée à la Rule 122 ; colonne entre Model et In ; en-tête Tokens = session entière sur l'onglet Breakdown ; deux PR (barre, puis panneau).
+**Livré** : PR #321 (barre), #322 (panneau), #323 (fil d'Ariane sur le cadre).
+**Questions ouvertes** : aucune.
 **Bloqué par** : rien (données livrées par DEVDESK-47).
 
 ### S-11 — Show agent state and type as icons, and flag costly agents
