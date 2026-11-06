@@ -1,0 +1,15 @@
+{
+  "tool_use_id": "toolu_01FUzmBC4oF6MNWAc7JdpHC8",
+  "agent_id": "acd21df37c4e87c32",
+  "subagent_type": "team-core:tech-writer",
+  "task_description": "Reporter décisions spike A-00",
+  "token_usage": {
+    "input_tokens": 12,
+    "cache_creation_tokens": 111305,
+    "cache_read_tokens": 466329,
+    "output_tokens": 6946,
+    "api_call_count": 6
+  },
+  "started_at": "2026-11-06T18:36:32.168076197+01:00",
+  "completed_at": "2026-11-06T18:37:25.659587361+01:00"
+}
