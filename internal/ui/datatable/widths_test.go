@@ -106,12 +106,15 @@ func allLayouts() map[string][]Column[string] {
 		// The arrow reserve raises what a column asks for, so it is another way
 		// to push the total past what is available — Rule 116 has to survive it.
 		"the inventory shape": inventoryShape(),
+		// The agents table: a prefix of its drop order yields to content
+		// (YieldsToContent), which must not break the invariant either.
+		"the agents shape with yielding columns": agentsLikeShape(true),
 	}
 }
 
 func TestTheRenderedLineAlwaysSpansTheViewportInterior(t *testing.T) {
 	for name, columns := range allLayouts() {
-		for width := 0; width <= 200; width++ {
+		for width := 0; width <= 250; width++ {
 			widths := solveWidths(columns, width, nil)
 			span, kept := renderedSpan(widths)
 

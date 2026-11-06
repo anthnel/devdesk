@@ -100,6 +100,14 @@ type Column[T any] struct {
 	// A bool rather than a rank: two tiers is what the case needs, and an int
 	// would invite every table to number its columns against each other.
 	DropFirst bool
+	// YieldsToContent lets this Optional column be removed before a required
+	// content column (SizingContent, not Optional) is cut below its widest
+	// value. It acts only while this column is the one drop() would remove
+	// next: set it on a prefix of the table's drop order, or it is never
+	// reached before the content is cut. The drop order itself does not
+	// change, only the moment. Optional content columns are still cut first.
+	// Meaningless without Optional. Off, the solver is unchanged.
+	YieldsToContent bool
 	// TruncateHead cuts the start of an over-long value rather than its end.
 	//
 	// A flag per column rather than a rule derived from Sizing, because the
@@ -166,6 +174,15 @@ type Column[T any] struct {
 	// split under the cursor instead of collapsing to Style's colour alone.
 	Cut       func(T) int
 	TailStyle func(T) lipgloss.Style
+	// Spans splits a cell into any number of coloured runs, left to right, over
+	// the *fitted* text (measured, truncated and padded first). Widths below 0
+	// count as 0, a zero-width span renders nothing, spans past the cell's width
+	// are clipped and the cells left after the last span take Style. A nil or
+	// empty result takes the one-run path. Spans takes precedence over
+	// Cut/TailStyle; a column declaring both is rejected by a source test.
+	// Like Cut, widths count runes, so the cell must hold single-width glyphs.
+	// Dropped, like Cut/TailStyle, on a row a view has coloured whole.
+	Spans func(T) []Span
 	// Less sorts by this column. Nil means the column cannot be sorted by, and
 	// `.` skips it.
 	Less func(a, b T) bool
@@ -851,4 +868,12 @@ func (m *Model[T]) sorted(items []T) []T {
 		return less(items[i], items[j])
 	})
 	return items
+}
+
+// Span is one coloured run of a multi-run cell (Column.Spans): Width cells of
+// the cell's already-fitted text, painted with Style. Style must not carry
+// Width, Padding or Margin: they would change the cell's width (as for Cut).
+type Span struct {
+	Width int
+	Style lipgloss.Style
 }

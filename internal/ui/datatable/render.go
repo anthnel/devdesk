@@ -128,9 +128,11 @@ func (m *Model[T]) rowLine(cols []table.Column, item T, selected bool) string {
 			text = m.spinnerFrame
 		}
 		fitted := fit(text, cols[i].Width, c.TruncateHead)
-		if !busy && c.TailStyle != nil && (!selected || m.preserveColumnColors) {
-			line.WriteString(m.splitCellRun(c, item, fitted, selected))
-			continue
+		if !busy && (!selected || m.preserveColumnColors) {
+			if runs, ok := m.multiRunCell(c, item, fitted, selected); ok {
+				line.WriteString(runs)
+				continue
+			}
 		}
 		line.WriteString(m.cellStyle(c, item, selected, busy, i).Render(fitted))
 	}
@@ -250,11 +252,51 @@ func (m *Model[T]) cellStyle(c Column[T], item T, selected, busy bool, at int) l
 	return style
 }
 
+// run is one coloured stretch of an already-fitted cell.
+type run struct {
+	text  string
+	style lipgloss.Style
+}
+
+// multiRunCell renders a cell that colours more than one stretch of its text:
+// Column.Spans when it answers a non-empty list, else Cut/TailStyle. ok is false
+// for an ordinary one-run cell, which the caller renders through cellStyle.
+func (m *Model[T]) multiRunCell(c Column[T], item T, fitted string, selected bool) (string, bool) {
+	if c.Spans != nil {
+		if spans := c.Spans(item); len(spans) > 0 {
+			return m.renderRuns(m.spanRuns(c, item, spans, fitted, selected)), true
+		}
+		return "", false
+	}
+	if c.TailStyle == nil {
+		return "", false
+	}
+	return m.splitCellRun(c, item, fitted, selected), true
+}
+
+// spanRuns lays spans over the fitted text from left to right: a negative width
+// counts as 0, a zero-width span yields no run, what overflows the cell is cut
+// and the cells left after the last span take c.Style. Widths are in runes, so
+// like Cut they assume single-width glyphs.
+func (m *Model[T]) spanRuns(c Column[T], item T, spans []Span, fitted string, selected bool) []run {
+	runes := []rune(fitted)
+	var runs []run
+	pos := 0
+	for _, s := range spans {
+		end := min(pos+max(s.Width, 0), len(runes))
+		if end > pos {
+			runs = append(runs, run{string(runes[pos:end]), m.runStyle(s.Style, selected)})
+			pos = end
+		}
+	}
+	if pos < len(runes) {
+		runs = append(runs, run{string(runes[pos:]), m.runStyle(m.styleOf(c.Style, item), selected)})
+	}
+	return runs
+}
+
 // splitCellRun renders a two-colour cell: c.Style covers the first c.Cut(item)
-// cells of the already-fitted text, c.TailStyle the rest. Both runs get the
-// column's usual 1-cell padding on their own outer edge — literal padding
-// characters rather than lipgloss's Padding property, so the two renders don't
-// each add their own pair and open a two-cell gap at the run boundary.
+// cells of the already-fitted text, c.TailStyle the rest, as two runs.
 //
 // fitted is exactly cols[i].Width runes (fit() guarantees it), so slicing by
 // rune index is safe: every glyph a caller uses here — braille, ASCII, the
@@ -271,34 +313,53 @@ func (m *Model[T]) cellStyle(c Column[T], item T, selected, busy bool, at int) l
 // under the cursor instead of collapsing to Style's fill colour alone.
 func (m *Model[T]) splitCellRun(c Column[T], item T, fitted string, selected bool) string {
 	runes := []rune(fitted)
-	cut := c.Cut(item)
-	switch {
-	case cut < 0:
-		cut = 0
-	case cut > len(runes):
-		cut = len(runes)
+	cut := min(max(c.Cut(item), 0), len(runes))
+	return m.renderRuns([]run{
+		{string(runes[:cut]), m.runStyle(m.styleOf(c.Style, item), selected)},
+		{string(runes[cut:]), m.runStyle(m.styleOf(c.TailStyle, item), selected)},
+	})
+}
+
+// renderRuns renders the runs of one cell side by side. The column's 1-cell
+// padding goes on the outer edge of the first and last run as literal spaces
+// rather than lipgloss's Padding property, so runs don't each add their own pair
+// and open a gap at a boundary. Every run given is rendered, empty or not:
+// callers that must not emit an empty styled run drop it beforehand.
+func (m *Model[T]) renderRuns(runs []run) string {
+	var b strings.Builder
+	for i, r := range runs {
+		text := r.text
+		if i == 0 {
+			text = " " + text
+		}
+		if i == len(runs)-1 {
+			text += " "
+		}
+		b.WriteString(r.style.Render(text))
 	}
-	head := " " + string(runes[:cut])
-	tail := string(runes[cut:]) + " "
-	return m.runStyle(c.Style, item, selected).Render(head) + m.runStyle(c.TailStyle, item, selected).Render(tail)
+	return b.String()
+}
+
+// styleOf evaluates an optional per-item style function; nil gives the zero style.
+func (m *Model[T]) styleOf(fn func(T) lipgloss.Style, item T) lipgloss.Style {
+	if fn == nil {
+		return lipgloss.NewStyle()
+	}
+	return fn(item)
 }
 
 // runStyle applies the same foreground/background defaulting cellStyle gives
-// a single-run cell, minus the Padding — splitCellRun already pads with
-// literal characters — so a two-run cell is indistinguishable from a one-run
-// one everywhere but the run boundary.
+// a single-run cell, minus the Padding — renderRuns already pads with
+// literal characters — so a multi-run cell is indistinguishable from a one-run
+// one everywhere but the run boundaries.
 //
 // selected forces the shared selection background and bold weight
 // unconditionally, exactly as cellStyle's selected branch does for a
 // single-run cell — unlike the unselected path below, this overrides
-// whatever background the column's own Style already set (GaugeTrackStyle
+// whatever background the run's own style already set (GaugeTrackStyle
 // sets one explicitly), because the selected row's background is the
 // highlight itself, not a fallback for an unset one.
-func (m *Model[T]) runStyle(styleFn func(T) lipgloss.Style, item T, selected bool) lipgloss.Style {
-	var style lipgloss.Style
-	if styleFn != nil {
-		style = styleFn(item)
-	}
+func (m *Model[T]) runStyle(style lipgloss.Style, selected bool) lipgloss.Style {
 	if _, unset := style.GetForeground().(lipgloss.NoColor); unset {
 		style = style.Foreground(theme.ColorText)
 	}

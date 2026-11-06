@@ -398,20 +398,22 @@ func TestAnIncompleteEntryIsLoggedOnceAndShowsADash(t *testing.T) {
 
 // Measured column by column from 50 to 230 with Est. cost DropFirst. It is
 // dropped right after Cache write (also DropFirst, and further right), before
-// any ordinary Optional column, so it needs 126 columns to appear. Switch
-// widths: Est. cost appears at 126 (Cache write at 139); State at 63, Tools at
-// 70, Duration at 80, Model at 94, In at 102, Cache read at 114.
+// any ordinary Optional column, so it needs 138 columns to appear. Switch
+// widths: Est. cost appears at 138 (Cache write at 151); State at 63, Tools at
+// 70, Duration at 80, Model at 94, Breakdown at 106, In at 114, Cache read at 126.
 func TestEstCostLayoutAtEachWidth(t *testing.T) {
 	tests := []struct {
 		width int
 		want  []string
 	}{
-		{200, []string{"Agent", "ID", costTitle, "State", "Tools", "Duration", "Model", "In", "Out", "Cache read", "Cache write", "Total", "Share"}},
-		{126, []string{"Agent", "ID", costTitle, "State", "Tools", "Duration", "Model", "In", "Out", "Cache read", "Total", "Share"}}, // narrowest with Est. cost
-		{125, []string{"Agent", "ID", "State", "Tools", "Duration", "Model", "In", "Out", "Cache read", "Total", "Share"}},            // Est. cost goes first
-		{100, []string{"Agent", "ID", "State", "Tools", "Duration", "Model", "Out", "Total", "Share"}},                                // loses In, Cache read first
-		{80, []string{"Agent", "ID", "State", "Tools", "Duration", "Out", "Total", "Share"}},                                          // DEVDESK-46 criterion 1 kept
-		{60, []string{"Agent", "ID", "Out", "Total", "Share"}},                                                                        // the five DEVDESK-43 columns; State needs 63
+		{200, []string{"Agent", "ID", costTitle, "State", "Tools", "Duration", "Model", "Breakdown", "In", "Out", "Cache read", "Cache write", "Total", "Share"}},
+		{138, []string{"Agent", "ID", costTitle, "State", "Tools", "Duration", "Model", "Breakdown", "In", "Out", "Cache read", "Total", "Share"}}, // narrowest with Est. cost
+		{137, []string{"Agent", "ID", "State", "Tools", "Duration", "Model", "Breakdown", "In", "Out", "Cache read", "Total", "Share"}},            // Est. cost goes first
+		{126, []string{"Agent", "ID", "State", "Tools", "Duration", "Model", "Breakdown", "In", "Out", "Cache read", "Total", "Share"}},            // narrowest with Cache read
+		{125, []string{"Agent", "ID", "State", "Tools", "Duration", "Model", "Breakdown", "In", "Out", "Total", "Share"}},                          // Cache read goes
+		{100, []string{"Agent", "ID", "State", "Tools", "Duration", "Model", "Out", "Total", "Share"}},                                             // loses In, Cache read first
+		{80, []string{"Agent", "ID", "State", "Tools", "Duration", "Out", "Total", "Share"}},                                                       // DEVDESK-46 criterion 1 kept
+		{60, []string{"Agent", "ID", "Out", "Total", "Share"}},                                                                                     // the five DEVDESK-43 columns; State needs 63
 	}
 	for _, tt := range tests {
 		for name, cfg := range map[string]*config.Config{"no prices": nil, "priced": cfgWith(t, pricesYAML)} {

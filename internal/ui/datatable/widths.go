@@ -196,6 +196,12 @@ func fitInto[T any](columns []Column[T], kept, widths []int, available int, meas
 	case total < available:
 		grow(columns, kept, widths, available-total)
 	case total > available:
+		if nextYields(columns, kept) {
+			// Cut only the Optional content columns; what remains is handed
+			// to drop(), which removes the yielding column.
+			return shrinkContentWhere(columns, kept, widths, total-available,
+				func(c Column[T]) bool { return c.Optional })
+		}
 		return shrinkContent(columns, kept, widths, total-available)
 	}
 	return 0
@@ -221,17 +227,33 @@ func measureOf(measured []int, i int) int {
 // The first column is never dropped: a table with no columns at all is not a
 // narrower table, it is a blank one.
 func drop[T any](columns []Column[T], kept []int) []int {
-	at := len(kept) - 1
+	at := dropAt(columns, kept)
+	return append(kept[:at:at], kept[at+1:]...)
+}
+
+// dropAt returns the position in kept of the column drop() removes. drop and
+// nextYields both call it, so they cannot disagree on which column goes next.
+func dropAt[T any](columns []Column[T], kept []int) int {
 	for _, wanted := range []func(Column[T]) bool{
 		func(c Column[T]) bool { return c.Optional && c.DropFirst },
 		func(c Column[T]) bool { return c.Optional },
 	} {
 		if i, ok := rightmost(columns, kept, wanted); ok {
-			at = i
-			break
+			return i
 		}
 	}
-	return append(kept[:at:at], kept[at+1:]...)
+	return len(kept) - 1
+}
+
+// nextYields reports whether the column drop() would remove next is an
+// Optional column carrying YieldsToContent. False when only the first column
+// is left, which is never dropped.
+func nextYields[T any](columns []Column[T], kept []int) bool {
+	if len(kept) < 2 {
+		return false
+	}
+	c := columns[kept[dropAt(columns, kept)]]
+	return c.Optional && c.YieldsToContent
 }
 
 // rightmost finds the last kept column matching want, never the first one.
@@ -285,10 +307,16 @@ func grow[T any](columns []Column[T], kept, widths []int, surplus int) {
 // Widest first is what stops one column being emptied while another stays long;
 // the floor is what stops it being emptied at all.
 func shrinkContent[T any](columns []Column[T], kept, widths []int, shortfall int) int {
+	return shrinkContentWhere(columns, kept, widths, shortfall, func(Column[T]) bool { return true })
+}
+
+// shrinkContentWhere is shrinkContent restricted to the content columns that
+// eligible accepts.
+func shrinkContentWhere[T any](columns []Column[T], kept, widths []int, shortfall int, eligible func(Column[T]) bool) int {
 	for shortfall > 0 {
 		widest, at := 0, -1
 		for _, i := range kept {
-			if columns[i].Sizing != SizingContent || widths[i] <= floorFor(columns[i]) {
+			if columns[i].Sizing != SizingContent || !eligible(columns[i]) || widths[i] <= floorFor(columns[i]) {
 				continue
 			}
 			if widths[i] > widest {

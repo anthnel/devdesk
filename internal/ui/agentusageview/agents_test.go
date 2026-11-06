@@ -293,11 +293,11 @@ func TestModelsCell(t *testing.T) {
 
 func TestAgentColumnsLayout(t *testing.T) {
 	cols := agentColumns()
-	wantTitles := []string{"Agent", "ID", "Est. cost", "State", "Tools", "Duration", "Model", "In", "Out", "Cache read", "Cache write", "Total", "Share"}
+	wantTitles := []string{"Agent", "ID", "Est. cost", "State", "Tools", "Duration", "Model", "Breakdown", "In", "Out", "Cache read", "Cache write", "Total", "Share"}
 	if len(cols) != len(wantTitles) {
 		t.Fatalf("got %d columns, want %d", len(cols), len(wantTitles))
 	}
-	optional := map[string]bool{"Est. cost": true, "State": true, "Tools": true, "Duration": true, "Model": true, "In": true, "Cache read": true, "Cache write": true}
+	optional := map[string]bool{"Est. cost": true, "State": true, "Tools": true, "Duration": true, "Model": true, "Breakdown": true, "In": true, "Cache read": true, "Cache write": true}
 	for i, col := range cols {
 		if col.Title != wantTitles[i] {
 			t.Errorf("column %d = %q, want %q", i, col.Title, wantTitles[i])
@@ -454,6 +454,12 @@ func TestAgentColumnsDimZeroesAndPlaceholders(t *testing.T) {
 		case "Model":
 			if !got(zero) || got(full) {
 				t.Error("Model: only the placeholder is dim")
+			}
+		case "Breakdown":
+			withMix := full // a copy: the other cases of the loop keep reading full as it was
+			withMix.mix, withMix.hasMix = segmentCells(withMix.Tokens)
+			if !got(zero) || got(withMix) {
+				t.Error("Breakdown: only the placeholder is dim")
 			}
 		default:
 			if !got(zero) || got(full) {

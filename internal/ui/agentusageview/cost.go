@@ -67,7 +67,7 @@ func costCell(r agentRow) string {
 // costColumn is the Est. cost column. It has no Less: `.` keeps cycling Total.
 func costColumn() datatable.Column[agentRow] {
 	return datatable.Column[agentRow]{
-		Title: "Est. cost", Sizing: datatable.SizingFixed, MinWidth: costWidth, Optional: true, DropFirst: true,
+		Title: "Est. cost", Sizing: datatable.SizingFixed, MinWidth: costWidth, Optional: true, DropFirst: true, YieldsToContent: true,
 		Cell:  costCell,
 		Style: func(r agentRow) lipgloss.Style { return dimWhen(r.cost.Status != pricing.Priced) },
 	}
