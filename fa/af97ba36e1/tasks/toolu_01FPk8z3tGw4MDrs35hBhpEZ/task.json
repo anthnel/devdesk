@@ -1,0 +1,15 @@
+{
+  "tool_use_id": "toolu_01FPk8z3tGw4MDrs35hBhpEZ",
+  "agent_id": "ab7b69d2028eb52c8",
+  "subagent_type": "project-tester",
+  "task_description": "Rouge étape 1 indicator",
+  "token_usage": {
+    "input_tokens": 10,
+    "cache_creation_tokens": 121762,
+    "cache_read_tokens": 238306,
+    "output_tokens": 4263,
+    "api_call_count": 4
+  },
+  "started_at": "2026-11-06T19:26:58.483080137+01:00",
+  "completed_at": "2026-11-06T19:27:35.382038071+01:00"
+}

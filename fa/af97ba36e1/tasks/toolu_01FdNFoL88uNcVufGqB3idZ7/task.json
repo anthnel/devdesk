@@ -1,0 +1,15 @@
+{
+  "tool_use_id": "toolu_01FdNFoL88uNcVufGqB3idZ7",
+  "agent_id": "a1bab44c80a4edd96",
+  "subagent_type": "project-tester",
+  "task_description": "Rouge étape 6 légende",
+  "token_usage": {
+    "input_tokens": 8,
+    "cache_creation_tokens": 68400,
+    "cache_read_tokens": 201255,
+    "output_tokens": 5020,
+    "api_call_count": 4
+  },
+  "started_at": "2026-11-06T19:28:23.672817189+01:00",
+  "completed_at": "2026-11-06T19:29:09.634620538+01:00"
+}

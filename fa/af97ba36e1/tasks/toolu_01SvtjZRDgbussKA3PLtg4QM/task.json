@@ -1,0 +1,15 @@
+{
+  "tool_use_id": "toolu_01SvtjZRDgbussKA3PLtg4QM",
+  "agent_id": "adb500a284b6bdeb3",
+  "subagent_type": "dev-team:reviewer",
+  "task_description": "Revue étapes 1-6 DEVDESK-137",
+  "token_usage": {
+    "input_tokens": 24,
+    "cache_creation_tokens": 190287,
+    "cache_read_tokens": 1603162,
+    "output_tokens": 11064,
+    "api_call_count": 11
+  },
+  "started_at": "2026-11-06T19:35:32.753429806+01:00",
+  "completed_at": "2026-11-06T19:37:46.571019735+01:00"
+}

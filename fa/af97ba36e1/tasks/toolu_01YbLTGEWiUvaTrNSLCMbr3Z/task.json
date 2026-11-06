@@ -1,0 +1,15 @@
+{
+  "tool_use_id": "toolu_01YbLTGEWiUvaTrNSLCMbr3Z",
+  "agent_id": "ab860061227b19bab",
+  "subagent_type": "project-coder",
+  "task_description": "Vert étape 6 légende",
+  "token_usage": {
+    "input_tokens": 10,
+    "cache_creation_tokens": 66939,
+    "cache_read_tokens": 280941,
+    "output_tokens": 2356,
+    "api_call_count": 5
+  },
+  "started_at": "2026-11-06T19:29:21.223432348+01:00",
+  "completed_at": "2026-11-06T19:29:53.300654732+01:00"
+}

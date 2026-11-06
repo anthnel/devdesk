@@ -1,0 +1,15 @@
+{
+  "tool_use_id": "toolu_01A6ZQCbigs81h8dHcCmpAGK",
+  "agent_id": "a14b706902875483a",
+  "subagent_type": "dev-team:architect",
+  "task_description": "Plan DEVDESK-137 pastille",
+  "token_usage": {
+    "input_tokens": 64,
+    "cache_creation_tokens": 224709,
+    "cache_read_tokens": 5141950,
+    "output_tokens": 42466,
+    "api_call_count": 32
+  },
+  "started_at": "2026-11-06T19:10:42.400348405+01:00",
+  "completed_at": "2026-11-06T19:18:12.575416889+01:00"
+}
