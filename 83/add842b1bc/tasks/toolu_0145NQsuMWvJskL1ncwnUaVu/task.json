@@ -1,0 +1,15 @@
+{
+  "tool_use_id": "toolu_0145NQsuMWvJskL1ncwnUaVu",
+  "agent_id": "ad0b3c0885f4cdfdf",
+  "subagent_type": "dev-team:devops",
+  "task_description": "Move stories.md diff to a doc worktree",
+  "token_usage": {
+    "input_tokens": 6,
+    "cache_creation_tokens": 67744,
+    "cache_read_tokens": 222673,
+    "output_tokens": 1032,
+    "api_call_count": 3
+  },
+  "started_at": "2026-11-06T14:27:09.856053837+01:00",
+  "completed_at": "2026-11-06T14:27:26.050003918+01:00"
+}
