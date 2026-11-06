@@ -1,0 +1,15 @@
+{
+  "tool_use_id": "toolu_01KwaEMWouV4MUJxnXzpDDwD",
+  "agent_id": "a01a285bdf5d2bb72",
+  "subagent_type": "project-coder",
+  "task_description": "Raise Agent column MinWidth",
+  "token_usage": {
+    "input_tokens": 14,
+    "cache_creation_tokens": 77787,
+    "cache_read_tokens": 411686,
+    "output_tokens": 3595,
+    "api_call_count": 7
+  },
+  "started_at": "2026-11-05T20:07:19.308316595+01:00",
+  "completed_at": "2026-11-05T20:09:12.624324489+01:00"
+}

@@ -1,0 +1,15 @@
+{
+  "tool_use_id": "toolu_01APREjZqkViXKYaehMttmYM",
+  "agent_id": "a2cc50d46a92ed4f4",
+  "subagent_type": "dev-team:reviewer",
+  "task_description": "Review YieldsToContent rule",
+  "token_usage": {
+    "input_tokens": 28,
+    "cache_creation_tokens": 193162,
+    "cache_read_tokens": 1962017,
+    "output_tokens": 8499,
+    "api_call_count": 13
+  },
+  "started_at": "2026-11-06T07:45:40.737101401+01:00",
+  "completed_at": "2026-11-06T07:47:44.163197784+01:00"
+}

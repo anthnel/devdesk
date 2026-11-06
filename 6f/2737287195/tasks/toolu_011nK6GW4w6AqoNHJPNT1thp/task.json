@@ -1,0 +1,18 @@
+{
+  "tool_use_id": "toolu_011nK6GW4w6AqoNHJPNT1thp",
+  "agent_id": "a3e6ae55cc95502e3",
+  "subagent_type": "project-coder",
+  "task_description": "Green step 1 apportion",
+  "files": [
+    "internal/ui/agentusageview/breakdown_bar.go"
+  ],
+  "token_usage": {
+    "input_tokens": 8,
+    "cache_creation_tokens": 121674,
+    "cache_read_tokens": 297400,
+    "output_tokens": 4625,
+    "api_call_count": 4
+  },
+  "started_at": "2026-11-05T19:16:56.35651872+01:00",
+  "completed_at": "2026-11-05T19:17:46.649313247+01:00"
+}

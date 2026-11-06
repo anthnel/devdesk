@@ -1,0 +1,15 @@
+{
+  "tool_use_id": "toolu_01Arft71qVsAgLA3bmZegfAF",
+  "agent_id": "a3d2459be8f1c0df0",
+  "subagent_type": "project-coder",
+  "task_description": "Green YieldsToContent rule",
+  "token_usage": {
+    "input_tokens": 20,
+    "cache_creation_tokens": 142719,
+    "cache_read_tokens": 1146387,
+    "output_tokens": 7531,
+    "api_call_count": 10
+  },
+  "started_at": "2026-11-06T07:43:29.111743211+01:00",
+  "completed_at": "2026-11-06T07:45:19.672942579+01:00"
+}

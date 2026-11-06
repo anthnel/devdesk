@@ -1,0 +1,19 @@
+{
+  "tool_use_id": "toolu_0192yeBhXoarA7buVYPPXjvN",
+  "agent_id": "a030990739451afa7",
+  "subagent_type": "project-tester",
+  "task_description": "Red tests YieldsToContent",
+  "files": [
+    "internal/ui/agentusageview/yield_test.go",
+    "internal/ui/datatable/yields_test.go"
+  ],
+  "token_usage": {
+    "input_tokens": 36,
+    "cache_creation_tokens": 169439,
+    "cache_read_tokens": 2338684,
+    "output_tokens": 21024,
+    "api_call_count": 17
+  },
+  "started_at": "2026-11-06T07:40:41.162515521+01:00",
+  "completed_at": "2026-11-06T07:42:55.862530057+01:00"
+}

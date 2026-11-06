@@ -1,0 +1,78 @@
+{
+  "cli_version": "0.12.2",
+  "checkpoint_id": "6f2737287195",
+  "strategy": "manual-commit",
+  "branch": "feat/DEVDESK-98-token-bar",
+  "checkpoints_count": 44,
+  "files_touched": [
+    "docs/architecture/agent-usage.md",
+    "docs/architecture/ui-components.md",
+    "docs/backlog.md",
+    "internal/ui/agentusageview/agents.go",
+    "internal/ui/agentusageview/agents_level_test.go",
+    "internal/ui/agentusageview/agents_test.go",
+    "internal/ui/agentusageview/breakdown_bar.go",
+    "internal/ui/agentusageview/breakdown_bar_test.go",
+    "internal/ui/agentusageview/breakdown_column_test.go",
+    "internal/ui/agentusageview/cost.go",
+    "internal/ui/agentusageview/cost_test.go",
+    "internal/ui/agentusageview/help.go",
+    "internal/ui/datatable/datatable.go",
+    "internal/ui/datatable/render.go",
+    "internal/ui/datatable/spans_test.go",
+    "internal/ui/datatable/widths.go",
+    "internal/ui/datatable/widths_test.go",
+    "internal/ui/theme/colors.go",
+    "internal/ui/theme/manager.go",
+    "internal/ui/theme/tokencolors_test.go",
+    "themes/catppuccin-frappe.json",
+    "themes/catppuccin-latte.json",
+    "themes/catppuccin-macchiato.json",
+    "themes/catppuccin-mocha.json",
+    "themes/dark-plus.json",
+    "themes/github-dark.json",
+    "themes/github-light.json",
+    "themes/nord.json",
+    "themes/one-dark.json",
+    "themes/solarized-dark.json",
+    "themes/solarized-light.json",
+    "themes/tokyo-night.json"
+  ],
+  "sessions": [
+    {
+      "metadata": "/6f/2737287195/0/metadata.json",
+      "transcript": "/6f/2737287195/0/full.jsonl",
+      "compact_transcript": "/6f/2737287195/0/transcript.jsonl",
+      "content_hash": "/6f/2737287195/0/content_hash.txt",
+      "prompt": "/6f/2737287195/0/prompt.txt"
+    }
+  ],
+  "token_usage": {
+    "input_tokens": 303,
+    "cache_creation_tokens": 909297,
+    "cache_read_tokens": 23156175,
+    "output_tokens": 90903,
+    "api_call_count": 108,
+    "subagent_tokens": {
+      "input_tokens": 650,
+      "cache_creation_tokens": 3824789,
+      "cache_read_tokens": 39428888,
+      "output_tokens": 341795,
+      "api_call_count": 313
+    }
+  },
+  "redaction": {
+    "replacements": 0,
+    "layers": {
+      "betterleaks": 0,
+      "connection_string": 0,
+      "credential_key": 0,
+      "credential_value": 0,
+      "credentialed_uri": 0,
+      "entropy": 0,
+      "key_context": 0,
+      "provider_token": 0,
+      "shell_stdin": 0
+    }
+  }
+}

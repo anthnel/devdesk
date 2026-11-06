@@ -1,0 +1,15 @@
+{
+  "tool_use_id": "toolu_01Fvj2i1K9s4e16BNK4DTHHs",
+  "agent_id": "a9916f6f985c8b6ee",
+  "subagent_type": "project-coder",
+  "task_description": "Fix apportion tie-break",
+  "token_usage": {
+    "input_tokens": 8,
+    "cache_creation_tokens": 110601,
+    "cache_read_tokens": 296468,
+    "output_tokens": 1546,
+    "api_call_count": 4
+  },
+  "started_at": "2026-11-05T19:20:02.745192356+01:00",
+  "completed_at": "2026-11-05T19:20:36.899862463+01:00"
+}
