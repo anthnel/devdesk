@@ -112,6 +112,15 @@ var (
 	ColorFooterWarn  lipgloss.Color
 	ColorFooterError lipgloss.Color
 
+	// Activity colours: the state colours of the first-column activity
+	// indicator (DEVDESK-137). Closed aliases assigned in ApplyTheme, no theme
+	// file gains a key (D4): Running = ColorSecondary, Neutral = ColorText
+	// (never ColorDim), Suspended = ColorFooterWarn, Failed = ColorFooterError.
+	ColorActivityRunning   lipgloss.Color
+	ColorActivityNeutral   lipgloss.Color
+	ColorActivitySuspended lipgloss.Color
+	ColorActivityFailed    lipgloss.Color
+
 	// ColorUpdateAvailable is the arrow that says a newer image exists (§3.88).
 	//
 	// An alias assigned in ApplyTheme: no theme file gains a key. It is the

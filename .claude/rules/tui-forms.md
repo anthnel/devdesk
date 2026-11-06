@@ -197,6 +197,13 @@ Status indicators in tables and lists must use circular icons:
 Applies to: scan results, pipeline statuses, UP/DOWN indicators.
 Does not apply to: object-type icons (folders, files, GitLab logo).
 
+**Amendment (DEVDESK-137): the activity column is not covered.** In the activity
+column (Rule 125, "The activity column"), the state is a glyph of
+`internal/ui/indicator` (`● ○ ◴ ⊗ ◐ ◕ ◉ ⊘ ⊖ ◌`), colored by the closed
+`theme.ColorActivity*` aliases, and not `IconOK` / `IconError` / `IconWarning`.
+Every other status column (Verdict, Update, Sig, scan results, UP/DOWN) keeps
+the three icons above, unchanged.
+
 ### Rule 133 : Multi-line text fields — `WrappedInput` mandatory
 
 **`bubbles/textarea` is forbidden.** Its internal background is not controllable by lipgloss and produces visual artifacts (a `┃` gutter, terminal background between lines).

@@ -29,7 +29,7 @@
   "cmd_line_bg": "#3b4252",
   "cmd_line_inactive_fg": "#4c566a",
   "viewport_border": "#4c566a",
-  "severity_critical": "#bf616a",
+  "severity_critical": "#c7757d",
   "severity_critical_fg": "#2e3440",
   "severity_high": "#d08770",
   "severity_high_fg": "#2e3440",

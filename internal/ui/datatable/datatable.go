@@ -32,6 +32,7 @@ import (
 	"github.com/charmbracelet/lipgloss"
 
 	"github.com/anthnel/devdesk/internal/ui/components"
+	"github.com/anthnel/devdesk/internal/ui/indicator"
 	"github.com/anthnel/devdesk/internal/ui/theme"
 )
 
@@ -56,6 +57,9 @@ const (
 // Column describes one column and how to get its value out of an item.
 type Column[T any] struct {
 	Title string
+	// Indicator makes this the activity column (Rule 125). Only IndicatorColumn
+	// may set it; TestOnlyIndicatorColumnSetsIndicator enforces that.
+	Indicator func(T) indicator.State
 	// Sizing is the column's nature (see above). It has no default.
 	Sizing Sizing
 	// MinWidth is the width a SizingFixed column takes, and the floor a
@@ -272,6 +276,10 @@ type Model[T any] struct {
 	// returns none (Rule 110).
 	spinnerFrame string
 	spinnerIdx   int
+	// blinkOn is the phase the Running glyph is drawn in.
+	blinkOn bool
+	// indicatorAt is the index of the column with an Indicator, -1 if none.
+	indicatorAt int
 
 	// natural is the widest text each column produces over the visible rows,
 	// header included. rebuild refreshes it because it is already walking every
@@ -306,7 +314,13 @@ func New[T any](cfg Config[T]) Model[T] {
 		bar = components.NewFilterBarWithTokens(cfg.Tokens)
 	}
 
-	m := Model[T]{cfg: cfg, table: t, bar: bar, sortColumn: cfg.SortColumn, sortDesc: cfg.SortDesc}
+	m := Model[T]{cfg: cfg, table: t, bar: bar, sortColumn: cfg.SortColumn, sortDesc: cfg.SortDesc, blinkOn: true, indicatorAt: -1}
+	for i, c := range cfg.Columns {
+		if c.Indicator != nil {
+			m.indicatorAt = i
+			break
+		}
+	}
 	// A frame from the start: a table whose view never calls AdvanceSpinner —
 	// one rendered in the same frame the action began — would otherwise show an
 	// empty status cell, which reads as "nothing is happening".
@@ -780,14 +794,6 @@ func (m *Model[T]) applyStyles() {
 	// ColorTableLineSelected, so this is true exactly when no view-level state or
 	// busy override took over the row — see cellStyle for what it changes.
 	m.preserveColumnColors = styles.Selected.GetBackground() == theme.ColorTableLineSelected
-	// Pin the selected row to the full content width. Column widths are counted
-	// in cells, and a Nerd Font icon does not always render as wide as it
-	// counts, so the highlight otherwise stops short of the right border by
-	// however much the row's icons disagreed. Padding to a width the row can
-	// never exceed is a no-op when they agree.
-	if m.width > 2 {
-		styles.Selected = styles.Selected.Width(m.width - 2)
-	}
 	m.setStyles(styles)
 }
 
@@ -877,3 +883,30 @@ type Span struct {
 	Width int
 	Style lipgloss.Style
 }
+
+// IndicatorColumn builds the activity column (Rule 125 shape: untitled, fixed,
+// IconColumnWidth). It is the only way a view builds one. Only the first column
+// carrying an Indicator is honoured (Model.indicatorAt); later ones are ignored.
+func IndicatorColumn[T any](state func(T) indicator.State,
+	rest func(T) string, restStyle func(T) lipgloss.Style) Column[T] {
+	c := Column[T]{
+		Sizing: SizingFixed, MinWidth: IconColumnWidth,
+		Indicator: state,
+		Cell: func(item T) string {
+			if rest == nil {
+				return ""
+			}
+			return rest(item)
+		},
+	}
+	if restStyle != nil {
+		c.Style = restStyle
+	}
+	return c
+}
+
+// SetBlinkPhase sets the phase read at render. Read at render; nothing is rebuilt.
+func (m *Model[T]) SetBlinkPhase(on bool) { m.blinkOn = on }
+
+// BlinkPhase reports the current blink phase.
+func (m *Model[T]) BlinkPhase() bool { return m.blinkOn }

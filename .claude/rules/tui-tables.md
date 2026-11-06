@@ -380,6 +380,38 @@ that invents its own width. It does not see the other half — a glyph stuck
 into a text cell is indistinguishable from a name that starts with a
 glyph — which stays a matter for review.
 
+#### The activity column
+
+**In a view with long-running operations (jobs, agents, containers), the first
+column is the activity indicator.** It is built by `datatable.IndicatorColumn`,
+never by a literal `Column` with an `Indicator` field set (`TestOnlyIndicatorColumnSetsIndicator`
+rejects it). It keeps the icon-column shape above: untitled, `SizingFixed`,
+`datatable.IconColumnWidth`. When the row is at rest (`indicator.Idle`) the
+cell shows the row's own icon via its `theme.IconStyle` role, or an empty cell.
+
+- **The color says the state, never the operation.** A scan, a clone and a
+  `docker stop` that are running all look the same: `●` / `○`. What is being
+  done is the footer's and the Jobs view's business.
+- **No green for "done".** `Done` is `◉` in `ColorActivityNeutral`. Green stays
+  reserved for the exceptions Rule 122 lists.
+- **The colors are closed aliases**, assigned in `ApplyTheme`:
+  `ColorActivityRunning`, `ColorActivityNeutral`, `ColorActivitySuspended`,
+  `ColorActivityFailed`. They are not `icon_*` roles and no theme file gains a
+  key: a theme that retuned them per state would break the one alphabet of
+  states the application shares.
+- **The glyph carries the meaning, the color repeats it.** Under the cursor
+  the color is repainted on `ColorTableLineSelected` and the glyph still reads.
+- **The blink phase is read at render.** The view's tick calls
+  `m.table.SetBlinkPhase(on)`; nothing is rebuilt. Without the call the phase
+  is on: a running row shows a steady `●`.
+
+Forbidden:
+- ❌ A literal `Column{Indicator: …}` instead of `datatable.IndicatorColumn`
+- ❌ A glyph literal (`"●"`, `"⊗"`) in a view: use `indicator.Glyph`
+- ❌ A color chosen in the view for an activity state
+- ❌ Green for a finished operation
+- ❌ A color that depends on the type of operation
+
 Forbidden:
 - ❌ `.Align(lipgloss.Center)` on an icon column
 - ❌ `.Align(lipgloss.Right)` on an icon column
