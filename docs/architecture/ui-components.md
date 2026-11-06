@@ -161,6 +161,19 @@ is backwards for the most expendable thing on the line. It is a bool and not a
 rank: two tiers is what the case needs, and an int would invite every table to
 number its columns against each other.
 
+**`YieldsToContent` moves the moment, not the order (DEVDESK-128, D93).** By
+default a shortfall is taken from the `SizingContent` columns first and a column
+is dropped only when they are all at their floor. An `Optional` column carrying
+`YieldsToContent` reverses that for itself: while it is the column `drop()`
+would remove next, the solver cuts only the *Optional* content columns and, if
+that is not enough, drops it before any required content column is cut below
+its widest value. The drop order is untouched (`dropAt` is shared by `drop` and
+the decision, so they cannot disagree); the flag only works on a prefix of that
+order, and once the next column does not carry it the solver is the old one.
+Flag at false: strictly unchanged. Only the agents table sets it (Cache write,
+Est. cost, Cache read, In, Breakdown). Not global, because measured over 2,822
+solver inputs a global rule changed 41 layouts in 7 tables.
+
 **A kept column never goes under one cell.** A column at zero renders nothing
 while its padding has already been spent — D61 word for word — so "too narrow to
 serve" and "not there" have to stay different states, and the second one is a
@@ -287,6 +300,18 @@ own outer edge with a literal space rather than `Style`'s `Padding(0, 1)`,
 because two independent `Padding` calls would open a two-cell gap where the
 runs meet. Neither `Cut` nor `TailStyle` is consulted on the selected row, for
 the same reason `Style` is not.
+
+**`Spans` generalises this to N runs.** `Column.Spans(item) []Span` returns
+`Span{Width, Style}` values: each paints `Width` cells of the already-fitted
+text, left to right, and the cells after the last span take `Style`. Negative
+width counts as 0, zero renders nothing, a span past the end is cut; widths are
+rune counts, so the cell holds single-width glyphs. A nil or empty result takes
+the one-run path. `Spans` takes precedence over `Cut`/`TailStyle`, but mixing
+them in one column is rejected (`TestNoColumnDeclaresSpansWithCutOrTailStyle`).
+On a row a view has coloured whole (error, busy, severity) the spans are
+dropped; on the plain normal selection every span repaints
+`ColorTableLineSelected` and bold itself. A span `Style` must not carry Width,
+Padding or Margin. First user: the token breakdown bars (DEVDESK-98).
 
 Three things it guarantees that hand-wired tables did not:
 

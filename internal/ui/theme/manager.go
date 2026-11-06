@@ -77,6 +77,12 @@ type Theme struct {
 	IconDirectory   string `json:"icon_directory,omitempty"`
 	IconFile        string `json:"icon_file,omitempty"`
 	IconImage       string `json:"icon_image,omitempty"`
+
+	// Token-mix bar colours (optional, fall back to the semantic palette)
+	TokenInput      string `json:"token_input,omitempty"`
+	TokenOutput     string `json:"token_output,omitempty"`
+	TokenCacheWrite string `json:"token_cache_write,omitempty"`
+	TokenCacheRead  string `json:"token_cache_read,omitempty"`
 }
 
 // DefaultTheme returns the default theme (Catppuccin Mocha)
@@ -129,6 +135,11 @@ func DefaultTheme() *Theme {
 		SeverityLowFg:  "#cdd6f4",
 		SeverityInfo:   "#45475a",
 		SeverityInfoFg: "#cdd6f4",
+		// Token-mix bar: blue, mauve, yellow, overlay2 (Catppuccin Mocha).
+		TokenInput:      "#89b4fa",
+		TokenOutput:     "#cba6f7",
+		TokenCacheWrite: "#f9e2af",
+		TokenCacheRead:  "#9399b2",
 	}
 }
 
@@ -358,6 +369,13 @@ func ApplyTheme(t *Theme) {
 	// inventory's first column has exactly two values — the one place where the
 	// two would sit on adjacent rows with nothing else to separate them.
 	ColorIconImage = applyColor(t.IconImage, ColorHighlight)
+
+	// Token-mix bar (tokencolors.go). The fallbacks serve a user theme written
+	// before these keys existed; every shipped theme declares all four.
+	ColorTokenInput = applyColor(t.TokenInput, ColorSecondary)
+	ColorTokenOutput = applyColor(t.TokenOutput, ColorHighlight)
+	ColorTokenCacheWrite = applyColor(t.TokenCacheWrite, ColorPrimary)
+	ColorTokenCacheRead = applyColor(t.TokenCacheRead, ColorText)
 
 	// A disabled shortcut's key (Rule 130), same kind of alias.
 	ColorShortcutDisabled = ColorDim

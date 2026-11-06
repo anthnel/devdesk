@@ -155,6 +155,13 @@ var (
 	ColorIconFile        lipgloss.Color
 	ColorIconImage       lipgloss.Color
 
+	// Token-mix bar colours, one per role (tokencolors.go). Overridable from a
+	// theme file; a theme without the keys falls back to the structural palette.
+	ColorTokenInput      lipgloss.Color
+	ColorTokenOutput     lipgloss.Color
+	ColorTokenCacheWrite lipgloss.Color
+	ColorTokenCacheRead  lipgloss.Color
+
 	// Severity colors (background + foreground pairs)
 	//
 	// ColorSeverityLow's default now equals ColorDim's — the tone the :sec

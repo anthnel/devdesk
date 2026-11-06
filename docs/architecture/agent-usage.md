@@ -628,7 +628,8 @@ and when a session ran at this level (see the privacy amendment above). `→` or
 | Agent | `orchestrator`, then each sub-agent's type behind `├─ ` / `└─ ` in tree order, bare when sorted (`unknown` when the meta file gave none). `/` matches the role only. |
 | ID | the sub-agent's short ID (`shortAgentIDs`): the smallest common length >= 8 runes at which all IDs of the session differ, capped at each ID's own length. `-` for the orchestrator, `?` for a sub-agent with an empty ID. `/` matches the full ID here. Never dropped, so two agents of one type stay apart. |
 | Model | the models the agent used, comma-separated; `-` (dim) when none. `Optional`. |
-| In, Out, Cache read, Cache write, Total | token counts. On a narrow terminal the drop order is `Cache write`, `Est. cost`, `Cache read`, `In`, `Model`, `Duration`, `Tools`, `State`. `Out` and `Total` stay. |
+| Breakdown | the token mix as a 10-cell bar (DEVDESK-128): `Cell` is `theme.GaugeFill(10)` (plain text), `Spans` paints `agentRow.mix` with the four `theme.TokenStyle` roles in the order Input, Output, Cache write, Cache read; a dim `-` when the agent has no token. `mix`/`hasMix` are computed once in `agentRows` via `segmentCells`. Fixed width 10, `Optional`, no sort or search. Visible from 106 columns with short agent types (110 with `general-purpose`, 125 with a 30-character type). |
+| In, Out, Cache read, Cache write, Total | token counts. On a narrow terminal the drop order is `Cache write`, `Est. cost`, `Cache read`, `In`, `Breakdown`, `Model`, `Duration`, `Tools`, `State`. `Out` and `Total` stay. |
 | State | `running`, `idle`, `done` or `unknown` (DEVDESK-46, see "Agent state and activity"). Fixed width, `Optional`. `/` matches the label. |
 | Tools | `Agent.ToolCalls`, compact like tokens; a dim `0`. Fixed, `Optional`. |
 | Duration | `Agent.Duration()` (`formatDuration`): `45s`, `3m07s`, `1h05m`, `2d03h`, `>99d`, floored, at most 6 cells; a dim `-` when the transcript has no timestamp. Fixed, `Optional`. |
@@ -641,12 +642,12 @@ and when a session ran at this level (see the privacy amendment above). `→` or
   sums to `100.0%`; the residue is clamped at 0 when saturated totals overshoot.
   With no orchestrator row nothing is absorbed. A session with no tokens gives
   `noShare` and the cell shows a dim `-`. Rendered as `12.3%`.
-- **Column order and width.** Agent, ID, Est. cost, State, Tools, Duration, Model, In, Out,
+- **Column order and width.** Agent, ID, Est. cost, State, Tools, Duration, Model, Breakdown, In, Out,
   Cache read, Cache write, Total, Share. With three sub-agents, 100 columns show
   Agent, ID, State, Tools, Duration, Model, Out, Total, Share; 80 columns drop
   Model as well; 60 columns drop Duration, Tools and State and show the five
   columns DEVDESK-43 delivered. Rule 116 holds at each width (rendered extent =
-  width - 2). The new columns have no sort: `.` keeps its cycle. Est. cost is visible from about 126 columns: it is `DropFirst`, so it goes right after Cache write and the 80-column layout DEVDESK-46 settled is unchanged (the exact threshold depends on the content of the Agent and ID columns).
+  width - 2). The new columns have no sort: `.` keeps its cycle. Thresholds with Est. cost: Model 94, Breakdown 106, In 114, Cache read 126, Est. cost 138, Cache write 151. Cache write, Est. cost, Cache read, In and Breakdown carry `YieldsToContent` (DEVDESK-128): they go before the Agent text is cut, while Model, Duration, Tools and State do not, so the thresholds depend on the longest agent type (Breakdown 106 with short types, 110 with `general-purpose`, 125 with a 30-character type; the 80 and 60 column layouts do not change). Est. cost is visible from about 138 columns with types up to 11 characters, more with longer ones: it is `DropFirst`, so it goes right after Cache write and the 80-column layout DEVDESK-46 settled is unchanged (the exact threshold depends on the content of the Agent and ID columns).
 - **Sort.** Only `Total` is sortable (`Less`, `DescFirst`). `.` cycles tree,
   `Total ▼`, `Total ▲`, tree. A table that opened unsorted returns to the tree
   after the last step. `agentRows(usage, tree, clock)` draws the branches only when no

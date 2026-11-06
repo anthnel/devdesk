@@ -38,5 +38,9 @@
   "severity_low": "#626880",
   "severity_low_fg": "#c6d0f5",
   "severity_info": "#51576d",
-  "severity_info_fg": "#c6d0f5"
+  "severity_info_fg": "#c6d0f5",
+  "token_input": "#86a7ea",
+  "token_output": "#c99de7",
+  "token_cache_write": "#e2c68d",
+  "token_cache_read": "#979eba"
 }

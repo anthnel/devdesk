@@ -52,8 +52,11 @@ func (m Model) GetHelpContent() help.Content {
 					"Tools: distinct tool calls read from the transcript.\n" +
 					"Duration: first to last line of the transcript, wall clock, pauses included; a dash when the transcript has no timestamps.\n" +
 					"Est. cost: the estimated cost in USD, see Costs. A sub-agent's is a floor (≥ ~) while its transcript may be incomplete; a dash means it cannot be computed.\n" +
+					"Breakdown: how the agent's tokens split, in a bar of ten cells. Colors, left to right: Input, Output, Cache write, Cache read. " +
+					"A category worth less than half a cell gets no cell of its own. The glyph follows app.gauge_glyph; a dash means no tokens.\n" +
 					"Model, In, Out, Cache read, Cache write, Total: models used and token counts. " +
-					"On a narrow terminal Cache write goes first, then Est. cost, Cache read, In, Model, Duration, Tools and State. Agent, ID, Out, Total and Share stay.\n" +
+					"On a narrow terminal Cache write goes first, then Est. cost, Cache read, In, Breakdown, Model, Duration, Tools and State. Agent, ID, Out, Total and Share stay. " +
+					"Cache write, Est. cost, Cache read, In and Breakdown give way before an agent's type is cut; Model, Duration, Tools and State do not.\n" +
 					"Share: the agent's part of the session total, to one decimal, rounded down. " +
 					"The orchestrator takes the rounding remainder, so the column adds up to 100%. A dash means the session has no tokens.\n" +
 					"Press . to cycle: tree, then Total largest first, then Total smallest first, then the tree again. " +

@@ -55,7 +55,10 @@ naming the file, line, and column.
 
 `MinWidth` is a **floor**, not a request. What gives way beyond that is an
 **entire** column: `Optional` ones first, rightmost first, then the others
-if needed. Fewer correct columns beat all of them being wrong — truncating a
+if needed. The exception is an `Optional` column marked `YieldsToContent`: it
+is removed, in drop order, before a required content column is cut below its
+widest value (the order does not change, only the moment; DEVDESK-128). Fewer
+correct columns beat all of them being wrong — truncating a
 count column would render `142` as `14…`, and nothing on screen tells the
 two apart.
 
@@ -132,6 +135,21 @@ Dropped only on a row a view has coloured whole (below) — error, busy, a CVE
 severity — for the same reason `Style` is: a color that ends before the row
 does would still close that solid highlight mid-row. On the plain "normal"
 selection both runs *are* consulted, the same as `Style` is there.
+
+#### N colored runs — `Spans`
+
+`Column.Spans(item) []Span` generalises the two-run split to any number of
+runs: `Span{Width, Style}` paints `Width` cells of the *finished* text, left to
+right, and the cells left after the last span take `Style`. Same order as
+`Cut`: the text is measured, truncated and padded first, then colored. A
+negative width counts as 0, a zero width renders nothing (no empty ANSI
+sequence), a span past the end of the cell is cut. Widths are rune counts, so
+the cell holds single-width glyphs. A nil or empty result takes the ordinary
+one-run path, byte for byte. **`Spans` takes precedence over `Cut`/`TailStyle`,
+and a column declaring both is rejected** (`TestNoColumnDeclaresSpansWithCutOrTailStyle`).
+Like `Cut`, spans are dropped on a row a view has coloured whole (error, busy,
+severity) and repainted on `ColorTableLineSelected` and bold on the plain
+"normal" selection.
 
 #### Selected row
 
@@ -230,15 +248,29 @@ Up to date is the nominal state this rule keeps out of color, exactly like a
 `running` container. Verified is the positive half of a security verdict whose
 negative half is red: dimming it would leave the column able to say only that
 something is wrong, never that something was proven. That is the test for a
-fifth exception, and not "it is good news": **a rare, established guarantee
+further exception of this kind, and not "it is good news": **a rare, established guarantee
 whose absence or failure is itself colored**. A state that is merely the
 common, fine case stays dim.
+
+**The fifth declared exception: the token breakdown bars (DEVDESK-98).** A
+`Spans` cell made of one repeated glyph, where color is the only way to tell
+the parts of the bar apart. The criterion, and not "a bar looks nicer": the
+cell repeats a single glyph so color is the only separator between its parts,
+**and** the exact figures are readable without color on the same screen or one
+key away (the numeric columns, the breakdown view). The colors name
+**categories** (`theme.TokenStyle` roles: input, output, cache read, cache
+write), never severity or gauge colors: a red part of a bar must not read as
+"critical", nor a green one as "healthy". A bar whose figures are available
+nowhere without color does not qualify. Accepted cost, stated rather than
+discovered: without color the bar only says "has tokens"; the exact figures stay
+readable elsewhere.
 
 Checklist:
 - [ ] No `style.Render(...)` inside what `Cell` returns
 - [ ] Status icons as plain text: `theme.IconError + " error"`
 - [ ] Spinners as plain text: `frame + " scanning"`
 - [ ] Per-cell color via `Style`, never via `Cell`
+- [ ] Multi-run cells via Cut/TailStyle or Spans, never by styling inside Cell
 - [ ] Selected-row color via `SelectedStyles` / `TableStylesForState/Severity()`
 - [ ] Zeros and placeholders are `DimStyle`, not colored
 
