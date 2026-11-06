@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"path/filepath"
 	"strconv"
+	"strings"
 
 	"github.com/charmbracelet/lipgloss"
 
@@ -18,11 +19,35 @@ const baseFooterHeight = 2
 
 // View is the table, whatever it holds (Rule 139).
 func (m Model) View() string {
+	if m.onBreakdown() {
+		return m.breakdownWindow()
+	}
 	if m.level == levelAgents {
 		return m.agentTable.View()
 	}
 	return m.table.View()
 }
+
+// minTableLines is what datatable renders at the shortest: the header and at
+// least one row. The panel takes the same floor so both tabs have one height.
+const minTableLines = 2
+
+// breakdownWindow is the part of the panel on screen: exactly the height of the
+// table's zone, so the viewport border does not move between tabs.
+func (m Model) breakdownWindow() string {
+	h := m.panelHeight()
+	lines := m.breakdownLines()
+	top := clampTop(m.breakdownTop, len(lines), h)
+	window := append([]string(nil), lines[top:min(top+h, len(lines))]...)
+	for len(window) < h {
+		window = append(window, theme.EmptyLineBg(max(m.width-2, 0)))
+	}
+	return strings.Join(window, "\n")
+}
+
+// panelHeight is the number of panel lines on screen: the table's height, with
+// the table's floor. Scrolling and drawing both read it.
+func (m Model) panelHeight() int { return max(m.height, minTableLines) }
 
 // GetTitle names the view, and the project of the open session at the agents
 // level (its short ID when the transcript named no project).
@@ -62,10 +87,19 @@ func (m Model) GetHeaderInfo(_ string) []shortcut.HeaderInfo {
 	return info
 }
 
-// agentsHeaderInfo counts the agents on screen and their tokens, both following
-// the filter.
+// headerRows are the rows the agents header counts: the visible ones on Agents,
+// every row on Breakdown, whose panel covers the whole session.
+func (m Model) headerRows() []agentRow {
+	if m.tab == tabBreakdown {
+		return m.agentTable.Items()
+	}
+	return m.agentTable.Visible()
+}
+
+// agentsHeaderInfo counts the agents and their tokens: following the filter on
+// Agents, the whole session on Breakdown.
 func (m Model) agentsHeaderInfo() []shortcut.HeaderInfo {
-	rows := m.agentTable.Visible()
+	rows := m.headerRows()
 	var total int64
 	estimates := make([]pricing.Estimate, len(rows))
 	for i, r := range rows {
@@ -150,32 +184,44 @@ func (m Model) GetShortcuts() shortcut.Shortcuts {
 		{Key: "ctrl+r", Description: "Refresh"},
 		{Key: "→", Description: "Open agents", Disabled: !a.Open.Enabled()},
 		{Key: "esc", Description: "Go back", Disabled: !a.Close.Enabled()},
-		{Key: "/", Description: "Filter"},
-		{Key: ".", Description: "Sort"},
+		{Key: "tab", Description: "Switch tab", Disabled: !a.Tab.Enabled()},
+		{Key: "/", Description: "Filter", Disabled: !a.Filter.Enabled()},
+		{Key: ".", Description: "Sort", Disabled: !a.Sort.Enabled()},
 		{Key: "?", Description: "Help"},
 	}
 }
 
 // GetFooterHeight budgets the footer (Rules 124, 136).
 func (m Model) GetFooterHeight() int {
-	h := baseFooterHeight + m.activeFilterBar().ExtraHeight()
+	h := baseFooterHeight
+	if bar := m.activeFilterBar(); bar != nil {
+		h += bar.ExtraHeight()
+	}
 	if m.level == levelAgents {
-		h++ // the breadcrumb row
+		h += 2 // the breadcrumb row and the tab row
 	}
 	return h
 }
 
-// RenderFooter renders the breadcrumb at the agents level, the filter bar when
-// visible, a blank line, and the message line.
+// RenderFooter renders, top to bottom: the filter bar when visible (it closes
+// the viewport's rectangle, Rule 136), at the agents level the breadcrumb and
+// the tab row, a blank line, and the message line.
 func (m Model) RenderFooter(width int) string {
 	line := theme.EmptyLineBg(width) + "\n" + m.footer.View(width, m.status())
-	if bar := m.activeFilterBar(); bar.IsVisible() {
+	if m.level == levelAgents {
+		line = m.breadcrumb(width) + "\n" + m.tabRow(width) + "\n" + line
+	}
+	if bar := m.activeFilterBar(); bar != nil && bar.IsVisible() {
 		line = bar.View() + "\n" + line
 	}
-	if m.level == levelAgents {
-		line = m.breadcrumb(width) + "\n" + line
-	}
 	return line
+}
+
+// tabRow is the Agents / Breakdown tabs, the active one marked, with the one
+// cell of left padding Rule 123 asks for.
+func (m Model) tabRow(width int) string {
+	tabs := []theme.TabItem{{Label: "Agents"}, {Label: "Breakdown"}}
+	return theme.PadWithBg(theme.Bg(" ")+theme.RenderTabs(tabs, int(m.tab)), width)
 }
 
 // breadcrumb is Sessions › project › ID, the last one active and its parents

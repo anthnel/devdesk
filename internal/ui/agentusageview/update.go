@@ -42,6 +42,7 @@ func (m Model) handleResize(msg tea.WindowSizeMsg) (tea.Model, tea.Cmd) {
 	m.width, m.height = msg.Width, max(msg.Height-1, 1)
 	m.table.Resize(m.width, m.height)
 	m.agentTable.Resize(m.width, m.height)
+	m.clampBreakdown()
 	return m, nil
 }
 
@@ -222,6 +223,13 @@ func (m Model) handleKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	if key == "ctrl+r" {
 		return m.refresh()
 	}
+	if key == "tab" || key == "shift+tab" {
+		// Structural key: greyed in the header, nothing to explain (Rule 130).
+		if m.availability().Tab.Enabled() {
+			return m.switchTab()
+		}
+		return m, nil
+	}
 	a := m.availability()
 	switch key {
 	case "right", "enter":
@@ -233,10 +241,70 @@ func (m Model) handleKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		}
 	case ".":
 		if m.level == levelAgents {
-			return m.cycleAgentSort(msg)
+			return m.guard(a.Sort, func() (tea.Model, tea.Cmd) { return m.cycleAgentSort(msg) })
 		}
 	}
+	if m.onBreakdown() {
+		return m.breakdownKey(key, a)
+	}
 	return m, m.activeTable(msg)
+}
+
+// onBreakdown says the Breakdown tab is on screen.
+func (m Model) onBreakdown() bool { return m.level == levelAgents && m.tab == tabBreakdown }
+
+// breakdownKey handles what the Breakdown tab does with a key that is not
+// ctrl+r, tab, →, enter, ← or esc: it scrolls the panel, refuses the filter,
+// and ignores the rest.
+func (m Model) breakdownKey(key string, a actions) (tea.Model, tea.Cmd) {
+	switch key {
+	case "up", "down", "pgup", "pgdown", "home", "end":
+		return m.scrollBreakdown(key)
+	case "/":
+		return m.guard(a.Filter, func() (tea.Model, tea.Cmd) { return m, nil })
+	}
+	return m, nil
+}
+
+// switchTab toggles between the two tabs; with two of them both directions
+// land on the other one. The Agents state is untouched.
+func (m Model) switchTab() (tea.Model, tea.Cmd) {
+	if m.tab == tabAgents {
+		m.tab = tabBreakdown
+	} else {
+		m.tab = tabAgents
+	}
+	return m, nil
+}
+
+// scrollBreakdown moves the panel window, never past either end.
+func (m Model) scrollBreakdown(key string) (tea.Model, tea.Cmd) {
+	page := m.panelHeight()
+	limit := max(len(m.breakdownLines())-page, 0)
+	switch key {
+	case "up":
+		m.breakdownTop--
+	case "down":
+		m.breakdownTop++
+	case "pgup":
+		m.breakdownTop -= page
+	case "pgdown":
+		m.breakdownTop += page
+	case "home":
+		m.breakdownTop = 0
+	case "end":
+		m.breakdownTop = limit
+	}
+	m.breakdownTop = min(max(m.breakdownTop, 0), limit)
+	return m, nil
+}
+
+// breakdownLines renders the whole panel for the current width.
+func (m Model) breakdownLines() []string { return renderBreakdown(m.breakdown, m.width-2) }
+
+// clampBreakdown keeps the offset within the panel after it changed size.
+func (m *Model) clampBreakdown() {
+	m.breakdownTop = clampTop(m.breakdownTop, len(m.breakdownLines()), m.panelHeight())
 }
 
 // agentsTree reports whether the agents table shows the tree: no sort active.
@@ -277,6 +345,7 @@ func (m Model) openSelected() (tea.Model, tea.Cmd) {
 	m.agentGen++
 	m.agg = agentusage.NewAggregate(row.Parent)
 	m.fullPending, m.agentsErr = false, false
+	m.tab, m.breakdown, m.breakdownTop = tabAgents, breakdown{}, 0
 	m.agentTable.FilterBar().ClearSearch() // a filter typed for another session
 	m.agentTable.SetItems(nil)
 	return m, tea.Batch(m.startRead(true), m.spinner.Tick)
@@ -286,6 +355,7 @@ func (m Model) openSelected() (tea.Model, tea.Cmd) {
 // agentGen drops a parse still in flight.
 func (m Model) closeAgents() (tea.Model, tea.Cmd) {
 	m.level = levelSessions
+	m.tab, m.breakdown, m.breakdownTop = tabAgents, breakdown{}, 0
 	m.agentGen++
 	m.agentsLoading, m.agentsErr = false, false
 	m.agg, m.reading, m.fullPending = nil, false, false
@@ -325,13 +395,23 @@ func (m Model) refreshAgents() (tea.Model, tea.Cmd) {
 }
 
 // InEditMode tells the router the filter has the keyboard.
-func (m Model) InEditMode() bool { return m.activeFilterBar().InEditMode() }
+func (m Model) InEditMode() bool {
+	bar := m.activeFilterBar()
+	return bar != nil && bar.InEditMode()
+}
 
 // FilterBarVisible closes the viewport rectangle around the bar.
-func (m Model) FilterBarVisible() bool { return m.activeFilterBar().IsVisible() }
+func (m Model) FilterBarVisible() bool {
+	bar := m.activeFilterBar()
+	return bar != nil && bar.IsVisible()
+}
 
 // activeFilterBar is the bar of the level on screen; each level has its own.
+// It is nil on the Breakdown tab, which has nothing to filter: callers check.
 func (m Model) activeFilterBar() *sharedcomponents.FilterBar {
+	if m.onBreakdown() {
+		return nil
+	}
 	if m.level == levelAgents {
 		return m.agentTable.FilterBar()
 	}

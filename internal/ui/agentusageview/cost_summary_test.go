@@ -422,7 +422,7 @@ func TestThereIsNoPriceHintAtTheSessionsLevel(t *testing.T) {
 // ── Keys (Rule 130) ──────────────────────────────────────────────────────────
 
 func TestCostFieldsAddNoShortcutAndChangeNoText(t *testing.T) {
-	want := []string{"ctrl+r", openKey, closeKey, "/", ".", "?"}
+	want := []string{"ctrl+r", openKey, closeKey, tabKey, "/", ".", "?"}
 	for name, m := range map[string]Model{
 		"no prices":   atPricedAgents(t, nil, 160, sumUsage(billed(10))),
 		"priced":      atPricedAgents(t, cfgWith(t, pricesYAML), 160, sumUsage(billed(10))),
@@ -435,7 +435,7 @@ func TestCostFieldsAddNoShortcutAndChangeNoText(t *testing.T) {
 		}
 	}
 	descriptions := map[string]string{
-		"ctrl+r": "Refresh", openKey: "Open agents", closeKey: "Go back", "/": "Filter", ".": "Sort", "?": "Help",
+		"ctrl+r": "Refresh", openKey: "Open agents", closeKey: "Go back", tabKey: "Switch tab", "/": "Filter", ".": "Sort", "?": "Help",
 	}
 	for _, sc := range atPricedAgents(t, nil, 160, sumUsage(billed(10))).GetShortcuts() {
 		if sc.Description != descriptions[sc.Key] {

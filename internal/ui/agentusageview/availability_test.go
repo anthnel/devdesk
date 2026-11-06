@@ -17,6 +17,7 @@ import (
 const (
 	openKey  = "→"
 	closeKey = "esc"
+	tabKey   = "tab"
 )
 
 const wideID = "abcdef12-3456-4789-8abc-def012345678"
@@ -41,8 +42,8 @@ func footerText(m Model) string { return m.RenderFooter(120) }
 
 // ── Rule 130: same keys, Disabled follows the level ──────────────────────────
 
-func TestAgentsLevelAdvertisesTheSameSixKeys(t *testing.T) {
-	want := []string{"ctrl+r", openKey, closeKey, "/", ".", "?"}
+func TestAgentsLevelAdvertisesTheSameSevenKeys(t *testing.T) {
+	want := []string{"ctrl+r", openKey, closeKey, tabKey, "/", ".", "?"}
 	states := map[string]Model{
 		"sessions loading": newModel(t),
 		"sessions empty":   loaded(t, newModel(t)),
@@ -54,14 +55,17 @@ func TestAgentsLevelAdvertisesTheSameSixKeys(t *testing.T) {
 	failed = feed(t, failed, usageDeltaMsg{gen: failed.agentGen, err: os.ErrNotExist})
 	states["agents error"] = failed
 	states["agents filtering"] = feed(t, atAgents(t, threeSubs()), testutil.Key("/"))
+	states["agents breakdown"] = feed(t, atAgents(t, threeSubs()), testutil.Key("tab"))
 
 	for name, m := range states {
 		got := testutil.ShortcutKeys(m.GetShortcuts())
 		if strings.Join(got, ",") != strings.Join(want, ",") {
 			t.Errorf("%s: keys %v, want %v", name, got, want)
 		}
-		if !testutil.ShortcutEnabled(m.GetShortcuts(), ".") {
-			t.Errorf("%s: `.` sorts at both levels, it must never be greyed", name)
+		// `.` sorts on both Agents and the sessions level; only the Breakdown
+		// tab, which has nothing to sort, greys it (see breakdown_tab_test.go).
+		if name != "agents breakdown" && !testutil.ShortcutEnabled(m.GetShortcuts(), ".") {
+			t.Errorf("%s: `.` sorts at both levels, it must never be greyed outside the Breakdown tab", name)
 		}
 		for _, sc := range m.GetShortcuts() {
 			if sc.Key == "." && sc.Description != "Sort" {
@@ -280,12 +284,12 @@ func TestFooterHeightGainsTheBreadcrumbAtTheAgentsLevel(t *testing.T) {
 		t.Errorf("sessions level footer = %d, want 2", got)
 	}
 	m := atAgents(t, threeSubs())
-	if got := m.GetFooterHeight(); got != 3 {
-		t.Errorf("agents level footer = %d, want 3", got)
+	if got := m.GetFooterHeight(); got != 4 {
+		t.Errorf("agents level footer = %d, want 4 (breadcrumb, tab row, blank, message)", got)
 	}
 	m = feed(t, m, testutil.Key("/"))
-	if got := m.GetFooterHeight(); got != 3+m.agentTable.FilterBar().ExtraHeight() || got < 4 {
-		t.Errorf("agents level footer with the filter bar = %d, want at least 4", got)
+	if got := m.GetFooterHeight(); got != 4+m.agentTable.FilterBar().ExtraHeight() || got < 6 {
+		t.Errorf("agents level footer with the filter bar = %d, want at least 6", got)
 	}
 }
 
@@ -333,14 +337,31 @@ func TestSessionsLevelFooterHasNoBreadcrumb(t *testing.T) {
 	}
 }
 
-func TestBreadcrumbSitsAboveTheFilterBar(t *testing.T) {
+// Q1 (DEVDESK-98): bar, then breadcrumb, then tab row, blank, message. The
+// breadcrumb no longer sits between the viewport's bottom edge and the bar,
+// which closes Rule 136's rectangle. Replaces TestBreadcrumbSitsAboveTheFilterBar.
+func TestFooterOrderIsFilterBarBreadcrumbTabRowBlankMessage(t *testing.T) {
 	m := feed(t, atAgents(t, threeSubs()), testutil.Key("/"))
 	lines := strings.Split(footerText(m), "\n")
 	if len(lines) != m.GetFooterHeight() {
 		t.Fatalf("footer has %d lines, budget is %d", len(lines), m.GetFooterHeight())
 	}
-	if !strings.Contains(lines[0], "›") {
-		t.Errorf("the breadcrumb is the first footer line (right under the table), got %q", lines[0])
+	bar := m.agentTable.FilterBar().ExtraHeight()
+	if bar != 2 || len(lines) != 6 {
+		t.Fatalf("precondition: a 2-line bar and a 6-line footer, got %d and %d", bar, len(lines))
+	}
+	if strings.Contains(stripANSI(strings.Join(lines[:bar], "\n")), "›") {
+		t.Errorf("the filter bar comes first, right under the viewport: %q", lines[:bar])
+	}
+	if !strings.Contains(lines[bar], "›") {
+		t.Errorf("line %d is the breadcrumb, got %q", bar, lines[bar])
+	}
+	row := stripANSI(lines[bar+1])
+	if !strings.Contains(row, "Agents") || !strings.Contains(row, "Breakdown") {
+		t.Errorf("line %d is the tab row, got %q", bar+1, row)
+	}
+	if strings.TrimSpace(stripANSI(lines[bar+2])) != "" {
+		t.Errorf("line %d is the blank line (Rule 124), got %q", bar+2, lines[bar+2])
 	}
 }
 

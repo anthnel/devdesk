@@ -12,8 +12,10 @@ func (m Model) GetHelpContent() help.Content {
 			{Key: "ctrl+r", Description: "Re-read the whole session from the start (at the sessions level: read the sessions again)"},
 			{Key: "→/enter", Description: "Open the selected session's agents"},
 			{Key: "←/esc", Description: "Back to the sessions"},
-			{Key: "/", Description: "Filter by project or session ID"},
-			{Key: ".", Description: "Cycle the sort column (agents: tree, Total largest first, Total smallest first)"},
+			{Key: "tab", Description: "Switch between the Agents and Breakdown tabs (inside a session)"},
+			{Key: "/", Description: "Filter by project or session ID (not on Breakdown)"},
+			{Key: ".", Description: "Cycle the sort column (agents: tree, Total largest first, Total smallest first; not on Breakdown)"},
+			{Key: "↑↓/pgup/pgdn/home/end", Description: "Scroll the Breakdown tab"},
 			{Key: "ctrl+p", Description: "Open command mode"},
 			{Key: "?", Description: "Show this help"},
 		},
@@ -61,6 +63,17 @@ func (m Model) GetHelpContent() help.Content {
 					"The orchestrator takes the rounding remainder, so the column adds up to 100%. A dash means the session has no tokens.\n" +
 					"Press . to cycle: tree, then Total largest first, then Total smallest first, then the tree again. " +
 					"Sorted, the list is flat: the branches go away. The sort stays when you open another session or press ctrl+r.",
+			},
+			{
+				Title: "Breakdown",
+				Body: "Press tab inside a session to switch between Agents and Breakdown; esc or ← leaves the session from either tab, and the next session opens on Agents.\n" +
+					"The Breakdown tab splits the tokens of the whole session in three blocks, each with a Share and a Tokens column and a Total line: " +
+					"by category (Input, Output, Cache write 5 min, Cache write 1 h, Cache read, with a swatch in the color the bar uses), by model, and by agent.\n" +
+					"Share is the part of the session's tokens, to one decimal, never of the cost. The rounding remainder goes to the largest line so each block adds up to 100%. " +
+					"A session with no tokens shows a dash for every share.\n" +
+					"Tokens with no model name in the transcript are counted under unknown. The agent block matches the Share column of the Agents tab.\n" +
+					"The panel ignores the filter and the sort: it always covers the whole session, and so do the Agents, Tokens and Est. cost in the header while it is on screen. " +
+					"It updates live with the session. A panel taller than the screen scrolls with ↑↓, pgup, pgdn, home and end.",
 			},
 			{
 				Title: "Costs",
