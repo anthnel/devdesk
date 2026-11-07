@@ -396,3 +396,8 @@ func Unfinished(runs []Run) []Run {
 	}
 	return out
 }
+
+// Remembered reports whether a failed item of this kind is kept in the
+// registry's failure memory. Every kind is: a failure nobody saw is worth
+// showing whatever the operation was.
+func (k Kind) Remembered() bool { return true }

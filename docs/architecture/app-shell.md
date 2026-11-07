@@ -608,6 +608,8 @@ answer, and the two drift the first time a transition is missed.
 | `Cancel(id)` | stops the queue always; cuts work in flight only where that leaves nothing behind (`Kind.Cancellable`) |
 | `Snapshot()` | a **copy**, cancel functions cleared |
 | `Running()` | runs that have not settled |
+| `Failures()` | a copy of the remembered failures, oldest first |
+| `Forget(target, ctx) bool` | drops the failure memorised for that target in that context; reports whether one was removed |
 
 `queued` and `running` are kept apart: the semaphore already knows the
 difference and the clone screen already shows it, so collapsing them would make
@@ -716,6 +718,60 @@ kind. The difference is which view is asking: a launch site cannot hold an
 identifier — it would have to before the registry allocated one — but `:jobs`
 reads it off the row it is rendering.
 
+#### The last failure per target
+
+The registry remembers the last failure of each target, so a view can show it
+after the run that produced it was pruned or the view was rebuilt. It lives in
+`internal/jobs/failure.go` and `registry.go`.
+
+**The key** is `FailureKey{Kind, Target, Context}`: the run's kind, `TargetKey(item.Target)`,
+and `Run.Context`. One entry per key; a new failure for a key replaces the old one
+and moves it to the newest position. A failure that lands after a context switch
+is filed under the context it ran in, not the current one. `Item.Target` itself
+is not rewritten; only the key is normalized.
+
+**`TargetKey` cleans absolute paths and nothing else** (`filepath.Clean`). Image
+references, forge paths and slugs are kept raw, because two spellings are not
+provably the same target:
+
+- `nginx` and `docker.io/library/nginx` are different keys: only the registry
+  knows they resolve alike, and the memory does not ask it;
+- an image is not a repository: a failure on `nginx` never shows on a repo of the
+  same name, and the other way round (the kind is part of the key too).
+
+**Transitions** are decided in one place, `Registry.record`, called from `Advance`
+and `Discover`:
+
+| Event | Effect |
+|---|---|
+| item `failed` | poses the failure (`Display`, `Detail`, `At`) |
+| item `done` | clears the key |
+| `Start` / `Discover` admitting a target | clears the key: a new attempt replaces the last word |
+| `delete` item `done` | clears the target for every kind, and its descendants when it is an absolute path |
+| item `skipped`, `Cancel` | nothing: a refusal or a stop is not a failure |
+| `ForgetTargetMsg` | same as a done delete, for a removal no run did (an image remove) |
+
+`ForgetTargetMsg` is stamped with the **current** context by the router
+(`handleForgetTarget`); it never touches another context's failures, and
+broadcasts only when something went. Descendants are matched on path only: a
+non-absolute target is matched exactly.
+
+**Bounds.** At most `MaxFailures` (500) entries; the oldest goes first. They are
+independent of `MaxFinishedRuns`: pruning a settled run keeps its failures. The
+memory lives for the process and is never written to disk. `Kind.Remembered()`
+exists as the one place a policy could narrow this, and today every kind is
+remembered, `index` included.
+
+**Reading.** `ChangedMsg.Failures` carries a copy, oldest first, every context
+included, like `Runs`. The view filters: `jobs.FailuresOn(failures, context, target, kinds...)`
+returns what is on a target, and `jobs.FailureFor(failures, kind, target, context)`
+one entry. Which kinds a view shows (D5) is the reader's choice, passed as `kinds`;
+the registry keeps all of them.
+
+`security.scanTarget.Failed` and OCI's `failedScans` are the two manual copies
+this replaces. They stay in place until A-08 and A-09a move those views onto
+`Failures`.
+
 ### A progress message needs a case in the router
 
 A message reports to the registry by implementing `jobs.Reporter`, and the
@@ -737,7 +793,8 @@ do, and the test finds it.
 Views never hold a pointer to the registry. The router hands them a snapshot in
 `jobs.ChangedMsg`, so nothing is read from `View()` while something else writes
 it, and a view holding a snapshot cannot write back — every mutation goes
-through the one owner.
+through the one owner. `ChangedMsg.Failures` follows the same rule: a copy of
+the failure memory (above), never the registry's slice.
 
 `broadcastJobs` updates **every held view**, on screen or not, so coming back to
 one shows what happened while it was away without it having to ask; the layout

@@ -161,6 +161,15 @@ func CancelItem(id JobID, target string) tea.Cmd {
 	return func() tea.Msg { return CancelItemMsg{ID: id, Target: target} }
 }
 
+// ForgetTargetMsg says a target no longer exists, for a removal the registry did
+// not run (an image remove). The router stamps the current context.
+type ForgetTargetMsg struct{ Target string }
+
+// ForgetTarget builds the message.
+func ForgetTarget(target string) tea.Cmd {
+	return func() tea.Msg { return ForgetTargetMsg{Target: target} }
+}
+
 // StartInContext builds the message for work that writes into a context-scoped
 // cache. The builder is called once, in Update, with the name the router
 // stamped on the run — so every command it returns carries that name however
@@ -197,6 +206,11 @@ type ChangedMsg struct {
 	// escapes). The router fills both so the two readings of one frame cannot
 	// drift, and so this package needs to know nothing about styling.
 	RenderedFrame string
+
+	// Failures is a copy of what the registry remembers about failed targets,
+	// oldest first, every context included. Like Runs, it is read by the view
+	// and never written back.
+	Failures []Failure
 }
 
 // Running counts the runs in the snapshot that have not settled. It saves every
