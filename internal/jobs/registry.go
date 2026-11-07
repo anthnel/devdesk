@@ -2,6 +2,9 @@ package jobs
 
 import (
 	"context"
+	"path/filepath"
+	"slices"
+	"strings"
 	"time"
 )
 
@@ -28,6 +31,9 @@ type Registry struct {
 	// clock is time.Now in production and a fixed hand in tests, so a run's
 	// StartedAt is an assertion rather than a tolerance.
 	clock func() time.Time
+	// failures is the failure memory, oldest first, one entry per FailureKey.
+	// It is independent of runs: pruning a settled run does not touch it.
+	failures []Failure
 }
 
 // New returns an empty registry.
@@ -54,6 +60,10 @@ func (r *Registry) Start(run Run) JobID {
 		run.EndedAt = run.StartedAt
 	}
 	r.runs = append(r.runs, &run)
+	// A new attempt is admitted: what it replaces is no longer the last word.
+	for _, item := range run.Items {
+		r.clear(failureKey(run.Kind, item.Target, run.Context))
+	}
 	r.prune()
 	return run.ID
 }
@@ -85,6 +95,7 @@ func (r *Registry) advance(id JobID, target string, state ItemState, detail stri
 		}
 		run.Items[i].State = state
 		run.Items[i].Detail = detail
+		r.record(run, run.Items[i])
 		switch {
 		case state.Terminal():
 			run.Items[i].cancel = nil
@@ -170,11 +181,16 @@ func (r *Registry) Discover(kind Kind, target string, state ItemState, detail st
 		if run.Items[i].Target == target {
 			run.Items[i].State = state
 			run.Items[i].Detail = detail
+			r.record(run, run.Items[i])
 			r.settle(run)
 			return true
 		}
 	}
-	run.Items = append(run.Items, Item{Target: target, State: state, Detail: detail})
+	item := Item{Target: target, State: state, Detail: detail}
+	run.Items = append(run.Items, item)
+	// A discovered target is admitted here, as Start admits the others.
+	r.clear(failureKey(run.Kind, target, run.Context))
+	r.record(run, item)
 	r.settle(run)
 	return true
 }
@@ -425,4 +441,74 @@ func (r *Registry) now() time.Time {
 		return time.Now()
 	}
 	return r.clock()
+}
+
+// Failures returns a copy of the remembered failures, oldest first. Like the
+// rest of the registry it is read from Update alone (Rule 110).
+func (r *Registry) Failures() []Failure {
+	return slices.Clone(r.failures)
+}
+
+// Forget drops every failure of every kind on target in contextName, and those
+// below it when target is an absolute path. It reports whether anything went.
+func (r *Registry) Forget(target, contextName string) bool {
+	target = TargetKey(target)
+	before := len(r.failures)
+	r.failures = slices.DeleteFunc(r.failures, func(f Failure) bool {
+		return f.Context == contextName && (f.Target == target || isBelow(f.Target, target))
+	})
+	return len(r.failures) != before
+}
+
+// record is the single rule of the failure memory, called after an item's
+// state is written: failed poses, done clears (and a successful delete forgets
+// the target for every kind). Any other state, including skipped, changes
+// nothing. The context is the run's, so a failure landing after a context
+// switch is filed under the context it ran in.
+func (r *Registry) record(run *Run, item Item) {
+	switch item.State {
+	case ItemFailed:
+		if run.Kind.Remembered() {
+			r.pose(Failure{
+				FailureKey: failureKey(run.Kind, item.Target, run.Context),
+				Display:    item.Name(),
+				Detail:     item.Detail,
+				At:         r.now(),
+			})
+		}
+	case ItemDone:
+		r.clear(failureKey(run.Kind, item.Target, run.Context))
+		if run.Kind == KindDelete {
+			r.Forget(item.Target, run.Context)
+		}
+	}
+}
+
+// pose stores f as the last failure for its key. Re-posing a key moves it to
+// the newest position; past MaxFailures the oldest entry is evicted.
+func (r *Registry) pose(f Failure) {
+	r.clear(f.FailureKey)
+	r.failures = append(r.failures, f)
+	if excess := len(r.failures) - MaxFailures; excess > 0 {
+		r.failures = slices.Delete(r.failures, 0, excess)
+	}
+}
+
+// clear drops the failure stored under key, if any.
+func (r *Registry) clear(key FailureKey) {
+	r.failures = slices.DeleteFunc(r.failures, func(f Failure) bool { return f.FailureKey == key })
+}
+
+func failureKey(kind Kind, target, contextName string) FailureKey {
+	return FailureKey{Kind: kind, Target: TargetKey(target), Context: contextName}
+}
+
+// isBelow reports whether path is strictly inside dir. Only absolute paths
+// have descendants: image references and forge paths are matched exactly.
+func isBelow(path, dir string) bool {
+	if !filepath.IsAbs(path) || !filepath.IsAbs(dir) {
+		return false
+	}
+	rel, err := filepath.Rel(dir, path)
+	return err == nil && rel != "." && rel != ".." && !strings.HasPrefix(rel, ".."+string(filepath.Separator))
 }

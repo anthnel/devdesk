@@ -528,6 +528,9 @@ func (a *App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case jobs.CancelItemMsg:
 		return a.handleCancelItem(msg)
 
+	case jobs.ForgetTargetMsg:
+		return a.handleForgetTarget(msg)
+
 	// The clone reports through the registry like everything else now (D3).
 	// Its run is *open*: the walk that discovers repositories is the slow part,
 	// so targets arrive as they are found and CloneRunFinishedMsg seals the run

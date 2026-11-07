@@ -19,6 +19,7 @@ func (a *App) changedMsg() jobs.ChangedMsg {
 	frame := a.jobFrame()
 	return jobs.ChangedMsg{
 		Runs:          a.jobs.Snapshot(),
+		Failures:      a.jobs.Failures(),
 		Frame:         frame,
 		RenderedFrame: theme.SpinnerStyle().Render(frame),
 	}
@@ -119,6 +120,16 @@ func (a *App) handleCancel(msg jobs.CancelMsg) (tea.Model, tea.Cmd) {
 
 func (a *App) handleCancelItem(msg jobs.CancelItemMsg) (tea.Model, tea.Cmd) {
 	if !a.jobs.CancelItem(msg.ID, msg.Target) {
+		return a, nil
+	}
+	return a, a.jobsChanged()
+}
+
+// handleForgetTarget drops what the registry remembers about a target a view
+// removed outside any run, in the current context only, and broadcasts only
+// when something went.
+func (a *App) handleForgetTarget(msg jobs.ForgetTargetMsg) (tea.Model, tea.Cmd) {
+	if !a.jobs.Forget(msg.Target, a.currentContext) {
 		return a, nil
 	}
 	return a, a.jobsChanged()
