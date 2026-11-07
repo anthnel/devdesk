@@ -1,0 +1,15 @@
+{
+  "tool_use_id": "toolu_01GQbgVKxxwwtN5cTWUhmjw1",
+  "agent_id": "a240b87aa55c95ad1",
+  "subagent_type": "dev-team:devops",
+  "task_description": "Merge PR 327",
+  "token_usage": {
+    "input_tokens": 12,
+    "cache_creation_tokens": 102760,
+    "cache_read_tokens": 488294,
+    "output_tokens": 2050,
+    "api_call_count": 6
+  },
+  "started_at": "2026-11-06T19:52:52.441757677+01:00",
+  "completed_at": "2026-11-06T19:53:44.797898332+01:00"
+}
