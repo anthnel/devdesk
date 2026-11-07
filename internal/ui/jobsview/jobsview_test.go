@@ -16,6 +16,7 @@ import (
 	"github.com/anthnel/devdesk/internal/jobs"
 	sharedcomponents "github.com/anthnel/devdesk/internal/ui/components"
 	"github.com/anthnel/devdesk/internal/ui/datatable"
+	"github.com/anthnel/devdesk/internal/ui/indicator"
 	"github.com/anthnel/devdesk/internal/ui/keymap"
 	"github.com/anthnel/devdesk/internal/ui/testutil"
 )
@@ -92,7 +93,7 @@ func step(t *testing.T, m Model, msg tea.Msg) (Model, tea.Cmd) {
 func withRuns(t *testing.T, runs ...jobs.Run) Model {
 	t.Helper()
 	m := feed(t, newModel(t), jobs.ChangedMsg{Runs: runs})
-	return feed(t, m, jobs.FrameMsg{Frame: "⠋"})
+	return feed(t, m, jobs.FrameMsg{Blink: true})
 }
 
 // ── The snapshot is the only source ──────────────────────────────────────────
@@ -188,42 +189,32 @@ func TestTheItemLevelClosesWhenItsRunIsPruned(t *testing.T) {
 	}
 }
 
-// ── The spinner is the router's (D5) ─────────────────────────────────────────
+// ── The blink phase is the router's (D5), read at render ─────────────────────
 
-func TestARunningRunCarriesTheRoutersFrame(t *testing.T) {
-	m := feed(t, newModel(t), jobs.ChangedMsg{
-		Runs: []jobs.Run{run(1, jobs.KindScan, "~/work", jobs.ItemRunning)},
-	})
-	m = feed(t, m, jobs.FrameMsg{Frame: "⣾"})
+func TestARunningRunShowsTheBlinkPhaseTheRouterBroadcast(t *testing.T) {
+	m := withRuns(t, run(1, jobs.KindScan, "~/work", jobs.ItemRunning))
 
-	row, ok := m.runTable.Selected()
-	if !ok {
-		t.Fatal("no row is selected")
+	m = feed(t, m, jobs.FrameMsg{Blink: false})
+	if v := m.View(); !strings.Contains(v, indicator.Glyph(indicator.Running, false)) ||
+		strings.Contains(v, indicator.Glyph(indicator.Running, true)) {
+		t.Errorf("the off phase does not show the hollow dot:\n%s", v)
 	}
-	cell := runStateGlyph(row)
-	if cell != "⣾" {
-		t.Errorf("the state cell = %q, want the frame the router broadcast", cell)
-	}
-	if strings.Contains(cell, "\x1b") {
-		t.Error("the cell carries an escape sequence — Rule 122: it is measured before it is styled")
+	m = feed(t, m, jobs.FrameMsg{Blink: true})
+	if v := m.View(); !strings.Contains(v, indicator.Glyph(indicator.Running, true)) {
+		t.Errorf("the on phase does not show the steady dot:\n%s", v)
 	}
 }
 
-func TestASettledRunShowsItsOutcomeRatherThanASpinner(t *testing.T) {
-	for _, tc := range []struct {
-		name  string
-		state jobs.ItemState
-	}{
-		{"done", jobs.ItemDone},
-		{"failed", jobs.ItemFailed},
-	} {
-		t.Run(tc.name, func(t *testing.T) {
-			m := withRuns(t, run(1, jobs.KindScan, "~/work", tc.state))
-			row, _ := m.runTable.Selected()
-			if glyph := runStateGlyph(row); glyph == "⠋" {
-				t.Errorf("a %s run still shows the spinner frame", tc.name)
+func TestASettledRunShowsItsOutcomeRatherThanAnyRunningDot(t *testing.T) {
+	for _, state := range []jobs.ItemState{jobs.ItemDone, jobs.ItemFailed} {
+		m := withRuns(t, run(1, jobs.KindScan, "~/work", state))
+		for _, blink := range []bool{true, false} {
+			m = feed(t, m, jobs.FrameMsg{Blink: blink})
+			v := m.View()
+			if strings.Contains(v, "●") || strings.Contains(v, "○") {
+				t.Errorf("a %s run shows a running dot (blink=%v):\n%s", state, blink, v)
 			}
-		})
+		}
 	}
 }
 
@@ -338,8 +329,10 @@ func TestTheFooterCountsWhatIsRunning(t *testing.T) {
 	if want := "2 jobs running"; status.Text != want {
 		t.Errorf("the footer says %q, want %q", status.Text, want)
 	}
-	if !status.Spinner {
-		t.Error("the running count carries no spinner")
+	// A selected row brings its own sentence and a dot that moves, so the
+	// footer spinner is dropped (DEVDESK-142).
+	if status.Spinner || status.Detail.IsZero() {
+		t.Errorf("Spinner = %v, Detail zero = %v; want no spinner beside a detail", status.Spinner, status.Detail.IsZero())
 	}
 	// The sentence stops there: ":jobs for details" is what every other footer
 	// adds, and this is where that link leads.
@@ -412,8 +405,7 @@ func TestEveryColumnDeclaresItsSizing(t *testing.T) {
 }
 
 // Rule 122: a cell is measured before it is styled, so nothing a Cell returns
-// may carry an escape sequence — the spinner frame included, which is why the
-// router broadcasts it bare beside its rendered form.
+// may carry an escape sequence — the indicator glyph is drawn by the datatable.
 func TestNoCellCarriesAnEscapeSequence(t *testing.T) {
 	testutil.TrueColor(t)
 
@@ -422,13 +414,13 @@ func TestNoCellCarriesAnEscapeSequence(t *testing.T) {
 	for _, state := range []jobs.ItemState{
 		jobs.ItemQueued, jobs.ItemRunning, jobs.ItemDone, jobs.ItemSkipped, jobs.ItemFailed,
 	} {
-		row := runRow{Run: run(1, jobs.KindScan, "~/work", state), Frame: "\u2807"}
+		row := runRow{Run: run(1, jobs.KindScan, "~/work", state)}
 		for _, col := range runColumns() {
 			if strings.Contains(col.Cell(row), "\x1b") {
 				t.Errorf("run column %q returns a styled cell for a %s run", col.Title, state)
 			}
 		}
-		item := itemRow{Item: jobs.Item{Target: "/repos/a", State: state, Detail: "a reason"}, Frame: "\u2807"}
+		item := itemRow{Item: jobs.Item{Target: "/repos/a", State: state, Detail: "a reason"}}
 		for _, col := range itemColumns() {
 			if strings.Contains(col.Cell(item), "\x1b") {
 				t.Errorf("target column %q returns a styled cell for a %s target", col.Title, state)

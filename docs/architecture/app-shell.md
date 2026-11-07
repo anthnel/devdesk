@@ -915,28 +915,31 @@ trail is a breadcrumb below the table (Rule 123).
 
 | | Columns |
 |---|---|
-| runs | state glyph (untitled, `IconColumnWidth`), Kind, Label, Progress, State, Started |
-| targets | state glyph, Target, State, Detail |
+| runs | activity indicator (untitled, `IconColumnWidth`), Kind, Label, Progress, State, Started |
+| targets | activity indicator, Target, State, Detail |
 
-**The first column is the state, not the kind**, and it is also where the
-spinner goes — the containers table's shape. A jobs list is scanned to find the
-run that failed and the one still going, so the glyph answers the question the
-reader arrived with; the Kind column says in a word what sort of work it was,
-and carries the state in its `Search` so `/failed` and `/scan` both work while
-the glyph column stays out of the filter (Rule 125).
+**Column 0 is the activity indicator** (DEVDESK-142, Rule 125), built by
+`datatable.IndicatorColumn` over `components.RunIndicator` / `ItemIndicator`
+(`job_activity.go`): queued `◴`, running `●`/`○`, done `◉`, failed `⊗`,
+cancelled `⊘`, skipped `⊖`. It is the state, not the kind: a jobs list is
+scanned for the run that failed and the one still going. The Kind column
+carries the state in its `Search` so `/failed` and `/scan` both work while the
+glyph column stays out of the filter. The State word takes the dot's colour
+(`indicator.Style`), so the row has one colour source; `done` is neutral, not
+green, and queued, cancelled and skipped now share that neutral colour.
 
-A state glyph colours by the semantic status styles rather than by a
-`theme.IconStyle` role. Roles exist for icons naming an *object* — a namespace, a
-repository, an image — where the palette should be able to tell them apart; a
-state already has a colour, and five new roles would give a theme five ways to
-make `failed` not red.
+**The blink phase is read at render.** The rows carry nothing animated:
+`runRow`/`itemRow` wrap the record only. `jobs.FrameMsg` calls
+`SetBlinkPhase(msg.Blink)` on both tables and pushes the footer spinner frame;
+no row is rebuilt (`SetItems` stays the only way rows are rebuilt, from
+`ChangedMsg`). A queued run no longer spins: it shows a fixed `◴`.
 
-**The frame rides on the row.** `runRow`/`itemRow` wrap the model value with the
-frame, because the columns are built once and close over nothing — the same
-reason `oci_resources` has `imageRow`. It is the router's frame, taken bare from
-`jobs.FrameMsg` (the view is on screen whenever it receives one; `ChangedMsg`
-carries only the runs): using `datatable`'s own `AdvanceSpinner` here would be a
-second chain beside the one D5 exists to keep single.
+**The footer says the selected row.** `status()` fills `Status.Detail` with
+`components.DescribeRun` (or `DescribeItem` at the target level) of the row
+under the cursor, and keeps `N jobs running` as the text. The footer spinner is
+shown only when no detail is, since the row's own dot moves. A `Warn` (a refused
+`K` or `.`) keeps priority over the detail and the detail returns when it
+expires. The help ends with `indicator.Legend(indicator.JobsLegend...)`.
 
 **The context is passed, not read.** `jobsview.New(cfg, contextName)` takes the
 name from the router, for D68's reason one screen over: the router is what knows
@@ -955,6 +958,42 @@ always gets D9's degraded form: it launches nothing, so it passes no origin, and
 The sentence itself is `components.JobsStatusLine`, shared with the workspaces
 footer — two copies of a deliberate surrender would each have been free to
 surrender differently.
+
+### The activity-column guard (DEVDESK-142, A-16 skeleton)
+
+`internal/app/activity_guard_test.go` keeps the migration to the activity column
+(Rule 125) from regressing and from being forgotten. It classifies every
+`command.ViewType` against three lists, **per table**: a view must appear in at
+least one, may be migrated for some tables and pending for others (OCI A-09a /
+A-09b, explorer A-10a / A-10b) when the two sets are disjoint, and an exempt
+view is neither:
+
+| List | Meaning |
+|---|---|
+| `migratedTables` | the view's tables are on the activity column (`:jobs`: `jobs/runs`, `jobs/targets`) |
+| `pendingTables` | tables waiting for their story (ws, `:sec`, OCI, explorer, templates, netdiag, agent-usage, containers), each naming it. `maxPendingTables` caps the list: it may only shrink |
+| `exemptViews` | views with no activity to show (dashboard, status, git-auth, configuration, about, files, viewer), each with its reason |
+
+A view in none of the three, an exempt view that is also migrated or pending, or a table both migrated and pending fails by name (`classificationProblems`, unit-tested on a fictitious partly migrated view). A migrated view
+exposes `ActivityTables() map[string]datatable.ActivityTable` (a read-only face:
+`Shapes()` and `RenderedWidth()`, see `ui-components.md`); a view whose `ActivityTables()` reports a table still listed as pending, or an
+exempt view that reports any, fails with "remove the exception".
+
+**Checked at run time**, on each view built by the router: column 0 of every
+migrated table is the indicator (untitled, fixed, `IconColumnWidth`, no `Less`,
+no `Search`); `RenderedWidth()` equals `width-2` after a 60-column resize
+(Rule 116); the help holds the `indicator.Legend` section.
+
+**Checked by source analysis**, on migrated packages only (`ui/jobsview/`): no
+`AdvanceSpinner` call, no `StatusColumn:` key, no `Frame`/`frame`/`SpinnerFrame`
+field or selector (`RenderedFrame` is allowed), no string or rune literal
+holding an indicator glyph. Verified to fail on a positive case by injecting a `Frame`
+field, an `AdvanceSpinner` call and a `"◉"` literal into `jobsview`.
+
+**Left to DEVDESK-143**: the footer half of the help/legend criterion and the
+final criterion 7. The chains outside the router and the static-motion rule stay
+with `TestRowAnimationChainsOutsideTheRouterAreDeclared` and
+`TestStaticMotionHoldsTheBlinkPhaseOnAndStartsNoChain`.
 
 ## Bubble Tea Message Flow
 

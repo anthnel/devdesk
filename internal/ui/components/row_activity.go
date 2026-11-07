@@ -44,16 +44,12 @@ func DescribeRow(q RowQuery) RowActivity {
 	case len(f.active) > 0:
 		it := f.active[0]
 		a.Detail = RowDetail{Glyph: glyph, Target: targetDisplay(it.Item.Name())}
-		if f.state == indicator.Running {
-			a.Detail.Lead = it.Kind.Verb() + " "
-		} else {
-			a.Detail.Lead = "Queued: " + string(it.Kind) + " "
-		}
+		a.Detail.Lead = activeLead(f.state, it.Kind)
 		a.Detail.Tail = maskedSuffix(f.failures)
 	case len(f.failures) > 0:
 		fl := f.failures[0]
 		a.Detail = RowDetail{Glyph: glyph, Target: targetDisplay(failureName(fl)),
-			Tail: ": last " + string(fl.Kind) + " failed" + causeSuffix(fl.Kind, fl.Detail) + maskedSuffix(f.failures[1:])}
+			Tail: failedTail(fl.Kind, fl.Detail) + maskedSuffix(f.failures[1:])}
 	default:
 		// No job and no failure: the view's own sentence. Idle shows it with no
 		// glyph (D8); any other observed state shows it with the glyph.

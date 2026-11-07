@@ -7,6 +7,7 @@ import (
 	"github.com/anthnel/devdesk/internal/jobs"
 	sharedcomponents "github.com/anthnel/devdesk/internal/ui/components"
 	"github.com/anthnel/devdesk/internal/ui/help"
+	"github.com/anthnel/devdesk/internal/ui/indicator"
 	"github.com/anthnel/devdesk/internal/ui/keymap"
 	"github.com/anthnel/devdesk/internal/ui/shortcut"
 	"github.com/anthnel/devdesk/internal/ui/theme"
@@ -100,20 +101,36 @@ func (m Model) renderBreadcrumb(width int) string {
 
 // status is the derived line, with no timer (Rule 128).
 //
-// It is the shared sentence every other footer says while work runs, and it is
-// asked for with no origin: this view launched none of it, so the detailed form
-// would be a lie about ownership. What it says instead is the count — which is
-// also the one form that does not end in ":jobs for details", because that is
-// where the reader already is.
+// The text is the count, asked for with no origin: this view launched none of
+// it, so the detailed form would be a lie about ownership. The detail is the
+// selected row's own sentence (DescribeRun, or DescribeItem at the target
+// level); while a row is selected its dot moves, so the footer spinner is
+// dropped.
 func (m Model) status() sharedcomponents.Status {
-	live := jobs.Unfinished(m.visibleRuns())
-	if len(live) == 0 {
-		return sharedcomponents.Status{}
+	var st sharedcomponents.Status
+	if live := jobs.Unfinished(m.visibleRuns()); len(live) > 0 {
+		st.Text = sharedcomponents.Plural(len(live), "job", "jobs") + " running"
 	}
-	return sharedcomponents.Status{
-		Text:    sharedcomponents.Plural(len(live), "job", "jobs") + " running",
-		Spinner: true,
+	st.Detail = m.selectedDetail()
+	st.Spinner = st.Text != "" && st.Detail.IsZero()
+	return st
+}
+
+// selectedDetail is the sentence of the row under the cursor, zero when there
+// is none.
+func (m Model) selectedDetail() sharedcomponents.RowDetail {
+	if m.level == levelItems {
+		run, ok := m.openedRun()
+		row, sel := m.itemTable.Selected()
+		if !ok || !sel {
+			return sharedcomponents.RowDetail{}
+		}
+		return sharedcomponents.DescribeItem(run.Kind, row.Item).Detail
 	}
+	if row, ok := m.runTable.Selected(); ok {
+		return sharedcomponents.DescribeRun(row.Run).Detail
+	}
+	return sharedcomponents.RowDetail{}
 }
 
 // View renders the table of the level on screen.
@@ -150,8 +167,7 @@ func (m Model) GetHelpContent() help.Content {
 		Sections: []help.Section{
 			{
 				Title: "Runs",
-				Body: "State (first, untitled): a spinner while the run is queued or going, " +
-					theme.IconOK + " done, " + theme.IconError + " failed, " + theme.IconCanceled + " cancelled.\n" +
+				Body: "Activity (first, untitled): the run's state as a dot — see the legend below.\n" +
 					"Kind: what the run does — scan, sync, clone, pull, create, delete, index (the forge listing the explorer and its g read, refreshed when a session opens).\n" +
 					"Label: what the batch was launched on — the directory, the registry, the repository.\n" +
 					"Progress: targets settled over targets held. A target that was skipped or that failed has settled: progress reports on what is left to wait for, not on what succeeded.\n" +
@@ -160,13 +176,13 @@ func (m Model) GetHelpContent() help.Content {
 			},
 			{
 				Title: "Targets",
-				Body: "State (first, untitled): " + theme.IconPending + " queued, a spinner while running, " +
-					theme.IconOK + " done, " + theme.IconSkipped + " skipped, " + theme.IconError + " failed.\n" +
+				Body: "Activity (first, untitled): the target's state as a dot — see the legend below.\n" +
 					"Target: the repository path, the image reference, the group.\n" +
 					"State: queued and running are different things — queued is waiting for a worker, running is holding one. A batch of twelve on four workers is four running and eight queued.\n" +
 					"Detail: what the state alone cannot say — why a sync was skipped, that a scan failed. A dash means there was nothing to add.\n\n" +
 					"The order is the one the batch was dispatched in, and it does not change: sorting by state would move a row out from under the cursor every time one settled.",
 			},
+			indicator.Legend(indicator.JobsLegend...),
 			{
 				Title: "What is listed",
 				Body: "Runs of the current context only. A run is stamped with the context it started in and kept for the session, so switching context hides them rather than dropping them — switching back brings them back.\n\n" +

@@ -48,11 +48,12 @@ func (m Model) handleJobsChanged(msg jobs.ChangedMsg) (tea.Model, tea.Cmd) {
 	return m, nil
 }
 
-// handleFrameMsg takes the animation's frame: the row spinners and the footer.
+// handleFrameMsg takes the animation's frame: the blink phase of both tables,
+// which they read at render, and the footer spinner. No row is rebuilt.
 func (m Model) handleFrameMsg(msg jobs.FrameMsg) (tea.Model, tea.Cmd) {
-	m.frame = msg.Frame
+	m.runTable.SetBlinkPhase(msg.Blink)
+	m.itemTable.SetBlinkPhase(msg.Blink)
 	m.footer.SetSpinnerFrame(msg.RenderedFrame)
-	m.refreshRows()
 	return m, nil
 }
 
@@ -83,7 +84,7 @@ func (m *Model) refreshRows() {
 	runs := m.visibleRuns()
 	rows := make([]runRow, len(runs))
 	for i, run := range runs {
-		rows[i] = runRow{Run: run, Frame: m.frame}
+		rows[i] = runRow{Run: run}
 	}
 	m.runTable.SetItems(rows)
 
@@ -100,7 +101,7 @@ func (m *Model) refreshRows() {
 
 	items := make([]itemRow, len(run.Items))
 	for i, item := range run.Items {
-		items[i] = itemRow{Item: item, Frame: m.frame}
+		items[i] = itemRow{Item: item}
 	}
 	m.itemTable.SetItems(items)
 }

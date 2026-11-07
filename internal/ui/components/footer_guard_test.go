@@ -188,7 +188,8 @@ func TestNoTableViewRendersALoadingBody(t *testing.T) {
 }
 
 // rowPhrases are the pieces of a row-activity sentence that only
-// components.DescribeRow may spell (row_activity.go): the footer sentence for a
+// components.DescribeRow (row_activity.go), DescribeRun and DescribeItem
+// (job_activity.go) may spell: the footer sentence for a
 // row ("Queued: scan x", "x: last scan failed — cause", "(+1 earlier failure)").
 // A view that writes one itself would drift from the activity column, which is
 // what the single computation exists to prevent.
@@ -203,6 +204,7 @@ var rowPhrases = []*regexp.Regexp{
 	regexp.MustCompile(`earlier failure`),
 	regexp.MustCompile(`Queued: `),
 	regexp.MustCompile(`: last `),
+	regexp.MustCompile(` was cancelled`),
 	regexp.MustCompile(`(?i)\blast [a-z]+ failed\b`),
 }
 
