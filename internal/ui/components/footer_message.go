@@ -79,6 +79,10 @@ func (l Level) Style() lipgloss.Style {
 // changes with no event to push it on.
 type Status struct {
 	Text string
+	// Detail is what the selected row says about itself (RowStatusLine); Text
+	// then becomes the batch progress after it. A detail with a glyph drops the
+	// spinner: the row's own dot already moves.
+	Detail RowDetail
 	// Spinner prepends the current spinner frame — a table loading its rows.
 	Spinner bool
 	// Level colours the line, and the zero value is LevelInfo, so a status that
@@ -253,19 +257,27 @@ func (f *FooterMessage) View(width int, status Status) string {
 	if f.text != "" {
 		return centerLine(f.level.Style().Render(theme.TruncateWidth(f.text, width)), width)
 	}
-	if status.Text == "" {
+	if status.Text == "" && status.Detail.IsZero() {
 		return theme.EmptyLineBg(width)
 	}
 
 	// lipgloss.Width, not theme.StringWidth: the frame arrives already styled,
 	// and runewidth would count its escape sequence as columns.
 	spinner, budget := "", width
-	if status.Spinner && f.spinnerFrame != "" {
+	if status.Spinner && f.spinnerFrame != "" && status.Detail.Glyph == "" {
 		spinner = f.spinnerFrame + theme.Bg(" ")
 		budget -= lipgloss.Width(f.spinnerFrame) + 1
 	}
 	if budget <= 0 {
 		return theme.EmptyLineBg(width)
+	}
+	if !status.Detail.IsZero() {
+		line := RowStatusLine(status.Detail, status.Text, budget)
+		// centerLine pads by lipgloss.Width, which ignores East Asian ambiguous
+		// width; shrink its target by the difference so the line is exactly
+		// `width` columns for runewidth too.
+		extra := theme.StringWidth(line) - lipgloss.Width(line)
+		return centerLine(spinner+status.Level.Style().Render(line), width-max(extra, 0))
 	}
 	return centerLine(spinner+status.Level.Style().Render(theme.TruncateWidth(status.Text, budget)), width)
 }
