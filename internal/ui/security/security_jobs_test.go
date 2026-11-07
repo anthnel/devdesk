@@ -17,14 +17,16 @@ import (
 
 func withJobs(t *testing.T, m Model, runs ...jobs.Run) Model {
 	t.Helper()
-	return feed(t, m, jobs.ChangedMsg{Runs: runs, Frame: "*", RenderedFrame: "*"})
+	m = feed(t, m, jobs.ChangedMsg{Runs: runs})
+	return feed(t, m, jobs.FrameMsg{Frame: "*", RenderedFrame: "*"})
 }
 
 // withFrame is the same snapshot with a named frame, for the tests that check
 // the rows are restamped when it moves.
 func withFrame(t *testing.T, m Model, frame string, runs ...jobs.Run) Model {
 	t.Helper()
-	return feed(t, m, jobs.ChangedMsg{Runs: runs, Frame: frame, RenderedFrame: frame})
+	m = feed(t, m, jobs.ChangedMsg{Runs: runs})
+	return feed(t, m, jobs.FrameMsg{Frame: frame, RenderedFrame: frame})
 }
 
 func scanningRun(names ...string) jobs.Run {

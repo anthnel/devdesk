@@ -23,6 +23,12 @@ import (
 // handleJobsChanged takes the router's snapshot and redecorates the rows.
 func (m Model) handleJobsChanged(msg jobs.ChangedMsg) (tea.Model, tea.Cmd) {
 	m.jobs = msg.Runs
+	m.setInventory(m.inventory.Items())
+	return m, nil
+}
+
+// handleFrameMsg takes the animation's frame and redecorates the rows.
+func (m Model) handleFrameMsg(msg jobs.FrameMsg) (tea.Model, tea.Cmd) {
 	m.jobFrame = msg.Frame
 	m.setInventory(m.inventory.Items())
 	return m, nil

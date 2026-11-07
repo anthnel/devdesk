@@ -376,7 +376,7 @@ func (r *Registry) Snapshot() []Run {
 }
 
 // Running counts the runs that have not settled. It is what decides whether the
-// router keeps its spinner chain alive, and what the degraded footer line
+// router keeps its animation chain alive, and what the degraded footer line
 // counts (D9).
 func (r *Registry) Running() int {
 	n := 0

@@ -39,8 +39,8 @@ const (
 // it on the row is what oci_resources does with imageRow, and for the same
 // reason.
 //
-// It is the router's frame (D5): the one chain, taken bare from jobs.ChangedMsg
-// because a table cell is measured before it is styled (Rule 122). Using
+// It is the router's frame (D5): the one chain, taken bare from the router's
+// frame message (not from jobs.ChangedMsg) because a table cell is measured before it is styled (Rule 122). Using
 // datatable's own AdvanceSpinner here would be a second chain beside it.
 type runRow struct {
 	Run   jobs.Run

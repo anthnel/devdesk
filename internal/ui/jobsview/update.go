@@ -26,6 +26,9 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case jobs.ChangedMsg:
 		return m.handleJobsChanged(msg)
 
+	case jobs.FrameMsg:
+		return m.handleFrameMsg(msg)
+
 	case tea.KeyMsg:
 		return m.handleKeyMsg(msg)
 	}
@@ -41,6 +44,12 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 // freeze it at the moment it was opened.
 func (m Model) handleJobsChanged(msg jobs.ChangedMsg) (tea.Model, tea.Cmd) {
 	m.runs = msg.Runs
+	m.refreshRows()
+	return m, nil
+}
+
+// handleFrameMsg takes the animation's frame: the row spinners and the footer.
+func (m Model) handleFrameMsg(msg jobs.FrameMsg) (tea.Model, tea.Cmd) {
 	m.frame = msg.Frame
 	m.footer.SetSpinnerFrame(msg.RenderedFrame)
 	m.refreshRows()

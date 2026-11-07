@@ -710,8 +710,8 @@ func TestTheFooterCountsWorkStartedElsewhere(t *testing.T) {
 			running(command.ViewWorkspaces, jobs.KindScan, "~/work"),
 			running(command.ViewSecurity, jobs.KindScan, "inventory"),
 		},
-		RenderedFrame: "*",
 	})
+	m = feed(t, m, jobs.FrameMsg{RenderedFrame: "*"})
 
 	status := m.status()
 	if want := "2 jobs running — :jobs for details"; status.Text != want {

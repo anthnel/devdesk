@@ -42,7 +42,7 @@ func (a *App) openBrowser(view command.ViewType, model tea.Model) tea.Cmd {
 	a.views[view] = model
 	a.selectionLent = view
 	a.currentView = view
-	return tea.Batch(model.Init(), a.requestResize())
+	return tea.Batch(model.Init(), a.requestResize(), a.enterView(view))
 }
 
 // handleDirectorySelected returns to the explorer with the chosen path.
@@ -97,5 +97,5 @@ func (a *App) returnToOrigin(msg tea.Msg) tea.Cmd {
 	updatedView, cmd := view.Update(msg)
 	a.views[a.currentView] = updatedView
 	a.viewport.GotoTop()
-	return tea.Batch(cmd, a.requestResize())
+	return tea.Batch(cmd, a.requestResize(), a.sendFrameTo(a.currentView))
 }

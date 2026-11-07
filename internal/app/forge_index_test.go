@@ -52,7 +52,7 @@ func pumpIndex(t *testing.T, a *App, msg tea.Msg) {
 
 func indexRouter(t *testing.T) *App {
 	t.Helper()
-	testutil.FastTimers(t, &jobSpinnerInterval)
+	testutil.FastTimers(t, &animationFastInterval)
 	a := router(t, &fakeView{})
 	a.config.Forge.URL = "https://gitlab.example.com"
 	a.currentContext = t.Name()

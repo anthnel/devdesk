@@ -214,6 +214,11 @@ func (m Model) startScan() (tea.Model, tea.Cmd) {
 
 func (m Model) handleJobsChanged(msg jobs.ChangedMsg) (tea.Model, tea.Cmd) {
 	m.jobs = msg.Runs
+	return m, nil
+}
+
+// handleFrameMsg takes the animation's frame for the footer spinner.
+func (m Model) handleFrameMsg(msg jobs.FrameMsg) (tea.Model, tea.Cmd) {
 	m.footer.SetSpinnerFrame(msg.RenderedFrame)
 	return m, nil
 }

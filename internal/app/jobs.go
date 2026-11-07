@@ -1,27 +1,17 @@
 package app
 
 import (
-	"time"
-
-	"github.com/charmbracelet/bubbles/spinner"
 	tea "github.com/charmbracelet/bubbletea"
 
 	"github.com/anthnel/devdesk/internal/command"
 	"github.com/anthnel/devdesk/internal/jobs"
-	"github.com/anthnel/devdesk/internal/ui/theme"
 )
 
-// changedMsg is the snapshot the router broadcasts. It fills both readings of
-// the frame — bare for a table cell (Rule 122), styled for a footer
-// (Rule 128) — so the two cannot drift and internal/jobs needs to know nothing
-// about styling.
+// changedMsg is the snapshot the router broadcasts.
 func (a *App) changedMsg() jobs.ChangedMsg {
-	frame := a.jobFrame()
 	return jobs.ChangedMsg{
-		Runs:          a.jobs.Snapshot(),
-		Failures:      a.jobs.Failures(),
-		Frame:         frame,
-		RenderedFrame: theme.SpinnerStyle().Render(frame),
+		Runs:     a.jobs.Snapshot(),
+		Failures: a.jobs.Failures(),
 	}
 }
 
@@ -135,50 +125,16 @@ func (a *App) handleForgetTarget(msg jobs.ForgetTargetMsg) (tea.Model, tea.Cmd) 
 	return a, a.jobsChanged()
 }
 
-// jobTickMsg advances the one spinner frame the whole application shares.
-//
-// It is the router's own message type rather than a spinner.TickMsg on purpose.
-// bubbles keeps chains apart with an id and a tag, which works, but it means a
-// stray tick from any view is something this handler would have to recognise
-// and decline. A message nobody else sends cannot be confused with anything.
-type jobTickMsg struct {
-	// seq identifies the chain. A tick from an older one is dropped, which is
-	// what makes a second chain impossible rather than merely unlikely — the
-	// failure the four hand-stamped spinners kept producing was two chains
-	// advancing the same frame at twice the rate.
-	seq int
-}
-
-// jobSpinnerInterval is the cadence of the shared frame. It is taken from the
-// same spinner the views used, so the animation does not change speed on the
-// day a view stops stamping its own.
-//
-// It is a var rather than a const for one reason: testutil.FastTimers shortens
-// it for the length of a test, the way components.FooterMsgDuration is. A test
-// that drains the chain would otherwise sleep a tenth of a second per tick.
-var jobSpinnerInterval = spinner.Dot.FPS
-
-func jobTick(seq int) tea.Cmd {
-	return tea.Tick(jobSpinnerInterval, func(time.Time) tea.Msg {
-		return jobTickMsg{seq: seq}
-	})
-}
-
-// jobFrame returns the current bare frame.
-func (a *App) jobFrame() string {
-	frames := spinner.Dot.Frames
-	return frames[a.jobFrameIdx%len(frames)]
-}
-
 // jobsChanged is what a launch site or a transition calls once it has written
-// to the registry: it tells every view, and makes sure the frame is moving.
+// to the registry: it tells every view, hands the view on screen the current
+// frame, and makes sure the animation chain is alive.
 //
-// Both halves are needed and neither implies the other — a run that starts
-// while another is already going changes the snapshot without needing a second
-// chain, and a run that settles changes the snapshot while the chain must be
-// allowed to die.
+// The three are separate and none implies another: a run that starts while
+// another is already going changes the snapshot without needing a second chain,
+// and a run that settles changes the snapshot while the chain must be allowed
+// to die.
 func (a *App) jobsChanged() tea.Cmd {
-	return tea.Batch(a.broadcastJobs(), a.ensureJobTick())
+	return tea.Batch(a.broadcastJobs(), a.sendFrameTo(a.currentView), a.ensureTick())
 }
 
 // broadcastJobs hands the current snapshot to every view the router holds, on
@@ -211,6 +167,14 @@ func (a *App) broadcastJobs() tea.Cmd {
 	return tea.Batch(cmds...)
 }
 
+// enterView hands a view that is entering the screen the snapshot and the
+// current frame. Every path that installs a view without going through
+// switchView calls it too, otherwise the view shows stale rows until the next
+// change.
+func (a *App) enterView(target command.ViewType) tea.Cmd {
+	return tea.Batch(a.sendJobsTo(target), a.sendFrameTo(target))
+}
+
 // sendJobsTo hands the snapshot to one view, which is what a view entering the
 // screen needs: it was updated where it stood, but a view built lazily on the
 // way in was not there for any of it.
@@ -222,35 +186,4 @@ func (a *App) sendJobsTo(target command.ViewType) tea.Cmd {
 	updated, cmd := view.Update(a.changedMsg())
 	a.views[target] = updated
 	return cmd
-}
-
-// ensureJobTick starts the shared chain if work is running and no chain is
-// alive. It is the one place a chain is ever started (D5).
-func (a *App) ensureJobTick() tea.Cmd {
-	if a.jobTicking || a.jobs.Running() == 0 {
-		return nil
-	}
-	a.jobTicking = true
-	a.jobTickSeq++
-	return jobTick(a.jobTickSeq)
-}
-
-// handleJobTick advances the shared frame and schedules the next one, for as
-// long as there is something to animate.
-//
-// The chain stops by not being renewed, and `jobTicking` is what lets the next
-// run start a new one. Renewing it against an empty registry would rebuild
-// every view's rows ten times a second for a settled application — which is the
-// reason each view stopped its own chain, and, having no way to restart it,
-// left its spinner frozen on the frame it died at.
-func (a *App) handleJobTick(msg jobTickMsg) (tea.Model, tea.Cmd) {
-	if msg.seq != a.jobTickSeq {
-		return a, nil
-	}
-	if a.jobs.Running() == 0 {
-		a.jobTicking = false
-		return a, nil
-	}
-	a.jobFrameIdx = (a.jobFrameIdx + 1) % len(spinner.Dot.Frames)
-	return a, tea.Batch(a.broadcastJobs(), jobTick(a.jobTickSeq))
 }

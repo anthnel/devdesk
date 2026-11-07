@@ -183,10 +183,10 @@ func StartInContext(run Run, work func(contextName string) tea.Cmd) tea.Cmd {
 // snapshot rather than reading a pointer the router writes, so nothing is read
 // from View() while something else is writing it.
 //
-// It is sent on two occasions, and they are different in nature: a transition —
-// something actually happened — and a spinner tick, where only the frame moved.
-// The receiver does not have to tell them apart, which is why there is one
-// message and not two.
+// It is sent when the registry changes: a run started, a transition, a seal.
+// The animation (the spinner frame, the blink phase) is not part of it: it
+// travels in FrameMsg, to the view on screen only, so a tick never makes every
+// held view rebuild its rows (DEVDESK-139).
 //
 // It lives in this package rather than in the router's so that every view can
 // name it without importing the router, which imports them.
@@ -194,18 +194,6 @@ type ChangedMsg struct {
 	// Runs is a copy, oldest first, every context included. Filtering on the
 	// current one is the view's business (D8, FilterContext).
 	Runs []Run
-
-	// Frame is the current spinner frame, bare — no escape sequence. Rule 122:
-	// a table cell is measured before it is styled, so a styled frame of seven
-	// visible cells measures twenty-eight and is truncated inside its own
-	// escape, which then bleeds down the rest of the table.
-	Frame string
-
-	// RenderedFrame is the same frame styled, which is what a footer takes
-	// (Rule 128 — measurement there goes through lipgloss.Width, which ignores
-	// escapes). The router fills both so the two readings of one frame cannot
-	// drift, and so this package needs to know nothing about styling.
-	RenderedFrame string
 
 	// Failures is a copy of what the registry remembers about failed targets,
 	// oldest first, every context included. Like Runs, it is read by the view
@@ -217,4 +205,13 @@ type ChangedMsg struct {
 // receiver the same three lines.
 func (m ChangedMsg) Running() int {
 	return len(Unfinished(m.Runs))
+}
+
+// FrameMsg says the animation moved: the spinner frame, the blink phase, or
+// both. It carries no snapshot — ChangedMsg is for changes of the registry.
+// The router sends it to the view on screen only (DEVDESK-139).
+type FrameMsg struct {
+	Frame         string // bare, Rule 122 (a cell measures it)
+	RenderedFrame string // styled, Rule 128 (a footer takes it)
+	Blink         bool   // true = the "on" half of the blink
 }
