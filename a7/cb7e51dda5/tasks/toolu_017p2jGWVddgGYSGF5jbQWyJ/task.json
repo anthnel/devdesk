@@ -1,0 +1,18 @@
+{
+  "tool_use_id": "toolu_017p2jGWVddgGYSGF5jbQWyJ",
+  "agent_id": "a11895edd844f30e5",
+  "subagent_type": "project-tester",
+  "task_description": "Tests rouges étape 4 garde-fou",
+  "files": [
+    "internal/app/activity_guard_test.go"
+  ],
+  "token_usage": {
+    "input_tokens": 18,
+    "cache_creation_tokens": 94218,
+    "cache_read_tokens": 660673,
+    "output_tokens": 10908,
+    "api_call_count": 9
+  },
+  "started_at": "2026-11-07T21:45:29.370715167+01:00",
+  "completed_at": "2026-11-07T21:46:55.781451802+01:00"
+}

@@ -1,0 +1,61 @@
+{
+  "cli_version": "0.12.2",
+  "checkpoint_id": "a7cb7e51dda5",
+  "strategy": "manual-commit",
+  "branch": "feat/devdesk-142-jobs-indicator",
+  "checkpoints_count": 19,
+  "files_touched": [
+    "docs/architecture/app-shell.md",
+    "docs/architecture/ui-components.md",
+    "docs/backlog.md",
+    "internal/ui/components/footer_guard_test.go",
+    "internal/ui/components/job_activity.go",
+    "internal/ui/components/job_activity_test.go",
+    "internal/ui/components/row_activity.go",
+    "internal/ui/datatable/shape.go",
+    "internal/ui/datatable/shape_test.go",
+    "internal/ui/jobsview/frame_test.go",
+    "internal/ui/jobsview/jobsview_test.go",
+    "internal/ui/jobsview/model.go",
+    "internal/ui/jobsview/state.go",
+    "internal/ui/jobsview/update.go",
+    "internal/ui/jobsview/view.go"
+  ],
+  "sessions": [
+    {
+      "metadata": "/a7/cb7e51dda5/0/metadata.json",
+      "transcript": "/a7/cb7e51dda5/0/full.jsonl",
+      "compact_transcript": "/a7/cb7e51dda5/0/transcript.jsonl",
+      "content_hash": "/a7/cb7e51dda5/0/content_hash.txt",
+      "prompt": "/a7/cb7e51dda5/0/prompt.txt"
+    }
+  ],
+  "token_usage": {
+    "input_tokens": 128,
+    "cache_creation_tokens": 164194,
+    "cache_read_tokens": 6783069,
+    "output_tokens": 26930,
+    "api_call_count": 46,
+    "subagent_tokens": {
+      "input_tokens": 328,
+      "cache_creation_tokens": 1405558,
+      "cache_read_tokens": 18714357,
+      "output_tokens": 116874,
+      "api_call_count": 150
+    }
+  },
+  "redaction": {
+    "replacements": 0,
+    "layers": {
+      "betterleaks": 0,
+      "connection_string": 0,
+      "credential_key": 0,
+      "credential_value": 0,
+      "credentialed_uri": 0,
+      "entropy": 0,
+      "key_context": 0,
+      "provider_token": 0,
+      "shell_stdin": 0
+    }
+  }
+}
