@@ -1,0 +1,171 @@
+{
+  "cli_version": "0.12.2",
+  "checkpoint_id": "3ec0f56825f1",
+  "session_id": "0914a330-f111-4a19-9838-dd1033aeaffa",
+  "strategy": "manual-commit",
+  "created_at": "2026-11-07T11:11:21.472219762Z",
+  "branch": "feat/DEVDESK-139-shared-blink-tick",
+  "checkpoints_count": 23,
+  "save_step_count": 23,
+  "files_touched": [
+    "docs/architecture/app-shell.md",
+    "docs/backlog.md",
+    "internal/app/animation.go",
+    "internal/app/animation_test.go",
+    "internal/app/app.go",
+    "internal/app/command_line.go",
+    "internal/app/failures_test.go",
+    "internal/app/forge_index_test.go",
+    "internal/app/jobs.go",
+    "internal/app/jobs_test.go",
+    "internal/app/picker.go",
+    "internal/app/scan_details.go",
+    "internal/app/selection.go",
+    "internal/jobs/jobs.go",
+    "internal/jobs/message.go",
+    "internal/jobs/registry.go",
+    "internal/ui/dashboard/dashboard_test.go",
+    "internal/ui/dashboard/model.go",
+    "internal/ui/filebrowser/jobs.go",
+    "internal/ui/filebrowser/update.go",
+    "internal/ui/forge/explorer/clone.go",
+    "internal/ui/forge/explorer/model_test.go",
+    "internal/ui/forge/explorer/update.go",
+    "internal/ui/jobsview/jobsview_test.go",
+    "internal/ui/jobsview/model.go",
+    "internal/ui/jobsview/update.go",
+    "internal/ui/oci_resources/jobs.go",
+    "internal/ui/oci_resources/jobs_test.go",
+    "internal/ui/oci_resources/update.go",
+    "internal/ui/security/jobs.go",
+    "internal/ui/security/security_jobs_test.go",
+    "internal/ui/security/update.go",
+    "internal/ui/templates/scan.go",
+    "internal/ui/templates/update.go",
+    "internal/ui/workspaces/jobs.go",
+    "internal/ui/workspaces/update.go",
+    "internal/ui/workspaces/workspaces_test.go"
+  ],
+  "agent": "Claude Code",
+  "model": "claude-sonnet-5-5",
+  "turn_id": "3805f32c677b",
+  "compact_transcript_start": 0,
+  "token_usage": {
+    "input_tokens": 154,
+    "cache_creation_tokens": 392370,
+    "cache_read_tokens": 8185949,
+    "output_tokens": 33489,
+    "api_call_count": 54,
+    "subagent_tokens": {
+      "input_tokens": 448,
+      "cache_creation_tokens": 2891867,
+      "cache_read_tokens": 23845779,
+      "output_tokens": 192693,
+      "api_call_count": 217
+    }
+  },
+  "redaction": {
+    "replacements": 0,
+    "layers": {
+      "betterleaks": 0,
+      "connection_string": 0,
+      "credential_key": 0,
+      "credential_value": 0,
+      "credentialed_uri": 0,
+      "entropy": 0,
+      "key_context": 0,
+      "provider_token": 0,
+      "shell_stdin": 0
+    }
+  },
+  "skill_events_version": 1,
+  "skill_events": [
+    {
+      "id": "prompt-skill-claude-code-team-core:feature-2026-11-07T08:12:32.897378962Z",
+      "event_type": "prompt_invocation",
+      "skill": {
+        "name": "team-core:feature"
+      },
+      "source": {
+        "agent": "claude-code",
+        "signal": "prompt_slash_command",
+        "confidence": "explicit"
+      },
+      "turn_id": "37ec8341a3dc",
+      "timestamp": "2026-11-07T08:12:32.897378962Z",
+      "native": {
+        "command": "/team-core:feature"
+      },
+      "collapse": {
+        "target": "user_message",
+        "label": "/team-core:feature",
+        "default_collapsed": true
+      }
+    },
+    {
+      "id": "claude-skill-toolu_014EnnA5jkmDyQZoJnGgTSxY",
+      "event_type": "tool_invocation",
+      "skill": {
+        "name": "team-core:resume-work"
+      },
+      "source": {
+        "agent": "claude-code",
+        "signal": "skill_tool_use",
+        "confidence": "explicit"
+      },
+      "turn_id": "3805f32c677b",
+      "transcript_anchor": {
+        "unit": "line",
+        "start": 33,
+        "end": 34,
+        "entry_ids": [
+          "c454bd9d-1c13-4682-828f-04e8f3cec5b8"
+        ],
+        "tool_use_id": "toolu_014EnnA5jkmDyQZoJnGgTSxY"
+      },
+      "native": {
+        "tool_name": "Skill",
+        "tool_use_id": "toolu_014EnnA5jkmDyQZoJnGgTSxY"
+      },
+      "collapse": {
+        "target": "tool_pair",
+        "label": "Skill: team-core:resume-work",
+        "default_collapsed": true
+      }
+    },
+    {
+      "id": "claude-skill-toolu_01XPoSfGHLKYyc2XuoP2aYxH",
+      "event_type": "tool_invocation",
+      "skill": {
+        "name": "plane-integration:plane-conventions"
+      },
+      "source": {
+        "agent": "claude-code",
+        "signal": "skill_tool_use",
+        "confidence": "explicit"
+      },
+      "turn_id": "3805f32c677b",
+      "transcript_anchor": {
+        "unit": "line",
+        "start": 37,
+        "end": 38,
+        "entry_ids": [
+          "c6389b8f-aabc-4def-8fd1-6bbf2d0cffb1"
+        ],
+        "tool_use_id": "toolu_01XPoSfGHLKYyc2XuoP2aYxH"
+      },
+      "native": {
+        "tool_name": "Skill",
+        "tool_use_id": "toolu_01XPoSfGHLKYyc2XuoP2aYxH"
+      },
+      "collapse": {
+        "target": "tool_pair",
+        "label": "Skill: plane-integration:plane-conventions",
+        "default_collapsed": true
+      }
+    }
+  ],
+  "session_metrics": {
+    "turn_count": 23
+  }
+}

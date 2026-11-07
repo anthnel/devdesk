@@ -1,0 +1,18 @@
+{
+  "tool_use_id": "toolu_0163QXQxfN846DDMpyJM8etA",
+  "agent_id": "afa1648100ad2e801",
+  "subagent_type": "project-tester",
+  "task_description": "Red tests for view-entry paths",
+  "files": [
+    "internal/app/animation_install_test.go"
+  ],
+  "token_usage": {
+    "input_tokens": 24,
+    "cache_creation_tokens": 145232,
+    "cache_read_tokens": 1419414,
+    "output_tokens": 8412,
+    "api_call_count": 12
+  },
+  "started_at": "2026-11-07T09:38:02.284436938+01:00",
+  "completed_at": "2026-11-07T09:40:24.702313601+01:00"
+}
