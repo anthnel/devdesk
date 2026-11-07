@@ -418,5 +418,5 @@ Extension propre aux containers : `◕ restarting · ◐ paused · ◌ created �
 
 ### Restent à confirmer
 
-1. **« or in :cfg »** dans la légende : `app.motion` est-il modifiable dans la vue de configuration ? À vérifier par l'architect (`stories.md`, question ouverte 7).
+1. **« or in :cfg »** dans la légende : `app.motion` est-il modifiable dans la vue de configuration ? À vérifier par l'architect (`stories.md`, question ouverte 7). **Résolu (2026-11-07, DEVDESK-141)** : modifiable dans `:cfg` en plus du YAML ; une clé absente reste absente. La phrase est conservée.
 2. **Test de contraste** : les rapports du §2.1 sont des calculs à la main ; le test de A-01 (critère 7) doit les confirmer, pour chaque alias, sur le fond et sur `ColorTableLineSelected` (`stories.md`, question ouverte 8).

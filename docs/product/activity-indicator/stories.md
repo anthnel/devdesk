@@ -460,6 +460,7 @@ Rien ci-dessous n'est tranché ; la recommandation du PM, quand il y en a une, e
 5. **Découpage des PR** : une PR par story (recommandation du PM et de l'architect, avec A-08 et A-09a qui se relisent mieux ensemble mais restent deux PR) ou regroupement des vues Should ?
 6. **Quand clore DEVDESK-99.** La décision D11 dit « à la création du backlog » ; question gardée à la demande de l'utilisateur, à confirmer ou à retirer.
 7. **Confirmation du réglage dans `:cfg`.** La phrase « or in :cfg » de la légende (A-01) et les critères 4 et 7 de A-02 supposent que `app.motion` est modifiable dans la vue de configuration (champ cyclique `←→`, Rule 132, comme `app.gauge_glyph`). À vérifier par l'architect ; sinon retirer la phrase.
+   **Résolu (2026-11-07, DEVDESK-141)** : le réglage est exposé dans `:cfg` (champ cyclique `←→`, onglet `app`) en plus du YAML ; une clé absente reste absente tant qu'on ne cycle pas. La phrase est conservée.
 8. **Test de contraste.** Les rapports de `ux.md` §2.1 (au moins 3:1 pour chaque alias sur le fond et sur la ligne sélectionnée) sont des calculs à la main sur les valeurs Catppuccin par défaut ; le test de A-01 (critère 7) doit les confirmer pour chaque thème livré.
 
 Note de méthode : `research.md` ne contient pas de section de critique distincte de la recherche ; les risques de `brief.md` viennent de la liste transmise avec l'idée et des conclusions de la recherche.

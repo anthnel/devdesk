@@ -853,8 +853,9 @@ agent running, children loading). The router asks the view on screen after every
   settled row is left on a steady glyph, never a half-blinked one.
 - **`motionStatic`.** Pins the phase on and keeps blink-only chains from
   starting (`setMotionStatic` hands the pinned frame to the view on screen at
-  once). Nothing sets it yet: the `app.motion` setting arrives with A-02, and
-  only tests call the setter today.
+  once). `app.motion` feeds `App.motionStatic` through `applyMotion`: at
+  startup (`newWithSize`), after a context switch (`handleContextSwitchComplete`,
+  once the views are rebuilt) and on `ConfigSavedMsg` (`handleConfigSaved`).
 
 `jobsChanged` is what a launch site or a transition calls after writing to the
 registry: `ChangedMsg` to every held view, `FrameMsg` to the view on screen. The

@@ -1,17 +1,20 @@
 package configuration
 
 import (
+	"fmt"
 	"slices"
 	"strings"
 
 	"github.com/charmbracelet/lipgloss"
 	"github.com/charmbracelet/x/ansi"
 
+	"github.com/anthnel/devdesk/internal/config"
 	"github.com/anthnel/devdesk/internal/engine"
 	"github.com/anthnel/devdesk/internal/scan"
 
 	sharedcomponents "github.com/anthnel/devdesk/internal/ui/components"
 	"github.com/anthnel/devdesk/internal/ui/help"
+	"github.com/anthnel/devdesk/internal/ui/indicator"
 	"github.com/anthnel/devdesk/internal/ui/keymap"
 	"github.com/anthnel/devdesk/internal/ui/shortcut"
 	"github.com/anthnel/devdesk/internal/ui/theme"
@@ -443,9 +446,25 @@ func (m Model) RenderFooter(width int) string {
 
 	// The field's hint is the derived status: it is a permanent property of
 	// where the cursor is, so it has no timer and any message displaces it.
-	info := m.footer.View(width, sharedcomponents.Status{Text: m.hint(m.current())})
+	info := m.footer.View(width, m.status())
 
 	return tabBar + "\n" + theme.EmptyLineBg(width) + "\n" + info
+}
+
+// status is the derived footer line (Rule 128): an app.motion the file holds
+// outside its set is a standing fact, so it is a warning-level Status on the
+// app tab rather than a message that would expire; otherwise the focused
+// field's hint.
+func (m Model) status() sharedcomponents.Status {
+	if m.activeTab >= 0 && m.activeTab < len(m.sections) && m.sections[m.activeTab].Title == "app" &&
+		!m.config.App.MotionValid() {
+		return sharedcomponents.Status{
+			Text: fmt.Sprintf("%s %q is not %s or %s — rows keep blinking",
+				motionLabel, m.config.App.Motion, config.MotionBlink, config.MotionStatic),
+			Level: sharedcomponents.LevelWarning,
+		}
+	}
+	return sharedcomponents.Status{Text: m.hint(m.current())}
 }
 
 // GetShortcuts lists only what is not self-evident (Rules 130, 137, 138).
@@ -569,6 +588,13 @@ func (m Model) GetHelpContent() help.Content {
 					"readable under the cursor. █ is drawn double-width by some terminals\n" +
 					"(East Asian ambiguous width); if the gauge columns overflow, go back\n" +
 					"to shade. It is not picked from your locale: only you know the terminal.",
+			},
+			{
+				Title: "Motion",
+				Body: "blink (default) makes a running row's dot " + indicator.Glyph(indicator.Running, true) + " blink once a\n" +
+					"second. static keeps it a steady " + indicator.Glyph(indicator.Running, true) + ", same glyph and color,\n" +
+					"with no periodic redraw. It is per context and applies as you cycle it.\n" +
+					"A value in the file that is neither keeps blinking, and the footer says so.",
 			},
 			{
 				Title: "Secret backend",

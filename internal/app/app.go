@@ -123,8 +123,8 @@ type App struct {
 	toolsState
 	forgeIndexState
 	anim animationState
-	// motionStatic pins the blink phase on (static motion). Nothing sets it
-	// yet: app.motion arrives with its own story, with a setter.
+	// motionStatic pins the blink phase on (static motion). It is fed from
+	// app.motion: at startup, on a context switch and on every ConfigSavedMsg.
 	motionStatic bool
 
 	// The MCP server, which lives in this process (§3.61). program is the
@@ -258,6 +258,7 @@ func newWithSize(cfg *config.Config, width, height int) *App {
 		sharedState:    sharedState,
 		jobs:           jobs.New(),
 		anim:           animationState{blinkOn: true},
+		motionStatic:   cfg.App.StaticMotion(),
 		commandInput:   newCommandInput(),
 		suggester:      command.NewSuggester(),
 		sugCursor:      -1,
@@ -424,10 +425,16 @@ func (a *App) wantsBlink() bool {
 	return ok && view.WantsBlink()
 }
 
-// setMotionStatic pins the blink phase on and stops blink-only chains. It is the
-// entry point for the static-motion setting (A-02); until that setting is wired,
-// only tests call it. The view on screen is handed the pinned frame at once,
-// otherwise it would keep an off phase until the next tick that may never come.
+// applyMotion points the animation at the motion a config asks for. It is
+// called wherever the router takes a new config (context switch, every save);
+// the constructor sets the field directly because it has no Cmd to return.
+func (a *App) applyMotion(cfg *config.Config) tea.Cmd {
+	return a.setMotionStatic(cfg.App.StaticMotion())
+}
+
+// setMotionStatic pins the blink phase on and stops blink-only chains. The view
+// on screen is handed the pinned frame at once, otherwise it would keep an off
+// phase until the next tick that may never come.
 func (a *App) setMotionStatic(on bool) tea.Cmd {
 	a.motionStatic = on
 	if !on {

@@ -234,7 +234,7 @@ func (a *App) handleContextSwitchComplete(msg ContextSwitchCompleteMsg) (tea.Mod
 	a.forgetScanTools()
 
 	// Reinitialize views with new config; auth state is already populated above
-	initCmd := a.reinitializeViews()
+	initCmd := tea.Batch(a.reinitializeViews(), a.applyMotion(msg.Config))
 
 	// The rebuilt views know nothing of the work that is still running, and it
 	// did not stop: a run is stamped with the context it was started in and
