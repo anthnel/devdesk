@@ -1,0 +1,15 @@
+{
+  "tool_use_id": "toolu_01K2oGhAeX8n9QL3BdS3J3t8",
+  "agent_id": "a073f8c8d4f9915f9",
+  "subagent_type": "project-coder",
+  "task_description": "Vert étape 1 motion config",
+  "token_usage": {
+    "input_tokens": 8,
+    "cache_creation_tokens": 69009,
+    "cache_read_tokens": 195328,
+    "output_tokens": 2302,
+    "api_call_count": 4
+  },
+  "started_at": "2026-11-07T18:34:03.134311294+01:00",
+  "completed_at": "2026-11-07T18:34:30.759544511+01:00"
+}

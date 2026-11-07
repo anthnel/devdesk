@@ -1,0 +1,15 @@
+{
+  "tool_use_id": "toolu_01L42DtD9AmwKTSTDyYYaRRS",
+  "agent_id": "a0576bd35ee38da0e",
+  "subagent_type": "project-tester",
+  "task_description": "Tests rouges étape 3 :cfg",
+  "token_usage": {
+    "input_tokens": 22,
+    "cache_creation_tokens": 84774,
+    "cache_read_tokens": 748722,
+    "output_tokens": 7701,
+    "api_call_count": 11
+  },
+  "started_at": "2026-11-07T18:39:05.059877256+01:00",
+  "completed_at": "2026-11-07T18:40:10.938149889+01:00"
+}

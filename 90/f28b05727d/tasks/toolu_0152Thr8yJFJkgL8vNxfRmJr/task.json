@@ -1,0 +1,15 @@
+{
+  "tool_use_id": "toolu_0152Thr8yJFJkgL8vNxfRmJr",
+  "agent_id": "ad1506a9eb8725581",
+  "subagent_type": "project-coder",
+  "task_description": "Retouches non bloquantes étape 3",
+  "token_usage": {
+    "input_tokens": 8,
+    "cache_creation_tokens": 116603,
+    "cache_read_tokens": 309389,
+    "output_tokens": 1630,
+    "api_call_count": 4
+  },
+  "started_at": "2026-11-07T18:43:38.293788715+01:00",
+  "completed_at": "2026-11-07T18:44:02.464688942+01:00"
+}

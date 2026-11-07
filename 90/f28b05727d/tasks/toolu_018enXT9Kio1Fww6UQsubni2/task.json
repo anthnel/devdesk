@@ -1,0 +1,15 @@
+{
+  "tool_use_id": "toolu_018enXT9Kio1Fww6UQsubni2",
+  "agent_id": "a64a70dd6f4de7a89",
+  "subagent_type": "project-tester",
+  "task_description": "Tests rouges étape 1 motion",
+  "token_usage": {
+    "input_tokens": 8,
+    "cache_creation_tokens": 72015,
+    "cache_read_tokens": 193827,
+    "output_tokens": 5553,
+    "api_call_count": 4
+  },
+  "started_at": "2026-11-07T18:33:12.672320044+01:00",
+  "completed_at": "2026-11-07T18:33:51.048866427+01:00"
+}
