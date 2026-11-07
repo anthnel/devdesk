@@ -1,0 +1,15 @@
+{
+  "tool_use_id": "toolu_01BFAhyxRrnft4XSTwpAdoQt",
+  "agent_id": "a8eb7589895e8d241",
+  "subagent_type": "dev-team:reviewer",
+  "task_description": "Revue du garde-fou A-16",
+  "token_usage": {
+    "input_tokens": 26,
+    "cache_creation_tokens": 165620,
+    "cache_read_tokens": 1414682,
+    "output_tokens": 7151,
+    "api_call_count": 11
+  },
+  "started_at": "2026-11-07T22:17:22.291282217+01:00",
+  "completed_at": "2026-11-07T22:18:37.911957214+01:00"
+}

@@ -1,0 +1,48 @@
+{
+  "cli_version": "0.12.2",
+  "checkpoint_id": "dc375dbd435f",
+  "strategy": "manual-commit",
+  "branch": "test/DEVDESK-143-activity-guard",
+  "checkpoints_count": 7,
+  "files_touched": [
+    "internal/app/activity_guard_test.go",
+    "internal/app/animation_guard_test.go"
+  ],
+  "sessions": [
+    {
+      "metadata": "/dc/375dbd435f/0/metadata.json",
+      "transcript": "/dc/375dbd435f/0/full.jsonl",
+      "compact_transcript": "/dc/375dbd435f/0/transcript.jsonl",
+      "content_hash": "/dc/375dbd435f/0/content_hash.txt",
+      "prompt": "/dc/375dbd435f/0/prompt.txt"
+    }
+  ],
+  "token_usage": {
+    "input_tokens": 60,
+    "cache_creation_tokens": 126622,
+    "cache_read_tokens": 2918471,
+    "output_tokens": 12742,
+    "api_call_count": 23,
+    "subagent_tokens": {
+      "input_tokens": 142,
+      "cache_creation_tokens": 806412,
+      "cache_read_tokens": 7100546,
+      "output_tokens": 53239,
+      "api_call_count": 67
+    }
+  },
+  "redaction": {
+    "replacements": 0,
+    "layers": {
+      "betterleaks": 0,
+      "connection_string": 0,
+      "credential_key": 0,
+      "credential_value": 0,
+      "credentialed_uri": 0,
+      "entropy": 0,
+      "key_context": 0,
+      "provider_token": 0,
+      "shell_stdin": 0
+    }
+  }
+}
