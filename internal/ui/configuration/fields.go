@@ -49,6 +49,10 @@ type field struct {
 	Label   string
 	Kind    fieldKind
 	Options []string // kindCycle only
+	// def is what an empty value of a cycle field means. It is shown as
+	// "<def> (default)" and is where the first arrow starts from; nothing is
+	// written until the user cycles.
+	def string
 
 	// Group and GroupIcon head a run of related settings inside a tab. They are
 	// stamped on by group(), not written per field, so a run cannot be split by
@@ -177,11 +181,21 @@ func imageVerificationField() field {
 	return f
 }
 
+// motionLabel is named once: the footer warning and the tests read it.
+const motionLabel = "Motion"
+
 // imageVerificationLabel is named once: the help texts point at it.
 const imageVerificationLabel = "Verify image signatures"
 
 func cycle(label string, ref func(*config.Config) *string, options []string, hint string) field {
 	return field{Label: label, Kind: kindCycle, str: ref, Options: options, hint: hint}
+}
+
+// cycleWithDefault is a cycle field whose empty value stands for def.
+func cycleWithDefault(label string, ref func(*config.Config) *string, options []string, def, hint string) field {
+	f := cycle(label, ref, options, hint)
+	f.def = def
+	return f
 }
 
 func static(label, value, hint string) field {
@@ -223,7 +237,10 @@ func (f field) Value(c *config.Config) string {
 		if f.list != nil {
 			return scan.JoinArgs(*f.list(c))
 		}
-		return *f.str(c)
+		if v := *f.str(c); v != "" || f.def == "" {
+			return v
+		}
+		return f.def + " (default)"
 	}
 }
 
@@ -256,6 +273,10 @@ func (f field) Cycle(c *config.Config, step int) {
 	}
 	p := f.str(c)
 	idx := 0
+	if *p == "" && f.def != "" {
+		idx = slices.Index(f.Options, f.def)
+		idx = max(idx, 0)
+	}
 	for i, opt := range f.Options {
 		if opt == *p {
 			idx = i
@@ -324,6 +345,9 @@ func sections(themes, views []string, configPath, contextName, forgeType string,
 					"The view DevDesk opens on"),
 				cycle("Gauge glyph", func(c *config.Config) *string { return &c.App.GaugeGlyph },
 					config.GaugeGlyphs(), "block fills with a solid █, which some terminals draw double-width"),
+				cycleWithDefault(motionLabel, func(c *config.Config) *string { return &c.App.Motion },
+					config.Motions(), config.DefaultMotion,
+					"static keeps a running row's dot steady — no blinking, no periodic redraw"),
 			),
 			group("Paths", theme.IconDirectory,
 				pathField("Workspaces dir", func(c *config.Config) *string { return &c.App.WorkspacesDir },

@@ -6,7 +6,12 @@
 ## Configuration System
 
 Config loaded from `~/.devdesk/config.yaml` with schema defined in `internal/config/config.go`:
-- `App` - Global settings (theme, default view, workspaces dir, `show_hidden_files`, `secret_backend`, `gauge_glyph`)
+- `App` - Global settings (theme, default view, workspaces dir, `show_hidden_files`, `secret_backend`, `gauge_glyph`, `motion`)
+  `app.motion` (`blink` or `static`) is per context (D3). The case must be exact:
+  `Static` is invalid, kept as read, logged as a WARN at load, and behaves as
+  the default. An absent key stays absent (it is not written back at load)
+  because the default may change with A-06; an explicit value keeps its meaning
+  when it does.
 - `Status` - Monitoring settings (refresh interval, components)
 - `Forge` - the platform this context targets: `type`, URL and clone settings
 - `Registry` - OCI registry configuration (see Registry model below)
@@ -97,6 +102,23 @@ and anything but `block` stays on the safe glyph. The setting also drives the gl
 (`theme.GaugeFill`, in the agents table column and the Breakdown tab); `block` has
 the same ambiguous width there, with the same accepted risk as for the gauges: a
 line can overflow by one cell on a terminal that draws it double-width.
+
+**`app.motion`** picks whether activity indicators blink: `blink` (the default)
+or `static`. The default is never written: an absent key stays absent on save.
+Any other value is kept as read, behaves as `blink` and logs
+`WARN [config] app.motion "<v>" is not blink or static, blinking`. A list or map
+makes the load fail, like the other `app.*` keys. No environment variable
+overrides it. Read through `AppConfig.EffectiveMotion` / `StaticMotion`.
+
+In `:cfg` it is the **Motion** field of the `app` tab, group Appearance, a
+`←→` cycle field (Rule 132) declared with `cycleWithDefault`. While the key is
+absent the field reads `blink (default)` and nothing is written; the first
+arrow starts from `blink`, so `→` gives `static`, and only cycling writes the
+key. When the file holds an invalid value, the `app` tab's footer shows a
+permanent warning-level `Status` (`Motion "<v>" is not blink or static — rows
+keep blinking`), derived on every frame rather than set as a timed message. The
+setting applies without a restart: the router calls `applyMotion` on
+`ConfigSavedMsg` and on a context switch.
 
 **`app.container_engine`** names the engine every container, image, network and
 volume comes from: `auto` (the default — docker if it is on PATH, else podman),

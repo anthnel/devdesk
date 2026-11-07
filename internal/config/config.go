@@ -204,6 +204,12 @@ type AppConfig struct {
 	// something only the user can know, which is why it is not guessed from
 	// the locale (§3.71).
 	GaugeGlyph string `yaml:"gauge_glyph"`
+
+	// Motion picks whether activity indicators blink: "blink" (default) or
+	// "static". An absent key stays absent and an unknown value is kept as
+	// read (it behaves as blink, with a WARN at load) so a typo is not
+	// silently rewritten.
+	Motion string `yaml:"motion,omitempty"`
 }
 
 // Values app.gauge_glyph accepts.
@@ -214,6 +220,48 @@ const (
 
 // GaugeGlyphs lists the values app.gauge_glyph names, safe default first.
 func GaugeGlyphs() []string { return []string{GaugeGlyphShade, GaugeGlyphBlock} }
+
+// Values app.motion accepts.
+const (
+	MotionBlink   = "blink"
+	MotionStatic  = "static"
+	DefaultMotion = MotionBlink
+)
+
+// Motions lists the values app.motion names, default first.
+func Motions() []string { return []string{MotionBlink, MotionStatic} }
+
+// EffectiveMotion returns the motion in force: the value written when it is
+// valid and non-empty, DefaultMotion otherwise (absent or unknown).
+func (a AppConfig) EffectiveMotion() string {
+	if a.Motion != "" && a.MotionValid() {
+		return a.Motion
+	}
+	return DefaultMotion
+}
+
+// StaticMotion reports whether activity indicators must not blink.
+func (a AppConfig) StaticMotion() bool { return a.EffectiveMotion() == MotionStatic }
+
+// MotionValid reports whether app.motion is absent or exactly a known value.
+func (a AppConfig) MotionValid() bool {
+	return a.Motion == "" || a.Motion == MotionBlink || a.Motion == MotionStatic
+}
+
+// motionFallbackPhrase words the default motion for the WARN line.
+func motionFallbackPhrase() string {
+	if DefaultMotion == MotionBlink {
+		return "blinking"
+	}
+	return DefaultMotion
+}
+
+// warnInvalidMotion logs an app.motion value outside the closed set.
+func warnInvalidMotion(a AppConfig) {
+	if !a.MotionValid() {
+		log.Printf("WARN [config] app.motion %q is not %s or %s, %s", a.Motion, MotionBlink, MotionStatic, motionFallbackPhrase())
+	}
+}
 
 // ForgeConfig is the code-hosting platform this context targets — exactly one,
 // never two (§3.6).
@@ -485,6 +533,7 @@ func applyDefaults(cfg *Config) error {
 	if cfg.App.GaugeGlyph == "" {
 		cfg.App.GaugeGlyph = GaugeGlyphShade
 	}
+	warnInvalidMotion(cfg.App)
 	// Written rather than left empty for the reason above: the configuration
 	// view cycles a closed set. A value outside it is left alone — remediation
 	// reads it as same-line — so a typo in the file is not silently rewritten.

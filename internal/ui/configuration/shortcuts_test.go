@@ -44,6 +44,7 @@ func TestOnlyTheControlTheFieldTakesIsOffered(t *testing.T) {
 		greyed  []string
 	}{
 		{"Theme", "←→", []string{"space"}},
+		{"Motion", "←→", []string{"space"}},
 		{"Show hidden files", "space", []string{"←→"}},
 		{"Workspaces dir", "", []string{"←→", "space"}},
 	} {
