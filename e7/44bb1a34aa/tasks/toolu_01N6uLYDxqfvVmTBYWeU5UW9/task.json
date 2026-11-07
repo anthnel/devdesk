@@ -1,0 +1,15 @@
+{
+  "tool_use_id": "toolu_01N6uLYDxqfvVmTBYWeU5UW9",
+  "agent_id": "a552b9c99577ba06c",
+  "subagent_type": "Explore",
+  "task_description": "Inventaire des sources Failed par vue",
+  "token_usage": {
+    "input_tokens": 58,
+    "cache_creation_tokens": 117986,
+    "cache_read_tokens": 2248334,
+    "output_tokens": 19891,
+    "api_call_count": 29
+  },
+  "started_at": "2026-11-06T15:28:13.737764482+01:00",
+  "completed_at": "2026-11-06T15:32:16.0932257+01:00"
+}

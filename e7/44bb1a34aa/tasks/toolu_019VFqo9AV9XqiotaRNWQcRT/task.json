@@ -1,0 +1,15 @@
+{
+  "tool_use_id": "toolu_019VFqo9AV9XqiotaRNWQcRT",
+  "agent_id": "a3be83a84584ed404",
+  "subagent_type": "product-team:critic",
+  "task_description": "Critique idée pastille d'activité",
+  "token_usage": {
+    "input_tokens": 22,
+    "cache_creation_tokens": 88160,
+    "cache_read_tokens": 736888,
+    "output_tokens": 10404,
+    "api_call_count": 11
+  },
+  "started_at": "2026-11-06T15:12:17.604533428+01:00",
+  "completed_at": "2026-11-06T15:14:03.678700659+01:00"
+}

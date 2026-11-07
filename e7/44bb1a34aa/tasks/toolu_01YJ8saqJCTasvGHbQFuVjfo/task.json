@@ -1,0 +1,18 @@
+{
+  "tool_use_id": "toolu_01YJ8saqJCTasvGHbQFuVjfo",
+  "agent_id": "acada0c0ffba7a759",
+  "subagent_type": "product-team:researcher",
+  "task_description": "Recherche indicateurs d'activité TUI",
+  "files": [
+    "docs/product/activity-indicator/research.md"
+  ],
+  "token_usage": {
+    "input_tokens": 8,
+    "cache_creation_tokens": 76646,
+    "cache_read_tokens": 199029,
+    "output_tokens": 6154,
+    "api_call_count": 4
+  },
+  "started_at": "2026-11-06T15:12:17.606978821+01:00",
+  "completed_at": "2026-11-06T15:13:26.4047711+01:00"
+}
