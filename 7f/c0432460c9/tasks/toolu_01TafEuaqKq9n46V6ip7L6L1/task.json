@@ -1,0 +1,18 @@
+{
+  "tool_use_id": "toolu_01TafEuaqKq9n46V6ip7L6L1",
+  "agent_id": "a3551f8d4a35ccde3",
+  "subagent_type": "project-coder",
+  "task_description": "Vert étape 1 ActiveOn",
+  "files": [
+    "internal/jobs/active.go"
+  ],
+  "token_usage": {
+    "input_tokens": 8,
+    "cache_creation_tokens": 66699,
+    "cache_read_tokens": 193126,
+    "output_tokens": 1378,
+    "api_call_count": 4
+  },
+  "started_at": "2026-11-07T16:15:40.640196126+01:00",
+  "completed_at": "2026-11-07T16:16:01.296882368+01:00"
+}

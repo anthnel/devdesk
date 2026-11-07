@@ -1,0 +1,15 @@
+{
+  "tool_use_id": "toolu_01MC5e86mSeoAzRjsK6s5Sks",
+  "agent_id": "a9623b3d07973b49b",
+  "subagent_type": "project-tester",
+  "task_description": "Corriger lint tests puis suite complète",
+  "token_usage": {
+    "input_tokens": 26,
+    "cache_creation_tokens": 125616,
+    "cache_read_tokens": 1230981,
+    "output_tokens": 5597,
+    "api_call_count": 12
+  },
+  "started_at": "2026-11-07T16:33:25.304577998+01:00",
+  "completed_at": "2026-11-07T16:35:18.400073271+01:00"
+}

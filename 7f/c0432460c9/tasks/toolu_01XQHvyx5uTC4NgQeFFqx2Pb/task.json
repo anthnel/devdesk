@@ -1,0 +1,15 @@
+{
+  "tool_use_id": "toolu_01XQHvyx5uTC4NgQeFFqx2Pb",
+  "agent_id": "a7f8727e825897f4d",
+  "subagent_type": "dev-team:security-reviewer",
+  "task_description": "Sécurité diff DEVDESK-140",
+  "token_usage": {
+    "input_tokens": 18,
+    "cache_creation_tokens": 90829,
+    "cache_read_tokens": 646738,
+    "output_tokens": 5900,
+    "api_call_count": 9
+  },
+  "started_at": "2026-11-07T16:30:03.658656159+01:00",
+  "completed_at": "2026-11-07T16:31:10.495185567+01:00"
+}

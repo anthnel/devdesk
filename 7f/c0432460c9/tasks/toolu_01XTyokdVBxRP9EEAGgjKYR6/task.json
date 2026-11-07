@@ -1,0 +1,15 @@
+{
+  "tool_use_id": "toolu_01XTyokdVBxRP9EEAGgjKYR6",
+  "agent_id": "a6bf768cb87d8527d",
+  "subagent_type": "project-tester",
+  "task_description": "Tests rouges durcissement sécurité",
+  "token_usage": {
+    "input_tokens": 12,
+    "cache_creation_tokens": 70205,
+    "cache_read_tokens": 343728,
+    "output_tokens": 4546,
+    "api_call_count": 6
+  },
+  "started_at": "2026-11-07T16:31:23.251283811+01:00",
+  "completed_at": "2026-11-07T16:32:12.934608256+01:00"
+}

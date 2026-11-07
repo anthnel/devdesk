@@ -1,0 +1,18 @@
+{
+  "tool_use_id": "toolu_01TLYz6BvnKeLAsi1z78PhpX",
+  "agent_id": "abd4664b8bfeb754d",
+  "subagent_type": "project-tester",
+  "task_description": "Tests rouges étape 3",
+  "files": [
+    "internal/ui/components/row_activity_test.go"
+  ],
+  "token_usage": {
+    "input_tokens": 12,
+    "cache_creation_tokens": 147394,
+    "cache_read_tokens": 624235,
+    "output_tokens": 11909,
+    "api_call_count": 6
+  },
+  "started_at": "2026-11-07T16:21:15.065085741+01:00",
+  "completed_at": "2026-11-07T16:22:40.950068713+01:00"
+}

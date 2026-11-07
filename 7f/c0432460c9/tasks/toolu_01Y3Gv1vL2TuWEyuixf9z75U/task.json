@@ -1,0 +1,15 @@
+{
+  "tool_use_id": "toolu_01Y3Gv1vL2TuWEyuixf9z75U",
+  "agent_id": "abbb4c68cea61000c",
+  "subagent_type": "project-tester",
+  "task_description": "Test garde-fou étape 4",
+  "token_usage": {
+    "input_tokens": 12,
+    "cache_creation_tokens": 71412,
+    "cache_read_tokens": 346514,
+    "output_tokens": 3953,
+    "api_call_count": 6
+  },
+  "started_at": "2026-11-07T16:28:43.040141343+01:00",
+  "completed_at": "2026-11-07T16:29:49.212767488+01:00"
+}

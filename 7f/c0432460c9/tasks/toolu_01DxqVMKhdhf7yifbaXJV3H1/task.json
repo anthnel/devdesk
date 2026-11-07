@@ -1,0 +1,15 @@
+{
+  "tool_use_id": "toolu_01DxqVMKhdhf7yifbaXJV3H1",
+  "agent_id": "aad868b4e46e107ac",
+  "subagent_type": "project-coder",
+  "task_description": "Durcissement sécurité row_activity",
+  "token_usage": {
+    "input_tokens": 12,
+    "cache_creation_tokens": 121315,
+    "cache_read_tokens": 562798,
+    "output_tokens": 3376,
+    "api_call_count": 6
+  },
+  "started_at": "2026-11-07T16:32:19.659360199+01:00",
+  "completed_at": "2026-11-07T16:33:12.02516164+01:00"
+}

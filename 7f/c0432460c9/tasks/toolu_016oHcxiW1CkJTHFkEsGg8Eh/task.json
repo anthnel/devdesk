@@ -1,0 +1,15 @@
+{
+  "tool_use_id": "toolu_016oHcxiW1CkJTHFkEsGg8Eh",
+  "agent_id": "a79d9031d9d4d76cb",
+  "subagent_type": "dev-team:reviewer",
+  "task_description": "Revue étape 1 DEVDESK-140",
+  "token_usage": {
+    "input_tokens": 14,
+    "cache_creation_tokens": 162276,
+    "cache_read_tokens": 673458,
+    "output_tokens": 3927,
+    "api_call_count": 6
+  },
+  "started_at": "2026-11-07T16:16:12.596314284+01:00",
+  "completed_at": "2026-11-07T16:16:53.593252733+01:00"
+}
