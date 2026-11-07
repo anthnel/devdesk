@@ -66,6 +66,9 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	case jobs.ChangedMsg:
 		return m.handleJobsChanged(msg)
+
+	case jobs.FrameMsg:
+		return m.handleFrameMsg(msg)
 	}
 
 	m.footer.Handle(msg)

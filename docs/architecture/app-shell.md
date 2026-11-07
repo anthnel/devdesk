@@ -618,7 +618,7 @@ that screen the only honest one.
 **A kind is not reserved for batches.** `create` and `delete` in the explorer
 are single-item runs against a forge, and they are registered for the three
 things the registry gives that a local flag does not: the spinner frame comes
-from the broadcast rather than from a view's own chain — the explorer's stops on
+from `jobs.FrameMsg` rather than from a view's own chain — the explorer's stops on
 `!m.loading`, so a frame taken from it would freeze the moment the tree settled;
 the `busy()` guard sees work started anywhere; and `Run.Context` is stamped at
 launch, so a create that outlives a context switch cannot write into the tree it
@@ -788,7 +788,7 @@ that way.
 no case for. Declare the compile-time proof next to the message, as the views
 do, and the test finds it.
 
-### The broadcast, and the one spinner chain
+### The broadcast, and the animation tick
 
 Views never hold a pointer to the registry. The router hands them a snapshot in
 `jobs.ChangedMsg`, so nothing is read from `View()` while something else writes
@@ -796,24 +796,108 @@ it, and a view holding a snapshot cannot write back — every mutation goes
 through the one owner. `ChangedMsg.Failures` follows the same rule: a copy of
 the failure memory (above), never the registry's slice.
 
+**`ChangedMsg` is for changes of the registry, and carries no animation.**
 `broadcastJobs` updates **every held view**, on screen or not, so coming back to
 one shows what happened while it was away without it having to ask; the layout
 is re-measured once at the end, since only the view on screen can change the
-footer's height. `sendJobsTo` covers the remaining case: a view built lazily on
-the way in was there for none of it, so `switchView` hands it the snapshot.
+footer's height. A view built lazily on the way in was there for none of it, so
+every path that installs a view hands it the snapshot (`sendJobsTo`).
 
-There is **one** spinner chain for the whole application, the router's
-(`jobTickMsg`, `ensureJobTick`, `handleJobTick`). It is alive exactly while
-`Running() > 0` and stops by not being renewed; a chain is identified by a
-sequence number, so a tick from one already replaced is dropped and a second
-chain is impossible rather than merely unlikely. The frame travels in the
-message **bare** — Rule 122, because a view puts it in a table cell, which is
-measured before it is styled — and `RenderedFrame()` is the styled reading a
-footer takes (Rule 128).
+**The animation travels in `jobs.FrameMsg`, to the view on screen only.** It
+carries `Frame` (bare, Rule 122: a table cell is measured before it is styled),
+`RenderedFrame` (styled, Rule 128: what a footer takes) and `Blink` (true is the
+"on" half). Only the router builds one (`frameMsg`, in `internal/app/animation.go`).
+Before DEVDESK-139 the frame rode in `ChangedMsg` and every tick made every held
+view rebuild its rows; now a tick touches one view. `enterView` (snapshot plus
+current frame) is called wherever a view takes the screen: `switchView`,
+`openBrowser`, the path picker, `openSecurityView`, `rescanInOrigin` and
+`returnToOrigin`. Without it a view would show the previous frame, or an "off"
+phase, until the next tick.
+
+#### One tick, one chain
+
+There is **one** animation chain for the whole application (D5, renamed
+"animation" by D2; it used to be the spinner chain): `animationTickMsg{seq, at}`,
+started only by `ensureTick`, renewed only by `handleAnimationTick`
+(`TestTheRouterHasOneAnimationChain` enforces both). It is built on `tea.Every`,
+so ticks land on the clock's boundaries and the blink alternates strictly.
+
+`App.Update` is a thin wrapper: it runs `update` (the dispatch), then
+`ensureTick`. The check is a **level**, not an edge — it runs after every
+message, so no handler has to remember to start a chain, and it is idempotent
+within one `Update`.
+
+| Need | Cadence |
+|---|---|
+| `jobs.Running() > 0` (footer spinners depend on the frame) | 100 ms (`spinner.Dot.FPS`) |
+| the view on screen has nothing running but `WantsBlink()` (`BlinkingView`) | 500 ms |
+| neither, or `motionStatic` with no running work | no chain |
+
+`BlinkingView` sits beside `FormView` and `LeavingView`: an optional interface for
+a row that blinks for a reason the registry does not know (an instant action, an
+agent running, children loading). The router asks the view on screen after every
+`Update`.
+
+- **Seq.** A tick of a chain that was replaced is dropped without a Cmd, so a
+  second chain is impossible rather than merely unlikely.
+- **Faster need.** `ensureTick` replaces a slower live chain (`seq++`), never
+  adds a second.
+- **Slower need.** The live chain downgrades at its next renewal, without a new
+  seq. When no cadence is wanted it is not renewed and dies.
+- **Phase.** Read off the tick's own time, not a counter:
+  `(t.UnixMilli()/500)%2 == 0` is on. Every view blinks in step whatever the
+  interval the chain runs at (1 Hz).
+- **Frame.** Advances only while `Running() > 0`.
+- **At rest the phase is forced "on".** When the chain stops on an "off" phase,
+  the router pins it on and sends one last `FrameMsg` to the view on screen: a
+  settled row is left on a steady glyph, never a half-blinked one.
+- **`motionStatic`.** Pins the phase on and keeps blink-only chains from
+  starting (`setMotionStatic` hands the pinned frame to the view on screen at
+  once). Nothing sets it yet: the `app.motion` setting arrives with A-02, and
+  only tests call the setter today.
+
+`jobsChanged` is what a launch site or a transition calls after writing to the
+registry: `ChangedMsg` to every held view, `FrameMsg` to the view on screen. The
+`Update` wrapper then makes sure a chain is alive; the three are separate, and
+none implies another.
 
 This is what removes the four hand-stamped frames, and with them the failure
 each of them could produce: a chain that died on the first idle tick with
 nothing able to restart it, leaving the spinner frozen on the frame it died at.
+
+#### Row chains still outside the router
+
+Four row-animation chains still live in views. They are **declared exceptions**
+in `TestRowAnimationChainsOutsideTheRouterAreDeclared`; the list may only shrink,
+and a stale entry fails the test:
+
+| Chain | Removed by |
+|---|---|
+| `oci_resources` `AdvanceSpinner` on the four OCI tables | A-09b |
+| `tagScanSpinnerIdx` (OCI registry browser) | A-09a |
+| `netdiag` `portsSpinnerCmd` | A-12 |
+| `containers` `AdvanceSpinner` | A-14 |
+
+A-16 then closes the exceptions. `TestOnlyTheRouterBuildsAFrameMsg` and
+`TestTheAnimationChainUnderARealProgram` (a real `tea.Program`, meant for
+`-race`) complete the guard rails.
+
+#### What the redraw costs
+
+`DEVDESK_MEASURE_REDRAW=1 go test ./internal/app -run TestMeasureRedrawCost -v`
+counts the bytes Bubble Tea's renderer writes to an `io.Writer` on a simulated
+120x40 terminal — not a real terminal. Opt-in; the test is skipped otherwise.
+
+| Animation | Bytes emitted |
+|---|---|
+| no animated row | 0 B/s |
+| 1 row blinking at 1 Hz | 376 B/s |
+| 20 rows blinking at 1 Hz | 5 809 B/s |
+| reference: spinner at 10 Hz, 1 row | 1 880 B/s |
+| reference: spinner at 10 Hz, 20 rows | 29 049 B/s |
+
+Nothing animated costs nothing, and a 1 Hz blink costs about a fifth of the
+10 Hz spinner it sits beside.
 
 
 ### The `:jobs` view — `internal/ui/jobsview`
@@ -849,7 +933,8 @@ make `failed` not red.
 **The frame rides on the row.** `runRow`/`itemRow` wrap the model value with the
 frame, because the columns are built once and close over nothing — the same
 reason `oci_resources` has `imageRow`. It is the router's frame, taken bare from
-`jobs.ChangedMsg`: using `datatable`'s own `AdvanceSpinner` here would be a
+`jobs.FrameMsg` (the view is on screen whenever it receives one; `ChangedMsg`
+carries only the runs): using `datatable`'s own `AdvanceSpinner` here would be a
 second chain beside the one D5 exists to keep single.
 
 **The context is passed, not read.** `jobsview.New(cfg, contextName)` takes the

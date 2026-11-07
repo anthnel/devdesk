@@ -6,7 +6,7 @@
 // security inventory a flag per row, and the clone screen five states per
 // repository. A scan started from `:sec` was therefore invisible to the `busy()`
 // guard in `ws`, and the two wrote the same cache entry. Each of them also
-// stamped its own spinner frame, which is four chains to keep alive and four
+// ran its own spinner chain, which is four chains to keep alive and four
 // ways for one to die unnoticed.
 //
 // The registry is owned by the router and read by the views through a snapshot
@@ -190,7 +190,7 @@ type Run struct {
 	// open says the target list is still being discovered (D3). An open run is
 	// never finished, however its items stand: a clone whose walk has found
 	// three repositories and cloned all three is not done — the walk is still
-	// going, and settling it there would stop the spinner chain and print a
+	// going, and settling it there would stop the animation chain and print a
 	// summary the next repository contradicts.
 	//
 	// Every other kind knows its full list when it is admitted, which is what
@@ -291,7 +291,7 @@ func (r Run) State() RunState {
 
 // Finished reports whether every item has settled. An empty *sealed* run is
 // finished: there is nothing left for it to do, and reporting it as running
-// would leave the spinner chain alive forever. An empty *open* one is not — it
+// would leave the animation chain alive forever. An empty *open* one is not — it
 // has found nothing yet, which is where every clone starts.
 func (r Run) Finished() bool {
 	state := r.State()

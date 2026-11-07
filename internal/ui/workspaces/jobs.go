@@ -49,6 +49,12 @@ func (m Model) runLabel() string {
 // held rather than being merged into it.
 func (m Model) handleJobsChanged(msg jobs.ChangedMsg) (tea.Model, tea.Cmd) {
 	m.jobs = msg.Runs
+	m.refreshRows()
+	return m, nil
+}
+
+// handleFrameMsg takes the animation's frame: the row spinners and the footer.
+func (m Model) handleFrameMsg(msg jobs.FrameMsg) (tea.Model, tea.Cmd) {
 	m.jobFrame = msg.Frame
 	m.footer.SetSpinnerFrame(msg.RenderedFrame)
 	m.refreshRows()

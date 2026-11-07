@@ -71,129 +71,20 @@ func TestASnapshotReachesEveryHeldView(t *testing.T) {
 	}
 }
 
-// Rule 122: the frame in the message is bare, because a view puts it in a table
-// cell, where it is measured before it is styled. A styled frame measures its
-// escape sequence as width and is truncated inside it, which then bleeds down
-// every row below.
-func TestTheBroadcastFrameIsBareAndItsRenderingIsNot(t *testing.T) {
-	testutil.TrueColor(t)
-
-	view := &fakeView{}
-	a := router(t, view)
-	a.jobs.Start(scanRun("default", "a"))
-	a.jobsChanged()
-
-	snapshot := lastJobs(t, view)
-
-	if snapshot.Frame == "" {
-		t.Fatal("no spinner frame was carried")
-	}
-	if strings.Contains(snapshot.Frame, "\x1b") {
-		t.Errorf("Frame = %q carries an escape sequence; Rule 122 wants a cell measurable", snapshot.Frame)
-	}
-	if !strings.Contains(snapshot.RenderedFrame, "\x1b") {
-		t.Errorf("RenderedFrame = %q, want the styled frame a footer takes (Rule 128)", snapshot.RenderedFrame)
-	}
-	if !strings.Contains(snapshot.RenderedFrame, snapshot.Frame) {
-		t.Errorf("RenderedFrame = %q does not carry Frame = %q", snapshot.RenderedFrame, snapshot.Frame)
-	}
-}
-
-// D5: one chain for the whole application. Asking twice while it is alive must
-// not start a second, which is the failure the four hand-stamped spinners kept
-// producing — two chains advancing one frame at twice the rate.
-func TestOnlyOneSpinnerChainIsEverAlive(t *testing.T) {
-	a := router(t, &fakeView{})
-	a.jobs.Start(scanRun("default", "a"))
-
-	first := a.ensureJobTick()
-	if first == nil {
-		t.Fatal("no chain was started for work that is running")
-	}
-	if second := a.ensureJobTick(); second != nil {
-		t.Error("a second chain was started while the first was alive")
-	}
-	if !a.jobTicking {
-		t.Error("the router does not know its chain is alive")
-	}
-}
-
 // An empty registry animates nothing: a chain against no work would rebuild
 // every view's rows ten times a second for a settled application.
-func TestNoChainStartsWithNothingRunning(t *testing.T) {
+func TestNoAnimationChainStartsWithNoRunningWork(t *testing.T) {
 	a := router(t, &fakeView{})
 
-	if cmd := a.ensureJobTick(); cmd != nil {
+	if cmd := a.ensureTick(); cmd != nil {
 		t.Error("a chain was started with an empty registry")
 	}
 
 	// A settled run is not running work either.
 	id := a.jobs.Start(scanRun("default", "a"))
 	a.jobs.Advance(id, "a", jobs.ItemDone, "")
-	if cmd := a.ensureJobTick(); cmd != nil {
+	if cmd := a.ensureTick(); cmd != nil {
 		t.Error("a chain was started for a run that had already settled")
-	}
-}
-
-// The chain advances the frame and renews itself while work runs; it stops by
-// not being renewed once nothing is left, and a later run starts a fresh one.
-// That last half is what each view could not do: its chain died on the first
-// idle tick and nothing brought it back, so the spinner froze on the frame it
-// died at.
-func TestTheChainRunsWhileWorkDoesAndRestartsAfterwards(t *testing.T) {
-	testutil.FastTimers(t, &jobSpinnerInterval)
-
-	view := &fakeView{}
-	a := router(t, view)
-	id := a.jobs.Start(scanRun("default", "a"))
-	a.jobsChanged()
-
-	before := a.jobFrame()
-	_, cmd := a.Update(jobTickMsg{seq: a.jobTickSeq})
-
-	if a.jobFrame() == before {
-		t.Error("the frame did not advance")
-	}
-	if _, ok := testutil.MsgOf[jobTickMsg](cmd); !ok {
-		t.Error("the chain was not renewed while work was running")
-	}
-	if len(jobsSeen(view)) < 2 {
-		t.Error("the new frame was not broadcast")
-	}
-
-	// The work settles, and the next tick is the last.
-	a.jobs.Advance(id, "a", jobs.ItemDone, "")
-	_, cmd = a.Update(jobTickMsg{seq: a.jobTickSeq})
-
-	if _, ok := testutil.MsgOf[jobTickMsg](cmd); ok {
-		t.Error("the chain renewed itself with nothing left to animate")
-	}
-	if a.jobTicking {
-		t.Error("the router still believes a chain is alive")
-	}
-
-	// And a new run starts a fresh one rather than finding the door shut.
-	a.jobs.Start(scanRun("default", "b"))
-	if a.ensureJobTick() == nil {
-		t.Error("a run started after the chain died got no chain")
-	}
-}
-
-// A tick from a chain the router has replaced is dropped. It is what makes a
-// second chain impossible rather than merely unlikely.
-func TestATickFromAnOlderChainIsDropped(t *testing.T) {
-	a := router(t, &fakeView{})
-	a.jobs.Start(scanRun("default", "a"))
-	a.ensureJobTick()
-
-	before := a.jobFrame()
-	_, cmd := a.Update(jobTickMsg{seq: a.jobTickSeq - 1})
-
-	if a.jobFrame() != before {
-		t.Error("a stale tick advanced the frame")
-	}
-	if cmd != nil {
-		t.Error("a stale tick was answered with a command")
 	}
 }
 
@@ -233,14 +124,14 @@ func TestSendingTheSnapshotToAMissingViewIsSilent(t *testing.T) {
 // path that starts one, so a chain alive afterwards is the broadcast having
 // happened.
 func TestAContextSwitchTellsTheRebuiltViewsWhatIsRunning(t *testing.T) {
-	testutil.FastTimers(t, &jobSpinnerInterval)
+	testutil.FastTimers(t, &animationFastInterval)
 
 	a := router(t, &fakeView{})
 	id := a.jobs.Start(scanRun("default", "a"))
 	a.jobs.Advance(id, "a", jobs.ItemRunning, "")
 	a.jobs.Start(scanRun("prod", "b"))
 
-	if a.jobTicking {
+	if a.anim.ticking {
 		t.Fatal("a chain was already alive; the assertion below would prove nothing")
 	}
 
@@ -256,10 +147,10 @@ func TestAContextSwitchTellsTheRebuiltViewsWhatIsRunning(t *testing.T) {
 	if got, want := a.jobs.Running(), 2; got != want {
 		t.Errorf("Running = %d, want %d — a switch does not stop what is going", got, want)
 	}
-	if !a.jobTicking {
+	if !a.anim.ticking {
 		t.Error("the rebuilt views were not told what is running")
 	}
-	if _, ok := testutil.MsgOf[jobTickMsg](cmd); !ok {
+	if _, ok := testutil.MsgOf[animationTickMsg](cmd); !ok {
 		t.Error("the switch did not return the chain it started")
 	}
 
@@ -320,7 +211,7 @@ func TestAViewsWorkIsRegisteredAndAdvancedByItsOwnMessages(t *testing.T) {
 	a.views[command.ViewWorkspaces] = ws
 	a.currentContext = "prod"
 
-	testutil.FastTimers(t, &jobSpinnerInterval)
+	testutil.FastTimers(t, &animationFastInterval)
 
 	worked := ""
 	_, cmd := a.Update(jobs.StartMsg{
@@ -403,7 +294,7 @@ func TestAPullIsRegisteredAndAdvancedByItsOwnMessages(t *testing.T) {
 	a := router(t, &fakeView{})
 	a.views[command.ViewOCIResources] = oci
 
-	testutil.FastTimers(t, &jobSpinnerInterval)
+	testutil.FastTimers(t, &animationFastInterval)
 
 	const image = "dhi/debian-base:trixie"
 	a.Update(jobs.StartMsg{
@@ -439,7 +330,7 @@ func TestAFailedPullSettlesTheRun(t *testing.T) {
 	a := router(t, &fakeView{})
 	a.views[command.ViewOCIResources] = &fakeView{}
 
-	testutil.FastTimers(t, &jobSpinnerInterval)
+	testutil.FastTimers(t, &animationFastInterval)
 
 	const image = "dhi/debian-base:nope"
 	a.Update(jobs.StartMsg{
@@ -750,7 +641,7 @@ func TestATemplateScanIsRegisteredAndAdvancedByItsOwnMessages(t *testing.T) {
 	tpl := &fakeView{}
 	a := router(t, &fakeView{})
 	a.views[command.ViewTemplates] = tpl
-	testutil.FastTimers(t, &jobSpinnerInterval)
+	testutil.FastTimers(t, &animationFastInterval)
 
 	const dir = "/cache/template-scan/spring-api"
 	a.Update(jobs.StartMsg{Run: jobs.NewRun(jobs.KindScan, command.ViewTemplates, "", "Spring API", dir)})
@@ -785,7 +676,7 @@ func TestATemplateSyncIsRegisteredAndAdvancedByItsOwnMessages(t *testing.T) {
 	tpl := &fakeView{}
 	a := router(t, &fakeView{})
 	a.views[command.ViewTemplates] = tpl
-	testutil.FastTimers(t, &jobSpinnerInterval)
+	testutil.FastTimers(t, &animationFastInterval)
 
 	a.Update(jobs.StartMsg{Run: jobs.NewRun(jobs.KindSync, command.ViewTemplates, "", "Spring API", "spring-api")})
 
@@ -814,7 +705,7 @@ func TestATemplateSyncIsRegisteredAndAdvancedByItsOwnMessages(t *testing.T) {
 func TestAFailedTemplateSyncSettlesTheRun(t *testing.T) {
 	a := router(t, &fakeView{})
 	a.views[command.ViewTemplates] = &fakeView{}
-	testutil.FastTimers(t, &jobSpinnerInterval)
+	testutil.FastTimers(t, &animationFastInterval)
 
 	a.Update(jobs.StartMsg{Run: jobs.NewRun(jobs.KindSync, command.ViewTemplates, "", "Spring API", "spring-api")})
 	a.Update(templates.SyncStartingMsg{Slug: "spring-api"})

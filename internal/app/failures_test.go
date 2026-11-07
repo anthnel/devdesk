@@ -22,7 +22,7 @@ import (
 // failureRouter holds a fake view for each view the failure tests route to.
 func failureRouter(t *testing.T) (*App, map[command.ViewType]*fakeView) {
 	t.Helper()
-	testutil.FastTimers(t, &jobSpinnerInterval)
+	testutil.FastTimers(t, &animationFastInterval)
 	held := map[command.ViewType]*fakeView{
 		command.ViewWorkspaces:   {},
 		command.ViewSecurity:     {},

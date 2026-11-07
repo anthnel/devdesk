@@ -91,7 +91,8 @@ func step(t *testing.T, m Model, msg tea.Msg) (Model, tea.Cmd) {
 
 func withRuns(t *testing.T, runs ...jobs.Run) Model {
 	t.Helper()
-	return feed(t, newModel(t), jobs.ChangedMsg{Runs: runs, Frame: "⠋"})
+	m := feed(t, newModel(t), jobs.ChangedMsg{Runs: runs})
+	return feed(t, m, jobs.FrameMsg{Frame: "⠋"})
 }
 
 // ── The snapshot is the only source ──────────────────────────────────────────
@@ -191,9 +192,9 @@ func TestTheItemLevelClosesWhenItsRunIsPruned(t *testing.T) {
 
 func TestARunningRunCarriesTheRoutersFrame(t *testing.T) {
 	m := feed(t, newModel(t), jobs.ChangedMsg{
-		Runs:  []jobs.Run{run(1, jobs.KindScan, "~/work", jobs.ItemRunning)},
-		Frame: "⣾",
+		Runs: []jobs.Run{run(1, jobs.KindScan, "~/work", jobs.ItemRunning)},
 	})
+	m = feed(t, m, jobs.FrameMsg{Frame: "⣾"})
 
 	row, ok := m.runTable.Selected()
 	if !ok {

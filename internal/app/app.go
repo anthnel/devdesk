@@ -115,16 +115,17 @@ type App struct {
 	pickerReturnView command.ViewType
 
 	// Long-running work. The registry is the one bookkeeping of what is
-	// running (internal/jobs); the router owns it, and owns the single spinner
+	// running (internal/jobs); the router owns it, and owns the single animation
 	// chain that animates it (D5). Views read a snapshot carried in
-	// JobsChangedMsg — see jobs.go.
+	// JobsChangedMsg and the frame in jobs.FrameMsg — see jobs.go.
 	jobs *jobs.Registry
 	// The one detection of the scanners — see scan_tools.go.
 	toolsState
 	forgeIndexState
-	jobFrameIdx int
-	jobTickSeq  int
-	jobTicking  bool
+	anim animationState
+	// motionStatic pins the blink phase on (static motion). Nothing sets it
+	// yet: app.motion arrives with its own story, with a setter.
+	motionStatic bool
 
 	// The MCP server, which lives in this process (§3.61). program is the
 	// handle a request needs to reach Update() — set once by AttachProgram,
@@ -256,6 +257,7 @@ func newWithSize(cfg *config.Config, width, height int) *App {
 		views:          make(map[command.ViewType]tea.Model),
 		sharedState:    sharedState,
 		jobs:           jobs.New(),
+		anim:           animationState{blinkOn: true},
 		commandInput:   newCommandInput(),
 		suggester:      command.NewSuggester(),
 		sugCursor:      -1,
@@ -400,7 +402,42 @@ func (a *App) reinitializeViews() tea.Cmd {
 	return initCmd
 }
 
+// BlinkingView is implemented by a view with a row that blinks for a reason the
+// registry does not know (an instant action, an agent running, children loading).
+// The router asks the view on screen after every Update: a level, not an edge.
+type BlinkingView interface {
+	WantsBlink() bool
+}
+
+// Update is the router's only entry: the dispatch, then the level check of the
+// animation chain. The view's own Cmd goes through untouched; ensureTick adds a
+// Cmd only when a chain has to start or be replaced, and is idempotent, so a
+// handler that already called it (jobsChanged) does not double the interval.
 func (a *App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
+	model, cmd := a.update(msg)
+	return model, tea.Batch(cmd, a.ensureTick())
+}
+
+// wantsBlink reports whether the view on screen has a row that blinks.
+func (a *App) wantsBlink() bool {
+	view, ok := a.views[a.currentView].(BlinkingView)
+	return ok && view.WantsBlink()
+}
+
+// setMotionStatic pins the blink phase on and stops blink-only chains. It is the
+// entry point for the static-motion setting (A-02); until that setting is wired,
+// only tests call it. The view on screen is handed the pinned frame at once,
+// otherwise it would keep an off phase until the next tick that may never come.
+func (a *App) setMotionStatic(on bool) tea.Cmd {
+	a.motionStatic = on
+	if !on {
+		return nil
+	}
+	a.anim.blinkOn = true
+	return a.sendFrameTo(a.currentView)
+}
+
+func (a *App) update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
 	case tea.WindowSizeMsg:
 		a.resize(msg.Width, msg.Height)
@@ -454,10 +491,10 @@ func (a *App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return a.handleAutoLoginResult(msg)
 
 	// ── Long-running work ────────────────────────────────────────────────
-	// The shared spinner frame. One chain for the whole application, held by
-	// the router (D5) — see jobs.go.
-	case jobTickMsg:
-		return a.handleJobTick(msg)
+	// The animation: one chain for the whole application, held by the router
+	// (D5) — see animation.go.
+	case animationTickMsg:
+		return a.handleAnimationTick(msg)
 
 	// ── The scanners' detection (§3.86) — see scan_tools.go ─────────────
 	case scanToolsDetectedMsg:

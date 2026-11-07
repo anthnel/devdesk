@@ -239,6 +239,9 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	case jobs.ChangedMsg:
 		m.jobs = msg.Runs
+		return m, nil
+
+	case jobs.FrameMsg:
 		m.footer.SetSpinnerFrame(msg.RenderedFrame)
 		return m, nil
 

@@ -28,7 +28,7 @@ func (a *App) handlePickRequest(msg filebrowser.PickRequestMsg) (tea.Model, tea.
 	picker := filebrowser.NewPicker(a.config, msg)
 	a.views[command.ViewFiles] = picker
 	a.currentView = command.ViewFiles
-	return a, tea.Batch(picker.Init(), a.requestResize())
+	return a, tea.Batch(picker.Init(), a.requestResize(), a.enterView(command.ViewFiles))
 }
 
 // handlePickAnswer returns to the borrower with its answer — chosen or not —

@@ -75,14 +75,16 @@ func (a *App) handleImageScanResultLoaded(msg ImageScanResultLoadedMsg) (tea.Mod
 // from a cached row whose list was dropped on a context switch.
 func (a *App) rescanInOrigin(view command.ViewType, request tea.Msg) (tea.Model, tea.Cmd) {
 	a.createView(view)
-	held, ok := a.views[view]
-	if !ok {
+	if _, ok := a.views[view]; !ok {
 		return a, nil
 	}
 	a.currentView = view
-	updatedView, cmd := held.Update(request)
+	// The view is entering the screen: it needs the snapshot and the frame
+	// before it handles the request.
+	enter := a.enterView(view)
+	updatedView, cmd := a.views[view].Update(request)
 	a.views[view] = updatedView
-	return a, tea.Batch(cmd, a.requestResize())
+	return a, tea.Batch(enter, cmd, a.requestResize())
 }
 
 // openSecurityView installs a freshly built security view, records where esc
@@ -91,7 +93,7 @@ func (a *App) openSecurityView(view security.Model, origin command.ViewType) tea
 	view.OriginView = origin
 	a.views[command.ViewSecurity] = view
 	a.currentView = command.ViewSecurity
-	return tea.Batch(view.Init(), a.requestResize())
+	return tea.Batch(view.Init(), a.requestResize(), a.enterView(command.ViewSecurity))
 }
 
 // handleLaunchScan is gone with the form. It carried the options the form had

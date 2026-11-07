@@ -188,7 +188,7 @@ func (a *App) switchView(view command.ViewType) tea.Cmd {
 	// work in progress: the view was kept up to date for as long as it
 	// existed, but a view built just now was not there for anything that had
 	// already started.
-	return tea.Batch(newView.Init(), a.requestResize(), a.sendJobsTo(view))
+	return tea.Batch(newView.Init(), a.requestResize(), a.enterView(view))
 }
 
 // settleCurrentView gives the view being left the chance to write down what it

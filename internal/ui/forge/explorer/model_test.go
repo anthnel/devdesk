@@ -660,9 +660,9 @@ func TestAWorkingRowTakesItsFrameFromTheBroadcast(t *testing.T) {
 	m, _ = step(t, m, components.CreationFormSubmitMsg{FormType: components.FormTypeGroup, Name: "new"})
 
 	m = feed(t, m, jobs.ChangedMsg{
-		Runs:  []jobs.Run{createRun("new", "new")},
-		Frame: "⣾",
+		Runs: []jobs.Run{createRun("new", "new")},
 	})
+	m = feed(t, m, jobs.FrameMsg{Frame: "⣾"})
 
 	row, ok := rowFor(m, "new")
 	if !ok {
@@ -1148,7 +1148,8 @@ func (h *cloneHarness) route(cmd tea.Cmd) {
 
 func (h *cloneHarness) broadcast() {
 	h.t.Helper()
-	h.m = feed(h.t, h.m, jobs.ChangedMsg{Runs: h.reg.Snapshot(), Frame: "*"})
+	h.m = feed(h.t, h.m, jobs.ChangedMsg{Runs: h.reg.Snapshot()})
+	h.m = feed(h.t, h.m, jobs.FrameMsg{Frame: "*"})
 }
 
 // run is this screen's run as the registry holds it.

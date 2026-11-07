@@ -188,16 +188,28 @@ func (m Model) handleCloneRunFinished() (tea.Model, tea.Cmd) {
 // the snapshot replaces what was held rather than being merged into it.
 func (m Model) handleJobsChanged(msg jobs.ChangedMsg) (tea.Model, tea.Cmd) {
 	m.jobs = msg.Runs
+
+	if m.clone != nil {
+		if run, ok := cloneRunFrom(msg.Runs); ok {
+			m.clone.setRun(run, m.jobFrame)
+		}
+		return m, nil
+	}
+	// The rows are rebuilt from the new snapshot and the last frame held.
+	m.updateTableRows()
+	return m, nil
+}
+
+// handleFrameMsg takes the animation's frame. The clone list keeps its own copy
+// of the run, so only the frame is rebuilt into it; the run is not touched.
+func (m Model) handleFrameMsg(msg jobs.FrameMsg) (tea.Model, tea.Cmd) {
 	m.jobFrame = msg.Frame
 	m.footer.SetSpinnerFrame(msg.RenderedFrame)
 
 	if m.clone != nil {
-		if run, ok := cloneRunFrom(msg.Runs); ok {
-			m.clone.setRun(run, msg.Frame)
-		}
+		m.clone.setRun(m.clone.run, msg.Frame)
 		return m, nil
 	}
-	// The frame moved, so the rows carrying it have to be rebuilt.
 	m.updateTableRows()
 	return m, nil
 }

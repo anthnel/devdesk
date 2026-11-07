@@ -238,7 +238,8 @@ func rowNames(rows []table.Row) []string {
 // withJobs feeds the model a snapshot, as the router's broadcast would.
 func withJobs(t *testing.T, m Model, runs ...jobs.Run) Model {
 	t.Helper()
-	return feed(t, m, jobs.ChangedMsg{Runs: runs, Frame: "*", RenderedFrame: "*"})
+	m = feed(t, m, jobs.ChangedMsg{Runs: runs})
+	return feed(t, m, jobs.FrameMsg{Frame: "*", RenderedFrame: "*"})
 }
 
 // runningRun builds a run of one kind with every target already running.

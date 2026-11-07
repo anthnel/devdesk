@@ -25,7 +25,6 @@ import (
 // two fields.
 func (m Model) handleJobsChanged(msg jobs.ChangedMsg) (tea.Model, tea.Cmd) {
 	m.jobs = msg.Runs
-	m.jobFrame = msg.Frame
 	// The footer's spinner is deliberately not touched: here it belongs to
 	// *loading* — a tab reading its list — and this view's scan progress is on
 	// the rows, not in the footer. Two writers of one field would fight every
@@ -34,6 +33,14 @@ func (m Model) handleJobsChanged(msg jobs.ChangedMsg) (tea.Model, tea.Cmd) {
 	if m.registryBrowser != nil {
 		m.registryBrowser.SetTagScanningSet(m.scanningNames())
 	}
+	return m, nil
+}
+
+// handleFrameMsg takes the animation's frame for the scan cells. The footer is
+// untouched, for the reason handleJobsChanged gives.
+func (m Model) handleFrameMsg(msg jobs.FrameMsg) (tea.Model, tea.Cmd) {
+	m.jobFrame = msg.Frame
+	m.updateImageTable()
 	return m, nil
 }
 
