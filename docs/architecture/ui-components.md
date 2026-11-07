@@ -550,6 +550,88 @@ fitted by `runewidth`: under East Asian width the header line can be one cell
 off. Only the header, not the rows. It is accepted for now and the test skips
 line 0.
 
+### The selected row in the footer (DEVDESK-140)
+
+The footer can say what the selected row is doing, in the same words the
+activity column's state implies. **No view is wired to it yet.** The pieces
+below exist and are tested; the views adopt them in the migration stories
+(A-06 onward).
+
+**`jobs.ActiveOn(runs, context, target, kinds...) []jobs.Active`**
+(`internal/jobs/active.go`). The running and queued items on a target in a
+context: running first, then queued, each group in run order. Target is
+normalised with `TargetKey` on both sides. No `kinds` keeps every kind. Items
+are copied without their cancel hook. No match returns nil.
+
+**`Status.Detail` and `RowDetail`.** `Status` gains a `Detail RowDetail`
+(`footer_message.go`); `Status.Text` then becomes the batch progress that
+follows it. `RowDetail{Glyph, Lead, Target, Tail}` is one sentence; `Target` is
+a field of its own because only a path is ever shortened.
+
+- **`RowStatusLine(detail, progress, width)`** (`jobs_status.go`) joins
+  them as `<detail> · <progress>` (`rowSeparator`) on at most `width` columns.
+  Zero detail: the progress alone. No progress: the detail alone.
+- **Cut order.** A path target shrinks first with `theme.ShortPath`, never
+  below `minPathCols` (6), then the end of the detail is truncated. An image
+  reference is not a path (`isPathTarget`: absolute or `~`) and is only
+  truncated. If fewer than `minDetailCols` (8) columns are left for the detail
+  (or fewer than it needs, when it is shorter), the detail is dropped whole and
+  the progress stands alone.
+- **Precedence is unchanged:** error → warning → info → status. `Detail` is
+  part of the status, so a footer message still wins over it.
+- **A detail with a glyph suppresses the spinner:** the row's own dot already
+  moves.
+- **East Asian width.** `centerLine` pads by `lipgloss.Width`, which counts
+  ambiguous glyphs as one cell. `View` shrinks its target width by
+  `theme.StringWidth(line) - lipgloss.Width(line)` so the line is `width`
+  columns for `runewidth` too.
+
+**One constructor of sentences** (`row_activity.go`). The view fills a
+`RowQuery{Runs, Failures, Context, Target, Kinds, Observed, ObservedText}`
+(runs and failures of any context; they are filtered here) and calls:
+
+- **`RowState(q)`**: the `indicator.State` for the activity column, no text.
+- **`DescribeRow(q)`**: `RowActivity{State, Detail}`. Both go through
+  `resolveRow`, so the glyph in the table and the sentence in the footer cannot
+  disagree. The state follows `indicator.Resolve` (running > queued > failure >
+  observed > idle).
+- **`FailureEvent(kind, target, cause)`**: the text of the 3-second Error a
+  view posts when an operation fails: `Failed to <kind> <target> — <cause>`.
+
+What `DescribeRow` writes:
+
+| Row | Sentence |
+|---|---|
+| running | `<glyph> <Verb> <target>` (`Scanning ~/w/app`) |
+| queued | `<glyph> Queued: <kind> <target>` |
+| remembered failure | `<glyph> <target>: last <kind> failed — <cause>` (newest failure wins) |
+| none of these | the view's `ObservedText`, with a glyph unless the state is `Idle` (a resting row has no glyph) |
+
+Rules behind the table:
+
+- **The footer glyph is fixed** (`indicator.Glyph(state, true)`): it never
+  blinks, only the column does.
+- **The cause is put on one line** (`oneLine`: control characters become
+  spaces, whitespace collapses) and a leading `<kind> failed` is removed with
+  its separator (`—`, `--`, `-`, `:`), because the sentence already says it
+  (`causeSuffix`). The same cause text serves `FailureEvent`.
+- **Failures a winner hides** are listed by a suffix, in `jobs.Kinds()` order:
+  ` · earlier failure: scan (see :jobs)` or ` · earlier failures: scan, clone
+  (see :jobs)`. On a running or queued row they follow the sentence; on a
+  failed row they list the older failures.
+- A path target has its home folded (`~`); an image reference or forge path is
+  kept verbatim.
+
+**`TestNoViewSpellsARowActivityPhrase`** (`footer_guard_test.go`) scans every
+UI source file outside `internal/ui/components` and fails on a string literal
+that matches one of these patterns: `earlier failure`, `Queued: `, `: last `,
+and `(?i)\blast [a-z]+ failed\b`. A view calls `DescribeRow` or `FailureEvent`
+instead. Exceptions go in `declaredRowPhraseExceptions` (file suffix → reason);
+it is empty. Deliberately not banned: the bare verbs (`Scanning`, `Cloning`),
+used as progress titles, and `Failed to <verb>`, which explorer, templates and
+`app/context.go` still write themselves. Their migration stories move them to
+`FailureEvent`, and the ban can be added then.
+
 ## `PostFooterMsg` — the router's one line
 
 `FooterMessage` belongs to a view, and a view calls `Info`, `Warn` or `Error` on

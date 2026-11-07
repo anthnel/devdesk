@@ -1,11 +1,13 @@
 package components
 
 import (
+	"path/filepath"
 	"strconv"
 	"strings"
 
 	"github.com/anthnel/devdesk/internal/command"
 	"github.com/anthnel/devdesk/internal/jobs"
+	"github.com/anthnel/devdesk/internal/ui/theme"
 )
 
 // JobsStatusLine is what a footer says while work runs (D9).
@@ -83,4 +85,76 @@ func Plural(n int, one, many string) string {
 		return "1 " + one
 	}
 	return strconv.Itoa(n) + " " + many
+}
+
+// rowSeparator joins a row's detail to the batch progress on the footer line.
+const rowSeparator = " · "
+
+// Thresholds under which a part of the row line is dropped rather than cut to
+// a stub nobody can read.
+const (
+	minPathCols   = 6 // a ShortPath below this is just an ellipsis
+	minDetailCols = 8 // a detail below this says nothing; the progress stands alone
+)
+
+// RowDetail is what the footer says about the selected row: an activity glyph,
+// a lead-in, the target (a path or an image reference) and a tail. Only the
+// target is ever shortened as a path, which is why it is a field of its own.
+type RowDetail struct{ Glyph, Lead, Target, Tail string }
+
+// IsZero reports whether the detail says nothing.
+func (d RowDetail) IsZero() bool { return d == RowDetail{} }
+
+// head is everything before the target.
+func (d RowDetail) head() string {
+	if d.Glyph == "" {
+		return d.Lead
+	}
+	return d.Glyph + " " + d.Lead
+}
+
+// String is the detail at full length, the home directory folded.
+func (d RowDetail) String() string { return d.head() + theme.FoldHome(d.Target) + d.Tail }
+
+// fit renders the detail in at most room columns. A path target shrinks first
+// (never below minPathCols, even when the tail is long), then the end of the
+// detail is cut. An image reference is not a path and is only ever cut.
+func (d RowDetail) fit(room int) string {
+	full := d.String()
+	if theme.StringWidth(full) <= room {
+		return full
+	}
+	pathRoom := room - theme.StringWidth(d.head()) - theme.StringWidth(d.Tail)
+	// With no tail the cut lands on the path itself, so reducing it below its
+	// room first would only trade a readable prefix for an ellipsis.
+	if isPathTarget(d.Target) && (pathRoom >= minPathCols || d.Tail != "") {
+		full = d.head() + theme.ShortPath(d.Target, max(pathRoom, minPathCols)) + d.Tail
+	}
+	return theme.TruncateWidth(full, room)
+}
+
+// isPathTarget tells a filesystem path from an image reference such as
+// "registry/ns/app:1.2", which ShortPath would mangle.
+func isPathTarget(target string) bool {
+	return filepath.IsAbs(target) || strings.HasPrefix(target, "~")
+}
+
+// RowStatusLine composes the footer line for a selected row: its detail, then
+// the batch progress, on one line of at most width columns. The progress is
+// what gives way last; the detail is dropped whole when fewer than
+// minDetailCols are left for it (or fewer than it needs, if it is shorter).
+func RowStatusLine(detail RowDetail, progress string, width int) string {
+	switch {
+	case width <= 0:
+		return ""
+	case detail.IsZero():
+		return theme.TruncateWidth(progress, width)
+	case progress == "":
+		return detail.fit(width)
+	}
+	room := width - theme.StringWidth(rowSeparator) - theme.StringWidth(progress)
+	if room < min(minDetailCols, theme.StringWidth(detail.String())) {
+		return theme.TruncateWidth(progress, width)
+	}
+	return detail.fit(room) + rowSeparator + progress
 }

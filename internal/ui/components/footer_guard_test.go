@@ -6,6 +6,8 @@ import (
 	"go/token"
 	"io/fs"
 	"path/filepath"
+	"regexp"
+	"strconv"
 	"strings"
 	"testing"
 )
@@ -182,6 +184,65 @@ func TestNoTableViewRendersALoadingBody(t *testing.T) {
 			}
 			inspect(fn.Name.Name, fn.Body)
 		}
+	})
+}
+
+// rowPhrases are the pieces of a row-activity sentence that only
+// components.DescribeRow may spell (row_activity.go): the footer sentence for a
+// row ("Queued: scan x", "x: last scan failed — cause", "(+1 earlier failure)").
+// A view that writes one itself would drift from the activity column, which is
+// what the single computation exists to prevent.
+//
+// Deliberately NOT banned: the bare verbs ("Scanning", "Cloning", ...), which
+// views legitimately use as progress titles and fuzzy-finder prompts, and
+// "Failed to <verb>", which several views still write themselves
+// (explorer/create.go, explorer/clone.go, templates/update.go, app/context.go).
+// Their migration stories move them to components.FailureEvent, and the ban
+// can be added then.
+var rowPhrases = []*regexp.Regexp{
+	regexp.MustCompile(`earlier failure`),
+	regexp.MustCompile(`Queued: `),
+	regexp.MustCompile(`: last `),
+	regexp.MustCompile(`(?i)\blast [a-z]+ failed\b`),
+}
+
+// declaredRowPhraseExceptions maps a file suffix to the reason a string literal
+// there may contain a row phrase. Empty today: no view spells one.
+var declaredRowPhraseExceptions = map[string]string{}
+
+func TestNoViewSpellsARowActivityPhrase(t *testing.T) {
+	forEachUIFile(t, func(path string, file *ast.File, fset *token.FileSet) {
+		slash := filepath.ToSlash(path)
+		// The one implementation, and the shared component package around it.
+		// The walker yields paths relative to this package ("../../ui/..."),
+		// hence no "internal/" prefix.
+		if strings.Contains(slash, "/ui/components/") {
+			return
+		}
+		for suffix := range declaredRowPhraseExceptions {
+			if strings.HasSuffix(slash, suffix) {
+				return
+			}
+		}
+		ast.Inspect(file, func(n ast.Node) bool {
+			lit, ok := n.(*ast.BasicLit)
+			if !ok || lit.Kind != token.STRING {
+				return true
+			}
+			text, err := strconv.Unquote(lit.Value)
+			if err != nil {
+				text = lit.Value
+			}
+			for _, re := range rowPhrases {
+				if re.MatchString(text) {
+					t.Errorf("%s: string literal %s spells a row-activity phrase (%s).\n"+
+						"A row's sentence is built by components.DescribeRow and a failure event by "+
+						"components.FailureEvent; call them instead of writing the words.",
+						fset.Position(lit.Pos()), lit.Value, re)
+				}
+			}
+			return true
+		})
 	})
 }
 
