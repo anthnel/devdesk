@@ -545,6 +545,15 @@ m.table.SetBlinkPhase(on) // from Update, on the view's tick; default on = stead
   from the column widths. A second measurement with another library would
   disagree on the same glyphs. `TestRule116HoldsUnderEastAsianWidth` pins it.
 
+- **`Shapes()` and `ActivityTable`** (`shape.go`, DEVDESK-142). A cross-view
+  guard cannot call a generic `Model[T]` without knowing `T`, so
+  `(*Model[T]).Shapes()` returns a fresh `[]ColumnShape` on each call
+  (`Title`, `Sizing`, `MinWidth`, and whether the column declares
+  `Indicator`, `Less`, `Search`). It reports the declared columns, in order,
+  even for an empty table, and mutating the result changes nothing. The
+  `ActivityTable` interface (`Shapes()` and `RenderedWidth()`) is the read-only
+  face a view hands out for such a guard.
+
 **Known limit.** The header's sort arrow `▲` is also ambiguous-width and is not
 fitted by `runewidth`: under East Asian width the header line can be one cell
 off. Only the header, not the rows. It is accepted for now and the test skips
@@ -597,6 +606,14 @@ a field of its own because only a path is ever shortened.
   observed > idle).
 - **`FailureEvent(kind, target, cause)`**: the text of the 3-second Error a
   view posts when an operation fails: `Failed to <kind> <target> — <cause>`.
+- **`RunIndicator` / `ItemIndicator`** and **`DescribeRun` / `DescribeItem`**
+  (`job_activity.go`): the same for a `:jobs` row, which is a run or one of its
+  targets rather than a looked-up target. States map one to one (never `Idle`);
+  the sentences reuse the helpers above, so `DescribeRun` of a running or queued
+  run is word for word `DescribeRow`'s. Settled rows add: `<glyph> <Kind> of
+  <target> finished[ <time ago>]`, `... was cancelled`, `... skipped[ — <detail>]`
+  (item), and `<glyph> <target>: last <kind> failed — <cause>` (the failed
+  item's detail, or `N of M targets failed` for a run with several).
 
 What `DescribeRow` writes:
 

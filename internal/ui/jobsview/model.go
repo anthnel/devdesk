@@ -17,6 +17,7 @@ import (
 	"github.com/anthnel/devdesk/internal/jobs"
 	sharedcomponents "github.com/anthnel/devdesk/internal/ui/components"
 	"github.com/anthnel/devdesk/internal/ui/datatable"
+	"github.com/anthnel/devdesk/internal/ui/indicator"
 	"github.com/anthnel/devdesk/internal/ui/theme"
 )
 
@@ -32,25 +33,11 @@ const (
 	levelItems
 )
 
-// runRow and itemRow carry the spinner frame onto the row.
-//
-// The frame changes ten times a second and the columns are built once, in New,
-// closing over nothing — so a Cell cannot reach the model to ask for it. Putting
-// it on the row is what oci_resources does with imageRow, and for the same
-// reason.
-//
-// It is the router's frame (D5): the one chain, taken bare from the router's
-// frame message (not from jobs.ChangedMsg) because a table cell is measured before it is styled (Rule 122). Using
-// datatable's own AdvanceSpinner here would be a second chain beside it.
-type runRow struct {
-	Run   jobs.Run
-	Frame string
-}
+// runRow and itemRow wrap one record of the snapshot. The activity column reads
+// the blink phase from the table at render, so a row carries nothing animated.
+type runRow struct{ Run jobs.Run }
 
-type itemRow struct {
-	Item  jobs.Item
-	Frame string
-}
+type itemRow struct{ Item jobs.Item }
 
 // Model is the jobs view.
 type Model struct {
@@ -59,9 +46,6 @@ type Model struct {
 	// context switch hides its runs rather than dropping them (D8).
 	runs        []jobs.Run
 	contextName string
-
-	// frame is the router's bare spinner frame.
-	frame string
 
 	level   level
 	openRun jobs.JobID
@@ -121,30 +105,18 @@ func New(_ *config.Config, contextName string) Model {
 
 // runColumns describes the runs table.
 //
-// The first column is the run's **state**, not its kind, and it is also where
-// the spinner goes. That is the containers table's shape and it is deliberate:
-// a jobs list is scanned to find the one that failed and the one still going,
-// so the glyph answers the question the reader arrived with, and the Kind
-// column says in a word what sort of work it was.
-//
-// A state glyph column colours by the semantic status styles rather than by a
-// theme.IconStyle role, which is the choice the containers table already makes.
-// Roles exist for icons that name an *object* — a namespace, a repository, an
-// image — where a palette should be able to tell them apart. A state has a
-// colour already, and five new roles would give a theme five ways to make
-// "failed" not red.
-//
-// The glyph and the State word are not the redundancy that a glyph beside its
-// own name usually is: the glyph column doubles as the spinner while the run
-// goes, and the word is what separates the four settled outcomes — "cancelled"
-// from "failed" above all, which is the distinction Run.cancelled exists for.
+// The first column is the activity indicator (Rule 125): the run's state as a
+// glyph that blinks while it goes. A jobs list is scanned to find the one that
+// failed and the one still going, so the glyph answers the question the reader
+// arrived with. The State word beside it takes the glyph's colour
+// (indicator.Style), so the row has a single colour source, and it is what
+// tells the settled outcomes apart in words — "cancelled" from "failed" above
+// all, which is the distinction Run.cancelled exists for.
 func runColumns() []datatable.Column[runRow] {
 	return []datatable.Column[runRow]{
-		{
-			Title: "", Sizing: datatable.SizingFixed, MinWidth: datatable.IconColumnWidth,
-			Cell:  func(r runRow) string { return runStateGlyph(r) },
-			Style: func(r runRow) lipgloss.Style { return runStateStyle(r.Run.State()) },
-		},
+		datatable.IndicatorColumn(func(r runRow) indicator.State {
+			return sharedcomponents.RunIndicator(r.Run.State())
+		}, nil, nil),
 		{
 			Title: "Kind", Sizing: datatable.SizingFixed, MinWidth: 8,
 			Cell: func(r runRow) string { return string(r.Run.Kind) },
@@ -191,11 +163,9 @@ func runColumns() []datatable.Column[runRow] {
 // width is worth spending on here.
 func itemColumns() []datatable.Column[itemRow] {
 	return []datatable.Column[itemRow]{
-		{
-			Title: "", Sizing: datatable.SizingFixed, MinWidth: datatable.IconColumnWidth,
-			Cell:  func(r itemRow) string { return itemStateGlyph(r) },
-			Style: func(r itemRow) lipgloss.Style { return itemStateStyle(r.Item.State) },
-		},
+		datatable.IndicatorColumn(func(r itemRow) indicator.State {
+			return sharedcomponents.ItemIndicator(r.Item.State)
+		}, nil, nil),
 		{
 			Title: "Target", Sizing: datatable.SizingContent,
 			MinWidth: 20, MaxWidth: 60, Flex: 3, TruncateHead: true,
@@ -253,4 +223,14 @@ func detailStyle(i jobs.Item) lipgloss.Style {
 		return theme.DimStyle
 	}
 	return lipgloss.NewStyle()
+}
+
+// ActivityTables returns the read-only face of the view's tables, keyed by the
+// name the activity-column guard (internal/app) knows them by. Tests only: the
+// interface exposes no way to change a table.
+func (m Model) ActivityTables() map[string]datatable.ActivityTable {
+	return map[string]datatable.ActivityTable{
+		"jobs/runs":    &m.runTable,
+		"jobs/targets": &m.itemTable,
+	}
 }
