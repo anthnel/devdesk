@@ -3,6 +3,7 @@ package app
 import (
 	"fmt"
 	"go/ast"
+	"go/parser"
 	"go/token"
 	"sort"
 	"strconv"
@@ -11,19 +12,26 @@ import (
 
 	tea "github.com/charmbracelet/bubbletea"
 
+	"github.com/charmbracelet/x/ansi"
+
 	"github.com/anthnel/devdesk/internal/command"
+	"github.com/anthnel/devdesk/internal/jobs"
 	"github.com/anthnel/devdesk/internal/ui/datatable"
 	"github.com/anthnel/devdesk/internal/ui/help"
 	"github.com/anthnel/devdesk/internal/ui/indicator"
+	"github.com/anthnel/devdesk/internal/ui/testutil"
 )
 
-// A-16 (DEVDESK-143), skeleton delivered with the :jobs pilot (DEVDESK-142).
+// A-16 (DEVDESK-143), the cross-cutting guard, started with the :jobs pilot
+// (DEVDESK-142).
 //
 // The guard answers one question for every view the router can build: is it on
 // the activity column, is it waiting for its migration, or is it exempt for a
-// stated reason? A view that is none of the three fails the test by name. It
-// is a skeleton: DEVDESK-143 completes it (footer half of criterion 5,
-// criterion 7).
+// stated reason? A view that is none of the three fails the test by name. For a
+// migrated view it also checks the column, the help legend, the retired
+// mechanisms in its declared sources (including its own ticks), and the footer
+// of its selected row. Declared exceptions may only shrink, and follow their
+// stories: pendingTables here, declaredRowChains in animation_guard_test.go.
 
 // activityView is what a migrated view exposes to the guard: read-only tables,
 // keyed "<view>/<table>".
@@ -307,33 +315,164 @@ func checkColumnZero(t *testing.T, vt command.ViewType, table string, shapes []d
 	}
 }
 
-// migratedSourceDirs are scanned for the retired mechanisms (criterion 2b, and
-// the hard-coded glyphs of 3). Only migrated views: pending ones still use them.
-var migratedSourceDirs = []string{"ui/jobsview/"}
+// migratedSources are the source prefixes (a directory ending in "/" or a file
+// path, relative to internal/) of each migrated view. They are scanned for the
+// retired mechanisms (criterion 2a/2b, and the hard-coded glyphs of 3). Only
+// migrated views: pending ones still use them. A prefix may be a file so a view
+// that migrates in two steps (OCI A-09a/b, explorer A-10a/b) can be scanned
+// file by file.
+var migratedSources = map[command.ViewType][]string{
+	command.ViewJobs: {"ui/jobsview/"},
+}
+
+// sourceDeclarationProblems says what is wrong with the link between migrated
+// views and the sources scanned for them, empty when it is fine. files are the
+// paths relative to internal/ of every non-test source file.
+func sourceDeclarationProblems(migrated map[command.ViewType][]string, sources map[command.ViewType][]string, files []string) []string {
+	var problems []string
+	for vt := range migrated {
+		if len(sources[vt]) == 0 {
+			problems = append(problems, fmt.Sprintf("view %q is migrated but declares no source to scan in migratedSources", vt))
+		}
+	}
+	for vt, prefixes := range sources {
+		if len(migrated[vt]) == 0 {
+			problems = append(problems, fmt.Sprintf("view %q has sources in migratedSources but is not migrated (migratedTables)", vt))
+		}
+		for _, p := range prefixes {
+			if !anyHasPrefix(files, p) {
+				problems = append(problems, fmt.Sprintf("view %q: source prefix %q matches no file", vt, p))
+			}
+		}
+	}
+	sort.Strings(problems)
+	return problems
+}
+
+func anyHasPrefix(files []string, prefix string) bool {
+	for _, f := range files {
+		if prefix != "" && strings.HasPrefix(f, prefix) {
+			return true
+		}
+	}
+	return false
+}
+
+// Criteria 2b and 6: the sources scanned are exactly those of the migrated views.
+func TestActivityGuardMigratedSourcesAreDeclared(t *testing.T) {
+	var files []string
+	sourceFiles(t, func(rel string, _ *token.FileSet, _ *ast.File) { files = append(files, rel) })
+	for _, p := range sourceDeclarationProblems(migratedTables, migratedSources, files) {
+		t.Error(p)
+	}
+}
+
+// The logic itself, on fictitious views and files.
+func TestActivityGuardMigratedSourcesLogic(t *testing.T) {
+	const v command.ViewType = "fiction"
+	files := []string{"ui/jobsview/model.go", "ui/oci/a.go", "ui/oci/b.go"}
+	tests := []struct {
+		name     string
+		migrated map[command.ViewType][]string
+		sources  map[command.ViewType][]string
+		want     []string // substrings, one per expected problem
+	}{
+		{"jobs passes", map[command.ViewType][]string{command.ViewJobs: {"jobs/runs"}}, map[command.ViewType][]string{command.ViewJobs: {"ui/jobsview/"}}, nil},
+		{"file prefix passes", map[command.ViewType][]string{v: {"x"}}, map[command.ViewType][]string{v: {"ui/oci/a.go"}}, nil},
+		{"migrated view without sources", map[command.ViewType][]string{v: {"x"}}, nil, []string{`view "fiction" is migrated but declares no source`}},
+		{"sources without migrated view", nil, map[command.ViewType][]string{v: {"ui/oci/"}}, []string{`view "fiction" has sources`}},
+		{"prefix matching nothing", map[command.ViewType][]string{v: {"x"}}, map[command.ViewType][]string{v: {"ui/nowhere/"}}, []string{`"ui/nowhere/" matches no file`}},
+		{"empty prefix matches nothing", map[command.ViewType][]string{v: {"x"}}, map[command.ViewType][]string{v: {""}}, []string{`"" matches no file`}},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := sourceDeclarationProblems(tt.migrated, tt.sources, files)
+			if len(got) != len(tt.want) {
+				t.Fatalf("problems = %v, want %d", got, len(tt.want))
+			}
+			for i, w := range tt.want {
+				if !strings.Contains(got[i], w) {
+					t.Errorf("problem %d = %q, want it to contain %q", i, got[i], w)
+				}
+			}
+		})
+	}
+}
 
 // activityGlyphs are the runes of internal/ui/indicator; a view takes them from
 // indicator.Glyph and never spells one.
 const activityGlyphs = "●○◴⊗◐◕◉⊘⊖◌"
 
-// Criterion 2b: no AdvanceSpinner, no StatusColumn:, no frame field, no glyph
-// literal in a migrated view. RenderedFrame (a method of the viewport frame) is allowed.
-func TestActivityGuardMigratedSourcesUseNoRetiredMechanism(t *testing.T) {
-	scanned := 0
-	sourceFiles(t, func(rel string, fset *token.FileSet, file *ast.File) {
-		if !hasAnyPrefix(rel, migratedSourceDirs) {
+// declaredViewTicks are the tea.Tick / tea.Every calls a migrated view may
+// still make, keyed "<file relative to internal/>:<function>" with the reason.
+// Empty today: the router's one tick animates every row (DEVDESK-139). The list
+// may only shrink.
+var declaredViewTicks = map[string]string{}
+
+// finding is one retired mechanism found in a source file.
+type finding struct {
+	Pos  token.Position // file:line:column
+	What string
+}
+
+// bubbleTeaName returns the local name file gives the bubbletea import: its
+// alias, "." for a dot import, "tea" when unnamed, or "" when the file does not
+// import it (or blank-imports it). A different package that happens to be
+// called tea is therefore not mistaken for it.
+func bubbleTeaName(file *ast.File) string {
+	for _, imp := range file.Imports {
+		path, err := strconv.Unquote(imp.Path.Value)
+		if err != nil || path != "github.com/charmbracelet/bubbletea" {
+			continue
+		}
+		switch {
+		case imp.Name == nil:
+			return "tea"
+		case imp.Name.Name == "_":
+			return ""
+		default:
+			return imp.Name.Name
+		}
+	}
+	return ""
+}
+
+// retiredMechanisms reports, in a migrated view's file, every retired
+// mechanism: AdvanceSpinner, a StatusColumn: key, a frame field, an activity
+// glyph literal, and any reference to bubbletea's Tick / Every (under whatever name the file
+// imports it) outside declaredViewTicks.
+// rel is the file's path relative to internal/; it is the key of a declared tick.
+// RenderedFrame (a method of the viewport frame) is allowed.
+func retiredMechanisms(fset *token.FileSet, file *ast.File, rel string) []finding {
+	var out []finding
+	report := func(pos token.Pos, what string) {
+		out = append(out, finding{Pos: fset.Position(pos), What: what})
+	}
+	tea := bubbleTeaName(file)
+	selectors := map[*ast.Ident]bool{} // identifiers seen as the Sel of a selector
+	// reportTick flags any reference to bubbletea's Tick / Every, called or not
+	// (`var tick = tea.Tick` is as much a tick as `tea.Tick(...)`), unless the
+	// enclosing "<file>:<function>" is declared.
+	reportTick := func(pos token.Pos, fn, name string) {
+		if name != "Tick" && name != "Every" {
 			return
 		}
-		scanned++
-		report := func(pos token.Pos, what string) {
-			t.Errorf("%s: %s in a migrated view (A-16 criterion 2b/3)", fset.Position(pos), what)
+		if _, declared := declaredViewTicks[rel+":"+fn]; !declared {
+			report(pos, "reference to bubbletea's "+name+" (a view's rows are animated by the router's tick)")
 		}
-		isFrame := func(name string) bool {
-			return name == "Frame" || name == "frame" || name == "SpinnerFrame"
-		}
-		ast.Inspect(file, func(n ast.Node) bool {
+	}
+	isFrame := func(name string) bool {
+		return name == "Frame" || name == "frame" || name == "SpinnerFrame"
+	}
+	visit := func(fn string) func(ast.Node) bool {
+		return func(n ast.Node) bool {
 			switch x := n.(type) {
 			case *ast.CallExpr:
-				if sel, ok := x.Fun.(*ast.SelectorExpr); ok && sel.Sel.Name == "AdvanceSpinner" {
+				sel, ok := x.Fun.(*ast.SelectorExpr)
+				if !ok {
+					break
+				}
+				if sel.Sel.Name == "AdvanceSpinner" {
 					report(x.Pos(), "call to AdvanceSpinner")
 				}
 			case *ast.KeyValueExpr:
@@ -351,7 +490,16 @@ func TestActivityGuardMigratedSourcesUseNoRetiredMechanism(t *testing.T) {
 						report(id.Pos(), "frame field "+id.Name)
 					}
 				}
+			case *ast.Ident:
+				// Dot import: a bare Tick / Every that no declaration in the file binds.
+				if tea == "." && x.Obj == nil && !selectors[x] {
+					reportTick(x.Pos(), fn, x.Name)
+				}
 			case *ast.SelectorExpr:
+				selectors[x.Sel] = true
+				if pkg, ok := x.X.(*ast.Ident); ok && tea != "" && tea != "." && pkg.Name == tea {
+					reportTick(x.Pos(), fn, x.Sel.Name)
+				}
 				if isFrame(x.Sel.Name) {
 					report(x.Sel.Pos(), "frame selector ."+x.Sel.Name)
 				}
@@ -369,11 +517,107 @@ func TestActivityGuardMigratedSourcesUseNoRetiredMechanism(t *testing.T) {
 				}
 			}
 			return true
-		})
+		}
+	}
+	for _, decl := range file.Decls {
+		fn := ""
+		if fd, ok := decl.(*ast.FuncDecl); ok {
+			fn = fd.Name.Name
+		}
+		ast.Inspect(decl, visit(fn))
+	}
+	return out
+}
+
+// Criterion 2a/2b: no retired mechanism and no tick in a migrated view.
+func TestActivityGuardMigratedSourcesUseNoRetiredMechanism(t *testing.T) {
+	scanned := 0
+	sourceFiles(t, func(rel string, fset *token.FileSet, file *ast.File) {
+		if !hasAnyPrefix(rel, allMigratedSources()) {
+			return
+		}
+		scanned++
+		for _, f := range retiredMechanisms(fset, file, rel) {
+			t.Errorf("%s: %s in a migrated view (A-16 criterion 2/3)", f.Pos, f.What)
+		}
 	})
 	if scanned == 0 {
-		t.Fatalf("no source file found under %v: the scan reads nothing", migratedSourceDirs)
+		t.Fatalf("no source file found under %v: the scan reads nothing", migratedSources)
 	}
+	for key, reason := range declaredViewTicks {
+		if reason == "" {
+			t.Errorf("declared view tick %q names no reason", key)
+		}
+	}
+}
+
+// The detection itself, on sources held in strings.
+func TestActivityGuardRetiredMechanismsLogic(t *testing.T) {
+	const head = "package v\nimport tea \"github.com/charmbracelet/bubbletea\"\nimport \"github.com/charmbracelet/bubbles/spinner\"\n"
+	const (
+		bt    = "package v\nimport bt \"github.com/charmbracelet/bubbletea\"\nimport \"github.com/charmbracelet/bubbles/spinner\"\n"
+		dot   = "package v\nimport . \"github.com/charmbracelet/bubbletea\"\nimport \"github.com/charmbracelet/bubbles/spinner\"\n"
+		other = "package v\nimport tea \"example.com/notbubbletea\"\nimport \"github.com/charmbracelet/bubbles/spinner\"\n"
+	)
+	tests := []struct {
+		name     string
+		head     string // import block overriding head; it must keep the same 3 lines
+		body     string
+		declared map[string]string
+		want     int
+		at       string // "line:column" of the first finding, when want > 0
+	}{
+		{"tea.Tick", "", "func f() { _ = tea.Tick(0, nil) }", nil, 1, "4:16"},
+		{"tea.Every", "", "func f() { _ = tea.Every(0, nil) }", nil, 1, "4:16"},
+		{"spinner.Tick is not a view tick", "", "func f() { _ = spinner.Tick }\nfunc g() { _ = spinner.Tick() }", nil, 0, ""},
+		{"declared tick", "", "func f() { _ = tea.Tick(0, nil) }", map[string]string{"ui/v/v.go:f": "why"}, 0, ""},
+		{"tick declared for another function", "", "func g() { _ = tea.Tick(0, nil) }", map[string]string{"ui/v/v.go:f": "why"}, 1, "4:16"},
+		{"AdvanceSpinner", "", "func f(t T) { t.AdvanceSpinner() }", nil, 1, "4:15"},
+		{"glyph literal", "", "var g = \"\u25cf\"", nil, 1, "4:9"},
+		{"clean", "", "func f() {}", nil, 0, ""},
+		{"aliased import", bt, "func f() { _ = bt.Tick(0, nil) }", nil, 1, "4:16"},
+		{"dot import", dot, "func f() { _ = Tick(0, nil) }", nil, 1, "4:16"},
+		{"dot import, bare reference", dot, "var tick = Every", nil, 1, "4:12"},
+		{"package variable holding tea.Tick", "", "var tick = tea.Tick", nil, 1, "4:12"},
+		{"tick in a method", "", "func (m M) f() { _ = tea.Tick(0, nil) }", nil, 1, "4:22"},
+		{"declared tick, aliased import", bt, "func f() { _ = bt.Tick(0, nil) }", map[string]string{"ui/v/v.go:f": "why"}, 0, ""},
+		{"non-bubbletea package named tea", other, "func f() { _ = tea.Tick(0, nil) }", nil, 0, ""},
+		{"dot import does not flag a method named Tick", dot, "func f(t T) { t.Tick() }", nil, 0, ""},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			old := declaredViewTicks
+			declaredViewTicks = tt.declared
+			defer func() { declaredViewTicks = old }()
+			fset := token.NewFileSet()
+			h := head
+			if tt.head != "" {
+				h = tt.head
+			}
+			src := h + tt.body
+			file, err := parser.ParseFile(fset, "v.go", src, 0)
+			if err != nil {
+				t.Fatal(err)
+			}
+			got := retiredMechanisms(fset, file, "ui/v/v.go")
+			if len(got) != tt.want {
+				t.Fatalf("findings = %v, want %d", got, tt.want)
+			}
+			if tt.want > 0 {
+				if at := fmt.Sprintf("%d:%d", got[0].Pos.Line, got[0].Pos.Column); at != tt.at {
+					t.Errorf("first finding at %s, want %s", at, tt.at)
+				}
+			}
+		})
+	}
+}
+
+func allMigratedSources() []string {
+	var out []string
+	for _, prefixes := range migratedSources {
+		out = append(out, prefixes...)
+	}
+	return out
 }
 
 func hasAnyPrefix(s string, prefixes []string) bool {
@@ -401,4 +645,115 @@ func sortedKeys(m map[string]datatable.ActivityTable) []string {
 	}
 	sort.Strings(out)
 	return out
+}
+
+// footerRenderer is what a view exposes for its footer (the router's contract,
+// restated so the guard reads it without the router).
+type footerRenderer interface {
+	RenderFooter(width int) string
+}
+
+// migratedFooterSeeds put a migrated view on screen with one active row selected
+// and return the state that row is in. A migrated view without a seed fails the
+// guard by name.
+var migratedFooterSeeds = map[command.ViewType]func(*testing.T, *App) indicator.State{
+	command.ViewJobs: seedJobsFooter,
+}
+
+// seedJobsFooter starts a scan run, moves its item to running (a started run
+// is queued until a transition says otherwise), and opens :jobs, whose first run
+// is selected.
+func seedJobsFooter(t *testing.T, a *App) indicator.State {
+	t.Helper()
+	a.Update(jobs.StartMsg{Run: scanRun("default", "a")})
+	snap := a.jobs.Snapshot()
+	if len(snap) != 1 || !a.jobs.Advance(snap[0].ID, "a", jobs.ItemRunning, "") {
+		t.Fatalf("the seed could not put the run's item in the running state: %+v", snap)
+	}
+	testutil.Msgs(a.switchView(command.ViewJobs))
+	a.resize(a.width, a.height)
+	return indicator.Running
+}
+
+// footerSeedProblems says which migrated views have no seed, and which seeds
+// belong to no migrated view.
+func footerSeedProblems(migrated map[command.ViewType][]string, seeds map[command.ViewType]func(*testing.T, *App) indicator.State) []string {
+	var problems []string
+	for vt := range migrated {
+		if seeds[vt] == nil {
+			problems = append(problems, fmt.Sprintf("view %q is migrated but has no entry in migratedFooterSeeds", vt))
+		}
+	}
+	for vt := range seeds {
+		if len(migrated[vt]) == 0 {
+			problems = append(problems, fmt.Sprintf("view %q has a footer seed but is not migrated", vt))
+		}
+	}
+	sort.Strings(problems)
+	return problems
+}
+
+// footerGlyphProblem is empty when footer carries the glyph of state. The footer
+// glyph never blinks, so the steady one (on = true) is the one to look for.
+func footerGlyphProblem(footer string, state indicator.State) string {
+	glyph := indicator.Glyph(state, true)
+	if glyph == "" {
+		return fmt.Sprintf("state %v has no glyph: the seed must put the row in a visible state", state)
+	}
+	if !strings.Contains(ansi.Strip(footer), glyph) {
+		return fmt.Sprintf("the footer does not carry the glyph %q of state %v", glyph, state)
+	}
+	return ""
+}
+
+// Criterion 5, footer half: the selected row's footer says its state with the
+// same glyph as the column.
+func TestActivityGuardMigratedFooterCarriesTheRowGlyph(t *testing.T) {
+	for _, p := range footerSeedProblems(migratedTables, migratedFooterSeeds) {
+		t.Error(p)
+	}
+	for vt, seed := range migratedFooterSeeds {
+		if seed == nil || len(migratedTables[vt]) == 0 {
+			continue
+		}
+		t.Run(string(vt), func(t *testing.T) {
+			a := routerAt(t, &bareView{}, 180, 40)
+			state := seed(t, a)
+			fr, ok := a.views[vt].(footerRenderer)
+			if !ok {
+				t.Fatalf("view %q is migrated but is a %T, which renders no footer", vt, a.views[vt])
+			}
+			if msg := footerGlyphProblem(fr.RenderFooter(120), state); msg != "" {
+				t.Errorf("view %q: %s (A-16 criterion 5)\n%s", vt, msg, ansi.Strip(fr.RenderFooter(120)))
+			}
+		})
+	}
+}
+
+// The footer logic, on fictitious data.
+func TestActivityGuardFooterLogic(t *testing.T) {
+	seed := func(*testing.T, *App) indicator.State { return indicator.Running }
+	const v command.ViewType = "fiction"
+	mig := map[command.ViewType][]string{v: {"x"}}
+
+	if got := footerSeedProblems(mig, nil); len(got) != 1 || !strings.Contains(got[0], `"fiction"`) {
+		t.Errorf("a migrated view without a seed: %v", got)
+	}
+	if got := footerSeedProblems(nil, map[command.ViewType]func(*testing.T, *App) indicator.State{v: seed}); len(got) != 1 {
+		t.Errorf("a seed without a migrated view: %v", got)
+	}
+	if got := footerSeedProblems(mig, map[command.ViewType]func(*testing.T, *App) indicator.State{v: seed}); len(got) != 0 {
+		t.Errorf("a seeded migrated view: %v", got)
+	}
+
+	run := indicator.Glyph(indicator.Running, true)
+	if msg := footerGlyphProblem("  Scanning "+run+" a", indicator.Running); msg != "" {
+		t.Errorf("a footer with the glyph: %s", msg)
+	}
+	if msg := footerGlyphProblem("  1 job running", indicator.Running); msg == "" {
+		t.Error("a footer without the glyph passed")
+	}
+	if msg := footerGlyphProblem("anything", indicator.Idle); msg == "" {
+		t.Error("an idle seed passed: it has no glyph to look for")
+	}
 }
