@@ -1,0 +1,15 @@
+{
+  "tool_use_id": "toolu_01MH9pK637Dinjv4HHnWXobs",
+  "agent_id": "a1e43b654c2c8621d",
+  "subagent_type": "dev-team:devops",
+  "task_description": "Merge PR 326 et nettoyage",
+  "token_usage": {
+    "input_tokens": 12,
+    "cache_creation_tokens": 101707,
+    "cache_read_tokens": 488658,
+    "output_tokens": 2167,
+    "api_call_count": 6
+  },
+  "started_at": "2026-11-06T18:45:20.78702418+01:00",
+  "completed_at": "2026-11-06T18:46:07.26166626+01:00"
+}
