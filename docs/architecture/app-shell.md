@@ -768,8 +768,16 @@ returns what is on a target, and `jobs.FailureFor(failures, kind, target, contex
 one entry. Which kinds a view shows (D5) is the reader's choice, passed as `kinds`;
 the registry keeps all of them.
 
-`security.scanTarget.Failed` and OCI's `failedScans` are the two manual copies
-this replaces. They stay in place until A-08 and A-09a move those views onto
+**`ChangedMsg.Context`** (DEVDESK-145) is the router's current context when the
+snapshot is sent, stamped in `changedMsg()` (`internal/app/jobs.go`), the only
+builder. A view reads `Runs` and `Failures` against it, so it needs no
+constructor argument: `:sec` stores it in `handleJobsChanged`. An unfed view has
+an empty context, which matches no run. `ws` and `:jobs` still take the name as a
+constructor argument (same value).
+
+`security.scanTarget.Failed` was one of the two manual copies this replaces; it
+was removed by DEVDESK-145 (A-08), and `:sec` reads `Failures` (scan kind only).
+OCI's `failedScans` is the remaining one, until A-09a moves that view onto
 `Failures`.
 
 ### A progress message needs a case in the router
@@ -970,8 +978,8 @@ view is neither:
 
 | List | Meaning |
 |---|---|
-| `migratedTables` | the view's tables are on the activity column (`:jobs`: `jobs/runs`, `jobs/targets`; ws: `ws`, DEVDESK-144) |
-| `pendingTables` | tables waiting for their story (`:sec`, OCI, explorer, templates, netdiag, agent-usage, containers), each naming it. `maxPendingTables` caps the list: it may only shrink (13 to 12 with ws) |
+| `migratedTables` | the view's tables are on the activity column (`:jobs`: `jobs/runs`, `jobs/targets`; ws: `ws`, DEVDESK-144; `:sec`: `sec/inventory`, DEVDESK-145) |
+| `pendingTables` | tables waiting for their story (OCI, explorer, templates, netdiag, agent-usage, containers), each naming it. `maxPendingTables` caps the list: it may only shrink (13 to 12 with ws, 12 to 11 with `:sec`) |
 | `exemptViews` | views with no activity to show (dashboard, status, git-auth, configuration, about, files, viewer), each with its reason |
 
 A view in none of the three, an exempt view that is also migrated or pending, or a table both migrated and pending fails by name (`classificationProblems`, unit-tested on a fictitious partly migrated view). A migrated view
@@ -984,11 +992,15 @@ migrated table is the indicator (untitled, fixed, `IconColumnWidth`, no `Less`,
 no `Search`); `RenderedWidth()` equals `width-2` after a 60-column resize
 (Rule 116); the help holds the `indicator.Legend` section.
 
-**Checked by source analysis**, on migrated packages only (`ui/jobsview/`, `ui/workspaces/`): no
+**Checked by source analysis**, on migrated packages only (`ui/jobsview/`, `ui/workspaces/`, `ui/security/`): no
 `AdvanceSpinner` call, no `StatusColumn:` key, no `Frame`/`frame`/`SpinnerFrame`
 field or selector (`RenderedFrame` is allowed), no string or rune literal
 holding an indicator glyph. Verified to fail on a positive case by injecting a `Frame`
 field, an `AdvanceSpinner` call and a `"◉"` literal into `jobsview`.
+
+**The footer half** is `migratedFooterSeeds` (a view seeds a row at a state and the
+guard checks its footer): `:sec` is seeded by `seedSecurityFooter`, a running
+scan on the selected row.
 
 **Left to DEVDESK-143**: the footer half of the help/legend criterion and the
 final criterion 7. The chains outside the router and the static-motion rule stay
