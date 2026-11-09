@@ -47,6 +47,7 @@ devdesk/
 │       └── workspaces/       # Local workspace manager
 └── .claude/
     ├── CLAUDE.md     # AI implementation guidance
+    ├── skills/       # On-demand skills (git-worktree-pr, release-flow)
     └── rules/        # Detailed TUI coding rules
 ```
 
