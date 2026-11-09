@@ -272,7 +272,7 @@ verified: a declared exception.
 - **Ports tab** (`ports_model.go`): the machine's own socket table, re-read
   every `ports_refresh_interval`, filtered by protocol, state and text. `K`
   terminates a process, after a confirmation. It runs **no container** — see
-  `internal/ports` below.
+  `internal/ports` below. Column 0 is the activity column (DEVDESK-150, below).
 - **Interfaces tab** (`interfaces_model.go`): this machine's network interfaces
   — name, state, MTU, MAC, RX/TX error counters, addresses — in a `datatable`.
   It runs **no container**; see `internal/netiface` below. It was the Topology
@@ -281,6 +281,57 @@ verified: a declared exception.
 - **Forward tab** (`forward_model.go`, `forward_form.go`): the port
   redirections, `N` to open one, `space` to pause or resume it and `K` to delete
   it. It holds **no listener** — see `internal/forward` below.
+
+**Ports tab, activity column (DEVDESK-150, Rule 125).** Column 0 of the socket
+table is `datatable.IndicatorColumn` (untitled, two cells wide), the same
+mechanism as `oci/images` (DEVDESK-146). The table has no registry run: `K` is
+held in `datatable`'s `busy` map, keyed by PID, and `datatable` writes the
+precedence "busy means `indicator.Running`" once, so the column's own state is
+always `Idle` and an idle row shows an empty cell (a socket has no rest icon).
+
+- **`K` running = lit dot.** Every socket of the PID shows `●`/`○`, as the
+  spinner did before. The blink phase comes from `jobs.FrameMsg`, handled in
+  `Model.Update` (`SetBlinkPhase`, nothing rebuilt); `Model.WantsBlink()` is true
+  while any row is busy, whatever the active tab. The Diagnostics and Interfaces
+  footers keep their own `spinner.TickMsg` chain, and a `FrameMsg` does not
+  advance it.
+- **The line spinner is gone**: `StatusColumn`, `portsSpinnerTickMsg`,
+  `portsSpinnerCmd` and `handleSpinnerTick` are deleted. **State keeps its
+  text** (`LISTEN`), dimmed like every busy row. This reverses the letter of
+  §3.22 (the State cell used to be replaced by the spinner) and keeps its intent:
+  the dim says the value is about to change.
+- **The footer names the kill**: for the selected busy row, `● Killing sshd (812)`
+  (`PortsModel.rowDetail`, from `components.DescribeRow`), before the
+  paused or stale text. At 60 columns, where PID and Process are dropped, this is
+  where the process name is readable.
+- **Failure stays in the footer only.** A refused or failed kill is an `Error`
+  (`killFailureMessage`) and the row returns to rest: no `⊗`, nothing is
+  remembered, because no registry kind exists for it. `K` stays lit on a busy
+  row (Rule 130); pressing it again warns `Already killing PID N`.
+- **A periodic refresh never blinks**: `SetItems` leaves `busy` alone, so a
+  refresh with nothing busy leaves column 0 empty and `WantsBlink()` false; one
+  during a kill keeps the dots and the cursor.
+- **A failed network test is not a row operation.** The Diagnostics table keeps
+  its result in the Verdict column; no `⊗` was added (open question 4 of the
+  activity-indicator stories, option A). The Diagnostics and Interfaces tables
+  have no `Indicator`.
+- **Files.** `ports_activity.go` (`ActivityTables()` reports `netdiag/ports`,
+  `WantsBlink()`); `ports_commands.go` holds the I/O commands (`fetchPortsCmd`,
+  `portsTickCmd`, `killProcessCmd`) and `NewPortsDataMsg`, which the activity
+  guard's footer seed uses to hand rows to the view without reading the socket
+  table. `ports_commands.go` is not scanned by the guard (its refresh tick is
+  data, not a row animation).
+- **Widths (Rule 116).** Required columns give way rightmost first. Thresholds,
+  as terminal width, with the column added (they were 99, 87, 78 and 50 before):
+
+  | Columns shown | From width |
+  |---|---|
+  | all | 103 |
+  | without Process | 91 |
+  | without PID and Process | 82 |
+  | activity, Proto, State, Local Address | 54 |
+
+  At 60 columns the last set shows and `RenderedWidth()` is 58.
 
 **Timing (§3.66).** `netcheck.Check` carries a `Duration time.Duration`
 alongside `Summary`/`Facts` — zero means untimed. `stage_connect.go` and

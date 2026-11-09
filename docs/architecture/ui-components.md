@@ -418,10 +418,10 @@ nothing on all but one row.
 | `oci` networks | network ID | `ID` | remove |
 | `oci` volumes | name | `Driver` — a volume has no ID, so its **name** is the one cell that cannot go | remove |
 | `oci` registries | URL | `Logged` — precisely what the operation is about to change | login, logout |
-| `netdiag` ports | **PID** | `State` | kill |
+| `netdiag` ports | **PID** | none since DEVDESK-150: the dot is in the activity column, `State` keeps its text, dimmed | kill |
 
 Two of those keys are worth the note. The ports table keys on the **PID, not the
-socket**, so every row of a process spins at once — which is what happens, the
+socket**, so every row of a process shows the dot at once — which is what happens, the
 kill takes them all. The registries table keys on the **URL**, which is the one
 place D40's rule does not apply, and it does not apply because the *operation*
 is host-scoped: one `docker login` really does change the answer for every entry

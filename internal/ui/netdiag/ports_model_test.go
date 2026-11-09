@@ -40,7 +40,11 @@ func portsModel(t *testing.T) *Model {
 func portRows(m *Model) []string {
 	var out []string
 	for _, row := range m.portsModel.table.Table().Rows() {
-		out = append(out, row[5]) // Process column
+		if len(row) <= portsColProcess { // red before the activity column exists; do not panic
+			out = append(out, fmt.Sprintf("<no column %d in %d cells>", portsColProcess, len(row)))
+			continue
+		}
+		out = append(out, row[portsColProcess])
 	}
 	return out
 }
@@ -608,12 +612,10 @@ func TestPortsCellsCarryNoANSISequences(t *testing.T) {
 func TestPortsResizeFillsTheViewportWidth(t *testing.T) {
 	m := feed(t, portsModel(t), tea.WindowSizeMsg{Width: 160, Height: 40})
 
-	total := 0
-	for _, col := range m.portsModel.table.Table().Columns() {
-		total += col.Width
-	}
-	if want := 160 - 2 - 6*2; total != want {
-		t.Errorf("columns total %d, want %d so the selected row reaches the border", total, want)
+	// RenderedWidth, never the sum of the declared columns (Rule 116): a
+	// column dropped for want of room hands its padding back.
+	if got, want := m.portsModel.table.RenderedWidth(), 160-2; got != want {
+		t.Errorf("the line spans %d, want %d so the selected row reaches the border", got, want)
 	}
 }
 
@@ -707,62 +709,15 @@ func TestAQuerySpanningColumnsStillMatches(t *testing.T) {
 	}
 }
 
-// ── A kill says it is running (§3.22) ────────────────────────────────────────
+// ── A kill says it is running (DEVDESK-150) ─────────────────────────────────
 
-// A kill is not the instant a signal sounds like — the process has to go, and
-// the table has to re-read to notice. The row used to look exactly as it had.
-func TestAKillSpinsTheSocketState(t *testing.T) {
-	m := feed(t, portsModel(t), testutil.Key(keymap.Kill), components.ConfirmModalYesMsg{}) // sshd, PID 812
-
-	if !m.portsModel.table.IsBusy("812") {
-		t.Fatal("the kill was not marked on the row")
-	}
-	view := m.portsModel.table.View()
-	line := ""
-	for _, l := range strings.Split(view, "\n") {
-		if strings.Contains(l, "sshd") {
-			line = l
-		}
-	}
-	if strings.Contains(line, "LISTEN") {
-		t.Errorf("the row still shows the state the signal is about to change:\n%s", line)
-	}
-	if !strings.Contains(line, "sshd") {
-		t.Errorf("the row lost the process it names:\n%s", line)
-	}
-}
-
-// A PID is not a socket: killing a process takes every socket it holds, so all
-// of its rows spin together — which is what actually happens.
-func TestAKillSpinsEveryRowOfThatProcess(t *testing.T) {
-	shared := append(portFixtures(),
-		ports.Socket{Protocol: "tcp", State: "LISTEN", LocalAddr: "0.0.0.0:2222", PID: "812", Process: "sshd"},
-	)
-	m := feed(t, newTestModel(t), testutil.Key("tab"))
-	m = feed(t, m, portsDataMsg{ports: shared})
-
-	m = feed(t, m, testutil.Key(keymap.Kill), components.ConfirmModalYesMsg{})
-
-	spinning := 0
-	for _, line := range strings.Split(m.portsModel.table.View(), "\n") {
-		if strings.Contains(line, "sshd") && !strings.Contains(line, "LISTEN") {
-			spinning++
-		}
-	}
-	if spinning != 2 {
-		t.Errorf("%d of the process's rows spin, want both", spinning)
-	}
-}
-
-// On every outcome: a kill that failed has to let the socket state show again
-// rather than go on turning.
 func TestAFailedKillLiftsTheMarker(t *testing.T) {
 	m := feed(t, portsModel(t), testutil.Key(keymap.Kill), components.ConfirmModalYesMsg{})
 
 	m = feed(t, m, portsKillResultMsg{pid: "812", err: errors.New("operation not permitted")})
 
 	if m.portsModel.table.IsBusy("812") {
-		t.Error("the marker survived a failed kill: the row spins for good")
+		t.Error("the marker survived a failed kill: the row is busy for good")
 	}
 	if !m.portsModel.footer.IsSet() {
 		t.Error("a failed kill reported nothing")
@@ -776,21 +731,5 @@ func TestASecondKillOfTheSamePIDIsRefused(t *testing.T) {
 
 	if !strings.Contains(m.portsModel.footer.Text(), "812") {
 		t.Errorf("footer = %q, want it to say the kill is already running", m.portsModel.footer.Text())
-	}
-}
-
-// The tick stops itself once nothing is left running, rather than turning a
-// frame nobody is looking at for the life of the view.
-func TestTheKillSpinnerTickStopsWhenTheKillLands(t *testing.T) {
-	m := feed(t, portsModel(t), testutil.Key(keymap.Kill), components.ConfirmModalYesMsg{})
-
-	_, cmd := m.portsModel.handleSpinnerTick()
-	if cmd == nil {
-		t.Error("the tick stopped while a kill was still running")
-	}
-
-	m = feed(t, m, portsKillResultMsg{pid: "812"})
-	if _, cmd := m.portsModel.handleSpinnerTick(); cmd != nil {
-		t.Error("the tick went on being scheduled with nothing running")
 	}
 }

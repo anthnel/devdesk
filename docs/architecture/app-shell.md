@@ -888,7 +888,7 @@ nothing able to restart it, leaving the spinner frozen on the frame it died at.
 
 #### Row chains still outside the router
 
-Four row-animation chains still live in views. They are **declared exceptions**
+Three row-animation chains still live in views. They are **declared exceptions**
 in `TestRowAnimationChainsOutsideTheRouterAreDeclared`; the list may only shrink,
 and a stale entry fails the test:
 
@@ -896,7 +896,6 @@ and a stale entry fails the test:
 |---|---|
 | `oci_resources` `AdvanceSpinner` on the OCI tables left (Networks, Volumes, Registries; Images left with DEVDESK-146) | A-09b |
 | `tagScanSpinnerIdx` (OCI registry browser) | A-09a2 (DEVDESK-218) |
-| `netdiag` `portsSpinnerCmd` | A-12 |
 | `containers` `AdvanceSpinner` | A-14 |
 
 A-16 then closes the exceptions. `TestOnlyTheRouterBuildsAFrameMsg` and
@@ -990,14 +989,16 @@ view is neither:
 
 | List | Meaning |
 |---|---|
-| `migratedTables` | the view's tables are on the activity column (`:jobs`: `jobs/runs`, `jobs/targets`; ws: `ws`, DEVDESK-144; `:sec`: `sec/inventory`, DEVDESK-145; OCI: `oci/images`, DEVDESK-146; explorer: `explorer/tree`, DEVDESK-147; `explorer/clone-list`, DEVDESK-148; templates: `templates`, DEVDESK-149) |
-| `pendingTables` | tables waiting for their story (OCI: registry browser A-09a2, networks/volumes/registries A-09b; netdiag, agent-usage, containers), each naming it. `maxPendingTables` caps the list: it may only shrink (13 to 12 with ws, 12 to 11 with `:sec`; `oci/images` moved to migrated by DEVDESK-146; 10 to 9 with `explorer/tree`, DEVDESK-147; 9 to 8 with `explorer/clone-list`, DEVDESK-148; 8 to 7 with `templates`, DEVDESK-149) |
+| `migratedTables` | the view's tables are on the activity column (`:jobs`: `jobs/runs`, `jobs/targets`; ws: `ws`, DEVDESK-144; `:sec`: `sec/inventory`, DEVDESK-145; OCI: `oci/images`, DEVDESK-146; explorer: `explorer/tree`, DEVDESK-147; `explorer/clone-list`, DEVDESK-148; templates: `templates`, DEVDESK-149; netdiag: `netdiag/ports`, DEVDESK-150) |
+| `pendingTables` | tables waiting for their story (OCI: registry browser A-09a2, networks/volumes/registries A-09b; agent-usage, containers), each naming it. `maxPendingTables` caps the list: it may only shrink (13 to 12 with ws, 12 to 11 with `:sec`; `oci/images` moved to migrated by DEVDESK-146; 10 to 9 with `explorer/tree`, DEVDESK-147; 9 to 8 with `explorer/clone-list`, DEVDESK-148; 8 to 7 with `templates`, DEVDESK-149; 7 to 6 with `netdiag/ports`, DEVDESK-150) |
 | `exemptViews` | views with no activity to show (dashboard, status, git-auth, configuration, about, files, viewer), each with its reason |
 
 A view in none of the three, an exempt view that is also migrated or pending, or a table both migrated and pending fails by name (`classificationProblems`, unit-tested on a fictitious partly migrated view). A migrated view
 exposes `ActivityTables() map[string]datatable.ActivityTable` (a read-only face:
 `Shapes()` and `RenderedWidth()`, see `ui-components.md`); a view whose `ActivityTables()` reports a table still listed as pending, or an
 exempt view that reports any, fails with "remove the exception".
+
+The netdiag view's `migratedSources` are two files only, `ports_model.go` and `ports_activity.go` (DEVDESK-150): netdiag migrates its Ports tab alone, and the guard scans the files that belong to it. `ports_commands.go` is left out: its `portsTickCmd` is the data refresh tick, not a row animation (same reasoning as OCI's `commands.go`). The other tabs (`forward_model.go`, checks, interfaces) are not migrated. It reports `netdiag/ports` from `ActivityTables()`, and its footer seed (`seedNetdiagFooter`) opens the Ports tab with one socket whose kill is in flight, driving the view's `Update` directly (no `Cmd` is run: no socket table read, no signal sent).
 
 The templates view's `migratedSources` is the whole `ui/templates/` package; it reports `templates` from `ActivityTables()` and has a footer seed (a sync running on the selected row).
 

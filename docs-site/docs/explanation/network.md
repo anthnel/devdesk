@@ -239,6 +239,14 @@ otherwise re-attempt every one of those lookups on every refresh tick — the
 exact kind of request storm the cache exists to prevent, just arriving
 through failed lookups instead of successful ones.
 
+### The dot while `K` runs
+
+The leftmost column of the Ports table is empty at rest. After you confirm `K`, every socket of that process shows a blinking dot (`●` / `○`) until the system answers, and the footer reads `Killing sshd (812)` for the selected row. The State cell keeps its text, dimmed. If the system refuses, the footer says so and the dot goes away: a failed kill leaves no mark on the row. The periodic refresh never makes a dot blink. Press `?` for the legend.
+
+A network test that fails (TCP refused, invalid TLS) is a result, not a failed operation: it stays in the Verdict column of the Diagnostics tab.
+
+On a narrow terminal whole columns drop, rightmost first: Process under 103 columns, then PID under 91, then Peer Address under 82, down to Proto, State and Local Address from 54.
+
 ### Killing a process
 
 Signaling a process uses whatever rights the DevDesk process itself has —

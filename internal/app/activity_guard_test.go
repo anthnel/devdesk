@@ -16,10 +16,14 @@ import (
 
 	"github.com/anthnel/devdesk/internal/command"
 	"github.com/anthnel/devdesk/internal/jobs"
+	"github.com/anthnel/devdesk/internal/ports"
 	"github.com/anthnel/devdesk/internal/template"
+	"github.com/anthnel/devdesk/internal/ui/components"
 	"github.com/anthnel/devdesk/internal/ui/datatable"
 	"github.com/anthnel/devdesk/internal/ui/help"
 	"github.com/anthnel/devdesk/internal/ui/indicator"
+	"github.com/anthnel/devdesk/internal/ui/keymap"
+	"github.com/anthnel/devdesk/internal/ui/netdiag"
 	"github.com/anthnel/devdesk/internal/ui/testutil"
 )
 
@@ -48,6 +52,7 @@ var migratedTables = map[command.ViewType][]string{
 	command.ViewOCIResources: {"oci/images"},
 	command.ViewGitExplorer:  {"explorer/tree", "explorer/clone-list"},
 	command.ViewTemplates:    {"templates"},
+	command.ViewNetdiag:      {"netdiag/ports"},
 }
 
 // pendingTable is a table that still has to move to the activity column.
@@ -63,7 +68,6 @@ var pendingTables = []pendingTable{
 	{"oci/networks", command.ViewOCIResources, "A-09b"},
 	{"oci/volumes", command.ViewOCIResources, "A-09b"},
 	{"oci/registries", command.ViewOCIResources, "A-09b"},
-	{"netdiag/ports", command.ViewNetdiag, "A-12"},
 	{"agent-usage/agents", command.ViewAgentUsage, "A-13"},
 	{"containers", command.ViewContainers, "A-14"},
 }
@@ -71,7 +75,7 @@ var pendingTables = []pendingTable{
 // maxPendingTables is the ceiling: adding an exception means raising both the
 // list and this constant in the same diff, which is visible in review. Lower it
 // with every migration.
-const maxPendingTables = 7
+const maxPendingTables = 6
 
 // exemptViews have no long-running operation to show per row (inventory:
 // "sans objet" or out of the batch), each with its reason.
@@ -337,6 +341,11 @@ var migratedSources = map[command.ViewType][]string{
 	// the whole package is scanned.
 	command.ViewGitExplorer: {"ui/forge/explorer/"},
 	command.ViewTemplates:   {"ui/templates/"},
+	// Netdiag migrates only its Ports tab (A-12): the files that belong to it.
+	// Excluded: the diagnostics, interfaces and forward tabs, whose own spinners
+	// stay (the footers keep their own chains), and ports_commands.go (portsTickCmd
+	// is the data refresh tick, not a row animation).
+	command.ViewNetdiag: {"ui/netdiag/ports_model.go", "ui/netdiag/ports_activity.go"},
 }
 
 // sourceDeclarationProblems says what is wrong with the link between migrated
@@ -772,6 +781,7 @@ var migratedFooterSeeds = map[command.ViewType]func(*testing.T, *App) indicator.
 	command.ViewOCIResources: seedOCIFooter,
 	command.ViewGitExplorer:  seedExplorerFooter,
 	command.ViewTemplates:    seedTemplatesFooter,
+	command.ViewNetdiag:      seedNetdiagFooter,
 }
 
 // seedOCIFooter puts a scan of the first Images row (nginx:1.27, the selected
@@ -801,6 +811,29 @@ func seedJobsFooter(t *testing.T, a *App) indicator.State {
 	}
 	testutil.Msgs(a.switchView(command.ViewJobs))
 	a.resize(a.width, a.height)
+	return indicator.Running
+}
+
+// seedNetdiagFooter puts the Ports tab on screen with a kill in flight on its
+// selected row. It calls the view's Update directly and never runs the Cmds it
+// returns: the PID does not exist (above the kernel's pid_max), so even a Cmd
+// that slipped through could not signal a real process.
+func seedNetdiagFooter(t *testing.T, a *App) indicator.State {
+	t.Helper()
+	a.createView(command.ViewNetdiag)
+	m := a.views[command.ViewNetdiag]
+	for _, msg := range []tea.Msg{
+		tea.WindowSizeMsg{Width: a.width, Height: a.height},
+		testutil.Key("tab"), // the Ports tab
+		netdiag.NewPortsDataMsg([]ports.Socket{{
+			Protocol: "tcp", State: "LISTEN", LocalAddr: "127.0.0.1:9", PID: "4194305", Process: "ghost",
+		}}),
+		testutil.Key(keymap.Kill),
+		components.ConfirmModalYesMsg{},
+	} {
+		m, _ = m.Update(msg)
+	}
+	a.views[command.ViewNetdiag] = m
 	return indicator.Running
 }
 
