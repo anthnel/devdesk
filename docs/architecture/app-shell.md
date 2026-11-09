@@ -990,14 +990,16 @@ view is neither:
 
 | List | Meaning |
 |---|---|
-| `migratedTables` | the view's tables are on the activity column (`:jobs`: `jobs/runs`, `jobs/targets`; ws: `ws`, DEVDESK-144; `:sec`: `sec/inventory`, DEVDESK-145; OCI: `oci/images`, DEVDESK-146; explorer: `explorer/tree`, DEVDESK-147; `explorer/clone-list`, DEVDESK-148) |
-| `pendingTables` | tables waiting for their story (OCI: registry browser A-09a2, networks/volumes/registries A-09b; templates, netdiag, agent-usage, containers), each naming it. `maxPendingTables` caps the list: it may only shrink (13 to 12 with ws, 12 to 11 with `:sec`; `oci/images` moved to migrated by DEVDESK-146; 10 to 9 with `explorer/tree`, DEVDESK-147; 9 to 8 with `explorer/clone-list`, DEVDESK-148) |
+| `migratedTables` | the view's tables are on the activity column (`:jobs`: `jobs/runs`, `jobs/targets`; ws: `ws`, DEVDESK-144; `:sec`: `sec/inventory`, DEVDESK-145; OCI: `oci/images`, DEVDESK-146; explorer: `explorer/tree`, DEVDESK-147; `explorer/clone-list`, DEVDESK-148; templates: `templates`, DEVDESK-149) |
+| `pendingTables` | tables waiting for their story (OCI: registry browser A-09a2, networks/volumes/registries A-09b; netdiag, agent-usage, containers), each naming it. `maxPendingTables` caps the list: it may only shrink (13 to 12 with ws, 12 to 11 with `:sec`; `oci/images` moved to migrated by DEVDESK-146; 10 to 9 with `explorer/tree`, DEVDESK-147; 9 to 8 with `explorer/clone-list`, DEVDESK-148; 8 to 7 with `templates`, DEVDESK-149) |
 | `exemptViews` | views with no activity to show (dashboard, status, git-auth, configuration, about, files, viewer), each with its reason |
 
 A view in none of the three, an exempt view that is also migrated or pending, or a table both migrated and pending fails by name (`classificationProblems`, unit-tested on a fictitious partly migrated view). A migrated view
 exposes `ActivityTables() map[string]datatable.ActivityTable` (a read-only face:
 `Shapes()` and `RenderedWidth()`, see `ui-components.md`); a view whose `ActivityTables()` reports a table still listed as pending, or an
 exempt view that reports any, fails with "remove the exception".
+
+The templates view's `migratedSources` is the whole `ui/templates/` package; it reports `templates` from `ActivityTables()` and has a footer seed (a sync running on the selected row).
 
 The explorer's `migratedSources` is the whole `explorer` package (no frame or `jobFrame` left in it). The explorer reports `explorer/clone-list` from `ActivityTables()` even with no clone running (same constructor), so the table is checked at 60 columns. The registry side adds `jobs.SafeCause` (credentials removed from a cause) and `jobs.CancelledDetail`.
 

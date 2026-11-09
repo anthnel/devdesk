@@ -8,6 +8,7 @@ import (
 
 	sharedcomponents "github.com/anthnel/devdesk/internal/ui/components"
 	"github.com/anthnel/devdesk/internal/ui/help"
+	"github.com/anthnel/devdesk/internal/ui/indicator"
 	"github.com/anthnel/devdesk/internal/ui/keymap"
 	"github.com/anthnel/devdesk/internal/ui/shortcut"
 	"github.com/anthnel/devdesk/internal/ui/theme"
@@ -169,6 +170,7 @@ func (m Model) GetHelpContent() help.Content {
 			"so the catalog cannot drift from the original.",
 		KeyBindings: bindings,
 		Sections: []help.Section{
+			indicator.Legend(),
 			{
 				Title: "Sources",
 				Body: "git: a remote repository. Give the clone URL, optionally a subdirectory to use as the template's root, and a branch, tag or commit.\n" +
@@ -190,14 +192,16 @@ func (m Model) GetHelpContent() help.Content {
 				Body: "'" + keymap.Scan + "' fetches the template, writes it to ~/.devdesk/cache/template-scan/<name> and scans that directory with the configured scanners, the way a repository is scanned. " +
 					"The result is kept by path, so it appears in :sec, which is where the report opens; the footer here gives the counts. " +
 					"A scan replaces the previous copy, so what is scanned is what the template holds now. The CI score is not computed: a template has no pipeline to grade.\n" +
-					"The key is greyed when neither Trivy nor Gitleaks is available, and while a scan of that template is already running.",
+					"The key is greyed when neither Trivy nor Gitleaks is available, and while a scan of that template is already running.\n" +
+					"The first column blinks " + indicator.Glyph(indicator.Running, true) + " while the scan runs. A failed scan leaves " + indicator.Glyph(indicator.Failed, false) + " on the row until the next scan or sync, and the footer gives the cause when the row is selected.",
 			},
 			{
 				Title: "Syncing",
 				Body: "A template's files are read once and kept in ~/.devdesk/cache/templates/<name>.json; a preview, a scan and a new repository all start from that copy. " +
 					"It is not refreshed on its own, so a branch that moved on, or a local repository that gained a commit, is served as it was until '" + keymap.Fetch + "' reads the source again. " +
 					"The Synced column says how old the copy is. A template pinned to a commit needs no sync. A failed sync keeps the previous copy, and a copy made for a source that has since been edited is not used.\n" +
-					"The key is greyed while a sync of that template is already running.",
+					"The key is greyed while a sync of that template is already running.\n" +
+					"The first column blinks " + indicator.Glyph(indicator.Running, true) + " while the sync runs. A failed sync leaves " + indicator.Glyph(indicator.Failed, false) + " on the row until the next scan or sync, and the footer gives the cause when the row is selected.",
 			},
 			{
 				Title: "Credentials",

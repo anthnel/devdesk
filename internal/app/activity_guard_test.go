@@ -16,6 +16,7 @@ import (
 
 	"github.com/anthnel/devdesk/internal/command"
 	"github.com/anthnel/devdesk/internal/jobs"
+	"github.com/anthnel/devdesk/internal/template"
 	"github.com/anthnel/devdesk/internal/ui/datatable"
 	"github.com/anthnel/devdesk/internal/ui/help"
 	"github.com/anthnel/devdesk/internal/ui/indicator"
@@ -46,6 +47,7 @@ var migratedTables = map[command.ViewType][]string{
 	command.ViewSecurity:     {"sec/inventory"},
 	command.ViewOCIResources: {"oci/images"},
 	command.ViewGitExplorer:  {"explorer/tree", "explorer/clone-list"},
+	command.ViewTemplates:    {"templates"},
 }
 
 // pendingTable is a table that still has to move to the activity column.
@@ -61,7 +63,6 @@ var pendingTables = []pendingTable{
 	{"oci/networks", command.ViewOCIResources, "A-09b"},
 	{"oci/volumes", command.ViewOCIResources, "A-09b"},
 	{"oci/registries", command.ViewOCIResources, "A-09b"},
-	{"templates", command.ViewTemplates, "A-11"},
 	{"netdiag/ports", command.ViewNetdiag, "A-12"},
 	{"agent-usage/agents", command.ViewAgentUsage, "A-13"},
 	{"containers", command.ViewContainers, "A-14"},
@@ -70,7 +71,7 @@ var pendingTables = []pendingTable{
 // maxPendingTables is the ceiling: adding an exception means raising both the
 // list and this constant in the same diff, which is visible in review. Lower it
 // with every migration.
-const maxPendingTables = 8
+const maxPendingTables = 7
 
 // exemptViews have no long-running operation to show per row (inventory:
 // "sans objet" or out of the batch), each with its reason.
@@ -335,6 +336,7 @@ var migratedSources = map[command.ViewType][]string{
 	// The explorer is fully migrated (A-10a the tree, A-10b the clone list):
 	// the whole package is scanned.
 	command.ViewGitExplorer: {"ui/forge/explorer/"},
+	command.ViewTemplates:   {"ui/templates/"},
 }
 
 // sourceDeclarationProblems says what is wrong with the link between migrated
@@ -769,6 +771,7 @@ var migratedFooterSeeds = map[command.ViewType]func(*testing.T, *App) indicator.
 	command.ViewSecurity:     seedSecurityFooter,
 	command.ViewOCIResources: seedOCIFooter,
 	command.ViewGitExplorer:  seedExplorerFooter,
+	command.ViewTemplates:    seedTemplatesFooter,
 }
 
 // seedOCIFooter puts a scan of the first Images row (nginx:1.27, the selected
@@ -882,4 +885,36 @@ func TestActivityGuardFooterLogic(t *testing.T) {
 	if msg := footerGlyphProblem("anything", indicator.Idle); msg == "" {
 		t.Error("an idle seed passed: it has no glyph to look for")
 	}
+}
+
+// seedTemplatesFooter puts the templates view on screen with a sync running on
+// its selected row (api), for the activity guard.
+func seedTemplatesFooter(t *testing.T, a *App) indicator.State {
+	t.Helper()
+	path, err := template.DefaultPath() // under the isolated HOME
+	if err != nil {
+		t.Fatal(err)
+	}
+	store, err := template.Open(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	err = store.Put(template.Entry{
+		Slug: "api", Name: "API",
+		Source: template.Source{Kind: template.KindGit, URL: "https://git.example.com/acme/api.git", Ref: "main"},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	a.Update(jobs.StartMsg{Run: jobs.NewRun(jobs.KindSync, command.ViewTemplates, "", "API", "api").WithDisplay("api", "API")})
+	snap := a.jobs.Snapshot()
+	if len(snap) != 1 || !a.jobs.Advance(snap[0].ID, "api", jobs.ItemRunning, "") {
+		t.Fatalf("the seed could not put the sync in the running state: %+v", snap)
+	}
+	_ = a.switchView(command.ViewTemplates)
+	for _, msg := range testutil.Msgs(a.views[command.ViewTemplates].Init()) {
+		a.Update(msg)
+	}
+	a.resize(a.width, a.height)
+	return indicator.Running
 }

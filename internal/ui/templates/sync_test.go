@@ -104,7 +104,7 @@ func TestASyncThatFailsSaysSoAndKeepsNothing(t *testing.T) {
 		t.Fatal("syncing a missing directory succeeded")
 	}
 	m = send(t, m, done)
-	if got := m.footer.Text(); got != "Sync of API failed — check logs" {
+	if got := m.footer.Text(); got != "Failed to sync API — check logs" {
 		t.Errorf("footer = %q", got)
 	}
 	if _, ok := m.cache.FetchedAt("api", e.Source); ok {

@@ -1,6 +1,7 @@
 package components
 
 import (
+	"cmp"
 	"slices"
 	"strings"
 	"unicode"
@@ -23,6 +24,20 @@ type RowQuery struct {
 	// sentence without glyph, shown when Observed wins or on an idle row.
 	Observed     indicator.State
 	ObservedText string
+	// Extra are further registry identities the same row answers for; their
+	// jobs and failures are merged with the main target's. Nil = none.
+	Extra []RowTarget
+}
+
+// RowTarget is one more registry identity a row answers for, with the kinds
+// the view can start again on it (nil = all). The query's Context applies.
+//
+// An Extra must not share the main Target with kinds that overlap it: a job or
+// failure registered on that target would be counted by both, and a failure
+// would show twice.
+type RowTarget struct {
+	Target string
+	Kinds  []jobs.Kind
 }
 
 // RowActivity is what the first column and the footer say about one row.
@@ -79,6 +94,16 @@ func resolveRow(q RowQuery) rowFacts {
 		active:   jobs.ActiveOn(q.Runs, q.Context, q.Target, q.Kinds...),
 		failures: jobs.FailuresOn(q.Failures, q.Context, q.Target, q.Kinds...),
 	}
+	for _, x := range q.Extra {
+		f.active = append(f.active, jobs.ActiveOn(q.Runs, q.Context, x.Target, x.Kinds...)...)
+		f.failures = append(f.failures, jobs.FailuresOn(q.Failures, q.Context, x.Target, x.Kinds...)...)
+	}
+	if len(q.Extra) > 0 {
+		// Keep "running first, then queued" across the merged targets.
+		slices.SortStableFunc(f.active, func(a, b jobs.Active) int {
+			return cmp.Compare(activeRank(a), activeRank(b))
+		})
+	}
 	slices.SortStableFunc(f.failures, func(a, b jobs.Failure) int { return b.At.Compare(a.At) })
 	act := indicator.Activity{Failed: len(f.failures) > 0, Observed: q.Observed}
 	for _, a := range f.active {
@@ -87,6 +112,14 @@ func resolveRow(q RowQuery) rowFacts {
 	}
 	f.state = indicator.Resolve(act)
 	return f
+}
+
+// activeRank orders running before queued.
+func activeRank(a jobs.Active) int {
+	if a.Item.State == jobs.ItemRunning {
+		return 0
+	}
+	return 1
 }
 
 // failureName is the target as the launcher wants it printed.
