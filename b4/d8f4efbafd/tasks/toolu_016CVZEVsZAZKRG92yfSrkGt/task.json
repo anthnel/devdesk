@@ -1,0 +1,15 @@
+{
+  "tool_use_id": "toolu_016CVZEVsZAZKRG92yfSrkGt",
+  "agent_id": "a403b6584492754da",
+  "subagent_type": "product-team:pm",
+  "task_description": "Stories migration Go 1.27 / Bubble Tea v2",
+  "token_usage": {
+    "input_tokens": 30,
+    "cache_creation_tokens": 158548,
+    "cache_read_tokens": 1610173,
+    "output_tokens": 33416,
+    "api_call_count": 15
+  },
+  "started_at": "2026-11-09T11:50:04.98276335+01:00",
+  "completed_at": "2026-11-09T11:55:20.742381583+01:00"
+}

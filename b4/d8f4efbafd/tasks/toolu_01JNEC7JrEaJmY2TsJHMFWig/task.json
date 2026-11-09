@@ -1,0 +1,15 @@
+{
+  "tool_use_id": "toolu_01JNEC7JrEaJmY2TsJHMFWig",
+  "agent_id": "a91c3b96f8b0b8aee",
+  "subagent_type": "dev-team:architect",
+  "task_description": "Analyse d'impact Bubble Tea v2",
+  "token_usage": {
+    "input_tokens": 46,
+    "cache_creation_tokens": 150070,
+    "cache_read_tokens": 2525857,
+    "output_tokens": 36376,
+    "api_call_count": 23
+  },
+  "started_at": "2026-11-09T11:52:00.476055196+01:00",
+  "completed_at": "2026-11-09T11:59:26.133336711+01:00"
+}
