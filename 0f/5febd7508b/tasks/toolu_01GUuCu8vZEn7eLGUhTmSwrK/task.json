@@ -1,0 +1,15 @@
+{
+  "tool_use_id": "toolu_01GUuCu8vZEn7eLGUhTmSwrK",
+  "agent_id": "a17ab4892ed6d271c",
+  "subagent_type": "dev-team:reviewer",
+  "task_description": "Revue paths: sur les rules",
+  "token_usage": {
+    "input_tokens": 14,
+    "cache_creation_tokens": 91528,
+    "cache_read_tokens": 503986,
+    "output_tokens": 4438,
+    "api_call_count": 7
+  },
+  "started_at": "2026-11-09T14:06:48.707053703+01:00",
+  "completed_at": "2026-11-09T14:07:26.808393947+01:00"
+}

@@ -1,0 +1,15 @@
+{
+  "tool_use_id": "toolu_01UxMNyW1et5aLrUaP7DuZMM",
+  "agent_id": "a28bc8c8c51239776",
+  "subagent_type": "dev-team:devops",
+  "task_description": "Fusionner la PR 336",
+  "token_usage": {
+    "input_tokens": 12,
+    "cache_creation_tokens": 78895,
+    "cache_read_tokens": 316951,
+    "output_tokens": 2455,
+    "api_call_count": 5
+  },
+  "started_at": "2026-11-09T14:04:19.674103114+01:00",
+  "completed_at": "2026-11-09T14:04:50.90996828+01:00"
+}
