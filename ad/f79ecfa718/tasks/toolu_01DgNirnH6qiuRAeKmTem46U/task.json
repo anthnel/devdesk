@@ -1,0 +1,15 @@
+{
+  "tool_use_id": "toolu_01DgNirnH6qiuRAeKmTem46U",
+  "agent_id": "a5ca44ea9febcd59f",
+  "subagent_type": "team-core:tech-writer",
+  "task_description": "Rédiger la doc pastille d'activité",
+  "token_usage": {
+    "input_tokens": 48,
+    "cache_creation_tokens": 83593,
+    "cache_read_tokens": 1412785,
+    "output_tokens": 12756,
+    "api_call_count": 23
+  },
+  "started_at": "2026-11-09T21:43:35.882457789+01:00",
+  "completed_at": "2026-11-09T21:45:53.729907446+01:00"
+}
