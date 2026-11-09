@@ -1,0 +1,15 @@
+{
+  "tool_use_id": "toolu_01RhPRRymPASMTyd3nA83L3f",
+  "agent_id": "a8ec0aea48538f183",
+  "subagent_type": "dev-team:reviewer",
+  "task_description": "Review 227 and 220 commits",
+  "token_usage": {
+    "input_tokens": 18,
+    "cache_creation_tokens": 62404,
+    "cache_read_tokens": 378119,
+    "output_tokens": 6789,
+    "api_call_count": 9
+  },
+  "started_at": "2026-11-09T22:03:34.070302643+01:00",
+  "completed_at": "2026-11-09T22:04:36.622891755+01:00"
+}
