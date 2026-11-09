@@ -6,7 +6,10 @@ import (
 
 	"github.com/charmbracelet/lipgloss"
 
+	"github.com/anthnel/devdesk/internal/command"
+	"github.com/anthnel/devdesk/internal/jobs"
 	sharedcomponents "github.com/anthnel/devdesk/internal/ui/components"
+	"github.com/anthnel/devdesk/internal/ui/indicator"
 	"github.com/anthnel/devdesk/internal/ui/theme"
 )
 
@@ -165,11 +168,8 @@ func (m Model) renderInfoLine(width int) string {
 // the error level, because that is what happened, and it names the stages so
 // the log can be searched for them.
 func (m Model) status() sharedcomponents.Status {
-	// A load in flight is a state too, and the only one the inventory has: the
-	// table is on screen and empty, so without this line nothing distinguishes
-	// "still reading the caches" from "nothing has ever been scanned".
-	if m.state == StateInventory && m.inventoryLoading {
-		return sharedcomponents.Status{Text: "Loading scan inventory...", Spinner: true}
+	if m.state == StateInventory {
+		return m.inventoryStatus()
 	}
 	// Ahead of the failed stages below: on this tab what is happening now is
 	// what the footer is for, and a stage that failed still shows on the others.
@@ -183,6 +183,27 @@ func (m Model) status() sharedcomponents.Status {
 		Text:  failedStages(m.result.Errors) + " — check logs",
 		Level: sharedcomponents.LevelError,
 	}
+}
+
+// inventoryStatus is the inventory footer: the selected row's own activity
+// (its detail), composed with the batch progress or, while the caches are
+// read, the load text. The load no longer hides the row: a failed row still
+// says so under a ctrl+r.
+func (m Model) inventoryStatus() sharedcomponents.Status {
+	st := sharedcomponents.Status{Text: sharedcomponents.JobsStatusLine(m.jobs, command.ViewSecurity)}
+	if m.inventoryLoading {
+		st.Text = "Loading scan inventory..."
+	}
+	moving := false
+	if row, ok := m.inventory.Selected(); ok {
+		a := m.rowActivity(row)
+		st.Detail = a.Detail
+		moving = a.State == indicator.Running || a.State == indicator.Queued
+	}
+	// Only a detail whose dot moves replaces the spinner; a failed row's is fixed.
+	st.Spinner = m.inventoryLoading ||
+		(len(jobs.Unfinished(m.jobs)) > 0 && (!moving || st.Detail.IsZero()))
+	return st
 }
 
 // failedStages names what failed, reading the "<stage>: <reason>" that
