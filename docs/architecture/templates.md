@@ -131,7 +131,8 @@ The `Template` field of the explorer's creation form (projects only) shows
   The form keeps the slug and shows the name; the slug is what is submitted.
 - **The template is fetched before the repository is created.** A bad ref, a
   network failure, a refused login, a template that is gone from the catalog or
-  one over the limits all fail with *nothing created*: the footer says so and the
+  one over the limits all fail with *nothing created*: the footer says
+  `Failed to create <path> — template unavailable — nothing was created` and the
   run detail reads `template unavailable — nothing was created`. Only the initial
   commit can still fail once the repository exists, and that keeps the old
   outcome: the repository stays, empty, and the footer says it was created empty.

@@ -10,6 +10,7 @@ import (
 	"github.com/anthnel/devdesk/internal/ui/components"
 	"github.com/anthnel/devdesk/internal/ui/fuzzy"
 	"github.com/anthnel/devdesk/internal/ui/help"
+	"github.com/anthnel/devdesk/internal/ui/indicator"
 	"github.com/anthnel/devdesk/internal/ui/keymap"
 	"github.com/anthnel/devdesk/internal/ui/shortcut"
 	"github.com/anthnel/devdesk/internal/ui/theme"
@@ -135,15 +136,23 @@ func (m Model) status() components.Status {
 		return components.Status{Text: m.selectionStatusLine()}
 	case m.error != "":
 		return components.Status{Text: m.error, Level: components.LevelError}
+	}
+	st := components.Status{}
+	switch {
 	case m.loadingTree():
-		return components.Status{Text: "Loading " + m.vocab().Name + " " + strings.ToLower(m.vocab().Namespaces) + "...", Spinner: true}
+		st = components.Status{Text: "Loading " + m.vocab().Name + " " + strings.ToLower(m.vocab().Namespaces) + "...", Spinner: true}
 	// A level on screen from the index while the forge is asked again: the
 	// rows are there, so this is the lowest-priority line, and it says what
 	// is still coming rather than that anything is missing.
 	case m.refreshing > 0:
-		return components.Status{Text: "Updating from " + m.vocab().Name + "...", Spinner: true}
+		st = components.Status{Text: "Updating from " + m.vocab().Name + "...", Spinner: true}
 	}
-	return components.Status{}
+	// The selected row says what it is doing, or what last went wrong on it.
+	// Selection mode returned above, so its checkbox column keeps the line.
+	if node, ok := m.selectedNode(); ok {
+		st.Detail = m.rowActivity(node).Detail
+	}
+	return st
 }
 
 // selectionStatusLine states the selection in the only terms it can: the
@@ -642,22 +651,26 @@ func (m Model) GetHelpContent() help.Content {
 				Title: "Creating Groups and Projects",
 				Body: "Press N to open the creation form. Use ←→ on the Type field to switch between Group and Project. " +
 					"The form uses the current group as parent. On a project, Enter on the Template field opens the template catalog to choose from (Backspace puts it back to none, which creates an empty repository). Templates are managed with :templates.\n" +
-					"Submitting puts the row on screen straight away, with a spinner in place of its icon while the forge works. " +
+					"Submitting puts the row on screen straight away, with a blinking dot in place of its icon while the forge works. " +
 					"The row is inert until it settles — it has no identifier yet, so the actions that need one are greyed. " +
-					"When the forge answers, the row becomes the real entry and the cursor is left on it; if the creation fails, the row goes away and the footer says so.",
+					"When the forge answers, the row becomes the real entry and the cursor is left on it; if the creation fails, the row goes away and the footer says so. " +
+					"A creation cannot be stopped once it has started.",
 			},
 			{
 				Title: "Deleting",
-				Body: "Press D to delete the selected group or project, then confirm. The row keeps its place and takes a spinner while the forge works, " +
+				Body: "Press D to delete the selected group or project, then confirm. The row keeps its place and shows a blinking dot while the forge works, " +
 					"and disappears only once the deletion is confirmed — a row that vanished first would be claiming something that had not happened yet.\n" +
-					"Both creating and deleting are listed in the :jobs view while they run.",
+					"If the deletion fails, the row stays and shows " + indicator.Glyph(indicator.Failed, false) + " until the next attempt; the footer gives the cause.\n" +
+					"Both creating and deleting are listed in the :jobs view while they run. They cannot be stopped: K is greyed there, since the forge call is already on its way.",
 			},
+			indicator.Legend(),
 			{
 				Title: "Row Icons",
 				Body: "The first column says what the row is, and the Visibility column who can read it:\n" +
 					"  " + theme.IconNamespace + "  " + v.Namespace + "\n" +
 					"  " + theme.IconRepository + "  " + v.Repository + "\n" +
-					"  (spinner)  the forge is being asked to create or delete this row\n" +
+					"  " + indicator.Glyph(indicator.Running, true) + "  blinking dot: the forge is being asked to create or delete this row\n" +
+					"  " + indicator.Glyph(indicator.Failed, false) + "  the last delete of this row failed\n" +
 					"  " + theme.IconVisibilityPublic + "  " + visibilityLabel(&TreeNode{Visibility: "public"}) + " — anyone can read it\n" +
 					"  " + theme.IconVisibilityInternal + "  " + visibilityLabel(&TreeNode{Visibility: "internal"}) + " — any signed-in user can (" + v.Name + " only where the concept exists)\n" +
 					"  " + theme.IconLock + "  " + visibilityLabel(&TreeNode{Visibility: "private"}) + " — members only\n" +

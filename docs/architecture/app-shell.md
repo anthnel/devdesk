@@ -617,9 +617,9 @@ that screen the only honest one.
 
 **A kind is not reserved for batches.** `create` and `delete` in the explorer
 are single-item runs against a forge, and they are registered for the three
-things the registry gives that a local flag does not: the spinner frame comes
+things the registry gives that a local flag does not: the blink phase comes
 from `jobs.FrameMsg` rather than from a view's own chain — the explorer's stops on
-`!m.loading`, so a frame taken from it would freeze the moment the tree settled;
+`!m.loading`, so a phase taken from it would freeze the moment the tree settled;
 the `busy()` guard sees work started anywhere; and `Run.Context` is stamped at
 launch, so a create that outlives a context switch cannot write into the tree it
 switched to. What decides is whether the work is a network call the user has to
@@ -660,6 +660,18 @@ What must carry the stamp is what **writes a result someone asked for under a
 name** — a scan's counts, and the purge that clears them for it. What must not is
 what *shows* the current context: a load (`loadScanCacheCmd`, `loadInventoryCmd`)
 and a title both mean "current" by definition, and reading it is right there.
+
+#### An immediate run — admitted already running
+
+`jobs.NewImmediateRun(kind, origin, context, label, target)` is `NewRun` with the
+single item set to `ItemRunning`. It is for work that goes out with its start
+message (an explorer create or delete): nothing queues in front of it, and a
+`queued` item that no message ever advances showed `◴` in `:jobs` and made
+`Run.Stoppable()` true, so `K` would have marked a delete in flight `skipped`.
+With it the run shows `●`, `Stoppable()` is false and `K` is greyed. The
+constructor does not decide stoppability: that stays with `Kind.Cancellable`.
+The explorer uses it (DEVDESK-147). `ws` delete and `:files` delete still use
+`NewRun` and keep the defect (DEVDESK-227).
 
 #### An open run — the one whose targets arrive as it goes
 
@@ -978,8 +990,8 @@ view is neither:
 
 | List | Meaning |
 |---|---|
-| `migratedTables` | the view's tables are on the activity column (`:jobs`: `jobs/runs`, `jobs/targets`; ws: `ws`, DEVDESK-144; `:sec`: `sec/inventory`, DEVDESK-145; OCI: `oci/images`, DEVDESK-146) |
-| `pendingTables` | tables waiting for their story (OCI: registry browser A-09a2, networks/volumes/registries A-09b; explorer, templates, netdiag, agent-usage, containers), each naming it. `maxPendingTables` caps the list: it may only shrink (13 to 12 with ws, 12 to 11 with `:sec`; `oci/images` moved to migrated by DEVDESK-146) |
+| `migratedTables` | the view's tables are on the activity column (`:jobs`: `jobs/runs`, `jobs/targets`; ws: `ws`, DEVDESK-144; `:sec`: `sec/inventory`, DEVDESK-145; OCI: `oci/images`, DEVDESK-146; explorer: `explorer/tree`, DEVDESK-147) |
+| `pendingTables` | tables waiting for their story (OCI: registry browser A-09a2, networks/volumes/registries A-09b; explorer clone list A-10b, templates, netdiag, agent-usage, containers), each naming it. `maxPendingTables` caps the list: it may only shrink (13 to 12 with ws, 12 to 11 with `:sec`; `oci/images` moved to migrated by DEVDESK-146; 10 to 9 with `explorer/tree`, DEVDESK-147) |
 | `exemptViews` | views with no activity to show (dashboard, status, git-auth, configuration, about, files, viewer), each with its reason |
 
 A view in none of the three, an exempt view that is also migrated or pending, or a table both migrated and pending fails by name (`classificationProblems`, unit-tested on a fictitious partly migrated view). A migrated view

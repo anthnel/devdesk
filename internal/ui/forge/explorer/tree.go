@@ -53,7 +53,7 @@ type TreeNode struct {
 	// confirmed: it is on screen so the request is visible where it was made,
 	// but it carries no ID, no WebURL and no role — nothing a real node has.
 	//
-	// The spinner on its row does *not* come from this flag: it comes from the
+	// The activity dot on its row does *not* come from this flag: it comes from the
 	// registry, keyed on FullPath like every other running target. What the
 	// flag answers is the narrower question of whether the node is real yet,
 	// which is what refuses the actions that need an identifier.

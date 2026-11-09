@@ -2,6 +2,7 @@ package explorer
 
 import (
 	"log"
+	"slices"
 	"strconv"
 	"strings"
 
@@ -10,6 +11,7 @@ import (
 	"github.com/anthnel/devdesk/internal/command"
 	"github.com/anthnel/devdesk/internal/forge"
 	"github.com/anthnel/devdesk/internal/jobs"
+	"github.com/anthnel/devdesk/internal/ui/datatable"
 )
 
 // The clone flow, end to end (§3.16):
@@ -54,7 +56,7 @@ func (m Model) handleSelectionToggle() (tea.Model, tea.Cmd) {
 	}
 	// A row the forge has not confirmed cannot be cloned — there is nothing at
 	// that path yet — and refusing it here is what lets the icon column give
-	// the spinner priority over the checkbox without the two ever competing.
+	// the activity dot priority over the checkbox without the two ever competing.
 	if act := m.actionable(); !act.Enabled() {
 		return m, m.footer.Warn(act.Reason)
 	}
@@ -179,15 +181,17 @@ func (m Model) handleCloneRunFinished() (tea.Model, tea.Cmd) {
 
 // handleJobsChanged takes the router's snapshot.
 //
-// Two screens read it now. The clone list reads its own run, and the tree reads
-// the creates and deletes running against the rows it is showing — liveRuns is
-// what keeps a scan in `ws` from spinning a row here, rather than this handler
-// declining to keep the snapshot at all.
+// Two screens read it. The clone list reads its own run. The tree reads, per
+// row, the runs and failures of its own context (rowActivity filters by
+// m.contextName and by kind), so a scan in `ws` or another context's failure
+// paints nothing here.
 //
-// It is the only writer of the two fields, and there is nothing to reconcile:
-// the snapshot replaces what was held rather than being merged into it.
+// It is the only writer of m.jobs, m.failures and m.contextName, and nothing is
+// reconciled: the snapshot replaces what was held rather than being merged.
 func (m Model) handleJobsChanged(msg jobs.ChangedMsg) (tea.Model, tea.Cmd) {
 	m.jobs = msg.Runs
+	m.failures = slices.Clone(msg.Failures)
+	m.contextName = msg.Context
 
 	if m.clone != nil {
 		if run, ok := cloneRunFrom(msg.Runs); ok {
@@ -195,23 +199,29 @@ func (m Model) handleJobsChanged(msg jobs.ChangedMsg) (tea.Model, tea.Cmd) {
 		}
 		return m, nil
 	}
-	// The rows are rebuilt from the new snapshot and the last frame held.
+	// The rows are rebuilt from the new snapshot.
 	m.updateTableRows()
 	return m, nil
 }
 
-// handleFrameMsg takes the animation's frame. The clone list keeps its own copy
-// of the run, so only the frame is rebuilt into it; the run is not touched.
+// handleFrameMsg takes the animation's frame. The tree table reads the blink
+// phase at render, so no tree row is rebuilt. The clone list keeps its own copy
+// of the run and its frame (A-10b); only the frame is rebuilt into it.
 func (m Model) handleFrameMsg(msg jobs.FrameMsg) (tea.Model, tea.Cmd) {
 	m.jobFrame = msg.Frame
 	m.footer.SetSpinnerFrame(msg.RenderedFrame)
+	m.table.SetBlinkPhase(msg.Blink)
 
 	if m.clone != nil {
 		m.clone.setRun(m.clone.run, msg.Frame)
-		return m, nil
 	}
-	m.updateTableRows()
 	return m, nil
+}
+
+// ActivityTables returns the read-only face of the tree table, keyed by the
+// name the activity-column guard (internal/app) knows it by.
+func (m Model) ActivityTables() map[string]datatable.ActivityTable {
+	return map[string]datatable.ActivityTable{"explorer/tree": &m.table}
 }
 
 // failureSummary names one failure and counts the rest — the footer is one line.

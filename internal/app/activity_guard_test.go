@@ -45,6 +45,7 @@ var migratedTables = map[command.ViewType][]string{
 	command.ViewWorkspaces:   {"ws"},
 	command.ViewSecurity:     {"sec/inventory"},
 	command.ViewOCIResources: {"oci/images"},
+	command.ViewGitExplorer:  {"explorer/tree"},
 }
 
 // pendingTable is a table that still has to move to the activity column.
@@ -60,7 +61,6 @@ var pendingTables = []pendingTable{
 	{"oci/networks", command.ViewOCIResources, "A-09b"},
 	{"oci/volumes", command.ViewOCIResources, "A-09b"},
 	{"oci/registries", command.ViewOCIResources, "A-09b"},
-	{"explorer/tree", command.ViewGitExplorer, "A-10a"},
 	{"explorer/clone-list", command.ViewGitExplorer, "A-10b"},
 	{"templates", command.ViewTemplates, "A-11"},
 	{"netdiag/ports", command.ViewNetdiag, "A-12"},
@@ -71,7 +71,7 @@ var pendingTables = []pendingTable{
 // maxPendingTables is the ceiling: adding an exception means raising both the
 // list and this constant in the same diff, which is visible in review. Lower it
 // with every migration.
-const maxPendingTables = 10
+const maxPendingTables = 9
 
 // exemptViews have no long-running operation to show per row (inventory:
 // "sans objet" or out of the batch), each with its reason.
@@ -332,6 +332,16 @@ var migratedSources = map[command.ViewType][]string{
 	command.ViewOCIResources: {
 		"ui/oci_resources/activity.go", "ui/oci_resources/table.go", "ui/oci_resources/jobs.go",
 		"ui/oci_resources/images.go", "ui/oci_resources/results.go", "ui/oci_resources/view.go",
+	},
+	// The explorer migrates in two steps (A-10a the tree, A-10b the clone list):
+	// files one by one. Only the files listed here are scanned. clone.go,
+	// clone_list.go and model.go (the clone list, A-10b) are deliberately left
+	// out of scope until A-10b; the other unlisted files are not scanned either.
+	command.ViewGitExplorer: {
+		"ui/forge/explorer/activity.go", "ui/forge/explorer/row.go", "ui/forge/explorer/columns.go",
+		"ui/forge/explorer/jobs.go", "ui/forge/explorer/view.go", "ui/forge/explorer/create.go",
+		"ui/forge/explorer/delete.go", "ui/forge/explorer/navigation.go", "ui/forge/explorer/update.go",
+		"ui/forge/explorer/index.go",
 	},
 }
 
@@ -766,6 +776,7 @@ var migratedFooterSeeds = map[command.ViewType]func(*testing.T, *App) indicator.
 	command.ViewWorkspaces:   seedWorkspacesFooter,
 	command.ViewSecurity:     seedSecurityFooter,
 	command.ViewOCIResources: seedOCIFooter,
+	command.ViewGitExplorer:  seedExplorerFooter,
 }
 
 // seedOCIFooter puts a scan of the first Images row (nginx:1.27, the selected

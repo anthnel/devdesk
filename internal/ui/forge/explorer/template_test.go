@@ -262,7 +262,7 @@ func TestAnUnavailableTemplateIsReportedAsNothingCreated(t *testing.T) {
 	m := serverModel(t, newFakeGitLab(t, nil))
 	m = feed(t, m, ProjectCreatedMsg{Target: "svc", Error: io.EOF, TemplateUnavailable: true})
 
-	if !strings.Contains(m.footer.Text(), "was not created") {
+	if !strings.Contains(m.footer.Text(), "nothing was created") {
 		t.Errorf("footer = %q, want it to say nothing was created", m.footer.Text())
 	}
 

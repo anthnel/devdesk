@@ -319,7 +319,7 @@ func (m Model) handleGroupCreated(msg GroupCreatedMsg) (tea.Model, tea.Cmd) {
 	if msg.Error != nil {
 		log.Printf("ERROR [explorer] create namespace: %v", msg.Error)
 		m.settleCreating(msg.Target, nil)
-		return m, m.footer.Error("Failed to create " + msg.Target + " — check logs")
+		return m, m.footer.Error(components.FailureEvent(jobs.KindCreate, msg.Target, msg.Transition().Detail))
 	}
 
 	node := nodeFromNamespace(msg.Namespace, nil)
@@ -335,10 +335,7 @@ func (m Model) handleProjectCreated(msg ProjectCreatedMsg) (tea.Model, tea.Cmd) 
 	if msg.Error != nil {
 		log.Printf("ERROR [explorer] create repository: %v", msg.Error)
 		m.settleCreating(msg.Target, nil)
-		if msg.TemplateUnavailable {
-			return m, m.footer.Error("Could not fetch the template — " + msg.Target + " was not created. Check logs")
-		}
-		return m, m.footer.Error("Failed to create " + msg.Target + " — check logs")
+		return m, m.footer.Error(components.FailureEvent(jobs.KindCreate, msg.Target, msg.Transition().Detail))
 	}
 
 	// The project exists whatever the template did, so the row settles either

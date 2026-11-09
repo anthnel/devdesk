@@ -3,6 +3,7 @@ package explorer
 import (
 	"github.com/charmbracelet/lipgloss"
 
+	"github.com/anthnel/devdesk/internal/ui/indicator"
 	"github.com/anthnel/devdesk/internal/ui/theme"
 )
 
@@ -20,11 +21,22 @@ type explorerRow struct {
 	// state left over from a previous selection cannot appear.
 	selecting bool
 	check     theme.CheckState
-	// frame is the registry's spinner frame, set only while the forge is being
-	// asked something about this row. Text rather than a rendered spinner
-	// because a table cell must carry no escape sequence (Rule 122) — the same
-	// reason cloneRow holds one.
-	frame string
+	// Activity is the state column 0 draws, stamped by rowsFor from the router
+	// snapshot. The blink phase is read by the table at render, so a frame
+	// rebuilds nothing.
+	Activity indicator.State
+}
+
+// restIcon is the activity column's resting cell: the checkbox while a clone
+// selection is open, the kind glyph otherwise. One column for both, because
+// Rule 125 fixes an icon column at two cells and a checkbox beside a glyph
+// needs four; iconStyle paints the kind in both, so a ticked row still says
+// group or repository by hue.
+func restIcon(r explorerRow) string {
+	if r.selecting {
+		return checkboxIcon(r.check)
+	}
+	return nodeKindIcon(r.node)
 }
 
 // checkboxIcon is RenderCheckboxTri's glyph without its styling.
@@ -43,30 +55,7 @@ func checkboxIcon(state theme.CheckState) string {
 	}
 }
 
-// iconCell is the first column: the spinner while the forge is being asked
-// something about the row, the checkbox while a clone selection is open, the
-// kind glyph otherwise.
-//
-// One column for three things, because Rule 125 fixes an icon column at two
-// cells and a checkbox beside a glyph needs four. What makes the sharing work
-// is that the colour does not switch with the shape: iconStyle paints the kind
-// in all three, so a ticked row still says group or repository — by hue rather
-// than by glyph, which is the whole reason the theme grew icon roles.
-//
-// The spinner wins over the checkbox because the two cannot both be true: a row
-// held by a create or a delete is refused by the selection toggle, so a ticked
-// row is never a working one.
-func iconCell(r explorerRow) string {
-	if r.frame != "" {
-		return r.frame
-	}
-	if r.selecting {
-		return checkboxIcon(r.check)
-	}
-	return nodeKindIcon(r.node)
-}
-
-// iconStyle colours the cell above by the node's kind, in both modes.
+// iconStyle colours the resting cell by the node's kind, in both modes.
 //
 // Under the cursor it has no effect: datatable hands the selected row whole to
 // styles.Selected, and a colour inside it would close with a reset that takes
@@ -99,12 +88,18 @@ func (m Model) rowsFor(nodes []*TreeNode) []explorerRow {
 		if selecting {
 			rows[i].check = m.selection.state(node.FullPath)
 		}
-		// The frame is read here rather than in the cell for the same reason
-		// the check state is: the table holds a settled value, and the cell
-		// closes over nothing.
-		if m.busy(node.FullPath) {
-			rows[i].frame = m.jobFrame
-		}
+		rows[i].Activity = m.rowState(node)
 	}
 	return rows
+}
+
+// rowState is the indicator state of a row. In selection mode a failed row is
+// shown at rest so its checkbox, and whether it is ticked, stays visible; the
+// running and queued glyphs stay because the toggle refuses those rows.
+func (m Model) rowState(node *TreeNode) indicator.State {
+	state := m.rowActivity(node).State
+	if state == indicator.Failed && m.mode == ModeSelecting {
+		return indicator.Idle
+	}
+	return state
 }

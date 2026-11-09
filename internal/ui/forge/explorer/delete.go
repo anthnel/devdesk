@@ -89,7 +89,7 @@ func (m Model) handleDeleteConfirmed(permanentlyRemove bool) (tea.Model, tea.Cmd
 		}
 		return DeleteCompleteMsg{Error: err, Target: path, DeletedNode: node}
 	}
-	// The row keeps its place and takes the spinner while the forge works — the
+	// The row keeps its place and blinks its dot while the forge works — the
 	// same treatment a create gets, and for the same reason: a delete is a
 	// network call, and a row that vanished before the answer came would be
 	// claiming something that has not happened yet.
@@ -111,7 +111,7 @@ func removeNode(level []*TreeNode, node *TreeNode) []*TreeNode {
 func (m Model) handleDeleteComplete(msg DeleteCompleteMsg) (tea.Model, tea.Cmd) {
 	if msg.Error != nil {
 		log.Printf("ERROR [explorer] delete: %v", msg.Error)
-		return m, m.footer.Error("Delete failed — check logs")
+		return m, m.footer.Error(components.FailureEvent(jobs.KindDelete, msg.Target, msg.Transition().Detail))
 	}
 	m.footer.Clear()
 

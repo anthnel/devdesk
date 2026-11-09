@@ -7,6 +7,7 @@ import (
 	"github.com/charmbracelet/lipgloss"
 
 	"github.com/anthnel/devdesk/internal/ui/datatable"
+	"github.com/anthnel/devdesk/internal/ui/indicator"
 	"github.com/anthnel/devdesk/internal/ui/theme"
 )
 
@@ -61,22 +62,20 @@ const (
 // resolves them for the help legend, which is where a sentence has room to be
 // right about a personal account.
 //
-// The clone selection's checkbox rides on the **icon** cell (row.go:iconCell):
+// The clone selection's checkbox rides on the **icon** cell (row.go:restIcon):
 // a column of its own would cost four cells on every screen to say nothing on
 // all but one of them, and at 80 columns the explorer has none to spare. What
 // makes the sharing honest is the colour — iconStyle paints the node's kind
 // whether the glyph is a checkbox or not.
 func explorerColumns() []datatable.Column[explorerRow] {
 	return []datatable.Column[explorerRow]{
-		{
-			// No title: the column carries a glyph, and a header over it would
-			// name something read at a glance anyway. It declares neither Less
-			// nor Search — it adds no text anyone could type, so the filter
-			// stays on Name and Slug (Rule 125).
-			Title: "", Sizing: datatable.SizingFixed, MinWidth: datatable.IconColumnWidth,
-			Cell:  iconCell,
-			Style: iconStyle,
-		},
+		// No title and neither Less nor Search (Rule 125): the column carries a
+		// glyph, so the filter stays on Name and Slug.
+		datatable.IndicatorColumn(
+			func(r explorerRow) indicator.State { return r.Activity },
+			restIcon,
+			iconStyle,
+		),
 		{
 			Title: "Name", Sizing: datatable.SizingContent, MinWidth: colNameMin, Flex: 2,
 			Cell:   func(r explorerRow) string { return r.node.Name },

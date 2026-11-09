@@ -13,6 +13,7 @@ import (
 	"github.com/anthnel/devdesk/internal/jobs"
 	"github.com/anthnel/devdesk/internal/shared"
 	"github.com/anthnel/devdesk/internal/ui/components"
+	"github.com/anthnel/devdesk/internal/ui/indicator"
 	"github.com/anthnel/devdesk/internal/ui/keymap"
 	"github.com/anthnel/devdesk/internal/ui/testutil"
 	"github.com/anthnel/devdesk/internal/ui/theme"
@@ -652,27 +653,30 @@ func TestProjectCreatedWithAFailedTemplateStillSettles(t *testing.T) {
 	}
 }
 
-// The spinner on a working row comes from the broadcast, not from this view's
-// own chain — that one stops when the tree settles, so a frame taken from it
-// would freeze on frame zero for the whole of the call.
-func TestAWorkingRowTakesItsFrameFromTheBroadcast(t *testing.T) {
+// A working row's dot comes from the broadcast: the registry snapshot says
+// the row works, FrameMsg.Blink says which half of the blink it is in. Neither
+// goes through this view's own chain, which stops when the tree settles.
+func TestAWorkingRowTakesItsBlinkFromTheBroadcast(t *testing.T) {
 	m := loadedModel(t)
 	m, _ = step(t, m, components.CreationFormSubmitMsg{FormType: components.FormTypeGroup, Name: "new"})
 
 	m = feed(t, m, jobs.ChangedMsg{
 		Runs: []jobs.Run{createRun("new", "new")},
 	})
-	m = feed(t, m, jobs.FrameMsg{Frame: "⣾"})
+	m = feed(t, m, jobs.FrameMsg{Frame: "⣾", Blink: true})
 
 	row, ok := rowFor(m, "new")
 	if !ok {
 		t.Fatal("the placeholder row is gone")
 	}
-	if row.frame != "⣾" {
-		t.Errorf("row frame = %q, want the broadcast's", row.frame)
+	if row.Activity != indicator.Running {
+		t.Errorf("row Activity = %v, want Running", row.Activity)
 	}
-	if got := iconCell(row); got != "⣾" {
-		t.Errorf("icon cell = %q, want the spinner", got)
+	if got := restIcon(row); got == "⣾" {
+		t.Errorf("rest icon = %q, the spinner frame must not reach the row", got)
+	}
+	if line := treeLine(t, m, "new"); !strings.Contains(line, indicator.Glyph(indicator.Running, true)) {
+		t.Errorf("row lacks the dot:\n%s", line)
 	}
 }
 

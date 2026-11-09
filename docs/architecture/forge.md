@@ -327,24 +327,72 @@ asked for, with no thread connecting the two.
 
 **The row goes on screen when the request goes out.** `insertCreatingNode` puts
 a `TreeNode{Creating: true}` at the level being browsed, keyed on the path
-predicted from the parent and the slug; the spinner rides in the icon column
-(`iconCell`), where the kind glyph will be. When the forge answers,
+predicted from the parent and the slug; the activity dot rides in column 0,
+where the kind glyph will be (see below). When the forge answers,
 `settleCreating` swaps the placeholder for the real node **in place** — no
 refresh, because the forge has just said what it made and re-listing the tree to
 learn it would empty the table a second time. A failure takes the row away again
 and says so in the footer.
+
+**Column 0 is the activity column** (`datatable.IndicatorColumn`, DEVDESK-147).
+At rest it is the kind glyph (`restIcon`), or the checkbox while a clone
+selection is open. While the forge is asked something about the row it is the
+registry's dot instead. `explorerRow.Activity` is stamped by `rowsFor` from
+`rowState`, which reads `components.DescribeRow` over the `ChangedMsg` copies
+(`Runs`, `Failures`, `Context`; Rule 110). The blink phase is read by the table
+at render: `handleFrameMsg` calls `SetBlinkPhase(msg.Blink)` and rebuilds no
+row. The first-load and refresh spinners in the footer are unchanged.
+
+Which kinds a row answers for (`rowKinds`):
+
+| Row | Kinds read |
+|---|---|
+| any row | `delete` |
+| a placeholder (`Creating`) | `delete` and `create` |
+
+`index` and `clone` runs are never read on a tree row. A real row that shares
+its path with an in-flight create no longer blinks for it.
+
+**A failed delete keeps its row and shows `⊗`** until the next attempt on that
+row (`Start` clears it; success forgets it), per context, from the registry. It
+survives `ctrl+r`, a trip to `:jobs` and a rebuilt view. In selection mode a
+failed row is shown at rest (its checkbox), so the selection stays readable;
+running rows keep their dot, because the toggle refuses them.
+
+**A failed create is an event only.** The placeholder is dropped
+(`settleCreating(target, nil)`), so there is no row to mark: the cause is the
+footer error (3 s) and the failed run in `:jobs`. The failure is never painted
+on a tree row, because its key is the *predicted* path and could be that of a
+healthy existing row.
+
+**Footer.** With a row selected (not in selection mode), `status()` sets
+`Status.Detail` from the row: `● Deleting <path>`, `● Creating <path>`, or
+`⊗ <path>: last delete failed — check logs`. It rides next to the loading or
+refresh line when both apply. Events come from `components.FailureEvent`:
+`Failed to delete <path> — check logs` and `Failed to create <target> — <cause>`
+(`Failed to create g/app — template unavailable — nothing was created` when the
+template could not be fetched).
+
+**No group-loading dot.** `TreeNode.Loading` is not drawn on a row: `→` makes
+the group the current level at once, so it is no longer a visible row while its
+children load. That load stays the footer line `Loading GitLab groups...`.
+
+**Not cancellable, not queued.** Both runs are built with
+`jobs.NewImmediateRun`, so `:jobs` shows them running and greys `K`. The
+explorer offers no `K` itself. The clone list is not migrated (A-10b): it keeps
+`jobFrame` and its Status frame.
 
 Three things follow, and each is the reason for a piece of the shape:
 
 | | |
 |---|---|
 | The path is a **prediction** | the row needs a key before there is an answer. The forge is free to differ, so `Target` travels on the message — it is the only thing that can still find the row that was put on screen |
-| The spinner comes from the **broadcast** | this view's own chain stops on `!m.loading` (`handleSpinnerTick`), so a frame taken from it would freeze on frame zero the moment the tree settled. It is D5's argument, reached from the other side |
-| The row is **inert** while it spins | `actionable()` refuses it, `GetShortcuts` greys `D`, and pressing the key says which of the two reasons applies (Rule 130). A placeholder carries no identifier, so an action addressing one would send an empty ID |
+| The blink phase comes from the **broadcast** | `jobs.FrameMsg.Blink`, read at render. This view's own chain stops on `!m.loading` (`handleSpinnerTick`), so a phase taken from it would freeze the moment the tree settled. It is D5's argument, reached from the other side |
+| The row is **inert** while it blinks | `actionable()` refuses it, `GetShortcuts` greys `D`, and pressing the key says which of the two reasons applies (Rule 130). A placeholder carries no identifier, so an action addressing one would send an empty ID |
 
 Both are `jobs` runs (`KindCreate`, `KindDelete`) rather than a local flag — see
 the jobs registry in [`app-shell.md`](app-shell.md) for why a single-item run
-still earns one. The delete keeps its row and takes the same spinner: a row that
+still earns one. The delete keeps its row and takes the same dot: a row that
 vanished before the answer came would be claiming something that has not
 happened yet.
 

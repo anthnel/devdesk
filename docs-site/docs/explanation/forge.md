@@ -74,9 +74,15 @@ The table opens unsorted, matching the natural order the discovery walk already 
 
 ## Creating and deleting — the row shows progress in place
 
-Creating or deleting an item is a real network round-trip, and the tree used to go blank for its entire duration — a full re-fetch on completion, with nothing on screen tying the empty state to the request that caused it. Instead, the moment a create request is sent, a placeholder row is inserted immediately at a *predicted* path (built from the parent path and the new slug), with a spinner riding in the icon column where the kind glyph will eventually go. When the forge responds, the placeholder is swapped in place for the real node — no full refresh, since the forge has just reported exactly what it made. A failure removes the placeholder and reports why in the footer.
+Creating or deleting an item is a real network round-trip, and the tree used to go blank for its entire duration — a full re-fetch on completion, with nothing on screen tying the empty state to the request that caused it. Instead, the moment a create request is sent, a placeholder row is inserted immediately at a *predicted* path (built from the parent path and the new slug), with a blinking dot riding in the icon column where the kind glyph will eventually go. When the forge responds, the placeholder is swapped in place for the real node — no full refresh, since the forge has just reported exactly what it made. A failure removes the placeholder and reports why in the footer.
 
-The placeholder row is inert while pending: it can't be acted on again (no identifier exists yet to act on), and its own presence conveys that pressing another action key on it doesn't apply. Both create and delete are modeled as single-item entries in the shared jobs registry described in [App Shell & Router](app-shell.md), rather than as local view state — deletes in particular keep their row visible and spinning rather than disappearing early, since removing the row before the forge has actually confirmed the deletion would claim something that hasn't happened yet.
+The placeholder row is inert while pending: it can't be acted on again (no identifier exists yet to act on), and its own presence conveys that pressing another action key on it doesn't apply. Both create and delete are modeled as single-item entries in the shared jobs registry described in [App Shell & Router](app-shell.md), rather than as local view state — deletes in particular keep their row visible and blinking rather than disappearing early, since removing the row before the forge has actually confirmed the deletion would claim something that hasn't happened yet.
+
+### The activity dot
+
+The first column is the activity column. At rest it shows the kind glyph (or the checkbox while you select repositories to clone). While the forge is asked to create or delete a row, it shows a blinking dot, and the footer says what the selected row is doing. Neither a create nor a delete can be stopped once sent, so `K` stays greyed in `:jobs`.
+
+A failed delete keeps its row and marks it with a failure glyph until your next attempt on that row; the footer gives the cause when the row is selected. A failed create has no row left to mark: the placeholder goes away, and the cause appears in the footer and in `:jobs`. Loading a group's children is still the footer line, not a dot on a row.
 
 ## The explorer clone
 

@@ -15,6 +15,7 @@ import (
 	"github.com/anthnel/devdesk/internal/shared"
 	"github.com/anthnel/devdesk/internal/ui/components"
 	"github.com/anthnel/devdesk/internal/ui/datatable"
+	"github.com/anthnel/devdesk/internal/ui/indicator"
 	"github.com/anthnel/devdesk/internal/ui/keymap"
 	"github.com/anthnel/devdesk/internal/ui/testutil"
 	"github.com/anthnel/devdesk/internal/ui/theme"
@@ -248,9 +249,9 @@ func TestFooterShowsTheBreadcrumb(t *testing.T) {
 }
 
 func TestFooterShowsTheErrorMessage(t *testing.T) {
-	m := feed(t, drilledModel(t), DeleteCompleteMsg{Error: errors.New("boom")})
+	m := feed(t, drilledModel(t), DeleteCompleteMsg{Target: "alpha/api", Error: errors.New("boom")})
 
-	if !strings.Contains(m.RenderFooter(160), "Delete failed") {
+	if !strings.Contains(m.RenderFooter(160), "Failed to delete alpha/api") {
 		t.Error("the footer does not show the delete failure")
 	}
 }
@@ -633,11 +634,16 @@ func TestTheFirstColumnSaysWhatTheRowIs(t *testing.T) {
 	group := explorerRow{node: &TreeNode{Type: NodeTypeGroup}}
 	project := explorerRow{node: &TreeNode{Type: NodeTypeProject}}
 
-	if got := iconCell(group); got != theme.IconNamespace {
-		t.Errorf("iconCell(group) = %q, want the namespace glyph", got)
+	if got := restIcon(group); got != theme.IconNamespace {
+		t.Errorf("restIcon(group) = %q, want the namespace glyph", got)
 	}
-	if got := iconCell(project); got != theme.IconRepository {
-		t.Errorf("iconCell(project) = %q, want the repository glyph", got)
+	if got := restIcon(project); got != theme.IconRepository {
+		t.Errorf("restIcon(project) = %q, want the repository glyph", got)
+	}
+	// Column 0 is the activity column: an idle row prints that same rest icon.
+	col := explorerColumns()[0]
+	if col.Indicator == nil || col.Indicator(group) != indicator.Idle || col.Cell(group) != theme.IconNamespace {
+		t.Errorf("column 0 on an idle group: indicator set=%v cell=%q", col.Indicator != nil, col.Cell(group))
 	}
 }
 
@@ -660,8 +666,11 @@ func TestTheExplorerGlyphsAreNotTheWorkspaceOnes(t *testing.T) {
 func TestTheSelectionReplacesTheGlyphWithACheckbox(t *testing.T) {
 	row := explorerRow{node: &TreeNode{Type: NodeTypeProject}, selecting: true, check: theme.CheckAll}
 
-	if got := iconCell(row); got != theme.IconChecked {
-		t.Errorf("iconCell(ticked) = %q, want the ticked box", got)
+	if got := restIcon(row); got != theme.IconChecked {
+		t.Errorf("restIcon(ticked) = %q, want the ticked box", got)
+	}
+	if got := explorerColumns()[0].Cell(row); got != theme.IconChecked {
+		t.Errorf("column 0 cell (ticked) = %q, want the ticked box", got)
 	}
 }
 
@@ -671,7 +680,7 @@ func TestTheKindSurvivesTheSelectionAsAColour(t *testing.T) {
 	group := explorerRow{node: &TreeNode{Type: NodeTypeGroup}, selecting: true}
 	project := explorerRow{node: &TreeNode{Type: NodeTypeProject}, selecting: true}
 
-	if iconCell(group) != iconCell(project) {
+	if restIcon(group) != restIcon(project) {
 		t.Fatal("the two kinds show different boxes — this test is about the colour")
 	}
 	if iconStyle(group).GetForeground() == iconStyle(project).GetForeground() {
@@ -686,8 +695,11 @@ func TestTheIconCellsCarryNoEscapeSequence(t *testing.T) {
 		{node: &TreeNode{Type: NodeTypeProject, Visibility: "private"}, selecting: true, check: theme.CheckSome},
 	}
 	for _, row := range rows {
-		if strings.Contains(iconCell(row), "\x1b") {
-			t.Errorf("iconCell carries an escape sequence: %q", iconCell(row))
+		if strings.Contains(restIcon(row), "\x1b") {
+			t.Errorf("restIcon carries an escape sequence: %q", restIcon(row))
+		}
+		if cell := explorerColumns()[0].Cell(row); strings.Contains(cell, "\x1b") {
+			t.Errorf("column 0 carries an escape sequence: %q", cell)
 		}
 		if strings.Contains(visibilityIcon(row.node), "\x1b") {
 			t.Errorf("visibilityIcon carries an escape sequence: %q", visibilityIcon(row.node))
