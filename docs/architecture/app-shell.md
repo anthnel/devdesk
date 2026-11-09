@@ -984,7 +984,7 @@ closed it) and no exception to shrink:
 | `migratedTables` | the view's tables are on the activity column (`:jobs`: `jobs/runs`, `jobs/targets`; ws: `ws`; `:sec`: `sec/inventory`; OCI: `oci/images`, `oci/networks`, `oci/volumes`, `oci/registries`, `oci/registry-browser`; explorer: `explorer/tree`, `explorer/clone-list`; templates: `templates`; netdiag: `netdiag/ports`; `:agent-usage`: `agent-usage/agents`; containers: `containers`) |
 | `exemptViews` | views with no activity to show (dashboard, status, git-auth, configuration, about, files, viewer), each with its reason |
 
-A view in neither list, or an exempt view that is also migrated, fails by name (`classificationProblems`, unit-tested on a fictitious partly migrated view). A migrated view
+A view in neither list, or an exempt view that is also migrated, fails by name (`classificationProblems`, unit-tested on fictitious classifications). A migrated view
 exposes `ActivityTables() map[string]datatable.ActivityTable` (a read-only face:
 `Shapes()` and `RenderedWidth()`, see `ui-components.md`); an exempt view that reports any table fails with "remove the exception".
 

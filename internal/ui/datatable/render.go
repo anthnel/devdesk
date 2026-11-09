@@ -129,11 +129,8 @@ func (m *Model[T]) rowLine(cols []table.Column, item T, selected bool) string {
 			state = m.indicatorState(c, item, busy)
 		}
 		text := c.Cell(item)
-		switch {
-		case state != indicator.Idle:
-			text = indicator.Glyph(state, m.blinkOn)
-		}
 		if state != indicator.Idle {
+			text = indicator.Glyph(state, m.blinkOn)
 			// Padded with runewidth, not lipgloss: lipgloss always counts an
 			// ambiguous-width glyph as one cell, runewidth follows the terminal.
 			fitted := runewidth.FillRight(text, cols[i].Width)

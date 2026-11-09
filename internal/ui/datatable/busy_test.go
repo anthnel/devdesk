@@ -124,6 +124,7 @@ func TestIsBusyAnswersForAnObjectWithNoRow(t *testing.T) {
 // The periodic refresh replaces the items mid-action. Keying on identity rather
 // than a flag on the row is what survives it.
 func TestABusyRowSurvivesAReload(t *testing.T) {
+	withTrueColor(t)
 	m := busyTable(t)
 	m.MarkBusy("web", "Stopping web")
 
@@ -131,6 +132,9 @@ func TestABusyRowSurvivesAReload(t *testing.T) {
 
 	if !m.IsBusy("web") {
 		t.Fatal("the busy marker was lost when the items were replaced")
+	}
+	if line := renderedRow(t, m, "web"); !strings.Contains(line, foreground(theme.ColorDim)) {
+		t.Errorf("the reloaded busy row is not dimmed: %q", line)
 	}
 }
 

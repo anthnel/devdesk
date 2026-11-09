@@ -217,8 +217,7 @@ func checkColumnZero(t *testing.T, vt command.ViewType, table string, shapes []d
 
 // migratedSources are the source prefixes (a directory ending in "/" or a file
 // path, relative to internal/) of each migrated view. They are scanned for the
-// retired mechanisms (criterion 2a/2b, and the hard-coded glyphs of 3). Only
-// migrated views: pending ones still use them. A prefix may be a file so a view
+// retired mechanisms (criterion 2a/2b, and the hard-coded glyphs of 3). A prefix may be a file so a view
 // that migrates in two steps (OCI A-09a/A-09a2/A-09b, explorer A-10a/b) can be scanned
 // file by file.
 var migratedSources = map[command.ViewType][]string{
@@ -577,6 +576,7 @@ func TestActivityGuardRetiredMechanismsLogic(t *testing.T) {
 		{"tick in any function", "", "func g() { _ = tea.Tick(0, nil) }", 1, "4:16"},
 		{"AdvanceSpinner", "", "func f(t T) { t.AdvanceSpinner() }", 1, "4:15"},
 		{"glyph literal", "", "var g = \"\u25cf\"", 1, "4:9"},
+		{"StatusColumn key", "", "var x = T{StatusColumn: 1}", 1, "4:11"},
 		{"clean", "", "func f() {}", 0, ""},
 		{"aliased import", bt, "func f() { _ = bt.Tick(0, nil) }", 1, "4:16"},
 		{"dot import", dot, "func f() { _ = Tick(0, nil) }", 1, "4:16"},
