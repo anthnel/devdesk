@@ -1,0 +1,48 @@
+{
+  "cli_version": "0.12.2",
+  "checkpoint_id": "c5959e925215",
+  "strategy": "manual-commit",
+  "branch": "feat/DEVDESK-143-final-activity-guard",
+  "checkpoints_count": 5,
+  "files_touched": [
+    "internal/app/activity_guard_test.go",
+    "internal/app/animation_guard_test.go"
+  ],
+  "sessions": [
+    {
+      "metadata": "/c5/959e925215/0/metadata.json",
+      "transcript": "/c5/959e925215/0/full.jsonl",
+      "compact_transcript": "/c5/959e925215/0/transcript.jsonl",
+      "content_hash": "/c5/959e925215/0/content_hash.txt",
+      "prompt": "/c5/959e925215/0/prompt.txt"
+    }
+  ],
+  "token_usage": {
+    "input_tokens": 30,
+    "cache_creation_tokens": 19661,
+    "cache_read_tokens": 1305796,
+    "output_tokens": 7819,
+    "api_call_count": 10,
+    "subagent_tokens": {
+      "input_tokens": 120,
+      "cache_creation_tokens": 344450,
+      "cache_read_tokens": 3803403,
+      "output_tokens": 41604,
+      "api_call_count": 59
+    }
+  },
+  "redaction": {
+    "replacements": 0,
+    "layers": {
+      "betterleaks": 0,
+      "connection_string": 0,
+      "credential_key": 0,
+      "credential_value": 0,
+      "credentialed_uri": 0,
+      "entropy": 0,
+      "key_context": 0,
+      "provider_token": 0,
+      "shell_stdin": 0
+    }
+  }
+}
