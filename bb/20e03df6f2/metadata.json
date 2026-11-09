@@ -1,0 +1,47 @@
+{
+  "cli_version": "0.12.2",
+  "checkpoint_id": "bb20e03df6f2",
+  "strategy": "manual-commit",
+  "branch": "feat/DEVDESK-145-sec-activity",
+  "checkpoints_count": 2,
+  "files_touched": [
+    "internal/ui/security/footer_test.go"
+  ],
+  "sessions": [
+    {
+      "metadata": "/bb/20e03df6f2/0/metadata.json",
+      "transcript": "/bb/20e03df6f2/0/full.jsonl",
+      "compact_transcript": "/bb/20e03df6f2/0/transcript.jsonl",
+      "content_hash": "/bb/20e03df6f2/0/content_hash.txt",
+      "prompt": "/bb/20e03df6f2/0/prompt.txt"
+    }
+  ],
+  "token_usage": {
+    "input_tokens": 10,
+    "cache_creation_tokens": 5946,
+    "cache_read_tokens": 594778,
+    "output_tokens": 945,
+    "api_call_count": 3,
+    "subagent_tokens": {
+      "input_tokens": 46,
+      "cache_creation_tokens": 337591,
+      "cache_read_tokens": 2617956,
+      "output_tokens": 21086,
+      "api_call_count": 21
+    }
+  },
+  "redaction": {
+    "replacements": 0,
+    "layers": {
+      "betterleaks": 0,
+      "connection_string": 0,
+      "credential_key": 0,
+      "credential_value": 0,
+      "credentialed_uri": 0,
+      "entropy": 0,
+      "key_context": 0,
+      "provider_token": 0,
+      "shell_stdin": 0
+    }
+  }
+}
