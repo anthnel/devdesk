@@ -53,6 +53,7 @@ var migratedTables = map[command.ViewType][]string{
 	command.ViewGitExplorer:  {"explorer/tree", "explorer/clone-list"},
 	command.ViewTemplates:    {"templates"},
 	command.ViewNetdiag:      {"netdiag/ports"},
+	command.ViewAgentUsage:   {"agent-usage/agents"},
 }
 
 // pendingTable is a table that still has to move to the activity column.
@@ -68,14 +69,13 @@ var pendingTables = []pendingTable{
 	{"oci/networks", command.ViewOCIResources, "A-09b"},
 	{"oci/volumes", command.ViewOCIResources, "A-09b"},
 	{"oci/registries", command.ViewOCIResources, "A-09b"},
-	{"agent-usage/agents", command.ViewAgentUsage, "A-13"},
 	{"containers", command.ViewContainers, "A-14"},
 }
 
 // maxPendingTables is the ceiling: adding an exception means raising both the
 // list and this constant in the same diff, which is visible in review. Lower it
 // with every migration.
-const maxPendingTables = 6
+const maxPendingTables = 5
 
 // exemptViews have no long-running operation to show per row (inventory:
 // "sans objet" or out of the batch), each with its reason.
@@ -346,6 +346,8 @@ var migratedSources = map[command.ViewType][]string{
 	// stay (the footers keep their own chains), and ports_commands.go (portsTickCmd
 	// is the data refresh tick, not a row animation).
 	command.ViewNetdiag: {"ui/netdiag/ports_model.go", "ui/netdiag/ports_activity.go"},
+	// The agent-usage view is fully migrated (A-13, DEVDESK-151): the whole package.
+	command.ViewAgentUsage: {"ui/agentusageview/"},
 }
 
 // sourceDeclarationProblems says what is wrong with the link between migrated
@@ -782,6 +784,7 @@ var migratedFooterSeeds = map[command.ViewType]func(*testing.T, *App) indicator.
 	command.ViewGitExplorer:  seedExplorerFooter,
 	command.ViewTemplates:    seedTemplatesFooter,
 	command.ViewNetdiag:      seedNetdiagFooter,
+	command.ViewAgentUsage:   seedAgentUsageFooter,
 }
 
 // seedOCIFooter puts a scan of the first Images row (nginx:1.27, the selected
@@ -949,5 +952,15 @@ func seedTemplatesFooter(t *testing.T, a *App) indicator.State {
 		a.Update(msg)
 	}
 	a.resize(a.width, a.height)
+	return indicator.Running
+}
+
+// seedAgentUsageFooter opens a live session at the agents level: its
+// orchestrator row is running and selected. It drops the Cmd that waits for the
+// 2 s poll, so nothing is ever read twice.
+func seedAgentUsageFooter(t *testing.T, a *App) indicator.State {
+	t.Helper()
+	live, _ := openLiveAgentSession(t)
+	a.views[command.ViewAgentUsage] = live.views[command.ViewAgentUsage]
 	return indicator.Running
 }

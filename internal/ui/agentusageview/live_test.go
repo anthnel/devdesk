@@ -291,10 +291,12 @@ func TestAPollReadAndItsAnswerLeaveTheFooterQuiet(t *testing.T) {
 		t.Errorf("a poll must not set a footer message, got %q", m.footer.Text())
 	}
 	// With every model priced there is no status either: no text, no spinner.
-	if st := m.status(); st != (sharedcomponents.Status{}) {
+	st := m.status()
+	st.Detail = sharedcomponents.RowDetail{} // the selected row's state is not a status
+	if st != (sharedcomponents.Status{}) {
 		t.Errorf("status = %+v after a poll, want none (level, spinner and text)", st)
 	}
-	if got := strings.TrimSpace(ansiRe.ReplaceAllString(m.footer.View(120, m.status()), "")); got != "" {
+	if got := strings.TrimSpace(ansiRe.ReplaceAllString(m.footer.View(120, st), "")); got != "" {
 		t.Errorf("a poll must not write a footer message, got %q", got)
 	}
 }

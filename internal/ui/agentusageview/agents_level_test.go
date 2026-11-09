@@ -456,7 +456,7 @@ func header(t *testing.T, view string) []string {
 // splitTitles reads known titles off a header line, "Cache read" being two words.
 func splitTitles(line string) []string {
 	var got []string
-	for _, title := range []string{"Agent", "ID", "Est. cost", "State", "Tools", "Duration", "Model", "Breakdown", "In", "Out", "Cache read", "Cache write", "Total", "Share"} {
+	for _, title := range []string{"Agent", "ID", "Est. cost", "Tools", "Duration", "State", "Model", "Breakdown", "In", "Out", "Cache read", "Cache write", "Total", "Share"} {
 		for _, f := range strings.Split(line, "  ") {
 			if strings.TrimSpace(f) == title {
 				got = append(got, title)
@@ -471,8 +471,8 @@ func TestNarrowTerminalsDropColumnsInTheOrderThePlanComputed(t *testing.T) {
 		width int
 		want  []string
 	}{
-		{100, []string{"Agent", "ID", "State", "Tools", "Duration", "Model", "Out", "Total", "Share"}},
-		{80, []string{"Agent", "ID", "State", "Tools", "Duration", "Out", "Total", "Share"}},
+		{100, []string{"Agent", "ID", "Tools", "Duration", "State", "Model", "Out", "Total", "Share"}}, // Model needs 98
+		{80, []string{"Agent", "ID", "Tools", "Duration", "Out", "Total", "Share"}},                    // State needs 84 (DEVDESK-151)
 		{60, []string{"Agent", "ID", "Out", "Total", "Share"}},
 	}
 	for _, tt := range tests {
@@ -578,8 +578,8 @@ func TestDotSortsTheAgentsLargestFirst(t *testing.T) {
 	if got := visibleIDs(m); got != "a01,a02,,a03" {
 		t.Errorf("sorted order = %q, want a01,a02,,a03", got)
 	}
-	if col, desc := m.agentTable.SortState(); col != 12 || !desc {
-		t.Errorf("SortState = (%d, %v), want (12 Total, descending)", col, desc)
+	if col, desc := m.agentTable.SortState(); col != columnIndex(t, "Total") || !desc {
+		t.Errorf("SortState = (%d, %v), want (Total %d, descending)", col, desc, columnIndex(t, "Total"))
 	}
 	view := m.View()
 	if !strings.Contains(view, "Total ▼") {
@@ -826,7 +826,7 @@ func TestOpeningAnotherSessionRemeasuresTheAgentColumn(t *testing.T) {
 	m, _ = opened(t, m, "down")
 	m, _ = opened(t, m, "right")
 	m = answer(t, m, agentusage.Usage{Agents: []agentusage.Agent{orchestrator(1, 0), subAgent("b01", long, 1, 0)}})
-	if got, want := m.agentTable.Table().Columns()[0].Width, utf8.RuneCountInString(lastStem+long); got < want {
+	if got, want := m.agentTable.Table().Columns()[agentColIdx].Width, utf8.RuneCountInString(lastStem+long); got < want {
 		t.Errorf("Agent column is %d wide, want at least %d", got, want)
 	}
 }

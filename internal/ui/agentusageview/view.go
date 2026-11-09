@@ -290,11 +290,14 @@ func (m Model) agentsStatus() sharedcomponents.Status {
 		return sharedcomponents.Status{Text: "Reading session...", Spinner: true}
 	case m.usage.Diagnostics.Degraded():
 		return sharedcomponents.Status{
-			Text:  "Totals are approximate — some transcript data could not be read",
-			Level: sharedcomponents.LevelWarning,
+			Text:   "Totals are approximate — some transcript data could not be read",
+			Level:  sharedcomponents.LevelWarning,
+			Detail: m.agentDetail(),
 		}
 	}
-	return m.priceHint()
+	st := m.priceHint()
+	st.Detail = m.agentDetail()
+	return st
 }
 
 // priceHint is the footer state about missing prices: where to set them when

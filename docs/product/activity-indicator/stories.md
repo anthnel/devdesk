@@ -406,6 +406,7 @@ En tant qu'utilisateur de la vue réseau, je veux voir sur quelle ligne de ports
 
 ### A-13 — `:agent-usage` : états d'agent en pastille et coloration du coût (absorbe DEVDESK-99) (DEVDESK-151)
 Epic : E2 — Priorité : Should — Effort : M
+Statut : **livrée, en revue** (DEVDESK-151). Écart assumé au critère 3 : la colonne State est placée **après** Duration (option B de la question de largeur) pour que Tools et Duration restent visibles à 80 colonnes ; la pastille porte l'état quand State disparaît (dès 83 colonnes). Seuils recalés (+4) : Breakdown dès 110, Est. cost dès 142, Cache write dès 155.
 
 En tant qu'utilisateur de DevDesk, je veux voir l'état de chaque agent (en cours, inactif, terminé, inconnu) dans la première colonne, y compris sur un terminal étroit où la colonne State disparaît, et repérer un agent coûteux, afin de repérer un agent inactif ou onéreux d'un coup d'œil.
 

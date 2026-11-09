@@ -293,7 +293,7 @@ func TestModelsCell(t *testing.T) {
 
 func TestAgentColumnsLayout(t *testing.T) {
 	cols := agentColumns()
-	wantTitles := []string{"Agent", "ID", "Est. cost", "State", "Tools", "Duration", "Model", "Breakdown", "In", "Out", "Cache read", "Cache write", "Total", "Share"}
+	wantTitles := []string{"", "Agent", "ID", "Est. cost", "Tools", "Duration", "State", "Model", "Breakdown", "In", "Out", "Cache read", "Cache write", "Total", "Share"}
 	if len(cols) != len(wantTitles) {
 		t.Fatalf("got %d columns, want %d", len(cols), len(wantTitles))
 	}
@@ -423,6 +423,9 @@ func TestAgentColumnsDimZeroesAndPlaceholders(t *testing.T) {
 		Tokens: agentusage.Tokens{Input: 5, Output: 6, CacheRead: 7, CacheWrite: 8},
 	}}
 	for _, col := range agentColumns() {
+		if col.Indicator != nil {
+			continue // the activity column paints through indicator.Style, see activity_columns_test.go
+		}
 		if col.Style == nil {
 			t.Errorf("column %q declares no Style", col.Title)
 			continue
@@ -447,7 +450,7 @@ func TestAgentColumnsDimZeroesAndPlaceholders(t *testing.T) {
 			if !got(agentRow{share: 0}) || !got(agentRow{share: noShare}) || got(agentRow{share: 123}) {
 				t.Error("Share: only 0 and the placeholder are dim")
 			}
-		case "State", "Tools", "Duration":
+		case "Tools", "Duration", "State":
 			continue // covered by activity_columns_test.go
 		case "Est. cost":
 			continue // covered by cost_test.go

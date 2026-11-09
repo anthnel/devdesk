@@ -5,6 +5,7 @@ import (
 	"time"
 
 	"github.com/anthnel/devdesk/internal/agentusage"
+	"github.com/anthnel/devdesk/internal/ui/indicator"
 )
 
 var t0 = time.Date(2026, 10, 29, 12, 0, 0, 0, time.UTC)
@@ -85,5 +86,45 @@ func TestAgentStates(t *testing.T) {
 				}
 			}
 		})
+	}
+}
+
+// DEVDESK-151 step 1: the State column's text is repeated by a dot in the
+// activity column; runState.indicator() maps one onto the other.
+func TestRunStateIndicator(t *testing.T) {
+	tests := []struct {
+		state runState
+		want  indicator.State
+	}{
+		{stateRunning, indicator.Running},
+		{stateIdle, indicator.Suspended},
+		{stateDone, indicator.Done},
+		{stateUnknown, indicator.Unknown},
+	}
+	seen := map[string]runState{}
+	for _, tt := range tests {
+		t.Run(tt.state.label(), func(t *testing.T) {
+			got := tt.state.indicator()
+			if got != tt.want {
+				t.Fatalf("indicator() = %v, want %v", got, tt.want)
+			}
+			g := indicator.Glyph(got, true)
+			if g == "" {
+				t.Fatalf("state %v has no glyph", got)
+			}
+			if prev, dup := seen[g]; dup {
+				t.Errorf("glyph %q shared by %s and %s", g, prev.label(), tt.state.label())
+			}
+			seen[g] = tt.state
+			if (g == "●") != (tt.state == stateRunning) {
+				t.Errorf("glyph %q: the filled dot belongs to running only", g)
+			}
+			if off := indicator.Glyph(got, false); (off != g) != (tt.state == stateRunning) {
+				t.Errorf("off-phase glyph %q (on %q): only running changes with the blink", off, g)
+			}
+		})
+	}
+	if len(seen) != 4 {
+		t.Errorf("%d distinct glyphs, want 4", len(seen))
 	}
 }

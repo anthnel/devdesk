@@ -3,6 +3,7 @@ package agentusageview
 import (
 	"bytes"
 	"log"
+	"math"
 	"strconv"
 	"strings"
 	"testing"
@@ -154,10 +155,10 @@ func TestCostColumnDimsOnlyThePlaceholder(t *testing.T) {
 
 func TestCostColumnDeclaration(t *testing.T) {
 	cols := agentColumns()
-	if len(cols) < 3 || cols[2].Title != costTitle {
-		t.Fatalf("%q must come right after ID, columns: %v", costTitle, titlesOf(cols))
+	if len(cols) < 4 || cols[3].Title != costTitle {
+		t.Fatalf("%q must come right after ID (the dot is column 0), columns: %v", costTitle, titlesOf(cols))
 	}
-	c := cols[2]
+	c := cols[3]
 	if c.Sizing != datatable.SizingFixed || c.MinWidth != 10 {
 		t.Errorf("Sizing/MinWidth = %v/%d, want SizingFixed/10 (widest cell is \u2265 ~$999.99)", c.Sizing, c.MinWidth)
 	}
@@ -398,22 +399,29 @@ func TestAnIncompleteEntryIsLoggedOnceAndShowsADash(t *testing.T) {
 
 // Measured column by column from 50 to 230 with Est. cost DropFirst. It is
 // dropped right after Cache write (also DropFirst, and further right), before
-// any ordinary Optional column, so it needs 138 columns to appear. Switch
-// widths: Est. cost appears at 138 (Cache write at 151); State at 63, Tools at
-// 70, Duration at 80, Model at 94, Breakdown at 106, In at 114, Cache read at 126.
+// any ordinary Optional column, so it needs 142 columns to appear. Switch
+// widths (DEVDESK-151: the activity dot costs 4 cells, and State sits right of
+// Duration so it goes before it): Tools at 65, Duration at 75, State at 84,
+// Model at 98, Breakdown at 110, In at 118, Cache read at 130, Est. cost at 142,
+// Cache write at 155. Before the dot: State 63, Tools 70, Duration 80, Model 94,
+// Breakdown 106, In 114, Cache read 126, Est. cost 138, Cache write 151.
 func TestEstCostLayoutAtEachWidth(t *testing.T) {
 	tests := []struct {
 		width int
 		want  []string
 	}{
-		{200, []string{"Agent", "ID", costTitle, "State", "Tools", "Duration", "Model", "Breakdown", "In", "Out", "Cache read", "Cache write", "Total", "Share"}},
-		{138, []string{"Agent", "ID", costTitle, "State", "Tools", "Duration", "Model", "Breakdown", "In", "Out", "Cache read", "Total", "Share"}}, // narrowest with Est. cost
-		{137, []string{"Agent", "ID", "State", "Tools", "Duration", "Model", "Breakdown", "In", "Out", "Cache read", "Total", "Share"}},            // Est. cost goes first
-		{126, []string{"Agent", "ID", "State", "Tools", "Duration", "Model", "Breakdown", "In", "Out", "Cache read", "Total", "Share"}},            // narrowest with Cache read
-		{125, []string{"Agent", "ID", "State", "Tools", "Duration", "Model", "Breakdown", "In", "Out", "Total", "Share"}},                          // Cache read goes
-		{100, []string{"Agent", "ID", "State", "Tools", "Duration", "Model", "Out", "Total", "Share"}},                                             // loses In, Cache read first
-		{80, []string{"Agent", "ID", "State", "Tools", "Duration", "Out", "Total", "Share"}},                                                       // DEVDESK-46 criterion 1 kept
-		{60, []string{"Agent", "ID", "Out", "Total", "Share"}},                                                                                     // the five DEVDESK-43 columns; State needs 63
+		{200, []string{"Agent", "ID", costTitle, "Tools", "Duration", "State", "Model", "Breakdown", "In", "Out", "Cache read", "Cache write", "Total", "Share"}},
+		{155, []string{"Agent", "ID", costTitle, "Tools", "Duration", "State", "Model", "Breakdown", "In", "Out", "Cache read", "Cache write", "Total", "Share"}},
+		{154, []string{"Agent", "ID", costTitle, "Tools", "Duration", "State", "Model", "Breakdown", "In", "Out", "Cache read", "Total", "Share"}}, // Cache write goes
+		{142, []string{"Agent", "ID", costTitle, "Tools", "Duration", "State", "Model", "Breakdown", "In", "Out", "Cache read", "Total", "Share"}}, // narrowest with Est. cost
+		{141, []string{"Agent", "ID", "Tools", "Duration", "State", "Model", "Breakdown", "In", "Out", "Cache read", "Total", "Share"}},            // Est. cost goes first
+		{130, []string{"Agent", "ID", "Tools", "Duration", "State", "Model", "Breakdown", "In", "Out", "Cache read", "Total", "Share"}},            // narrowest with Cache read
+		{129, []string{"Agent", "ID", "Tools", "Duration", "State", "Model", "Breakdown", "In", "Out", "Total", "Share"}},                          // Cache read goes
+		{100, []string{"Agent", "ID", "Tools", "Duration", "State", "Model", "Out", "Total", "Share"}},                                             // loses In, Cache read first
+		{84, []string{"Agent", "ID", "Tools", "Duration", "State", "Out", "Total", "Share"}},                                                       // narrowest with the State text
+		{83, []string{"Agent", "ID", "Tools", "Duration", "Out", "Total", "Share"}},                                                                // State goes first of the three
+		{80, []string{"Agent", "ID", "Tools", "Duration", "Out", "Total", "Share"}},                                                                // Tools and Duration kept (DEVDESK-46); the dot carries the state
+		{60, []string{"Agent", "ID", "Out", "Total", "Share"}},                                                                                     // the five DEVDESK-43 columns; Tools needs 65
 	}
 	for _, tt := range tests {
 		for name, cfg := range map[string]*config.Config{"no prices": nil, "priced": cfgWith(t, pricesYAML)} {
@@ -433,7 +441,7 @@ func TestEstCostLayoutAtEachWidth(t *testing.T) {
 
 // Wherever Est. cost is shown it is the third column, and Rule 116 holds at
 // every width from 50 to 230, with and without it.
-func TestEstCostIsThirdWhenShownAndRule116HoldsAtEveryWidth(t *testing.T) {
+func TestEstCostIsTheThirdTitledColumnAndRule116HoldsAtEveryWidth(t *testing.T) {
 	shown := 0
 	for w := 50; w <= 230; w++ {
 		m := atPricedAgents(t, nil, w, costUsage())
@@ -445,7 +453,7 @@ func TestEstCostIsThirdWhenShownAndRule116HoldsAtEveryWidth(t *testing.T) {
 			if c == costTitle {
 				shown++
 				if i != 2 {
-					t.Fatalf("width %d: %s is column %d, want the third (index 2): %v", w, costTitle, i, cols)
+					t.Fatalf("width %d: %s is column %d, want the third titled one (index 2; the dot has no title): %v", w, costTitle, i, cols)
 				}
 			}
 		}
@@ -489,7 +497,82 @@ func TestCostCellSaturatesWithinTheColumn(t *testing.T) {
 			}
 		}
 	}
-	if got := costCell(agentRow{Agent: subAgent("a", "coder", 1, 0), cost: priced(99999)}); got != "≥ ~$99999" {
+	if got := costCell(agentRow{Agent: subAgent("a", "coder", 1, 0), cost: pricedUSD(99999)}); got != "≥ ~$99999" {
 		t.Errorf("largest exact sub-agent amount = %q", got)
+	}
+}
+
+// ── DEVDESK-151 step 1: share of the session's estimated cost ────────────────
+
+func pricedUSD(usd float64) pricing.Estimate {
+	return pricing.Estimate{USD: usd, Status: pricing.Priced}
+}
+
+func TestCostShares(t *testing.T) {
+	unpriced := pricing.Estimate{Status: pricing.Unpriced, Unpriced: []string{"x"}}
+	noTokens := pricing.Estimate{Status: pricing.NoTokens}
+	tests := []struct {
+		name       string
+		in         []pricing.Estimate
+		wantRanked bool
+		want       []float64 // checked only when ranked
+	}{
+		{"no agent", nil, false, nil},
+		{"one priced agent", []pricing.Estimate{pricedUSD(5)}, false, nil},
+		{"one priced among unpriced", []pricing.Estimate{pricedUSD(5), unpriced, noTokens}, false, nil},
+		{"two priced 80/20", []pricing.Estimate{pricedUSD(8), pricedUSD(2)}, true, []float64{80, 20}},
+		{"unpriced excluded from the denominator", []pricing.Estimate{pricedUSD(3), unpriced, pricedUSD(1)}, true, []float64{75, 0, 25}},
+		{"no-tokens excluded too", []pricing.Estimate{noTokens, pricedUSD(1), pricedUSD(1)}, true, []float64{0, 50, 50}},
+		{"all priced at zero", []pricing.Estimate{pricedUSD(0), pricedUSD(0)}, false, nil},
+		{"negative sum", []pricing.Estimate{pricedUSD(-1), pricedUSD(-2)}, false, nil},
+		{"NaN never panics", []pricing.Estimate{pricedUSD(math.NaN()), pricedUSD(1)}, false, nil},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			pct, ranked := costShares(tt.in)
+			if ranked != tt.wantRanked {
+				t.Fatalf("ranked = %v, want %v (pct %v)", ranked, tt.wantRanked, pct)
+			}
+			if !ranked {
+				return
+			}
+			if len(pct) != len(tt.want) {
+				t.Fatalf("len(pct) = %d, want %d", len(pct), len(tt.want))
+			}
+			for i := range tt.want {
+				if math.Abs(pct[i]-tt.want[i]) > 1e-9 {
+					t.Errorf("pct[%d] = %v, want %v", i, pct[i], tt.want[i])
+				}
+			}
+		})
+	}
+}
+
+// agentRows computes costPct and costRanked once, from every agent of the
+// session (not a filter).
+func TestAgentRowsCarryTheirCostShare(t *testing.T) {
+	cfg := cfgWith(t, pricesYAML)
+	prices, _ := pricing.FromConfig(cfg.AgentUsage.Prices)
+	a := byModel(agentusage.Agent{ID: "main", Main: true}, agentusage.ModelUsage{Model: "model-a", Tokens: agentusage.Tokens{Input: 8 * million}})
+	b := byModel(agentusage.Agent{ID: "sub-1"}, agentusage.ModelUsage{Model: "model-a", Tokens: agentusage.Tokens{Input: 2 * million}})
+	rows := agentRows(agentusage.Usage{Agents: []agentusage.Agent{a, b}}, true, statusClock{}, prices)
+	if len(rows) != 2 {
+		t.Fatalf("%d rows, want 2", len(rows))
+	}
+	for i, want := range []float64{80, 20} {
+		if !rows[i].costRanked || math.Abs(rows[i].costPct-want) > 1e-9 {
+			t.Errorf("row %d: costRanked=%v costPct=%v, want true/%v", i, rows[i].costRanked, rows[i].costPct, want)
+		}
+	}
+
+	rows = agentRows(agentusage.Usage{Agents: []agentusage.Agent{a}}, true, statusClock{}, prices)
+	if rows[0].costRanked {
+		t.Errorf("a lone priced agent must not be ranked (costPct=%v)", rows[0].costPct)
+	}
+	rows = agentRows(agentusage.Usage{Agents: []agentusage.Agent{a, b}}, true, statusClock{}, pricing.Table{})
+	for i, r := range rows {
+		if r.costRanked {
+			t.Errorf("row %d ranked with an empty price table", i)
+		}
 	}
 }

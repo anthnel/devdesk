@@ -4,6 +4,7 @@ import (
 	"time"
 
 	"github.com/anthnel/devdesk/internal/agentusage"
+	"github.com/anthnel/devdesk/internal/ui/indicator"
 )
 
 // runState is what the State column shows for an agent.
@@ -27,6 +28,21 @@ func (s runState) label() string {
 		return "done"
 	default:
 		return "unknown"
+	}
+}
+
+// indicator maps the state onto the activity column's state, so the dot
+// repeats what the State column says.
+func (s runState) indicator() indicator.State {
+	switch s {
+	case stateRunning:
+		return indicator.Running
+	case stateIdle:
+		return indicator.Suspended
+	case stateDone:
+		return indicator.Done
+	default:
+		return indicator.Unknown
 	}
 }
 

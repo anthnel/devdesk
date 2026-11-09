@@ -10,6 +10,7 @@ import (
 	"github.com/anthnel/devdesk/internal/agentusage/pricing"
 	"github.com/anthnel/devdesk/internal/config"
 	"github.com/anthnel/devdesk/internal/ui/datatable"
+	"github.com/anthnel/devdesk/internal/ui/theme"
 )
 
 const (
@@ -69,8 +70,22 @@ func costColumn() datatable.Column[agentRow] {
 	return datatable.Column[agentRow]{
 		Title: "Est. cost", Sizing: datatable.SizingFixed, MinWidth: costWidth, Optional: true, DropFirst: true, YieldsToContent: true,
 		Cell:  costCell,
-		Style: func(r agentRow) lipgloss.Style { return dimWhen(r.cost.Status != pricing.Priced) },
+		Style: costStyle,
 	}
+}
+
+// costStyle colours the cell by the agent's share of the session's cost: dim
+// when unpriced, neutral below theme.LoadWarnPercent (LoadTextStyle would paint
+// it green, and a green cost says "good"), orange then red above. The cell
+// text stays plain (Rule 122).
+func costStyle(r agentRow) lipgloss.Style {
+	switch {
+	case r.cost.Status != pricing.Priced:
+		return theme.DimStyle
+	case !r.costRanked || r.costPct < theme.LoadWarnPercent:
+		return lipgloss.NewStyle()
+	}
+	return theme.LoadTextStyle(r.costPct)
 }
 
 // pricesFrom builds the price table of a context. The table is read once, when
@@ -84,4 +99,29 @@ func pricesFrom(cfg *config.Config) pricing.Table {
 		log.Printf("WARN [agentusageview] agent_usage.prices %q: %s", p.Key, p.Reason)
 	}
 	return table
+}
+
+// costShares returns each agent's share of the session's estimated cost, in
+// percent, in the order of ests. Agents without a priced estimate get 0 and
+// stay out of the denominator. ranked is false when fewer than two agents are
+// priced or the priced sum is not a positive number: a share of one is noise.
+func costShares(ests []pricing.Estimate) (pct []float64, ranked bool) {
+	pct = make([]float64, len(ests))
+	var sum float64
+	priced := 0
+	for _, e := range ests {
+		if e.Status == pricing.Priced {
+			sum += e.USD
+			priced++
+		}
+	}
+	if priced < 2 || math.IsNaN(sum) || math.IsInf(sum, 0) || sum <= 0 {
+		return pct, false
+	}
+	for i, e := range ests {
+		if e.Status == pricing.Priced {
+			pct[i] = e.USD / sum * 100
+		}
+	}
+	return pct, true
 }

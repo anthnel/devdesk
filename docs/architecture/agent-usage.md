@@ -636,12 +636,13 @@ and when a session ran at this level (see the privacy amendment above). `→` or
 
 | Column | Content |
 |---|---|
+| (activity dot) | The first column (DEVDESK-151), untitled: `datatable.IndicatorColumn` over `runState.indicator()`, `SizingFixed`, `datatable.IconColumnWidth`, neither `Less` nor `Search` (Rule 125). One glyph per state, see "Activity dot" below. Never dropped on a width where Share is shown. |
 | Agent | `orchestrator`, then each sub-agent's type behind `├─ ` / `└─ ` in tree order, bare when sorted (`unknown` when the meta file gave none). `/` matches the role only. |
 | ID | the sub-agent's short ID (`shortAgentIDs`): the smallest common length >= 8 runes at which all IDs of the session differ, capped at each ID's own length. `-` for the orchestrator, `?` for a sub-agent with an empty ID. `/` matches the full ID here. Never dropped, so two agents of one type stay apart. |
 | Model | the models the agent used, comma-separated; `-` (dim) when none. `Optional`. |
-| Breakdown | the token mix as a 10-cell bar (DEVDESK-128): `Cell` is `theme.GaugeFill(10)` (plain text), `Spans` paints `agentRow.mix` with the four `theme.TokenStyle` roles in the order Input, Output, Cache write, Cache read; a dim `-` when the agent has no token. `mix`/`hasMix` are computed once in `agentRows` via `segmentCells`. Fixed width 10, `Optional`, no sort or search. The glyph is `app.gauge_glyph`'s (`theme.GaugeFill`); the bar has no track, so colour is the only thing that separates its parts (Rule 122, fifth declared exception). `apportion` (`breakdown_bar.go`) splits the 10 cells with the largest-remainder method on 128-bit-safe `math/big` integers: a category worth less than half a cell gets no cell of its own, leftover cells go to the largest part, ties go to the larger part then the lowest index. A bar therefore always fills its 10 cells when the agent has any token, and a small category can vanish: the exact figures are in the In/Out/Cache columns and in the Breakdown tab. Visible from 106 columns with short agent types (110 with `general-purpose`, 125 with a 30-character type). |
-| In, Out, Cache read, Cache write, Total | token counts. On a narrow terminal the drop order is `Cache write`, `Est. cost`, `Cache read`, `In`, `Breakdown`, `Model`, `Duration`, `Tools`, `State`. `Out` and `Total` stay. |
-| State | `running`, `idle`, `done` or `unknown` (DEVDESK-46, see "Agent state and activity"). Fixed width, `Optional`. `/` matches the label. |
+| Breakdown | the token mix as a 10-cell bar (DEVDESK-128): `Cell` is `theme.GaugeFill(10)` (plain text), `Spans` paints `agentRow.mix` with the four `theme.TokenStyle` roles in the order Input, Output, Cache write, Cache read; a dim `-` when the agent has no token. `mix`/`hasMix` are computed once in `agentRows` via `segmentCells`. Fixed width 10, `Optional`, no sort or search. The glyph is `app.gauge_glyph`'s (`theme.GaugeFill`); the bar has no track, so colour is the only thing that separates its parts (Rule 122, fifth declared exception). `apportion` (`breakdown_bar.go`) splits the 10 cells with the largest-remainder method on 128-bit-safe `math/big` integers: a category worth less than half a cell gets no cell of its own, leftover cells go to the largest part, ties go to the larger part then the lowest index. A bar therefore always fills its 10 cells when the agent has any token, and a small category can vanish: the exact figures are in the In/Out/Cache columns and in the Breakdown tab. Visible from 110 columns with short agent types (114 with `general-purpose`, 129 with a 30-character type). |
+| In, Out, Cache read, Cache write, Total | token counts. On a narrow terminal the drop order is `Cache write`, `Est. cost`, `Cache read`, `In`, `Breakdown`, `Model`, `State`, `Duration`, `Tools`. `Out` and `Total` stay. |
+| State | `running`, `idle`, `done` or `unknown` (DEVDESK-46, see "Agent state and activity"). Kept as text (DEVDESK-151): the dot repeats it and outlives it on a narrow terminal. Placed after Duration so that Duration is dropped later than State. Fixed width, `Optional`. `/` matches the label. |
 | Tools | `Agent.ToolCalls`, compact like tokens; a dim `0`. Fixed, `Optional`. |
 | Duration | `Agent.Duration()` (`formatDuration`): `45s`, `3m07s`, `1h05m`, `2d03h`, `>99d`, floored, at most 6 cells; a dim `-` when the transcript has no timestamp. Fixed, `Optional`. |
 | Est. cost | the estimated cost in USD (DEVDESK-47), see "Est. cost" below. Fixed width 10, `Optional` and `DropFirst`. No sort. |
@@ -653,12 +654,26 @@ and when a session ran at this level (see the privacy amendment above). `→` or
   sums to `100.0%`; the residue is clamped at 0 when saturated totals overshoot.
   With no orchestrator row nothing is absorbed. A session with no tokens gives
   `noShare` and the cell shows a dim `-`. Rendered as `12.3%`.
-- **Column order and width.** Agent, ID, Est. cost, State, Tools, Duration, Model, Breakdown, In, Out,
-  Cache read, Cache write, Total, Share. With three sub-agents, 100 columns show
-  Agent, ID, State, Tools, Duration, Model, Out, Total, Share; 80 columns drop
-  Model as well; 60 columns drop Duration, Tools and State and show the five
-  columns DEVDESK-43 delivered. Rule 116 holds at each width (rendered extent =
-  width - 2). The new columns have no sort: `.` keeps its cycle. Thresholds with Est. cost: Model 94, Breakdown 106, In 114, Cache read 126, Est. cost 138, Cache write 151. Cache write, Est. cost, Cache read, In and Breakdown carry `YieldsToContent` (DEVDESK-128): they go before the Agent text is cut, while Model, Duration, Tools and State do not, so the thresholds depend on the longest agent type (Breakdown 106 with short types, 110 with `general-purpose`, 125 with a 30-character type; the 80 and 60 column layouts do not change). Est. cost is visible from about 138 columns with types up to 11 characters, more with longer ones: it is `DropFirst`, so it goes right after Cache write and the 80-column layout DEVDESK-46 settled is unchanged (the exact threshold depends on the content of the Agent and ID columns).
+- **Column order and width.** Activity dot, Agent, ID, Est. cost, Tools, Duration, State, Model,
+  Breakdown, In, Out, Cache read, Cache write, Total, Share. State sits after Duration
+  (DEVDESK-151): the dot costs 4 rendered cells (2 + padding 2), which would have pushed
+  Duration out of the 80-column layout; moving State right of Duration keeps Tools and
+  Duration there and lets the dot carry the state. With three sub-agents, 100 columns show
+  dot, Agent, ID, Tools, Duration, State, Model, Out, Total, Share; 80 columns drop State and
+  Model: dot, Agent, ID, Tools, Duration, Out, Total, Share; 60 columns drop Duration and
+  Tools too: dot, Agent, ID, Out, Total, Share. Rule 116 holds at each width (rendered extent =
+  width - 2, checked through `RenderedWidth()`, also with East Asian ambiguous width). The
+  new columns have no sort: `.` keeps its cycle. Measured thresholds (the column is visible
+  from this width): Share 58, Tools 65, Duration 75, State 84, Model 98, Breakdown 110, In 118,
+  Cache read 130, Est. cost 142, Cache write 155. Cache write, Est. cost, Cache read, In and
+  Breakdown carry `YieldsToContent` (DEVDESK-128): they go before the Agent text is cut, while
+  Model, State, Duration and Tools do not, so the thresholds depend on the longest agent type
+  (Breakdown 110 with short types, 114 with `general-purpose`, 129 with a 30-character type;
+  the 80 and 60 column layouts do not change). Est. cost is visible from about 142 columns
+  with types up to 11 characters, more with longer ones: it is `DropFirst`, so it goes right
+  after Cache write and the 80-column layout is unchanged (the exact threshold depends on the
+  content of the Agent and ID columns). Before DEVDESK-151 the thresholds were 4 lower
+  (Breakdown 106, Est. cost 138, Cache write 151).
 - **Sort.** Only `Total` is sortable (`Less`, `DescFirst`). `.` cycles tree,
   `Total ▼`, `Total ▲`, tree. A table that opened unsorted returns to the tree
   after the last step. `agentRows(usage, tree, clock)` draws the branches only when no
@@ -696,6 +711,18 @@ and when a session ran at this level (see the privacy amendment above). `→` or
   | `~$1235` | whole dollars from $999.995 |
   | `~$99999+` | saturated from $99999.5 (a sub-agent drops its `≥ ` here to stay within the width) |
   | `-` | an unpriced model among the agent's, or no tokens |
+
+- **Est. cost colouring (DEVDESK-151, `cost.go`).** The cell is coloured by the agent's
+  share of the session's estimated cost, through `Style` only (`Cell` stays plain, Rule
+  122). The share is `costPct`, computed once in `agentRows` (`costShares`): the agent's
+  estimate over the sum of the estimates of every agent of the session whose status is
+  `Priced` (unpriced and no-token agents are out of the denominator; the filter and
+  `Billed` are not used). From `theme.LoadWarnPercent` (75) the cell is orange, from
+  `theme.LoadCriticalPercent` (90) red (`theme.LoadTextStyle`); below 75 it keeps the
+  default colour, never green. A cost that is `-` stays dim. Nothing is coloured unless at
+  least two agents are priced (`costRanked`), or when the sum is not positive. This is not
+  an activity colour: it is the user-approved exception of D6 to "colour says state". In a
+  typical session the orchestrator holds most of the cost, so it is often orange or red.
 
 - **Header at the agents level.** `Agents`, `Tokens`, `Est. cost` (sum of the
   visible rows, so it follows the filter; `-` if one visible row is unpriced),
@@ -788,6 +815,42 @@ on the previous one's tab.
 
 #### Agent state and activity (DEVDESK-46)
 
+### Activity dot (DEVDESK-151)
+
+`activity.go` and `runState.indicator()` (`status.go`) put the agents table on the shared
+activity column (`internal/ui/indicator`, Rule 125). The state is the one `agentStates`
+already computes; no new rule.
+
+| State | Glyph | Colour |
+|---|---|---|
+| `running` | `●` / `○` (blinks at 1 Hz) | `ColorActivityRunning` |
+| `idle` | `◐` (idle after 5 min without a transcript line) | orange (`ColorActivitySuspended`) |
+| `done` | `◉` | neutral, not green |
+| `unknown` | `◌` | neutral, not dim |
+
+- **`WantsBlink()`** is the router's `BlinkingView` hook. It is a level, not an edge: true
+  only at the agents level, on the Agents tab, while a `running` row is among
+  `agentTable.Visible()` (a running row hidden by the filter does not count). The router
+  then frames the view; `update.go` handles `jobs.FrameMsg` with
+  `agentTable.SetBlinkPhase(msg.Blink)`. The view starts no animation tick: the 2 s
+  incremental read (`pollTickCmd`, which sleeps inside a `Cmd`) is data, not animation.
+- **`ActivityTables()`** reports `agent-usage/agents` to the activity-column guard
+  (`app-shell.md`). The sessions list has no activity column and is not live.
+- **Motion static** (`app.motion: static`): the router never frames the view and a
+  running agent shows a steady `●`.
+- **Footer** (Rule 128, Agents tab with a selected row only; error and loading still win):
+  the selected agent's state in words, via `components.DescribeRow`, so the state reads
+  without colour. Sentences (`agentStateText`, times through `theme.TimeAgo`):
+  `Agent running — last transcript line <ago>`, `Agent idle — last transcript line <ago>`,
+  `Agent done — ran <duration>` (`Agent done` without a timestamp),
+  `Agent state unknown — transcript has no end marker` (sub-agent) and
+  `Agent state unknown — updates are paused` (orchestrator). The Breakdown tab and the
+  sessions level have no such detail.
+- **Help (`?`)**: an "Activity indicator" section with the shared legend
+  (`indicator.AgentsLegend`, `◐ idle (no activity for 5 min)`, `◉ done`, `◌ unknown`); the
+  narrow-terminal sentence gives the new drop order; the "Costs" section describes the
+  75 / 90 colouring.
+
 `status.go` derives the State column. The package describes what the transcripts
 say; what counts as "idle" is a display policy that depends on the view's clock,
 so it lives here, not in `internal/agentusage`. `agentStates` is pure: the clock
@@ -815,8 +878,9 @@ The orchestrator is **never `done`**: Claude Code writes no end marker for it. A
 foreground `Agent` call leaves it silent for as long as the sub-agent runs, so it
 is not idle while one runs; if every running sub-agent is itself idle, it is idle
 too. Once updates pause it reads `unknown`, so a session waiting at the prompt for
-more than 5 min shows `unknown` and `Updates › paused`. Colours (Rule 122): `idle`
-in the MEDIUM orange, `unknown` dim, `running` and `done` in the text colour.
+more than 5 min shows `unknown` and `Updates › paused`. Colours of the State
+text (Rule 122): `idle` in the MEDIUM orange, `unknown` dim, `running` and `done` in the
+text colour. The dot has its own colours, see "Activity dot".
 
 **The rows are rebuilt on every successful read, even an empty one** (`applyRead`
 in `update.go`). An agent turns idle precisely because nothing arrives, so an
