@@ -299,51 +299,22 @@ func (m Model) handleInventoryScanFinished(msg InventoryScanFinishedMsg) (tea.Mo
 	return m, nil
 }
 
-// setInventory replaces the rows, stamping the current spinner frame on them so
-// the ones being rescanned animate. The frame is read here rather than in a Cell
-// function, which is built once and cannot reach the model.
-//
-// It is the spinner's *frame*, never its View(): the latter renders through
-// SpinnerStyle, and a table cell carries no escape sequence (Rule 122). A styled
-// frame measured 47 cells in a column 14 wide, so the cut landed inside the
-// escape and the Scanned column rendered as nothing at all — a scan with no
-// visible sign it was running. oci_resources and workspaces already stamp the
-// bare frame; this was the one that did not.
+// setInventory replaces the rows, stamping each one's activity from the router
+// snapshot. The blink phase is not stamped: the table reads it at render, so a
+// frame never rebuilds the rows. The alias is stamped here too, because the
+// rows come from a Cmd, which must not read the model (Rule 110).
 func (m *Model) setInventory(targets []scanTarget) {
-	// The frame comes from the registry, which holds the one chain that
-	// animates work (D5). spinnerFrameIdx is this view's own and animates the
-	// *load* of the caches, which is not a job.
-	frame := m.jobFrame
-	scanning := m.scanningTargets()
-	// The alias is stamped here for the same reason as the frame, and it is the
-	// only place that can: the rows come from a Cmd, which must not read the
-	// model, and the Target column is built once in New with nothing to reach.
 	aliases := registryalias.From(m.config.Registry.Registries)
 	stamped := make([]scanTarget, len(targets))
 	for i, t := range targets {
-		t.SpinnerFrame = frame
-		t.Scanning = scanning[t.Name]
+		t.Activity = m.rowActivity(t)
+		t.ScanRunning = m.scanRunning(t.Name)
 		if t.Kind == kindImage {
 			t.Display = docker.ApplyAliases(t.Name, aliases)
 		}
 		stamped[i] = t
 	}
 	m.inventory.SetItems(stamped)
-}
-
-// inventoryScanning reports whether any row is being rescanned.
-//
-// It answers from the registry, so it is true for a scan started in `ws` or on
-// the images tab as well: the inventory lists exactly what those two scan, and
-// a rescan launched there is the same work on the same cache entry.
-func (m Model) inventoryScanning() bool {
-	scanning := m.scanningTargets()
-	for _, t := range m.inventory.Items() {
-		if scanning[t.Name] {
-			return true
-		}
-	}
-	return false
 }
 
 // renderInventoryView renders the table, or says why there is nothing in it.

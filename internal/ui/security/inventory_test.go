@@ -14,6 +14,7 @@ import (
 	"github.com/anthnel/devdesk/internal/config"
 	"github.com/anthnel/devdesk/internal/jobs"
 	"github.com/anthnel/devdesk/internal/scan"
+	"github.com/anthnel/devdesk/internal/ui/indicator"
 	"github.com/anthnel/devdesk/internal/ui/keymap"
 	"github.com/anthnel/devdesk/internal/ui/shortcut"
 	"github.com/anthnel/devdesk/internal/ui/testutil"
@@ -218,8 +219,8 @@ func TestRescanningOneRowMarksOnlyThatRow(t *testing.T) {
 	m = scanning(t, m, "nexus/api:1.4")
 	for _, target := range m.inventory.Items() {
 		wantScanning := target.Name == "nexus/api:1.4"
-		if target.Scanning != wantScanning {
-			t.Errorf("%s: Scanning = %v, want %v", target.Name, target.Scanning, wantScanning)
+		if target.ScanRunning != wantScanning {
+			t.Errorf("%s: ScanRunning = %v, want %v", target.Name, target.ScanRunning, wantScanning)
 		}
 		if !target.Scanned {
 			t.Errorf("%s: ctrl+s cleared the counts; it overwrites, it does not purge (Rule 126)", target.Name)
@@ -241,9 +242,9 @@ func TestRescanningAllPurgesTheCountsButKeepsTheTargets(t *testing.T) {
 		t.Fatalf("%d rows after ctrl+a, want both targets kept", len(m.inventory.Items()))
 	}
 	for _, target := range m.inventory.Items() {
-		if !target.Scanning || target.Scanned {
-			t.Errorf("%s: Scanning=%v Scanned=%v, want a purged row with a scan running",
-				target.Name, target.Scanning, target.Scanned)
+		if !target.ScanRunning || target.Activity.State != indicator.Running || target.Scanned {
+			t.Errorf("%s: ScanRunning=%v state=%v Scanned=%v, want a purged row with a scan running",
+				target.Name, target.ScanRunning, target.Activity.State, target.Scanned)
 		}
 		if target.Counts != (scan.SeverityCounts{}) {
 			t.Errorf("%s: counts survived the purge: %+v", target.Name, target.Counts)
@@ -285,12 +286,12 @@ func TestAFinishedRescanUpdatesItsRowAlone(t *testing.T) {
 
 	for _, target := range m.inventory.Items() {
 		if target.Name != "nexus/api:1.4" {
-			if target.Scanned || !target.Scanning {
+			if target.Scanned || !target.ScanRunning || target.Activity.State != indicator.Running {
 				t.Errorf("%s changed on another target's result", target.Name)
 			}
 			continue
 		}
-		if target.Scanning || !target.Scanned || target.Counts.Critical != 7 {
+		if target.ScanRunning || target.Activity.State == indicator.Running || !target.Scanned || target.Counts.Critical != 7 {
 			t.Errorf("the rescanned row = %+v, want it settled on the new counts", target)
 		}
 		if !target.ScannedAt.Equal(scannedAt) {
@@ -312,7 +313,7 @@ func TestAFailedRescanMarksTheRowAndSaysSo(t *testing.T) {
 			target = candidate
 		}
 	}
-	if target.Scanning || !target.Failed {
+	if target.ScanRunning || !target.Failed {
 		t.Errorf("the failed row = %+v, want it marked failed and no longer scanning", target)
 	}
 	if !strings.Contains(m.footer.Text(), "nexus/api:1.4") {
@@ -336,7 +337,7 @@ func TestAReloadDoesNotSettleARowStillBeingScanned(t *testing.T) {
 	m = feed(t, m, InventoryLoadedMsg{Targets: inventoryFixtures()})
 
 	for _, target := range m.inventory.Items() {
-		if target.Name == "nexus/api:1.4" && !target.Scanning {
+		if target.Name == "nexus/api:1.4" && (!target.ScanRunning || target.Activity.State != indicator.Running) {
 			t.Error("the reload cleared the in-flight scan marker")
 		}
 	}
@@ -351,11 +352,8 @@ func TestAScanStartedElsewhereMarksTheInventoryRow(t *testing.T) {
 
 	m := withJobs(t, inventoryModel(t, inventoryFixtures()...), fromWorkspaces)
 
-	if !m.inventoryScanning() {
-		t.Error("the inventory reports itself idle while one of its targets is being scanned")
-	}
 	for _, target := range m.inventory.Items() {
-		if target.Name == "/home/dev/workspaces/devdesk" && !target.Scanning {
+		if target.Name == "/home/dev/workspaces/devdesk" && (!target.ScanRunning || target.Activity.State != indicator.Running) {
 			t.Error("a scan started from the workspaces view is invisible in the inventory")
 		}
 	}
@@ -479,30 +477,6 @@ func TestInitLoadsTheInventory(t *testing.T) {
 // The spinner only advances while a rescan is running: SetItems re-filters and
 // re-sorts, and there is no reason to do that sixty times a second for a table
 // with nothing running.
-// The scan frame comes from the router now, which holds the one chain for the
-// whole application (D5). The rows carry it, so a snapshot that moves the frame
-// has to restamp them — one that did not would freeze the spinner while the
-// chain kept ticking.
-func TestASnapshotRestampsTheScanningRowsWithItsFrame(t *testing.T) {
-	settled := inventoryModel(t, inventoryFixtures()...)
-	if _, cmd := step(t, settled, spinner.TickMsg{}); cmd != nil {
-		t.Error("a settled inventory scheduled another spinner frame of its own")
-	}
-
-	run := scanningRun("nexus/api:1.4")
-	m := withFrame(t, settled, "one", run)
-	m = withFrame(t, m, "two", run)
-
-	for _, target := range m.inventory.Items() {
-		if target.Name != "nexus/api:1.4" {
-			continue
-		}
-		if target.SpinnerFrame != "two" {
-			t.Errorf("the scanning row carries %q, want the frame the snapshot brought", target.SpinnerFrame)
-		}
-	}
-}
-
 // D65: the inventory used to show "Nothing scanned yet" and then the list.
 // The message is a claim about what the caches contain, and the view hadn't
 // read them yet — Rule 139: the table stays on screen, the footer says it's
@@ -541,8 +515,10 @@ func TestTheEmptyMessageAppearsOnceTheCachesAnswer(t *testing.T) {
 func TestTheSpinnerKeepsTickingWhileTheInventoryLoads(t *testing.T) {
 	m := feed(t, New(testConfig(), nil), tea.WindowSizeMsg{Width: 160, Height: 30})
 
-	if m.inventoryScanning() {
-		t.Fatal("the fixture is meant to be loading, not scanning")
+	for _, target := range m.inventory.Items() {
+		if target.Activity.State != indicator.Idle {
+			t.Fatal("the fixture is meant to be loading, not scanning")
+		}
 	}
 	updated, cmd := m.handleSpinnerTick(spinner.TickMsg{})
 	if cmd == nil {

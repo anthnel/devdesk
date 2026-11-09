@@ -96,7 +96,7 @@ func TestARescanReplacesTheGradeOnTheRow(t *testing.T) {
 	m := feed(t, New(testConfig(), nil), tea.WindowSizeMsg{Width: 160, Height: 30})
 	m.setInventory([]scanTarget{{
 		Kind: kindRepo, Name: "/repos/devdesk", Scanned: true,
-		CIGradeable: true, CIScore: &old, Scanning: true,
+		CIGradeable: true, CIScore: &old, ScanRunning: true,
 	}})
 
 	m = feed(t, m, InventoryScanFinishedMsg{Name: "/repos/devdesk", CIScore: &fresh})

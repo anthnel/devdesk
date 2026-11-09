@@ -12,21 +12,13 @@ import (
 
 // ── Putting scans in flight, the way the router does ─────────────────────────
 //
-// scanTarget.Scanning is derived from the router snapshot now, so a test says
+// a row's activity is derived from the router snapshot now, so a test says
 // "this target is being scanned" by handing the view one.
 
 func withJobs(t *testing.T, m Model, runs ...jobs.Run) Model {
 	t.Helper()
-	m = feed(t, m, jobs.ChangedMsg{Runs: runs})
+	m = feed(t, m, jobs.ChangedMsg{Runs: runs, Context: "default"})
 	return feed(t, m, jobs.FrameMsg{Frame: "*", RenderedFrame: "*"})
-}
-
-// withFrame is the same snapshot with a named frame, for the tests that check
-// the rows are restamped when it moves.
-func withFrame(t *testing.T, m Model, frame string, runs ...jobs.Run) Model {
-	t.Helper()
-	m = feed(t, m, jobs.ChangedMsg{Runs: runs})
-	return feed(t, m, jobs.FrameMsg{Frame: frame, RenderedFrame: frame})
 }
 
 func scanningRun(names ...string) jobs.Run {

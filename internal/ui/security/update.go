@@ -177,7 +177,6 @@ func (m Model) handleSpinnerTick(msg spinner.TickMsg) (tea.Model, tea.Cmd) {
 	}
 	var cmd tea.Cmd
 	m.spinner, cmd = m.spinner.Update(msg)
-	m.spinnerFrameIdx++
 	// The footer renders the frame, not a raw one: the spinner already carries
 	// theme.SpinnerStyle() and restyling it would nest one sequence in another
 	// (Rule 128).

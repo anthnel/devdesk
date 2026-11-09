@@ -7,11 +7,12 @@ import (
 
 	"github.com/anthnel/devdesk/internal/command"
 	"github.com/anthnel/devdesk/internal/jobs"
+	"github.com/anthnel/devdesk/internal/ui/datatable"
 )
 
 // What is being rescanned is the registry's answer, not this view's (§3.58).
 //
-// `scanTarget.Scanning` was a flag this view set and cleared itself, and
+// the old `scanTarget.Scanning` was a flag this view set and cleared itself, and
 // `handleInventoryLoaded` had to carry it across every reload by hand: the
 // caches say nothing about a scan that has not finished writing to them, so a
 // refresh landing mid-rescan cleared the spinner and left the row looking
@@ -31,11 +32,21 @@ func (m Model) handleJobsChanged(msg jobs.ChangedMsg) (tea.Model, tea.Cmd) {
 	return m, nil
 }
 
-// handleFrameMsg takes the animation's frame and redecorates the rows.
+// handleFrameMsg takes the animation's blink phase, which the table reads at
+// render; no row is rebuilt. The footer frame is the router's only while the
+// view's own load or remediation spinner is not running.
 func (m Model) handleFrameMsg(msg jobs.FrameMsg) (tea.Model, tea.Cmd) {
-	m.jobFrame = msg.Frame
-	m.setInventory(m.inventory.Items())
+	m.inventory.SetBlinkPhase(msg.Blink)
+	if !m.spinnerAlive() {
+		m.footer.SetSpinnerFrame(msg.RenderedFrame)
+	}
 	return m, nil
+}
+
+// ActivityTables returns the read-only face of the view's table, keyed by the
+// name the activity-column guard (internal/app) knows it by. Tests only.
+func (m Model) ActivityTables() map[string]datatable.ActivityTable {
+	return map[string]datatable.ActivityTable{"sec/inventory": &m.inventory}
 }
 
 // scanRun builds the run behind ctrl+s and A. The label names the screen it was

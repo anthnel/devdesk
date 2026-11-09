@@ -43,6 +43,7 @@ type activityView interface {
 var migratedTables = map[command.ViewType][]string{
 	command.ViewJobs:       {"jobs/runs", "jobs/targets"},
 	command.ViewWorkspaces: {"ws"},
+	command.ViewSecurity:   {"sec/inventory"},
 }
 
 // pendingTable is a table that still has to move to the activity column.
@@ -54,7 +55,6 @@ type pendingTable struct {
 
 // pendingTables may only shrink: each migration story removes its own entries.
 var pendingTables = []pendingTable{
-	{"sec/inventory", command.ViewSecurity, "A-08"},
 	{"oci/images", command.ViewOCIResources, "A-09a"},
 	{"oci/registry-browser", command.ViewOCIResources, "A-09a"},
 	{"oci/networks", command.ViewOCIResources, "A-09b"},
@@ -324,6 +324,7 @@ func checkColumnZero(t *testing.T, vt command.ViewType, table string, shapes []d
 var migratedSources = map[command.ViewType][]string{
 	command.ViewJobs:       {"ui/jobsview/"},
 	command.ViewWorkspaces: {"ui/workspaces/"},
+	command.ViewSecurity:   {"ui/security/inventory.go", "ui/security/inventory_table.go", "ui/security/jobs.go", "ui/security/activity.go"},
 }
 
 // sourceDeclarationProblems says what is wrong with the link between migrated

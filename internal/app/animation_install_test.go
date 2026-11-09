@@ -112,6 +112,7 @@ func TestHandlePickRequestHandsThePickerTheSnapshotAndTheFrame(t *testing.T) {
 
 func TestOpenSecurityViewHandsItTheSnapshotAndTheFrame(t *testing.T) {
 	a := runningRouter(t, &fakeView{})
+	a.anim.blinkOn = false
 
 	a.openSecurityView(security.New(a.config, nil), command.ViewWorkspaces)
 
@@ -119,7 +120,12 @@ func TestOpenSecurityViewHandsItTheSnapshotAndTheFrame(t *testing.T) {
 	if n := unexported(t, view, "jobs").Len(); n == 0 {
 		t.Error("the :sec view holds no run: it was installed without the snapshot")
 	}
-	if got := unexported(t, view, "jobFrame").String(); got != a.animationFrame() {
-		t.Errorf("the :sec view's frame = %q, want %q", got, a.animationFrame())
+	// DEVDESK-145: the frame is no longer stamped on the rows. The inventory
+	// holds the router's blink phase.
+	if got := unexported(t, view, "inventory", "blinkOn").Bool(); got {
+		t.Error("the :sec inventory blink phase is on, want the router's off phase")
+	}
+	if v := reflect.ValueOf(view).FieldByName("jobFrame"); v.IsValid() {
+		t.Error("the :sec view still carries jobFrame")
 	}
 }
