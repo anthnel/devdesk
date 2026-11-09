@@ -1,0 +1,82 @@
+{
+  "cli_version": "0.12.2",
+  "checkpoint_id": "c5dad33c5d98",
+  "session_id": "29a9259b-3eb1-47a8-b387-adc0fdce8791",
+  "strategy": "manual-commit",
+  "created_at": "2026-11-09T21:06:36.933636698Z",
+  "branch": "docs/devdesk-220-branch-protection-text",
+  "checkpoints_count": 3,
+  "save_step_count": 3,
+  "files_touched": [],
+  "agent": "Claude Code",
+  "model": "claude-sonnet-5-5",
+  "turn_id": "aa322cfa1485",
+  "checkpoint_transcript_start": 198,
+  "transcript_lines_at_start": 198,
+  "compact_transcript_start": 30,
+  "token_usage": {
+    "input_tokens": 0,
+    "cache_creation_tokens": 0,
+    "cache_read_tokens": 0,
+    "output_tokens": 0,
+    "api_call_count": 0,
+    "subagent_tokens": {
+      "input_tokens": 14,
+      "cache_creation_tokens": 35947,
+      "cache_read_tokens": 232896,
+      "output_tokens": 4668,
+      "api_call_count": 7
+    }
+  },
+  "redaction": {
+    "replacements": 0,
+    "layers": {
+      "betterleaks": 0,
+      "connection_string": 0,
+      "credential_key": 0,
+      "credential_value": 0,
+      "credentialed_uri": 0,
+      "entropy": 0,
+      "key_context": 0,
+      "provider_token": 0,
+      "shell_stdin": 0
+    }
+  },
+  "skill_events_version": 1,
+  "skill_events": [
+    {
+      "id": "claude-skill-toolu_012p4gzdhZBckjTBoPK4q67n",
+      "event_type": "tool_invocation",
+      "skill": {
+        "name": "team-core:resume-work"
+      },
+      "source": {
+        "agent": "claude-code",
+        "signal": "skill_tool_use",
+        "confidence": "explicit"
+      },
+      "turn_id": "728eca65831c",
+      "transcript_anchor": {
+        "unit": "line",
+        "start": 77,
+        "end": 78,
+        "entry_ids": [
+          "72c662b9-20f9-4267-92c2-f604feb941a8"
+        ],
+        "tool_use_id": "toolu_012p4gzdhZBckjTBoPK4q67n"
+      },
+      "native": {
+        "tool_name": "Skill",
+        "tool_use_id": "toolu_012p4gzdhZBckjTBoPK4q67n"
+      },
+      "collapse": {
+        "target": "tool_pair",
+        "label": "Skill: team-core:resume-work",
+        "default_collapsed": true
+      }
+    }
+  ],
+  "session_metrics": {
+    "turn_count": 6
+  }
+}
