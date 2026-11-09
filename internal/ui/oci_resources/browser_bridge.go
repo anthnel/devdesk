@@ -165,8 +165,8 @@ func (m Model) handleRegistryGroupDetected(msg RegistryGroupDetectedMsg) (tea.Mo
 			Members:      toCachedMembers(msg.Members),
 			DiscoveredAt: time.Now(),
 		}
-		m.updateRegistryTable()
 	}
+	m.updateRegistryTable()
 	return m, nil
 }
 

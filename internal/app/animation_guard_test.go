@@ -116,13 +116,12 @@ type rowChain struct{ Story, What string }
 // router (DEVDESK-139, Q2 = A). The list may only shrink: each entry names the
 // story that removes it, and a stale entry fails the tests below.
 var declaredRowChains = map[string]rowChain{
-	"ui/oci_resources/busy.go":         {"A-09b", "AdvanceSpinner on the three OCI tables"},
 	"ui/oci_resources/browser_keys.go": {"A-09a2", "tagScanSpinnerIdx"},
 }
 
 // maxDeclaredRowChains is the ceiling (DEVDESK-143): raising it takes a visible
 // diff. Lower it with every migration.
-const maxDeclaredRowChains = 2
+const maxDeclaredRowChains = 1
 
 // chainProblems says what is wrong with the declared chains, in file order:
 // no story, or a story whose tables have all left pendingTables (the chain

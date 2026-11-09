@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/charmbracelet/bubbles/spinner"
 	"github.com/charmbracelet/lipgloss"
 
 	"github.com/anthnel/devdesk/internal/cache"
@@ -305,18 +304,18 @@ func (m *Model) updateImageTable() {
 	m.imageTable.SetHeight(m.tableHeight())
 }
 
-// networkColumnID and volumeColumnDriver are where a running action puts its
-// spinner — the cell each table can spare while one row is being removed.
-const (
-	networkColumnID    = 0
-	volumeColumnDriver = 1
-)
+// restColumn is the activity column of the tables without a rest icon: an
+// untitled cell that is empty while the row is idle (Rule 125).
+func restColumn[T any]() datatable.Column[T] {
+	return datatable.IndicatorColumn(func(T) indicator.State { return indicator.Idle }, nil, nil)
+}
 
 // networkColumns describes the Networks tab. Neither this table nor the volumes
 // one sorts or filters today, so no Less and no Search: `/` and `.` stay inert
 // rather than being wired to a bar this view's footer does not render.
 func networkColumns() []datatable.Column[docker.Network] {
 	return []datatable.Column[docker.Network]{
+		restColumn[docker.Network](),
 		{Title: "ID", Sizing: datatable.SizingFixed, MinWidth: 14, Cell: func(n docker.Network) string { return shortID(n.ID) }},
 		{Title: "Name", Sizing: datatable.SizingContent, MinWidth: 20, Flex: 1, Cell: func(n docker.Network) string { return n.Name }},
 		{Title: "Driver", Sizing: datatable.SizingFixed, Optional: true, MinWidth: 12, Cell: func(n docker.Network) string { return n.Driver }},
@@ -327,6 +326,7 @@ func networkColumns() []datatable.Column[docker.Network] {
 // volumeColumns describes the Volumes tab.
 func volumeColumns() []datatable.Column[docker.Volume] {
 	return []datatable.Column[docker.Volume]{
+		restColumn[docker.Volume](),
 		{Title: "Name", Sizing: datatable.SizingContent, MinWidth: 20, Cell: func(v docker.Volume) string { return v.Name }},
 		{Title: "Driver", Sizing: datatable.SizingFixed, MinWidth: 12, Cell: func(v docker.Volume) string { return v.Driver }},
 		{Title: "Mountpoint", Sizing: datatable.SizingContent, Optional: true, TruncateHead: true, MinWidth: 20, Flex: 1, Cell: func(v docker.Volume) string { return v.Mountpoint }},
@@ -361,23 +361,34 @@ type registryRow struct {
 	auth    string
 	logged  string
 	members string
-	config  int
+	// refreshing is set when the row is built (Rule 110): a discovery runs for
+	// this group, and the activity column says so.
+	refreshing bool
+	config     int
 }
-
-// registryColumnLogged is the cell a login or logout replaces with its spinner:
-// it is precisely the answer the operation is about to change.
-const registryColumnLogged = 4
 
 // registryColumns describes the Registries tab. Nothing sorts or searches: the
 // list is the order the config declares, which is the order the user wrote.
 func registryColumns() []datatable.Column[registryRow] {
 	return []datatable.Column[registryRow]{
+		datatable.IndicatorColumn(func(r registryRow) indicator.State {
+			if r.refreshing {
+				return indicator.Running
+			}
+			return indicator.Idle
+		}, nil, nil),
 		{Title: "Alias", Sizing: datatable.SizingContent, MinWidth: 16, Cell: func(r registryRow) string { return r.alias }},
 		{Title: "URL", Sizing: datatable.SizingContent, TruncateHead: true, MinWidth: 20, Flex: 1, Cell: func(r registryRow) string { return r.url }},
 		{Title: "Kind", Sizing: datatable.SizingFixed, Optional: true, MinWidth: 10, Cell: func(r registryRow) string { return r.kind }},
 		{Title: "Auth", Sizing: datatable.SizingFixed, Optional: true, MinWidth: 12, Cell: func(r registryRow) string { return r.auth }}, // holds "credentials"
 		{Title: "Logged", Sizing: datatable.SizingFixed, MinWidth: 8, Cell: func(r registryRow) string { return r.logged }},
-		{Title: "Members", Sizing: datatable.SizingFixed, Optional: true, MinWidth: 16, Cell: func(r registryRow) string { return r.members }}, // holds "12 · 30 days ago"
+		{Title: "Members", Sizing: datatable.SizingFixed, Optional: true, MinWidth: 16, Cell: func(r registryRow) string { return r.members },
+			Style: func(r registryRow) lipgloss.Style {
+				if r.refreshing {
+					return theme.DimStyle
+				}
+				return lipgloss.NewStyle()
+			}}, // holds "12 · 30 days ago"
 	}
 }
 
@@ -405,9 +416,8 @@ func (m *Model) membersCell(reg config.RegistryItem) string {
 		return ""
 	}
 	if m.refreshingGroups[reg.Slug] {
-		// The spinner's frame, not its View(): the latter renders through a
-		// style, and a table cell carries no escape sequence.
-		return spinner.Dot.Frames[m.spinnerFrameIdx%len(spinner.Dot.Frames)] + " refreshing"
+		// Static text: the row's dot is the animation (Rule 122).
+		return "refreshing"
 	}
 	entry, ok := m.groupCache[reg.Slug]
 	if !ok {
@@ -457,13 +467,14 @@ func (m *Model) updateRegistryTable() {
 	rows := make([]registryRow, 0, len(m.registries))
 	for i, reg := range m.registries {
 		rows = append(rows, registryRow{
-			alias:   reg.Alias,
-			url:     registryRef(reg.URL, reg.RepoPrefix),
-			kind:    reg.Kind,
-			auth:    reg.AuthMode,
-			logged:  m.loggedCell(reg.AuthMode, reg.URL),
-			members: m.membersCell(reg),
-			config:  i,
+			alias:      reg.Alias,
+			url:        registryRef(reg.URL, reg.RepoPrefix),
+			kind:       reg.Kind,
+			auth:       reg.AuthMode,
+			logged:     m.loggedCell(reg.AuthMode, reg.URL),
+			members:    m.membersCell(reg),
+			refreshing: reg.Kind == config.KindGroup && m.refreshingGroups[reg.Slug],
+			config:     i,
 		})
 	}
 	m.setRegistryRows(rows)

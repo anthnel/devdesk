@@ -49,7 +49,7 @@ var migratedTables = map[command.ViewType][]string{
 	command.ViewJobs:         {"jobs/runs", "jobs/targets"},
 	command.ViewWorkspaces:   {"ws"},
 	command.ViewSecurity:     {"sec/inventory"},
-	command.ViewOCIResources: {"oci/images"},
+	command.ViewOCIResources: {"oci/images", "oci/networks", "oci/volumes", "oci/registries"},
 	command.ViewGitExplorer:  {"explorer/tree", "explorer/clone-list"},
 	command.ViewTemplates:    {"templates"},
 	command.ViewNetdiag:      {"netdiag/ports"},
@@ -67,15 +67,12 @@ type pendingTable struct {
 // pendingTables may only shrink: each migration story removes its own entries.
 var pendingTables = []pendingTable{
 	{"oci/registry-browser", command.ViewOCIResources, "A-09a2"},
-	{"oci/networks", command.ViewOCIResources, "A-09b"},
-	{"oci/volumes", command.ViewOCIResources, "A-09b"},
-	{"oci/registries", command.ViewOCIResources, "A-09b"},
 }
 
 // maxPendingTables is the ceiling: adding an exception means raising both the
 // list and this constant in the same diff, which is visible in review. Lower it
 // with every migration.
-const maxPendingTables = 4
+const maxPendingTables = 1
 
 // exemptViews have no long-running operation to show per row (inventory:
 // "sans objet" or out of the batch), each with its reason.
@@ -330,12 +327,14 @@ var migratedSources = map[command.ViewType][]string{
 	command.ViewWorkspaces: {"ui/workspaces/"},
 	command.ViewSecurity:   {"ui/security/"},
 	// OCI migrates in steps (A-09a images, A-09a2 registry browser, A-09b the rest):
-	// only the files that belong to the migrated table are scanned. Excluded:
-	// model.go (StatusColumn of the three other tables), busy.go, commands.go (the
-	// refresh tea.Tick) and browser_*/registry_browser.go.
+	// only the files that belong to the migrated tables are scanned. Excluded:
+	// commands.go (the refresh tea.Tick) and browser_*/registry_browser.go
+	// (the registry browser, still pending A-09a2).
 	command.ViewOCIResources: {
 		"ui/oci_resources/activity.go", "ui/oci_resources/table.go", "ui/oci_resources/jobs.go",
 		"ui/oci_resources/images.go", "ui/oci_resources/results.go", "ui/oci_resources/view.go",
+		"ui/oci_resources/model.go", "ui/oci_resources/busy.go", "ui/oci_resources/registries.go",
+		"ui/oci_resources/update.go", "ui/oci_resources/keys.go",
 	},
 	// The explorer is fully migrated (A-10a the tree, A-10b the clone list):
 	// the whole package is scanned.

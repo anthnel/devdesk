@@ -27,30 +27,30 @@ func (m Model) handleConfirmYes() (tea.Model, tea.Cmd) {
 		m.imageTable.MarkBusy(img.ID, "Removing "+name)
 		// Rebuild so the rows' activity (read by WantsBlink) follows the marker.
 		m.updateImageTable()
-		return m, tea.Batch(removeImageCmd(img.ID, name), m.busyTick())
+		return m, removeImageCmd(img.ID, name)
 	case "prune-images":
 		m.pruning = "images"
-		return m, tea.Batch(pruneImagesCmd(), m.busyTick())
+		return m, pruneImagesCmd()
 	case "delete-network":
 		net := m.getSelectedNetwork()
 		if net == nil {
 			return m, nil
 		}
 		m.networkTable.MarkBusy(net.ID, "Removing "+net.Name)
-		return m, tea.Batch(removeNetworkCmd(net.ID), m.busyTick())
+		return m, removeNetworkCmd(net.ID)
 	case "prune-networks":
 		m.pruning = "networks"
-		return m, tea.Batch(pruneNetworksCmd(), m.busyTick())
+		return m, pruneNetworksCmd()
 	case "delete-volume":
 		vol := m.getSelectedVolume()
 		if vol == nil {
 			return m, nil
 		}
 		m.volumeTable.MarkBusy(vol.Name, "Removing "+vol.Name)
-		return m, tea.Batch(removeVolumeCmd(vol.Name), m.busyTick())
+		return m, removeVolumeCmd(vol.Name)
 	case "prune-volumes":
 		m.pruning = "volumes"
-		return m, tea.Batch(pruneVolumesCmd(), m.busyTick())
+		return m, pruneVolumesCmd()
 	case "delete-registry":
 		idx := m.getSelectedRegistryIndex()
 		if idx < 0 {

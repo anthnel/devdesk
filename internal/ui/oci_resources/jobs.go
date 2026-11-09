@@ -47,6 +47,9 @@ func (m Model) handleJobsChanged(msg jobs.ChangedMsg) (tea.Model, tea.Cmd) {
 // then, and two writers would fight every frame.
 func (m Model) handleFrameMsg(msg jobs.FrameMsg) (tea.Model, tea.Cmd) {
 	m.imageTable.SetBlinkPhase(msg.Blink)
+	m.networkTable.SetBlinkPhase(msg.Blink)
+	m.volumeTable.SetBlinkPhase(msg.Blink)
+	m.registryTable.SetBlinkPhase(msg.Blink)
 	if !m.loading && !m.loadingNets && !m.loadingVols && !m.loadingRegs {
 		m.footer.SetSpinnerFrame(msg.RenderedFrame)
 	}
@@ -62,7 +65,12 @@ func (m Model) WantsBlink() bool {
 			return true
 		}
 	}
-	return false
+	// A busy row (network, volume, registry) and a group being discovered both
+	// show a blinking dot.
+	return len(m.refreshingGroups) > 0 ||
+		len(m.networkTable.BusyLabels()) > 0 ||
+		len(m.volumeTable.BusyLabels()) > 0 ||
+		len(m.registryTable.BusyLabels()) > 0
 }
 
 // scanRun builds the run behind S, A, ctrl+a and a direct scan from the browser.

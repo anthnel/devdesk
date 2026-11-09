@@ -69,9 +69,7 @@ type Model struct {
 	// jobs is the router snapshot of everything running anywhere. It replaced
 	// a scanningImages map and the `scanning` bool derived from it, both of
 	// which knew only what this view launched.
-	//
-	// spinnerFrameIdx below stays: it animates *loading*, and a load is not a
-	// job. See jobs.go.
+	// See jobs.go.
 	jobs []jobs.Run
 	// failures is a copy of the registry's remembered failures, replaced (never
 	// merged) by handleJobsChanged, and contextName the context the snapshot
@@ -80,11 +78,10 @@ type Model struct {
 	contextName string
 	// updates is what the registries said about each image, for the Update
 	// column (§3.88).
-	updates         imageupdate.Tracker
-	spinnerFrameIdx int
-	imageTable      datatable.Model[imageRow]
-	spinner         spinner.Model
-	loading         bool
+	updates    imageupdate.Tracker
+	imageTable datatable.Model[imageRow]
+	spinner    spinner.Model
+	loading    bool
 	// Networks tab
 
 	networkTable datatable.Model[docker.Network]
@@ -446,22 +443,17 @@ func New(cfg *config.Config) Model {
 	})
 
 	nt := datatable.New(datatable.Config[docker.Network]{
-		Columns:      networkColumns(),
-		SortColumn:   -1,
-		Key:          func(n docker.Network) string { return n.ID },
-		StatusColumn: networkColumnID,
+		Columns:    networkColumns(),
+		SortColumn: -1,
+		Key:        func(n docker.Network) string { return n.ID },
 	})
 	nt.Blur()
 
 	vt := datatable.New(datatable.Config[docker.Volume]{
 		Columns:    volumeColumns(),
 		SortColumn: -1,
-		// A volume has no ID: its name is its identity, which is also why the
-		// spinner cannot go there — it is the one cell that says which row this
-		// is. Driver is the expendable one, and it reads "local" on very nearly
-		// every volume there has ever been.
-		Key:          func(v docker.Volume) string { return v.Name },
-		StatusColumn: volumeColumnDriver,
+		// A volume has no ID: its name is its identity.
+		Key: func(v docker.Volume) string { return v.Name },
 	})
 	vt.Blur()
 
@@ -475,9 +467,6 @@ func New(cfg *config.Config) Model {
 		// rule does not apply, and it does not apply because the *operation* is
 		// host-scoped, not because the identity is convenient.
 		Key: func(r registryRow) string { return r.url },
-		// Logged is the cell a login is about to change, so it is the one to
-		// spend while it runs.
-		StatusColumn: registryColumnLogged,
 	})
 	rt.Blur()
 

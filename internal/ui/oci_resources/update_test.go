@@ -55,10 +55,10 @@ func TestListsFillTheirTables(t *testing.T) {
 	if got := cells(m.imageTable.Table().Rows(), imageColumnName); len(got) != 4 {
 		t.Errorf("the image table holds %v", got)
 	}
-	if got := cells(m.networkTable.Table().Rows(), 1); !equal(got, []string{"bridge", "devdesk", "overlay-prod"}) {
+	if got := cells(m.networkTable.Table().Rows(), 2); !equal(got, []string{"bridge", "devdesk", "overlay-prod"}) {
 		t.Errorf("the network table holds %v", got)
 	}
-	if got := cells(m.volumeTable.Table().Rows(), 0); !equal(got, []string{"pgdata", "redis"}) {
+	if got := cells(m.volumeTable.Table().Rows(), 1); !equal(got, []string{"pgdata", "redis"}) {
 		t.Errorf("the volume table holds %v", got)
 	}
 }
@@ -671,7 +671,7 @@ func TestRegistryTabShowsTheConfiguredRegistries(t *testing.T) {
 		m = feed(t, m, testutil.Key("tab"))
 	}
 
-	if got := cells(m.registryTable.Table().Rows(), 1); !equal(got, []string{"registry.example.com", "docker.io"}) {
+	if got := cells(m.registryTable.Table().Rows(), 2); !equal(got, []string{"registry.example.com", "docker.io"}) {
 		t.Errorf("the registry table holds %v", got)
 	}
 }
@@ -693,7 +693,7 @@ func TestTheRegistryTabShowsTheAddressAndNotTheBareHost(t *testing.T) {
 	}
 
 	want := []string{"nexus.example.com/dhi-io-proxy", "nexus.example.com/quay-io-proxy", "docker.io"}
-	if got := cells(m.registryTable.Table().Rows(), 1); !equal(got, want) {
+	if got := cells(m.registryTable.Table().Rows(), 2); !equal(got, want) {
 		t.Errorf("the registry table holds %v, want %v", got, want)
 	}
 }
@@ -862,7 +862,7 @@ func TestTheSelectedResourceIsTheHighlightedRow(t *testing.T) {
 	if net == nil {
 		t.Fatal("nothing selected on a filled table")
 	}
-	if got := m.networkTable.Table().Rows()[m.networkTable.Cursor()][1]; got != net.Name {
+	if got := m.networkTable.Table().Rows()[m.networkTable.Cursor()][2]; got != net.Name {
 		t.Errorf("the highlighted row shows %q while the action would take %q", got, net.Name)
 	}
 }
