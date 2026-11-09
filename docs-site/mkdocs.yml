@@ -69,6 +69,7 @@ nav:
       - Commands: reference/commands.md
       - Keybindings: reference/keybindings.md
       - Configuration: reference/configuration.md
+      - Activity indicator: reference/activity-indicator.md
       - Project structure: reference/project-structure.md
   - Explanation:
       - Overview: explanation/index.md

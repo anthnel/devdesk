@@ -196,6 +196,11 @@ that replaces itself with a spinner loses its header and columns for the
 duration of every `ctrl+r`, then regains them: a layout jump on every
 refresh.
 
+**A spinner in the footer is for a table's data loading, never for one row.**
+What is happening to a single row (a scan, a clone, a stop) is that row's
+activity dot (Rule 125, "The activity column"); when the selected row has a
+footer detail with a glyph, the footer spinner is not shown.
+
 Mandatory consequence: the empty message ("No images found") is
 **conditioned on loading being finished**, otherwise the table announces the
 absence of what it is still looking for.
