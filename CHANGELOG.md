@@ -1,5 +1,63 @@
 # Changelog
 
+## [2.0.0](https://github.com/anthnel/devdesk/compare/v1.7.0...v2.0.0) (2026-11-09)
+
+
+### ⚠ BREAKING CHANGES
+
+* `:ctx <unknown>` no longer creates a context; use
+
+### Features
+
+* add an ordered command registry as the single source (DEVDESK-89 step 1) ([#311](https://github.com/anthnel/devdesk/issues/311)) ([e854788](https://github.com/anthnel/devdesk/commit/e85478860de313de4d2bf6fae246f2b5081488e7))
+* add the activity indicator component (DEVDESK-137) ([#327](https://github.com/anthnel/devdesk/issues/327)) ([ed40063](https://github.com/anthnel/devdesk/commit/ed40063394529ae08d4eddd4418668c0287f81fc))
+* add the app.motion setting to stop the activity blink (DEVDESK-141) ([#331](https://github.com/anthnel/devdesk/issues/331)) ([f7f416d](https://github.com/anthnel/devdesk/commit/f7f416d51e54745994f3ecf13d1c53102b21d0f1))
+* add the command suggestion engine over the registry (DEVDESK-89 step 2) ([#312](https://github.com/anthnel/devdesk/issues/312)) ([fa0494a](https://github.com/anthnel/devdesk/commit/fa0494a4f1aafccc17b891d8444068a7286f4df4))
+* add the per-row footer detail and phrase builder (DEVDESK-140) ([#330](https://github.com/anthnel/devdesk/issues/330)) ([b3d32b2](https://github.com/anthnel/devdesk/commit/b3d32b2e4561f5eccada190b15adba47355f8ea7))
+* break down a session's tokens by category, model and agent (DEVDESK-98) ([#322](https://github.com/anthnel/devdesk/issues/322)) ([2e65d4f](https://github.com/anthnel/devdesk/commit/2e65d4f00ba16051152304f4ff51d6c2be0ea138))
+* compute WCAG contrast and fix three themes below 4.5:1 (DEVDESK-89 step 4) ([#314](https://github.com/anthnel/devdesk/issues/314)) ([13da708](https://github.com/anthnel/devdesk/commit/13da708008f89aab8fdec0b83a0a7ad30c2e595b))
+* follow an active Claude Code session live in the :agent-usage view (DEVDESK-45) ([#306](https://github.com/anthnel/devdesk/issues/306)) ([cceb893](https://github.com/anthnel/devdesk/commit/cceb893a5d0d8d6574e4771d3ed0aaf48822b7b7))
+* list Claude Code sessions in the :agent-usage view (DEVDESK-41) ([#302](https://github.com/anthnel/devdesk/issues/302)) ([a4be18d](https://github.com/anthnel/devdesk/commit/a4be18daf8c46c9b3429cfa5fbd66218faff1138))
+* open views and commands from a modal command palette (DEVDESK-109) ([#319](https://github.com/anthnel/devdesk/issues/319)) ([d7f8f92](https://github.com/anthnel/devdesk/commit/d7f8f928e8a5820a712358e3f7cc7e22a74cfc88))
+* parse a session's token usage per agent (DEVDESK-40) ([#301](https://github.com/anthnel/devdesk/issues/301)) ([7d6b9a2](https://github.com/anthnel/devdesk/commit/7d6b9a25410529bfd88f30b0ad50f65e23e7eb1d))
+* put the :sec inventory on the activity column and drop the failure copy (DEVDESK-145) ([#335](https://github.com/anthnel/devdesk/issues/335)) ([f475a3b](https://github.com/anthnel/devdesk/commit/f475a3b8a03f74c3a3674eb746d47e00094ae097))
+* put the agent-usage agents table on the activity column and colour the cost (DEVDESK-151) ([#343](https://github.com/anthnel/devdesk/issues/343)) ([86a0563](https://github.com/anthnel/devdesk/commit/86a056346ed955a168bf6472ad6ae51771341dfa))
+* put the containers table on the activity column (DEVDESK-152) ([#344](https://github.com/anthnel/devdesk/issues/344)) ([84af59b](https://github.com/anthnel/devdesk/commit/84af59bfc9353584ed80473af813f56e63585002))
+* put the explorer clone list on the activity column and redact clone causes (DEVDESK-148) ([#340](https://github.com/anthnel/devdesk/issues/340)) ([c2b443a](https://github.com/anthnel/devdesk/commit/c2b443aee331d73b2a16fd31e7fb1b2b2a6ce0f1))
+* put the explorer tree on the activity column and drop the node spinner (DEVDESK-147) ([#339](https://github.com/anthnel/devdesk/issues/339)) ([aa350be](https://github.com/anthnel/devdesk/commit/aa350be453f145ef74216e85f98e0feaa4da3516))
+* put the netdiag ports table on the activity column (DEVDESK-150) ([#342](https://github.com/anthnel/devdesk/issues/342)) ([043d034](https://github.com/anthnel/devdesk/commit/043d034e60d698805437b9a99f43b10d557b9b95))
+* put the OCI images table on the activity column and drop the failure copy (DEVDESK-146) ([#336](https://github.com/anthnel/devdesk/issues/336)) ([d4d7551](https://github.com/anthnel/devdesk/commit/d4d755181c92540ffa7b4e14430dbb5cc8cd3a61))
+* put the OCI networks, volumes and registries tables on the activity column (DEVDESK-153) ([#345](https://github.com/anthnel/devdesk/issues/345)) ([577f89f](https://github.com/anthnel/devdesk/commit/577f89fc9889638cd703ca6aaccc7165026a2bce))
+* put the registry browser on the activity column and close the activity guard (DEVDESK-218, DEVDESK-143) ([#346](https://github.com/anthnel/devdesk/issues/346)) ([34abd58](https://github.com/anthnel/devdesk/commit/34abd58d212a44b360a6f45e8ed39685e8c6260b))
+* put the templates catalog on the activity column (DEVDESK-149) ([#341](https://github.com/anthnel/devdesk/issues/341)) ([e037b2f](https://github.com/anthnel/devdesk/commit/e037b2f3ef0f7ecaaf9f9a58c156faffbf3dc2d6))
+* read Claude Code transcripts incrementally and detect settled sessions (DEVDESK-44) ([#305](https://github.com/anthnel/devdesk/issues/305)) ([1049311](https://github.com/anthnel/devdesk/commit/10493113289b50129e4ee17d5e50e03f3dae497d))
+* remember the last failure per target in the jobs registry (DEVDESK-138) ([#328](https://github.com/anthnel/devdesk/issues/328)) ([925f045](https://github.com/anthnel/devdesk/commit/925f0453123a280d6419893cb1f9754f49b486d7))
+* render the command suggestion list as pure lines (DEVDESK-89 step 3) ([#313](https://github.com/anthnel/devdesk/issues/313)) ([31fa481](https://github.com/anthnel/devdesk/commit/31fa481f6c95d37b158026196a9f6e726724ea04))
+* share one animation tick across blinking rows (DEVDESK-139) ([#329](https://github.com/anthnel/devdesk/issues/329)) ([4b505ee](https://github.com/anthnel/devdesk/commit/4b505ee4ff192476db649a91521749dd72f8e764))
+* show :jobs state in the activity column and add the activity-column guard (DEVDESK-142) ([#332](https://github.com/anthnel/devdesk/issues/332)) ([b2c3224](https://github.com/anthnel/devdesk/commit/b2c32243342a645be4c4cf15f2236169ea891324))
+* show a suggestion list under the command line (DEVDESK-89 step 5) ([#316](https://github.com/anthnel/devdesk/issues/316)) ([f653cbc](https://github.com/anthnel/devdesk/commit/f653cbc395729e962c11a58a7bbbe01a7482c0bf))
+* show an indicative cost per agent in the :agent-usage view (DEVDESK-47) ([#308](https://github.com/anthnel/devdesk/issues/308)) ([39204bf](https://github.com/anthnel/devdesk/commit/39204bfd3d3c8f0c48152f5b873f63dda136b6df))
+* show each agent's state, tool calls and duration in the :agent-usage view (DEVDESK-46) ([#307](https://github.com/anthnel/devdesk/issues/307)) ([0026b6b](https://github.com/anthnel/devdesk/commit/0026b6b6d097a8479ba5b3892a0fb04fa89860f0))
+* show each agent's token mix as a coloured bar (DEVDESK-98 part 1) ([#321](https://github.com/anthnel/devdesk/issues/321)) ([0df012e](https://github.com/anthnel/devdesk/commit/0df012ea36c0958bde9553ecccba9c1866611af3))
+* show per-row activity and failure dots in ws (DEVDESK-144) ([#334](https://github.com/anthnel/devdesk/issues/334)) ([a59eef3](https://github.com/anthnel/devdesk/commit/a59eef3bfafd4ace27d190002b89e310aa012e0b))
+* show the agent tree of a session in the :agent-usage view (DEVDESK-42) ([#303](https://github.com/anthnel/devdesk/issues/303)) ([df35c82](https://github.com/anthnel/devdesk/commit/df35c82d85afddd60dd58450b899556920610887))
+* show the agent-usage session breadcrumb on the top frame border (DEVDESK-134) ([#323](https://github.com/anthnel/devdesk/issues/323)) ([99bafee](https://github.com/anthnel/devdesk/commit/99bafee3d8e9524964c83f72930e68785c0c441a))
+* sort agents by tokens and show their share of the session (DEVDESK-43) ([#304](https://github.com/anthnel/devdesk/issues/304)) ([8550c5c](https://github.com/anthnel/devdesk/commit/8550c5c540124d45dc3925bbf8278022a8b0d3bd))
+* switch contexts quickly and safely with :ctx completion, ctx - and ctx new (DEVDESK-88) ([#318](https://github.com/anthnel/devdesk/issues/318)) ([7c8fe3f](https://github.com/anthnel/devdesk/commit/7c8fe3fcf67ac6fc10785bd5cf4ac409b9b415ac))
+
+
+### Bug Fixes
+
+* **containers:** keep known metrics when a fresh list arrives (D84) ([#289](https://github.com/anthnel/devdesk/issues/289)) ([2026927](https://github.com/anthnel/devdesk/commit/202692766be09370b1e2118813ea4ccbcc5273b7))
+* **containers:** re-arm the refresh tick so the gauges move on their own (D83) ([#287](https://github.com/anthnel/devdesk/issues/287)) ([b4aa887](https://github.com/anthnel/devdesk/commit/b4aa887d0d7cf6cacf7605835ba8c1a3a78af321))
+* keep the header within a narrow terminal (DEVDESK-89 step 6) ([#315](https://github.com/anthnel/devdesk/issues/315)) ([3013f87](https://github.com/anthnel/devdesk/commit/3013f87d439c32c4ca502dc87b6f6a4501c0869e))
+* keep the layout whole on very short terminals (DEVDESK-89 step 7) ([#317](https://github.com/anthnel/devdesk/issues/317)) ([cdeb5a4](https://github.com/anthnel/devdesk/commit/cdeb5a43ce81a4171e5743d19685cd5ebef46d21))
+* start ws and files deletes as immediate runs (DEVDESK-227) ([#348](https://github.com/anthnel/devdesk/issues/348)) ([69e8f4d](https://github.com/anthnel/devdesk/commit/69e8f4dadc4f28ab21cc685c98e2697ed5fb7452))
+* stop sync deleting local-only tags when fetch.pruneTags is set (DEVDESK-135) ([#324](https://github.com/anthnel/devdesk/issues/324)) ([ad01ceb](https://github.com/anthnel/devdesk/commit/ad01cebc04a2c3da254d744ec51a6b95ef9ab762))
+* stop views listing ctrl+p now that the header always shows the hint (DEVDESK-124) ([#320](https://github.com/anthnel/devdesk/issues/320)) ([f55e923](https://github.com/anthnel/devdesk/commit/f55e9230928263fbf95c3b1e7a7d1c3a85d1999d))
+* **workspaces:** open the remote through explorer.exe under WSL ([#291](https://github.com/anthnel/devdesk/issues/291)) ([e7d2377](https://github.com/anthnel/devdesk/commit/e7d2377481af60031b7122eb07cd064e82267c42))
+* **workspaces:** refresh the Last Tag column after a sync (D82) ([#285](https://github.com/anthnel/devdesk/issues/285)) ([2c674fc](https://github.com/anthnel/devdesk/commit/2c674fcddbb34b2081ffa89ea454ae7990bfe75e))
+
 ## [1.7.0](https://github.com/anthnel/devdesk/compare/v1.6.0...v1.7.0) (2026-10-08)
 
 
