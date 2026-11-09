@@ -1,0 +1,61 @@
+{
+  "cli_version": "0.12.2",
+  "checkpoint_id": "fb8b9108cda4",
+  "strategy": "manual-commit",
+  "branch": "feat/DEVDESK-150-netdiag-ports-activity",
+  "checkpoints_count": 11,
+  "files_touched": [
+    "docs-site/docs/explanation/network.md",
+    "docs/architecture/app-shell.md",
+    "docs/architecture/network.md",
+    "docs/architecture/ui-components.md",
+    "docs/backlog.md",
+    "docs/product/activity-indicator/stories.md",
+    "internal/app/activity_guard_test.go",
+    "internal/app/animation_guard_test.go",
+    "internal/ui/netdiag/header.go",
+    "internal/ui/netdiag/ports_activity.go",
+    "internal/ui/netdiag/ports_activity_test.go",
+    "internal/ui/netdiag/ports_commands.go",
+    "internal/ui/netdiag/ports_model.go",
+    "internal/ui/netdiag/ports_model_test.go",
+    "internal/ui/netdiag/update.go"
+  ],
+  "sessions": [
+    {
+      "metadata": "/fb/8b9108cda4/0/metadata.json",
+      "transcript": "/fb/8b9108cda4/0/full.jsonl",
+      "compact_transcript": "/fb/8b9108cda4/0/transcript.jsonl",
+      "content_hash": "/fb/8b9108cda4/0/content_hash.txt",
+      "prompt": "/fb/8b9108cda4/0/prompt.txt"
+    }
+  ],
+  "token_usage": {
+    "input_tokens": 94,
+    "cache_creation_tokens": 106781,
+    "cache_read_tokens": 3449926,
+    "output_tokens": 19214,
+    "api_call_count": 35,
+    "subagent_tokens": {
+      "input_tokens": 268,
+      "cache_creation_tokens": 928818,
+      "cache_read_tokens": 10062763,
+      "output_tokens": 96314,
+      "api_call_count": 128
+    }
+  },
+  "redaction": {
+    "replacements": 0,
+    "layers": {
+      "betterleaks": 0,
+      "connection_string": 0,
+      "credential_key": 0,
+      "credential_value": 0,
+      "credentialed_uri": 0,
+      "entropy": 0,
+      "key_context": 0,
+      "provider_token": 0,
+      "shell_stdin": 0
+    }
+  }
+}
