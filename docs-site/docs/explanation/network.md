@@ -36,6 +36,25 @@ explicit `docker.io/` prefix — Podman, unlike Docker, doesn't assume Docker
 Hub for a bare image name unless `unqualified-search-registries` is
 configured, which it isn't on a default Debian/Ubuntu or Fedora install.
 
+## The activity dot on the Images tab
+
+The leftmost column of the Images tab shows the image icon at rest and a dot
+while something runs on the image, as in `ws` and the security inventory:
+
+| Glyph | Meaning |
+|---|---|
+| `●` / `○` | A scan, a pull or a removal is running (the dot blinks). The Scanned cell reads `scanning`, or the ID cell reads `pulling`. |
+| `◴` | A scan or pull is queued. |
+| `⊗` | The last scan or pull failed. It stays until the next attempt on that image. |
+
+The color says the state, not the operation; the footer describes the selected
+image beside the batch progress. A scan or pull started from another view
+marks the same row. Rows match by the reference exactly as the image is listed,
+so `nginx` and `docker.io/library/nginx` are tracked separately. On a narrow
+terminal whole columns drop, optional ones first; the dot stays.
+Press `?` for the legend. The Networks, Volumes
+and Registries tabs and the registry browser do not have the dot yet.
+
 ## Is there a newer image?
 
 The Images tab, the containers list and a scan's Remediation tab each have an

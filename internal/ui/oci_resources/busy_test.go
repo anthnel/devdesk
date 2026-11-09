@@ -35,21 +35,25 @@ func renderedRow(t *testing.T, view, name string) string {
 	return ""
 }
 
-func TestRemovingAnImageSpinsItsRow(t *testing.T) {
+func TestRemovingAnImageBlinksItsDotAndKeepsItsID(t *testing.T) {
 	m := removeSelected(t, loadedModel(t))
 	img := m.imageTable.Items()[0] // fixtures arrive in this order
 
 	if !m.imageTable.IsBusy(img.Image.ID) {
 		t.Fatal("the removal was not marked on the row")
 	}
-	// The ID cell is what the spinner spends — the row keeps saying which image
-	// it is while it goes.
+	// DEVDESK-146: the activity column carries the removal, so the ID cell is
+	// no longer spent on a spinner and the row keeps saying which image it is.
+	m.advanceBusySpinners()
 	line := renderedRow(t, m.imageTable.View(), img.RawName)
-	if strings.Contains(line, shortID(img.Image.ID)) {
-		t.Errorf("the removing row still shows its ID:\n%s", line)
+	if !strings.Contains(line, shortID(img.Image.ID)) {
+		t.Errorf("the removing row lost its ID:\n%s", line)
 	}
 	if !strings.Contains(line, img.RawName) {
 		t.Errorf("the removing row lost the name that says which image it is:\n%s", line)
+	}
+	if hasSpinnerFrame(line) {
+		t.Errorf("the removing row still carries a spinner frame:\n%s", line)
 	}
 	if got := m.actionLine(); !strings.Contains(got, img.RawName) {
 		t.Errorf("actionLine = %q, want it to name the image", got)

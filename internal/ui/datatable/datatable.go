@@ -671,6 +671,12 @@ func (m *Model[T]) IsBusy(key string) bool {
 	return ok
 }
 
+// BusyLabel returns the label of the action running on this key, if any.
+func (m *Model[T]) BusyLabel(key string) (string, bool) {
+	label, ok := m.busy[key]
+	return label, ok
+}
+
 // BusyLabels returns what is running, sorted, for a view's footer line. Sorted
 // because a map's order changes between frames and a footer that reshuffles
 // itself is unreadable.

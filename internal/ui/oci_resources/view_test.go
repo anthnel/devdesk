@@ -227,7 +227,7 @@ func TestFooterShowsTheMessages(t *testing.T) {
 // not fit an 80-wide terminal, and the copy this replaced clamped Name at 20
 // and handed the whole shortfall to Scanned, which went negative below 96.
 func TestColumnsFitTheWidth(t *testing.T) {
-	for _, width := range []int{60, 80, 100, 140, 200} {
+	for _, width := range []int{60, 70, 80, 90, 100, 110, 120, 140, 200} {
 		m := feed(t, loadedModel(t), testutil.Resize(width, 30))
 
 		// RenderedWidth rather than the declared columns plus two cells each: a

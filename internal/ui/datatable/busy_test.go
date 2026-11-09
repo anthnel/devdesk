@@ -281,3 +281,22 @@ func TestABusyRowKeepsTheAppBackground(t *testing.T) {
 		}
 	}
 }
+
+// BusyLabel answers for one key, where BusyLabels lists them all.
+func TestBusyLabelByKey(t *testing.T) {
+	m := busyTable(t)
+	if label, ok := m.BusyLabel("web"); ok || label != "" {
+		t.Fatalf("BusyLabel before MarkBusy = (%q, %v), want (\"\", false)", label, ok)
+	}
+	m.MarkBusy("web", "Removing web")
+	if label, ok := m.BusyLabel("web"); !ok || label != "Removing web" {
+		t.Errorf("BusyLabel(web) = (%q, %v), want (Removing web, true)", label, ok)
+	}
+	if _, ok := m.BusyLabel("api"); ok {
+		t.Error("BusyLabel(api) reports a row nothing is happening to")
+	}
+	m.ClearBusy("web")
+	if _, ok := m.BusyLabel("web"); ok {
+		t.Error("BusyLabel(web) still true after ClearBusy")
+	}
+}

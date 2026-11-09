@@ -11,7 +11,9 @@ import (
 	"github.com/anthnel/devdesk/internal/config"
 	"github.com/anthnel/devdesk/internal/docker"
 	"github.com/anthnel/devdesk/internal/imageupdate"
+	"github.com/anthnel/devdesk/internal/ui/components"
 	"github.com/anthnel/devdesk/internal/ui/datatable"
+	"github.com/anthnel/devdesk/internal/ui/indicator"
 	"github.com/anthnel/devdesk/internal/ui/registryalias"
 	"github.com/anthnel/devdesk/internal/ui/sigcol"
 	"github.com/anthnel/devdesk/internal/ui/theme"
@@ -33,25 +35,25 @@ type imageRow struct {
 	RawName     string
 	Entry       cache.ImageScanEntry
 	Scanned     bool
-	Scanning    bool
-	Failed      bool
-	// Pulling is true for the duration of a docker pull, whether the image
-	// was already local (an existing row spins) or not (a placeholder row is
-	// synthesized — Image stays zero-valued until fetchImages() replaces it).
-	Pulling      bool
-	SpinnerFrame string
+	// Activity is what the activity column says: running, queued or failed,
+	// resolved by rowActivity. It carries no animation phase; the table reads
+	// that at render.
+	Activity components.RowActivity
+	// ScanRunning and PullRunning are true while that operation runs now. A
+	// pull covers an image already local as well as a placeholder row
+	// synthesized for one that is not (Image stays zero-valued until
+	// fetchImages() replaces it).
+	ScanRunning bool
+	PullRunning bool
 	// Update is whether a newer image exists in its registry (§3.88).
 	Update imageupdate.Status
 	// Signature is what the signature check found on the local digest (§3.82).
 	Signature sigcol.State
 }
 
-// The columns something else refers to. imageColumnID is where a running action
-// puts its spinner; imageColumnName is what the tab opens sorted by.
-const (
-	imageColumnID   = 0
-	imageColumnName = 1
-)
+// imageColumnName is the column the tab opens sorted by (column 0 is the
+// activity indicator).
+const imageColumnName = 2
 
 // secretsColumnWidth is the Secrets column, at the width the workspaces list
 // gives it. It does not sort, same as there: `datatable` reserves two extra
@@ -117,27 +119,23 @@ func cveColumn(title, severity string, get func(cache.ImageScanEntry) int) datat
 	}
 }
 
-// scannedStyle colours the scan state, a failure being the one value in the
-// column that asks for anything.
+// scannedStyle dims the scan state while it is unknown or running; the
+// failure itself lives in the activity column.
 func scannedStyle(r imageRow) lipgloss.Style {
 	switch {
-	case r.Failed:
-		return theme.StatusErrorStyle
-	case r.Scanning, !r.Scanned:
+	case r.ScanRunning, !r.Scanned:
 		return theme.DimStyle
 	}
 	// No opinion here: the table sets the theme's text color.
 	return lipgloss.NewStyle()
 }
 
-// scannedCell reports the scan state: the spinner while one runs, an error icon
-// when the last attempt failed, otherwise how long ago it succeeded.
+// scannedCell reports the scan state: "scanning" while one runs, otherwise how
+// long ago the last scan succeeded.
 func scannedCell(r imageRow) string {
 	switch {
-	case r.Scanning:
-		return r.SpinnerFrame + "scanning"
-	case r.Failed:
-		return theme.IconError + " error"
+	case r.ScanRunning:
+		return "scanning"
 	case r.Scanned:
 		return timeAgo(r.Entry.ScannedAt)
 	}
@@ -149,18 +147,25 @@ func scannedCell(r imageRow) string {
 // looks for.
 func imageColumns(withMisconfig bool) []datatable.Column[imageRow] {
 	cols := []datatable.Column[imageRow]{
+		// The activity column (Rule 125): untitled, no Less nor Search. At rest
+		// it shows the image icon.
+		datatable.IndicatorColumn(
+			func(r imageRow) indicator.State { return r.Activity.State },
+			func(imageRow) string { return theme.IconDocker },
+			func(imageRow) lipgloss.Style { return theme.IconStyle(theme.IconRoleImage) },
+		),
 		{
 			Title: "ID", Sizing: datatable.SizingFixed, MinWidth: 14,
 			Cell: func(r imageRow) string {
-				if r.Pulling {
-					return r.SpinnerFrame + " pulling"
+				if r.PullRunning {
+					return "pulling"
 				}
 				return shortID(r.Image.ID)
 			},
 			Style: func(r imageRow) lipgloss.Style {
-				if r.Pulling {
+				if r.PullRunning {
 					// In progress, no verdict yet — same treatment scannedStyle
-					// gives Scanning.
+					// gives a running scan.
 					return theme.DimStyle
 				}
 				return lipgloss.NewStyle()
@@ -214,11 +219,6 @@ func imageColumns(withMisconfig bool) []datatable.Column[imageRow] {
 // plus a placeholder row for any pull in flight whose image is not local yet.
 func (m *Model) imageRows() []imageRow {
 	aliases := registryalias.From(m.registries)
-	// The scan frame comes from the registry, which holds the one chain that
-	// animates work (D5). spinnerFrameIdx below is local, and it animates
-	// loading — a load is not a job.
-	frame := m.jobFrame
-	scanning := m.scanningNames()
 	pulling := m.pullingNames()
 
 	seen := make(map[string]bool, len(m.images))
@@ -227,19 +227,19 @@ func (m *Model) imageRows() []imageRow {
 		raw := img.Name()
 		seen[raw] = true
 		entry, scanned := m.scanCache[raw]
-		rows = append(rows, imageRow{
-			Image:        img,
-			DisplayName:  docker.ApplyAliases(raw, aliases),
-			RawName:      raw,
-			Entry:        entry,
-			Scanned:      scanned,
-			Scanning:     scanning[raw],
-			Failed:       m.failedScans[raw],
-			Pulling:      pulling[raw],
-			SpinnerFrame: frame,
-			Update:       m.imageUpdate(img),
-			Signature:    m.imageSignature(img),
-		})
+		row := imageRow{
+			Image:       img,
+			DisplayName: docker.ApplyAliases(raw, aliases),
+			RawName:     raw,
+			Entry:       entry,
+			Scanned:     scanned,
+			ScanRunning: m.scanRunning(raw),
+			PullRunning: m.pullRunning(raw),
+			Update:      m.imageUpdate(img),
+			Signature:   m.imageSignature(img),
+		}
+		row.Activity = m.rowActivity(row)
+		rows = append(rows, row)
 	}
 	// An image pulled for the first time has no local row to spin yet — this
 	// is the common case when pulling from the registry browser, so it gets
@@ -248,12 +248,14 @@ func (m *Model) imageRows() []imageRow {
 		if seen[name] {
 			continue
 		}
-		rows = append(rows, imageRow{
-			DisplayName:  docker.ApplyAliases(name, aliases),
-			RawName:      name,
-			Pulling:      true,
-			SpinnerFrame: frame,
-		})
+		row := imageRow{
+			DisplayName: docker.ApplyAliases(name, aliases),
+			RawName:     name,
+			ScanRunning: m.scanRunning(name),
+			PullRunning: m.pullRunning(name),
+		}
+		row.Activity = m.rowActivity(row)
+		rows = append(rows, row)
 	}
 	return rows
 }
