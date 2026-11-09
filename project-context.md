@@ -20,7 +20,8 @@ _This file contains critical rules and patterns that AI agents must follow when 
 > - **Plan Location**: All implementation plans MUST be saved in the `.claude/plans/` directory.
 > - **Any task that will produce a commit starts in its own worktree**, cut
 >   from `main`, under `.worktrees/` inside the repository — see
->   `.claude/CLAUDE.md`, `## Work starts in a new worktree`.
+>   `.claude/CLAUDE.md`, `## Git, worktrees, pull requests — absolute rules`,
+>   and the `git-worktree-pr` skill (`.claude/skills/git-worktree-pr/`).
 
 ---
 

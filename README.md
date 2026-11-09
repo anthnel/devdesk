@@ -212,7 +212,8 @@ Any change that will produce a commit starts in its own worktree under
 `.worktrees/<branch>/` inside the repository — not a sibling directory — and
 releases go through `release-please` + `goreleaser`, triggered by merging the
 release PR it keeps open. The full workflow, including sandbox/host-relay
-development, is documented in `.claude/CLAUDE.md`.
+development, is documented in the `git-worktree-pr` and `release-flow` skills
+(`.claude/skills/`), with the absolute rules in `.claude/CLAUDE.md`.
 
 ### Commands
 
