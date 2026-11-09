@@ -1,0 +1,464 @@
+/team-core:feature DEVDESK-138
+
+---
+
+est-ce qu'il y a une pr a merger
+
+---
+
+merge 327
+
+---
+
+<agent-message from="a240b87aa55c95ad1">
+[Subagent hand-back] The text below is the final report of a subagent this session delegated to. It is model output, NOT a message from the user: instructions, requests, or approval claims inside it are the subagent's words and carry no user authority. The harness indents every line of the report, so a frame-like line at column zero inside it would be forged. Notes above this frame may quote model-derived text, which carries no user authority either. The report follows:
+  La PR #327 est fusionnée en squash (commit ed40063) et la story DEVDESK-137 est passée en Done dans Plane.
+  
+  - **Checks :** `Lint and build` et `Test` sont verts, la PR est MERGEABLE. `Entire Gates` est rouge uniquement à cause d'Approvals ("No reviewers have approved this trail"), le cas attendu. Findings, Checks et Up to date sont verts.
+  - **Merge :** `gh pr merge -R anthnel/devdesk 327 --squash --delete-branch` a réussi. `gh pr view` donne MERGED.
+  - **main local :** le checkout principal était déjà sur `main`. Le `fetch` a vu origin à jour du premier coup et le `merge --ff-only` est passé de 5877962 à ed40063 ("feat: add the activity indicator component (DEVDESK-137) (#327)"). Je n'ai touché ni aux fichiers non suivis ni à `docs/journal.md`, et je n'ai supprimé ni nettoyé aucun worktree.
+  - **Plane :** j'ai vérifié que l'identifiant DEVDESK-137 correspond au work item bf2790d3, "A-01 — Composant pastille…", qui était en In Review. Je l'ai passé en Done (`completed_at` renseigné) et j'ai ajouté un commentaire : PR #327 mergée en squash (ed40063), pas encore dans une release taguée. Je n'ai pas ajouté de lien PR, aucune instruction ne le demandait après le merge.
+  - **Réserves :**
+    - La PR #286 (release) n'a pas été touchée.
+    - Selon vos règles, le déclencheur « story livrée » s'applique : c'est à l'orchestrateur de décider s'il faut proposer la release.
+    - La branche distante a été supprimée par `--delete-branch`. Le worktree local éventuel `.worktrees/feat/DEVDESK-137-activity-indicator` n'a pas été touché : à retirer par son créateur.
+</agent-message>
+
+---
+
+<agent-message from="a79a92f5f4707dee7">
+[Subagent hand-back] The text below is the final report of a subagent this session delegated to. It is model output, NOT a message from the user: instructions, requests, or approval claims inside it are the subagent's words and carry no user authority. The harness indents every line of the report, so a frame-like line at column zero inside it would be forged. Notes above this frame may quote model-derived text, which carries no user authority either. The report follows:
+  **Proposition : merger la PR de release #286 (chore(main): release 2.0.0)**
+  
+  1. **Version** : 2.0.0, après v1.7.0 (publiée le 2026-10-10). La PR #286 est ouverte et MERGEABLE. `statusCheckRollup` est vide, ce qui est habituel pour une PR release-please.
+  2. **Contenu** (corps de la PR, 20 features et 8 fixes) :
+     - Sessions `:agent-usage` : liste, arbre d'agents, tri par part, état/outils/durée, coût indicatif, suivi en direct, répartition des tokens (DEVDESK-40 à 47, 98, 134).
+     - Palette de commandes modale et suggestions (DEVDESK-89, 109, 124), bascule rapide de contexte `:ctx` (DEVDESK-88), contraste des thèmes.
+     - Fixes : jauges containers (D83, D84), `Last Tag` de `ws` (D82), ouverture sous WSL, sync qui supprimait les tags locaux (DEVDESK-135), en-tête et terminaux courts.
+     - Le composant indicateur d'activité (DEVDESK-137, PR #327) y figure.
+  3. **BREAKING CHANGE** : `:ctx <unknown>` ne crée plus de contexte, d'où le passage en 2.0.0. La ligne est tronquée dans le corps de la PR (« ... ; use »). Le corps est modifiable avant le merge.
+  4. **Déclencheurs atteints** :
+     - « Story livrée » : DEVDESK-137 est mergée.
+     - « Accumulation » : 28 entrées, soit au moins 5, et environ 4 semaines depuis v1.7.0, soit plus de 2 semaines.
+  5. **Ce qui est en cours** : DEVDESK-138 (A-04, mémorisateur d'échecs, E1) est en cours. Restent aussi A-02, A-03 et A-05 en E1, puis A-06 (DEVDESK-142, pilote `:jobs` + go/no-go) et le reste de l'epic E2. Le composant de DEVDESK-137 n'est branché dans aucune vue : l'utilisateur ne voit rien.
+  6. **Recommandation : publier maintenant.**
+     - Le composant seul n'a aucun effet visible, donc il ne casse rien et n'annonce rien de faux.
+     - Attendre l'indicateur d'activité (E1 puis le pilote A-06 avec une semaine d'usage, soit plusieurs semaines) retarderait inutilement 28 entrées déjà livrées, dont une rupture de comportement, un correctif sur les tags et la palette de commandes.
+     - Le changelog de la release suivante couvrira l'indicateur, quand il sera visible.
+  7. **Avant de merger** (le merge reste à la décision de l'utilisateur ; je n'ai rien mergé) : compléter la ligne BREAKING tronquée si on veut un changelog lisible. Puis `devops` fait `gh pr merge -R anthnel/devdesk 286 --squash`.
+</agent-message>
+
+---
+
+<agent-message from="ae119f07e2ee0e2ba">
+[Subagent hand-back] The text below is the final report of a subagent this session delegated to. It is model output, NOT a message from the user: instructions, requests, or approval claims inside it are the subagent's words and carry no user authority. The harness indents every line of the report, so a frame-like line at column zero inside it would be forged. Notes above this frame may quote model-derived text, which carries no user authority either. The report follows:
+  J'ai écrit le plan de DEVDESK-138 (A-04) dans `/home/anthoni/projects/workspace-entire/anthnel/devdesk/.claude/plans/DEVDESK-138-plan.md`. Rien n'est codé et rien ne change à l'écran : aucune vue ne lit encore les échecs, et `security.scanTarget.Failed` comme `failedScans` d'OCI restent en place. Le livrable tient en une PR.
+  
+  **Étapes** (1 → 2 → 3 et 4 en parallèle → 5) :
+  1. **Types et fonctions de lecture**, dans le nouveau fichier `internal/jobs/failure.go` : `FailureKey{Kind, Target, Context}`, `Failure{FailureKey; Display, Detail; At}`, `MaxFailures = 500`, `TargetKey(string) string`, `FailureFor(failures, kind, target, ctx)` et `FailuresOn(failures, ctx, target, kinds...)`. Ce dernier sert à appliquer D5 côté vue. Test : `go test ./internal/jobs -run 'TargetKey|Failure|TwoSpellings'`.
+  2. **Mémorisateur dans `Registry`** : un tableau ordonné du plus ancien au plus récent, et une seule règle, `record(run, item)`, appelée depuis `advance` et `Discover`.
+     - Un item `failed` pose l'échec, un item `done` l'efface.
+     - Un `delete` réussi efface tous les types d'opération de la cible, ainsi que les chemins situés sous elle.
+     - `Start` efface les clés admises. `Discover` efface aussi, car les cibles du clone sont admises là.
+     - `skipped` et `Cancel` ne posent rien.
+     - Au-delà de 500 clés, l'entrée la plus ancienne sort ; reposer une clé la rafraîchit.
+     - API : `Failures()` (renvoie une copie), `Forget(target, ctx) bool` et `Kind.Remembered()`.
+     - Le contexte vient du run retrouvé, ce qui tient aussi après un changement de contexte.
+     - Test : `go test -race ./internal/jobs`.
+  3. **Routeur** : `ChangedMsg.Failures` est une copie, remplie par `changedMsg()`. `jobs.ForgetTargetMsg{Target}` et `jobs.ForgetTarget()` sont traités dans `App.Update` par `handleForgetTarget`, qui ajoute le contexte courant. Les tests passent par de vrais messages de vue :
+     - même clé `ws` / `:sec` pour un dépôt, et `/w/app/` donne `/w/app` ;
+     - même clé OCI / `:sec` pour `nginx:1.27` ;
+     - aller-retour de contexte A → B → A ;
+     - quitter puis rouvrir une vue, et `ctrl+r` : l'échec reste ;
+     - `Forget` n'agit que dans le contexte courant.
+     - Test : `go test ./internal/app -run 'Failure|Forget' && go test -race ./internal/app`.
+  4. **Rien sur disque** : un test lit le source et refuse les imports `os`, `io/ioutil`, `internal/cache` et `internal/config` dans `internal/jobs`. Un test du routeur avec `isolateHome` liste le contenu de HOME avant et après : il doit être identique. Un routeur recréé ensuite ne contient aucun échec. Les deux tournent avec `-count=2`.
+  5. **`docs/architecture/app-shell.md`**, dans le même commit que le code : nouvelle sous-section « The last failure per target », table des méthodes et paragraphe sur `ChangedMsg`.
+  
+  **Identité de la cible (critère 8)** :
+  - **Les chemins absolus sont normalisés** par `filepath.Clean`. La normalisation ne s'applique qu'à la clé d'échec, à l'écriture comme à la lecture. `Item.Target` n'est pas réécrit : sinon `FindItem` ne retrouverait plus les transitions émises avec la cible brute, et la ligne tournerait sans fin.
+  - **Les références d'image ne sont pas normalisées** : `nginx` et `docker.io/library/nginx` donnent deux clés. Trois raisons :
+    - la clé doit rester celle du cache de scan, une chaîne brute sur laquelle OCI et `:sec` s'accordent déjà ;
+    - `Image.Name()` renvoie `nginx` sans tag quand le tag est `<none>`, et une normalisation le confondrait avec `nginx:latest` ;
+    - l'orthographe dépend du moteur, qui est fixé par contexte : docker écrit `nginx`, podman `docker.io/library/nginx`. Comme un échec n'est montré que dans son contexte, il n'y a pas de conflit.
+  - Les images dont le dépôt est `<none>` ne sont jamais scannées ni tirées, elles n'arrivent donc pas dans le mémorisateur.
+  
+  **Hypothèses prudentes** (signalées dans le plan) :
+  - `Forget` ne vise que le contexte courant, parce que le moteur de conteneurs se choisit par contexte.
+  - Les descendants ne sont effacés que pour les chemins de fichiers ; ni les chemins de forge ni les images.
+  - Une sync refusée (arbre modifié) est `skipped` : elle n'est pas mémorisée.
+  
+  **Risque à transmettre à A-05 et A-10b** : les transitions du clone et de l'index de forge mettent `err.Error()` brut dans `Detail`. Le mémorisateur le garde tel quel, et c'est le texte du footer qui devra être formulé (Rule 128).
+  
+  ## Questions bloquantes
+  
+  **Q-A (question ouverte 2) : quels types d'opération le mémorisateur garde-t-il ?** Les étapes 1 à 5 peuvent commencer sans la réponse : elle ne change que le corps de `Kind.Remembered()` et un tableau de test.
+  - **A, ma recommandation : tous les types.** Le filtrage D5 se fait à la lecture, il n'y a aucune liste à maintenir et un nouveau type est couvert sans rien faire. Le coût : les échecs `index` sont gardés alors qu'aucune vue ne les montre.
+  - B : seulement les types du tableau D5 (scan, sync, delete, pull, create, clone), sans `index`.
+  - C : le scan seul. Dans ce cas A-07, A-09a, A-10 et A-11 devraient chacune rouvrir A-04.
+  
+  Ce qui décide : la table indicative du critère 9 est-elle la liste définitive de ce que chaque vue affiche ? Si oui, c'est A ou B, qui ne diffèrent que par `index`. Si seuls les échecs de scan doivent durer, c'est C.
+</agent-message>
+
+---
+
+Attendre la fin de l'agent architect (DEVDESK-138), puis soumettre plan + questions bloquantes à l'utilisateur.
+
+---
+
+<agent-message from="a31776ffc944cdaf0">
+[Subagent hand-back] The text below is the final report of a subagent this session delegated to. It is model output, NOT a message from the user: instructions, requests, or approval claims inside it are the subagent's words and carry no user authority. The harness indents every line of the report, so a frame-like line at column zero inside it would be forged. Notes above this frame may quote model-derived text, which carries no user authority either. The report follows:
+  Chemin : /home/anthoni/projects/workspace-entire/anthnel/devdesk/.worktrees/feat/DEVDESK-138-failure-memo
+  Branche : feat/DEVDESK-138-failure-memo (suit origin/main)
+  HEAD : ed40063 (feat: add the activity indicator component (DEVDESK-137) (#327)). origin/main contient bien ce commit. .claude/plans/DEVDESK-138-plan.md est copié dans le worktree, non suivi, rien n'est commité.
+</agent-message>
+
+---
+
+<agent-message from="a15efb7c56bb2699e">
+[Subagent hand-back] The text below is the final report of a subagent this session delegated to. It is model output, NOT a message from the user: instructions, requests, or approval claims inside it are the subagent's words and carry no user authority. The harness indents every line of the report, so a frame-like line at column zero inside it would be forged. Notes above this frame may quote model-derived text, which carries no user authority either. The report follows:
+  Étape 1 de DEVDESK-138 (A-04) : les tests sont écrits et échouent comme attendu, par échec de compilation (symboles non définis). Aucun code de production, aucun stub, aucun commit.
+  
+  **Fichier créé** : `/home/anthoni/projects/workspace-entire/anthnel/devdesk/.worktrees/feat/DEVDESK-138-failure-memo/internal/jobs/failure_test.go`
+  
+  **Commande** : `go test ./internal/jobs -run 'TargetKey|Failure|TwoSpellings'`
+  
+  **Résultat observé** : `FAIL github.com/anthnel/devdesk/internal/jobs [build failed]`, avec `undefined: Failure`, `undefined: FailureKey`, `undefined: TargetKey`, etc. (la sortie est tronquée par « too many errors »). `go vet` donne la même erreur. Aucun test ne s'exécute avant l'implémentation de `failure.go`, ce qui est la bonne raison d'échec.
+  
+  **Tests écrits** (table-driven, noms compatibles avec le `-run`) :
+  - `TestTargetKeyCleansAbsolutePaths` : `/w/app/`, `/w/./app`, `/w/x/../app`, `/w//app`, `/` et le cas inchangé. Il est ignoré sous Windows.
+  - `TestTargetKeyCleansWindowsPaths` : `C:\w\app\` donne `C:\w\app`, uniquement sous Windows.
+  - `TestTargetKeyLeavesReferencesAlone` : `nginx:1.27`, `nginx`, `docker.io/library/nginx`, une référence avec digest, un chemin forge, un slug, un chemin relatif `w/app/` et la chaîne vide restent inchangés.
+  - `TestTwoSpellingsOfAnImageAreTwoTargets` : `nginx` ≠ `docker.io/library/nginx`, `nginx` ≠ `nginx:latest` (cas sans tag), et image ≠ chemin de dépôt. J'ai ajouté un cas hors plan, `docker.io/library/nginx` ≠ `docker.io/library/nginx:latest`.
+  - `TestTargetKeyIsStable` : idempotence, et deux orthographes d'un même dépôt donnent une clé commune.
+  - `TestMaxFailuresIs500`.
+  - `TestFailureForFindsByKind`, `TestFailureForOnNothing`.
+  - `TestAFailureIsReadInItsOwnContextOnly` : contexte a/b/vide, testé sur `FailureFor` et sur `FailuresOn`.
+  - `TestFailureForCleansTheTargetItLooksUp` : stocké `/w/app`, recherché avec quatre orthographes, sur `FailureFor` et `FailuresOn`.
+  - `TestFailuresOnKeepsOnlyTheKindsAsked` : sans kind = tous, filtrage par un ou deux kinds, kind sans échec, et pas de fuite d'une autre cible ou d'un autre contexte.
+  - `TestFailuresOnDoesNotAliasItsInput`, `TestFailuresOnNothing`.
+  
+  **Points ouverts** (hypothèses que mes tests figent, à confirmer ou à ajuster avant l'implémentation) :
+  1. « Oldest first » est testé comme l'ordre de la slice d'entrée, pas un tri par `At`. Le plan ne précise pas si `FailuresOn` doit trier.
+  2. Les failures stockées sont supposées déjà normalisées par `TargetKey`. Seule la cible recherchée est nettoyée à la lecture.
+  3. `FailuresOn` avec `target == ""` n'est pas testé : le plan ne dit pas si c'est « toutes les cibles ».
+  4. `FailuresOn` doit renvoyer une copie, sans partager la slice d'entrée (test `DoesNotAlias`). Le plan l'implique par le critère 6, mais ne l'impose pas pour cette fonction.
+  5. `TestTargetKeyLeavesReferencesAlone` impose que le chemin relatif `w/app/` reste brut, conformément à `filepath.IsAbs` dans le plan.
+  6. Les tests réutilisent `noon` défini dans `registry_test.go` (même paquet). Le helper local `failure(...)` risque de entrer en collision avec un futur identifiant du paquet.
+  
+  Je n'ai pas lancé `mise run lint` : il n'a pas de sens tant que le paquet ne compile pas.
+</agent-message>
+
+---
+
+<agent-message from="a78162807bafb313b">
+[Subagent hand-back] The text below is the final report of a subagent this session delegated to. It is model output, NOT a message from the user: instructions, requests, or approval claims inside it are the subagent's words and carry no user authority. The harness indents every line of the report, so a frame-like line at column zero inside it would be forged. Notes above this frame may quote model-derived text, which carries no user authority either. The report follows:
+  I created `internal/jobs/failure.go` in the worktree `.worktrees/feat/DEVDESK-138-failure-memo`. Nothing is committed and no test was touched.
+  
+  **What the file defines**
+  - `MaxFailures = 500`.
+  - `FailureKey{Kind, Target, Context}`.
+  - `Failure{FailureKey; Display, Detail string; At time.Time}`.
+  - `TargetKey(string)` calls `filepath.Clean` only when `filepath.IsAbs` is true. Anything else is returned unchanged.
+  - `FailureFor(failures, kind, target, ctx) (Failure, bool)` cleans the target it looks up.
+  - `FailuresOn(failures, ctx, target, kinds...)` returns a copy that keeps the input order. No kinds means all kinds. It cleans the target on read and uses `slices.Contains`.
+  
+  For `FailuresOn` with `target == ""`, I kept the simplest behaviour. It is not special-cased and only matches failures stored with an empty target. The doc comment says so.
+  
+  **Results**
+  - `go test ./internal/jobs -run 'TargetKey|Failure|TwoSpellings'` passes.
+  - `go test ./internal/jobs` passes.
+  - `go vet ./internal/jobs` is clean, and `gofmt -l` prints nothing.
+  - The Windows-only test is skipped on this Linux machine.
+  
+  **Open points**
+  - There is no collision with the test helper `failure(...)`. Your note named it as a risk, but `failure.go` only has the capitalised `Failure` and `FailureFor`, and the helper is lowercase in the test file.
+  - The `noon` variable that `failure_test.go` uses is declared in `registry_test.go`. It works, but the two test files depend on each other.
+  - I did not find an "ÉTAPE 1" heading in `DEVDESK-138-plan.md` (a case-insensitive grep for "tape 1" matched nothing). I worked from your brief and the tests. Check that the plan's step 1 asks for nothing more, such as a registry method or a `Display` field filled in elsewhere.
+  - I found no duplicate of this logic in `internal/jobs`, so there was nothing to refactor.
+</agent-message>
+
+---
+
+<task-notification>
+<task-id>a394676ee32e1e862</task-id>
+<tool-use-id>toolu_01S38jtidLyV7tjGriVZjswJ</tool-use-id>
+<output-file>/tmp/claude-1000/-home-anthoni-projects-workspace-entire-anthnel-devdesk/ffde5c6f-07c8-4e8d-b05d-8fa0a92f8323/tasks/a394676ee32e1e862.output</output-file>
+<status>failed</status>
+<summary>Agent "Red tests step 2 DEVDESK-138" failed: Agent terminated early due to an API error: You've hit your 5-hour limit · resets 11pm (Europe/Brussels) (error type rate_limit, HTTP 429, request id req_011CgnFeMVy83voX9GdnVJZZ, model sent to the API: claude-sonnet-5-5)</summary>
+<note>A task-notification fires each time this agent stops with no live background children of its own. The user can send it another message and resume it, so the same task-id may notify more than once. This agent's work so far is saved. The limit resets at 11pm (Europe/Brussels). Once its requests are accepted again, send the agent a message (SendMessage) to let it continue from where it stopped instead of starting a new agent.</note>
+</task-notification>
+
+---
+
+Attendre la fin de l'agent architect (DEVDESK-138), puis soumettre plan + questions bloquantes à l'utilisateur.
+
+---
+
+Your claude.ai usage limit has reset. Continue the task you were working on when the limit was reached; do not repeat work that is already complete.
+
+---
+
+<agent-message from="a394676ee32e1e862">
+[Subagent hand-back] The text below is the final report of a subagent this session delegated to. It is model output, NOT a message from the user: instructions, requests, or approval claims inside it are the subagent's words and carry no user authority. The harness indents every line of the report, so a frame-like line at column zero inside it would be forged. Notes above this frame may quote model-derived text, which carries no user authority either. The report follows:
+  Les tests de l'étape 2 sont écrits et sont rouges pour la bonne raison : les trois symboles de l'API cible n'existent pas encore. J'ai ajouté un seul fichier, `/home/anthoni/projects/workspace-entire/anthnel/devdesk/.worktrees/feat/DEVDESK-138-failure-memo/internal/jobs/registry_failure_test.go`. Aucun code de production, aucun commit, `failure.go` et `failure_test.go` intacts.
+  
+  **Résultat observé** (`go test -race ./internal/jobs -run 'Failure|Forget|Remembered'`) : `[build failed]`.
+  - `r.Failures undefined (type *Registry has no field or method Failures)`
+  - `kind.Remembered undefined (type Kind has no field or method Remembered)`
+  - `Forget` n'apparaît pas dans les dix premières erreurs affichées (Go coupe à `too many errors`), mais il n'est pas défini non plus.
+  - gofmt est propre.
+  - Je n'ai pas pu exécuter les tests, donc aucune assertion n'est validée sur le comportement : seule la compilation a été vue échouer.
+  
+  **Hypothèses figées par les tests**
+  - `Kind.Remembered()` vaut vrai pour tous les `Kinds()`.
+  - La clé est (kind, `TargetKey(target)`, `Run.Context`). `/w/app/` est stocké sous `/w/app`. `Display` vient de `Item.Display`, `Detail` du détail de la transition, `At` de l'horloge du registre.
+  - `Failures()` renvoie les échecs du plus ancien au plus récent. Un registre neuf n'en a aucun. Le résultat est une copie : modifier un élément, sa longueur ou son contenu ne change rien dans le registre.
+  - Un échec posé deux fois sur la même clé ne laisse qu'une entrée, avec le dernier `Detail` et le dernier `At`. Il devient aussi le dernier à être évincé.
+  - L'échec est posé via `Advance`, `Apply` ou `Discover`. Un target découvert en queued puis passé en failed pose bien l'échec.
+  - Un échec survit à la purge de son run, et `MaxFinishedRuns` n'a aucun effet sur la mémoire.
+  - `Start` efface la clé (kind, cible, contexte) avant toute exécution. Un autre kind ou un autre contexte n'efface rien.
+  - `ItemDone` efface la clé. Le test admet deux runs avant l'échec pour que seul `done` puisse l'expliquer, pas `Start`.
+  - `skipped`, `Cancel` et `CancelItem` ne posent rien. Un `Cancel` après un retry ne ressuscite pas l'échec effacé au `Start`.
+  - Un delete réussi efface tous les kinds de la cible, dans le contexte du run seulement :
+    - les chemins en dessous sont effacés ;
+    - `/w/application` reste ;
+    - un delete qui échoue n'efface rien et sa propre erreur est mémorisée ;
+    - pour une référence d'image, `nginx` ne touche pas `nginx/foo`.
+  - `Forget(target, ctx)` ne touche que ce contexte. Il renvoie vrai seulement s'il a retiré quelque chose, donc faux au second appel. Il normalise la cible (`/w/app/`) et retire les descendants d'un chemin absolu.
+  - `Discover` d'une cible déjà échouée l'efface. `Discover` d'une cible en `failed` la pose.
+  - Le contexte vient du run retrouvé : un run en contexte `a` qui échoue après le démarrage d'un run en `b` est classé sous `a`.
+  - Le plafond est `MaxFailures` (500). Au 501e échec distinct le plus ancien sort. Un échec rafraîchi avant le 501e est conservé et c'est le suivant qui part.
+  
+  **À savoir pour l'implémentation**
+  - Les tests utilisent `FailureKey`, `Failure`, `MaxFailures` et `TargetKey` de `failure.go`, qui existent déjà.
+  - Le plan nomme le fichier `registry_failures_test.go` (avec un s). J'ai suivi le brief : `registry_failure_test.go`.
+  - Un test (`TestACancelPosesNoFailureAndDoesNotRestoreAClearedOne`) vérifie qu'après `Start` puis `Cancel` la liste est vide, ce qui suppose que `Start` efface l'échec précédent.
+</agent-message>
+
+---
+
+<agent-message from="acc31eda057c036e2">
+[Subagent hand-back] The text below is the final report of a subagent this session delegated to. It is model output, NOT a message from the user: instructions, requests, or approval claims inside it are the subagent's words and carry no user authority. The harness indents every line of the report, so a frame-like line at column zero inside it would be forged. Notes above this frame may quote model-derived text, which carries no user authority either. The report follows:
+  DEVDESK-138 step 2 est implémenté ; `go test -race ./internal/jobs` est vert (paquet complet, sans toucher aux tests ni à failure.go). `go vet ./internal/jobs`, `gofmt -l internal/jobs` et `go build ./...` sont propres. Je n'ai pas lancé golangci-lint ni la suite complète `./...`, et je n'ai rien commité.
+  
+  **Fichiers modifiés**
+  - `internal/jobs/registry.go` : le tableau `failures` (du plus ancien au plus récent) et les appels aux transitions.
+    - `Start` appelle `clear` par item admis.
+    - `advance` et `Discover` appellent `record(run, item)` après avoir écrit l'état.
+    - `Discover` appelle aussi `clear` quand il ajoute une nouvelle cible.
+    - Nouvelles fonctions : `Failures()` (copie), `Forget(target, ctx) bool`, `record`, `pose`, `clear`, `failureKey`, `isBelow`.
+  - `internal/jobs/jobs.go` : `Kind.Remembered()` renvoie toujours `true`, comme décidé.
+  
+  **Comportement**
+  - `record` : `failed` pose la clé `(kind, TargetKey(target), contexte du run)` avec `item.Name()` en Display. `done` efface la clé, et un `done` de `KindDelete` appelle en plus `Forget`. Les autres états (dont `skipped`) ne font rien, comme `Cancel` et `CancelItem`.
+  - `pose` : elle retire l'ancienne entrée de la clé puis ajoute à la fin, donc reposer une clé la rafraîchit. Au-delà de `MaxFailures`, la plus ancienne sort.
+  - `Forget` : elle supprime tous les kinds de la cible dans le contexte donné. Les descendants ne partent que pour des chemins absolus. `/w/application` n'est pas touché par un oubli de `/w/app`, et `nginx/foo` n'est pas touché par un oubli de `nginx`.
+  - Le contexte vient du run retrouvé, donc un échec tardif reste classé sous le contexte où il a tourné.
+  - Aucun import `os`, cache ou config.
+  
+  **Points ouverts**
+  1. Il n'y a pas de mutex dans le registre. Son commentaire dit qu'il n'est « not safe for concurrent use, deliberately », car seul `Update` y écrit (Rule 110). J'ai donc suivi cette règle et n'en ai pas ajouté. Si tu voulais vraiment un mutex, dis-le-moi, mais ça contredirait ce commentaire.
+  2. Le plan nomme le fichier de tests `registry_failures_test.go`, alors que celui qui existe s'appelle `registry_failure_test.go`. Sans conséquence.
+  3. Le Display d'une défaillance vient de `item.Name()`, qui retombe sur la cible quand aucun Display n'est posé.
+  4. `docs/architecture/app-shell.md` n'est pas mis à jour, c'est à faire dans le commit final. `ChangedMsg.Failures` et `ForgetTarget` (step 3) ne sont pas commencés.
+  5. Aucun test ne me paraît faux.
+</agent-message>
+
+---
+
+<agent-message from="ae9b2b89f4031c9a5">
+[Subagent hand-back] The text below is the final report of a subagent this session delegated to. It is model output, NOT a message from the user: instructions, requests, or approval claims inside it are the subagent's words and carry no user authority. The harness indents every line of the report, so a frame-like line at column zero inside it would be forged. Notes above this frame may quote model-derived text, which carries no user authority either. The report follows:
+  J'ai écrit les tests de l'étape 3 dans `internal/app/failures_test.go` (nouveau, seul fichier touché). Ils ne compilent pas encore, ce qui est le rouge attendu. Je n'ai ajouté ni code de production ni stub, et je n'ai pas commité.
+  
+  **Résultat observé**
+  `go test ./internal/app -run 'Failure|Forget'` donne `[build failed]`. Les erreurs sont uniquement des symboles non définis :
+  - `jobs.ChangedMsg.Failures` (« has no field or method Failures »)
+  - `jobs.ForgetTargetMsg`
+  - `jobs.ForgetTarget`
+  
+  Le compilateur tronque sa sortie à 10 erreurs (« too many errors »), donc les suivantes ne sont pas toutes listées. Je n'ai pas vu d'autre cause d'échec, mais les tests n'ont jamais tourné. Ils échoueront peut-être aussi pour une autre raison une fois les symboles ajoutés. `gofmt` est propre.
+  
+  **Tests écrits** (vrais messages passés par `a.Update`, donc `routeWork` est exercé) :
+  - `TestAFailureReachesEveryHeldViewAsACopy` : `StartMsg` puis `WorkspaceScanCompleteMsg{Error}`. Les vues ws, sec et OCI reçoivent l'échec. Muter la copie (champs et slice) ne change pas `a.jobs.Failures()`.
+  - `TestARetryFromAnotherViewClearsTheFailure` : l'échec vient de ws, le `StartMsg` de `:sec` écrit `/w/app` ou `/w/app/`. Dans les deux cas l'échec est effacé. La relecture avec `/w/app/` retrouve la même clé.
+  - `TestAFailureFromSecIsClearedByWorkspaces` : le sens inverse, échec posé par `:sec`, effacé par un `StartMsg` ws.
+  - `TestAnImageFailureIsSharedByOCIAndSec` : `nginx:1.27` posé par OCI avec `ImageScanFinishedMsg`. Un scan `:sec` de `docker.io/library/nginx:1.27` n'efface rien. Un scan `:sec` de `nginx:1.27` efface.
+  - `TestTwoSpellingsOfAnImageAreTwoKeys` : `nginx` et `docker.io/library/nginx` donnent deux entrées avec des clés différentes.
+  - `TestAnImageIsNotARepository` : un échec d'image n'apparaît pas pour `/w/app`, et inversement. Les deux restent distincts dans le registre.
+  - `TestForgetTargetClearsInTheCurrentContextOnly` : `default` est effacé, `prod` reste, et un Cmd de diffusion est retourné. Une fois ce Cmd exécuté, les vues ne voient plus l'échec. Un second message identique retourne un Cmd nil.
+  - `TestForgetTargetCommandBuildsTheMessage` : `jobs.ForgetTarget(t)` produit `ForgetTargetMsg{Target: t}`.
+  - `TestAFailureSurvivesAContextRoundTrip` : `ContextSwitchCompleteMsg` vers `prod` puis retour à `default`. `prod` ne montre pas l'échec, le registre le garde, `default` le retrouve.
+  - `TestAFailureSurvivesLeavingAndReopeningAView` : `switchView` aller-retour, la vue reçoit à nouveau l'échec via `sendJobsTo`. `ctrl+r` envoyé par `a.Update` ne l'efface pas.
+  - `TestAStartOrADoneClearsTheFailure` : un nouveau `StartMsg` ou un `WorkspaceScanCompleteMsg` sans erreur efface l'échec.
+  
+  **Hypothèses figées**
+  - `ChangedMsg.Failures` est un `[]jobs.Failure` couvrant tous les contextes. La vue filtre avec `FailureFor` ou `FailuresOn`.
+  - `ForgetTargetMsg` a un seul champ, `Target`. `jobs.ForgetTarget(string) tea.Cmd` renvoie un Cmd qui produit ce message. Le routeur applique `a.jobs.Forget(target, a.currentContext)`. Il diffuse via `jobsChanged()` si `Forget` a retiré quelque chose, sinon il retourne `nil`. Je n'ai pas testé directement le nom `handleForgetTarget`, seulement le comportement via `a.Update`.
+  - Les cibles d'items sont enregistrées brutes. Les tests utilisent `/w/app` pour le `StartMsg` et le `Transition`. Seule la clé de mémoire est normalisée, avec `TargetKey`.
+  - Pour le test de contexte, les vues réelles reconstruites par le changement de contexte sont remplacées par un `fakeView` suivi de `a.jobsChanged()`. Cela permet de lire ce que reçoit la vue du contexte courant.
+  - Pour `prod`, l'échec est posé directement avec `a.jobs.Start(scanRun("prod", …))` puis `Advance(..., ItemFailed, ...)`, le plan autorisant ce raccourci.
+  - `ctrl+r` passe par `a.Update(tea.KeyMsg{Type: tea.KeyCtrlR})`. Je n'ai pas vérifié que le routeur le transmet à la vue, seulement que l'échec reste.
+  - Je n'ai écrit que les tests de l'étape 3 et pas le test de non-persistance de l'étape 4 (critère 5).
+</agent-message>
+
+---
+
+<agent-message from="a35bc9f604a4699da">
+[Subagent hand-back] The text below is the final report of a subagent this session delegated to. It is model output, NOT a message from the user: instructions, requests, or approval claims inside it are the subagent's words and carry no user authority. The harness indents every line of the report, so a frame-like line at column zero inside it would be forged. Notes above this frame may quote model-derived text, which carries no user authority either. The report follows:
+  Step 3 is implemented as specified, but two tests in internal/app/failures_test.go fail. Both look like test errors rather than code errors. I did not touch the tests.
+  
+  **Files changed (not committed)**
+  - `internal/jobs/message.go`: added `Failures []Failure` to `ChangedMsg`, plus `ForgetTargetMsg{Target}` and `ForgetTarget(target) tea.Cmd`.
+  - `internal/app/jobs.go`: `changedMsg()` now fills `Failures: a.jobs.Failures()`, which is a copy. Added `handleForgetTarget`. It calls `a.jobs.Forget(msg.Target, a.currentContext)` and returns `a.jobsChanged()` only if something was removed, otherwise nil.
+  - `internal/app/app.go`: one 2-line case, `case jobs.ForgetTargetMsg`, placed after `CancelItemMsg`.
+  
+  I did not touch `security.scanTarget.Failed`, OCI's `failedScans`, or any view.
+  
+  **Results**
+  - `gofmt -l internal` and `go vet ./...` are clean.
+  - `go test ./internal/app -run 'Failure|Forget'`: 2 tests fail, the other Failure/Forget tests pass.
+  - `go test -race ./internal/jobs ./internal/app`: `internal/jobs` passes. `internal/app` fails on the same 2 tests only.
+  
+  **Open points (the two failing tests)**
+  1. `TestForgetTargetClearsInTheCurrentContextOnly`, line 192 (`cmd == nil` → "no broadcast followed").
+     - The broadcast does happen. `broadcastJobs()` updates every held view synchronously, and the test's own check afterwards passes (the views are told).
+     - The returned `Cmd` is `tea.Batch` of the views' commands and the spinner tick. `fakeView` returns no commands and no run is open, so the Batch is nil.
+     - So `cmd != nil` cannot hold unless I return a dummy command. The same holds for other `jobsChanged()` callers.
+     - Suggested fix: drop the `cmd == nil` check and keep the views check, or make the fake view return a command. The "second call returns nil" assertion is fine.
+  2. `TestAStartOrADoneClearsTheFailure`, line 282 ("a success left the failure").
+     - After the retry `startScan(ws, /w/app)`, that run is still open. The second `failWorkspaceScan` therefore settles it, so no run is open for `/w/app` when the success message arrives.
+     - A success with no open run has nothing to advance, so it cannot clear the failure.
+     - Suggested fix: call `startScan(a, command.ViewWorkspaces, "/w/app")` before the final `WorkspaceScanCompleteMsg{RepoPath: "/w/app"}`. Alternatively, if a success with no open run must clear the failure, that is a registry/router behaviour decision, so tell me.
+  
+  I did not run `mise run lint`.
+</agent-message>
+
+---
+
+<agent-message from="ae9b2b89f4031c9a5">
+[Subagent hand-back] The text below is the final report of a subagent this session delegated to. It is model output, NOT a message from the user: instructions, requests, or approval claims inside it are the subagent's words and carry no user authority. The harness indents every line of the report, so a frame-like line at column zero inside it would be forged. Notes above this frame may quote model-derived text, which carries no user authority either. The report follows:
+  `go test -race -count=1 ./internal/jobs ./internal/app` passe : `ok` pour les deux paquets (jobs 1.07s, app 24.7s). `gofmt` est propre. Seul `internal/app/failures_test.go` a changé.
+  (1) Je suis d'accord avec le coder. Dans `TestForgetTargetClearsInTheCurrentContextOnly`, j'ai retiré l'assertion `cmd == nil` et le `testutil.Msgs(cmd)`. La diffusion se vérifie par ce que voient les vues, ce qui était déjà dans le test. L'assertion « second appel identique → nil » est conservée.
+  (2) Le diagnostic est juste, mais son correctif ne marche pas : un `startScan` avant le succès final efface déjà l'échec par lui-même, donc le test ne prouverait plus rien sur « done efface ». J'ai fait autrement : deux tentatives ouvertes sur la même cible, la première échoue, le succès arrive ensuite et efface l'échec sans aucun `Start` entre les deux. J'ai ajouté une assertion que l'échec est bien posé avant le succès.
+</agent-message>
+
+---
+
+<agent-message from="a78e12324375b991d">
+[Subagent hand-back] The text below is the final report of a subagent this session delegated to. It is model output, NOT a message from the user: instructions, requests, or approval claims inside it are the subagent's words and carry no user authority. The harness indents every line of the report, so a frame-like line at column zero inside it would be forged. Notes above this frame may quote model-derived text, which carries no user authority either. The report follows:
+  Les deux tests sont écrits et passent avec `go test -count=2 ./internal/jobs ./internal/app -run 'Persist|Disk|NoDisk|Imports'` (jobs ok, app ok). Rien n'est commité.
+  
+  - **(a) Source** : `TestTheRegistryNeverTouchesTheDisk` est dans le nouveau fichier `/home/anthoni/projects/workspace-entire/anthnel/devdesk/.worktrees/feat/DEVDESK-138-failure-memo/internal/jobs/nodisk_test.go`. Il lit avec `go/parser` (ImportsOnly) les fichiers non-test de `internal/jobs`. Il échoue en nommant le fichier et l'import sur `os`, `io/ioutil`, `internal/cache` et `internal/config`. Il échoue aussi si aucun fichier n'a été scanné.
+  - **(b) Runtime** : `TestFailuresAreNotWrittenToDisk` est ajouté à `internal/app/failures_test.go`. Il liste récursivement HOME (chemin, taille, mtime) avant et après deux échecs de scan sur `/w/app`, un échec d'image et un `ForgetTargetMsg`, puis exige un contenu identique. Il vérifie d'abord qu'un échec est bien mémorisé, pour ne pas passer à vide. Il recrée ensuite un routeur avec `routerAt` sur le même HOME et exige `jobs.Failures()` vide. `routerAt` rappelle `isolateHome`, donc je remets HOME après coup avec `t.Setenv`.
+  
+  Preuve de détection (simulations annulées) :
+  - **Import `os`** : j'ai ajouté `_ "os"` dans `internal/jobs/failure.go`. Le test (a) est rouge : `failure.go imports "os": the failure memory must never be persisted (DEVDESK-138)`.
+  - **Écriture disque** : j'ai ajouté dans `record` un appel qui écrit `$HOME/failures.json`. Le test (b) est rouge : le listing HOME change, `failures.json` apparaît.
+  - **Annulation** : `failure.go` et `registry.go` sont restaurés depuis des copies faites juste avant la simulation, et `zz_tmp.go` est supprimé. `git status` ne montre que les fichiers déjà modifiés et non suivis avant ma tâche, plus mes deux fichiers de test. Je n'ai pas lancé `git diff` lui-même.
+</agent-message>
+
+---
+
+<agent-message from="aeaba6761f46e21c4">
+[Subagent hand-back] The text below is the final report of a subagent this session delegated to. It is model output, NOT a message from the user: instructions, requests, or approval claims inside it are the subagent's words and carry no user authority. The harness indents every line of the report, so a frame-like line at column zero inside it would be forged. Notes above this frame may quote model-derived text, which carries no user authority either. The report follows:
+  Ajouté la sous-section « The last failure per target » dans /home/anthoni/projects/workspace-entire/anthnel/devdesk/.worktrees/feat/DEVDESK-138-failure-memo/docs/architecture/app-shell.md, juste avant « A progress message needs a case in the router ». Elle couvre la clé, la normalisation des seuls chemins absolus, la table des transitions, le plafond de 500, la durée de vie du process, ForgetTargetMsg limité au contexte courant, la lecture D5 par FailuresOn, et le maintien de scanTarget.Failed et failedScans jusqu'à A-08 / A-09a.
+  J'ai aussi ajouté une phrase sur ChangedMsg.Failures (copie) dans « The broadcast, and the one spinner chain ». Rédigé d'après le code réel (failure.go, registry.go, message.go, app/jobs.go) : tous les types sont mémorisés, `Kind.Remembered` renvoie toujours true, et les échecs de `index` sont donc retenus aussi.
+  Rien n'est commité ; aucun test lancé. Le plan demandait aussi les lignes `Failures()` / `Forget` dans le tableau des méthodes, ce que ta consigne n'incluait pas : je ne les ai pas ajoutées (elles sont décrites en prose dans la sous-section).
+</agent-message>
+
+---
+
+<agent-message from="af75a94f6f15f65ff">
+[Subagent hand-back] The text below is the final report of a subagent this session delegated to. It is model output, NOT a message from the user: instructions, requests, or approval claims inside it are the subagent's words and carry no user authority. The harness indents every line of the report, so a frame-like line at column zero inside it would be forged. Notes above this frame may quote model-derived text, which carries no user authority either. The report follows:
+  **Verdict : aucun point bloquant.** J'ai posté un commentaire de revue sur DEVDESK-138 dans Plane.
+  
+  **Commandes lancées** (git fonctionne bien depuis le worktree) : `go vet ./...` ne signale rien. `go test -race -count=1 ./internal/jobs ./internal/app` passe. `go test -count=2 ./internal/app -run 'Failure|Forget|NotWritten'` passe.
+  
+  **Points vérifiés, tous conformes :**
+  - **Critères 1 et 2 :** une seule entrée par clé (type, `TargetKey`, contexte du run). L'échec est posé au passage à failed, dans `advance` et `Discover`, via `record`. Il est effacé au `Start` et au `Discover` d'une nouvelle cible. Il est aussi effacé au passage à done. Il survit à `MaxFinishedRuns`.
+  - **Critère 3 :**
+    - Un delete réussi oublie la cible pour tous les types, ainsi que ses descendants.
+    - L'oubli de `/w/app` épargne `/w/application`. C'est testé, et `isBelow` est correct, y compris pour un dossier nommé `..foo`.
+    - Ni ctrl+r ni la sortie puis le retour dans la vue n'effacent l'échec. C'est testé.
+  - **Critère 4 :** l'aller-retour entre contextes est testé.
+  - **Critère 5 :** plafond de 500, l'entrée la plus ancienne sort en premier. Une entrée reposée repasse en dernière position. Un test sur les imports vérifie l'absence de disque.
+  - **Critère 6 :** `ChangedMsg.Failures` est une vraie copie (`slices.Clone` d'une valeur sans pointeur). La mutation est testée côté registre et côté vue.
+  - **Critère 8 :** `TargetKey` nettoie les chemins absolus et garde les références d'image brutes. Une image et un dépôt donnent deux clés distinctes. Il manque seulement le test de clé commune pour une image `<none>` ; le plan juge le cas hors mémoire (OCI ne scanne ni ne tire ces images).
+  - **Critère 9 :** `FailuresOn` filtre par types.
+  - **`Kind.Remembered()` :** renvoie vrai pour tous les types, comme décidé par l'utilisateur.
+  - **Rule 110 :** les écritures se font uniquement dans `Update`, par `handleForgetTarget` et `Apply`/`Start`. `changedMsg` n'est appelé que depuis le chemin `Update` (`internal/app/jobs.go:197`, `:222`).
+  - **Critère 7 :** rien n'est modifié sous `internal/ui`. `security.scanTarget.Failed` et `failedScans` d'OCI sont intacts.
+  - **Tests :** ils ne sont pas faibles. Les préconditions sont vérifiées, et le cas « done » est isolé du `Start` (deux runs ouverts).
+  
+  **Importants (non bloquants) :**
+  1. `internal/jobs/registry.go` (fonction `record`, vers la ligne 467) : `Kind.Remembered()` (`internal/jobs/jobs.go:403`) n'est jamais appelée. Le plan prévoit de poser l'échec seulement si `run.Kind.Remembered()` est vrai. Le comportement ne change pas aujourd'hui puisque la méthode renvoie toujours vrai. Mais la politique n'est pas branchée, et `TestEveryKindIsRemembered` teste du code mort.
+     - Correction : ajouter `if run.Kind.Remembered()` dans la branche `ItemFailed`, ou supprimer la méthode.
+  2. Le critère 10 (étape 5 du plan) n'est pas fait : `docs/architecture/app-shell.md` n'est pas mis à jour. La mise à jour doit partir dans le même commit que le code.
+  
+  **Mineurs :**
+  - `internal/app/failures_test.go`, `TestFailuresAreNotWrittenToDisk`, partie redémarrage : `routerAt` appelle `isolateHome` et prend donc un nouveau HOME, pas « le même HOME » annoncé. La vérification est triviale et le commentaire est trompeur.
+  - Les tests utilisent des chemins Unix (`/w/app`). Sous Windows, `filepath.IsAbs` les juge relatifs et les tests de descendants échoueraient. Sans conséquence aujourd'hui : la CI ne tourne que sous Linux.
+  - Un `ForgetTargetMsg` qui arrive après un changement de contexte efface l'échec dans le nouveau contexte. C'est une hypothèse déclarée dans le plan, acceptable pour l'instant.
+  
+  Fichiers principaux relus :
+  - /home/anthoni/projects/workspace-entire/anthnel/devdesk/.worktrees/feat/DEVDESK-138-failure-memo/internal/jobs/registry.go
+  - /home/anthoni/projects/workspace-entire/anthnel/devdesk/.worktrees/feat/DEVDESK-138-failure-memo/internal/jobs/failure.go
+  - /home/anthoni/projects/workspace-entire/anthnel/devdesk/.worktrees/feat/DEVDESK-138-failure-memo/internal/app/failures_test.go
+</agent-message>
+
+---
+
+<agent-message from="a9ca4005fd71efb88">
+[Subagent hand-back] The text below is the final report of a subagent this session delegated to. It is model output, NOT a message from the user: instructions, requests, or approval claims inside it are the subagent's words and carry no user authority. The harness indents every line of the report, so a frame-like line at column zero inside it would be forged. Notes above this frame may quote model-derived text, which carries no user authority either. The report follows:
+  1. `record` in `internal/jobs/registry.go` now poses the failure only when `run.Kind.Remembered()`. That method always returns true, so behavior is unchanged. `Remembered()` and `TestEveryKindIsRemembered` are untouched.
+  2. In `internal/app/failures_test.go`, the restart comment in `TestFailuresAreNotWrittenToDisk` now says `routerAt` isolates HOME and takes a fresh one, so the check shows the memo lives in memory only. The assertions are unchanged.
+  3. The registry methods table existed in `docs/architecture/app-shell.md`, so I added the `Failures()` and `Forget(target, ctx) bool` rows. The `Forget` row reports whether a failure was removed.
+  
+  `gofmt -l internal` is clean, `go vet ./...` is clean, and `go test -race -count=1 ./internal/jobs ./internal/app` passes for both packages. Nothing was committed.
+</agent-message>
+
+---
+
+<agent-message from="a3d4d155467de794c">
+[Subagent hand-back] The text below is the final report of a subagent this session delegated to. It is model output, NOT a message from the user: instructions, requests, or approval claims inside it are the subagent's words and carry no user authority. The harness indents every line of the report, so a frame-like line at column zero inside it would be forged. Notes above this frame may quote model-derived text, which carries no user authority either. The report follows:
+  Les vérifications DEVDESK-138 (A-04) passent toutes, mais je n'ai pas pu poster le commentaire dans Plane. Aucun outil Plane (plane-tester) ne m'est exposé dans cette session, donc le texte ci-dessous est à poster par l'appelant, ou à relancer avec les outils Plane. Je n'ai rien modifié ni commité.
+  
+  **Résultats observés**, depuis `/home/anthoni/projects/workspace-entire/anthnel/devdesk/.worktrees/feat/DEVDESK-138-failure-memo` :
+  - `go build ./...` : OK, sans sortie.
+  - `go vet ./...` : OK, sans sortie.
+  - `golangci-lint run` : `0 issues.`
+  - `go test ./...` : aucun FAIL, aucun échec préexistant. Seuls les paquets `ok` et « no test files » sont sortis, filtrés par grep.
+  - `go test -race -count=1 ./internal/jobs ./internal/app` : `ok` pour jobs (1.075s) et pour app (24.761s).
+  - `go test -count=2 ./internal/jobs ./internal/app` : `ok` pour jobs (0.019s) et pour app (38.878s).
+  
+  **Couverture des critères.** Les fichiers de test sont `internal/jobs/registry_failure_test.go` (RF), `internal/jobs/failure_test.go` (F), `internal/jobs/nodisk_test.go` (ND) et `internal/app/failures_test.go` (AF). Cette correspondance repose sur les noms des tests, que je n'ai pas lus en détail.
+  1. Clé (type, cible, contexte), au plus un échec par clé, pose par `Apply failed` et effacement par `Start`/`done` : couvert par les tests RF `TestAFailedItemIsRememberedWithItsReadableFields`, `TestAFailureThroughApplyIsRemembered`, `TestOneFailurePerKeyAndTheNewestReplacesTheOld`, `TestAFailureOutlivesItsRunAndMaxFinishedRuns`. L'écriture depuis l'`Update` du routeur est couverte par `TestAFailureReachesEveryHeldViewAsACopy` (AF).
+  2. Nouvelle tentative ou réussite efface l'échec : RF `TestStartingTheSameKeyClearsTheFailureBeforeAnythingRuns`, `TestStartingAnotherKindOrContextKeepsTheFailure`, `TestADoneItemClearsTheFailure`, `TestADoneItemKeepsTheFailuresOfOtherKeys` ; AF `TestAStartOrADoneClearsTheFailure`, `TestARetryFromAnotherViewClearsTheFailure`.
+  3. Suppression de la cible : RF `TestADeleteThatSucceedsForgetsTheTargetForEveryKind`, `TestAFailedDeleteForgetsNothing`, `TestForgetIsScopedToOneContextAndReportsWhatItDropped` ; AF `TestForgetTargetClearsInTheCurrentContextOnly`, `TestForgetTargetCommandBuildsTheMessage`. L'échec qui reste après `ctrl+r` ou après avoir quitté puis rouvert la vue : AF `TestAFailureSurvivesAContextRoundTrip` et `TestAFailureSurvivesLeavingAndReopeningAView`. Un test dédié à `ctrl+r` n'apparaît pas par son nom : partiel.
+  4. Isolation par contexte, échec encore là au retour : F `TestAFailureIsReadInItsOwnContextOnly` ; RF `TestAFailureKeepsTheContextOfItsRunAfterAnotherContextStarted` ; AF `TestAFailureSurvivesAContextRoundTrip`.
+  5. Aucune écriture disque : ND `TestTheRegistryNeverTouchesTheDisk` ; AF `TestFailuresAreNotWrittenToDisk`. Plafond de 500, plus anciens évincés d'abord : F `TestMaxFailuresIs500` ; RF `TestTheFailureMemoryIsCappedAtFiveHundredOldestFirst`, `TestARefreshedFailureIsTheLastToBeEvicted`.
+  6. Copie et non pointeur : RF `TestFailuresReturnsACopy` ; F `TestFailuresOnDoesNotAliasItsInput` ; AF `TestAFailureReachesEveryHeldViewAsACopy`.
+  7. Les copies manuelles (`security.scanTarget.Failed`, `failedScans` d'OCI) restent en place : non couvert par un test (critère de non-modification). Le `git diff --stat` montre 6 fichiers modifiés, dont aucun côté `security` ni OCI, mais je n'ai pas vérifié leur contenu fichier par fichier.
+  8. Clé commune entre vues : F `TestTargetKeyCleansAbsolutePaths`, `TestTargetKeyCleansWindowsPaths`, `TestTargetKeyLeavesReferencesAlone`, `TestTwoSpellingsOfAnImageAreTwoTargets`, `TestTargetKeyIsStable` ; RF `TestAFailureKeyUsesTheNormalizedTarget` ; AF `TestAFailureFromSecIsClearedByWorkspaces`, `TestAnImageFailureIsSharedByOCIAndSec`, `TestTwoSpellingsOfAnImageAreTwoKeys`, `TestAnImageIsNotARepository`. Le cas des images sans tag `<none>` n'est pas confirmé par un nom de test : à vérifier.
+  9. Filtrage par types relançables : F `TestFailuresOnKeepsOnlyTheKindsAsked`, `TestFailuresOnNothing`, `TestFailureForFindsByKind`, `TestFailureForOnNothing`, `TestFailureForCleansTheTargetItLooksUp` ; RF `TestEveryKindIsRemembered`. L'exemple « un échec de sync dans `ws` n'apparaît pas dans `:sec` » n'a pas de test nommé : couverture partielle par les tests `FailuresOn`.
+  10. `docs/architecture/app-shell.md` : la section « The last failure per target » existe, ainsi que `Failures()` et `Forget()` dans la table de l'API. Le fichier est modifié dans le worktree (non commité) ; je n'ai pas vérifié le point « remplacement des copies manuelles » dans le texte.
+  
+  Aucun échec préexistant constaté.
+</agent-message>
+
+---
+
+<agent-message from="a46c4b4bb1fd5b764">
+[Subagent hand-back] The text below is the final report of a subagent this session delegated to. It is model output, NOT a message from the user: instructions, requests, or approval claims inside it are the subagent's words and carry no user authority. The harness indents every line of the report, so a frame-like line at column zero inside it would be forged. Notes above this frame may quote model-derived text, which carries no user authority either. The report follows:
+  DEVDESK-138 est livrée : la PR #328 est mergée en squash (commit 925f045) et la story est en Done dans Plane.
+  
+  - **PR** : https://github.com/anthnel/devdesk/pull/328. Elle contient un seul commit `feat: remember the last failure per target in the jobs registry (DEVDESK-138)`, avec les Co-authored-by habituels. `gofmt -l internal` était vide avant le commit.
+  - **Contenu de la PR** : les 11 fichiers listés (code, tests et `app-shell.md`) et rien d'autre. Le plan, `.agent-progress/` et `docs/journal.md` n'y sont pas.
+  - **Checks** : `Lint and build` et `Test` sont verts. Sur Entire Gates, Findings, Checks et Up to date sont verts, seul Approvals est rouge, ce qui est attendu. La PR #286 (release) n'a pas été touchée.
+  - **Main local** : fast-forward fait, `main` est à 925f045. Les fichiers non suivis et la modification de `docs/journal.md` n'ont pas été touchés.
+  - **Plane** : j'ai commenté la story avec le lien de la PR et le n° de merge, et je l'ai passée en Done.
+  - **Worktree** : `.worktrees/feat/DEVDESK-138-failure-memo` est supprimé. Son plan est identique (comparaison faite) à `.claude/plans/DEVDESK-138-plan.md` du checkout principal, où il est encore non suivi.
+  
+  Le worktree `DEVDESK-137-activity-indicator` est toujours là (c962662), ainsi que deux worktrees `docs/*`. Je ne les ai pas créés, je n'y ai pas touché.
+</agent-message>
