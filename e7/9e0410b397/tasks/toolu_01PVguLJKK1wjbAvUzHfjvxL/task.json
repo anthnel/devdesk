@@ -1,0 +1,15 @@
+{
+  "tool_use_id": "toolu_01PVguLJKK1wjbAvUzHfjvxL",
+  "agent_id": "afac269483763fedf",
+  "subagent_type": "project-coder",
+  "task_description": "Vert étape 1 SafeCause",
+  "token_usage": {
+    "input_tokens": 10,
+    "cache_creation_tokens": 27276,
+    "cache_read_tokens": 94088,
+    "output_tokens": 2643,
+    "api_call_count": 5
+  },
+  "started_at": "2026-11-09T15:39:32.488404073+01:00",
+  "completed_at": "2026-11-09T15:40:09.579522341+01:00"
+}

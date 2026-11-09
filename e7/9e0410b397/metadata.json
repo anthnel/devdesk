@@ -1,0 +1,71 @@
+{
+  "cli_version": "0.12.2",
+  "checkpoint_id": "e79e0410b397",
+  "strategy": "manual-commit",
+  "branch": "feat/DEVDESK-148-clone-list-activity",
+  "checkpoints_count": 19,
+  "files_touched": [
+    "docs-site/docs/explanation/forge.md",
+    "docs/architecture/app-shell.md",
+    "docs/architecture/forge.md",
+    "docs/backlog.md",
+    "docs/product/activity-indicator/ux.md",
+    "internal/app/activity_guard_test.go",
+    "internal/app/forge_index.go",
+    "internal/app/forge_index_test.go",
+    "internal/jobs/cause.go",
+    "internal/jobs/cause_test.go",
+    "internal/jobs/jobs.go",
+    "internal/jobs/registry.go",
+    "internal/ui/forge/explorer/activity_help_test.go",
+    "internal/ui/forge/explorer/clone.go",
+    "internal/ui/forge/explorer/clone_cause_test.go",
+    "internal/ui/forge/explorer/clone_indicator_test.go",
+    "internal/ui/forge/explorer/clone_jobs.go",
+    "internal/ui/forge/explorer/clone_list.go",
+    "internal/ui/forge/explorer/frame_test.go",
+    "internal/ui/forge/explorer/indicator_test.go",
+    "internal/ui/forge/explorer/model.go",
+    "internal/ui/forge/explorer/model_test.go",
+    "internal/ui/forge/explorer/view.go",
+    "internal/ui/indicator/legend.go",
+    "internal/ui/indicator/legend_test.go"
+  ],
+  "sessions": [
+    {
+      "metadata": "/e7/9e0410b397/0/metadata.json",
+      "transcript": "/e7/9e0410b397/0/full.jsonl",
+      "compact_transcript": "/e7/9e0410b397/0/transcript.jsonl",
+      "content_hash": "/e7/9e0410b397/0/content_hash.txt",
+      "prompt": "/e7/9e0410b397/0/prompt.txt"
+    }
+  ],
+  "token_usage": {
+    "input_tokens": 130,
+    "cache_creation_tokens": 133416,
+    "cache_read_tokens": 5220440,
+    "output_tokens": 32325,
+    "api_call_count": 47,
+    "subagent_tokens": {
+      "input_tokens": 380,
+      "cache_creation_tokens": 1115163,
+      "cache_read_tokens": 11515959,
+      "output_tokens": 131334,
+      "api_call_count": 184
+    }
+  },
+  "redaction": {
+    "replacements": 47,
+    "layers": {
+      "betterleaks": 14,
+      "connection_string": 0,
+      "credential_key": 0,
+      "credential_value": 11,
+      "credentialed_uri": 40,
+      "entropy": 0,
+      "key_context": 0,
+      "provider_token": 0,
+      "shell_stdin": 0
+    }
+  }
+}

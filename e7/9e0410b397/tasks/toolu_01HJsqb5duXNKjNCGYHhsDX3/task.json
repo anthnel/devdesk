@@ -1,0 +1,15 @@
+{
+  "tool_use_id": "toolu_01HJsqb5duXNKjNCGYHhsDX3",
+  "agent_id": "aa8ab0f26f6535988",
+  "subagent_type": "dev-team:security-reviewer",
+  "task_description": "Sécurité étape 1 DEVDESK-148",
+  "token_usage": {
+    "input_tokens": 20,
+    "cache_creation_tokens": 48441,
+    "cache_read_tokens": 340391,
+    "output_tokens": 7016,
+    "api_call_count": 10
+  },
+  "started_at": "2026-11-09T15:40:29.770999779+01:00",
+  "completed_at": "2026-11-09T15:41:45.95394504+01:00"
+}
