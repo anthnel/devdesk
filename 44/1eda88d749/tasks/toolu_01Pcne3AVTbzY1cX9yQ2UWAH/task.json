@@ -1,0 +1,15 @@
+{
+  "tool_use_id": "toolu_01Pcne3AVTbzY1cX9yQ2UWAH",
+  "agent_id": "a5315fcf84f78e09a",
+  "subagent_type": "project-tester",
+  "task_description": "Pin help legend test",
+  "token_usage": {
+    "input_tokens": 14,
+    "cache_creation_tokens": 21717,
+    "cache_read_tokens": 138043,
+    "output_tokens": 3251,
+    "api_call_count": 7
+  },
+  "started_at": "2026-11-09T17:02:46.696740542+01:00",
+  "completed_at": "2026-11-09T17:03:20.036428895+01:00"
+}

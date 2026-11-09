@@ -1,0 +1,15 @@
+{
+  "tool_use_id": "toolu_01BGJ2jGNewxD2Vznniz6VrS",
+  "agent_id": "a17d365d477f2fc84",
+  "subagent_type": "project-coder",
+  "task_description": "Green step 1 RowQuery.Extra",
+  "token_usage": {
+    "input_tokens": 6,
+    "cache_creation_tokens": 25294,
+    "cache_read_tokens": 41323,
+    "output_tokens": 1853,
+    "api_call_count": 3
+  },
+  "started_at": "2026-11-09T16:48:49.710814041+01:00",
+  "completed_at": "2026-11-09T16:49:15.9664975+01:00"
+}

@@ -1,0 +1,15 @@
+{
+  "tool_use_id": "toolu_01VW1QoRCo5t5w4qX1dAUrnc",
+  "agent_id": "a7daec837cba67eb8",
+  "subagent_type": "project-tester",
+  "task_description": "Red tests step 1 RowQuery.Extra",
+  "token_usage": {
+    "input_tokens": 12,
+    "cache_creation_tokens": 30922,
+    "cache_read_tokens": 121895,
+    "output_tokens": 3995,
+    "api_call_count": 6
+  },
+  "started_at": "2026-11-09T16:48:04.208525631+01:00",
+  "completed_at": "2026-11-09T16:48:39.610558217+01:00"
+}
