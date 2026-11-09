@@ -169,7 +169,7 @@ func (m Model) handleDeleted(msg DeletedMsg) (tea.Model, tea.Cmd) {
 	}
 	m.declared = m.store.List()
 	m.rebuild()
-	return m, tea.Batch(m.refreshSynced(), m.footer.Info("Deleted "+msg.Slug))
+	return m, tea.Batch(m.refreshSynced(), jobs.ForgetTarget(msg.Slug), m.footer.Info("Deleted "+msg.Slug))
 }
 
 // selectSlug puts the cursor on an entry, so a template just saved is the one

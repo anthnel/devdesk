@@ -21,6 +21,7 @@ import (
 	"github.com/anthnel/devdesk/internal/template"
 	sharedcomponents "github.com/anthnel/devdesk/internal/ui/components"
 	"github.com/anthnel/devdesk/internal/ui/datatable"
+	"github.com/anthnel/devdesk/internal/ui/indicator"
 	"github.com/anthnel/devdesk/internal/ui/theme"
 )
 
@@ -31,6 +32,10 @@ type row struct {
 	// zero when there is none. It is carried in the row, loaded off the Update
 	// goroutine, because a cell is drawn on every frame and must not read a file.
 	SyncedAt time.Time
+	// Activity and Syncing are resolved from the router's snapshot when it lands
+	// (rebuild), never in a cell.
+	Activity sharedcomponents.RowActivity
+	Syncing  bool
 }
 
 // Model is the templates view.
@@ -69,6 +74,10 @@ type Model struct {
 	// whichever view started it.
 	deps *scan.Report
 	jobs []jobs.Run
+	// failures and contextName are the same snapshot's remembered failures and
+	// context, which a row's activity is resolved against.
+	failures    []jobs.Failure
+	contextName string
 	// scanner runs the scanners over a directory; a test replaces it.
 	scanner scanFunc
 	// cache is what a preview, a scan and a sync read and write.
@@ -135,18 +144,18 @@ func NewForSelection(cfg *config.Config, secrets credentials.Storage, message st
 
 // columns describes the table.
 //
-// The first is the source's kind, as a glyph in a column of its own (Rule
-// 125). Its colour comes from a role rather than a hue: a git repository is a
-// repository and a checkout on disk is a directory in `ws`, `:sec` and the
-// explorer, and a template's source reads the same here — the roles are shared,
-// not duplicated.
+// The first is the activity column (Rule 125): at rest it shows the source's
+// kind as a glyph. Its colour comes from a role rather than a hue: a git
+// repository is a repository and a checkout on disk is a directory in `ws`,
+// `:sec` and the explorer, and a template's source reads the same here — the
+// roles are shared, not duplicated.
 func columns() []datatable.Column[row] {
 	return []datatable.Column[row]{
-		{
-			Title: "", Sizing: datatable.SizingFixed, MinWidth: datatable.IconColumnWidth,
-			Cell:  func(r row) string { return kindGlyph(r.Entry.Source.Kind) },
-			Style: func(r row) lipgloss.Style { return theme.IconStyle(kindRole(r.Entry.Source.Kind)) },
-		},
+		datatable.IndicatorColumn(
+			func(r row) indicator.State { return r.Activity.State },
+			func(r row) string { return kindGlyph(r.Entry.Source.Kind) },
+			func(r row) lipgloss.Style { return theme.IconStyle(kindRole(r.Entry.Source.Kind)) },
+		),
 		{
 			Title: "Name", Sizing: datatable.SizingContent, MinWidth: 16, MaxWidth: 40, Flex: 2,
 			Cell: func(r row) string { return r.Entry.Name },
@@ -179,8 +188,13 @@ func columns() []datatable.Column[row] {
 			// Rule 127 words the age. A template never read has none, which is
 			// a dash and not "now": nothing was fetched, so nothing is that fresh.
 			Title: "Synced", Sizing: datatable.SizingContent, MinWidth: 10, MaxWidth: 12, Optional: true,
-			Cell:  func(r row) string { return dashIfEmpty(theme.TimeAgo(r.SyncedAt)) },
-			Style: func(r row) lipgloss.Style { return dimIfEmpty(r.SyncedAt.IsZero()) },
+			Cell: func(r row) string {
+				if r.Syncing {
+					return syncingText
+				}
+				return dashIfEmpty(theme.TimeAgo(r.SyncedAt))
+			},
+			Style: func(r row) lipgloss.Style { return dimIfEmpty(r.SyncedAt.IsZero() || r.Syncing) },
 			// Oldest first, and a template never read as the oldest of all.
 			Less: func(a, b row) bool { return a.SyncedAt.Before(b.SyncedAt) },
 		},
@@ -248,7 +262,7 @@ func dimIfEmpty(empty bool) lipgloss.Style {
 func (m *Model) rebuild() {
 	rows := make([]row, len(m.declared))
 	for i, e := range m.declared {
-		rows[i] = row{Entry: e, SyncedAt: m.syncedAt[e.Slug]}
+		rows[i] = row{Entry: e, SyncedAt: m.syncedAt[e.Slug], Activity: m.rowActivity(e), Syncing: m.syncing(e.Slug)}
 	}
 	m.table.SetItems(rows)
 }

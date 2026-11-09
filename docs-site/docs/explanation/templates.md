@@ -33,6 +33,18 @@ Accepted git URLs are `https`, `http`, `ssh`, `git` and scp-style. `ext::` (runs
 
 If the file can't be parsed at all, writes are refused: saving over it would replace whatever you had. `N`, `E` and `D` are greyed out with the reason.
 
+## The activity dot
+
+The leftmost column shows the source's icon at rest and a dot while something runs on the template, as in `ws` and the other lists:
+
+| Glyph | Meaning |
+|---|---|
+| `●` / `○` | A sync (`F`) or a scan (`S`) is running (the dot blinks). During a sync the Synced cell reads `syncing`. |
+| `◴` | A sync or scan is queued. |
+| `⊗` | The last sync or scan failed. It stays until the next try on that template. |
+
+The footer describes the selected template, and a failure reads `Failed to sync <name> — <cause>` or `Failed to scan <name> — <cause>`. Deleting a template clears its remembered sync failure. A sync or scan started in another context does not mark the row. Press `?` for the legend.
+
 ## Scanning a template
 
 A secret in a template ends up in every repository made from it, so `S` scans what the template *would* put in a repository before it does. The template is fetched, written to `~/.devdesk/cache/template-scan/<slug>`, and scanned as an ordinary directory by Trivy and Gitleaks (whichever is installed). The result appears in the `:sec` inventory like any other scan and opens in the same results view.

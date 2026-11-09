@@ -108,14 +108,14 @@ func (m Model) syncStart(entry template.Entry) tea.Cmd {
 		creds: template.CredentialsFor(m.config, m.secrets, entry.Source),
 		cache: m.cache,
 	}
-	run := jobs.NewRun(jobs.KindSync, command.ViewTemplates, "", entry.Name, entry.Slug)
+	run := jobs.NewRun(jobs.KindSync, command.ViewTemplates, "", entry.Name, entry.Slug).WithDisplay(entry.Slug, entry.Name)
 	return jobs.Start(run, syncTemplateCmd(job))
 }
 
 // handleSyncComplete says how the sync ended.
 func (m Model) handleSyncComplete(msg SyncCompleteMsg) (tea.Model, tea.Cmd) {
 	if msg.Err != nil {
-		return m, m.footer.Error("Sync of " + msg.Name + " failed — check logs")
+		return m, m.footer.Error(sharedcomponents.FailureEvent(jobs.KindSync, msg.Name, msg.Transition().Detail))
 	}
 	return m, tea.Batch(m.refreshSynced(), m.footer.Info("Synced "+msg.Name+" — "+sharedcomponents.Plural(msg.Files, "file", "files")))
 }

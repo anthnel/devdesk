@@ -596,7 +596,7 @@ a field of its own because only a path is ever shortened.
   columns for `runewidth` too.
 
 **One constructor of sentences** (`row_activity.go`). The view fills a
-`RowQuery{Runs, Failures, Context, Target, Kinds, Observed, ObservedText}`
+`RowQuery{Runs, Failures, Context, Target, Kinds, Observed, ObservedText, Extra}`
 (runs and failures of any context; they are filtered here) and calls:
 
 - **`RowState(q)`**: the `indicator.State` for the activity column, no text.
@@ -614,6 +614,13 @@ a field of its own because only a path is ever shortened.
   <target> finished[ <time ago>]`, `... was cancelled`, `... skipped[ — <detail>]`
   (item), and `<glyph> <target>: last <kind> failed — <cause>` (the failed
   item's detail, or `N of M targets failed` for a run with several).
+
+`RowQuery.Extra []RowTarget` (DEVDESK-149) is for a row that answers for several
+registry identities (`:templates`: sync on the slug, scan on its scan
+directory). `RowTarget{Target, Kinds}` takes its own kinds (nil = all) and the
+query's `Context`. Active runs and failures of every target are merged, then
+sorted as for one target (running before queued; failures newest first). With
+`Extra` nil the result is unchanged. `ws` keeps its own ranking for now.
 
 What `DescribeRow` writes:
 

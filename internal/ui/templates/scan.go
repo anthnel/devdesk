@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"log"
+	"slices"
 
 	tea "github.com/charmbracelet/bubbletea"
 
@@ -13,6 +14,7 @@ import (
 	"github.com/anthnel/devdesk/internal/scan"
 	"github.com/anthnel/devdesk/internal/template"
 	sharedcomponents "github.com/anthnel/devdesk/internal/ui/components"
+	"github.com/anthnel/devdesk/internal/ui/indicator"
 	"github.com/anthnel/devdesk/internal/ui/shortcut"
 )
 
@@ -206,7 +208,7 @@ func (m Model) startScan() (tea.Model, tea.Cmd) {
 		opts:  m.scanOptions(),
 		run:   m.scanner,
 	}
-	run := jobs.NewRun(jobs.KindScan, command.ViewTemplates, "", entry.Name, dir)
+	run := jobs.NewRun(jobs.KindScan, command.ViewTemplates, "", entry.Name, dir).WithDisplay(dir, entry.Name)
 	return m, jobs.StartInContext(run, func(contextName string) tea.Cmd {
 		return scanTemplateCmd(job, contextName)
 	})
@@ -214,11 +216,16 @@ func (m Model) startScan() (tea.Model, tea.Cmd) {
 
 func (m Model) handleJobsChanged(msg jobs.ChangedMsg) (tea.Model, tea.Cmd) {
 	m.jobs = msg.Runs
+	m.failures = slices.Clone(msg.Failures)
+	m.contextName = msg.Context
+	m.rebuild()
 	return m, nil
 }
 
-// handleFrameMsg takes the animation's frame for the footer spinner.
+// handleFrameMsg takes the animation's frame: the blink phase, which the table
+// reads at render (no row is rebuilt), and the footer spinner.
 func (m Model) handleFrameMsg(msg jobs.FrameMsg) (tea.Model, tea.Cmd) {
+	m.table.SetBlinkPhase(msg.Blink)
 	m.footer.SetSpinnerFrame(msg.RenderedFrame)
 	return m, nil
 }
@@ -232,7 +239,7 @@ func (m Model) handleScanComplete(msg ScanCompleteMsg) (tea.Model, tea.Cmd) {
 	var cmd tea.Cmd
 	switch {
 	case msg.Err != nil:
-		cmd = m.footer.Error("Scan of " + msg.Name + " failed — check logs")
+		cmd = m.footer.Error(sharedcomponents.FailureEvent(jobs.KindScan, msg.Name, msg.Transition().Detail))
 	case msg.Partial:
 		cmd = m.footer.Warn("Scanned " + msg.Name + ", but a scan stage failed — check logs")
 	default:
@@ -251,10 +258,17 @@ func scanSummary(msg ScanCompleteMsg) string {
 		msg.Name, c.Critical, c.High, c.Medium, c.Low)
 }
 
-// jobsStatus is the footer's derived line while work is live.
+// jobsStatus is the footer's derived line: the selected row's own sentence (what
+// it is doing, or the failure it remembers), then the batch progress. A row whose
+// detail has a moving dot drops the footer spinner; a failed row's dot is fixed.
 func (m Model) jobsStatus() sharedcomponents.Status {
-	if text := sharedcomponents.JobsStatusLine(m.jobs, command.ViewTemplates); text != "" {
-		return sharedcomponents.Status{Text: text, Spinner: true}
+	st := sharedcomponents.Status{Text: sharedcomponents.JobsStatusLine(m.jobs, command.ViewTemplates)}
+	moving := false
+	if r, ok := m.table.Selected(); ok {
+		a := r.Activity
+		st.Detail = a.Detail
+		moving = a.State == indicator.Running || a.State == indicator.Queued
 	}
-	return sharedcomponents.Status{}
+	st.Spinner = st.Text != "" && (!moving || st.Detail.IsZero())
+	return st
 }

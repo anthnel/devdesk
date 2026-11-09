@@ -88,7 +88,7 @@ the write succeeded, so a failure leaves both agreeing.
 
 ## The `:templates` view — `internal/ui/templates`
 
-A `datatable` (icon, Name, Tags, Source, Ref, Synced) over the catalog. The body is
+A `datatable` (activity, Name, Tags, Source, Ref, Synced) over the catalog. The body is
 always the table (Rule 139); the count is in the header.
 
 | Key | Does |
@@ -113,6 +113,34 @@ not be parsed would replace whatever the user had in it; the footer says so and
 `N`/`E`/`D` are greyed with the reason. The catalog not being *open yet* is not
 greyed — that is not knowing, and greying it for one read would look like a
 glitch (Rule 130).
+
+**Column 0 is the activity column** (DEVDESK-149, Rule 125; `activity.go`).
+`datatable.IndicatorColumn` shows the source's kind glyph at rest and the state
+glyph while something runs. `rebuild()` stamps `row.Activity` from
+`components.DescribeRow` on the router snapshot (`m.jobs`, `m.failures`,
+`m.contextName`, all taken in `handleJobsChanged`); no cell reads a file or
+the registry. The blink phase is read at render (`handleFrameMsg`).
+
+- **A row answers for two targets**, each with its own kind: a sync on the slug
+  (`RowQuery.Target`, `Kinds: {KindSync}`) and a scan on `template.ScanDir(slug)`
+  (`RowQuery.Extra`, `Kinds: {KindScan}`; see `ui-components.md`). Other kinds on
+  those targets are not shown. Both runs carry `WithDisplay(target, entry.Name)`,
+  so `:jobs` and `:sec` print the template's name, not the slug or the path.
+- **The `Synced` cell reads `syncing`** (dim) while a sync of the row is running
+  (`Model.syncing`: running, not merely queued).
+- **Footer.** `jobsStatus` puts the selected row's sentence (`RowActivity.Detail`)
+  before the batch progress; the footer spinner is dropped when the row's own dot
+  already moves. A failed row's `⊗` stays until the next try on that target.
+- **Failure message.** A failed sync or scan posts
+  `Failed to sync <name> — <cause>` / `Failed to scan <name> — <cause>`
+  (`FailureEvent`, cause from `Transition().Detail`), replacing
+  `Sync of X failed — check logs`.
+- **Deleting a template forgets its sync failure** (`jobs.ForgetTarget(slug)` in
+  `handleDeleted`). The scan directory is kept (see D104).
+- **Accepted edges** (D104): the snapshot's context is the router's, so a run
+  started in another context does not mark the row; and a slug reused after a
+  delete inherits a remembered scan failure, because the scan directory
+  (hence the scan target) is the same.
 
 ## Creating a repository from a template
 
@@ -154,7 +182,7 @@ what the template would put in a repository — before it does.
 The template is fetched, written to **`~/.devdesk/cache/template-scan/<slug>`**
 (`template.Materialize`, which replaces whatever a previous scan left there), and
 that directory is scanned as a plain directory by the configured scanners. It is
-reused as a directory scan on purpose: the result is cached by path
+reused as a directory scan on purpose (the row's scan target is this directory, `template.ScanDir(slug)`): the result is cached by path
 (`cache.StoreWorkspaceScan`, now shared with the workspaces view), so it appears
 in the **`:sec` inventory** and opens in the same results view, with nothing new
 to build. The footer here says how it ended — the counts, or `no findings`, or a
@@ -221,7 +249,7 @@ oldest first, the never-read as the oldest. The age travels in the row
 sync or a scan.
 
 `F` is registry work (`jobs.KindSync`, origin `:templates`, target the slug), so
-`:jobs` shows it and the footer status carries it. It is greyed with no row and
+`:jobs` shows it, the row's dot and `Synced` cell (`syncing`) carry it, and the footer status describes it. It is greyed with no row and
 while a sync of that template is already running, and absent from the picker.
 It is separate from the scan's directory (`cache/template-scan`), which is a
 materialised tree for the scanners, not a cache of the fetch.
