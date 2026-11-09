@@ -350,8 +350,9 @@ be reviewed: nothing on the line says whether the entry is correct, so an
 error there is indistinguishable from a deliberate choice. A role can be
 discussed, which is why it is the key.
 
-The five roles are overridable via a theme file (`icon_namespace`,
-`icon_repository`, `icon_vis_*`) — unlike syntax colors, which are closed
+The roles are overridable via a theme file (`icon_namespace`,
+`icon_repository`, `icon_vis_*`, `icon_image`, `icon_container`; `IconRoleContainer`
+is the resting icon of a running container, `ColorText` by default) — unlike syntax colors, which are closed
 aliases: an icon is the first thing seen on a row, so it is the part of the
 palette a user is most likely to have an opinion about.
 

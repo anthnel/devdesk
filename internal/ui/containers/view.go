@@ -9,6 +9,7 @@ import (
 	"github.com/anthnel/devdesk/internal/engine"
 	sharedcomponents "github.com/anthnel/devdesk/internal/ui/components"
 	"github.com/anthnel/devdesk/internal/ui/help"
+	"github.com/anthnel/devdesk/internal/ui/indicator"
 	"github.com/anthnel/devdesk/internal/ui/shortcut"
 	"github.com/anthnel/devdesk/internal/ui/theme"
 
@@ -58,26 +59,24 @@ func (m Model) RenderFooter(width int) string {
 	return strings.Join(parts, "\n")
 }
 
-// status is what the view derives on every frame: the load, then whatever
-// action is running. Neither has a timer, and both are displaced by a message.
+// status is what the view derives on every frame: the load, else the selected
+// row's state in words followed by the progress of what is running. Neither has
+// a timer, and both are displaced by a message.
 func (m Model) status() sharedcomponents.Status {
 	if m.loading && len(m.containerTable.Items()) == 0 {
 		return sharedcomponents.Status{Text: "Loading containers...", Spinner: true}
 	}
-	return sharedcomponents.Status{Text: m.actionLine()}
+	return sharedcomponents.Status{Detail: m.selectedDetail(), Text: m.progressLine()}
 }
 
-// actionLine names what is running, in words. The spinner on the row says that
-// *something* is; this says what.
+// progressLine names what is running, in words. It is rendered from the current
+// state rather than assigned to a footer message, because a footer message
+// expires after three seconds (Rule 128) and a `docker stop` outlives that by
+// seven.
 //
-// It is rendered from the current state rather than assigned to a footer
-// message, because a footer message expires after three seconds (Rule 128) and
-// a `docker stop` outlives that by seven — the same reason §3.17's sync
-// progress is a rendered line rather than footerInfo.
-//
-// An error takes the line ahead of it: a failure the user has not read yet
-// matters more than the progress of what is still running.
-func (m Model) actionLine() string {
+// A single action on the selected row is already the footer's detail, so it is
+// not repeated here.
+func (m Model) progressLine() string {
 	if m.pruning {
 		return "Pruning containers…"
 	}
@@ -86,6 +85,9 @@ func (m Model) actionLine() string {
 	case 0:
 		return ""
 	case 1:
+		if c := m.getSelectedContainer(); c != nil && m.containerTable.IsBusy(c.ID) {
+			return ""
+		}
 		return labels[0] + "…"
 	default:
 		// Naming them all would run past the line on a wide selection; the count
@@ -217,7 +219,7 @@ func (m Model) GetHelpContent() help.Content {
 		Sections: []help.Section{
 			{
 				Title: "Columns",
-				Body: "Status (first, untitled): the container state — " + theme.IconCaretRight + " running, " + theme.IconSmallPause + " paused, " + theme.IconSmallSquare + " exited, " + theme.IconCaretUp + " created/restarting, " + theme.IconBan + " dead. A spinner replaces it while an action is running on that container.\n" +
+				Body: "Activity (first, untitled): the container's usual icon at rest; a glyph when it is not running normally or an action is running on it. See Activity indicator below. The footer states the selected container's state in words.\n" +
 					"Name: Container name.\n" +
 					"Image: the container's image.\n" +
 					"Update: an arrow when the image the container runs is behind its registry — a later patch tag, or new content behind the same tag (the arrow alone — a new build). It compares the image the container was created from, so pulling the new one does not clear it: recreating the container does. Otherwise an icon: a check mark (up to date), an hourglass (checking), a question mark in a circle (the registry did not answer), a hammer (an image built or loaded here).\n" +
@@ -236,10 +238,11 @@ func (m Model) GetHelpContent() help.Content {
 					"Created: Relative timestamp when the container was created.\n" +
 					"On a narrow terminal the two gauges are the first columns to go, then Update after the I/O counters: they draw a number that stays on screen without them. They also lose their color on the selected row, like every colored column.",
 			},
+			indicator.Legend(indicator.ContainersLegend...),
 			{
 				Title: "Running Actions",
-				Body: "Stop, restart, pause/resume and delete run in the background. While one is running the container's status column shows a spinner, the row is dimmed, and the footer names what is happening — '" + eng + " stop' waits ten seconds for the container to exit on its own.\n" +
-					"A second action on the same container is refused until the first one finishes; the cursor is free to move in the meantime, and the spinner stays with the container rather than following it.",
+				Body: "Stop, restart, pause/resume and delete run in the background. While one is running the container's first column shows " + indicator.Glyph(indicator.Running, true) + " (blinking), the row is dimmed, and the footer names what is happening — '" + eng + " stop' waits ten seconds for the container to exit on its own.\n" +
+					"A second action on the same container is refused until the first one finishes; the cursor is free to move in the meantime, and the glyph stays with the container rather than following it. When the action ends the list is read again; the row shows its new state at the next refresh.",
 			},
 			{
 				Title: "Metrics Refresh",

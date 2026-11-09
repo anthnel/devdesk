@@ -14,6 +14,7 @@ import (
 	"github.com/anthnel/devdesk/internal/imageupdate"
 	sharedcomponents "github.com/anthnel/devdesk/internal/ui/components"
 	"github.com/anthnel/devdesk/internal/ui/datatable"
+	"github.com/anthnel/devdesk/internal/ui/indicator"
 	"github.com/anthnel/devdesk/internal/ui/theme"
 	"github.com/anthnel/devdesk/internal/ui/updatecol"
 )
@@ -112,10 +113,10 @@ type ShellWindowOpenedMsg struct {
 	Err error
 }
 
-// columnStatus indexes containerColumns. Only the ones something else refers to
-// are named; the sort cycle walks them by position.
+// columnIndicator indexes containerColumns. Only the ones something else refers
+// to are named; the sort cycle walks them by position.
 const (
-	columnStatus = iota
+	columnIndicator = iota
 	columnName
 	columnImage
 )
@@ -146,9 +147,10 @@ const (
 // compensate for the icon not being where it belonged; the search still matches
 // both, because a container is looked for by either.
 //
-// That column is also where a running action shows its spinner. The two are one
-// glyph deliberately: a row answers "what is this" and "what is happening to
-// it" in the same place, and `datatable` owns the precedence — busy wins.
+// That column is also where a running action shows its blinking dot. The two
+// share the activity column deliberately: a row answers "what is this" and
+// "what is happening to it" in the same place, and `datatable` owns the
+// precedence — busy wins.
 //
 // status says whether a newer image exists for a container (§3.88); nil says
 // nothing, for the tests that only look at the layout.
@@ -175,11 +177,7 @@ func containerColumns(status func(docker.Container) imageupdate.Status) []datata
 	}
 
 	return []datatable.Column[docker.Container]{
-		{
-			Title: "", Sizing: datatable.SizingFixed, MinWidth: datatable.IconColumnWidth,
-			Cell:  func(c docker.Container) string { return stateIcon(c.State) },
-			Style: containerStateStyle,
-		},
+		datatable.IndicatorColumn(observedState, restIcon, restStyle),
 		{
 			Title: "Name", Sizing: datatable.SizingContent, MinWidth: 14, Flex: 2,
 			Cell:   func(c docker.Container) string { return c.Name },
@@ -326,32 +324,11 @@ func gaugeColumn(scale string, pct func(docker.Container) float64) datatable.Col
 	}
 }
 
-// containerStateStyle colours the status column by the state its glyph shows.
-//
-// A running container is left in the default text colour rather than painted
-// green. Almost every row is running, so colouring them would put a colour on
-// the whole table and a signal on none of it — the colour is here to pick out
-// the containers that stopped, or that are on their way somewhere.
-func containerStateStyle(c docker.Container) lipgloss.Style {
-	switch c.State {
-	case "exited", "dead":
-		return theme.StatusErrorStyle
-	case "paused":
-		return theme.StatusWarningStyle
-	case "created", "restarting":
-		return lipgloss.NewStyle().Foreground(theme.ColorHighlight)
-	default:
-		// No opinion here: the table sets the theme's text color.
-		return lipgloss.NewStyle()
-	}
-}
-
 // containerSelectedStyles paints the selected row as an error when the
-// container is not coming back on its own. It is the whole of what
-// refreshSelectionStyle used to do, minus its replay of filter-then-sort to
-// find out what the cursor was on.
+// container failed: exited with a non-zero (or unknown) code, or dead. A clean
+// exit keeps the normal selection.
 func containerSelectedStyles(c docker.Container) table.Styles {
-	if c.State == "exited" || c.State == "dead" {
+	if observedState(c) == indicator.Failed {
 		return theme.TableStylesForState("error")
 	}
 	return theme.TableStylesForState("normal")
@@ -365,7 +342,7 @@ func containerSelectedStyles(c docker.Container) table.Styles {
 // There are four rather than one per docker state because the mapping has to be
 // total: a state named by no token would be a container hidden with nothing on
 // screen saying which filter hid it. They are exactly the four groups
-// containerStateStyle already colours, so the bar and the status column say the
+// observedState already separates, so the bar and the activity column say the
 // same thing.
 const (
 	filterTokenRunning   = "running"
@@ -470,8 +447,7 @@ func New(cfg *config.Config) Model {
 			TokenMatch: matchContainerTokens,
 			// The ID rather than the name: an action is issued against the ID,
 			// and two containers can carry the same name across a recreate.
-			Key:          func(c docker.Container) string { return c.ID },
-			StatusColumn: columnStatus,
+			Key: func(c docker.Container) string { return c.ID },
 		}),
 		loading: true,
 	}

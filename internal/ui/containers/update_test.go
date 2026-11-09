@@ -14,6 +14,7 @@ import (
 	"github.com/anthnel/devdesk/internal/config"
 	"github.com/anthnel/devdesk/internal/docker"
 	sharedcomponents "github.com/anthnel/devdesk/internal/ui/components"
+	"github.com/anthnel/devdesk/internal/ui/indicator"
 	"github.com/anthnel/devdesk/internal/ui/keymap"
 	"github.com/anthnel/devdesk/internal/ui/testutil"
 	"github.com/anthnel/devdesk/internal/ui/theme"
@@ -359,23 +360,6 @@ func TestRelativeTimeFallsBackToTheRawValue(t *testing.T) {
 	}
 }
 
-func TestStateIconIsDistinctPerState(t *testing.T) {
-	seen := map[string]string{}
-	for _, state := range []string{"running", "paused", "exited", "created", "restarting", "dead", "something-else"} {
-		icon := stateIcon(state)
-		if icon == "" {
-			t.Errorf("stateIcon(%q) returned nothing", state)
-		}
-		seen[state] = icon
-	}
-	if seen["running"] == seen["exited"] || seen["running"] == seen["paused"] {
-		t.Error("running, paused and exited must be distinguishable at a glance")
-	}
-	if seen["created"] != seen["restarting"] {
-		t.Error("created and restarting deliberately share an icon")
-	}
-}
-
 // Rule 122: a styled string in table.Row is truncated mid-escape by
 // runewidth.Truncate and bleeds into every row below. The colour profile has to
 // be forced, otherwise lipgloss strips the sequences and this passes whatever
@@ -553,7 +537,7 @@ func TestTheNamedColumnsAreWhereTheirNamesSay(t *testing.T) {
 		index int
 		title string
 	}{
-		{columnStatus, ""},
+		{columnIndicator, ""},
 		{columnName, "Name"},
 		{columnImage, "Image"},
 		{columnPorts, "Ports"},
@@ -657,8 +641,8 @@ func TestStopOnlyActsOnRunningContainers(t *testing.T) {
 	if cmd != nil {
 		t.Error("K issued a stop for an exited container")
 	}
-	if got := m.actionLine(); got != "" {
-		t.Errorf("actionLine = %q for a container that cannot be stopped", got)
+	if got := m.containerTable.BusyLabels(); len(got) != 0 {
+		t.Errorf("busy = %q for a container that cannot be stopped", got)
 	}
 
 	m = feed(t, m, testutil.Key("down"), testutil.Key("down")) // web, running
@@ -666,8 +650,13 @@ func TestStopOnlyActsOnRunningContainers(t *testing.T) {
 	if cmd == nil {
 		t.Error("K did not issue a stop for a running container")
 	}
-	if got := m.actionLine(); got != "Stopping web…" {
-		t.Errorf("actionLine = %q, want \"Stopping web…\"", got)
+	// The busy row is the selected one: the footer names the action once, as the
+	// row's detail, and the progress stays empty.
+	if got := footerText(m, 120); !strings.Contains(got, "Stopping web") {
+		t.Errorf("footer = %q, want it to name \"Stopping web\"", got)
+	}
+	if got := m.progressLine(); got != "" {
+		t.Errorf("progressLine = %q, want it empty for the selected busy row", got)
 	}
 }
 
@@ -679,8 +668,8 @@ func TestRestartActsOnAnyContainer(t *testing.T) {
 	if cmd == nil {
 		t.Error("r did not issue a restart")
 	}
-	if got := m.actionLine(); got != "Restarting api…" {
-		t.Errorf("actionLine = %q, want \"Restarting api…\"", got)
+	if got := footerText(m, 120); !strings.Contains(got, "Restarting api") {
+		t.Errorf("footer = %q, want it to name \"Restarting api\"", got)
 	}
 }
 
@@ -704,12 +693,12 @@ func TestSpaceTogglesPauseAccordingToState(t *testing.T) {
 
 			m, cmd := step(t, m, testutil.Key(" "))
 
-			want := tc.wantAction
-			if want != "" {
-				want += "…"
-			}
-			if got := m.actionLine(); got != want {
-				t.Errorf("actionLine = %q, want %q", got, want)
+			if tc.wantAction == "" {
+				if got := m.containerTable.BusyLabels(); len(got) != 0 {
+					t.Errorf("busy = %q, want nothing running", got)
+				}
+			} else if got := footerText(m, 120); !strings.Contains(got, tc.wantAction) {
+				t.Errorf("footer = %q, want it to name %q", got, tc.wantAction)
 			}
 			if (cmd != nil) != (tc.wantAction != "") {
 				t.Errorf("command issued = %v, want %v", cmd != nil, tc.wantAction != "")
@@ -738,14 +727,17 @@ func TestActionsAreInertWithoutASelection(t *testing.T) {
 func TestActionResultClearsPendingAndRefreshes(t *testing.T) {
 	m := feed(t, loadedModel(t), testutil.Key("down"), testutil.Key("down")) // web, running
 	m, _ = pressK(t, m, choiceStop)
-	if m.actionLine() == "" {
+	if len(m.containerTable.BusyLabels()) == 0 {
 		t.Fatal("the stop was not marked as running")
 	}
 
 	m, cmd := step(t, m, ContainerActionMsg{Action: "stop", ID: webID, Name: "web"})
 
-	if got := m.actionLine(); got != "" {
-		t.Errorf("actionLine = %q after the action completed, want it cleared", got)
+	if got := m.containerTable.BusyLabels(); len(got) != 0 {
+		t.Errorf("busy = %q after the action completed, want it cleared", got)
+	}
+	if got := m.progressLine(); got != "" {
+		t.Errorf("progressLine = %q after the action completed, want it cleared", got)
 	}
 	if cmd == nil {
 		t.Error("a completed action did not refresh the list")
@@ -829,8 +821,8 @@ func TestConfirmationRoutesByPendingAction(t *testing.T) {
 		if !m.pruning {
 			t.Error("confirming a prune did not mark the view as pruning")
 		}
-		if got := m.actionLine(); got != "Pruning containers…" {
-			t.Errorf("actionLine = %q, want the prune label", got)
+		if got := m.progressLine(); got != "Pruning containers…" {
+			t.Errorf("progressLine = %q, want the prune label", got)
 		}
 	})
 
@@ -842,8 +834,8 @@ func TestConfirmationRoutesByPendingAction(t *testing.T) {
 		if cmd == nil {
 			t.Error("confirming a delete issued no command")
 		}
-		if got := m.actionLine(); got != "Removing api…" {
-			t.Errorf("actionLine = %q, want \"Removing api…\"", got)
+		if got := footerText(m, 120); !strings.Contains(got, "Removing api") {
+			t.Errorf("footer = %q, want it to name \"Removing api\"", got)
 		}
 	})
 }
@@ -1406,21 +1398,20 @@ func TestUnhandledKeysAreInert(t *testing.T) {
 // `docker stop` takes the ten second grace period by default. Nothing on screen
 // used to say an action was running at all — the row was identical to one where
 // nothing was happening, which is indistinguishable from a freeze.
-func TestAStoppingContainerShowsASpinnerInPlaceOfItsState(t *testing.T) {
+func TestAStoppingContainerShowsTheRunningDotInPlaceOfItsRestIcon(t *testing.T) {
 	m := feed(t, loadedModel(t), testutil.Key("down"), testutil.Key("down")) // web, running
-	if !strings.Contains(renderedRowFor(t, m, "web"), stateIcon("running")) {
-		t.Fatal("the row does not show the running glyph before the action")
+	if !strings.Contains(renderedRowFor(t, m, "web"), theme.IconContainer) {
+		t.Fatal("the row does not show the container icon before the action")
 	}
 
 	m, _ = pressK(t, m, choiceStop)
 
-	// The override is applied when the row is drawn, not when it is built: the
-	// stored cells would otherwise go stale every time the spinner advances.
-	if strings.Contains(renderedRowFor(t, m, "web"), stateIcon("running")) {
-		t.Error("the stopping container still shows its running glyph")
+	row := renderedRowFor(t, m, "web")
+	if strings.Contains(row, theme.IconContainer) || !strings.Contains(row, indicator.Glyph(indicator.Running, true)) {
+		t.Errorf("the stopping container does not show the running dot in place of its icon:\n%s", row)
 	}
 	// And no other row is touched.
-	if !strings.Contains(renderedRowFor(t, m, "cache"), stateIcon("paused")) {
+	if !strings.Contains(renderedRowFor(t, m, "cache"), indicator.Glyph(indicator.Suspended, true)) {
 		t.Error("an untouched row lost its own state glyph")
 	}
 }
@@ -1441,43 +1432,6 @@ func TestASecondActionOnTheSameContainerIsRefused(t *testing.T) {
 	}
 	if cmd == nil {
 		t.Error("a footer message was set with no timer to clear it")
-	}
-}
-
-// The spinner on the row only turns while a tick is being scheduled, and Init's
-// tick stops as soon as the list has arrived — a loaded, idle view schedules
-// nothing (TestSpinnerTicksOnlyWhileLoading). So an action begun after that sat
-// on frame zero for the whole ten second grace period of a `docker stop`, which
-// is exactly the freeze the spinner exists to disprove.
-//
-// The command is stubbed rather than real: what is asserted is what startAction
-// batches alongside it, and testutil.Msgs runs everything it is handed — the
-// real one shells out to docker.
-func TestAnActionRestartsTheSpinner(t *testing.T) {
-	m := feed(t, loadedModel(t), testutil.Key("down"), testutil.Key("down")) // web, running
-	if _, cmd := step(t, m, spinner.TickMsg{}); cmd != nil {
-		t.Fatal("the idle model was still ticking, so this test would prove nothing")
-	}
-
-	c := docker.Container{ID: webID, Name: "web"}
-	_, cmd := m.startAction(&c, "Stopping", func() tea.Msg { return nil })
-
-	if _, ok := testutil.MsgOf[spinner.TickMsg](cmd); !ok {
-		t.Error("the action scheduled no tick, so its row spins on a frozen frame")
-	}
-}
-
-// And once running, the tick has to go on being scheduled: the list is loaded
-// and on screen the whole time a container stops, so the view's own loading
-// flag says nothing about it.
-func TestTheSpinnerKeepsTickingWhileAnActionRuns(t *testing.T) {
-	m := feed(t, loadedModel(t), testutil.Key("down"), testutil.Key("down"))
-	m, _ = pressK(t, m, choiceStop)
-
-	_, cmd := step(t, m, spinner.TickMsg{})
-
-	if cmd == nil {
-		t.Error("the spinner stopped being scheduled while an action was running")
 	}
 }
 

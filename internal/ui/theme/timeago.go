@@ -21,7 +21,12 @@ func TimeAgo(t time.Time) string {
 	if t.IsZero() {
 		return ""
 	}
-	d := time.Since(t)
+	return AgoFor(time.Since(t))
+}
+
+// AgoFor formats an elapsed duration in the TimeAgo format, for callers that
+// know the age but not the instant (e.g. docker's "Up 3 hours").
+func AgoFor(d time.Duration) string {
 	switch {
 	case d < time.Minute:
 		return "now"

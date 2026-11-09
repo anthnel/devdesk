@@ -69,7 +69,7 @@ func TestLegendExtensions(t *testing.T) {
 		{"containers", ContainersLegend, []LegendEntry{
 			{Restarting, "restarting"}, {Suspended, "paused"}, {Unknown, "created"},
 			{Skipped, "exited (code 0)"}, {Failed, "exited (non-zero code) or dead"},
-			{Running, "an action (stop, kill, remove) is running"},
+			{Running, "an action (stop, restart, pause, resume, delete) is running"},
 		}},
 	}
 	for _, c := range cases {
@@ -185,5 +185,31 @@ func TestCloneLegend(t *testing.T) {
 	}
 	if strings.Contains(body, Glyph(Cancelled, false)) {
 		t.Errorf("clone legend shows the cancelled glyph %q: a cancelled clone row is skipped", Glyph(Cancelled, false))
+	}
+}
+
+// Q5 (DEVDESK-152): the running entry lists the five row actions the view can
+// run; kill is not one of them, and the legend never shows a "running" Done.
+func TestContainersLegendNamesTheFiveActionsAndNoKill(t *testing.T) {
+	var running []LegendEntry
+	for _, e := range ContainersLegend {
+		if e.State == Running {
+			running = append(running, e)
+		}
+	}
+	if len(running) != 1 {
+		t.Fatalf("ContainersLegend has %d Running entries, want 1", len(running))
+	}
+	l := running[0].Label
+	for _, w := range []string{"stop", "restart", "pause", "resume", "delete"} {
+		if !strings.Contains(l, w) {
+			t.Errorf("running label %q does not name %q", l, w)
+		}
+	}
+	if strings.Contains(l, "kill") || strings.Contains(l, "remove") {
+		t.Errorf("running label %q names an action the view has no such name for", l)
+	}
+	if strings.Contains(Legend(ContainersLegend...).Body, Glyph(Done, true)+" running") {
+		t.Error("the containers legend carries a done-running line")
 	}
 }

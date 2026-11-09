@@ -433,14 +433,16 @@ En tant qu'utilisateur de la vue containers, je veux voir l'état observé de ch
 1. Étant donné la table des conteneurs, quand elle s'affiche, alors la première colonne est la pastille, calculée par la vue depuis les états observés par docker ; le spinner de ligne et l'`AdvanceSpinner` sont supprimés.
 2. Étant donné un conteneur `running` (état nominal, Rule 122), quand il s'affiche, alors il n'a **aucune pastille** : la ligne montre son icône habituelle (D8) ; `◉` n'est pas utilisé ici. Hypothèse: l'icône de repos est l'icône de type de conteneur ; son rôle `IconRole*` est à préciser à l'implémentation.
 3. Étant donné les autres états, quand on compare leurs glyphes, alors ils sont tous différents entre sens différents (test) : `restarting` `◕` orange fixe ; `paused` `◐` orange fixe ; `created` `◌` neutre ; `exited` code ≠ 0 `⊗` rouge fixe ; `exited` code 0 `⊖` neutre ; `dead` `⊗` rouge fixe.
-4. Étant donné une action instantanée (`docker stop`, `kill`, `remove`) en cours, quand elle s'exécute, alors la pastille `●`/`○` apparaît (`busy`, priorité « en cours », signal `WantsBlink`), puis l'icône ou le glyphe d'état observé revient au sondage suivant ; son échec reste au footer (non-objectif).
+4. Étant donné une action instantanée (`docker stop`, `restart`, `pause`, `unpause`, `rm`) en cours, quand elle s'exécute, alors la pastille `●`/`○` apparaît (`busy`, priorité « en cours », signal `WantsBlink`), puis l'icône ou le glyphe d'état observé revient au sondage suivant ; son échec reste au footer (non-objectif).
 5. Étant donné les filtres d'état `r p s t z` (Rule 111), quand ils changent, alors leur comportement et leur vocabulaire ne changent pas.
 6. Étant donné un rafraîchissement périodique des métriques, quand il s'exécute, alors aucun clignotement n'est déclenché (donnée, pas opération) ; `restarting` ne clignote pas (état observé).
 7. Étant donné une ligne sélectionnée, quand le footer s'affiche, alors il détaille l'état (`ux.md` §1.2) ; pour un conteneur `running`, « Running since 3 hr ago » **sans glyphe en préfixe**.
-8. Terminal de 60 colonnes : Rule 116 tient ; les jauges CPU/mémoire (`Cut`/`TailStyle`) ne sont pas touchées ; l'aide `?` décrit les glyphes de la légende de base et l'extension containers (`◕ restarting · ◐ paused · ◌ created · ⊖ exited (code 0) · ⊗ exited (non-zero code) or dead · ●/○ an action (stop, kill, remove) is running`, sans `◉ running`) et remplace l'aide existante (`view.go`).
+8. Terminal de 60 colonnes : Rule 116 tient ; les jauges CPU/mémoire (`Cut`/`TailStyle`) ne sont pas touchées ; l'aide `?` décrit les glyphes de la légende de base et l'extension containers (`◕ restarting · ◐ paused · ◌ created · ⊖ exited (code 0) · ⊗ exited (non-zero code) or dead · ●/○ an action (stop, restart, pause, resume, delete) is running`, sans `◉ running`) et remplace l'aide existante (`view.go`).
 
 **Hors périmètre** : migration des actions instantanées vers le registre ; les jauges.
 **Questions ouvertes** : aucune (exited code 0 et restarting tranchés, D7).
+
+**Livrée (2026-11-09, DEVDESK-152, D106)** : l'état et le code de sortie viennent du texte `Status` de `docker ps` (`docker.ParseStatus`), pas de `docker inspect` ; l'icône de repos est `IconContainer`, rôle `IconRoleContainer` (clé de thème `icon_container`, défaut `ColorText`). La légende de l'extension containers est amendée (D10 of the activity-indicator stories, critère 8) : « an action (stop, restart, pause, resume, delete) is running », la vue n'ayant pas de `kill`.
 
 ---
 

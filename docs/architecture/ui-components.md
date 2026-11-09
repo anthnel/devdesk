@@ -61,7 +61,7 @@ hint, a table loading its rows — these are states the view derives on every
 frame, not events. A batch outlives the three seconds a message gets, so a line
 set when the first repository started would clear while the tenth was still
 fetching. It is a parameter rather than a field because it is derived: the
-containers action line comes from `BusyLabels()`, which changes with no event to
+containers progress line (`progressLine()`, ex `actionLine()`) comes from `BusyLabels()`, which changes with no event to
 push it on.
 
 Precedence inside `View`: **error → warning → info → status**. A failure the
@@ -413,7 +413,7 @@ nothing on all but one row.
 
 | Table | Key | Cell the spinner takes | Actions |
 |---|---|---|---|
-| `containers` | container ID | a status column of its own (the state icon left the Image cell) | stop, restart, pause/resume, remove |
+| `containers` | container ID | column 0, the activity column (DEVDESK-152): `●`/`○` replaces the observed state glyph | stop, restart, pause/resume, remove |
 | `oci` images | image ID | `ID` — it neither sorts nor searches | remove |
 | `oci` networks | network ID | `ID` | remove |
 | `oci` volumes | name | `Driver` — a volume has no ID, so its **name** is the one cell that cannot go | remove |
@@ -516,7 +516,7 @@ glyphs; `Color` and `Style` (`style.go`) map states to the four
 
 `Legend(extension...)` returns the "Activity indicator" help section every
 migrated view shows; the per-view rows are `JobsLegend`, `AgentsLegend` and
-`ContainersLegend`.
+`ContainersLegend` (its busy entry: "an action (stop, restart, pause, resume, delete) is running", DEVDESK-152).
 
 On the table side:
 

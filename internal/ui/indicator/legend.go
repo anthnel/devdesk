@@ -54,6 +54,6 @@ var (
 	ContainersLegend = []LegendEntry{
 		{Restarting, "restarting"}, {Suspended, "paused"}, {Unknown, "created"},
 		{Skipped, "exited (code 0)"}, {Failed, "exited (non-zero code) or dead"},
-		{Running, "an action (stop, kill, remove) is running"},
+		{Running, "an action (stop, restart, pause, resume, delete) is running"},
 	}
 )

@@ -210,6 +210,45 @@ At 60 columns the visible columns are `●`, ID, Name and Update. At 70 they are
 are required ones, which Rule 116 allows: a whole column goes, never a
 truncated value.
 
+## The Containers table and the activity column — `internal/ui/containers` (DEVDESK-152, A-14)
+
+The `:containers` table is on the activity column (Rule 125; the router side is
+in `app-shell.md`).
+
+- **The state comes from docker's `Status` text.** `docker.ParseStatus`
+  (`internal/docker/status.go`) reads the `Status` column of `ps` once, into
+  `Container.Facts` (`ExitCode`/`HasExitCode`, `Age`/`HasAge`). The exit code is
+  exact. The age is a **lower bound**: docker rounds ("2 weeks" is 14 days, "About
+  an hour" is 1 hr). The restart count is **not available**. Health suffixes
+  and podman's trailing "ago" are tolerated. Text it does not recognise yields
+  the zero value: no code, no age. `docker inspect` was rejected (D106).
+- **Column 0 is `datatable.IndicatorColumn`** (`columnIndicator`), same shape
+  and widths as before. `observedState` (`activity.go`) maps the engine state:
+  `running` rests on `IconContainer` (role `IconRoleContainer`, theme key
+  `icon_container`, default `ColorText`); `restarting` `◕`; `paused` `◐`;
+  `created` and any unknown state `◌`; `exited`/`stopped` with code 0 `⊖`;
+  `exited`/`stopped` with code ≠ 0 or **unknown**, and `dead`, `⊗`. Podman's
+  `stopped` reads like `exited`; other podman states fall to `◌`.
+- **An action in flight shows `●`/`○`** (stop, restart, pause, resume, delete,
+  through `startAction`), and it wins over the observed state. The row shows
+  its observed state again at the next list. `Model.WantsBlink()` is true only
+  while a row is busy: a refresh or a `restarting` row never blinks. The blink
+  phase comes from `jobs.FrameMsg`; the loading spinner keeps its own chain.
+- **The selected row is red only for `Failed`**, so a clean exit is not red under
+  the cursor.
+- **Footer.** `status()` shows the load first; otherwise the selected row's
+  detail (`selectedDetail`, `observedText`): "Running since 3 hr ago" (no
+  glyph; "Running for less than a minute" under a minute), "Restarting — last
+  exit code 1", "Paused", "Created, never started", "Exited with code 137 — 5
+  min ago" ("— just now" under a minute), "Exited cleanly (code 0)", "Exited
+  (exit code unknown)", "Dead — the engine could not stop it cleanly". Any other
+  state is named as reported. `progressLine()` (ex `actionLine`) follows:
+  "Pruning containers…", "N actions running…", or the single label unless the
+  selected row already says it. A failed action stays a footer `Error`.
+- **Help (`?`)** shows `indicator.Legend(indicator.ContainersLegend...)`; the busy
+  entry reads "an action (stop, restart, pause, resume, delete) is running".
+- The state filters `r p s t z` are unchanged.
+
 ## Verified pulls — `internal/imagepull` (§3.82)
 
 **Every pull goes through `imagepull.Pull`** — the registry browser's `G`, an

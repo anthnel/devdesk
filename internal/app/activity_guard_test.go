@@ -54,6 +54,7 @@ var migratedTables = map[command.ViewType][]string{
 	command.ViewTemplates:    {"templates"},
 	command.ViewNetdiag:      {"netdiag/ports"},
 	command.ViewAgentUsage:   {"agent-usage/agents"},
+	command.ViewContainers:   {"containers"},
 }
 
 // pendingTable is a table that still has to move to the activity column.
@@ -69,13 +70,12 @@ var pendingTables = []pendingTable{
 	{"oci/networks", command.ViewOCIResources, "A-09b"},
 	{"oci/volumes", command.ViewOCIResources, "A-09b"},
 	{"oci/registries", command.ViewOCIResources, "A-09b"},
-	{"containers", command.ViewContainers, "A-14"},
 }
 
 // maxPendingTables is the ceiling: adding an exception means raising both the
 // list and this constant in the same diff, which is visible in review. Lower it
 // with every migration.
-const maxPendingTables = 5
+const maxPendingTables = 4
 
 // exemptViews have no long-running operation to show per row (inventory:
 // "sans objet" or out of the batch), each with its reason.
@@ -348,6 +348,10 @@ var migratedSources = map[command.ViewType][]string{
 	command.ViewNetdiag: {"ui/netdiag/ports_model.go", "ui/netdiag/ports_activity.go"},
 	// The agent-usage view is fully migrated (A-13, DEVDESK-151): the whole package.
 	command.ViewAgentUsage: {"ui/agentusageview/"},
+	// Containers is fully migrated (A-14, DEVDESK-152) except commands.go, whose
+	// tea.Tick is the 2 s data refresh, and image_updates.go, ports.go and
+	// sources.go, which carry no row state.
+	command.ViewContainers: {"ui/containers/activity.go", "ui/containers/model.go", "ui/containers/update.go", "ui/containers/view.go"},
 }
 
 // sourceDeclarationProblems says what is wrong with the link between migrated
@@ -785,6 +789,7 @@ var migratedFooterSeeds = map[command.ViewType]func(*testing.T, *App) indicator.
 	command.ViewTemplates:    seedTemplatesFooter,
 	command.ViewNetdiag:      seedNetdiagFooter,
 	command.ViewAgentUsage:   seedAgentUsageFooter,
+	command.ViewContainers:   seedContainersFooter,
 }
 
 // seedOCIFooter puts a scan of the first Images row (nginx:1.27, the selected
