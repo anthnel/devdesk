@@ -15,6 +15,9 @@ type Container struct {
 	State     string // running, exited, paused, created, restarting, dead
 	Status    string // "Up 2 hours", "Exited (0) 5min ago"
 	CreatedAt string // "2 hours ago"
+	// Facts is what Status says, parsed once here so views never read
+	// Docker's wording. See ParseStatus.
+	Facts StatusFacts
 	// Ports is parsed here rather than carried as the string docker printed:
 	// the view must not learn to read Docker's output, and an opaque string
 	// cannot be searched by port number. See ParseContainerPorts.
@@ -65,6 +68,7 @@ func ListContainers(all bool) ([]Container, error) {
 		}
 		if len(parts) > 4 {
 			c.Status = parts[4]
+			c.Facts = ParseStatus(c.Status)
 		}
 		if len(parts) > 5 {
 			c.CreatedAt = parts[5]

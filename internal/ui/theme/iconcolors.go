@@ -36,6 +36,7 @@ const (
 	IconRoleDirectory IconRole = "directory"
 	IconRoleFile      IconRole = "file"
 	IconRoleImage     IconRole = "image"
+	IconRoleContainer IconRole = "container"
 )
 
 // IconColor is the colour a role is painted in.
@@ -63,6 +64,8 @@ func IconColor(role IconRole) lipgloss.Color {
 		return ColorIconFile
 	case IconRoleImage:
 		return ColorIconImage
+	case IconRoleContainer:
+		return ColorIconContainer
 	}
 	return ColorText
 }

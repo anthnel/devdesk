@@ -69,7 +69,7 @@ Le footer porte le glyphe d'état en préfixe, en texte brut (Rule 128 interdit 
 | Conteneur exited (code ≠ 0) | `⊗` | Failed | non | `⊗ Exited with code 137 — 5 min ago` |
 | Conteneur exited (code 0) | `⊖` | Neutral | non | `⊖ Exited cleanly (code 0) — 5 min ago` |
 | Conteneur dead | `⊗` | Failed | non | `⊗ Dead — the engine could not stop it cleanly` |
-| Action instantanée sur conteneur (stop, kill, remove) | `●` / `○` | Running | oui | `● Stopping web-1` |
+| Action instantanée sur conteneur (stop, restart, pause, resume, delete) | `●` / `○` | Running | oui | `● Stopping web-1` |
 
 Hypothèse : les libellés exacts (« last transcript line 4 s ago ») dépendent des données disponibles dans chaque vue ; seule la structure `glyphe + phrase` est prescrite.
 
@@ -384,7 +384,7 @@ Libellés **validés** (D10), à une réserve : la fin de la dernière phrase (�
 Extension propre à `:jobs` : `◉ done · ⊘ cancelled · ⊖ skipped`.
 Extension propre à `:agent-usage` : `◐ idle (no activity for 5 min) · ◉ done · ◌ unknown`.
 Extension propre à la liste de clone de l'explorer : `◉ cloned (clone list) · ⊖ already on disk, or not started (cancelled) (clone list)`. Plusieurs lignes peuvent clignoter en même temps (les clones tournent en parallèle, `forge.pull.parallel_jobs`) : chaque clone en cours clignote, les autres restent `◴`.
-Extension propre aux containers : `◕ restarting · ◐ paused · ◌ created · ⊖ exited (code 0) · ⊗ exited (non-zero code) or dead · ●/○ an action (stop, kill, remove) is running`. Pas de ligne `running` : un conteneur qui tourne montre son icône habituelle (D8).
+Extension propre aux containers : `◕ restarting · ◐ paused · ◌ created · ⊖ exited (code 0) · ⊗ exited (non-zero code) or dead · ●/○ an action (stop, restart, pause, resume, delete) is running`. Pas de ligne `running` : un conteneur qui tourne montre son icône habituelle (D8).
 
 ## 5 bis. Écarts avec les user stories et les règles
 

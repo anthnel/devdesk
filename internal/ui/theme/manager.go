@@ -77,6 +77,7 @@ type Theme struct {
 	IconDirectory   string `json:"icon_directory,omitempty"`
 	IconFile        string `json:"icon_file,omitempty"`
 	IconImage       string `json:"icon_image,omitempty"`
+	IconContainer   string `json:"icon_container,omitempty"`
 
 	// Token-mix bar colours (optional, fall back to the semantic palette)
 	TokenInput      string `json:"token_input,omitempty"`
@@ -377,6 +378,8 @@ func ApplyTheme(t *Theme) {
 	// inventory's first column has exactly two values — the one place where the
 	// two would sit on adjacent rows with nothing else to separate them.
 	ColorIconImage = applyColor(t.IconImage, ColorHighlight)
+	// A container at rest is the nominal state, so its icon is plain text.
+	ColorIconContainer = applyColor(t.IconContainer, ColorText)
 
 	// Token-mix bar (tokencolors.go). The fallbacks serve a user theme written
 	// before these keys existed; every shipped theme declares all four.

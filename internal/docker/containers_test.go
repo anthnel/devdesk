@@ -5,6 +5,7 @@ import (
 	"reflect"
 	"slices"
 	"testing"
+	"time"
 )
 
 func TestListContainersParsesTabSeparatedOutput(t *testing.T) {
@@ -23,6 +24,7 @@ func TestListContainersParsesTabSeparatedOutput(t *testing.T) {
 	want := Container{
 		ID: "abc123", Name: "web", Image: "nginx:1.25", State: "running",
 		Status: "Up 2 hours", CreatedAt: "2026-08-01 10:00:00 +0200 CEST",
+		Facts: StatusFacts{Age: 2 * time.Hour, HasAge: true},
 		Ports: []PortBinding{
 			{HostPort: "80", ContainerPort: "80", Protocol: "tcp", Scope: ScopeAll, V4: true},
 		},

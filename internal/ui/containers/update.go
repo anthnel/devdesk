@@ -19,6 +19,8 @@ import (
 	uiviewer "github.com/anthnel/devdesk/internal/ui/viewer"
 	"github.com/charmbracelet/bubbles/spinner"
 	tea "github.com/charmbracelet/bubbletea"
+
+	"github.com/anthnel/devdesk/internal/jobs"
 )
 
 // Init initializes the containers view
@@ -40,17 +42,12 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case tea.KeyMsg:
 		return m.handleKeyMsg(msg)
 
+	case jobs.FrameMsg:
+		// The blink phase of a busy row's dot; nothing is rebuilt.
+		m.containerTable.SetBlinkPhase(msg.Blink)
+		return m, nil
+
 	case spinner.TickMsg:
-		// The table's own frame advances whenever anything is running on a row,
-		// which is not the same condition as the view's spinner: the list is
-		// loaded and on screen while a container stops.
-		if len(m.containerTable.BusyLabels()) > 0 {
-			m.containerTable.AdvanceSpinner()
-			var cmd tea.Cmd
-			m.spinner, cmd = m.spinner.Update(msg)
-			m.footer.SetSpinnerFrame(m.spinner.View())
-			return m, cmd
-		}
 		if m.loading {
 			var cmd tea.Cmd
 			m.spinner, cmd = m.spinner.Update(msg)
@@ -263,18 +260,8 @@ func (m Model) startAction(c *docker.Container, label string, cmd tea.Cmd) (tea.
 		return m, m.footer.Warn(busyMessage)
 	}
 	m.containerTable.MarkBusy(c.ID, label+" "+c.Name)
-	return m, tea.Batch(cmd, m.busyTick())
+	return m, cmd
 }
-
-// busyTick is what an action returns alongside its command so the row's frame
-// turns. Init starts a tick, but it stops as soon as the list has arrived and
-// nothing is running; an action begun after that would sit on frame zero for
-// the whole ten second grace period of a `docker stop` — the freeze the spinner
-// exists to disprove.
-//
-// Restarting a loop that is already running costs nothing: bubbles tags each
-// tick, so the first one accepted invalidates the other and one loop remains.
-func (m Model) busyTick() tea.Cmd { return m.spinner.Tick }
 
 // confirmStopOrRestart asks which of the two to run, or neither.
 //
@@ -611,24 +598,6 @@ func formatNetBytes(b int64) string {
 		return fmt.Sprintf("%.1fkB", float64(b)/1e3)
 	default:
 		return fmt.Sprintf("%dB", b)
-	}
-}
-
-// stateIcon returns a compact Nerd Font icon representing the container state
-func stateIcon(state string) string {
-	switch state {
-	case "running":
-		return theme.IconCaretRight
-	case "paused":
-		return theme.IconSmallPause
-	case "exited":
-		return theme.IconSmallSquare
-	case "created", "restarting":
-		return theme.IconCaretUp
-	case "dead":
-		return theme.IconBan
-	default:
-		return theme.IconGitUntracked
 	}
 }
 

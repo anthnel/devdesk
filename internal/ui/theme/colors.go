@@ -163,6 +163,7 @@ var (
 	ColorIconDirectory   lipgloss.Color
 	ColorIconFile        lipgloss.Color
 	ColorIconImage       lipgloss.Color
+	ColorIconContainer   lipgloss.Color
 
 	// Token-mix bar colours, one per role (tokencolors.go). Overridable from a
 	// theme file; a theme without the keys falls back to the structural palette.
