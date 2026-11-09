@@ -38,7 +38,7 @@ func TestNewStartsAtTheRootInNormalMode(t *testing.T) {
 }
 
 func TestNewForSelectionStartsInSelectionMode(t *testing.T) {
-	m := NewForSelection(testConfig(), "Pick a repository to scan")
+	m := NewForSelection(testConfig(), testContext, "Pick a repository to scan")
 
 	if m.mode != ModeSelecting {
 		t.Errorf("mode = %d, want ModeSelecting", m.mode)
@@ -53,7 +53,7 @@ func TestNewForSelectionStartsInSelectionMode(t *testing.T) {
 }
 
 func TestInitLoadsEntriesAndTheScanCache(t *testing.T) {
-	if cmd := New(testConfig(), nil).Init(); cmd == nil {
+	if cmd := New(testConfig(), nil, testContext).Init(); cmd == nil {
 		t.Fatal("Init() returned no command, so the view never populates")
 	}
 }
@@ -372,7 +372,7 @@ func TestVerticalNavigation(t *testing.T) {
 // Enter confirms the directory being *browsed*, not the highlighted row — the
 // user drills in with → first. Getting this backwards would scan the wrong tree.
 func TestSelectionConfirmsTheBrowsedDirectory(t *testing.T) {
-	m := feed(t, NewForSelection(testConfig(), "pick one"), tea.WindowSizeMsg{Width: 160, Height: 30})
+	m := feed(t, NewForSelection(testConfig(), testContext, "pick one"), tea.WindowSizeMsg{Width: 160, Height: 30})
 	m = feed(t, m, EntriesLoadedMsg{Entries: entryFixtures()})
 	m.table.SetCursor(0) // devdesk highlighted, but not entered
 
@@ -388,7 +388,7 @@ func TestSelectionConfirmsTheBrowsedDirectory(t *testing.T) {
 }
 
 func TestSelectionConfirmsAfterDrillingIn(t *testing.T) {
-	m := feed(t, NewForSelection(testConfig(), "pick one"), tea.WindowSizeMsg{Width: 160, Height: 30})
+	m := feed(t, NewForSelection(testConfig(), testContext, "pick one"), tea.WindowSizeMsg{Width: 160, Height: 30})
 	m = feed(t, m, EntriesLoadedMsg{Entries: entryFixtures()})
 	m.table.SetCursor(0)
 	m = feed(t, m, testutil.Key("right"))
@@ -403,7 +403,7 @@ func TestSelectionConfirmsAfterDrillingIn(t *testing.T) {
 
 // Esc backs out one level, and only cancels once there is nowhere left to go.
 func TestSelectionEscBacksOutBeforeCancelling(t *testing.T) {
-	m := feed(t, NewForSelection(testConfig(), "pick one"), tea.WindowSizeMsg{Width: 160, Height: 30})
+	m := feed(t, NewForSelection(testConfig(), testContext, "pick one"), tea.WindowSizeMsg{Width: 160, Height: 30})
 	m = feed(t, m, EntriesLoadedMsg{Entries: entryFixtures()})
 	m.table.SetCursor(0)
 	m = feed(t, m, testutil.Key("right"))
@@ -424,7 +424,7 @@ func TestSelectionEscBacksOutBeforeCancelling(t *testing.T) {
 
 // The destructive keys have no business in a picker.
 func TestSelectionModeIgnoresTheEditingKeys(t *testing.T) {
-	m := feed(t, NewForSelection(testConfig(), "pick one"), tea.WindowSizeMsg{Width: 160, Height: 30})
+	m := feed(t, NewForSelection(testConfig(), testContext, "pick one"), tea.WindowSizeMsg{Width: 160, Height: 30})
 	m = feed(t, m, EntriesLoadedMsg{Entries: entryFixtures()})
 
 	for _, key := range []string{"ctrl+n", "ctrl+d", "r"} {
@@ -563,6 +563,7 @@ func TestEditingKeysAreInertWithoutEntries(t *testing.T) {
 	}
 }
 
+// A failed delete is a footer Error, not m.error: see TestDeleteFailureIsAFooterErrorNotAnErrorScreen.
 func TestActionResultsReloadOrSurface(t *testing.T) {
 	tests := []struct {
 		name string
@@ -570,7 +571,6 @@ func TestActionResultsReloadOrSurface(t *testing.T) {
 		bad  tea.Msg
 	}{
 		{"create", WorkspaceCreatedMsg{}, WorkspaceCreatedMsg{Error: errors.New("exists")}},
-		{"delete", EntryDeletedMsg{}, EntryDeletedMsg{Error: errors.New("busy")}},
 		{"rename", EntryRenamedMsg{}, EntryRenamedMsg{Error: errors.New("exists")}},
 	}
 

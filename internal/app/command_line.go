@@ -231,7 +231,7 @@ func (a *App) createView(view command.ViewType) {
 	case command.ViewGitExplorer:
 		a.views[view] = explorer.New(a.config, a.sharedState)
 	case command.ViewWorkspaces:
-		a.views[view] = workspaces.New(a.config, a.sharedState.Secrets.Storage)
+		a.views[view] = workspaces.New(a.config, a.sharedState.Secrets.Storage, a.currentContext)
 	case command.ViewSecurity:
 		a.views[view] = security.New(a.config, a.sharedState.Secrets.Storage)
 	case command.ViewContainers:

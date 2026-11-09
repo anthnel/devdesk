@@ -23,7 +23,7 @@ func TestCreateWorkspaceMakesTheDirectory(t *testing.T) {
 	root := t.TempDir()
 	cfg := config.Default()
 	cfg.App.WorkspacesDir = root
-	m := New(cfg, nil)
+	m := New(cfg, nil, testContext)
 
 	msg := m.createWorkspace("new-project")().(WorkspaceCreatedMsg)
 
@@ -49,7 +49,7 @@ func TestCreateWorkspaceUsesTheBrowsedDirectory(t *testing.T) {
 	}
 	cfg := config.Default()
 	cfg.App.WorkspacesDir = root
-	m := New(cfg, nil)
+	m := New(cfg, nil, testContext)
 	m.currentPath = nested
 
 	msg := m.createWorkspace("acme")().(WorkspaceCreatedMsg)
@@ -68,7 +68,7 @@ func TestCreateWorkspaceRefusesANameThatIsAPath(t *testing.T) {
 	root := t.TempDir()
 	cfg := config.Default()
 	cfg.App.WorkspacesDir = filepath.Join(root, "ws")
-	m := New(cfg, nil)
+	m := New(cfg, nil, testContext)
 
 	for _, name := range []string{"a/b", "../escape", ".."} {
 		msg := m.createWorkspace(name)().(WorkspaceCreatedMsg)
@@ -87,7 +87,7 @@ func TestRenameRefusesANameThatIsAPath(t *testing.T) {
 	if err := os.Mkdir(old, 0o755); err != nil {
 		t.Fatal(err)
 	}
-	m := New(config.Default(), nil)
+	m := New(config.Default(), nil, testContext)
 
 	msg := m.renameEntry(old, "../moved")().(EntryRenamedMsg)
 	if msg.Error == nil {
@@ -103,7 +103,7 @@ func TestCreateWorkspaceCreatesTheRootIfMissing(t *testing.T) {
 	root := filepath.Join(t.TempDir(), "not-yet")
 	cfg := config.Default()
 	cfg.App.WorkspacesDir = root
-	m := New(cfg, nil)
+	m := New(cfg, nil, testContext)
 
 	msg := m.createWorkspace("first")().(WorkspaceCreatedMsg)
 
@@ -125,7 +125,7 @@ func TestDeleteEntryRemovesRecursively(t *testing.T) {
 		t.Fatalf("writing the file: %v", err)
 	}
 
-	msg := New(config.Default(), nil).deleteEntry(target)().(EntryDeletedMsg)
+	msg := New(config.Default(), nil, testContext).deleteEntry(target)().(EntryDeletedMsg)
 
 	if msg.Error != nil {
 		t.Fatalf("deleteEntry returned an error: %v", msg.Error)
@@ -149,7 +149,7 @@ func TestRenameEntryMovesWithinItsParent(t *testing.T) {
 		t.Fatalf("creating the directory: %v", err)
 	}
 
-	msg := New(config.Default(), nil).renameEntry(old, "after")().(EntryRenamedMsg)
+	msg := New(config.Default(), nil, testContext).renameEntry(old, "after")().(EntryRenamedMsg)
 
 	if msg.Error != nil {
 		t.Fatalf("renameEntry returned an error: %v", msg.Error)
@@ -169,7 +169,7 @@ func TestRenameEntryMovesWithinItsParent(t *testing.T) {
 func TestRenameEntryReportsFailure(t *testing.T) {
 	root := t.TempDir()
 
-	msg := New(config.Default(), nil).renameEntry(filepath.Join(root, "missing"), "after")().(EntryRenamedMsg)
+	msg := New(config.Default(), nil, testContext).renameEntry(filepath.Join(root, "missing"), "after")().(EntryRenamedMsg)
 
 	if msg.Error == nil {
 		t.Error("renaming a missing entry reported success")
@@ -294,7 +294,7 @@ func TestLoadEntriesReadsTheWorkspacesDirectory(t *testing.T) {
 
 	cfg := config.Default()
 	cfg.App.WorkspacesDir = root
-	m := New(cfg, nil)
+	m := New(cfg, nil, testContext)
 
 	msg := m.loadEntries()()
 	loaded, ok := msg.(EntriesLoadedMsg)
@@ -319,7 +319,7 @@ func TestLoadEntriesCreatesTheRootOnFirstRun(t *testing.T) {
 	root := filepath.Join(t.TempDir(), "does-not-exist")
 	cfg := config.Default()
 	cfg.App.WorkspacesDir = root
-	m := New(cfg, nil)
+	m := New(cfg, nil, testContext)
 
 	msg := m.loadEntries()()
 
@@ -340,7 +340,7 @@ func TestLoadEntriesCreatesTheRootOnFirstRun(t *testing.T) {
 func TestLoadEntriesReportsAMissingBrowsedDirectory(t *testing.T) {
 	cfg := config.Default()
 	cfg.App.WorkspacesDir = t.TempDir()
-	m := New(cfg, nil)
+	m := New(cfg, nil, testContext)
 	m.currentPath = filepath.Join(cfg.App.WorkspacesDir, "vanished")
 
 	msg := m.loadEntries()()
@@ -362,7 +362,7 @@ func TestLoadEntriesSkipsHiddenEntries(t *testing.T) {
 	cfg := config.Default()
 	cfg.App.WorkspacesDir = root
 
-	loaded := New(cfg, nil).loadEntries()().(EntriesLoadedMsg)
+	loaded := New(cfg, nil, testContext).loadEntries()().(EntriesLoadedMsg)
 
 	for _, e := range loaded.Entries {
 		if e.Name == ".hidden" {
@@ -386,7 +386,7 @@ func TestLoadEntriesListsHiddenEntriesWhenTheSettingIsOn(t *testing.T) {
 	cfg.App.WorkspacesDir = root
 	cfg.App.ShowHiddenFiles = true
 
-	loaded := New(cfg, nil).loadEntries()().(EntriesLoadedMsg)
+	loaded := New(cfg, nil, testContext).loadEntries()().(EntriesLoadedMsg)
 
 	var names []string
 	for _, e := range loaded.Entries {
@@ -409,7 +409,7 @@ func TestTheSettingReachesNestedDiscovery(t *testing.T) {
 	cfg.App.WorkspacesDir = root
 	cfg.App.ShowHiddenFiles = true
 
-	loaded := New(cfg, nil).loadEntries()().(EntriesLoadedMsg)
+	loaded := New(cfg, nil, testContext).loadEntries()().(EntriesLoadedMsg)
 
 	if len(loaded.Entries) != 1 {
 		t.Fatalf("loaded %d entries, want just clients", len(loaded.Entries))
@@ -430,7 +430,7 @@ func TestLoadedEntriesReachTheTable(t *testing.T) {
 	cfg := config.Default()
 	cfg.App.WorkspacesDir = root
 
-	m := feed(t, New(cfg, nil), tea.WindowSizeMsg{Width: 160, Height: 30})
+	m := feed(t, New(cfg, nil, testContext), tea.WindowSizeMsg{Width: 160, Height: 30})
 	m = feed(t, m, m.loadEntries()())
 
 	if got := rowNames(m.table.Table().Rows()); len(got) != 1 || got[0] != "alpha" {

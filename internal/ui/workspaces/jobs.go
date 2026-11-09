@@ -1,6 +1,7 @@
 package workspaces
 
 import (
+	"slices"
 	"strconv"
 	"strings"
 
@@ -49,15 +50,16 @@ func (m Model) runLabel() string {
 // held rather than being merged into it.
 func (m Model) handleJobsChanged(msg jobs.ChangedMsg) (tea.Model, tea.Cmd) {
 	m.jobs = msg.Runs
+	m.failures = slices.Clone(msg.Failures)
 	m.refreshRows()
 	return m, nil
 }
 
-// handleFrameMsg takes the animation's frame: the row spinners and the footer.
+// handleFrameMsg takes the animation's frame: the blink phase, which the table
+// reads at render, and the footer spinner. No row is rebuilt.
 func (m Model) handleFrameMsg(msg jobs.FrameMsg) (tea.Model, tea.Cmd) {
-	m.jobFrame = msg.Frame
+	m.table.SetBlinkPhase(msg.Blink)
 	m.footer.SetSpinnerFrame(msg.RenderedFrame)
-	m.refreshRows()
 	return m, nil
 }
 
@@ -115,6 +117,20 @@ func (m Model) scanning(path string) bool { return m.workingKind(jobs.KindScan, 
 func (m Model) syncing(path string) bool  { return m.workingKind(jobs.KindSync, path) }
 func (m Model) deleting(path string) bool { return m.workingKind(jobs.KindDelete, path) }
 
+// runningKind reports whether a target is being worked on right now under one
+// kind. A queued item does not count: only a running one holds a cell's text.
+//
+// It reads jobs.ActiveOn, the source the row's dot is resolved from, so the
+// fixed text and the dot filter on the same context and target key.
+func (m Model) runningKind(kind jobs.Kind, target string) bool {
+	for _, a := range jobs.ActiveOn(m.jobs, m.contextName, target, kind) {
+		if a.Item.State == jobs.ItemRunning {
+			return true
+		}
+	}
+	return false
+}
+
 // ── The footer line (D9) ─────────────────────────────────────────────────────
 
 // jobsStatusLine is what the footer says while work runs. The three forms and
@@ -123,6 +139,13 @@ func (m Model) deleting(path string) bool { return m.workingKind(jobs.KindDelete
 // two copies of a surrender would each be free to surrender differently.
 func (m Model) jobsStatusLine() string {
 	return sharedcomponents.JobsStatusLine(m.jobs, command.ViewWorkspaces)
+}
+
+// failureEvent is the 3-second Error for a failure the registry just recorded.
+// The cause is the transition's fixed "<op> failed — check logs", never the raw
+// error, which only the log carries (Rule 128).
+func failureEvent(t jobs.Transition, target string) string {
+	return sharedcomponents.FailureEvent(t.Kind, target, t.Detail)
 }
 
 // ── What each message tells the registry (jobs.Reporter) ─────────────────────

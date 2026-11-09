@@ -636,8 +636,8 @@ func (m Model) handleEntryDeleted(msg EntryDeletedMsg) (tea.Model, tea.Cmd) {
 	// life of the view.
 	if msg.Error != nil {
 		log.Printf("ERROR [workspaces] delete %s: %v", msg.Path, msg.Error)
-		m.error = msg.Error.Error()
-		return m, nil
+		m.refreshRows()
+		return m, m.footer.Error(failureEvent(msg.Transition(), msg.Path))
 	}
 	return m, m.loadEntries()
 }

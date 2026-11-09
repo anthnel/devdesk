@@ -81,17 +81,20 @@ type Model struct {
 	// that is not true of it.
 	pendingRequests []tea.Msg
 
-	// jobs is the router's snapshot of everything running anywhere, and
-	// jobFrame the spinner frame that goes with it — bare, because it lands in
-	// a table cell (Rule 122). Together they replaced three maps of paths, a
-	// spinner.Model, a hand-stamped frame index and the syncRun that counted a
-	// batch alongside them.
+	// jobs is the router's snapshot of everything running anywhere. It replaced
+	// three maps of paths, a spinner.Model, a hand-stamped frame index and the
+	// syncRun that counted a batch alongside them.
 	//
 	// The three maps knew only what this view had started, which is why a scan
 	// launched on the same repository from `:sec` slipped past busy(). See
 	// jobs.go.
-	jobs     []jobs.Run
-	jobFrame string
+	jobs []jobs.Run
+
+	// failures is a copy of the registry's remembered failures, replaced (never
+	// merged) by handleJobsChanged, and contextName the context this view was
+	// built for: together they let a row read its own activity (activity.go).
+	failures    []jobs.Failure
+	contextName string
 
 	// syncUnreadable counts the directories the walk behind the current sync
 	// could not read. It is not a sync outcome — a repository under one of them
@@ -162,10 +165,11 @@ type Entry struct {
 //
 // secrets may be nil for a view that will never sync — the borrowed selection
 // mode is the one such case — and a nil store simply means no token is offered.
-func New(cfg *config.Config, secrets credentials.Storage) Model {
+func New(cfg *config.Config, secrets credentials.Storage, contextName string) Model {
 	return Model{
-		config:  cfg,
-		secrets: secrets,
+		config:      cfg,
+		secrets:     secrets,
+		contextName: contextName,
 		table: datatable.New(datatable.Config[workspaceRow]{
 			Columns:    workspaceColumns(cfg.Scan.Categories.CI.Enabled, cfg.Scan.Categories.Misconfig.Enabled),
 			SortColumn: -1, // the order the directory listing gave
@@ -179,9 +183,15 @@ func New(cfg *config.Config, secrets credentials.Storage) Model {
 // NewForSelection creates a workspaces view in selection mode for picking a
 // directory. It is lent to another view to answer one question and never syncs,
 // so it carries no secret store.
-func NewForSelection(cfg *config.Config, message string) Model {
-	m := New(cfg, nil)
+func NewForSelection(cfg *config.Config, contextName, message string) Model {
+	m := New(cfg, nil, contextName)
 	m.mode = ModeSelecting
 	m.selectionMessage = message
 	return m
+}
+
+// ActivityTables returns the read-only face of the view's table, keyed by the
+// name the activity-column guard (internal/app) knows it by. Tests only.
+func (m Model) ActivityTables() map[string]datatable.ActivityTable {
+	return map[string]datatable.ActivityTable{"ws": &m.table}
 }

@@ -6,7 +6,10 @@ import (
 
 	"github.com/charmbracelet/lipgloss"
 
+	"github.com/anthnel/devdesk/internal/jobs"
+	"github.com/anthnel/devdesk/internal/ui/components"
 	"github.com/anthnel/devdesk/internal/ui/datatable"
+	"github.com/anthnel/devdesk/internal/ui/indicator"
 	"github.com/anthnel/devdesk/internal/ui/theme"
 )
 
@@ -49,6 +52,9 @@ const (
 // oci_resources' imageRow, and for the same reason.
 type workspaceRow struct {
 	Entry Entry
+	// Activity is what the registry says about the row, resolved when the
+	// rows are built; the blink phase is read at render.
+	Activity components.RowActivity
 	// GitStatus is the branch and its counts, or the spinner while a sync is
 	// rewriting exactly those counts. Showing the stale numbers under a
 	// spinner elsewhere in the row would be showing the state being replaced.
@@ -57,6 +63,9 @@ type workspaceRow struct {
 	// colours; TailStyle colours the markers after it. The whole cell while a
 	// spinner holds it — there is no branch then, only a status.
 	branchCut int
+	// held is whether a running sync or delete replaced the Git Status cell
+	// with its fixed text, which then renders dim as a whole.
+	held      bool
 	Sensitive secretsCell
 	CI        ciCell
 	Misconfig misconfigCell
@@ -132,15 +141,13 @@ func workspaceColumns(withCI, withMisconfig bool) []datatable.Column[workspaceRo
 		return datatable.Column[workspaceRow]{Title: title, Sizing: datatable.SizingFixed, Optional: true, MinWidth: width, Cell: cell}
 	}
 	cols := []datatable.Column[workspaceRow]{
-		{
-			// No title: the column carries a glyph, and a header over it would
-			// name something the user reads at a glance anyway — eza does not
-			// print one either. It declares neither Less nor Search: it adds no
-			// text anyone could type, so the filter stays on Name and Remote.
-			Title: "", Sizing: datatable.SizingFixed, MinWidth: datatable.IconColumnWidth,
-			Cell:  func(r workspaceRow) string { return entryIcon(r.Entry) },
-			Style: func(r workspaceRow) lipgloss.Style { return theme.IconStyle(entryIconRole(r.Entry)) },
-		},
+		// The activity column (Rule 125): untitled, and no Less nor Search, as
+		// it adds no text anyone could type. At rest it shows what the row is.
+		datatable.IndicatorColumn(
+			func(r workspaceRow) indicator.State { return r.Activity.State },
+			func(r workspaceRow) string { return entryIcon(r.Entry) },
+			func(r workspaceRow) lipgloss.Style { return theme.IconStyle(entryIconRole(r.Entry)) },
+		),
 		{
 			Title: "Name", Sizing: datatable.SizingContent, MinWidth: colNameMin,
 			Cell:   func(r workspaceRow) string { return r.Entry.Name },
@@ -177,7 +184,7 @@ func workspaceColumns(withCI, withMisconfig bool) []datatable.Column[workspaceRo
 		count("H", "HIGH", colHFixed, func(r workspaceRow) string { return r.High }),
 		count("M", "MEDIUM", colMFixed, func(r workspaceRow) string { return r.Medium }),
 		count("L", "LOW", colLFixed, func(r workspaceRow) string { return r.Low }),
-		text("Scanned", colScannedFixed, func(r workspaceRow) string { return r.Scanned }),
+		scannedColumn(text("Scanned", colScannedFixed, func(r workspaceRow) string { return r.Scanned })),
 		text("Modified", colModFixed, func(r workspaceRow) string { return timeAgo(r.Entry.ModTime) }),
 	}
 	// Beside the four severity counters, which is where a reader looks for what
@@ -224,7 +231,7 @@ func count(title, severity string, width int, cell func(workspaceRow) string) da
 // whole cell while a spinner holds it. A branch name is not a verdict, so it
 // keeps the table's text colour; only an empty cell is dimmed.
 func gitBranchStyle(r workspaceRow) lipgloss.Style {
-	if r.Entry.GitBranch == "" {
+	if r.held || r.Entry.GitBranch == "" {
 		return theme.DimStyle
 	}
 	// No opinion here: the table sets the theme's text color.
@@ -261,31 +268,36 @@ func lastTagStyle(r workspaceRow) lipgloss.Style {
 	return lipgloss.NewStyle()
 }
 
+// scanningText is what Scanned says while a scan runs on the row.
+const scanningText = "scanning"
+
 // rowsFor decorates the entries with the scan state the table shows.
 func (m *Model) rowsFor(entries []Entry) []workspaceRow {
-	frame := m.jobFrame
-
 	rows := make([]workspaceRow, 0, len(entries))
 	for _, entry := range entries {
-		sensitive, misc, c, h, med, l, scanned := m.formatScanColumns(entry, frame)
+		sensitive, misc, c, h, med, l, scanned := m.formatScanColumns(entry)
 		gitStatus := formatGitStatus(entry)
 		branchCut := utf8.RuneCountInString(displayBranch(entry.GitBranch))
+		held := false
 		// A row can only be held by one of the two — busy() is what keeps them
 		// apart — so the order below decides nothing. The delete spends this
 		// cell for the same reason the sync does, and with less to lose: a
 		// directory on its way out has no git status left to announce.
 		switch {
-		case m.deleting(entry.Path):
-			gitStatus = frame + " deleting"
-			branchCut = utf8.RuneCountInString(gitStatus)
-		case m.syncing(entry.Path):
-			gitStatus = frame + " syncing"
+		case m.runningKind(jobs.KindDelete, entry.Path):
+			gitStatus, held = "deleting", true
+		case m.runningKind(jobs.KindSync, entry.Path):
+			gitStatus, held = "syncing", true
+		}
+		if held {
 			branchCut = utf8.RuneCountInString(gitStatus)
 		}
 		rows = append(rows, workspaceRow{
 			Entry:     entry,
+			Activity:  m.rowActivity(entry),
 			GitStatus: gitStatus,
 			branchCut: branchCut,
+			held:      held,
 			Sensitive: sensitive,
 			CI:        m.ciCellFor(entry),
 			Misconfig: misc,
@@ -297,4 +309,21 @@ func (m *Model) rowsFor(entries []Entry) []workspaceRow {
 		})
 	}
 	return rows
+}
+
+// scannedColumn dims the Scanned cell while a running scan holds it with the
+// fixed "scanning" text, and when it holds a placeholder ("-" or nothing); the
+// colour is a Style, never part of Cell (Rule 122).
+func scannedColumn(c datatable.Column[workspaceRow]) datatable.Column[workspaceRow] {
+	base := c.Style
+	c.Style = func(r workspaceRow) lipgloss.Style {
+		if r.Scanned == scanningText || r.Scanned == "-" || r.Scanned == "" {
+			return theme.DimStyle
+		}
+		if base != nil {
+			return base(r)
+		}
+		return lipgloss.NewStyle()
+	}
+	return c
 }

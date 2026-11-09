@@ -11,11 +11,13 @@ import (
 
 	"github.com/anthnel/devdesk/internal/cache"
 	"github.com/anthnel/devdesk/internal/git"
+	"github.com/anthnel/devdesk/internal/jobs"
 	"github.com/anthnel/devdesk/internal/scan"
 	sharedcomponents "github.com/anthnel/devdesk/internal/ui/components"
 	"github.com/anthnel/devdesk/internal/ui/fileicon"
 	"github.com/anthnel/devdesk/internal/ui/fuzzy"
 	"github.com/anthnel/devdesk/internal/ui/help"
+	"github.com/anthnel/devdesk/internal/ui/indicator"
 	"github.com/anthnel/devdesk/internal/ui/keymap"
 	"github.com/anthnel/devdesk/internal/ui/shortcut"
 	"github.com/anthnel/devdesk/internal/ui/theme"
@@ -142,7 +144,23 @@ func (m Model) RenderFooter(width int) string {
 // first repository started would clear while the tenth was still fetching. An
 // error still wins over it — it is the thing that needs answering.
 func (m Model) renderInfoLine(width int) string {
-	return m.footer.View(width, sharedcomponents.Status{Text: m.jobsStatusLine(), Spinner: m.anyWorking()})
+	return m.footer.View(width, m.status())
+}
+
+// status is the derived footer line: the selected row's own sentence (what it
+// is doing, or the failure it remembers), then the batch progress. A row with a
+// running or queued detail has a dot that already moves, so the footer spinner is dropped.
+func (m Model) status() sharedcomponents.Status {
+	st := sharedcomponents.Status{Text: m.jobsStatusLine()}
+	moving := false
+	if row, ok := m.table.Selected(); ok {
+		a := m.rowActivity(row.Entry)
+		st.Detail = a.Detail
+		moving = a.State == indicator.Running || a.State == indicator.Queued
+	}
+	// Only a detail whose dot moves replaces the spinner; a failed row's is fixed.
+	st.Spinner = m.anyWorking() && (!moving || st.Detail.IsZero())
+	return st
 }
 
 // renderTabBar renders the breadcrumb tab bar at the bottom of the viewport
@@ -304,7 +322,7 @@ func entryIconRole(entry Entry) theme.IconRole {
 // formatScanColumns returns the SENSITIVE, C, H, M, L, SCANNED column values for an entry.
 // For git repos: looks up the scan cache directly.
 // For directories: aggregates sub-repo scan entries.
-func (m *Model) formatScanColumns(entry Entry, frame string) (sensitive secretsCell, misc misconfigCell, c, h, med, l, scanned string) {
+func (m *Model) formatScanColumns(entry Entry) (sensitive secretsCell, misc misconfigCell, c, h, med, l, scanned string) {
 	dash := "-"
 	empty := ""
 	none := secretsCell{}
@@ -315,8 +333,8 @@ func (m *Model) formatScanColumns(entry Entry, frame string) (sensitive secretsC
 	unscannedMisc := misconfigCell{Text: dash}
 
 	if entry.IsGitRepo {
-		if m.scanning(entry.Path) {
-			return none, unscannedMisc, dash, dash, dash, dash, frame + " scanning"
+		if m.runningKind(jobs.KindScan, entry.Path) {
+			return none, unscannedMisc, dash, dash, dash, dash, scanningText
 		}
 		scanEntry, ok := m.scanCache[entry.Path]
 		if !ok {
@@ -344,7 +362,7 @@ func (m *Model) formatScanColumns(entry Entry, frame string) (sensitive secretsC
 	// Count how many sub-repos are currently scanning
 	scanningCount := 0
 	for _, repoPath := range entry.SubRepoPaths {
-		if m.scanning(repoPath) {
+		if m.runningKind(jobs.KindScan, repoPath) {
 			scanningCount++
 		}
 	}
@@ -372,7 +390,7 @@ func (m *Model) formatScanColumns(entry Entry, frame string) (sensitive secretsC
 	// Now N/M means one thing — settled coverage — and the batch reports in the
 	// footer, where a batch belongs (D9).
 	if scanningCount > 0 {
-		return none, unscannedMisc, dash, dash, dash, dash, frame + " scanning"
+		return none, unscannedMisc, dash, dash, dash, dash, scanningText
 	}
 
 	totalC, totalH, totalM, totalL := 0, 0, 0, 0
@@ -627,7 +645,7 @@ func (m Model) GetHelpContent() help.Content {
 			{Key: "enter", Description: "Open a file in the viewer, or view scan details for a scanned git repo"},
 			{Key: keymap.New, Description: "Create a new directory (at current level)"},
 			{Key: keymap.Rename, Description: "Rename the selected entry (mv)"},
-			{Key: keymap.Delete, Description: "Delete the selected entry (with confirmation). A large tree takes seconds: the row spins in the Git Status column meanwhile, and every action on it — a second D included — is refused until it finishes"},
+			{Key: keymap.Delete, Description: "Delete the selected entry (with confirmation). A large tree takes seconds: the row shows the running indicator and the word \"deleting\" in the Git Status column meanwhile, and every action on it — a second D included — is refused until it finishes"},
 			{Key: keymap.Terminal, Description: "Open a terminal at the selected directory. In place (suspends the TUI) or in a new window, per app.terminal_new_window — the window variant is not supported on WSL"},
 			{Key: keymap.IDE, Description: "Open in configured IDE"},
 			{Key: keymap.Web, Description: "Open git repo remote URL in the default web browser"},
@@ -642,6 +660,7 @@ func (m Model) GetHelpContent() help.Content {
 			{Key: "?", Description: "Show this help"},
 		},
 		Sections: []help.Section{
+			indicator.Legend(),
 			{
 				Title: "Terminal",
 				Body:  "Press T to open a terminal at the selected directory. What that means is a setting, not a second key: with app.terminal_new_window off (the default) the shell opens in place and the TUI suspends until you exit it; with it on, a separate terminal window is launched — auto-detected from the environment, or set app.terminal_command yourself. The window variant has nothing to open under WSL or through SSH, which is why it is a setting and off there.",
@@ -660,7 +679,11 @@ func (m Model) GetHelpContent() help.Content {
 			},
 			{
 				Title: "Git Status",
-				Body:  "Git repositories show their branch followed by starship-style markers: !N modified files, ?N untracked files, ⇡N commits to push, ⇣N commits to pull, ⇕⇡N⇣M diverged (both at once — F will not fast-forward it), and ⊘ for a branch with no upstream. The markers turn orange when F would refuse the repository: uncommitted changes, or a diverged branch. The ⇣ count comes from the local remote-tracking ref, so it is only as fresh as the last fetch — press F to bring it up to date.",
+				Body: "Git repositories show their branch followed by starship-style markers: " +
+					gitMarkModified + "N modified files, " + gitMarkUntracked + "N untracked files, " +
+					gitMarkAhead + "N commits to push, " + gitMarkBehind + "N commits to pull, " +
+					gitMarkDiverged + gitMarkAhead + "N" + gitMarkBehind + "M diverged (both at once — F will not fast-forward it), and " +
+					gitMarkNoUpstream + " for a branch with no upstream. The markers turn orange when F would refuse the repository: uncommitted changes, or a diverged branch. The " + gitMarkBehind + " count comes from the local remote-tracking ref, so it is only as fresh as the last fetch — press F to bring it up to date.",
 			},
 			{
 				Title: "Sync",
