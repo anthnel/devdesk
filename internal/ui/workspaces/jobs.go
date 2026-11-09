@@ -34,7 +34,7 @@ func (m Model) syncRun(targets []string) jobs.Run {
 }
 
 func (m Model) deleteRun(target string) jobs.Run {
-	return jobs.NewRun(jobs.KindDelete, command.ViewWorkspaces, "", pathBaseName(target), target)
+	return jobs.NewImmediateRun(jobs.KindDelete, command.ViewWorkspaces, "", pathBaseName(target), target)
 }
 
 // runLabel names a batch by the directory it was launched in.

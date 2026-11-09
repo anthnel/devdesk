@@ -13,7 +13,7 @@ import (
 // large tree spins in `:jobs` and a second D on it is refused while it runs.
 
 func deleteRun(path string) jobs.Run {
-	return jobs.NewRun(jobs.KindDelete, command.ViewFiles, "", filepath.Base(path), path)
+	return jobs.NewImmediateRun(jobs.KindDelete, command.ViewFiles, "", filepath.Base(path), path)
 }
 
 // deleting reports whether path is being deleted, by this view or another.
