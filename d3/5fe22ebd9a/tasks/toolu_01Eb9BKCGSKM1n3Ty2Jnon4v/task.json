@@ -1,0 +1,15 @@
+{
+  "tool_use_id": "toolu_01Eb9BKCGSKM1n3Ty2Jnon4v",
+  "agent_id": "a07ed7516d8efbcac",
+  "subagent_type": "claude-code-guide",
+  "task_description": "Support de paths: dans les rules",
+  "token_usage": {
+    "input_tokens": 10,
+    "cache_creation_tokens": 112660,
+    "cache_read_tokens": 356538,
+    "output_tokens": 3827,
+    "api_call_count": 5
+  },
+  "started_at": "2026-11-09T13:45:58.610980248+01:00",
+  "completed_at": "2026-11-09T13:46:29.461195142+01:00"
+}

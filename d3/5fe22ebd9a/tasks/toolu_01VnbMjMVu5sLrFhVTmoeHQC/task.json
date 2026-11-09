@@ -1,0 +1,15 @@
+{
+  "tool_use_id": "toolu_01VnbMjMVu5sLrFhVTmoeHQC",
+  "agent_id": "a12eb82400a165830",
+  "subagent_type": "project-coder",
+  "task_description": "Skills git-worktree-pr et release-flow",
+  "token_usage": {
+    "input_tokens": 14,
+    "cache_creation_tokens": 72516,
+    "cache_read_tokens": 407731,
+    "output_tokens": 4440,
+    "api_call_count": 7
+  },
+  "started_at": "2026-11-09T13:58:43.449210464+01:00",
+  "completed_at": "2026-11-09T13:59:44.021544701+01:00"
+}

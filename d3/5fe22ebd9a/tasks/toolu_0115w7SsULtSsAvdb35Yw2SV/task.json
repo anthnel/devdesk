@@ -1,0 +1,15 @@
+{
+  "tool_use_id": "toolu_0115w7SsULtSsAvdb35Yw2SV",
+  "agent_id": "a53523df7721370b9",
+  "subagent_type": "dev-team:devops",
+  "task_description": "Worktree réduction contexte",
+  "token_usage": {
+    "input_tokens": 4,
+    "cache_creation_tokens": 74636,
+    "cache_read_tokens": 71356,
+    "output_tokens": 464,
+    "api_call_count": 2
+  },
+  "started_at": "2026-11-09T13:58:15.751439891+01:00",
+  "completed_at": "2026-11-09T13:58:26.544026441+01:00"
+}

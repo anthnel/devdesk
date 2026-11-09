@@ -1,0 +1,15 @@
+{
+  "tool_use_id": "toolu_0116LHPvVRDAqnzfKpySqWfk",
+  "agent_id": "a6f50ed6e724dc61f",
+  "subagent_type": "product-team:pm",
+  "task_description": "Story réduction contexte dans Plane",
+  "token_usage": {
+    "input_tokens": 8,
+    "cache_creation_tokens": 89251,
+    "cache_read_tokens": 245186,
+    "output_tokens": 2091,
+    "api_call_count": 4
+  },
+  "started_at": "2026-11-09T13:58:15.749663727+01:00",
+  "completed_at": "2026-11-09T13:58:45.330995728+01:00"
+}

@@ -1,0 +1,50 @@
+{
+  "cli_version": "0.12.2",
+  "checkpoint_id": "d35fe22ebd9a",
+  "strategy": "manual-commit",
+  "branch": "chore/context-reduction-skills",
+  "checkpoints_count": 15,
+  "files_touched": [
+    ".gitignore",
+    "README.md",
+    "docs-site/docs/reference/project-structure.md",
+    "project-context.md"
+  ],
+  "sessions": [
+    {
+      "metadata": "/d3/5fe22ebd9a/0/metadata.json",
+      "transcript": "/d3/5fe22ebd9a/0/full.jsonl",
+      "compact_transcript": "/d3/5fe22ebd9a/0/transcript.jsonl",
+      "content_hash": "/d3/5fe22ebd9a/0/content_hash.txt",
+      "prompt": "/d3/5fe22ebd9a/0/prompt.txt"
+    }
+  ],
+  "token_usage": {
+    "input_tokens": 96,
+    "cache_creation_tokens": 45960,
+    "cache_read_tokens": 8351536,
+    "output_tokens": 21674,
+    "api_call_count": 33,
+    "subagent_tokens": {
+      "input_tokens": 128,
+      "cache_creation_tokens": 785461,
+      "cache_read_tokens": 4278305,
+      "output_tokens": 45293,
+      "api_call_count": 60
+    }
+  },
+  "redaction": {
+    "replacements": 0,
+    "layers": {
+      "betterleaks": 0,
+      "connection_string": 0,
+      "credential_key": 0,
+      "credential_value": 0,
+      "credentialed_uri": 0,
+      "entropy": 0,
+      "key_context": 0,
+      "provider_token": 0,
+      "shell_stdin": 0
+    }
+  }
+}

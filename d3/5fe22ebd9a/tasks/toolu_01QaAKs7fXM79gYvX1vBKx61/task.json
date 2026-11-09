@@ -1,0 +1,15 @@
+{
+  "tool_use_id": "toolu_01QaAKs7fXM79gYvX1vBKx61",
+  "agent_id": "aea49236bd6db0c67",
+  "subagent_type": "dev-team:architect",
+  "task_description": "Plan réduction contexte permanent",
+  "token_usage": {
+    "input_tokens": 28,
+    "cache_creation_tokens": 112166,
+    "cache_read_tokens": 1154175,
+    "output_tokens": 17355,
+    "api_call_count": 13
+  },
+  "started_at": "2026-11-09T13:45:58.617900682+01:00",
+  "completed_at": "2026-11-09T13:49:06.57191807+01:00"
+}

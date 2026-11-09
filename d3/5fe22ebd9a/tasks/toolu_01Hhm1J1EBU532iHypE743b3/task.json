@@ -1,0 +1,15 @@
+{
+  "tool_use_id": "toolu_01Hhm1J1EBU532iHypE743b3",
+  "agent_id": "a1fd7da31d93d27c3",
+  "subagent_type": "dev-team:reviewer",
+  "task_description": "Revue skills git-worktree-pr et release-flow",
+  "token_usage": {
+    "input_tokens": 22,
+    "cache_creation_tokens": 101446,
+    "cache_read_tokens": 898619,
+    "output_tokens": 7305,
+    "api_call_count": 11
+  },
+  "started_at": "2026-11-09T13:59:53.877836173+01:00",
+  "completed_at": "2026-11-09T14:01:24.39596009+01:00"
+}
