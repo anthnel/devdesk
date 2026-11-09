@@ -8,6 +8,7 @@ import (
 	"github.com/anthnel/devdesk/internal/netcheck"
 	"github.com/anthnel/devdesk/internal/ui/components"
 	"github.com/anthnel/devdesk/internal/ui/help"
+	"github.com/anthnel/devdesk/internal/ui/indicator"
 	"github.com/anthnel/devdesk/internal/ui/keymap"
 	"github.com/anthnel/devdesk/internal/ui/shortcut"
 	"github.com/anthnel/devdesk/internal/ui/theme"
@@ -352,6 +353,7 @@ func (m *Model) GetHelpContent() help.Content {
 					"rupture rather than as ten red rows.\n\n" +
 					"Press enter on any row for what it means and what to do about it.",
 			},
+			indicator.Legend(),
 			{
 				Title: "Ports Tab — How it works",
 				Body: "Reads this machine's TCP and UDP sockets every 2 seconds, in this process — no " +
@@ -360,7 +362,9 @@ func (m *Model) GetHelpContent() help.Content {
 					"itself has: another user's process or a service comes back refused rather than " +
 					"silently killed elsewhere.\n\n" +
 					"n toggles reverse DNS on the addresses. Host names only — port numbers stay " +
-					"numeric, because a service name would be DevDesk's guess and not the system's.",
+					"numeric, because a service name would be DevDesk's guess and not the system's.\n\n" +
+					"While K is killing a process, the dot on its sockets (" + indicator.Glyph(indicator.Running, true) +
+					") is lit and the footer names the kill.",
 			},
 			{
 				Title: "Forward Tab — How it works",

@@ -402,7 +402,7 @@ En tant qu'utilisateur de la vue réseau, je veux voir sur quelle ligne de ports
 6. Terminal de 60 colonnes : Rule 116 tient avec la colonne ajoutée (seuils de `network.md` recalés) ; l'aide `?` porte la légende.
 
 **Hors périmètre** : l'action `H` ; le comportement des checks et des interfaces.
-**Questions ouvertes** : échec de test réseau (question ouverte 4).
+**Questions ouvertes** : aucune (question ouverte 4 résolue le 2026-11-09, option A).
 
 ### A-13 — `:agent-usage` : états d'agent en pastille et coloration du coût (absorbe DEVDESK-99) (DEVDESK-151)
 Epic : E2 — Priorité : Should — Effort : M
@@ -470,6 +470,7 @@ Rien ci-dessous n'est tranché ; la recommandation du PM, quand il y en a une, e
 2. **Identité de la cible et types d'opération mémorisés** (A-04). La clé (`Kind`, `Target`, `Context`) reprend celle du registre ; une image et un dépôt ne sont pas la même cible (pas de pont) ; cas résiduels : images sans tag, références écrites autrement. Quels types d'opération le mémorisateur garde-t-il (scan seulement, ou aussi sync, clone, pull, create, delete) ? La table de A-04 (critère 9) est indicative de l'architect.
 3. **Vues hors inventaire** (A-00) : **close le 2026-11-06.** Filebrowser, remédiation `:sec` et sessions `:agent-usage` : hors lot, accepté. Vues « sans objet » (dashboard, status, viewer, setup, auth forge, etc.) : acceptées. Le navigateur de registre OCI est sorti de A-09a vers A-09a2 (8e colonne, DEVDESK-218).
 4. **Netdiag : échec de test réseau** (A-12) : résultat de ligne (recommandation du PM et de l'architect) ou échec d'opération mémorisé ?
+   **Résolu (2026-11-09, DEVDESK-150)** : option A, le résultat reste dans la colonne Verdict ; pas de `⊗` ni de mémorisation d'échec pour un test réseau. La pastille rouge reste réservée à l'échec d'une opération.
 5. **Découpage des PR** : une PR par story (recommandation du PM et de l'architect, avec A-08 et A-09a qui se relisent mieux ensemble mais restent deux PR) ou regroupement des vues Should ?
 6. **Quand clore DEVDESK-99.** La décision D11 dit « à la création du backlog » ; question gardée à la demande de l'utilisateur, à confirmer ou à retirer.
 7. **Confirmation du réglage dans `:cfg`.** La phrase « or in :cfg » de la légende (A-01) et les critères 4 et 7 de A-02 supposent que `app.motion` est modifiable dans la vue de configuration (champ cyclique `←→`, Rule 132, comme `app.gauge_glyph`). À vérifier par l'architect ; sinon retirer la phrase.

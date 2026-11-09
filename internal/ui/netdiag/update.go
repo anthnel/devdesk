@@ -8,6 +8,7 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 
 	"github.com/anthnel/devdesk/internal/forward"
+	"github.com/anthnel/devdesk/internal/jobs"
 	"github.com/anthnel/devdesk/internal/netcheck"
 	"github.com/anthnel/devdesk/internal/ui/components"
 	"github.com/anthnel/devdesk/internal/ui/keymap"
@@ -82,6 +83,12 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	case spinner.TickMsg:
 		return m.handleSpinnerTick(msg)
+
+	// The router's animation frame: only the blink phase of the Ports dot. The
+	// footers keep their own spinner chains.
+	case jobs.FrameMsg:
+		m.portsModel.table.SetBlinkPhase(msg.Blink)
+		return m, nil
 
 	case stageDoneMsg:
 		return m.handleStageDone(msg)

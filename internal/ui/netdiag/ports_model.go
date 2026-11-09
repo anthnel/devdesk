@@ -1,7 +1,6 @@
 package netdiag
 
 import (
-	"context"
 	"errors"
 	"fmt"
 	"log"
@@ -9,13 +8,13 @@ import (
 	"strings"
 	"time"
 
-	"github.com/charmbracelet/bubbles/spinner"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
 
 	"github.com/anthnel/devdesk/internal/ports"
 	"github.com/anthnel/devdesk/internal/ui/components"
 	"github.com/anthnel/devdesk/internal/ui/datatable"
+	"github.com/anthnel/devdesk/internal/ui/indicator"
 	"github.com/anthnel/devdesk/internal/ui/keymap"
 	"github.com/anthnel/devdesk/internal/ui/shortcut"
 	"github.com/anthnel/devdesk/internal/ui/theme"
@@ -36,65 +35,36 @@ type portsKillResultMsg struct {
 	err error
 }
 
-// portsSpinnerTickMsg turns the frame of a row a kill is running on.
-//
-// This model has no spinner of its own, and its data tick is two seconds apart
-// — a frame that advanced on that would look stopped, which is the impression
-// the whole thing exists to remove. So the kill starts a tick of its own and it
-// stops itself when nothing is left running.
-type portsSpinnerTickMsg struct{}
-
-func portsSpinnerCmd() tea.Cmd {
-	return tea.Tick(spinner.Dot.FPS, func(time.Time) tea.Msg { return portsSpinnerTickMsg{} })
-}
-
-// defaultPortsRefresh is what the interval falls back to. A non-positive one —
-// a hand-edited 0 in the config — would make tea.Tick fire without pausing and
-// spin a docker exec per frame, so it is refused here rather than trusted.
-const defaultPortsRefresh = 2 * time.Second
-
-func portsTickCmd(every time.Duration) tea.Cmd {
-	if every <= 0 {
-		every = defaultPortsRefresh
-	}
-	return tea.Tick(every, func(time.Time) tea.Msg {
-		return portsTickMsg{}
-	})
-}
-
-// portsFetchTimeout bounds one read. Reverse DNS is the part that can hang —
-// the socket table itself is a system call — and a fetch outliving several
-// ticks would stack one behind another.
-const portsFetchTimeout = 5 * time.Second
-
-func fetchPortsCmd(numeric bool) tea.Cmd {
-	return func() tea.Msg {
-		ctx, cancel := context.WithTimeout(context.Background(), portsFetchTimeout)
-		defer cancel()
-		sockets, err := ports.List(ctx, !numeric)
-		return portsDataMsg{ports: sockets, err: err}
-	}
-}
-
-func killProcessCmd(pid string) tea.Cmd {
-	return func() tea.Msg {
-		return portsKillResultMsg{pid: pid, err: ports.Kill(pid)}
-	}
-}
-
 // statusLine is what the Ports tab derives on every frame. Pausing is a state
 // rather than an event, so it is rendered from pm.paused instead of set as a
 // message — a message would expire after three seconds while still paused.
 func (pm *PortsModel) statusLine() components.Status {
+	// The selected row says what is happening to it, before the tab's own state.
+	st := components.Status{Detail: pm.rowDetail()}
 	// Staleness outranks the pause: a pause is what the user asked for, an
 	// unreachable Docker is not, and only one of the two makes the rows lie.
 	if pm.stale {
-		return components.Status{Text: pm.staleLabel(), Level: components.LevelError}
+		st.Text, st.Level = pm.staleLabel(), components.LevelError
+	} else if pm.paused {
+		st.Text = "Paused — press space to resume"
 	}
-	if pm.paused {
-		return components.Status{Text: "Paused — press space to resume"}
+	return st
+}
+
+// rowDetail is what the selected row says about itself: the kill running on
+// its PID, and nothing otherwise (this view remembers no failure).
+func (pm *PortsModel) rowDetail() components.RowDetail {
+	entry, ok := pm.table.Selected()
+	if !ok {
+		return components.RowDetail{}
 	}
-	return components.Status{}
+	label, busy := pm.table.BusyLabel(entry.PID)
+	if !busy {
+		return components.RowDetail{}
+	}
+	return components.DescribeRow(components.RowQuery{
+		Observed: indicator.Running, ObservedText: label,
+	}).Detail
 }
 
 // staleLabel dates the rows on screen, or says there are none to date.
@@ -117,9 +87,7 @@ const (
 
 // PortsModel manages the real-time port monitoring sub-view.
 type PortsModel struct {
-	// refresh is how often the table re-reads the socket table. The spinner tick is separate
-	// and much faster: a frame advancing on this interval would look stopped,
-	// which is the impression the whole tab exists to remove.
+	// refresh is how often the table re-reads the socket table.
 	refresh time.Duration
 	width   int
 	height  int
@@ -162,11 +130,20 @@ type PortsModel struct {
 	footer components.FooterMessage
 }
 
-// portsColumns describes the ports table. Every column is searchable: the query
-// used to run against all six joined, and it still does.
-// portsColumnState is where a running kill puts its spinner.
-const portsColumnState = 1
+// Column indexes of the ports table.
+const (
+	portsColIndicator = iota
+	portsColProto
+	portsColState
+	portsColLocal
+	portsColPeer
+	portsColPID
+	portsColProcess
+)
 
+// portsColumns describes the ports table. Every column is searchable but the
+// activity column: the query used to run against all six joined, and it still
+// does. Column 0 is the activity dot (Rule 125); a busy PID is Running there.
 func portsColumns() []datatable.Column[ports.Socket] {
 	text := func(sizing datatable.Sizing, get func(ports.Socket) string) datatable.Column[ports.Socket] {
 		return datatable.Column[ports.Socket]{Sizing: sizing, Cell: get, Search: get}
@@ -190,7 +167,11 @@ func portsColumns() []datatable.Column[ports.Socket] {
 	pid.Title, pid.MinWidth = "PID", 7
 	process.Title, process.MinWidth, process.Flex = "Process", 10, 1
 
-	return []datatable.Column[ports.Socket]{proto, state, local, peer, pid, process}
+	dot := datatable.IndicatorColumn(
+		func(ports.Socket) indicator.State { return indicator.Idle },
+		nil, nil)
+
+	return []datatable.Column[ports.Socket]{dot, proto, state, local, peer, pid, process}
 }
 
 // portStateStyle colours the socket state, which is the column this table is
@@ -256,8 +237,6 @@ func newPortsModel(refresh time.Duration) *PortsModel {
 			// holds, so every one of its rows spins together — which is what
 			// actually happens.
 			Key: func(p ports.Socket) string { return p.PID },
-			// The State cell, being exactly what the signal is about to change.
-			StatusColumn: portsColumnState,
 		}),
 	}
 }
@@ -293,8 +272,6 @@ func (pm *PortsModel) update(msg tea.Msg) (*PortsModel, tea.Cmd) {
 		return pm.handleData(msg)
 	case portsKillResultMsg:
 		return pm.handleKillResult(msg)
-	case portsSpinnerTickMsg:
-		return pm.handleSpinnerTick()
 	case components.ConfirmModalYesMsg:
 		pm.confirmModal = nil
 		return pm.killSelected()
@@ -305,16 +282,6 @@ func (pm *PortsModel) update(msg tea.Msg) (*PortsModel, tea.Cmd) {
 		return pm.handleKey(msg)
 	}
 	return pm, nil
-}
-
-// handleSpinnerTick advances the frame and schedules the next one, or lets the
-// tick die when the last kill has landed.
-func (pm *PortsModel) handleSpinnerTick() (*PortsModel, tea.Cmd) {
-	if len(pm.table.BusyLabels()) == 0 {
-		return pm, nil
-	}
-	pm.table.AdvanceSpinner()
-	return pm, portsSpinnerCmd()
 }
 
 func (pm *PortsModel) handleTick() (*PortsModel, tea.Cmd) {
@@ -501,11 +468,11 @@ func (pm *PortsModel) killSelected() (*PortsModel, tea.Cmd) {
 	if entry.PID == "" || pm.table.IsBusy(entry.PID) {
 		return pm, nil
 	}
-	// Keyed on the PID, so every socket the process holds spins at once — which
-	// is what happens: the kill takes them all. The State cell is the one to
-	// spend, being exactly what the signal is about to change.
+	// Keyed on the PID, so every socket the process holds shows the running dot
+	// at once — which is what happens: the kill takes them all. The table reads
+	// the busy mark at render; the router's frame drives the blink.
 	pm.table.MarkBusy(entry.PID, "Killing "+entry.Process+" ("+entry.PID+")")
-	return pm, tea.Batch(killProcessCmd(entry.PID), portsSpinnerCmd())
+	return pm, killProcessCmd(entry.PID)
 }
 
 // view renders the table. An empty table stays a table (Rule 139) — its
