@@ -6,10 +6,10 @@
 # Release; goreleaser then builds the binaries and attaches them to it.
 #
 # The PR is the point. semantic-release would push the tag straight to `main`,
-# and this repository forbids a direct push there — the Entire mirror rejects
-# it, and that refusal is the only protection `main` has, since branch
-# protection is unavailable on this plan. A release that arrives as a reviewed
-# PR costs one extra merge and keeps that rule intact.
+# and this repository forbids a direct push there — the `main-protection`
+# ruleset requires a PR with `Lint and build` and `Test` green and blocks
+# force-pushes, and the Entire mirror also rejects it. A release that arrives
+# as a PR costs one extra merge and keeps that rule intact.
 name: Release
 
 on:
