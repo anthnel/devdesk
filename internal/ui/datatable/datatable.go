@@ -26,7 +26,6 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/charmbracelet/bubbles/spinner"
 	"github.com/charmbracelet/bubbles/table"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
@@ -225,13 +224,6 @@ type Config[T any] struct {
 	// Keying on identity rather than a flag on the row is also what survives the
 	// periodic refresh, which replaces the items while an action is running.
 	Key func(T) string
-	// StatusColumn is the column whose cell the spinner replaces while a row is
-	// busy — the one that answers "what about this row". Ignored when Key is
-	// nil.
-	//
-	// That column must not be sortable: askFor reserves width(Title)+2 for a
-	// column carrying a Less, which is expensive for a glyph.
-	StatusColumn int
 	// SelectedStyles returns the table styles to use while the given item is
 	// under the cursor — that is the only thing bubbles/table can vary per
 	// selection, and it is what containers and security each re-derived by
@@ -271,11 +263,6 @@ type Model[T any] struct {
 	// rendering, the footer and the guard that stops a second command being
 	// issued for the same object.
 	busy map[string]string
-	// spinnerFrame is what a busy row's status cell shows. The frame lives here
-	// and the tick stays in the view: a spinner needs a Cmd, and this package
-	// returns none (Rule 110).
-	spinnerFrame string
-	spinnerIdx   int
 	// blinkOn is the phase the Running glyph is drawn in.
 	blinkOn bool
 	// indicatorAt is the index of the column with an Indicator, -1 if none.
@@ -321,10 +308,6 @@ func New[T any](cfg Config[T]) Model[T] {
 			break
 		}
 	}
-	// A frame from the start: a table whose view never calls AdvanceSpinner —
-	// one rendered in the same frame the action began — would otherwise show an
-	// empty status cell, which reads as "nothing is happening".
-	m.AdvanceSpinner()
 	// Through setStyles rather than the table alone: a table rendered before
 	// anything calls applyStyles — one built and drawn in the same frame — would
 	// otherwise render with the zero Styles, which carries no cell padding and
@@ -690,13 +673,6 @@ func (m *Model[T]) BusyLabels() []string {
 	}
 	sort.Strings(out)
 	return out
-}
-
-// AdvanceSpinner moves the frame shown on busy rows one step on. Views call it
-// from the spinner tick they already run.
-func (m *Model[T]) AdvanceSpinner() {
-	m.spinnerFrame = spinner.Dot.Frames[m.spinnerIdx%len(spinner.Dot.Frames)]
-	m.spinnerIdx++
 }
 
 // busyLabel returns the action running on an item, and whether there is one.

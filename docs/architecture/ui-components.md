@@ -365,15 +365,13 @@ They share one glyph on purpose — one column answers "what about this row" —
 
 ```go
 datatable.Config[T]{
-    Key:          func(c docker.Container) string { return c.ID }, // nil ⇒ facility off
-    StatusColumn: 0,                                               // the cell the spinner replaces
+    Key: func(c docker.Container) string { return c.ID }, // nil ⇒ facility off
 }
 
 m.table.MarkBusy(id, "Stopping web")  // from Update, never a Cmd (Rule 110)
 m.table.ClearBusy(id)                 // on *every* outcome, failures included
 m.table.IsBusy(id)                    // the guard
 m.table.BusyLabels()                  // sorted, for the footer
-m.table.AdvanceSpinner()              // from the view's own spinner tick
 ```
 
 **It cannot be a `Busy func(T) bool` on the config.** Columns are built once in
@@ -384,41 +382,31 @@ that matters most: **`IsBusy` answers for an object whose row does not exist
 yet**, so it is also the guard on a confirm path. It is also what survives the
 periodic refresh, which replaces the items mid-action.
 
-The spinner's **frame lives in the table, its tick stays in the view**: a
-spinner needs a `Cmd`, and this package returns none.
+A busy row is drawn by the table's `Indicator` column: `●` / `○` in that column,
+the router's `jobs.FrameMsg` supplying the blink phase. The table owns no
+spinner and no frame (`StatusColumn` and `AdvanceSpinner` were removed by
+DEVDESK-143).
 
 Rendering, and each part is a decision:
 
-- The status cell shows the spinner **on the selected row too** — a signal that
-  vanishes under the cursor is lost exactly when it is being looked at.
-- Off the cursor the row goes `DimStyle`, the spinner `ColorHighlight`, and the
-  column's own `Style` is dropped.
+- The glyph shows **on the selected row too** — a signal that vanishes under
+  the cursor is lost exactly when it is being looked at.
+- Off the cursor every cell of the row goes `DimStyle` and the column's own
+  `Style` is dropped.
 - **On** the cursor the highlight itself changes
   (`theme.TableStylesForState("busy")`), overriding whatever `SelectedStyles`
   returned — a colour inside the joined row would close with a reset and end the
   highlight mid-row (`render.go`).
 - The override is applied **when the row is drawn**, not when it is built, so
-  the stored cells do not go stale as the frame advances. Tests assert on
+  the stored cells do not go stale as the phase advances. Tests assert on
   `View()`, not on `Table().Rows()`.
 
-The status column must **not be sortable**: `askFor` reserves `width(Title)+2`
-for a column carrying a `Less`, which is expensive for a glyph.
+The activity column is the table's column 0, untitled and not sortable (Rule 125).
 
-**Which cell the spinner spends is a decision per table**, and it is the same
-decision every time: the one the user does not need while the action runs. Only
-`containers` gained a column, because only it has a state worth a column of its
-own; everywhere else the spinner rides an existing cell, which is §3.16's
-argument about the clone checkbox — a column costs cells on every screen to say
-nothing on all but one row.
-
-| Table | Key | Cell the spinner takes | Actions |
-|---|---|---|---|
-| `containers` | container ID | column 0, the activity column (DEVDESK-152): `●`/`○` replaces the observed state glyph | stop, restart, pause/resume, remove |
-| `oci` images | image ID | `ID` — it neither sorts nor searches | remove |
-| `oci` networks | network ID | `ID` | remove |
-| `oci` volumes | name | `Driver` — a volume has no ID, so its **name** is the one cell that cannot go | remove |
-| `oci` registries | URL | `Logged` — precisely what the operation is about to change | login, logout |
-| `netdiag` ports | **PID** | none since DEVDESK-150: the dot is in the activity column, `State` keeps its text, dimmed | kill |
+Every table that calls `MarkBusy` has one: `containers` (container ID; stop,
+restart, pause/resume, remove), `oci` images (image ID; remove), networks
+(network ID; remove), volumes (name, a volume has no ID; remove), registries
+(URL; login, logout) and `netdiag` ports (PID; kill).
 
 Two of those keys are worth the note. The ports table keys on the **PID, not the
 socket**, so every row of a process shows the dot at once — which is what happens, the
@@ -450,12 +438,9 @@ Deliberately outside this:
   nested paths, a sync targets a tree rather than a row, and the spinner does
   not spend the same cell for every operation.
 
-**An `Indicator` column supersedes `StatusColumn`** (DEVDESK-137, next section).
-No view calls `StatusColumn` or `AdvanceSpinner` any more (the last, `oci_resources`, left with DEVDESK-153); both stay in the package until A-16 removes them.
-On a table that has one, a busy row shows `●` / `○` in that column and
-`StatusColumn` no longer picks a cell for the spinner. Both mechanisms coexist
-until the last view has migrated; a table with no `Indicator` column behaves
-exactly as described here.
+**One rule for a busy row** (DEVDESK-137, DEVDESK-143): it shows `●` / `○` through
+the `Indicator` column. A table with a `Key` but no `Indicator` column shows
+nothing but greyed cells.
 
 **Every table in the application is a `datatable`** (§3.21 moved the last four:
 Registries, the registry browser's tags, network-inspect and netdiag's results).

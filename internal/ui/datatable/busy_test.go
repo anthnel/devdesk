@@ -1,22 +1,24 @@
 package datatable
 
 import (
+	"reflect"
 	"strings"
 	"testing"
 
+	"github.com/charmbracelet/bubbles/spinner"
 	"github.com/charmbracelet/bubbles/table"
 	"github.com/charmbracelet/lipgloss"
+	"github.com/charmbracelet/x/ansi"
 
 	"github.com/anthnel/devdesk/internal/ui/theme"
 )
 
-// A table with a status column at 0 and an identity, which is what a view has
-// to declare to get the busy facility at all.
+// A table with an identity, which is what a view has to declare to get the
+// busy facility at all. It has no Indicator column.
 func busyConfig() Config[row] {
 	cfg := Config[row]{
-		Key:          func(r row) string { return r.Name },
-		StatusColumn: 0,
-		SortColumn:   1,
+		Key:        func(r row) string { return r.Name },
+		SortColumn: 1,
 		Columns: []Column[row]{
 			{
 				Title: "", MinWidth: 3,
@@ -63,44 +65,6 @@ func renderedRow(t *testing.T, m Model[row], name string) string {
 	}
 	t.Fatalf("no rendered row for %q in:\n%s", name, m.View())
 	return ""
-}
-
-// The whole point: the status column stops saying what the object is and says
-// that something is happening to it. "Busy wins over state" is one rule, here.
-func TestABusyRowShowsTheSpinnerInItsStatusColumn(t *testing.T) {
-	m := busyTable(t)
-	before := renderedRow(t, m, "web")
-	if !strings.Contains(before, ">") {
-		t.Fatalf("the status column does not show the state to begin with:\n%s", before)
-	}
-
-	m.MarkBusy("web", "Stopping web")
-
-	line := renderedRow(t, m, "web")
-	if strings.Contains(line, ">") {
-		t.Errorf("the busy row still shows its state glyph:\n%s", line)
-	}
-	if !strings.Contains(line, m.spinnerFrame) {
-		t.Errorf("the busy row shows no spinner:\n%s", line)
-	}
-	// And only that row.
-	if other := renderedRow(t, m, "api"); !strings.Contains(other, ">") {
-		t.Errorf("a row nothing is happening to lost its state glyph:\n%s", other)
-	}
-}
-
-// The glyph is the primary signal, so it has to survive the cursor: a signal
-// that vanishes under the highlight is lost exactly when it is being looked at.
-func TestTheSpinnerShowsOnTheSelectedRowToo(t *testing.T) {
-	m := busyTable(t)
-	m.GotoTop() // "api", the first row by name
-	selected, _ := m.Selected()
-	m.MarkBusy(selected.Name, "Removing "+selected.Name)
-
-	line := renderedRow(t, m, selected.Name)
-	if !strings.Contains(line, m.spinnerFrame) {
-		t.Errorf("the selected busy row shows no spinner:\n%s", line)
-	}
 }
 
 // The highlight is applied to the joined row, so the busy colour has to be
@@ -168,9 +132,6 @@ func TestABusyRowSurvivesAReload(t *testing.T) {
 	if !m.IsBusy("web") {
 		t.Fatal("the busy marker was lost when the items were replaced")
 	}
-	if line := renderedRow(t, m, "web"); strings.Contains(line, ">") {
-		t.Errorf("the reloaded row went back to showing its state:\n%s", line)
-	}
 }
 
 // Nothing changes for the fifteen tables that declare no Key: the facility is
@@ -211,40 +172,13 @@ func TestBusyLabelsAreSorted(t *testing.T) {
 	}
 }
 
-// Rule 122: the spinner goes in as plain text, so the row must carry no escape
-// sequence a measurement could cut through.
-func TestTheSpinnerFrameCarriesNoEscapeSequence(t *testing.T) {
-	m := busyTable(t)
-	m.MarkBusy("web", "Stopping web")
-	for range 4 {
-		m.AdvanceSpinner()
-	}
-
-	if strings.Contains(m.spinnerFrame, "\x1b[") {
-		t.Errorf("the spinner frame is %q, want plain text", m.spinnerFrame)
-	}
-}
-
-// A table drawn in the same frame the action began has no tick behind it yet.
-func TestThereIsAFrameBeforeTheFirstTick(t *testing.T) {
-	m := busyTable(t)
-	m.MarkBusy("web", "Stopping web")
-
-	if m.spinnerFrame == "" {
-		t.Fatal("the spinner frame is empty before the first tick")
-	}
-	if line := renderedRow(t, m, "web"); strings.TrimSpace(line[:6]) == "" {
-		t.Errorf("the status cell is blank before the first tick:\n%s", line)
-	}
-}
-
-// The row style is the second cue, after the glyph. Off the selected row it can
-// be decided per cell, which is where the existing rule puts it: `Style` is not
-// consulted under the cursor.
-func TestABusyRowIsDimmedAndItsSpinnerIsNot(t *testing.T) {
+// Without an Indicator column a busy row is only greyed: no glyph is added and
+// no spinner frame replaces a cell (DEVDESK-143).
+func TestABusyRowIsDimmed(t *testing.T) {
 	withTrueColor(t)
 	m := busyTable(t)
 	m.GotoTop() // "api" — so "web" below is busy *and* unselected
+	before := ansi.Strip(renderedRow(t, m, "web"))
 	m.MarkBusy("web", "Stopping web")
 
 	line := renderedRow(t, m, "web")
@@ -252,13 +186,63 @@ func TestABusyRowIsDimmedAndItsSpinnerIsNot(t *testing.T) {
 	if !strings.Contains(line, foreground(theme.ColorDim)) {
 		t.Errorf("the busy row is not dimmed: %q", line)
 	}
-	if !strings.Contains(line, foreground(theme.ColorHighlight)) {
-		t.Errorf("the spinner does not stand out from the dimmed row: %q", line)
+	// Every cell is dim: nothing keeps a column's colour or a highlight.
+	for _, c := range []lipgloss.Color{theme.ColorOK, theme.ColorHighlight} {
+		if strings.Contains(line, foreground(c)) {
+			t.Errorf("the busy row kept a colour that is not dim: %q", line)
+		}
 	}
-	// The column's own colour is dropped: it describes a state the action is
-	// about to change.
-	if strings.Contains(line, foreground(theme.ColorOK)) {
-		t.Errorf("the busy row kept a column's own colour: %q", line)
+	if after := ansi.Strip(line); after != before {
+		t.Errorf("busy changed the row's text:\nbefore %q\nafter  %q", before, after)
+	}
+}
+
+func TestABusyRowWithoutAnIndicatorShowsNoSpinnerFrame(t *testing.T) {
+	m := busyTable(t)
+	m.MarkBusy("web", "Stopping web")
+	line := ansi.Strip(renderedRow(t, m, "web"))
+	for _, frame := range spinner.Dot.Frames {
+		if strings.Contains(line, frame) {
+			t.Errorf("the busy row shows the spinner frame %q: %q", frame, line)
+		}
+	}
+	for _, g := range []string{"●", "○"} {
+		if strings.Contains(line, g) {
+			t.Errorf("a table with no Indicator column shows the glyph %q: %q", g, line)
+		}
+	}
+}
+
+// With an Indicator column a busy row is Running: ● then ○ with the blink phase.
+func TestABusyRowOnAnIndicatorColumnBlinks(t *testing.T) {
+	m := indicatorTable(t, row{Name: "web", State: "idle"}, row{Name: "api", State: "idle"})
+	m.MarkBusy("web", "Stopping web")
+	if got := ansi.Strip(lineOf(t, &m, "web")); !strings.Contains(got, "●") {
+		t.Errorf("busy row, phase on: want ●: %q", got)
+	}
+	m.SetBlinkPhase(false)
+	got := ansi.Strip(lineOf(t, &m, "web"))
+	if !strings.Contains(got, "○") || strings.Contains(got, "●") {
+		t.Errorf("busy row, phase off: want ○ only: %q", got)
+	}
+	if other := ansi.Strip(lineOf(t, &m, "api")); strings.ContainsAny(other, "●○") {
+		t.Errorf("a row nothing happens to shows a glyph: %q", other)
+	}
+}
+
+// Reflection: the row spinner mechanism is gone from the type.
+func TestDatatableHasNoRowSpinner(t *testing.T) {
+	if _, ok := reflect.TypeOf(Config[row]{}).FieldByName("StatusColumn"); ok {
+		t.Error("Config still has a StatusColumn field")
+	}
+	mt := reflect.TypeOf(Model[row]{})
+	for _, name := range []string{"spinnerFrame", "spinnerIdx"} {
+		if _, ok := mt.FieldByName(name); ok {
+			t.Errorf("Model still has a %s field", name)
+		}
+	}
+	if _, ok := reflect.TypeOf(&Model[row]{}).MethodByName("AdvanceSpinner"); ok {
+		t.Error("Model still has an AdvanceSpinner method")
 	}
 }
 

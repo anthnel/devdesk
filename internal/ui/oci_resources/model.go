@@ -438,8 +438,7 @@ func New(cfg *config.Config) Model {
 			}
 			return r.Image.ID
 		},
-		// No StatusColumn: the activity column shows a removal in flight, and a
-		// spinner on another cell would animate it twice.
+		// The activity column shows a removal in flight; no other cell animates it.
 	})
 
 	nt := datatable.New(datatable.Config[docker.Network]{

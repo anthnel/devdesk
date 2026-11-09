@@ -61,7 +61,6 @@ func spansOf(widths ...int) []Span {
 func spansConfig(cell string, withSpans func(row) []Span) Config[row] {
 	cfg := testConfig()
 	cfg.Key = func(r row) string { return r.Name }
-	cfg.StatusColumn = 2
 	cfg.Columns[1] = Column[row]{
 		Title: "Bar", Sizing: SizingFixed, MinWidth: barWidth,
 		Cell:  func(row) string { return cell },
