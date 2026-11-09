@@ -10,18 +10,9 @@ import (
 	"github.com/anthnel/devdesk/internal/ui/datatable"
 )
 
-// What is being rescanned is the registry's answer, not this view's (§3.58).
-//
-// the old `scanTarget.Scanning` was a flag this view set and cleared itself, and
-// `handleInventoryLoaded` had to carry it across every reload by hand: the
-// caches say nothing about a scan that has not finished writing to them, so a
-// refresh landing mid-rescan cleared the spinner and left the row looking
-// settled. Reading the snapshot removes the reconciliation rather than fixing
-// it — there is nothing to carry across a reload when the state was never here.
-//
-// It also makes the marker true for a scan started **elsewhere**. The inventory
-// lists what `ws` and the images tab scan; a rescan launched from either of them
-// is the same work on the same cache entry, and this view had no way to know.
+// What is being rescanned is the registry's answer, not this view's (§3.58):
+// nothing is carried across a reload, and a scan started from ws or the images
+// tab marks the same row.
 
 // handleJobsChanged takes the router's snapshot and redecorates the rows.
 func (m Model) handleJobsChanged(msg jobs.ChangedMsg) (tea.Model, tea.Cmd) {

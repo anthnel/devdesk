@@ -63,7 +63,6 @@ type scanTarget struct {
 	// Scanned is false between a ctrl+a purge and the scan that replaces it.
 	// The target is still known — it is the counts that are not.
 	Scanned bool
-	Failed  bool
 	// Activity and ScanRunning are stamped by setInventory from the router
 	// snapshot, never per frame: the blink is read at render. ScanRunning is
 	// true only for a running (not queued) scan, and it alone holds the
@@ -223,13 +222,10 @@ func countColumn(title, severity string, get func(scan.SeverityCounts) int) data
 	}
 }
 
-// inventoryScannedStyle colours the scan state: a failure is the one thing in
-// this column worth interrupting for, and a target never scanned is dim rather
-// than absent.
+// inventoryScannedStyle colours the scan state: a target never scanned is dim
+// rather than absent. A failure lives in the activity column, not here.
 func inventoryScannedStyle(t scanTarget) lipgloss.Style {
 	switch {
-	case t.Failed:
-		return theme.StatusErrorStyle
 	case t.ScanRunning, !t.Scanned:
 		return theme.DimStyle
 	}
@@ -237,15 +233,13 @@ func inventoryScannedStyle(t scanTarget) lipgloss.Style {
 	return lipgloss.NewStyle()
 }
 
-// inventoryScannedCell reports the scan state: the spinner while one runs, an
-// error icon when the last attempt failed, otherwise how long ago it succeeded
-// (Rule 127). Plain text throughout — Rule 122.
+// inventoryScannedCell reports the scan state: "scanning" while one runs,
+// otherwise how long ago the last success was (Rule 127) or "-". A failed row
+// keeps its last success. Plain text throughout — Rule 122.
 func inventoryScannedCell(t scanTarget) string {
 	switch {
 	case t.ScanRunning:
 		return scanningText
-	case t.Failed:
-		return theme.IconError + " error"
 	case t.Scanned:
 		return theme.TimeAgo(t.ScannedAt)
 	}

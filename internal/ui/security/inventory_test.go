@@ -14,6 +14,7 @@ import (
 	"github.com/anthnel/devdesk/internal/config"
 	"github.com/anthnel/devdesk/internal/jobs"
 	"github.com/anthnel/devdesk/internal/scan"
+	sharedcomponents "github.com/anthnel/devdesk/internal/ui/components"
 	"github.com/anthnel/devdesk/internal/ui/indicator"
 	"github.com/anthnel/devdesk/internal/ui/keymap"
 	"github.com/anthnel/devdesk/internal/ui/shortcut"
@@ -300,27 +301,122 @@ func TestAFinishedRescanUpdatesItsRowAlone(t *testing.T) {
 	}
 }
 
-func TestAFailedRescanMarksTheRowAndSaysSo(t *testing.T) {
+// DEVDESK-145 step 3: the failure dot comes from the registry snapshot alone.
+// A finished-with-error message raises the 3 s footer event and nothing else;
+// the row turns failed only when the next ChangedMsg carries the failure.
+func TestAFailedRescanSaysSoInTheFooterButDoesNotMarkTheRowItself(t *testing.T) {
 	m := inventoryModel(t, inventoryFixtures()...)
 	m = scanning(t, m, "nexus/api:1.4")
 
 	m = withJobs(t, m, settledScanRun("nexus/api:1.4"))
 	m, cmd := step(t, m, InventoryScanFinishedMsg{Name: "nexus/api:1.4", Err: errors.New("no such image")})
 
-	target := m.inventory.Items()[0]
-	for _, candidate := range m.inventory.Items() {
-		if candidate.Name == "nexus/api:1.4" {
-			target = candidate
-		}
+	target := rowByName(t, m, "nexus/api:1.4")
+	if target.ScanRunning || target.Activity.State == indicator.Failed {
+		t.Errorf("row after the message alone = running %v, state %v; want settled and not failed (single source: the registry)",
+			target.ScanRunning, target.Activity.State)
 	}
-	if target.ScanRunning || !target.Failed {
-		t.Errorf("the failed row = %+v, want it marked failed and no longer scanning", target)
+	if got := inventoryScannedCell(target); strings.Contains(got, "error") {
+		t.Errorf("Scanned cell = %q, want the last success age, never \"error\" (H2)", got)
 	}
-	if !strings.Contains(m.footer.Text(), "nexus/api:1.4") {
-		t.Errorf("statusMessage = %q, want it to name the target", m.footer.Text())
+	want := sharedcomponents.FailureEvent(jobs.KindScan, "nexus/api:1.4", "scan failed — check logs")
+	if m.footer.Text() != want || m.footer.Level() != sharedcomponents.LevelError {
+		t.Errorf("footer = %q at level %v, want %q at Error", m.footer.Text(), m.footer.Level(), want)
 	}
 	if cmd == nil {
 		t.Error("the error message was set without a timer to clear it (Rule 128)")
+	}
+}
+
+func failedSnapshot(names ...string) jobs.ChangedMsg {
+	var fs []jobs.Failure
+	for _, n := range names {
+		fs = append(fs, secFailure(jobs.KindScan, secCtx, n, time.Now()))
+	}
+	return jobs.ChangedMsg{Failures: fs, Context: secCtx}
+}
+
+// H2: a failed row keeps the age of its last successful scan; the word "error"
+// is gone from the cell.
+func TestAFailedRowKeepsItsLastSuccessfulAgeAndItsCounts(t *testing.T) {
+	m := inventoryModel(t, inventoryFixtures()...)
+	before := rowByName(t, m, indRepo)
+	for _, blink := range []bool{true, false} {
+		m = feed(t, m, failedSnapshot(indRepo), jobs.FrameMsg{Blink: blink})
+		r := rowByName(t, m, indRepo)
+		if r.Activity.State != indicator.Failed {
+			t.Fatalf("blink=%v: state = %v, want Failed", blink, r.Activity.State)
+		}
+		if got, want := inventoryScannedCell(r), theme.TimeAgo(before.ScannedAt); got != want {
+			t.Errorf("blink=%v: Scanned cell = %q, want the last success %q", blink, got, want)
+		}
+		if r.Counts != before.Counts || !r.Scanned {
+			t.Errorf("blink=%v: counts/Scanned changed by a failure: %+v", blink, r)
+		}
+		line := inventoryLine(t, m, indRepo)
+		if !strings.Contains(line, indicator.Glyph(indicator.Failed, blink)) {
+			t.Errorf("blink=%v: the failed row has no failed glyph:\n%s", blink, line)
+		}
+		if strings.Contains(line, "error") {
+			t.Errorf("blink=%v: the word \"error\" is back in the row:\n%s", blink, line)
+		}
+	}
+}
+
+func TestAFailedRowNeverScannedShowsADash(t *testing.T) {
+	m := inventoryModel(t, scanTarget{Kind: kindRepo, Name: indRepo})
+	m = feed(t, m, failedSnapshot(indRepo))
+	r := rowByName(t, m, indRepo)
+	if r.Activity.State != indicator.Failed {
+		t.Fatalf("state = %v, want Failed", r.Activity.State)
+	}
+	if got := inventoryScannedCell(r); got != "-" {
+		t.Errorf("Scanned cell = %q, want %q", got, "-")
+	}
+}
+
+// A new attempt: the registry clears the failure when the rescan is admitted,
+// so the next snapshot has none and the row is back to running, then to its icon.
+func TestARetryClearsTheFailedDotThroughTheRegistry(t *testing.T) {
+	m := inventoryModel(t, inventoryFixtures()...)
+	m = feed(t, m, failedSnapshot(indRepo))
+	m = feed(t, m, jobs.ChangedMsg{
+		Runs: []jobs.Run{secRun(jobs.KindScan, secCtx, jobs.ItemRunning, indRepo)}, Context: secCtx})
+	if got := rowByName(t, m, indRepo).Activity.State; got != indicator.Running {
+		t.Errorf("state on retry = %v, want Running", got)
+	}
+	m = feed(t, m, jobs.ChangedMsg{Context: secCtx})
+	if got := rowByName(t, m, indRepo).Activity.State; got != indicator.Idle {
+		t.Errorf("state after the retry settled = %v, want Idle", got)
+	}
+}
+
+// ctrl+a with purge blanks the counts and leaves the failure alone: it stays
+// visible until the snapshot that follows the registry's Start.
+func TestPurgingKeepsTheFailureUntilTheRegistryClearsIt(t *testing.T) {
+	m := inventoryModel(t, inventoryFixtures()...)
+	m = feed(t, m, failedSnapshot(indRepo))
+
+	m, _ = scanAll(t, m, true)
+
+	r := rowByName(t, m, indRepo)
+	if r.Scanned || r.Counts != (scan.SeverityCounts{}) {
+		t.Errorf("purge did not blank the counts: %+v", r)
+	}
+	if r.Activity.State != indicator.Failed {
+		t.Errorf("state after the purge alone = %v, want Failed (the registry has not cleared it)", r.Activity.State)
+	}
+	if got := inventoryScannedCell(r); got != "-" {
+		t.Errorf("purged failed row Scanned cell = %q, want %q", got, "-")
+	}
+}
+
+// A reload keeps the failed dot: the state is derived, not carried by hand.
+func TestAReloadKeepsTheFailedDot(t *testing.T) {
+	m := inventoryModel(t, inventoryFixtures()...)
+	m = feed(t, m, failedSnapshot(indRepo), InventoryLoadedMsg{Targets: inventoryFixtures()})
+	if got := rowByName(t, m, indRepo).Activity.State; got != indicator.Failed {
+		t.Errorf("state after a reload = %v, want Failed", got)
 	}
 }
 
@@ -474,9 +570,6 @@ func TestInitLoadsTheInventory(t *testing.T) {
 	}
 }
 
-// The spinner only advances while a rescan is running: SetItems re-filters and
-// re-sorts, and there is no reason to do that sixty times a second for a table
-// with nothing running.
 // D65: the inventory used to show "Nothing scanned yet" and then the list.
 // The message is a claim about what the caches contain, and the view hadn't
 // read them yet — Rule 139: the table stays on screen, the footer says it's
@@ -515,10 +608,8 @@ func TestTheEmptyMessageAppearsOnceTheCachesAnswer(t *testing.T) {
 func TestTheSpinnerKeepsTickingWhileTheInventoryLoads(t *testing.T) {
 	m := feed(t, New(testConfig(), nil), tea.WindowSizeMsg{Width: 160, Height: 30})
 
-	for _, target := range m.inventory.Items() {
-		if target.Activity.State != indicator.Idle {
-			t.Fatal("the fixture is meant to be loading, not scanning")
-		}
+	if len(m.scanningTargets()) != 0 {
+		t.Fatal("the fixture is meant to be loading, not scanning")
 	}
 	updated, cmd := m.handleSpinnerTick(spinner.TickMsg{})
 	if cmd == nil {

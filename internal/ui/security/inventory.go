@@ -222,7 +222,6 @@ func (m *Model) purgeCounts(names []string) {
 	updated := make([]scanTarget, len(targets))
 	for i, t := range targets {
 		if wanted[t.Name] {
-			t.Failed = false
 			t.Scanned = false
 			t.Counts = scan.SeverityCounts{}
 		}
@@ -280,7 +279,6 @@ func (m Model) handleInventoryScanFinished(msg InventoryScanFinishedMsg) (tea.Mo
 	updated := make([]scanTarget, len(targets))
 	for i, t := range targets {
 		if t.Name == msg.Name {
-			t.Failed = msg.Err != nil
 			if msg.Err == nil {
 				t.Scanned = true
 				t.Counts = msg.Counts
@@ -294,7 +292,8 @@ func (m Model) handleInventoryScanFinished(msg InventoryScanFinishedMsg) (tea.Mo
 	}
 	m.setInventory(updated)
 	if msg.Err != nil {
-		return m, m.footer.Error(fmt.Sprintf("Scan failed for %s — check logs", m.labelFor(msg.Name)))
+		log.Printf("ERROR [security/inventory] scan %s: %v", msg.Name, msg.Err)
+		return m, m.footer.Error(sharedcomponents.FailureEvent(jobs.KindScan, msg.Name, msg.Transition().Detail))
 	}
 	return m, nil
 }
