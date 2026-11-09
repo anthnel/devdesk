@@ -43,6 +43,7 @@ type activityView interface {
 var migratedTables = map[command.ViewType][]string{
 	command.ViewJobs:       {"jobs/runs", "jobs/targets"},
 	command.ViewWorkspaces: {"ws"},
+	command.ViewSecurity:   {"sec/inventory"},
 }
 
 // pendingTable is a table that still has to move to the activity column.
@@ -54,7 +55,6 @@ type pendingTable struct {
 
 // pendingTables may only shrink: each migration story removes its own entries.
 var pendingTables = []pendingTable{
-	{"sec/inventory", command.ViewSecurity, "A-08"},
 	{"oci/images", command.ViewOCIResources, "A-09a"},
 	{"oci/registry-browser", command.ViewOCIResources, "A-09a"},
 	{"oci/networks", command.ViewOCIResources, "A-09b"},
@@ -71,7 +71,7 @@ var pendingTables = []pendingTable{
 // maxPendingTables is the ceiling: adding an exception means raising both the
 // list and this constant in the same diff, which is visible in review. Lower it
 // with every migration.
-const maxPendingTables = 12
+const maxPendingTables = 11
 
 // exemptViews have no long-running operation to show per row (inventory:
 // "sans objet" or out of the batch), each with its reason.
@@ -324,6 +324,7 @@ func checkColumnZero(t *testing.T, vt command.ViewType, table string, shapes []d
 var migratedSources = map[command.ViewType][]string{
 	command.ViewJobs:       {"ui/jobsview/"},
 	command.ViewWorkspaces: {"ui/workspaces/"},
+	command.ViewSecurity:   {"ui/security/"},
 }
 
 // sourceDeclarationProblems says what is wrong with the link between migrated
@@ -755,6 +756,7 @@ type footerRenderer interface {
 var migratedFooterSeeds = map[command.ViewType]func(*testing.T, *App) indicator.State{
 	command.ViewJobs:       seedJobsFooter,
 	command.ViewWorkspaces: seedWorkspacesFooter,
+	command.ViewSecurity:   seedSecurityFooter,
 }
 
 // seedJobsFooter starts a scan run, moves its item to running (a started run

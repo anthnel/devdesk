@@ -928,14 +928,19 @@ one rule: **`scanTarget.Name` is the cache key and never moves.** It is what
 `enter`, `S` and `A` resolve, and what `AddToGitleaksIgnore` writes into via
 `m.targetPath` — hence `targetLabel` as a second field rather than a folding
 applied in place, since an aliased reference names a directory that does not
-exist. The alias rides on the row (`Display`), stamped by `setInventory` beside
-the spinner frame, for the same two reasons: the rows arrive from a `Cmd`, and a
+exist. The alias rides on the row (`Display`), stamped by `setInventory` with the
+row's activity (below), for the same two reasons: the rows arrive from a `Cmd`, and a
 column function is built once in `New` and can reach neither.
 
 The Target column therefore **sorts on the key and searches both names**: an
 alias is a display name the user can rename, so sorting by it would move every
 row of a registry the day they do, while a column showing one name and matching
 only the other reads as a bug.
+
+**Column 0 is the activity column** (DEVDESK-145, Rule 125): the kind glyph
+below is the cell of a row at rest, and a dot replaces it while something
+happens on the row (see "What the row says"). It is built by
+`datatable.IndicatorColumn`.
 
 **The kind glyph is a column of its own**, untitled and `datatable.IconColumnWidth`
 wide, ahead of Target — the workspaces and containers shape, and what Rule 125
@@ -1016,8 +1021,9 @@ Three invariants, each with a test that fails without it:
   has been scanned; dropping them empties the view for the length of the scans
   and loses the targets on a close. A purged row prints `-`, not `0`.
 - **A reload keeps an in-flight scan's marker.** The cache says nothing about a
-  scan still running, so a refresh landing mid-rescan would clear the spinner
-  and leave the row looking settled.
+  scan still running, so a refresh landing mid-rescan would clear the dot
+  and leave the row looking settled. It holds because the state is read from the
+  registry snapshot at every `setInventory`, not carried across the reload.
 - **`InventoryScanFinishedMsg` is routed to the security view wherever the user
   is** (`app.routeToSecurityView`), the same reason `routeToOCIImagesView`
   exists. Everything else is forwarded to the active view only, and a lost
@@ -1028,12 +1034,50 @@ Three invariants, each with a test that fails without it:
   `len(Items()) == 0` alone asserts the first about the second. The table stays
   on screen while it loads and the footer carries the spinner (Rule 139).
 
-`spinnerAlive()` — `inventoryLoading || inventoryScanning()` — is the single
-predicate deciding whether frames keep coming. `handleSpinnerTick` reads it to
-schedule the next one, `spinnerTickIfIdle` to refuse starting a second chain
-alongside a live one; asking the two conditions separately in the two places is
-what would double the frame rate when a rescan starts during a load. For the
-same reason `reloadInventory` takes its tick *before* raising the flag.
+**What the row says.** `setInventory` stamps each `scanTarget` with
+`Activity` (`components.DescribeRow`, through `rowActivity`) and `ScanRunning`
+(`scanRunning`), from the last `jobs.ChangedMsg`. The message carries the
+router's `Context` (D100): a view built and not yet fed has an empty context,
+which matches no run, and `enterView` feeds the snapshot on entry. Only the
+**scan** kind is read (`secKinds`, D5): a sync failure in `ws` leaves the row
+at its icon, a scan failure posed from `ws` or the OCI view shows here. The key
+is `(KindScan, jobs.TargetKey(Name), context)`, where `Name` is the cache key:
+the absolute repository path, or the raw `repo:tag`.
+
+| Row state | Column 0 | Scanned cell |
+|---|---|---|
+| at rest | the repository or image icon | age of the last scan |
+| queued | `◴` | unchanged (age) |
+| running | `●` / `○`, blinking | `scanning`, dim, static |
+| failed | `⊗`, red, until the next attempt | age of the last success, or `-` |
+
+The blink phase is read at render (`handleFrameMsg` calls
+`inventory.SetBlinkPhase`); a tick rebuilds no row. A failed row keeps its
+counts and no longer prints `error` in the Scanned cell: the dot and the footer
+carry the failure. The persistence is the registry's (cleared by the next
+`Start` or by a successful `Apply`, never on disk, per context), so it survives
+`ctrl+r`, a view switch and a rebuild of the view. `scanTarget.Failed` is gone.
+
+**The footer** (`inventoryStatus`) composes the selected row's detail
+(`DescribeRow`, e.g. `● Scanning ~/…/api`, `⊗ ~/…/api: last scan failed — check
+logs`) with the batch progress (`components.JobsStatusLine`). The footer spinner
+shows only while work runs and the selected row's own dot is not moving; the load
+text (`Loading scan inventory...`) replaces the progress but no longer hides the
+detail. When a scan **this view ran** fails, `InventoryScanFinishedMsg` posts a
+3 s `Error` built by `components.FailureEvent` (`Failed to scan <target> — check
+logs`; for an image, the raw reference, not the alias); the row detail returns
+afterwards. A failure posed from `ws` or OCI posts no event here. At 60 columns
+`Scanned` is dropped (it is `Optional`), so `scanning` is not visible there; the
+dot and the footer carry the state.
+
+**The view's own spinner is for loads only.** `spinnerAlive()` —
+`inventoryLoading || remediationBusy()` — decides whether the view's own
+`spinner.Model` chain keeps going (`handleSpinnerTick` renews it,
+`spinnerTickIfIdle` refuses a second chain alongside a live one). It no longer
+answers for scans: those are the router's animation. The footer's spinner frame
+has one writer at a time: the view's own chain while `spinnerAlive()`, the
+router's `FrameMsg` otherwise (`handleFrameMsg`). For the same reason as
+before, `reloadInventory` takes its tick *before* raising the flag.
 
 `esc` and `ctrl+r` return to the inventory, or to the list the results were
 opened from when `OriginView` is set.
@@ -1134,7 +1178,7 @@ Every view now reads the same snapshot, broadcast by the router in
 |---|---|
 | `ws` | `scanning(path)` — and `busy()` folds sync and delete in beside it |
 | `oci` | `scanningImage(name)`, `anyScanRunning()` |
-| `:sec` | `scanningTarget(name)`, `inventoryScanning()` |
+| `:sec` | `rowActivity(target)`, `scanRunning(name)` (`scanningTarget` stays for the `S` guard) |
 
 The consequence worth stating plainly: **a scan started in one view marks the
 row in every other view that lists the same target.** The `:sec` inventory lists
@@ -1145,15 +1189,14 @@ reading.
 cleared, and `handleInventoryLoaded` carried it across every reload by hand: the
 caches say nothing about a scan that has not finished writing to them, so a
 refresh landing mid-rescan cleared the spinner and left the row looking settled.
-That reconciliation is *gone* rather than fixed — the flag is derived in
-`setInventory`, so a reload has nothing to preserve.
+That reconciliation is *gone* rather than fixed: the row's activity is derived
+in `setInventory` (see "The security inventory"), so a reload has nothing to
+preserve. With DEVDESK-145 the failure is derived too, from the registry's
+failure memory, and `scanTarget.Failed` is removed.
 
-**A load is not a job.** Both views keep their own `spinner.Model` and frame
-index, and both keep animating with them: reading the caches, fetching the image
-list, a `docker` action on a row. What moved to the router's single chain (D5)
-is the frame the *scan* cells carry. `:sec`'s `spinnerAlive` therefore answers
-for the load alone — keeping the rescan in it would be a second chain beside the
-router's, which is the failure D5 removed.
+**A load is not a job.** The view keeps its own `spinner.Model` for reading the
+caches, fetching the image list and the Remediation tab; scans are the router's
+animation (D5) and no longer touch it.
 
 **`rescanCmd` had no starting message** — only a finished one — so a target went
 from queued straight to done and nothing said which of a batch was actually

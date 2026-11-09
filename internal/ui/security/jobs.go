@@ -1,37 +1,42 @@
 package security
 
 import (
+	"slices"
+
 	tea "github.com/charmbracelet/bubbletea"
 
 	"github.com/anthnel/devdesk/internal/command"
 	"github.com/anthnel/devdesk/internal/jobs"
+	"github.com/anthnel/devdesk/internal/ui/datatable"
 )
 
-// What is being rescanned is the registry's answer, not this view's (§3.58).
-//
-// `scanTarget.Scanning` was a flag this view set and cleared itself, and
-// `handleInventoryLoaded` had to carry it across every reload by hand: the
-// caches say nothing about a scan that has not finished writing to them, so a
-// refresh landing mid-rescan cleared the spinner and left the row looking
-// settled. Reading the snapshot removes the reconciliation rather than fixing
-// it — there is nothing to carry across a reload when the state was never here.
-//
-// It also makes the marker true for a scan started **elsewhere**. The inventory
-// lists what `ws` and the images tab scan; a rescan launched from either of them
-// is the same work on the same cache entry, and this view had no way to know.
-
-// handleJobsChanged takes the router's snapshot and redecorates the rows.
+// handleJobsChanged takes the router's snapshot and redecorates the rows. What
+// is being rescanned is the registry's answer, not this view's (§3.58): nothing
+// is carried across a reload, and a scan started from ws or the images tab
+// marks the same row.
 func (m Model) handleJobsChanged(msg jobs.ChangedMsg) (tea.Model, tea.Cmd) {
 	m.jobs = msg.Runs
+	m.failures = slices.Clone(msg.Failures)
+	m.contextName = msg.Context
 	m.setInventory(m.inventory.Items())
 	return m, nil
 }
 
-// handleFrameMsg takes the animation's frame and redecorates the rows.
+// handleFrameMsg takes the animation's blink phase, which the table reads at
+// render; no row is rebuilt. The footer frame is the router's only while the
+// view's own load or remediation spinner is not running.
 func (m Model) handleFrameMsg(msg jobs.FrameMsg) (tea.Model, tea.Cmd) {
-	m.jobFrame = msg.Frame
-	m.setInventory(m.inventory.Items())
+	m.inventory.SetBlinkPhase(msg.Blink)
+	if !m.spinnerAlive() {
+		m.footer.SetSpinnerFrame(msg.RenderedFrame)
+	}
 	return m, nil
+}
+
+// ActivityTables returns the read-only face of the view's table, keyed by the
+// name the activity-column guard (internal/app) knows it by. Tests only.
+func (m Model) ActivityTables() map[string]datatable.ActivityTable {
+	return map[string]datatable.ActivityTable{"sec/inventory": &m.inventory}
 }
 
 // scanRun builds the run behind ctrl+s and A. The label names the screen it was

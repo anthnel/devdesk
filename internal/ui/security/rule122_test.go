@@ -4,15 +4,15 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/charmbracelet/bubbles/spinner"
+
 	"github.com/anthnel/devdesk/internal/ui/keymap"
 	"github.com/anthnel/devdesk/internal/ui/testutil"
 )
 
-// Rule 122: a cell is measured while plain and coloured afterwards, so an escape
-// sequence inside one is counted as width. The spinner stamped by setInventory
-// was styled: 39 bytes of escape for a two-cell glyph in a column fourteen wide,
-// so the cut landed inside the sequence and the Scanned column rendered as
-// nothing — a scan running with no sign on screen that it was.
+// Rule 122: a cell is measured while plain and coloured afterwards. DEVDESK-145
+// removed the spinner from the Scanned cell altogether: a scan that is running
+// reads `scanning` (static, dim), and the blinking dot lives in column 0.
 func TestAScanningRowCarriesNoEscapeSequence(t *testing.T) {
 	withTrueColor(t)
 
@@ -31,47 +31,52 @@ func TestAScanningRowCarriesNoEscapeSequence(t *testing.T) {
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			m := tc.run(t, inventoryModel(t, verdictFixtures()...))
-			// The router marks the rows; here the snapshot stands in for it.
 			names := make([]string, 0, len(m.inventory.Items()))
 			for _, target := range m.inventory.Items() {
 				names = append(names, target.Name)
 			}
 			m = scanning(t, m, names...)
 
-			var scanning int
+			var running int
 			for _, row := range m.inventory.Table().Rows() {
 				for i, cell := range row {
 					if strings.Contains(cell, "\x1b") {
 						t.Errorf("cell %d carries an escape sequence: %q", i, cell)
 					}
-					if strings.Contains(cell, "scanning") {
-						scanning++
-					}
+				}
+				if row[len(row)-1] == scanningText {
+					running++
 				}
 			}
-			if scanning == 0 {
+			if running == 0 {
 				t.Error("no row says it is being scanned, so nothing tells the user work started")
 			}
-			if !strings.Contains(m.View(), "scanning") {
+			if !strings.Contains(m.View(), scanningText) {
 				t.Error("the rendered view shows no scan in progress")
 			}
 		})
 	}
 }
 
-// The spinner has to advance, or a running scan is indistinguishable from a hung
-// one. The frame is stamped onto the rows, so a tick that does not restamp them
-// freezes it even while the chain keeps ticking.
-func TestTheScanSpinnerAdvancesOnTheRows(t *testing.T) {
+// No cell ever holds a spinner frame: the Scanned cell is the same text on
+// every tick, so a tick cannot move it.
+func TestTheScannedCellIsStaticWhileAScanRuns(t *testing.T) {
 	m := inventoryModel(t, verdictFixtures()...)
-	run := scanningRun(m.inventory.Items()[0].Name)
-	m = withFrame(t, m, "one", run)
+	name := m.inventory.Items()[0].Name
+	m = scanning(t, m, name)
 
 	first := scanningCell(t, m)
-	m = withFrame(t, m, "two", run)
-
-	if second := scanningCell(t, m); second == first {
-		t.Errorf("the frame stayed at %q across a tick, so the row reads as hung", first)
+	if first != scanningText {
+		t.Fatalf("the scanning cell = %q, want exactly %q", first, scanningText)
+	}
+	for _, f := range spinner.Dot.Frames {
+		if strings.Contains(first, f) {
+			t.Errorf("the cell holds the spinner frame %q", f)
+		}
+	}
+	m = withJobs(t, m, scanningRun(name))
+	if second := scanningCell(t, m); second != first {
+		t.Errorf("the cell moved from %q to %q across a snapshot", first, second)
 	}
 }
 

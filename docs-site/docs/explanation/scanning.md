@@ -339,6 +339,26 @@ images and repositories, sorted by CRITICAL count descending.
 | Rescan all | rescans every row, with an optional cache purge |
 | Reload | re-reads the caches from disk |
 
+### The activity dot
+
+The leftmost column shows the row's icon (repository or image) at rest, and a dot
+while a scan is on it. It is the same column as in `ws`, limited to scans:
+
+| Glyph | Meaning |
+|---|---|
+| `●` / `○` | A scan is running (the dot blinks). The Scanned cell reads `scanning`. |
+| `◴` | A scan is queued. |
+| `⊗` | The last scan failed. It stays until the next attempt on that row, and survives `ctrl+r`, leaving the view and returning, and switching context and back. The Scanned cell keeps the age of the last successful scan. |
+
+It does not matter which view started the scan: a scan launched from `ws` or the
+OCI view marks the same row here, and a failure there shows here as `⊗`. A sync
+failure in `ws` does not. The footer describes the selected row (for example
+`● Scanning ~/w/app/api`) beside the batch progress. When a scan started from the
+inventory fails, the footer shows the failure for three seconds; afterwards the
+row's `⊗` carries it. The cause is generic, the details are in the logs. On a
+narrow terminal the Scanned column is dropped; the dot and the footer still show
+the state. Press `?` for the legend.
+
 A target is displayed with a friendly alias (a configured registry alias for
 images, `~` for the home directory in paths), but the **cache key never
 changes** — every action resolves against it, independent of how the row is

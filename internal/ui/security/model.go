@@ -46,21 +46,19 @@ type Model struct {
 
 	// Inventory state
 	inventory datatable.Model[scanTarget]
-	// spinner animates the rows being rescanned; it is stamped onto them by
-	// setInventory, because a Cell function is built once and cannot reach here.
-	//
-	// It survives only to produce the tick Cmd. What lands in a cell is
-	// spinnerFrameIdx, because spinner.View() renders through a style and a
-	// table cell carries no escape sequence (Rule 122).
-	spinner         spinner.Model
-	spinnerFrameIdx int
+	// spinner animates the view's own loads (caches, remediation) in the footer.
+	spinner spinner.Model
 
-	// jobs is the router snapshot of everything running anywhere, and jobFrame
-	// the spinner frame that goes with it — bare, because it lands in a table
-	// cell (Rule 122). See jobs.go: scanTarget.Scanning is derived from it, so
-	// there is no in-flight state here to carry across a reload.
-	jobs     []jobs.Run
-	jobFrame string
+	// jobs is the router snapshot of everything running anywhere. See jobs.go:
+	// the rows' activity is derived from it, so there is no in-flight state here
+	// to carry across a reload.
+	jobs []jobs.Run
+
+	// failures is a copy of the registry's remembered failures, replaced (never
+	// merged) by handleJobsChanged, and contextName the context the snapshot was
+	// built for (ChangedMsg.Context).
+	failures    []jobs.Failure
+	contextName string
 
 	// inventoryLoading is true while loadInventoryCmd is in flight. It exists
 	// because an empty table and a table that has not answered yet look the

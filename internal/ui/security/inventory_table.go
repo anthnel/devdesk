@@ -10,7 +10,9 @@ import (
 	"github.com/anthnel/devdesk/internal/config"
 	"github.com/anthnel/devdesk/internal/docker"
 	"github.com/anthnel/devdesk/internal/scan"
+	"github.com/anthnel/devdesk/internal/ui/components"
 	"github.com/anthnel/devdesk/internal/ui/datatable"
+	"github.com/anthnel/devdesk/internal/ui/indicator"
 	"github.com/anthnel/devdesk/internal/ui/registryalias"
 	"github.com/anthnel/devdesk/internal/ui/theme"
 )
@@ -60,19 +62,26 @@ type scanTarget struct {
 	ScannedAt time.Time
 	// Scanned is false between a ctrl+a purge and the scan that replaces it.
 	// The target is still known — it is the counts that are not.
-	Scanned  bool
-	Scanning bool
-	Failed   bool
+	Scanned bool
+	// Activity and ScanRunning are stamped by setInventory from the router
+	// snapshot, never per frame: the blink is read at render. ScanRunning is
+	// true only for a running (not queued) scan, and it alone holds the
+	// Scanned cell.
+	Activity    components.RowActivity
+	ScanRunning bool
 	// Display is the image reference with its registry prefix replaced by the
-	// configured alias, stamped by setInventory the way SpinnerFrame is — the
+	// configured alias, stamped by setInventory — the
 	// rows arrive from a Cmd, which cannot read the configuration off the model
 	// (Rule 110), and a column function is built once and cannot either.
 	//
 	// Empty means nobody stamped it, and displayName falls back to Name: a row
 	// built by hand must stay readable rather than render an empty cell.
-	Display      string
-	SpinnerFrame string
+	Display string
 }
+
+// scanningText is the Scanned cell of a row whose scan is running. It is
+// static: the activity column carries the motion.
+const scanningText = "scanning"
 
 // inventoryColumnCritical is the column the inventory opens sorted by,
 // descending: the target with the most critical findings is the one the view
@@ -213,29 +222,24 @@ func countColumn(title, severity string, get func(scan.SeverityCounts) int) data
 	}
 }
 
-// inventoryScannedStyle colours the scan state: a failure is the one thing in
-// this column worth interrupting for, and a target never scanned is dim rather
-// than absent.
+// inventoryScannedStyle colours the scan state: a target never scanned is dim
+// rather than absent. A failure lives in the activity column, not here.
 func inventoryScannedStyle(t scanTarget) lipgloss.Style {
 	switch {
-	case t.Failed:
-		return theme.StatusErrorStyle
-	case t.Scanning, !t.Scanned:
+	case t.ScanRunning, !t.Scanned:
 		return theme.DimStyle
 	}
 	// No opinion here: it's the table that sets the theme's text color.
 	return lipgloss.NewStyle()
 }
 
-// inventoryScannedCell reports the scan state: the spinner while one runs, an
-// error icon when the last attempt failed, otherwise how long ago it succeeded
-// (Rule 127). Plain text throughout — Rule 122.
+// inventoryScannedCell reports the scan state: "scanning" while one runs,
+// otherwise how long ago the last success was (Rule 127) or "-". A failed row
+// keeps its last success. Plain text throughout — Rule 122.
 func inventoryScannedCell(t scanTarget) string {
 	switch {
-	case t.Scanning:
-		return t.SpinnerFrame + "scanning"
-	case t.Failed:
-		return theme.IconError + " error"
+	case t.ScanRunning:
+		return scanningText
 	case t.Scanned:
 		return theme.TimeAgo(t.ScannedAt)
 	}
@@ -305,15 +309,13 @@ func misconfigColumn() datatable.Column[scanTarget] {
 // inventoryColumns describes the inventory table.
 func inventoryColumns(withCI, withMisconfig bool) []datatable.Column[scanTarget] {
 	cols := []datatable.Column[scanTarget]{
-		{
-			// No title: the column carries a glyph, and a header over it would
-			// name something read at a glance anyway. It declares neither Less
-			// nor Search — it adds no text anyone could type, so the filter
-			// stays on the target's two names.
-			Title: "", Sizing: datatable.SizingFixed, MinWidth: datatable.IconColumnWidth,
-			Cell:  func(t scanTarget) string { return t.kindIcon() },
-			Style: func(t scanTarget) lipgloss.Style { return theme.IconStyle(t.kindIconRole()) },
-		},
+		// The activity column (Rule 125): untitled, no Less nor Search. At rest
+		// it shows which cache the row came from.
+		datatable.IndicatorColumn(
+			func(t scanTarget) indicator.State { return t.Activity.State },
+			func(t scanTarget) string { return t.kindIcon() },
+			func(t scanTarget) lipgloss.Style { return theme.IconStyle(t.kindIconRole()) },
+		),
 		{
 			// Two cells narrower than before on both bounds: the glyph and its
 			// space left the cell, so what is measured here is the name alone.
