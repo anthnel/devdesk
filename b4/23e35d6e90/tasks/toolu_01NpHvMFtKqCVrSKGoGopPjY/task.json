@@ -1,0 +1,15 @@
+{
+  "tool_use_id": "toolu_01NpHvMFtKqCVrSKGoGopPjY",
+  "agent_id": "a468eeba4c9de0587",
+  "subagent_type": "product-team:pm",
+  "task_description": "Ajuster stories migration Charm v2",
+  "token_usage": {
+    "input_tokens": 20,
+    "cache_creation_tokens": 169122,
+    "cache_read_tokens": 1158861,
+    "output_tokens": 29368,
+    "api_call_count": 10
+  },
+  "started_at": "2026-11-09T12:01:57.676669563+01:00",
+  "completed_at": "2026-11-09T12:06:04.267122332+01:00"
+}
