@@ -1,3 +1,11 @@
+---
+paths:
+  - "**/*.go"
+  - "go.mod"
+  - "go.sum"
+  - "mise.toml"
+---
+
 ## Code quality rules and proactive checks
 
 ### Rule 301 : Systematic code quality check before commit

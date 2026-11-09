@@ -1,3 +1,12 @@
+---
+paths:
+  - "internal/ui/**"
+  - "internal/app/**"
+  - "internal/jobs/**"
+  - "internal/forward/**"
+  - "main.go"
+---
+
 # TUI — Bubble Tea behavior & architecture
 
 ### Rule 109 : Bubble Tea message naming convention

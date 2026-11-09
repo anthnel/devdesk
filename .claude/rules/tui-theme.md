@@ -1,3 +1,10 @@
+---
+paths:
+  - "internal/ui/**"
+  - "internal/app/**"
+  - "themes/**"
+---
+
 # TUI — Theme, Colors & Background
 
 ### Rule 102 : Centralized management of colors and styles

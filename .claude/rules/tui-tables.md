@@ -1,3 +1,9 @@
+---
+paths:
+  - "internal/ui/**"
+  - "internal/app/**"
+---
+
 # TUI — Tables
 
 ### Rule 106 : Table standardization

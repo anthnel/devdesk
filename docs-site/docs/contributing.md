@@ -66,7 +66,9 @@ mise run tidy       # go mod tidy
 
 The complete, current rule set — including the reasoning behind each one —
 lives in `.claude/rules/` in the repository; it's what both human
-contributors and the project's coding agent follow.
+contributors and the project's coding agent follow. Each per-topic rule file
+declares a `paths:` frontmatter, so the coding agent loads it only when it
+reads or edits a matching file (for example `internal/ui/**`), not at startup.
 
 ## Adding a new view
 

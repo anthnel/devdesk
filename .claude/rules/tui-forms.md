@@ -1,3 +1,9 @@
+---
+paths:
+  - "internal/ui/**"
+  - "internal/app/**"
+---
+
 # TUI — Forms & Focus
 
 ### Rule 103 : Standardized form navigation
