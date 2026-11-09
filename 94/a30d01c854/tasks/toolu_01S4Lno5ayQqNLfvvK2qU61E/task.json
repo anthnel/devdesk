@@ -1,0 +1,15 @@
+{
+  "tool_use_id": "toolu_01S4Lno5ayQqNLfvvK2qU61E",
+  "agent_id": "a6ed6a2547ff0f96b",
+  "subagent_type": "dev-team:architect",
+  "task_description": "Plan DEVDESK-144 ws pastille",
+  "token_usage": {
+    "input_tokens": 66,
+    "cache_creation_tokens": 176426,
+    "cache_read_tokens": 4200109,
+    "output_tokens": 27056,
+    "api_call_count": 33
+  },
+  "started_at": "2026-11-07T23:31:02.537303471+01:00",
+  "completed_at": "2026-11-07T23:35:59.433413317+01:00"
+}

@@ -1,0 +1,18 @@
+{
+  "tool_use_id": "toolu_01Jn6NJYdsCPnEDnPEAKsW9L",
+  "agent_id": "a9c92729dde954973",
+  "subagent_type": "project-tester",
+  "task_description": "Étape 2 rouge DEVDESK-144",
+  "files": [
+    "internal/ui/workspaces/indicator_test.go"
+  ],
+  "token_usage": {
+    "input_tokens": 22,
+    "cache_creation_tokens": 94247,
+    "cache_read_tokens": 811813,
+    "output_tokens": 10997,
+    "api_call_count": 11
+  },
+  "started_at": "2026-11-08T09:14:11.769110762+01:00",
+  "completed_at": "2026-11-08T09:15:36.683284592+01:00"
+}

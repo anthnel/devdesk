@@ -1,0 +1,15 @@
+{
+  "tool_use_id": "toolu_01A4pYYGbpiKoUrZKhjgxPpq",
+  "agent_id": "a058792092797e4b0",
+  "subagent_type": "project-tester",
+  "task_description": "Étape 5 rouge DEVDESK-144",
+  "token_usage": {
+    "input_tokens": 44,
+    "cache_creation_tokens": 182301,
+    "cache_read_tokens": 3033082,
+    "output_tokens": 18387,
+    "api_call_count": 21
+  },
+  "started_at": "2026-11-08T09:23:02.058758844+01:00",
+  "completed_at": "2026-11-08T09:25:40.834744531+01:00"
+}
