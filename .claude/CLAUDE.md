@@ -82,7 +82,7 @@ touching, and update it in the same commit as the code.
 
 | File | Covers |
 |---|---|
-| [`app-shell.md`](../docs/architecture/app-shell.md) | the router and its views, `ctrl+p` and the command parser, the keyboard vocabulary (`internal/ui/keymap`), greyed shortcuts, `shared.State`, cross-view messages, the jobs registry (`internal/jobs`), the one spinner chain and the `:jobs` view |
+| [`app-shell.md`](../docs/architecture/app-shell.md) | the router and its views, `ctrl+p` and the command parser, the keyboard vocabulary (`internal/ui/keymap`), greyed shortcuts, `shared.State`, cross-view messages, the jobs registry (`internal/jobs`), the one animation tick (blink phase, `app.motion`), the failure memory (`jobs.FailureKey`, `ChangedMsg.Failures`), the activity-column guard (`activity_guard_test.go`) and the `:jobs` view |
 | [`configuration.md`](../docs/architecture/configuration.md) | the config schema, the contexts, the migrations (`gitlab:` → `forge:`, `docker:` → `network:`), `agent_usage.prices`, and the configuration view |
 | [`forge.md`](../docs/architecture/forge.md) | `internal/forge` and its two backends, `forge.Vocabulary`, the explorer's clone pipeline, and how the explorer reads the forge index (`internal/forgeindex`) and its `g` |
 | [`workspaces.md`](../docs/architecture/workspaces.md) | the `ws` file icons (`internal/ui/fileicon`) and the sync (`F`) |
@@ -93,7 +93,7 @@ touching, and update it in the same commit as the code.
 | [`network.md`](../docs/architecture/network.md) | `internal/docker` and `internal/oci`, image updates (`internal/imageupdate`, the Update column), verified pulls (`internal/imagepull`), the netdiag view, `internal/ports`, `internal/netiface` |
 | [`mcp.md`](../docs/architecture/mcp.md) | the MCP server the TUI serves over HTTP |
 | [`templates.md`](../docs/architecture/templates.md) | `internal/template` + `internal/ui/templates` — the repository-template catalog, its three sources, how files are fetched, and the `:templates` view |
-| [`ui-components.md`](../docs/architecture/ui-components.md) | `components.FooterMessage` and `internal/ui/datatable` |
+| [`ui-components.md`](../docs/architecture/ui-components.md) | `components.FooterMessage`, `internal/ui/datatable`, and the activity indicator column (`internal/ui/indicator`, `datatable.IndicatorColumn`, the row sentences `components.DescribeRow`) |
 | [`agent-usage.md`](../docs/architecture/agent-usage.md) | `internal/agentusage` — per-agent token counts from Claude Code transcripts: format, aggregation rules, tolerance, privacy (`cwd` amendment), caps, ccusage cross-check; `ListSessions`; incremental reading (`ReadDelta`, `Aggregate`, `Activity.Settled`); tool calls and time span per agent (DEVDESK-46); per-model tokens, `Billed`, and the cost estimate (`internal/agentusage/pricing`, prices from `agent_usage.prices`, DEVDESK-47); the `:agent-usage` view and its agents level and State/Tools/Duration/Est. cost columns; the Breakdown column and tab, `Usage.Categories`/`ModelTotals` (DEVDESK-98) (`internal/ui/agentusageview`) |
 
 ### Status Monitoring System

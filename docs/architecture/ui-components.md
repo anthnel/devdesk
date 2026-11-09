@@ -423,8 +423,9 @@ way back. Row state is drawn by the activity column and animated by the router's
 
 Deliberately outside this:
 
-- **Scans** — their spinner is in the Scanned column and they do not block the
-  object the same way.
+- **Scans** — they do not block the object the same way, so they are not a
+  `MarkBusy` key. Where a table shows them (Images, `:sec`, `ws`), the dot comes
+  from the registry (`jobs.ActiveOn` through `RowState`).
 - **`prune`** — it acts on no row, so marking every row would say something
   false. It gets a footer line rendered from the view's own state (`m.pruning`),
   like `syncStatusLine` (§3.17), because a footer *message* expires after three
@@ -501,7 +502,7 @@ glyphs; `Color` and `Style` (`style.go`) map states to the four
 `theme.ColorActivity*` aliases.
 
 `Legend(extension...)` returns the "Activity indicator" help section every
-migrated view shows; the per-view rows are `JobsLegend`, `AgentsLegend` and
+migrated view shows; the per-view rows are `JobsLegend`, `CloneLegend`, `AgentsLegend` and
 `ContainersLegend` (its busy entry: "an action (stop, restart, pause, resume, delete) is running", DEVDESK-152).
 
 On the table side:
@@ -512,7 +513,7 @@ datatable.IndicatorColumn(
     func(j job) string { return "" },                 // rest: the row's icon, nil ⇒ empty
     nil,                                              // rest style
 )
-m.table.SetBlinkPhase(on) // from Update, on the view's tick; default on = steady ●
+m.table.SetBlinkPhase(on) // from Update, on jobs.FrameMsg (msg.Blink); default on = steady ●
 ```
 
 - `Column.Indicator func(T) indicator.State` is set by `IndicatorColumn` only.
@@ -540,6 +541,15 @@ m.table.SetBlinkPhase(on) // from Update, on the view's tick; default on = stead
   `ActivityTable` interface (`Shapes()` and `RenderedWidth()`) is the read-only
   face a view hands out for such a guard.
 
+**Width cost.** The activity column takes `IconColumnWidth` (2) plus the
+column gap (2): **4 rendered cells**. Every optional column of a migrated table
+therefore appears 4 terminal columns later than before, and at 60 columns a
+required column may give way (Rule 116 allows a whole column to go, never a
+truncated value). The dot is never the column that gives way. The measured
+thresholds live with each view: Images and the other OCI tabs in `network.md`
+(table of before and after), the containers table in `network.md`, the
+`:agent-usage` agents table in `agent-usage.md`, `:sec` in `scanning.md`.
+
 **Known limit.** The header's sort arrow `▲` is also ambiguous-width and is not
 fitted by `runewidth`: under East Asian width the header line can be one cell
 off. Only the header, not the rows. It is accepted for now and the test skips
@@ -548,9 +558,9 @@ line 0.
 ### The selected row in the footer (DEVDESK-140)
 
 The footer can say what the selected row is doing, in the same words the
-activity column's state implies. **No view is wired to it yet.** The pieces
-below exist and are tested; the views adopt them in the migration stories
-(A-06 onward).
+activity column's state implies. Every migrated view uses it (DEVDESK-142 to
+153); the exempt views have no row activity to say (see the guard in
+`app-shell.md`).
 
 **`jobs.ActiveOn(runs, context, target, kinds...) []jobs.Active`**
 (`internal/jobs/active.go`). The running and queued items on a target in a

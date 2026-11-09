@@ -282,6 +282,10 @@ Checklist:
 
 ### Rule 125 : Icon column alignment
 
+> A row-level state (running, queued, failed, ...) is the activity column
+> below, and `internal/app/activity_guard_test.go` enforces it (A-16,
+> DEVDESK-143).
+
 **Any icon column (or icon + short text) must be left-aligned.**
 
 Nerd Font icons have variable width depending on the terminal. Left alignment is the only one that guarantees consistent rendering.
@@ -408,9 +412,14 @@ cell shows the row's own icon via its `theme.IconStyle` role, or an empty cell.
   states the application shares.
 - **The glyph carries the meaning, the color repeats it.** Under the cursor
   the color is repainted on `ColorTableLineSelected` and the glyph still reads.
-- **The blink phase is read at render.** The view's tick calls
-  `m.table.SetBlinkPhase(on)`; nothing is rebuilt. Without the call the phase
-  is on: a running row shows a steady `●`.
+- **The blink phase is read at render.** The router's `jobs.FrameMsg` carries
+  it; the view calls `m.table.SetBlinkPhase(msg.Blink)` and nothing is rebuilt.
+  Without the call the phase is on: a running row shows a steady `●`. A view
+  starts no timer of its own for a row (`app.motion: static` pins it on).
+- **Guarded.** `internal/app/activity_guard_test.go` (A-16, DEVDESK-143) fails
+  a view whose table is neither on the activity column nor declared exempt, and
+  a migrated package that holds `AdvanceSpinner`, `StatusColumn:`, a `Frame`
+  field or a glyph literal. Details in `docs/architecture/app-shell.md`.
 
 Forbidden:
 - ❌ A literal `Column{Indicator: …}` instead of `datatable.IndicatorColumn`
@@ -444,7 +453,9 @@ What a body would have said instead — loading, the row count, a verdict —
 is **the footer's and header's business**, never the body's:
 
 - loading is a `components.Status{Text: "...", Spinner: true}` in the
-  footer (Rule 128);
+  footer (Rule 128). That spinner is for the *table's data* loading; an
+  operation on one row is the row's activity dot (Rule 125), never a spinner
+  in the body;
 - the row count, or whatever stands in for it (a verdict, a total), is a
   field of `GetHeaderInfo` (`shortcut.HeaderInfo{Key: "Images", Value: "0"}`) —
   it, not the body, answers "what am I looking at."

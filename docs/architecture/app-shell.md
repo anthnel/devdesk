@@ -382,7 +382,7 @@ and a list that rearranges under the gaze cannot be.
 **A mode still replaces the list.** A form has different keys from a table, so
 greying them would show the union of every mode. What is greyed is a *state*
 inside one mode: the selected row, or a tool the machine does not have. An
-operation in flight is neither — it changes every tick, the row's spinner
+operation in flight is neither — it changes every tick, the row's activity dot
 already says so, and an entry that blinks says the opposite of the point.
 
 The mechanism lives in one place: `Shortcuts.ToStrings()` picks
@@ -430,8 +430,8 @@ Three things it turned up on the way through:
 
 - The Images tab advertised a **spinner frame as a key**: while a scan ran, `N`,
   `S` and `D` were replaced by an entry reading `󰑐  scanning...`, in the column
-  that lists bindings. The row's own Scanned cell already carries that spinner
-  (Rule 139). `TestNoShortcutAdvertisesAGlyphAsAKey` checks the Private Use
+  that lists bindings. The row's own activity dot already says it (Rule 139).
+  `TestNoShortcutAdvertisesAGlyphAsAKey` checks the Private Use
   Area rather than a list of icons, so nothing has to be kept in step with
   `theme/icons.go`.
 - The **dashboard had no footer message** at all. It budgets an info line
@@ -885,6 +885,22 @@ none implies another.
 This is what removes the four hand-stamped frames, and with them the failure
 each of them could produce: a chain that died on the first idle tick with
 nothing able to restart it, leaving the spinner frozen on the frame it died at.
+
+#### A row dot or a loading spinner
+
+Two things move on screen, and they answer different questions:
+
+| | Says | Where | Driven by |
+|---|---|---|---|
+| activity dot (`●`/`○`) | an operation is running **on this row's target** | column 0 of a table (Rule 125) | the registry (`jobs`), or a `MarkBusy` key, read at render; blink phase from the shared tick |
+| loading spinner | **the view is fetching its data** (a list, a tab, a refresh) | the footer, `components.Status{Spinner: true}` (Rules 128, 139) | the view's own `spinner.Model`, which turns only while it loads |
+
+A view never draws a spinner in a row: the per-row spinner chains
+(`AdvanceSpinner`, `busyTick`, a node spinner) were deleted by the migrations
+(DEVDESK-139 to 153) and `StatusColumn` with them (DEVDESK-143). The loading
+spinner is the only animation left that a view owns; it stops on `!loading` and
+is not the router's chain. When the selected row has a footer detail with a
+glyph, the footer spinner is not shown: the row's dot already moves.
 
 #### Row chains outside the router
 
