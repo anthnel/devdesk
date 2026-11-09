@@ -10,21 +10,21 @@ import (
 //
 // The clone was already registered; the create and the delete were not, and
 // they are the two that talk to a forge over the network. Left outside, each
-// would have needed its own flag, its own spinner chain and its own guard —
+// would have needed its own flag, its own blink chain and its own guard —
 // which is the fourth bookkeeping the package doc of internal/jobs opens by
-// describing, and the spinner chain is the half that fails silently: this
-// view's own chain stops on `!m.loading` (handleSpinnerTick), so a frame
-// stamped from it would freeze on frame zero the moment the tree settled.
+// describing, and the animation is the half that fails silently: this view's
+// own spinner chain stops on `!m.loading` (handleSpinnerTick), so a blink
+// phase taken from it would freeze the moment the tree settled.
 
 // createRun and deleteRun are single-target runs. The label is the name a human
 // gave the thing, not the path: it is what `:jobs` shows, and the path is
 // already the target.
 func createRun(target, label string) jobs.Run {
-	return jobs.NewRun(jobs.KindCreate, command.ViewGitExplorer, "", label, target)
+	return jobs.NewImmediateRun(jobs.KindCreate, command.ViewGitExplorer, "", label, target)
 }
 
 func deleteRun(target, label string) jobs.Run {
-	return jobs.NewRun(jobs.KindDelete, command.ViewGitExplorer, "", label, target)
+	return jobs.NewImmediateRun(jobs.KindDelete, command.ViewGitExplorer, "", label, target)
 }
 
 // liveRuns returns the runs still going, whatever view started them.

@@ -102,16 +102,19 @@ type Model struct {
 	// Delete mode state
 	deleteConfirmModal *components.OptionConfirmModal
 	deleteTargetNode   *TreeNode
-	// jobs is the router's last snapshot of the registry, and jobFrame the
-	// spinner frame that goes with it — bare, because it lands in a table cell
-	// and a cell is measured before it is styled (Rule 122).
+	// jobs is the router's last snapshot of the registry. The tree rows read
+	// it for their activity dot, whose blink phase lives in the table.
 	//
-	// The frame comes from the broadcast rather than from this view's own
-	// spinner because that chain stops when the tree settles: a create started
-	// on a loaded tree would sit on frame zero, which reads as a hang. It is
-	// the same reason the clone rows take it (D5).
+	// jobFrame is the spinner frame that goes with it, for the clone list only
+	// — bare, because it lands in a table cell and a cell is measured before it
+	// is styled (Rule 122). It comes from the broadcast rather than from this
+	// view's own spinner because that chain stops when the tree settles (D5).
 	jobs     []jobs.Run
 	jobFrame string
+
+	// failures and contextName come from the router snapshot (handleJobsChanged).
+	failures    []jobs.Failure
+	contextName string
 
 	// Transient footer messages, both cleared by the same 3s timer (Rule 128).
 	// footer is the one line of transient state below the viewport (Rule 128).

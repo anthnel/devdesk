@@ -249,3 +249,49 @@ func TestEveryKindAnswersWhetherItCanBeCancelled(t *testing.T) {
 		}
 	}
 }
+
+// DEVDESK-147: a create or a delete goes out with its start message, so nothing
+// queues in front of it and its item is running from admission.
+func TestAnImmediateRunIsRunningFromAdmission(t *testing.T) {
+	tests := []struct {
+		kind        Kind
+		stoppable   bool
+		description string
+	}{
+		{KindDelete, false, "delete"},
+		{KindCreate, false, "create"},
+		{KindScan, true, "scan is a cancellable kind"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.description, func(t *testing.T) {
+			run := NewImmediateRun(tt.kind, command.ViewGitExplorer, "", "app", "g/app")
+			if len(run.Items) != 1 || run.Items[0].Target != "g/app" {
+				t.Fatalf("items = %+v, want one item for g/app", run.Items)
+			}
+			if got := run.Items[0].State; got != ItemRunning {
+				t.Errorf("item state = %q, want running", got)
+			}
+			if run.Finished() {
+				t.Error("an in-flight run reads as finished")
+			}
+			if got := run.Stoppable(); got != tt.stoppable {
+				t.Errorf("Stoppable() = %v, want %v", got, tt.stoppable)
+			}
+			if tt.kind != KindScan && run.ItemStoppable(run.Items[0]) {
+				t.Error("ItemStoppable() = true for a kind that must never be cut")
+			}
+		})
+	}
+}
+
+func TestAnImmediateRunStaysRunningThroughTheRegistry(t *testing.T) {
+	r := New()
+	r.Start(NewImmediateRun(KindDelete, command.ViewGitExplorer, "", "app", "g/app"))
+	snap := r.Snapshot()
+	if len(snap) != 1 || snap[0].Items[0].State != ItemRunning {
+		t.Fatalf("snapshot = %+v, want one run with a running item", snap)
+	}
+	if snap[0].Stoppable() {
+		t.Error("an admitted delete is stoppable")
+	}
+}

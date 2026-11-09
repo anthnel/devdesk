@@ -218,6 +218,17 @@ func NewRun(kind Kind, origin command.ViewType, contextName, label string, targe
 	}
 }
 
+// NewImmediateRun builds a single-target run whose item is already running.
+//
+// It is for work that goes out with its start message (a create, a delete):
+// nothing queues in front of it, so showing the item as queued would be a lie
+// for as long as the first transition takes to arrive.
+func NewImmediateRun(kind Kind, origin command.ViewType, contextName, label, target string) Run {
+	run := NewRun(kind, origin, contextName, label, target)
+	run.Items[0].State = ItemRunning
+	return run
+}
+
 // NewOpenRun builds a run whose targets are not known yet.
 //
 // It is the clone's shape and only the clone's: the walk that discovers
