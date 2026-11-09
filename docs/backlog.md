@@ -12942,6 +12942,8 @@ protection qui existe puisque la branch protection est indisponible sur ce plan.
 semantic-release ouvrirait donc une seconde voie vers `main`, précisément celle
 que la règle ferme. Le coût est un merge de plus par release.
 
+*Note (2026-11-09) : depuis le 2026-09-06, le ruleset `main-protection` (id 22399372) s'y ajoute — PR obligatoire, checks `Lint and build` et `Test`, pas de force-push. Le refus du mirror n'est plus la seule protection de `main`.*
+
 `goreleaser` construit ensuite les six cibles sur le tag et les attache à la
 Release. La cross-compilation est triviale parce que le projet est **cgo-free**
 (`go-keyring` parle à wincred, Keychain et Secret Service sans lui) : une seule

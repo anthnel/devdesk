@@ -73,9 +73,9 @@ nothing happens and the PR keeps accumulating.
 
 **Why not semantic-release**, which would achieve the same thing in a single
 merge: it pushes the tag directly to `main`, and this repository forbids
-that — the Entire mirror rejects that push, and this refusal is the *only*
-protection `main` has, since branch protection is unavailable on this plan
-(the 403 above, in the `git-worktree-pr` skill, SKILL.md). One extra merge per release is the price of that rule.
+that — the `main-protection` ruleset (id `22399372`: PR required, `Lint and build`
+and `Test` green, no force-push) refuses it, and so does the Entire mirror
+(see the `git-worktree-pr` skill, SKILL.md). One extra merge per release is the price of that rule.
 
 **The mirror replicates tags, verified on 2026-09-06.** The tag is set by
 GitHub Actions, so it is born on GitHub and not via the mirror — but
