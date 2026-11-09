@@ -1,0 +1,45 @@
+{
+  "cli_version": "0.12.2",
+  "checkpoint_id": "49218f436a35",
+  "strategy": "manual-commit",
+  "branch": "docs/devdesk-220-branch-protection-text",
+  "checkpoints_count": 2,
+  "files_touched": null,
+  "sessions": [
+    {
+      "metadata": "/49/218f436a35/0/metadata.json",
+      "transcript": "/49/218f436a35/0/full.jsonl",
+      "compact_transcript": "/49/218f436a35/0/transcript.jsonl",
+      "content_hash": "/49/218f436a35/0/content_hash.txt",
+      "prompt": "/49/218f436a35/0/prompt.txt"
+    }
+  ],
+  "token_usage": {
+    "input_tokens": 24,
+    "cache_creation_tokens": 74490,
+    "cache_read_tokens": 659659,
+    "output_tokens": 6014,
+    "api_call_count": 9,
+    "subagent_tokens": {
+      "input_tokens": 22,
+      "cache_creation_tokens": 48936,
+      "cache_read_tokens": 193106,
+      "output_tokens": 3508,
+      "api_call_count": 11
+    }
+  },
+  "redaction": {
+    "replacements": 0,
+    "layers": {
+      "betterleaks": 0,
+      "connection_string": 0,
+      "credential_key": 0,
+      "credential_value": 0,
+      "credentialed_uri": 0,
+      "entropy": 0,
+      "key_context": 0,
+      "provider_token": 0,
+      "shell_stdin": 0
+    }
+  }
+}
