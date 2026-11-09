@@ -199,7 +199,7 @@ func (m Model) handleWorkspaceScanComplete(msg WorkspaceScanCompleteMsg) (tea.Mo
 	if msg.Error != nil {
 		log.Printf("ERROR [workspaces] scan complete %s: %v", msg.RepoPath, msg.Error)
 		m.refreshRows()
-		return m, m.footer.Error("Scan failed — check logs")
+		return m, m.footer.Error(failureEvent(msg.Transition(), msg.RepoPath))
 	}
 	m.footer.Clear()
 	m.scanCache[msg.RepoPath] = cache.WorkspaceScanEntry{

@@ -9,14 +9,16 @@ import (
 
 // ── DEVDESK-139: the frame arrives in its own message ────────────────────────
 
-func TestAFrameMovesTheRowSpinner(t *testing.T) {
+// DEVDESK-144: a frame moves the blink phase and the footer spinner, never the
+// text of a cell. The row says "syncing" with no frame in it.
+func TestAFrameDoesNotChangeTheRowCells(t *testing.T) {
 	m := running(t, loadedModel(t), jobs.KindSync, devdeskPath)
 	nRuns := len(m.jobs)
 
 	for _, frame := range []string{"X", "Y"} {
-		m = feed(t, m, jobs.FrameMsg{Frame: frame})
-		if got := m.table.Items()[0].GitStatus; got != frame+" syncing" {
-			t.Errorf("Git Status = %q after frame %q, want the new frame on the row", got, frame)
+		m = feed(t, m, jobs.FrameMsg{Frame: frame, RenderedFrame: frame})
+		if got := m.table.Items()[0].GitStatus; got != "syncing" {
+			t.Errorf("Git Status = %q after frame %q, want %q unchanged", got, frame, "syncing")
 		}
 	}
 	if len(m.jobs) != nRuns {
@@ -27,6 +29,8 @@ func TestAFrameMovesTheRowSpinner(t *testing.T) {
 func TestAFrameMovesTheFooterSpinner(t *testing.T) {
 	m := running(t, loadedModel(t), jobs.KindSync, devdeskPath)
 
+	// An idle row keeps the spinner; the running row's own dot moves instead.
+	m = selectRow(t, m, "clean-repo")
 	m = feed(t, m, jobs.FrameMsg{RenderedFrame: "<R1>"})
 
 	if footer := m.RenderFooter(160); !strings.Contains(footer, "<R1>") {

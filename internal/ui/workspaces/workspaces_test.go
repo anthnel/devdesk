@@ -98,7 +98,7 @@ func entryFixtures() []Entry {
 // newTestModel returns a laid-out model with no entries yet.
 func newTestModel(t *testing.T) Model {
 	t.Helper()
-	return feed(t, New(testConfig(), nil), tea.WindowSizeMsg{Width: 160, Height: 30})
+	return feed(t, New(testConfig(), nil, testContext), tea.WindowSizeMsg{Width: 160, Height: 30})
 }
 
 // loadedModel returns a model that has absorbed the fixture entries.
@@ -266,3 +266,7 @@ func settledRun(kind jobs.Kind, state jobs.ItemState, detail string, targets ...
 	}
 	return run
 }
+
+// testContext is the context name every test model is built for; the registry
+// fixtures above stamp the same one on their runs.
+const testContext = "default"

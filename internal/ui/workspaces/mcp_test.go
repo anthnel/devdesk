@@ -18,7 +18,7 @@ import (
 // position to make. It recurred after every context switch, since
 // reinitializeViews drops every view and only Inits the current one.
 func TestARequestArrivingBeforeTheListingWaitsInsteadOfRefusing(t *testing.T) {
-	m := New(config.Default(), nil)
+	m := New(config.Default(), nil, testContext)
 
 	updated, cmd := m.Update(ScanRequestedMsg{Paths: []string{"/repo"}, Invocation: "1"})
 	m = updated.(Model)
@@ -37,7 +37,7 @@ func TestARequestArrivingBeforeTheListingWaitsInsteadOfRefusing(t *testing.T) {
 // Once the listing lands, what waited goes back through Update as a message —
 // so a request that waited takes exactly the path one that did not takes.
 func TestAHeldRequestIsReplayedWhenTheListingLands(t *testing.T) {
-	m := New(config.Default(), nil)
+	m := New(config.Default(), nil, testContext)
 
 	updated, _ := m.Update(ScanRequestedMsg{Paths: []string{"/repo"}, Invocation: "1"})
 	m = updated.(Model)
@@ -63,7 +63,7 @@ func TestAHeldRequestIsReplayedWhenTheListingLands(t *testing.T) {
 // A listing that fails answers what waited for it. An agent would otherwise
 // hang until its own timeout, with the reason in a log it cannot see.
 func TestAFailedListingRefusesWhatWaitedForIt(t *testing.T) {
-	m := New(config.Default(), nil)
+	m := New(config.Default(), nil, testContext)
 
 	updated, _ := m.Update(ScanRequestedMsg{Invocation: "1"})
 	m = updated.(Model)
@@ -90,7 +90,7 @@ func TestAFailedListingRefusesWhatWaitedForIt(t *testing.T) {
 // a second would race the first and the loser is dropped by the currentPath
 // guard, taking nothing with it but a directory read.
 func TestQueuedRequestsAskForOneListing(t *testing.T) {
-	m := New(config.Default(), nil)
+	m := New(config.Default(), nil, testContext)
 
 	updated, first := m.Update(ScanRequestedMsg{Invocation: "1"})
 	m = updated.(Model)

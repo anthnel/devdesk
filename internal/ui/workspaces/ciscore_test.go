@@ -23,7 +23,7 @@ func ciConfig() *config.Config {
 
 func ciModel(t *testing.T, cfg *config.Config, entries []Entry, scans map[string]cache.WorkspaceScanEntry) Model {
 	t.Helper()
-	m := feed(t, New(cfg, nil), tea.WindowSizeMsg{Width: 200, Height: 30})
+	m := feed(t, New(cfg, nil, testContext), tea.WindowSizeMsg{Width: 200, Height: 30})
 	m = feed(t, m, EntriesLoadedMsg{Entries: entries})
 	if scans != nil {
 		m = feed(t, m, ScanCacheLoadedMsg{Cache: scans})
@@ -128,7 +128,7 @@ func TestAWithheldRunShowsAQuestionMark(t *testing.T) {
 // Rule 116 holds with the extra column, at the widths the view is used at.
 func TestTheLineStillSpansTheViewportWithTheCIColumn(t *testing.T) {
 	for _, width := range []int{80, 100, 140, 200} {
-		m := feed(t, New(ciConfig(), nil), tea.WindowSizeMsg{Width: width, Height: 30})
+		m := feed(t, New(ciConfig(), nil, testContext), tea.WindowSizeMsg{Width: width, Height: 30})
 		m = feed(t, m, EntriesLoadedMsg{Entries: entryFixtures()})
 
 		if got, want := m.table.RenderedWidth(), width-2; got != want {

@@ -85,6 +85,80 @@ escape Rule 122 bans from a cell.
 `.gitlab-ci.yml` is a **declared exception** in `vocabtest`: it is a filename,
 not vocabulary — the file is called that whatever forge a context targets.
 
+## The activity column — column 0 (DEVDESK-144, A-07)
+
+Column 0 is the activity column (Rule 125): `datatable.IndicatorColumn`, untitled,
+fixed at `IconColumnWidth`, no `Less`, no `Search`. At rest it shows the row's own
+icon (the three roles above, so a repository keeps its repository icon); while the
+row is busy it shows an `internal/ui/indicator` glyph instead: `●`/`○` running
+(blinking), `◴` queued, `⊗` failed. The colour says the state, never the
+operation. `workspaceRow.Activity` is a `components.RowActivity` resolved when
+the rows are built (on a jobs `ChangedMsg` or a listing), never per frame: the
+animation tick only calls `m.table.SetBlinkPhase(msg.Blink)` and pushes the footer
+spinner frame, so no row is rebuilt at 10 Hz. The view exposes
+`ActivityTables()` (`{"ws": &m.table}`) for the activity-column guard.
+
+**`rowActivity` and `rowTargets` (`activity.go`).** `rowTargets(e)` is the list of
+registry targets a row answers for: its own path, plus `e.SubRepoPaths` when the
+entry is not a git repository. `S` on such a directory scans every repository
+under it, so the directory is the row that should blink. `rowActivity(e)` asks
+`components.DescribeRow` once per target (kinds `wsKinds`: scan, sync, delete)
+and keeps the strongest answer: running, then queued, then failed, then idle; a
+tie keeps the first target. The footer detail is the winning target's, for
+example `● Scanning ~/w/dir/api`.
+
+**Where the state lives.** In `jobs.Registry`, owned by the router, not in the
+model. ws keeps only a copy: `handleJobsChanged` stores `msg.Runs` and a clone of
+`msg.Failures` (Rule 110). A failure is posed by the registry on `Apply(failed)`
+and cleared by `Start` or `Apply(done)`; a successful delete forgets it. Because
+ws holds no failure state of its own, `ctrl+r`, leaving and returning, a view
+rebuild (config save, context switch) and `A -> B -> A` context switches all keep
+the `⊗` (the router re-delivers the snapshot on entering the view, and
+`RowQuery.Context` filters by context). Nothing is written to disk.
+
+The context name reaches the view as a constructor argument:
+`workspaces.New(cfg, secrets, contextName)` (and
+`NewForSelection(cfg, contextName, message)`). Views are rebuilt on a context
+switch, so the argument is never stale.
+
+**The `:sec` contract.** A scan failure is keyed
+`(KindScan, jobs.TargetKey(<absolute repo path>), context)`, the same key `:sec`
+reads with `FailuresOn(…, KindScan)`. A **sync** failure on the same path is a
+different kind and never shows in `:sec`: that failure is ws's own (D5).
+
+**A failed delete is remembered too.** `EntryDeletedMsg` with an error no longer
+fills `m.error` (a whole-body error screen that would have hidden the `⊗`); it
+logs, rebuilds the rows and posts a footer `Error`. The row shows `⊗` until the
+next attempt.
+
+**Fixed text while it runs.** Scanned says `scanning`, Git Status says `syncing`
+or `deleting`, in `theme.DimStyle` (`scannedColumn` for Scanned, `held` +
+`gitBranchStyle` for Git Status; the whole Git Status cell is dim). No spinner
+rune: motion belongs to the indicator. The text appears only while the item is
+**running** (`runningKind`), not while it is queued, so a queued row keeps its
+normal cell (`main *2`) beside its `◴`. A directory shows `scanning` while any
+of its sub-repositories scans.
+
+**The footer is per row.** `status()` combines the selected row's detail
+(`rowActivity(...).Detail`, a `components.Status.Detail`) with the batch
+progress `jobsStatusLine` (`Syncing — 3/12`). The footer spinner is shown only
+when the selected row has no detail, as a running row already has a moving dot.
+A failure is announced as a 3-second `Error` built by `failureEvent`
+(`components.FailureEvent`), for example `Failed to scan ~/…/web — check logs`;
+when it expires the selected `⊗` row's detail takes over (`⊗ ~/…/web: last scan
+failed — check logs`). The cause is the transition's fixed `<op> failed — check
+logs`, never the raw error (Rule 128); only the log carries that. A sync batch
+that has at least one failed item posts its summary at `Error` level, otherwise
+`Info`; there is no per-item `Error` during a batch because they would overwrite
+each other. A single sync completing outside any run posts its own `Error`.
+
+**One declared exception: the `⊘` marker.** The Git Status cell's "no upstream"
+marker (`gitMarkNoUpstream`, `⊘`) is the same character as the indicator's
+cancelled glyph. It is a git marker in a text cell, not an activity glyph, and ws
+never shows a cancelled state, so nothing is ambiguous on screen. The activity
+guard therefore declares it as a literal exception keyed to the constant, and
+that list may only shrink.
+
 ## The Git Status cell — starship's markers
 
 `main !3 ?2 ⇡1`, `main ⇕⇡2⇣5`, `feature ⊘` (§3.94): the branch, then
@@ -96,8 +170,8 @@ leaves blank and which then read like "level with its remote".
 two colour runs (`Cut`/`TailStyle`, Rule 122) split at a rune index —
 `workspaceRow.branchCut`. The branch keeps the text colour; the markers turn
 orange only when `F` would refuse the repository (uncommitted or untracked
-files, a diverged branch). While a spinner holds the cell, `branchCut` covers
-all of it.
+files, a diverged branch). While a running sync or delete holds the cell with its fixed
+`syncing` / `deleting` text, `branchCut` covers all of it and the cell is dim.
 
 **The column sizes to its content** (`SizingContent`, floor at the title's
 10 cells, no ceiling). A ceiling would truncate the tail — the markers, which
@@ -126,9 +200,9 @@ reconciles what does.**
 **It has no screen of its own, and that is the whole difference from the clone.**
 The clone opens a list because its rows do not exist yet — discovery invents
 them. Here every repository is already a row the user is looking at, so a second
-list would print the same names twice. Sync decorates instead: the spinner goes
-in the Git Status cell, exactly as a scan's goes in Scanned, and the counts tell
-the truth again when it lands.
+list would print the same names twice. Sync decorates instead: the row's indicator
+blinks and the Git Status cell reads `syncing`, exactly as a scan's `scanning`
+goes in Scanned, and the counts tell the truth again when it lands.
 
 **Progress and summary are two different things, and Rule 128 separates them.**
 Progress is a *state* — `jobsStatusLine` derives it from the registry snapshot

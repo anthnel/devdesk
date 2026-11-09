@@ -279,7 +279,7 @@ func TestFooterHeightMatchesWhatRenderFooterEmits(t *testing.T) {
 			return feed(t, newTestModel(t), LoadErrorMsg{Error: errors.New("boom")})
 		}},
 		{"selection", func(t *testing.T) Model {
-			m := feed(t, NewForSelection(testConfig(), "Pick a repository"), tea.WindowSizeMsg{Width: 160, Height: 30})
+			m := feed(t, NewForSelection(testConfig(), testContext, "Pick a repository"), tea.WindowSizeMsg{Width: 160, Height: 30})
 			return feed(t, m, EntriesLoadedMsg{Entries: entryFixtures()})
 		}},
 	}
@@ -337,7 +337,7 @@ func TestABreadcrumbTabNamesTheDirectoryNotItsPath(t *testing.T) {
 }
 
 func TestFooterCarriesTheSelectionMessage(t *testing.T) {
-	m := feed(t, NewForSelection(testConfig(), "Pick a repository to scan"), tea.WindowSizeMsg{Width: 160, Height: 30})
+	m := feed(t, NewForSelection(testConfig(), testContext, "Pick a repository to scan"), tea.WindowSizeMsg{Width: 160, Height: 30})
 	m = feed(t, m, EntriesLoadedMsg{Entries: entryFixtures()})
 
 	if !strings.Contains(m.RenderFooter(160), "Pick a repository to scan") {
@@ -490,7 +490,7 @@ func TestShortcutsFollowTheMode(t *testing.T) {
 		})
 	}
 
-	selection := feed(t, NewForSelection(testConfig(), "pick"), tea.WindowSizeMsg{Width: 160, Height: 30}).GetShortcuts()
+	selection := feed(t, NewForSelection(testConfig(), testContext, "pick"), tea.WindowSizeMsg{Width: 160, Height: 30}).GetShortcuts()
 	if hasShortcut(selection, keymap.Delete) || hasShortcut(selection, keymap.Scan) {
 		t.Error("selection mode advertises destructive actions it does not perform")
 	}
@@ -505,7 +505,7 @@ func TestShortcutDescriptionsAreCapitalised(t *testing.T) {
 		scannedModel(t).GetShortcuts(),
 		feed(t, loadedModel(t), testutil.Key(keymap.New)).GetShortcuts(),
 		feed(t, loadedModel(t), testutil.Key(keymap.Delete)).GetShortcuts(),
-		feed(t, NewForSelection(testConfig(), "pick"), tea.WindowSizeMsg{Width: 160, Height: 30}).GetShortcuts(),
+		feed(t, NewForSelection(testConfig(), testContext, "pick"), tea.WindowSizeMsg{Width: 160, Height: 30}).GetShortcuts(),
 	}
 
 	for _, set := range sets {

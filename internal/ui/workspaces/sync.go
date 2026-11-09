@@ -2,6 +2,7 @@ package workspaces
 
 import (
 	"log"
+	"slices"
 
 	tea "github.com/charmbracelet/bubbletea"
 
@@ -111,11 +112,17 @@ func (m Model) handleWorkspaceSyncComplete(msg WorkspaceSyncCompleteMsg) (tea.Mo
 	// function while both came from the same struct; they no longer do.
 	run, ok := m.settledSyncRun(msg.RepoPath)
 	if !ok {
+		if msg.Error != nil {
+			return m, m.footer.Error(failureEvent(msg.Transition(), msg.RepoPath))
+		}
 		return m, nil
 	}
 	summary := m.syncSummary(run)
 	m.syncUnreadable = 0
 	m.syncMovedTags, m.syncFirstMovedTag = 0, ""
+	if slices.ContainsFunc(run.Items, func(it jobs.Item) bool { return it.State == jobs.ItemFailed }) {
+		return m, m.footer.Error(summary)
+	}
 	return m, m.footer.Info(summary)
 }
 

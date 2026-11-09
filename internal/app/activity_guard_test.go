@@ -41,7 +41,8 @@ type activityView interface {
 
 // migratedTables are the tables already on the activity column, by view.
 var migratedTables = map[command.ViewType][]string{
-	command.ViewJobs: {"jobs/runs", "jobs/targets"},
+	command.ViewJobs:       {"jobs/runs", "jobs/targets"},
+	command.ViewWorkspaces: {"ws"},
 }
 
 // pendingTable is a table that still has to move to the activity column.
@@ -53,7 +54,6 @@ type pendingTable struct {
 
 // pendingTables may only shrink: each migration story removes its own entries.
 var pendingTables = []pendingTable{
-	{"ws", command.ViewWorkspaces, "A-07"},
 	{"sec/inventory", command.ViewSecurity, "A-08"},
 	{"oci/images", command.ViewOCIResources, "A-09a"},
 	{"oci/registry-browser", command.ViewOCIResources, "A-09a"},
@@ -71,7 +71,7 @@ var pendingTables = []pendingTable{
 // maxPendingTables is the ceiling: adding an exception means raising both the
 // list and this constant in the same diff, which is visible in review. Lower it
 // with every migration.
-const maxPendingTables = 13
+const maxPendingTables = 12
 
 // exemptViews have no long-running operation to show per row (inventory:
 // "sans objet" or out of the batch), each with its reason.
@@ -322,7 +322,8 @@ func checkColumnZero(t *testing.T, vt command.ViewType, table string, shapes []d
 // that migrates in two steps (OCI A-09a/b, explorer A-10a/b) can be scanned
 // file by file.
 var migratedSources = map[command.ViewType][]string{
-	command.ViewJobs: {"ui/jobsview/"},
+	command.ViewJobs:       {"ui/jobsview/"},
+	command.ViewWorkspaces: {"ui/workspaces/"},
 }
 
 // sourceDeclarationProblems says what is wrong with the link between migrated
@@ -408,6 +409,15 @@ const activityGlyphs = "●○◴⊗◐◕◉⊘⊖◌"
 // Empty today: the router's one tick animates every row (DEVDESK-139). The list
 // may only shrink.
 var declaredViewTicks = map[string]string{}
+
+// declaredGlyphConstants are the constants a migrated view may still define with
+// an activity glyph in them, keyed "<file relative to internal/>:<constant>" with
+// the reason (DEVDESK-144, decision Q4-A). The exception is the constant, not the
+// file: any other literal in the same file is still rejected, so the help text
+// has to build its sentence from the constant. The list may only shrink.
+var declaredGlyphConstants = map[string]string{
+	"ui/workspaces/view.go:gitMarkNoUpstream": "git marker for a branch with no upstream; it is a git fact, not a row state, and ws never shows the cancelled state, so nothing on screen is ambiguous (changing the marker is a UX ticket of its own)",
+}
 
 // finding is one retired mechanism found in a source file.
 type finding struct {
@@ -524,9 +534,33 @@ func retiredMechanisms(fset *token.FileSet, file *ast.File, rel string) []findin
 		if fd, ok := decl.(*ast.FuncDecl); ok {
 			fn = fd.Name.Name
 		}
+		if gd, ok := decl.(*ast.GenDecl); ok && gd.Tok == token.CONST {
+			for _, spec := range gd.Specs {
+				if isDeclaredGlyphConstant(rel, spec) {
+					continue
+				}
+				ast.Inspect(spec, visit(fn))
+			}
+			continue
+		}
 		ast.Inspect(decl, visit(fn))
 	}
 	return out
+}
+
+// isDeclaredGlyphConstant reports whether spec defines only constants declared in
+// declaredGlyphConstants for the file rel.
+func isDeclaredGlyphConstant(rel string, spec ast.Spec) bool {
+	vs, ok := spec.(*ast.ValueSpec)
+	if !ok || len(vs.Names) == 0 {
+		return false
+	}
+	for _, id := range vs.Names {
+		if _, declared := declaredGlyphConstants[rel+":"+id.Name]; !declared {
+			return false
+		}
+	}
+	return true
 }
 
 // Criterion 2a/2b: no retired mechanism and no tick in a migrated view.
@@ -547,6 +581,68 @@ func TestActivityGuardMigratedSourcesUseNoRetiredMechanism(t *testing.T) {
 	for key, reason := range declaredViewTicks {
 		if reason == "" {
 			t.Errorf("declared view tick %q names no reason", key)
+		}
+	}
+	for key, reason := range declaredGlyphConstants {
+		if reason == "" {
+			t.Errorf("declared glyph constant %q names no reason", key)
+		}
+	}
+}
+
+// A declared glyph constant must still exist and still hold a glyph, otherwise
+// the exception is stale and must go; and it excuses that constant only.
+func TestActivityGuardDeclaredGlyphConstantsAreLive(t *testing.T) {
+	live := map[string]bool{}
+	sourceFiles(t, func(rel string, fset *token.FileSet, file *ast.File) {
+		for _, decl := range file.Decls {
+			gd, ok := decl.(*ast.GenDecl)
+			if !ok || gd.Tok != token.CONST {
+				continue
+			}
+			for _, spec := range gd.Specs {
+				vs, ok := spec.(*ast.ValueSpec)
+				if !ok {
+					continue
+				}
+				for i, id := range vs.Names {
+					key := rel + ":" + id.Name
+					if _, declared := declaredGlyphConstants[key]; !declared || i >= len(vs.Values) {
+						continue
+					}
+					if lit, ok := vs.Values[i].(*ast.BasicLit); ok {
+						s, _ := strconv.Unquote(lit.Value)
+						live[key] = strings.ContainsAny(s, activityGlyphs)
+					}
+				}
+			}
+		}
+	})
+	for key := range declaredGlyphConstants {
+		if !live[key] {
+			t.Errorf("declared glyph constant %q does not exist or holds no activity glyph: remove the exception", key)
+		}
+	}
+	if got := len(declaredGlyphConstants); got > 1 {
+		t.Errorf("declaredGlyphConstants has %d entries, ceiling is 1: the list may only shrink", got)
+	}
+}
+
+// The exception covers the constant and nothing else in the file.
+func TestActivityGuardGlyphConstantExceptionIsNarrow(t *testing.T) {
+	src := "package v\nconst gitMarkNoUpstream = \"\u2298\"\nconst other = \"\u2298\"\nvar help = \"a \u2298 b\"\n"
+	fset := token.NewFileSet()
+	file, err := parser.ParseFile(fset, "view.go", src, 0)
+	if err != nil {
+		t.Fatal(err)
+	}
+	got := retiredMechanisms(fset, file, "ui/workspaces/view.go")
+	if len(got) != 2 {
+		t.Fatalf("findings = %v, want the undeclared const and the var literal only", got)
+	}
+	for _, f := range got {
+		if f.Pos.Line == 2 {
+			t.Errorf("the declared constant was flagged: %v", f)
 		}
 	}
 }
@@ -657,7 +753,8 @@ type footerRenderer interface {
 // and return the state that row is in. A migrated view without a seed fails the
 // guard by name.
 var migratedFooterSeeds = map[command.ViewType]func(*testing.T, *App) indicator.State{
-	command.ViewJobs: seedJobsFooter,
+	command.ViewJobs:       seedJobsFooter,
+	command.ViewWorkspaces: seedWorkspacesFooter,
 }
 
 // seedJobsFooter starts a scan run, moves its item to running (a started run

@@ -21,7 +21,7 @@ func misconfigConfig() *config.Config {
 
 func misconfigModel(t *testing.T, cfg *config.Config, entries []Entry, scans map[string]cache.WorkspaceScanEntry) Model {
 	t.Helper()
-	m := feed(t, New(cfg, nil), tea.WindowSizeMsg{Width: 200, Height: 30})
+	m := feed(t, New(cfg, nil, testContext), tea.WindowSizeMsg{Width: 200, Height: 30})
 	m = feed(t, m, EntriesLoadedMsg{Entries: entries})
 	if scans != nil {
 		m = feed(t, m, ScanCacheLoadedMsg{Cache: scans})
@@ -171,7 +171,7 @@ func TestTheLineStillSpansTheViewportWithTheMisconfigColumn(t *testing.T) {
 	cfg := misconfigConfig()
 	cfg.Scan.Categories.CI.Enabled = true
 	for _, width := range []int{80, 100, 140, 200} {
-		m := feed(t, New(cfg, nil), tea.WindowSizeMsg{Width: width, Height: 30})
+		m := feed(t, New(cfg, nil, testContext), tea.WindowSizeMsg{Width: width, Height: 30})
 		m = feed(t, m, EntriesLoadedMsg{Entries: entryFixtures()})
 
 		if got, want := m.table.RenderedWidth(), width-2; got != want {

@@ -17,6 +17,22 @@ A few implementation notes worth knowing if you're extending the icon table:
 
 A git repository is given the *same* visual role wherever DevDesk shows one — in `ws`, in the security inventory, and in the forge explorer. One object, one color, across three otherwise-unrelated views.
 
+## The activity dot
+
+The same leftmost column doubles as an activity indicator. A row at rest shows its icon. While something runs on it, the icon gives way to a dot:
+
+| Glyph | Meaning |
+|---|---|
+| `●` / `○` | Running (the dot blinks). |
+| `◴` | Queued, waiting to start. |
+| `⊗` | Failed. It stays until the next attempt on that row, and survives `ctrl+r`, leaving the view and returning, and switching context and back. |
+
+The colour repeats the state, never the operation: a scan, a sync and a delete look the same. What is being done is in the footer, which describes the selected row (for example `● Scanning ~/w/app`) beside the batch progress. When something fails, the footer shows the failure for three seconds; afterwards the row's `⊗` carries it (`⊗ ~/w/web: last scan failed — check logs`). The cause is always generic. The details are in the logs.
+
+On a directory that is not a repository, the dot reflects the repositories under it: running wins over queued, which wins over failed. Pressing `S` on a directory makes that directory blink.
+
+While an item is running, the Scanned cell reads `scanning` and the Git Status cell reads `syncing` or `deleting`, in dim text. A queued row keeps its normal cells. A failed scan or sync can be retried with `S` or `F` on the same row; a scan failure also shows in the security inventory, a sync failure does not. A failed delete is also marked with `⊗`.
+
 ## Last Tag
 
 The **Last Tag** column shows the nearest tag reachable from `HEAD`, lightweight or annotated, next to the Git Status column. A repository with no tag shows a dimmed placeholder, so an untagged repository doesn't look like a tagged one. Like other optional columns, it is the first to be dropped when the terminal is too narrow.
@@ -51,7 +67,7 @@ The sync action (`F`) fetches a repository and fast-forwards it if it's safe to 
 
 ### No dedicated screen
 
-Unlike cloning, which opens a selection list because its rows don't exist until the clone runs, sync has nothing new to show — every repository is already a row on screen. So sync decorates existing rows instead of opening a new view: a spinner appears in the row's Git Status cell, the same way a running scan shows in the Scanned cell, and the row's data refreshes once the sync completes.
+Unlike cloning, which opens a selection list because its rows don't exist until the clone runs, sync has nothing new to show — every repository is already a row on screen. So sync decorates existing rows instead of opening a new view: the row's dot blinks and its Git Status cell reads `syncing`, the same way a running scan shows `scanning` in the Scanned cell, and the row's data refreshes once the sync completes.
 
 ### Progress vs. summary are different kinds of information
 
@@ -96,7 +112,7 @@ The token used for git operations is only ever attached when the repository's re
 
 ## What the "Scanned" column means
 
-The `N/M` count on a directory row is **settled coverage** — how many of the nested repositories have a cached scan result — not live progress. It used to try to be both: during a batch scan, the same cell counted up in real time, which made a mid-batch `3/12` ambiguous (nine remaining? nine never scanned?) shown in a cell far from where the user was looking. Now the cell simply stops counting and spins while a scan is running underneath it, and progress is reported where batch progress belongs: the footer.
+The `N/M` count on a directory row is **settled coverage** — how many of the nested repositories have a cached scan result — not live progress. It used to try to be both: during a batch scan, the same cell counted up in real time, which made a mid-batch `3/12` ambiguous (nine remaining? nine never scanned?) shown in a cell far from where the user was looking. Now the cell simply stops counting and reads `scanning` while a scan is running underneath it, and progress is reported where batch progress belongs: the footer.
 
 The footer message for a batch has three forms, and the third is a deliberate concession:
 

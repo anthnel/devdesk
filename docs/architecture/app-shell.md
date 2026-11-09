@@ -970,8 +970,8 @@ view is neither:
 
 | List | Meaning |
 |---|---|
-| `migratedTables` | the view's tables are on the activity column (`:jobs`: `jobs/runs`, `jobs/targets`) |
-| `pendingTables` | tables waiting for their story (ws, `:sec`, OCI, explorer, templates, netdiag, agent-usage, containers), each naming it. `maxPendingTables` caps the list: it may only shrink |
+| `migratedTables` | the view's tables are on the activity column (`:jobs`: `jobs/runs`, `jobs/targets`; ws: `ws`, DEVDESK-144) |
+| `pendingTables` | tables waiting for their story (`:sec`, OCI, explorer, templates, netdiag, agent-usage, containers), each naming it. `maxPendingTables` caps the list: it may only shrink (13 to 12 with ws) |
 | `exemptViews` | views with no activity to show (dashboard, status, git-auth, configuration, about, files, viewer), each with its reason |
 
 A view in none of the three, an exempt view that is also migrated or pending, or a table both migrated and pending fails by name (`classificationProblems`, unit-tested on a fictitious partly migrated view). A migrated view
@@ -984,7 +984,7 @@ migrated table is the indicator (untitled, fixed, `IconColumnWidth`, no `Less`,
 no `Search`); `RenderedWidth()` equals `width-2` after a 60-column resize
 (Rule 116); the help holds the `indicator.Legend` section.
 
-**Checked by source analysis**, on migrated packages only (`ui/jobsview/`): no
+**Checked by source analysis**, on migrated packages only (`ui/jobsview/`, `ui/workspaces/`): no
 `AdvanceSpinner` call, no `StatusColumn:` key, no `Frame`/`frame`/`SpinnerFrame`
 field or selector (`RenderedFrame` is allowed), no string or rune literal
 holding an indicator glyph. Verified to fail on a positive case by injecting a `Frame`

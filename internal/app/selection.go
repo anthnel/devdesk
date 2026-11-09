@@ -33,7 +33,7 @@ func (a *App) handleExplorerCloneRequest() (tea.Model, tea.Cmd) {
 	log.Printf("Explorer clone request: switching to workspaces for directory selection")
 	return a, a.openBrowser(
 		command.ViewWorkspaces,
-		workspaces.NewForSelection(a.config, cloneDestinationPrompt),
+		workspaces.NewForSelection(a.config, a.currentContext, cloneDestinationPrompt),
 	)
 }
 
