@@ -45,7 +45,7 @@ var migratedTables = map[command.ViewType][]string{
 	command.ViewWorkspaces:   {"ws"},
 	command.ViewSecurity:     {"sec/inventory"},
 	command.ViewOCIResources: {"oci/images"},
-	command.ViewGitExplorer:  {"explorer/tree"},
+	command.ViewGitExplorer:  {"explorer/tree", "explorer/clone-list"},
 }
 
 // pendingTable is a table that still has to move to the activity column.
@@ -61,7 +61,6 @@ var pendingTables = []pendingTable{
 	{"oci/networks", command.ViewOCIResources, "A-09b"},
 	{"oci/volumes", command.ViewOCIResources, "A-09b"},
 	{"oci/registries", command.ViewOCIResources, "A-09b"},
-	{"explorer/clone-list", command.ViewGitExplorer, "A-10b"},
 	{"templates", command.ViewTemplates, "A-11"},
 	{"netdiag/ports", command.ViewNetdiag, "A-12"},
 	{"agent-usage/agents", command.ViewAgentUsage, "A-13"},
@@ -71,7 +70,7 @@ var pendingTables = []pendingTable{
 // maxPendingTables is the ceiling: adding an exception means raising both the
 // list and this constant in the same diff, which is visible in review. Lower it
 // with every migration.
-const maxPendingTables = 9
+const maxPendingTables = 8
 
 // exemptViews have no long-running operation to show per row (inventory:
 // "sans objet" or out of the batch), each with its reason.
@@ -333,16 +332,9 @@ var migratedSources = map[command.ViewType][]string{
 		"ui/oci_resources/activity.go", "ui/oci_resources/table.go", "ui/oci_resources/jobs.go",
 		"ui/oci_resources/images.go", "ui/oci_resources/results.go", "ui/oci_resources/view.go",
 	},
-	// The explorer migrates in two steps (A-10a the tree, A-10b the clone list):
-	// files one by one. Only the files listed here are scanned. clone.go,
-	// clone_list.go and model.go (the clone list, A-10b) are deliberately left
-	// out of scope until A-10b; the other unlisted files are not scanned either.
-	command.ViewGitExplorer: {
-		"ui/forge/explorer/activity.go", "ui/forge/explorer/row.go", "ui/forge/explorer/columns.go",
-		"ui/forge/explorer/jobs.go", "ui/forge/explorer/view.go", "ui/forge/explorer/create.go",
-		"ui/forge/explorer/delete.go", "ui/forge/explorer/navigation.go", "ui/forge/explorer/update.go",
-		"ui/forge/explorer/index.go",
-	},
+	// The explorer is fully migrated (A-10a the tree, A-10b the clone list):
+	// the whole package is scanned.
+	command.ViewGitExplorer: {"ui/forge/explorer/"},
 }
 
 // sourceDeclarationProblems says what is wrong with the link between migrated

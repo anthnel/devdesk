@@ -383,6 +383,7 @@ Libellés **validés** (D10), à une réserve : la fin de la dernière phrase (�
 
 Extension propre à `:jobs` : `◉ done · ⊘ cancelled · ⊖ skipped`.
 Extension propre à `:agent-usage` : `◐ idle (no activity for 5 min) · ◉ done · ◌ unknown`.
+Extension propre à la liste de clone de l'explorer : `◉ cloned (clone list) · ⊖ already on disk, or not started (cancelled) (clone list)`. Plusieurs lignes peuvent clignoter en même temps (les clones tournent en parallèle, `forge.pull.parallel_jobs`) : chaque clone en cours clignote, les autres restent `◴`.
 Extension propre aux containers : `◕ restarting · ◐ paused · ◌ created · ⊖ exited (code 0) · ⊗ exited (non-zero code) or dead · ●/○ an action (stop, kill, remove) is running`. Pas de ligne `running` : un conteneur qui tourne montre son icône habituelle (D8).
 
 ## 5 bis. Écarts avec les user stories et les règles

@@ -198,10 +198,10 @@ func (a *App) handleForgeIndexBuilt(msg forgeIndexBuiltMsg) (tea.Model, tea.Cmd)
 	t := jobs.Transition{Kind: jobs.KindIndex, Target: msg.target, State: jobs.ItemDone}
 	switch {
 	case errors.Is(msg.err, context.Canceled):
-		t.State, t.Detail = jobs.ItemSkipped, "cancelled"
+		t.State, t.Detail = jobs.ItemSkipped, jobs.CancelledDetail
 	case msg.err != nil:
-		log.Printf("ERROR [app/forge-index] walk: %v", msg.err)
-		t.State, t.Detail = jobs.ItemFailed, msg.err.Error()
+		log.Printf("ERROR [app/forge-index] walk: %s", jobs.SafeCause(msg.err))
+		t.State, t.Detail = jobs.ItemFailed, jobs.SafeCause(msg.err)
 	case msg.index.Skipped() > 0:
 		t.Detail = components.Plural(msg.index.Skipped(), "namespace", "namespaces") + " could not be listed"
 	}

@@ -6,8 +6,9 @@ import (
 	"github.com/charmbracelet/lipgloss"
 
 	"github.com/anthnel/devdesk/internal/jobs"
+	"github.com/anthnel/devdesk/internal/ui/components"
 	"github.com/anthnel/devdesk/internal/ui/datatable"
-	"github.com/anthnel/devdesk/internal/ui/theme"
+	"github.com/anthnel/devdesk/internal/ui/indicator"
 )
 
 // The clone list is the item level of a clone run (D3).
@@ -24,19 +25,15 @@ import (
 //	failed        → ItemFailed
 //
 // What this screen is now is a **rendering** of the run: the rows are the
-// snapshot's items, in the order the walk found them, and the frame is the
-// router's (D5). Nothing here is authoritative, which is what lets `:jobs` show
-// the same run without either copy drifting from the other.
+// snapshot's items, in the order the walk found them, and the blink phase of
+// the activity column is read from the table at render time. Nothing here is
+// authoritative, which is what lets `:jobs` show the same run without either
+// copy drifting from the other.
 
-// cloneRow is one target of the run, with the shared frame stamped on.
-//
-// The frame rides on the row because the columns are built once and close over
-// nothing — the same reason jobsview has runRow. It is text rather than a
-// rendered spinner because a table cell must carry no escape sequence
-// (Rule 122).
+// cloneRow is one target of the run. The animation is not on the row: the
+// activity column reads the table's blink phase at render (Rule 125).
 type cloneRow struct {
-	item  jobs.Item
-	frame string
+	item jobs.Item
 }
 
 // cloneList is the ModeCloning screen: the run in flight and the table showing
@@ -66,7 +63,7 @@ type cloneList struct {
 }
 
 const (
-	colCloneStatusMin = 16
+	colCloneStatusMin = 13
 	colClonePathMin   = 30
 	colCloneDetailMin = 20
 )
@@ -74,7 +71,8 @@ const (
 // The column order, named so a test asserting on a cell does not hard-code the
 // position it happens to sit at today.
 const (
-	colCloneRepository = iota
+	colCloneIndicator = iota
+	colCloneRepository
 	colCloneDetail
 	colCloneStatus
 )
@@ -83,14 +81,20 @@ func newCloneList(target string, events <-chan cloneEvent) *cloneList {
 	return &cloneList{
 		target: target,
 		events: events,
-		table: datatable.New(datatable.Config[cloneRow]{
-			Columns: cloneColumns(),
-			// Discovery order, deliberately: it is the order things happened, and
-			// a list that reorders itself while it fills is unreadable. `.` still
-			// sorts on demand.
-			SortColumn: -1,
-		}),
+		table:  newCloneTable(),
 	}
+}
+
+// newCloneTable is the one constructor of the clone table, so the activity
+// guard can check the same columns before any run exists.
+func newCloneTable() datatable.Model[cloneRow] {
+	return datatable.New(datatable.Config[cloneRow]{
+		Columns: cloneColumns(),
+		// Discovery order, deliberately: it is the order things happened, and
+		// a list that reorders itself while it fills is unreadable. `.` still
+		// sorts on demand.
+		SortColumn: -1,
+	})
 }
 
 // cloneColumns describes the clone list.
@@ -101,6 +105,12 @@ func newCloneList(target string, events <-chan cloneEvent) *cloneList {
 // cells and puts the changing text where the stable text should be.
 func cloneColumns() []datatable.Column[cloneRow] {
 	return []datatable.Column[cloneRow]{
+		// No title, no Less/Search, no rest icon: a clone row has no resting
+		// state (Rule 125).
+		datatable.IndicatorColumn(
+			func(r cloneRow) indicator.State { return components.ItemIndicator(r.item.State) },
+			nil, nil,
+		),
 		{
 			Title: "Repository", Sizing: datatable.SizingContent, MinWidth: colClonePathMin, Flex: 2, TruncateHead: true,
 			Cell:   func(r cloneRow) string { return r.item.Name() },
@@ -121,58 +131,42 @@ func cloneColumns() []datatable.Column[cloneRow] {
 	}
 }
 
-// cloneStatusLabel is the status cell: an icon and a word, plain text.
+// cloneStatusLabel is the status cell: a word, plain text. The glyph is the
+// activity column's job.
 //
 // The words are the clone's, not the registry's: "already there" is what a skip
-// means here, where a sync's skip means something else entirely. The state is
-// shared, the wording is the view's — the same split Reporter draws.
+// means here, where a sync's skip means something else entirely. A queued clone
+// skipped by `esc` reads "cancelled" instead.
 func cloneStatusLabel(r cloneRow) string {
 	switch r.item.State {
 	case jobs.ItemRunning:
-		return r.frame + " cloning"
+		return "cloning"
 	case jobs.ItemDone:
-		return theme.IconOK + " cloned"
+		return "cloned"
 	case jobs.ItemSkipped:
-		return theme.IconSkipped + " already there"
+		if r.item.Detail == jobs.CancelledDetail {
+			return "cancelled"
+		}
+		return "already there"
 	case jobs.ItemFailed:
-		return theme.IconError + " failed"
+		return "failed"
 	default:
-		return theme.IconPending + " queued"
+		return "queued"
 	}
 }
 
-// cloneStatusStyle colours the status cell.
-//
-// The five states are the whole vocabulary of this screen, and they are the one
-// thing a run of forty rows is read for: which ones failed, which are still
-// going, which were already on disk and were left alone.
+// cloneStatusStyle colours the word like the State word of `:jobs`, so one run
+// reads the same in both views (no green for done, Rule 125).
 func cloneStatusStyle(r cloneRow) lipgloss.Style {
-	switch r.item.State {
-	case jobs.ItemDone:
-		return theme.StatusOKStyle
-	case jobs.ItemFailed:
-		return theme.StatusErrorStyle
-	case jobs.ItemRunning:
-		return lipgloss.NewStyle().Foreground(theme.ColorHighlight)
-	default: // queued, and already there — neither is news
-		return theme.DimStyle
-	}
+	return indicator.Style(components.ItemIndicator(r.item.State))
 }
 
 // setRun replaces the screen's copy of the run and rebuilds the table.
-//
-// The frame is stamped on the running rows here rather than held on each item,
-// because it belongs to the list and not to any repository: one spinner, on
-// every row that is going.
-func (l *cloneList) setRun(run jobs.Run, frame string) {
+func (l *cloneList) setRun(run jobs.Run) {
 	l.run = run
 	items := make([]cloneRow, len(run.Items))
 	for i, item := range run.Items {
-		row := cloneRow{item: item}
-		if item.State == jobs.ItemRunning {
-			row.frame = frame
-		}
-		items[i] = row
+		items[i] = cloneRow{item: item}
 	}
 	l.table.SetItems(items)
 }

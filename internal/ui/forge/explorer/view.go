@@ -7,6 +7,7 @@ import (
 
 	"github.com/anthnel/devdesk/internal/command"
 	"github.com/anthnel/devdesk/internal/forge"
+	"github.com/anthnel/devdesk/internal/jobs"
 	"github.com/anthnel/devdesk/internal/ui/components"
 	"github.com/anthnel/devdesk/internal/ui/fuzzy"
 	"github.com/anthnel/devdesk/internal/ui/help"
@@ -131,7 +132,13 @@ func (m Model) status() components.Status {
 	case !m.shared.IsAuthenticated:
 		return components.Status{Text: notAuthenticatedLine(m.vocab()), Level: components.LevelError}
 	case m.mode == ModeCloning && m.clone != nil:
-		return components.Status{Text: m.cloneStatusLine()}
+		st := components.Status{Text: m.cloneStatusLine()}
+		// The selected row says what happened to it, the cause of a failure
+		// included (SafeCause already ran); the progress stays after it.
+		if row, ok := m.clone.table.Selected(); ok {
+			st.Detail = components.DescribeItem(jobs.KindClone, row.item).Detail
+		}
+		return st
 	case m.mode == ModeSelecting:
 		return components.Status{Text: m.selectionStatusLine()}
 	case m.error != "":
@@ -642,7 +649,11 @@ func (m Model) GetHelpContent() help.Content {
 				Body: "Press 'c' to enter selection mode. Every row gains a checkbox; press Space to tick a group or a project. " +
 					"Ticking a group takes everything under it — drill in with → and untick what you do not want. " +
 					"Press Enter to choose a destination directory in the workspace selector.\n" +
-					"The clone list then fills as repositories are discovered, each row showing what it is doing. " +
+					"The clone list then fills as repositories are discovered. Its first column shows what each row is doing: " +
+					indicator.Glyph(indicator.Queued, false) + " queued, a blinking dot while it clones (several at once when jobs run in parallel), " +
+					indicator.Glyph(indicator.Done, false) + " cloned, " +
+					indicator.Glyph(indicator.Skipped, false) + " already on disk, or not started because you cancelled, " +
+					indicator.Glyph(indicator.Failed, false) + " failed. The cause of a failure and the overall progress are in the footer.\n" +
 					"A repository already on disk is skipped untouched; use the workspaces view to update one.\n" +
 					"Press Esc to cancel: discovery stops immediately, but clones already running are allowed to finish " +
 					"rather than being killed half-written. Press Esc again once it is done to return to the tree.",
@@ -663,7 +674,7 @@ func (m Model) GetHelpContent() help.Content {
 					"If the deletion fails, the row stays and shows " + indicator.Glyph(indicator.Failed, false) + " until the next attempt; the footer gives the cause.\n" +
 					"Both creating and deleting are listed in the :jobs view while they run. They cannot be stopped: K is greyed there, since the forge call is already on its way.",
 			},
-			indicator.Legend(),
+			indicator.Legend(indicator.CloneLegend...),
 			{
 				Title: "Row Icons",
 				Body: "The first column says what the row is, and the Visibility column who can read it:\n" +

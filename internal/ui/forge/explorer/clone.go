@@ -115,6 +115,7 @@ func (m Model) handleCloneDestinationSelected(msg CloneDestinationSelectedMsg) (
 
 	m.mode = ModeCloning
 	m.clone = newCloneList(msg.Path, run.events)
+	m.clone.table.SetBlinkPhase(m.table.BlinkPhase())
 	m.clone.table.Resize(m.width, max(m.height-1, 1))
 	// An **open** run: the walk that finds repositories is itself the slow
 	// part, so there is no target list to register (D3). The cancel travels
@@ -156,10 +157,10 @@ func (m Model) handleCloneEvent(msg CloneEventMsg) (tea.Model, tea.Cmd) {
 		return m, nil
 	}
 	if msg.event.kind == cloneEnded && msg.event.err != nil {
-		log.Printf("ERROR [explorer] clone %s: %v", msg.event.path, msg.event.err)
+		log.Printf("ERROR [explorer] clone %s: %s", msg.event.path, jobs.SafeCause(msg.event.err))
 	}
 	if msg.event.kind == cloneWalkFailed {
-		log.Printf("ERROR [explorer] discover %s: %v", msg.event.path, msg.event.err)
+		log.Printf("ERROR [explorer] discover %s: %s", msg.event.path, jobs.SafeCause(msg.event.err))
 	}
 	return m, waitForCloneEvent(m.clone.events)
 }
@@ -195,7 +196,7 @@ func (m Model) handleJobsChanged(msg jobs.ChangedMsg) (tea.Model, tea.Cmd) {
 
 	if m.clone != nil {
 		if run, ok := cloneRunFrom(msg.Runs); ok {
-			m.clone.setRun(run, m.jobFrame)
+			m.clone.setRun(run)
 		}
 		return m, nil
 	}
@@ -205,23 +206,29 @@ func (m Model) handleJobsChanged(msg jobs.ChangedMsg) (tea.Model, tea.Cmd) {
 }
 
 // handleFrameMsg takes the animation's frame. The tree table reads the blink
-// phase at render, so no tree row is rebuilt. The clone list keeps its own copy
-// of the run and its frame (A-10b); only the frame is rebuilt into it.
+// phase at render, and so does the clone list: no row is rebuilt.
 func (m Model) handleFrameMsg(msg jobs.FrameMsg) (tea.Model, tea.Cmd) {
-	m.jobFrame = msg.Frame
 	m.footer.SetSpinnerFrame(msg.RenderedFrame)
 	m.table.SetBlinkPhase(msg.Blink)
 
 	if m.clone != nil {
-		m.clone.setRun(m.clone.run, msg.Frame)
+		m.clone.table.SetBlinkPhase(msg.Blink)
 	}
 	return m, nil
 }
 
-// ActivityTables returns the read-only face of the tree table, keyed by the
-// name the activity-column guard (internal/app) knows it by.
+// ActivityTables returns the read-only face of the tree and clone tables, keyed
+// by the names the activity-column guard (internal/app) knows them by. The clone
+// table is reported without a run too, built by the same constructor, so the
+// guard can check it at any width.
 func (m Model) ActivityTables() map[string]datatable.ActivityTable {
-	return map[string]datatable.ActivityTable{"explorer/tree": &m.table}
+	clone := m.clone
+	if clone == nil {
+		t := newCloneTable()
+		t.Resize(m.width, max(m.height-1, 1))
+		return map[string]datatable.ActivityTable{"explorer/tree": &m.table, "explorer/clone-list": &t}
+	}
+	return map[string]datatable.ActivityTable{"explorer/tree": &m.table, "explorer/clone-list": &clone.table}
 }
 
 // failureSummary names one failure and counts the rest — the footer is one line.

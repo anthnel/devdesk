@@ -1153,7 +1153,7 @@ func (h *cloneHarness) route(cmd tea.Cmd) {
 func (h *cloneHarness) broadcast() {
 	h.t.Helper()
 	h.m = feed(h.t, h.m, jobs.ChangedMsg{Runs: h.reg.Snapshot()})
-	h.m = feed(h.t, h.m, jobs.FrameMsg{Frame: "*"})
+	h.m = feed(h.t, h.m, jobs.FrameMsg{Blink: true})
 }
 
 // run is this screen's run as the registry holds it.
@@ -1351,22 +1351,6 @@ func TestEscClosesTheListOnceTheRunHasEnded(t *testing.T) {
 	}
 	if !h.m.selection.isEmpty() {
 		t.Error("closing the list kept the selection")
-	}
-}
-
-// D5: the rows take the router's frame, not a chain of this view's. A clone
-// keeps turning while the user is looking at another screen, and cannot freeze
-// on frame zero because this view stopped ticking.
-func TestARunningRowCarriesTheRoutersFrame(t *testing.T) {
-	h := cloning(t)
-	h.emit(found("alpha/api"), began("alpha/api"))
-
-	rows := h.m.clone.table.Table().Rows()
-	if len(rows) != 1 {
-		t.Fatalf("rows = %v, want one", rows)
-	}
-	if !strings.HasPrefix(rows[0][colCloneStatus], "*") {
-		t.Errorf("status = %q, want it to start with the frame the router broadcast", rows[0][colCloneStatus])
 	}
 }
 

@@ -412,3 +412,7 @@ func Unfinished(runs []Run) []Run {
 // registry's failure memory. Every kind is: a failure nobody saw is worth
 // showing whatever the operation was.
 func (k Kind) Remembered() bool { return true }
+
+// CancelledDetail is the Detail of a queued item that `esc` skipped before it
+// started; views read it to tell it from an item already on disk.
+const CancelledDetail = "cancelled"

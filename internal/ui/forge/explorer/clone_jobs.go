@@ -22,11 +22,11 @@ func (m CloneEventMsg) Transition() jobs.Transition {
 	case cloneEnded:
 		switch {
 		case m.event.err != nil:
-			t.State, t.Detail = jobs.ItemFailed, m.event.err.Error()
+			t.State, t.Detail = jobs.ItemFailed, jobs.SafeCause(m.event.err)
 		case m.event.skipped:
 			// Not a failure and not work: the directory was already there, and
 			// decision 2 says the explorer leaves what exists alone.
-			t.State = jobs.ItemSkipped
+			t.State, t.Detail = jobs.ItemSkipped, "already on disk"
 		default:
 			t.State = jobs.ItemDone
 		}
@@ -35,7 +35,7 @@ func (m CloneEventMsg) Transition() jobs.Transition {
 		// being folded into a repository's error: the repositories under it
 		// were never discovered, so no other row can stand for them. It is
 		// discovered *as* a failure — there was never a queued state for it.
-		t.State, t.Detail, t.Discover = jobs.ItemFailed, "discovery: "+m.event.err.Error(), true
+		t.State, t.Detail, t.Discover = jobs.ItemFailed, "discovery: "+jobs.SafeCause(m.event.err), true
 	}
 	return t
 }
