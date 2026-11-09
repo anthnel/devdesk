@@ -462,7 +462,9 @@ func TestACleanUsageHasNoStatus(t *testing.T) {
 		byModel(agentusage.Agent{ID: "a01", Type: "coder"}, mu("model-b", agentusage.Tokens{Output: 140}, 0)),
 	}}
 	m = answer(t, m, u)
-	if st := m.status(); st != (sharedcomponents.Status{}) {
+	st := m.status()
+	st.Detail = sharedcomponents.RowDetail{} // the selected row's state is not a status
+	if st != (sharedcomponents.Status{}) {
 		t.Errorf("status = %+v, want none (the empty-table hint is cost_summary_test.go's)", st)
 	}
 }

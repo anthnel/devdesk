@@ -9,10 +9,12 @@ import (
 	"unicode/utf8"
 
 	"github.com/charmbracelet/lipgloss"
+	"github.com/mattn/go-runewidth"
 
 	"github.com/anthnel/devdesk/internal/agentusage"
 	"github.com/anthnel/devdesk/internal/agentusage/pricing"
 	"github.com/anthnel/devdesk/internal/ui/datatable"
+	"github.com/anthnel/devdesk/internal/ui/indicator"
 	"github.com/anthnel/devdesk/internal/ui/testutil"
 	"github.com/anthnel/devdesk/internal/ui/theme"
 )
@@ -198,15 +200,23 @@ func activityUsage(tn time.Time) agentusage.Usage {
 	}}
 }
 
-// Criterion 1 at 80 columns: every line shows a state, a tool count, a duration.
+// DEVDESK-46 criterion 1 at 80 columns, amended by DEVDESK-151 (Q1, option B):
+// every line shows its state as the dot, a tool count and a duration. The State
+// text is dropped before Duration (it needs 84 columns) and comes back when the
+// width allows it.
 func TestEveryAgentLineShowsStateToolsAndDurationAt80Columns(t *testing.T) {
 	tn := time.Now()
 	m := sizedAgents(t, 80, activityUsage(tn), statusClock{now: tn, alive: true})
 	view := stripANSI(m.View())
 	lines := map[string][]string{
-		"orchestrator": {"running", "7", "1h00m"},
-		"coder":        {"running", "12", "3m07s"},
-		"tester":       {"done", "3", "45s"},
+		"orchestrator": {indicator.Glyph(indicator.Running, true), "7", "1h00m"},
+		"coder":        {indicator.Glyph(indicator.Running, true), "12", "3m07s"},
+		"tester":       {indicator.Glyph(indicator.Done, true), "3", "45s"},
+	}
+	for _, word := range []string{"running", "done"} {
+		if strings.Contains(view, word) {
+			t.Errorf("the State text %q must be dropped at 80 columns:\n%s", word, view)
+		}
 	}
 	for role, wants := range lines {
 		var line string
@@ -226,6 +236,26 @@ func TestEveryAgentLineShowsStateToolsAndDurationAt80Columns(t *testing.T) {
 	}
 }
 
+// At 84 columns the State text is back next to the dot.
+func TestTheStateTextComesBackAt84Columns(t *testing.T) {
+	tn := time.Now()
+	m := sizedAgents(t, 84, activityUsage(tn), statusClock{now: tn, alive: true})
+	lines := map[string][]string{
+		"orchestrator": {indicator.Glyph(indicator.Running, true), "running", "7", "1h00m"},
+		"coder":        {indicator.Glyph(indicator.Running, true), "running", "12", "3m07s"},
+		"tester":       {indicator.Glyph(indicator.Done, true), "done", "3", "45s"},
+	}
+	view := stripANSI(m.View())
+	for role, wants := range lines {
+		line := viewLine(t, view, role)
+		for _, w := range wants {
+			if !strings.Contains(line, w) {
+				t.Errorf("%s line lacks %q at 84 columns: %q", role, w, line)
+			}
+		}
+	}
+}
+
 func TestNoActivityColumnsAt60Columns(t *testing.T) {
 	tn := time.Now()
 	m := sizedAgents(t, 60, activityUsage(tn), statusClock{now: tn, alive: true})
@@ -233,6 +263,17 @@ func TestNoActivityColumnsAt60Columns(t *testing.T) {
 	for _, title := range []string{"State", "Tools", "Duration"} {
 		if strings.Contains(view, title) {
 			t.Errorf("%s must be dropped at 60 columns:\n%s", title, view)
+		}
+	}
+}
+
+// The agentColumns comment says Share is the last column to go, at 58.
+func TestShareStaysDownTo58Columns(t *testing.T) {
+	tn := time.Now()
+	for w, want := range map[int]bool{58: true, 57: false} {
+		m := sizedAgents(t, w, activityUsage(tn), statusClock{now: tn, alive: true})
+		if got := strings.Contains(stripANSI(m.View()), "Share"); got != want {
+			t.Errorf("width %d: Share shown = %v, want %v", w, got, want)
 		}
 	}
 }
@@ -441,7 +482,7 @@ func TestToolContentNeverReachesTheView(t *testing.T) {
 }
 
 func TestActivityColumnsAreOptionalFixedAndUnsortable(t *testing.T) {
-	for _, title := range []string{"State", "Tools", "Duration"} {
+	for _, title := range []string{"Tools", "Duration", "State"} {
 		c := column(t, title)
 		if !c.Optional || c.Sizing != datatable.SizingFixed {
 			t.Errorf("%s: Optional=%v Sizing=%v, want Optional, SizingFixed", title, c.Optional, c.Sizing)
@@ -462,5 +503,172 @@ func TestAPausedSessionShowsUnknownAndPausedTogether(t *testing.T) {
 	wantUpdates(t, "paused session", m, "paused")
 	if m.clock.alive {
 		t.Error("the clock still says alive on a paused session")
+	}
+}
+
+// ── DEVDESK-151: the activity column ─────────────────────────────────────────
+
+// agentColIdx is the Agent column's index: the activity dot is column 0.
+const agentColIdx = 1
+
+// columnIndex is the index of the column with the given title.
+func columnIndex(t *testing.T, title string) int {
+	t.Helper()
+	for i, c := range agentColumns() {
+		if c.Title == title {
+			return i
+		}
+	}
+	t.Fatalf("no %q column", title)
+	return -1
+}
+
+// viewLine is the last line of view that mentions role.
+func viewLine(t *testing.T, view, role string) string {
+	t.Helper()
+	var line string
+	for _, l := range strings.Split(view, "\n") {
+		if strings.Contains(l, role) {
+			line = l
+		}
+	}
+	if line == "" {
+		t.Fatalf("no line for %s in:\n%s", role, view)
+	}
+	return line
+}
+
+// Rule 125: column 0 is datatable.IndicatorColumn, with the icon-column shape.
+func TestColumnZeroIsTheActivityIndicatorColumn(t *testing.T) {
+	cols := agentColumns()
+	c := cols[0]
+	if c.Indicator == nil {
+		t.Fatal("column 0 is not built by datatable.IndicatorColumn (no Indicator)")
+	}
+	if c.Title != "" {
+		t.Errorf("Title = %q, want none (Rule 125)", c.Title)
+	}
+	if c.Sizing != datatable.SizingFixed || c.MinWidth != datatable.IconColumnWidth {
+		t.Errorf("Sizing/MinWidth = %v/%d, want SizingFixed/%d", c.Sizing, c.MinWidth, datatable.IconColumnWidth)
+	}
+	if c.Less != nil || c.Search != nil {
+		t.Errorf("Less set=%v Search set=%v, want neither (Rule 125)", c.Less != nil, c.Search != nil)
+	}
+	if c.Optional || c.DropFirst || c.YieldsToContent {
+		t.Errorf("Optional=%v DropFirst=%v YieldsToContent=%v: the dot never gives way", c.Optional, c.DropFirst, c.YieldsToContent)
+	}
+	for i, other := range cols[1:] {
+		if other.Indicator != nil {
+			t.Errorf("column %d (%q) also carries an Indicator", i+1, other.Title)
+		}
+	}
+	if got := columnIndex(t, "Agent"); got != agentColIdx {
+		t.Errorf("Agent is column %d, want %d", got, agentColIdx)
+	}
+}
+
+// The dot is the row's state, whatever the State column shows next to it.
+func TestTheDotMapsEveryRunState(t *testing.T) {
+	c := agentColumns()[0]
+	if c.Indicator == nil {
+		t.Fatal("column 0 has no Indicator")
+	}
+	a := subAgent("a01", "coder", 1, 0)
+	want := map[runState]indicator.State{
+		stateRunning: indicator.Running, stateIdle: indicator.Suspended,
+		stateDone: indicator.Done, stateUnknown: indicator.Unknown,
+	}
+	glyphs := map[string]bool{}
+	for st, ind := range want {
+		if got := c.Indicator(rowWith(a, st)); got != ind {
+			t.Errorf("Indicator(%s) = %v, want %v", st.label(), got, ind)
+		}
+		glyphs[indicator.Glyph(ind, true)] = true
+	}
+	if len(glyphs) != 4 {
+		t.Errorf("the four states share glyphs: %v", glyphs)
+	}
+}
+
+// fourStates has one agent in each state: the orchestrator is unknown (the
+// clock is not alive), coder running, tester done, reviewer idle.
+func fourStates(tn time.Time) agentusage.Usage {
+	return agentusage.Usage{Agents: []agentusage.Agent{
+		stamped(orchestrator(5, 0), 7, tn.Add(-time.Hour), tn.Add(-time.Hour)),
+		stamped(withState(subAgent("a01", "coder", 1, 0), agentusage.StateUnfinished), 1, tn.Add(-time.Minute), tn),
+		stamped(withState(subAgent("a02", "tester", 1, 0), agentusage.StateFinished), 1, tn.Add(-time.Hour), tn.Add(-50*time.Minute)),
+		stamped(withState(subAgent("a03", "reviewer", 1, 0), agentusage.StateUnfinished), 1, tn.Add(-time.Hour), tn.Add(-20*time.Minute)),
+	}}
+}
+
+// The dot survives the narrowest layouts: at 60 columns the State text is gone
+// and every row still starts with its own glyph.
+func TestEveryRowStartsWithItsStateGlyphAt60Columns(t *testing.T) {
+	tn := time.Now()
+	want := map[string]string{
+		"orchestrator": indicator.Glyph(indicator.Unknown, true),
+		"coder":        indicator.Glyph(indicator.Running, true),
+		"tester":       indicator.Glyph(indicator.Done, true),
+		"reviewer":     indicator.Glyph(indicator.Suspended, true),
+	}
+	for _, width := range []int{60, 80, 120} {
+		m := sizedAgents(t, width, fourStates(tn), statusClock{now: tn, alive: false})
+		view := stripANSI(m.View())
+		if strings.Contains(view, "State") && width < 84 {
+			t.Errorf("width %d: the State column must be dropped:\n%s", width, view)
+		}
+		for role, glyph := range want {
+			line := viewLine(t, view, role)
+			before := strings.Trim(strings.SplitN(line, role, 2)[0], "│├└─ ")
+			if before != glyph {
+				t.Errorf("width %d: %s line starts with %q, want %q: %q", width, role, before, glyph, line)
+			}
+		}
+	}
+}
+
+// The dot repeats the State text where both are shown.
+func TestTheDotAndTheStateTextAgreeAt120Columns(t *testing.T) {
+	tn := time.Now()
+	m := sizedAgents(t, 120, fourStates(tn), statusClock{now: tn, alive: false})
+	view := stripANSI(m.View())
+	for role, pair := range map[string][2]string{
+		"orchestrator": {indicator.Glyph(indicator.Unknown, true), "unknown"},
+		"coder":        {indicator.Glyph(indicator.Running, true), "running"},
+		"tester":       {indicator.Glyph(indicator.Done, true), "done"},
+		"reviewer":     {indicator.Glyph(indicator.Suspended, true), "idle"},
+	} {
+		line := viewLine(t, view, role)
+		for _, w := range pair {
+			if !strings.Contains(line, w) {
+				t.Errorf("%s line lacks %q: %q", role, w, line)
+			}
+		}
+	}
+}
+
+// Rule 116 from 50 to 230 columns with the dot, and again when the terminal
+// counts the ambiguous-width glyphs as two cells. The rendered row also keeps
+// the dot as the first column at every width.
+func TestRule116HoldsWithTheActivityColumnAtEveryWidth(t *testing.T) {
+	prev := runewidth.DefaultCondition.EastAsianWidth
+	t.Cleanup(func() { runewidth.DefaultCondition.EastAsianWidth = prev })
+	tn := time.Now()
+	for _, eastAsian := range []bool{false, true} {
+		runewidth.DefaultCondition.EastAsianWidth = eastAsian
+		checked := 0
+		for w := 50; w <= 230; w++ {
+			m := sizedAgents(t, w, fourStates(tn), statusClock{now: tn, alive: true})
+			if got := m.agentTable.RenderedWidth(); got != w-2 {
+				t.Fatalf("eastAsian=%v width %d: rendered width = %d, want %d (Rule 116)", eastAsian, w, got, w-2)
+			}
+			if got := m.agentTable.Table().Columns()[0].Width; got != datatable.IconColumnWidth {
+				t.Fatalf("eastAsian=%v width %d: the dot column is %d wide, want %d", eastAsian, w, got, datatable.IconColumnWidth)
+			}
+			checked++
+		}
+		if checked != 181 {
+			t.Fatalf("checked %d widths, want 181 (50..230)", checked)
+		}
 	}
 }

@@ -1,6 +1,9 @@
 package agentusageview
 
-import "github.com/anthnel/devdesk/internal/ui/help"
+import (
+	"github.com/anthnel/devdesk/internal/ui/help"
+	"github.com/anthnel/devdesk/internal/ui/indicator"
+)
 
 // GetHelpContent returns the help for `?` (Rule 114).
 func (m Model) GetHelpContent() help.Content {
@@ -20,6 +23,7 @@ func (m Model) GetHelpContent() help.Content {
 			{Key: "?", Description: "Show this help"},
 		},
 		Sections: []help.Section{
+			indicator.Legend(indicator.AgentsLegend...),
 			{
 				Title: "Columns",
 				Body: "Project: the working directory the session ran in, with your home folded to ~. " +
@@ -59,8 +63,8 @@ func (m Model) GetHelpContent() help.Content {
 					"Breakdown: how the agent's tokens split, in a bar of ten cells. Colors, left to right: Input, Output, Cache write, Cache read. " +
 					"A category worth less than half a cell gets no cell of its own. The glyph follows app.gauge_glyph; a dash means no tokens.\n" +
 					"Model, In, Out, Cache read, Cache write, Total: models used and token counts. " +
-					"On a narrow terminal Cache write goes first, then Est. cost, Cache read, In, Breakdown, Model, Duration, Tools and State. Agent, ID, Out, Total and Share stay. " +
-					"Cache write, Est. cost, Cache read, In and Breakdown give way before an agent's type is cut; Model, Duration, Tools and State do not.\n" +
+					"On a narrow terminal Cache write goes first, then Est. cost, Cache read, In, Breakdown, Model, State, Duration and Tools. Agent, ID, Out, Total and Share stay. " +
+					"Cache write, Est. cost, Cache read, In and Breakdown give way before an agent's type is cut; Model, State, Duration and Tools do not.\n" +
 					"Share: the agent's part of the session total, to one decimal, rounded down. " +
 					"The orchestrator takes the rounding remainder, so the column adds up to 100%. A dash means the session has no tokens.\n" +
 					"Press . to cycle: tree, then Total largest first, then Total smallest first, then the tree again. " +
@@ -82,6 +86,8 @@ func (m Model) GetHelpContent() help.Content {
 				Body: "Est. cost is an estimate, marked ~: tokens times the prices you set, not a bill. DevDesk ships no price. " +
 					"An agent whose model has no price shows a dash, never 0, and so does the header total. " +
 					"A sub-agent's cost is a floor (≥ ~) because its transcript may be incomplete.\n" +
+					"The cell turns orange when the agent is 75% or more of the session's estimated cost, and red from 90%; below 75% it keeps the default color. " +
+					"With fewer than two priced agents there is no share to color.\n" +
 					"Billed is Claude Code's own total for the session, when it recorded one; a session still running has none. " +
 					"Unattributed is Billed minus the estimates: what the estimate does not explain (web search is never priced). " +
 					"A negative Unattributed, in orange, means your prices are higher than what was billed. " +

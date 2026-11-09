@@ -77,20 +77,30 @@ func TestTheYieldingColumnsAreTheHeadOfTheDropOrder(t *testing.T) {
 	}
 }
 
-// DEVDESK-46 criterion 1 on real types: State, Tools and Duration are not
-// traded for the agent text at 80 columns.
+// DEVDESK-46 criterion 1 on real types: Tools and Duration are not traded for
+// the agent text at 80 columns. State is not required there any more
+// (DEVDESK-151, Q1 option B): the dot carries it, and the State text comes back
+// at 84 columns, also with a long agent type.
 func TestTheActivityColumnsOutliveALongAgentTypeAt80(t *testing.T) {
 	checked := 0
 	for name, typ := range longTypes {
 		m := atPricedAgents(t, nil, 80, typedUsage(typ))
 		cols := header(t, m.View())
-		for _, want := range []string{"State", "Tools", "Duration"} {
+		for _, want := range []string{"Tools", "Duration"} {
 			if !slices.Contains(cols, want) {
 				t.Errorf("%s: %s is missing at 80 columns: %v", name, want, cols)
 			}
 		}
-		if got := m.agentTable.Table().Columns()[0].Width; got != 14 {
-			t.Errorf("%s: Agent column is %d wide at 80 columns, want its floor of 14", name, got)
+		if slices.Contains(cols, "State") {
+			t.Errorf("%s: State must be dropped at 80 columns (it needs 84): %v", name, cols)
+		}
+		if at84 := header(t, atPricedAgents(t, nil, 84, typedUsage(typ)).View()); !slices.Contains(at84, "State") {
+			t.Errorf("%s: State is missing at 84 columns: %v", name, at84)
+		}
+		// Dropping State hands its cells back to the Agent text: from its floor of
+		// 14 up to the type's whole width, never past it (measured: 18, 19, 19).
+		if got := m.agentTable.Table().Columns()[agentColIdx].Width; got < 14 || got > agentCellWidth(typ) {
+			t.Errorf("%s: Agent column is %d wide at 80 columns, want 14..%d", name, got, agentCellWidth(typ))
 		}
 		checked++
 	}
@@ -106,8 +116,8 @@ func TestBreakdownWaitsForTheAgentText(t *testing.T) {
 		typ          string
 		absent, show int
 	}{
-		{"general-purpose", "general-purpose", 109, 110},
-		{"30 chars", strings.Repeat("t", 30), 124, 125},
+		{"general-purpose", "general-purpose", 113, 114},
+		{"30 chars", strings.Repeat("t", 30), 128, 129},
 	}
 	checked := 0
 	for _, tt := range tests {
@@ -116,14 +126,14 @@ func TestBreakdownWaitsForTheAgentText(t *testing.T) {
 		if slices.Contains(header(t, below.View()), breakdownTitle) {
 			t.Errorf("%s: %s is shown at %d columns", tt.name, breakdownTitle, tt.absent)
 		}
-		if got := below.agentTable.Table().Columns()[0].Width; got != want {
+		if got := below.agentTable.Table().Columns()[agentColIdx].Width; got != want {
 			t.Errorf("%s at %d: Agent = %d, want %d", tt.name, tt.absent, got, want)
 		}
 		at := atPricedAgents(t, nil, tt.show, typedUsage(tt.typ))
 		if !slices.Contains(header(t, at.View()), breakdownTitle) {
 			t.Errorf("%s: %s is missing at %d columns", tt.name, breakdownTitle, tt.show)
 		}
-		if got := at.agentTable.Table().Columns()[0].Width; got != want {
+		if got := at.agentTable.Table().Columns()[agentColIdx].Width; got != want {
 			t.Errorf("%s at %d: Agent = %d, want %d", tt.name, tt.show, got, want)
 		}
 		checked++
@@ -161,7 +171,7 @@ func TestHelpSaysWhichColumnsYieldToTheAgentType(t *testing.T) {
 	body := agentColumnsHelp(t)
 	for _, want := range []string{
 		"Cache write, Est. cost, Cache read, In and Breakdown give way before an agent's type is cut",
-		"Model, Duration, Tools and State do not",
+		"Model, State, Duration and Tools do not",
 	} {
 		if !strings.Contains(body, want) {
 			t.Errorf("the Agent columns help does not say %q:\n%s", want, body)

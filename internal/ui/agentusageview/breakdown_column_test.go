@@ -22,7 +22,7 @@ import (
 const breakdownTitle = "Breakdown"
 
 // allAgentTitles is every title the agents header can carry, in column order.
-var allAgentTitles = []string{"Agent", "ID", "Est. cost", "State", "Tools", "Duration", "Model", breakdownTitle, "In", "Out", "Cache read", "Cache write", "Total", "Share"}
+var allAgentTitles = []string{"Agent", "ID", "Est. cost", "Tools", "Duration", "State", "Model", breakdownTitle, "In", "Out", "Cache read", "Cache write", "Total", "Share"}
 
 // shownTitles reads the titles of the rendered header row, Breakdown included
 // (the shared splitTitles predates the column and does not know it).
@@ -214,27 +214,33 @@ func TestByModelSumsEqualAgentTokens(t *testing.T) {
 // ── On screen ────────────────────────────────────────────────────────────────
 
 // The first width at which Breakdown appears with costUsage, measured column by
-// column from 50 to 230: Model 94, Breakdown 106, In 114, Cache read 126,
-// Est. cost 138, Cache write 151. Before the column, In was 102, Cache read 114,
-// Est. cost 126 and Cache write 139.
+// column from 50 to 230 (DEVDESK-151: the activity dot costs 4 cells and State
+// sits right of Duration): Tools 65, Duration 75, State 84, Model 98,
+// Breakdown 110, In 118, Cache read 130, Est. cost 142, Cache write 155. Before
+// the dot: Model 94, Breakdown 106, In 114, Cache read 126, Est. cost 138,
+// Cache write 151.
 func TestBreakdownLayoutAtEachWidth(t *testing.T) {
 	tests := []struct {
 		width int
 		want  []string
 	}{
-		{230, []string{"Agent", "ID", "Est. cost", "State", "Tools", "Duration", "Model", breakdownTitle, "In", "Out", "Cache read", "Cache write", "Total", "Share"}},
-		{151, []string{"Agent", "ID", "Est. cost", "State", "Tools", "Duration", "Model", breakdownTitle, "In", "Out", "Cache read", "Cache write", "Total", "Share"}},
-		{150, []string{"Agent", "ID", "Est. cost", "State", "Tools", "Duration", "Model", breakdownTitle, "In", "Out", "Cache read", "Total", "Share"}},
-		{138, []string{"Agent", "ID", "Est. cost", "State", "Tools", "Duration", "Model", breakdownTitle, "In", "Out", "Cache read", "Total", "Share"}},
-		{137, []string{"Agent", "ID", "State", "Tools", "Duration", "Model", breakdownTitle, "In", "Out", "Cache read", "Total", "Share"}},
-		{126, []string{"Agent", "ID", "State", "Tools", "Duration", "Model", breakdownTitle, "In", "Out", "Cache read", "Total", "Share"}},
-		{125, []string{"Agent", "ID", "State", "Tools", "Duration", "Model", breakdownTitle, "In", "Out", "Total", "Share"}},
-		{114, []string{"Agent", "ID", "State", "Tools", "Duration", "Model", breakdownTitle, "In", "Out", "Total", "Share"}},
-		{113, []string{"Agent", "ID", "State", "Tools", "Duration", "Model", breakdownTitle, "Out", "Total", "Share"}}, // In goes before Breakdown
-		{106, []string{"Agent", "ID", "State", "Tools", "Duration", "Model", breakdownTitle, "Out", "Total", "Share"}}, // narrowest with the bar
-		{105, []string{"Agent", "ID", "State", "Tools", "Duration", "Model", "Out", "Total", "Share"}},                 // Breakdown goes before Model
-		{100, []string{"Agent", "ID", "State", "Tools", "Duration", "Model", "Out", "Total", "Share"}},                 // unchanged
-		{80, []string{"Agent", "ID", "State", "Tools", "Duration", "Out", "Total", "Share"}},                           // unchanged
+		{230, []string{"Agent", "ID", "Est. cost", "Tools", "Duration", "State", "Model", breakdownTitle, "In", "Out", "Cache read", "Cache write", "Total", "Share"}},
+		{155, []string{"Agent", "ID", "Est. cost", "Tools", "Duration", "State", "Model", breakdownTitle, "In", "Out", "Cache read", "Cache write", "Total", "Share"}},
+		{154, []string{"Agent", "ID", "Est. cost", "Tools", "Duration", "State", "Model", breakdownTitle, "In", "Out", "Cache read", "Total", "Share"}},
+		{142, []string{"Agent", "ID", "Est. cost", "Tools", "Duration", "State", "Model", breakdownTitle, "In", "Out", "Cache read", "Total", "Share"}},
+		{141, []string{"Agent", "ID", "Tools", "Duration", "State", "Model", breakdownTitle, "In", "Out", "Cache read", "Total", "Share"}},
+		{130, []string{"Agent", "ID", "Tools", "Duration", "State", "Model", breakdownTitle, "In", "Out", "Cache read", "Total", "Share"}},
+		{129, []string{"Agent", "ID", "Tools", "Duration", "State", "Model", breakdownTitle, "In", "Out", "Total", "Share"}},
+		{118, []string{"Agent", "ID", "Tools", "Duration", "State", "Model", breakdownTitle, "In", "Out", "Total", "Share"}},
+		{117, []string{"Agent", "ID", "Tools", "Duration", "State", "Model", breakdownTitle, "Out", "Total", "Share"}}, // In goes before Breakdown
+		{110, []string{"Agent", "ID", "Tools", "Duration", "State", "Model", breakdownTitle, "Out", "Total", "Share"}}, // narrowest with the bar
+		{109, []string{"Agent", "ID", "Tools", "Duration", "State", "Model", "Out", "Total", "Share"}},                 // Breakdown goes before Model
+		{100, []string{"Agent", "ID", "Tools", "Duration", "State", "Model", "Out", "Total", "Share"}},                 // unchanged
+		{98, []string{"Agent", "ID", "Tools", "Duration", "State", "Model", "Out", "Total", "Share"}},                  // narrowest with Model
+		{97, []string{"Agent", "ID", "Tools", "Duration", "State", "Out", "Total", "Share"}},                           // Model goes
+		{84, []string{"Agent", "ID", "Tools", "Duration", "State", "Out", "Total", "Share"}},                           // narrowest with State
+		{83, []string{"Agent", "ID", "Tools", "Duration", "Out", "Total", "Share"}},                                    // State goes before Duration
+		{80, []string{"Agent", "ID", "Tools", "Duration", "Out", "Total", "Share"}},                                    // the user's 80-column layout (DEVDESK-151, Q1 B)
 		{60, []string{"Agent", "ID", "Out", "Total", "Share"}},                                                         // unchanged
 	}
 	for _, tt := range tests {
@@ -254,8 +260,8 @@ func TestBreakdownLayoutAtEachWidth(t *testing.T) {
 // Rule 116 at every width from 50 to 230, the bar column coming and going, and
 // the order in which optional columns give way holds at each of them.
 func TestBreakdownRule116AndDropOrderAtEveryWidth(t *testing.T) {
-	// Optional columns in the order they disappear: Cache write, Est. cost, Cache read, In, Breakdown, Model, Duration, Tools, State.
-	vanish := []string{"Cache write", "Est. cost", "Cache read", "In", breakdownTitle, "Model", "Duration", "Tools", "State"}
+	// Optional columns in the order they disappear: Cache write, Est. cost, Cache read, In, Breakdown, Model, State, Duration, Tools.
+	vanish := []string{"Cache write", "Est. cost", "Cache read", "In", breakdownTitle, "Model", "State", "Duration", "Tools"}
 	shown, widths := 0, 0
 	for w := 50; w <= 230; w++ {
 		m := atPricedAgents(t, nil, w, costUsage())
@@ -296,7 +302,7 @@ func TestBreakdownRule116AndDropOrderAtEveryWidth(t *testing.T) {
 // The bar is ten cells wide on screen: one orchestrator line carries exactly ten
 // gauge glyphs, whatever the width it is shown at.
 func TestBreakdownBarIsTenCellsOnScreen(t *testing.T) {
-	for _, w := range []int{106, 150, 230} {
+	for _, w := range []int{110, 150, 230} {
 		m := atPricedAgents(t, nil, w, costUsage())
 		var line string
 		for _, l := range strings.Split(stripANSI(m.View()), "\n") {
@@ -503,10 +509,10 @@ func TestHelpDropOrderPlacesBreakdownBetweenInAndModel(t *testing.T) {
 		sentence = sentence[:nl]
 	}
 	pos := -1
-	for _, w := range []string{"Cache write", "Est. cost", "Cache read", "In,", breakdownTitle, "Model", "Duration", "Tools", "State"} {
+	for _, w := range []string{"Cache write", "Est. cost", "Cache read", "In,", breakdownTitle, "Model", "State", "Duration", "Tools"} {
 		j := strings.Index(sentence, w)
 		if j < 0 || j <= pos {
-			t.Fatalf("drop order must read Cache write, Est. cost, Cache read, In, Breakdown, Model, Duration, Tools, State (stuck at %q):\n%s", w, sentence)
+			t.Fatalf("drop order must read Cache write, Est. cost, Cache read, In, Breakdown, Model, State, Duration, Tools (stuck at %q):\n%s", w, sentence)
 		}
 		pos = j
 	}
@@ -654,7 +660,7 @@ func TestBreakdownDoesNotTruncateTheAgentColumnAt160(t *testing.T) {
 		if want < 27 || want > 33 {
 			t.Fatalf("test setup: want %d outside 27..33", want)
 		}
-		if got := m.agentTable.Table().Columns()[0].Width; got < want {
+		if got := m.agentTable.Table().Columns()[agentColIdx].Width; got < want {
 			t.Errorf("type of %d chars: Agent column is %d wide at 160 columns, want at least %d", n, got, want)
 		}
 		if !strings.Contains(stripANSI(m.View()), lastStem+typ) {

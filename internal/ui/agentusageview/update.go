@@ -9,6 +9,7 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 
 	"github.com/anthnel/devdesk/internal/agentusage"
+	"github.com/anthnel/devdesk/internal/jobs"
 	sharedcomponents "github.com/anthnel/devdesk/internal/ui/components"
 	"github.com/anthnel/devdesk/internal/ui/theme"
 )
@@ -28,6 +29,11 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m.handleResume()
 	case spinner.TickMsg:
 		return m.handleSpinnerTick(msg)
+	case jobs.FrameMsg:
+		// The router's frame: only the blink phase of the State dot, read at
+		// render. The view's footer spinner keeps its own chain.
+		m.agentTable.SetBlinkPhase(msg.Blink)
+		return m, nil
 	case tea.KeyMsg:
 		return m.handleKey(msg)
 	}

@@ -37,7 +37,7 @@ func selectedID(t *testing.T, m Model) string {
 	return r.ID
 }
 
-func agentColumnWidth(m Model) int { return m.agentTable.Table().Columns()[0].Width }
+func agentColumnWidth(m Model) int { return m.agentTable.Table().Columns()[agentColIdx].Width }
 
 func TestAgentKeysIdentifyRowsAcrossRebuilds(t *testing.T) {
 	tests := []struct {

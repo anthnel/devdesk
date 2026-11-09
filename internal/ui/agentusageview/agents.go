@@ -11,6 +11,7 @@ import (
 	"github.com/anthnel/devdesk/internal/agentusage"
 	"github.com/anthnel/devdesk/internal/agentusage/pricing"
 	"github.com/anthnel/devdesk/internal/ui/datatable"
+	"github.com/anthnel/devdesk/internal/ui/indicator"
 	"github.com/anthnel/devdesk/internal/ui/theme"
 )
 
@@ -39,14 +40,16 @@ const agentIDPrefix = 8
 // agentRow is one line of the agents table.
 type agentRow struct {
 	agentusage.Agent
-	branch  string   // stem, lastStem, or "" (orchestrator, or a sorted list)
-	shortID string   // ID prefix, distinct within the session; "" for the orchestrator
-	share   int      // tenths of a percent of the session total, or noShare
-	key     string   // identity across rebuilds, see agentKeys
-	state   runState // what the State column shows
-	cost    pricing.Estimate
-	mix     [segCount]int // segmentCells(Tokens), computed in agentRows
-	hasMix  bool          // false when the agent has no token
+	branch     string   // stem, lastStem, or "" (orchestrator, or a sorted list)
+	shortID    string   // ID prefix, distinct within the session; "" for the orchestrator
+	share      int      // tenths of a percent of the session total, or noShare
+	key        string   // identity across rebuilds, see agentKeys
+	state      runState // what the State column shows
+	cost       pricing.Estimate
+	costPct    float64       // percent of the session's estimated cost, see costShares
+	costRanked bool          // false when the share carries no information
+	mix        [segCount]int // segmentCells(Tokens), computed in agentRows
+	hasMix     bool          // false when the agent has no token
 }
 
 // agentRows orders a session's agents (orchestrator, then sub-agents by ID),
@@ -82,9 +85,14 @@ func agentRows(u agentusage.Usage, tree bool, c statusClock, prices pricing.Tabl
 
 	keys := agentKeys(ordered)
 	states := agentStates(ordered, c)
+	costs := make([]pricing.Estimate, len(ordered))
+	for i, a := range ordered {
+		costs[i] = prices.Agent(a)
+	}
+	costPct, costRanked := costShares(costs)
 	rows := make([]agentRow, 0, len(ordered))
 	for i, a := range ordered {
-		row := agentRow{Agent: a, share: parts[i], key: keys[i], state: states[i], cost: prices.Agent(a)}
+		row := agentRow{Agent: a, share: parts[i], key: keys[i], state: states[i], cost: costs[i], costPct: costPct[i], costRanked: costRanked}
 		if !a.Main {
 			j := i - len(main)
 			row.shortID = short[j]
@@ -140,12 +148,15 @@ func shortAgentIDs(ids []string) []string {
 
 // agentColumns describes the agents table. Only Total sorts, largest first;
 // without a sort the order is the tree. Columns give way on a narrow terminal
-// in this order: Cache write, Est. cost, Cache read, In, Breakdown, Model, Duration, Tools, State
-// (Cache write and Est. cost are DropFirst, the rightmost first). The first five
-// carry YieldsToContent: they go before the Agent text is cut, so the thresholds
-// below move with the longest agent type (Est. cost: 138 columns with types up
-// to 11 characters, more with longer ones). Model, Duration, Tools and State do
-// not yield. The ID never gives way, so two agents of one type stay apart.
+// in this order: Cache write, Est. cost, Cache read, In, Breakdown, Model, State,
+// Duration, Tools (Cache write and Est. cost are DropFirst, the rightmost first).
+// Measured thresholds: Share 58, Tools 65, Duration 75, State 84, Model 98,
+// Breakdown 110, In 118, Cache read 130, Est. cost 142, Cache write 155. The
+// first five carry YieldsToContent: they go before the Agent text is cut, so the
+// thresholds below move with the longest agent type (Est. cost: 142 columns with
+// types up to 11 characters, more with longer ones). Model, State, Duration and
+// Tools do not yield. The activity column in front never gives way. The ID
+// never gives way, so two agents of one type stay apart.
 func agentColumns() []datatable.Column[agentRow] {
 	count := func(title string, width int, tokens func(agentRow) int64) datatable.Column[agentRow] {
 		return datatable.Column[agentRow]{
@@ -168,13 +179,16 @@ func agentColumns() []datatable.Column[agentRow] {
 	out.Cell = outCell
 	out.Style = func(r agentRow) lipgloss.Style { return dimWhen(r.Tokens.Output == 0) }
 
+	dot := datatable.IndicatorColumn(func(r agentRow) indicator.State { return r.state.indicator() }, nil, nil)
+
 	return []datatable.Column[agentRow]{
+		dot,
 		{Title: "Agent", Sizing: datatable.SizingContent, MinWidth: 14, Cell: roleCell, Search: agentSearch,
 			Style: func(r agentRow) lipgloss.Style { return dimWhen(!r.Main && r.Type == "") }},
 		{Title: "ID", Sizing: datatable.SizingContent, MinWidth: agentIDPrefix, Cell: idCell,
 			Search: func(r agentRow) string { return r.ID },
 			Style:  func(r agentRow) lipgloss.Style { return dimWhen(idCell(r) == noValue || idCell(r) == unknownID) }},
-		costColumn(), stateColumn(), toolsColumn(), durationColumn(),
+		costColumn(), toolsColumn(), durationColumn(), stateColumn(),
 		{Title: "Model", Sizing: datatable.SizingContent, MinWidth: 12, Flex: 2, Optional: true, Cell: modelsCell, Search: modelsCell,
 			Style: func(r agentRow) lipgloss.Style { return dimWhen(len(r.Models) == 0) }},
 		breakdownColumn(), in, out, cacheRead, cacheWrite, total,
