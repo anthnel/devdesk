@@ -116,10 +116,10 @@ type rowChain struct{ Story, What string }
 // router (DEVDESK-139, Q2 = A). The list may only shrink: each entry names the
 // story that removes it, and a stale entry fails the tests below.
 var declaredRowChains = map[string]rowChain{
-	"ui/oci_resources/busy.go":         {"A-09b", "AdvanceSpinner on the four OCI tables"},
+	"ui/oci_resources/busy.go":         {"A-09b", "AdvanceSpinner on the three OCI tables"},
 	"ui/containers/update.go":          {"A-14", "AdvanceSpinner on the containers table"},
 	"ui/netdiag/ports_model.go":        {"A-12", "portsSpinnerCmd"},
-	"ui/oci_resources/browser_keys.go": {"A-09a", "tagScanSpinnerIdx"},
+	"ui/oci_resources/browser_keys.go": {"A-09a2", "tagScanSpinnerIdx"},
 }
 
 // maxDeclaredRowChains is the ceiling (DEVDESK-143): raising it takes a visible

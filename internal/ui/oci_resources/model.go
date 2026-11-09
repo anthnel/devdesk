@@ -66,16 +66,18 @@ type Model struct {
 	sigAsked     map[string]sigAsk
 	sigVerifying map[string]bool
 	scanCache    map[string]cache.ImageScanEntry
-	// jobs is the router snapshot of everything running anywhere, and jobFrame
-	// the spinner frame that goes with it — bare, because it lands in a table
-	// cell (Rule 122). It replaced a scanningImages map and the `scanning`
-	// bool derived from it, both of which knew only what this view launched.
+	// jobs is the router snapshot of everything running anywhere. It replaced
+	// a scanningImages map and the `scanning` bool derived from it, both of
+	// which knew only what this view launched.
 	//
 	// spinnerFrameIdx below stays: it animates *loading*, and a load is not a
 	// job. See jobs.go.
-	jobs        []jobs.Run
-	jobFrame    string
-	failedScans map[string]bool
+	jobs []jobs.Run
+	// failures is a copy of the registry's remembered failures, replaced (never
+	// merged) by handleJobsChanged, and contextName the context the snapshot
+	// was taken in.
+	failures    []jobs.Failure
+	contextName string
 	// updates is what the registries said about each image, for the Update
 	// column (§3.88).
 	updates         imageupdate.Tracker
@@ -439,13 +441,8 @@ func New(cfg *config.Config) Model {
 			}
 			return r.Image.ID
 		},
-		// The ID cell, not a column of its own. §3.16 settled that argument for
-		// the clone checkbox: a column costs cells on every screen to say
-		// nothing on all but one row, and at 80 columns this view has none to
-		// spare. The ID is the cell to spend — it neither sorts nor searches,
-		// twelve hex characters being nothing anyone orders or looks for, and
-		// it is not what the user is watching while the image is removed.
-		StatusColumn: imageColumnID,
+		// No StatusColumn: the activity column shows a removal in flight, and a
+		// spinner on another cell would animate it twice.
 	})
 
 	nt := datatable.New(datatable.Config[docker.Network]{
@@ -488,7 +485,6 @@ func New(cfg *config.Config) Model {
 		config:              cfg,
 		activeTab:           tabImages,
 		scanCache:           make(map[string]cache.ImageScanEntry),
-		failedScans:         make(map[string]bool),
 		signatures:          make(map[string]trust.Result),
 		sigAsked:            make(map[string]sigAsk),
 		sigVerifying:        make(map[string]bool),

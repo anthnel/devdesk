@@ -2,6 +2,7 @@ package ociresources
 
 import (
 	"errors"
+	"github.com/anthnel/devdesk/internal/ui/indicator"
 	"strings"
 	"testing"
 
@@ -51,7 +52,7 @@ func TestListsFillTheirTables(t *testing.T) {
 	if m.loading || m.loadingNets || m.loadingVols {
 		t.Error("still loading after every list arrived")
 	}
-	if got := cells(m.imageTable.Table().Rows(), 1); len(got) != 4 {
+	if got := cells(m.imageTable.Table().Rows(), imageColumnName); len(got) != 4 {
 		t.Errorf("the image table holds %v", got)
 	}
 	if got := cells(m.networkTable.Table().Rows(), 1); !equal(got, []string{"bridge", "devdesk", "overlay-prod"}) {
@@ -94,7 +95,7 @@ func TestListFailuresStopTheSpinner(t *testing.T) {
 func TestUntaggedImagesDropTheTagSuffix(t *testing.T) {
 	m := loadedModel(t)
 
-	names := cells(m.imageTable.Table().Rows(), 1)
+	names := cells(m.imageTable.Table().Rows(), imageColumnName)
 	for _, name := range names {
 		if strings.Contains(name, "<none>") {
 			t.Errorf("the table shows a raw <none> tag: %v", names)
@@ -158,12 +159,12 @@ func TestSortCyclesDirectionThenColumn(t *testing.T) {
 func TestSortReordersTheImages(t *testing.T) {
 	m := loadedModel(t)
 
-	if got := cells(m.imageTable.Table().Rows(), 1); !equal(got, []string{"api:v1", "cache:v2", "orphan", "web:v3"}) {
+	if got := cells(m.imageTable.Table().Rows(), imageColumnName); !equal(got, []string{"api:v1", "cache:v2", "orphan", "web:v3"}) {
 		t.Errorf("names ascending = %v", got)
 	}
 
 	m = feed(t, m, testutil.Key("."))
-	if got := cells(m.imageTable.Table().Rows(), 1); !equal(got, []string{"web:v3", "orphan", "cache:v2", "api:v1"}) {
+	if got := cells(m.imageTable.Table().Rows(), imageColumnName); !equal(got, []string{"web:v3", "orphan", "cache:v2", "api:v1"}) {
 		t.Errorf("names descending = %v", got)
 	}
 }
@@ -172,7 +173,7 @@ func TestFilterNarrowsTheImages(t *testing.T) {
 	m := feed(t, loadedModel(t), testutil.Key("/"))
 	m = feed(t, m, testutil.Type("ca")...)
 
-	if got := cells(m.imageTable.Table().Rows(), 1); !equal(got, []string{"cache:v2"}) {
+	if got := cells(m.imageTable.Table().Rows(), imageColumnName); !equal(got, []string{"cache:v2"}) {
 		t.Errorf("rows while filtering on \"ca\" = %v", got)
 	}
 }
@@ -185,14 +186,14 @@ func TestTheFilterMatchesBothTheAliasAndTheRawName(t *testing.T) {
 		{ID: "eee5555", Repository: "registry.example.com/team/svc", Tag: "v9"},
 	}})
 
-	shown := cells(m.imageTable.Table().Rows(), 1)
+	shown := cells(m.imageTable.Table().Rows(), imageColumnName)
 	if !equal(shown, []string{"prod/team/svc:v9"}) {
 		t.Fatalf("the Name column = %v, want the configured alias substituted in", shown)
 	}
 
 	for _, query := range []string{"prod", "registry.example.com", "svc", "v9"} {
 		filtered := feed(t, feed(t, m, testutil.Key("/")), testutil.Type(query)...)
-		if got := cells(filtered.imageTable.Table().Rows(), 1); len(got) != 1 {
+		if got := cells(filtered.imageTable.Table().Rows(), imageColumnName); len(got) != 1 {
 			t.Errorf("filtering on %q left %v, want the one image", query, got)
 		}
 	}
@@ -266,8 +267,10 @@ func TestAFailedScanIsRemembered(t *testing.T) {
 	if m.scanningImage("web:v3") {
 		t.Error("a failed scan left the row reading as scanning")
 	}
-	if !m.failedScans["web:v3"] {
-		t.Error("the failure was not recorded")
+	// The view keeps no failure of its own (DEVDESK-146): the router's memory
+	// is the only source, and it was not handed a snapshot here.
+	if got := m.rowActivity(imageRowByName(t, m, "web:v3")).State; got == indicator.Failed {
+		t.Errorf("the view invented a failure of its own: state %v", got)
 	}
 	if _, cached := m.scanCache["web:v3"]; cached {
 		t.Error("a failed scan wrote a cache entry")
@@ -287,7 +290,7 @@ func TestPullingAnExistingImageMarksItsRow(t *testing.T) {
 			continue
 		}
 		matches++
-		if !row.Pulling {
+		if !row.PullRunning {
 			t.Error("the existing row does not read as pulling")
 		}
 		if row.Image.ID == "" {
@@ -314,7 +317,7 @@ func TestPullingANewImageAddsAPlaceholderRow(t *testing.T) {
 	if found == nil {
 		t.Fatal("no placeholder row appeared for the image being pulled")
 	}
-	if !found.Pulling {
+	if !found.PullRunning {
 		t.Error("the placeholder row does not read as pulling")
 	}
 	if found.Image.ID != "" {
@@ -322,13 +325,13 @@ func TestPullingANewImageAddsAPlaceholderRow(t *testing.T) {
 	}
 }
 
-// A pull settling — however it settles — drops the row's Pulling mark.
+// A pull settling — however it settles — drops the row's PullRunning mark.
 func TestAFinishedPullStopsMarkingTheRow(t *testing.T) {
 	m := pulling(t, loadedModel(t), "web:v3")
 	m = withJobs(t, m, settledPullRun("web:v3"))
 
 	for _, row := range m.imageTable.Items() {
-		if row.RawName == "web:v3" && row.Pulling {
+		if row.RawName == "web:v3" && row.PullRunning {
 			t.Error("the row still reads as pulling once the job settled")
 		}
 	}

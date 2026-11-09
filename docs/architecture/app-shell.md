@@ -777,8 +777,8 @@ constructor argument (same value).
 
 `security.scanTarget.Failed` was one of the two manual copies this replaces; it
 was removed by DEVDESK-145 (A-08), and `:sec` reads `Failures` (scan kind only).
-OCI's `failedScans` is the remaining one, until A-09a moves that view onto
-`Failures`.
+OCI's `failedScans` was the other; DEVDESK-146 (A-09a) removed it, and the
+Images table reads `Failures` too (scan and pull kinds).
 
 ### A progress message needs a case in the router
 
@@ -882,8 +882,8 @@ and a stale entry fails the test:
 
 | Chain | Removed by |
 |---|---|
-| `oci_resources` `AdvanceSpinner` on the four OCI tables | A-09b |
-| `tagScanSpinnerIdx` (OCI registry browser) | A-09a |
+| `oci_resources` `AdvanceSpinner` on the OCI tables left (Networks, Volumes, Registries; Images left with DEVDESK-146) | A-09b |
+| `tagScanSpinnerIdx` (OCI registry browser) | A-09a2 (DEVDESK-218) |
 | `netdiag` `portsSpinnerCmd` | A-12 |
 | `containers` `AdvanceSpinner` | A-14 |
 
@@ -972,14 +972,14 @@ surrender differently.
 `internal/app/activity_guard_test.go` keeps the migration to the activity column
 (Rule 125) from regressing and from being forgotten. It classifies every
 `command.ViewType` against three lists, **per table**: a view must appear in at
-least one, may be migrated for some tables and pending for others (OCI A-09a /
+least one, may be migrated for some tables and pending for others (OCI A-09a2 /
 A-09b, explorer A-10a / A-10b) when the two sets are disjoint, and an exempt
 view is neither:
 
 | List | Meaning |
 |---|---|
-| `migratedTables` | the view's tables are on the activity column (`:jobs`: `jobs/runs`, `jobs/targets`; ws: `ws`, DEVDESK-144; `:sec`: `sec/inventory`, DEVDESK-145) |
-| `pendingTables` | tables waiting for their story (OCI, explorer, templates, netdiag, agent-usage, containers), each naming it. `maxPendingTables` caps the list: it may only shrink (13 to 12 with ws, 12 to 11 with `:sec`) |
+| `migratedTables` | the view's tables are on the activity column (`:jobs`: `jobs/runs`, `jobs/targets`; ws: `ws`, DEVDESK-144; `:sec`: `sec/inventory`, DEVDESK-145; OCI: `oci/images`, DEVDESK-146) |
+| `pendingTables` | tables waiting for their story (OCI: registry browser A-09a2, networks/volumes/registries A-09b; explorer, templates, netdiag, agent-usage, containers), each naming it. `maxPendingTables` caps the list: it may only shrink (13 to 12 with ws, 12 to 11 with `:sec`; `oci/images` moved to migrated by DEVDESK-146) |
 | `exemptViews` | views with no activity to show (dashboard, status, git-auth, configuration, about, files, viewer), each with its reason |
 
 A view in none of the three, an exempt view that is also migrated or pending, or a table both migrated and pending fails by name (`classificationProblems`, unit-tested on a fictitious partly migrated view). A migrated view
