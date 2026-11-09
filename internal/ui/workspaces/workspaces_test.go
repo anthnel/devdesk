@@ -190,9 +190,14 @@ func wantRun(t *testing.T, cmd tea.Cmd, kind jobs.Kind, targets ...string) jobs.
 	if strings.Join(got, "|") != strings.Join(targets, "|") {
 		t.Errorf("run targets = %v, want %v", got, targets)
 	}
+	// A delete is an immediate run (DEVDESK-227): running from admission.
+	want := jobs.ItemQueued
+	if kind == jobs.KindDelete {
+		want = jobs.ItemRunning
+	}
 	for _, item := range run.Items {
-		if item.State != jobs.ItemQueued {
-			t.Errorf("%s starts as %q, want every target queued (D6)", item.Target, item.State)
+		if item.State != want {
+			t.Errorf("%s starts as %q, want %q (D6)", item.Target, item.State, want)
 		}
 	}
 	return run
