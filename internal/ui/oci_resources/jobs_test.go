@@ -17,7 +17,7 @@ import (
 
 func withJobs(t *testing.T, m Model, runs ...jobs.Run) Model {
 	t.Helper()
-	next, _ := m.Update(jobs.ChangedMsg{Runs: runs})
+	next, _ := m.Update(jobs.ChangedMsg{Runs: runs, Context: "default"})
 	next, _ = next.Update(jobs.FrameMsg{Frame: "*", RenderedFrame: "*"})
 	updated, ok := next.(Model)
 	if !ok {

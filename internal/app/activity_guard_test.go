@@ -41,9 +41,10 @@ type activityView interface {
 
 // migratedTables are the tables already on the activity column, by view.
 var migratedTables = map[command.ViewType][]string{
-	command.ViewJobs:       {"jobs/runs", "jobs/targets"},
-	command.ViewWorkspaces: {"ws"},
-	command.ViewSecurity:   {"sec/inventory"},
+	command.ViewJobs:         {"jobs/runs", "jobs/targets"},
+	command.ViewWorkspaces:   {"ws"},
+	command.ViewSecurity:     {"sec/inventory"},
+	command.ViewOCIResources: {"oci/images"},
 }
 
 // pendingTable is a table that still has to move to the activity column.
@@ -55,8 +56,7 @@ type pendingTable struct {
 
 // pendingTables may only shrink: each migration story removes its own entries.
 var pendingTables = []pendingTable{
-	{"oci/images", command.ViewOCIResources, "A-09a"},
-	{"oci/registry-browser", command.ViewOCIResources, "A-09a"},
+	{"oci/registry-browser", command.ViewOCIResources, "A-09a2"},
 	{"oci/networks", command.ViewOCIResources, "A-09b"},
 	{"oci/volumes", command.ViewOCIResources, "A-09b"},
 	{"oci/registries", command.ViewOCIResources, "A-09b"},
@@ -71,7 +71,7 @@ var pendingTables = []pendingTable{
 // maxPendingTables is the ceiling: adding an exception means raising both the
 // list and this constant in the same diff, which is visible in review. Lower it
 // with every migration.
-const maxPendingTables = 11
+const maxPendingTables = 10
 
 // exemptViews have no long-running operation to show per row (inventory:
 // "sans objet" or out of the batch), each with its reason.
@@ -124,7 +124,7 @@ func builtView(t *testing.T, vt command.ViewType) tea.Model {
 
 // classificationProblems says what is wrong with the classification of one
 // view, empty when it is fine. It works per table: a view may be migrated for
-// some tables and pending for others (A-09a/A-09b, A-10a/A-10b) as long as the
+// some tables and pending for others (A-09a/A-09a2/A-09b, A-10a/A-10b) as long as the
 // two sets are disjoint; an exempt view is neither migrated nor pending.
 func classificationProblems(vt command.ViewType, migrated map[command.ViewType][]string, pending []pendingTable, exempt map[command.ViewType]string) []string {
 	var problems []string
@@ -319,12 +319,20 @@ func checkColumnZero(t *testing.T, vt command.ViewType, table string, shapes []d
 // path, relative to internal/) of each migrated view. They are scanned for the
 // retired mechanisms (criterion 2a/2b, and the hard-coded glyphs of 3). Only
 // migrated views: pending ones still use them. A prefix may be a file so a view
-// that migrates in two steps (OCI A-09a/b, explorer A-10a/b) can be scanned
+// that migrates in two steps (OCI A-09a/A-09a2/A-09b, explorer A-10a/b) can be scanned
 // file by file.
 var migratedSources = map[command.ViewType][]string{
 	command.ViewJobs:       {"ui/jobsview/"},
 	command.ViewWorkspaces: {"ui/workspaces/"},
 	command.ViewSecurity:   {"ui/security/"},
+	// OCI migrates in steps (A-09a images, A-09a2 registry browser, A-09b the rest):
+	// only the files that belong to the migrated table are scanned. Excluded:
+	// model.go (StatusColumn of the three other tables), busy.go, commands.go (the
+	// refresh tea.Tick) and browser_*/registry_browser.go.
+	command.ViewOCIResources: {
+		"ui/oci_resources/activity.go", "ui/oci_resources/table.go", "ui/oci_resources/jobs.go",
+		"ui/oci_resources/images.go", "ui/oci_resources/results.go", "ui/oci_resources/view.go",
+	},
 }
 
 // sourceDeclarationProblems says what is wrong with the link between migrated
@@ -754,9 +762,25 @@ type footerRenderer interface {
 // and return the state that row is in. A migrated view without a seed fails the
 // guard by name.
 var migratedFooterSeeds = map[command.ViewType]func(*testing.T, *App) indicator.State{
-	command.ViewJobs:       seedJobsFooter,
-	command.ViewWorkspaces: seedWorkspacesFooter,
-	command.ViewSecurity:   seedSecurityFooter,
+	command.ViewJobs:         seedJobsFooter,
+	command.ViewWorkspaces:   seedWorkspacesFooter,
+	command.ViewSecurity:     seedSecurityFooter,
+	command.ViewOCIResources: seedOCIFooter,
+}
+
+// seedOCIFooter puts a scan of the first Images row (nginx:1.27, the selected
+// one) in the running state and opens the OCI view on it.
+func seedOCIFooter(t *testing.T, a *App) indicator.State {
+	t.Helper()
+	t.Setenv("PATH", t.TempDir()) // no docker: a reload command must stay inert
+	const image = "nginx:1.27"
+	a.Update(jobs.StartMsg{Run: jobs.NewRun(jobs.KindScan, command.ViewOCIResources, "", "images", image)})
+	snap := a.jobs.Snapshot()
+	if len(snap) != 1 || !a.jobs.Advance(snap[0].ID, image, jobs.ItemRunning, "") {
+		t.Fatalf("the seed could not put the scan in the running state: %+v", snap)
+	}
+	openOCI(t, a)
+	return indicator.Running
 }
 
 // seedJobsFooter starts a scan run, moves its item to running (a started run

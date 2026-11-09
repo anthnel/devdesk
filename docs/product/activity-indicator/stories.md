@@ -18,6 +18,7 @@ Projet DEVDESK, état Backlog, label `story`. Modules : « E1 - Fondations (indi
 | A-07 | DEVDESK-144 | E2 | high |
 | A-08 | DEVDESK-145 | E2 | high |
 | A-09a | DEVDESK-146 | E2 | high |
+| A-09a2 | DEVDESK-218 | E2 | high |
 | A-09b | DEVDESK-153 | E2 | high |
 | A-10a | DEVDESK-147 | E2 | medium |
 | A-10b | DEVDESK-148 | E2 | medium |
@@ -36,7 +37,7 @@ Prises par l'utilisateur ; ne pas rouvrir. La colonne de droite dit où elles se
 
 | # | Décision | Effet dans les stories |
 |---|---|---|
-| D1 | **R1** : une nouvelle colonne de pastille est **acceptée** pour les 7 tables sans colonne d'icône (4 tables OCI, liste de clone, ports, agents de `:agent-usage`). Le non-objectif « pas de nouvelle colonne » est supprimé. | A-09a (dont le navigateur de registre, 8e colonne, voir A-09a critère 7), A-09b, A-10b, A-12, A-13 : largeur, Rule 116 à 60 colonnes, Rule 125 (sans titre, `IconColumnWidth`, `SizingFixed`, ni `Less` ni `Search`) |
+| D1 | **R1** : une nouvelle colonne de pastille est **acceptée** pour les 7 tables sans colonne d'icône (4 tables OCI, liste de clone, ports, agents de `:agent-usage`). Le non-objectif « pas de nouvelle colonne » est supprimé. | A-09a, A-09a2 (navigateur de registre, 8e colonne, sorti de A-09a), A-09b, A-10b, A-12, A-13 : largeur, Rule 116 à 60 colonnes, Rule 125 (sans titre, `IconColumnWidth`, `SizingFixed`, ni `Less` ni `Search`) |
 | D2 | **R2** : critère de succès 5 = « **un seul tick anime les lignes** ». Les spinners de chargement global du footer gardent leurs chaînes. | A-03 (critère 4), A-16 (test garde-fou) |
 | D3 | Réglage `app.motion: blink \| static`, **par contexte seulement** (aucune variable d'environnement globale), défaut `blink`. | A-02 |
 | D4 | Couleurs d'état : **alias fermés** du thème (pas de rôles `icon_*` surchargeables). Les rôles `icon_*` ne servent qu'à l'icône de repos. | A-01 (critère 1 corrigé) |
@@ -79,7 +80,8 @@ A-04 est indépendant, mais il doit être livré **avant le pilote** pour que la
 | A-16 | Test garde-fou transverse | E2 | Must | M | A-06 (squelette dans la PR du pilote) |
 | A-07 | `ws` : opération en cours et échec (fusion de A-07a et A-07b) | E2 | Must | M | A-04, A-06 |
 | A-08 | `:sec` | E2 | Must | M | A-04, A-06, 2e point de contrôle (A-07) |
-| A-09a | OCI : images et navigateur de registre (8e colonne) | E2 | Must | M | A-04, A-06, 2e point de contrôle |
+| A-09a | OCI : images | E2 | Must | M | A-04, A-06, 2e point de contrôle |
+| A-09a2 | OCI : navigateur de registre (8e colonne) | E2 | Must | S | A-09a |
 | A-09b | OCI : networks, volumes, registries | E2 | Must | S | A-09a |
 | A-10a | Explorer : arbre (create et delete) | E2 | Should | S | A-06, 2e point de contrôle |
 | A-10b | Explorer : liste de clone | E2 | Should | M | A-06, 2e point de contrôle |
@@ -123,7 +125,7 @@ En tant que mainteneur de DevDesk, je veux un inventaire daté de toutes les vue
 5. Le livrable tient en une page et se termine par la liste finale des vues à migrer, que l'utilisateur valide.
 
 **Hors périmètre** : tout code livré.
-**Questions ouvertes** : aucune. Les vues « hors lot » et « sans objet » de l'inventaire sont acceptées par l'utilisateur (2026-11-06) ; le navigateur de registre OCI en sort et entre dans A-09a.
+**Questions ouvertes** : aucune. Les vues « hors lot » et « sans objet » de l'inventaire sont acceptées par l'utilisateur (2026-11-06) ; le navigateur de registre OCI en sort pour A-09a2 (DEVDESK-218).
 
 ### A-01 — Composant pastille : glyphes, alias de couleur, deux sources d'état, légende, amendement des règles (DEVDESK-137)
 Epic : E1 — Priorité : Must — Effort : M (absorbe l'ancienne A-15)
@@ -300,7 +302,7 @@ En tant qu'utilisateur de `:sec`, je veux la même pastille et les mêmes échec
 **Hors périmètre** : les onglets de résultats, la colonne CI.
 **Questions ouvertes** : aucune propre à cette story.
 
-### A-09a — OCI : images et navigateur de registre (pastille, nouvelle colonne, retrait de la copie d'échec) (DEVDESK-146)
+### A-09a — OCI : images (pastille, nouvelle colonne, retrait de la copie d'échec) (DEVDESK-146)
 Epic : E2 — Priorité : Must — Effort : M
 
 En tant qu'utilisateur de la vue OCI, je veux la pastille sur chaque image pendant un scan, un pull ou une suppression, et voir un échec de scan posé ailleurs, afin d'avoir un seul langage visuel.
@@ -312,11 +314,22 @@ En tant qu'utilisateur de la vue OCI, je veux la pastille sur chaque image penda
 4. Étant donné un pull en cours, quand la table s'affiche, alors la ligne fantôme du pull montre la pastille ; un `docker pull` en cours dans son écran d'opération (sans table) n'est pas modifié (exception déclarée de la Rule 139).
 5. Étant donné une suppression d'image (action instantanée, `busy`), quand elle tourne, alors la pastille `●`/`○` apparaît ; son échec reste au footer.
 6. L'aide `?` porte la légende ; le footer par ligne est câblé ; les raccourcis n'embarquent aucune frame de spinner (`TestNoShortcutAdvertisesAGlyphAsAKey`).
-7. Étant donné le navigateur de registre (liste des tags, `registry_browser.go`), dont les colonnes C/H/M/L portent aujourd'hui une frame propre (`tagCVEColumn`, `r.frame`, avancée par `tagScanSpinnerIdx` dans `browser_keys.go`), quand il s'affiche, alors une **8e colonne de pastille** (hors des 7 tables de D1, décision utilisateur du 2026-11-06) est ajoutée en première position (sans titre, `IconColumnWidth`, `SizingFixed`, ni `Less` ni `Search`, Rule 125) ; un scan de tag en cours y montre `●`/`○` (source : le registre, scan) ; la frame et l'index de frame locaux sont supprimés ; les colonnes C/H/M/L affichent un texte statique en `DimStyle` pendant le scan (comme `scanning` ailleurs) ; Rule 116 tient à 60 colonnes (seuils et tests recalés) ; les recherches du navigateur gardent leur spinner de chargement global au footer ; l'aide `?` porte la légende. Le navigateur n'a pas d'échec mémorisé à retirer.
 
-**Hors périmètre** : mise à jour d'image, vérification de signature, les trois autres tables (A-09b). Le navigateur de registre n'est plus exclu (critère 7).
-**Note** : le navigateur est rattaché à A-09a (même mécanisme registre/scan, même PR de largeur) plutôt qu'à une story dédiée ; A-09a reste M. Si la relecture la juge trop grosse, la scinder en A-09a2 (navigateur, S).
+**Hors périmètre** : mise à jour d'image, vérification de signature, le navigateur de registre (A-09a2), les trois autres tables (A-09b).
 **Questions ouvertes** : identité commune entre `:sec` et OCI (question ouverte 2).
+
+### A-09a2 — OCI : navigateur de registre (pastille) (DEVDESK-218)
+Epic : E2 — Priorité : Must — Effort : S
+
+Scindée de A-09a sur décision de l'utilisateur (2026-11-09).
+
+En tant qu'utilisateur du navigateur de registre OCI, je veux la pastille sur chaque tag pendant un scan, afin d'avoir le même langage visuel que dans le reste de l'application.
+
+**Critères d'acceptation**
+1. Étant donné le navigateur de registre (liste des tags, `registry_browser.go`, écran `oci/registry-browser`), dont les colonnes C/H/M/L portent aujourd'hui une frame propre (`tagCVEColumn`, `r.frame`, avancée par `tagScanSpinnerIdx` dans `browser_keys.go`), quand il s'affiche, alors une **8e colonne de pastille** (hors des 7 tables de D1, décision utilisateur du 2026-11-06) est ajoutée en première position (sans titre, `IconColumnWidth`, `SizingFixed`, ni `Less` ni `Search`, Rule 125) ; un scan de tag en cours y montre `●`/`○` (source : le registre, scan) ; la frame et l'index de frame locaux sont supprimés ; les colonnes C/H/M/L affichent un texte statique en `DimStyle` pendant le scan (comme `scanning` ailleurs) ; Rule 116 tient à 60 colonnes (seuils et tests recalés) ; les recherches du navigateur gardent leur spinner de chargement global au footer ; l'aide `?` porte la légende. Le navigateur n'a pas d'échec mémorisé à retirer.
+
+**Hors périmètre** : la liste d'images (A-09a), les trois autres tables (A-09b).
+**Dépendances** : A-09a (DEVDESK-146).
 
 ### A-09b — OCI : networks, volumes, registries (DEVDESK-153)
 Epic : E2 — Priorité : Must — Effort : S
@@ -455,7 +468,7 @@ Rien ci-dessous n'est tranché ; la recommandation du PM, quand il y en a une, e
 
 1. **Vue pilote et plan B du go/no-go** (A-06). Recommandation: `:jobs` pour la décision sur le clignotement (déjà une colonne de glyphe, un spinner fourni par le routeur, un registre) ; alternative: `ws`, plus exposée mais sans état d'échec aujourd'hui. Plan B d'un no-go : `app.motion` à `static` par défaut partout (la pastille, le mémorisateur et le footer restent), ou arrêt du chantier ?
 2. **Identité de la cible et types d'opération mémorisés** (A-04). La clé (`Kind`, `Target`, `Context`) reprend celle du registre ; une image et un dépôt ne sont pas la même cible (pas de pont) ; cas résiduels : images sans tag, références écrites autrement. Quels types d'opération le mémorisateur garde-t-il (scan seulement, ou aussi sync, clone, pull, create, delete) ? La table de A-04 (critère 9) est indicative de l'architect.
-3. **Vues hors inventaire** (A-00) : **close le 2026-11-06.** Filebrowser, remédiation `:sec` et sessions `:agent-usage` : hors lot, accepté. Vues « sans objet » (dashboard, status, viewer, setup, auth forge, etc.) : acceptées. Le navigateur de registre OCI est migré (8e colonne, A-09a).
+3. **Vues hors inventaire** (A-00) : **close le 2026-11-06.** Filebrowser, remédiation `:sec` et sessions `:agent-usage` : hors lot, accepté. Vues « sans objet » (dashboard, status, viewer, setup, auth forge, etc.) : acceptées. Le navigateur de registre OCI est sorti de A-09a vers A-09a2 (8e colonne, DEVDESK-218).
 4. **Netdiag : échec de test réseau** (A-12) : résultat de ligne (recommandation du PM et de l'architect) ou échec d'opération mémorisé ?
 5. **Découpage des PR** : une PR par story (recommandation du PM et de l'architect, avec A-08 et A-09a qui se relisent mieux ensemble mais restent deux PR) ou regroupement des vues Should ?
 6. **Quand clore DEVDESK-99.** La décision D11 dit « à la création du backlog » ; question gardée à la demande de l'utilisateur, à confirmer ou à retirer.

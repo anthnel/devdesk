@@ -157,6 +157,59 @@ once the tag has moved to a newer image. A search hiding the target is
 dropped; an image that is no longer listed is a footer `Warn`. There is no
 `esc` back: `:ct` returns, as from any other view.
 
+## The Images table and the activity column — `internal/ui/oci_resources` (DEVDESK-146, A-09a)
+
+The Images tab of `:oci` is on the activity column (Rule 125; the router side is
+in `app-shell.md`). Networks, Volumes and Registries (A-09b) and the registry
+browser (A-09a2, DEVDESK-218) are not migrated yet.
+
+- **Column 0 is `datatable.IndicatorColumn`.** At rest it shows `IconDocker` in
+  the `theme.IconRoleImage` role; while something runs it shows the state glyph.
+  `imageRow.Activity` is stamped from `m.rowActivity` (`activity.go`), which
+  calls `components.DescribeRow` on the router snapshot (`m.jobs`), the
+  remembered failures (`m.failures`) and the snapshot's context.
+- **The key is the raw reference, `jobs.TargetKey(img.Name())`.** There is no
+  canonicalization: `nginx` and `docker.io/library/nginx` are two keys. Two
+  images named `<none>` share one key, as they already share the scan cache
+  entry. Kinds read are scan and pull, whoever started them.
+- **Static words, no spinner frame in a cell.** The Scanned cell reads
+  `scanning` and the ID cell reads `pulling` while the operation runs
+  (`scanRunning`, `pullRunning`). The blink phase is read at render, so a frame
+  rebuilds no row.
+- **Removal is this view's own observation.** The busy `●`/`○` the table used to
+  draw is gone; a removal in flight is reported as `Running` with its label
+  (`BusyLabel`) and goes through the same column.
+- **The footer describes the selected row** (`status()` in `view.go`), after the
+  active tab's load state and beside the action line or the batch progress. A
+  failed row's detail is fixed, so the spinner stays; a running or queued
+  row's detail replaces it.
+- **`failedScans` is removed.** A failure is read from `Failures` in the router
+  snapshot and stays on the row until the next attempt.
+- **After a successful removal the view calls `jobs.ForgetTarget(name)`**
+  (`results.go`), so a deleted image does not keep a stale failure.
+
+**Widths (Rule 116).** The activity column costs 4 cells (2 of width and 2 of
+padding). Each optional column now appears 4 columns later (the before and after
+thresholds, in terminal columns):
+
+| Column | Before | After |
+|---|---|---|
+| Update | 48 | 52 |
+| Secrets | 57 | 61 |
+| C | 63 | 67 |
+| H | 69 | 73 |
+| M | 75 | 79 |
+| L | 81 | 85 |
+| Sig | 86 | 90 |
+| Disk Usage | 100 | 104 |
+| Content Size | 116 | 120 |
+| Scanned | 132 | 136 |
+
+At 60 columns the visible columns are `●`, ID, Name and Update. At 70 they are
+`●`, ID, Name, Update, Secrets and C. At these widths the columns that give way
+are required ones, which Rule 116 allows: a whole column goes, never a
+truncated value.
+
 ## Verified pulls — `internal/imagepull` (§3.82)
 
 **Every pull goes through `imagepull.Pull`** — the registry browser's `G`, an

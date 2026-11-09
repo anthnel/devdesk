@@ -1,11 +1,14 @@
 package ociresources
 
 import (
+	"slices"
+
 	tea "github.com/charmbracelet/bubbletea"
 
 	"github.com/anthnel/devdesk/internal/command"
 	"github.com/anthnel/devdesk/internal/docker"
 	"github.com/anthnel/devdesk/internal/jobs"
+	"github.com/anthnel/devdesk/internal/ui/indicator"
 	"github.com/anthnel/devdesk/internal/ui/registryalias"
 )
 
@@ -18,13 +21,15 @@ import (
 //
 // The view's own `spinner.Model` stays, and deliberately: it animates *loading*
 // — the image list, the networks, a `docker` action on a row — and a load is not
-// a job. What moved is the frame the scan cells use, which now comes from the
-// one chain the router holds (D5).
+// a job. What moved is the blink phase of the activity column, which comes from
+// the one chain the router holds (D5).
 
 // handleJobsChanged takes the router's snapshot. It is the only writer of the
 // two fields.
 func (m Model) handleJobsChanged(msg jobs.ChangedMsg) (tea.Model, tea.Cmd) {
 	m.jobs = msg.Runs
+	m.failures = slices.Clone(msg.Failures)
+	m.contextName = msg.Context
 	// The footer's spinner is deliberately not touched: here it belongs to
 	// *loading* — a tab reading its list — and this view's scan progress is on
 	// the rows, not in the footer. Two writers of one field would fight every
@@ -36,12 +41,28 @@ func (m Model) handleJobsChanged(msg jobs.ChangedMsg) (tea.Model, tea.Cmd) {
 	return m, nil
 }
 
-// handleFrameMsg takes the animation's frame for the scan cells. The footer is
-// untouched, for the reason handleJobsChanged gives.
+// handleFrameMsg takes the blink phase of the activity column. Nothing is
+// rebuilt: the table reads the phase at render. The footer frame is the
+// router's only while no tab load is running: the view's own spinner owns it
+// then, and two writers would fight every frame.
 func (m Model) handleFrameMsg(msg jobs.FrameMsg) (tea.Model, tea.Cmd) {
-	m.jobFrame = msg.Frame
-	m.updateImageTable()
+	m.imageTable.SetBlinkPhase(msg.Blink)
+	if !m.loading && !m.loadingNets && !m.loadingVols && !m.loadingRegs {
+		m.footer.SetSpinnerFrame(msg.RenderedFrame)
+	}
 	return m, nil
+}
+
+// WantsBlink reports whether an Images row is in an animated state (running,
+// or an action observed on it). A queued row and a remembered failure are
+// steady. It is the level the router's BlinkingView check reads.
+func (m Model) WantsBlink() bool {
+	for _, r := range m.imageTable.Items() {
+		if r.Activity.State == indicator.Running {
+			return true
+		}
+	}
+	return false
 }
 
 // scanRun builds the run behind S, A, ctrl+a and a direct scan from the browser.

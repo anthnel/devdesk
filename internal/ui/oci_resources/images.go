@@ -160,10 +160,7 @@ func (m Model) handleImageScanStarting(_ ImageScanStartingMsg) (tea.Model, tea.C
 
 // handleImageScanFinished updates scan results for a completed image scan.
 func (m Model) handleImageScanFinished(msg ImageScanFinishedMsg) (tea.Model, tea.Cmd) {
-	if msg.Err != nil {
-		m.failedScans[msg.ImageName] = true
-	} else {
-		delete(m.failedScans, msg.ImageName)
+	if msg.Err == nil {
 		m.scanCache[msg.ImageName] = msg.Entry
 		m.footer.Clear()
 	}

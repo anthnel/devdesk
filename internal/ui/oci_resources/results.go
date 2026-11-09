@@ -8,6 +8,7 @@ import (
 
 	"github.com/anthnel/devdesk/internal/config"
 	"github.com/anthnel/devdesk/internal/docker"
+	"github.com/anthnel/devdesk/internal/jobs"
 )
 
 // handleConfirmYes executes the pending action
@@ -24,6 +25,8 @@ func (m Model) handleConfirmYes() (tea.Model, tea.Cmd) {
 		}
 		name := img.Name()
 		m.imageTable.MarkBusy(img.ID, "Removing "+name)
+		// Rebuild so the rows' activity (read by WantsBlink) follows the marker.
+		m.updateImageTable()
 		return m, tea.Batch(removeImageCmd(img.ID, name), m.busyTick())
 	case "prune-images":
 		m.pruning = "images"
@@ -129,12 +132,14 @@ func (m Model) handleScanCacheLoaded(msg ScanCacheLoadedMsg) (tea.Model, tea.Cmd
 // would leave the row spinning for the life of the view.
 func (m Model) handleImageAction(msg ImageActionMsg) (tea.Model, tea.Cmd) {
 	m.imageTable.ClearBusy(msg.ID)
+	m.updateImageTable() // drop the Running activity the marker put on the row
 	if msg.Err != nil {
 		log.Printf("ERROR [oci_resources] %s %s: %v", msg.Action, msg.Name, msg.Err)
 		return m, m.footer.Error("Action failed — check logs")
 	}
 	m.footer.Clear()
-	return m, fetchImages()
+	// The tag is gone: the registry must not keep a failure for it.
+	return m, tea.Batch(jobs.ForgetTarget(msg.Name), fetchImages())
 }
 
 // handlePruneComplete processes prune results

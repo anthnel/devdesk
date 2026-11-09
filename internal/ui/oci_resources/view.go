@@ -6,10 +6,13 @@ import (
 
 	"github.com/charmbracelet/lipgloss"
 
+	"github.com/anthnel/devdesk/internal/command"
 	"github.com/anthnel/devdesk/internal/docker"
 	"github.com/anthnel/devdesk/internal/engine"
+	"github.com/anthnel/devdesk/internal/jobs"
 	sharedcomponents "github.com/anthnel/devdesk/internal/ui/components"
 	"github.com/anthnel/devdesk/internal/ui/help"
+	"github.com/anthnel/devdesk/internal/ui/indicator"
 	"github.com/anthnel/devdesk/internal/ui/keymap"
 	"github.com/anthnel/devdesk/internal/ui/shortcut"
 	"github.com/anthnel/devdesk/internal/ui/theme"
@@ -94,16 +97,31 @@ func (m Model) RenderFooter(width int) string {
 	return strings.Join(parts, "\n")
 }
 
-// status is what the view derives on every frame: the active tab's load, then
-// whatever action is running. Neither has a timer.
+// status is what the view derives on every frame: the active tab's load, which
+// stays first and carries no row detail, then the selected image's own activity
+// composed with the running action or the batch progress. None has a timer.
 func (m Model) status() sharedcomponents.Status {
 	if text, ok := m.loadingLabel(); ok {
 		return sharedcomponents.Status{Text: text, Spinner: true}
 	}
-	if line := m.actionLine(); line != "" {
-		return sharedcomponents.Status{Text: line}
+	st := sharedcomponents.Status{Text: m.actionLine()}
+	if st.Text == "" {
+		st.Text = sharedcomponents.JobsStatusLine(m.jobs, command.ViewOCIResources)
 	}
-	return sharedcomponents.Status{Text: m.inlineSecretLine()}
+	moving := false
+	if m.activeTab == tabImages {
+		if row, ok := m.imageTable.Selected(); ok {
+			a := m.rowActivity(row)
+			st.Detail = a.Detail
+			moving = a.State == indicator.Running || a.State == indicator.Queued
+		}
+	}
+	if st.Text == "" {
+		st.Text = m.inlineSecretLine()
+	}
+	// Only a detail whose dot moves replaces the spinner; a failed row's is fixed.
+	st.Spinner = len(jobs.Unfinished(m.jobs)) > 0 && (!moving || st.Detail.IsZero())
+	return st
 }
 
 // inlineSecretLine says why the selected registry's Logged cell is a warning:
@@ -522,6 +540,7 @@ func (m Model) GetHelpContent() help.Content {
 			{Key: "?", Description: "Show this help"},
 		},
 		Sections: []help.Section{
+			indicator.Legend(),
 			{
 				Title: "Images Tab",
 				Body: "Shows all local " + engTitle + " images with disk usage, content size, and CVE scan results.\n" +

@@ -13,23 +13,23 @@ import (
 // `docker login` that has to reach a registry over a slow link. Nothing said so:
 // the row was identical to one with nothing happening to it.
 //
-// Each table spends a different cell on the spinner, and the choice is the same
-// each time: the one the user does not need while the action runs. §3.16 settled
-// why it is a cell and not a column of its own — a column costs cells on every
-// screen to say nothing on all but one row, and at 80 columns this view has none
-// to spare.
+// The Images table shows it in its activity column (blinking dot); the other
+// tables spend a cell on a spinner, the one the user does not need while the
+// action runs. §3.16 settled why it is a cell and not a column of its own — a
+// column costs cells on every screen to say nothing on all but one row, and at
+// 80 columns this view has none to spare.
 
 // busyMessage is what every tab says when an action is already running on the
 // selected row. One message rather than one per verb, because the user's next
 // move is the same in all of them: wait.
 const busyMessage = "Already busy — an action is running on this row"
 
-// advanceBusySpinners moves every table's frame on and reports whether anything
-// is running. It is called from the spinner tick, which is what keeps the frames
-// turning; the tick has to go on being scheduled while this returns true, or the
-// spinner stops on a row that is still working.
+// advanceBusySpinners moves the spinner frame of the Networks, Volumes and
+// Registries tables on (Images has none) and reports whether anything is
+// running on any tab. It is called from the spinner tick, which is what keeps
+// the frames turning; the tick has to go on being scheduled while this returns
+// true, or the spinner stops on a row that is still working.
 func (m *Model) advanceBusySpinners() bool {
-	m.imageTable.AdvanceSpinner()
 	m.networkTable.AdvanceSpinner()
 	m.volumeTable.AdvanceSpinner()
 	m.registryTable.AdvanceSpinner()
