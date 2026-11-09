@@ -118,7 +118,7 @@ func (m Model) refreshRegistries() (tea.Model, tea.Cmd) {
 
 	cmds := []tea.Cmd{m.registryLoginStatusCmd()}
 	if cmd := m.refreshSelectedGroupCmd(); cmd != nil {
-		cmds = append(cmds, cmd, m.spinner.Tick)
+		cmds = append(cmds, cmd)
 	}
 	m.updateRegistryTable()
 	return m, tea.Batch(cmds...)
@@ -165,7 +165,7 @@ func (m Model) handleRegistryFormSubmit(msg RegistryFormSubmitMsg) (tea.Model, t
 	m.footer.Clear()
 	if msg.Password != "" && config.UsesCredentials(msg.Item.AuthMode) {
 		m.registryTable.MarkBusy(msg.Item.URL, "Logging in to "+browserAlias(msg.Item))
-		return m, tea.Batch(registryLoginCmd(msg.Item.URL, msg.Item.Username, msg.Password), m.busyTick())
+		return m, registryLoginCmd(msg.Item.URL, msg.Item.Username, msg.Password)
 	}
 	return m, nil
 }
@@ -211,7 +211,7 @@ func (m Model) logoutSelectedRegistry() (tea.Model, tea.Cmd) {
 		return m, m.footer.Warn(busyMessage)
 	}
 	m.registryTable.MarkBusy(reg.URL, "Logging out of "+browserAlias(*reg))
-	return m, tea.Batch(registryLogoutCmd(reg.URL), m.busyTick())
+	return m, registryLogoutCmd(reg.URL)
 }
 
 func (m Model) handleRegistryLogoutComplete(msg RegistryLogoutCompleteMsg) (tea.Model, tea.Cmd) {

@@ -57,6 +57,9 @@ func TestTheModelHoldsNoRowSpinnerState(t *testing.T) {
 	if _, ok := reflect.TypeOf(Model{}).FieldByName("jobFrame"); ok {
 		t.Error("Model still carries jobFrame")
 	}
+	if _, ok := reflect.TypeOf(Model{}).FieldByName("spinnerFrameIdx"); ok {
+		t.Error("Model still carries spinnerFrameIdx, the row-spinner frame index")
+	}
 	row := reflect.TypeOf(imageRow{})
 	for _, name := range []string{"Scanning", "Pulling", "SpinnerFrame"} {
 		if _, ok := row.FieldByName(name); ok {
@@ -66,6 +69,23 @@ func TestTheModelHoldsNoRowSpinnerState(t *testing.T) {
 	for _, name := range []string{"Activity", "ScanRunning", "PullRunning"} {
 		if _, ok := row.FieldByName(name); !ok {
 			t.Errorf("imageRow lacks %s", name)
+		}
+	}
+}
+
+// A frame sets the blink phase of all four tables, not only Images.
+func TestAFrameSetsThePhaseOfTheFourTables(t *testing.T) {
+	m := feed(t, loadedModel(t), RegistryGroupCacheLoadedMsg{})
+	for _, on := range []bool{false, true} {
+		m = feed(t, m, jobs.FrameMsg{Blink: on})
+		phases := map[string]bool{
+			"images": m.imageTable.BlinkPhase(), "networks": m.networkTable.BlinkPhase(),
+			"volumes": m.volumeTable.BlinkPhase(), "registries": m.registryTable.BlinkPhase(),
+		}
+		for name, got := range phases {
+			if got != on {
+				t.Errorf("Blink=%v: table %s has phase %v", on, name, got)
+			}
 		}
 	}
 }

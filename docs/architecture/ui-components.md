@@ -430,8 +430,8 @@ on that host.
 `oci_resources` gathers `BusyLabels()` from **all four tabs**, not the active
 one: an action started on Images goes on running after `tab`, and a spinner that
 stopped turning because the user looked elsewhere would read as a hang on the
-way back. The spinner tick has to keep being scheduled while anything is busy —
-that is what `advanceBusySpinners()` reports.
+way back. Row state is drawn by the activity column and animated by the router's
+`jobs.FrameMsg`; the view's own spinner turns only while a tab loads.
 
 Deliberately outside this:
 
@@ -451,6 +451,7 @@ Deliberately outside this:
   not spend the same cell for every operation.
 
 **An `Indicator` column supersedes `StatusColumn`** (DEVDESK-137, next section).
+No view calls `StatusColumn` or `AdvanceSpinner` any more (the last, `oci_resources`, left with DEVDESK-153); both stay in the package until A-16 removes them.
 On a table that has one, a busy row shows `●` / `○` in that column and
 `StatusColumn` no longer picks a cell for the spinner. Both mechanisms coexist
 until the last view has migrated; a table with no `Indicator` column behaves

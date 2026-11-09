@@ -4,13 +4,16 @@ import (
 	"errors"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/charmbracelet/x/ansi"
 
 	"github.com/anthnel/devdesk/internal/command"
 	"github.com/anthnel/devdesk/internal/docker"
 	"github.com/anthnel/devdesk/internal/jobs"
+	sharedcomponents "github.com/anthnel/devdesk/internal/ui/components"
 	"github.com/anthnel/devdesk/internal/ui/indicator"
+	"github.com/anthnel/devdesk/internal/ui/keymap"
 	ociresources "github.com/anthnel/devdesk/internal/ui/oci_resources"
 	"github.com/anthnel/devdesk/internal/ui/testutil"
 )
@@ -164,4 +167,40 @@ func TestOCISuccessfulRemovalClearsTheFailure(t *testing.T) {
 		t.Error("the failure survived the removal of the image")
 	}
 	ociWantNotFailed(t, a, secImage)
+}
+
+// DEVDESK-153: a network removal is told by the row's blinking dot, driven by
+// the router's frame like the Images table, with no spinner chain of the view.
+func TestOCINetworkRemovalBlinksItsDotThroughTheRouter(t *testing.T) {
+	stubAnimationEvery(t, time.UnixMilli(1000))
+	a := ociRouter(t)
+	a.Update(ociresources.NetworksListMsg{Networks: []docker.Network{
+		{ID: "net1111", Name: "backnet", Driver: "bridge"},
+		{ID: "net2222", Name: "frontnet", Driver: "bridge"},
+	}})
+	a.resize(a.width, a.height)
+	a.Update(testutil.Key("tab")) // networks tab
+	a.Update(testutil.Key(keymap.Delete))
+	a.Update(sharedcomponents.ConfirmModalYesMsg{})
+
+	held, ok := a.views[command.ViewOCIResources].(BlinkingView)
+	if !ok || !held.WantsBlink() {
+		t.Fatal("a network removal in flight does not ask the router for a blink")
+	}
+	a.anim.ticking = false
+	if cmd := a.ensureTick(); cmd == nil {
+		t.Fatal("a network removal on screen got no animation chain")
+	}
+	for _, on := range []bool{true, false} {
+		m, _ := a.views[command.ViewOCIResources].Update(jobs.FrameMsg{Blink: on})
+		a.views[command.ViewOCIResources] = m
+		row := rowOf(t, ociScreen(a), "backnet")
+		if want := indicator.Glyph(indicator.Running, on); !strings.Contains(row, want) {
+			t.Errorf("blink=%v: the removing network row lacks %q: %q", on, want, row)
+		}
+		if other := rowOf(t, ociScreen(a), "frontnet"); strings.Contains(other, indicator.Glyph(indicator.Running, true)) ||
+			strings.Contains(other, indicator.Glyph(indicator.Running, false)) {
+			t.Errorf("blink=%v: the other network shows a dot: %q", on, other)
+		}
+	}
 }

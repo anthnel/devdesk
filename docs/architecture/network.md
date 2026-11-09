@@ -157,11 +157,27 @@ once the tag has moved to a newer image. A search hiding the target is
 dropped; an image that is no longer listed is a footer `Warn`. There is no
 `esc` back: `:ct` returns, as from any other view.
 
-## The Images table and the activity column — `internal/ui/oci_resources` (DEVDESK-146, A-09a)
+## The OCI tables and the activity column — `internal/ui/oci_resources` (DEVDESK-146, A-09a; DEVDESK-153, A-09b)
 
-The Images tab of `:oci` is on the activity column (Rule 125; the router side is
-in `app-shell.md`). Networks, Volumes and Registries (A-09b) and the registry
-browser (A-09a2, DEVDESK-218) are not migrated yet.
+The four tables of `:oci` (Images, Networks, Volumes, Registries) are on the
+activity column (Rule 125; the router side is in `app-shell.md`). Only the
+registry browser (A-09a2, DEVDESK-218) is not migrated yet.
+
+**Networks, Volumes and Registries (DEVDESK-153, A-09b).** Each takes
+`datatable.IndicatorColumn` as column 0. Rows carry no `components.RowActivity`:
+the datatable reads its own busy marker (`MarkBusy`), and the column's
+`Indicator` function returns `Idle` (or `Running` when `registryRow.refreshing`
+is set). A remove, login or logout in flight is that marker, reported as
+`Running` with its label (`BusyLabel`). On these three tables a failure never
+leaves a `⊗` dot, only a footer message. On Registries, a group whose members are being discovered
+(`refreshingGroups`) is `Running` too, and the Members cell is static dim text:
+the row's dot says it, and `WantsBlink` is true while a group refreshes or a
+row action runs, so the periodic refresh alone never blinks. The row spinner is
+gone from the whole view: `advanceBusySpinners`, `busyTick`, `spinnerFrameIdx`
+and every `AdvanceSpinner` call are deleted. The view's `spinner.Model` remains
+and turns only while a tab *loads* (footer, Rule 128).
+
+**Images (DEVDESK-146, A-09a).**
 
 - **Column 0 is `datatable.IndicatorColumn`.** At rest it shows `IconDocker` in
   the `theme.IconRoleImage` role; while something runs it shows the state glyph.

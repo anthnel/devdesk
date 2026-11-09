@@ -78,14 +78,11 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	case spinner.TickMsg:
 		var cmds []tea.Cmd
-		// The tables' frames turn while anything is running on a row, which is
-		// not the same condition as the view's own spinner: the lists are
-		// loaded and on screen while an image is removed.
-		busy := m.advanceBusySpinners()
-		if busy || m.loading || m.loadingNets || m.loadingVols || m.loadingRegs {
+		// Only a load turns this spinner: a row's state is drawn by the activity
+		// column, which jobs.FrameMsg animates.
+		if m.loading || m.loadingNets || m.loadingVols || m.loadingRegs {
 			var cmd tea.Cmd
 			m.spinner, cmd = m.spinner.Update(msg)
-			m.spinnerFrameIdx = (m.spinnerFrameIdx + 1) % len(spinner.Dot.Frames)
 			// A tab's load is reported in the footer, so the frame has to reach
 			// it — a spinner stuck on frame zero reads as a hang.
 			m.footer.SetSpinnerFrame(m.spinner.View())

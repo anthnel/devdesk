@@ -47,5 +47,10 @@ func (m Model) runningOn(name string, kind jobs.Kind) bool {
 // ActivityTables returns the read-only face of the view's table, keyed by the
 // name the activity-column guard (internal/app) knows it by. Tests only.
 func (m Model) ActivityTables() map[string]datatable.ActivityTable {
-	return map[string]datatable.ActivityTable{"oci/images": &m.imageTable}
+	return map[string]datatable.ActivityTable{
+		"oci/images":     &m.imageTable,
+		"oci/networks":   &m.networkTable,
+		"oci/volumes":    &m.volumeTable,
+		"oci/registries": &m.registryTable,
+	}
 }

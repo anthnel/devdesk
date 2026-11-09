@@ -345,6 +345,8 @@ En tant qu'utilisateur de la vue OCI, je veux la même pastille sur les networks
 
 **Hors périmètre** : le spinner de chargement global d'OCI (reste au footer).
 
+**Livrée (2026-11-09, DEVDESK-153, D107)** : les trois tables prennent `datatable.IndicatorColumn` ; `refreshing` d'un groupe est un état `Running` de la ligne (Members en texte statique) ; `advanceBusySpinners`, `busyTick`, `spinnerFrameIdx` et les `AdvanceSpinner` d'OCI sont supprimés. Le spinner de chargement reste au footer.
+
 ### A-10a — Explorer : arbre (DEVDESK-147)
 Epic : E2 — Priorité : Should — Effort : S
 

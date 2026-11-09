@@ -487,7 +487,7 @@ func TestTheMembersColumnShowsTheCountAndTheAge(t *testing.T) {
 	if len(rows) != 2 {
 		t.Fatalf("got %d rows, want the two configured registries", len(rows))
 	}
-	const members = 5
+	const members = 6
 	if !strings.HasPrefix(rows[0][members], "2 ") {
 		t.Errorf("the group's Members cell is %q, want it to start with the count", rows[0][members])
 	}
@@ -503,7 +503,7 @@ func TestTheMembersColumnShowsTheCountAndTheAge(t *testing.T) {
 func TestAGroupNeverDiscoveredSaysSo(t *testing.T) {
 	m := registriesTab(t)
 
-	const members = 5
+	const members = 6
 	if got := m.registryTable.Table().Rows()[0][members]; got != "never" {
 		t.Errorf("Members = %q for a group with no cached discovery, want %q", got, "never")
 	}
@@ -519,7 +519,7 @@ func TestCtrlRRefreshesTheSelectedGroup(t *testing.T) {
 	if !m.refreshingGroups["prod"] {
 		t.Error("ctrl+r on a group row started no refresh")
 	}
-	const members = 5
+	const members = 6
 	if got := m.registryTable.Table().Rows()[0][members]; !strings.Contains(got, "refreshing") {
 		t.Errorf("Members = %q while refreshing, want it to say so", got)
 	}
@@ -754,11 +754,11 @@ func TestEnteringAGroupListsItsMembers(t *testing.T) {
 	if m.registryGroupSlug != "prod" {
 		t.Fatalf("registryGroupSlug = %q, want the group entered", m.registryGroupSlug)
 	}
-	if got := cells(m.registryTable.Table().Rows(), 0); !equal(got, []string{"docker-hosted", "dhi"}) {
+	if got := cells(m.registryTable.Table().Rows(), 1); !equal(got, []string{"docker-hosted", "dhi"}) {
 		t.Errorf("the table holds %v, want the group's members", got)
 	}
 	// A member is not a config entry: its credentials are the group's.
-	if got := m.registryTable.Table().Rows()[0][3]; got != config.AuthInherit {
+	if got := m.registryTable.Table().Rows()[0][4]; got != config.AuthInherit {
 		t.Errorf("a member's Auth reads %q, want %q", got, config.AuthInherit)
 	}
 	if crumb := m.renderRegistryBreadcrumb(120); !strings.Contains(crumb, "prod") {
