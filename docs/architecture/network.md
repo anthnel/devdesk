@@ -159,9 +159,29 @@ dropped; an image that is no longer listed is a footer `Warn`. There is no
 
 ## The OCI tables and the activity column — `internal/ui/oci_resources` (DEVDESK-146, A-09a; DEVDESK-153, A-09b)
 
-The four tables of `:oci` (Images, Networks, Volumes, Registries) are on the
-activity column (Rule 125; the router side is in `app-shell.md`). Only the
-registry browser (A-09a2, DEVDESK-218) is not migrated yet.
+The four tables of `:oci` (Images, Networks, Volumes, Registries) and the
+registry browser's tag table are on the activity column (Rule 125; the router
+side is in `app-shell.md`).
+
+**Registry browser (DEVDESK-218, A-09a2).** The tag table
+(`registry_browser.go`, built by `newTagTable`, which `ActivityTables` also uses
+so the guard sees the real table open or not, as `oci/registry-browser`) takes
+`datatable.IndicatorColumn` as column 0, an 8th column; Registry, Tag and
+Updated are 1 to 3 (`tagColumnTag` = 2, `tagColumnUpdated` = 3). `tagRow` holds
+`Activity components.RowActivity` and `ScanRunning`, stamped by
+`rebuildTagTable` from `components.DescribeRow` (scan and pull, `ociKinds`,
+target `jobs.TargetKey(imageName)`) over the snapshot the router pushes through
+`SetJobs(runs, failures, context)`; the cell at rest is empty. While a scan
+really runs (not queued) the C/H/M/L cells hold `…` in `DimStyle`; a queued scan
+or a pull keeps the counts. The blink phase arrives with `SetBlinkPhase` and
+`WantsBlink` is true for a visible running tag row. Rule 116: Updated drops
+under 102 columns, L under 84, M under 78, H under 72, C under 66; at 60 only
+the dot, Registry and Tag remain. The browser's spinner now turns only for a
+search: its frame goes to the footer (`Searching registries...`), and the
+router's frame does not overwrite it while a search runs. After the search the
+footer describes the selected tag (`Status{Detail}`). `tagScanSpinnerIdx` and
+the local frame are deleted. `DescribeRow` filters by context: a scan of another
+context no longer shows on a tag (D108).
 
 **Networks, Volumes and Registries (DEVDESK-153, A-09b).** Each takes
 `datatable.IndicatorColumn` as column 0. Rows carry no `components.RowActivity`:

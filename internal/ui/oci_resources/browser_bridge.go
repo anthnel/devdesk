@@ -21,6 +21,7 @@ func (m Model) openMultiRegistryBrowser() (tea.Model, tea.Cmd) {
 	// that ignores esc (D13).
 	m.registryBrowser = newRegistryBrowser(m.registries, m.groupCache, m.browserDeselected, m.width-2, m.height)
 	m.registryBrowser.SetScanCache(m.scanCache)
+	m.registryBrowser.SetJobs(m.jobs, m.failures, m.contextName)
 	return m, nil
 }
 

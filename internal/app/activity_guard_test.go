@@ -49,7 +49,7 @@ var migratedTables = map[command.ViewType][]string{
 	command.ViewJobs:         {"jobs/runs", "jobs/targets"},
 	command.ViewWorkspaces:   {"ws"},
 	command.ViewSecurity:     {"sec/inventory"},
-	command.ViewOCIResources: {"oci/images", "oci/networks", "oci/volumes", "oci/registries"},
+	command.ViewOCIResources: {"oci/images", "oci/networks", "oci/volumes", "oci/registries", "oci/registry-browser"},
 	command.ViewGitExplorer:  {"explorer/tree", "explorer/clone-list"},
 	command.ViewTemplates:    {"templates"},
 	command.ViewNetdiag:      {"netdiag/ports"},
@@ -65,14 +65,12 @@ type pendingTable struct {
 }
 
 // pendingTables may only shrink: each migration story removes its own entries.
-var pendingTables = []pendingTable{
-	{"oci/registry-browser", command.ViewOCIResources, "A-09a2"},
-}
+var pendingTables = []pendingTable{}
 
 // maxPendingTables is the ceiling: adding an exception means raising both the
 // list and this constant in the same diff, which is visible in review. Lower it
 // with every migration.
-const maxPendingTables = 1
+const maxPendingTables = 0
 
 // exemptViews have no long-running operation to show per row (inventory:
 // "sans objet" or out of the batch), each with its reason.
@@ -328,13 +326,15 @@ var migratedSources = map[command.ViewType][]string{
 	command.ViewSecurity:   {"ui/security/"},
 	// OCI migrates in steps (A-09a images, A-09a2 registry browser, A-09b the rest):
 	// only the files that belong to the migrated tables are scanned. Excluded:
-	// commands.go (the refresh tea.Tick) and browser_*/registry_browser.go
-	// (the registry browser, still pending A-09a2).
+	// commands.go (the refresh tea.Tick). The registry browser (A-09a2) is in.
 	command.ViewOCIResources: {
 		"ui/oci_resources/activity.go", "ui/oci_resources/table.go", "ui/oci_resources/jobs.go",
 		"ui/oci_resources/images.go", "ui/oci_resources/results.go", "ui/oci_resources/view.go",
 		"ui/oci_resources/model.go", "ui/oci_resources/busy.go", "ui/oci_resources/registries.go",
 		"ui/oci_resources/update.go", "ui/oci_resources/keys.go",
+		"ui/oci_resources/registry_browser.go", "ui/oci_resources/browser_keys.go",
+		"ui/oci_resources/browser_view.go", "ui/oci_resources/browser_state.go",
+		"ui/oci_resources/browser_bridge.go", "ui/oci_resources/browser_tags.go",
 	},
 	// The explorer is fully migrated (A-10a the tree, A-10b the clone list):
 	// the whole package is scanned.

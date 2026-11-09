@@ -30,13 +30,11 @@ func (b *RegistryBrowser) Update(msg tea.Msg) (*RegistryBrowser, tea.Cmd) {
 	case tea.KeyMsg:
 		return b.handleKeyMsg(msg)
 	case spinner.TickMsg:
-		if len(b.scanningTags) > 0 || b.pendingSearches > 0 {
+		// Only a search turns this spinner, and it shows in the footer: a tag's
+		// state is drawn by the activity column, which jobs.FrameMsg animates.
+		if b.pendingSearches > 0 {
 			var cmd tea.Cmd
 			b.spinner, cmd = b.spinner.Update(msg)
-			if b.state == browserStateTags && len(b.scanningTags) > 0 {
-				b.tagScanSpinnerIdx++
-				b.rebuildTagTable()
-			}
 			return b, cmd
 		}
 		return b, nil

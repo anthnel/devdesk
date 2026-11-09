@@ -152,6 +152,10 @@ func (m Model) formStatus() sharedcomponents.Status {
 		if text, ok := m.registryBrowser.LoadingLabel(); ok {
 			return sharedcomponents.Status{Text: text, Spinner: true}
 		}
+		// Past the search, the footer says what the tag under the cursor is doing.
+		if row, ok := m.registryBrowser.tagTable.Selected(); ok && m.registryBrowser.state == browserStateTags {
+			return sharedcomponents.Status{Detail: row.Activity.Detail}
+		}
 	}
 	if m.networkInspectForm != nil && m.networkInspectForm.loading {
 		return sharedcomponents.Status{Text: "Loading containers...", Spinner: true}
@@ -573,6 +577,7 @@ func (m Model) GetHelpContent() help.Content {
 					"Results show tags from all selected registries concurrently. " +
 					"Press 'r' to cycle the registry filter (one registry at a time), '/' to filter by tag name, '.' to sort. " +
 					"Press G to pull the selected tag, S to scan it directly via Trivy (no pull), or Enter to view cached CVE details. " +
+					"The first column is the activity dot: a scan or a pull of the tag running, queued or failed; the Critical, High, Medium and Low counts show an ellipsis while its scan runs. The footer says what the selected tag is doing. " +
 					"Press Esc to go back to the search form.",
 			},
 			{

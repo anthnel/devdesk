@@ -3,9 +3,10 @@ package ociresources
 import (
 	"strings"
 
-	"github.com/charmbracelet/bubbles/spinner"
 	"github.com/charmbracelet/lipgloss"
 
+	"github.com/anthnel/devdesk/internal/jobs"
+	"github.com/anthnel/devdesk/internal/ui/components"
 	"github.com/anthnel/devdesk/internal/ui/theme"
 )
 
@@ -20,7 +21,6 @@ import (
 // sees them; the sort and the header arrows are the table's.
 func (b *RegistryBrowser) rebuildTagTable() {
 	tags := b.filteredMultiTags()
-	frame := spinner.Dot.Frames[b.tagScanSpinnerIdx%len(spinner.Dot.Frames)]
 
 	rows := make([]tagRow, len(tags))
 	for i, t := range tags {
@@ -31,17 +31,38 @@ func (b *RegistryBrowser) rebuildTagTable() {
 		}
 		entry, scanned := b.scanCache[imageName]
 		rows[i] = tagRow{
-			tag:      t,
-			label:    label,
-			entry:    entry,
-			scanned:  scanned,
-			scanning: b.scanningTags[imageName],
-			frame:    frame,
+			tag:         t,
+			label:       label,
+			entry:       entry,
+			scanned:     scanned,
+			Activity:    b.tagActivity(imageName),
+			ScanRunning: b.scanRunning(imageName),
 		}
 	}
 
 	b.tagTable.SetItems(rows)
 	b.resizeTagTable()
+}
+
+// tagActivity resolves what one tag row says about its activity: a scan or a
+// pull, whoever started it, or a remembered failure of either. Both are read
+// against the context the snapshot carries, with the raw reference as identity.
+func (b *RegistryBrowser) tagActivity(imageName string) components.RowActivity {
+	return components.DescribeRow(components.RowQuery{
+		Runs: b.jobs, Failures: b.failures, Context: b.contextName,
+		Target: jobs.TargetKey(imageName), Kinds: ociKinds,
+	})
+}
+
+// scanRunning reports whether a scan of the tag runs now. A queued scan does
+// not: it keeps its counts.
+func (b *RegistryBrowser) scanRunning(imageName string) bool {
+	for _, a := range jobs.ActiveOn(b.jobs, b.contextName, imageName, jobs.KindScan) {
+		if a.Item.State == jobs.ItemRunning {
+			return true
+		}
+	}
+	return false
 }
 
 // View renders the browser for the current state.

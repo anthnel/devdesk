@@ -47,10 +47,19 @@ func (m Model) runningOn(name string, kind jobs.Kind) bool {
 // ActivityTables returns the read-only face of the view's table, keyed by the
 // name the activity-column guard (internal/app) knows it by. Tests only.
 func (m Model) ActivityTables() map[string]datatable.ActivityTable {
-	return map[string]datatable.ActivityTable{
+	tables := map[string]datatable.ActivityTable{
 		"oci/images":     &m.imageTable,
 		"oci/networks":   &m.networkTable,
 		"oci/volumes":    &m.volumeTable,
 		"oci/registries": &m.registryTable,
 	}
+	// The browser's table is listed open or not, so the guard sees the real one.
+	if m.registryBrowser != nil {
+		tables["oci/registry-browser"] = &m.registryBrowser.tagTable
+	} else {
+		t := newTagTable()
+		t.Resize(m.width, max(m.height, 1))
+		tables["oci/registry-browser"] = t
+	}
+	return tables
 }

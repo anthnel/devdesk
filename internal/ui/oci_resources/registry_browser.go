@@ -7,9 +7,14 @@ import (
 	"github.com/charmbracelet/bubbles/spinner"
 	"github.com/charmbracelet/bubbles/textinput"
 
+	"github.com/charmbracelet/lipgloss"
+
 	"github.com/anthnel/devdesk/internal/cache"
 	"github.com/anthnel/devdesk/internal/config"
+	"github.com/anthnel/devdesk/internal/jobs"
+	"github.com/anthnel/devdesk/internal/ui/components"
 	"github.com/anthnel/devdesk/internal/ui/datatable"
+	"github.com/anthnel/devdesk/internal/ui/indicator"
 	"github.com/anthnel/devdesk/internal/ui/theme"
 )
 
@@ -100,26 +105,31 @@ type pickerRow struct {
 
 // tagRow is one line of the tag table: the tag, plus what the row says about it
 // that does not live on the tag — the registry's display label, the cached scan
-// counts and whether a scan is running.
+// counts, what the activity column says and whether a scan is running.
 //
 // The columns are built once, in newRegistryBrowser, so their Cell functions
 // cannot reach back into the browser for any of that. It is the imageRow
 // pattern, and it exists for the same reason: a column sorts by the value it
 // prints.
 type tagRow struct {
-	tag      MultiRegistryTag
-	label    string // registry alias, or its URL when it has none
-	entry    cache.ImageScanEntry
-	scanned  bool
-	scanning bool
-	// frame is the spinner's current character, plain text because a table cell
-	// carries no escape sequence (Rule 122).
-	frame string
+	tag     MultiRegistryTag
+	label   string // registry alias, or its URL when it has none
+	entry   cache.ImageScanEntry
+	scanned bool
+	// Activity is what the first column and the footer say: a scan or a pull
+	// running, queued or failed, resolved by rebuildTagTable. It carries no
+	// animation phase; the table reads it at render.
+	Activity components.RowActivity
+	// ScanRunning is true while a scan of the tag really runs (not queued): the
+	// severity cells then hold a placeholder instead of the counts.
+	ScanRunning bool
 }
 
 // tagColumns describes the tag results table.
 func tagColumns() []datatable.Column[tagRow] {
 	return []datatable.Column[tagRow]{
+		// The activity column (Rule 125): untitled, no Less nor Search, empty at rest.
+		datatable.IndicatorColumn(func(r tagRow) indicator.State { return r.Activity.State }, nil, nil),
 		{
 			Title: "Registry", Sizing: datatable.SizingContent, MinWidth: 20,
 			Cell: func(r tagRow) string { return r.label },
@@ -150,23 +160,40 @@ func tagColumns() []datatable.Column[tagRow] {
 	}
 }
 
-// tagCVEColumn builds one of the four severity count columns: the spinner while
-// a scan runs, the count once one has, and a dash for a tag never scanned —
-// nought findings and never looked at are different answers.
+// tagCVEColumn builds one of the four severity count columns: a dim ellipsis
+// while a scan runs, the count once one has, and a dash for a tag never scanned —
+// nought findings and never looked at are different answers. A queued scan or a
+// pull keeps the counts.
 func tagCVEColumn(title string, get func(cache.ImageScanEntry) int) datatable.Column[tagRow] {
 	return datatable.Column[tagRow]{
 		Title: title, Sizing: datatable.SizingFixed, MinWidth: 4,
 		Cell: func(r tagRow) string {
 			switch {
-			case r.scanning:
-				return r.frame
+			case r.ScanRunning:
+				return "…"
 			case r.scanned:
 				return strconv.Itoa(get(r.entry))
 			default:
 				return "-"
 			}
 		},
+		Style: func(r tagRow) lipgloss.Style {
+			if r.ScanRunning {
+				return theme.DimStyle
+			}
+			return lipgloss.NewStyle()
+		},
 	}
+}
+
+// newTagTable builds the tag table. ActivityTables uses it too, so the guard
+// sees the real columns even with the browser closed.
+func newTagTable() *datatable.Model[tagRow] {
+	t := datatable.New(datatable.Config[tagRow]{
+		Columns:    tagColumns(),
+		SortColumn: tagColumnTag,
+	})
+	return &t
 }
 
 const brFieldRepo = 0
@@ -185,8 +212,8 @@ type RegistryBrowserCloseMsg struct{}
 // datatable.CycleSort does over exactly these two, so the cycle is no longer
 // written out.
 const (
-	tagColumnTag     = 1
-	tagColumnUpdated = 2
+	tagColumnTag     = 2
+	tagColumnUpdated = 3
 )
 
 // RegistryBrowser searches image tags across multiple configured registries.
@@ -204,13 +231,17 @@ type RegistryBrowser struct {
 	focusedField int
 
 	// Results state
-	tags              []MultiRegistryTag
-	pendingSearches   int
-	registryFilter    resultFilter
-	tagTable          datatable.Model[tagRow]
-	scanCache         map[string]cache.ImageScanEntry
-	scanningTags      map[string]bool
-	tagScanSpinnerIdx int
+	tags            []MultiRegistryTag
+	pendingSearches int
+	registryFilter  resultFilter
+	tagTable        datatable.Model[tagRow]
+	scanCache       map[string]cache.ImageScanEntry
+
+	// The router's snapshot, for the activity column and the footer: the
+	// registry's runs and remembered failures, and the context they are read in.
+	jobs        []jobs.Run
+	failures    []jobs.Failure
+	contextName string
 
 	// Tag filter in the results view. The sort belongs to the table now; this
 	// filter stays here because it narrows the tags before the table sees them,
@@ -219,8 +250,8 @@ type RegistryBrowser struct {
 	filterInput  textinput.Model
 	filterActive bool
 
-	// spinner animates the tag scans and the searches in flight. It no longer
-	// has a status screen to drive: the pull took its own with it (§3.60).
+	// spinner animates the searches in flight, in the footer. A row's state is
+	// drawn by the activity column, which the router's blink phase animates.
 	spinner spinner.Model
 
 	state browserState
@@ -260,13 +291,9 @@ func newRegistryBrowser(
 		selectedRegs: make(map[string]bool),
 		focusedField: brFieldRepo,
 		filterInput:  fi,
-		tagTable: datatable.New(datatable.Config[tagRow]{
-			Columns:    tagColumns(),
-			SortColumn: tagColumnTag,
-		}),
+		tagTable:     *newTagTable(),
 		spinner:      sp,
 		scanCache:    make(map[string]cache.ImageScanEntry),
-		scanningTags: make(map[string]bool),
 		state:        browserStateInput,
 	}
 	b.buildEntries(groups, deselected)

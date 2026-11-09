@@ -36,7 +36,7 @@ func (m Model) handleJobsChanged(msg jobs.ChangedMsg) (tea.Model, tea.Cmd) {
 	// frame a scan and a load overlapped.
 	m.updateImageTable()
 	if m.registryBrowser != nil {
-		m.registryBrowser.SetTagScanningSet(m.scanningNames())
+		m.registryBrowser.SetJobs(m.jobs, m.failures, m.contextName)
 	}
 	return m, nil
 }
@@ -50,20 +50,30 @@ func (m Model) handleFrameMsg(msg jobs.FrameMsg) (tea.Model, tea.Cmd) {
 	m.networkTable.SetBlinkPhase(msg.Blink)
 	m.volumeTable.SetBlinkPhase(msg.Blink)
 	m.registryTable.SetBlinkPhase(msg.Blink)
-	if !m.loading && !m.loadingNets && !m.loadingVols && !m.loadingRegs {
+	searching := false
+	if m.registryBrowser != nil {
+		m.registryBrowser.SetBlinkPhase(msg.Blink)
+		searching = m.registryBrowser.IsSearching()
+	}
+	// The footer frame is the router's only while neither a tab load nor a
+	// registry search runs: their own spinner owns it then.
+	if !m.loading && !m.loadingNets && !m.loadingVols && !m.loadingRegs && !searching {
 		m.footer.SetSpinnerFrame(msg.RenderedFrame)
 	}
 	return m, nil
 }
 
-// WantsBlink reports whether an Images row is in an animated state (running,
-// or an action observed on it). A queued row and a remembered failure are
+// WantsBlink reports whether an Images row or a registry-browser tag row is in
+// an animated state (running, or an action observed on it). A queued row and a remembered failure are
 // steady. It is the level the router's BlinkingView check reads.
 func (m Model) WantsBlink() bool {
 	for _, r := range m.imageTable.Items() {
 		if r.Activity.State == indicator.Running {
 			return true
 		}
+	}
+	if m.registryBrowser != nil && m.registryBrowser.WantsBlink() {
+		return true
 	}
 	// A busy row (network, volume, registry) and a group being discovered both
 	// show a blinking dot.
@@ -104,8 +114,7 @@ func (m Model) scanningImage(name string) bool {
 	return false
 }
 
-// scanningNames lists every image with a scan in flight, for the registry
-// browser, which decorates its tag rows from the same source.
+// scanningNames lists every image with a scan in flight.
 func (m Model) scanningNames() map[string]bool {
 	out := make(map[string]bool)
 	for _, run := range jobs.Unfinished(m.jobs) {
