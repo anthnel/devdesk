@@ -1,0 +1,15 @@
+{
+  "tool_use_id": "toolu_012c5KNkTkURNKnKWC5CMUDt",
+  "agent_id": "aaa226aeccdc5416e",
+  "subagent_type": "team-core:tech-writer",
+  "task_description": "Step 6 docs",
+  "token_usage": {
+    "input_tokens": 18,
+    "cache_creation_tokens": 52963,
+    "cache_read_tokens": 296708,
+    "output_tokens": 7498,
+    "api_call_count": 9
+  },
+  "started_at": "2026-11-09T15:10:04.173792429+01:00",
+  "completed_at": "2026-11-09T15:11:04.558042728+01:00"
+}

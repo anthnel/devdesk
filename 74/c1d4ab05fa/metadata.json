@@ -1,0 +1,73 @@
+{
+  "cli_version": "0.12.2",
+  "checkpoint_id": "74c1d4ab05fa",
+  "strategy": "manual-commit",
+  "branch": "devdesk-147-explorer-activity",
+  "checkpoints_count": 21,
+  "files_touched": [
+    "docs-site/docs/explanation/forge.md",
+    "docs/architecture/app-shell.md",
+    "docs/architecture/forge.md",
+    "docs/architecture/templates.md",
+    "docs/backlog.md",
+    "internal/app/activity_guard_test.go",
+    "internal/app/explorer_activity_test.go",
+    "internal/jobs/jobs.go",
+    "internal/jobs/jobs_test.go",
+    "internal/ui/forge/explorer/activity.go",
+    "internal/ui/forge/explorer/activity_help_test.go",
+    "internal/ui/forge/explorer/clone.go",
+    "internal/ui/forge/explorer/columns.go",
+    "internal/ui/forge/explorer/create.go",
+    "internal/ui/forge/explorer/delete.go",
+    "internal/ui/forge/explorer/footer_test.go",
+    "internal/ui/forge/explorer/frame_test.go",
+    "internal/ui/forge/explorer/indicator_test.go",
+    "internal/ui/forge/explorer/jobs.go",
+    "internal/ui/forge/explorer/jobs_immediate_test.go",
+    "internal/ui/forge/explorer/model.go",
+    "internal/ui/forge/explorer/model_test.go",
+    "internal/ui/forge/explorer/row.go",
+    "internal/ui/forge/explorer/template_test.go",
+    "internal/ui/forge/explorer/tree.go",
+    "internal/ui/forge/explorer/view.go",
+    "internal/ui/forge/explorer/view_test.go"
+  ],
+  "sessions": [
+    {
+      "metadata": "/74/c1d4ab05fa/0/metadata.json",
+      "transcript": "/74/c1d4ab05fa/0/full.jsonl",
+      "compact_transcript": "/74/c1d4ab05fa/0/transcript.jsonl",
+      "content_hash": "/74/c1d4ab05fa/0/content_hash.txt",
+      "prompt": "/74/c1d4ab05fa/0/prompt.txt"
+    }
+  ],
+  "token_usage": {
+    "input_tokens": 142,
+    "cache_creation_tokens": 142585,
+    "cache_read_tokens": 5668748,
+    "output_tokens": 29174,
+    "api_call_count": 50,
+    "subagent_tokens": {
+      "input_tokens": 444,
+      "cache_creation_tokens": 1229001,
+      "cache_read_tokens": 13918266,
+      "output_tokens": 155397,
+      "api_call_count": 218
+    }
+  },
+  "redaction": {
+    "replacements": 0,
+    "layers": {
+      "betterleaks": 0,
+      "connection_string": 0,
+      "credential_key": 0,
+      "credential_value": 0,
+      "credentialed_uri": 0,
+      "entropy": 0,
+      "key_context": 0,
+      "provider_token": 0,
+      "shell_stdin": 0
+    }
+  }
+}
