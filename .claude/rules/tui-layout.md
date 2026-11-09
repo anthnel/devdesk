@@ -1,3 +1,9 @@
+---
+paths:
+  - "internal/ui/**"
+  - "internal/app/**"
+---
+
 # TUI — Layout & Navigation
 
 ### Rule 101 : TUI elements must have global consistency

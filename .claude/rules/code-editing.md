@@ -1,3 +1,8 @@
+---
+paths:
+  - "**/*.go"
+---
+
 ## Code editing instructions
 
 ### Rule 201 : Code must be clean, concise, and well-structured to stay maintainable

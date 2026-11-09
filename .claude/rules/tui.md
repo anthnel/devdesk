@@ -23,3 +23,5 @@ TUI rules are split across 5 topic files:
 **Rule 129** — All UI text and all logs in **English US**.
 
 **Rule 133** — `bubbles/textarea` is forbidden. Use `components.WrappedInput` for any multi-line text field.
+
+The per-topic TUI rule files above load when a matching file is read or edited; when reviewing a diff without opening files, read them explicitly.
