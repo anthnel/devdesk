@@ -40,26 +40,6 @@ func TestAFrameMovesTheRowDot(t *testing.T) {
 	}
 }
 
-// The clone list: a running row takes its frame from FrameMsg.
-func TestAFrameMovesTheCloneListSpinner(t *testing.T) {
-	h := cloning(t)
-	h.emit(found("alpha/api"), began("alpha/api"))
-
-	for _, frame := range []string{"X", "Y"} {
-		h.m = feed(t, h.m, jobs.FrameMsg{Frame: frame})
-		rows := h.m.clone.table.Table().Rows()
-		if len(rows) != 1 {
-			t.Fatalf("rows = %v, want the one repository", rows)
-		}
-		if got := rows[0][colCloneStatus]; !strings.HasPrefix(got, frame+" cloning") {
-			t.Errorf("status cell = %q after frame %q, want the new frame", got, frame)
-		}
-	}
-	if got := h.item(0).State; got != jobs.ItemRunning {
-		t.Errorf("state = %v, a frame must not touch the run", got)
-	}
-}
-
 func TestAFrameMovesTheFooterSpinner(t *testing.T) {
 	m := loadedModel(t)
 	m.loading = true // the tree is reloading: the footer shows a spinner line

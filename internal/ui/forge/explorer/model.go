@@ -104,13 +104,7 @@ type Model struct {
 	deleteTargetNode   *TreeNode
 	// jobs is the router's last snapshot of the registry. The tree rows read
 	// it for their activity dot, whose blink phase lives in the table.
-	//
-	// jobFrame is the spinner frame that goes with it, for the clone list only
-	// — bare, because it lands in a table cell and a cell is measured before it
-	// is styled (Rule 122). It comes from the broadcast rather than from this
-	// view's own spinner because that chain stops when the tree settles (D5).
-	jobs     []jobs.Run
-	jobFrame string
+	jobs []jobs.Run
 
 	// failures and contextName come from the router snapshot (handleJobsChanged).
 	failures    []jobs.Failure

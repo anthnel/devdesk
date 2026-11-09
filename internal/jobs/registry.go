@@ -305,7 +305,7 @@ func (r *Registry) Cancel(id JobID) bool {
 		switch run.Items[i].State {
 		case ItemQueued:
 			run.Items[i].State = ItemSkipped
-			run.Items[i].Detail = "cancelled"
+			run.Items[i].Detail = CancelledDetail
 		case ItemRunning:
 			// Asked to stop, not declared stopped: the item reports its own
 			// outcome when it gets there. Claiming it settled here would race
@@ -343,7 +343,7 @@ func (r *Registry) CancelItem(id JobID, target string) bool {
 		}
 		if run.Items[i].State == ItemQueued {
 			run.Items[i].State = ItemSkipped
-			run.Items[i].Detail = "cancelled"
+			run.Items[i].Detail = CancelledDetail
 		} else if run.Items[i].cancel != nil {
 			run.Items[i].cancel()
 			run.Items[i].cancel = nil

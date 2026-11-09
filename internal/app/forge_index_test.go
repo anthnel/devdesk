@@ -1,12 +1,17 @@
 package app
 
 import (
+	"bytes"
 	"context"
+	"errors"
+	"log"
+	"strings"
 	"testing"
 	"time"
 
 	tea "github.com/charmbracelet/bubbletea"
 
+	"github.com/anthnel/devdesk/internal/command"
 	"github.com/anthnel/devdesk/internal/forge"
 	"github.com/anthnel/devdesk/internal/forgeindex"
 	"github.com/anthnel/devdesk/internal/jobs"
@@ -280,5 +285,59 @@ func TestTheFileDoesNotStartASecondWalk(t *testing.T) {
 		if _, walk := out.(jobs.StartMsg); walk {
 			t.Error("the file started a walk beside the one in flight")
 		}
+	}
+}
+
+// D97 / Q4: the walk's error reaches the :jobs Detail column and the footer.
+func TestAFailedIndexWalkShowsNoSecretInItsDetail(t *testing.T) {
+	a := indexRouter(t)
+	a.forgeIndexCancel = func() {}
+	const target = "https://gitlab.example.com"
+	a.jobs.Start(jobs.NewRun(jobs.KindIndex, command.ViewGitExplorer, "", target, target))
+	a.Update(forgeIndexBuiltMsg{
+		gen: a.forgeIndexGen, target: target,
+		err: errors.New("GET https://oauth2:glpat-SECRET@gitlab.example.com/api/v4/groups?private_token=glpat-SECRET&page=2: 401"),
+	})
+
+	var detail string
+	for _, run := range a.jobs.Snapshot() {
+		if run.Kind != jobs.KindIndex {
+			continue
+		}
+		for _, it := range run.Items {
+			detail = it.Detail
+		}
+	}
+	if detail == "" {
+		t.Fatal("the failed walk left no Detail")
+	}
+	if strings.Contains(detail, "glpat-SECRET") || strings.Contains(detail, "oauth2:") {
+		t.Errorf("detail %q leaks a credential", detail)
+	}
+	if !strings.Contains(detail, "401") {
+		t.Errorf("detail %q lost the cause", detail)
+	}
+}
+
+func TestAFailedIndexWalkLogCarriesNoSecret(t *testing.T) {
+	var buf bytes.Buffer
+	prev, flags := log.Writer(), log.Flags()
+	log.SetOutput(&buf)
+	t.Cleanup(func() { log.SetOutput(prev); log.SetFlags(flags) })
+
+	a := indexRouter(t)
+	a.forgeIndexCancel = func() {}
+	const target = "https://gitlab.example.com"
+	a.jobs.Start(jobs.NewRun(jobs.KindIndex, command.ViewGitExplorer, "", target, target))
+	a.Update(forgeIndexBuiltMsg{
+		gen: a.forgeIndexGen, target: target,
+		err: errors.New("GET https://oauth2:glpat-SECRET@gitlab.example.com/api/v4/groups?private_token=glpat-SECRET: 401"),
+	})
+
+	if buf.Len() == 0 {
+		t.Fatal("nothing was logged for a failed walk")
+	}
+	if strings.Contains(buf.String(), "glpat-SECRET") {
+		t.Errorf("log leaks the token: %s", buf.String())
 	}
 }

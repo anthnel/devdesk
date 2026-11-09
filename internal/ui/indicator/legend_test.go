@@ -155,3 +155,35 @@ func TestLegendExtendsNeverReplaces(t *testing.T) {
 		t.Error("Legend() changed after being called with extensions")
 	}
 }
+
+// DEVDESK-148: the clone list adds Done and Skipped to the base legend.
+func TestCloneLegend(t *testing.T) {
+	if len(CloneLegend) != 2 {
+		t.Fatalf("CloneLegend has %d entries, want 2 (Done, Skipped): %+v", len(CloneLegend), CloneLegend)
+	}
+	want := []struct {
+		state State
+		label string
+	}{
+		{Done, "cloned"},
+		{Skipped, "already on disk, or not started (cancelled)"},
+	}
+	body := Legend(CloneLegend...).Body
+	for i, w := range want {
+		e := CloneLegend[i]
+		if e.State != w.state || !strings.HasPrefix(e.Label, w.label) {
+			t.Errorf("entry %d = %+v, want state %v and a label starting %q", i, e, w.state, w.label)
+		}
+		if !hasRow(body, Glyph(w.state, true), w.label) {
+			t.Errorf("no row %q %q in:\n%s", Glyph(w.state, true), w.label, body)
+		}
+	}
+	for _, g := range []string{Glyph(Done, true), Glyph(Skipped, true)} {
+		if n := strings.Count(body, g); n != 1 {
+			t.Errorf("glyph %q appears %d times in the clone legend, want 1:\n%s", g, n, body)
+		}
+	}
+	if strings.Contains(body, Glyph(Cancelled, false)) {
+		t.Errorf("clone legend shows the cancelled glyph %q: a cancelled clone row is skipped", Glyph(Cancelled, false))
+	}
+}

@@ -44,6 +44,10 @@ var (
 	JobsLegend = []LegendEntry{
 		{Done, "done"}, {Cancelled, "cancelled"}, {Skipped, "skipped"},
 	}
+	CloneLegend = []LegendEntry{
+		{Done, "cloned (clone list)"},
+		{Skipped, "already on disk, or not started (cancelled) (clone list)"},
+	}
 	AgentsLegend = []LegendEntry{
 		{Suspended, "idle (no activity for 5 min)"}, {Done, "done"}, {Unknown, "unknown"},
 	}

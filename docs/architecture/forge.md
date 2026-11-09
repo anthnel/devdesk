@@ -379,8 +379,8 @@ children load. That load stays the footer line `Loading GitLab groups...`.
 
 **Not cancellable, not queued.** Both runs are built with
 `jobs.NewImmediateRun`, so `:jobs` shows them running and greys `K`. The
-explorer offers no `K` itself. The clone list is not migrated (A-10b): it keeps
-`jobFrame` and its Status frame.
+explorer offers no `K` itself. The clone list is on the activity column too
+(DEVDESK-148, see "The clone is a run of the registry" below).
 
 Three things follow, and each is the reason for a piece of the shape:
 
@@ -493,7 +493,7 @@ It renders the run now, and owns none of it:
 | | |
 |---|---|
 | the rows | `jobs.Run.Items`, from the snapshot the router broadcasts |
-| the frame | the router's one chain (D5), taken bare — a table cell is measured before it is styled (Rule 122) |
+| the activity column | column 0 of the clone table: `components.ItemIndicator` over the item state, blink phase from `jobs.FrameMsg.Blink` stored with `SetBlinkPhase` and read at render (Rule 125). No row is rebuilt per frame; `Model.jobFrame` and `cloneRow.frame` are gone |
 | "finished" | `Run.Finished()`, not a flag this screen sets |
 | the mapping | `CloneEventMsg.Transition()` — the clone's own vocabulary, in the clone's package, which is what `jobs.Reporter` exists for |
 
@@ -510,6 +510,64 @@ second interface because a closed channel names no target.
 What this buys is the thing D3 asked for: **`:jobs` shows the same clone the
 explorer is rendering**, without either copy being authoritative and without the
 explorer having to be on screen for its rows to keep moving.
+
+**The clone list on the activity column (DEVDESK-148, A-10b).** Column 0 is
+`datatable.IndicatorColumn` (untitled, no `Less`, no `Search`, no rest icon: a
+clone row has no resting state). One alphabet with the `:jobs` targets level:
+
+| Item state | Glyph | Status word |
+|---|---|---|
+| queued | `◴` | `queued` |
+| running | blinking `●`/`○` | `cloning` |
+| done | `◉` | `cloned` |
+| skipped, already on disk | `⊖` | `already there` |
+| skipped, queued clone cancelled with `esc` | `⊖` | `cancelled` (`Item.Detail == jobs.CancelledDetail`) |
+| failed | `⊗` | `failed` |
+
+The Status column holds the word only, coloured like the State word of `:jobs`
+(`indicator.Style`, so `cloned` is not green). **Several rows blink at once**:
+clones run in parallel (`forge.pull.parallel_jobs`), so every running item
+blinks and every queued one stays `◴`; with one job there is one blinking row.
+`handleFrameMsg` calls `clone.table.SetBlinkPhase`; a new clone list copies the
+tree's current phase so its first frame matches. `.` cycles Repository, then
+Status (Discovery order is kept, `SortColumn: -1`).
+
+**Footer in clone mode.** `status()` sets `Status.Text` to `cloneStatusLine()`
+(the progress) and `Status.Detail` to `components.DescribeItem(jobs.KindClone,
+row).Detail` for the selected row, in every state: `⊗ Clone of alpha/api failed:
+<cause>`, `⊖ Clone of alpha/api skipped — already on disk`. The progress is
+laid out last, so a narrow footer cuts the cause and keeps the progress. The
+run-end summary (`Failed to clone alpha/api and 2 others — check logs`, 3 s
+`Error`) is unchanged; once it expires the selected row's detail is back.
+`cloningShortcuts()` does not depend on the selected row (Rule 130).
+A skipped clone carries the Detail `already on disk` (`CloneEventMsg.Transition()`),
+so `:jobs` says why too.
+
+**Widths** (Rule 116, inside = width − 2): dot 2 + Repository 30 + Status 13,
+each plus 2 of padding, is 51 and always fits at 60 columns; the Detail column
+(20) joins from a width of 75.
+
+**`ActivityTables()` reports `explorer/clone-list` even without a run**, from
+`newCloneTable()` (the one constructor, resized to the view), because the
+activity guard builds the explorer with no clone and must check the table at 60
+columns. Nothing renders that table.
+
+**Causes are redacted (`jobs.SafeCause`, D97 closed for the clone path).** A git
+or forge error can carry a URL with credentials, and the footer, `:jobs` and
+screenshots would show it. `jobs.SafeCause(err)` (`internal/jobs/cause.go`)
+removes the userinfo of any `scheme://`, the values of query or fragment
+parameters whose name contains `token`, `password`, `passwd`, `secret` or `key`,
+and the credential of `Authorization` and `PRIVATE-TOKEN` headers. The scp form
+(`git@host:path`) is left alone; nothing else is rewritten or classified. It is
+applied at the producer, to the `Transition.Detail` of `cloneEnded`,
+`cloneWalkFailed` and the forge index walk (`app/forge_index.go`), and to the
+matching `log.Printf` calls. `jobs.CancelledDetail` is the shared constant for
+the `cancelled` Detail written by `Registry.Cancel` and `CancelItem`; views read
+it to tell a cancelled item from one already on disk.
+
+Known limits: the index job's `Target` is the unmasked `forge.URL`, and error
+text in other places of the `explorer` package, outside the clone path, may
+still carry a header. See D103 in `docs/backlog.md`.
 
 **Two cancellation scopes, and the distinction is the point** (`pipeline.go`).
 `cloneRun.cancel` is a `context.CancelFunc` covering **discovery only** — HTTP

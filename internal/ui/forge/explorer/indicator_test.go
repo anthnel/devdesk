@@ -68,23 +68,6 @@ func TestColumnZeroIsTheActivityColumn(t *testing.T) {
 	}
 }
 
-func TestTheViewExposesItsTreeToTheActivityGuard(t *testing.T) {
-	av, ok := any(loadedModel(t)).(interface {
-		ActivityTables() map[string]datatable.ActivityTable
-	})
-	if !ok {
-		t.Fatal("Model does not expose ActivityTables()")
-	}
-	tables := av.ActivityTables()
-	tbl, ok := tables["explorer/tree"]
-	if !ok || len(tables) != 1 {
-		t.Fatalf("ActivityTables() keys = %v, want exactly [explorer/tree] (the clone list is A-10b)", tables)
-	}
-	if shapes := tbl.Shapes(); len(shapes) == 0 || !shapes[0].Indicator {
-		t.Errorf("the reported table has no activity column 0: %+v", shapes)
-	}
-}
-
 func TestTheRowCarriesNoFrameAnyMore(t *testing.T) {
 	if _, has := reflect.TypeOf(explorerRow{}).FieldByName("frame"); has {
 		t.Error("explorerRow still has a frame field: the blink phase is read at render")
@@ -216,16 +199,12 @@ func TestAFrameDoesNotCallSetItems(t *testing.T) {
 	}
 }
 
-func TestACloneListKeepsItsFrameWhileTheTreeTakesThePhase(t *testing.T) {
+func TestTheTreeAndTheCloneListBothTakeThePhase(t *testing.T) {
 	h := cloning(t)
 	h.emit(found("alpha/api"), began("alpha/api"))
-	h.m = feed(t, h.m, jobs.FrameMsg{Frame: "X", Blink: true})
-	rows := h.m.clone.table.Table().Rows()
-	if len(rows) != 1 || !strings.HasPrefix(rows[0][colCloneStatus], "X cloning") {
-		t.Fatalf("clone status = %v, want the frame X (A-10b keeps jobFrame)", rows)
-	}
-	if !h.m.table.BlinkPhase() {
-		t.Error("the tree table did not take the phase while the clone list was open")
+	h.m = feed(t, h.m, jobs.FrameMsg{Blink: true})
+	if !h.m.table.BlinkPhase() || !h.m.clone.table.BlinkPhase() {
+		t.Errorf("phase: tree=%v clone=%v, want both on", h.m.table.BlinkPhase(), h.m.clone.table.BlinkPhase())
 	}
 }
 
