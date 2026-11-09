@@ -1,0 +1,69 @@
+{
+  "cli_version": "0.12.2",
+  "checkpoint_id": "13ff6f4ee7dc",
+  "strategy": "manual-commit",
+  "branch": "feat/devdesk-153-oci-activity-column",
+  "checkpoints_count": 12,
+  "files_touched": [
+    "docs/architecture/app-shell.md",
+    "docs/architecture/network.md",
+    "docs/architecture/ui-components.md",
+    "docs/backlog.md",
+    "docs/product/activity-indicator/stories.md",
+    "internal/app/activity_guard_test.go",
+    "internal/app/animation_guard_test.go",
+    "internal/app/oci_activity_test.go",
+    "internal/ui/oci_resources/activity.go",
+    "internal/ui/oci_resources/browser_bridge.go",
+    "internal/ui/oci_resources/busy.go",
+    "internal/ui/oci_resources/busy_test.go",
+    "internal/ui/oci_resources/frame_test.go",
+    "internal/ui/oci_resources/images_activity_test.go",
+    "internal/ui/oci_resources/jobs.go",
+    "internal/ui/oci_resources/model.go",
+    "internal/ui/oci_resources/other_activity_test.go",
+    "internal/ui/oci_resources/registries.go",
+    "internal/ui/oci_resources/registry_browser_test.go",
+    "internal/ui/oci_resources/results.go",
+    "internal/ui/oci_resources/table.go",
+    "internal/ui/oci_resources/update.go",
+    "internal/ui/oci_resources/update_test.go"
+  ],
+  "sessions": [
+    {
+      "metadata": "/13/ff6f4ee7dc/0/metadata.json",
+      "transcript": "/13/ff6f4ee7dc/0/full.jsonl",
+      "compact_transcript": "/13/ff6f4ee7dc/0/transcript.jsonl",
+      "content_hash": "/13/ff6f4ee7dc/0/content_hash.txt",
+      "prompt": "/13/ff6f4ee7dc/0/prompt.txt"
+    }
+  ],
+  "token_usage": {
+    "input_tokens": 88,
+    "cache_creation_tokens": 94511,
+    "cache_read_tokens": 2783700,
+    "output_tokens": 15497,
+    "api_call_count": 31,
+    "subagent_tokens": {
+      "input_tokens": 214,
+      "cache_creation_tokens": 577733,
+      "cache_read_tokens": 4224086,
+      "output_tokens": 64880,
+      "api_call_count": 104
+    }
+  },
+  "redaction": {
+    "replacements": 0,
+    "layers": {
+      "betterleaks": 0,
+      "connection_string": 0,
+      "credential_key": 0,
+      "credential_value": 0,
+      "credentialed_uri": 0,
+      "entropy": 0,
+      "key_context": 0,
+      "provider_token": 0,
+      "shell_stdin": 0
+    }
+  }
+}
