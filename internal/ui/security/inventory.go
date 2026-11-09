@@ -278,15 +278,13 @@ func (m Model) handleInventoryScanFinished(msg InventoryScanFinishedMsg) (tea.Mo
 	targets := m.inventory.Items()
 	updated := make([]scanTarget, len(targets))
 	for i, t := range targets {
-		if t.Name == msg.Name {
-			if msg.Err == nil {
-				t.Scanned = true
-				t.Counts = msg.Counts
-				t.Sensitive = msg.Sensitive
-				t.CIScore = msg.CIScore
-				t.Misconfig = msg.Misconfig
-				t.ScannedAt = msg.ScannedAt
-			}
+		if t.Name == msg.Name && msg.Err == nil {
+			t.Scanned = true
+			t.Counts = msg.Counts
+			t.Sensitive = msg.Sensitive
+			t.CIScore = msg.CIScore
+			t.Misconfig = msg.Misconfig
+			t.ScannedAt = msg.ScannedAt
 		}
 		updated[i] = t
 	}

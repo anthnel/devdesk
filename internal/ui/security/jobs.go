@@ -10,11 +10,10 @@ import (
 	"github.com/anthnel/devdesk/internal/ui/datatable"
 )
 
-// What is being rescanned is the registry's answer, not this view's (§3.58):
-// nothing is carried across a reload, and a scan started from ws or the images
-// tab marks the same row.
-
-// handleJobsChanged takes the router's snapshot and redecorates the rows.
+// handleJobsChanged takes the router's snapshot and redecorates the rows. What
+// is being rescanned is the registry's answer, not this view's (§3.58): nothing
+// is carried across a reload, and a scan started from ws or the images tab
+// marks the same row.
 func (m Model) handleJobsChanged(msg jobs.ChangedMsg) (tea.Model, tea.Cmd) {
 	m.jobs = msg.Runs
 	m.failures = slices.Clone(msg.Failures)

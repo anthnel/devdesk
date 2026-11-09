@@ -6,7 +6,6 @@ import (
 	"testing"
 	"time"
 
-	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
 
 	"github.com/anthnel/devdesk/internal/command"
@@ -217,5 +216,3 @@ func TestShortcutsAreTheSameForIdleRunningAndFailedRows(t *testing.T) {
 		}
 	}
 }
-
-var _ tea.Msg = jobs.FrameMsg{}
