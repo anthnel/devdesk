@@ -1,0 +1,70 @@
+{
+  "cli_version": "0.12.2",
+  "checkpoint_id": "6ba636f88017",
+  "strategy": "manual-commit",
+  "branch": "feat/devdesk-146-oci-activity-column",
+  "checkpoints_count": 28,
+  "files_touched": [
+    "docs-site/docs/explanation/network.md",
+    "docs/architecture/app-shell.md",
+    "docs/architecture/network.md",
+    "docs/backlog.md",
+    "docs/product/activity-indicator/stories.md",
+    "internal/app/activity_guard_test.go",
+    "internal/app/animation_guard_test.go",
+    "internal/ui/datatable/busy_test.go",
+    "internal/ui/datatable/datatable.go",
+    "internal/ui/oci_resources/activity.go",
+    "internal/ui/oci_resources/activity_test.go",
+    "internal/ui/oci_resources/busy.go",
+    "internal/ui/oci_resources/busy_test.go",
+    "internal/ui/oci_resources/frame_test.go",
+    "internal/ui/oci_resources/images.go",
+    "internal/ui/oci_resources/images_activity_test.go",
+    "internal/ui/oci_resources/jobs.go",
+    "internal/ui/oci_resources/jobs_test.go",
+    "internal/ui/oci_resources/model.go",
+    "internal/ui/oci_resources/results.go",
+    "internal/ui/oci_resources/table.go",
+    "internal/ui/oci_resources/update_test.go",
+    "internal/ui/oci_resources/view.go",
+    "internal/ui/oci_resources/view_test.go"
+  ],
+  "sessions": [
+    {
+      "metadata": "/6b/a636f88017/0/metadata.json",
+      "transcript": "/6b/a636f88017/0/full.jsonl",
+      "compact_transcript": "/6b/a636f88017/0/transcript.jsonl",
+      "content_hash": "/6b/a636f88017/0/content_hash.txt",
+      "prompt": "/6b/a636f88017/0/prompt.txt"
+    }
+  ],
+  "token_usage": {
+    "input_tokens": 180,
+    "cache_creation_tokens": 198997,
+    "cache_read_tokens": 10481787,
+    "output_tokens": 41950,
+    "api_call_count": 62,
+    "subagent_tokens": {
+      "input_tokens": 536,
+      "cache_creation_tokens": 2698431,
+      "cache_read_tokens": 23218904,
+      "output_tokens": 169257,
+      "api_call_count": 263
+    }
+  },
+  "redaction": {
+    "replacements": 0,
+    "layers": {
+      "betterleaks": 0,
+      "connection_string": 0,
+      "credential_key": 0,
+      "credential_value": 0,
+      "credentialed_uri": 0,
+      "entropy": 0,
+      "key_context": 0,
+      "provider_token": 0,
+      "shell_stdin": 0
+    }
+  }
+}

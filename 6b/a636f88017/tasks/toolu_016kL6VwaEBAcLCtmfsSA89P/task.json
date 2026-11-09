@@ -1,0 +1,15 @@
+{
+  "tool_use_id": "toolu_016kL6VwaEBAcLCtmfsSA89P",
+  "agent_id": "a24073e9ddc6d8c44",
+  "subagent_type": "project-tester",
+  "task_description": "Tests rouges étape 5 garde A-16",
+  "token_usage": {
+    "input_tokens": 12,
+    "cache_creation_tokens": 136741,
+    "cache_read_tokens": 614547,
+    "output_tokens": 3741,
+    "api_call_count": 6
+  },
+  "started_at": "2026-11-09T13:06:34.887577501+01:00",
+  "completed_at": "2026-11-09T13:07:07.9921904+01:00"
+}

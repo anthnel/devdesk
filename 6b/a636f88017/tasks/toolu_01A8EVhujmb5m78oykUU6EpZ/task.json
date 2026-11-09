@@ -1,0 +1,19 @@
+{
+  "tool_use_id": "toolu_01A8EVhujmb5m78oykUU6EpZ",
+  "agent_id": "a39b8285e0f98259e",
+  "subagent_type": "team-core:archivist",
+  "task_description": "Backlog et stories DEVDESK-146",
+  "files": [
+    "docs/backlog.md",
+    "docs/product/activity-indicator/stories.md"
+  ],
+  "token_usage": {
+    "input_tokens": 30,
+    "cache_creation_tokens": 156321,
+    "cache_read_tokens": 1373212,
+    "output_tokens": 10952,
+    "api_call_count": 12
+  },
+  "started_at": "2026-11-09T13:08:13.381650521+01:00",
+  "completed_at": "2026-11-09T13:08:54.894011982+01:00"
+}

@@ -1,0 +1,15 @@
+{
+  "tool_use_id": "toolu_016i6x1seyt6iKNdtXu2mLvy",
+  "agent_id": "a9f77cd67c9332573",
+  "subagent_type": "project-tester",
+  "task_description": "Compléter tests e2e étape 3",
+  "token_usage": {
+    "input_tokens": 8,
+    "cache_creation_tokens": 120487,
+    "cache_read_tokens": 311117,
+    "output_tokens": 2249,
+    "api_call_count": 4
+  },
+  "started_at": "2026-11-09T13:05:26.880207736+01:00",
+  "completed_at": "2026-11-09T13:05:53.002991385+01:00"
+}

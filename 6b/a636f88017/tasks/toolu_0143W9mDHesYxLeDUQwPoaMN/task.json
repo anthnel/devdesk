@@ -1,0 +1,15 @@
+{
+  "tool_use_id": "toolu_0143W9mDHesYxLeDUQwPoaMN",
+  "agent_id": "af591439f34a9ba9c",
+  "subagent_type": "project-tester",
+  "task_description": "Test rouge WantsBlink chemin réel",
+  "token_usage": {
+    "input_tokens": 10,
+    "cache_creation_tokens": 64435,
+    "cache_read_tokens": 266983,
+    "output_tokens": 2201,
+    "api_call_count": 5
+  },
+  "started_at": "2026-11-09T12:57:23.276039629+01:00",
+  "completed_at": "2026-11-09T12:58:09.80217354+01:00"
+}

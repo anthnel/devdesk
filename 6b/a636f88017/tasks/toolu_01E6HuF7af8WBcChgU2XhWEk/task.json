@@ -1,0 +1,15 @@
+{
+  "tool_use_id": "toolu_01E6HuF7af8WBcChgU2XhWEk",
+  "agent_id": "a1b6bf719db149f31",
+  "subagent_type": "project-tester",
+  "task_description": "Recaler seuils Disk/Scanned",
+  "token_usage": {
+    "input_tokens": 16,
+    "cache_creation_tokens": 65087,
+    "cache_read_tokens": 468871,
+    "output_tokens": 2959,
+    "api_call_count": 8
+  },
+  "started_at": "2026-11-09T12:54:13.105244188+01:00",
+  "completed_at": "2026-11-09T12:55:04.439062044+01:00"
+}
