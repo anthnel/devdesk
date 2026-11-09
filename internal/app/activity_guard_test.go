@@ -71,7 +71,7 @@ var pendingTables = []pendingTable{
 // maxPendingTables is the ceiling: adding an exception means raising both the
 // list and this constant in the same diff, which is visible in review. Lower it
 // with every migration.
-const maxPendingTables = 12
+const maxPendingTables = 11
 
 // exemptViews have no long-running operation to show per row (inventory:
 // "sans objet" or out of the batch), each with its reason.
@@ -324,7 +324,7 @@ func checkColumnZero(t *testing.T, vt command.ViewType, table string, shapes []d
 var migratedSources = map[command.ViewType][]string{
 	command.ViewJobs:       {"ui/jobsview/"},
 	command.ViewWorkspaces: {"ui/workspaces/"},
-	command.ViewSecurity:   {"ui/security/inventory.go", "ui/security/inventory_table.go", "ui/security/jobs.go", "ui/security/activity.go"},
+	command.ViewSecurity:   {"ui/security/"},
 }
 
 // sourceDeclarationProblems says what is wrong with the link between migrated
@@ -756,6 +756,7 @@ type footerRenderer interface {
 var migratedFooterSeeds = map[command.ViewType]func(*testing.T, *App) indicator.State{
 	command.ViewJobs:       seedJobsFooter,
 	command.ViewWorkspaces: seedWorkspacesFooter,
+	command.ViewSecurity:   seedSecurityFooter,
 }
 
 // seedJobsFooter starts a scan run, moves its item to running (a started run
