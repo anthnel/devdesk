@@ -886,13 +886,12 @@ This is what removes the four hand-stamped frames, and with them the failure
 each of them could produce: a chain that died on the first idle tick with
 nothing able to restart it, leaving the spinner frozen on the frame it died at.
 
-#### Row chains still outside the router
+#### Row chains outside the router
 
-No row-animation chain lives in a view any more: `declaredRowChains` is empty
-(`tagScanSpinnerIdx` went with the registry browser, A-09a2, DEVDESK-218). The
-test still fails on any new one.
-
-A-16 then closes the exceptions. `TestOnlyTheRouterBuildsAFrameMsg` and
+No row-animation chain lives in a view: `TestNoRowAnimationChainOutsideTheRouter`
+scans every source file outside `ui/datatable/` and fails on a row chain
+(`AdvanceSpinner`, `portsSpinnerCmd`, a `tagScanSpinnerIdx` step), with no list
+of declared chains to extend. `TestOnlyTheRouterBuildsAFrameMsg` and
 `TestTheAnimationChainUnderARealProgram` (a real `tea.Program`, meant for
 `-race`) complete the guard rails.
 
@@ -974,23 +973,20 @@ surrender differently.
 
 ### The activity-column guard (DEVDESK-142, A-16 skeleton)
 
-`internal/app/activity_guard_test.go` keeps the migration to the activity column
-(Rule 125) from regressing and from being forgotten. It classifies every
-`command.ViewType` against three lists, **per table**: a view must appear in at
-least one, may be migrated for some tables and pending for others (OCI A-09a2 /
-A-09b, explorer A-10a / A-10b) when the two sets are disjoint, and an exempt
-view is neither:
+`internal/app/activity_guard_test.go` keeps every view on the activity column
+(Rule 125) and keeps it there. It classifies every `command.ViewType` into one of
+two lists, **per table**: a view is migrated or exempt, never both and never
+neither. There is no list of tables waiting for their story any more (DEVDESK-143
+closed it) and no exception to shrink:
 
 | List | Meaning |
 |---|---|
-| `migratedTables` | the view's tables are on the activity column (`:jobs`: `jobs/runs`, `jobs/targets`; ws: `ws`, DEVDESK-144; `:sec`: `sec/inventory`, DEVDESK-145; OCI: `oci/images`, DEVDESK-146; `oci/networks`, `oci/volumes`, `oci/registries`, DEVDESK-153; `oci/registry-browser`, DEVDESK-218; explorer: `explorer/tree`, DEVDESK-147; `explorer/clone-list`, DEVDESK-148; templates: `templates`, DEVDESK-149; netdiag: `netdiag/ports`, DEVDESK-150; `:agent-usage`: `agent-usage/agents`, DEVDESK-151; containers: `containers`, DEVDESK-152) |
-| `pendingTables` | tables waiting for their story (none left), each naming it. `maxPendingTables` caps the list: it may only shrink (13 to 12 with ws, 12 to 11 with `:sec`; `oci/images` moved to migrated by DEVDESK-146; 10 to 9 with `explorer/tree`, DEVDESK-147; 9 to 8 with `explorer/clone-list`, DEVDESK-148; 8 to 7 with `templates`, DEVDESK-149; 7 to 6 with `netdiag/ports`, DEVDESK-150; 6 to 5 with `agent-usage/agents`, DEVDESK-151; 5 to 4 with `containers`, DEVDESK-152; 4 to 1 with A-09b, DEVDESK-153: `oci/networks`, `oci/volumes`, `oci/registries`; 1 to 0 with A-09a2, DEVDESK-218: `oci/registry-browser`) |
+| `migratedTables` | the view's tables are on the activity column (`:jobs`: `jobs/runs`, `jobs/targets`; ws: `ws`; `:sec`: `sec/inventory`; OCI: `oci/images`, `oci/networks`, `oci/volumes`, `oci/registries`, `oci/registry-browser`; explorer: `explorer/tree`, `explorer/clone-list`; templates: `templates`; netdiag: `netdiag/ports`; `:agent-usage`: `agent-usage/agents`; containers: `containers`) |
 | `exemptViews` | views with no activity to show (dashboard, status, git-auth, configuration, about, files, viewer), each with its reason |
 
-A view in none of the three, an exempt view that is also migrated or pending, or a table both migrated and pending fails by name (`classificationProblems`, unit-tested on a fictitious partly migrated view). A migrated view
+A view in neither list, or an exempt view that is also migrated, fails by name (`classificationProblems`, unit-tested on a fictitious partly migrated view). A migrated view
 exposes `ActivityTables() map[string]datatable.ActivityTable` (a read-only face:
-`Shapes()` and `RenderedWidth()`, see `ui-components.md`); a view whose `ActivityTables()` reports a table still listed as pending, or an
-exempt view that reports any, fails with "remove the exception".
+`Shapes()` and `RenderedWidth()`, see `ui-components.md`); an exempt view that reports any table fails with "remove the exception".
 
 The netdiag view's `migratedSources` are two files only, `ports_model.go` and `ports_activity.go` (DEVDESK-150): netdiag migrates its Ports tab alone, and the guard scans the files that belong to it. `ports_commands.go` is left out: its `portsTickCmd` is the data refresh tick, not a row animation (same reasoning as OCI's `commands.go`). The other tabs (`forward_model.go`, checks, interfaces) are not migrated. It reports `netdiag/ports` from `ActivityTables()`, and its footer seed (`seedNetdiagFooter`) opens the Ports tab with one socket whose kill is in flight, driving the view's `Update` directly (no `Cmd` is run: no socket table read, no signal sent).
 
@@ -1014,11 +1010,6 @@ field, an `AdvanceSpinner` call and a `"◉"` literal into `jobsview`.
 **The footer half** is `migratedFooterSeeds` (a view seeds a row at a state and the
 guard checks its footer): `:sec` is seeded by `seedSecurityFooter`, a running
 scan on the selected row.
-
-**Left to DEVDESK-143**: the footer half of the help/legend criterion and the
-final criterion 7. The chains outside the router and the static-motion rule stay
-with `TestRowAnimationChainsOutsideTheRouterAreDeclared` and
-`TestStaticMotionHoldsTheBlinkPhaseOnAndStartsNoChain`.
 
 ## Bubble Tea Message Flow
 

@@ -64,8 +64,9 @@ func (m Model) handleFrameMsg(msg jobs.FrameMsg) (tea.Model, tea.Cmd) {
 }
 
 // WantsBlink reports whether an Images row or a registry-browser tag row is in
-// an animated state (running, or an action observed on it). A queued row and a remembered failure are
-// steady. It is the level the router's BlinkingView check reads.
+// an animated state (running, or an action observed on it). A queued row and a
+// remembered failure are steady. It is the level the router's BlinkingView
+// check reads.
 func (m Model) WantsBlink() bool {
 	for _, r := range m.imageTable.Items() {
 		if r.Activity.State == indicator.Running {

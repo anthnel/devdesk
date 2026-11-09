@@ -54,6 +54,10 @@ so `nginx` and `docker.io/library/nginx` are tracked separately. On a narrow
 terminal whole columns drop, optional ones first; the dot stays.
 Press `?` for the legend.
 
+The Networks, Volumes and Registries tabs and the registry browser (`B`) have
+the same leftmost column and the same dots, for a removal, a pull or a tag scan
+running on the row.
+
 ## Is there a newer image?
 
 The Images tab, the containers list and a scan's Remediation tab each have an
