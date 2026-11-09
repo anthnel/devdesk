@@ -1,0 +1,15 @@
+{
+  "tool_use_id": "toolu_01AMqiUQkfXTarBmahucMw8X",
+  "agent_id": "acd8da855dfa13488",
+  "subagent_type": "team-core:tech-writer",
+  "task_description": "Corrections doc DEVDESK-152",
+  "token_usage": {
+    "input_tokens": 6,
+    "cache_creation_tokens": 16115,
+    "cache_read_tokens": 38823,
+    "output_tokens": 952,
+    "api_call_count": 3
+  },
+  "started_at": "2026-11-09T20:08:00.256482519+01:00",
+  "completed_at": "2026-11-09T20:08:21.239307116+01:00"
+}

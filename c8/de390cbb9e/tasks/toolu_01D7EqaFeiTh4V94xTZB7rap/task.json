@@ -1,0 +1,15 @@
+{
+  "tool_use_id": "toolu_01D7EqaFeiTh4V94xTZB7rap",
+  "agent_id": "a8b0aa14393c1f812",
+  "subagent_type": "dev-team:architect",
+  "task_description": "Plan DEVDESK-152 containers pastille",
+  "token_usage": {
+    "input_tokens": 82,
+    "cache_creation_tokens": 219033,
+    "cache_read_tokens": 6177219,
+    "output_tokens": 37080,
+    "api_call_count": 40
+  },
+  "started_at": "2026-11-09T19:34:31.357489663+01:00",
+  "completed_at": "2026-11-09T19:41:07.71039497+01:00"
+}
