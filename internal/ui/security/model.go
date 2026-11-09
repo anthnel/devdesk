@@ -62,6 +62,12 @@ type Model struct {
 	jobs     []jobs.Run
 	jobFrame string
 
+	// failures is a copy of the registry's remembered failures, replaced (never
+	// merged) by handleJobsChanged, and contextName the context the snapshot was
+	// built for (ChangedMsg.Context).
+	failures    []jobs.Failure
+	contextName string
+
 	// inventoryLoading is true while loadInventoryCmd is in flight. It exists
 	// because an empty table and a table that has not answered yet look the
 	// same, and they mean opposite things: "Nothing scanned yet" asserted

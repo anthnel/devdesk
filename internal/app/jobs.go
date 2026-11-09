@@ -12,6 +12,7 @@ func (a *App) changedMsg() jobs.ChangedMsg {
 	return jobs.ChangedMsg{
 		Runs:     a.jobs.Snapshot(),
 		Failures: a.jobs.Failures(),
+		Context:  a.currentContext,
 	}
 }
 

@@ -1,6 +1,8 @@
 package security
 
 import (
+	"slices"
+
 	tea "github.com/charmbracelet/bubbletea"
 
 	"github.com/anthnel/devdesk/internal/command"
@@ -23,6 +25,8 @@ import (
 // handleJobsChanged takes the router's snapshot and redecorates the rows.
 func (m Model) handleJobsChanged(msg jobs.ChangedMsg) (tea.Model, tea.Cmd) {
 	m.jobs = msg.Runs
+	m.failures = slices.Clone(msg.Failures)
+	m.contextName = msg.Context
 	m.setInventory(m.inventory.Items())
 	return m, nil
 }

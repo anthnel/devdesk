@@ -718,3 +718,42 @@ func TestAFailedTemplateSyncSettlesTheRun(t *testing.T) {
 		t.Errorf("Running = %d, want 0", got)
 	}
 }
+
+// DEVDESK-145 (Q1=B): every snapshot carries the context the router was in when
+// it built it, so a view reads Runs and Failures against the right one without
+// a constructor argument. changedMsg is the single builder.
+func TestTheSnapshotCarriesTheCurrentContext(t *testing.T) {
+	ws := &fakeView{}
+	a := router(t, &fakeView{})
+	a.views[command.ViewWorkspaces] = ws
+
+	tests := []struct {
+		name string
+		send func() tea.Cmd
+		ctx  string
+	}{
+		{"direct send to a view", func() tea.Cmd { return a.sendJobsTo(command.ViewWorkspaces) }, "default"},
+		{"broadcast after a start", func() tea.Cmd {
+			a.jobs.Start(scanRun(a.currentContext, "a"))
+			return a.jobsChanged()
+		}, "default"},
+		{"after a context change", func() tea.Cmd {
+			a.currentContext = "other"
+			return a.sendJobsTo(command.ViewWorkspaces)
+		}, "other"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if tt.ctx == "default" {
+				a.currentContext = "default"
+			}
+			tt.send()
+			if got := lastJobs(t, ws).Context; got != tt.ctx {
+				t.Errorf("ChangedMsg.Context = %q, want %q", got, tt.ctx)
+			}
+		})
+	}
+	if got := a.changedMsg().Context; got != a.currentContext {
+		t.Errorf("changedMsg().Context = %q, want %q", got, a.currentContext)
+	}
+}

@@ -199,6 +199,11 @@ type ChangedMsg struct {
 	// oldest first, every context included. Like Runs, it is read by the view
 	// and never written back.
 	Failures []Failure
+
+	// Context is the router's current context when the snapshot was built: the
+	// context a view reads Runs and Failures against. A view never fed has none,
+	// which matches no run.
+	Context string
 }
 
 // Running counts the runs in the snapshot that have not settled. It saves every
