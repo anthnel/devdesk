@@ -94,6 +94,10 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			if cmd != nil {
 				cmds = append(cmds, cmd)
 			}
+			// A search is reported in the footer, so its frame has to reach it.
+			if m.registryBrowser.IsSearching() {
+				m.footer.SetSpinnerFrame(m.registryBrowser.spinner.View())
+			}
 		}
 		if len(cmds) > 0 {
 			return m, tea.Batch(cmds...)

@@ -2,6 +2,7 @@ package ociresources
 
 import (
 	"errors"
+	"slices"
 	"strings"
 	"testing"
 	"time"
@@ -11,6 +12,7 @@ import (
 	"github.com/anthnel/devdesk/internal/cache"
 	"github.com/anthnel/devdesk/internal/config"
 	"github.com/anthnel/devdesk/internal/engine"
+	"github.com/anthnel/devdesk/internal/jobs"
 	sharedcomponents "github.com/anthnel/devdesk/internal/ui/components"
 	"github.com/anthnel/devdesk/internal/ui/keymap"
 	"github.com/anthnel/devdesk/internal/ui/testutil"
@@ -443,14 +445,15 @@ func TestTheSortedColumnCarriesTheArrow(t *testing.T) {
 	m := resultsModel(t)
 	b := m.registryBrowser
 
-	if !strings.Contains(b.tagTable.Table().Columns()[1].Title, "▲") {
-		t.Errorf("the Tag header is %q, want an ascending arrow", b.tagTable.Table().Columns()[1].Title)
+	// Column 0 is the activity column (DEVDESK-218): Tag is 2, Updated is 3.
+	if !strings.Contains(b.tagTable.Table().Columns()[tagColumnTag].Title, "▲") {
+		t.Errorf("the Tag header is %q, want an ascending arrow", b.tagTable.Table().Columns()[tagColumnTag].Title)
 	}
 	m = feed(t, m, testutil.Key("."), testutil.Key("."))
-	if !strings.Contains(b.tagTable.Table().Columns()[2].Title, "▲") {
-		t.Errorf("the Updated header is %q, want the arrow to have moved", b.tagTable.Table().Columns()[2].Title)
+	if !strings.Contains(b.tagTable.Table().Columns()[tagColumnUpdated].Title, "▲") {
+		t.Errorf("the Updated header is %q, want the arrow to have moved", b.tagTable.Table().Columns()[tagColumnUpdated].Title)
 	}
-	if strings.Contains(b.tagTable.Table().Columns()[1].Title, "▲") {
+	if strings.Contains(b.tagTable.Table().Columns()[tagColumnTag].Title, "▲") {
 		t.Error("the Tag header kept its arrow after the sort moved")
 	}
 }
@@ -761,44 +764,52 @@ func TestTheTagActionsDeclineWithNothingSelected(t *testing.T) {
 // ── The results table as rendered ────────────────────────────────────────────
 
 // Rule 122: a styled cell is truncated mid-escape by bubbles/table and bleeds
-// over every row below it.
+// over every row below it. Checked on a settled row, a running one, a queued one
+// and a failed one (DEVDESK-218: the scan state comes from jobs.ChangedMsg now).
 func TestTagRowsCarryNoEscapeSequences(t *testing.T) {
 	m := resultsModel(t)
 	b := m.registryBrowser
-	b.SetScanCache(map[string]cache.ImageScanEntry{
-		b.selectedImageName(): {Critical: 3, High: 2, Medium: 1, ScannedAt: at(1)},
-	})
-	b.SetTagScanningSet(map[string]bool{"registry.example.com/api:v2": true})
+	name := b.selectedImageName()
+	b.SetScanCache(map[string]cache.ImageScanEntry{name: {Critical: 3, High: 2, Medium: 1, ScannedAt: at(1)}})
 
-	for _, row := range b.tagTable.Table().Rows() {
-		for col, cell := range row {
-			if strings.Contains(cell, "\x1b[") {
-				t.Errorf("row cell [%d] = %q carries an escape sequence", col, cell)
+	for label, snap := range map[string]jobs.ChangedMsg{
+		"settled": {Context: ociCtx},
+		"running": {Runs: []jobs.Run{ociRun(jobs.KindScan, ociCtx, jobs.ItemRunning, name)}, Context: ociCtx},
+		"queued":  {Runs: []jobs.Run{ociRun(jobs.KindScan, ociCtx, jobs.ItemQueued, name)}, Context: ociCtx},
+		"failed":  {Failures: []jobs.Failure{ociFailure(jobs.KindScan, ociCtx, name, at(2))}, Context: ociCtx},
+	} {
+		feed(t, m, snap)
+		for _, row := range b.tagTable.Table().Rows() {
+			for col, cell := range row {
+				if strings.Contains(cell, "\x1b[") {
+					t.Errorf("%s: row cell [%d] = %q carries an escape sequence", label, col, cell)
+				}
 			}
 		}
 	}
 }
 
 // The counts are the reason to scan from the browser at all, and a tag being
-// scanned has to look different from one that never was.
+// scanned has to look different from one that never was: while a scan really
+// runs the four count cells hold "…" (DEVDESK-218, Q2).
 func TestTheSeverityColumnsShowCachedCountsAndScanProgress(t *testing.T) {
 	m := resultsModel(t)
 	b := m.registryBrowser
 	scanned := b.selectedImageName()
 
 	b.SetScanCache(map[string]cache.ImageScanEntry{scanned: {Critical: 3, High: 2, Medium: 1, ScannedAt: at(1)}})
-	if got := rowFor(t, b, scanned); got[3] != "3" || got[4] != "2" || got[5] != "1" || got[6] != "0" {
-		t.Errorf("severity cells = %v, want the cached counts", got[3:])
+	if got := rowFor(t, b, scanned); got[4] != "3" || got[5] != "2" || got[6] != "1" || got[7] != "0" {
+		t.Errorf("severity cells = %v, want the cached counts", got[4:])
 	}
 
-	b.SetTagScanningSet(map[string]bool{scanned: true})
-	if got := rowFor(t, b, scanned); got[3] == "3" {
-		t.Errorf("severity cells = %v, want the scan in progress to replace the counts", got[3:])
+	m = feed(t, m, jobs.ChangedMsg{Runs: []jobs.Run{ociRun(jobs.KindScan, ociCtx, jobs.ItemRunning, scanned)}, Context: ociCtx})
+	if got := rowFor(t, b, scanned); got[4] != "…" || got[5] != "…" || got[6] != "…" || got[7] != "…" {
+		t.Errorf("severity cells = %v, want the scan in progress to replace the counts with …", got[4:])
 	}
 
-	b.SetTagScanningSet(nil)
-	if got := rowFor(t, b, scanned); got[3] != "3" {
-		t.Errorf("severity cells = %v, want the counts back once the scan finished", got[3:])
+	feed(t, m, jobs.ChangedMsg{Context: ociCtx})
+	if got := rowFor(t, b, scanned); got[4] != "3" {
+		t.Errorf("severity cells = %v, want the counts back once the scan finished", got[4:])
 	}
 }
 
@@ -808,8 +819,8 @@ func TestAnUnscannedTagShowsNoCounts(t *testing.T) {
 	b := resultsModel(t).registryBrowser
 
 	row := rowFor(t, b, b.selectedImageName())
-	if row[3] != "-" || row[6] != "-" {
-		t.Errorf("severity cells = %v, want dashes for a tag never scanned", row[3:])
+	if row[4] != "-" || row[7] != "-" {
+		t.Errorf("severity cells = %v, want dashes for a tag never scanned", row[4:])
 	}
 }
 
@@ -820,7 +831,7 @@ func TestTheUpdatedColumnIsRelative(t *testing.T) {
 	})
 	b := m.registryBrowser
 
-	if got := b.tagTable.Table().Rows()[0][2]; got != "-" {
+	if got := b.tagTable.Table().Rows()[0][3]; got != "-" {
 		t.Errorf("Updated = %q, want a dash before the metadata lands", got)
 	}
 
@@ -828,7 +839,7 @@ func TestTheUpdatedColumnIsRelative(t *testing.T) {
 		EntryKey: "prod", RegistryURL: "registry.example.com", Repo: "api",
 		Meta: map[string]time.Time{"v1": time.Now().Add(-2 * time.Hour)},
 	})
-	if got := b.tagTable.Table().Rows()[0][2]; !strings.Contains(got, "hr ago") {
+	if got := b.tagTable.Table().Rows()[0][3]; !strings.Contains(got, "hr ago") {
 		t.Errorf("Updated = %q, want a relative time", got)
 	}
 }
@@ -839,7 +850,7 @@ func TestATagWithNoAliasIsLabelledByItsRegistry(t *testing.T) {
 		EntryKey: "prod", RegistryURL: "registry.example.com", Repo: "api", Tags: []string{"v1"},
 	})
 
-	if got := m.registryBrowser.tagTable.Table().Rows()[0][0]; got != "registry.example.com" {
+	if got := m.registryBrowser.tagTable.Table().Rows()[0][1]; got != "registry.example.com" {
 		t.Errorf("the Registry cell is %q, want the URL when there is no alias", got)
 	}
 }
@@ -930,7 +941,7 @@ func tagOrder(b *RegistryBrowser) []string {
 	rows := b.tagTable.Table().Rows()
 	out := make([]string, 0, len(rows))
 	for _, row := range rows {
-		out = append(out, row[1])
+		out = append(out, row[tagColumnTag])
 	}
 	return out
 }
@@ -1091,6 +1102,11 @@ func TestTagColumnsHoldTheWidthInvariant(t *testing.T) {
 		if got, want := b.tagTable.RenderedWidth(), width-2; got != want {
 			t.Errorf("at width %d the line spans %d, want %d", width, got, want)
 		}
+	}
+	// At 60 columns only the activity dot, Registry and Tag are left (Rule 116).
+	m := feed(t, resultsModel(t), tea.WindowSizeMsg{Width: 60, Height: 40})
+	if got, want := visibleTagColumns(m.registryBrowser), []string{"●", "Registry", "Tag"}; !slices.Equal(got, want) {
+		t.Errorf("at width 60 the visible columns are %v, want %v", got, want)
 	}
 }
 

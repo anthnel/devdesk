@@ -52,8 +52,11 @@ image beside the batch progress. A scan or pull started from another view
 marks the same row. Rows match by the reference exactly as the image is listed,
 so `nginx` and `docker.io/library/nginx` are tracked separately. On a narrow
 terminal whole columns drop, optional ones first; the dot stays.
-Press `?` for the legend. The Networks, Volumes
-and Registries tabs and the registry browser do not have the dot yet.
+Press `?` for the legend.
+
+The Networks, Volumes and Registries tabs and the registry browser (`B`) have
+the same leftmost column and the same dots, for a removal, a pull or a tag scan
+running on the row.
 
 ## Is there a newer image?
 

@@ -1,9 +1,12 @@
 package ociresources
 
 import (
+	"slices"
 	"time"
 
 	"github.com/anthnel/devdesk/internal/cache"
+	"github.com/anthnel/devdesk/internal/jobs"
+	"github.com/anthnel/devdesk/internal/ui/indicator"
 )
 
 // AddRegistryTags incorporates results from one registry into the combined tag list.
@@ -49,16 +52,36 @@ func (b *RegistryBrowser) SetMultiTagsMeta(entryKey string, meta map[string]time
 	}
 }
 
-// SetTagScanningSet replaces the in-progress scans the tag rows decorate.
+// SetJobs takes the router's snapshot — what is running or remembered as
+// failed, and the context it is read in — and rebuilds the rows.
 //
-// A set rather than one name at a time: the source is the registry snapshot,
-// which says what is running rather than what changed, and reconciling a whole
-// answer against per-name edits is how the two drift.
-func (b *RegistryBrowser) SetTagScanningSet(scanning map[string]bool) {
-	b.scanningTags = scanning
+// A snapshot rather than one name at a time: it says what is running rather
+// than what changed, and reconciling a whole answer against per-name edits is
+// how the two drift.
+func (b *RegistryBrowser) SetJobs(runs []jobs.Run, failures []jobs.Failure, context string) {
+	b.jobs = runs
+	b.failures = slices.Clone(failures)
+	b.contextName = context
 	if b.state == browserStateTags {
 		b.rebuildTagTable()
 	}
+}
+
+// SetBlinkPhase hands the router's blink phase to the tag table. Nothing is
+// rebuilt: the table reads the phase at render.
+func (b *RegistryBrowser) SetBlinkPhase(on bool) { b.tagTable.SetBlinkPhase(on) }
+
+// WantsBlink reports whether a visible tag row has a running operation.
+func (b *RegistryBrowser) WantsBlink() bool {
+	if b.state != browserStateTags {
+		return false
+	}
+	for _, r := range b.tagTable.Items() {
+		if r.Activity.State == indicator.Running {
+			return true
+		}
+	}
+	return false
 }
 
 // HasSelectedTagScanResults returns true when the selected tag has cached scan results.

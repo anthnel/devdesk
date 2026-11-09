@@ -28,15 +28,14 @@ import (
 )
 
 // A-16 (DEVDESK-143), the cross-cutting guard, started with the :jobs pilot
-// (DEVDESK-142).
+// (DEVDESK-142) and closed by its last story: no view is waiting any more.
 //
 // The guard answers one question for every view the router can build: is it on
-// the activity column, is it waiting for its migration, or is it exempt for a
-// stated reason? A view that is none of the three fails the test by name. For a
-// migrated view it also checks the column, the help legend, the retired
-// mechanisms in its declared sources (including its own ticks), and the footer
-// of its selected row. Declared exceptions may only shrink, and follow their
-// stories: pendingTables here, declaredRowChains in animation_guard_test.go.
+// the activity column, or is it exempt for a stated reason? A view that is
+// neither fails the test by name. For a migrated view it also checks the column,
+// the help legend, the retired mechanisms in its declared sources (any tick
+// included), and the footer of its selected row. There is no list of views
+// waiting for their migration: exemptViews holds permanent, motivated exceptions.
 
 // activityView is what a migrated view exposes to the guard: read-only tables,
 // keyed "<view>/<table>".
@@ -49,30 +48,13 @@ var migratedTables = map[command.ViewType][]string{
 	command.ViewJobs:         {"jobs/runs", "jobs/targets"},
 	command.ViewWorkspaces:   {"ws"},
 	command.ViewSecurity:     {"sec/inventory"},
-	command.ViewOCIResources: {"oci/images", "oci/networks", "oci/volumes", "oci/registries"},
+	command.ViewOCIResources: {"oci/images", "oci/networks", "oci/volumes", "oci/registries", "oci/registry-browser"},
 	command.ViewGitExplorer:  {"explorer/tree", "explorer/clone-list"},
 	command.ViewTemplates:    {"templates"},
 	command.ViewNetdiag:      {"netdiag/ports"},
 	command.ViewAgentUsage:   {"agent-usage/agents"},
 	command.ViewContainers:   {"containers"},
 }
-
-// pendingTable is a table that still has to move to the activity column.
-type pendingTable struct {
-	Table string
-	View  command.ViewType
-	Story string
-}
-
-// pendingTables may only shrink: each migration story removes its own entries.
-var pendingTables = []pendingTable{
-	{"oci/registry-browser", command.ViewOCIResources, "A-09a2"},
-}
-
-// maxPendingTables is the ceiling: adding an exception means raising both the
-// list and this constant in the same diff, which is visible in review. Lower it
-// with every migration.
-const maxPendingTables = 1
 
 // exemptViews have no long-running operation to show per row (inventory:
 // "sans objet" or out of the batch), each with its reason.
@@ -84,30 +66,6 @@ var exemptViews = map[command.ViewType]string{
 	command.ViewAbout:         "static facts, no table",
 	command.ViewFiles:         "out of the batch, candidate for a later S story (the delete goes through the registry, no story covers it)",
 	command.ViewViewer:        "a document pane, no table",
-}
-
-func pendingViews() map[command.ViewType][]pendingTable {
-	out := map[command.ViewType][]pendingTable{}
-	for _, p := range pendingTables {
-		out[p.View] = append(out[p.View], p)
-	}
-	return out
-}
-
-func TestActivityGuardPendingListOnlyShrinks(t *testing.T) {
-	if got := len(pendingTables); got > maxPendingTables {
-		t.Errorf("pendingTables has %d entries, ceiling is %d: the list may only shrink (A-16 criterion 6)", got, maxPendingTables)
-	}
-	seen := map[string]bool{}
-	for _, p := range pendingTables {
-		if p.Story == "" {
-			t.Errorf("pending table %q names no story", p.Table)
-		}
-		if seen[p.Table] {
-			t.Errorf("pending table %q is listed twice", p.Table)
-		}
-		seen[p.Table] = true
-	}
 }
 
 // builtView returns the view the router builds for vt, laid out at 60x30.
@@ -124,98 +82,54 @@ func builtView(t *testing.T, vt command.ViewType) tea.Model {
 }
 
 // classificationProblems says what is wrong with the classification of one
-// view, empty when it is fine. It works per table: a view may be migrated for
-// some tables and pending for others (A-09a/A-09a2/A-09b, A-10a/A-10b) as long as the
-// two sets are disjoint; an exempt view is neither migrated nor pending.
-func classificationProblems(vt command.ViewType, migrated map[command.ViewType][]string, pending []pendingTable, exempt map[command.ViewType]string) []string {
+// view, empty when it is fine. A view is migrated (it has tables on the activity
+// column) or exempt (with its reason), never both and never neither.
+func classificationProblems(vt command.ViewType, migrated map[command.ViewType][]string, exempt map[command.ViewType]string) []string {
 	var problems []string
-	mig := migrated[vt]
-	var pend []string
-	for _, p := range pending {
-		if p.View == vt {
-			pend = append(pend, p.Table)
-		}
-	}
 	_, isExempt := exempt[vt]
+	isMigrated := len(migrated[vt]) > 0
 	switch {
-	case len(mig) == 0 && len(pend) == 0 && !isExempt:
-		problems = append(problems, "neither migrated, pending (with its story) nor exempt (with its reason)")
-	case isExempt && (len(mig) > 0 || len(pend) > 0):
-		problems = append(problems, "exempt and also migrated or pending")
-	}
-	for _, name := range pend {
-		if contains(mig, name) {
-			problems = append(problems, fmt.Sprintf("table %q is both migrated and pending", name))
-		}
+	case !isMigrated && !isExempt:
+		problems = append(problems, "neither migrated nor exempt (with its reason)")
+	case isMigrated && isExempt:
+		problems = append(problems, "both migrated and exempt")
 	}
 	return problems
 }
 
-// staleExceptions lists the pending tables of a view that the view already
-// reports: their exception must go.
-func staleExceptions(vt command.ViewType, reported []string, pending []pendingTable) []string {
-	var stale []string
-	for _, p := range pending {
-		if p.View == vt && contains(reported, p.Table) {
-			stale = append(stale, p.Table)
-		}
-	}
-	return stale
-}
-
-// Criterion 6: every view the router builds is migrated, pending or exempt.
+// Criterion 6: every view the router builds is migrated or exempt.
 func TestActivityGuardEveryViewIsClassified(t *testing.T) {
 	for _, name := range command.AllViewNames() {
 		vt := command.ViewType(name)
 		t.Run(name, func(t *testing.T) {
-			for _, p := range classificationProblems(vt, migratedTables, pendingTables, exemptViews) {
+			for _, p := range classificationProblems(vt, migratedTables, exemptViews) {
 				t.Errorf("view %q is %s: classify it in activity_guard_test.go", vt, p)
 			}
 		})
 	}
 }
 
-// The logic itself, on a fictitious view that is partly migrated.
+// The logic itself, on a fictitious view.
 func TestActivityGuardClassificationLogic(t *testing.T) {
 	const v command.ViewType = "fiction"
-	pending := []pendingTable{{"fiction/b", v, "A-99"}}
 	tests := []struct {
 		name     string
 		migrated map[command.ViewType][]string
-		pending  []pendingTable
 		exempt   map[command.ViewType]string
 		problems int
-		stale    []string
-		reported []string
 	}{
-		{"partly migrated is fine", map[command.ViewType][]string{v: {"fiction/a"}}, pending, nil, 0, nil, []string{"fiction/a"}},
-		{"unclassified fails", nil, nil, nil, 1, nil, nil},
-		{"same table both ways fails", map[command.ViewType][]string{v: {"fiction/b"}}, pending, nil, 1, []string{"fiction/b"}, []string{"fiction/b"}},
-		{"exempt and pending fails", nil, pending, map[command.ViewType]string{v: "why"}, 1, nil, nil},
-		{"pending table not reported is not stale", map[command.ViewType][]string{v: {"fiction/a"}}, pending, nil, 0, nil, []string{"fiction/a"}},
+		{"migrated is fine", map[command.ViewType][]string{v: {"fiction/a"}}, nil, 0},
+		{"exempt is fine", nil, map[command.ViewType]string{v: "why"}, 0},
+		{"unclassified fails", nil, nil, 1},
+		{"migrated and exempt fails", map[command.ViewType][]string{v: {"fiction/a"}}, map[command.ViewType]string{v: "why"}, 1},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			if got := classificationProblems(v, tt.migrated, tt.pending, tt.exempt); len(got) != tt.problems {
+			if got := classificationProblems(v, tt.migrated, tt.exempt); len(got) != tt.problems {
 				t.Errorf("problems = %v, want %d", got, tt.problems)
-			}
-			if got := staleExceptions(v, tt.reported, tt.pending); !equalStrings(got, tt.stale) {
-				t.Errorf("stale = %v, want %v", got, tt.stale)
 			}
 		})
 	}
-}
-
-func equalStrings(a, b []string) bool {
-	if len(a) != len(b) {
-		return false
-	}
-	for i := range a {
-		if a[i] != b[i] {
-			return false
-		}
-	}
-	return true
 }
 
 // Criteria 1, 4 and the help half of 5, at runtime, on the views the router builds.
@@ -262,27 +176,12 @@ func TestActivityGuardMigratedViews(t *testing.T) {
 	}
 }
 
-// Criterion 6, other direction: a view that reports a table still listed as
-// pending has migrated it; the exception must go. An exempt view must report
-// none at all.
-func TestActivityGuardNoStaleException(t *testing.T) {
-	for _, name := range command.AllViewNames() {
-		vt := command.ViewType(name)
-		_, isExempt := exemptViews[vt]
-		if !isExempt && len(pendingViews()[vt]) == 0 {
-			continue
-		}
-		t.Run(name, func(t *testing.T) {
-			av, ok := builtView(t, vt).(activityView)
-			if !ok {
-				return
-			}
-			if isExempt {
+// Criterion 6, other direction: an exempt view must report no activity table.
+func TestActivityGuardExemptViewsReportNoTable(t *testing.T) {
+	for vt := range exemptViews {
+		t.Run(string(vt), func(t *testing.T) {
+			if _, ok := builtView(t, vt).(activityView); ok {
 				t.Errorf("view %q exposes ActivityTables() but is exempt: move it out of exemptViews", vt)
-			}
-			reported := sortedKeys(av.ActivityTables())
-			if stale := staleExceptions(vt, reported, pendingTables); len(stale) > 0 {
-				t.Errorf("view %q reports %v, still listed as pending: remove the exception", vt, stale)
 			}
 		})
 	}
@@ -318,8 +217,7 @@ func checkColumnZero(t *testing.T, vt command.ViewType, table string, shapes []d
 
 // migratedSources are the source prefixes (a directory ending in "/" or a file
 // path, relative to internal/) of each migrated view. They are scanned for the
-// retired mechanisms (criterion 2a/2b, and the hard-coded glyphs of 3). Only
-// migrated views: pending ones still use them. A prefix may be a file so a view
+// retired mechanisms (criterion 2a/2b, and the hard-coded glyphs of 3). A prefix may be a file so a view
 // that migrates in two steps (OCI A-09a/A-09a2/A-09b, explorer A-10a/b) can be scanned
 // file by file.
 var migratedSources = map[command.ViewType][]string{
@@ -328,13 +226,15 @@ var migratedSources = map[command.ViewType][]string{
 	command.ViewSecurity:   {"ui/security/"},
 	// OCI migrates in steps (A-09a images, A-09a2 registry browser, A-09b the rest):
 	// only the files that belong to the migrated tables are scanned. Excluded:
-	// commands.go (the refresh tea.Tick) and browser_*/registry_browser.go
-	// (the registry browser, still pending A-09a2).
+	// commands.go (the refresh tea.Tick). The registry browser (A-09a2) is in.
 	command.ViewOCIResources: {
 		"ui/oci_resources/activity.go", "ui/oci_resources/table.go", "ui/oci_resources/jobs.go",
 		"ui/oci_resources/images.go", "ui/oci_resources/results.go", "ui/oci_resources/view.go",
 		"ui/oci_resources/model.go", "ui/oci_resources/busy.go", "ui/oci_resources/registries.go",
 		"ui/oci_resources/update.go", "ui/oci_resources/keys.go",
+		"ui/oci_resources/registry_browser.go", "ui/oci_resources/browser_keys.go",
+		"ui/oci_resources/browser_view.go", "ui/oci_resources/browser_state.go",
+		"ui/oci_resources/browser_bridge.go", "ui/oci_resources/browser_tags.go",
 	},
 	// The explorer is fully migrated (A-10a the tree, A-10b the clone list):
 	// the whole package is scanned.
@@ -431,12 +331,6 @@ func TestActivityGuardMigratedSourcesLogic(t *testing.T) {
 // indicator.Glyph and never spells one.
 const activityGlyphs = "●○◴⊗◐◕◉⊘⊖◌"
 
-// declaredViewTicks are the tea.Tick / tea.Every calls a migrated view may
-// still make, keyed "<file relative to internal/>:<function>" with the reason.
-// Empty today: the router's one tick animates every row (DEVDESK-139). The list
-// may only shrink.
-var declaredViewTicks = map[string]string{}
-
 // declaredGlyphConstants are the constants a migrated view may still define with
 // an activity glyph in them, keyed "<file relative to internal/>:<constant>" with
 // the reason (DEVDESK-144, decision Q4-A). The exception is the constant, not the
@@ -477,8 +371,8 @@ func bubbleTeaName(file *ast.File) string {
 // retiredMechanisms reports, in a migrated view's file, every retired
 // mechanism: AdvanceSpinner, a StatusColumn: key, a frame field, an activity
 // glyph literal, and any reference to bubbletea's Tick / Every (under whatever name the file
-// imports it) outside declaredViewTicks.
-// rel is the file's path relative to internal/; it is the key of a declared tick.
+// imports it): the router's one tick animates every row.
+// rel is the file's path relative to internal/; it keys declaredGlyphConstants.
 // RenderedFrame (a method of the viewport frame) is allowed.
 func retiredMechanisms(fset *token.FileSet, file *ast.File, rel string) []finding {
 	var out []finding
@@ -488,20 +382,16 @@ func retiredMechanisms(fset *token.FileSet, file *ast.File, rel string) []findin
 	tea := bubbleTeaName(file)
 	selectors := map[*ast.Ident]bool{} // identifiers seen as the Sel of a selector
 	// reportTick flags any reference to bubbletea's Tick / Every, called or not
-	// (`var tick = tea.Tick` is as much a tick as `tea.Tick(...)`), unless the
-	// enclosing "<file>:<function>" is declared.
-	reportTick := func(pos token.Pos, fn, name string) {
-		if name != "Tick" && name != "Every" {
-			return
-		}
-		if _, declared := declaredViewTicks[rel+":"+fn]; !declared {
+	// (`var tick = tea.Tick` is as much a tick as `tea.Tick(...)`).
+	reportTick := func(pos token.Pos, name string) {
+		if name == "Tick" || name == "Every" {
 			report(pos, "reference to bubbletea's "+name+" (a view's rows are animated by the router's tick)")
 		}
 	}
 	isFrame := func(name string) bool {
 		return name == "Frame" || name == "frame" || name == "SpinnerFrame"
 	}
-	visit := func(fn string) func(ast.Node) bool {
+	visit := func() func(ast.Node) bool {
 		return func(n ast.Node) bool {
 			switch x := n.(type) {
 			case *ast.CallExpr:
@@ -530,12 +420,12 @@ func retiredMechanisms(fset *token.FileSet, file *ast.File, rel string) []findin
 			case *ast.Ident:
 				// Dot import: a bare Tick / Every that no declaration in the file binds.
 				if tea == "." && x.Obj == nil && !selectors[x] {
-					reportTick(x.Pos(), fn, x.Name)
+					reportTick(x.Pos(), x.Name)
 				}
 			case *ast.SelectorExpr:
 				selectors[x.Sel] = true
 				if pkg, ok := x.X.(*ast.Ident); ok && tea != "" && tea != "." && pkg.Name == tea {
-					reportTick(x.Pos(), fn, x.Sel.Name)
+					reportTick(x.Pos(), x.Sel.Name)
 				}
 				if isFrame(x.Sel.Name) {
 					report(x.Sel.Pos(), "frame selector ."+x.Sel.Name)
@@ -557,20 +447,16 @@ func retiredMechanisms(fset *token.FileSet, file *ast.File, rel string) []findin
 		}
 	}
 	for _, decl := range file.Decls {
-		fn := ""
-		if fd, ok := decl.(*ast.FuncDecl); ok {
-			fn = fd.Name.Name
-		}
 		if gd, ok := decl.(*ast.GenDecl); ok && gd.Tok == token.CONST {
 			for _, spec := range gd.Specs {
 				if isDeclaredGlyphConstant(rel, spec) {
 					continue
 				}
-				ast.Inspect(spec, visit(fn))
+				ast.Inspect(spec, visit())
 			}
 			continue
 		}
-		ast.Inspect(decl, visit(fn))
+		ast.Inspect(decl, visit())
 	}
 	return out
 }
@@ -604,11 +490,6 @@ func TestActivityGuardMigratedSourcesUseNoRetiredMechanism(t *testing.T) {
 	})
 	if scanned == 0 {
 		t.Fatalf("no source file found under %v: the scan reads nothing", migratedSources)
-	}
-	for key, reason := range declaredViewTicks {
-		if reason == "" {
-			t.Errorf("declared view tick %q names no reason", key)
-		}
 	}
 	for key, reason := range declaredGlyphConstants {
 		if reason == "" {
@@ -683,35 +564,30 @@ func TestActivityGuardRetiredMechanismsLogic(t *testing.T) {
 		other = "package v\nimport tea \"example.com/notbubbletea\"\nimport \"github.com/charmbracelet/bubbles/spinner\"\n"
 	)
 	tests := []struct {
-		name     string
-		head     string // import block overriding head; it must keep the same 3 lines
-		body     string
-		declared map[string]string
-		want     int
-		at       string // "line:column" of the first finding, when want > 0
+		name string
+		head string // import block overriding head; it must keep the same 3 lines
+		body string
+		want int
+		at   string // "line:column" of the first finding, when want > 0
 	}{
-		{"tea.Tick", "", "func f() { _ = tea.Tick(0, nil) }", nil, 1, "4:16"},
-		{"tea.Every", "", "func f() { _ = tea.Every(0, nil) }", nil, 1, "4:16"},
-		{"spinner.Tick is not a view tick", "", "func f() { _ = spinner.Tick }\nfunc g() { _ = spinner.Tick() }", nil, 0, ""},
-		{"declared tick", "", "func f() { _ = tea.Tick(0, nil) }", map[string]string{"ui/v/v.go:f": "why"}, 0, ""},
-		{"tick declared for another function", "", "func g() { _ = tea.Tick(0, nil) }", map[string]string{"ui/v/v.go:f": "why"}, 1, "4:16"},
-		{"AdvanceSpinner", "", "func f(t T) { t.AdvanceSpinner() }", nil, 1, "4:15"},
-		{"glyph literal", "", "var g = \"\u25cf\"", nil, 1, "4:9"},
-		{"clean", "", "func f() {}", nil, 0, ""},
-		{"aliased import", bt, "func f() { _ = bt.Tick(0, nil) }", nil, 1, "4:16"},
-		{"dot import", dot, "func f() { _ = Tick(0, nil) }", nil, 1, "4:16"},
-		{"dot import, bare reference", dot, "var tick = Every", nil, 1, "4:12"},
-		{"package variable holding tea.Tick", "", "var tick = tea.Tick", nil, 1, "4:12"},
-		{"tick in a method", "", "func (m M) f() { _ = tea.Tick(0, nil) }", nil, 1, "4:22"},
-		{"declared tick, aliased import", bt, "func f() { _ = bt.Tick(0, nil) }", map[string]string{"ui/v/v.go:f": "why"}, 0, ""},
-		{"non-bubbletea package named tea", other, "func f() { _ = tea.Tick(0, nil) }", nil, 0, ""},
-		{"dot import does not flag a method named Tick", dot, "func f(t T) { t.Tick() }", nil, 0, ""},
+		{"tea.Tick", "", "func f() { _ = tea.Tick(0, nil) }", 1, "4:16"},
+		{"tea.Every", "", "func f() { _ = tea.Every(0, nil) }", 1, "4:16"},
+		{"spinner.Tick is not a view tick", "", "func f() { _ = spinner.Tick }\nfunc g() { _ = spinner.Tick() }", 0, ""},
+		{"tick in any function", "", "func g() { _ = tea.Tick(0, nil) }", 1, "4:16"},
+		{"AdvanceSpinner", "", "func f(t T) { t.AdvanceSpinner() }", 1, "4:15"},
+		{"glyph literal", "", "var g = \"\u25cf\"", 1, "4:9"},
+		{"StatusColumn key", "", "var x = T{StatusColumn: 1}", 1, "4:11"},
+		{"clean", "", "func f() {}", 0, ""},
+		{"aliased import", bt, "func f() { _ = bt.Tick(0, nil) }", 1, "4:16"},
+		{"dot import", dot, "func f() { _ = Tick(0, nil) }", 1, "4:16"},
+		{"dot import, bare reference", dot, "var tick = Every", 1, "4:12"},
+		{"package variable holding tea.Tick", "", "var tick = tea.Tick", 1, "4:12"},
+		{"tick in a method", "", "func (m M) f() { _ = tea.Tick(0, nil) }", 1, "4:22"},
+		{"non-bubbletea package named tea", other, "func f() { _ = tea.Tick(0, nil) }", 0, ""},
+		{"dot import does not flag a method named Tick", dot, "func f(t T) { t.Tick() }", 0, ""},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			old := declaredViewTicks
-			declaredViewTicks = tt.declared
-			defer func() { declaredViewTicks = old }()
 			fset := token.NewFileSet()
 			h := head
 			if tt.head != "" {

@@ -112,10 +112,10 @@ func (m *Model[T]) headerLine(cols []table.Column) string {
 
 // rowLine renders one row.
 //
-// A busy row shows the spinner in its status column instead of that column's
-// own cell — on the selected row too. The glyph is the primary signal, and a
-// signal that disappears under the cursor is one the user loses exactly when
-// they are looking at it.
+// A busy row shows its activity glyph in the Indicator column instead of that
+// column's own cell — on the selected row too. The glyph is the primary signal,
+// and a signal that disappears under the cursor is one the user loses exactly
+// when they are looking at it.
 func (m *Model[T]) rowLine(cols []table.Column, item T, selected bool) string {
 	_, busy := m.busyLabel(item)
 
@@ -129,13 +129,8 @@ func (m *Model[T]) rowLine(cols []table.Column, item T, selected bool) string {
 			state = m.indicatorState(c, item, busy)
 		}
 		text := c.Cell(item)
-		switch {
-		case state != indicator.Idle:
-			text = indicator.Glyph(state, m.blinkOn)
-		case busy && m.indicatorAt < 0 && i == m.cfg.StatusColumn:
-			text = m.spinnerFrame
-		}
 		if state != indicator.Idle {
+			text = indicator.Glyph(state, m.blinkOn)
 			// Padded with runewidth, not lipgloss: lipgloss always counts an
 			// ambiguous-width glyph as one cell, runewidth follows the terminal.
 			fitted := runewidth.FillRight(text, cols[i].Width)
@@ -149,7 +144,7 @@ func (m *Model[T]) rowLine(cols []table.Column, item T, selected bool) string {
 				continue
 			}
 		}
-		line.WriteString(m.cellStyle(c, item, selected, busy, i).Render(fitted))
+		line.WriteString(m.cellStyle(c, item, selected, busy).Render(fitted))
 	}
 	if selected {
 		return m.styles.Selected.Render(m.padToContent(line.String()))
@@ -270,10 +265,10 @@ func truncateHead(text string, width int) string {
 //
 // The busy row, for its part, does not consult `Style` either: what it says
 // is that an operation is in progress, and a color by severity or by state
-// on top of that would say the opposite. The spinner's glyph keeps
-// `ColorHighlight`, the rest goes to `DimStyle` — the displayed state is in
-// the process of ceasing to be true.
-func (m *Model[T]) cellStyle(c Column[T], item T, selected, busy bool, at int) lipgloss.Style {
+// on top of that would say the opposite. Every cell goes to `DimStyle` — the
+// displayed state is in the process of ceasing to be true; the activity glyph
+// is drawn by the Indicator column.
+func (m *Model[T]) cellStyle(c Column[T], item T, selected, busy bool) lipgloss.Style {
 	if selected {
 		if !m.preserveColumnColors {
 			// Neither background nor text here: they would hide those of styles.Selected.
@@ -289,11 +284,7 @@ func (m *Model[T]) cellStyle(c Column[T], item T, selected, busy bool, at int) l
 		return style.Background(theme.ColorTableLineSelected).Bold(true)
 	}
 	if busy {
-		style := theme.DimStyle
-		if m.indicatorAt < 0 && at == m.cfg.StatusColumn {
-			style = lipgloss.NewStyle().Foreground(theme.ColorHighlight)
-		}
-		return style.Padding(0, 1).Background(theme.ColorBackground)
+		return theme.DimStyle.Padding(0, 1).Background(theme.ColorBackground)
 	}
 	if c.Style == nil {
 		return m.styles.Cell.Foreground(theme.ColorText).Background(theme.ColorBackground)

@@ -7,14 +7,12 @@ import (
 	"io"
 	"io/fs"
 	"path/filepath"
-	"sort"
 	"strings"
 	"testing"
 	"time"
 
 	tea "github.com/charmbracelet/bubbletea"
 
-	"github.com/anthnel/devdesk/internal/command"
 	"github.com/anthnel/devdesk/internal/jobs"
 	"github.com/anthnel/devdesk/internal/ui/testutil"
 )
@@ -108,125 +106,89 @@ func TestTheRouterHasOneAnimationChain(t *testing.T) {
 	}
 }
 
-// rowChain is a declared row-animation chain: the story that removes it and
-// what it is.
-type rowChain struct{ Story, What string }
-
-// declaredRowChains are the row-animation chains that still live outside the
-// router (DEVDESK-139, Q2 = A). The list may only shrink: each entry names the
-// story that removes it, and a stale entry fails the tests below.
-var declaredRowChains = map[string]rowChain{
-	"ui/oci_resources/browser_keys.go": {"A-09a2", "tagScanSpinnerIdx"},
+// chainHit is one of the row-animation chains the router's one tick replaced
+// (DEVDESK-139): a call to AdvanceSpinner or portsSpinnerCmd, and any write to
+// tagScanSpinnerIdx. None may exist outside the router and internal/ui/datatable.
+type chainHit struct {
+	Pos  token.Position
+	What string
 }
 
-// maxDeclaredRowChains is the ceiling (DEVDESK-143): raising it takes a visible
-// diff. Lower it with every migration.
-const maxDeclaredRowChains = 1
-
-// chainProblems says what is wrong with the declared chains, in file order:
-// no story, or a story whose tables have all left pendingTables (the chain
-// should have gone with the migration).
-func chainProblems(chains map[string]rowChain, pending []pendingTable) []string {
-	var problems []string
-	files := make([]string, 0, len(chains))
-	for f := range chains {
-		files = append(files, f)
-	}
-	sort.Strings(files)
-	for _, f := range files {
-		c := chains[f]
-		if c.Story == "" || c.What == "" {
-			problems = append(problems, f+": declared row animation chain names no story or no description")
-			continue
-		}
-		still := false
-		for _, p := range pending {
-			still = still || p.Story == c.Story
-		}
-		if !still {
-			problems = append(problems, f+": declared for story "+c.Story+", which has no table left in pendingTables: remove the chain ("+c.What+")")
-		}
-	}
-	return problems
-}
-
-func TestDeclaredRowChainsFollowTheirStories(t *testing.T) {
-	if got := len(declaredRowChains); got > maxDeclaredRowChains {
-		t.Errorf("declaredRowChains has %d entries, ceiling is %d: the list may only shrink", got, maxDeclaredRowChains)
-	}
-	for _, p := range chainProblems(declaredRowChains, pendingTables) {
-		t.Error(p)
-	}
-}
-
-func TestDeclaredRowChainsLogic(t *testing.T) {
-	pending := []pendingTable{{"netdiag/ports", command.ViewNetdiag, "A-12"}}
-	tests := []struct {
-		name   string
-		chains map[string]rowChain
-		want   []string
-	}{
-		{"story still pending", map[string]rowChain{"ui/netdiag/ports_model.go": {"A-12", "portsSpinnerCmd"}}, nil},
-		{"story migrated", map[string]rowChain{"ui/netdiag/ports_model.go": {"A-13", "portsSpinnerCmd"}}, []string{"ui/netdiag/ports_model.go"}},
-		{"no story", map[string]rowChain{"ui/x.go": {"", "what"}}, []string{"ui/x.go"}},
-		{"only the stale one is named", map[string]rowChain{"ui/a.go": {"A-12", "a"}, "ui/b.go": {"A-99", "b"}}, []string{"ui/b.go"}},
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			got := chainProblems(tt.chains, pending)
-			if len(got) != len(tt.want) {
-				t.Fatalf("problems = %v, want %d", got, len(tt.want))
-			}
-			for i, w := range tt.want {
-				if !strings.HasPrefix(got[i], w) {
-					t.Errorf("problem %d = %q, want it to name %s", i, got[i], w)
+// rowAnimationChains lists every retired row-animation chain in file.
+func rowAnimationChains(fset *token.FileSet, file *ast.File) []chainHit {
+	var out []chainHit
+	ast.Inspect(file, func(n ast.Node) bool {
+		what := ""
+		switch x := n.(type) {
+		case *ast.CallExpr:
+			switch f := x.Fun.(type) {
+			case *ast.SelectorExpr:
+				if f.Sel.Name == "AdvanceSpinner" {
+					what = "AdvanceSpinner"
+				}
+			case *ast.Ident:
+				if f.Name == "portsSpinnerCmd" {
+					what = "portsSpinnerCmd"
 				}
 			}
-		})
-	}
+		case *ast.IncDecStmt:
+			if mentionsIdent(x.X, "tagScanSpinnerIdx") {
+				what = "tagScanSpinnerIdx"
+			}
+		case *ast.AssignStmt:
+			for _, l := range x.Lhs {
+				if mentionsIdent(l, "tagScanSpinnerIdx") {
+					what = "tagScanSpinnerIdx"
+				}
+			}
+		}
+		if what != "" {
+			out = append(out, chainHit{Pos: fset.Position(n.Pos()), What: what})
+		}
+		return true
+	})
+	return out
 }
 
-func TestRowAnimationChainsOutsideTheRouterAreDeclared(t *testing.T) {
-	found := map[string]bool{}
+func TestNoRowAnimationChainOutsideTheRouter(t *testing.T) {
 	sourceFiles(t, func(rel string, fset *token.FileSet, file *ast.File) {
 		if strings.HasPrefix(rel, "ui/datatable/") {
 			return
 		}
-		ast.Inspect(file, func(n ast.Node) bool {
-			hit := false
-			switch x := n.(type) {
-			case *ast.CallExpr:
-				switch f := x.Fun.(type) {
-				case *ast.SelectorExpr:
-					hit = f.Sel.Name == "AdvanceSpinner"
-				case *ast.Ident:
-					hit = f.Name == "portsSpinnerCmd"
-				}
-			case *ast.IncDecStmt:
-				hit = mentionsIdent(x.X, "tagScanSpinnerIdx")
-			case *ast.AssignStmt:
-				for _, l := range x.Lhs {
-					hit = hit || mentionsIdent(l, "tagScanSpinnerIdx")
-				}
-			}
-			if hit {
-				found[rel] = true
-				if _, ok := declaredRowChains[rel]; !ok {
-					t.Errorf("%s: a row animation chain outside the router; the router's tick animates rows (DEVDESK-139)", fset.Position(n.Pos()))
-				}
-			}
-			return true
-		})
-	})
-	var stale []string
-	for rel := range declaredRowChains {
-		if !found[rel] {
-			stale = append(stale, rel)
+		for _, h := range rowAnimationChains(fset, file) {
+			t.Errorf("%s: %s is a row animation chain outside the router; the router's tick animates rows (DEVDESK-139)", h.Pos, h.What)
 		}
+	})
+}
+
+// The detection itself, on sources held in strings.
+func TestNoRowAnimationChainLogic(t *testing.T) {
+	tests := []struct {
+		name string
+		body string
+		want int
+	}{
+		{"tag scan index incremented", "func f(m *M) { m.tagScanSpinnerIdx++ }", 1},
+		{"tag scan index assigned", "func f(m *M) { m.tagScanSpinnerIdx = 0 }", 1},
+		{"AdvanceSpinner", "func f(t T) { t.AdvanceSpinner() }", 1},
+		{"portsSpinnerCmd", "func f() { _ = portsSpinnerCmd() }", 1},
+		{"clean", "func f(m *M) { _ = m.tagScanSpinnerIdx }", 0},
 	}
-	sort.Strings(stale)
-	for _, rel := range stale {
-		t.Errorf("%s is declared as a row animation chain but has none: remove the exception", rel)
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			fset := token.NewFileSet()
+			file, err := parser.ParseFile(fset, "v.go", "package v\n"+tt.body, 0)
+			if err != nil {
+				t.Fatal(err)
+			}
+			got := rowAnimationChains(fset, file)
+			if len(got) != tt.want {
+				t.Fatalf("hits = %v, want %d", got, tt.want)
+			}
+			if tt.want > 0 && got[0].Pos.Line != 2 {
+				t.Errorf("hit at %v, want line 2", got[0].Pos)
+			}
+		})
 	}
 }
 

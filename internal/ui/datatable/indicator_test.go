@@ -301,16 +301,6 @@ func TestRule116HoldsWithAnIndicatorColumnAt60(t *testing.T) {
 	}
 }
 
-// Tables without an Indicator column keep the status-column behaviour that
-// busy_test.go pins; this guards the spinner frame specifically.
-func TestTablesWithoutAnIndicatorAreUnchanged(t *testing.T) {
-	m := busyTable(t)
-	m.MarkBusy("web", "Stopping web")
-	if line := renderedRow(t, m, "web"); !strings.Contains(line, m.spinnerFrame) {
-		t.Errorf("a table with no Indicator should still show its spinner frame: %q", line)
-	}
-}
-
 // Only IndicatorColumn may set Indicator: a view writing the field in a column
 // literal would bypass the Rule 125 shape.
 func TestOnlyIndicatorColumnSetsIndicator(t *testing.T) {
