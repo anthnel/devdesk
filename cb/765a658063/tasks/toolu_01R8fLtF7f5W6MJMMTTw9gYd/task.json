@@ -1,0 +1,19 @@
+{
+  "tool_use_id": "toolu_01R8fLtF7f5W6MJMMTTw9gYd",
+  "agent_id": "ac55e64238b0b391e",
+  "subagent_type": "project-tester",
+  "task_description": "Rouge étape 3 DEVDESK-151",
+  "files": [
+    "internal/app/agent_usage_activity_test.go",
+    "internal/ui/agentusageview/activity_test.go"
+  ],
+  "token_usage": {
+    "input_tokens": 32,
+    "cache_creation_tokens": 123063,
+    "cache_read_tokens": 1330251,
+    "output_tokens": 16770,
+    "api_call_count": 15
+  },
+  "started_at": "2026-11-09T18:44:49.327840727+01:00",
+  "completed_at": "2026-11-09T18:47:32.103898092+01:00"
+}

@@ -1,0 +1,15 @@
+{
+  "tool_use_id": "toolu_01U2EPj8JWRL94HfBGKZvtbB",
+  "agent_id": "a724f22e417e7ce68",
+  "subagent_type": "dev-team:devops",
+  "task_description": "Worktree DEVDESK-151",
+  "token_usage": {
+    "input_tokens": 6,
+    "cache_creation_tokens": 34891,
+    "cache_read_tokens": 61654,
+    "output_tokens": 605,
+    "api_call_count": 3
+  },
+  "started_at": "2026-11-09T18:34:46.939539066+01:00",
+  "completed_at": "2026-11-09T18:34:57.591904155+01:00"
+}

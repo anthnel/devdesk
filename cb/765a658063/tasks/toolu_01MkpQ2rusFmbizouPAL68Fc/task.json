@@ -1,0 +1,15 @@
+{
+  "tool_use_id": "toolu_01MkpQ2rusFmbizouPAL68Fc",
+  "agent_id": "aa11d827cfc465c7a",
+  "subagent_type": "project-coder",
+  "task_description": "Vert étape 2 DEVDESK-151",
+  "token_usage": {
+    "input_tokens": 14,
+    "cache_creation_tokens": 27667,
+    "cache_read_tokens": 143268,
+    "output_tokens": 2809,
+    "api_call_count": 7
+  },
+  "started_at": "2026-11-09T18:42:10.41249147+01:00",
+  "completed_at": "2026-11-09T18:43:00.306042511+01:00"
+}

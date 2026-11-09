@@ -1,0 +1,68 @@
+{
+  "cli_version": "0.12.2",
+  "checkpoint_id": "cb765a658063",
+  "strategy": "manual-commit",
+  "branch": "feat/DEVDESK-151-agent-usage-activity",
+  "checkpoints_count": 15,
+  "files_touched": [
+    "docs/architecture/agent-usage.md",
+    "docs/architecture/app-shell.md",
+    "docs/product/activity-indicator/stories.md",
+    "internal/app/activity_guard_test.go",
+    "internal/app/agent_usage_activity_test.go",
+    "internal/ui/agentusageview/activity_columns_test.go",
+    "internal/ui/agentusageview/activity_test.go",
+    "internal/ui/agentusageview/agents.go",
+    "internal/ui/agentusageview/agents_level_test.go",
+    "internal/ui/agentusageview/agents_test.go",
+    "internal/ui/agentusageview/availability_test.go",
+    "internal/ui/agentusageview/breakdown_column_test.go",
+    "internal/ui/agentusageview/cost.go",
+    "internal/ui/agentusageview/cost_test.go",
+    "internal/ui/agentusageview/help.go",
+    "internal/ui/agentusageview/live_test.go",
+    "internal/ui/agentusageview/selection_test.go",
+    "internal/ui/agentusageview/status.go",
+    "internal/ui/agentusageview/status_test.go",
+    "internal/ui/agentusageview/update.go",
+    "internal/ui/agentusageview/view.go",
+    "internal/ui/agentusageview/yield_test.go"
+  ],
+  "sessions": [
+    {
+      "metadata": "/cb/765a658063/0/metadata.json",
+      "transcript": "/cb/765a658063/0/full.jsonl",
+      "compact_transcript": "/cb/765a658063/0/transcript.jsonl",
+      "content_hash": "/cb/765a658063/0/content_hash.txt",
+      "prompt": "/cb/765a658063/0/prompt.txt"
+    }
+  ],
+  "token_usage": {
+    "input_tokens": 114,
+    "cache_creation_tokens": 127750,
+    "cache_read_tokens": 4350139,
+    "output_tokens": 24996,
+    "api_call_count": 41,
+    "subagent_tokens": {
+      "input_tokens": 392,
+      "cache_creation_tokens": 1144216,
+      "cache_read_tokens": 12172273,
+      "output_tokens": 140532,
+      "api_call_count": 188
+    }
+  },
+  "redaction": {
+    "replacements": 0,
+    "layers": {
+      "betterleaks": 0,
+      "connection_string": 0,
+      "credential_key": 0,
+      "credential_value": 0,
+      "credentialed_uri": 0,
+      "entropy": 0,
+      "key_context": 0,
+      "provider_token": 0,
+      "shell_stdin": 0
+    }
+  }
+}
