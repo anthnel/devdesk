@@ -108,6 +108,7 @@ func (m Model) GetHelpContent() help.Content {
 				Title: "Live updates",
 				Body: "While a session is open and still active, its figures are refreshed every 2 s and the header shows Updates: live.\n" +
 					"Updates pause after 5 min without activity once every agent has finished (a session with an unfinished sub-agent stays live), or when its transcript is deleted: the header shows Updates: paused.\n" +
+					"While the terminal window is not focused, the header shows Updates › paused (terminal not focused); re-reads resume when the window regains focus.\n" +
 					"An agent still running with no new transcript line for more than 5 min is shown idle; a long tool call does that too. The header counts the idle agents.\n" +
 					"Press ctrl+r to resume. Re-read the whole session from the start with ctrl+r; coming back to the view only reads what changed since the last point read, and goes back to live if the session is being written to.\n" +
 					"The list of sessions itself is not live: refresh it with ctrl+r at the sessions level.",

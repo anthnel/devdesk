@@ -174,6 +174,9 @@ func (m Model) idleCount() int {
 // updatesState says whether the open session is polled: live while the chain
 // runs, paused once it stopped (settled session, deleted transcript).
 func (m Model) updatesState() string {
+	if m.unfocused && m.level == levelAgents && m.agg != nil {
+		return "paused (terminal not focused)"
+	}
 	if m.level == levelAgents && m.agg != nil && !m.pollStopped {
 		return "live"
 	}
