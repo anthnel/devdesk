@@ -18,7 +18,7 @@ func TestEveryIconRoleHasAColour(t *testing.T) {
 	seen := map[IconRole]bool{}
 	for _, role := range roles {
 		got := IconColor(role)
-		if got == "" {
+		if got == lipgloss.Color("") {
 			t.Errorf("IconColor(%q) is the zero Color", role)
 		}
 		if got == ColorText {
@@ -65,7 +65,7 @@ func TestAThemeCanOverrideAnIconColour(t *testing.T) {
 	custom.IconVisPrivate = "#ff00ff"
 	ApplyTheme(custom)
 
-	if got := IconColor(IconRoleVisPrivate); string(got) != "#ff00ff" {
+	if got := IconColor(IconRoleVisPrivate); Hex(got) != "#ff00ff" {
 		t.Errorf("IconColor(private) = %v after a theme set it, want #ff00ff", got)
 	}
 	// The others keep their defaults: an override is one key, not the block.

@@ -3,8 +3,11 @@ package theme
 import (
 	"encoding/json"
 	"fmt"
+	"image/color"
 	"os"
 	"path/filepath"
+	"reflect"
+	"regexp"
 	"strings"
 
 	"charm.land/lipgloss/v2"
@@ -176,6 +179,10 @@ func LoadTheme(name string) (*Theme, error) {
 		return nil, fmt.Errorf("failed to parse theme '%s': %w", name, err)
 	}
 
+	if err := validateTheme(&t); err != nil {
+		return nil, fmt.Errorf("invalid theme '%s': %w", name, err)
+	}
+
 	// Ensure the name is set
 	if t.Name == "" {
 		t.Name = name
@@ -216,12 +223,42 @@ func ListThemes() ([]string, error) {
 	return themes, nil
 }
 
-// applyColor returns a lipgloss.Color from a hex string, or the fallback if empty.
-func applyColor(hex string, fallback lipgloss.Color) lipgloss.Color {
+// hexColorPattern is the only colour form a theme file may hold.
+var hexColorPattern = regexp.MustCompile(`^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6})$`)
+
+// validateTheme refuses a theme holding a non-empty colour that is not #rgb or
+// #rrggbb, naming the first such key (in declaration order) and its value. An
+// empty value is not an error: it selects the fallback applyColor documents.
+func validateTheme(t *Theme) error {
+	v := reflect.ValueOf(t).Elem()
+	for i := 0; i < v.NumField(); i++ {
+		key, _, _ := strings.Cut(v.Type().Field(i).Tag.Get("json"), ",")
+		if key == "name" || v.Field(i).Kind() != reflect.String {
+			continue
+		}
+		if val := v.Field(i).String(); val != "" && !hexColorPattern.MatchString(val) {
+			return fmt.Errorf("%s: %q is not #rgb or #rrggbb", key, val)
+		}
+	}
+	return nil
+}
+
+// applyColor returns a color.Color from a hex string, or the fallback if empty.
+func applyColor(hex string, fallback color.Color) color.Color {
 	if hex == "" {
 		return fallback
 	}
 	return lipgloss.Color(hex)
+}
+
+// Hex formats c as "#rrggbb". Anything that is not a color.RGBA (NoColor, the
+// empty Color, an ANSI index, nil) has no fixed value and gives "none".
+func Hex(c color.Color) string {
+	rgb, err := rgb8(c, "hex")
+	if err != nil {
+		return "none"
+	}
+	return fmt.Sprintf("#%02x%02x%02x", rgb[0], rgb[1], rgb[2])
 }
 
 // ApplyTheme applies a theme by updating the global color variables

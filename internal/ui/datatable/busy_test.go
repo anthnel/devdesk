@@ -260,7 +260,7 @@ func TestABusyRowKeepsTheAppBackground(t *testing.T) {
 
 	line := renderedRow(t, m, "web")
 
-	for i, segment := range strings.Split(line, "\x1b[0m") {
+	for i, segment := range strings.Split(line, "\x1b[m") {
 		if visible(segment) == "" {
 			continue
 		}

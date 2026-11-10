@@ -4,13 +4,17 @@ import (
 	"testing"
 
 	"charm.land/lipgloss/v2"
-	"github.com/muesli/termenv"
 
 	"github.com/anthnel/devdesk/internal/testutil/colorprofile"
 )
 
-// fakeT records Cleanup functions so a test can run them on demand and observe
-// the profile before and after.
+// Lip Gloss v2 has no global colour profile: Style.Render always emits the
+// full-colour SGR sequence and the downsampling happens at the output writer.
+// The helper therefore keeps its signatures (about 50 callers) and does
+// nothing; these tests pin that contract (DEVDESK-201, H2). The helper's own
+// removal and the termenv dependency are step F.
+
+// fakeT records what the helper asks of the test.
 type fakeT struct {
 	helpers  int
 	cleanups []func()
@@ -19,93 +23,44 @@ type fakeT struct {
 func (f *fakeT) Helper()           { f.helpers++ }
 func (f *fakeT) Cleanup(fn func()) { f.cleanups = append(f.cleanups, fn) }
 
-func (f *fakeT) runCleanups() {
-	for i := len(f.cleanups) - 1; i >= 0; i-- {
-		f.cleanups[i]()
+// A style emits an escape sequence with no helper call at all: this is the
+// premise that makes the helper a no-op.
+func TestV2RendersWithoutAnyForcedProfile(t *testing.T) {
+	got := lipgloss.NewStyle().Foreground(lipgloss.Color("#ff0000")).Render("x")
+	if got == "x" {
+		t.Fatal("a styled render emitted no escape sequence; the helper cannot be a no-op")
 	}
-	f.cleanups = nil
 }
 
-// setBaseline puts the global profile on a value that is not TrueColor and
-// restores whatever was there when the test ends.
-func setBaseline(t *testing.T, p termenv.Profile) {
-	t.Helper()
-	previous := lipgloss.ColorProfile()
-	lipgloss.SetColorProfile(p)
-	t.Cleanup(func() { lipgloss.SetColorProfile(previous) })
-}
+func TestTrueColorKeepsItsSignatureAndChangesNothing(t *testing.T) {
+	ft := &fakeT{}
+	before := lipgloss.NewStyle().Foreground(lipgloss.Color("#ff0000")).Render("x")
 
-func TestTrueColorForcesProfileThenRestores(t *testing.T) {
-	for name, base := range map[string]termenv.Profile{"Ascii": termenv.Ascii, "ANSI256": termenv.ANSI256} {
-		t.Run(name, func(t *testing.T) {
-			setBaseline(t, base)
-			ft := &fakeT{}
+	colorprofile.TrueColor(ft)
 
-			colorprofile.TrueColor(ft)
-
-			if got := lipgloss.ColorProfile(); got != termenv.TrueColor {
-				t.Fatalf("profile after TrueColor = %v, want TrueColor", got)
-			}
-			if ft.helpers == 0 {
-				t.Error("TrueColor did not call t.Helper()")
-			}
-			if len(ft.cleanups) != 1 {
-				t.Fatalf("TrueColor registered %d cleanups, want 1", len(ft.cleanups))
-			}
-
-			ft.runCleanups()
-
-			if got := lipgloss.ColorProfile(); got != base {
-				t.Errorf("profile after Cleanup = %v, want %v restored", got, base)
-			}
-		})
+	for _, fn := range ft.cleanups {
+		fn()
+	}
+	if after := lipgloss.NewStyle().Foreground(lipgloss.Color("#ff0000")).Render("x"); after != before {
+		t.Errorf("render changed across TrueColor: %q then %q", before, after)
 	}
 }
 
 func TestTrueColorWorksWithRealT(t *testing.T) {
-	setBaseline(t, termenv.Ascii)
-
 	t.Run("inner", func(t *testing.T) {
 		colorprofile.TrueColor(t)
-		if got := lipgloss.ColorProfile(); got != termenv.TrueColor {
-			t.Fatalf("profile inside subtest = %v, want TrueColor", got)
+		if got := lipgloss.NewStyle().Foreground(lipgloss.Color("#ff0000")).Render("x"); got == "x" {
+			t.Error("style rendered without an escape sequence")
 		}
 	})
-
-	if got := lipgloss.ColorProfile(); got != termenv.Ascii {
-		t.Errorf("profile after subtest = %v, want Ascii restored", got)
-	}
 }
 
-func TestTrueColorMakesStylesEmitEscapes(t *testing.T) {
-	setBaseline(t, termenv.Ascii)
-	style := lipgloss.NewStyle().Foreground(lipgloss.Color("#ff0000"))
-	if style.Render("x") != "x" {
-		t.Skip("baseline Ascii profile unexpectedly emits escapes")
-	}
-
-	colorprofile.TrueColor(t)
-
-	if got := style.Render("x"); got == "x" {
-		t.Error("style rendered without an escape under a forced TrueColor profile")
-	}
-}
-
-func TestForceReturnsRestore(t *testing.T) {
-	setBaseline(t, termenv.Ascii)
-
+// Force is called from TestMain, where there is no *testing.T: it must still
+// hand back a callable restore function.
+func TestForceReturnsACallableRestore(t *testing.T) {
 	restore := colorprofile.Force()
-
-	if got := lipgloss.ColorProfile(); got != termenv.TrueColor {
-		t.Fatalf("profile after Force = %v, want TrueColor", got)
-	}
 	if restore == nil {
 		t.Fatal("Force returned a nil restore func")
 	}
-
 	restore()
-
-	if got := lipgloss.ColorProfile(); got != termenv.Ascii {
-		t.Errorf("profile after restore = %v, want Ascii", got)
-	}
 }

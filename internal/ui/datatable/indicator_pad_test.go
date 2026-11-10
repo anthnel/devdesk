@@ -50,7 +50,7 @@ func TestSelectedRowSlackIsPaintedWithTheSelectionBackground(t *testing.T) {
 	}
 	sgr := lipgloss.NewStyle().Background(theme.ColorTableLineSelected).Render("x")
 	sgr = strings.TrimSuffix(strings.TrimPrefix(strings.SplitN(sgr, "x", 2)[0], "\x1b["), "m")
-	reset := "\x1b[0m"
+	reset := "\x1b[m"
 	if !strings.HasSuffix(line, reset) {
 		t.Fatalf("line does not end with a reset: %q", line)
 	}

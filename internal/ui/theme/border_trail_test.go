@@ -147,7 +147,7 @@ func TestRenderBorderTitleTrailWithNoRoomAtAll(t *testing.T) {
 	}
 }
 
-var styledRun = regexp.MustCompile(`\x1b\[[0-9;]*m[^\x1b]*\x1b\[0m`)
+var styledRun = regexp.MustCompile(`\x1b\[[0-9;]*m[^\x1b]*\x1b\[m`)
 
 func TestRenderBorderTitleTrailEveryCellCarriesTheBackground(t *testing.T) {
 	trueColor(t)

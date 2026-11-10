@@ -1,6 +1,7 @@
 package theme
 
 import (
+	"image/color"
 	"reflect"
 	"strings"
 	"testing"
@@ -9,8 +10,8 @@ import (
 )
 
 // activityColors returns the four activity aliases by role name.
-func activityColors() map[string]lipgloss.Color {
-	return map[string]lipgloss.Color{
+func activityColors() map[string]color.Color {
+	return map[string]color.Color{
 		"running":   ColorActivityRunning,
 		"neutral":   ColorActivityNeutral,
 		"suspended": ColorActivitySuspended,
@@ -52,15 +53,15 @@ func TestActivityColorsFollowAThemeChange(t *testing.T) {
 	other.SeverityMedium = "#bb9922"
 	withTheme(t, other)
 
-	want := map[string]lipgloss.Color{
-		"running":   "#123456",
-		"neutral":   "#abcdef",
-		"suspended": "#bb9922",
-		"failed":    "#bb0022",
+	want := map[string]color.Color{
+		"running":   lipgloss.Color("#123456"),
+		"neutral":   lipgloss.Color("#abcdef"),
+		"suspended": lipgloss.Color("#bb9922"),
+		"failed":    lipgloss.Color("#bb0022"),
 	}
 	for role, c := range activityColors() {
 		if c != want[role] {
-			t.Errorf("activity %s = %q after a theme change, want %q", role, c, want[role])
+			t.Errorf("activity %s = %s after a theme change, want %s", role, Hex(c), Hex(want[role]))
 		}
 	}
 }
@@ -81,7 +82,7 @@ func TestActivityColorsContrastWithBackgroundAndSelection(t *testing.T) {
 		for role, c := range activityColors() {
 			for _, bg := range []struct {
 				what string
-				c    lipgloss.Color
+				c    color.Color
 			}{{"background", ColorBackground}, {"selected row", ColorTableLineSelected}} {
 				r, err := ContrastRatio(c, bg.c)
 				if err != nil {

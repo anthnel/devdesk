@@ -96,7 +96,7 @@ func TestTrailingContentIsNotAValidDocument(t *testing.T) {
 }
 
 func TestNormalizationStripsANSIAndCarriageReturns(t *testing.T) {
-	raw := []byte("\x1b[31mred\x1b[0m\r\nsecond\rthird\n")
+	raw := []byte("\x1b[31mred\x1b[m\r\nsecond\rthird\n")
 	got := Normalize(raw)
 	want := "red\nsecondthird\n"
 	if got != want {

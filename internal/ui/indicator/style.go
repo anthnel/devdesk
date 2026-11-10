@@ -1,6 +1,8 @@
 package indicator
 
 import (
+	"image/color"
+
 	"charm.land/lipgloss/v2"
 
 	"github.com/anthnel/devdesk/internal/ui/theme"
@@ -8,7 +10,7 @@ import (
 
 // Color returns the theme colour that paints s. The theme globals are read at
 // call time because ApplyTheme reassigns them.
-func Color(s State) lipgloss.Color {
+func Color(s State) color.Color {
 	switch s {
 	case Running:
 		return theme.ColorActivityRunning

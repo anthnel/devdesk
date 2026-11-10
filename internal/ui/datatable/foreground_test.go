@@ -47,7 +47,7 @@ func TestEveryRunThatShowsTextCarriesTheThemeForeground(t *testing.T) {
 	m := loaded(t)
 
 	unselected := rowLines(&m)[1]
-	segments := strings.Split(unselected, "\x1b[0m")
+	segments := strings.Split(unselected, "\x1b[m")
 
 	checked := 0
 	for i, segment := range segments[:len(segments)-1] {
@@ -107,7 +107,7 @@ func TestAStateColouredSelectionKeepsItsHighlightWhole(t *testing.T) {
 	}
 	// Only one reset, right at the end: that is what "the whole highlight"
 	// means, and what a per-cell foreground would break.
-	if n := strings.Count(selected, "\x1b[0m"); n != 1 {
+	if n := strings.Count(selected, "\x1b[m"); n != 1 {
 		t.Errorf("the selected row closes %d times, want one reset at its end", n)
 	}
 }

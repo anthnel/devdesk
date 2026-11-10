@@ -159,8 +159,8 @@ func TestAStateColouredSelectionKeepsItsHighlightToTheEnd(t *testing.T) {
 	withTrueColor(t)
 	m := errorStyledTable(t, colouredConfig)
 
-	selected := strings.TrimSuffix(rowLines(&m)[0], "\x1b[0m")
-	if body, _, early := strings.Cut(selected, "\x1b[0m"); early {
+	selected := strings.TrimSuffix(rowLines(&m)[0], "\x1b[m")
+	if body, _, early := strings.Cut(selected, "\x1b[m"); early {
 		t.Errorf("the selected row resets its styling after %q, losing the highlight for the rest of the line", visible(body))
 	}
 }
@@ -190,7 +190,7 @@ func TestEveryCellOnAnUnselectedRowOpensItsOwnStyling(t *testing.T) {
 	m := colouredTable(t)
 
 	unselected := rowLines(&m)[1] // row 0 is under the cursor
-	segments := strings.Split(unselected, "\x1b[0m")
+	segments := strings.Split(unselected, "\x1b[m")
 
 	if tail := segments[len(segments)-1]; tail != "" {
 		t.Errorf("%q trails the last reset, so it renders with no background", tail)

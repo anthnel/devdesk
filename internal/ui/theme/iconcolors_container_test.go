@@ -30,7 +30,7 @@ func TestAThemeCanOverrideTheContainerIconColour(t *testing.T) {
 	custom.IconContainer = "#ff00ff"
 	ApplyTheme(custom)
 
-	if got := IconColor(IconRoleContainer); string(got) != "#ff00ff" {
+	if got := IconColor(IconRoleContainer); Hex(got) != "#ff00ff" {
 		t.Errorf("IconColor(container) = %v, want #ff00ff", got)
 	}
 	if IconColor(IconRoleImage) == IconColor(IconRoleContainer) {

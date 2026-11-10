@@ -12,6 +12,12 @@ Config loaded from `~/.devdesk/config.yaml` with schema defined in `internal/con
   the default. An absent key stays absent (it is not written back at load)
   because the default may change with A-06; an explicit value keeps its meaning
   when it does.
+  `app.theme` names a JSON file under `~/.devdesk/themes/`. `theme.LoadTheme` refuses the
+  whole file when a non-empty colour is not `#rgb` or `#rrggbb` (error names the key and the
+  value, e.g. `color_ok: "#ggg" is not #rgb or #rrggbb`); an empty or absent optional colour
+  falls back to the semantic palette. `main.go` and `App.applyThemeNow` log the error and keep
+  the current palette (no footer message). Palette variables are `color.Color`; `theme.Hex`
+  formats one as `#rrggbb` (`none` for anything that is not a `color.RGBA`).
 - `Status` - Monitoring settings (refresh interval, components)
 - `Forge` - the platform this context targets: `type`, URL and clone settings
 - `Registry` - OCI registry configuration (see Registry model below)

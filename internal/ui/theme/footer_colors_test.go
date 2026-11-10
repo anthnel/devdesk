@@ -1,6 +1,7 @@
 package theme
 
 import (
+	"image/color"
 	"testing"
 
 	"charm.land/lipgloss/v2"
@@ -71,7 +72,7 @@ func TestFooterStylesFollowAThemeChange(t *testing.T) {
 	cases := []struct {
 		name  string
 		style lipgloss.Style
-		want  lipgloss.Color
+		want  color.Color
 		bold  bool
 	}{
 		{"FooterInfoStyle", FooterInfoStyle, ColorFooterInfo, false},
@@ -80,10 +81,10 @@ func TestFooterStylesFollowAThemeChange(t *testing.T) {
 	}
 
 	for _, c := range cases {
-		if got := c.style.GetForeground(); got != lipgloss.TerminalColor(c.want) {
+		if got := c.style.GetForeground(); got != c.want {
 			t.Errorf("%s foreground = %v, want %v", c.name, got, c.want)
 		}
-		if got := c.style.GetBackground(); got != lipgloss.TerminalColor(ColorBackground) {
+		if got := c.style.GetBackground(); got != ColorBackground {
 			t.Errorf("%s has no app background (Rule 115): %v", c.name, got)
 		}
 		if got := c.style.GetBold(); got != c.bold {

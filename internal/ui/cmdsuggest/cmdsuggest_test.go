@@ -1,6 +1,7 @@
 package cmdsuggest
 
 import (
+	"image/color"
 	"regexp"
 	"strings"
 	"testing"
@@ -278,7 +279,7 @@ func TestPalette(t *testing.T) {
 		t.Fatal("Palette is empty")
 	}
 	for _, pair := range p {
-		if pair.Name == "" || pair.Fg == "" || pair.Bg == "" {
+		if pair.Name == "" || pair.Fg == lipgloss.Color("") || pair.Bg == lipgloss.Color("") {
 			t.Errorf("incomplete pair %+v", pair)
 		}
 	}
@@ -287,7 +288,7 @@ func TestPalette(t *testing.T) {
 // bgSequence returns the SGR parameters lipgloss emits for a background
 // color ("48;2;r;g;b" in true color), which sit inside a longer sequence once
 // a foreground and bold are combined.
-func bgSequence(t *testing.T, c lipgloss.Color) string {
+func bgSequence(t *testing.T, c color.Color) string {
 	t.Helper()
 	out := lipgloss.NewStyle().Background(c).Render("x")
 	m := regexp.MustCompile(`48;[0-9;]+`).FindString(out)

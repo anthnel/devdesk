@@ -29,13 +29,13 @@ func TestTheDisabledShortcutColorFollowsAThemeChange(t *testing.T) {
 func TestTheDisabledShortcutKeyStyleDropsColourAndWeight(t *testing.T) {
 	withTheme(t, DefaultTheme())
 
-	if got := ShortcutKeyDisabledStyle.GetForeground(); got != lipgloss.TerminalColor(ColorShortcutDisabled) {
+	if got := ShortcutKeyDisabledStyle.GetForeground(); got != ColorShortcutDisabled {
 		t.Errorf("ShortcutKeyDisabledStyle foreground = %v, want %v", got, ColorShortcutDisabled)
 	}
 	if ShortcutKeyDisabledStyle.GetBold() {
 		t.Error("ShortcutKeyDisabledStyle is bold; a grey bold key reads as an emphasis")
 	}
-	if got := ShortcutKeyDisabledStyle.GetBackground(); got != lipgloss.TerminalColor(ColorBackground) {
+	if got := ShortcutKeyDisabledStyle.GetBackground(); got != ColorBackground {
 		t.Errorf("ShortcutKeyDisabledStyle has no app background (Rule 115): %v", got)
 	}
 	if ShortcutKeyDisabledStyle.GetForeground() == ShortcutKeyStyle.GetForeground() {
