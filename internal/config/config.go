@@ -210,6 +210,49 @@ type AppConfig struct {
 	// read (it behaves as blink, with a WARN at load) so a typo is not
 	// silently rewritten.
 	Motion string `yaml:"motion,omitempty"`
+
+	// WhenUnfocused picks what DevDesk does while the terminal has no focus:
+	// "pause" (default) suspends the animation and the periodic reads, "run"
+	// suspends nothing. Absent stays absent; an unknown value is kept as read
+	// (it behaves as pause, with a WARN at load).
+	WhenUnfocused string `yaml:"when_unfocused,omitempty"`
+}
+
+// Values app.when_unfocused accepts.
+const (
+	WhenUnfocusedPause   = "pause"
+	WhenUnfocusedRun     = "run"
+	DefaultWhenUnfocused = WhenUnfocusedPause
+)
+
+// WhenUnfocusedModes lists the values app.when_unfocused names, default first.
+func WhenUnfocusedModes() []string { return []string{WhenUnfocusedPause, WhenUnfocusedRun} }
+
+// EffectiveWhenUnfocused returns the policy in force: the value written when
+// it is valid and non-empty, DefaultWhenUnfocused otherwise.
+func (a AppConfig) EffectiveWhenUnfocused() string {
+	if a.WhenUnfocused != "" && a.WhenUnfocusedValid() {
+		return a.WhenUnfocused
+	}
+	return DefaultWhenUnfocused
+}
+
+// RunsWhenUnfocused reports whether nothing is suspended without focus.
+func (a AppConfig) RunsWhenUnfocused() bool {
+	return a.EffectiveWhenUnfocused() == WhenUnfocusedRun
+}
+
+// WhenUnfocusedValid reports whether app.when_unfocused is absent or exactly a
+// known value.
+func (a AppConfig) WhenUnfocusedValid() bool {
+	return a.WhenUnfocused == "" || a.WhenUnfocused == WhenUnfocusedPause || a.WhenUnfocused == WhenUnfocusedRun
+}
+
+// warnInvalidWhenUnfocused logs an app.when_unfocused value outside the closed set.
+func warnInvalidWhenUnfocused(a AppConfig) {
+	if !a.WhenUnfocusedValid() {
+		log.Printf("WARN [config] app.when_unfocused %q is not %s or %s, pausing", a.WhenUnfocused, WhenUnfocusedPause, WhenUnfocusedRun)
+	}
 }
 
 // Values app.gauge_glyph accepts.
@@ -534,6 +577,7 @@ func applyDefaults(cfg *Config) error {
 		cfg.App.GaugeGlyph = GaugeGlyphShade
 	}
 	warnInvalidMotion(cfg.App)
+	warnInvalidWhenUnfocused(cfg.App)
 	// Written rather than left empty for the reason above: the configuration
 	// view cycles a closed set. A value outside it is left alone — remediation
 	// reads it as same-line — so a typo in the file is not silently rewritten.

@@ -184,6 +184,9 @@ func imageVerificationField() field {
 // motionLabel is named once: the footer warning and the tests read it.
 const motionLabel = "Motion"
 
+// whenUnfocusedLabel is named once: the tests read it.
+const whenUnfocusedLabel = "When unfocused"
+
 // imageVerificationLabel is named once: the help texts point at it.
 const imageVerificationLabel = "Verify image signatures"
 
@@ -348,6 +351,9 @@ func sections(themes, views []string, configPath, contextName, forgeType string,
 				cycleWithDefault(motionLabel, func(c *config.Config) *string { return &c.App.Motion },
 					config.Motions(), config.DefaultMotion,
 					"static keeps a running row's dot steady — no blinking, no periodic redraw"),
+				cycleWithDefault(whenUnfocusedLabel, func(c *config.Config) *string { return &c.App.WhenUnfocused },
+					config.WhenUnfocusedModes(), config.DefaultWhenUnfocused,
+					"pause suspends the animation and the periodic reads while the terminal has no focus"),
 			),
 			group("Paths", theme.IconDirectory,
 				pathField("Workspaces dir", func(c *config.Config) *string { return &c.App.WorkspacesDir },

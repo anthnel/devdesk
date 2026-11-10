@@ -106,6 +106,10 @@ type App struct {
 	// terminal without focus reporting behaves as before (DEVDESK-210).
 	terminalBlurred bool
 
+	// runWhenUnfocused is app.when_unfocused = run: a blur is still tracked but
+	// suspends nothing. Fed at startup, on a context switch and on every save.
+	runWhenUnfocused bool
+
 	commandMode  bool
 	commandInput textinput.Model
 
@@ -280,20 +284,21 @@ func newWithSize(cfg *config.Config, width, height int) *App {
 	_ = sharedState.Forwards.SetProxyPort(cfg.Network.ProxyPort)
 
 	app := &App{
-		config:         cfg,
-		currentContext: currentContext,
-		viewport:       newViewport(width, height),
-		currentView:    defaultView(cfg),
-		views:          make(map[command.ViewType]Screen),
-		sharedState:    sharedState,
-		jobs:           jobs.New(),
-		anim:           animationState{blinkOn: true},
-		motionStatic:   cfg.App.StaticMotion(),
-		commandInput:   newCommandInput(),
-		suggester:      command.NewSuggester(),
-		sugCursor:      -1,
-		width:          width,
-		height:         height,
+		config:           cfg,
+		currentContext:   currentContext,
+		viewport:         newViewport(width, height),
+		currentView:      defaultView(cfg),
+		views:            make(map[command.ViewType]Screen),
+		sharedState:      sharedState,
+		jobs:             jobs.New(),
+		anim:             animationState{blinkOn: true},
+		motionStatic:     cfg.App.StaticMotion(),
+		runWhenUnfocused: cfg.App.RunsWhenUnfocused(),
+		commandInput:     newCommandInput(),
+		suggester:        command.NewSuggester(),
+		sugCursor:        -1,
+		width:            width,
+		height:           height,
 	}
 	app.ctxArgs = &contextArgs{}
 	app.suggester.WithProvider("context", app.ctxArgs)
@@ -465,6 +470,21 @@ func (a *App) wantsBlink() bool {
 // the constructor sets the field directly because it has no Cmd to return.
 func (a *App) applyMotion(cfg *config.Config) tea.Cmd {
 	return a.setMotionStatic(cfg.App.StaticMotion())
+}
+
+// applyWhenUnfocused takes the unfocused policy a config asks for. When the
+// terminal is blurred right now, the view on screen is told the new state at
+// once: resumed on pause -> run, suspended on run -> pause.
+func (a *App) applyWhenUnfocused(cfg *config.Config) tea.Cmd {
+	run := cfg.App.RunsWhenUnfocused()
+	if run == a.runWhenUnfocused {
+		return nil
+	}
+	a.runWhenUnfocused = run
+	if !a.terminalBlurred {
+		return nil
+	}
+	return a.sendFocusTo(a.currentView, run)
 }
 
 // setMotionStatic pins the blink phase on and stops blink-only chains. The view

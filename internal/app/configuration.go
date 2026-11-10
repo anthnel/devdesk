@@ -52,7 +52,7 @@ func (a *App) handleConfigSaved(msg configuration.ConfigSavedMsg) (tea.Model, te
 		a.setView(command.ViewConfiguration, current)
 	}
 	a.createView(a.currentView)
-	motionCmd := a.applyMotion(msg.Config)
+	motionCmd := tea.Batch(a.applyMotion(msg.Config), a.applyWhenUnfocused(msg.Config))
 
 	return a, tea.Batch(a.requestResize(), a.syncProxyPortCmd(), a.redetectIfToolsMoved(msg.EngineChanged), motionCmd)
 }

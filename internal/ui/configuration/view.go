@@ -602,6 +602,14 @@ func (m Model) GetHelpContent() help.Content {
 					"A value in the file that is neither keeps blinking, and the footer says so.",
 			},
 			{
+				Title: "When unfocused",
+				Body: "pause (default) suspends the animation and the periodic refreshes of\n" +
+					"the dashboard, images, containers, Ports and :agent-usage while the\n" +
+					"terminal has no focus, and catches up when it comes back. run suspends\n" +
+					"nothing. It is per context and applies as you cycle it; it needs a\n" +
+					"terminal that reports focus.",
+			},
+			{
 				Title: "Secret backend",
 				Body: "Changing it is confirmed, and stored secrets are not migrated:\n" +
 					"the " + m.vocab().Name + " token and registry passwords have to be entered again.",

@@ -19,6 +19,9 @@ func (a *App) handleTerminalBlur() (tea.Model, tea.Cmd) {
 		return a, nil
 	}
 	a.terminalBlurred = true
+	if a.runWhenUnfocused {
+		return a, nil
+	}
 	return a, a.sendFocusTo(a.currentView, false)
 }
 
@@ -31,6 +34,9 @@ func (a *App) handleTerminalFocus() (tea.Model, tea.Cmd) {
 		return a, nil
 	}
 	a.terminalBlurred = false
+	if a.runWhenUnfocused {
+		return a, nil
+	}
 	return a, a.sendFocusTo(a.currentView, true)
 }
 
@@ -42,15 +48,18 @@ func (a *App) sendFocusTo(target command.ViewType, resume bool) tea.Cmd {
 	if !ok {
 		return nil
 	}
-	updated, cmd := view.Update(shared.TerminalFocusMsg{Focused: !a.terminalBlurred, Resume: resume && !a.terminalBlurred})
+	updated, cmd := view.Update(shared.TerminalFocusMsg{Focused: !a.suspended(), Resume: resume && !a.suspended()})
 	a.setView(target, updated)
 	return cmd
 }
 
+// suspended reports whether the terminal is blurred and the policy pauses.
+func (a *App) suspended() bool { return a.terminalBlurred && !a.runWhenUnfocused }
+
 // wantedCadence is cadence() for the router's current state: while the terminal
 // is blurred no chain is wanted, whatever the views or the jobs ask for.
 func (a *App) wantedCadence() (time.Duration, bool) {
-	if a.terminalBlurred {
+	if a.suspended() {
 		return 0, false
 	}
 	return cadence(a.jobs.Running() > 0, a.wantsBlink(), a.motionStatic)
