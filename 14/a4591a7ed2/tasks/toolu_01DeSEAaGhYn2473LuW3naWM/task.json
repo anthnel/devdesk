@@ -1,0 +1,15 @@
+{
+  "tool_use_id": "toolu_01DeSEAaGhYn2473LuW3naWM",
+  "agent_id": "aa1a099d580675437",
+  "subagent_type": "project-tester",
+  "task_description": "Tests rouges D2 et D3",
+  "token_usage": {
+    "input_tokens": 146,
+    "cache_creation_tokens": 204409,
+    "cache_read_tokens": 7822650,
+    "output_tokens": 41532,
+    "api_call_count": 72
+  },
+  "started_at": "2026-11-10T12:45:59.021977271+01:00",
+  "completed_at": "2026-11-10T12:56:03.19633059+01:00"
+}
