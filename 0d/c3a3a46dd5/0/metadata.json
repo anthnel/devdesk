@@ -3,7 +3,7 @@
   "checkpoint_id": "0dc3a3a46dd5",
   "session_id": "17a42680-35a1-4395-91a2-c65668787bcf",
   "strategy": "manual-commit",
-  "created_at": "2026-11-10T10:28:55.802227476Z",
+  "created_at": "2026-11-10T10:29:04.669958901Z",
   "branch": "spike/charm-v2",
   "checkpoints_count": 1,
   "save_step_count": 1,
@@ -21,11 +21,11 @@
     "output_tokens": 0,
     "api_call_count": 0,
     "subagent_tokens": {
-      "input_tokens": 8,
-      "cache_creation_tokens": 4965,
-      "cache_read_tokens": 825280,
-      "output_tokens": 13254,
-      "api_call_count": 4
+      "input_tokens": 2,
+      "cache_creation_tokens": 10352,
+      "cache_read_tokens": 209845,
+      "output_tokens": 751,
+      "api_call_count": 1
     }
   },
   "redaction": {
