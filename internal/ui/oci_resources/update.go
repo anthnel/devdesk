@@ -28,6 +28,12 @@ func (m Model) Init() tea.Cmd {
 	)
 }
 
+// refreshReads lists images, networks and volumes and loads the scan cache.
+// It never scans (Rule 126).
+func (m Model) refreshReads() tea.Cmd {
+	return tea.Batch(fetchImages(), loadScanCache(), fetchNetworks(), fetchVolumes())
+}
+
 // Update handles messages
 func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
@@ -106,8 +112,21 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return m, tea.Batch(cmds...)
 		}
 
+	case shared.TerminalFocusMsg:
+		m.blurred = !msg.Focused
+		if !msg.Resume {
+			return m, nil
+		}
+		// One re-read on the focus edge, no new tick: the chain kept its timer.
+		return m, m.refreshReads()
+
 	case RefreshTickMsg:
-		return m, tea.Batch(fetchImages(), loadScanCache(), fetchNetworks(), fetchVolumes())
+		// The tick rearms itself (it used to run only once) and skips the
+		// reads while the terminal is blurred.
+		if m.blurred {
+			return m, tickCmd()
+		}
+		return m, tea.Batch(m.refreshReads(), tickCmd())
 
 	case ImagesListMsg:
 		return m.handleImagesList(msg)

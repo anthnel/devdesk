@@ -62,7 +62,9 @@ type RefreshTickMsg time.Time
 // (GitLab, `system df`, workspaces, tools) ≈ 600 ms plus the network. A single
 // clock for all three would make the cheap call wait behind the expensive
 // one.
-const (
+//
+// They are vars so a test can shorten them (testutil.FastTimers).
+var (
 	hostTickInterval   = time.Second
 	dockerTickInterval = 5 * time.Second
 )
@@ -171,6 +173,10 @@ type Model struct {
 	// Refresh
 	refreshInterval time.Duration
 
+	// blurred is true while the terminal window has lost the focus
+	// (DEVDESK-210). The three clocks keep their timers but skip the I/O.
+	blurred bool
+
 	// footer is the one line of transient state below the viewport (Rule 128).
 	// The dashboard budgets an info line and left it permanently empty; a key
 	// the header greys out has to be able to say why it declined (Rule 130).
@@ -260,16 +266,28 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case WorkspaceStatsMsg:
 		return m.handleWorkspaceStats(msg)
 
+	case shared.TerminalFocusMsg:
+		return m.handleTerminalFocus(msg)
+
 	case RefreshTickMsg:
+		if m.blurred {
+			return m, m.scheduleRefresh()
+		}
 		return m.alsoMeasuringSize(m.refreshAll())
 
 	case HostTickMsg:
+		if m.blurred {
+			return m, m.scheduleHostTick()
+		}
 		return m, tea.Batch(m.sampleHost(), m.scheduleHostTick())
 
 	case HostSampleMsg:
 		return m.handleHostSample(msg)
 
 	case DockerTickMsg:
+		if m.blurred {
+			return m, m.scheduleDockerTick()
+		}
 		return m, tea.Batch(m.fetchDockerMetrics(), m.scheduleDockerTick())
 
 	case DockerMetricsMsg:
@@ -291,6 +309,18 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	m.footer.Handle(msg)
 
 	return m, nil
+}
+
+// handleTerminalFocus records the focus level. On the edge that follows a blur
+// (Resume) each clock reads once, **without rearming**: the chains kept their
+// timers while blurred, a second one would double the rate. The level alone
+// starts nothing.
+func (m Model) handleTerminalFocus(msg shared.TerminalFocusMsg) (tea.Model, tea.Cmd) {
+	m.blurred = !msg.Focused
+	if !msg.Resume {
+		return m, nil
+	}
+	return m.alsoMeasuringSize(tea.Batch(m.slowRound(), m.sampleHost(), m.fetchDockerMetrics()))
 }
 
 // handleKeyMsg processes keyboard input
@@ -638,6 +668,11 @@ func (m Model) scheduleRefresh() tea.Cmd {
 // other two have theirs, and a slow round that restarted them would make two
 // tick chains for the same clock, hence samples twice as fast.
 func (m Model) refreshAll() tea.Cmd {
+	return tea.Batch(m.slowRound(), m.scheduleRefresh())
+}
+
+// slowRound is the slow clock's reads, without its timer.
+func (m Model) slowRound() tea.Cmd {
 	return tea.Batch(
 		m.checkServices(),
 		m.fetchForgeStats(),
@@ -646,7 +681,6 @@ func (m Model) refreshAll() tea.Cmd {
 		m.fetchWorkspaceStats(),
 		m.fetchDiskUsage(),
 		m.fetchPosture(),
-		m.scheduleRefresh(),
 	)
 }
 

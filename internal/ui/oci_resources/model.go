@@ -34,7 +34,10 @@ const (
 
 // Model represents the OCI resources view state
 type Model struct {
-	config    *config.Config
+	config *config.Config
+	// blurred is true while the terminal window has lost the focus
+	// (DEVDESK-210): the periodic refresh skips its reads.
+	blurred   bool
 	activeTab ociTab
 	// Images tab
 	images []docker.Image
