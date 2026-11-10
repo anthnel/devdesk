@@ -1,0 +1,15 @@
+{
+  "tool_use_id": "toolu_016DPRhZy8goBx6v58UEc3NX",
+  "agent_id": "abb5360d43566a523",
+  "subagent_type": "dev-team:devops",
+  "task_description": "Merge PR 341 after CI",
+  "token_usage": {
+    "input_tokens": 12,
+    "cache_creation_tokens": 38194,
+    "cache_read_tokens": 192098,
+    "output_tokens": 1919,
+    "api_call_count": 6
+  },
+  "started_at": "2026-11-09T17:26:30.038649156+01:00",
+  "completed_at": "2026-11-09T17:31:36.021137778+01:00"
+}
