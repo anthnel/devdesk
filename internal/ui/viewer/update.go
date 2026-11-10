@@ -8,6 +8,7 @@ import (
 	"charm.land/bubbles/v2/spinner"
 	tea "charm.land/bubbletea/v2"
 	"github.com/anthnel/devdesk/internal/clipboard"
+	"github.com/anthnel/devdesk/internal/ui/teaexec"
 
 	"github.com/anthnel/devdesk/internal/ui/keymap"
 	"github.com/anthnel/devdesk/internal/viewer"
@@ -422,7 +423,7 @@ func (m Model) openPager() (tea.Model, tea.Cmd) {
 	if !ok {
 		return m, nil
 	}
-	return m, tea.ExecProcess(src.PagerCmd(), func(err error) tea.Msg {
+	return m, teaexec.Process(src.PagerCmd(), func(err error) tea.Msg {
 		return PagerExitMsg{Err: err}
 	})
 }

@@ -16,6 +16,7 @@ import (
 	sharedcomponents "github.com/anthnel/devdesk/internal/ui/components"
 	"github.com/anthnel/devdesk/internal/ui/keymap"
 	ociresources "github.com/anthnel/devdesk/internal/ui/oci_resources"
+	"github.com/anthnel/devdesk/internal/ui/teaexec"
 	uiterminal "github.com/anthnel/devdesk/internal/ui/terminal"
 	"github.com/anthnel/devdesk/internal/ui/theme"
 	uiviewer "github.com/anthnel/devdesk/internal/ui/viewer"
@@ -401,7 +402,7 @@ func (m Model) shellSelectedContainer() (tea.Model, tea.Cmd) {
 
 	shell := detectShell(c.ID)
 	shellCmd := exec.Command(engine.Current().Binary, "exec", "-it", c.ID, shell) //nolint:gosec // same
-	return m, tea.ExecProcess(shellCmd, func(err error) tea.Msg {
+	return m, teaexec.Process(shellCmd, func(err error) tea.Msg {
 		return PagerExitMsg{Err: err}
 	})
 }
