@@ -1,0 +1,15 @@
+{
+  "tool_use_id": "toolu_01C1P7EUFxmAb6BbuH56uvnx",
+  "agent_id": "a049a300756d05a05",
+  "subagent_type": "dev-team:devops",
+  "task_description": "Après-merge DEVDESK-150",
+  "token_usage": {
+    "input_tokens": 6,
+    "cache_creation_tokens": 36619,
+    "cache_read_tokens": 60307,
+    "output_tokens": 1055,
+    "api_call_count": 3
+  },
+  "started_at": "2026-11-09T18:05:48.179111976+01:00",
+  "completed_at": "2026-11-09T18:06:02.908360488+01:00"
+}
