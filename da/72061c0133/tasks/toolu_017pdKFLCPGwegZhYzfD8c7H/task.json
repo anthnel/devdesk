@@ -1,0 +1,15 @@
+{
+  "tool_use_id": "toolu_017pdKFLCPGwegZhYzfD8c7H",
+  "agent_id": "a659e7d69b40aa4bb",
+  "subagent_type": "dev-team:reviewer",
+  "task_description": "Revue étape B touches",
+  "token_usage": {
+    "input_tokens": 30,
+    "cache_creation_tokens": 95219,
+    "cache_read_tokens": 970150,
+    "output_tokens": 12580,
+    "api_call_count": 15
+  },
+  "started_at": "2026-11-10T12:14:07.257132131+01:00",
+  "completed_at": "2026-11-10T12:16:17.58338126+01:00"
+}
