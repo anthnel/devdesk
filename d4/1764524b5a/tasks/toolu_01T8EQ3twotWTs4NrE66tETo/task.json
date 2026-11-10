@@ -1,0 +1,15 @@
+{
+  "tool_use_id": "toolu_01T8EQ3twotWTs4NrE66tETo",
+  "agent_id": "aa21e001187fefb58",
+  "subagent_type": "dev-team:devops",
+  "task_description": "Remove merged worktree and branch",
+  "token_usage": {
+    "input_tokens": 2,
+    "cache_creation_tokens": 21771,
+    "cache_read_tokens": 5550,
+    "output_tokens": 132,
+    "api_call_count": 1
+  },
+  "started_at": "2026-11-09T15:28:34.949336008+01:00",
+  "completed_at": "2026-11-09T15:28:46.51876772+01:00"
+}
