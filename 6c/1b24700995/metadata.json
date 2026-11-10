@@ -1,0 +1,47 @@
+{
+  "cli_version": "0.13.1",
+  "checkpoint_id": "6c1b24700995",
+  "strategy": "manual-commit",
+  "branch": "feat/DEVDESK-201-charm-v2",
+  "checkpoints_count": 5,
+  "files_touched": [
+    "internal/ui/theme/theme_v2_test.go"
+  ],
+  "sessions": [
+    {
+      "metadata": "/6c/1b24700995/0/metadata.json",
+      "transcript": "/6c/1b24700995/0/full.jsonl",
+      "compact_transcript": "/6c/1b24700995/0/transcript.jsonl",
+      "content_hash": "/6c/1b24700995/0/content_hash.txt",
+      "prompt": "/6c/1b24700995/0/prompt.txt"
+    }
+  ],
+  "token_usage": {
+    "input_tokens": 38,
+    "cache_creation_tokens": 26266,
+    "cache_read_tokens": 1678279,
+    "output_tokens": 9248,
+    "api_call_count": 14,
+    "subagent_tokens": {
+      "input_tokens": 142,
+      "cache_creation_tokens": 344383,
+      "cache_read_tokens": 4612904,
+      "output_tokens": 51046,
+      "api_call_count": 69
+    }
+  },
+  "redaction": {
+    "replacements": 0,
+    "layers": {
+      "betterleaks": 0,
+      "connection_string": 0,
+      "credential_key": 0,
+      "credential_value": 0,
+      "credentialed_uri": 0,
+      "entropy": 0,
+      "key_context": 0,
+      "provider_token": 0,
+      "shell_stdin": 0
+    }
+  }
+}
