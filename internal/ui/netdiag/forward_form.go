@@ -122,10 +122,10 @@ const forwardLabelCells = 2 + forwardLabelWidth + 1 + 1 + 1
 // unsized field read "8" and "h" instead of "8080" and "host:port".
 func (f *ForwardForm) SetWidth(width int) {
 	f.width = width
-	f.portInput.Width = forwardPortWidth
+	f.portInput.SetWidth(forwardPortWidth)
 	room := max(width-forwardLabelCells-2, 20)
-	f.nameInput.Width = room
-	f.targetInput.Width = room
+	f.nameInput.SetWidth(room)
+	f.targetInput.SetWidth(room)
 }
 
 // visibleFields are the fields the current type shows, in ↑↓ order.

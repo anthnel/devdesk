@@ -38,28 +38,28 @@ func NewComponentForm(component *config.ComponentConfig) *ComponentForm {
 	nameInput := textinput.New()
 	nameInput.Placeholder = "my-service"
 	nameInput.CharLimit = 50
-	nameInput.Width = 40
+	nameInput.SetWidth(40)
 	nameInput.Focus()
 
 	targetInput := textinput.New()
 	targetInput.Placeholder = "example.com or 192.168.1.1"
 	targetInput.CharLimit = 200
-	targetInput.Width = 40
+	targetInput.SetWidth(40)
 
 	timeoutInput := textinput.New()
 	timeoutInput.Placeholder = "10"
 	timeoutInput.CharLimit = 3
-	timeoutInput.Width = 10
+	timeoutInput.SetWidth(10)
 
 	countInput := textinput.New()
 	countInput.Placeholder = "4"
 	countInput.CharLimit = 2
-	countInput.Width = 10
+	countInput.SetWidth(10)
 
 	nsInput := textinput.New()
 	nsInput.Placeholder = "8.8.8.8 (optional)"
 	nsInput.CharLimit = 50
-	nsInput.Width = 40
+	nsInput.SetWidth(40)
 
 	// Apply theme background to all textinputs
 	theme.StyleTextInput(&nameInput)

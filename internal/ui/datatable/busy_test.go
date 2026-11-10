@@ -1,6 +1,7 @@
 package datatable
 
 import (
+	"image/color"
 	"reflect"
 	"strings"
 	"testing"
@@ -191,7 +192,7 @@ func TestABusyRowIsDimmed(t *testing.T) {
 		t.Errorf("the busy row is not dimmed: %q", line)
 	}
 	// Every cell is dim: nothing keeps a column's colour or a highlight.
-	for _, c := range []lipgloss.Color{theme.ColorOK, theme.ColorHighlight} {
+	for _, c := range []color.Color{theme.ColorOK, theme.ColorHighlight} {
 		if strings.Contains(line, foreground(c)) {
 			t.Errorf("the busy row kept a colour that is not dim: %q", line)
 		}

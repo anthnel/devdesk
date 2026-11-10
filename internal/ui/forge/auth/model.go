@@ -79,7 +79,7 @@ func New(cfg *config.Config, secrets credentials.Selection, notices []string) *M
 	// carrying one.
 	tokenInput.Placeholder = forge.VocabularyFor(forgeTypeOf(cfg)).TokenPlaceholder
 	tokenInput.CharLimit = 100
-	tokenInput.Width = 60
+	tokenInput.SetWidth(60)
 	tokenInput.EchoMode = textinput.EchoPassword
 	tokenInput.EchoCharacter = '•'
 	theme.StyleTextInput(&tokenInput)

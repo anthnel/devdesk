@@ -1,6 +1,7 @@
 package datatable
 
 import (
+	"image/color"
 	"strings"
 	"testing"
 
@@ -228,8 +229,8 @@ func TestTheColumnColourReachesTheCell(t *testing.T) {
 // foreground and background return the SGR parameters lipgloss emits for a
 // colour, without the escape or the terminating "m" — a cell carrying both has
 // them merged into one sequence, so neither full sequence appears on its own.
-func foreground(c lipgloss.Color) string { return sgrParams(lipgloss.NewStyle().Foreground(c)) }
-func background(c lipgloss.Color) string { return sgrParams(lipgloss.NewStyle().Background(c)) }
+func foreground(c color.Color) string { return sgrParams(lipgloss.NewStyle().Foreground(c)) }
+func background(c color.Color) string { return sgrParams(lipgloss.NewStyle().Background(c)) }
 
 func sgrParams(style lipgloss.Style) string {
 	opening, _, _ := strings.Cut(style.Render(" "), "m")

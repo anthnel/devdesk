@@ -33,7 +33,7 @@ func (a *App) maybeOpenHelp(msg tea.Msg) (tea.Model, tea.Cmd) {
 	}
 
 	height := max(a.height-helpOverlayMargin, helpViewportMinHeight)
-	a.helpViewport = viewport.New(a.width-helpOverlayMargin, height)
+	a.helpViewport = viewport.New(viewport.WithWidth(a.width-helpOverlayMargin), viewport.WithHeight(height))
 	a.helpViewport.KeyMap = arrowOnlyScroll()
 	a.helpViewport.SetContent(help.Render(provider.GetHelpContent(), a.width))
 	a.showHelp = true

@@ -39,7 +39,7 @@ func NewWrappedInput(wrapWidth, charLimit int, placeholder string) WrappedInput 
 	input := textinput.New()
 	input.Placeholder = placeholder
 	input.CharLimit = charLimit
-	input.Width = 4096 // never scrolls internally; display is word-wrapped manually
+	input.SetWidth(4096) // never scrolls internally; display is word-wrapped manually
 	theme.StyleTextInput(&input)
 	return WrappedInput{
 		input:     input,

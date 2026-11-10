@@ -2,6 +2,7 @@ package containers
 
 import (
 	"errors"
+	"image/color"
 	"reflect"
 	"sort"
 	"strings"
@@ -156,7 +157,7 @@ func TestEachObservedStateHasItsOwnGlyphAndColour(t *testing.T) {
 		name  string
 		c     docker.Container
 		glyph string
-		color lipgloss.Color
+		color color.Color
 	}
 	cases := []tc{
 		{"restarting", ctr("b1", "x", "restarting", facts(1)), "◕", theme.ColorActivitySuspended},

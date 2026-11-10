@@ -436,8 +436,8 @@ func (b *RegistryBrowser) SetSize(width, height int) {
 
 func (b *RegistryBrowser) resizeInputs() {
 	w := max(b.width-22, 20)
-	b.repoInput.Width = w
-	b.filterInput.Width = max(b.width-6, 10)
+	b.repoInput.SetWidth(w)
+	b.filterInput.SetWidth(max(b.width-6, 10))
 }
 
 // resizeTagTable hands the table the viewport width.

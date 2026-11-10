@@ -2,6 +2,7 @@ package agentusageview
 
 import (
 	"fmt"
+	"image/color"
 	"path/filepath"
 	"regexp"
 	"slices"
@@ -546,7 +547,7 @@ func sgrColours(params string) (fg, bg string, bold bool) {
 }
 
 // rgbOf is a "#rrggbb" colour as "r;g;b".
-func rgbOf(t *testing.T, c lipgloss.Color) string {
+func rgbOf(t *testing.T, c color.Color) string {
 	t.Helper()
 	var r, g, b int
 	if _, err := fmt.Sscanf(string(c), "#%02x%02x%02x", &r, &g, &b); err != nil {

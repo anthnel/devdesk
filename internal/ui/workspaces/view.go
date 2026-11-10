@@ -37,7 +37,7 @@ func (m Model) View() string {
 			m.width, m.height,
 			lipgloss.Center, lipgloss.Center,
 			m.input.View(),
-			lipgloss.WithWhitespaceBackground(theme.ColorBackground),
+			lipgloss.WithWhitespaceStyle(lipgloss.NewStyle().Background(theme.ColorBackground)),
 		)
 	}
 
@@ -47,7 +47,7 @@ func (m Model) View() string {
 			m.width, m.height,
 			lipgloss.Center, lipgloss.Center,
 			m.confirmModal.View(),
-			lipgloss.WithWhitespaceBackground(theme.ColorBackground),
+			lipgloss.WithWhitespaceStyle(lipgloss.NewStyle().Background(theme.ColorBackground)),
 		)
 	}
 
@@ -57,7 +57,7 @@ func (m Model) View() string {
 			m.width, m.height,
 			lipgloss.Center, lipgloss.Center,
 			m.scanAllModal.View(),
-			lipgloss.WithWhitespaceBackground(theme.ColorBackground),
+			lipgloss.WithWhitespaceStyle(lipgloss.NewStyle().Background(theme.ColorBackground)),
 		)
 	}
 
@@ -67,7 +67,7 @@ func (m Model) View() string {
 			m.width, m.height,
 			lipgloss.Center, lipgloss.Center,
 			m.input.View(),
-			lipgloss.WithWhitespaceBackground(theme.ColorBackground),
+			lipgloss.WithWhitespaceStyle(lipgloss.NewStyle().Background(theme.ColorBackground)),
 		)
 	}
 

@@ -78,8 +78,8 @@ func (f *ResourceCreateForm) resizeInputs() {
 	// Label overhead: viewport border (2) + indent (2) + longest label "Driver " + chevron + spaces (~12)
 	const labelOverhead = 16
 	w := max(f.width-labelOverhead, 20)
-	f.nameInput.Width = w
-	f.driverInput.Width = w
+	f.nameInput.SetWidth(w)
+	f.driverInput.SetWidth(w)
 }
 
 // Update handles messages for the resource form

@@ -176,7 +176,7 @@ func newCommandInput() textinput.Model {
 }
 
 func newViewport(width, height int) viewport.Model {
-	vp := viewport.New(width, height)
+	vp := viewport.New(viewport.WithWidth(width), viewport.WithHeight(height))
 	vp.Style = viewportStyle()
 	return vp
 }
@@ -357,8 +357,8 @@ func (a *App) layoutOnce(width, height int) (changed bool) {
 	headerHeight := lipgloss.Height(a.renderHeader())
 	a.lastHeaderHeight = headerHeight
 	availableHeight := height - headerHeight - footerHeight
-	a.viewport.Width = width
-	a.viewport.Height = availableHeight - 1 // -1 for the custom title border line
+	a.viewport.SetWidth(width)
+	a.viewport.SetHeight(availableHeight - 1) // -1 for the custom title border line
 
 	// Propagate to the active view. The viewport has 1 border (bottom only),
 	// the view must know the inner height. A frameless view has none and

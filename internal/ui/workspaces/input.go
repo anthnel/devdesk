@@ -31,7 +31,7 @@ func NewWorkspaceInput() *WorkspaceInput {
 	ti.Placeholder = "directory-name"
 	ti.Focus()
 	ti.CharLimit = 100
-	ti.Width = 40
+	ti.SetWidth(40)
 	theme.StyleTextInput(&ti)
 
 	return &WorkspaceInput{
@@ -49,7 +49,7 @@ func NewRenameInput(currentName string) *WorkspaceInput {
 	ti.SetValue(currentName)
 	ti.Focus()
 	ti.CharLimit = 100
-	ti.Width = 40
+	ti.SetWidth(40)
 	theme.StyleTextInput(&ti)
 
 	return &WorkspaceInput{

@@ -90,7 +90,7 @@ func newInput(placeholder string, limit int) textinput.Model {
 	in := textinput.New()
 	in.Placeholder = placeholder
 	in.CharLimit = limit
-	in.Width = 60
+	in.SetWidth(60)
 	theme.StyleTextInput(&in)
 	return in
 }

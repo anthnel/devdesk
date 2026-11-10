@@ -160,25 +160,25 @@ func New() Model {
 	nameInput := textinput.New()
 	nameInput.Placeholder = "e.g. work, staging"
 	nameInput.CharLimit = 64
-	nameInput.Width = 40
+	nameInput.SetWidth(40)
 	styleTextInput(&nameInput)
 	nameInput.Focus()
 
 	urlInput := textinput.New()
 	urlInput.CharLimit = 200
-	urlInput.Width = 50
+	urlInput.SetWidth(50)
 	styleTextInput(&urlInput)
 
 	nsInput := textinput.New()
 	nsInput.Placeholder = "optional"
 	nsInput.CharLimit = 100
-	nsInput.Width = 40
+	nsInput.SetWidth(40)
 	styleTextInput(&nsInput)
 
 	tokenInput := textinput.New()
 	tokenInput.Placeholder = "optional — can be set later via the auth view"
 	tokenInput.CharLimit = 200
-	tokenInput.Width = 50
+	tokenInput.SetWidth(50)
 	tokenInput.EchoMode = textinput.EchoPassword
 	styleTextInput(&tokenInput)
 

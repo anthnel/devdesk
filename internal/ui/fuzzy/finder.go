@@ -70,7 +70,7 @@ func New(loadingText string) *Finder {
 	ti.Placeholder = fmt.Sprintf("type at least %d characters", MinQueryLen)
 	ti.Focus()
 	ti.CharLimit = 200
-	ti.Width = 60
+	ti.SetWidth(60)
 	theme.StyleTextInput(&ti)
 
 	return &Finder{

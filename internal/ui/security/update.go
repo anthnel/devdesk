@@ -77,8 +77,8 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.resizeFindings()
 		m.inventory.Resize(m.width, max(m.height, 5))
 		// Update details viewport size and refresh content
-		m.detailsViewport.Width = msg.Width
-		m.detailsViewport.Height = msg.Height
+		m.detailsViewport.SetWidth(msg.Width)
+		m.detailsViewport.SetHeight(msg.Height)
 		if m.state == StateDetails {
 			m.detailsViewport.SetContent(m.buildDetailsContent())
 		}

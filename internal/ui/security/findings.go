@@ -394,8 +394,8 @@ func (m Model) handleResultsState(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 			// under it, which is how workspaces got D24.
 			m.selectedFinding = &finding
 			m.state = StateDetails
-			m.detailsViewport.Width = m.width
-			m.detailsViewport.Height = m.height
+			m.detailsViewport.SetWidth(m.width)
+			m.detailsViewport.SetHeight(m.height)
 			m.detailsViewport.SetContent(m.buildDetailsContent())
 			m.detailsViewport.GotoTop()
 		}

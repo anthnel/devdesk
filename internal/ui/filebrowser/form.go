@@ -48,7 +48,7 @@ func newCreateForm(isDir bool, width int) *createForm {
 	in := textinput.New()
 	in.Placeholder = "name"
 	in.CharLimit = nameCharLimit
-	in.Width = 40
+	in.SetWidth(40)
 	theme.StyleTextInput(&in)
 	f := &createForm{name: in, width: width, focus: fieldName}
 	if !isDir {

@@ -1,6 +1,7 @@
 package agentusageview
 
 import (
+	"image/color"
 	"strings"
 	"testing"
 
@@ -118,7 +119,7 @@ func TestRenderBreakdownEachBlockEndsWithATotalAtOneHundredPercent(t *testing.T)
 }
 
 // fgCode is the "38;2;r;g;b" parameter lipgloss emits for a foreground colour.
-func fgCode(t *testing.T, c lipgloss.Color) string {
+func fgCode(t *testing.T, c color.Color) string {
 	t.Helper()
 	out := lipgloss.NewStyle().Foreground(c).Render("x")
 	at := strings.Index(out, "38;")

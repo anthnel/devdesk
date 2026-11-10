@@ -163,7 +163,7 @@ func (m Model) View() string {
 			m.width, m.height,
 			lipgloss.Center, lipgloss.Center,
 			modal.View(),
-			lipgloss.WithWhitespaceBackground(theme.ColorBackground),
+			lipgloss.WithWhitespaceStyle(lipgloss.NewStyle().Background(theme.ColorBackground)),
 		)
 	}
 

@@ -122,7 +122,7 @@ func NewLaunchForm(imageName string, exposedPorts []string, networks []docker.Ne
 		}
 		hi := textinput.New()
 		hi.CharLimit = 10
-		hi.Width = 6
+		hi.SetWidth(6)
 		theme.StyleTextInput(&hi)
 		hi.SetValue(portNum)
 		ports = append(ports, portEntry{
@@ -239,12 +239,12 @@ func (f *LaunchForm) resizeInputs() {
 		inputWidth = f.width*55/100 - 4
 	}
 	inputWidth = max(inputWidth, 20)
-	f.nameInput.Width = inputWidth
-	f.entrypointInput.Width = inputWidth
-	f.envInput.Width = inputWidth
-	f.volInput.Width = inputWidth
-	f.userInput.Width = inputWidth
-	f.extraPortsInput.Width = inputWidth
+	f.nameInput.SetWidth(inputWidth)
+	f.entrypointInput.SetWidth(inputWidth)
+	f.envInput.SetWidth(inputWidth)
+	f.volInput.SetWidth(inputWidth)
+	f.userInput.SetWidth(inputWidth)
+	f.extraPortsInput.SetWidth(inputWidth)
 }
 
 // Field indices follow the visual render order:

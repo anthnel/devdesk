@@ -1,6 +1,8 @@
 package components
 
 import (
+	"fmt"
+	"image/color"
 	"strings"
 	"testing"
 	"time"
@@ -53,22 +55,23 @@ func TestEachLevelRendersInItsOwnStyle(t *testing.T) {
 // yellow one notch from the warning's orange.
 func TestTheThreeLevelsAreDistinguishable(t *testing.T) {
 	seen := map[string]string{}
-	for name, color := range map[string]string{
-		"info":    string(theme.ColorFooterInfo),
-		"warning": string(theme.ColorFooterWarn),
-		"error":   string(theme.ColorFooterError),
+	for name, c := range map[string]color.Color{
+		"info":    theme.ColorFooterInfo,
+		"warning": theme.ColorFooterWarn,
+		"error":   theme.ColorFooterError,
 	} {
-		if other, dup := seen[color]; dup {
-			t.Errorf("%s and %s share the colour %s", name, other, color)
+		key := fmt.Sprint(c)
+		if other, dup := seen[key]; dup {
+			t.Errorf("%s and %s share the colour %s", name, other, key)
 		}
-		seen[color] = name
+		seen[key] = name
 	}
 }
 
 // Green belonged to the security view's status line and to nothing else in a
 // footer. It is reserved for status icons (Rule 121).
 func TestNoLevelIsGreen(t *testing.T) {
-	for _, c := range []lipgloss.Color{theme.ColorFooterInfo, theme.ColorFooterWarn, theme.ColorFooterError} {
+	for _, c := range []color.Color{theme.ColorFooterInfo, theme.ColorFooterWarn, theme.ColorFooterError} {
 		if c == theme.ColorOK {
 			t.Errorf("a footer level renders in the OK green %q", c)
 		}

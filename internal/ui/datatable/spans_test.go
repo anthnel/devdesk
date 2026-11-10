@@ -5,6 +5,7 @@ import (
 	"go/ast"
 	"go/parser"
 	"go/token"
+	"image/color"
 	"io/fs"
 	"path/filepath"
 	"regexp"
@@ -33,17 +34,17 @@ const (
 // which paints whatever no span covers. Five colours that must all differ,
 // otherwise a leak between two runs could not be seen (checked by
 // TestSpansFixtureColoursAreDistinct).
-var spanColours = []lipgloss.Color{theme.ColorOK, theme.ColorError, theme.ColorWarn, theme.ColorHighlight}
+var spanColours = []color.Color{theme.ColorOK, theme.ColorError, theme.ColorWarn, theme.ColorHighlight}
 
 const spanDefaultIdx = 4 // index of the Style colour in colourOf's answer
 
-func spanDefault() lipgloss.Color { return theme.ColorSeverityLow }
+func spanDefault() color.Color { return theme.ColorSeverityLow }
 
-func allFixtureColours() []lipgloss.Color {
-	return append(append([]lipgloss.Color{}, spanColours...), spanDefault())
+func allFixtureColours() []color.Color {
+	return append(append([]color.Color{}, spanColours...), spanDefault())
 }
 
-func fg(c lipgloss.Color) lipgloss.Style { return lipgloss.NewStyle().Foreground(c) }
+func fg(c color.Color) lipgloss.Style { return lipgloss.NewStyle().Foreground(c) }
 
 // spansOf builds the Spans result for the given widths, span i painted with
 // spanColours[i % 4].

@@ -180,11 +180,11 @@ func TestUnclaimedKeysScrollTheHelp(t *testing.T) {
 	}
 	a := router(t, &fakeView{helpContent: long})
 	a.handleKeyMsg(testutil.Key("?"))
-	before := a.helpViewport.YOffset
+	before := a.helpViewport.YOffset()
 
 	a.handleKeyMsg(testutil.Key("pgdown"))
 
-	if a.helpViewport.YOffset == before {
+	if a.helpViewport.YOffset() == before {
 		t.Errorf("the help did not scroll: offset stayed at %d", before)
 	}
 }

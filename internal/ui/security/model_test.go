@@ -639,7 +639,7 @@ func TestIgnoringIsOfferedForGitleaksFindingsOnly(t *testing.T) {
 // case — a description plus references routinely runs past the terminal.
 func TestTheDetailsPaneScrolls(t *testing.T) {
 	tall := detailsModel(t)
-	tall.detailsViewport.Height = 10
+	tall.detailsViewport.SetHeight(10)
 	tall.detailsViewport.SetContent(strings.Repeat("a line of the description\n", 40))
 
 	for _, tc := range []struct {
@@ -656,7 +656,7 @@ func TestTheDetailsPaneScrolls(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			m := feed(t, tall, testutil.Keys(tc.keys...)...)
 
-			if got := m.detailsViewport.YOffset; got != tc.want {
+			if got := m.detailsViewport.YOffset(); got != tc.want {
 				t.Errorf("offset = %d after %v, want %d", got, tc.keys, tc.want)
 			}
 			if m.state != StateDetails {

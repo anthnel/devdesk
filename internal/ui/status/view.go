@@ -90,7 +90,7 @@ func (m Model) View() string {
 			lipgloss.Center,
 			lipgloss.Center,
 			m.confirmModal.View(),
-			lipgloss.WithWhitespaceBackground(theme.ColorBackground),
+			lipgloss.WithWhitespaceStyle(lipgloss.NewStyle().Background(theme.ColorBackground)),
 		)
 	}
 

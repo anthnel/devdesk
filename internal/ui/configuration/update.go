@@ -443,7 +443,7 @@ const (
 // its column — half the width on a two-column tab.
 func (m *Model) resizeInput() {
 	const focusIndicator, borders = 2, 4
-	m.input.Width = max(m.columnWidth()-m.chevronColumn()-4-focusIndicator-borders, 20)
+	m.input.SetWidth(max(m.columnWidth()-m.chevronColumn()-4-focusIndicator-borders, 20))
 }
 
 // requestDetection asks the router to detect the tools again — ctrl+r, and only

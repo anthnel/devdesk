@@ -29,7 +29,7 @@ func (m Model) View() string {
 	if m.confirmModal != nil {
 		return lipgloss.Place(m.width, m.height,
 			lipgloss.Center, lipgloss.Center, m.confirmModal.View(),
-			lipgloss.WithWhitespaceBackground(theme.ColorBackground))
+			lipgloss.WithWhitespaceStyle(lipgloss.NewStyle().Background(theme.ColorBackground)))
 	}
 
 	lines := m.layout().lines

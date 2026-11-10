@@ -135,7 +135,7 @@ func New(cfg *config.Config) Model {
 		highlight:    true,
 		collapsed:    make(map[int]bool),
 		tree:         datatable.New(datatable.Config[treeRow]{Columns: treeColumns(), SortColumn: -1}),
-		textViewport: viewport.New(0, 0),
+		textViewport: viewport.New(),
 		bar:          components.NewFilterBar(),
 		gotoInput:    gi,
 		rowOfLine:    make(map[int]int),

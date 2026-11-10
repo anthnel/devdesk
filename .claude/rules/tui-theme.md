@@ -37,7 +37,7 @@ paths:
 
 `JoinHorizontal`/`JoinVertical` are acceptable **only** if the result is wrapped in a `.Background(ColorBackground).Width(w)` style.
 
-`lipgloss.Place` → always use `WithWhitespaceBackground(theme.ColorBackground)`.
+`lipgloss.Place` → always use `WithWhitespaceStyle(lipgloss.NewStyle().Background(theme.ColorBackground))`.
 
 **Drawing over an already rendered screen** (the command palette) goes through
 `overlay.Compose` (`internal/ui/overlay`) and nothing else: it splices with

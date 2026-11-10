@@ -372,7 +372,7 @@ func (m *Model) openDetails() (*Model, tea.Cmd) {
 	m.selected = c
 	m.state = StateDetails
 	m.resizeDetailsViewport()
-	m.detailsViewport.SetContent(m.renderDetailsContent(m.detailsViewport.Width))
+	m.detailsViewport.SetContent(m.renderDetailsContent(m.detailsViewport.Width()))
 	m.detailsViewport.GotoTop()
 	return m, nil
 }

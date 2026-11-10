@@ -118,8 +118,8 @@ func (m *Model) resize(width, height int) {
 
 	m.tree.Resize(width, height)
 
-	m.textViewport.Width = width
-	m.textViewport.Height = max(height, 1)
+	m.textViewport.SetWidth(width)
+	m.textViewport.SetHeight(max(height, 1))
 	m.bar.Resize(width)
 	m.rebuildText() // the wrap and the padding both depend on the width
 }

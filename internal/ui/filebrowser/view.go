@@ -25,7 +25,7 @@ func (m Model) View() string {
 		return m.form.View(m.currentPath)
 	case m.mode == modeConfirmingDelete && m.confirm != nil:
 		return lipgloss.Place(m.width, m.height, lipgloss.Center, lipgloss.Center, m.confirm.View(),
-			lipgloss.WithWhitespaceBackground(theme.ColorBackground))
+			lipgloss.WithWhitespaceStyle(lipgloss.NewStyle().Background(theme.ColorBackground)))
 	}
 	return m.table.View()
 }

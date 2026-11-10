@@ -108,12 +108,12 @@ func TestAFramelessViewGetsTheBorderLineBack(t *testing.T) {
 	app.createView(command.ViewType("dashboard"))
 	app.currentView = command.ViewType("dashboard")
 	app.resize(120, 40)
-	frameless := app.viewport.Height
+	frameless := app.viewport.Height()
 
 	app.createView(command.ViewType("status"))
 	app.currentView = command.ViewType("status")
 	app.resize(120, 40)
-	framed := app.viewport.Height
+	framed := app.viewport.Height()
 
 	if frameless <= framed-2 {
 		t.Errorf("the frameless viewport is %d lines against %d framed — it did not get the border back",

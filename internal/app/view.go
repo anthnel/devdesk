@@ -14,7 +14,7 @@ import (
 func (a *App) View() string {
 	if overlay := a.activeOverlay(); overlay != "" {
 		return lipgloss.Place(a.width, a.height, lipgloss.Center, lipgloss.Center, overlay,
-			lipgloss.WithWhitespaceBackground(theme.ColorBackground))
+			lipgloss.WithWhitespaceStyle(lipgloss.NewStyle().Background(theme.ColorBackground)))
 	}
 
 	header := a.renderHeader() + "\n" + a.renderTitleLine()
@@ -23,7 +23,7 @@ func (a *App) View() string {
 	inner := fitHeight(header, body, footer, a.height)
 
 	placed := lipgloss.Place(a.width, a.height, lipgloss.Left, lipgloss.Top, inner,
-		lipgloss.WithWhitespaceBackground(theme.ColorBackground))
+		lipgloss.WithWhitespaceStyle(lipgloss.NewStyle().Background(theme.ColorBackground)))
 	return a.withPalette(placed)
 }
 
@@ -101,9 +101,9 @@ func (a *App) renderBody() string {
 		content = view.View()
 	}
 
-	innerWidth := a.viewport.Width - 2 // -2 for the borders
+	innerWidth := a.viewport.Width() - 2 // -2 for the borders
 	if a.frameless() {
-		innerWidth = a.viewport.Width
+		innerWidth = a.viewport.Width()
 	}
 	a.viewport.SetContent(lipgloss.NewStyle().
 		Background(theme.ColorBackground).

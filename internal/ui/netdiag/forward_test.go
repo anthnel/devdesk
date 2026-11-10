@@ -332,9 +332,9 @@ func TestTheFormShowsWholePlaceholders(t *testing.T) {
 	}
 
 	f.SetWidth(60)
-	if f.targetInput.Width <= 1 || f.portInput.Width < 5 {
+	if f.targetInput.Width() <= 1 || f.portInput.Width() < 5 {
 		t.Errorf("after a resize the inputs are %d and %d wide, want room for a port and a target",
-			f.portInput.Width, f.targetInput.Width)
+			f.portInput.Width(), f.targetInput.Width())
 	}
 }
 

@@ -104,7 +104,7 @@ func NewCreationForm(defaultResourceType int, parentName string, parentID string
 	nameInput := textinput.New()
 	nameInput.Placeholder = "name"
 	nameInput.CharLimit = 100
-	nameInput.Width = 50
+	nameInput.SetWidth(50)
 	theme.StyleTextInput(&nameInput)
 
 	descInput := NewWrappedInput(descWrapWidth, descriptionCharLimit, "description (optional)")

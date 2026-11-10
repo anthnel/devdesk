@@ -200,15 +200,15 @@ func TestAViewThatGrowsItsFooterIsRemeasured(t *testing.T) {
 	view := &fakeView{footerHeight: 2}
 	view.onKey = func(v *fakeView) { v.footerHeight = 3 }
 	a := router(t, view)
-	before := a.viewport.Height
+	before := a.viewport.Height()
 
 	a.handleKeyMsg(testutil.Key("/"))
 
 	if a.lastFooterHeight != 3 {
 		t.Errorf("lastFooterHeight = %d after the footer grew, want 3", a.lastFooterHeight)
 	}
-	if a.viewport.Height != before-1 {
-		t.Errorf("viewport height = %d, want %d — one row given to the filter bar", a.viewport.Height, before-1)
+	if a.viewport.Height() != before-1 {
+		t.Errorf("viewport height = %d, want %d — one row given to the filter bar", a.viewport.Height(), before-1)
 	}
 }
 
@@ -218,12 +218,12 @@ func TestAViewThatShrinksItsFooterIsRemeasured(t *testing.T) {
 	view := &fakeView{footerHeight: 3}
 	view.onKey = func(v *fakeView) { v.footerHeight = 2 }
 	a := router(t, view)
-	before := a.viewport.Height
+	before := a.viewport.Height()
 
 	a.handleKeyMsg(testutil.Key("/"))
 
-	if a.viewport.Height != before+1 {
-		t.Errorf("viewport height = %d, want %d — the row is returned to the table", a.viewport.Height, before+1)
+	if a.viewport.Height() != before+1 {
+		t.Errorf("viewport height = %d, want %d — the row is returned to the table", a.viewport.Height(), before+1)
 	}
 }
 
@@ -232,13 +232,13 @@ func TestAViewThatShrinksItsFooterIsRemeasured(t *testing.T) {
 func TestAFooterThatChangesOnAMessageIsRemeasured(t *testing.T) {
 	view := &fakeView{footerHeight: 2}
 	a := router(t, view)
-	before := a.viewport.Height
+	before := a.viewport.Height()
 	view.footerHeight = 4
 
 	a.Update(struct{ scanFinished bool }{true})
 
-	if a.viewport.Height != before-2 {
-		t.Errorf("viewport height = %d, want %d", a.viewport.Height, before-2)
+	if a.viewport.Height() != before-2 {
+		t.Errorf("viewport height = %d, want %d", a.viewport.Height(), before-2)
 	}
 }
 
@@ -252,11 +252,11 @@ func TestResizeGivesTheViewportWhatIsLeft(t *testing.T) {
 
 	headerHeight := 8 // 7 header rows + empty line; the command line is a palette now
 	want := 50 - headerHeight - 2 - 1
-	if a.viewport.Height != want {
-		t.Errorf("viewport height = %d, want %d", a.viewport.Height, want)
+	if a.viewport.Height() != want {
+		t.Errorf("viewport height = %d, want %d", a.viewport.Height(), want)
 	}
-	if a.viewport.Width != 120 {
-		t.Errorf("viewport width = %d, want 120", a.viewport.Width)
+	if a.viewport.Width() != 120 {
+		t.Errorf("viewport width = %d, want 120", a.viewport.Width())
 	}
 }
 

@@ -186,7 +186,7 @@ func (a *App) paletteTitle() string {
 // follows. Called from Update paths only (resize), never from View.
 func (a *App) sizePaletteInput() {
 	prompt := lipgloss.Width(a.commandInput.Prompt)
-	a.commandInput.Width = max(a.paletteRect().Width-paletteInputChrome-prompt-1, 1)
+	a.commandInput.SetWidth(max(a.paletteRect().Width-paletteInputChrome-prompt-1, 1))
 	a.commandInput.SetCursor(a.commandInput.Position())
 }
 
@@ -196,11 +196,16 @@ func (a *App) sizePaletteInput() {
 // carries an explicit background.
 func paletteInputView(in textinput.Model) string {
 	bg := lipgloss.NewStyle().Background(theme.ColorBackground)
-	in.PromptStyle = bg.Foreground(theme.ColorPaletteBorder)
-	in.TextStyle = bg.Foreground(theme.ColorText)
-	in.PlaceholderStyle = bg.Foreground(theme.ColorText)
-	in.Cursor.Style = bg.Foreground(theme.ColorText)
-	in.Cursor.TextStyle = bg.Foreground(theme.ColorText)
+	state := textinput.StyleState{
+		Prompt:      bg.Foreground(theme.ColorPaletteBorder),
+		Text:        bg.Foreground(theme.ColorText),
+		Placeholder: bg.Foreground(theme.ColorText),
+	}
+	styles := in.Styles()
+	styles.Focused = state
+	styles.Blurred = state
+	styles.Cursor.Color = theme.ColorText
+	in.SetStyles(styles)
 	return in.View()
 }
 
