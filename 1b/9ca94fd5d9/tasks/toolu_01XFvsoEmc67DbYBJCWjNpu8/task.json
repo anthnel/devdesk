@@ -1,0 +1,15 @@
+{
+  "tool_use_id": "toolu_01XFvsoEmc67DbYBJCWjNpu8",
+  "agent_id": "a89e375caad883a93",
+  "subagent_type": "dev-team:reviewer",
+  "task_description": "Revue montée x/net",
+  "token_usage": {
+    "input_tokens": 10,
+    "cache_creation_tokens": 37515,
+    "cache_read_tokens": 134746,
+    "output_tokens": 2461,
+    "api_call_count": 5
+  },
+  "started_at": "2026-11-10T16:22:07.310899002+01:00",
+  "completed_at": "2026-11-10T16:23:09.595090394+01:00"
+}

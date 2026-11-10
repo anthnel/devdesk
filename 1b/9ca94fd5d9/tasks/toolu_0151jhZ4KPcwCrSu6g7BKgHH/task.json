@@ -1,0 +1,15 @@
+{
+  "tool_use_id": "toolu_0151jhZ4KPcwCrSu6g7BKgHH",
+  "agent_id": "affa8370ea8ebb3d6",
+  "subagent_type": "dev-team:security-reviewer",
+  "task_description": "Audit sécu montée x/net",
+  "token_usage": {
+    "input_tokens": 12,
+    "cache_creation_tokens": 35439,
+    "cache_read_tokens": 160183,
+    "output_tokens": 3273,
+    "api_call_count": 6
+  },
+  "started_at": "2026-11-10T16:22:07.304723106+01:00",
+  "completed_at": "2026-11-10T16:22:45.481491407+01:00"
+}
