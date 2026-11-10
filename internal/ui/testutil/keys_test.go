@@ -8,7 +8,7 @@ import (
 	"github.com/anthnel/devdesk/internal/ui/keymap"
 )
 
-// [R-compile] against the v1 helper (Key returned a KeyMsg with no Code/Text).
+// Key("space") and Key(" ") build the v2 space key press (Code, Text, no modifier).
 func TestKeySpaceIsTheSpaceKey(t *testing.T) {
 	for _, name := range []string{" ", "space"} {
 		t.Run(name, func(t *testing.T) {
@@ -23,7 +23,7 @@ func TestKeySpaceIsTheSpaceKey(t *testing.T) {
 	}
 }
 
-// [R-compile] the expected values are v2 fields.
+// Key builds the expected v2 key press messages (Code, Text, Mod).
 func TestKeyBuildsExpectedMessages(t *testing.T) {
 	tests := []struct {
 		name string
@@ -51,7 +51,7 @@ func TestKeyBuildsExpectedMessages(t *testing.T) {
 	}
 }
 
-// [C] unchanged behaviour: an unknown name still panics.
+// An unknown key name panics.
 func TestKeyPanicsOnUnknownName(t *testing.T) {
 	for _, name := range []string{"ctrl+1", "foo", "gg", "ctrl+", ""} {
 		t.Run(name, func(t *testing.T) {
@@ -65,7 +65,7 @@ func TestKeyPanicsOnUnknownName(t *testing.T) {
 	}
 }
 
-// [R-compile] the space is a KeyPressMsg, identical to Key("space").
+// The space helper returns a KeyPressMsg identical to Key("space").
 func TestTypeSpaceIsBuiltLikeKeySpace(t *testing.T) {
 	msgs := Type("a b")
 	if len(msgs) != 3 {
@@ -80,7 +80,7 @@ func TestTypeSpaceIsBuiltLikeKeySpace(t *testing.T) {
 	}
 }
 
-// [R-compile] a paste is a tea.PasteMsg, never a key press (replaces TestPasteIsAPasteKeyMsg).
+// A paste is a tea.PasteMsg, never a key press.
 func TestPasteIsAPasteMsg(t *testing.T) {
 	msg := Paste("a\nb")
 	if got, ok := msg.(tea.PasteMsg); !ok || got.Content != "a\nb" {
@@ -91,7 +91,7 @@ func TestPasteIsAPasteMsg(t *testing.T) {
 	}
 }
 
-// [R-compile] IsText now reads Text/Mod and PasteMsg.
+// IsText reads Text/Mod and PasteMsg.
 func TestIsText(t *testing.T) {
 	tests := []struct {
 		name string
@@ -115,7 +115,7 @@ func TestIsText(t *testing.T) {
 	}
 }
 
-// [R-compile] same as TestIsText.
+// Same contract as TestIsText.
 func TestText(t *testing.T) {
 	tests := []struct {
 		name   string
@@ -142,8 +142,6 @@ func TestText(t *testing.T) {
 
 // TestTheSpaceKeyIsNamedLikeKeymapSpace is the migration tripwire: String() is
 // computed by bubbletea ("space" in v2), so keymap.Space must say the same.
-// [R-assert]: compiles today and fails while keymap.Space is " "; goes green
-// when the constant flips to "space".
 func TestTheSpaceKeyIsNamedLikeKeymapSpace(t *testing.T) {
 	if got := Key("space").String(); got != keymap.Space {
 		t.Errorf("Key(\"space\").String() = %q, keymap.Space = %q: bubbletea and the constant disagree on the space key's name", got, keymap.Space)

@@ -70,7 +70,7 @@ func TestApplyColorFallsBackOnEmptyOnly(t *testing.T) {
 	}
 }
 
-// [C] on the semantics (spike criterion 2): an empty colour renders no SGR and
+// Semantics check (spike criterion 2): an empty colour renders no SGR and
 // an unknown icon role reads as plain text.
 func TestAnEmptyColorRendersNoSGR(t *testing.T) {
 	if got := lipgloss.NewStyle().Foreground(lipgloss.Color("")).Render("x"); got != "x" {

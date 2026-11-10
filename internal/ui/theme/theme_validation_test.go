@@ -13,8 +13,7 @@ import (
 // value that is not #rgb or #rrggbb refuses the whole theme, naming the key and
 // the value; an empty optional value keeps today's fallback.
 //
-// These tests use only LoadTheme and DefaultTheme, so they are the ones that
-// can be proven red on the v1 code (they are [R-assert]).
+// These tests use only LoadTheme and DefaultTheme.
 
 // isolateThemeHome points ThemeDir at a temp directory and returns it.
 func isolateThemeHome(t *testing.T) string {
@@ -55,7 +54,7 @@ func writeThemeWith(t *testing.T, dir string, overrides map[string]string) strin
 	return "under-test"
 }
 
-// [R-assert] on v1 too: LoadTheme does not validate today.
+// LoadTheme refuses a theme holding an invalid hex value.
 func TestLoadThemeRejectsAnInvalidHex(t *testing.T) {
 	keys := []string{"color_ok", "color_background", "title_fg", "severity_critical_fg", "token_cache_read"}
 	values := []string{"#ggg", "red", "12", "ffffff", "#12345"}
@@ -112,7 +111,7 @@ func optionalThemeKeys(t *testing.T) []string {
 	return keys
 }
 
-// [C] An empty optional value is today's fallback, not an error.
+// An empty optional value keeps the fallback, not an error.
 func TestLoadThemeKeepsEmptyOptionalKeys(t *testing.T) {
 	dir := isolateThemeHome(t)
 	empty := map[string]string{}
@@ -130,7 +129,7 @@ func TestLoadThemeKeepsEmptyOptionalKeys(t *testing.T) {
 	}
 }
 
-// [C] A key left out of the file is the same as an empty one.
+// A key left out of the file is the same as an empty one.
 func TestLoadThemeKeepsAbsentOptionalKeys(t *testing.T) {
 	dir := isolateThemeHome(t)
 	data := `{"name":"minimal","color_ok":"#00ff00","color_error":"#ff0000","color_warn":"#ff8800",` +
@@ -144,7 +143,7 @@ func TestLoadThemeKeepsAbsentOptionalKeys(t *testing.T) {
 	}
 }
 
-// [C] Guards H3 against the shipped files: none of them may be refused.
+// Guards H3 against the shipped files: none of them may be refused.
 func TestEveryShippedThemeLoads(t *testing.T) {
 	files, err := filepath.Glob("../../../themes/*.json")
 	if err != nil || len(files) == 0 {

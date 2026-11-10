@@ -1,13 +1,13 @@
 package explorer
 
 import (
-	tea "charm.land/bubbletea/v2"
 	"errors"
 	"reflect"
 	"strings"
 	"testing"
 
 	"charm.land/bubbles/v2/spinner"
+	tea "charm.land/bubbletea/v2"
 
 	"github.com/anthnel/devdesk/internal/jobs"
 	"github.com/anthnel/devdesk/internal/ui/components"
