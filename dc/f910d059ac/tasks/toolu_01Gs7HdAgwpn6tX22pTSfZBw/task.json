@@ -1,0 +1,15 @@
+{
+  "tool_use_id": "toolu_01Gs7HdAgwpn6tX22pTSfZBw",
+  "agent_id": "a2e060ab216eb5b41",
+  "subagent_type": "dev-team:devops",
+  "task_description": "Fast-forward main après merge",
+  "token_usage": {
+    "input_tokens": 4,
+    "cache_creation_tokens": 25574,
+    "cache_read_tokens": 33311,
+    "output_tokens": 601,
+    "api_call_count": 2
+  },
+  "started_at": "2026-11-09T16:28:40.337957977+01:00",
+  "completed_at": "2026-11-09T16:28:48.289263659+01:00"
+}
