@@ -225,7 +225,7 @@ func (fm *ForwardModel) update(msg tea.Msg) (*ForwardModel, tea.Cmd) {
 	case components.ConfirmModalNoMsg:
 		fm.confirmModal = nil
 		return fm, nil
-	case tea.KeyMsg:
+	case tea.KeyPressMsg:
 		return fm.handleKey(msg)
 	}
 	return fm, nil
@@ -270,7 +270,7 @@ func (fm *ForwardModel) handleFormSubmit(msg ForwardFormSubmitMsg) (*ForwardMode
 	return fm, forward.Open(msg.LocalPort, msg.Target)
 }
 
-func (fm *ForwardModel) handleKey(msg tea.KeyMsg) (*ForwardModel, tea.Cmd) {
+func (fm *ForwardModel) handleKey(msg tea.KeyPressMsg) (*ForwardModel, tea.Cmd) {
 	if fm.confirmModal != nil {
 		var cmd tea.Cmd
 		fm.confirmModal, cmd = fm.confirmModal.Update(msg)
@@ -289,7 +289,7 @@ func (fm *ForwardModel) handleKey(msg tea.KeyMsg) (*ForwardModel, tea.Cmd) {
 
 // handleFormKey lets the form have the keyboard, and answers the refusals the
 // form itself decides rather than letting the keypress vanish (Rule 130).
-func (fm *ForwardModel) handleFormKey(msg tea.KeyMsg) (*ForwardModel, tea.Cmd) {
+func (fm *ForwardModel) handleFormKey(msg tea.KeyPressMsg) (*ForwardModel, tea.Cmd) {
 	if msg.String() == "enter" {
 		if reason := fm.form.Problem(); reason != "" {
 			return fm, fm.footer.Warn(reason)
@@ -300,7 +300,7 @@ func (fm *ForwardModel) handleFormKey(msg tea.KeyMsg) (*ForwardModel, tea.Cmd) {
 	return fm, cmd
 }
 
-func (fm *ForwardModel) handleKeyNormal(msg tea.KeyMsg) (*ForwardModel, tea.Cmd) {
+func (fm *ForwardModel) handleKeyNormal(msg tea.KeyPressMsg) (*ForwardModel, tea.Cmd) {
 	switch msg.String() {
 	case "up", "down", "pgup", "pgdown", "home", "end", "/":
 		return fm, fm.table.Update(msg)

@@ -13,10 +13,10 @@ import (
 	"path/filepath"
 	"time"
 
+	tea "charm.land/bubbletea/v2"
 	"github.com/anthnel/devdesk/internal/config"
 	sharedcomponents "github.com/anthnel/devdesk/internal/ui/components"
 	"github.com/anthnel/devdesk/internal/version"
-	tea "charm.land/bubbletea/v2"
 )
 
 // SourceURL is where this project is developed.
@@ -127,7 +127,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.height = msg.Height
 		m.offset = m.clampOffset(m.offset)
 		return m, nil
-	case tea.KeyMsg:
+	case tea.KeyPressMsg:
 		return m.handleKey(msg)
 	}
 	// The component consumes the expiration addressed to it (Rule 128). This
@@ -141,7 +141,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 // handleKey moves the scroll offset. The viewport is driven by hand rather
 // than by bubbles/viewport, whose default KeyMap carries the vim aliases this
 // project removed (Rule 111).
-func (m Model) handleKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
+func (m Model) handleKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	switch msg.String() {
 	case "up":
 		m.offset = m.clampOffset(m.offset - 1)

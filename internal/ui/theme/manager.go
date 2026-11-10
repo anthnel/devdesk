@@ -226,7 +226,8 @@ func ListThemes() ([]string, error) {
 // hexColorPattern is the only colour form a theme file may hold.
 var hexColorPattern = regexp.MustCompile(`^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6})$`)
 
-// validateTheme refuses a theme holding a non-empty colour that is not #rgb or
+// validateTheme treats every string field of Theme other than name as a colour
+// (a new non-colour string field must be excluded here). It refuses a theme holding a non-empty colour that is not #rgb or
 // #rrggbb, naming the first such key (in declaration order) and its value. An
 // empty value is not an error: it selects the fallback applyColor documents.
 func validateTheme(t *Theme) error {

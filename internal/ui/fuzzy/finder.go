@@ -124,7 +124,7 @@ func (f *Finder) Resize(width, height int) {
 
 // Update handles input while the prompt is active.
 func (f *Finder) Update(msg tea.Msg) (*Finder, tea.Cmd) {
-	if key, ok := msg.(tea.KeyMsg); ok {
+	if key, ok := msg.(tea.KeyPressMsg); ok {
 		switch key.String() {
 		case "esc":
 			return f, func() tea.Msg { return CancelMsg{} }

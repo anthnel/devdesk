@@ -258,7 +258,7 @@ func (a *App) handleContextList(msg ContextListMsg) (tea.Model, tea.Cmd) {
 }
 
 // handleContextListKeyMsg handles key presses in the context selection overlay
-func (a *App) handleContextListKeyMsg(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
+func (a *App) handleContextListKeyMsg(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	switch msg.String() {
 	case "esc", "q":
 		a.showContextList = false

@@ -28,7 +28,7 @@ import (
 // handleCommandMode handles a key while the command line owns the keyboard.
 // Every key first clears the warning on the list's bottom rule: it lasts until
 // the next keystroke, with no timer.
-func (a *App) handleCommandMode(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
+func (a *App) handleCommandMode(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	a.sugNotice = ""
 
 	// The palette ignores Alt: alt+up is up.
@@ -54,7 +54,7 @@ func (a *App) handleCommandMode(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 
 // handleCommandInput feeds an ordinary key to the input and ranks the registry
 // again for the new text.
-func (a *App) handleCommandInput(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
+func (a *App) handleCommandInput(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	var cmd tea.Cmd
 	before := a.commandInput.Value()
 	a.commandInput, cmd = a.commandInput.Update(msg)

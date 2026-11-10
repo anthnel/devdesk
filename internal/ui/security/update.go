@@ -84,7 +84,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 		return m, nil
 
-	case tea.KeyMsg:
+	case tea.KeyPressMsg:
 		// Whichever modal is open takes every key before the view sees one.
 		if m.confirmModal != nil {
 			var cmd tea.Cmd
@@ -185,7 +185,7 @@ func (m Model) handleSpinnerTick(msg spinner.TickMsg) (tea.Model, tea.Cmd) {
 }
 
 // handleKeyMsg processes keyboard input
-func (m Model) handleKeyMsg(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
+func (m Model) handleKeyMsg(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	switch m.state {
 	case StateInventory:
 		return m.handleInventoryState(msg)

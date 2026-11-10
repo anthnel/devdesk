@@ -102,7 +102,7 @@ func (m *OptionConfirmModal) Update(msg tea.Msg) (*OptionConfirmModal, tea.Cmd) 
 		m.width = msg.Width
 		m.height = msg.Height
 
-	case tea.KeyMsg:
+	case tea.KeyPressMsg:
 		switch msg.String() {
 		// Rule 135: ↑/↓ are the only field navigation. They cycle rather than
 		// clamp, so every control stays reachable in one direction — that is

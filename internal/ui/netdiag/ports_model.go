@@ -278,7 +278,7 @@ func (pm *PortsModel) update(msg tea.Msg) (*PortsModel, tea.Cmd) {
 	case components.ConfirmModalNoMsg:
 		pm.confirmModal = nil
 		return pm, nil
-	case tea.KeyMsg:
+	case tea.KeyPressMsg:
 		return pm.handleKey(msg)
 	}
 	return pm, nil
@@ -353,7 +353,7 @@ func killFailureMessage(pid string, err error) string {
 	return fmt.Sprintf("Failed to kill PID %s — check logs", pid)
 }
 
-func (pm *PortsModel) handleKey(msg tea.KeyMsg) (*PortsModel, tea.Cmd) {
+func (pm *PortsModel) handleKey(msg tea.KeyPressMsg) (*PortsModel, tea.Cmd) {
 	if pm.confirmModal != nil {
 		var cmd tea.Cmd
 		pm.confirmModal, cmd = pm.confirmModal.Update(msg)
@@ -374,7 +374,7 @@ func (pm *PortsModel) toggleToken(label string) {
 	pm.table.GotoTop()
 }
 
-func (pm *PortsModel) handleKeyNormal(msg tea.KeyMsg) (*PortsModel, tea.Cmd) {
+func (pm *PortsModel) handleKeyNormal(msg tea.KeyPressMsg) (*PortsModel, tea.Cmd) {
 	switch msg.String() {
 	case "up", "down", "pgup", "pgdown", "home", "end", "/":
 		return pm, pm.table.Update(msg)

@@ -8,7 +8,7 @@ import (
 )
 
 // handleImagesKeyMsg handles keys on the Images tab
-func (m Model) handleImagesKeyMsg(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
+func (m Model) handleImagesKeyMsg(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	switch msg.String() {
 	case keymap.Browser:
 		return m.openMultiRegistryBrowser()
@@ -55,7 +55,7 @@ func (m Model) handleImagesKeyMsg(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 }
 
 // handleNetworkInspectKeyMsg handles keys when the network inspect overlay is open.
-func (m Model) handleNetworkInspectKeyMsg(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
+func (m Model) handleNetworkInspectKeyMsg(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	switch msg.String() {
 	case "esc":
 		m.networkInspectForm = nil
@@ -67,7 +67,7 @@ func (m Model) handleNetworkInspectKeyMsg(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 }
 
 // handleNetworksKeyMsg handles keys on the Networks tab
-func (m Model) handleNetworksKeyMsg(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
+func (m Model) handleNetworksKeyMsg(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	switch msg.String() {
 	case "enter":
 		return m.openNetworkInspect()
@@ -93,7 +93,7 @@ func (m Model) handleNetworksKeyMsg(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 }
 
 // handleVolumesKeyMsg handles keys on the Volumes tab
-func (m Model) handleVolumesKeyMsg(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
+func (m Model) handleVolumesKeyMsg(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	switch msg.String() {
 	case keymap.New:
 		m.resourceForm = NewResourceForm(resourceFormVolume, m.width-2)
@@ -112,7 +112,7 @@ func (m Model) handleVolumesKeyMsg(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 }
 
 // handleRegistriesKeyMsg handles keys on the Registries tab
-func (m Model) handleRegistriesKeyMsg(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
+func (m Model) handleRegistriesKeyMsg(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	switch msg.String() {
 	case keymap.New:
 		// A member is discovered, not declared, so there is nothing to add here.

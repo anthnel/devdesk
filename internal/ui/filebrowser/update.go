@@ -8,9 +8,9 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/anthnel/devdesk/internal/clipboard"
 	"charm.land/bubbles/v2/textinput"
 	tea "charm.land/bubbletea/v2"
+	"github.com/anthnel/devdesk/internal/clipboard"
 
 	"github.com/anthnel/devdesk/internal/fsbrowse"
 	"github.com/anthnel/devdesk/internal/jobs"
@@ -29,7 +29,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.resize()
 		return m, nil
 
-	case tea.KeyMsg:
+	case tea.KeyPressMsg:
 		return m.handleKey(msg)
 
 	case EntriesLoadedMsg:
@@ -112,7 +112,7 @@ func (m Model) handleLoadError(msg LoadErrorMsg) (tea.Model, tea.Cmd) {
 
 // ── Keys ────────────────────────────────────────────────────────────────────
 
-func (m Model) handleKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
+func (m Model) handleKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	if m.table.InEditMode() {
 		return m, m.table.Update(msg)
 	}

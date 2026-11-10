@@ -64,7 +64,7 @@ func (f *createForm) isDir() bool { return f.kindIdx == 0 }
 
 // Update follows Rule 135: ↑↓ move between fields, ←→ cycle the Type, enter
 // acts on a button or submits from the name, esc cancels.
-func (f *createForm) Update(msg tea.KeyMsg) (*createForm, tea.Cmd) {
+func (f *createForm) Update(msg tea.KeyPressMsg) (*createForm, tea.Cmd) {
 	switch msg.String() {
 	case "esc":
 		return f, func() tea.Msg { return createFormCancelMsg{} }

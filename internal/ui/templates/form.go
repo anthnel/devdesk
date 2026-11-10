@@ -192,7 +192,7 @@ func (f *entryForm) InEditMode() bool { return true }
 
 // Update handles a key. Keys follow Rule 135: ↑↓ move between fields, ←→ cycle
 // the kind, tab does nothing, enter advances or confirms.
-func (f *entryForm) Update(msg tea.KeyMsg) tea.Cmd {
+func (f *entryForm) Update(msg tea.KeyPressMsg) tea.Cmd {
 	switch msg.String() {
 	case "esc":
 		return func() tea.Msg { return FormCancelMsg{} }
@@ -248,7 +248,7 @@ func (f *entryForm) cycleKind(forward bool) {
 	f.err = ""
 }
 
-func (f *entryForm) forward(msg tea.KeyMsg) tea.Cmd {
+func (f *entryForm) forward(msg tea.KeyPressMsg) tea.Cmd {
 	var cmd tea.Cmd
 	switch f.focused() {
 	case fieldName:

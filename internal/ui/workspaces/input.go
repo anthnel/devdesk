@@ -78,7 +78,7 @@ func (w *WorkspaceInput) Update(msg tea.Msg) (*WorkspaceInput, tea.Cmd) {
 	var cmd tea.Cmd
 
 	switch msg := msg.(type) {
-	case tea.KeyMsg:
+	case tea.KeyPressMsg:
 		switch msg.String() {
 		case "down":
 			w.nextFocus()

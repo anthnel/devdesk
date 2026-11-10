@@ -301,7 +301,7 @@ func (im *InterfacesModel) update(msg tea.Msg) (*InterfacesModel, tea.Cmd) {
 		// a spinner stuck on frame zero reads as a hang (Rule 139).
 		im.footer.SetSpinnerFrame(im.spinner.View())
 		return im, cmd
-	case tea.KeyMsg:
+	case tea.KeyPressMsg:
 		return im.handleKey(msg)
 	}
 	im.footer.Handle(msg)
@@ -323,7 +323,7 @@ func (im *InterfacesModel) handleData(msg ifaceDataMsg) (*InterfacesModel, tea.C
 	return im, nil
 }
 
-func (im *InterfacesModel) handleKey(msg tea.KeyMsg) (*InterfacesModel, tea.Cmd) {
+func (im *InterfacesModel) handleKey(msg tea.KeyPressMsg) (*InterfacesModel, tea.Cmd) {
 	if im.table.FilterBar().InEditMode() {
 		return im, im.table.Update(msg)
 	}

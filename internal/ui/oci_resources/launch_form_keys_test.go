@@ -40,11 +40,11 @@ func TestLaunchFormSpaceTogglesEachCheckbox(t *testing.T) {
 			focusLaunchField(f, cb.field(f))
 			start := cb.get(f)
 
-			f, _ = f.Update(testutil.Key(" "))
+			f, _ = f.Update(testutil.Key("space"))
 			if cb.get(f) == start {
 				t.Errorf("space on %s left it at %v, want it flipped", cb.name, start)
 			}
-			f, _ = f.Update(testutil.Key(" "))
+			f, _ = f.Update(testutil.Key("space"))
 			if cb.get(f) != start {
 				t.Errorf("a second space on %s left it at %v, want %v", cb.name, cb.get(f), start)
 			}
@@ -56,15 +56,15 @@ func TestLaunchFormDetachAndInteractiveExcludeEachOther(t *testing.T) {
 	f := newKeysForm()
 
 	focusLaunchField(f, f.fieldOptionDetach())
-	f, _ = f.Update(testutil.Key(" "))
+	f, _ = f.Update(testutil.Key("space"))
 	focusLaunchField(f, f.fieldOptionInteractive())
-	f, _ = f.Update(testutil.Key(" "))
+	f, _ = f.Update(testutil.Key("space"))
 	if !f.optionInteractiveTTY || f.optionDetach {
 		t.Errorf("interactive after detach: interactive=%v detach=%v, want true/false", f.optionInteractiveTTY, f.optionDetach)
 	}
 
 	focusLaunchField(f, f.fieldOptionDetach())
-	f, _ = f.Update(testutil.Key(" "))
+	f, _ = f.Update(testutil.Key("space"))
 	if !f.optionDetach || f.optionInteractiveTTY {
 		t.Errorf("detach after interactive: detach=%v interactive=%v, want true/false", f.optionDetach, f.optionInteractiveTTY)
 	}

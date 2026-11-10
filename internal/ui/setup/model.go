@@ -218,7 +218,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.height = msg.Height
 		return m, nil
 
-	case tea.KeyMsg:
+	case tea.KeyPressMsg:
 		return m.handleKeyMsg(msg)
 
 	case spinner.TickMsg:
@@ -260,7 +260,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	return m, nil
 }
 
-func (m Model) handleKeyMsg(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
+func (m Model) handleKeyMsg(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	if m.stage == stageConfirmOverwrite || m.stage == stageConfirmSetCurrent {
 		var cmd tea.Cmd
 		m.confirmModal, cmd = m.confirmModal.Update(msg)
@@ -421,7 +421,7 @@ func (m Model) visibilityOptions() []string {
 	return []string{"private", "internal", "public"}
 }
 
-func (m Model) updateFocusedInput(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
+func (m Model) updateFocusedInput(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	var cmd tea.Cmd
 	switch m.step {
 	case stepContextName:

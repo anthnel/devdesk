@@ -4,10 +4,10 @@ import (
 	"context"
 	"log"
 
-	"github.com/anthnel/devdesk/internal/forge"
-	"github.com/anthnel/devdesk/internal/forge/session"
 	"charm.land/bubbles/v2/spinner"
 	tea "charm.land/bubbletea/v2"
+	"github.com/anthnel/devdesk/internal/forge"
+	"github.com/anthnel/devdesk/internal/forge/session"
 )
 
 // ForgeAuthSuccessMsg is the successful authentication message (coming from app.go)
@@ -25,7 +25,7 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.width = msg.Width
 		m.height = msg.Height
 
-	case tea.KeyMsg:
+	case tea.KeyPressMsg:
 		return m.handleKeyMsg(msg)
 
 	case AuthStartMsg:
@@ -56,7 +56,7 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 }
 
 // handleKeyMsg handles keyboard input
-func (m *Model) handleKeyMsg(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
+func (m *Model) handleKeyMsg(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	if m.authenticating {
 		return m, nil
 	}
@@ -92,7 +92,7 @@ func (m *Model) handleEnterKey() (tea.Model, tea.Cmd) {
 }
 
 // handleInputUpdate forwards messages to the active inputs
-func (m *Model) handleInputUpdate(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
+func (m *Model) handleInputUpdate(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	var cmd tea.Cmd
 	if m.currentField == fieldToken {
 		m.tokenInput, cmd = m.tokenInput.Update(msg)

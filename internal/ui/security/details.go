@@ -15,7 +15,7 @@ import (
 )
 
 // handleDetailsState processes input in details state
-func (m Model) handleDetailsState(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
+func (m Model) handleDetailsState(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	switch msg.String() {
 	// backspace was an alias of esc, and the only one in the application.
 	case "esc":

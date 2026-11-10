@@ -104,7 +104,7 @@ func TestOnlySpaceTogglesACheckbox(t *testing.T) {
 		t.Error("enter toggled a checkbox")
 	}
 
-	m = feed(t, m, testutil.Key(" "))
+	m = feed(t, m, testutil.Key("space"))
 	if m.config.Status.AutoRefresh == before {
 		t.Error("space did not toggle the checkbox")
 	}
@@ -170,7 +170,7 @@ func TestAServerLocksWhatItCannotDoWithoutUnticking(t *testing.T) {
 	m.config.Scan.Categories.Misconfig.Enabled = true
 	m.config.Scan.Categories.License.Enabled = true
 
-	m = feed(t, m, testutil.Key(" "))
+	m = feed(t, m, testutil.Key("space"))
 
 	if !m.config.Scan.Tools.Trivy.Server.Enabled {
 		t.Fatal("the checkbox did not turn server mode on")
@@ -213,7 +213,7 @@ func TestALockedCheckboxCannotBeToggledAndSaysWhy(t *testing.T) {
 	m.config.Scan.Tools.Trivy.Server.Enabled = true
 	m = focusOn(t, m, "Licenses")
 
-	m = feed(t, m, testutil.Key(" "))
+	m = feed(t, m, testutil.Key("space"))
 
 	if m.config.Scan.Categories.License.Enabled {
 		t.Error("a locked checkbox was toggled on")
@@ -229,7 +229,7 @@ func TestUntickingTheLastToolSaysWhy(t *testing.T) {
 	m.config.Scan.Categories.Secret = m.config.Scan.Categories.Secret.With(config.ToolGitleaks, false)
 	m = focusOnField(t, m, scanRowOf(t, m, "Secrets", "Trivy"))
 
-	m = feed(t, m, testutil.Key(" "))
+	m = feed(t, m, testutil.Key("space"))
 
 	if !m.config.Scan.Categories.Secret.Has(config.ToolTrivy) {
 		t.Error("the last tool of an enabled category was unticked")
@@ -245,7 +245,7 @@ func TestSpaceChangesWhatTheFooterSays(t *testing.T) {
 	m := focusOnField(t, newModel(t), scanRowOf(t, newModel(t), "Secrets", "Gitleaks"))
 	before := m.hint(m.current())
 
-	m = feed(t, m, testutil.Key(" "))
+	m = feed(t, m, testutil.Key("space"))
 
 	after := m.hint(m.current())
 	if before == after || !strings.Contains(before, "gitleaks is required") || !strings.Contains(after, "not required") {

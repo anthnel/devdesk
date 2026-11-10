@@ -113,7 +113,7 @@ func (f *ComponentForm) Update(msg tea.Msg) (*ComponentForm, tea.Cmd) {
 	case tea.WindowSizeMsg:
 		f.width = msg.Width
 		f.height = msg.Height
-	case tea.KeyMsg:
+	case tea.KeyPressMsg:
 		return f.handleKeyMsg(msg)
 	}
 
@@ -121,7 +121,7 @@ func (f *ComponentForm) Update(msg tea.Msg) (*ComponentForm, tea.Cmd) {
 }
 
 // handleKeyMsg traite les entrées clavier du formulaire
-func (f *ComponentForm) handleKeyMsg(msg tea.KeyMsg) (*ComponentForm, tea.Cmd) {
+func (f *ComponentForm) handleKeyMsg(msg tea.KeyPressMsg) (*ComponentForm, tea.Cmd) {
 	switch msg.String() {
 	case "esc":
 		return nil, nil

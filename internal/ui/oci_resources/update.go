@@ -35,7 +35,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.resize(msg.Width, msg.Height)
 		return m, nil
 
-	case tea.KeyMsg:
+	case tea.KeyPressMsg:
 		return m.handleKeyMsg(msg)
 
 	// The router's detection (§3.86): it decides whether S is offered, and
@@ -299,7 +299,7 @@ func (m Model) delegateUpdate(msg tea.Msg) (tea.Model, tea.Cmd) {
 }
 
 // handleKeyMsg processes keyboard input with priority chain
-func (m Model) handleKeyMsg(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
+func (m Model) handleKeyMsg(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	// Priority 0: registry browser
 	if m.registryBrowser != nil {
 		var cmd tea.Cmd
@@ -348,7 +348,7 @@ func (m Model) handleKeyMsg(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 }
 
 // handleNormalKeyMsg handles keys in normal mode
-func (m Model) handleNormalKeyMsg(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
+func (m Model) handleNormalKeyMsg(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	// Tab switching (Rule 111: Tab/Shift+Tab)
 	switch msg.String() {
 	case "tab":

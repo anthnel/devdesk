@@ -3,8 +3,8 @@ package configuration
 import (
 	"log"
 
-	"github.com/anthnel/devdesk/internal/clipboard"
 	tea "charm.land/bubbletea/v2"
+	"github.com/anthnel/devdesk/internal/clipboard"
 
 	"github.com/anthnel/devdesk/internal/ui/shortcut"
 )

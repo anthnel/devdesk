@@ -85,13 +85,13 @@ func (f *ResourceCreateForm) resizeInputs() {
 // Update handles messages for the resource form
 func (f *ResourceCreateForm) Update(msg tea.Msg) (*ResourceCreateForm, tea.Cmd) {
 	switch msg := msg.(type) {
-	case tea.KeyMsg:
+	case tea.KeyPressMsg:
 		return f.handleKeyMsg(msg)
 	}
 	return f.updateActiveInput(msg)
 }
 
-func (f *ResourceCreateForm) handleKeyMsg(msg tea.KeyMsg) (*ResourceCreateForm, tea.Cmd) {
+func (f *ResourceCreateForm) handleKeyMsg(msg tea.KeyPressMsg) (*ResourceCreateForm, tea.Cmd) {
 	switch msg.String() {
 	case "esc":
 		return f, func() tea.Msg { return ResourceFormCancelMsg{} }

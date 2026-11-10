@@ -22,7 +22,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.height = msg.Height
 		m.resize(msg.Width, msg.Height)
 
-	case tea.KeyMsg:
+	case tea.KeyPressMsg:
 		return m.handleKeyMsg(msg)
 
 	case spinner.TickMsg:
@@ -120,7 +120,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 // View is implemented in view.go
 
 // handleKeyMsg handles keyboard input
-func (m Model) handleKeyMsg(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
+func (m Model) handleKeyMsg(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	// Filter bar search mode - prioritaire
 	if m.table.InEditMode() {
 		return m, m.table.Update(msg)
@@ -184,7 +184,7 @@ func (m Model) handleKeyMsg(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 //
 // `esc` leaves the mode rather than drilling up, because cancelling is what the
 // key means when there is something to cancel; `←` is still the way up.
-func (m Model) handleSelectingKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
+func (m Model) handleSelectingKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	switch msg.String() {
 	case keymap.Space:
 		return m.handleSelectionToggle()
@@ -202,7 +202,7 @@ func (m Model) handleSelectingKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 
 // handleCloningKey is the clone list: `esc` cancels, then closes. Navigation,
 // `/` and `.` are the list's own table.
-func (m Model) handleCloningKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
+func (m Model) handleCloningKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	if m.clone == nil {
 		m.mode = ModeNormal
 		return m, nil

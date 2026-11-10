@@ -14,31 +14,28 @@ import (
 	"testing"
 )
 
-// DEVDESK-199: tests build key presses and pick a colour profile through the
-// helpers in this package and internal/testutil/colorprofile, never by hand.
-// A hand-built tea.KeyMsg{Type: tea.KeyRunes, Runes: ...} drifts from what the
-// terminal really sends, and lipgloss.SetColorProfile / termenv leak a global
-// across tests. This guard reads every *_test.go the way internal/ui/keymap's
-// scans do, and names file:line for each offence.
+// DEVDESK-199 / DEVDESK-201: tests build key presses and pastes and pick a
+// colour profile through the helpers in this package and
+// internal/testutil/colorprofile, never by hand. A hand-built
+// tea.KeyPressMsg{Code: ..., Text: ...} or tea.PasteMsg{...} drifts from what
+// the terminal really sends (the space key, alt+ without clearing Text), and
+// lipgloss.SetColorProfile / termenv leak a global across tests. This guard
+// reads every *_test.go the way internal/ui/keymap's scans do, and names
+// file:line for each offence.
 //
-// Using tea.KeyMsg as a TYPE (assertion, parameter, return) stays allowed.
+// Using tea.KeyPressMsg or tea.KeyMsg as a TYPE (assertion, parameter,
+// return) stays allowed. There is a single bubbletea import path since the
+// module moved to charm.land/bubbletea/v2: the v1/v2 distinction this guard
+// used to carry is gone.
 
 const (
 	bubbleteaPath = "charm.land/bubbletea/v2"
 	termenvPath   = "github.com/muesli/termenv"
 )
 
-// bubbleteaV2Paths are the bubbletea v2 import paths; bubbleteaPath is v1.
-var bubbleteaV2Paths = map[string]bool{
-	"charm.land/bubbletea/v2":               true,
-	"github.com/charmbracelet/bubbletea/v2": true,
-}
-
-// bannedKeyLiterals lists the key types that must not be built by hand, per
-// bubbletea major version (false is v1, true is v2).
-var bannedKeyLiterals = map[bool]map[string]bool{
-	false: {"KeyMsg": true, "Key": true},
-	true:  {"KeyPressMsg": true, "KeyReleaseMsg": true, "Key": true},
+// bannedKeyLiterals lists the types that must not be built as a composite literal.
+var bannedKeyLiterals = map[string]bool{
+	"KeyMsg": true, "KeyPressMsg": true, "KeyReleaseMsg": true, "Key": true, "PasteMsg": true,
 }
 
 // allowedKeySelectors are Key-prefixed names that stay allowed as types.
@@ -64,7 +61,7 @@ func guardSource(fset *token.FileSet, name string, src any) ([]string, int, erro
 	if err != nil {
 		return nil, 0, err
 	}
-	teaNames := map[string]bool{} // local name -> is v2
+	teaNames := map[string]bool{} // local names of the bubbletea import
 	teaImports := 0
 	var out []string
 	report := func(pos token.Pos, format string, args ...any) {
@@ -72,40 +69,39 @@ func guardSource(fset *token.FileSet, name string, src any) ([]string, int, erro
 	}
 	for _, imp := range file.Imports {
 		p, _ := strconv.Unquote(imp.Path.Value)
-		switch {
-		case p == bubbleteaPath || bubbleteaV2Paths[p]:
+		switch p {
+		case bubbleteaPath:
 			teaImports++
 			n := "tea"
 			if imp.Name != nil {
 				n = imp.Name.Name
 			}
 			if n != "_" && n != "." {
-				teaNames[n] = bubbleteaV2Paths[p]
+				teaNames[n] = true
 			}
-		case p == termenvPath:
+		case termenvPath:
 			report(imp.Pos(), "imports %s; use internal/testutil/colorprofile", termenvPath)
 		}
 	}
-	// isTea returns the local name of a bubbletea import and whether it is v2.
-	isTea := func(e ast.Expr) (string, bool, bool) {
+	// isTea returns the local name of a bubbletea import.
+	isTea := func(e ast.Expr) (string, bool) {
 		id, ok := e.(*ast.Ident)
-		if !ok {
-			return "", false, false
+		if !ok || !teaNames[id.Name] {
+			return "", false
 		}
-		v2, ok := teaNames[id.Name]
-		return id.Name, v2, ok
+		return id.Name, true
 	}
 	slash := filepath.ToSlash(name)
 	ast.Inspect(file, func(n ast.Node) bool {
 		switch x := n.(type) {
 		case *ast.CompositeLit:
 			if sel, ok := x.Type.(*ast.SelectorExpr); ok {
-				if pkg, v2, ok := isTea(sel.X); ok && bannedKeyLiterals[v2][sel.Sel.Name] {
+				if pkg, ok := isTea(sel.X); ok && bannedKeyLiterals[sel.Sel.Name] {
 					report(x.Pos(), "composite literal %s.%s; use testutil.Key/Keys/Type", pkg, sel.Sel.Name)
 				}
 			}
 		case *ast.SelectorExpr:
-			if pkg, _, ok := isTea(x.X); ok {
+			if pkg, ok := isTea(x.X); ok {
 				if strings.HasPrefix(x.Sel.Name, "Key") && !allowedKeySelectors[x.Sel.Name] {
 					report(x.Pos(), "%s.%s; use testutil.Key/Keys/Type", pkg, x.Sel.Name)
 				}
@@ -217,6 +213,9 @@ import (
 
 func f(m tea.Msg) {
 	_ = tea.KeyMsg{Type: tea.KeyEnter}
+	_ = tea.KeyPressMsg{Code: 'a', Text: "a"}
+	_ = tea.KeyReleaseMsg{}
+	_ = tea.PasteMsg{Content: "x"}
 	_ = bt.Key{}
 	_ = bt.KeyCtrlC
 	k := m.(tea.KeyMsg)
@@ -226,20 +225,6 @@ func f(m tea.Msg) {
 	lipgloss.SetColorProfile(termenv.Ascii)
 	lipgloss.DefaultRenderer().SetColorProfile(termenv.Ascii)
 	r.SetColorProfile(termenv.Ascii)
-}
-`
-	const badV2 = `package x
-
-import (
-	tea "charm.land/bubbletea/v2"
-	bt "github.com/charmbracelet/bubbletea/v2"
-)
-
-func f() {
-	_ = tea.KeyPressMsg{}
-	_ = tea.KeyReleaseMsg{}
-	_ = bt.Key{}
-	_ = bt.KeyEnter
 }
 `
 	const good = `package x
@@ -253,6 +238,14 @@ import (
 type other struct{ KeyEnter int }
 
 func g(k tea.KeyPressMsg) tea.KeyMsg { return nil }
+
+func h(m tea.Msg) (string, bool) {
+	if p, ok := m.(tea.PasteMsg); ok {
+		return p.Content, true
+	}
+	k, ok := m.(tea.KeyPressMsg)
+	return k.String(), ok
+}
 
 func f(m tea.Msg, o other) tea.KeyMsg {
 	k, _ := m.(tea.KeyMsg)
@@ -272,7 +265,7 @@ func f(m tea.Msg, o other) tea.KeyMsg {
 	}
 	want := []string{
 		"imports " + termenvPath, "composite literal tea.KeyMsg", "tea.KeyEnter",
-		"composite literal bt.Key", "bt.KeyCtrlC", ".Runes", ".Alt", ".Paste", "SetColorProfile",
+		"composite literal bt.Key", "composite literal tea.KeyPressMsg", "composite literal tea.KeyReleaseMsg", "composite literal tea.PasteMsg", "bt.KeyCtrlC", ".Runes", ".Alt", ".Paste", "SetColorProfile",
 	}
 	for _, w := range want {
 		found := false
@@ -287,24 +280,6 @@ func f(m tea.Msg, o other) tea.KeyMsg {
 	}
 	if c := strings.Count(strings.Join(got, "\n"), "SetColorProfile"); c != 3 {
 		t.Errorf("SetColorProfile offences = %d, want 3; got %q", c, got)
-	}
-	got, n, err = guardSource(token.NewFileSet(), "bad_v2_test.go", badV2)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if n != 2 {
-		t.Errorf("v2 bubbletea imports counted = %d, want 2", n)
-	}
-	for _, w := range []string{"composite literal tea.KeyPressMsg", "composite literal tea.KeyReleaseMsg", "composite literal bt.Key", "bt.KeyEnter"} {
-		found := false
-		for _, g := range got {
-			if strings.Contains(g, w) {
-				found = true
-			}
-		}
-		if !found {
-			t.Errorf("v2 detector missed %q; got %q", w, got)
-		}
 	}
 	got, n, err = guardSource(token.NewFileSet(), "good_test.go", good)
 	if err != nil {

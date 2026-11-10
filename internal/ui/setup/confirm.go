@@ -31,7 +31,7 @@ func newConfirmPrompt(title, message string) *confirmPrompt {
 // Update mirrors components.ConfirmModal's key handling exactly, so the two
 // confirmations in this wizard behave like every other one in the app.
 func (c *confirmPrompt) Update(msg tea.Msg) (*confirmPrompt, tea.Cmd) {
-	keyMsg, ok := msg.(tea.KeyMsg)
+	keyMsg, ok := msg.(tea.KeyPressMsg)
 	if !ok {
 		return c, nil
 	}

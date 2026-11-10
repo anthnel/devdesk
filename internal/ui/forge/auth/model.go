@@ -3,10 +3,10 @@ package auth
 import (
 	"log"
 
-	"github.com/anthnel/devdesk/internal/forge"
 	"charm.land/bubbles/v2/spinner"
 	"charm.land/bubbles/v2/textinput"
 	tea "charm.land/bubbletea/v2"
+	"github.com/anthnel/devdesk/internal/forge"
 
 	"github.com/anthnel/devdesk/internal/config"
 	"github.com/anthnel/devdesk/internal/credentials"

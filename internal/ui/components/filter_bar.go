@@ -163,7 +163,7 @@ func (fb *FilterBar) Update(msg tea.Msg) (FilterBar, tea.Cmd) {
 	if !fb.searching {
 		return *fb, nil
 	}
-	keyMsg, ok := msg.(tea.KeyMsg)
+	keyMsg, ok := msg.(tea.KeyPressMsg)
 	if !ok {
 		return *fb, nil
 	}

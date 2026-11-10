@@ -4,10 +4,10 @@ import (
 	"strings"
 	"testing"
 
+	tea "charm.land/bubbletea/v2"
 	"github.com/anthnel/devdesk/internal/config"
 	"github.com/anthnel/devdesk/internal/ui/testutil"
 	"github.com/anthnel/devdesk/internal/version"
-	tea "charm.land/bubbletea/v2"
 )
 
 // sized builds a screen laid out for a terminal of the given viewport height.

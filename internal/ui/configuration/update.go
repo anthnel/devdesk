@@ -45,7 +45,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		log.Printf("ERROR [configuration] save: %v", msg.err)
 		return m, m.footer.Error("Failed to save — check logs")
 
-	case tea.KeyMsg:
+	case tea.KeyPressMsg:
 		if m.confirmModal != nil {
 			var cmd tea.Cmd
 			m.confirmModal, cmd = m.confirmModal.Update(msg)
@@ -66,7 +66,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 // handleKey routes a keystroke. Rule 135 assigns each key exactly one job, and
 // a tabbed form is the layout that lets it: Tab switches section, ↑↓ moves
 // between fields, ←→ cycles a closed set, Space toggles.
-func (m Model) handleKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
+func (m Model) handleKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	switch msg.String() {
 	case "tab":
 		return m.switchTab(1)

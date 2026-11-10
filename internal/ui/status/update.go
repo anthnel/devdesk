@@ -36,7 +36,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case tea.WindowSizeMsg:
 		m.resize(msg.Width, msg.Height)
 
-	case tea.KeyMsg:
+	case tea.KeyPressMsg:
 		return m.handleInputKeyMsg(msg)
 
 	case TickMsg:
@@ -251,7 +251,7 @@ func (m *Model) getSelectedComponentIndex() int {
 	return -1
 }
 
-func (m Model) handleInputKeyMsg(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
+func (m Model) handleInputKeyMsg(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	// Filter bar search mode - takes priority
 	if m.filterBar.InEditMode() {
 		var cmd tea.Cmd
@@ -355,7 +355,7 @@ func (m Model) handleConfirmDelete() (tea.Model, tea.Cmd) {
 }
 
 // handleMonitorOperations handles new, edit, and delete operations
-func (m Model) handleMonitorOperations(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
+func (m Model) handleMonitorOperations(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	switch msg.String() {
 	case keymap.New:
 		// New component

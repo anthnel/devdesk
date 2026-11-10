@@ -87,7 +87,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.pendingDelete = ""
 		return m, nil
 
-	case tea.KeyMsg:
+	case tea.KeyPressMsg:
 		return m.handleKeyMsg(msg)
 	}
 
@@ -202,7 +202,7 @@ func (m Model) handleConfirmDelete() (tea.Model, tea.Cmd) {
 
 // handleKeyMsg routes a key. A mode takes it first (the modal, then the form),
 // then the filter while it has the keyboard (Rule 136), then the actions.
-func (m Model) handleKeyMsg(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
+func (m Model) handleKeyMsg(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	if m.confirmModal != nil {
 		var cmd tea.Cmd
 		m.confirmModal, cmd = m.confirmModal.Update(msg)
@@ -243,7 +243,7 @@ func (m Model) handleKeyMsg(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 // handleSelectingKey is the key set of a view lent to pick a template: choose,
 // look inside, filter, sort, leave. The actions that change the catalog are not
 // bound at all.
-func (m Model) handleSelectingKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
+func (m Model) handleSelectingKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	switch msg.String() {
 	case "enter":
 		return m.chooseSelected()

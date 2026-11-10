@@ -450,7 +450,7 @@ func (a *App) update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		a.resize(msg.Width, msg.Height)
 		return a, nil
 
-	case tea.KeyMsg:
+	case tea.KeyPressMsg:
 		return a.handleKeyMsg(msg)
 
 	// ── Contexts and themes ──────────────────────────────────────────────

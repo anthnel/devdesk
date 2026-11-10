@@ -34,7 +34,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		// render. The view's footer spinner keeps its own chain.
 		m.agentTable.SetBlinkPhase(msg.Blink)
 		return m, nil
-	case tea.KeyMsg:
+	case tea.KeyPressMsg:
 		return m.handleKey(msg)
 	}
 	m.footer.Handle(msg)
@@ -221,7 +221,7 @@ func (m *Model) startRead(full bool) tea.Cmd {
 
 // handleKey gives the filter the keyboard first; ctrl+r refreshes the level on
 // screen, → and enter open a session, ← and esc go back.
-func (m Model) handleKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
+func (m Model) handleKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	if m.InEditMode() {
 		return m, m.activeTable(msg)
 	}
@@ -322,7 +322,7 @@ func (m Model) agentsTree() bool {
 // cycleAgentSort hands `.` to the agents table, then rebuilds the rows so the
 // branches follow the new order: a sorted list is flat, a branch there would
 // lie about who is whose child.
-func (m Model) cycleAgentSort(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
+func (m Model) cycleAgentSort(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	selected, hadSelection := m.selectedAgentKey()
 	cmd := m.agentTable.Update(msg)
 	m.agentTable.SetItems(agentRows(m.usage, m.agentsTree(), m.clock, m.prices))
@@ -334,7 +334,7 @@ func (m Model) cycleAgentSort(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 }
 
 // activeTable hands a key to the table of the level on screen.
-func (m *Model) activeTable(msg tea.KeyMsg) tea.Cmd {
+func (m *Model) activeTable(msg tea.KeyPressMsg) tea.Cmd {
 	if m.level == levelAgents {
 		return m.agentTable.Update(msg)
 	}

@@ -29,7 +29,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case jobs.FrameMsg:
 		return m.handleFrameMsg(msg)
 
-	case tea.KeyMsg:
+	case tea.KeyPressMsg:
 		return m.handleKeyMsg(msg)
 	}
 
@@ -108,7 +108,7 @@ func (m *Model) refreshRows() {
 
 // handleKeyMsg routes a key. The filter comes first (Rule 136): while it has
 // the keyboard, every key is text.
-func (m Model) handleKeyMsg(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
+func (m Model) handleKeyMsg(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	if m.inFilter() {
 		return m.forwardToTable(msg)
 	}

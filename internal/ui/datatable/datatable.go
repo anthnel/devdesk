@@ -569,7 +569,7 @@ func (m *Model[T]) Update(msg tea.Msg) tea.Cmd {
 		return cmd
 	}
 
-	key, ok := msg.(tea.KeyMsg)
+	key, ok := msg.(tea.KeyPressMsg)
 	if !ok {
 		return nil
 	}

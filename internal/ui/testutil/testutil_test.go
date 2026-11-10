@@ -13,7 +13,7 @@ import (
 func TestKeyRoundTripsThroughString(t *testing.T) {
 	names := []string{
 		"enter", "esc", "up", "down", "left", "right",
-		"tab", "shift+tab", " ", "backspace", "delete",
+		"tab", "shift+tab", "space", "backspace", "delete",
 		"home", "end", "pgup", "pgdown",
 		"ctrl+a", "ctrl+c", "ctrl+d", "ctrl+k", "ctrl+n",
 		"ctrl+o", "ctrl+r", "ctrl+s", "ctrl+w",
@@ -29,8 +29,8 @@ func TestKeyRoundTripsThroughString(t *testing.T) {
 }
 
 func TestKeyAliases(t *testing.T) {
-	if got := Key("space").String(); got != " " {
-		t.Errorf(`Key("space").String() = %q, want " "`, got)
+	if got := Key("space").String(); got != "space" {
+		t.Errorf(`Key("space").String() = %q, want "space"`, got)
 	}
 	if got := Key("escape").String(); got != "esc" {
 		t.Errorf(`Key("escape").String() = %q, want "esc"`, got)
@@ -38,34 +38,20 @@ func TestKeyAliases(t *testing.T) {
 }
 
 // "alt+" is a modifier, not five more runes: a terminal sends ESC then the key,
-// and bubbletea reports that as the key carrying Alt. Building it as literal
-// runes would round-trip through String() just fine and still not be the message
-// the application receives.
+// and bubbletea reports that as the key carrying Alt. v2 would print the text
+// instead of "alt+x" if Text were left set, so Key clears it.
 func TestKeyAltPrefixSetsTheModifier(t *testing.T) {
-	tests := []struct {
-		name string
-		want tea.KeyType
-	}{
-		{"alt+:", tea.KeyRunes},
-		{"alt+x", tea.KeyRunes},
-		{"alt+enter", tea.KeyEnter},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			msg := Key(tt.name)
-
-			if !msg.Alt {
-				t.Errorf("Key(%q).Alt is false", tt.name)
+	for _, name := range []string{"alt+:", "alt+x", "alt+enter"} {
+		t.Run(name, func(t *testing.T) {
+			msg := Key(name)
+			if !msg.Mod.Contains(tea.ModAlt) {
+				t.Errorf("Key(%q) lacks ModAlt", name)
 			}
-			if msg.Type != tt.want {
-				t.Errorf("Key(%q).Type = %v, want %v", tt.name, msg.Type, tt.want)
+			if msg.Text != "" {
+				t.Errorf("Key(%q).Text = %q, want it cleared", name, msg.Text)
 			}
-			if got := msg.String(); got != tt.name {
-				t.Errorf("Key(%q).String() = %q", tt.name, got)
-			}
-			if msg.Type == tea.KeyRunes && len(msg.Runes) != 1 {
-				t.Errorf("Key(%q).Runes = %q, want the single key that carries Alt", tt.name, string(msg.Runes))
+			if got := msg.String(); got != name {
+				t.Errorf("Key(%q).String() = %q", name, got)
 			}
 		})
 	}
@@ -82,12 +68,12 @@ func TestKeyBareAltPrefixPanics(t *testing.T) {
 }
 
 func TestKeyRunes(t *testing.T) {
-	tests := []string{"y", "n", "Y", "N", "q", "j", "k", "/"}
+	tests := []string{"y", "n", "Y", "N", "q", "j", "k", "/", "S", ":"}
 	for _, s := range tests {
 		t.Run(s, func(t *testing.T) {
 			msg := Key(s)
-			if msg.Type != tea.KeyRunes {
-				t.Errorf("Key(%q).Type = %v, want KeyRunes", s, msg.Type)
+			if msg.Text != s || msg.Mod != 0 {
+				t.Errorf("Key(%q) = %#v, want its text set and no modifier", s, msg)
 			}
 			if got := msg.String(); got != s {
 				t.Errorf("Key(%q).String() = %q, want %q", s, got, s)
@@ -103,9 +89,9 @@ func TestKeysBuildsOneMessagePerName(t *testing.T) {
 	}
 	want := []string{"up", "down", "enter"}
 	for i, m := range msgs {
-		km, ok := m.(tea.KeyMsg)
+		km, ok := m.(tea.KeyPressMsg)
 		if !ok {
-			t.Fatalf("message %d is %T, want tea.KeyMsg", i, m)
+			t.Fatalf("message %d is %T, want tea.KeyPressMsg", i, m)
 		}
 		if km.String() != want[i] {
 			t.Errorf("message %d = %q, want %q", i, km.String(), want[i])
@@ -121,9 +107,9 @@ func TestTypeEmitsOneKeypressPerRune(t *testing.T) {
 		t.Fatalf("Type(\"abc\") returned %d messages, want 3", len(msgs))
 	}
 	for i, want := range []string{"a", "b", "c"} {
-		km := msgs[i].(tea.KeyMsg)
-		if len(km.Runes) != 1 {
-			t.Errorf("message %d carries %d runes, want 1", i, len(km.Runes))
+		km := msgs[i].(tea.KeyPressMsg)
+		if len([]rune(km.Text)) != 1 {
+			t.Errorf("message %d carries text %q, want one character", i, km.Text)
 		}
 		if km.String() != want {
 			t.Errorf("message %d = %q, want %q", i, km.String(), want)

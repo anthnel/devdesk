@@ -52,7 +52,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.fuzzyFinder.Resize(m.width, m.height)
 		}
 
-	case tea.KeyMsg:
+	case tea.KeyPressMsg:
 		return m.handleKeyMsg(msg)
 
 	// The router's detection (§3.86): it is what decides whether S and A are
@@ -225,7 +225,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 }
 
 // handleKeyMsg handles keyboard input
-func (m Model) handleKeyMsg(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
+func (m Model) handleKeyMsg(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	// Filter bar search mode - delegate to filter bar
 	if m.table.InEditMode() {
 		return m, m.table.Update(msg)
@@ -408,7 +408,7 @@ func (m Model) navigateUp() (tea.Model, tea.Cmd) {
 }
 
 // handleSelectionKeyMsg handles keyboard input in selection mode
-func (m Model) handleSelectionKeyMsg(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
+func (m Model) handleSelectionKeyMsg(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	switch msg.String() {
 	case "esc":
 		if m.currentPath != "" {

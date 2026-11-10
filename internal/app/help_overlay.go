@@ -57,7 +57,7 @@ func arrowOnlyScroll() viewport.KeyMap {
 }
 
 // handleHelpKeyMsg handles key presses in the help overlay
-func (a *App) handleHelpKeyMsg(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
+func (a *App) handleHelpKeyMsg(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	switch msg.String() {
 	case "esc", "q", "?":
 		a.showHelp = false

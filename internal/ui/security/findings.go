@@ -370,7 +370,7 @@ func (m Model) canExclude() shortcut.Availability {
 // leaving the results, and "enter" confirms it rather than opening a finding.
 // The inventory has had this guard since it gained a bar; this state gained one
 // the day the severity floor became tokens, and never got the guard with it.
-func (m Model) handleResultsState(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
+func (m Model) handleResultsState(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	if m.findingsTable.InEditMode() {
 		return m, m.findingsTable.Update(msg)
 	}

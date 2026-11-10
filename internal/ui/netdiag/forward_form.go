@@ -183,7 +183,7 @@ func (f *ForwardForm) cycle(delta int) {
 // while it is focused, enter confirms and esc cancels (Rule 135); tab does
 // nothing here, it belongs to the tabs.
 func (f *ForwardForm) Update(msg tea.Msg) (*ForwardForm, tea.Cmd) {
-	key, ok := msg.(tea.KeyMsg)
+	key, ok := msg.(tea.KeyPressMsg)
 	if !ok {
 		return f, nil
 	}

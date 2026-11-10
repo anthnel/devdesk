@@ -7,8 +7,8 @@ import (
 	"strings"
 	"sync"
 
-	"github.com/anthnel/devdesk/internal/clipboard"
 	tea "charm.land/bubbletea/v2"
+	"github.com/anthnel/devdesk/internal/clipboard"
 
 	"github.com/anthnel/devdesk/internal/cache"
 	"github.com/anthnel/devdesk/internal/config"

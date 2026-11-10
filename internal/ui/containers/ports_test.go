@@ -4,12 +4,12 @@ import (
 	"strings"
 	"testing"
 
+	tea "charm.land/bubbletea/v2"
+	"charm.land/lipgloss/v2"
 	"github.com/anthnel/devdesk/internal/config"
 	"github.com/anthnel/devdesk/internal/docker"
 	"github.com/anthnel/devdesk/internal/ui/testutil"
 	"github.com/anthnel/devdesk/internal/ui/theme"
-	tea "charm.land/bubbletea/v2"
-	"charm.land/lipgloss/v2"
 )
 
 // cell builds a container out of a raw `docker ps` ports string and renders it,

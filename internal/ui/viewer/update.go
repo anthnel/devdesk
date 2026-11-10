@@ -5,9 +5,9 @@ import (
 	"os/exec"
 	"time"
 
-	"github.com/anthnel/devdesk/internal/clipboard"
 	"charm.land/bubbles/v2/spinner"
 	tea "charm.land/bubbletea/v2"
+	"github.com/anthnel/devdesk/internal/clipboard"
 
 	"github.com/anthnel/devdesk/internal/ui/keymap"
 	"github.com/anthnel/devdesk/internal/viewer"
@@ -76,7 +76,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.resize(msg.Width, msg.Height)
 		return m, nil
 
-	case tea.KeyMsg:
+	case tea.KeyPressMsg:
 		return m.handleKeyMsg(msg)
 
 	case DocumentLoadedMsg:
@@ -170,7 +170,7 @@ func (m Model) handlePagerExit(msg PagerExitMsg) (tea.Model, tea.Cmd) {
 	return m, tea.Batch(report, loadCmd(m.source))
 }
 
-func (m Model) handleKeyMsg(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
+func (m Model) handleKeyMsg(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	// The prompt is a mode: it claims every key before the pane sees one, the
 	// way a confirmation modal does, so a digit cannot also scroll and `esc`
 	// closes the prompt rather than leaving the viewer.
@@ -232,7 +232,7 @@ func (m Model) reload() (tea.Model, tea.Cmd) {
 	return m, tea.Batch(loadCmd(m.source), m.spinner.Tick)
 }
 
-func (m Model) handleTreeKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
+func (m Model) handleTreeKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	switch msg.String() {
 	case "right":
 		m.toggleNode(true)
@@ -244,7 +244,7 @@ func (m Model) handleTreeKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	return m, m.tree.Update(msg)
 }
 
-func (m Model) handleTextKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
+func (m Model) handleTextKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	switch msg.String() {
 	case "/":
 		return m, m.bar.ActivateSearch()

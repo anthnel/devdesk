@@ -8,11 +8,11 @@ import (
 	"path/filepath"
 	"sync"
 
+	tea "charm.land/bubbletea/v2"
 	"github.com/anthnel/devdesk/internal/credentials"
 	"github.com/anthnel/devdesk/internal/forge"
 	"github.com/anthnel/devdesk/internal/forge/session"
 	"github.com/anthnel/devdesk/internal/git"
-	tea "charm.land/bubbletea/v2"
 )
 
 // The clone pipeline: a discovery walk feeding a bounded pool of clones

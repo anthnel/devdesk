@@ -55,7 +55,7 @@ func (m *Model) closeGoto() {
 // It takes every key before the pane sees one — the prompt is a mode, the way a
 // confirmation modal is — so a digit typed into it cannot also scroll, and `esc`
 // closes the prompt rather than leaving the viewer.
-func (m Model) handleGotoKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
+func (m Model) handleGotoKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	switch msg.String() {
 	case "esc":
 		m.closeGoto()

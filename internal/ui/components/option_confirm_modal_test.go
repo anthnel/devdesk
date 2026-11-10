@@ -113,7 +113,7 @@ func TestDeleteConfirmModalSpaceTogglesCheckboxWhenFocused(t *testing.T) {
 	m := NewDeleteConfirmModal("Delete", "Sure?", true)
 	m.focused = focusCheckbox
 
-	m, cmd := m.Update(testutil.Key(" "))
+	m, cmd := m.Update(testutil.Key("space"))
 	if !m.option {
 		t.Error("space on the checkbox did not check it")
 	}
@@ -121,7 +121,7 @@ func TestDeleteConfirmModalSpaceTogglesCheckboxWhenFocused(t *testing.T) {
 		t.Error("toggling the checkbox emitted an answer command")
 	}
 
-	m, _ = m.Update(testutil.Key(" "))
+	m, _ = m.Update(testutil.Key("space"))
 	if m.option {
 		t.Error("space on the checkbox did not uncheck it")
 	}
@@ -208,7 +208,7 @@ func TestDeleteConfirmModalLetterShortcuts(t *testing.T) {
 // The permanent variant is used when the project is already scheduled for
 // deletion, so a grace-period delete is not on offer: no key may uncheck the box.
 func TestDeleteConfirmModalPermanentCheckboxIsLocked(t *testing.T) {
-	for _, key := range []string{" ", "enter"} {
+	for _, key := range []string{"space", "enter"} {
 		t.Run(key+" leaves it checked", func(t *testing.T) {
 			m := NewDeleteConfirmModalLocked("Delete", "Already marked for deletion")
 			m.focused = focusCheckbox

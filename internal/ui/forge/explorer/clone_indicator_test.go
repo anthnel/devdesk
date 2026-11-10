@@ -1,8 +1,8 @@
 package explorer
 
 import (
-	"errors"
 	tea "charm.land/bubbletea/v2"
+	"errors"
 	"reflect"
 	"strings"
 	"testing"

@@ -60,7 +60,7 @@ func (m *ChoiceModal) Update(msg tea.Msg) (*ChoiceModal, tea.Cmd) {
 		m.width = msg.Width
 		m.height = msg.Height
 
-	case tea.KeyMsg:
+	case tea.KeyPressMsg:
 		switch msg.String() {
 		// ←/→ between buttons (Rule 135 — Tab is reserved for tabs). The
 		// traversal is bounded rather than cyclic: Cancel must stay the end

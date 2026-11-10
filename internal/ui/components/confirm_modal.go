@@ -41,7 +41,7 @@ func (m *ConfirmModal) Update(msg tea.Msg) (*ConfirmModal, tea.Cmd) {
 		m.width = msg.Width
 		m.height = msg.Height
 
-	case tea.KeyMsg:
+	case tea.KeyPressMsg:
 		switch msg.String() {
 		case "left", "right":
 			// Toggle between Yes and No (Rule 135 — Tab exclusively for tabs)

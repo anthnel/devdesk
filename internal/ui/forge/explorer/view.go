@@ -5,6 +5,7 @@ import (
 	"strings"
 	"time"
 
+	"charm.land/lipgloss/v2"
 	"github.com/anthnel/devdesk/internal/command"
 	"github.com/anthnel/devdesk/internal/forge"
 	"github.com/anthnel/devdesk/internal/jobs"
@@ -15,7 +16,6 @@ import (
 	"github.com/anthnel/devdesk/internal/ui/keymap"
 	"github.com/anthnel/devdesk/internal/ui/shortcut"
 	"github.com/anthnel/devdesk/internal/ui/theme"
-	"charm.land/lipgloss/v2"
 )
 
 // View renders the view

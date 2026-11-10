@@ -153,7 +153,7 @@ func (f *CreationForm) Update(msg tea.Msg) (*CreationForm, tea.Cmd) {
 		f.height = msg.Height
 		f.descInput.SetDisplayWidth(msg.Width)
 
-	case tea.KeyMsg:
+	case tea.KeyPressMsg:
 		return f.handleKeyMsg(msg)
 	}
 
@@ -177,7 +177,7 @@ func (f *CreationForm) maxField() int {
 	return 4
 }
 
-func (f *CreationForm) handleKeyMsg(msg tea.KeyMsg) (*CreationForm, tea.Cmd) {
+func (f *CreationForm) handleKeyMsg(msg tea.KeyPressMsg) (*CreationForm, tea.Cmd) {
 	max := f.maxField()
 
 	switch msg.String() {

@@ -271,7 +271,7 @@ func (f *LaunchForm) isPortField(idx int) bool {
 // Update handles messages for the launch form
 func (f *LaunchForm) Update(msg tea.Msg) (*LaunchForm, tea.Cmd) {
 	switch msg := msg.(type) {
-	case tea.KeyMsg:
+	case tea.KeyPressMsg:
 		return f.handleKeyMsg(msg)
 	case EntrypointVerifyFinishedMsg:
 		return f.handleVerifyFinished(msg)
@@ -279,7 +279,7 @@ func (f *LaunchForm) Update(msg tea.Msg) (*LaunchForm, tea.Cmd) {
 	return f.updateActiveInput(msg)
 }
 
-func (f *LaunchForm) handleKeyMsg(msg tea.KeyMsg) (*LaunchForm, tea.Cmd) {
+func (f *LaunchForm) handleKeyMsg(msg tea.KeyPressMsg) (*LaunchForm, tea.Cmd) {
 	maxField := f.fieldSubmit()
 
 	switch msg.String() {

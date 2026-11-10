@@ -13,10 +13,9 @@ import (
 // the contrast code reads components through RGBA() after a type check.
 //
 // These tests use the v2 API (Hex, validateTheme, color.Color-typed
-// applyColor, textinput.SetStyles), so they are [R-compile] until the
-// production side of A2 lands.
+// applyColor, textinput.SetStyles).
 
-// [R-compile] Hex undefined.
+// Hex formats a color as #rrggbb.
 func TestHexFormatsAColor(t *testing.T) {
 	tests := []struct {
 		name string
@@ -40,7 +39,7 @@ func TestHexFormatsAColor(t *testing.T) {
 	}
 }
 
-// [R-compile] validateTheme undefined. The message format is the contract the
+// The message format is the contract the
 // callers log.
 func TestValidateThemeNamesTheFirstBadKey(t *testing.T) {
 	th := DefaultTheme()
@@ -60,7 +59,7 @@ func TestTheDefaultThemeIsValid(t *testing.T) {
 	}
 }
 
-// [R-compile] applyColor takes and returns color.Color. Empty is the fallback.
+// applyColor takes and returns color.Color. Empty is the fallback.
 func TestApplyColorFallsBackOnEmptyOnly(t *testing.T) {
 	fallback := lipgloss.Color("#123456")
 	if got := applyColor("", fallback); got != fallback {
@@ -82,7 +81,7 @@ func TestAnEmptyColorRendersNoSGR(t *testing.T) {
 	}
 }
 
-// [R-compile] The contrast code type-checks before reading components:
+// The contrast code type-checks before reading components:
 // NoColor.RGBA() is opaque black and would otherwise read as a real colour.
 func TestContrastRejectsNonRGBAColors(t *testing.T) {
 	white := lipgloss.Color("#ffffff")
@@ -106,7 +105,7 @@ func TestContrastRejectsNonRGBAColors(t *testing.T) {
 	}
 }
 
-// [R-compile] StyleTextInput goes through SetStyles in v2 (the v1 fields
+// StyleTextInput goes through SetStyles in v2 (the v1 fields
 // TextStyle, PromptStyle, PlaceholderStyle and Cursor.Style are gone). The
 // virtual cursor loses its background (Rule 115): that part is a manual check.
 func TestStyleTextInputAppliesThemeColours(t *testing.T) {

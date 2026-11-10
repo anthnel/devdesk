@@ -9,6 +9,8 @@ import (
 	"strings"
 	"time"
 
+	"charm.land/bubbles/v2/spinner"
+	tea "charm.land/bubbletea/v2"
 	"github.com/anthnel/devdesk/internal/docker"
 	"github.com/anthnel/devdesk/internal/engine"
 	sharedcomponents "github.com/anthnel/devdesk/internal/ui/components"
@@ -17,8 +19,6 @@ import (
 	uiterminal "github.com/anthnel/devdesk/internal/ui/terminal"
 	"github.com/anthnel/devdesk/internal/ui/theme"
 	uiviewer "github.com/anthnel/devdesk/internal/ui/viewer"
-	"charm.land/bubbles/v2/spinner"
-	tea "charm.land/bubbletea/v2"
 
 	"github.com/anthnel/devdesk/internal/jobs"
 )
@@ -39,7 +39,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.resize(msg.Width, msg.Height)
 		return m, nil
 
-	case tea.KeyMsg:
+	case tea.KeyPressMsg:
 		return m.handleKeyMsg(msg)
 
 	case jobs.FrameMsg:
@@ -116,7 +116,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 }
 
 // handleKeyMsg processes keyboard input with priority chain
-func (m Model) handleKeyMsg(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
+func (m Model) handleKeyMsg(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	// Priority 1: whichever modal is open
 	if m.confirmModal != nil {
 		var cmd tea.Cmd
@@ -139,7 +139,7 @@ func (m Model) handleKeyMsg(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 }
 
 // handleNormalKeyMsg handles keys in normal mode
-func (m Model) handleNormalKeyMsg(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
+func (m Model) handleNormalKeyMsg(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	switch msg.String() {
 	// The state filters. Nothing is refetched: the list already holds every
 	// container, so a state is turned on and off in the frame it is pressed.
