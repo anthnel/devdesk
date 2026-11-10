@@ -9,6 +9,7 @@ import (
 	"time"
 
 	tea "charm.land/bubbletea/v2"
+	"github.com/charmbracelet/colorprofile"
 
 	"github.com/anthnel/devdesk/internal/jobs"
 	"github.com/anthnel/devdesk/internal/ui/testutil"
@@ -120,12 +121,16 @@ func measureRedraws(t *testing.T, view *measuredView, runningJob bool) redrawSta
 	out := &countingWriter{}
 	var calls, nanos atomic.Int64
 	p := tea.NewProgram(timedProgramModel{app: a, calls: &calls, nanos: &nanos},
-		tea.WithInput(nil), tea.WithOutput(out), tea.WithoutSignalHandler())
+		tea.WithInput(nil), tea.WithOutput(out), tea.WithoutSignalHandler(),
+		// With no TTY, v2 sends its own 0x0 WindowSizeMsg at start-up, which
+		// would shrink the router to a stub view; this fixes the size instead.
+		tea.WithWindowSize(measureWidth, measureHeight),
+		// Output is not a terminal, so v2 would drop colour; force TrueColor to
+		// match the DEVDESK-200 v1 reference, which was forced to TrueColor.
+		tea.WithColorProfile(colorprofile.TrueColor))
 
 	done := make(chan error, 1)
 	go func() { _, err := p.Run(); done <- err }()
-	// No TTY, so the program learns the size from a message, as the renderer does.
-	p.Send(tea.WindowSizeMsg{Width: measureWidth, Height: measureHeight})
 	// A key press makes the router ask the view whether it wants a blink.
 	p.Send(testutil.Key("down"))
 	if runningJob {
