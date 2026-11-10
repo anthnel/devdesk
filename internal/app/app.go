@@ -102,6 +102,10 @@ type App struct {
 	views       map[command.ViewType]Screen
 	sharedState *shared.State
 
+	// terminalBlurred is set by tea.BlurMsg. The zero value means focused, so a
+	// terminal without focus reporting behaves as before (DEVDESK-210).
+	terminalBlurred bool
+
 	commandMode  bool
 	commandInput textinput.Model
 
@@ -441,6 +445,9 @@ type BlinkingView interface {
 // Cmd only when a chain has to start or be replaced, and is idempotent, so a
 // handler that already called it (jobsChanged) does not double the interval.
 func (a *App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
+	if _, ok := msg.(tea.FocusMsg); ok && !a.terminalBlurred {
+		return a, nil // focus with no prior blur: nothing to do (DEVDESK-210)
+	}
 	model, cmd := a.update(msg)
 	return model, tea.Batch(cmd, a.ensureTick())
 }
@@ -481,10 +488,18 @@ func (a *App) update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		a.colorProfile = msg.Profile
 		return a, nil
 
+	case tea.BlurMsg:
+		return a.handleTerminalBlur()
+
+	case tea.FocusMsg:
+		return a.handleTerminalFocus()
+
 	case tea.KeyPressMsg:
+		a.handleTerminalFocus() // input proves the terminal has the focus
 		return a.handleKeyMsg(msg)
 
 	case tea.PasteMsg:
+		a.handleTerminalFocus()
 		return a.handlePasteMsg(msg)
 
 	// ── Contexts and themes ──────────────────────────────────────────────
