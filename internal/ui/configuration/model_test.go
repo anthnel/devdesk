@@ -426,10 +426,10 @@ func TestTheFormOpensWithOneBlankLine(t *testing.T) {
 	if len(lines) < 3 {
 		t.Fatalf("the view rendered %d lines", len(lines))
 	}
-	if strings.TrimSpace(lines[0]) != "" {
+	if strings.TrimSpace(ansi.Strip(lines[0])) != "" {
 		t.Errorf("line 1 = %q, want a blank padding line", lines[0])
 	}
-	if strings.TrimSpace(lines[1]) == "" {
+	if strings.TrimSpace(ansi.Strip(lines[1])) == "" {
 		t.Error("line 2 is blank too; Rule 131 allows exactly one")
 	}
 }

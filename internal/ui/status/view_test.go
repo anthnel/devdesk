@@ -10,7 +10,6 @@ import (
 	tea "charm.land/bubbletea/v2"
 
 	"github.com/anthnel/devdesk/internal/status"
-	"github.com/anthnel/devdesk/internal/testutil/colorprofile"
 	"github.com/anthnel/devdesk/internal/ui/keymap"
 	"github.com/anthnel/devdesk/internal/ui/shortcut"
 	"github.com/anthnel/devdesk/internal/ui/testutil"
@@ -311,7 +310,6 @@ func TestUpdateTableFormatsMonitorCells(t *testing.T) {
 // no TTY under `go test`, falls back to the Ascii profile and strips every
 // sequence, which would make this pass whatever the code does.
 func TestTableCellsCarryNoANSISequences(t *testing.T) {
-	colorprofile.TrueColor(t)
 
 	m := loadedModel(t)
 

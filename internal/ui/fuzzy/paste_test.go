@@ -34,3 +34,15 @@ func TestPasteReachesTheQuery(t *testing.T) {
 		})
 	}
 }
+
+// A Windows-style paste ("a\r\nb") arrives with CRLF line ends. The input
+// turns each of \r and \n into a space, so the query holds two spaces. This
+// documents the current behavior; a single space would need the paste to be
+// normalized (\r\n -> \n) before it reaches the input.
+func TestPasteCRLFBecomesTwoSpaces(t *testing.T) {
+	f := New("Loading")
+	f, _ = f.Update(testutil.Paste("a\r\nb"))
+	if got := f.query.Value(); got != "a  b" {
+		t.Errorf("query = %q after pasting CRLF text, want %q (current behavior)", got, "a  b")
+	}
+}

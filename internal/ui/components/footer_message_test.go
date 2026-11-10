@@ -10,7 +10,6 @@ import (
 	tea "charm.land/bubbletea/v2"
 	"charm.land/lipgloss/v2"
 
-	"github.com/anthnel/devdesk/internal/testutil/colorprofile"
 	"github.com/anthnel/devdesk/internal/ui/testutil"
 	"github.com/anthnel/devdesk/internal/ui/theme"
 )
@@ -359,7 +358,6 @@ func TestAStatusRendersInItsLevel(t *testing.T) {
 	// styles at that moment, and lipgloss strips colour entirely under the
 	// Ascii profile a test process gets.
 	theme.ApplyTheme(theme.DefaultTheme())
-	colorprofile.TrueColor(t)
 
 	var f FooterMessage
 

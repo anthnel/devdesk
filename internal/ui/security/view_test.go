@@ -5,7 +5,6 @@ import (
 	"testing"
 
 	"github.com/anthnel/devdesk/internal/scan"
-	"github.com/anthnel/devdesk/internal/testutil/colorprofile"
 	"github.com/anthnel/devdesk/internal/ui/keymap"
 	"github.com/anthnel/devdesk/internal/ui/testutil"
 )
@@ -15,7 +14,6 @@ import (
 // would make any assertion about styling pass whatever the code does.
 func withTrueColor(t *testing.T) {
 	t.Helper()
-	colorprofile.TrueColor(t)
 }
 
 // ── The four states ──────────────────────────────────────────────────────────

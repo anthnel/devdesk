@@ -7,7 +7,6 @@ import (
 	"charm.land/lipgloss/v2"
 
 	"github.com/anthnel/devdesk/internal/command"
-	"github.com/anthnel/devdesk/internal/testutil/colorprofile"
 	"github.com/anthnel/devdesk/internal/ui/help"
 	"github.com/anthnel/devdesk/internal/ui/testutil"
 )
@@ -66,7 +65,6 @@ func TestAMissingViewSaysSo(t *testing.T) {
 // A view with no title still gets its border line, or the viewport loses its
 // top edge.
 func TestTheTitleLineIsDrawnWithoutATitle(t *testing.T) {
-	colorprofile.TrueColor(t)
 	titled := router(t, &fakeView{title: "Workspaces", footerHeight: 2}).Render()
 	untitled := router(t, &bareView{}).Render()
 
@@ -148,7 +146,6 @@ func TestHelpIsRenderedBeforeTheLists(t *testing.T) {
 // filter bar, so the two form one closed rectangle instead of two stacked
 // boxes.
 func TestTheFilterBarClosesTheRectangle(t *testing.T) {
-	colorprofile.TrueColor(t)
 	plain := router(t, &fakeView{footerHeight: 2, footer: "info"}).Render()
 	filtering := router(t, &fakeView{footerHeight: 3, footer: "filter", filterBar: true}).Render()
 

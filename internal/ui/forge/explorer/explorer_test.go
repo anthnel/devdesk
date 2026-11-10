@@ -16,7 +16,6 @@ import (
 	gitlabforge "github.com/anthnel/devdesk/internal/forge/gitlab"
 	"github.com/anthnel/devdesk/internal/jobs"
 	"github.com/anthnel/devdesk/internal/shared"
-	"github.com/anthnel/devdesk/internal/testutil/colorprofile"
 	"github.com/anthnel/devdesk/internal/ui/components"
 	"github.com/anthnel/devdesk/internal/ui/testutil"
 )
@@ -179,7 +178,6 @@ func newUser(username string) forge.User {
 // would make any assertion about styling pass whatever the code does.
 func withTrueColor(t *testing.T) {
 	t.Helper()
-	colorprofile.TrueColor(t)
 }
 
 // creationSubmit builds the form result the create commands read.

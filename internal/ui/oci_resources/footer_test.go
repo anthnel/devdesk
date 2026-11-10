@@ -5,6 +5,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/charmbracelet/x/ansi"
+
 	"github.com/anthnel/devdesk/internal/jobs"
 	"github.com/anthnel/devdesk/internal/ui/testutil"
 )
@@ -88,7 +90,7 @@ func TestFooterOfABusyRemovalReadsRemoving(t *testing.T) {
 
 func TestFooterOfAnIdleImageAddsNothing(t *testing.T) {
 	m := selectImage(t, ociSnapshot(t, ociCtx, nil, nil), imgRef)
-	if got := strings.TrimSpace(ociInfoLine(m, 120)); got != "" {
+	if got := strings.TrimSpace(ansi.Strip(ociInfoLine(m, 120))); got != "" {
 		t.Errorf("idle row, no work: info line = %q, want empty", got)
 	}
 }

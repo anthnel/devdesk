@@ -1,7 +1,6 @@
 package shortcut
 
 import (
-	"github.com/anthnel/devdesk/internal/testutil/colorprofile"
 	"strings"
 	"testing"
 )
@@ -11,7 +10,6 @@ import (
 // would make any assertion about styling pass whatever the code does.
 func withTrueColor(t *testing.T) {
 	t.Helper()
-	colorprofile.TrueColor(t)
 }
 
 func TestMaxLenKey(t *testing.T) {

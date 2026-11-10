@@ -41,7 +41,7 @@
 | `github.com/mattn/go-runewidth` | Unicode width calculation |
 | `github.com/muesli/ansi` | ANSI parsing utilities |
 | `github.com/muesli/cancelreader` | Context-aware input reading |
-| `github.com/muesli/termenv` | Terminal capabilities |
+| `github.com/charmbracelet/colorprofile` | Colour profile (`main.go` forces TrueColor in Windows Terminal) |
 | `golang.org/x/net` | HTTP/2, IPv6 support |
 | `golang.org/x/oauth2` | OAuth2 flow (GitLab) |
 | `golang.org/x/sys` | OS-specific syscalls |

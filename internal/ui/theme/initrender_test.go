@@ -20,22 +20,15 @@ var scannedTrees = []string{
 // TestNoPackageLevelVarRendersAString forbids a package-level variable from
 // being initialized by a render.
 //
-// Two things break when that happens, and the second one was costly:
+// One thing breaks when that happens: a package's initialization runs before
+// `ApplyTheme`, so the string is frozen on the default theme's colors and
+// never follows any theme change afterward. This is the trap already
+// documented on `ColorChartBg` in `ApplyTheme`.
 //
-//  1. A package's initialization runs before `ApplyTheme`, so the string is
-//     frozen on the default theme's colors and never follows any theme
-//     change afterward. This is the trap already documented on
-//     `ColorChartBg` in `ApplyTheme`.
-//
-//  2. More importantly: the first render triggers the `sync.Once` by which
-//     lipgloss **permanently** memorizes the terminal's color profile
-//     (`Renderer.ColorProfile`). The profile therefore ended up computed
-//     during package init, i.e. before the line in `main()` that sets
-//     `COLORTERM=truecolor` where WSL hasn't propagated it. The whole TUI
-//     fell back to ANSI256, where each theme's background is quantized onto
-//     the 256 palette: `#1e1e2e` (default, mocha) becomes black 232 and
-//     `#24273a` (macchiato) becomes navy blue 17. The background didn't
-//     "respect the theme" because it never received its exact color.
+// (A second cause used to apply with Lip Gloss v1: the first render
+// permanently memorized the terminal's colour profile, before `main()` could
+// set COLORTERM. Lip Gloss v2 has no global profile, Bubble Tea applies it at
+// the output, so only the frozen theme remains.)
 //
 // The fix is always the same, and it's free: a function rather than a
 // `var`, so that the first render happens inside `View()`.

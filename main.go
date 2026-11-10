@@ -5,11 +5,12 @@ import (
 	"log"
 	"os"
 
+	tea "charm.land/bubbletea/v2"
 	"github.com/anthnel/devdesk/internal/app"
 	"github.com/anthnel/devdesk/internal/config"
 	"github.com/anthnel/devdesk/internal/ui/setup"
 	"github.com/anthnel/devdesk/internal/ui/theme"
-	tea "charm.land/bubbletea/v2"
+	"github.com/charmbracelet/colorprofile"
 )
 
 func getCurrentContextName() string {
@@ -45,12 +46,18 @@ func main() {
 	runTUI()
 }
 
-func runTUI() {
-	// Force TrueColor if Windows Terminal is detected (WSL does not propagate COLORTERM)
-	if os.Getenv("WT_SESSION") != "" && os.Getenv("COLORTERM") == "" {
-		_ = os.Setenv("COLORTERM", "truecolor")
+// forcedColorProfile returns TrueColor when the program runs in Windows
+// Terminal, which WSL does not advertise through COLORTERM. Anywhere else, and
+// whenever NO_COLOR is set, it reports false so Bubble Tea detects the profile
+// itself: a forced profile bypasses the detection that honours NO_COLOR.
+func forcedColorProfile(getenv func(string) string) (colorprofile.Profile, bool) {
+	if getenv("WT_SESSION") != "" && getenv("NO_COLOR") == "" {
+		return colorprofile.TrueColor, true
 	}
+	return colorprofile.NoTTY, false
+}
 
+func runTUI() {
 	// Load the configuration
 	cfg, err := config.Load()
 	if err != nil {
@@ -95,7 +102,11 @@ func runTUI() {
 
 	// Start the Bubble Tea program. The router's View asks for the alternate
 	// screen; main.go sets no terminal state.
-	p := tea.NewProgram(m)
+	var opts []tea.ProgramOption
+	if profile, forced := forcedColorProfile(os.Getenv); forced {
+		opts = append(opts, tea.WithColorProfile(profile))
+	}
+	p := tea.NewProgram(m, opts...)
 
 	// The router needs the handle before the loop starts: an MCP request
 	// reaches Update() through p.Send, and there is no other legal door

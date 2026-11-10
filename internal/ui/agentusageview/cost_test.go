@@ -15,7 +15,6 @@ import (
 	"github.com/anthnel/devdesk/internal/agentusage"
 	"github.com/anthnel/devdesk/internal/agentusage/pricing"
 	"github.com/anthnel/devdesk/internal/config"
-	"github.com/anthnel/devdesk/internal/testutil/colorprofile"
 	"github.com/anthnel/devdesk/internal/ui/datatable"
 	"github.com/anthnel/devdesk/internal/ui/testutil"
 	"github.com/anthnel/devdesk/internal/ui/theme"
@@ -114,7 +113,6 @@ func TestCostCell(t *testing.T) {
 
 // Rule 122: the cell is measured before it is styled.
 func TestCostCellsCarryNoEscapeSequence(t *testing.T) {
-	colorprofile.TrueColor(t)
 	col := column(t, costTitle)
 	for _, r := range []agentRow{
 		{Agent: orchestrator(1, 0), cost: priced(1.5)},

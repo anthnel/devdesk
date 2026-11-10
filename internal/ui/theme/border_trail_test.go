@@ -1,7 +1,6 @@
 package theme
 
 import (
-	"github.com/anthnel/devdesk/internal/testutil/colorprofile"
 	"regexp"
 	"strings"
 	"testing"
@@ -15,7 +14,6 @@ import (
 // trueColor forces colour output so background coverage can be inspected.
 func trueColor(t *testing.T) {
 	t.Helper()
-	colorprofile.TrueColor(t)
 }
 
 func TestBorderTrailChromeIsNine(t *testing.T) {

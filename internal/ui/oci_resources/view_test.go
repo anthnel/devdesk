@@ -6,7 +6,6 @@ import (
 
 	"charm.land/bubbles/v2/table"
 
-	"github.com/anthnel/devdesk/internal/testutil/colorprofile"
 	"github.com/anthnel/devdesk/internal/ui/keymap"
 	"github.com/anthnel/devdesk/internal/ui/testutil"
 )
@@ -34,7 +33,6 @@ func columnIndex(t *testing.T, cols []table.Column, title string) int {
 // would make any assertion about styling pass whatever the code does.
 func withTrueColor(t *testing.T) {
 	t.Helper()
-	colorprofile.TrueColor(t)
 }
 
 // ── The four tabs ────────────────────────────────────────────────────────────

@@ -10,7 +10,6 @@ import (
 	"github.com/charmbracelet/x/ansi"
 
 	"github.com/anthnel/devdesk/internal/command"
-	"github.com/anthnel/devdesk/internal/testutil/colorprofile"
 	"github.com/anthnel/devdesk/internal/ui/theme"
 )
 
@@ -106,7 +105,6 @@ func TestColumns(t *testing.T) {
 }
 
 func TestRenderEveryLineHasExactWidth(t *testing.T) {
-	colorprofile.TrueColor(t)
 	for _, w := range []int{120, 80, 60, 50, 40, 30} {
 		in := base(w)
 		in.Cursor = 1
@@ -127,7 +125,6 @@ func TestRenderBottomRuleIsClosed(t *testing.T) {
 }
 
 func TestRenderHighlightedRow(t *testing.T) {
-	colorprofile.TrueColor(t)
 	in := base(80)
 	in.Cursor = 2
 	raw := render(t, in)
@@ -299,7 +296,6 @@ func bgSequence(t *testing.T, c color.Color) string {
 }
 
 func TestHighlightedRowPaintsTheSelectionBackground(t *testing.T) {
-	colorprofile.TrueColor(t)
 	in := base(80)
 	in.Cursor = 2
 	raw := render(t, in)
@@ -323,7 +319,6 @@ func TestNoMatchWithNoUsableRowDrawsNoListLine(t *testing.T) {
 }
 
 func TestRenderTinyWidthsKeepExactWidth(t *testing.T) {
-	colorprofile.TrueColor(t)
 	for w := 0; w <= 7; w++ {
 		for _, rows := range [][]Row{allRows(), nil} {
 			in := base(w)
@@ -354,7 +349,6 @@ func TestRenderNegativeVisibleDoesNotPanic(t *testing.T) {
 }
 
 func TestWideCharactersKeepExactWidth(t *testing.T) {
-	colorprofile.TrueColor(t)
 	cjk := command.Entry{Name: "コマンド名前長い", Aliases: []string{"別名一つ", "別名二つ"}, Description: "これは非常に長い説明文です。日本語の幅を確認します"}
 	for _, w := range []int{120, 80, 60, 40, 30, 20, 8} {
 		in := Input{Rows: []Row{{Entry: cjk}, {Entry: cjk, Current: true}}, Total: 2, Cursor: 0, Width: w, Visible: 3, Notice: ""}

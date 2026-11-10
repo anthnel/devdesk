@@ -8,6 +8,7 @@ import (
 	"github.com/anthnel/devdesk/internal/config"
 	"github.com/anthnel/devdesk/internal/ui/testutil"
 	"github.com/anthnel/devdesk/internal/version"
+	"github.com/charmbracelet/x/ansi"
 )
 
 // sized builds a screen laid out for a terminal of the given viewport height.
@@ -25,11 +26,12 @@ func sized(t *testing.T, height int) Model {
 // The assertion is on the rendered View rather than on lines()[0], because what
 // the rule is about is the first row on screen: a padding that lines() carried
 // and View dropped would pass a test written the other way. Nothing strips
-// escape sequences here — under `go test` lipgloss finds no TTY and emits none.
+// escape sequences from the lines themselves: lipgloss v2 always emits SGR (the
+// profile is applied at the output), so the test strips them before judging blankness.
 func TestTheBodyOpensOnABlankLine(t *testing.T) {
 	rows := strings.Split(sized(t, 40).Render(), "\n")
 
-	if strings.TrimSpace(rows[0]) != "" {
+	if strings.TrimSpace(ansi.Strip(rows[0])) != "" {
 		t.Errorf("the first rendered row is %q, want a blank line between the border and the content", rows[0])
 	}
 	if !strings.Contains(rows[1], "Build") {

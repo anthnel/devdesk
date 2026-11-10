@@ -15,7 +15,6 @@ import (
 
 	"github.com/anthnel/devdesk/internal/agentusage"
 	"github.com/anthnel/devdesk/internal/config"
-	"github.com/anthnel/devdesk/internal/testutil/colorprofile"
 	sharedcomponents "github.com/anthnel/devdesk/internal/ui/components"
 	"github.com/anthnel/devdesk/internal/ui/datatable"
 	"github.com/anthnel/devdesk/internal/ui/help"
@@ -615,7 +614,6 @@ func TestEveryColumnDeclaresItsSizing(t *testing.T) {
 
 // Rule 122: a cell is measured before it is styled.
 func TestNoCellCarriesAnEscapeSequence(t *testing.T) {
-	colorprofile.TrueColor(t)
 	cols := sessionColumns()
 	if len(cols) == 0 {
 		t.Fatal("the table has no columns")

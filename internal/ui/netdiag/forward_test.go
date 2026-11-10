@@ -324,7 +324,7 @@ func TestTheFooterKeepsItsBudget(t *testing.T) {
 // inputs whichever way the form was built or resized.
 func TestTheFormShowsWholePlaceholders(t *testing.T) {
 	f := NewForwardForm(100)
-	view := f.View()
+	view := ansi.Strip(f.View())
 	for _, want := range []string{"8080", "host:port"} {
 		if !strings.Contains(view, want) {
 			t.Errorf("the form renders %q, want the whole placeholder %q", view, want)

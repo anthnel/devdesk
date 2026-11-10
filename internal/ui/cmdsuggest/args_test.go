@@ -9,7 +9,6 @@ import (
 	"github.com/charmbracelet/x/ansi"
 
 	"github.com/anthnel/devdesk/internal/command"
-	"github.com/anthnel/devdesk/internal/testutil/colorprofile"
 	"github.com/anthnel/devdesk/internal/ui/theme"
 )
 
@@ -90,7 +89,6 @@ func TestArgReservedWordsCarryTheirNotes(t *testing.T) {
 }
 
 func TestArgFocusIsVisibleOnTheHighlightedRowOnly(t *testing.T) {
-	colorprofile.TrueColor(t)
 	in := argInput(80)
 	in.Cursor = 1
 	raw := render(t, in)
@@ -197,7 +195,6 @@ func TestArgLongNameIsTruncatedOnANarrowTerminal(t *testing.T) {
 }
 
 func TestArgLinesHaveExactWidth(t *testing.T) {
-	colorprofile.TrueColor(t)
 	long := argRow("a-very-long-context-name-indeed", "A note that is much longer than any column can hold", true)
 	wide := argRow("コンテキスト長い名前", "注記", true)
 	for _, w := range []int{120, 80, 60, 40, 34, 30, 20, 8, 7, 6, 5, 3, 0} {

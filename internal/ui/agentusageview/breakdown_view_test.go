@@ -8,7 +8,6 @@ import (
 	"charm.land/lipgloss/v2"
 	"github.com/charmbracelet/x/ansi"
 
-	"github.com/anthnel/devdesk/internal/testutil/colorprofile"
 	"github.com/anthnel/devdesk/internal/ui/theme"
 )
 
@@ -63,7 +62,6 @@ func plain(lines []string) []string {
 }
 
 func TestRenderBreakdownEveryLineIsExactlyWidthCells(t *testing.T) {
-	colorprofile.TrueColor(t)
 	for name, b := range map[string]breakdown{"filled": viewBreakdown(), "empty": emptyBreakdown()} {
 		for _, w := range viewWidths {
 			lines := renderBreakdown(b, w)
@@ -131,7 +129,6 @@ func fgCode(t *testing.T, c color.Color) string {
 }
 
 func TestRenderBreakdownSwatchCarriesTheRoleColour(t *testing.T) {
-	colorprofile.TrueColor(t)
 	lines := renderBreakdown(viewBreakdown(), 118)
 	cases := []struct {
 		label string

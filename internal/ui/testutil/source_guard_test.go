@@ -15,11 +15,10 @@ import (
 )
 
 // DEVDESK-199 / DEVDESK-201: tests build key presses and pastes and pick a
-// colour profile through the helpers in this package and
-// internal/testutil/colorprofile, never by hand. A hand-built
+// colour profile through the helpers in this package, never by hand. A hand-built
 // tea.KeyPressMsg{Code: ..., Text: ...} or tea.PasteMsg{...} drifts from what
 // the terminal really sends (the space key, alt+ without clearing Text), and
-// lipgloss.SetColorProfile / termenv leak a global across tests. This guard
+// a forced colour profile leaks a global across tests. This guard
 // reads every *_test.go the way internal/ui/keymap's scans do, and names
 // file:line for each offence.
 //
@@ -29,8 +28,8 @@ import (
 // used to carry is gone.
 
 const (
-	bubbleteaPath = "charm.land/bubbletea/v2"
-	termenvPath   = "github.com/muesli/termenv"
+	bubbleteaPath    = "charm.land/bubbletea/v2"
+	colorprofilePath = "github.com/charmbracelet/colorprofile"
 )
 
 // bannedKeyLiterals lists the types that must not be built as a composite literal.
@@ -50,8 +49,16 @@ var fieldSelectorExceptions = map[string]string{}
 
 var bannedFields = map[string]bool{"Runes": true, "Alt": true, "Paste": true}
 
+// colorprofileAllowed lists the test files that may name a colorprofile.Profile,
+// each with its reason. A test that checks styling reads the SGR itself or
+// strips it (ansi.Strip); only a test that runs a real tea.Program at a chosen
+// profile needs the type.
+var colorprofileAllowed = map[string]string{
+	"internal/app/profile_test.go": "runs a real tea.Program at TrueColor, ANSI256 and Ascii",
+}
+
 // skippedDirs are module-relative slash paths the scan does not enter.
-var skippedDirs = []string{"internal/ui/testutil", "internal/testutil/colorprofile"}
+var skippedDirs = []string{"internal/ui/testutil"}
 
 // guardSource returns one message per offence in src ("name:line: reason") and
 // the number of bubbletea imports it saw (so the caller can tell a scan that
@@ -79,8 +86,10 @@ func guardSource(fset *token.FileSet, name string, src any) ([]string, int, erro
 			if n != "_" && n != "." {
 				teaNames[n] = true
 			}
-		case termenvPath:
-			report(imp.Pos(), "imports %s; use internal/testutil/colorprofile", termenvPath)
+		case colorprofilePath:
+			if _, ok := colorprofileAllowed[filepath.ToSlash(name)]; !ok {
+				report(imp.Pos(), "imports %s; the profile is the program's (tea.WithColorProfile), a test strips with ansi.Strip", colorprofilePath)
+			}
 		}
 	}
 	// isTea returns the local name of a bubbletea import.
@@ -120,7 +129,7 @@ func guardSource(fset *token.FileSet, name string, src any) ([]string, int, erro
 				}
 			}
 			if x.Sel.Name == "SetColorProfile" {
-				report(x.Sel.Pos(), "SetColorProfile (call or reference); use internal/testutil/colorprofile")
+				report(x.Sel.Pos(), "SetColorProfile (call or reference); Lip Gloss v2 has no global profile")
 			}
 		}
 		return true
@@ -208,7 +217,7 @@ import (
 	tea "charm.land/bubbletea/v2"
 	bt "charm.land/bubbletea/v2"
 	"charm.land/lipgloss/v2"
-	"github.com/muesli/termenv"
+	"github.com/charmbracelet/colorprofile"
 )
 
 func f(m tea.Msg) {
@@ -222,9 +231,9 @@ func f(m tea.Msg) {
 	_ = k.Runes
 	_ = k.Alt
 	_ = k.Paste
-	lipgloss.SetColorProfile(termenv.Ascii)
-	lipgloss.DefaultRenderer().SetColorProfile(termenv.Ascii)
-	r.SetColorProfile(termenv.Ascii)
+	lipgloss.SetColorProfile(colorprofile.Ascii)
+	lipgloss.DefaultRenderer().SetColorProfile(colorprofile.Ascii)
+	r.SetColorProfile(colorprofile.Ascii)
 }
 `
 	const good = `package x
@@ -264,7 +273,7 @@ func f(m tea.Msg, o other) tea.KeyMsg {
 		t.Errorf("bubbletea imports counted = %d, want 2", n)
 	}
 	want := []string{
-		"imports " + termenvPath, "composite literal tea.KeyMsg", "tea.KeyEnter",
+		"imports " + colorprofilePath, "composite literal tea.KeyMsg", "tea.KeyEnter",
 		"composite literal bt.Key", "composite literal tea.KeyPressMsg", "composite literal tea.KeyReleaseMsg", "composite literal tea.PasteMsg", "bt.KeyCtrlC", ".Runes", ".Alt", ".Paste", "SetColorProfile",
 	}
 	for _, w := range want {

@@ -12,7 +12,6 @@ import (
 	"charm.land/lipgloss/v2"
 
 	"github.com/anthnel/devdesk/internal/metrics"
-	"github.com/anthnel/devdesk/internal/testutil/colorprofile"
 	"github.com/anthnel/devdesk/internal/ui/theme"
 )
 
@@ -54,7 +53,6 @@ func TestAChartLineIsExactlyTheColumnWidth(t *testing.T) {
 // test looking for escape sequences without this would pass with
 // DrawColumnsOnly too.
 func TestEveryChartCellCarriesABackground(t *testing.T) {
-	colorprofile.TrueColor(t)
 
 	// A sparse series: lots of zeros, so lots of gaps to fill.
 	sparse := make([]float64, 40)

@@ -8,7 +8,6 @@ import (
 	"charm.land/lipgloss/v2"
 	"github.com/charmbracelet/x/ansi"
 
-	"github.com/anthnel/devdesk/internal/testutil/colorprofile"
 	"github.com/anthnel/devdesk/internal/ui/keymap"
 	"github.com/anthnel/devdesk/internal/ui/testutil"
 	"github.com/anthnel/devdesk/internal/ui/theme"
@@ -20,7 +19,6 @@ import (
 // shows through. The sites are in the view packages, so the guard runs through
 // the status view's delete confirmation (the same call as the 15 others).
 func TestPlacedModalsPaintTheirWhitespace(t *testing.T) {
-	colorprofile.TrueColor(t)
 
 	// The SGR prefix lipgloss emits for ColorBackground, read from lipgloss
 	// itself so the test does not hard-code the theme's RGB.

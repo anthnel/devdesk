@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"charm.land/lipgloss/v2"
+	"github.com/charmbracelet/x/ansi"
 
 	"github.com/anthnel/devdesk/internal/command"
 	"github.com/anthnel/devdesk/internal/jobs"
@@ -93,7 +94,7 @@ func TestFooterNamesTheSelectedRowAndKeepsTheProgress(t *testing.T) {
 
 func TestFooterOfAnIdleRowWithNoWorkIsEmpty(t *testing.T) {
 	m := selectTarget(t, footerModel(t, nil, nil), ftRepo)
-	if got := strings.TrimSpace(infoLine(m, 120)); got != "" {
+	if got := strings.TrimSpace(ansi.Strip(infoLine(m, 120))); got != "" {
 		t.Errorf("idle row, no work: info line = %q, want empty", got)
 	}
 }

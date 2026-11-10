@@ -9,7 +9,6 @@ import (
 	"github.com/charmbracelet/x/ansi"
 
 	"github.com/anthnel/devdesk/internal/command"
-	"github.com/anthnel/devdesk/internal/testutil/colorprofile"
 	"github.com/anthnel/devdesk/internal/ui/testutil"
 	"github.com/anthnel/devdesk/internal/ui/theme"
 )
@@ -360,7 +359,6 @@ func styledBody(width, rows int) string {
 }
 
 func TestTheOverlayNeverCutsAnEscapeSequence(t *testing.T) {
-	colorprofile.TrueColor(t)
 	steps := map[string]func(*testing.T, *App){
 		"open":    func(*testing.T, *App) {},
 		"matches": func(t *testing.T, a *App) { typeCommand(t, a, "co") },
@@ -402,7 +400,6 @@ func TestTheOverlayNeverCutsAnEscapeSequence(t *testing.T) {
 // ── The input line is styled by the router, on a copy ────────────────────────
 
 func TestThePromptAndTheTypedTextCarryTheirColors(t *testing.T) {
-	colorprofile.TrueColor(t)
 	a := routerAt(t, footedFake("body"), 80, 24)
 	press(t, a, "ctrl+p")
 	typeCommand(t, a, "co")

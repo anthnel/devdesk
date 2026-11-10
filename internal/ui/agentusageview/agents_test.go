@@ -7,7 +7,6 @@ import (
 
 	"github.com/anthnel/devdesk/internal/agentusage"
 	"github.com/anthnel/devdesk/internal/agentusage/pricing"
-	"github.com/anthnel/devdesk/internal/testutil/colorprofile"
 	"github.com/anthnel/devdesk/internal/ui/datatable"
 	"github.com/anthnel/devdesk/internal/ui/theme"
 )
@@ -391,7 +390,6 @@ func TestIDColumnSearchesTheFullID(t *testing.T) {
 // Rule 122: a cell is measured before it is styled, so it carries no escape
 // sequence of its own.
 func TestNoAgentCellCarriesAnEscapeSequence(t *testing.T) {
-	colorprofile.TrueColor(t)
 	cols := agentColumns()
 	if len(cols) == 0 {
 		t.Fatal("the table has no columns")
