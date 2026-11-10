@@ -98,6 +98,16 @@ decided together and fixed in one pass; see [§1.2](#12-the-five-parked-defects)
 
 ### 1.1 Fixed
 
+**D119 — DEVDESK-209: the terminal background follows the theme through `View.BackgroundColor`, according to the colour profile. Decided (recommended options taken, to confirm).** **Plane:** DEVDESK-209, dated 2026-11-10
+
+`App.View()` sets `tea.View.BackgroundColor` from `theme.ColorBackground` and the profile of the last `tea.ColorProfileMsg` (`terminalBackground`): exact in TrueColor, converted in ANSI256 (same tone as the painted cells, no seam), none in 16 colours, ASCII (`NO_COLOR`), no TTY or unknown profile. Bubble Tea restores the terminal's default (OSC 111) on every exit path it controls and before each `tea.ExecProcess`, and sets it again on return. Rule 115 stays mandatory as the fallback. Details and tests: `docs/architecture/app-shell.md`.
+
+- **Rejected: setting the colour regardless of the profile.** In ANSI256 the native background (exact) would differ from the painted cells (nearest palette index): a visible seam. Under `NO_COLOR` the terminal would change colour anyway.
+- **Rejected: writing OSC 11 by hand from `main.go` (`tea.Raw`).** It moves terminal state out of the router (D111), loses Bubble Tea's restoration on panic and kill, and does nothing for `ExecProcess` (the child would inherit the theme background).
+- **Rejected: reading the original background (`RequestBackgroundColor`) and writing it back after `Run`.** Terminals and tmux do not all answer, it does not cover the `ExecProcess` phase, and it adds code outside the tested path. OSC 111 restores the default of the terminal's profile, which is not always the colour at launch: accepted and documented.
+- **Accepted limits.** No restoration after `kill -9`, a panic outside a `Cmd` (MCP server) or a closed terminal; recovery with `printf '\e]111\a'` or `reset`. `ForegroundColor` is not set (a separate story if wanted). No config key; `NO_COLOR` turns it off.
+- **Open: the shell started by `tea.ExecProcess` on a real terminal** (inherits the background or repaints its own), and tmux, Windows Terminal, a terminal without OSC 11: manual check after the merge (plan step 6).
+
 **D118 — DEVDESK-201: Bubble Tea v2 features not adopted, what the migration found on the way, and what is still open. Decided for the first two lists, the rest to confirm.** **Plane:** DEVDESK-201, dated 2026-11-10; DEVDESK-208 (this entry)
 
 Sources: `.claude/plans/charm-v2-impact.md` §2, §4 and §5 (impact report, recommendations only; this file is local to the main checkout and is not tracked by git), `docs/product/charm-v2/spike-report.md` §8–9, and the commit messages of the branch.

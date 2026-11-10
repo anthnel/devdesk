@@ -15,6 +15,7 @@ import (
 func (a *App) View() tea.View {
 	v := tea.NewView(a.Render())
 	v.AltScreen = true
+	v.BackgroundColor = terminalBackground(a.colorProfile, theme.ColorBackground)
 	return v
 }
 

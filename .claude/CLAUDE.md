@@ -256,7 +256,7 @@ Go 1.27 (`go 1.27.3` in `go.mod`). Key libraries (versions as in `go.mod`):
 
 **Views render through `Render()`** (Bubble Tea v2): a top-level view implements
 `Render() string` and `View() tea.View { return tea.NewView(m.Render()) }`; only the
-router (`App.View()`) sets terminal state such as `AltScreen`. Components keep
+router (`App.View()`) sets terminal state such as `AltScreen` and `BackgroundColor`. Components keep
 `View() string`. Colours are `color.Color`; hex literals stay in `theme/colors.go`.
 
 **Update() case extraction**: If a case block exceeds 5 lines, extract to `handle[MessageType]()` method returning `(tea.Model, tea.Cmd)`

@@ -40,6 +40,14 @@ paths:
 `lipgloss.Place` → always use `WithWhitespaceStyle(lipgloss.NewStyle().Background(theme.ColorBackground))`
 (Lip Gloss v2 removed `WithWhitespaceBackground`).
 
+**Safety net, not a replacement (DEVDESK-209).** The router asks the terminal to
+use `ColorBackground` as its default background (`tea.View.BackgroundColor`). The
+helpers above stay mandatory: the native background is absent in 16-colour
+terminals, under `NO_COLOR`, without a TTY, in a terminal or tmux that ignores
+OSC 11, and during a `tea.ExecProcess` (the child sees the terminal's own
+default). A bare cell there shows the user's background. See
+`docs/architecture/app-shell.md`.
+
 **Known gap: the text input's cursor cell.** In Bubbles v2 the virtual cursor
 (`textinput.Styles.Cursor`) carries a colour and no background, so that one cell
 cannot take `ColorBackground`. `theme.StyleTextInput` sets every other state and
