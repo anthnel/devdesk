@@ -1,0 +1,15 @@
+{
+  "tool_use_id": "toolu_01S33KQkbzjDEFKrMJqhbpcA",
+  "agent_id": "a51e6c0237e280595",
+  "subagent_type": "dev-team:reviewer",
+  "task_description": "Revue finale large diff",
+  "token_usage": {
+    "input_tokens": 60,
+    "cache_creation_tokens": 148753,
+    "cache_read_tokens": 2646708,
+    "output_tokens": 13513,
+    "api_call_count": 27
+  },
+  "started_at": "2026-11-10T13:44:50.353796267+01:00",
+  "completed_at": "2026-11-10T13:48:13.096364343+01:00"
+}
