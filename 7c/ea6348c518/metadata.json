@@ -1,0 +1,53 @@
+{
+  "cli_version": "0.13.1",
+  "checkpoint_id": "7cea6348c518",
+  "strategy": "manual-commit",
+  "branch": "feat/DEVDESK-201-charm-v2",
+  "checkpoints_count": 4,
+  "files_touched": [
+    "docs/CODEMAPS/INDEX.md",
+    "docs/CODEMAPS/backend.md",
+    "docs/CODEMAPS/dependencies.md",
+    "docs/architecture/app-shell.md",
+    "docs/architecture/ui-components.md",
+    "docs/backlog.md",
+    "project-context.md"
+  ],
+  "sessions": [
+    {
+      "metadata": "/7c/ea6348c518/0/metadata.json",
+      "transcript": "/7c/ea6348c518/0/full.jsonl",
+      "compact_transcript": "/7c/ea6348c518/0/transcript.jsonl",
+      "content_hash": "/7c/ea6348c518/0/content_hash.txt",
+      "prompt": "/7c/ea6348c518/0/prompt.txt"
+    }
+  ],
+  "token_usage": {
+    "input_tokens": 22,
+    "cache_creation_tokens": 20587,
+    "cache_read_tokens": 1832573,
+    "output_tokens": 8187,
+    "api_call_count": 7,
+    "subagent_tokens": {
+      "input_tokens": 142,
+      "cache_creation_tokens": 295490,
+      "cache_read_tokens": 3747347,
+      "output_tokens": 57736,
+      "api_call_count": 70
+    }
+  },
+  "redaction": {
+    "replacements": 13,
+    "layers": {
+      "betterleaks": 0,
+      "connection_string": 0,
+      "credential_key": 0,
+      "credential_value": 0,
+      "credentialed_uri": 0,
+      "entropy": 13,
+      "key_context": 0,
+      "provider_token": 0,
+      "shell_stdin": 0
+    }
+  }
+}

@@ -1,0 +1,18 @@
+{
+  "tool_use_id": "toolu_01Xn3JPf32xG2C8Kfk5jDHF6",
+  "agent_id": "a7c6a9fccdcea3131",
+  "subagent_type": "team-core:archivist",
+  "task_description": "Backlog décisions migration Charm v2",
+  "files": [
+    "docs/backlog.md"
+  ],
+  "token_usage": {
+    "input_tokens": 22,
+    "cache_creation_tokens": 89198,
+    "cache_read_tokens": 573777,
+    "output_tokens": 13836,
+    "api_call_count": 10
+  },
+  "started_at": "2026-11-10T13:34:50.064003228+01:00",
+  "completed_at": "2026-11-10T13:35:58.587412162+01:00"
+}

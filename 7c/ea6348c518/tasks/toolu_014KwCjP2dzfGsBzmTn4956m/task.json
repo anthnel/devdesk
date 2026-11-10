@@ -1,0 +1,15 @@
+{
+  "tool_use_id": "toolu_014KwCjP2dzfGsBzmTn4956m",
+  "agent_id": "a35e3fcfdf94561af",
+  "subagent_type": "dev-team:debugger",
+  "task_description": "Analyser lenteur View() en v2",
+  "token_usage": {
+    "input_tokens": 66,
+    "cache_creation_tokens": 91832,
+    "cache_read_tokens": 2041392,
+    "output_tokens": 25326,
+    "api_call_count": 33
+  },
+  "started_at": "2026-11-10T13:35:11.44409978+01:00",
+  "completed_at": "2026-11-10T13:43:34.197150416+01:00"
+}

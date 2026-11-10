@@ -1,0 +1,15 @@
+{
+  "tool_use_id": "toolu_01WJj8BH6k5UzA1U4q3k8rN4",
+  "agent_id": "a0d908c2e7aefe660",
+  "subagent_type": "team-core:tech-writer",
+  "task_description": "Documentation G1 migration Charm v2",
+  "token_usage": {
+    "input_tokens": 42,
+    "cache_creation_tokens": 72650,
+    "cache_read_tokens": 999385,
+    "output_tokens": 15267,
+    "api_call_count": 21
+  },
+  "started_at": "2026-11-10T13:34:50.057385025+01:00",
+  "completed_at": "2026-11-10T13:37:25.133024807+01:00"
+}
