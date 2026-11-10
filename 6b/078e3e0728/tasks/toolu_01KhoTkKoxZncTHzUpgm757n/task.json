@@ -1,0 +1,15 @@
+{
+  "tool_use_id": "toolu_01KhoTkKoxZncTHzUpgm757n",
+  "agent_id": "a4a5d04fd7a5d6c29",
+  "subagent_type": "project-tester",
+  "task_description": "Tests rouges étape E ntcharts",
+  "token_usage": {
+    "input_tokens": 48,
+    "cache_creation_tokens": 57808,
+    "cache_read_tokens": 988222,
+    "output_tokens": 14655,
+    "api_call_count": 24
+  },
+  "started_at": "2026-11-10T12:26:25.285722602+01:00",
+  "completed_at": "2026-11-10T12:29:47.464501864+01:00"
+}
