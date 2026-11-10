@@ -1054,6 +1054,42 @@ chain stops while the terminal is blurred.
   `jobs.Running()`, the registry and its broadcasts (`ChangedMsg`, failures
   included) work as usual. Only the animation stops.
 
+**Routing the level to a view (step 2).** The router does not relay the raw
+events (see "Not relayed"). It sends the view its own message,
+`shared.TerminalFocusMsg{Focused, Resume}` (`internal/shared/focus.go`), built
+by `App.sendFocusTo` (`internal/app/focus.go`). No view consumes it yet; views
+start reading it in steps 3 and 4.
+
+- **Who receives it.** Only the view on screen (`a.currentView`). A view the
+  router keeps but does not show gets nothing, so a retained view never learns
+  of a blur while it is hidden.
+- **`Focused`** is `!terminalBlurred` at the time of sending.
+- **`Resume`** is true only on the focus edge that follows a blur. It tells
+  the view it may catch up on what it paused (a refresh tick, for example). It
+  is never true while blurred.
+- **When it is sent.**
+  - On the blur edge: `Focused:false, Resume:false` (`handleTerminalBlur`).
+  - On the focus edge after a blur: `Focused:true, Resume:true`
+    (`handleTerminalFocus`).
+  - When a view enters the screen: `enterView` sends the current level with
+    `Resume:false`, next to the jobs snapshot and the frame.
+  - After `reinitializeViews` rebuilds the views, with the current level and
+    `Resume:false`, so a rebuilt view does not start unaware of a blur still
+    in effect.
+- **A key or a paste while blurred** counts as the focus coming back (see
+  below). `update` keeps the Cmd of that `Resume:true` message and batches it
+  with the Cmd of the key or paste handler (`tea.Batch`), so neither is lost.
+- **What it never does.** It calls no `Init`, starts no scan and sets no
+  footer message. What a view does with it is the view's choice.
+
+*Known limit.* Only the paths that go through `enterView` hand the level to
+the incoming view. These paths change `a.currentView` without it, so the view
+they show is not told the level: the viewer (`viewer.go`), netdiag
+(`netdiag.go`), the context switch (`context.go`) and the returns from the
+file picker and from selection mode (`picker.go`, `selection.go`). If the
+terminal is blurred when one of them runs, that view assumes it is focused
+until the next edge. Closing this gap is not part of step 2.
+
 Two hypotheses keep a lost or missing event from leaving the router wrong:
 
 - **A `FocusMsg` with no prior blur does nothing.** `Update` returns at once,

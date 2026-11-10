@@ -173,7 +173,7 @@ func (a *App) broadcastJobs() tea.Cmd {
 // switchView calls it too, otherwise the view shows stale rows until the next
 // change.
 func (a *App) enterView(target command.ViewType) tea.Cmd {
-	return tea.Batch(a.sendJobsTo(target), a.sendFrameTo(target))
+	return tea.Batch(a.sendJobsTo(target), a.sendFrameTo(target), a.sendFocusTo(target, false))
 }
 
 // sendJobsTo hands the snapshot to one view, which is what a view entering the
