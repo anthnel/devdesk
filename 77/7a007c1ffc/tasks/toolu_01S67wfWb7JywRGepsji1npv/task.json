@@ -1,0 +1,15 @@
+{
+  "tool_use_id": "toolu_01S67wfWb7JywRGepsji1npv",
+  "agent_id": "ab2323d6f37c542c8",
+  "subagent_type": "project-coder",
+  "task_description": "Nettoyage final migration",
+  "token_usage": {
+    "input_tokens": 16,
+    "cache_creation_tokens": 25043,
+    "cache_read_tokens": 179998,
+    "output_tokens": 5116,
+    "api_call_count": 8
+  },
+  "started_at": "2026-11-10T13:19:22.945909529+01:00",
+  "completed_at": "2026-11-10T13:21:11.000089026+01:00"
+}
