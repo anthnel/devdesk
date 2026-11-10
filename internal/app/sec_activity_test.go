@@ -99,7 +99,7 @@ func openSec(t *testing.T, a *App) {
 	a.resize(a.width, a.height)
 }
 
-func secScreen(a *App) string { return ansi.Strip(a.views[command.ViewSecurity].View()) }
+func secScreen(a *App) string { return ansi.Strip(a.views[command.ViewSecurity].Render()) }
 
 func secFooter(a *App) string {
 	return ansi.Strip(a.views[command.ViewSecurity].(footerRenderer).RenderFooter(a.width))
@@ -292,7 +292,7 @@ func TestSecDisplayNeverWritesTheScanCaches(t *testing.T) {
 		a.sendFrameTo(command.ViewSecurity)
 	}
 	reloadSec(t, a)
-	_ = a.views[command.ViewSecurity].View()
+	_ = a.views[command.ViewSecurity].Render()
 	_ = secFooter(a)
 
 	after, filesAfter := dirHash(t, cacheDir)
@@ -308,7 +308,7 @@ func TestSecFullViewFitsSixtyColumns(t *testing.T) {
 	openSec(t, a)
 	wantFailed(t, a, secRepoName)
 
-	for i, line := range strings.Split(a.View(), "\n") {
+	for i, line := range strings.Split(a.Render(), "\n") {
 		if w := lipgloss.Width(line); w > 60 {
 			t.Errorf("line %d is %d cells wide at 60 columns: %q", i, w, ansi.Strip(line))
 		}

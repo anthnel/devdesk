@@ -96,7 +96,7 @@ func (a *App) sendFrameTo(target command.ViewType) tea.Cmd {
 		return nil
 	}
 	updated, cmd := view.Update(a.frameMsg())
-	a.views[target] = updated
+	a.setView(target, updated)
 	return cmd
 }
 

@@ -126,9 +126,9 @@ func (a *App) handleLogoutComplete(msg auth.LogoutCompleteMsg) (tea.Model, tea.C
 	a.clearAuthenticated()
 
 	authView := a.views[command.ViewGitAuth]
-	a.views = make(map[command.ViewType]tea.Model)
+	a.views = make(map[command.ViewType]Screen)
 	if authView != nil {
-		a.views[command.ViewGitAuth] = authView
+		a.setView(command.ViewGitAuth, authView)
 	}
 	a.createView(a.currentView)
 

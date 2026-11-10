@@ -82,8 +82,8 @@ func TestAFailedStageDoesNotHideWhatTheOthersFound(t *testing.T) {
 	result.Errors = []string{"plumber: plumber failed"}
 	m := feed(t, NewWithPreloadedResult(testConfig(), nil, result), tea.WindowSizeMsg{Width: 160, Height: 30})
 
-	if !strings.Contains(plain(m.View()), "CVE-2026-0001") {
-		t.Errorf("the findings are hidden by a failure that is not about them:\n%s", plain(m.View()))
+	if !strings.Contains(plain(m.Render()), "CVE-2026-0001") {
+		t.Errorf("the findings are hidden by a failure that is not about them:\n%s", plain(m.Render()))
 	}
 	if !m.showsResultTabs() {
 		t.Error("the tab bar is hidden although there are findings to browse")

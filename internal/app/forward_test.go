@@ -197,7 +197,8 @@ func (r *recorder) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	}
 	return r, nil
 }
-func (r *recorder) View() string { return "" }
+func (r *recorder) Render() string { return "" }
+func (r *recorder) View() tea.View { return tea.NewView(r.Render()) }
 
 func TestARefreshHandsEveryViewTheSnapshot(t *testing.T) {
 	target := echoServer(t)

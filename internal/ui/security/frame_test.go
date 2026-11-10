@@ -37,8 +37,8 @@ func TestAFrameChangesTheGlyphNotTheItems(t *testing.T) {
 	m = withJobs(t, m, scanningRun("nexus/api:1.4"))
 	snapshot := append([]scanTarget(nil), m.inventory.Items()...)
 
-	on := feed(t, m, jobs.FrameMsg{Blink: true}).View()
-	off := feed(t, m, jobs.FrameMsg{Blink: false}).View()
+	on := feed(t, m, jobs.FrameMsg{Blink: true}).Render()
+	off := feed(t, m, jobs.FrameMsg{Blink: false}).Render()
 
 	if on == off {
 		t.Error("the phase did not change the rendered running row")
@@ -54,7 +54,7 @@ func TestAFrameNeverReachesTheTableCells(t *testing.T) {
 	m = withJobs(t, m, scanningRun("nexus/api:1.4"))
 	m = feed(t, m, jobs.FrameMsg{Frame: "ZZ", RenderedFrame: "FOOTERFRAME", Blink: true})
 
-	if strings.Contains(m.View(), "ZZ") {
+	if strings.Contains(m.Render(), "ZZ") {
 		t.Error("the bare frame still reaches the table")
 	}
 }

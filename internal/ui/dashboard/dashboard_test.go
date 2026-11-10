@@ -508,7 +508,7 @@ func TestTheOverviewFitsAtTheHeightItNeeds(t *testing.T) {
 	need := m.gridHeight(tierStandard)
 	m = feed(t, m, tea.WindowSizeMsg{Width: 120, Height: need})
 
-	if got := strings.Count(m.View(), "\n") + 1; got > need {
+	if got := strings.Count(m.Render(), "\n") + 1; got > need {
 		t.Errorf("the overview renders %d lines into the %d it measured", got, need)
 	}
 	t.Logf("the two-column grid needs %d content lines, i.e. a %d-row terminal",
@@ -650,7 +650,7 @@ func TestEveryRenderedLineIsExactlyTheViewWidth(t *testing.T) {
 
 	for _, tc := range tierCases {
 		at := feed(t, m, tea.WindowSizeMsg{Width: tc.width, Height: tc.height})
-		for i, line := range strings.Split(at.View(), "\n") {
+		for i, line := range strings.Split(at.Render(), "\n") {
 			if got := lipgloss.Width(line); got != tc.width {
 				t.Errorf("on %s, line %d is %d cells wide, want %d", tc.name, i, got, tc.width)
 			}

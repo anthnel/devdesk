@@ -75,6 +75,28 @@ func (a *App) handleKeyMsg(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	}
 }
 
+// handlePasteMsg routes a bracketed paste. In v2 a paste is its own message,
+// never a key press, so it cannot trigger an action (Rule 111): it is text for
+// the field that has focus and for nothing else. Behind an overlay or a context
+// switch it is dropped.
+func (a *App) handlePasteMsg(msg tea.PasteMsg) (tea.Model, tea.Cmd) {
+	switch {
+	case a.switchingTo != "", a.showHelp, a.showContextList:
+		return a, nil
+	case a.commandMode:
+		var cmd tea.Cmd
+		before := a.commandInput.Value()
+		a.commandInput, cmd = a.commandInput.Update(msg)
+		if a.commandInput.Value() != before {
+			a.refreshSuggestions()
+		}
+		return a, cmd
+	case a.inEditMode():
+		return a, a.forwardToActiveView(msg)
+	}
+	return a, nil
+}
+
 // forwardToActiveView hands a message to the current view and re-measures the
 // layout when the view's footer changed shape in response (Rule 124) — opening
 // a filter bar is the case that matters.
@@ -84,7 +106,7 @@ func (a *App) forwardToActiveView(msg tea.Msg) tea.Cmd {
 		return nil
 	}
 	updatedView, cmd := view.Update(msg)
-	a.views[a.currentView] = updatedView
+	a.setView(a.currentView, updatedView)
 	if newFooterHeight := a.getFooterHeight(); newFooterHeight != a.lastFooterHeight {
 		a.resize(a.width, a.height)
 	}

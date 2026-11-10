@@ -92,10 +92,10 @@ func TestAFileOpensThroughTheRouterAndRendersItsTree(t *testing.T) {
 	}
 	for _, msg := range testutil.Msgs(cmd) {
 		updated, _ := a.views[command.ViewViewer].Update(msg)
-		a.views[command.ViewViewer] = updated
+		a.setView(command.ViewViewer, updated)
 	}
 
-	rendered := a.views[command.ViewViewer].View()
+	rendered := a.views[command.ViewViewer].Render()
 	for _, want := range []string{"name", "web", "port", "8080"} {
 		if !strings.Contains(rendered, want) {
 			t.Errorf("the tree does not show %q:\n%s", want, rendered)

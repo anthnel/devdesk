@@ -7,6 +7,7 @@ import (
 
 	"charm.land/bubbles/v2/textinput"
 	"charm.land/bubbles/v2/viewport"
+	tea "charm.land/bubbletea/v2"
 	"charm.land/lipgloss/v2"
 
 	"github.com/anthnel/devdesk/internal/netcheck"
@@ -14,8 +15,12 @@ import (
 	"github.com/anthnel/devdesk/internal/ui/theme"
 )
 
-// View implements tea.Model
-func (m *Model) View() string {
+// View is the Bubble Tea v2 face of Render: the content only. The terminal
+// state (alternate screen, colours) belongs to whoever owns the program.
+func (m *Model) View() tea.View { return tea.NewView(m.Render()) }
+
+// Render implements tea.Model
+func (m *Model) Render() string {
 	switch m.activeTab {
 	case tabPorts:
 		// The kill confirmation is centred over the tab, like every other

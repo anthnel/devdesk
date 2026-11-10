@@ -38,7 +38,7 @@ func TestAgentUsageViewIsSizedAndReceivesMessages(t *testing.T) {
 		t.Fatalf("the router installed a %T", a.views[command.ViewAgentUsage])
 	}
 	a.Update(testutil.Resize(100, 30))
-	if v := a.views[command.ViewAgentUsage].View(); v == "" {
+	if v := a.views[command.ViewAgentUsage].Render(); v == "" {
 		t.Error("the view renders nothing after a resize")
 	}
 }

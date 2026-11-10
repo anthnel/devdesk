@@ -47,7 +47,7 @@ type timedProgramModel struct {
 }
 
 func (m timedProgramModel) Init() tea.Cmd { return nil }
-func (m timedProgramModel) View() string {
+func (m timedProgramModel) View() tea.View {
 	start := time.Now()
 	s := m.app.View()
 	m.nanos.Add(int64(time.Since(start)))
@@ -88,7 +88,9 @@ func (v *measuredView) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	return v, nil
 }
 
-func (v *measuredView) View() string {
+func (v *measuredView) View() tea.View { return tea.NewView(v.Render()) }
+
+func (v *measuredView) Render() string {
 	glyph := "○"
 	if v.phase {
 		glyph = "●"

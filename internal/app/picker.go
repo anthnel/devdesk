@@ -26,7 +26,7 @@ func (a *App) handlePickRequest(msg filebrowser.PickRequestMsg) (tea.Model, tea.
 	a.pickerReturnView = a.currentView
 	log.Printf("Path picker requested by %s (tag %q)", a.currentView, msg.Tag)
 	picker := filebrowser.NewPicker(a.config, msg)
-	a.views[command.ViewFiles] = picker
+	a.setView(command.ViewFiles, picker)
 	a.currentView = command.ViewFiles
 	return a, tea.Batch(picker.Init(), a.requestResize(), a.enterView(command.ViewFiles))
 }

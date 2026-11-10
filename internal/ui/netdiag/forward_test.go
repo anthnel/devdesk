@@ -453,7 +453,7 @@ func TestTheTabOffersTheSameKeysWhateverTheRowsState(t *testing.T) {
 func TestTheTableSaysWhatIsNotListening(t *testing.T) {
 	m := onForwardTab(t)
 	m = feed(t, m, forward.ChangedMsg{Forwards: mixedForwards()})
-	out := ansi.Strip(m.View())
+	out := ansi.Strip(m.Render())
 
 	for _, want := range []string{"paused", "the local port is already in use"} {
 		if !strings.Contains(out, want) {
@@ -736,7 +736,7 @@ func TestTheTableShowsTheNameOfARouteAndADashForAForward(t *testing.T) {
 		{ID: "1", LocalPort: 8080, Target: "127.0.0.1:3000", Name: "api.localhost", Opened: time.Now()},
 		{ID: "2", LocalPort: 5432, Target: "db:5432", Opened: time.Now()},
 	}})
-	out := ansi.Strip(m.View())
+	out := ansi.Strip(m.Render())
 	for _, want := range []string{"Name", "api.localhost", "8080"} {
 		if !strings.Contains(out, want) {
 			t.Errorf("the table does not show %q:\n%s", want, out)

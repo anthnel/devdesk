@@ -5,6 +5,7 @@ import (
 	"slices"
 	"strings"
 
+	tea "charm.land/bubbletea/v2"
 	"charm.land/lipgloss/v2"
 	"github.com/charmbracelet/x/ansi"
 
@@ -20,12 +21,16 @@ import (
 	"github.com/anthnel/devdesk/internal/ui/theme"
 )
 
-// View renders the active tab's fields. The tab bar itself lives in the footer
+// View is the Bubble Tea v2 face of Render: the content only. The terminal
+// state (alternate screen, colours) belongs to whoever owns the program.
+func (m Model) View() tea.View { return tea.NewView(m.Render()) }
+
+// Render renders the active tab's fields. The tab bar itself lives in the footer
 // so it stays visible when the list scrolls (Rule 123).
 //
 // A tab taller than the viewport scrolls: the scan tab alone ran past seventy
 // lines, and with nothing scrolling the bottom of it was simply cut off.
-func (m Model) View() string {
+func (m Model) Render() string {
 	if m.confirmModal != nil {
 		return lipgloss.Place(m.width, m.height,
 			lipgloss.Center, lipgloss.Center, m.confirmModal.View(),

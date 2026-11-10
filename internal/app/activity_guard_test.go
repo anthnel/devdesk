@@ -73,7 +73,7 @@ func builtView(t *testing.T, vt command.ViewType) tea.Model {
 	t.Helper()
 	a := routerAt(t, &bareView{}, 60, 30) // isolateHome, session-only secrets
 	a.createView(vt)
-	m := a.views[vt]
+	var m tea.Model = a.views[vt] // Update returns a tea.Model, not a Screen
 	if m == nil {
 		t.Fatalf("view %q: the router did not build it", vt)
 	}
@@ -704,7 +704,7 @@ func seedJobsFooter(t *testing.T, a *App) indicator.State {
 func seedNetdiagFooter(t *testing.T, a *App) indicator.State {
 	t.Helper()
 	a.createView(command.ViewNetdiag)
-	m := a.views[command.ViewNetdiag]
+	var m tea.Model = a.views[command.ViewNetdiag]
 	for _, msg := range []tea.Msg{
 		tea.WindowSizeMsg{Width: a.width, Height: a.height},
 		testutil.Key("tab"), // the Ports tab
@@ -716,7 +716,7 @@ func seedNetdiagFooter(t *testing.T, a *App) indicator.State {
 	} {
 		m, _ = m.Update(msg)
 	}
-	a.views[command.ViewNetdiag] = m
+	a.setView(command.ViewNetdiag, m)
 	return indicator.Running
 }
 

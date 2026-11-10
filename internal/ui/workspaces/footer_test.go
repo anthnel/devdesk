@@ -232,7 +232,7 @@ func TestDeleteFailureIsAFooterErrorNotAnErrorScreen(t *testing.T) {
 	if m.error != "" {
 		t.Errorf("m.error = %q: the body must stay the table (Rule 139)", m.error)
 	}
-	if v := m.View(); !strings.Contains(v, "clean-repo") || strings.Contains(v, ftBoom) {
+	if v := m.Render(); !strings.Contains(v, "clean-repo") || strings.Contains(v, ftBoom) {
 		t.Errorf("body is not the table or leaks the raw error:\n%s", v)
 	}
 	if m.footer.Level() != sharedcomponents.LevelError ||

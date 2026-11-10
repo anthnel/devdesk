@@ -212,7 +212,7 @@ func (a *App) settleCurrentView() (tea.Cmd, bool) {
 		return nil, true
 	}
 	settled, cmd, ok := leaver.Leave()
-	a.views[a.currentView] = settled
+	a.setView(a.currentView, settled)
 	return cmd, ok
 }
 
@@ -224,40 +224,40 @@ func (a *App) createView(view command.ViewType) {
 
 	switch view {
 	case command.ViewDashboard:
-		a.views[view] = dashboard.New(a.config, a.sharedState)
+		a.setView(view, dashboard.New(a.config, a.sharedState))
 	case command.ViewStatus:
-		a.views[view] = status.New(a.config)
+		a.setView(view, status.New(a.config))
 	case command.ViewGitAuth:
-		a.views[view] = a.newAuthView()
+		a.setView(view, a.newAuthView())
 	case command.ViewGitExplorer:
-		a.views[view] = explorer.New(a.config, a.sharedState)
+		a.setView(view, explorer.New(a.config, a.sharedState))
 	case command.ViewWorkspaces:
-		a.views[view] = workspaces.New(a.config, a.sharedState.Secrets.Storage, a.currentContext)
+		a.setView(view, workspaces.New(a.config, a.sharedState.Secrets.Storage, a.currentContext))
 	case command.ViewSecurity:
-		a.views[view] = security.New(a.config, a.sharedState.Secrets.Storage)
+		a.setView(view, security.New(a.config, a.sharedState.Secrets.Storage))
 	case command.ViewContainers:
-		a.views[view] = containers.New(a.config)
+		a.setView(view, containers.New(a.config))
 	case command.ViewOCIResources:
-		a.views[view] = ociresources.New(a.config)
+		a.setView(view, ociresources.New(a.config))
 	case command.ViewNetdiag:
-		a.views[view] = netdiag.New(a.config)
+		a.setView(view, netdiag.New(a.config))
 	case command.ViewAgentUsage:
-		a.views[view] = agentusageview.New(a.config)
+		a.setView(view, agentusageview.New(a.config))
 	case command.ViewConfiguration:
-		a.views[view] = configuration.New(a.config, a.mcpFacts())
+		a.setView(view, configuration.New(a.config, a.mcpFacts()))
 	case command.ViewJobs:
-		a.views[view] = jobsview.New(a.config, a.currentContext)
+		a.setView(view, jobsview.New(a.config, a.currentContext))
 	case command.ViewTemplates:
-		a.views[view] = templates.New(a.config, a.sharedState.Secrets.Storage)
+		a.setView(view, templates.New(a.config, a.sharedState.Secrets.Storage))
 	case command.ViewAbout:
-		a.views[view] = about.New(a.config)
+		a.setView(view, about.New(a.config))
 	case command.ViewFiles:
-		a.views[view] = filebrowser.New(a.config)
+		a.setView(view, filebrowser.New(a.config))
 	case command.ViewViewer:
 		// Empty: the viewer is normally installed with its source by
 		// handleViewerOpenRequest, and this case exists so the router can build
 		// one like any other view — which is what the contract test does.
-		a.views[view] = uiviewer.New(a.config)
+		a.setView(view, uiviewer.New(a.config))
 	}
 	// Built after the detection landed, it was not there to receive it.
 	a.sendScanToolsTo(view)

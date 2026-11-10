@@ -27,7 +27,7 @@ func sized(t *testing.T, height int) Model {
 // and View dropped would pass a test written the other way. Nothing strips
 // escape sequences here — under `go test` lipgloss finds no TTY and emits none.
 func TestTheBodyOpensOnABlankLine(t *testing.T) {
-	rows := strings.Split(sized(t, 40).View(), "\n")
+	rows := strings.Split(sized(t, 40).Render(), "\n")
 
 	if strings.TrimSpace(rows[0]) != "" {
 		t.Errorf("the first rendered row is %q, want a blank line between the border and the content", rows[0])
@@ -40,7 +40,7 @@ func TestTheBodyOpensOnABlankLine(t *testing.T) {
 // The padding scrolls away rather than being repainted at every offset: it
 // belongs to the body, not to the window onto it.
 func TestTheTopPaddingScrollsAway(t *testing.T) {
-	rows := strings.Split(press(t, sized(t, 5), "down").View(), "\n")
+	rows := strings.Split(press(t, sized(t, 5), "down").Render(), "\n")
 
 	if strings.TrimSpace(rows[0]) == "" {
 		t.Error("the first row is still blank one line down, so the padding is pinned to the window rather than to the body")
@@ -125,7 +125,7 @@ func TestBuildDate(t *testing.T) {
 func TestViewFillsTheViewport(t *testing.T) {
 	for _, height := range []int{3, 12, 40} {
 		m := sized(t, height)
-		if got := len(strings.Split(m.View(), "\n")); got != height {
+		if got := len(strings.Split(m.Render(), "\n")); got != height {
 			t.Errorf("View() rendered %d lines for a viewport of %d", got, height)
 		}
 	}

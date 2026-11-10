@@ -33,8 +33,8 @@ func TestTheRouterComesBackLaidOut(t *testing.T) {
 	if a.width != 160 || a.height != 44 {
 		t.Errorf("the router is %dx%d, want 160x44", a.width, a.height)
 	}
-	if a.viewport.Height <= 0 {
-		t.Errorf("viewport height = %d; the router was never laid out", a.viewport.Height)
+	if a.viewport.Height() <= 0 {
+		t.Errorf("viewport height = %d; the router was never laid out", a.viewport.Height())
 	}
 	if a.commandMode {
 		t.Error("the router starts with the command line open")
@@ -571,7 +571,7 @@ func TestASwitchInFlightHidesThePreviousContext(t *testing.T) {
 
 	_ = a.switchContext("work") // the Cmd is not run: it would touch ~/.devdesk
 
-	screen := a.View()
+	screen := a.Render()
 	if strings.Contains(screen, "previous context") {
 		t.Error("the previous context's view was drawn while the switch loaded")
 	}
@@ -607,7 +607,7 @@ func TestTheSwitchOverlayGoesWhenTheSwitchSettles(t *testing.T) {
 
 			a.Update(settle)
 
-			if strings.Contains(a.View(), "Switching to context") {
+			if strings.Contains(a.Render(), "Switching to context") {
 				t.Error("the switch overlay outlived the switch")
 			}
 		})

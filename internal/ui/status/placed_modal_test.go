@@ -32,7 +32,7 @@ func TestPlacedModalsPaintTheirWhitespace(t *testing.T) {
 
 	m := feed(t, loadedModel(t), testutil.Key(keymap.Delete))
 	m = feed(t, m, tea.WindowSizeMsg{Width: 80, Height: 24})
-	out := m.View()
+	out := m.Render()
 
 	lines := strings.Split(out, "\n")
 	if len(lines) != 24 {

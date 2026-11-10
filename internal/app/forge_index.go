@@ -272,7 +272,7 @@ func (a *App) broadcast(msg tea.Msg) tea.Cmd {
 	cmds := make([]tea.Cmd, 0, len(a.views))
 	for name, view := range a.views {
 		updated, cmd := view.Update(msg)
-		a.views[name] = updated
+		a.setView(name, updated)
 		if cmd != nil {
 			cmds = append(cmds, cmd)
 		}

@@ -177,7 +177,7 @@ func TestTheLoadIsReportedInTheFooterOnlyBeforeTheFirstList(t *testing.T) {
 	if !strings.Contains(m.RenderFooter(160), "Loading containers") {
 		t.Error("the footer does not report the load before the first list arrives")
 	}
-	if strings.Contains(m.View(), "Loading containers") {
+	if strings.Contains(m.Render(), "Loading containers") {
 		t.Error("the body reports the load; it belongs in the footer alone")
 	}
 
@@ -193,7 +193,7 @@ func TestTheLoadIsReportedInTheFooterOnlyBeforeTheFirstList(t *testing.T) {
 func TestTheEmptyStateWaitsForTheLoadToFinish(t *testing.T) {
 	m := newTestModel(t) // loading, no containers yet
 
-	if view, table := m.View(), m.containerTable.View(); view != table {
+	if view, table := m.Render(), m.containerTable.View(); view != table {
 		t.Errorf("the body while loading is %q, want the plain table view", view)
 	}
 }
@@ -201,7 +201,7 @@ func TestTheEmptyStateWaitsForTheLoadToFinish(t *testing.T) {
 func TestViewShowsTheEmptyState(t *testing.T) {
 	m := feed(t, newTestModel(t), ContainersListMsg{Containers: nil})
 
-	if view, table := m.View(), m.containerTable.View(); view != table {
+	if view, table := m.Render(), m.containerTable.View(); view != table {
 		t.Errorf("View() = %q, want the plain table view", view)
 	}
 	if info := m.GetHeaderInfo(""); len(info) == 0 || info[0].Value != "0" {
@@ -215,7 +215,7 @@ func TestViewKeepsTheTableWhenAFilterMatchesNothing(t *testing.T) {
 	m := feed(t, loadedModel(t), testutil.Key("/"))
 	m = feed(t, m, testutil.Type("nomatch")...)
 
-	if view, table := m.View(), m.containerTable.View(); view != table {
+	if view, table := m.Render(), m.containerTable.View(); view != table {
 		t.Errorf("View() = %q, want the plain table view while a filter was active", view)
 	}
 }
@@ -223,7 +223,7 @@ func TestViewKeepsTheTableWhenAFilterMatchesNothing(t *testing.T) {
 func TestViewRendersTheConfirmationOverTheTable(t *testing.T) {
 	m := feed(t, loadedModel(t), testutil.Key(keymap.Delete))
 
-	out := m.View()
+	out := m.Render()
 	if !strings.Contains(out, "Delete Container") {
 		t.Error("View() does not render the confirmation")
 	}
@@ -237,7 +237,7 @@ func TestViewRendersTheConfirmationOverTheTable(t *testing.T) {
 func TestViewStaysOnTheTableWhenTheLogsAreOpened(t *testing.T) {
 	m := feed(t, loadedModel(t), testutil.Key(keymap.Logs))
 
-	if !strings.Contains(m.View(), "api") {
+	if !strings.Contains(m.Render(), "api") {
 		t.Error("the table stopped rendering when the logs were opened elsewhere")
 	}
 }
@@ -352,8 +352,8 @@ func TestEveryModalIsVisibleAndDeclared(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			m := feed(t, loadedModel(t), testutil.Key(tc.key))
 
-			if !strings.Contains(m.View(), tc.title) {
-				t.Errorf("the modal is not rendered; View() = %q", m.View())
+			if !strings.Contains(m.Render(), tc.title) {
+				t.Errorf("the modal is not rendered; View() = %q", m.Render())
 			}
 			if !m.InEditMode() {
 				t.Error("InEditMode() is false while a modal holds the keyboard, " +

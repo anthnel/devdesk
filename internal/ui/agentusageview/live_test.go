@@ -334,14 +334,14 @@ func TestTicksThatDoNotBelongToTheChainAreIgnored(t *testing.T) {
 	for name, setup := range cases {
 		t.Run(name, func(t *testing.T) {
 			m, gen := setup(t)
-			before, reading := m.View(), m.reading
+			before, reading := m.Render(), m.reading
 
 			got, msgs := pollTick(t, m, gen)
 
 			if len(msgs) != 0 {
 				t.Errorf("a stray tick must start nothing, got %+v", msgs)
 			}
-			if got.reading != reading || got.View() != before {
+			if got.reading != reading || got.Render() != before {
 				t.Error("a stray tick must leave the model unchanged")
 			}
 		})
@@ -415,7 +415,7 @@ func TestANewSubAgentJoinsTheTreeWithoutLeavingTheView(t *testing.T) {
 	if !ok {
 		t.Fatal("no selected agent")
 	}
-	titleBefore := d.m.View()[:strings.Index(d.m.View(), "\n")]
+	titleBefore := d.m.Render()[:strings.Index(d.m.Render(), "\n")]
 
 	sub := subDir(parent)
 	meta := `{"agentType":"planner","spawnDepth":1,"finished":false}`
@@ -424,8 +424,8 @@ func TestANewSubAgentJoinsTheTreeWithoutLeavingTheView(t *testing.T) {
 	}
 	appendLine(t, filepath.Join(sub, "agent-a00.jsonl"), usageLine("msg_plan", "model-alpha", 2, 30))
 
-	if !d.until(func(m Model) bool { return strings.Contains(m.View(), "planner") }, 5*time.Second) {
-		t.Fatalf("the planner never appeared:\n%s", d.m.View())
+	if !d.until(func(m Model) bool { return strings.Contains(m.Render(), "planner") }, 5*time.Second) {
+		t.Fatalf("the planner never appeared:\n%s", d.m.Render())
 	}
 	if d.m.level != levelAgents {
 		t.Error("the view must stay at the agents level")
@@ -433,7 +433,7 @@ func TestANewSubAgentJoinsTheTreeWithoutLeavingTheView(t *testing.T) {
 	if got, _ := d.m.selectedAgentKey(); got != key {
 		t.Errorf("selection moved from %q to %q", key, got)
 	}
-	if after := d.m.View(); after[:strings.Index(after, "\n")] != titleBefore {
+	if after := d.m.Render(); after[:strings.Index(after, "\n")] != titleBefore {
 		t.Error("the first line of the view changed")
 	}
 }
@@ -456,7 +456,7 @@ func TestASettledSessionStopsTheChain(t *testing.T) {
 	if m.reading || m.agentsLoading {
 		t.Errorf("reading=%v agentsLoading=%v, want false, false", m.reading, m.agentsLoading)
 	}
-	if !strings.Contains(m.View(), "├─ coder") {
+	if !strings.Contains(m.Render(), "├─ coder") {
 		t.Error("the rows stay on screen after the chain stops")
 	}
 	// Stale ticks of the old chain, delivered by hand, start no read.
@@ -580,7 +580,7 @@ func TestADeletedTranscriptStopsTheChain(t *testing.T) {
 	if !m.agentsErr || !strings.Contains(footer(m), "Failed to read this session") {
 		t.Errorf("the failure must show in the footer:\n%s", footer(m))
 	}
-	if !strings.Contains(m.View(), "├─ coder") {
+	if !strings.Contains(m.Render(), "├─ coder") {
 		t.Error("the rows already shown stay")
 	}
 	if _, again := pollTick(t, m, m.agentGen); len(again) != 0 {
@@ -685,7 +685,7 @@ func TestAFailingReadDoesNotLoseACtrlRTypedMeanwhile(t *testing.T) {
 		t.Errorf("a tick next to the full read would put two reads in a generation: %+v", got)
 	}
 	m, _ = answered(t, m, reads[0])
-	if m.agentsErr || !strings.Contains(m.View(), "├─ coder") {
+	if m.agentsErr || !strings.Contains(m.Render(), "├─ coder") {
 		t.Error("the full read recovers the screen")
 	}
 }

@@ -14,7 +14,7 @@ import (
 func TestCreateFormArrowsMoveTheCaretInTheName(t *testing.T) {
 	f := newCreateForm(false, 80)
 	for _, k := range testutil.Type("ab") {
-		f, _ = f.Update(k.(tea.KeyMsg))
+		f, _ = f.Update(k.(tea.KeyPressMsg))
 	}
 	f, _ = f.Update(testutil.Key("left"))
 	f, _ = f.Update(testutil.Key("X"))

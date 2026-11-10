@@ -156,7 +156,7 @@ func (a *App) broadcastJobs() tea.Cmd {
 	cmds := make([]tea.Cmd, 0, len(a.views))
 	for name, view := range a.views {
 		updated, cmd := view.Update(msg)
-		a.views[name] = updated
+		a.setView(name, updated)
 		if cmd != nil {
 			cmds = append(cmds, cmd)
 		}
@@ -185,6 +185,6 @@ func (a *App) sendJobsTo(target command.ViewType) tea.Cmd {
 		return nil
 	}
 	updated, cmd := view.Update(a.changedMsg())
-	a.views[target] = updated
+	a.setView(target, updated)
 	return cmd
 }

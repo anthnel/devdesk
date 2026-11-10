@@ -242,8 +242,8 @@ func TestTheBodyIsAlwaysTheTable(t *testing.T) {
 		m = feed(t, m, testutil.Key("tab"))
 	}
 	for name, view := range map[string]string{
-		"loading": plain(m.View()),
-		"empty":   plain(feed(t, m, RemediationDiscoveredMsg{Target: m.result.Target}).View()),
+		"loading": plain(m.Render()),
+		"empty":   plain(feed(t, m, RemediationDiscoveredMsg{Target: m.result.Target}).Render()),
 	} {
 		if !strings.Contains(view, "Image") || !strings.Contains(view, "vs now") {
 			t.Errorf("%s: the body lost the table's header:\n%s", name, view)

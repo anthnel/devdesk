@@ -47,9 +47,9 @@ func (a *App) handleConfigSaved(msg configuration.ConfigSavedMsg) (tea.Model, te
 	// config on next use. Keeping the configuration view is what stops a save
 	// from throwing away the cursor after every keystroke.
 	current := a.views[command.ViewConfiguration]
-	a.views = make(map[command.ViewType]tea.Model)
+	a.views = make(map[command.ViewType]Screen)
 	if current != nil {
-		a.views[command.ViewConfiguration] = current
+		a.setView(command.ViewConfiguration, current)
 	}
 	a.createView(a.currentView)
 	motionCmd := a.applyMotion(msg.Config)

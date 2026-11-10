@@ -39,7 +39,7 @@ func (a *App) handleExplorerCloneRequest() (tea.Model, tea.Cmd) {
 
 // openBrowser installs a view built in selection mode and lays it out.
 func (a *App) openBrowser(view command.ViewType, model tea.Model) tea.Cmd {
-	a.views[view] = model
+	a.setView(view, model)
 	a.selectionLent = view
 	a.currentView = view
 	return tea.Batch(model.Init(), a.requestResize(), a.enterView(view))
@@ -95,7 +95,7 @@ func (a *App) returnToOrigin(msg tea.Msg) tea.Cmd {
 		return nil
 	}
 	updatedView, cmd := view.Update(msg)
-	a.views[a.currentView] = updatedView
+	a.setView(a.currentView, updatedView)
 	a.viewport.GotoTop()
 	return tea.Batch(cmd, a.requestResize(), a.sendFrameTo(a.currentView))
 }

@@ -43,7 +43,7 @@ func openOCI(t *testing.T, a *App) {
 	a.resize(a.width, a.height)
 }
 
-func ociScreen(a *App) string { return ansi.Strip(a.views[command.ViewOCIResources].View()) }
+func ociScreen(a *App) string { return ansi.Strip(a.views[command.ViewOCIResources].Render()) }
 
 func ociWantFailed(t *testing.T, a *App, name string) {
 	t.Helper()
@@ -193,7 +193,7 @@ func TestOCINetworkRemovalBlinksItsDotThroughTheRouter(t *testing.T) {
 	}
 	for _, on := range []bool{true, false} {
 		m, _ := a.views[command.ViewOCIResources].Update(jobs.FrameMsg{Blink: on})
-		a.views[command.ViewOCIResources] = m
+		a.setView(command.ViewOCIResources, m)
 		row := rowOf(t, ociScreen(a), "backnet")
 		if want := indicator.Glyph(indicator.Running, on); !strings.Contains(row, want) {
 			t.Errorf("blink=%v: the removing network row lacks %q: %q", on, want, row)

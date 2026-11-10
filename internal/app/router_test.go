@@ -34,7 +34,7 @@ func TestAnOpenOverlaySwallowsEveryKey(t *testing.T) {
 			tt.open(a)
 
 			for _, key := range testutil.Keys(keymap.Delete, "p", "enter", "down") {
-				a.handleKeyMsg(key.(tea.KeyMsg))
+				a.handleKeyMsg(key.(tea.KeyPressMsg))
 			}
 
 			if got := view.keysSeen(); len(got) != 0 {
@@ -176,7 +176,7 @@ func TestUnclaimedKeysGoToTheActiveView(t *testing.T) {
 	a := router(t, view)
 
 	for _, key := range testutil.Keys(keymap.Scan, "x", "enter", "/") {
-		a.handleKeyMsg(key.(tea.KeyMsg))
+		a.handleKeyMsg(key.(tea.KeyPressMsg))
 	}
 
 	want := []string{keymap.Scan, "x", "enter", "/"}

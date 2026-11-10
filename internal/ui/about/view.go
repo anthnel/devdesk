@@ -9,6 +9,8 @@ import (
 	"github.com/anthnel/devdesk/internal/ui/shortcut"
 	"github.com/anthnel/devdesk/internal/ui/theme"
 	"github.com/anthnel/devdesk/internal/version"
+
+	tea "charm.land/bubbletea/v2"
 )
 
 // labelGap separates the widest label from the value column. Two spaces rather
@@ -71,8 +73,12 @@ func (m Model) status() sharedcomponents.Status {
 	}
 }
 
-// View renders the window of the body that the offset selects.
-func (m Model) View() string {
+// View is the Bubble Tea v2 face of Render: the content only. The terminal
+// state (alternate screen, colours) belongs to whoever owns the program.
+func (m Model) View() tea.View { return tea.NewView(m.Render()) }
+
+// Render renders the window of the body that the offset selects.
+func (m Model) Render() string {
 	lines := m.lines()
 
 	var out []string

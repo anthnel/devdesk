@@ -94,8 +94,8 @@ func TestResizeReflowsWrappedText(t *testing.T) {
 
 	m = feed(t, m, tea.WindowSizeMsg{Width: 40, Height: 20})
 
-	if m.textViewport.Width != 40 {
-		t.Errorf("text viewport width = %d after the resize, want 40", m.textViewport.Width)
+	if m.textViewport.Width() != 40 {
+		t.Errorf("text viewport width = %d after the resize, want 40", m.textViewport.Width())
 	}
 	for _, line := range strings.Split(m.textViewport.View(), "\n") {
 		if width := len([]rune(ansi.Strip(line))); width > 40 {
@@ -290,7 +290,7 @@ func TestYAMLAndTOMLReachTheScreenColored(t *testing.T) {
 			if got := m.formatLabel(); got != tc.format {
 				t.Errorf("formatLabel = %q, want %q", got, tc.format)
 			}
-			rendered := m.View()
+			rendered := m.Render()
 			if !strings.Contains(rendered, syntaxStyle(viewerpkg.ClassKey).Render(tc.key)) {
 				t.Errorf("%q is not colored as a key", tc.key)
 			}
@@ -317,8 +317,8 @@ func TestNeitherYAMLNorTOMLOffersTheTree(t *testing.T) {
 			}
 		}
 
-		before := m.View()
-		if after := feed(t, m, testutil.Key("f")).View(); after != before {
+		before := m.Render()
+		if after := feed(t, m, testutil.Key("f")).Render(); after != before {
 			t.Errorf("f changed the %s display", file)
 		}
 	}

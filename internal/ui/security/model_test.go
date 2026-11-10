@@ -223,7 +223,7 @@ func TestEnterOpensTheDetailsOfTheHighlightedFinding(t *testing.T) {
 	if m.selectedFinding == nil || m.selectedFinding.ID != "CVE-2026-0002" {
 		t.Errorf("selectedFinding = %v, want the highlighted row", m.selectedFinding)
 	}
-	if view := m.View(); !strings.Contains(view, "CVE-2026-0002") {
+	if view := m.Render(); !strings.Contains(view, "CVE-2026-0002") {
 		t.Errorf("the details do not show the selected finding:\n%s", view)
 	}
 }

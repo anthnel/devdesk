@@ -39,10 +39,10 @@ func TestViewWithoutAClientPointsAtTheAuthView(t *testing.T) {
 	if !strings.Contains(footer, string(command.ViewGitAuth)) {
 		t.Error("the footer does not name the command that authenticates")
 	}
-	if view, table := m.View(), m.renderTable(); view != table {
+	if view, table := m.Render(), m.renderTable(); view != table {
 		t.Errorf("the signed-out body is %q, want the plain table view", view)
 	}
-	if strings.Contains(m.View(), "not authenticated") {
+	if strings.Contains(m.Render(), "not authenticated") {
 		t.Error("the body carries the signed-out message; it belongs in the footer alone")
 	}
 }
@@ -56,15 +56,15 @@ func TestTheLoadIsReportedInTheFooterUntilTheFirstLoadLands(t *testing.T) {
 	if footer := m.RenderFooter(160); !strings.Contains(footer, "Loading GitLab groups") {
 		t.Errorf("a model that has never loaded does not report it in the footer:\n%s", footer)
 	}
-	if view := m.View(); strings.Contains(view, "Loading GitLab groups") {
+	if view := m.Render(); strings.Contains(view, "Loading GitLab groups") {
 		t.Errorf("the body reports the load; it belongs in the footer alone:\n%s", view)
 	}
-	if view, table := m.View(), m.renderTable(); view != table {
+	if view, table := m.Render(), m.renderTable(); view != table {
 		t.Errorf("the body before the first load is %q, want the plain table view", view)
 	}
 
 	empty := feed(t, m, RootGroupsLoadedMsg{})
-	if view, table := empty.View(), empty.renderTable(); view != table {
+	if view, table := empty.Render(), empty.renderTable(); view != table {
 		t.Errorf("an empty result is %q, want the plain table view", view)
 	}
 	if info := empty.GetHeaderInfo("work"); len(info) == 0 || info[len(info)-1].Value != "0" {
@@ -80,7 +80,7 @@ func TestViewShowsTheLoadError(t *testing.T) {
 	if footer := m.RenderFooter(160); !strings.Contains(footer, "403 forbidden") {
 		t.Errorf("the footer does not show the load error:\n%s", footer)
 	}
-	if view, table := m.View(), m.renderTable(); view != table {
+	if view, table := m.Render(), m.renderTable(); view != table {
 		t.Errorf("the body after a failed load is %q, want the plain table view", view)
 	}
 	if got := m.status().Level; got != components.LevelError {
@@ -133,7 +133,7 @@ func TestSignedOutRefusalsNameTheAuthCommand(t *testing.T) {
 }
 
 func TestViewShowsTheRows(t *testing.T) {
-	view := drilledModel(t).View()
+	view := drilledModel(t).Render()
 
 	// The kind is a glyph now, not the forge's word: the Type column became the
 	// untitled icon column (§3.56). The words survive in the help legend, which
@@ -159,7 +159,7 @@ func TestViewShowsTheModalForEachMode(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			if view := tt.open(t).View(); !strings.Contains(view, tt.want) {
+			if view := tt.open(t).Render(); !strings.Contains(view, tt.want) {
 				t.Errorf("the %s view does not show %q:\n%s", tt.name, tt.want, view)
 			}
 		})
@@ -171,7 +171,7 @@ func TestViewShowsTheModalForEachMode(t *testing.T) {
 func TestViewShowsTheCreationFormFullWidth(t *testing.T) {
 	m := feed(t, drilledModel(t), testutil.Key(keymap.New))
 
-	view := m.View()
+	view := m.Render()
 
 	if !strings.Contains(view, "Name") || !strings.Contains(view, "Visibility") {
 		t.Errorf("the creation form is not rendered:\n%s", view)

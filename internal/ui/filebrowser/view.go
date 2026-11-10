@@ -4,6 +4,7 @@ import (
 	"strconv"
 	"strings"
 
+	tea "charm.land/bubbletea/v2"
 	"charm.land/lipgloss/v2"
 
 	sharedcomponents "github.com/anthnel/devdesk/internal/ui/components"
@@ -17,9 +18,13 @@ import (
 // other header fields.
 const headerPathWidth = 48
 
-// View renders the table, the creation form in its place (Rule 112), or the
+// View is the Bubble Tea v2 face of Render: the content only. The terminal
+// state (alternate screen, colours) belongs to whoever owns the program.
+func (m Model) View() tea.View { return tea.NewView(m.Render()) }
+
+// Render renders the table, the creation form in its place (Rule 112), or the
 // delete confirmation over it.
-func (m Model) View() string {
+func (m Model) Render() string {
 	switch {
 	case m.mode == modeCreating && m.form != nil:
 		return m.form.View(m.currentPath)

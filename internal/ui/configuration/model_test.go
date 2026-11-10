@@ -422,7 +422,7 @@ func TestShortcutsOmitTheObviousOnes(t *testing.T) {
 
 // Rule 131: exactly one blank line above the form.
 func TestTheFormOpensWithOneBlankLine(t *testing.T) {
-	lines := strings.Split(newModel(t).View(), "\n")
+	lines := strings.Split(newModel(t).Render(), "\n")
 	if len(lines) < 3 {
 		t.Fatalf("the view rendered %d lines", len(lines))
 	}
@@ -472,7 +472,7 @@ func TestTheHeaderNoLongerCarriesTheFilePath(t *testing.T) {
 
 	m = focusOn(t, m, "Workspaces dir")
 	m.activeTab = 0
-	rendered := stripANSI(m.View())
+	rendered := stripANSI(m.Render())
 	if !strings.Contains(rendered, "Config file") {
 		t.Error("the app tab does not show the config file path")
 	}
@@ -521,7 +521,7 @@ func TestEachTabRendersItsGroupHeadingsOnceInOrder(t *testing.T) {
 			}
 		}
 
-		rendered := m.View()
+		rendered := m.Render()
 		for _, g := range order {
 			if strings.Count(rendered, g) < 1 {
 				t.Errorf("tab %q: group heading %q is not rendered", m.sections[tab].Title, g)

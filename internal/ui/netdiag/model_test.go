@@ -207,7 +207,7 @@ func TestRunRejectsInvalidInput(t *testing.T) {
 			if m.state == StateRunning {
 				t.Fatal("the run started on input that should have been refused")
 			}
-			if !strings.Contains(m.View(), "Target") {
+			if !strings.Contains(m.Render(), "Target") {
 				t.Error("the form is no longer on screen")
 			}
 		})
@@ -500,7 +500,7 @@ func TestTheDetailPaneCarriesTheExplanation(t *testing.T) {
 	m.checksTable.SetCursor(1)
 	m = feed(t, m, testutil.Key("enter"))
 
-	out := m.View()
+	out := m.Render()
 	for _, want := range []string{"Observed", "What it means", "What to do"} {
 		if !strings.Contains(out, want) {
 			t.Errorf("the detail pane has no %q section", want)
@@ -528,7 +528,7 @@ func TestTheDetailPaneDrawsAWaterfallForAPhasedCheck(t *testing.T) {
 	m.checksTable.SetCursor(0)
 	m = feed(t, m, testutil.Key("enter"))
 
-	out := m.View()
+	out := m.Render()
 	if !strings.Contains(out, "Timing") {
 		t.Fatal("the detail pane has no Timing section for a phased check")
 	}
@@ -553,7 +553,7 @@ func TestNoPhaseIsShownForAnUnphasedCheck(t *testing.T) {
 	m.checksTable.SetCursor(1) // the TCP check — timed, but never phased
 	m = feed(t, m, testutil.Key("enter"))
 
-	if strings.Contains(m.View(), "Timing") {
+	if strings.Contains(m.Render(), "Timing") {
 		t.Error("an unphased check shows a Timing section it has nothing to fill")
 	}
 }
@@ -565,7 +565,7 @@ func TestABlockedCheckPointsAtWhatBlockedIt(t *testing.T) {
 	m.checksTable.SetCursor(2)
 	m = feed(t, m, testutil.Key("enter"))
 
-	if !strings.Contains(m.View(), "TCP connect") {
+	if !strings.Contains(m.Render(), "TCP connect") {
 		t.Error("the blocked check does not name what blocked it")
 	}
 }
@@ -635,7 +635,7 @@ func TestNarrowTerminalDoesNotCollapseTheLayout(t *testing.T) {
 	// The resize comes last: runningModel lays out at 120 columns, so sizing
 	// before it would be overwritten and the test would not be narrow at all.
 	m = feed(t, m, tea.WindowSizeMsg{Width: 46, Height: 20})
-	if out := m.View(); strings.TrimSpace(out) == "" {
+	if out := m.Render(); strings.TrimSpace(out) == "" {
 		t.Fatal("the view is empty at 46 columns")
 	}
 }

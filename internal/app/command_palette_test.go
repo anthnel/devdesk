@@ -5,7 +5,6 @@ import (
 	"strings"
 	"testing"
 
-	tea "charm.land/bubbletea/v2"
 	"charm.land/lipgloss/v2"
 	"github.com/charmbracelet/x/ansi"
 
@@ -51,8 +50,8 @@ func TestClosedLayoutGivesTheViewportTwoMoreLines(t *testing.T) {
 				t.Errorf("line 8 should be the viewport's title border, got %q", lines[8])
 			}
 			// 7 header + 1 blank + title line + viewport + 2-line footer.
-			if want := sz[1] - paletteHeaderLines - 2 - 1; a.viewport.Height != want {
-				t.Errorf("viewport height = %d, want %d", a.viewport.Height, want)
+			if want := sz[1] - paletteHeaderLines - 2 - 1; a.viewport.Height() != want {
+				t.Errorf("viewport height = %d, want %d", a.viewport.Height(), want)
 			}
 			size, ok := lastWindowSize(&view.fakeView)
 			if !ok {
@@ -202,7 +201,7 @@ func TestThePaletteRowsFollowTheFreeHeight(t *testing.T) {
 	}
 	for _, tc := range cases {
 		t.Run(fmt.Sprintf("%dx%d/footer%d", tc.w, tc.h, tc.footer), func(t *testing.T) {
-			var view tea.Model = &fakeView{body: fullWidthBody()}
+			var view Screen = &fakeView{body: fullWidthBody()}
 			if tc.footer == 2 {
 				view = footedFake(fullWidthBody())
 			}
@@ -374,7 +373,7 @@ func TestTheOverlayNeverCutsAnEscapeSequence(t *testing.T) {
 				press(t, a, "ctrl+p")
 				step(t, a)
 
-				raw := strings.Split(a.View(), "\n")
+				raw := strings.Split(a.Render(), "\n")
 				if len(raw) != sz[1] {
 					t.Fatalf("View is %d lines, want %d", len(raw), sz[1])
 				}
@@ -409,7 +408,7 @@ func TestThePromptAndTheTypedTextCarryTheirColors(t *testing.T) {
 	typeCommand(t, a, "co")
 
 	var row string
-	for _, l := range strings.Split(a.View(), "\n") {
+	for _, l := range strings.Split(a.Render(), "\n") {
 		if strings.Contains(l, "❯") {
 			row = l
 		}

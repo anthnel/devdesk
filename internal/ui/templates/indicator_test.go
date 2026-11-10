@@ -67,12 +67,12 @@ func scanDirOf(t *testing.T, slug string) string {
 
 func lineOf(t *testing.T, m Model, name string) string {
 	t.Helper()
-	for _, l := range strings.Split(m.View(), "\n") {
+	for _, l := range strings.Split(m.Render(), "\n") {
 		if strings.Contains(l, name) {
 			return l
 		}
 	}
-	t.Fatalf("no rendered line holds %q:\n%s", name, m.View())
+	t.Fatalf("no rendered line holds %q:\n%s", name, m.Render())
 	return ""
 }
 

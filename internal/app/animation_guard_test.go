@@ -206,8 +206,8 @@ func mentionsIdent(e ast.Expr, name string) bool {
 // MCP server, port forwards): the chain is what is under test, not startup.
 type programModel struct{ app *App }
 
-func (m programModel) Init() tea.Cmd { return nil }
-func (m programModel) View() string  { return m.app.View() }
+func (m programModel) Init() tea.Cmd  { return nil }
+func (m programModel) View() tea.View { return m.app.View() }
 func (m programModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	_, cmd := m.app.Update(msg)
 	return m, cmd

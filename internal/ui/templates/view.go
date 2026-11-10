@@ -4,6 +4,7 @@ import (
 	"strconv"
 	"strings"
 
+	tea "charm.land/bubbletea/v2"
 	"charm.land/lipgloss/v2"
 
 	sharedcomponents "github.com/anthnel/devdesk/internal/ui/components"
@@ -122,10 +123,14 @@ func (m Model) status() sharedcomponents.Status {
 	return m.jobsStatus()
 }
 
-// View renders the form, the modal, or the table — and the table whatever it
+// View is the Bubble Tea v2 face of Render: the content only. The terminal
+// state (alternate screen, colours) belongs to whoever owns the program.
+func (m Model) View() tea.View { return tea.NewView(m.Render()) }
+
+// Render renders the form, the modal, or the table — and the table whatever it
 // holds: while loading, empty, or filtered to nothing it is a header and no rows
 // (Rule 139).
-func (m Model) View() string {
+func (m Model) Render() string {
 	if m.form != nil {
 		return m.form.View()
 	}

@@ -93,13 +93,9 @@ func runTUI() {
 	// Create the application with the router
 	m := app.New(cfg)
 
-	// Bubble Tea program options
-	opts := []tea.ProgramOption{
-		tea.WithAltScreen(), // Full-screen mode
-	}
-
-	// Start the Bubble Tea program
-	p := tea.NewProgram(m, opts...)
+	// Start the Bubble Tea program. The router's View asks for the alternate
+	// screen; main.go sets no terminal state.
+	p := tea.NewProgram(m)
 
 	// The router needs the handle before the loop starts: an MCP request
 	// reaches Update() through p.Send, and there is no other legal door

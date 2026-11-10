@@ -59,7 +59,7 @@ func TestTheYieldingColumnsAreTheHeadOfTheDropOrder(t *testing.T) {
 	for w := 230; w >= 50; w-- {
 		m := atPricedAgents(t, nil, w, costUsage())
 		now := map[string]bool{}
-		for _, c := range header(t, m.View()) {
+		for _, c := range header(t, m.Render()) {
 			now[c] = true
 		}
 		for c := range present {
@@ -85,7 +85,7 @@ func TestTheActivityColumnsOutliveALongAgentTypeAt80(t *testing.T) {
 	checked := 0
 	for name, typ := range longTypes {
 		m := atPricedAgents(t, nil, 80, typedUsage(typ))
-		cols := header(t, m.View())
+		cols := header(t, m.Render())
 		for _, want := range []string{"Tools", "Duration"} {
 			if !slices.Contains(cols, want) {
 				t.Errorf("%s: %s is missing at 80 columns: %v", name, want, cols)
@@ -94,7 +94,7 @@ func TestTheActivityColumnsOutliveALongAgentTypeAt80(t *testing.T) {
 		if slices.Contains(cols, "State") {
 			t.Errorf("%s: State must be dropped at 80 columns (it needs 84): %v", name, cols)
 		}
-		if at84 := header(t, atPricedAgents(t, nil, 84, typedUsage(typ)).View()); !slices.Contains(at84, "State") {
+		if at84 := header(t, atPricedAgents(t, nil, 84, typedUsage(typ)).Render()); !slices.Contains(at84, "State") {
 			t.Errorf("%s: State is missing at 84 columns: %v", name, at84)
 		}
 		// Dropping State hands its cells back to the Agent text: from its floor of
@@ -123,14 +123,14 @@ func TestBreakdownWaitsForTheAgentText(t *testing.T) {
 	for _, tt := range tests {
 		want := agentCellWidth(tt.typ)
 		below := atPricedAgents(t, nil, tt.absent, typedUsage(tt.typ))
-		if slices.Contains(header(t, below.View()), breakdownTitle) {
+		if slices.Contains(header(t, below.Render()), breakdownTitle) {
 			t.Errorf("%s: %s is shown at %d columns", tt.name, breakdownTitle, tt.absent)
 		}
 		if got := below.agentTable.Table().Columns()[agentColIdx].Width; got != want {
 			t.Errorf("%s at %d: Agent = %d, want %d", tt.name, tt.absent, got, want)
 		}
 		at := atPricedAgents(t, nil, tt.show, typedUsage(tt.typ))
-		if !slices.Contains(header(t, at.View()), breakdownTitle) {
+		if !slices.Contains(header(t, at.Render()), breakdownTitle) {
 			t.Errorf("%s: %s is missing at %d columns", tt.name, breakdownTitle, tt.show)
 		}
 		if got := at.agentTable.Table().Columns()[agentColIdx].Width; got != want {
@@ -152,7 +152,7 @@ func TestRule116HoldsAtEveryWidthWithLongTypes(t *testing.T) {
 			if got := m.agentTable.RenderedWidth(); got != w-2 {
 				t.Fatalf("%s at %d: rendered width = %d, want %d (Rule 116)", name, w, got, w-2)
 			}
-			if slices.Contains(header(t, m.View()), breakdownTitle) {
+			if slices.Contains(header(t, m.Render()), breakdownTitle) {
 				withBar++
 			}
 			checked++

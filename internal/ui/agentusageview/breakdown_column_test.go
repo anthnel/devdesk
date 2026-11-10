@@ -11,8 +11,6 @@ import (
 	"testing"
 	"unicode/utf8"
 
-	"charm.land/lipgloss/v2"
-
 	"github.com/anthnel/devdesk/internal/agentusage"
 	"github.com/anthnel/devdesk/internal/agentusage/pricing"
 	"github.com/anthnel/devdesk/internal/testutil/colorprofile"
@@ -250,9 +248,9 @@ func TestBreakdownLayoutAtEachWidth(t *testing.T) {
 			if got := m.agentTable.RenderedWidth(); got != tt.width-2 {
 				t.Errorf("rendered width = %d, want %d (Rule 116)", got, tt.width-2)
 			}
-			got := shownTitles(t, m.View())
+			got := shownTitles(t, m.Render())
 			if strings.Join(got, ",") != strings.Join(tt.want, ",") {
-				t.Errorf("columns at %d = %v, want %v:\n%s", tt.width, got, tt.want, m.View())
+				t.Errorf("columns at %d = %v, want %v:\n%s", tt.width, got, tt.want, m.Render())
 			}
 		})
 	}
@@ -270,7 +268,7 @@ func TestBreakdownRule116AndDropOrderAtEveryWidth(t *testing.T) {
 		if got := m.agentTable.RenderedWidth(); got != w-2 {
 			t.Fatalf("width %d: rendered width = %d, want %d (Rule 116)", w, got, w-2)
 		}
-		cols := shownTitles(t, m.View())
+		cols := shownTitles(t, m.Render())
 		if i := slices.Index(cols, breakdownTitle); i >= 0 {
 			shown++
 			if cols[i-1] != "Model" || cols[i+1] != "In" && cols[i+1] != "Out" {
@@ -306,13 +304,13 @@ func TestBreakdownBarIsTenCellsOnScreen(t *testing.T) {
 	for _, w := range []int{110, 150, 230} {
 		m := atPricedAgents(t, nil, w, costUsage())
 		var line string
-		for _, l := range strings.Split(stripANSI(m.View()), "\n") {
+		for _, l := range strings.Split(stripANSI(m.Render()), "\n") {
 			if strings.Contains(l, orchestratorLabel) {
 				line = l
 			}
 		}
 		if line == "" {
-			t.Fatalf("width %d: no orchestrator line:\n%s", w, m.View())
+			t.Fatalf("width %d: no orchestrator line:\n%s", w, m.Render())
 		}
 		if got := strings.Count(line, "░"); got != 10 {
 			t.Errorf("width %d: %d gauge glyphs on the orchestrator line, want 10: %q", w, got, line)
@@ -325,8 +323,8 @@ func TestBreakdownBarIsTenCellsOnScreen(t *testing.T) {
 func TestBreakdownZeroTokenSession(t *testing.T) {
 	u := agentusage.Usage{Agents: []agentusage.Agent{{Main: true}, {ID: "a01", Type: "coder"}, {ID: "a02", Type: "tester"}}}
 	m := atPricedAgents(t, nil, 200, u)
-	if !slices.Contains(shownTitles(t, m.View()), breakdownTitle) {
-		t.Fatalf("Breakdown is not shown at 200 columns:\n%s", m.View())
+	if !slices.Contains(shownTitles(t, m.Render()), breakdownTitle) {
+		t.Fatalf("Breakdown is not shown at 200 columns:\n%s", m.Render())
 	}
 	c := column(t, breakdownTitle)
 	rows := m.agentTable.Items()
@@ -341,8 +339,8 @@ func TestBreakdownZeroTokenSession(t *testing.T) {
 			t.Errorf("%s: Share = %q, want %q", roleCell(r), got, noValue)
 		}
 	}
-	if strings.Contains(stripANSI(m.View()), "░") {
-		t.Errorf("a gauge glyph is drawn for an agent with no token:\n%s", m.View())
+	if strings.Contains(stripANSI(m.Render()), "░") {
+		t.Errorf("a gauge glyph is drawn for an agent with no token:\n%s", m.Render())
 	}
 }
 
@@ -546,14 +544,11 @@ func sgrColours(params string) (fg, bg string, bold bool) {
 	return fg, bg, bold
 }
 
-// rgbOf is a "#rrggbb" colour as "r;g;b".
+// rgbOf is a colour as "r;g;b", 8 bits per channel.
 func rgbOf(t *testing.T, c color.Color) string {
 	t.Helper()
-	var r, g, b int
-	if _, err := fmt.Sscanf(string(c), "#%02x%02x%02x", &r, &g, &b); err != nil {
-		t.Fatalf("colour %q is not #rrggbb: %v", c, err)
-	}
-	return fmt.Sprintf("%d;%d;%d", r, g, b)
+	r, g, b, _ := c.RGBA()
+	return fmt.Sprintf("%d;%d;%d", r>>8, g>>8, b>>8)
 }
 
 // sameRGB compares two "r;g;b" colours within one unit per channel: the colour
@@ -619,7 +614,7 @@ func TestBreakdownRenderedRowColoursAndSelection(t *testing.T) {
 			m, _ = opened(t, m, "down")
 		}
 		for _, role := range []string{"orchestrator", "coder"} {
-			params, lengths := barRuns(t, m.View(), role)
+			params, lengths := barRuns(t, m.Render(), role)
 			if len(params) != segCount {
 				t.Fatalf("cursor on %s, row %s: %d coloured runs, want %d (%v)", cursorOn, role, len(params), segCount, params)
 			}
@@ -664,7 +659,7 @@ func TestBreakdownDoesNotTruncateTheAgentColumnAt160(t *testing.T) {
 		if got := m.agentTable.Table().Columns()[agentColIdx].Width; got < want {
 			t.Errorf("type of %d chars: Agent column is %d wide at 160 columns, want at least %d", n, got, want)
 		}
-		if !strings.Contains(stripANSI(m.View()), lastStem+typ) {
+		if !strings.Contains(stripANSI(m.Render()), lastStem+typ) {
 			t.Errorf("type of %d chars is cut on screen at 160 columns", n)
 		}
 		checked++

@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"strings"
 
+	tea "charm.land/bubbletea/v2"
 	"charm.land/lipgloss/v2"
 
 	"github.com/anthnel/devdesk/internal/command"
@@ -426,8 +427,12 @@ func (m Model) GetShortcuts() shortcut.Shortcuts {
 	return base
 }
 
-// View renders the view (Rule 112: forms in viewport, modals centered)
-func (m Model) View() string {
+// View is the Bubble Tea v2 face of Render: the content only. The terminal
+// state (alternate screen, colours) belongs to whoever owns the program.
+func (m Model) View() tea.View { return tea.NewView(m.Render()) }
+
+// Render renders the view (Rule 112: forms in viewport, modals centered)
+func (m Model) Render() string {
 	// Priority 0: registry browser (viewport)
 	if m.registryBrowser != nil {
 		return m.registryBrowser.View()

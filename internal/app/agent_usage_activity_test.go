@@ -59,15 +59,15 @@ func openLiveAgentSession(t *testing.T) (*App, tea.Cmd) {
 			last = cmd
 		}
 	}
-	if !strings.Contains(ansi.Strip(a.views[command.ViewAgentUsage].View()), "orchestrator") {
-		t.Fatalf("fixture error: the agents level is not on screen:\n%s", ansi.Strip(a.views[command.ViewAgentUsage].View()))
+	if !strings.Contains(ansi.Strip(a.views[command.ViewAgentUsage].Render()), "orchestrator") {
+		t.Fatalf("fixture error: the agents level is not on screen:\n%s", ansi.Strip(a.views[command.ViewAgentUsage].Render()))
 	}
 	return a, last
 }
 
 func orchestratorRow(t *testing.T, a *App) string {
 	t.Helper()
-	return rowOf(t, ansi.Strip(a.views[command.ViewAgentUsage].View()), "orchestrator")
+	return rowOf(t, ansi.Strip(a.views[command.ViewAgentUsage].Render()), "orchestrator")
 }
 
 func TestAgentUsageRunningAgentBlinksItsDot(t *testing.T) {
@@ -81,14 +81,14 @@ func TestAgentUsageRunningAgentBlinksItsDot(t *testing.T) {
 	}
 
 	on, off := indicator.Glyph(indicator.Running, true), indicator.Glyph(indicator.Running, false)
-	m := a.views[command.ViewAgentUsage]
+	var m tea.Model = a.views[command.ViewAgentUsage]
 	m, _ = m.Update(jobs.FrameMsg{Blink: true})
-	a.views[command.ViewAgentUsage] = m
+	a.setView(command.ViewAgentUsage, m)
 	if row := orchestratorRow(t, a); !strings.Contains(row, on) {
 		t.Errorf("blink on: the row has no %q: %q", on, row)
 	}
 	m, _ = m.Update(jobs.FrameMsg{Blink: false})
-	a.views[command.ViewAgentUsage] = m
+	a.setView(command.ViewAgentUsage, m)
 	if row := orchestratorRow(t, a); strings.Contains(row, on) || !strings.Contains(row, off) {
 		t.Errorf("blink off: expected only the off phase %q: %q", off, row)
 	}
@@ -123,7 +123,7 @@ func TestAgentUsageStaticMotionKeepsTheDotSteadyAndStartsNoChain(t *testing.T) {
 	}
 	// The router hands a pinned, on phase to the view.
 	m, _ := a.views[command.ViewAgentUsage].Update(jobs.FrameMsg{Blink: a.frameMsg().Blink})
-	a.views[command.ViewAgentUsage] = m
+	a.setView(command.ViewAgentUsage, m)
 	on := indicator.Glyph(indicator.Running, true)
 	if row := orchestratorRow(t, a); !strings.Contains(row, on) {
 		t.Errorf("static motion: the dot must stay %q: %q", on, row)

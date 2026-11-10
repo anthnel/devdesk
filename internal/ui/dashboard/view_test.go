@@ -34,7 +34,7 @@ func plain(s string) string {
 }
 
 func TestViewRendersEveryBox(t *testing.T) {
-	out := plain(loadedOnly(t).View())
+	out := plain(loadedOnly(t).Render())
 
 	// "Docker" and not "Docker (VM)": the box is named after the engine in use
 	// (§3.67), and "(VM)" described Docker Desktop's virtual machine — already
@@ -60,7 +60,7 @@ func TestTheViewDeclaresItselfFrameless(t *testing.T) {
 func TestViewRowsAreUniformWidth(t *testing.T) {
 	m, _ := loadedModel(t)
 
-	lines := strings.Split(m.View(), "\n")
+	lines := strings.Split(m.Render(), "\n")
 	if len(lines) < 5 {
 		t.Fatalf("View() produced %d lines, want a full dashboard", len(lines))
 	}
@@ -105,7 +105,7 @@ func TestViewSurvivesANarrowTerminal(t *testing.T) {
 	m, _ := loadedModel(t)
 	m = feed(t, m, testutil.Resize(20, 10))
 
-	if out := m.View(); out == "" {
+	if out := m.Render(); out == "" {
 		t.Error("View() returned nothing on a narrow terminal")
 	}
 }
@@ -113,7 +113,7 @@ func TestViewSurvivesANarrowTerminal(t *testing.T) {
 // ── The boxes ────────────────────────────────────────────────────────────────
 
 func TestTheCodeBoxShowsTheSessionAndCounts(t *testing.T) {
-	out := plain(loadedOnly(t).View())
+	out := plain(loadedOnly(t).Render())
 
 	for _, want := range []string{"anthoni", "3 assigned", "2 to review", "5 assigned", "Workspaces 6"} {
 		if !strings.Contains(out, want) {
@@ -224,7 +224,7 @@ func TestOnlyOneWorkspaceWalkRunsAtATime(t *testing.T) {
 func TestSignedOutKeepsTheCodeBoxLabels(t *testing.T) {
 	m, _ := newTestModel(t)
 
-	out := plain(m.View())
+	out := plain(m.Render())
 	// The change-request label is the forge's own initialism — MRs on GitLab,
 	// PRs on GitHub — because the label column is eleven cells and the long
 	// form does not fit either of them.
@@ -302,7 +302,7 @@ func TestTheHealthBoxCountsMonitorsAndCertificates(t *testing.T) {
 // much space". Both figures used to be in both boxes, in two different
 // forms.
 func TestTheDockerBoxCountsWithoutSizing(t *testing.T) {
-	out := plain(loadedOnly(t).View())
+	out := plain(loadedOnly(t).Render())
 
 	for _, want := range []string{"4 total", "2 running"} {
 		if !strings.Contains(out, want) {
@@ -360,7 +360,7 @@ func TestSectionsSettleIndependently(t *testing.T) {
 
 	m = feed(t, m, DockerStatsMsg{Stats: shared.DockerStats{Available: true, Running: 2}})
 
-	out := plain(m.View())
+	out := plain(m.Render())
 	if !strings.Contains(out, "2 running") {
 		t.Errorf("the Docker box did not render once its own result arrived:\n%s", out)
 	}
@@ -373,7 +373,7 @@ func TestMonitorsReportAnEmptyConfiguration(t *testing.T) {
 	m, _ := authenticatedModel(t)
 	m = feed(t, m, StatusCheckMsg{Result: status.MonitorResult{Components: nil}})
 
-	if out := plain(m.View()); !strings.Contains(out, "none configured") {
+	if out := plain(m.Render()); !strings.Contains(out, "none configured") {
 		t.Errorf("the Health box does not report an empty configuration:\n%s", out)
 	}
 }
@@ -381,7 +381,7 @@ func TestMonitorsReportAnEmptyConfiguration(t *testing.T) {
 // ── Metrics ──────────────────────────────────────────────────────────────────
 
 func TestTheHostBoxShowsTheSample(t *testing.T) {
-	out := plain(loadedOnly(t).View())
+	out := plain(loadedOnly(t).Render())
 
 	for _, want := range []string{"CPU        9 %", "RAM        92 %"} {
 		if !strings.Contains(out, want) {
@@ -596,7 +596,7 @@ func TestTabSwitchesBetweenOverviewAndResources(t *testing.T) {
 	if m.activeTab != tabResources {
 		t.Fatalf("tab left the view on %v, want the Resources tab", m.activeTab)
 	}
-	if out := plain(m.View()); !strings.Contains(out, "Network") || !strings.Contains(out, "Storage") {
+	if out := plain(m.Render()); !strings.Contains(out, "Network") || !strings.Contains(out, "Storage") {
 		t.Errorf("the Resources tab does not show its boxes:\n%s", out)
 	}
 

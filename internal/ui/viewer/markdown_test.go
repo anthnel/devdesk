@@ -35,7 +35,7 @@ func TestMarkdownOpensRendered(t *testing.T) {
 
 	// Stripped: a bullet and the text after it are two runs with different
 	// styles, so the escape sequence between them breaks a substring match.
-	view := ansi.Strip(m.View())
+	view := ansi.Strip(m.Render())
 	for _, marker := range []string{"# Title", "**bold**", "`snippet`"} {
 		if strings.Contains(view, marker) {
 			t.Errorf("the rendered pane still shows %q:\n%s", marker, view)
@@ -68,7 +68,7 @@ func TestFSwitchesBetweenRenderedAndRaw(t *testing.T) {
 
 	// The raw display is the source, to the character — which is what makes the
 	// rendering's omissions acceptable rather than losses.
-	view := ansi.Strip(m.View())
+	view := ansi.Strip(m.Render())
 	for _, marker := range []string{"# Title", "**bold**", "- item one", "> quoted", "`snippet`"} {
 		if !strings.Contains(view, marker) {
 			t.Errorf("the raw display does not show %q:\n%s", marker, view)
@@ -91,14 +91,14 @@ func TestColoringOffKeepsTheMarkersHidden(t *testing.T) {
 	if m.display != displayRendered {
 		t.Fatal("c moved the display")
 	}
-	view := ansi.Strip(m.View())
+	view := ansi.Strip(m.Render())
 	if strings.Contains(view, "**bold**") || strings.Contains(view, "# Title") {
 		t.Errorf("c brought the markers back:\n%s", view)
 	}
 	if !strings.Contains(view, "bold") {
 		t.Error("c lost the text along with the color")
 	}
-	if strings.Contains(m.View(), syntaxStyle(viewerpkg.ClassHeading).Render("Title")) {
+	if strings.Contains(m.Render(), syntaxStyle(viewerpkg.ClassHeading).Render("Title")) {
 		t.Error("the heading is still styled with coloring off")
 	}
 }
@@ -116,7 +116,7 @@ func TestSearchWorksInRenderedMarkdown(t *testing.T) {
 	if !m.FilterBarVisible() {
 		t.Error("the filter bar is not offered in a rendered document")
 	}
-	view := ansi.Strip(m.View())
+	view := ansi.Strip(m.Render())
 	if !strings.Contains(view, "bold") {
 		t.Errorf("the matching line is missing:\n%s", view)
 	}
@@ -151,7 +151,7 @@ func TestDockerfilesAndShellScriptsReachTheScreenColored(t *testing.T) {
 			if got := m.formatLabel(); got != tc.format {
 				t.Errorf("formatLabel = %q, want %q", got, tc.format)
 			}
-			if got := m.View(); !strings.Contains(got, syntaxStyle(viewerpkg.ClassKeyword).Render(tc.keyword)) {
+			if got := m.Render(); !strings.Contains(got, syntaxStyle(viewerpkg.ClassKeyword).Render(tc.keyword)) {
 				t.Errorf("%q is not colored as a keyword:\n%s", tc.keyword, got)
 			}
 		})

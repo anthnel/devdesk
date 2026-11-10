@@ -3,15 +3,24 @@ package app
 import (
 	"strings"
 
+	tea "charm.land/bubbletea/v2"
 	"charm.land/lipgloss/v2"
 
 	"github.com/anthnel/devdesk/internal/ui/overlay"
 	"github.com/anthnel/devdesk/internal/ui/theme"
 )
 
-// View renders the interface: header, title line, viewport, footer (Rule 124).
+// View is the program's frame. The router is the only place that sets the
+// terminal state (alternate screen now), the views only provide content.
+func (a *App) View() tea.View {
+	v := tea.NewView(a.Render())
+	v.AltScreen = true
+	return v
+}
+
+// Render renders the interface: header, title line, viewport, footer (Rule 124).
 // An open overlay replaces the whole thing.
-func (a *App) View() string {
+func (a *App) Render() string {
 	if overlay := a.activeOverlay(); overlay != "" {
 		return lipgloss.Place(a.width, a.height, lipgloss.Center, lipgloss.Center, overlay,
 			lipgloss.WithWhitespaceStyle(lipgloss.NewStyle().Background(theme.ColorBackground)))
@@ -98,7 +107,7 @@ func (a *App) activeOverlay() string {
 func (a *App) renderBody() string {
 	content := "View not found: " + string(a.currentView)
 	if view, ok := a.views[a.currentView]; ok {
-		content = view.View()
+		content = view.Render()
 	}
 
 	innerWidth := a.viewport.Width() - 2 // -2 for the borders

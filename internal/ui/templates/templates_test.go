@@ -128,7 +128,7 @@ func TestTheCatalogOpensAsRows(t *testing.T) {
 // has its header and its columns.
 func TestAnEmptyCatalogIsStillATable(t *testing.T) {
 	m := opened(t)
-	if view := m.View(); !strings.Contains(view, "Name") || !strings.Contains(view, "Source") {
+	if view := m.Render(); !strings.Contains(view, "Name") || !strings.Contains(view, "Source") {
 		t.Errorf("an empty catalog rendered %q, want the table's header", view)
 	}
 }

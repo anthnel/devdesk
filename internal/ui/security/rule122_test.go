@@ -51,7 +51,7 @@ func TestAScanningRowCarriesNoEscapeSequence(t *testing.T) {
 			if running == 0 {
 				t.Error("no row says it is being scanned, so nothing tells the user work started")
 			}
-			if !strings.Contains(m.View(), scanningText) {
+			if !strings.Contains(m.Render(), scanningText) {
 				t.Error("the rendered view shows no scan in progress")
 			}
 		})

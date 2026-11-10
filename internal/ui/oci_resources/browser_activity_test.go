@@ -254,7 +254,7 @@ func TestTheBlinkPhaseReachesTheBrowserTable(t *testing.T) {
 	if !b.tagTable.BlinkPhase() {
 		t.Fatal("BlinkPhase() = false after FrameMsg{Blink: true}")
 	}
-	if line := renderedRow(t, m.View(), "v2"); !strings.Contains(line, glyphDot) {
+	if line := renderedRow(t, m.Render(), "v2"); !strings.Contains(line, glyphDot) {
 		t.Errorf("the running row lacks %q:\n%s", glyphDot, line)
 	}
 
@@ -262,7 +262,7 @@ func TestTheBlinkPhaseReachesTheBrowserTable(t *testing.T) {
 	if b.tagTable.BlinkPhase() {
 		t.Error("BlinkPhase() = true after FrameMsg{Blink: false}")
 	}
-	line := renderedRow(t, m.View(), "v2")
+	line := renderedRow(t, m.Render(), "v2")
 	if !strings.Contains(line, glyphHollow) || strings.Contains(line, glyphDot) {
 		t.Errorf("the off phase should render %q only:\n%s", glyphHollow, line)
 	}

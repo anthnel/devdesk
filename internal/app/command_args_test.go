@@ -235,7 +235,7 @@ func requireSwitchTo(t *testing.T, a *App, name string) {
 	if a.switchingTo != name {
 		t.Errorf("switchingTo = %q, want %q", a.switchingTo, name)
 	}
-	if want := "Switching to context " + name + "..."; !strings.Contains(a.View(), want) {
+	if want := "Switching to context " + name + "..."; !strings.Contains(a.Render(), want) {
 		t.Errorf("the overlay %q is not on screen", want)
 	}
 }

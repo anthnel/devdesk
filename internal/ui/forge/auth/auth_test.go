@@ -116,7 +116,7 @@ func TestTheURLIsReadFromTheConfiguration(t *testing.T) {
 
 	m := newTestModel(t, cfg, newFakeStorage())
 
-	if !strings.Contains(m.View(), "https://gitlab.example.com") {
+	if !strings.Contains(m.Render(), "https://gitlab.example.com") {
 		t.Error("the configured URL is not shown")
 	}
 	if m.tokenInput.Value() != "" {

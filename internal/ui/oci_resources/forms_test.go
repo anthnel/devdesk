@@ -458,7 +458,7 @@ func TestNetworkInspectListsTheContainers(t *testing.T) {
 	if m.networkInspectForm == nil {
 		t.Fatal("the inspect overlay is not open")
 	}
-	view := m.View()
+	view := m.Render()
 	for _, want := range []string{"api", "web", "172.17.0.2"} {
 		if !strings.Contains(view, want) {
 			t.Errorf("the overlay does not show %q:\n%s", want, view)

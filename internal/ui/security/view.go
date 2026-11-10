@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"strings"
 
+	tea "charm.land/bubbletea/v2"
 	"charm.land/lipgloss/v2"
 
 	"github.com/anthnel/devdesk/internal/command"
@@ -13,8 +14,12 @@ import (
 	"github.com/anthnel/devdesk/internal/ui/theme"
 )
 
-// View renders the UI
-func (m Model) View() string {
+// View is the Bubble Tea v2 face of Render: the content only. The terminal
+// state (alternate screen, colours) belongs to whoever owns the program.
+func (m Model) View() tea.View { return tea.NewView(m.Render()) }
+
+// Render renders the UI
+func (m Model) Render() string {
 	// Show whichever modal is active (Rule 112: modals confirm, forms fill the
 	// viewport).
 	if modal := m.modalView(); modal != "" {

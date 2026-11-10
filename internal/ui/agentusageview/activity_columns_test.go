@@ -2,6 +2,7 @@ package agentusageview
 
 import (
 	"fmt"
+	"image/color"
 	"os"
 	"strings"
 	"testing"
@@ -134,7 +135,7 @@ func TestActivityColumnColours(t *testing.T) {
 	tn := time.Now()
 	a := stamped(subAgent("a01", "coder", 1, 0), 12, tn.Add(-time.Minute), tn)
 	state, tools, dur := column(t, "State"), column(t, "Tools"), column(t, "Duration")
-	fg := func(s lipgloss.Style) lipgloss.TerminalColor { return s.GetForeground() }
+	fg := func(s lipgloss.Style) color.Color { return s.GetForeground() }
 	plain := fg(lipgloss.NewStyle())
 
 	if got, want := fg(state.Style(rowWith(a, stateIdle))), fg(theme.SeverityTextStyle("MEDIUM")); got != want {
@@ -207,7 +208,7 @@ func activityUsage(tn time.Time) agentusage.Usage {
 func TestEveryAgentLineShowsStateToolsAndDurationAt80Columns(t *testing.T) {
 	tn := time.Now()
 	m := sizedAgents(t, 80, activityUsage(tn), statusClock{now: tn, alive: true})
-	view := stripANSI(m.View())
+	view := stripANSI(m.Render())
 	lines := map[string][]string{
 		"orchestrator": {indicator.Glyph(indicator.Running, true), "7", "1h00m"},
 		"coder":        {indicator.Glyph(indicator.Running, true), "12", "3m07s"},
@@ -245,7 +246,7 @@ func TestTheStateTextComesBackAt84Columns(t *testing.T) {
 		"coder":        {indicator.Glyph(indicator.Running, true), "running", "12", "3m07s"},
 		"tester":       {indicator.Glyph(indicator.Done, true), "done", "3", "45s"},
 	}
-	view := stripANSI(m.View())
+	view := stripANSI(m.Render())
 	for role, wants := range lines {
 		line := viewLine(t, view, role)
 		for _, w := range wants {
@@ -259,7 +260,7 @@ func TestTheStateTextComesBackAt84Columns(t *testing.T) {
 func TestNoActivityColumnsAt60Columns(t *testing.T) {
 	tn := time.Now()
 	m := sizedAgents(t, 60, activityUsage(tn), statusClock{now: tn, alive: true})
-	view := stripANSI(m.View())
+	view := stripANSI(m.Render())
 	for _, title := range []string{"State", "Tools", "Duration"} {
 		if strings.Contains(view, title) {
 			t.Errorf("%s must be dropped at 60 columns:\n%s", title, view)
@@ -272,7 +273,7 @@ func TestShareStaysDownTo58Columns(t *testing.T) {
 	tn := time.Now()
 	for w, want := range map[int]bool{58: true, 57: false} {
 		m := sizedAgents(t, w, activityUsage(tn), statusClock{now: tn, alive: true})
-		if got := strings.Contains(stripANSI(m.View()), "Share"); got != want {
+		if got := strings.Contains(stripANSI(m.Render()), "Share"); got != want {
 			t.Errorf("width %d: Share shown = %v, want %v", w, got, want)
 		}
 	}
@@ -284,7 +285,7 @@ func TestSortKeepsEveryRowsState(t *testing.T) {
 	u.Agents[1].LastActivity = tn.Add(-20 * time.Minute) // unfinished and quiet: idle
 	m := sizedAgents(t, 120, u, statusClock{now: tn, alive: true})
 	m, _ = opened(t, m, ".")
-	if got := stripANSI(m.View()); !strings.Contains(got, "idle") || !strings.Contains(got, "done") {
+	if got := stripANSI(m.Render()); !strings.Contains(got, "idle") || !strings.Contains(got, "done") {
 		t.Errorf("a sorted list lost the states:\n%s", got)
 	}
 	for _, r := range m.agentTable.Items() {
@@ -325,7 +326,7 @@ func stateOf(t *testing.T, m Model, id string) runState {
 }
 
 func agentHeaderLine(m Model) string {
-	for _, l := range strings.Split(stripANSI(m.View()), "\n") {
+	for _, l := range strings.Split(stripANSI(m.Render()), "\n") {
 		if strings.Contains(l, "Agent") && strings.Contains(l, "Total") {
 			return l
 		}
@@ -362,8 +363,8 @@ func TestAnAgentTurnsIdleOnAnEmptyDelta(t *testing.T) {
 	if got := stateOf(t, m, "a01"); got != stateIdle {
 		t.Errorf("a01 = %s after 6 quiet minutes, want idle", got.label())
 	}
-	if !strings.Contains(stripANSI(m.View()), "idle") {
-		t.Errorf("idle is not on screen:\n%s", m.View())
+	if !strings.Contains(stripANSI(m.Render()), "idle") {
+		t.Errorf("idle is not on screen:\n%s", m.Render())
 	}
 	if now, _ := m.selectedAgentKey(); now != selected {
 		t.Errorf("selection moved from %q to %q", selected, now)
@@ -470,7 +471,7 @@ func TestToolContentNeverReachesTheView(t *testing.T) {
 	m = feed(t, m, testutil.Resize(140, 30))
 
 	for name, out := range map[string]string{
-		"view":    m.View(),
+		"view":    m.Render(),
 		"footer":  footer(m),
 		"rows":    fmt.Sprintf("%+v %#v", m.agentTable.Items(), m.usage),
 		"message": fmt.Sprintf("%+v %#v", reads[0], reads[0]),
@@ -613,7 +614,7 @@ func TestEveryRowStartsWithItsStateGlyphAt60Columns(t *testing.T) {
 	}
 	for _, width := range []int{60, 80, 120} {
 		m := sizedAgents(t, width, fourStates(tn), statusClock{now: tn, alive: false})
-		view := stripANSI(m.View())
+		view := stripANSI(m.Render())
 		if strings.Contains(view, "State") && width < 84 {
 			t.Errorf("width %d: the State column must be dropped:\n%s", width, view)
 		}
@@ -631,7 +632,7 @@ func TestEveryRowStartsWithItsStateGlyphAt60Columns(t *testing.T) {
 func TestTheDotAndTheStateTextAgreeAt120Columns(t *testing.T) {
 	tn := time.Now()
 	m := sizedAgents(t, 120, fourStates(tn), statusClock{now: tn, alive: false})
-	view := stripANSI(m.View())
+	view := stripANSI(m.Render())
 	for role, pair := range map[string][2]string{
 		"orchestrator": {indicator.Glyph(indicator.Unknown, true), "unknown"},
 		"coder":        {indicator.Glyph(indicator.Running, true), "running"},

@@ -58,7 +58,7 @@ func TestEachTabRendersItsOwnTable(t *testing.T) {
 				m = feed(t, m, testutil.Key("tab"))
 			}
 
-			view := m.View()
+			view := m.Render()
 			for _, want := range tt.want {
 				if !strings.Contains(view, want) {
 					t.Errorf("the %s tab does not show %q:\n%s", tt.name, want, view)
@@ -71,7 +71,7 @@ func TestEachTabRendersItsOwnTable(t *testing.T) {
 // Before the first list arrives the tab shows a spinner rather than an empty
 // table, which would read as "you have none".
 func TestTabsShowASpinnerBeforeLoading(t *testing.T) {
-	view := newTestModel(t).View()
+	view := newTestModel(t).Render()
 
 	if strings.Contains(view, "api:v1") {
 		t.Error("the table has rows before anything loaded")
@@ -146,7 +146,7 @@ func TestFormsReplaceTheViewAndModalsOverlayIt(t *testing.T) {
 			t.Skip("ctrl+e did not open the launch form")
 		}
 
-		if view := m.View(); strings.Contains(view, "cache:v2") {
+		if view := m.Render(); strings.Contains(view, "cache:v2") {
 			t.Error("the image table is visible behind the launch form")
 		}
 	})
@@ -154,7 +154,7 @@ func TestFormsReplaceTheViewAndModalsOverlayIt(t *testing.T) {
 	t.Run("a confirmation names its target", func(t *testing.T) {
 		m := feed(t, loadedModel(t), testutil.Key(keymap.Delete))
 
-		if view := m.View(); !strings.Contains(view, "api:v1") {
+		if view := m.Render(); !strings.Contains(view, "api:v1") {
 			t.Errorf("the confirmation does not name the image:\n%s", view)
 		}
 	})
@@ -247,7 +247,7 @@ func TestLayoutSurvivesATinyTerminal(t *testing.T) {
 	if m.imageTable.Table().Height() < 0 {
 		t.Errorf("table height = %d", m.imageTable.Table().Height())
 	}
-	if m.View() == "" {
+	if m.Render() == "" {
 		t.Error("the view is blank at 20x1")
 	}
 }

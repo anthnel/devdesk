@@ -39,6 +39,19 @@ App (Router)
     └── viewer          - One document, read-only (router-only: no `:viewer`)
 ```
 
+**Render and View (Bubble Tea v2, DEVDESK-201).** A top-level view keeps
+`Render() string` and wraps it: `View() tea.View { return tea.NewView(m.Render()) }`.
+`app.Screen` is `tea.Model` plus `Render() string`; the router holds
+`map[ViewType]Screen` and installs every view through the single `setView`,
+which panics naming the view when a model has no `Render()`. Only the router
+sets terminal state: `App.View()` wraps `App.Render()` and sets `AltScreen`
+(`main.go` passes no `tea.WithAltScreen()`). The setup wizard is its own
+program and sets `AltScreen` in its own `View()`. Components (datatable, forms,
+`FilterBar`) keep `View() string`. A bracketed paste arrives as `tea.PasteMsg`
+and goes through `handlePasteMsg`: it is text for the focused field (palette,
+or the view when it is editing), never a key action, and is dropped behind an
+overlay or a context switch.
+
 ## View Switching & Command Mode
 
 Press `ctrl+p` to enter command mode, then type:

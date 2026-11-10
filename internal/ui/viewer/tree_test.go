@@ -133,7 +133,7 @@ func TestFSwitchesBetweenTreeAndText(t *testing.T) {
 	if got := m.formatLabel(); got != "json · text" {
 		t.Errorf("formatLabel = %q, want \"json · text\"", got)
 	}
-	if !strings.Contains(m.View(), "web") {
+	if !strings.Contains(m.Render(), "web") {
 		t.Error("the text display does not render the document")
 	}
 

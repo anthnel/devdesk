@@ -108,7 +108,7 @@ func TestTheRowsComeFromTheSnapshot(t *testing.T) {
 	if got := len(m.runTable.Items()); got != 2 {
 		t.Fatalf("the table holds %d runs, want the 2 in the snapshot", got)
 	}
-	view := m.View()
+	view := m.Render()
 	for _, want := range []string{"~/work", "~/perso", "scan", "sync"} {
 		if !strings.Contains(view, want) {
 			t.Errorf("the table does not show %q:\n%s", want, view)
@@ -128,7 +128,7 @@ func TestARunFromAnotherContextIsNotListed(t *testing.T) {
 	if got := len(m.runTable.Items()); got != 1 {
 		t.Fatalf("the table holds %d runs, want only the current context's", got)
 	}
-	if strings.Contains(m.View(), "~/elsewhere") {
+	if strings.Contains(m.Render(), "~/elsewhere") {
 		t.Error("a run stamped with another context is on screen")
 	}
 }
@@ -162,7 +162,7 @@ func TestTheTargetsShowQueuedApartFromRunning(t *testing.T) {
 	m := withRuns(t, run(1, jobs.KindScan, "~/work", jobs.ItemRunning, jobs.ItemQueued))
 	m, _ = step(t, m, testutil.Key("right"))
 
-	view := m.View()
+	view := m.Render()
 	for _, want := range []string{"running", "queued"} {
 		if !strings.Contains(view, want) {
 			t.Errorf("the targets do not show %q:\n%s", want, view)
@@ -196,12 +196,12 @@ func TestARunningRunShowsTheBlinkPhaseTheRouterBroadcast(t *testing.T) {
 	m := withRuns(t, run(1, jobs.KindScan, "~/work", jobs.ItemRunning))
 
 	m = feed(t, m, jobs.FrameMsg{Blink: false})
-	if v := m.View(); !strings.Contains(v, indicator.Glyph(indicator.Running, false)) ||
+	if v := m.Render(); !strings.Contains(v, indicator.Glyph(indicator.Running, false)) ||
 		strings.Contains(v, indicator.Glyph(indicator.Running, true)) {
 		t.Errorf("the off phase does not show the hollow dot:\n%s", v)
 	}
 	m = feed(t, m, jobs.FrameMsg{Blink: true})
-	if v := m.View(); !strings.Contains(v, indicator.Glyph(indicator.Running, true)) {
+	if v := m.Render(); !strings.Contains(v, indicator.Glyph(indicator.Running, true)) {
 		t.Errorf("the on phase does not show the steady dot:\n%s", v)
 	}
 }
@@ -211,7 +211,7 @@ func TestASettledRunShowsItsOutcomeRatherThanAnyRunningDot(t *testing.T) {
 		m := withRuns(t, run(1, jobs.KindScan, "~/work", state))
 		for _, blink := range []bool{true, false} {
 			m = feed(t, m, jobs.FrameMsg{Blink: blink})
-			v := m.View()
+			v := m.Render()
 			if strings.Contains(v, "●") || strings.Contains(v, "○") {
 				t.Errorf("a %s run shows a running dot (blink=%v):\n%s", state, blink, v)
 			}
@@ -287,7 +287,7 @@ func TestOpeningAnEmptyRunIsRefusedWithItsReason(t *testing.T) {
 // what it is empty *of* is the header's job (GetHeaderInfo), not the body's.
 func TestAnEmptySessionRendersTheTableNotAMessage(t *testing.T) {
 	m := newModel(t)
-	if body := m.View(); body != m.runTable.View() {
+	if body := m.Render(); body != m.runTable.View() {
 		t.Errorf("an empty session's body is %q, want the plain table view", body)
 	}
 	if _, _, ok := findHeaderInfo(m, "Runs"); !ok {
@@ -302,7 +302,7 @@ func TestAnEmptySessionRendersTheTableNotAMessage(t *testing.T) {
 	for _, msg := range testutil.Type("nothing-matches-this") {
 		m2, _ = step(t, m2, msg)
 	}
-	if body := m2.View(); body != m2.runTable.View() {
+	if body := m2.Render(); body != m2.runTable.View() {
 		t.Errorf("a filter hiding every row renders %q, want the plain table view", body)
 	}
 	if _, value, _ := findHeaderInfo(m2, "Runs"); value != "1" {

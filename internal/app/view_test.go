@@ -24,7 +24,7 @@ func TestTheViewIsAssembledInOrder(t *testing.T) {
 		footer:       "Images  Networks",
 	})
 
-	rendered := a.View()
+	rendered := a.Render()
 
 	title := strings.Index(rendered, "OCI Resources")
 	body := strings.Index(rendered, "the table body")
@@ -44,7 +44,7 @@ func TestTheViewFillsTheWindow(t *testing.T) {
 	for _, size := range [][2]int{{100, 30}, {180, 40}, {240, 60}} {
 		a := routerAt(t, &fakeView{footerHeight: 2, body: "x"}, size[0], size[1])
 
-		rendered := a.View()
+		rendered := a.Render()
 
 		if got := lipgloss.Height(rendered); got != size[1] {
 			t.Errorf("at %dx%d the view is %d rows, want %d", size[0], size[1], got, size[1])
@@ -58,7 +58,7 @@ func TestAMissingViewSaysSo(t *testing.T) {
 	a := router(t, &fakeView{})
 	a.currentView = command.ViewSecurity // never built
 
-	if rendered := a.View(); !strings.Contains(rendered, "View not found") {
+	if rendered := a.Render(); !strings.Contains(rendered, "View not found") {
 		t.Errorf("a missing view rendered:\n%s", rendered)
 	}
 }
@@ -67,8 +67,8 @@ func TestAMissingViewSaysSo(t *testing.T) {
 // top edge.
 func TestTheTitleLineIsDrawnWithoutATitle(t *testing.T) {
 	colorprofile.TrueColor(t)
-	titled := router(t, &fakeView{title: "Workspaces", footerHeight: 2}).View()
-	untitled := router(t, &bareView{}).View()
+	titled := router(t, &fakeView{title: "Workspaces", footerHeight: 2}).Render()
+	untitled := router(t, &bareView{}).Render()
 
 	if !strings.Contains(titled, "Workspaces") {
 		t.Error("the title is missing from the border line")
@@ -81,8 +81,8 @@ func TestTheTitleLineIsDrawnWithoutATitle(t *testing.T) {
 // A view with no footer contributes none, rather than an empty line that would
 // shift the layout by one row.
 func TestAViewWithoutAFooterAddsNothing(t *testing.T) {
-	withFooter := lipgloss.Height(router(t, &fakeView{footerHeight: 1, footer: "tabs"}).View())
-	without := lipgloss.Height(router(t, &bareView{}).View())
+	withFooter := lipgloss.Height(router(t, &fakeView{footerHeight: 1, footer: "tabs"}).Render())
+	without := lipgloss.Height(router(t, &bareView{}).Render())
 
 	if withFooter != without {
 		t.Errorf("the window is %d rows with a footer and %d without; both must fill it",
@@ -115,7 +115,7 @@ func TestAnOpenOverlayReplacesTheView(t *testing.T) {
 			})
 			tt.open(a)
 
-			rendered := a.View()
+			rendered := a.Render()
 
 			if !strings.Contains(rendered, tt.want) {
 				t.Errorf("the %s overlay is not on screen:\n%s", tt.name, rendered)
@@ -135,7 +135,7 @@ func TestHelpIsRenderedBeforeTheLists(t *testing.T) {
 	a.showContextList = true
 	a.contextList = []string{"default"}
 
-	rendered := a.View()
+	rendered := a.Render()
 
 	if !strings.Contains(rendered, "Test Help") {
 		t.Error("the context list was drawn over the help overlay")
@@ -149,8 +149,8 @@ func TestHelpIsRenderedBeforeTheLists(t *testing.T) {
 // boxes.
 func TestTheFilterBarClosesTheRectangle(t *testing.T) {
 	colorprofile.TrueColor(t)
-	plain := router(t, &fakeView{footerHeight: 2, footer: "info"}).View()
-	filtering := router(t, &fakeView{footerHeight: 3, footer: "filter", filterBar: true}).View()
+	plain := router(t, &fakeView{footerHeight: 2, footer: "info"}).Render()
+	filtering := router(t, &fakeView{footerHeight: 3, footer: "filter", filterBar: true}).Render()
 
 	if !strings.Contains(plain, "└") {
 		t.Error("the plain viewport has no bottom-left corner")

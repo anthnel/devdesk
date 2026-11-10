@@ -92,7 +92,7 @@ func TestOpeningReadsTheSessionThroughTheAggregate(t *testing.T) {
 	if m.reading || m.agentsLoading {
 		t.Errorf("reading=%v agentsLoading=%v after the answer, want false, false", m.reading, m.agentsLoading)
 	}
-	view := m.View()
+	view := m.Render()
 	for _, want := range []string{"orchestrator", "coder", "tester", "reviewer"} {
 		if !strings.Contains(view, want) {
 			t.Errorf("the basic fixture's %q is missing:\n%s", want, view)
@@ -124,14 +124,14 @@ func TestAnAnswerWhileNoReadIsInFlightIsDropped(t *testing.T) {
 	m, _, cmd := openedFixture(t)
 	msg := firstDelta(t, cmd)
 	m = feed(t, m, msg)
-	before := m.View()
+	before := m.Render()
 
 	updated, next := m.Update(msg) // a duplicate: reading is false
 	got := updated.(Model)
 	if next != nil {
 		t.Error("a dropped answer must not start anything")
 	}
-	if got.View() != before || got.reading {
+	if got.Render() != before || got.reading {
 		t.Error("a duplicate answer must leave the model unchanged")
 	}
 }
@@ -160,14 +160,14 @@ func TestADeltaThatDoesNotFollowTheCursorIsReReadAtOnce(t *testing.T) {
 	m, _, cmd := openedFixture(t)
 	msg := firstDelta(t, cmd)
 	m = feed(t, m, msg)
-	before := m.View()
+	before := m.Render()
 
 	// Same gen, same delta, read from a cursor the aggregate has moved past.
 	m.reading = true
 	updated, next := m.Update(msg)
 	m = updated.(Model)
 
-	if m.View() != before {
+	if m.Render() != before {
 		t.Error("a stale delta must not change what is on screen")
 	}
 	if !m.reading {
@@ -198,7 +198,7 @@ func TestAReadErrorKeepsTheRowsAndSchedulesARetry(t *testing.T) {
 	if !m.agentsErr || m.agentsLoading || m.reading {
 		t.Errorf("agentsErr=%v agentsLoading=%v reading=%v, want true, false, false", m.agentsErr, m.agentsLoading, m.reading)
 	}
-	if !strings.Contains(m.View(), "├─ coder") {
+	if !strings.Contains(m.Render(), "├─ coder") {
 		t.Error("rows already shown stay after a failure")
 	}
 	if !strings.Contains(footer(m), "Failed to read this session") {
@@ -270,7 +270,7 @@ func TestCtrlRReadsFromTheStartWhatAnIncrementalReadCannotSee(t *testing.T) {
 	if !m.reading || !m.agentsLoading {
 		t.Errorf("reading=%v agentsLoading=%v, want a full read in flight with its spinner", m.reading, m.agentsLoading)
 	}
-	if !strings.Contains(m.View(), "├─ coder") {
+	if !strings.Contains(m.Render(), "├─ coder") {
 		t.Error("rows stay on screen during ctrl+r (Rule 139)")
 	}
 	msg := firstDelta(t, cmd)
@@ -298,7 +298,7 @@ func TestAFullAnswerRebuildsTheRowsEvenOnUnchangedFiles(t *testing.T) {
 	}
 	m.agentTable.SetItems(nil) // stale rows the answer must replace
 	m = feed(t, m, msg)
-	if !strings.Contains(m.View(), "├─ coder") {
+	if !strings.Contains(m.Render(), "├─ coder") {
 		t.Error("a Full answer must rebuild the rows")
 	}
 	if m.agentsLoading || m.reading {
@@ -338,7 +338,7 @@ func TestCtrlRWhileAReadIsInFlightWaitsForIt(t *testing.T) {
 	// The in-flight answer is applied, and exactly one full read follows.
 	updated, follow := m.Update(inFlight)
 	m = updated.(Model)
-	if !strings.Contains(m.View(), "├─ coder") {
+	if !strings.Contains(m.Render(), "├─ coder") {
 		t.Error("the in-flight answer must still be shown")
 	}
 	again := firstDelta(t, follow)
@@ -435,7 +435,7 @@ func TestNothingOfTheTranscriptsContentLeaksThroughTheDeltaPath(t *testing.T) {
 		headers.WriteString(h.Key + "=" + h.Value + "\n")
 	}
 	surfaces := map[string]string{
-		"View":   m.View(),
+		"View":   m.Render(),
 		"footer": footer(m),
 		"header": headers.String(),
 		"log":    buf.String(),

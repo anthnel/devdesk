@@ -1,6 +1,7 @@
 package agentusageview
 
 import (
+	"image/color"
 	"strings"
 	"testing"
 
@@ -20,12 +21,12 @@ func TestEstCostColourFollowsTheCostShare(t *testing.T) {
 	col := column(t, costTitle)
 	none := lipgloss.NewStyle().GetForeground()
 	dim := theme.DimStyle.GetForeground()
-	medium := lipgloss.TerminalColor(theme.ColorSeverityMedium)
-	critical := lipgloss.TerminalColor(theme.ColorSeverityCritical)
+	medium := color.Color(theme.ColorSeverityMedium)
+	critical := color.Color(theme.ColorSeverityCritical)
 	tests := []struct {
 		name string
 		row  agentRow
-		want lipgloss.TerminalColor
+		want color.Color
 	}{
 		{"74.9 is neutral", agentRow{Agent: orchestrator(1, 0), cost: priced(1), costPct: 74.9, costRanked: true}, none},
 		{"75 is orange", agentRow{Agent: orchestrator(1, 0), cost: priced(1), costPct: 75, costRanked: true}, medium},
@@ -68,13 +69,13 @@ func TestEstCostColourComesFromTheSessionShares(t *testing.T) {
 	out := func(a agentusage.Agent, k int64) agentusage.Agent {
 		return byModel(a, mu("model-a", agentusage.Tokens{Output: k}, 0))
 	}
-	fg := func(r agentRow) lipgloss.TerminalColor { return col.Style(r).GetForeground() }
+	fg := func(r agentRow) color.Color { return col.Style(r).GetForeground() }
 
 	t.Run("95 and 5", func(t *testing.T) {
 		u := agentusage.Usage{Agents: []agentusage.Agent{
 			out(agentusage.Agent{Main: true}, 950_000), out(agentusage.Agent{ID: "a01", Type: "coder"}, 50_000)}}
 		rows := agentRows(u, true, statusClock{}, prices)
-		if got := fg(rows[0]); got != lipgloss.TerminalColor(theme.ColorSeverityCritical) {
+		if got := fg(rows[0]); got != color.Color(theme.ColorSeverityCritical) {
 			t.Errorf("orchestrator at 95%% = %v, want critical", got)
 		}
 		if got := fg(rows[1]); got != none {
@@ -85,7 +86,7 @@ func TestEstCostColourComesFromTheSessionShares(t *testing.T) {
 		u := agentusage.Usage{Agents: []agentusage.Agent{
 			out(agentusage.Agent{Main: true}, 800_000), out(agentusage.Agent{ID: "a01", Type: "coder"}, 200_000)}}
 		rows := agentRows(u, true, statusClock{}, prices)
-		if got := fg(rows[0]); got != lipgloss.TerminalColor(theme.ColorSeverityMedium) {
+		if got := fg(rows[0]); got != color.Color(theme.ColorSeverityMedium) {
 			t.Errorf("orchestrator at 80%% = %v, want orange", got)
 		}
 	})

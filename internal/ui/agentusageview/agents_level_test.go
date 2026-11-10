@@ -139,7 +139,7 @@ func TestRightOpensTheAgentsOfTheSelectedSession(t *testing.T) {
 			}
 
 			m = answer(t, m, threeSubs())
-			view := m.View()
+			view := m.Render()
 			for _, want := range []string{"orchestrator", "├─ coder", "├─ tester", "└─ reviewer", "model-a", "model-b"} {
 				if !strings.Contains(view, want) {
 					t.Errorf("agents view lacks %q:\n%s", want, view)
@@ -155,7 +155,7 @@ func TestRightOpensTheAgentsOfTheSelectedSession(t *testing.T) {
 func TestWhileParsingTheAgentTableKeepsItsHeadersAndHasNoRows(t *testing.T) {
 	m := withSessions(t, "/p/a.jsonl")
 	m, _ = opened(t, m, "right")
-	view := m.View()
+	view := m.Render()
 	for _, title := range []string{"Agent", "Model", "In", "Out", "Total"} {
 		if !strings.Contains(view, title) {
 			t.Errorf("loading agents view lacks column %q:\n%s", title, view)
@@ -244,7 +244,7 @@ func TestAStaleParseIsIgnored(t *testing.T) {
 	if !m.agentsLoading {
 		t.Error("the answer for A must not end B's loading")
 	}
-	if strings.Contains(m.View(), "orchestrator") {
+	if strings.Contains(m.Render(), "orchestrator") {
 		t.Error("the answer for A must not fill B's table")
 	}
 }
@@ -293,7 +293,7 @@ func TestAParseErrorShowsInTheFooterAndLogsNoPath(t *testing.T) {
 	if !strings.Contains(buf.String(), "ERROR [agentusageview]") {
 		t.Errorf("the failure must be logged in the standard format:\n%s", buf.String())
 	}
-	if strings.Contains(m.View(), "orchestrator") {
+	if strings.Contains(m.Render(), "orchestrator") {
 		t.Error("a first failure leaves the table empty")
 	}
 }
@@ -307,7 +307,7 @@ func TestARefreshFailureKeepsTheAgentRows(t *testing.T) {
 	if !m.agentsErr {
 		t.Fatal("agentsErr must be set")
 	}
-	if !strings.Contains(m.View(), "├─ coder") {
+	if !strings.Contains(m.Render(), "├─ coder") {
 		t.Error("rows already shown stay after a failed refresh")
 	}
 }
@@ -330,7 +330,7 @@ func TestCtrlRAtTheAgentsLevelParsesAgain(t *testing.T) {
 	if !m.agentsLoading || m.level != levelAgents {
 		t.Error("ctrl+r keeps the level and starts loading")
 	}
-	if !strings.Contains(m.View(), "├─ coder") {
+	if !strings.Contains(m.Render(), "├─ coder") {
 		t.Error("rows stay on screen during a refresh (Rule 139)")
 	}
 	got := usageMsgs(batchMsgs(t, cmd))
@@ -408,7 +408,7 @@ func TestTheAgentsLevelHasItsOwnFilter(t *testing.T) {
 	for _, k := range testutil.Type("coder") {
 		m = feed(t, m, k)
 	}
-	view := m.View()
+	view := m.Render()
 	if !strings.Contains(view, "├─ coder") || strings.Contains(view, "orchestrator") {
 		t.Errorf("only coder should remain:\n%s", view)
 	}
@@ -484,9 +484,9 @@ func TestNarrowTerminalsDropColumnsInTheOrderThePlanComputed(t *testing.T) {
 			if got := m.agentTable.RenderedWidth(); got != tt.width-2 {
 				t.Errorf("rendered width = %d, want %d (Rule 116)", got, tt.width-2)
 			}
-			got := header(t, m.View())
+			got := header(t, m.Render())
 			if strings.Join(got, ",") != strings.Join(tt.want, ",") {
-				t.Errorf("columns at %d = %v, want %v:\n%s", tt.width, got, tt.want, m.View())
+				t.Errorf("columns at %d = %v, want %v:\n%s", tt.width, got, tt.want, m.Render())
 			}
 		})
 	}
@@ -505,7 +505,7 @@ func TestTwoCodersStayDistinctOnANarrowTerminal(t *testing.T) {
 		m, _ = opened(t, m, "right")
 		m = answer(t, m, u)
 		var ids []string
-		for _, line := range strings.Split(stripANSI(m.View()), "\n") {
+		for _, line := range strings.Split(stripANSI(m.Render()), "\n") {
 			if !strings.Contains(line, "coder") {
 				continue
 			}
@@ -516,7 +516,7 @@ func TestTwoCodersStayDistinctOnANarrowTerminal(t *testing.T) {
 			}
 		}
 		if len(ids) != 2 || ids[0] == ids[1] {
-			t.Errorf("width %d: the two coder lines must show two different IDs, got %v:\n%s", width, ids, m.View())
+			t.Errorf("width %d: the two coder lines must show two different IDs, got %v:\n%s", width, ids, m.Render())
 		}
 	}
 }
@@ -559,12 +559,12 @@ func atWideAgents(t *testing.T, u agentusage.Usage) Model {
 
 func lineOf(t *testing.T, m Model, role string) string {
 	t.Helper()
-	for _, line := range strings.Split(stripANSI(m.View()), "\n") {
+	for _, line := range strings.Split(stripANSI(m.Render()), "\n") {
 		if strings.Contains(line, role) {
 			return line
 		}
 	}
-	t.Fatalf("no line for %s:\n%s", role, m.View())
+	t.Fatalf("no line for %s:\n%s", role, m.Render())
 	return ""
 }
 
@@ -581,7 +581,7 @@ func TestDotSortsTheAgentsLargestFirst(t *testing.T) {
 	if col, desc := m.agentTable.SortState(); col != columnIndex(t, "Total") || !desc {
 		t.Errorf("SortState = (%d, %v), want (Total %d, descending)", col, desc, columnIndex(t, "Total"))
 	}
-	view := m.View()
+	view := m.Render()
 	if !strings.Contains(view, "Total ▼") {
 		t.Errorf("header lacks the descending arrow:\n%s", view)
 	}
@@ -615,8 +615,8 @@ func TestDotCyclesTreeDescendingAscendingTree(t *testing.T) {
 	if got := visibleIDs(m); got != "a03,,a02,a01" {
 		t.Errorf("ascending order = %q, want a03,,a02,a01", got)
 	}
-	if !strings.Contains(m.View(), "Total ▲") {
-		t.Errorf("header lacks the ascending arrow:\n%s", m.View())
+	if !strings.Contains(m.Render(), "Total ▲") {
+		t.Errorf("header lacks the ascending arrow:\n%s", m.Render())
 	}
 	m, _ = opened(t, m, ".")
 	if got := visibleIDs(m); got != ",a01,a02,a03" {
@@ -625,7 +625,7 @@ func TestDotCyclesTreeDescendingAscendingTree(t *testing.T) {
 	if col, _ := m.agentTable.SortState(); col != -1 {
 		t.Errorf("sort column = %d, want -1 (unsorted)", col)
 	}
-	view := m.View()
+	view := m.Render()
 	for _, want := range []string{"├─ coder", "└─ reviewer"} {
 		if !strings.Contains(view, want) {
 			t.Errorf("the tree must come back with %q:\n%s", want, view)
@@ -701,7 +701,7 @@ func TestDotWhileTheParseIsInFlightIsHarmless(t *testing.T) {
 	if got := visibleIDs(m); got != "a01,a02,,a03" {
 		t.Errorf("the answer must arrive sorted, got %q", got)
 	}
-	if strings.Contains(m.View(), "├─") {
+	if strings.Contains(m.Render(), "├─") {
 		t.Error("no branches in a sorted answer")
 	}
 }
@@ -717,7 +717,7 @@ func TestTheSortSurvivesAnotherSessionAndARefresh(t *testing.T) {
 	if got := visibleIDs(m); got != "a01,a02,,a03" {
 		t.Errorf("another session opens sorted, got %q", got)
 	}
-	if strings.Contains(m.View(), "├─") || strings.Contains(m.View(), "└─") {
+	if strings.Contains(m.Render(), "├─") || strings.Contains(m.Render(), "└─") {
 		t.Error("the other session must open flat")
 	}
 	m, _ = opened(t, m, "ctrl+r")
@@ -725,7 +725,7 @@ func TestTheSortSurvivesAnotherSessionAndARefresh(t *testing.T) {
 	if got := visibleIDs(m); got != "a01,a02,,a03" {
 		t.Errorf("ctrl+r keeps the sort, got %q", got)
 	}
-	if strings.Contains(m.View(), "├─") {
+	if strings.Contains(m.Render(), "├─") {
 		t.Error("ctrl+r must not bring the branches back under an active sort")
 	}
 }
@@ -745,7 +745,7 @@ func TestTheBasicFixtureShowsItsFourAgents(t *testing.T) {
 		t.Fatalf("%d agent rows, want 4", n)
 	}
 	lines := map[string]string{}
-	for _, line := range strings.Split(m.View(), "\n") {
+	for _, line := range strings.Split(m.Render(), "\n") {
 		for _, role := range []string{"orchestrator", "coder", "tester", "reviewer"} {
 			if strings.Contains(line, role) {
 				lines[role] = line
@@ -761,7 +761,7 @@ func TestTheBasicFixtureShowsItsFourAgents(t *testing.T) {
 	for role, out := range want {
 		line, ok := lines[role]
 		if !ok {
-			t.Errorf("no row for %s:\n%s", role, m.View())
+			t.Errorf("no row for %s:\n%s", role, m.Render())
 			continue
 		}
 		if !strings.Contains(line, out) {
@@ -771,7 +771,7 @@ func TestTheBasicFixtureShowsItsFourAgents(t *testing.T) {
 			t.Errorf("only the tester's output is a floor: %q", line)
 		}
 	}
-	if strings.Contains(m.View(), sentinel) || strings.Contains(footer(m), sentinel) {
+	if strings.Contains(m.Render(), sentinel) || strings.Contains(footer(m), sentinel) {
 		t.Error("the fixture's sentinel text reached the screen")
 	}
 }
@@ -808,7 +808,7 @@ func TestTheBasicFixtureSortsByTotalTokens(t *testing.T) {
 	if line := lineOf(t, m, "tester"); !strings.Contains(line, "≥") {
 		t.Errorf("the tester row keeps its ≥: %q", line)
 	}
-	if strings.Contains(m.View(), sentinel) || strings.Contains(footer(m), sentinel) {
+	if strings.Contains(m.Render(), sentinel) || strings.Contains(footer(m), sentinel) {
 		t.Error("the fixture's sentinel text reached the screen")
 	}
 }

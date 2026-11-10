@@ -43,7 +43,7 @@ func assertDeleteCannotBeStopped(t *testing.T, a *App, origin command.ViewType, 
 	if !ok {
 		t.Fatalf("the jobs view is a %T", a.views[command.ViewJobs])
 	}
-	if row := rowOf(t, ansi.Strip(view.View()), label); !strings.Contains(row, string(jobs.KindDelete)) {
+	if row := rowOf(t, ansi.Strip(view.Render()), label); !strings.Contains(row, string(jobs.KindDelete)) {
 		t.Errorf("the selected :jobs row %q does not name the delete", row)
 	}
 	sc := view.GetShortcuts()

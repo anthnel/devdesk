@@ -61,7 +61,7 @@ func reopenExplorer(t *testing.T, a *App) {
 	a.resize(a.width, a.height)
 }
 
-func explorerScreen(a *App) string { return ansi.Strip(a.views[command.ViewGitExplorer].View()) }
+func explorerScreen(a *App) string { return ansi.Strip(a.views[command.ViewGitExplorer].Render()) }
 
 func explorerFooter(a *App) string {
 	return ansi.Strip(a.views[command.ViewGitExplorer].(footerRenderer).RenderFooter(120))
@@ -161,7 +161,7 @@ func TestAnExplorerCreateOrDeleteCannotBeStoppedFromJobs(t *testing.T) {
 			}
 
 			// The selected row is this run, not some other one.
-			if row := rowOf(t, ansi.Strip(view.View()), tt.label); !strings.Contains(row, string(tt.kind)) {
+			if row := rowOf(t, ansi.Strip(view.Render()), tt.label); !strings.Contains(row, string(tt.kind)) {
 				t.Errorf("the selected :jobs row %q does not name the %s", row, tt.kind)
 			}
 			sc := view.GetShortcuts()
