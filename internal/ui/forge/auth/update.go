@@ -3,6 +3,7 @@ package auth
 import (
 	"context"
 	"log"
+	"strings"
 
 	"charm.land/bubbles/v2/spinner"
 	tea "charm.land/bubbletea/v2"
@@ -203,7 +204,7 @@ func (m *Model) updateFocus() {
 // authenticate starts authentication
 func (m *Model) authenticate() tea.Cmd {
 	url := m.config.Forge.URL
-	token := m.tokenInput.Value()
+	token := strings.TrimSpace(m.tokenInput.Value())
 
 	if url == "" {
 		m.error = "No " + m.vocab().Name + " URL configured — set it in :config, " + m.forgeTab() + " tab"

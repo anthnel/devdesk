@@ -64,6 +64,10 @@ when `WT_SESSION` is set (Windows Terminal, which WSL does not advertise) unless
 `NO_COLOR` is set; elsewhere Bubble Tea detects it. `termenv` is no longer a
 dependency; tests need no profile setup and strip SGR with `ansi.Strip`.
 
+Behaviour change: the old code forced TrueColor only when `COLORTERM` was
+empty. `forcedColorProfile` forces it as soon as `WT_SESSION` is set and
+`NO_COLOR` is empty; `COLORTERM` is no longer read.
+
 Inside a view, `Update` has its own `case tea.PasteMsg` (`handlePaste`) that
 routes the paste to the field that has the keyboard (filter bar, form field,
 prompt) and drops it otherwise or behind a modal; it never reaches the key

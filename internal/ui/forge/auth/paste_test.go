@@ -1,6 +1,8 @@
 package auth
 
 import (
+	"net/http"
+	"net/http/httptest"
 	"testing"
 
 	tea "charm.land/bubbletea/v2"
@@ -44,5 +46,32 @@ func TestPasteReachesTheFocusedTokenField(t *testing.T) {
 				}
 			}
 		})
+	}
+}
+
+// DEVDESK-201: a token pasted with a trailing newline reaches the forge
+// without the space the one-line field turns that newline into.
+func TestPastedTokenIsTrimmedBeforeAuthenticating(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{"id":1,"username":"u","login":"u","name":"U"}`))
+	}))
+	defer srv.Close()
+
+	cfg := testConfig()
+	cfg.Forge.URL = srv.URL
+	storage := newFakeStorage()
+	m := newTestModel(t, cfg, storage)
+	m, _ = step(t, m, testutil.Paste("tok\n"))
+
+	cmd := m.authenticate()
+	if cmd == nil {
+		t.Fatal("authenticate() returned no command")
+	}
+	if res, ok := cmd().(AuthResultMsg); !ok || res.Error != nil {
+		t.Fatalf("authentication result = %+v", res)
+	}
+	if got := storage.saved[srv.URL]; got != "tok" {
+		t.Errorf("token handed to the store = %q, want %q", got, "tok")
 	}
 }

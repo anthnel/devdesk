@@ -200,8 +200,8 @@ panics. The space key is built as a key (`Key("space")`), never matched through
 `String()` (v1 `" "`, v2 `"space"`). Lip Gloss v2 has no global colour profile (`Style.Render` always emits full
 colour), so a test needs no setup to check styling; it reads the SGR or strips it
 with `ansi.Strip`. `internal/ui/testutil/source_guard_test.go` fails the suite on a
-hand-built key, a `colorprofile` import outside `internal/app/profile_test.go`
-or `SetColorProfile` in any `_test.go`. Paste tests
+hand-built key, a `colorprofile` import outside `internal/app/profile_test.go` and
+`internal/app/redraw_measure_test.go` or `SetColorProfile` in any `_test.go`. Paste tests
 (`internal/app/paste_test.go`, `wrapped_input_test.go`, `component_form_test.go`):
 a paste reaches the focused field, newlines become spaces in single-line fields,
 and no key action fires (Rule 111).
