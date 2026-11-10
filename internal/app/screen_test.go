@@ -52,6 +52,9 @@ func TestEveryViewIsAScreenWhoseViewWrapsRender(t *testing.T) {
 			if v.AltScreen {
 				t.Errorf("%q sets AltScreen itself; only the router may", vt)
 			}
+			if v.ReportFocus {
+				t.Errorf("%q sets ReportFocus itself; only the router may", vt)
+			}
 		})
 	}
 }

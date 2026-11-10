@@ -105,7 +105,7 @@ func (a *App) sendFrameTo(target command.ViewType) tea.Cmd {
 // It returns nil otherwise, which makes it idempotent within one Update. It is
 // the one place a chain is ever started (D5).
 func (a *App) ensureTick() tea.Cmd {
-	d, ok := cadence(a.jobs.Running() > 0, a.wantsBlink(), a.motionStatic)
+	d, ok := a.wantedCadence()
 	if !ok || (a.anim.ticking && a.anim.interval <= d) {
 		return nil
 	}
@@ -127,10 +127,12 @@ func (a *App) handleAnimationTick(msg animationTickMsg) (tea.Model, tea.Cmd) {
 		return a, nil
 	}
 	running := a.jobs.Running() > 0
-	d, ok := cadence(running, a.wantsBlink(), a.motionStatic)
+	d, ok := a.wantedCadence()
 	if !ok {
 		a.anim.ticking = false
-		if a.anim.blinkOn {
+		// A blur always hands the view one last pinned frame: the tick that
+		// lands after it is the last the view will see for a while.
+		if a.anim.blinkOn && !a.terminalBlurred {
 			return a, nil
 		}
 		a.anim.blinkOn = true

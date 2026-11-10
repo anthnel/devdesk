@@ -990,6 +990,7 @@ within one `Update`.
 |---|---|
 | `jobs.Running() > 0` (footer spinners depend on the frame) | 100 ms (`spinner.Dot.FPS`) |
 | the view on screen has nothing running but `WantsBlink()` (`BlinkingView`) | 500 ms |
+| the terminal is blurred (`terminalBlurred`), whatever the two above say | no chain |
 | neither, or `motionStatic` with no running work | no chain |
 
 `BlinkingView` sits beside `FormView` and `LeavingView`: an optional interface for
@@ -1024,6 +1025,48 @@ none implies another.
 This is what removes the four hand-stamped frames, and with them the failure
 each of them could produce: a chain that died on the first idle tick with
 nothing able to restart it, leaving the spinner frozen on the frame it died at.
+
+#### Terminal focus (DEVDESK-210)
+
+Bubble Tea v2 reports whether the terminal has the focus (xterm mode 1004) when
+the view asks for it. The router uses this for one thing so far: the animation
+chain stops while the terminal is blurred.
+
+- **Asking.** `App.View` is the only place that sets `ReportFocus`. A view's
+  `View()` never does, like `AltScreen` and `BackgroundColor`.
+- **The level.** `App.terminalBlurred` is a bool whose zero value means
+  focused. `tea.BlurMsg` sets it (`handleTerminalBlur`), `tea.FocusMsg` clears
+  it (`handleTerminalFocus`). Neither returns a Cmd.
+- **The cadence.** `ensureTick` and `handleAnimationTick` read `wantedCadence`,
+  not `cadence` directly. While blurred it answers "no chain", whatever the
+  registry or the view on screen asks for; otherwise it is `cadence(...)`.
+  `cadence()` itself is unchanged.
+- **No seq bump on blur.** The in-flight tick still arrives, finds that no
+  cadence is wanted and does not renew the chain, so the chain dies by itself.
+  A blur always hands the view one last `FrameMsg` with the phase pinned on,
+  so a row is never left on a half-blinked glyph. After a focus, the `Update`
+  wrapper's `ensureTick` starts one chain. If the focus comes before the
+  in-flight tick lands, that tick renews the chain: still one chain.
+- **Not relayed.** `BlurMsg` and `FocusMsg` are not forwarded to any view.
+  Forwarding a raw focus would make `bubbles/cursor` restart its blink on
+  cursors the view never meant to show.
+- **Jobs are untouched.** A blur never cancels, pauses or delays a job:
+  `jobs.Running()`, the registry and its broadcasts (`ChangedMsg`, failures
+  included) work as usual. Only the animation stops.
+
+Two hypotheses keep a lost or missing event from leaving the router wrong:
+
+- **A `FocusMsg` with no prior blur does nothing.** `Update` returns at once,
+  with no Cmd: an unknown focus means focused.
+- **A key press or a paste while blurred counts as the focus coming back.**
+  `update` runs `handleTerminalFocus` before dispatching it. This heals a lost
+  focus-in (a tmux pane switch, or a hand-off to a child process, see
+  [Handing the terminal to a child](#handing-the-terminal-to-a-child--internaluiteaexec)).
+
+**Degradation.** A terminal without mode 1004 never sends `BlurMsg`, so
+`terminalBlurred` stays false and the application behaves as before. Under tmux
+the host needs `set -g focus-events on`. A terminal that is visible but not
+focused (a side pane) is treated as blurred: its animation stops.
 
 #### A row dot or a loading spinner
 
