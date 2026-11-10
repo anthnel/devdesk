@@ -1,0 +1,15 @@
+{
+  "tool_use_id": "toolu_01QVB8BC715wkZbEjJFXMxuT",
+  "agent_id": "a229128cbb8072832",
+  "subagent_type": "dev-team:devops",
+  "task_description": "Merger la PR #344",
+  "token_usage": {
+    "input_tokens": 22,
+    "cache_creation_tokens": 40028,
+    "cache_read_tokens": 369976,
+    "output_tokens": 2699,
+    "api_call_count": 11
+  },
+  "started_at": "2026-11-09T20:13:10.053060704+01:00",
+  "completed_at": "2026-11-09T20:18:49.254590419+01:00"
+}

@@ -1,0 +1,49 @@
+{
+  "cli_version": "0.13.1",
+  "checkpoint_id": "fb8b7a60906a",
+  "strategy": "manual-commit",
+  "branch": "main",
+  "checkpoints_count": 3,
+  "files_touched": [
+    "docs/journal.md",
+    "internal/ui/containers/activity.go",
+    "internal/ui/containers/footer_test.go"
+  ],
+  "sessions": [
+    {
+      "metadata": "/fb/8b7a60906a/0/metadata.json",
+      "transcript": "/fb/8b7a60906a/0/full.jsonl",
+      "compact_transcript": "/fb/8b7a60906a/0/transcript.jsonl",
+      "content_hash": "/fb/8b7a60906a/0/content_hash.txt",
+      "prompt": "/fb/8b7a60906a/0/prompt.txt"
+    }
+  ],
+  "token_usage": {
+    "input_tokens": 22,
+    "cache_creation_tokens": 12576,
+    "cache_read_tokens": 1270995,
+    "output_tokens": 3479,
+    "api_call_count": 8,
+    "subagent_tokens": {
+      "input_tokens": 34,
+      "cache_creation_tokens": 84322,
+      "cache_read_tokens": 569273,
+      "output_tokens": 4832,
+      "api_call_count": 17
+    }
+  },
+  "redaction": {
+    "replacements": 0,
+    "layers": {
+      "betterleaks": 0,
+      "connection_string": 0,
+      "credential_key": 0,
+      "credential_value": 0,
+      "credentialed_uri": 0,
+      "entropy": 0,
+      "key_context": 0,
+      "provider_token": 0,
+      "shell_stdin": 0
+    }
+  }
+}
