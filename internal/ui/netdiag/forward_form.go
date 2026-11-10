@@ -183,6 +183,9 @@ func (f *ForwardForm) cycle(delta int) {
 // while it is focused, enter confirms and esc cancels (Rule 135); tab does
 // nothing here, it belongs to the tabs.
 func (f *ForwardForm) Update(msg tea.Msg) (*ForwardForm, tea.Cmd) {
+	if paste, ok := msg.(tea.PasteMsg); ok {
+		return f.paste(paste)
+	}
 	key, ok := msg.(tea.KeyPressMsg)
 	if !ok {
 		return f, nil
@@ -221,6 +224,22 @@ func (f *ForwardForm) Update(msg tea.Msg) (*ForwardForm, tea.Cmd) {
 	}
 	var cmd tea.Cmd
 	f.targetInput, cmd = f.targetInput.Update(msg)
+	return f, cmd
+}
+
+// paste gives pasted text to the focused text field. The Type field takes none,
+// so a paste there is dropped (Rule 111). The input turns newlines into spaces.
+func (f *ForwardForm) paste(msg tea.PasteMsg) (*ForwardForm, tea.Cmd) {
+	var cmd tea.Cmd
+	switch f.focused {
+	case forwardFieldType:
+	case forwardFieldPort:
+		f.portInput, cmd = f.portInput.Update(msg)
+	case forwardFieldName:
+		f.nameInput, cmd = f.nameInput.Update(msg)
+	default:
+		f.targetInput, cmd = f.targetInput.Update(msg)
+	}
 	return f, cmd
 }
 

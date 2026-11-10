@@ -42,6 +42,9 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case tea.KeyPressMsg:
 		return m.handleKeyMsg(msg)
 
+	case tea.PasteMsg:
+		return m.handlePaste(msg)
+
 	case jobs.FrameMsg:
 		// The blink phase of a busy row's dot; nothing is rebuilt.
 		m.containerTable.SetBlinkPhase(msg.Blink)
@@ -136,6 +139,15 @@ func (m Model) handleKeyMsg(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 
 	// Priority 3: normal mode
 	return m.handleNormalKeyMsg(msg)
+}
+
+// handlePaste hands pasted text to the filter while it has the keyboard and no
+// modal is open; otherwise a paste is dropped, never read as keys (Rule 111).
+func (m Model) handlePaste(msg tea.PasteMsg) (tea.Model, tea.Cmd) {
+	if m.anyModal() == nil && m.containerTable.InEditMode() {
+		return m, m.containerTable.Update(msg)
+	}
+	return m, nil
 }
 
 // handleNormalKeyMsg handles keys in normal mode

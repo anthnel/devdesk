@@ -248,7 +248,7 @@ func (f *entryForm) cycleKind(forward bool) {
 	f.err = ""
 }
 
-func (f *entryForm) forward(msg tea.KeyPressMsg) tea.Cmd {
+func (f *entryForm) forward(msg tea.Msg) tea.Cmd {
 	var cmd tea.Cmd
 	switch f.focused() {
 	case fieldName:

@@ -303,6 +303,12 @@ func (im *InterfacesModel) update(msg tea.Msg) (*InterfacesModel, tea.Cmd) {
 		return im, cmd
 	case tea.KeyPressMsg:
 		return im.handleKey(msg)
+	case tea.PasteMsg:
+		// Only the filter bar takes text; otherwise the paste is dropped (Rule 111).
+		if im.table.FilterBar().InEditMode() {
+			return im, im.table.Update(msg)
+		}
+		return im, nil
 	}
 	im.footer.Handle(msg)
 	return im, nil

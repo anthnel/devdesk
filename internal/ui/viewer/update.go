@@ -79,6 +79,9 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case tea.KeyPressMsg:
 		return m.handleKeyMsg(msg)
 
+	case tea.PasteMsg:
+		return m.handlePaste(msg)
+
 	case DocumentLoadedMsg:
 		return m.handleDocumentLoaded(msg)
 
@@ -168,6 +171,21 @@ func (m Model) handlePagerExit(msg PagerExitMsg) (tea.Model, tea.Cmd) {
 	}
 	m.loading = true
 	return m, tea.Batch(report, loadCmd(m.source))
+}
+
+// handlePaste gives pasted text to the go-to-line prompt or the search bar,
+// whichever has the keyboard. With neither it is dropped: a paste is never read
+// as keys, so none of the pane's letters fires (Rule 111).
+func (m Model) handlePaste(msg tea.PasteMsg) (tea.Model, tea.Cmd) {
+	var cmd tea.Cmd
+	switch {
+	case m.gotoActive:
+		m.gotoInput, cmd = m.gotoInput.Update(msg)
+	case m.bar.InEditMode():
+		m.bar, cmd = m.bar.Update(msg)
+		m.rebuildText()
+	}
+	return m, cmd
 }
 
 func (m Model) handleKeyMsg(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {

@@ -55,6 +55,9 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case tea.KeyPressMsg:
 		return m.handleKeyMsg(msg)
 
+	case tea.PasteMsg:
+		return m.handlePaste(msg)
+
 	// The router's detection (§3.86): it is what decides whether S and A are
 	// offered, and what a scan runs on.
 	case shared.ScanToolsMsg:
@@ -225,6 +228,22 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 }
 
 // handleKeyMsg handles keyboard input
+// handlePaste gives pasted text to the field that has the keyboard: the filter
+// bar, the name input or the fuzzy prompt. Anything else drops it, so a paste
+// is never read as keys (Rule 111).
+func (m Model) handlePaste(msg tea.PasteMsg) (tea.Model, tea.Cmd) {
+	var cmd tea.Cmd
+	switch {
+	case m.table.InEditMode():
+		cmd = m.table.Update(msg)
+	case (m.mode == ModeAdding || m.mode == ModeRenaming) && m.input != nil:
+		m.input, cmd = m.input.Update(msg)
+	case m.mode == ModeFuzzyFinding && m.fuzzyFinder != nil:
+		m.fuzzyFinder, cmd = m.fuzzyFinder.Update(msg)
+	}
+	return m, cmd
+}
+
 func (m Model) handleKeyMsg(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	// Filter bar search mode - delegate to filter bar
 	if m.table.InEditMode() {

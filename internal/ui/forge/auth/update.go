@@ -28,6 +28,9 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case tea.KeyPressMsg:
 		return m.handleKeyMsg(msg)
 
+	case tea.PasteMsg:
+		return m.handlePaste(msg)
+
 	case AuthStartMsg:
 		m.authenticating = true
 		return m, m.spinner.Tick
@@ -78,6 +81,15 @@ func (m *Model) handleKeyMsg(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	}
 }
 
+// handlePaste gives pasted text to the token field while it has the keyboard.
+// It is dropped during a login, and never read as keys (Rule 111).
+func (m *Model) handlePaste(msg tea.PasteMsg) (tea.Model, tea.Cmd) {
+	if m.authenticating {
+		return m, nil
+	}
+	return m.handleInputUpdate(msg)
+}
+
 // handleEnterKey handles the Enter key based on the active field
 func (m *Model) handleEnterKey() (tea.Model, tea.Cmd) {
 	if m.authenticated {
@@ -92,7 +104,7 @@ func (m *Model) handleEnterKey() (tea.Model, tea.Cmd) {
 }
 
 // handleInputUpdate forwards messages to the active inputs
-func (m *Model) handleInputUpdate(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
+func (m *Model) handleInputUpdate(msg tea.Msg) (tea.Model, tea.Cmd) {
 	var cmd tea.Cmd
 	if m.currentField == fieldToken {
 		m.tokenInput, cmd = m.tokenInput.Update(msg)

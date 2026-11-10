@@ -25,6 +25,9 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case tea.KeyPressMsg:
 		return m.handleKeyMsg(msg)
 
+	case tea.PasteMsg:
+		return m.handlePaste(msg)
+
 	case spinner.TickMsg:
 		return m.handleSpinnerTick(msg)
 
@@ -120,6 +123,15 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 // View is implemented in view.go
 
 // handleKeyMsg handles keyboard input
+// handlePaste hands pasted text to the filter bar while it has the keyboard;
+// otherwise a paste is dropped, never read as keys (Rule 111).
+func (m Model) handlePaste(msg tea.PasteMsg) (tea.Model, tea.Cmd) {
+	if m.table.InEditMode() {
+		return m, m.table.Update(msg)
+	}
+	return m, nil
+}
+
 func (m Model) handleKeyMsg(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	// Filter bar search mode - prioritaire
 	if m.table.InEditMode() {

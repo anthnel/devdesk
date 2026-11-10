@@ -227,6 +227,8 @@ func (fm *ForwardModel) update(msg tea.Msg) (*ForwardModel, tea.Cmd) {
 		return fm, nil
 	case tea.KeyPressMsg:
 		return fm.handleKey(msg)
+	case tea.PasteMsg:
+		return fm.handlePaste(msg)
 	}
 	return fm, nil
 }
@@ -285,6 +287,21 @@ func (fm *ForwardModel) handleKey(msg tea.KeyPressMsg) (*ForwardModel, tea.Cmd) 
 		return fm, cmd
 	}
 	return fm.handleKeyNormal(msg)
+}
+
+// handlePaste gives pasted text to the form or the filter bar, whichever has
+// the keyboard; with a modal open or neither focused it is dropped (Rule 111).
+func (fm *ForwardModel) handlePaste(msg tea.PasteMsg) (*ForwardModel, tea.Cmd) {
+	var cmd tea.Cmd
+	switch {
+	case fm.confirmModal != nil:
+	case fm.form != nil:
+		fm.form, cmd = fm.form.Update(msg)
+	case fm.table.InEditMode():
+		cmd = fm.table.Update(msg)
+		fm.table.GotoTop() // a narrowing query starts from the first match
+	}
+	return fm, cmd
 }
 
 // handleFormKey lets the form have the keyboard, and answers the refusals the

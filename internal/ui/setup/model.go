@@ -221,6 +221,9 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case tea.KeyPressMsg:
 		return m.handleKeyMsg(msg)
 
+	case tea.PasteMsg:
+		return m.handlePaste(msg)
+
 	case spinner.TickMsg:
 		var cmd tea.Cmd
 		m.spinner, cmd = m.spinner.Update(msg)
@@ -258,6 +261,15 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, nil
 	}
 	return m, nil
+}
+
+// handlePaste gives pasted text to the focused step field. A confirmation or
+// the final screen drops it: a paste is never read as keys (Rule 111).
+func (m Model) handlePaste(msg tea.PasteMsg) (tea.Model, tea.Cmd) {
+	if m.stage == stageConfirmOverwrite || m.stage == stageConfirmSetCurrent || m.stage == stageDone {
+		return m, nil
+	}
+	return m.updateFocusedInput(msg)
 }
 
 func (m Model) handleKeyMsg(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
@@ -421,7 +433,7 @@ func (m Model) visibilityOptions() []string {
 	return []string{"private", "internal", "public"}
 }
 
-func (m Model) updateFocusedInput(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
+func (m Model) updateFocusedInput(msg tea.Msg) (tea.Model, tea.Cmd) {
 	var cmd tea.Cmd
 	switch m.step {
 	case stepContextName:

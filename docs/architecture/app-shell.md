@@ -52,6 +52,13 @@ and goes through `handlePasteMsg`: it is text for the focused field (palette,
 or the view when it is editing), never a key action, and is dropped behind an
 overlay or a context switch.
 
+Inside a view, `Update` has its own `case tea.PasteMsg` (`handlePaste`) that
+routes the paste to the field that has the keyboard (filter bar, form field,
+prompt) and drops it otherwise or behind a modal; it never reaches the key
+handlers. `FilterBar.Update` takes a paste only while searching. Newlines become
+spaces because the one-line `textinput` sanitizes them. `tea.PasteStartMsg` and
+`tea.PasteEndMsg` fall through and are ignored.
+
 ## View Switching & Command Mode
 
 Press `ctrl+p` to enter command mode, then type:

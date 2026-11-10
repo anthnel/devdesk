@@ -89,6 +89,17 @@ func (f *createForm) Update(msg tea.KeyPressMsg) (*createForm, tea.Cmd) {
 	return f, nil
 }
 
+// paste gives pasted text to the name field. The Type field takes none, so a
+// paste there is dropped (Rule 111).
+func (f *createForm) paste(msg tea.PasteMsg) (*createForm, tea.Cmd) {
+	if f.focus != fieldName {
+		return f, nil
+	}
+	var cmd tea.Cmd
+	f.name, cmd = f.name.Update(msg)
+	return f, cmd
+}
+
 // cycle turns the Type on its field; on the name it moves the caret, which is
 // the textinput's own ←→.
 func (f *createForm) cycle(key string) (*createForm, tea.Cmd) {

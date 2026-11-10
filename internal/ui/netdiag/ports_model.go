@@ -280,6 +280,8 @@ func (pm *PortsModel) update(msg tea.Msg) (*PortsModel, tea.Cmd) {
 		return pm, nil
 	case tea.KeyPressMsg:
 		return pm.handleKey(msg)
+	case tea.PasteMsg:
+		return pm.handlePaste(msg)
 	}
 	return pm, nil
 }
@@ -365,6 +367,17 @@ func (pm *PortsModel) handleKey(msg tea.KeyPressMsg) (*PortsModel, tea.Cmd) {
 		return pm, cmd
 	}
 	return pm.handleKeyNormal(msg)
+}
+
+// handlePaste gives pasted text to the filter bar while it has the keyboard and
+// no modal is open; otherwise it is dropped (Rule 111).
+func (pm *PortsModel) handlePaste(msg tea.PasteMsg) (*PortsModel, tea.Cmd) {
+	if pm.confirmModal != nil || !pm.table.InEditMode() {
+		return pm, nil
+	}
+	cmd := pm.table.Update(msg)
+	pm.table.GotoTop() // a narrowing query starts from the first match
+	return pm, cmd
 }
 
 // toggleToken flips a filter and returns to the top, since the list under the

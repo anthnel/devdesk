@@ -163,6 +163,14 @@ func (fb *FilterBar) Update(msg tea.Msg) (FilterBar, tea.Cmd) {
 	if !fb.searching {
 		return *fb, nil
 	}
+	if paste, ok := msg.(tea.PasteMsg); ok {
+		// A paste is text for the search input, never an action key. The
+		// input turns newlines into spaces itself.
+		var cmd tea.Cmd
+		fb.searchInput, cmd = fb.searchInput.Update(paste)
+		fb.searchQuery = fb.searchInput.Value()
+		return *fb, cmd
+	}
 	keyMsg, ok := msg.(tea.KeyPressMsg)
 	if !ok {
 		return *fb, nil

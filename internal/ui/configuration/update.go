@@ -57,6 +57,9 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			next = updated
 		}
 		return next, cmd
+
+	case tea.PasteMsg:
+		return m.handlePaste(msg)
 	}
 
 	m.footer.Handle(msg)
@@ -107,6 +110,17 @@ func (m Model) handleKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 		return m, cmd
 	}
 	return m, nil
+}
+
+// handlePaste gives pasted text to the focused text field. A modal, or a field
+// that takes no text, drops it: a paste is never read as keys (Rule 111).
+func (m Model) handlePaste(msg tea.PasteMsg) (tea.Model, tea.Cmd) {
+	if m.confirmModal != nil || !m.current().takesText() {
+		return m, nil
+	}
+	var cmd tea.Cmd
+	m.input, cmd = m.input.Update(msg)
+	return m, cmd
 }
 
 // switchTab commits the field being edited before leaving, so a value typed and

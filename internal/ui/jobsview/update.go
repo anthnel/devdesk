@@ -31,6 +31,9 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	case tea.KeyPressMsg:
 		return m.handleKeyMsg(msg)
+
+	case tea.PasteMsg:
+		return m.handlePaste(msg)
 	}
 
 	m.footer.Handle(msg)
@@ -108,6 +111,15 @@ func (m *Model) refreshRows() {
 
 // handleKeyMsg routes a key. The filter comes first (Rule 136): while it has
 // the keyboard, every key is text.
+// handlePaste hands pasted text to the filter while it has the keyboard; with
+// no field focused a paste is dropped, never read as keys (Rule 111).
+func (m Model) handlePaste(msg tea.PasteMsg) (tea.Model, tea.Cmd) {
+	if m.inFilter() {
+		return m.forwardToTable(msg)
+	}
+	return m, nil
+}
+
 func (m Model) handleKeyMsg(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	if m.inFilter() {
 		return m.forwardToTable(msg)

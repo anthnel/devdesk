@@ -38,6 +38,9 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case tea.KeyPressMsg:
 		return m.handleKeyMsg(msg)
 
+	case tea.PasteMsg:
+		return m.handlePaste(msg)
+
 	// The router's detection (§3.86): it decides whether S is offered, and
 	// what a scan runs on.
 	case shared.ScanToolsMsg:
@@ -345,6 +348,27 @@ func (m Model) handleKeyMsg(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	}
 	// Priority 5: normal mode
 	return m.handleNormalKeyMsg(msg)
+}
+
+// handlePaste gives pasted text to the form, browser or filter bar that has the
+// keyboard, in the order handleKeyMsg gives it. A modal or no focused field
+// drops it: a paste is never read as keys (Rule 111).
+func (m Model) handlePaste(msg tea.PasteMsg) (tea.Model, tea.Cmd) {
+	var cmd tea.Cmd
+	switch {
+	case m.registryBrowser != nil:
+		m.registryBrowser, cmd = m.registryBrowser.Update(msg)
+	case m.launchForm != nil:
+		m.launchForm, cmd = m.launchForm.Update(msg)
+	case m.resourceForm != nil:
+		m.resourceForm, cmd = m.resourceForm.Update(msg)
+	case m.registryForm != nil:
+		m.registryForm, cmd = m.registryForm.Update(msg)
+	case m.networkInspectForm != nil, m.confirmModal != nil, m.scanAllModal != nil:
+	case m.imageTable.InEditMode():
+		cmd = m.imageTable.Update(msg)
+	}
+	return m, cmd
 }
 
 // handleNormalKeyMsg handles keys in normal mode

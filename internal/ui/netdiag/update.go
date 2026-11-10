@@ -121,6 +121,9 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	case tea.KeyPressMsg:
 		return m.handleKey(msg)
+
+	case tea.PasteMsg:
+		return m.handlePaste(msg)
 	}
 
 	// Each tab holds its own footer, so an expiry has to be offered to all
@@ -188,6 +191,29 @@ func (m *Model) handleStageDone(msg stageDoneMsg) (*Model, tea.Cmd) {
 		return m, m.footer.Error("Run stopped — the target is no longer valid")
 	}
 	return m, runStageCmd(m.runGen, tg, m.checkSettings(), msg.next, m.results)
+}
+
+// handlePaste gives pasted text to the field that has the keyboard on the tab on
+// screen. It never reaches the key handlers, so no action fires (Rule 111).
+func (m *Model) handlePaste(msg tea.PasteMsg) (*Model, tea.Cmd) {
+	var cmd tea.Cmd
+	switch m.activeTab {
+	case tabPorts:
+		m.portsModel, cmd = m.portsModel.update(msg)
+	case tabInterfaces:
+		m.interfacesModel, cmd = m.interfacesModel.update(msg)
+	case tabForward:
+		m.forwardModel, cmd = m.forwardModel.update(msg)
+	default:
+		switch {
+		case m.filterBar.InEditMode():
+			m.filterBar, cmd = m.filterBar.Update(msg)
+			m.rebuildChecksTable()
+		case m.state == StateInput:
+			return m.updateActiveInput(msg)
+		}
+	}
+	return m, cmd
 }
 
 func (m *Model) handleKey(msg tea.KeyPressMsg) (*Model, tea.Cmd) {
@@ -295,7 +321,7 @@ func (m *Model) moveFocus(delta int) {
 	}
 }
 
-func (m *Model) updateActiveInput(msg tea.KeyPressMsg) (*Model, tea.Cmd) {
+func (m *Model) updateActiveInput(msg tea.Msg) (*Model, tea.Cmd) {
 	var cmd tea.Cmd
 	switch m.focusedField {
 	case fieldTarget:

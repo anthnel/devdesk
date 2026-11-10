@@ -89,6 +89,9 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	case tea.KeyPressMsg:
 		return m.handleKeyMsg(msg)
+
+	case tea.PasteMsg:
+		return m.handlePaste(msg)
 	}
 
 	m.footer.Handle(msg)
@@ -198,6 +201,21 @@ func (m Model) handleConfirmDelete() (tea.Model, tea.Cmd) {
 		return m, nil
 	}
 	return m, deleteCmd(m.store, m.cache, slug)
+}
+
+// handlePaste gives pasted text to the form or the filter, whichever has the
+// keyboard. A modal or no focused field drops it: a paste is never read as keys
+// (Rule 111).
+func (m Model) handlePaste(msg tea.PasteMsg) (tea.Model, tea.Cmd) {
+	switch {
+	case m.confirmModal != nil:
+		return m, nil
+	case m.form != nil:
+		return m, m.form.forward(msg)
+	case m.table.InEditMode():
+		return m, m.table.Update(msg)
+	}
+	return m, nil
 }
 
 // handleKeyMsg routes a key. A mode takes it first (the modal, then the form),

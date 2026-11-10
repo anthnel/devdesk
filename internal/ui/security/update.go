@@ -98,6 +98,9 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 		return m.handleKeyMsg(msg)
 
+	case tea.PasteMsg:
+		return m.handlePaste(msg)
+
 	case SecretIgnoredMsg:
 		if msg.Error != nil {
 			log.Printf("ERROR [security] ignore secret %s: %v", msg.Finding.File, msg.Error)
@@ -185,6 +188,22 @@ func (m Model) handleSpinnerTick(msg spinner.TickMsg) (tea.Model, tea.Cmd) {
 }
 
 // handleKeyMsg processes keyboard input
+// handlePaste hands pasted text to the filter bar of the table on screen while
+// it has the keyboard and no modal is open; otherwise a paste is dropped, never
+// read as keys (Rule 111).
+func (m Model) handlePaste(msg tea.PasteMsg) (tea.Model, tea.Cmd) {
+	if m.confirmModal != nil || m.scanAllModal != nil {
+		return m, nil
+	}
+	switch {
+	case m.state == StateInventory && m.inventory.InEditMode():
+		return m, m.inventory.Update(msg)
+	case m.state == StateResults && m.findingsTable.InEditMode():
+		return m, m.findingsTable.Update(msg)
+	}
+	return m, nil
+}
+
 func (m Model) handleKeyMsg(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	switch m.state {
 	case StateInventory:

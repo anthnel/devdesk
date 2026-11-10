@@ -39,6 +39,9 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case tea.KeyPressMsg:
 		return m.handleInputKeyMsg(msg)
 
+	case tea.PasteMsg:
+		return m.handlePaste(msg)
+
 	case TickMsg:
 		return m.handleTick()
 
@@ -249,6 +252,22 @@ func (m *Model) getSelectedComponentIndex() int {
 		}
 	}
 	return -1
+}
+
+// handlePaste gives pasted text to the filter bar or the monitor form, whichever
+// has the keyboard. With neither focused it is dropped, never read as keys
+// (Rule 111).
+func (m Model) handlePaste(msg tea.PasteMsg) (tea.Model, tea.Cmd) {
+	var cmd tea.Cmd
+	switch {
+	case m.filterBar.InEditMode():
+		m.filterBar, cmd = m.filterBar.Update(msg)
+		m.updateTable()
+		m.getCurrentTable().GotoTop() // a narrowing query starts from the first match
+	case m.componentForm != nil:
+		m.componentForm, cmd = m.componentForm.Update(msg)
+	}
+	return m, cmd
 }
 
 func (m Model) handleInputKeyMsg(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {

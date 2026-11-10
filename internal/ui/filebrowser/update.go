@@ -32,6 +32,9 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case tea.KeyPressMsg:
 		return m.handleKey(msg)
 
+	case tea.PasteMsg:
+		return m.handlePaste(msg)
+
 	case EntriesLoadedMsg:
 		return m.handleEntriesLoaded(msg)
 
@@ -111,6 +114,20 @@ func (m Model) handleLoadError(msg LoadErrorMsg) (tea.Model, tea.Cmd) {
 }
 
 // ── Keys ────────────────────────────────────────────────────────────────────
+
+// handlePaste gives pasted text to the filter bar or the create form's name,
+// whichever has the keyboard. Anything else drops it: a paste is never read as
+// keys (Rule 111).
+func (m Model) handlePaste(msg tea.PasteMsg) (tea.Model, tea.Cmd) {
+	var cmd tea.Cmd
+	switch {
+	case m.table.InEditMode():
+		cmd = m.table.Update(msg)
+	case m.mode == modeCreating:
+		m.form, cmd = m.form.paste(msg)
+	}
+	return m, cmd
+}
 
 func (m Model) handleKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	if m.table.InEditMode() {

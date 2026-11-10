@@ -36,6 +36,8 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, nil
 	case tea.KeyPressMsg:
 		return m.handleKey(msg)
+	case tea.PasteMsg:
+		return m.handlePaste(msg)
 	}
 	m.footer.Handle(msg)
 	return m, nil
@@ -219,6 +221,15 @@ func (m *Model) startRead(full bool) tea.Cmd {
 	return readDeltaCmd(m.agentGen, c)
 }
 
+// handlePaste hands pasted text to the filter while it has the keyboard; with
+// no field focused a paste is dropped, never read as keys (Rule 111).
+func (m Model) handlePaste(msg tea.PasteMsg) (tea.Model, tea.Cmd) {
+	if m.InEditMode() {
+		return m, m.activeTable(msg)
+	}
+	return m, nil
+}
+
 // handleKey gives the filter the keyboard first; ctrl+r refreshes the level on
 // screen, → and enter open a session, ← and esc go back.
 func (m Model) handleKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
@@ -334,7 +345,7 @@ func (m Model) cycleAgentSort(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 }
 
 // activeTable hands a key to the table of the level on screen.
-func (m *Model) activeTable(msg tea.KeyPressMsg) tea.Cmd {
+func (m *Model) activeTable(msg tea.Msg) tea.Cmd {
 	if m.level == levelAgents {
 		return m.agentTable.Update(msg)
 	}
