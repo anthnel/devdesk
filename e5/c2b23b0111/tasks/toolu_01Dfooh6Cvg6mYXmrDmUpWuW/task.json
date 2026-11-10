@@ -1,0 +1,15 @@
+{
+  "tool_use_id": "toolu_01Dfooh6Cvg6mYXmrDmUpWuW",
+  "agent_id": "a67657dd56c8bd8d1",
+  "subagent_type": "project-tester",
+  "task_description": "Vérification complète intégration",
+  "token_usage": {
+    "input_tokens": 12,
+    "cache_creation_tokens": 31775,
+    "cache_read_tokens": 129398,
+    "output_tokens": 4311,
+    "api_call_count": 6
+  },
+  "started_at": "2026-11-10T20:51:06.601446503+01:00",
+  "completed_at": "2026-11-10T20:55:03.928516009+01:00"
+}

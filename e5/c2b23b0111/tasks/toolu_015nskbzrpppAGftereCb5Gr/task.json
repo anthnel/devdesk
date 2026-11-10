@@ -1,0 +1,15 @@
+{
+  "tool_use_id": "toolu_015nskbzrpppAGftereCb5Gr",
+  "agent_id": "a49f4bace01a096ea",
+  "subagent_type": "dev-team:reviewer",
+  "task_description": "Revue étape 6 when_unfocused",
+  "token_usage": {
+    "input_tokens": 24,
+    "cache_creation_tokens": 72490,
+    "cache_read_tokens": 561829,
+    "output_tokens": 10969,
+    "api_call_count": 12
+  },
+  "started_at": "2026-11-10T20:47:51.256720275+01:00",
+  "completed_at": "2026-11-10T20:49:54.589451043+01:00"
+}

@@ -1,0 +1,15 @@
+{
+  "tool_use_id": "toolu_016KdcH8k18562MVGa9CMQPL",
+  "agent_id": "a01622f73e09c6ee0",
+  "subagent_type": "project-coder",
+  "task_description": "Aide when_unfocused, assertion test",
+  "token_usage": {
+    "input_tokens": 10,
+    "cache_creation_tokens": 19002,
+    "cache_read_tokens": 92705,
+    "output_tokens": 2099,
+    "api_call_count": 5
+  },
+  "started_at": "2026-11-10T20:50:03.20606882+01:00",
+  "completed_at": "2026-11-10T20:50:57.221502862+01:00"
+}

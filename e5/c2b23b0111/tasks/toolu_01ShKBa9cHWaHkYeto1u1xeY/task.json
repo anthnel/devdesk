@@ -1,0 +1,15 @@
+{
+  "tool_use_id": "toolu_01ShKBa9cHWaHkYeto1u1xeY",
+  "agent_id": "a4a27ec634e7968f4",
+  "subagent_type": "project-tester",
+  "task_description": "Tests rouges étape 6 when_unfocused",
+  "token_usage": {
+    "input_tokens": 22,
+    "cache_creation_tokens": 53853,
+    "cache_read_tokens": 346975,
+    "output_tokens": 12560,
+    "api_call_count": 11
+  },
+  "started_at": "2026-11-10T20:42:44.611600508+01:00",
+  "completed_at": "2026-11-10T20:44:07.572672304+01:00"
+}

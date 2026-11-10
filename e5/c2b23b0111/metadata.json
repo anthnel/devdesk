@@ -1,0 +1,47 @@
+{
+  "cli_version": "0.13.1",
+  "checkpoint_id": "e5c2b23b0111",
+  "strategy": "manual-commit",
+  "branch": "feat/DEVDESK-210-focus-views",
+  "checkpoints_count": 9,
+  "files_touched": [
+    "internal/app/app.go"
+  ],
+  "sessions": [
+    {
+      "metadata": "/e5/c2b23b0111/0/metadata.json",
+      "transcript": "/e5/c2b23b0111/0/full.jsonl",
+      "compact_transcript": "/e5/c2b23b0111/0/transcript.jsonl",
+      "content_hash": "/e5/c2b23b0111/0/content_hash.txt",
+      "prompt": "/e5/c2b23b0111/0/prompt.txt"
+    }
+  ],
+  "token_usage": {
+    "input_tokens": 50,
+    "cache_creation_tokens": 322907,
+    "cache_read_tokens": 4144571,
+    "output_tokens": 11567,
+    "api_call_count": 16,
+    "subagent_tokens": {
+      "input_tokens": 130,
+      "cache_creation_tokens": 400138,
+      "cache_read_tokens": 2014186,
+      "output_tokens": 56344,
+      "api_call_count": 63
+    }
+  },
+  "redaction": {
+    "replacements": 4,
+    "layers": {
+      "betterleaks": 0,
+      "connection_string": 0,
+      "credential_key": 0,
+      "credential_value": 0,
+      "credentialed_uri": 0,
+      "entropy": 4,
+      "key_context": 0,
+      "provider_token": 0,
+      "shell_stdin": 0
+    }
+  }
+}
