@@ -50,7 +50,19 @@ program and sets `AltScreen` in its own `View()`. Components (datatable, forms,
 `FilterBar`) keep `View() string`. A bracketed paste arrives as `tea.PasteMsg`
 and goes through `handlePasteMsg`: it is text for the focused field (palette,
 or the view when it is editing), never a key action, and is dropped behind an
-overlay or a context switch.
+overlay or a context switch. `handlePasteMsg` first turns `\r\n` into `\n`
+(the one point every paste goes through), so a Windows paste does not leave two
+spaces in a one-line field. The order is: context switch, help or context-list
+overlay (dropped); command palette; the view while `inEditMode()`; otherwise
+dropped.
+
+**Colour profile.** Lip Gloss v2 has no global profile: `Style.Render` always
+emits full colour, and Bubble Tea downsamples to the terminal's profile when it
+writes. `main.go` removes the old `COLORTERM` block and, through
+`forcedColorProfile(getenv)`, passes `tea.WithColorProfile(colorprofile.TrueColor)`
+when `WT_SESSION` is set (Windows Terminal, which WSL does not advertise) unless
+`NO_COLOR` is set; elsewhere Bubble Tea detects it. `termenv` is no longer a
+dependency; tests need no profile setup and strip SGR with `ansi.Strip`.
 
 Inside a view, `Update` has its own `case tea.PasteMsg` (`handlePaste`) that
 routes the paste to the field that has the keyboard (filter bar, form field,
@@ -278,7 +290,7 @@ naming file, line and rule. A convention nothing verifies is what produced the
 `Shift` carries the actions because the other families are amputated: `Ctrl`
 encodes only ASCII 0x40–0x5F and the tty confiscates four of them, `Alt` is not
 Meta on macOS by default, and `Ctrl+Shift` is indistinguable from `Ctrl` without
-a keyboard protocol bubbletea v1 does not enable. The reasoning lives in the
+a keyboard protocol DevDesk does not request (Bubble Tea v2 can, Rule 101 forbids relying on it). The reasoning lives in the
 package doc so it does not have to be rediscovered.
 
 **No bare letter is navigation.** `h j k l g G` are gone application-wide — from
@@ -327,8 +339,8 @@ them off the screen anyway. And the granularity is the **package**, not the
 view's state: a key bound in one tab and announced in another passes. What these
 catch is the key bound *nowhere*, which is what both instances were.
 
-**The space key is `keymap.Space`** (DEVDESK-200). bubbletea v1 reports it as
-`" "` in `KeyMsg.String()`, v2 as `"space"`, and nothing flags the change: a
+**The space key is `keymap.Space`** (DEVDESK-200). Bubble Tea v1 reported it as
+`" "` in `KeyMsg.String()`, v2 reports `"space"` in `KeyPressMsg.String()`, and nothing flags the change: a
 `case " "` just stops matching and every checkbox stops toggling. Production
 code binds it as `case keymap.Space:`, so a v2 move changes one line. Two
 source guards in `internal/ui/keymap` hold this:
@@ -336,7 +348,9 @@ source guards in `internal/ui/keymap` hold this:
 | | |
 |---|---|
 | `TestNoKeyIsComparedToALiteralSpace` (`space_scan_test.go`) | rejects `" "` and `"space"` as a `case` clause of any switch, or as an operand of `==`/`!=` in a file that imports bubbletea. It also fails if it sees no `keymap.Space` at all, so a broken scan cannot pass for a clean tree |
-| `TestNoProductionCodeReadsLegacyKeyFields` (`legacy_key_scan_test.go`) | rejects the v1-only key API in production code: `.Runes`, `.Alt`, `.Paste`, `tea.KeyType` and every `tea.Key<Name>` constant except `tea.KeyMsg` and `tea.Key`. Code reads a key by `String()` only |
+| `TestNoProductionCodeReadsLegacyKeyFields` (`legacy_key_scan_test.go`) | rejects the v1-only key API in production code: `.Runes`, `.Alt`, `.Paste`, `tea.KeyType` and every `tea.Key<Name>` constant except the v2 types `tea.Key`, `tea.KeyPressMsg`, `tea.KeyReleaseMsg`, `tea.KeyboardEnhancementsMsg` (and `tea.KeyMsg`, see next row). Code reads a key by `String()` only |
+| `TestNoProductionCodeMatchesTheKeyMsgInterface` (`legacy_key_scan_test.go`) | rejects any use of `tea.KeyMsg` (case, assertion, parameter, result): in v2 it is an interface that also matches key releases. Handlers use `tea.KeyPressMsg` |
+| `TestEveryViewportFedKeysSetsAKeyMap` (`viewport_keymap_scan_test.go`) | a `bubbles/viewport` v2 scrolls horizontally on `left`/`right`/`h`/`l` by default, which Rule 135 and the no-bare-letter rule forbid. Every `X.Update(` on a viewport-named `X` needs an `X.KeyMap = …` in the same package (the help overlay's `arrowOnlyScroll`). Limit: it keys on the name (`viewport`/`vp`), so a viewport stored under another name, or a KeyMap set through a helper, escapes it |
 
 Both skip `internal/ui/keymap` (it declares the vocabulary) and
 `internal/ui/testutil` (it builds test keys; DEVDESK-199's source guard owns it).

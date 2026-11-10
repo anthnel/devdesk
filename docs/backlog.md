@@ -98,7 +98,85 @@ decided together and fixed in one pass; see [§1.2](#12-the-five-parked-defects)
 
 ### 1.1 Fixed
 
+**D117 — DEVDESK-201: what is not covered by a test, and what only a person can check. Open.** **Plane:** DEVDESK-201, dated 2026-11-10
+
+Not covered by a test, to decide before the story closes: (a) the guard that a key is read through `String()` only (DEVDESK-200) does not cover `.Code`, `.Text` and `.Mod`; either a guard is added or the gap is accepted; (b) 15 `lipgloss.Place` call sites have no dedicated test (the Rule 115 test covers the confirm modal only); (c) `tea.PasteStartMsg` and `tea.PasteEndMsg` are ignored without a test.
+
+Manual checks, run by the user and not by the agents (no TTY in the sandbox), on Windows Terminal (`dk.exe`) and WSL in Windows Terminal: the four `tea.ExecProcess` calls (container shell `T`, OCI launch `-it`, viewer pager `V`, workspace terminal `T`: alt screen restored, colours intact, no stray output); `dk setup` (alt screen, fields, space on its confirm, paste); space in every checkbox form; paste in the palette, a filter bar and a form, multi-line paste in a single-line field; one uppercase action (`S` in `ws`) and `ctrl+r`; colours under WSL with and without `NO_COLOR=1`; a VS16 emoji and a Nerd Font icon column with no shift (mode 2027); the textinput cursor background (Rule 115).
+
+**D116 — DEVDESK-201: the prudent defaults taken without asking (H2, H3, H4, H6). Decided, to confirm.** **Plane:** DEVDESK-201, dated 2026-11-10
+
+- **H2.** The `internal/testutil/colorprofile` helper is a no-op from A2 (`lipgloss.SetColorProfile` does not exist in v2), so the theme, overlay, shortcut, datatable and components tests compile. It is removed in F (`e65ab2f`), with `termenv`. The plan kept it as a no-op for its 50 callers; the branch deletes it.
+- **H3.** `LoadTheme` refuses the whole theme when a non-empty value is not `#rgb` or `#rrggbb`, and the error names the key and the value. An empty optional key keeps the fallback. Callers are unchanged: `main.go` logs and keeps the default theme, `App.applyThemeNow` logs and keeps the current one. No footer message: a follow-up if wanted.
+- **H4.** `main.go` forces `tea.WithColorProfile(colorprofile.TrueColor)` when `WT_SESSION` is set and `NO_COLOR` is not. A forced profile bypasses the `NO_COLOR` check of `colorprofile.Detect`, so the condition is explicit. The `COLORTERM` workaround is deleted.
+- **H6.** `App.setView(name, m tea.Model)` is the only place that asserts `Screen`. A view that does not implement `Render` panics with the view's name; Bubble Tea recovers and restores the terminal.
+
+**D115 — DEVDESK-201: three claims of the plan that the branch does not support as written.** **Plane:** DEVDESK-201, dated 2026-11-10
+
+1. *The red proof for the `(4)` criterion.* The plan wanted the test that pins the width of a flag or ZWJ sequence to be red on the v2 code before the fix. It was in fact red on `go-runewidth` v0.0.16, the pre-migration version: `x/ansi` v0.11.9 already brings `go-runewidth` v0.0.30 with the v2 stack, so the red state was never shown on v2. Re-check on the migrated code before merge.
+2. *Width divergence between libraries.* `datatable` measures with `go-runewidth` and the terminal-facing `x/ansi` measures differently for VS16 emoji (`a❤️x`: 3 against 4; `✔️`: 1 against 2). The divergence is pinned by `TestVS16EmojiIsAKnownWidthDivergence`, so a library fix shows up as a test change.
+3. *"Identical rendering" of the `ntcharts` sparkline.* Identical glyphs, not identical bytes: the background SGR goes from `48` to `49` and the reset is `\x1b[m`. The plan's "rendu identique" means the cells, not the escape sequences.
+
+Also lost: the background of the textinput virtual cursor (Rule 115). bubbles v2 `CursorStyle` has no background; the gap is accepted until the manual check of D117.
+
+**D114 — DEVDESK-201: the redraw cost of Bubble Tea v2 against v1 (`TestMeasureRedrawCost`). Measured; the threshold is +25 %; the verdict is within it.** **Plane:** DEVDESK-201 (G2), analysis DEVDESK-201 (perf)
+
+Threshold chosen by the user from the three options of the plan (report only; +25 % on bytes/s of `blink-20` or `spinner-20` and no more redraws than the tick cadence). The v2 renderer also writes terminal queries and synchronized-output brackets that v1 does not, so "no worse than v1" would fail on bytes that cost nothing on screen.
+
+Bytes/s, medians of 3 runs, interleaved on the same machine (the D110 host). v1 TrueColor is forced (D110 correction); v1 Ascii is the unforced base. Redraws: 2/s for blink, 10/s for spinner, identical in all three.
+
+| Case | v1 Ascii B/s | v1 TrueColor B/s | v2 B/s | v2 vs v1 Ascii | v2 vs v1 TrueColor |
+|---|---|---|---|---|---|
+| blink-0 | 0 | 0 | 0 | = | = |
+| blink-1 | 376 | not measured | 84 | −78 % | not measured |
+| blink-20 | 5809 | 11890 | 1726 | −70 % | −85 % |
+| spinner-1 | 1880 | not measured | 420 | −78 % | not measured |
+| spinner-20 | 29046 | 59450 | 8629 | −70 % | −85 % |
+
+Bytes per redraw (20-row cases): 2905 Ascii, 5945 TrueColor, 863 v2. v2 repaints changed cells only; v1 rewrote lines.
+
+- **Verdict:** within the threshold against either base. Bytes are −70 % or better (Ascii), −85 % (TrueColor), and redraws equal the tick cadence. Nothing rises.
+- **`View()` cost (D114 perf analysis, DEVDESK-201).** Isolated benchmark, `GOMAXPROCS=1`, 7 interleaved runs: v1 Ascii 288 µs, v1 TrueColor 683 µs, v2 868 µs. Real surcharge against v1 TrueColor: **+27 %**. The "×2.5–3" of the first measure is mostly an artefact: 12 to 60 cold calls, no warm-up. In-program: about 1.5 ms (v1 TrueColor) against about 2.0 ms cold (v2).
+- **Cause.** `x/ansi` `stringWidth` (since v0.11.7) walks every character through grapheme segmentation, ASCII included: 240 ns to 1310 ns on a 116-column ASCII line; its share of `View()` goes from 30 % to 67 %. The v1 colour conversion (36 % of v1, via go-colorful and `Sscanf`) disappears. The theme code converts nothing per frame. The cost sits in a library: bubbletea v2.1.1 requires `x/ansi` v0.11.9, so it is not avoidable short of an upstream change.
+- **Impact.** About 0.87 ms warm (about 2 ms cold) per 120×40 frame: 5–13 % of the 16 ms budget, about 2 % of one core at 10 Hz, +0.5 % CPU against v1 TrueColor. **Non-blocking.**
+- **Not applied (options).** Upstream ASCII shortcut in `charmbracelet/x` `ansi/width.go` (estimated −45 to −55 % on `View`), to report upstream only if the user decides so. `view.go:117-121` redundant `Style.Width` (−6 %, but it changes the padding background: Rule 115, visual check). `lipgloss.Place` in `view.go:34-35` (at most 7 %). Compare the `redraw_measure_test.go` harness under v1 TrueColor for a fair base.
+- **Harness defect fixed.** Without a TTY, v2 sends its own `WindowSizeMsg` built from a 0×0 size, which shrinks the router to a 489-byte view. The fix is `tea.WithWindowSize(...)` and `tea.WithColorProfile(colorprofile.TrueColor)` in `measureRedraws` (`e44dcb0`).
+- **Limits.** In-process, no TTY: this counts what the renderer writes, not what a terminal shows. The v2 mode queries and synchronized output are not exercised; the real-SSH check stays with A-06. The `View()` study uses a dummy 120×40 view on one machine; real views are not profiled.
+
+**D113 — DEVDESK-201: Rule 135 corrected in the PR. Enter does nothing on a checkbox; Space no longer answers Yes or No on a confirmation. Decided (prudent choice on a destructive modal, to confirm).** **Plane:** DEVDESK-201 (`ad0900d`), dated 2026-11-10
+
+Rule 135 gives `Space` alone the tick on a checkbox and `Enter` alone the validation of action buttons. The v2 port exposed two places where the rule was not applied:
+- Enter toggled a checkbox. It is now ignored on a checkbox cell.
+- Space answered the focused Yes or No button of `OptionConfirmModal`, `ConfirmModal`, `ChoiceModal` and the setup wizard's `confirm`. It no longer does.
+
+Choice on a destructive modal: Enter on a focused cell is ignored rather than advancing to the next step, so a stray Enter cannot confirm a delete. The alternative (Enter advances, as on any other button) is open to the user; it changes one line per modal.
+
+Rule 135 text to be corrected by the tech-writer (G1): the Space line becomes `keymap.Space` is `"space"`, the key is matched through the constant.
+
+**D112 — DEVDESK-201: the Charm v2 migration lands as one pull request, in categories; the commits are review units. Decided.** **Plane:** DEVDESK-201, dated 2026-11-10
+
+One PR, squash-merged, with the commits listed in its body. The commits split the migration by category, not by file, and they are not bisect points: `internal/app` imports every view, so no commit between the imports change and the theme change builds the whole module. Real order on `feat/DEVDESK-201-charm-v2`, after `origin/main` `f8c3063`:
+
+`7091e78` imports and `go.mod` (A1) → `a74a262` theme `color.Color` and hex validation (A2) → `0692c35` keys, `KeyPressMsg`, `keymap.Space = "space"` (B) → `ba1d938` Bubbles and Lip Gloss APIs (D1) → `495409b` ntcharts v2 and module tidy (E) → `89f32a3` `Render` and `View() tea.View`, router owns `AltScreen` (C) → `dab9d28` fix: nil `confirmModal` guard removed from the setup wizard render → `ad0900d` Rule 135 (B2, D113) → `0618f37` viewport KeyMap guard (D2) → `6aa865d` paste routed to the focused field (D3) → `e65ab2f` colour profile from Bubble Tea, `termenv` removed (F) → `103e80b` fix: paste into every focused field of the forge explorer → `1958602` chore: import groups → `e44dcb0` redraw measure repaired (D114).
+
+The order differs from the plan (`A1 A2 B C D1 D2 D3 E F G1`): E came before C, and the Rule 135 fix and the explorer paste fix came after the category they belong to, noted in their bodies.
+
+Architecture: option C, see D111.
+
+**D111 — DEVDESK-201: views are `Render() string` plus `View() tea.View`; the router alone sets the terminal state. Option C, chosen by the user. Decided.** **Plane:** DEVDESK-201, dated 2026-11-10
+
+Three options were on the table (impact report §3, `.claude/plans/charm-v2-impact.md`):
+- **A.** Every view returns `tea.View` and the router reads `.Content`. Rejected: the test suite's `.View()` calls become `.View().Content` (about 400 sites), and every view carries terminal fields.
+- **B.** One `tea.Model` (`*App`) for the whole application, with the views as plain renderers (backlog §3.19). Rejected: it changes the `handle*` functions, which return `(tea.Model, tea.Cmd)` and are governed by Rule 201 (extract any `case` over five lines). The impact report counts about 480 such signatures.
+- **C.** Each top-level view keeps its rendering in `Render() string` and exposes `View() tea.View { return tea.NewView(m.Render()) }`. The router holds `map[command.ViewType]Screen`, where `Screen` is `tea.Model` plus `Render() string`, and sets `AltScreen` in `App.View` only. Components (`datatable`, forms, `FilterBar`) keep `View() string`.
+
+Why C: fewest changes; the compiler guides the test sites; no `handle*` signature moves (the plan's survey counts 271 `handle*` and 429 returns of `(tea.Model, tea.Cmd)`, a recount is due); the terminal state is declared in one place. The two `tea.WithAltScreen()` calls (`main.go`, `setup/wizard.go`) are gone.
+
+Consequence: a view that does not implement `Render` panics in `setView` (D116, H6), and a table test covers every `ViewType`. No ADR: the repository has no `docs/decisions/` or `docs/adr/` folder, and the project keeps its lasting decisions here (D entries).
+
 **D110 — Redraw cost reference on Bubble Tea v1.3.10, taken before the v2 move. Measured.** **Plane:** DEVDESK-200 (criterion 7)
+
+> **Correction (2026-11-10, DEVDESK-201, D114 analysis).** (a) The v1 base of this table ran with the Ascii profile, not forced TrueColor: `go test` has no TTY, and Lip Gloss v1 converted no colour. Forced TrueColor on v1 gives 5945 bytes per redraw (20 rows) and about 1.5 ms of `View()` in-program; v2 gives 863 bytes: −85 % against v1 TrueColor (−70 % against the Ascii base). (b) The "×2.5–3" `View()` ratio of this entry is mostly a cold-call artefact (12 to 60 calls). Isolated benchmark, `GOMAXPROCS=1`: v1 Ascii 288 µs, v1 TrueColor 683 µs, v2 868 µs: a real +27 % against TrueColor. (c) The rest is in `x/ansi` (see D114). The figures above are not rewritten.
 
 `TestMeasureRedrawCost` now also reports redraws per second, bytes per redraw and the mean `View()` time (a redraw is one `Write`: the v1 renderer flushes once per frame; the program calls `View()` after every `Update`). Medians of 3 runs, 6 s window after a 2 s warm-up, terminal 120x40, 36 rows per view (`blink-N` / `spinner-N`: N animated rows; blink at 1 Hz means 2 phase changes per second).
 

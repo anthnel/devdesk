@@ -197,8 +197,16 @@ Backspace. An action that resettled behind `Ctrl` would be reclaiming a spot
 
 `Ctrl+Shift` is not an option: the control code erases case, so `ctrl+a` and
 `ctrl+shift+a` both emit 0x01. Telling them apart requires the Kitty keyboard
-protocol or `modifyOtherKeys`, which bubbletea v1.3.10 does not enable — and
-even then the terminal emulator claims some first (`ctrl+shift+c/v/t/w/n`).
+protocol or `modifyOtherKeys`. Bubble Tea v2 can ask for the Kitty
+enhancements, but DevDesk does not request them, and a key that exists on some
+terminals only would contradict Rule 101 — and even then the terminal emulator
+claims some first (`ctrl+shift+c/v/t/w/n`).
+
+**A paste is not a key.** Bubble Tea v2 delivers a bracketed paste as
+`tea.PasteMsg`, never as `tea.KeyPressMsg`. The router hands it to the focused
+text field only (command palette, or the view while it is editing); it fires no
+action, so pasting `D` or `q` deletes and quits nothing. Elsewhere it is dropped.
+See `docs/architecture/app-shell.md`.
 
 ### Rule 112 : Forms in the viewport (no modals)
 
@@ -207,8 +215,8 @@ even then the terminal emulator claims some first (`ctrl+shift+c/v/t/w/n`).
 Modals are reserved for confirmations and short messages.
 
 ```go
-// In View() — display priority
-func (m Model) View() string {
+// In Render() — display priority (a top-level view; View() wraps it in tea.NewView)
+func (m Model) Render() string {
     if m.creationForm != nil { return m.creationForm.View() }
     if m.confirmModal != nil {
         return lipgloss.Place(m.width, m.height,
