@@ -429,8 +429,10 @@ func (a *App) reinitializeViews() tea.Cmd {
 	if view, ok := a.views[a.currentView]; ok {
 		initCmd = view.Init()
 	}
+	// The rebuilt view starts unaware of a blur that is still in effect.
+	focusCmd := a.sendFocusTo(a.currentView, false)
 	log.Printf("Views reinitialized successfully")
-	return initCmd
+	return tea.Batch(initCmd, focusCmd)
 }
 
 // BlinkingView is implemented by a view with a row that blinks for a reason the
@@ -495,12 +497,14 @@ func (a *App) update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return a.handleTerminalFocus()
 
 	case tea.KeyPressMsg:
-		a.handleTerminalFocus() // input proves the terminal has the focus
-		return a.handleKeyMsg(msg)
+		_, focusCmd := a.handleTerminalFocus() // input proves the terminal has the focus
+		model, keyCmd := a.handleKeyMsg(msg)
+		return model, tea.Batch(focusCmd, keyCmd)
 
 	case tea.PasteMsg:
-		a.handleTerminalFocus()
-		return a.handlePasteMsg(msg)
+		_, focusCmd := a.handleTerminalFocus() // input proves the terminal has the focus
+		model, pasteCmd := a.handlePasteMsg(msg)
+		return model, tea.Batch(focusCmd, pasteCmd)
 
 	// ── Contexts and themes ──────────────────────────────────────────────
 	case configuration.ConfigSavedMsg:
