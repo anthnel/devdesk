@@ -4,6 +4,7 @@ import (
 	"log"
 
 	tea "charm.land/bubbletea/v2"
+	"github.com/anthnel/devdesk/internal/ui/teaexec"
 
 	"github.com/anthnel/devdesk/internal/docker"
 )
@@ -82,7 +83,7 @@ func (m Model) handleLaunchFormSubmit(msg LaunchFormSubmitMsg) (tea.Model, tea.C
 			log.Printf("ERROR [oci_resources] build launch cmd: %v", err)
 			return m, m.footer.Error("Failed to launch container — check logs")
 		}
-		return m, tea.ExecProcess(cmd, func(err error) tea.Msg {
+		return m, teaexec.Process(cmd, func(err error) tea.Msg {
 			if err != nil {
 				log.Printf("ERROR [oci_resources] interactive container exit: %v", err)
 			}

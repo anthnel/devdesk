@@ -8,6 +8,7 @@ import (
 	"strings"
 
 	tea "charm.land/bubbletea/v2"
+	"github.com/anthnel/devdesk/internal/ui/teaexec"
 
 	"github.com/anthnel/devdesk/internal/browser"
 	"github.com/anthnel/devdesk/internal/cache"
@@ -284,7 +285,7 @@ func (m Model) openTerminalInPlace(targetPath string) (tea.Model, tea.Cmd) {
 	}
 	cmd := exec.Command(shell)
 	cmd.Dir = targetPath
-	return m, tea.ExecProcess(cmd, func(err error) tea.Msg {
+	return m, teaexec.Process(cmd, func(err error) tea.Msg {
 		if err != nil {
 			log.Printf("ERROR [workspaces] terminal exit: %v", err)
 		}

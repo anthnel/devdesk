@@ -108,8 +108,8 @@ stays mandatory: this is a safety net, not a replacement (see the gaps below).
   child (pager, shell, `docker run -it`) sees the terminal's default background,
   not the theme's. When it returns, the renderer restarts, sends OSC 11 again and
   repaints in full. This also holds when the child fails.
-  Known gap: after `ExecProcess` the renderer ticker can stay stopped, so the
-  SET is only flushed at shutdown (D120 in `docs/backlog.md`, DEVDESK-290).
+  Every exec goes through `internal/ui/teaexec`, which closes a ticker race in
+  Bubble Tea (see "Handing the terminal to a child").
 - *What is verified.* `terminal_background_test.go` covers `terminalBackground`
   per profile, comparability on every shipped theme, the router per profile (with
   an overlay open, latest profile wins, `ColorProfileMsg` not forwarded, only
@@ -123,9 +123,8 @@ stays mandatory: this is a safety net, not a replacement (see the gaps below).
   `tea.Exec`, OSC 111 before the child, OSC 11 after it, and OSC 111 at exit,
   also when the child returns an error. These tests pin Bubble Tea's contract: a
   version bump that changes it fails them.
-  The exec test no longer proves the SET is emitted while the program runs after
-  the child, only SET then RESET at shutdown (D120 in `docs/backlog.md`,
-  DEVDESK-290).
+  The exec test proves the SET is emitted again while the program runs after the
+  child, at `GOMAXPROCS(1)`.
 - *Limits.* Nothing restores the background after `kill -9`, after a panic in a
   goroutine that is not a `Cmd` (the MCP server), or when the terminal is closed
   (the alternate screen has the same gap). To recover, run `printf '\e]111\a'` or
@@ -1126,6 +1125,49 @@ always gets D9's degraded form: it launches nothing, so it passes no origin, and
 The sentence itself is `components.JobsStatusLine`, shared with the workspaces
 footer — two copies of a deliberate surrender would each have been free to
 surrender differently.
+
+### Handing the terminal to a child — `internal/ui/teaexec`
+
+**The race (Bubble Tea v2.1.1, DEVDESK-290).** Bubble Tea's exec path is
+`stopRenderer`, `ExecCommand.Run`, `startRenderer`. `stopRenderer` sends on an
+unbuffered channel: it returns when the render goroutine has received the signal,
+not when it has finished, and that goroutine then runs `ticker.Stop()` on its
+own. `startRenderer` reuses the same ticker (`Reset`). When the child returns at
+once (failed start, missing binary), `Reset` can run before the late `Stop()`:
+the ticker stays stopped and the screen never repaints while the program keeps
+handling input. Nothing in the `ExecCallback` can fix it, because the callback
+runs after the race is decided.
+
+**The workaround.** `settled.Run` runs the child, then sleeps for whatever remains
+of `settleDelay` (50 ms since `Run` started), also when the child failed, and
+returns the child's error unchanged. The old render goroutine has time to stop
+the ticker before `startRenderer` resets it. The delay is in `Run`, not in the
+callback, for the reason above. A child that lasts 50 ms or more pays nothing;
+the worst cost is 50 ms. The delay is probabilistic, but the tests below check
+it.
+
+**The API.** `teaexec.Process(*exec.Cmd, tea.ExecCallback)` replaces
+`tea.ExecProcess`; `teaexec.Command(tea.ExecCommand, tea.ExecCallback)` replaces
+`tea.Exec`. Both return a `tea.Cmd`. `Process` sets a stream only when it is
+nil, like Bubble Tea's own `osExecCommand`.
+
+**The rule.** No code outside the package calls `tea.ExecProcess`, `tea.Exec` or
+`tea.Suspend`. `source_guard_test.go` (`TestNoDirectTeaExecOutsideTeaexec`) scans
+the repository's Go files and fails on a direct call, by file and line; its
+helper is unit-tested on positive and negative cases. A comment or an unrelated
+`Exec` method does not trip it.
+
+**The tests.** `program_test.go` runs a real `tea.Program` at `GOMAXPROCS(1)`,
+where the loss is deterministic. `TestARedrawFollowsAnInstantChild` (20 runs) and
+`TestARedrawFollowsAChildThatFailsAtOnce` check that the view is drawn again
+after the child. Trap: `tea.WithInput(nil)` makes every exec wait 500 ms before
+the child starts, so the waits in those tests are generous.
+
+**The sentinel.** `TestUpstreamTickerRaceStillExists` runs a bare `tea.Exec` and
+expects the redraw to be lost. When it fails ("Bubble Tea no longer loses the
+renderer ticker"), upstream fixed the race: the wrapper can be removed.
+Replace `teaexec.Process` and `teaexec.Command` with the Bubble Tea calls, delete
+the package and the source guard, and update this section.
 
 ### The activity-column guard (DEVDESK-142, A-16 skeleton)
 
