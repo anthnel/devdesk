@@ -9,6 +9,7 @@ import (
 
 	"github.com/anthnel/devdesk/internal/cache"
 	"github.com/anthnel/devdesk/internal/docker"
+	"github.com/anthnel/devdesk/internal/ui/keymap"
 	"github.com/anthnel/devdesk/internal/ui/theme"
 )
 
@@ -309,7 +310,7 @@ func (f *LaunchForm) handleKeyMsg(msg tea.KeyMsg) (*LaunchForm, tea.Cmd) {
 			return f, nil
 		}
 
-	case " ":
+	case keymap.Space:
 		// Space toggles checkboxes (Rule 135): port fields and option checkboxes
 		if f.isPortField(f.focusedField) {
 			f.ports[f.focusedField-f.firstPortField()].enabled = !f.ports[f.focusedField-f.firstPortField()].enabled

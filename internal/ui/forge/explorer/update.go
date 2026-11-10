@@ -186,7 +186,7 @@ func (m Model) handleKeyMsg(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 // key means when there is something to cancel; `←` is still the way up.
 func (m Model) handleSelectingKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	switch msg.String() {
-	case " ":
+	case keymap.Space:
 		return m.handleSelectionToggle()
 	case "enter":
 		return m.handleSelectionConfirm()

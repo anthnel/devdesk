@@ -80,7 +80,7 @@ func (m Model) handleKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		return m.cycleField(-1)
 	case "right":
 		return m.cycleField(1)
-	case " ":
+	case keymap.Space:
 		return m.toggleField()
 	case "enter":
 		if m.current().path {

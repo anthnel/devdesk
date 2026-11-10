@@ -6,6 +6,7 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
 
+	"github.com/anthnel/devdesk/internal/ui/keymap"
 	"github.com/anthnel/devdesk/internal/ui/theme"
 )
 
@@ -128,7 +129,7 @@ func (m *OptionConfirmModal) Update(msg tea.Msg) (*OptionConfirmModal, tea.Cmd) 
 			}
 			return m, nil
 
-		case " ":
+		case keymap.Space:
 			// Toggle the checkbox if it has focus, otherwise confirm the selection
 			if m.focused == 0 {
 				m.toggleCheckbox()

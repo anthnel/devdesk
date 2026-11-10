@@ -205,6 +205,12 @@ key, a termenv import or `SetColorProfile` in any `_test.go`. Paste tests
 a paste reaches the focused field, newlines become spaces in single-line fields,
 and no key action fires (Rule 111).
 
+**Space and key API (DEVDESK-200).** Production code matches the space key as
+`keymap.Space`, never `" "`/`"space"`, and reads keys through `String()` only
+(no `.Runes`, `.Alt`, `.Paste`, `tea.KeyType` or `tea.Key<Name>`). Two guards in
+`internal/ui/keymap` (`space_scan_test.go`, `legacy_key_scan_test.go`) fail the
+suite otherwise; limits are listed in `docs/architecture/app-shell.md`.
+
 ## Dependencies
 
 Key libraries (see `go.mod`):

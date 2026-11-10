@@ -7,6 +7,7 @@ import (
 	"github.com/charmbracelet/lipgloss"
 
 	"github.com/anthnel/devdesk/internal/ui/components"
+	"github.com/anthnel/devdesk/internal/ui/keymap"
 	"github.com/anthnel/devdesk/internal/ui/theme"
 )
 
@@ -38,7 +39,7 @@ func (c *confirmPrompt) Update(msg tea.Msg) (*confirmPrompt, tea.Cmd) {
 	case "left", "right":
 		c.yes = !c.yes
 		return c, nil
-	case "enter", " ":
+	case "enter", keymap.Space:
 		return c, confirmResultCmd(c.yes)
 	case "y", "Y":
 		return c, confirmResultCmd(true)

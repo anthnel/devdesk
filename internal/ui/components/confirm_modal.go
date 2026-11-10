@@ -6,6 +6,7 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
 
+	"github.com/anthnel/devdesk/internal/ui/keymap"
 	"github.com/anthnel/devdesk/internal/ui/theme"
 )
 
@@ -47,7 +48,7 @@ func (m *ConfirmModal) Update(msg tea.Msg) (*ConfirmModal, tea.Cmd) {
 			m.focused = !m.focused
 			return m, nil
 
-		case "enter", " ":
+		case "enter", keymap.Space:
 			// Confirm the selection
 			if m.focused {
 				return m, func() tea.Msg {

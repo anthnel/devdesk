@@ -527,7 +527,7 @@ func (m Model) handleRemediationKey(msg tea.KeyMsg) (tea.Model, tea.Cmd, bool) {
 	case keymap.Scan:
 		next, cmd := m.scanCandidates()
 		return next, cmd, true
-	case " ":
+	case keymap.Space:
 		next, cmd := m.toggleCandidate()
 		return next, cmd, true
 	case "enter":

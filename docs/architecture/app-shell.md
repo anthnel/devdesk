@@ -307,6 +307,39 @@ them off the screen anyway. And the granularity is the **package**, not the
 view's state: a key bound in one tab and announced in another passes. What these
 catch is the key bound *nowhere*, which is what both instances were.
 
+**The space key is `keymap.Space`** (DEVDESK-200). bubbletea v1 reports it as
+`" "` in `KeyMsg.String()`, v2 as `"space"`, and nothing flags the change: a
+`case " "` just stops matching and every checkbox stops toggling. Production
+code binds it as `case keymap.Space:`, so a v2 move changes one line. Two
+source guards in `internal/ui/keymap` hold this:
+
+| | |
+|---|---|
+| `TestNoKeyIsComparedToALiteralSpace` (`space_scan_test.go`) | rejects `" "` and `"space"` as a `case` clause of any switch, or as an operand of `==`/`!=` in a file that imports bubbletea. It also fails if it sees no `keymap.Space` at all, so a broken scan cannot pass for a clean tree |
+| `TestNoProductionCodeReadsLegacyKeyFields` (`legacy_key_scan_test.go`) | rejects the v1-only key API in production code: `.Runes`, `.Alt`, `.Paste`, `tea.KeyType` and every `tea.Key<Name>` constant except `tea.KeyMsg` and `tea.Key`. Code reads a key by `String()` only |
+
+Both skip `internal/ui/keymap` (it declares the vocabulary) and
+`internal/ui/testutil` (it builds test keys; DEVDESK-199's source guard owns it).
+Each has a detector test on inline sources, so the rule is checked on both sides.
+
+The vocabulary scanner (`keymap_test.go`) reads `case keymap.X:` too.
+`keymapConstants` parses the top-level string constants of `keymap.go` and
+`clausesOf` resolves `keymap.X` selectors through them. Without that, a switch
+whose only structural key became `keymap.Space` would stop being recognised as a
+key switch and its letters would leave the vocabulary tests.
+`TestTheKeyScanReadsKeymapConstants` fails if the scanner skips such clauses.
+
+Known limits of the space guard (stated, not hidden). It reads switch clauses
+and `==`/`!=` only, so it does **not** see:
+
+- `slices.Contains(keys, " ")` and other function-call comparisons (`strings.EqualFold`);
+- a map keyed by `" "`;
+- `key.WithKeys(" ")` (bubbles key bindings);
+- a local constant (`const sp = " "`) used in a `case`.
+
+The `!=`/`==` check applies only in files importing bubbletea. Review these
+four by hand.
+
 **Free letters are declared too** (`Q Z` — `J` went to `Jump`, §3.89). A new action takes one of them;
 it does not invent a key, and `TestFreeLettersAreActuallyFree` stops the list
 going stale.

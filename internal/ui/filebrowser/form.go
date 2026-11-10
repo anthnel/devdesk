@@ -100,18 +100,14 @@ func (f *createForm) cycle(key string) (*createForm, tea.Cmd) {
 		}
 		f.kindIdx = (f.kindIdx + step) % len(kinds)
 	case fieldName:
-		var cmd tea.Cmd
-		f.name, cmd = f.name.Update(tea.KeyMsg{Type: keyTypeFor(key)})
-		return f, cmd
+		if key == "left" {
+			f.name.SetCursor(f.name.Position() - 1)
+		} else {
+			f.name.SetCursor(f.name.Position() + 1)
+		}
+		return f, nil
 	}
 	return f, nil
-}
-
-func keyTypeFor(key string) tea.KeyType {
-	if key == "left" {
-		return tea.KeyLeft
-	}
-	return tea.KeyRight
 }
 
 func (f *createForm) enter() tea.Cmd {

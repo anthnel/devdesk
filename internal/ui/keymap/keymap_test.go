@@ -33,7 +33,7 @@ var structuralKeys = map[string]bool{
 	"esc": true, "enter": true, "tab": true, "shift+tab": true,
 	"up": true, "down": true, "left": true, "right": true,
 	"pgup": true, "pgdown": true, "home": true, "end": true,
-	" ": true, "/": true, "?": true,
+	Space: true, "/": true, "?": true,
 }
 
 // navigationKeys are the ones whose lettered alias would be navigation.
@@ -275,6 +275,7 @@ func keySwitchClauses(t *testing.T) []caseClause {
 
 	seen := map[string]bool{}
 	var clauses []caseClause
+	consts := keymapConstants(t)
 
 	for _, root := range scannedTrees {
 		err := filepath.WalkDir(root, func(path string, d fs.DirEntry, err error) error {
@@ -304,7 +305,7 @@ func keySwitchClauses(t *testing.T) []caseClause {
 				if !ok || sw.Body == nil {
 					return true
 				}
-				parsed := clausesOf(sw, fset, path)
+				parsed := clausesOf(sw, fset, path, consts)
 				if !isKeySwitch(parsed) {
 					return true
 				}
@@ -329,7 +330,47 @@ func keySwitchClauses(t *testing.T) []caseClause {
 	return clauses
 }
 
-func clausesOf(sw *ast.SwitchStmt, fset *token.FileSet, path string) []caseClause {
+// keymapConstants returns every top-level string constant declared in keymap.go,
+// name to value (New is "N", CommandMode is "ctrl+p", Space is " "). It is parsed
+// rather than listed by hand so a new constant is read without touching the test.
+func keymapConstants(t *testing.T) map[string]string {
+	t.Helper()
+	file, err := parser.ParseFile(token.NewFileSet(), "keymap.go", nil, 0)
+	if err != nil {
+		t.Fatalf("parse keymap.go: %v", err)
+	}
+	out := map[string]string{}
+	for _, decl := range file.Decls {
+		gen, ok := decl.(*ast.GenDecl)
+		if !ok || gen.Tok != token.CONST {
+			continue
+		}
+		for _, spec := range gen.Specs {
+			vs, ok := spec.(*ast.ValueSpec)
+			if !ok {
+				continue
+			}
+			for i, name := range vs.Names {
+				if i >= len(vs.Values) {
+					continue
+				}
+				lit, ok := vs.Values[i].(*ast.BasicLit)
+				if !ok || lit.Kind != token.STRING {
+					continue
+				}
+				if v, err := strconv.Unquote(lit.Value); err == nil {
+					out[name.Name] = v
+				}
+			}
+		}
+	}
+	return out
+}
+
+// clausesOf reads the string literals of a switch's clauses, and the keymap.X
+// selectors through consts: once " " is written keymap.Space, a switch whose only
+// structural key is the space must still be recognized as a key switch.
+func clausesOf(sw *ast.SwitchStmt, fset *token.FileSet, path string, consts map[string]string) []caseClause {
 	var out []caseClause
 	for _, stmt := range sw.Body.List {
 		cc, ok := stmt.(*ast.CaseClause)
@@ -338,6 +379,14 @@ func clausesOf(sw *ast.SwitchStmt, fset *token.FileSet, path string) []caseClaus
 		}
 		var keys []string
 		for _, expr := range cc.List {
+			if sel, ok := expr.(*ast.SelectorExpr); ok {
+				if pkg, ok := sel.X.(*ast.Ident); ok && pkg.Name == "keymap" {
+					if value, ok := consts[sel.Sel.Name]; ok {
+						keys = append(keys, value)
+					}
+				}
+				continue
+			}
 			lit, ok := expr.(*ast.BasicLit)
 			if !ok || lit.Kind != token.STRING {
 				continue
@@ -401,4 +450,24 @@ func exceptionKeys() []string {
 
 func isLetter(key string) bool {
 	return (key >= "a" && key <= "z") || (key >= "A" && key <= "Z")
+}
+
+// TestTheKeyScanReadsKeymapConstants fails when the scanner skips a
+// `case keymap.X` clause: it would then lose every switch that migrated to a
+// constant, and its letters would silently leave the vocabulary tests.
+func TestTheKeyScanReadsKeymapConstants(t *testing.T) {
+	has := func(key string) bool {
+		for _, clause := range keySwitchClauses(t) {
+			if slices.Contains(clause.keys, key) {
+				return true
+			}
+		}
+		return false
+	}
+	if !has(Kill) {
+		t.Errorf("no scanned clause contains %q: `case keymap.Kill:` (containers/update.go) is not read, the scanner ignores keymap constants", Kill)
+	}
+	if !has(Space) {
+		t.Errorf("no scanned clause contains keymap.Space: `case keymap.Space:` is not read (DEVDESK-200 step 3)")
+	}
 }

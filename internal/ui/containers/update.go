@@ -168,7 +168,7 @@ func (m Model) handleNormalKeyMsg(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	// Space stays unconfirmed, deliberately: pause is reversible and instant,
 	// and a modal seen ten times an hour trains the user to hit y without
 	// reading — which is exactly what makes the delete confirmation worthless.
-	case " ":
+	case keymap.Space:
 		return m.pauseToggleSelectedContainer()
 
 	case keymap.Prune:

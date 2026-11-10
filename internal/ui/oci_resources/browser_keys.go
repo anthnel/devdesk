@@ -82,7 +82,7 @@ func (b *RegistryBrowser) handleInputKeyMsg(msg tea.KeyMsg) (*RegistryBrowser, t
 		b.focusedField = max(b.focusedField-1, brFieldRepo)
 		b.updateFocus()
 		return b, nil
-	case " ":
+	case keymap.Space:
 		if b.focusedField >= 1 && b.focusedField <= len(b.rows) {
 			row := b.rows[b.focusedField-1]
 			if row.groupSlug != "" {

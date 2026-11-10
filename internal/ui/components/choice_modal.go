@@ -6,6 +6,7 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
 
+	"github.com/anthnel/devdesk/internal/ui/keymap"
 	"github.com/anthnel/devdesk/internal/ui/theme"
 )
 
@@ -72,7 +73,7 @@ func (m *ChoiceModal) Update(msg tea.Msg) (*ChoiceModal, tea.Cmd) {
 			m.focused = min(m.focused+1, len(m.choices))
 			return m, nil
 
-		case "enter", " ":
+		case "enter", keymap.Space:
 			return m, m.pick()
 
 		case "esc":

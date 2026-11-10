@@ -394,3 +394,78 @@ func TestNetdiagOpenedByNameKeepsItsState(t *testing.T) {
 		t.Error("a view with no origin was rebuilt")
 	}
 }
+
+// ── Palette keys and the Alt modifier (DEVDESK-200) ──────────────────────────
+
+// The palette matched on the key type, which ignores Alt: alt+up is up. A
+// characterization, so a change of how keys are read keeps it.
+func TestPaletteKeysKeepTheirMeaningWithAlt(t *testing.T) {
+	for _, key := range []string{"up", "down"} {
+		t.Run(key+" moves the highlight alike with alt", func(t *testing.T) {
+			plain := commanding(t, &fakeView{})
+			typeCommand(t, plain, "co")
+			alt := commanding(t, &fakeView{})
+			typeCommand(t, alt, "co")
+
+			feedKey(t, plain, testutil.Key(key))
+			feedKey(t, alt, testutil.Key("alt+"+key))
+
+			if plain.sugCursor < 0 {
+				t.Fatalf("%s did not move the highlight (sugCursor %d)", key, plain.sugCursor)
+			}
+			if alt.sugCursor != plain.sugCursor {
+				t.Errorf("alt+%s: sugCursor %d, %s: %d, want the same", key, alt.sugCursor, key, plain.sugCursor)
+			}
+		})
+	}
+
+	for _, key := range []string{"esc", "alt+esc"} {
+		t.Run(key+" closes the palette", func(t *testing.T) {
+			a := commanding(t, &fakeView{})
+			typeCommand(t, a, "co")
+			feedKey(t, a, testutil.Key(key))
+			if a.commandMode {
+				t.Errorf("%s left the command line open", key)
+			}
+		})
+	}
+
+	for _, key := range []string{"enter", "alt+enter"} {
+		t.Run(key+" runs the typed command", func(t *testing.T) {
+			a := commanding(t, &fakeView{})
+			typeCommand(t, a, "quit")
+			cmd := feedKey(t, a, testutil.Key(key))
+			if _, ok := testutil.MsgOf[tea.QuitMsg](cmd); !ok {
+				t.Errorf("%s produced %T, want a quit", key, testutil.Msg(cmd))
+			}
+		})
+	}
+
+	t.Run("shift+tab changes nothing", func(t *testing.T) {
+		a := commanding(t, &fakeView{})
+		typeCommand(t, a, "co")
+		feedKey(t, a, testutil.Key("shift+tab"))
+		if got := a.commandInput.Value(); got != "co" {
+			t.Errorf("shift+tab changed the line to %q, want co", got)
+		}
+	})
+
+	for _, key := range []string{"tab", "alt+tab"} {
+		t.Run(key+" completes the highlighted row", func(t *testing.T) {
+			a := commanding(t, &fakeView{})
+			typeCommand(t, a, "co")
+			feedKey(t, a, testutil.Key(key))
+			if got := a.commandInput.Value(); got != "configuration" {
+				t.Errorf("%s left the line at %q, want configuration", key, got)
+			}
+		})
+	}
+}
+
+func TestTypedTextReachesThePalette(t *testing.T) {
+	a := commanding(t, &fakeView{})
+	typeCommand(t, a, "ctx é")
+	if got := a.commandInput.Value(); got != "ctx é" {
+		t.Errorf("the line holds %q, want %q", got, "ctx é")
+	}
+}

@@ -58,6 +58,29 @@ func TestConfirmPromptEnterConfirmsTheCurrentSelection(t *testing.T) {
 	}
 }
 
+func TestConfirmPromptSpaceConfirmsTheCurrentSelection(t *testing.T) {
+	tests := []struct {
+		name    string
+		yes     bool
+		wantYes bool
+	}{
+		{"space on No", false, false},
+		{"space on Yes", true, true},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			c := newConfirmPrompt("Title", "Message?")
+			c.yes = tt.yes
+
+			_, cmd := c.Update(testutil.Key(" "))
+			if cmd == nil {
+				t.Fatal("space produced no command")
+			}
+			assertConfirmResult(t, cmd(), tt.wantYes)
+		})
+	}
+}
+
 func TestConfirmPromptYNShortcutsBypassTheCurrentSelection(t *testing.T) {
 	c := newConfirmPrompt("Title", "Message?") // starts on No
 	_, cmd := c.Update(testutil.Key("y"))
