@@ -1,6 +1,8 @@
 package app
 
 import (
+	"strings"
+
 	tea "charm.land/bubbletea/v2"
 
 	"github.com/anthnel/devdesk/internal/ui/keymap"
@@ -79,7 +81,12 @@ func (a *App) handleKeyMsg(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 // never a key press, so it cannot trigger an action (Rule 111): it is text for
 // the field that has focus and for nothing else. Behind an overlay or a context
 // switch it is dropped.
+//
+// Line ends are normalized here, the one point every paste goes through: a
+// Windows paste ("a\r\nb") would otherwise leave two spaces in a single-line
+// field, which turns each of \r and \n into a space.
 func (a *App) handlePasteMsg(msg tea.PasteMsg) (tea.Model, tea.Cmd) {
+	msg.Content = strings.ReplaceAll(msg.Content, "\r\n", "\n")
 	switch {
 	case a.switchingTo != "", a.showHelp, a.showContextList:
 		return a, nil

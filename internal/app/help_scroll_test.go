@@ -25,16 +25,6 @@ func TestArrowOnlyScrollBindsNoHorizontalKey(t *testing.T) {
 			t.Errorf("%s is bound to %v; the help overlay must not scroll horizontally", name, keys)
 		}
 	}
-	for name, b := range map[string]key.Binding{
-		"Up": km.Up, "Down": km.Down, "PageUp": km.PageUp, "PageDown": km.PageDown,
-		"HalfPageUp": km.HalfPageUp, "HalfPageDown": km.HalfPageDown, "Left": km.Left, "Right": km.Right,
-	} {
-		for _, k := range b.Keys() {
-			if k == "h" || k == "l" || k == "left" || k == "right" {
-				t.Errorf("%s binds %q", name, k)
-			}
-		}
-	}
 }
 
 func TestHelpOverlayIgnoresHorizontalKeys(t *testing.T) {

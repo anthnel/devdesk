@@ -109,8 +109,6 @@ func (m *Model) refreshRows() {
 	m.itemTable.SetItems(items)
 }
 
-// handleKeyMsg routes a key. The filter comes first (Rule 136): while it has
-// the keyboard, every key is text.
 // handlePaste hands pasted text to the filter while it has the keyboard; with
 // no field focused a paste is dropped, never read as keys (Rule 111).
 func (m Model) handlePaste(msg tea.PasteMsg) (tea.Model, tea.Cmd) {
@@ -120,6 +118,8 @@ func (m Model) handlePaste(msg tea.PasteMsg) (tea.Model, tea.Cmd) {
 	return m, nil
 }
 
+// handleKeyMsg routes a key. The filter comes first (Rule 136): while it has
+// the keyboard, every key is text.
 func (m Model) handleKeyMsg(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	if m.inFilter() {
 		return m.forwardToTable(msg)

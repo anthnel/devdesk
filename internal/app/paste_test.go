@@ -98,3 +98,28 @@ func TestPasteIntoAnEditingViewIsForwardedUntouched(t *testing.T) {
 		}
 	}
 }
+
+// A Windows paste ("a\r\nb") must give one space, not two: the router
+// normalizes CRLF once for every field.
+func TestPasteCRLFBecomesOneSpace(t *testing.T) {
+	t.Run("command palette", func(t *testing.T) {
+		a := router(t, &fakeView{title: "view"})
+		a.Update(testutil.Key(commandModeKey))
+		a.Update(testutil.Paste("a\r\nb"))
+		if got := a.commandInput.Value(); got != "a b" {
+			t.Errorf("command field = %q, want %q", got, "a b")
+		}
+	})
+	t.Run("editing view", func(t *testing.T) {
+		view := &fakeView{title: "view", editing: true}
+		a := router(t, view)
+		before := len(view.received)
+		a.Update(testutil.Paste("a\r\nb"))
+		if len(view.received)-before != 1 {
+			t.Fatalf("view received %d message(s), want 1", len(view.received)-before)
+		}
+		if text, _ := testutil.Text(view.received[before]); text != "a\nb" {
+			t.Errorf("view received %q, want %q", text, "a\nb")
+		}
+	})
+}

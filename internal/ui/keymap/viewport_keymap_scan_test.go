@@ -19,9 +19,14 @@ import (
 // selector name matches (?i)viewport|vp must be accompanied, in the same package,
 // by an assignment `X.KeyMap = ...` for the same X.
 //
-// Limit (stated, not hidden): it keys on the field/variable name. A viewport
-// stored under a name that does not contain "viewport" (or is not "vp") escapes
-// it, and so does a KeyMap set through a helper that returns the model.
+// Limits (stated, not hidden):
+//   - It keys on the receiver's name. A viewport stored under a name that does
+//     not contain "viewport" (or is not "vp") escapes it, and so does a KeyMap
+//     set through a helper that returns the model.
+//   - It accepts any assignment to X.KeyMap, including X.KeyMap =
+//     viewport.DefaultKeyMap(), which is exactly the default it exists to
+//     forbid. It proves a KeyMap is set, not that Left/Right are unbound; the
+//     latter is TestArrowOnlyScrollBindsNoHorizontalKey in internal/app.
 // The real code today has one such site (internal/app/help_overlay.go) and is
 // compliant, so TestEveryViewportFedKeysSetsAKeyMap is a non-regression guard;
 // TestViewportKeyMapDetector is what proves the guard can fire.
@@ -105,7 +110,10 @@ func TestViewportKeyMapDetector(t *testing.T) {
 	}
 }
 
-func TestEveryViewportFedKeysSetsAKeyMap(t *testing.T) {
+// scanProduction parses every production file into one FileSet, grouped by
+// package directory.
+func scanProduction(t *testing.T) (*token.FileSet, map[string]map[string]*ast.File) {
+	t.Helper()
 	fset := token.NewFileSet()
 	byDir := map[string]map[string]*ast.File{}
 	files := 0
@@ -126,9 +134,49 @@ func TestEveryViewportFedKeysSetsAKeyMap(t *testing.T) {
 	if files == 0 {
 		t.Fatal("no production file scanned — the scan is broken, not the code")
 	}
+	return fset, byDir
+}
+
+func TestEveryViewportFedKeysSetsAKeyMap(t *testing.T) {
+	fset, byDir := scanProduction(t)
 	for _, pkg := range byDir {
 		for _, where := range viewportKeyFindings(fset, pkg) {
 			t.Errorf("%s: a viewport is fed keys but its package never sets <viewport>.KeyMap; the default scrolls on Left/Right/h/l (Rule 135) — assign a KeyMap without them (DEVDESK-201)", where)
 		}
+	}
+}
+
+// The guard above is green when it finds nothing, so a rename of the help
+// overlay's viewport (or a change of the scanned trees) would silence it. The
+// one site known to feed keys to a viewport must still be seen.
+func TestViewportGuardStillSeesTheHelpOverlay(t *testing.T) {
+	fset, byDir := scanProduction(t)
+	found := false
+	for dir, pkg := range byDir {
+		if filepath.Base(dir) != "app" {
+			continue
+		}
+		for path, f := range pkg {
+			if filepath.Base(path) != "help_overlay.go" {
+				continue
+			}
+			ast.Inspect(f, func(n ast.Node) bool {
+				call, ok := n.(*ast.CallExpr)
+				if !ok {
+					return true
+				}
+				if sel, ok := call.Fun.(*ast.SelectorExpr); ok && sel.Sel.Name == "Update" &&
+					lastName(sel.X) == "helpViewport" {
+					found = true
+				}
+				return true
+			})
+			if !found {
+				t.Errorf("%s no longer calls helpViewport.Update; the viewport guard has lost its only known site (renamed? moved?)", fset.Position(f.Pos()).Filename)
+			}
+		}
+	}
+	if !found {
+		t.Error("internal/app/help_overlay.go not scanned or has no helpViewport.Update call: the viewport guard cannot be trusted")
 	}
 }

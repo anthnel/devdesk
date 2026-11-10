@@ -122,16 +122,36 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 // View is implemented in view.go
 
-// handleKeyMsg handles keyboard input
-// handlePaste hands pasted text to the filter bar while it has the keyboard;
-// otherwise a paste is dropped, never read as keys (Rule 111).
+// handlePaste hands pasted text to the field that has the keyboard, in the
+// order handleKeyMsg gives it: the filter bar, then the clone list, the
+// creation form and the "g" prompt. Anywhere else a paste is dropped, never
+// read as keys (Rule 111).
 func (m Model) handlePaste(msg tea.PasteMsg) (tea.Model, tea.Cmd) {
 	if m.table.InEditMode() {
 		return m, m.table.Update(msg)
 	}
+	switch m.mode {
+	case ModeCloning:
+		if m.clone != nil && m.clone.table.InEditMode() {
+			return m, m.clone.table.Update(msg)
+		}
+	case ModeCreatingProject:
+		if m.creationForm != nil {
+			var cmd tea.Cmd
+			m.creationForm, cmd = m.creationForm.Update(msg)
+			return m, cmd
+		}
+	case ModeFuzzyFinding:
+		if m.finder != nil {
+			var cmd tea.Cmd
+			m.finder, cmd = m.finder.Update(msg)
+			return m, cmd
+		}
+	}
 	return m, nil
 }
 
+// handleKeyMsg handles keyboard input
 func (m Model) handleKeyMsg(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	// Filter bar search mode - prioritaire
 	if m.table.InEditMode() {

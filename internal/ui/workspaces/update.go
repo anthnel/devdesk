@@ -227,7 +227,6 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	return m, cmd
 }
 
-// handleKeyMsg handles keyboard input
 // handlePaste gives pasted text to the field that has the keyboard: the filter
 // bar, the name input or the fuzzy prompt. Anything else drops it, so a paste
 // is never read as keys (Rule 111).
@@ -244,6 +243,7 @@ func (m Model) handlePaste(msg tea.PasteMsg) (tea.Model, tea.Cmd) {
 	return m, cmd
 }
 
+// handleKeyMsg handles keyboard input
 func (m Model) handleKeyMsg(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	// Filter bar search mode - delegate to filter bar
 	if m.table.InEditMode() {

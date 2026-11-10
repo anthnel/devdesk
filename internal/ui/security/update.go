@@ -187,7 +187,6 @@ func (m Model) handleSpinnerTick(msg spinner.TickMsg) (tea.Model, tea.Cmd) {
 	return m, cmd
 }
 
-// handleKeyMsg processes keyboard input
 // handlePaste hands pasted text to the filter bar of the table on screen while
 // it has the keyboard and no modal is open; otherwise a paste is dropped, never
 // read as keys (Rule 111).
@@ -204,6 +203,7 @@ func (m Model) handlePaste(msg tea.PasteMsg) (tea.Model, tea.Cmd) {
 	return m, nil
 }
 
+// handleKeyMsg processes keyboard input
 func (m Model) handleKeyMsg(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	switch m.state {
 	case StateInventory:
