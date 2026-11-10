@@ -1,0 +1,15 @@
+{
+  "tool_use_id": "toolu_01SUJUF4RafWDv3HAQZF1FG5",
+  "agent_id": "ab1d22204c7d99684",
+  "subagent_type": "team-core:tech-writer",
+  "task_description": "Doc gaps Charm v2 (writer)",
+  "token_usage": {
+    "input_tokens": 20,
+    "cache_creation_tokens": 38120,
+    "cache_read_tokens": 214707,
+    "output_tokens": 3521,
+    "api_call_count": 9
+  },
+  "started_at": "2026-11-10T14:41:09.252374612+01:00",
+  "completed_at": "2026-11-10T14:41:50.318784399+01:00"
+}
