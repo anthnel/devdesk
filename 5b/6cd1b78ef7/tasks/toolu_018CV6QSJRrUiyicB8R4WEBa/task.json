@@ -1,0 +1,15 @@
+{
+  "tool_use_id": "toolu_018CV6QSJRrUiyicB8R4WEBa",
+  "agent_id": "af36e48227fac304e",
+  "subagent_type": "dev-team:reviewer",
+  "task_description": "Revue des commits doc 208",
+  "token_usage": {
+    "input_tokens": 20,
+    "cache_creation_tokens": 58887,
+    "cache_read_tokens": 429596,
+    "output_tokens": 7264,
+    "api_call_count": 10
+  },
+  "started_at": "2026-11-10T14:44:24.375463416+01:00",
+  "completed_at": "2026-11-10T14:45:34.669855678+01:00"
+}
