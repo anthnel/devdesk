@@ -98,6 +98,10 @@ decided together and fixed in one pass; see [§1.2](#12-the-five-parked-defects)
 
 ### 1.1 Fixed
 
+**D120 — DEVDESK-289: `TestBackgroundAroundExecProcess*` timed out about 1 run in 400-800; the wait for a SET after the child is removed until DEVDESK-290 is fixed. Decided.** **Plane:** DEVDESK-289, DEVDESK-290, dated 2026-11-10
+
+Root cause is a race in Bubble Tea v2.1.1 (`startRenderer`/`stopRenderer`): the renderer ticker is shared, so after `ExecProcess` the old goroutine can run `p.ticker.Stop()` after the new one's `Reset()`. The ticker stays dead and the OSC 11 SET left in the buffer is flushed only at shutdown, hence "timed out waiting for the background after the child". The production defect is DEVDESK-290. `testExec` now quits right after the exec callback (which guarantees `RestoreTerminal` is done) and keeps the before and after `SET...RESET` assertions on the real `tea.Program`. Open: restore the "SET emitted while the program runs" wait once DEVDESK-290 is fixed.
+
 **D119 — DEVDESK-209: the terminal background follows the theme through `View.BackgroundColor`, according to the colour profile. Decided (recommended options taken, to confirm).** **Plane:** DEVDESK-209, dated 2026-11-10
 
 `App.View()` sets `tea.View.BackgroundColor` from `theme.ColorBackground` and the profile of the last `tea.ColorProfileMsg` (`terminalBackground`): exact in TrueColor, converted in ANSI256 (same tone as the painted cells, no seam), none in 16 colours, ASCII (`NO_COLOR`), no TTY or unknown profile. Bubble Tea restores the terminal's default (OSC 111) on every exit path it controls and before each `tea.ExecProcess`, and sets it again on return. Rule 115 stays mandatory as the fallback. Details and tests: `docs/architecture/app-shell.md`.

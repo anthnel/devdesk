@@ -108,6 +108,8 @@ stays mandatory: this is a safety net, not a replacement (see the gaps below).
   child (pager, shell, `docker run -it`) sees the terminal's default background,
   not the theme's. When it returns, the renderer restarts, sends OSC 11 again and
   repaints in full. This also holds when the child fails.
+  Known gap: after `ExecProcess` the renderer ticker can stay stopped, so the
+  SET is only flushed at shutdown (D120 in `docs/backlog.md`, DEVDESK-290).
 - *What is verified.* `terminal_background_test.go` covers `terminalBackground`
   per profile, comparability on every shipped theme, the router per profile (with
   an overlay open, latest profile wins, `ColorProfileMsg` not forwarded, only
@@ -121,6 +123,9 @@ stays mandatory: this is a safety net, not a replacement (see the gaps below).
   `tea.Exec`, OSC 111 before the child, OSC 11 after it, and OSC 111 at exit,
   also when the child returns an error. These tests pin Bubble Tea's contract: a
   version bump that changes it fails them.
+  The exec test no longer proves the SET is emitted while the program runs after
+  the child, only SET then RESET at shutdown (D120 in `docs/backlog.md`,
+  DEVDESK-290).
 - *Limits.* Nothing restores the background after `kill -9`, after a panic in a
   goroutine that is not a `Cmd` (the MCP server), or when the terminal is closed
   (the alternate screen has the same gap). To recover, run `printf '\e]111\a'` or
