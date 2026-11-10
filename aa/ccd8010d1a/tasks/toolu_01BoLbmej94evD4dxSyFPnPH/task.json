@@ -1,0 +1,15 @@
+{
+  "tool_use_id": "toolu_01BoLbmej94evD4dxSyFPnPH",
+  "agent_id": "a2c6317875e77a75c",
+  "subagent_type": "project-coder",
+  "task_description": "Passer le projet sur Go 1.27",
+  "token_usage": {
+    "input_tokens": 38,
+    "cache_creation_tokens": 32319,
+    "cache_read_tokens": 515216,
+    "output_tokens": 6737,
+    "api_call_count": 19
+  },
+  "started_at": "2026-11-10T08:45:09.910577276+01:00",
+  "completed_at": "2026-11-10T08:51:01.990377898+01:00"
+}

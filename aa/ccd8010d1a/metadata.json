@@ -1,0 +1,56 @@
+{
+  "cli_version": "0.13.1",
+  "checkpoint_id": "aaccd8010d1a",
+  "strategy": "manual-commit",
+  "branch": "chore/DEVDESK-197-go-1-27",
+  "checkpoints_count": 7,
+  "files_touched": [
+    "README.md",
+    "docs-site/docs/how-to/install.md",
+    "docs-site/docs/index.md",
+    "docs-site/docs/tutorial/first-session.md",
+    "docs/CODEMAPS/INDEX.md",
+    "docs/CODEMAPS/dependencies.md",
+    "go.mod",
+    "internal/ui/oci_resources/forms_test.go",
+    "mise.toml",
+    "project-context.md"
+  ],
+  "sessions": [
+    {
+      "metadata": "/aa/ccd8010d1a/0/metadata.json",
+      "transcript": "/aa/ccd8010d1a/0/full.jsonl",
+      "compact_transcript": "/aa/ccd8010d1a/0/transcript.jsonl",
+      "content_hash": "/aa/ccd8010d1a/0/content_hash.txt",
+      "prompt": "/aa/ccd8010d1a/0/prompt.txt"
+    }
+  ],
+  "token_usage": {
+    "input_tokens": 54,
+    "cache_creation_tokens": 92875,
+    "cache_read_tokens": 1507796,
+    "output_tokens": 9131,
+    "api_call_count": 21,
+    "subagent_tokens": {
+      "input_tokens": 70,
+      "cache_creation_tokens": 135839,
+      "cache_read_tokens": 934550,
+      "output_tokens": 14889,
+      "api_call_count": 35
+    }
+  },
+  "redaction": {
+    "replacements": 0,
+    "layers": {
+      "betterleaks": 0,
+      "connection_string": 0,
+      "credential_key": 0,
+      "credential_value": 0,
+      "credentialed_uri": 0,
+      "entropy": 0,
+      "key_context": 0,
+      "provider_token": 0,
+      "shell_stdin": 0
+    }
+  }
+}

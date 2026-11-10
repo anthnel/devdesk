@@ -1,0 +1,15 @@
+{
+  "tool_use_id": "toolu_01MkCiduDQETXf228PJZh9cs",
+  "agent_id": "acd2eed32aee6f657",
+  "subagent_type": "dev-team:reviewer",
+  "task_description": "Revue du diff Go 1.27",
+  "token_usage": {
+    "input_tokens": 16,
+    "cache_creation_tokens": 46155,
+    "cache_read_tokens": 277866,
+    "output_tokens": 4562,
+    "api_call_count": 8
+  },
+  "started_at": "2026-11-10T08:51:12.869355861+01:00",
+  "completed_at": "2026-11-10T08:53:05.045140035+01:00"
+}
