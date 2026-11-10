@@ -1,0 +1,15 @@
+{
+  "tool_use_id": "toolu_01KobArwS7F8TqCvammzybqD",
+  "agent_id": "a32adbfaa4798de68",
+  "subagent_type": "project-coder",
+  "task_description": "DEVDESK-200 étape 5 mesure",
+  "token_usage": {
+    "input_tokens": 16,
+    "cache_creation_tokens": 28585,
+    "cache_read_tokens": 195992,
+    "output_tokens": 5987,
+    "api_call_count": 8
+  },
+  "started_at": "2026-11-10T10:33:14.709658393+01:00",
+  "completed_at": "2026-11-10T10:36:28.999733309+01:00"
+}

@@ -1,0 +1,15 @@
+{
+  "tool_use_id": "toolu_01Vv8mMYW5FfobeBCKbWJ5Nv",
+  "agent_id": "a55236466465606bf",
+  "subagent_type": "project-coder",
+  "task_description": "DEVDESK-200 vert étapes 2-4",
+  "token_usage": {
+    "input_tokens": 24,
+    "cache_creation_tokens": 35972,
+    "cache_read_tokens": 315770,
+    "output_tokens": 5885,
+    "api_call_count": 12
+  },
+  "started_at": "2026-11-10T10:29:51.781070004+01:00",
+  "completed_at": "2026-11-10T10:32:26.059249277+01:00"
+}

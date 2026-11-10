@@ -1,0 +1,71 @@
+{
+  "cli_version": "0.13.1",
+  "checkpoint_id": "30d675cfa19f",
+  "strategy": "manual-commit",
+  "branch": "feat/devdesk-200-keymap-space",
+  "checkpoints_count": 8,
+  "files_touched": [
+    "docs/architecture/app-shell.md",
+    "docs/backlog.md",
+    "internal/app/command_line.go",
+    "internal/app/command_line_test.go",
+    "internal/app/redraw_measure_test.go",
+    "internal/ui/components/choice_modal.go",
+    "internal/ui/components/choice_modal_test.go",
+    "internal/ui/components/confirm_modal.go",
+    "internal/ui/components/option_confirm_modal.go",
+    "internal/ui/components/typed_text_test.go",
+    "internal/ui/configuration/update.go",
+    "internal/ui/containers/update.go",
+    "internal/ui/filebrowser/form.go",
+    "internal/ui/forge/explorer/update.go",
+    "internal/ui/keymap/keymap.go",
+    "internal/ui/keymap/keymap_test.go",
+    "internal/ui/netdiag/forward_model.go",
+    "internal/ui/netdiag/ports_model.go",
+    "internal/ui/oci_resources/browser_keys.go",
+    "internal/ui/oci_resources/launch_form.go",
+    "internal/ui/oci_resources/launch_form_keys_test.go",
+    "internal/ui/security/remediation.go",
+    "internal/ui/setup/confirm.go",
+    "internal/ui/setup/confirm_test.go",
+    "internal/ui/testutil/keys_test.go"
+  ],
+  "sessions": [
+    {
+      "metadata": "/30/d675cfa19f/0/metadata.json",
+      "transcript": "/30/d675cfa19f/0/full.jsonl",
+      "compact_transcript": "/30/d675cfa19f/0/transcript.jsonl",
+      "content_hash": "/30/d675cfa19f/0/content_hash.txt",
+      "prompt": "/30/d675cfa19f/0/prompt.txt"
+    }
+  ],
+  "token_usage": {
+    "input_tokens": 78,
+    "cache_creation_tokens": 97382,
+    "cache_read_tokens": 2672491,
+    "output_tokens": 18748,
+    "api_call_count": 30,
+    "subagent_tokens": {
+      "input_tokens": 214,
+      "cache_creation_tokens": 621237,
+      "cache_read_tokens": 7633157,
+      "output_tokens": 91669,
+      "api_call_count": 104
+    }
+  },
+  "redaction": {
+    "replacements": 0,
+    "layers": {
+      "betterleaks": 0,
+      "connection_string": 0,
+      "credential_key": 0,
+      "credential_value": 0,
+      "credentialed_uri": 0,
+      "entropy": 0,
+      "key_context": 0,
+      "provider_token": 0,
+      "shell_stdin": 0
+    }
+  }
+}

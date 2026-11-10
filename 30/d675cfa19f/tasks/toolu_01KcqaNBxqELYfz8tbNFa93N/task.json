@@ -1,0 +1,15 @@
+{
+  "tool_use_id": "toolu_01KcqaNBxqELYfz8tbNFa93N",
+  "agent_id": "a327a2a45060983ba",
+  "subagent_type": "project-tester",
+  "task_description": "DEVDESK-200 étape 1 tests",
+  "token_usage": {
+    "input_tokens": 20,
+    "cache_creation_tokens": 54251,
+    "cache_read_tokens": 388378,
+    "output_tokens": 9398,
+    "api_call_count": 10
+  },
+  "started_at": "2026-11-10T10:25:18.558145987+01:00",
+  "completed_at": "2026-11-10T10:27:11.476965757+01:00"
+}
