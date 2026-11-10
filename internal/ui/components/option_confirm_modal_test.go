@@ -164,16 +164,57 @@ func TestDeleteConfirmModalEnterOnNoCancels(t *testing.T) {
 	}
 }
 
-func TestDeleteConfirmModalEnterOnCheckboxTogglesInsteadOfConfirming(t *testing.T) {
-	m := NewDeleteConfirmModal("Delete", "Sure?", true)
+// Rule 135: Enter validates an action button and never toggles a checkbox.
+// Chosen behavior: Enter on the checkbox is ignored (no toggle, no answer, focus
+// stays), the safer of the two options the Rule allows on a destructive modal,
+// since advancing would land one Enter away from Yes.
+func TestDeleteConfirmModalEnterOnCheckboxIsIgnored(t *testing.T) {
+	for _, start := range []bool{false, true} {
+		m := NewDeleteConfirmModal("Delete", "Sure?", true)
+		m.option = start
+		m.focused = focusCheckbox
+
+		m, cmd := m.Update(testutil.Key("enter"))
+		if m.option != start {
+			t.Errorf("enter on the checkbox flipped it from %v to %v (Rule 135)", start, m.option)
+		}
+		if cmd != nil {
+			t.Errorf("enter on the checkbox emitted %T, want no command", testutil.Msg(cmd))
+		}
+		if m.focused != focusCheckbox {
+			t.Errorf("enter on the checkbox moved focus to %d, want it ignored", m.focused)
+		}
+	}
+}
+
+// Rule 135: Space has one job, toggling a checkbox. On Yes or No it must not
+// answer the modal.
+func TestDeleteConfirmModalSpaceOnButtonsDoesNotAnswer(t *testing.T) {
+	for _, focus := range []int{focusYes, focusNo} {
+		m := NewDeleteConfirmModal("Delete", "Sure?", true)
+		m.focused = focus
+
+		m, cmd := m.Update(testutil.Key("space"))
+		if cmd != nil {
+			t.Errorf("space on button %d emitted %T, want no command", focus, testutil.Msg(cmd))
+		}
+		if m.option {
+			t.Errorf("space on button %d toggled the checkbox", focus)
+		}
+		if m.focused != focus {
+			t.Errorf("space on button %d moved focus to %d", focus, m.focused)
+		}
+	}
+}
+
+// Space on a locked checkbox changes nothing and answers nothing.
+func TestDeleteConfirmModalSpaceOnLockedCheckboxIsInert(t *testing.T) {
+	m := NewDeleteConfirmModalLocked("Delete", "Already marked")
 	m.focused = focusCheckbox
 
-	m, cmd := m.Update(testutil.Key("enter"))
-	if cmd != nil {
-		t.Error("enter on the checkbox emitted an answer command instead of toggling")
-	}
-	if !m.option {
-		t.Error("enter on the checkbox did not toggle it")
+	m, cmd := m.Update(testutil.Key("space"))
+	if !m.option || cmd != nil {
+		t.Errorf("locked checkbox: option=%v cmd=%v, want true/nil", m.option, cmd != nil)
 	}
 }
 
