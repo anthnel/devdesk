@@ -1,0 +1,18 @@
+{
+  "tool_use_id": "toolu_013Agxc5h6hxzAV5m7qhRKHP",
+  "agent_id": "a703f79b56b5c61ed",
+  "subagent_type": "project-tester",
+  "task_description": "Rendre TestBackgroundOnKill fiable",
+  "files": [
+    "internal/app/terminal_background_program_test.go"
+  ],
+  "token_usage": {
+    "input_tokens": 12,
+    "cache_creation_tokens": 77337,
+    "cache_read_tokens": 338233,
+    "output_tokens": 3046,
+    "api_call_count": 6
+  },
+  "started_at": "2026-11-10T15:39:42.815686398+01:00",
+  "completed_at": "2026-11-10T15:41:29.430777913+01:00"
+}

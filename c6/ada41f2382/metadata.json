@@ -1,0 +1,56 @@
+{
+  "cli_version": "0.13.1",
+  "checkpoint_id": "c6ada41f2382",
+  "strategy": "manual-commit",
+  "branch": "feat/DEVDESK-209-terminal-background",
+  "checkpoints_count": 15,
+  "files_touched": [
+    "docs-site/docs/reference/configuration.md",
+    "docs/CODEMAPS/backend.md",
+    "docs/architecture/app-shell.md",
+    "docs/backlog.md",
+    "internal/app/app.go",
+    "internal/app/terminal_background.go",
+    "internal/app/terminal_background_program_test.go",
+    "internal/app/terminal_background_test.go",
+    "internal/app/view.go",
+    "internal/ui/testutil/source_guard_test.go"
+  ],
+  "sessions": [
+    {
+      "metadata": "/c6/ada41f2382/0/metadata.json",
+      "transcript": "/c6/ada41f2382/0/full.jsonl",
+      "compact_transcript": "/c6/ada41f2382/0/transcript.jsonl",
+      "content_hash": "/c6/ada41f2382/0/content_hash.txt",
+      "prompt": "/c6/ada41f2382/0/prompt.txt"
+    }
+  ],
+  "token_usage": {
+    "input_tokens": 116,
+    "cache_creation_tokens": 140968,
+    "cache_read_tokens": 5464572,
+    "output_tokens": 30598,
+    "api_call_count": 43,
+    "subagent_tokens": {
+      "input_tokens": 244,
+      "cache_creation_tokens": 1026724,
+      "cache_read_tokens": 7850524,
+      "output_tokens": 103840,
+      "api_call_count": 119
+    }
+  },
+  "redaction": {
+    "replacements": 4,
+    "layers": {
+      "betterleaks": 0,
+      "connection_string": 0,
+      "credential_key": 0,
+      "credential_value": 0,
+      "credentialed_uri": 0,
+      "entropy": 4,
+      "key_context": 0,
+      "provider_token": 0,
+      "shell_stdin": 0
+    }
+  }
+}

@@ -1,0 +1,91 @@
+{
+  "cli_version": "0.13.1",
+  "checkpoint_id": "c6ada41f2382",
+  "session_id": "b705ee57-437d-43b9-a72b-9a37e9db1c72",
+  "strategy": "manual-commit",
+  "created_at": "2026-11-10T14:51:41.317683171Z",
+  "branch": "feat/DEVDESK-209-terminal-background",
+  "checkpoints_count": 15,
+  "save_step_count": 15,
+  "files_touched": [
+    "docs-site/docs/reference/configuration.md",
+    "docs/CODEMAPS/backend.md",
+    "docs/architecture/app-shell.md",
+    "docs/backlog.md",
+    "internal/app/app.go",
+    "internal/app/terminal_background.go",
+    "internal/app/terminal_background_program_test.go",
+    "internal/app/terminal_background_test.go",
+    "internal/app/view.go",
+    "internal/ui/testutil/source_guard_test.go"
+  ],
+  "agent": "Claude Code",
+  "model": "claude-sonnet-5-5",
+  "turn_id": "93b0cb70d68b",
+  "compact_transcript_start": 0,
+  "token_usage": {
+    "input_tokens": 116,
+    "cache_creation_tokens": 140968,
+    "cache_read_tokens": 5464572,
+    "output_tokens": 30598,
+    "api_call_count": 43,
+    "subagent_tokens": {
+      "input_tokens": 244,
+      "cache_creation_tokens": 1026724,
+      "cache_read_tokens": 7850524,
+      "output_tokens": 103840,
+      "api_call_count": 119
+    }
+  },
+  "redaction": {
+    "replacements": 4,
+    "layers": {
+      "betterleaks": 0,
+      "connection_string": 0,
+      "credential_key": 0,
+      "credential_value": 0,
+      "credentialed_uri": 0,
+      "entropy": 4,
+      "key_context": 0,
+      "provider_token": 0,
+      "shell_stdin": 0
+    }
+  },
+  "skill_events_version": 1,
+  "skill_events": [
+    {
+      "id": "claude-skill-toolu_01AGsNEv7foMmg3MKXGgh4zB",
+      "event_type": "tool_invocation",
+      "skill": {
+        "name": "plane-integration:plane-conventions"
+      },
+      "source": {
+        "agent": "claude-code",
+        "signal": "skill_tool_use",
+        "confidence": "explicit"
+      },
+      "turn_id": "93b0cb70d68b",
+      "transcript_anchor": {
+        "unit": "line",
+        "start": 42,
+        "end": 43,
+        "entry_ids": [
+          "aff9feaa-034f-4307-8b42-232b5c9ce33e"
+        ],
+        "tool_use_id": "toolu_01AGsNEv7foMmg3MKXGgh4zB"
+      },
+      "native": {
+        "tool_name": "Skill",
+        "tool_use_id": "toolu_01AGsNEv7foMmg3MKXGgh4zB"
+      },
+      "collapse": {
+        "target": "tool_pair",
+        "label": "Skill: plane-integration:plane-conventions",
+        "default_collapsed": true
+      }
+    }
+  ],
+  "session_metrics": {
+    "turn_count": 15
+  }
+}

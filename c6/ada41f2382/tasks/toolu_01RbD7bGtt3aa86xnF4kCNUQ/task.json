@@ -1,0 +1,15 @@
+{
+  "tool_use_id": "toolu_01RbD7bGtt3aa86xnF4kCNUQ",
+  "agent_id": "a4365e4797a027e06",
+  "subagent_type": "project-tester",
+  "task_description": "Tests étape 1 DEVDESK-209",
+  "token_usage": {
+    "input_tokens": 12,
+    "cache_creation_tokens": 89943,
+    "cache_read_tokens": 226122,
+    "output_tokens": 4366,
+    "api_call_count": 5
+  },
+  "started_at": "2026-11-10T15:31:45.541687298+01:00",
+  "completed_at": "2026-11-10T15:32:20.944429763+01:00"
+}

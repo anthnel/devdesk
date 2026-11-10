@@ -1,0 +1,15 @@
+{
+  "tool_use_id": "toolu_01XcGoFZCFarZ2VKwD2ERAfX",
+  "agent_id": "ad26676e38737450e",
+  "subagent_type": "project-coder",
+  "task_description": "Coder étape 2 DEVDESK-209",
+  "token_usage": {
+    "input_tokens": 12,
+    "cache_creation_tokens": 21416,
+    "cache_read_tokens": 124515,
+    "output_tokens": 2590,
+    "api_call_count": 6
+  },
+  "started_at": "2026-11-10T15:34:35.103454906+01:00",
+  "completed_at": "2026-11-10T15:35:35.063018723+01:00"
+}
