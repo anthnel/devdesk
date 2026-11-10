@@ -100,11 +100,11 @@ decided together and fixed in one pass; see [§1.2](#12-the-five-parked-defects)
 
 **D118 — DEVDESK-201: Bubble Tea v2 features not adopted, what the migration found on the way, and what is still open. Decided for the first two lists, the rest to confirm.** **Plane:** DEVDESK-201, dated 2026-11-10; DEVDESK-208 (this entry)
 
-Sources: `.claude/plans/charm-v2-impact.md` §2, §4 and §5 (impact report, recommendations only), `docs/product/charm-v2/spike-report.md` §8–9, and the commit messages of the branch.
+Sources: `.claude/plans/charm-v2-impact.md` §2, §4 and §5 (impact report, recommendations only; this file is local to the main checkout and is not tracked by git), `docs/product/charm-v2/spike-report.md` §8–9, and the commit messages of the branch.
 
 *Not adopted.* The migration adopts the new renderer and synchronized output (automatic). Everything else in impact report §2:
 - **OSC 52 clipboard fallback** (`tea.SetClipboard`), F4: deferred to DEVDESK-212. OSC 52 gets no acknowledgement, so a "Copied" footer would no longer be verified (Rule 128); tmux needs `set-clipboard`. Worth doing only if DevDesk runs over SSH or without `xclip` (user question 1 of the report, not answered in the sources).
-- **Kitty keyboard enhancements**: ignored for the key vocabulary. `ctrl+i/m/h` and `ctrl+shift+x` are distinct only on compatible terminals, which would contradict Rule 101. The report asked for Rule 111 to be corrected ("v1.3.10 does not enable"); whether that landed is not verified here.
+- **Kitty keyboard enhancements**: ignored for the key vocabulary. `ctrl+i/m/h` and `ctrl+shift+x` are distinct only on compatible terminals, which would contradict Rule 101. Rule 111 is corrected ("v1.3.10 does not enable"): `tui-layout.md:199-203`, commit `b35b80ef`. Done.
 - **Focus and blur** (`ReportFocus`), F2: deferred to DEVDESK-210. Without the events the application behaves as if it were in the foreground, which is today's behaviour; the report would suspend the tick and the re-reads (agent usage, container stats, ports) while the terminal is unfocused.
 - **Native progress bar** (OSC 9;4), F3: deferred, depends on the user's answer 3 (not in the sources).
 - **Terminal background** (F1), **window title** (F5) and **automatic light/dark theme** (F6): depend on the user's answers 2, 3 and 4 (not in the sources).
@@ -112,7 +112,7 @@ Sources: `.claude/plans/charm-v2-impact.md` §2, §4 and §5 (impact report, rec
 - The spike's "ntcharts v2 needs a fork" claim (§3.19) does not hold for the branch: `go.mod` pins `ntcharts/v2 v2.9.0` with no `replace` directive.
 
 *Found during the migration.*
-- **Enter toggled checkboxes; Space answered destructive Yes/No buttons** of the confirmation modals. Fixed in `ad0900d`, see D113.
+- **Enter toggled checkboxes; Space answered destructive Yes/No buttons** of the confirmation modals. Fixed in `ad0900d`, see D113. Rule 135 is updated in the same commit (`tui-forms.md`), so the rule text and the code agree.
 - **Paste never reached a focused field.** The router switched only on `tea.KeyMsg`, so a `tea.PasteMsg` was dropped or, worse, fired keys. Fixed in `6aa865d` (router, every text-entry view) and `103e80b0` (the forge explorer, which reached only its filter bar). The spike counted 36 `KeyMsg` gates to check; per-view tests are not recorded in the sources.
 - **A token pasted with a trailing newline** reached the forge as `"tok "` (one-line input turns the newline into a space). `authenticate()` now trims it, `3c18ea80`. Not recorded before this entry.
 - **Redraw harness**: without a TTY, v2 sends its own `WindowSizeMsg` built from 0×0, which shrinks the view to 489 bytes. Fixed in `e44dcb0`, see D114.
@@ -121,9 +121,8 @@ Sources: `.claude/plans/charm-v2-impact.md` §2, §4 and §5 (impact report, rec
 - **Mode 2027/2026 negotiation, WSL and Windows Terminal colours, `tea.ExecProcess`**: never run in a TTY; see D117.
 
 *Open.*
-- Plan §5 questions 1–6 (remote use, terminal background, progress and title, automatic theme, option C, terminal matrix) have no recorded answer in the sources, so F1–F6 stay open.
-- DEVDESK-210 and DEVDESK-212 are cited from the brief of this entry; neither ID appears in the plan, the spike report or the backlog. Check them in Plane.
-- Whether Rule 111 and Rule 135 were corrected (plan item G1, `b35b80ef` is the docs commit): not verified.
+- Plan §5 questions 1–4 and 6 (remote use, terminal background, progress and title, automatic theme, terminal matrix) have no recorded answer in the sources, so F1–F6 stay open. Question 5 (option C) is answered: D111.
+- DEVDESK-210 and DEVDESK-212 are verified in Plane (state Backlog): "Focus et blur du terminal…" and "Copie par OSC 52 en repli…".
 - `golangci-lint` and `test-race` on the branch: not recorded in the sources (the spike did not run them).
 - The 19 `runewidth` sites and the `go-runewidth` v0.0.31 effect (above).
 - The 36 `KeyMsg` gates: a test per view with an edit mode is not recorded.
