@@ -9,7 +9,7 @@ import (
 	"github.com/charmbracelet/lipgloss"
 
 	"github.com/anthnel/devdesk/internal/command"
-	"github.com/anthnel/devdesk/internal/ui/testutil"
+	"github.com/anthnel/devdesk/internal/testutil/colorprofile"
 	"github.com/anthnel/devdesk/internal/ui/theme"
 )
 
@@ -101,7 +101,7 @@ func renderPalette(t *testing.T, p PaletteInput, r Rect) []string {
 }
 
 func TestRenderPaletteLineOrder(t *testing.T) {
-	testutil.TrueColor(t)
+	colorprofile.TrueColor(t)
 	r := Geometry(80, 24, 8, 2)
 	lines := plain(renderPalette(t, palette("Go to", "", allRows(), r), r))
 
@@ -132,7 +132,7 @@ func TestRenderPaletteLineOrder(t *testing.T) {
 }
 
 func TestRenderPaletteTitleAtContextStage(t *testing.T) {
-	testutil.TrueColor(t)
+	colorprofile.TrueColor(t)
 	r := Geometry(80, 24, 8, 2)
 	lines := plain(renderPalette(t, palette("Contexts", "", nil, r), r))
 	if !strings.HasPrefix(lines[0], "┌─ Contexts ") {
@@ -143,7 +143,7 @@ func TestRenderPaletteTitleAtContextStage(t *testing.T) {
 // The height depends on the geometry only: typing, filtering and scrolling
 // never make the frame grow or shrink.
 func TestRenderPaletteHeightIsConstant(t *testing.T) {
-	testutil.TrueColor(t)
+	colorprofile.TrueColor(t)
 	r := Geometry(80, 24, 8, 2)
 	cases := map[string]PaletteInput{
 		"all rows":      palette("Go to", "", allRows(), r),
@@ -170,7 +170,7 @@ func TestRenderPaletteHeightIsConstant(t *testing.T) {
 }
 
 func TestRenderPaletteStatusText(t *testing.T) {
-	testutil.TrueColor(t)
+	colorprofile.TrueColor(t)
 	r := Geometry(80, 24, 8, 2)
 	tests := []struct {
 		name string
@@ -202,7 +202,7 @@ func TestRenderPaletteStatusText(t *testing.T) {
 
 // A viewport under 5 lines draws title, input and rule only, and never panics.
 func TestRenderPaletteReducedFrame(t *testing.T) {
-	testutil.TrueColor(t)
+	colorprofile.TrueColor(t)
 	for _, size := range [][2]int{{80, 14}, {80, 12}, {80, 10}, {40, 9}} {
 		r := Geometry(size[0], size[1], 8, 2)
 		if r.Rows != 0 || r.Height != 3 {
@@ -233,7 +233,7 @@ func TestRenderPaletteReducedFrame(t *testing.T) {
 }
 
 func TestRenderPaletteEveryLineHasExactWidth(t *testing.T) {
-	testutil.TrueColor(t)
+	colorprofile.TrueColor(t)
 	for _, w := range []int{4, 5, 6, 10, 30, 40, 53, 54, 60, 80, 99, 100, 120, 200} {
 		r := Geometry(w, 30, 8, 2)
 		for name, p := range map[string]PaletteInput{
@@ -254,7 +254,7 @@ func TestRenderPaletteEveryLineHasExactWidth(t *testing.T) {
 // Column thresholds are the list's own (Columns): the description column
 // appears exactly when Columns says so for the frame width.
 func TestRenderPaletteKeepsColumnThresholds(t *testing.T) {
-	testutil.TrueColor(t)
+	colorprofile.TrueColor(t)
 	entry := command.Entries()[0]
 	if len(entry.Description) < 8 {
 		t.Skip("first entry has no description to look for")
@@ -272,7 +272,7 @@ func TestRenderPaletteKeepsColumnThresholds(t *testing.T) {
 
 // Rule 134: shortcuts belong to the header, not to the frame.
 func TestRenderPaletteHasNoInlineKeyHelp(t *testing.T) {
-	testutil.TrueColor(t)
+	colorprofile.TrueColor(t)
 	inline := regexp.MustCompile(`\[[^\]]+\]\s+\S`)
 	r := Geometry(120, 40, 8, 2)
 	for _, l := range plain(renderPalette(t, palette("Go to", "", allRows(), r), r)) {
@@ -290,7 +290,7 @@ var (
 // A line must carry no truncated escape sequence and no visible cell
 // painted without an explicit background (a reset drops it).
 func TestRenderPaletteLinesAreWholeAndPainted(t *testing.T) {
-	testutil.TrueColor(t)
+	colorprofile.TrueColor(t)
 	for _, w := range []int{30, 54, 80, 120} {
 		r := Geometry(w, 30, 8, 2)
 		for name, p := range map[string]PaletteInput{

@@ -7,8 +7,8 @@ import (
 	"github.com/charmbracelet/lipgloss"
 	"github.com/charmbracelet/x/ansi"
 
+	"github.com/anthnel/devdesk/internal/testutil/colorprofile"
 	"github.com/anthnel/devdesk/internal/ui/shortcut"
-	"github.com/anthnel/devdesk/internal/ui/testutil"
 )
 
 func manyShortcuts(n int) shortcut.Shortcuts {
@@ -82,7 +82,7 @@ func TestEveryHeaderRowFillsTheWidth(t *testing.T) {
 // leak its colour onto everything rendered after it, which is the corruption
 // Rule 122 is about.
 func TestClippingTheShortcutBlockLeavesTheStylingIntact(t *testing.T) {
-	testutil.TrueColor(t)
+	colorprofile.TrueColor(t)
 
 	rendered := renderHeaderContent(
 		[]shortcut.HeaderInfo{{Key: "Context", Value: "default"}},
@@ -155,7 +155,7 @@ func TestInfoLinesPadOutToTheHeaderHeight(t *testing.T) {
 
 // The logo is centred in the seven rows: one blank above, one below.
 func TestTheLogoIsVerticallyCentred(t *testing.T) {
-	testutil.TrueColor(t)
+	colorprofile.TrueColor(t)
 	lines := buildLogoLines(logoWidth)
 
 	if strings.Contains(lines[0], "_") {

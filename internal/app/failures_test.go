@@ -9,8 +9,6 @@ import (
 	"reflect"
 	"testing"
 
-	tea "github.com/charmbracelet/bubbletea"
-
 	"github.com/anthnel/devdesk/internal/command"
 	"github.com/anthnel/devdesk/internal/jobs"
 	ociresources "github.com/anthnel/devdesk/internal/ui/oci_resources"
@@ -258,7 +256,7 @@ func TestAFailureSurvivesLeavingAndReopeningAView(t *testing.T) {
 		t.Error("the re-entered view was not handed the failure")
 	}
 
-	a.Update(tea.KeyMsg{Type: tea.KeyCtrlR})
+	a.Update(testutil.Key("ctrl+r"))
 	if !remembered(a, jobs.KindScan, "/w/app", "default") {
 		t.Error("ctrl+r cleared the failure")
 	}

@@ -1,11 +1,9 @@
 package shortcut
 
 import (
+	"github.com/anthnel/devdesk/internal/testutil/colorprofile"
 	"strings"
 	"testing"
-
-	"github.com/charmbracelet/lipgloss"
-	"github.com/muesli/termenv"
 )
 
 // withTrueColor forces a colour profile for the run. Under go test lipgloss
@@ -13,9 +11,7 @@ import (
 // would make any assertion about styling pass whatever the code does.
 func withTrueColor(t *testing.T) {
 	t.Helper()
-	previous := lipgloss.ColorProfile()
-	lipgloss.SetColorProfile(termenv.TrueColor)
-	t.Cleanup(func() { lipgloss.SetColorProfile(previous) })
+	colorprofile.TrueColor(t)
 }
 
 func TestMaxLenKey(t *testing.T) {

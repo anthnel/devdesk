@@ -17,6 +17,7 @@ import (
 	"github.com/anthnel/devdesk/internal/config"
 	"github.com/anthnel/devdesk/internal/jobs"
 	mcpserver "github.com/anthnel/devdesk/internal/mcp"
+	"github.com/anthnel/devdesk/internal/ui/testutil"
 )
 
 // Everything else in this package calls the handlers directly, on the test's
@@ -98,7 +99,7 @@ func TestTheServerAndTheLoopRunSideBySide(t *testing.T) {
 				Items:  []jobs.Item{{Target: "/repo", State: jobs.ItemRunning}},
 			}})
 			if i%4 == 0 {
-				p.Send(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'j'}})
+				p.Send(testutil.Key("j"))
 			}
 		}
 	}()

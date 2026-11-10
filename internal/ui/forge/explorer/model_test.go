@@ -1067,7 +1067,7 @@ func TestDrillingStillWorksWhileSelecting(t *testing.T) {
 	m := feed(t, drilledModel(t), testutil.Key(keymap.Clone))
 	before := m.currentGroupNode
 
-	m = feed(t, m, tea.KeyMsg{Type: tea.KeyLeft})
+	m = feed(t, m, testutil.Key("left"))
 
 	if m.currentGroupNode == before {
 		t.Error("the left arrow did not drill up in the selection mode")

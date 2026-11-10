@@ -4,8 +4,6 @@ import (
 	"strings"
 	"testing"
 
-	tea "github.com/charmbracelet/bubbletea"
-
 	"github.com/anthnel/devdesk/internal/ui/fuzzy"
 	"github.com/anthnel/devdesk/internal/ui/testutil"
 )
@@ -54,7 +52,7 @@ func TestFuzzyFindQuerySitsInTheFilterBarSlot(t *testing.T) {
 	m := newTestModel(t)
 	m, _ = step(t, m, testutil.Key("g"))
 	m = feed(t, m, FuzzyPathsLoadedMsg{Candidates: []fuzzy.Candidate{dirCandidate("/tmp/workspaces/devdesk", "devdesk")}})
-	m, _ = step(t, m, tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("dev")})
+	m = typeText(t, m, "dev")
 
 	footer := m.RenderFooter(80)
 	if !strings.Contains(footer, "Find") {
@@ -84,7 +82,7 @@ func TestFuzzyFindJumpsToTheSelectedDirectory(t *testing.T) {
 		dirCandidate("/tmp/workspaces/other", "other"),
 	}})
 
-	m, _ = step(t, m, tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("a/b")})
+	m = typeText(t, m, "a/b")
 
 	if got := m.fuzzyFinder.MatchHint(); got != "1 match(es)" {
 		t.Fatalf("matchHint = %q, want a single match reported", got)
@@ -138,7 +136,7 @@ func TestFuzzyFindBelowThreeCharactersRunsNoQuery(t *testing.T) {
 	m, _ = step(t, m, testutil.Key("g"))
 	m = feed(t, m, FuzzyPathsLoadedMsg{Candidates: []fuzzy.Candidate{dirCandidate("/tmp/workspaces/ab", "ab")}})
 
-	m, _ = step(t, m, tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("ab")})
+	m = typeText(t, m, "ab")
 
 	if got := m.fuzzyFinder.StatusText(); got != "Type at least 3 characters to search" {
 		t.Errorf("StatusText = %q, want the character-count prompt", got)
@@ -159,4 +157,13 @@ func TestEscCancelsFuzzyFind(t *testing.T) {
 	if m.mode != ModeNormal || m.fuzzyFinder != nil {
 		t.Errorf("mode = %v, fuzzyFinder = %v, want ModeNormal and nil after cancel", m.mode, m.fuzzyFinder)
 	}
+}
+
+// typeText types s one key at a time, as a user would.
+func typeText(t *testing.T, m Model, s string) Model {
+	t.Helper()
+	for _, msg := range testutil.Type(s) {
+		m, _ = step(t, m, msg)
+	}
+	return m
 }

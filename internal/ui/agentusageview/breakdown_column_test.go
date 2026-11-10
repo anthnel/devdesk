@@ -14,8 +14,8 @@ import (
 
 	"github.com/anthnel/devdesk/internal/agentusage"
 	"github.com/anthnel/devdesk/internal/agentusage/pricing"
+	"github.com/anthnel/devdesk/internal/testutil/colorprofile"
 	"github.com/anthnel/devdesk/internal/ui/datatable"
-	"github.com/anthnel/devdesk/internal/ui/testutil"
 	"github.com/anthnel/devdesk/internal/ui/theme"
 )
 
@@ -591,7 +591,7 @@ func barRuns(t *testing.T, view, role string) (params []string, lengths []int) {
 // order with the right lengths, unselected, and selected with each segment
 // repainting the selection background in bold.
 func TestBreakdownRenderedRowColoursAndSelection(t *testing.T) {
-	testutil.TrueColor(t)
+	colorprofile.TrueColor(t)
 	u := agentusage.Usage{Agents: []agentusage.Agent{
 		{Main: true, Tokens: agentusage.Tokens{Input: 100, Output: 300, CacheWrite: 100, CacheRead: 500}},
 		{ID: "a01", Type: "coder", Tokens: agentusage.Tokens{Input: 600, Output: 200, CacheWrite: 100, CacheRead: 100}},

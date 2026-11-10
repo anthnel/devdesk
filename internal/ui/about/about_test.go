@@ -276,19 +276,14 @@ func press(t *testing.T, m Model, key string) Model {
 	return updated.(Model)
 }
 
-// keyByName maps the names this screen handles to the KeyMsg bubbletea would
-// deliver for them.
+// keyByName returns the KeyMsg for the names this screen handles.
 func keyByName(name string) (tea.KeyMsg, bool) {
-	types := map[string]tea.KeyType{
-		"up":     tea.KeyUp,
-		"down":   tea.KeyDown,
-		"pgup":   tea.KeyPgUp,
-		"pgdown": tea.KeyPgDown,
-		"home":   tea.KeyHome,
-		"end":    tea.KeyEnd,
+	var none tea.KeyMsg
+	switch name {
+	case "up", "down", "pgup", "pgdown", "home", "end":
+		return testutil.Key(name), true
 	}
-	kt, ok := types[name]
-	return tea.KeyMsg{Type: kt}, ok
+	return none, false
 }
 
 func equal(a, b []string) bool {

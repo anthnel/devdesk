@@ -106,7 +106,7 @@ func TestTheChainDiesWhenNothingAnimates(t *testing.T) {
 	}
 	*got = nil
 	for i := 0; i < 10; i++ {
-		a.Update(tea.KeyMsg{Type: tea.KeyDown})
+		a.Update(testutil.Key("down"))
 	}
 	if len(*got) != 0 {
 		t.Errorf("idle key presses asked for %d periodic messages, want 0", len(*got))
@@ -142,7 +142,7 @@ func TestAnOperationStartedAfterTheChainDiedRestartsItOnce(t *testing.T) {
 	if len(*got) != 1 || (*got)[0] != animationFastInterval {
 		t.Fatalf("intervals after a start = %v, want one of %v", *got, animationFastInterval)
 	}
-	a.Update(tea.KeyMsg{Type: tea.KeyDown})
+	a.Update(testutil.Key("down"))
 	if len(*got) != 1 {
 		t.Errorf("a later Update asked for another chain: %v", *got)
 	}
@@ -227,7 +227,7 @@ func TestStaticMotionNeverStartsAChainForIndicators(t *testing.T) {
 	if a.ensureTick() != nil {
 		t.Error("static motion started a chain for a blink")
 	}
-	a.Update(tea.KeyMsg{Type: tea.KeyDown})
+	a.Update(testutil.Key("down"))
 	if len(*got) != 0 {
 		t.Errorf("static motion recorded intervals %v", *got)
 	}
@@ -254,7 +254,7 @@ func TestTheRouterAsksTheViewOnScreenAfterEveryUpdate(t *testing.T) {
 	a, v, _ := blinkRouter(t, false)
 	v.onKeyWow = func(b *blinkView) { b.wants = true }
 
-	_, cmd := a.Update(tea.KeyMsg{Type: tea.KeyDown})
+	_, cmd := a.Update(testutil.Key("down"))
 
 	m, ok := testutil.MsgOf[animationTickMsg](cmd)
 	if !ok {
@@ -282,7 +282,7 @@ func TestAViewOffScreenDoesNotKeepTheChainAlive(t *testing.T) {
 	if a.ensureTick() != nil {
 		t.Error("a view off screen started a chain")
 	}
-	a.Update(tea.KeyMsg{Type: tea.KeyDown})
+	a.Update(testutil.Key("down"))
 	if len(*got) != 0 {
 		t.Errorf("a view off screen recorded intervals %v", *got)
 	}
@@ -335,7 +335,7 @@ func TestTheWrapperKeepsTheViewsOwnCommand(t *testing.T) {
 			}
 			a := router(t, v)
 
-			_, cmd := a.Update(tea.KeyMsg{Type: tea.KeyDown})
+			_, cmd := a.Update(testutil.Key("down"))
 			tick, ok := testutil.MsgOf[spinner.TickMsg](cmd)
 			if !ok {
 				t.Fatal("the router lost the view's spinner command")
@@ -373,7 +373,7 @@ func TestTheCommandsOfAnUpdateCanRunConcurrently(t *testing.T) {
 	v.cmd = func(tea.Msg) tea.Cmd { return func() tea.Msg { return spinner.TickMsg{} } }
 	// No chain is alive yet, so this one Update starts it AND returns the view's own
 	// Cmd: the two must come out as a batch.
-	_, cmd := a.Update(tea.KeyMsg{Type: tea.KeyDown})
+	_, cmd := a.Update(testutil.Key("down"))
 	if cmd == nil {
 		t.Fatal("no command to run")
 	}

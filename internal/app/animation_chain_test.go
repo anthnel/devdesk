@@ -9,6 +9,7 @@ import (
 
 	"github.com/anthnel/devdesk/internal/command"
 	"github.com/anthnel/devdesk/internal/jobs"
+	"github.com/anthnel/devdesk/internal/testutil/colorprofile"
 	"github.com/anthnel/devdesk/internal/ui/testutil"
 )
 
@@ -153,7 +154,7 @@ func TestTheChainDiesWhenNothingRunsAndRestartsAfterwards(t *testing.T) {
 
 // Rule 122: the frame is bare, its rendering is not.
 func TestTheFrameIsBareAndItsRenderingIsNot(t *testing.T) {
-	testutil.TrueColor(t)
+	colorprofile.TrueColor(t)
 	view := &fakeView{}
 	a := router(t, view)
 	a.jobs.Start(scanRun("default", "a"))

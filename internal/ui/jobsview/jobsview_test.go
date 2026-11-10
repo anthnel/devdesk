@@ -14,6 +14,7 @@ import (
 	"github.com/anthnel/devdesk/internal/command"
 	"github.com/anthnel/devdesk/internal/config"
 	"github.com/anthnel/devdesk/internal/jobs"
+	"github.com/anthnel/devdesk/internal/testutil/colorprofile"
 	sharedcomponents "github.com/anthnel/devdesk/internal/ui/components"
 	"github.com/anthnel/devdesk/internal/ui/datatable"
 	"github.com/anthnel/devdesk/internal/ui/indicator"
@@ -407,7 +408,7 @@ func TestEveryColumnDeclaresItsSizing(t *testing.T) {
 // Rule 122: a cell is measured before it is styled, so nothing a Cell returns
 // may carry an escape sequence — the indicator glyph is drawn by the datatable.
 func TestNoCellCarriesAnEscapeSequence(t *testing.T) {
-	testutil.TrueColor(t)
+	colorprofile.TrueColor(t)
 
 	// Every state, because the styles differ by state: a Style applied inside a
 	// Cell would go unnoticed on the one branch whose style happens to be empty.

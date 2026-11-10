@@ -8,10 +8,9 @@ import (
 
 	"github.com/charmbracelet/bubbles/table"
 	tea "github.com/charmbracelet/bubbletea"
-	"github.com/charmbracelet/lipgloss"
-	"github.com/muesli/termenv"
 
 	"github.com/anthnel/devdesk/internal/status"
+	"github.com/anthnel/devdesk/internal/testutil/colorprofile"
 	"github.com/anthnel/devdesk/internal/ui/keymap"
 	"github.com/anthnel/devdesk/internal/ui/shortcut"
 	"github.com/anthnel/devdesk/internal/ui/testutil"
@@ -312,9 +311,7 @@ func TestUpdateTableFormatsMonitorCells(t *testing.T) {
 // no TTY under `go test`, falls back to the Ascii profile and strips every
 // sequence, which would make this pass whatever the code does.
 func TestTableCellsCarryNoANSISequences(t *testing.T) {
-	previous := lipgloss.ColorProfile()
-	lipgloss.SetColorProfile(termenv.TrueColor)
-	t.Cleanup(func() { lipgloss.SetColorProfile(previous) })
+	colorprofile.TrueColor(t)
 
 	m := loadedModel(t)
 

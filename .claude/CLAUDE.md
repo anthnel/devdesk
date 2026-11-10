@@ -192,6 +192,19 @@ D85 in `docs/backlog.md`).
 - `internal/testutil/loopback` is imported from `_test.go` files only; nothing
   enforces it yet.
 
+**Test input and colour (DEVDESK-199).** Build keys only through
+`internal/ui/testutil` (`Key`, `Keys`, `Type`, `Paste`, `Text`, `IsText`), never a
+literal `tea.KeyMsg` or `tea.Key*`. `Key` is strict: an unknown name panics. The
+space key is built as a key (`KeySpace` + rune `' '`), never matched through
+`String()` (v1 `" "`, v2 `"space"`). The colour profile is forced through
+`internal/testutil/colorprofile` (`TrueColor(t)`, `Force()` in `TestMain`), the only
+importer of termenv; it is a leaf package because testutil→shortcut→theme would
+cycle. `internal/ui/testutil/source_guard_test.go` fails the suite on a hand-built
+key, a termenv import or `SetColorProfile` in any `_test.go`. Paste tests
+(`internal/app/paste_test.go`, `wrapped_input_test.go`, `component_form_test.go`):
+a paste reaches the focused field, newlines become spaces in single-line fields,
+and no key action fires (Rule 111).
+
 ## Dependencies
 
 Key libraries (see `go.mod`):

@@ -14,13 +14,12 @@
 package testutil
 
 import (
+	"fmt"
 	"reflect"
 	"strings"
 	"time"
 
 	tea "github.com/charmbracelet/bubbletea"
-	"github.com/charmbracelet/lipgloss"
-	"github.com/muesli/termenv"
 
 	"github.com/anthnel/devdesk/internal/ui/shortcut"
 )
@@ -46,6 +45,8 @@ func FastTimers(t interface{ Cleanup(func()) }, d *time.Duration) {
 
 // namedKeys maps the key names used throughout the views (they all dispatch on
 // tea.KeyMsg.String()) onto the key types that render back to those names.
+// The space is deliberately absent: see spaceKey. The ctrl+a..ctrl+z names are
+// computed by Key rather than listed.
 var namedKeys = map[string]tea.KeyType{
 	"enter":     tea.KeyEnter,
 	"esc":       tea.KeyEsc,
@@ -56,44 +57,74 @@ var namedKeys = map[string]tea.KeyType{
 	"right":     tea.KeyRight,
 	"tab":       tea.KeyTab,
 	"shift+tab": tea.KeyShiftTab,
-	" ":         tea.KeySpace,
-	"space":     tea.KeySpace,
 	"backspace": tea.KeyBackspace,
 	"delete":    tea.KeyDelete,
+	"insert":    tea.KeyInsert,
 	"home":      tea.KeyHome,
 	"end":       tea.KeyEnd,
 	"pgup":      tea.KeyPgUp,
 	"pgdown":    tea.KeyPgDown,
-	"ctrl+a":    tea.KeyCtrlA,
-	"ctrl+c":    tea.KeyCtrlC,
-	"ctrl+d":    tea.KeyCtrlD,
-	"ctrl+k":    tea.KeyCtrlK,
-	"ctrl+n":    tea.KeyCtrlN,
-	"ctrl+o":    tea.KeyCtrlO,
-	"ctrl+p":    tea.KeyCtrlP,
-	"ctrl+r":    tea.KeyCtrlR,
-	"ctrl+s":    tea.KeyCtrlS,
-	"ctrl+w":    tea.KeyCtrlW,
+	"f1":        tea.KeyF1,
+	"f2":        tea.KeyF2,
+	"f3":        tea.KeyF3,
+	"f4":        tea.KeyF4,
+	"f5":        tea.KeyF5,
+	"f6":        tea.KeyF6,
+	"f7":        tea.KeyF7,
+	"f8":        tea.KeyF8,
+	"f9":        tea.KeyF9,
+	"f10":       tea.KeyF10,
+	"f11":       tea.KeyF11,
+	"f12":       tea.KeyF12,
 }
 
-// Key builds the tea.KeyMsg whose String() equals name.
+// spaceKey is the one place the space key is built. In bubbletea v1 the space
+// is its own key type but also carries its rune, as a real terminal delivers it.
+func spaceKey() tea.KeyMsg {
+	return tea.KeyMsg{Type: tea.KeySpace, Runes: []rune{' '}}
+}
+
+// Key builds the tea.KeyMsg a terminal would deliver for the named key.
 //
-// Names listed in namedKeys map to their dedicated key type ("enter", "esc",
-// "ctrl+s", " "). An "alt+" prefix sets the Alt modifier on whatever follows,
-// which is how bubbletea reports the ESC-prefixed sequence a terminal sends for
-// Alt — Key("alt+:") is a colon carrying Alt, not the five runes "alt+:".
-// Anything else is treated as literal runes, so Key("y") and Key("gg") produce
-// the rune messages a view matching on those strings expects.
+// Accepted names, and nothing else (anything unknown panics, so a typo fails
+// loudly instead of silently typing literal runes):
+//   - the names in namedKeys ("enter", "esc", "shift+tab", "pgdown", "f5"...);
+//   - "ctrl+a" to "ctrl+z", computed;
+//   - " " or "space", the space key;
+//   - a single rune ("y", ":"), a KeyRunes message;
+//   - an "alt+" prefix on any of the above, which sets Alt: Key("alt+:") is a
+//     colon carrying Alt, not the five runes "alt+:".
+//
+// For several characters typed in a row, use Type; for a bracketed paste, Paste.
+//
+// The space is built, never compared through String(): in bubbletea v1
+// KeyMsg.String() of the space is " ", in v2 it is "space". The v2 equivalents
+// of what this function builds, for the migration that will replace it:
+//
+//	space:    tea.KeyPressMsg{Code: tea.KeySpace, Text: " "}
+//	rune r:   tea.KeyPressMsg{Code: r, Text: string(r)}
+//	ctrl+x:   tea.KeyPressMsg{Code: 'x', Mod: tea.ModCtrl}
+//	alt+...:  the same with Mod: tea.ModAlt
+//	enter:    tea.KeyPressMsg{Code: tea.KeyEnter}
 func Key(name string) tea.KeyMsg {
 	if rest, isAlt := strings.CutPrefix(name, "alt+"); isAlt && rest != "" {
 		msg := Key(rest)
 		msg.Alt = true
 		return msg
 	}
+	if name == " " || name == "space" {
+		return spaceKey()
+	}
 	if kt, ok := namedKeys[name]; ok {
 		return tea.KeyMsg{Type: kt}
 	}
-	return tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune(name)}
+	if letter, ok := strings.CutPrefix(name, "ctrl+"); ok && len(letter) == 1 && letter[0] >= 'a' && letter[0] <= 'z' {
+		return tea.KeyMsg{Type: tea.KeyCtrlA + tea.KeyType(letter[0]-'a')}
+	}
+	if r := []rune(name); len(r) == 1 {
+		return tea.KeyMsg{Type: tea.KeyRunes, Runes: r}
+	}
+	panic(fmt.Sprintf("testutil.Key: unknown key name %q (use Type for several characters, Paste for a paste)", name))
 }
 
 // Keys builds one message per name, for feeding a sequence to Update().
@@ -111,6 +142,10 @@ func Keys(names ...string) []tea.Msg {
 func Type(s string) []tea.Msg {
 	msgs := make([]tea.Msg, 0, len(s))
 	for _, r := range s {
+		if r == ' ' {
+			msgs = append(msgs, spaceKey())
+			continue
+		}
 		msgs = append(msgs, tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{r}})
 	}
 	return msgs
@@ -244,19 +279,26 @@ func findShortcut(shortcuts shortcut.Shortcuts, key string) (shortcut.Shortcut, 
 	return shortcut.Shortcut{}, false
 }
 
-// TrueColor forces a colour profile for the length of a test.
-//
-// Under `go test` lipgloss detects no TTY, falls back to the Ascii profile and
-// strips every escape sequence — so an assertion about styling passes whatever
-// the code does. Any test checking that something is or is not styled has to
-// call this first, and Rule 122's tests are exactly that: a cell that must
-// carry no escape proves nothing in a profile that emits none.
-func TrueColor(t interface {
-	Helper()
-	Cleanup(func())
-}) {
-	t.Helper()
-	previous := lipgloss.ColorProfile()
-	lipgloss.SetColorProfile(termenv.TrueColor)
-	t.Cleanup(func() { lipgloss.SetColorProfile(previous) })
+// Paste builds the message a bracketed paste of s delivers: one KeyRunes
+// message carrying the whole text, flagged Paste.
+func Paste(s string) tea.Msg {
+	return tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune(s), Paste: true}
+}
+
+// IsText reports whether msg is a key message carrying text, typed or pasted:
+// what a text input would insert. It replaces reading key.Type directly, which
+// a v2 migration would break.
+func IsText(msg tea.Msg) bool {
+	km, ok := msg.(tea.KeyMsg)
+	return ok && (km.Type == tea.KeyRunes || km.Type == tea.KeySpace)
+}
+
+// Text returns the text a key message carries, typed or pasted, and whether
+// msg is such a message. It replaces reading KeyMsg.Runes directly, which a
+// v2 migration would break.
+func Text(msg tea.Msg) (string, bool) {
+	if !IsText(msg) {
+		return "", false
+	}
+	return string(msg.(tea.KeyMsg).Runes), true
 }

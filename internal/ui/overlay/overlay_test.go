@@ -8,8 +8,8 @@ import (
 
 	"github.com/charmbracelet/lipgloss"
 	"github.com/charmbracelet/x/ansi"
-	"github.com/muesli/termenv"
 
+	"github.com/anthnel/devdesk/internal/testutil/colorprofile"
 	"github.com/anthnel/devdesk/internal/ui/theme"
 )
 
@@ -212,9 +212,7 @@ func TestSpliceWideRuneAtTheEdges(t *testing.T) {
 // forceColors makes lipgloss emit SGR sequences even without a terminal.
 func forceColors(t *testing.T) {
 	t.Helper()
-	saved := lipgloss.ColorProfile()
-	lipgloss.SetColorProfile(termenv.TrueColor)
-	t.Cleanup(func() { lipgloss.SetColorProfile(saved) })
+	colorprofile.TrueColor(t)
 }
 
 // TestSpliceFillCellsCarryTheAppBackground: cells the overlay invents (wide
