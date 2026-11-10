@@ -29,6 +29,9 @@ func TestSetupWizardKeepsTheAltScreenOnEveryStage(t *testing.T) {
 		t.Run(name, func(t *testing.T) {
 			m := New()
 			m.stage = stage
+			if stage != stageDone {
+				m.confirmModal = newConfirmPrompt("Confirm", "Proceed?")
+			}
 			if !m.View().AltScreen {
 				t.Errorf("stage %q drops the alternate screen", name)
 			}

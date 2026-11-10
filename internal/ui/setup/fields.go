@@ -34,9 +34,6 @@ func (m Model) View() tea.View {
 func (m Model) Render() string {
 	switch m.stage {
 	case stageConfirmOverwrite, stageConfirmSetCurrent:
-		if m.confirmModal == nil {
-			return m.renderStep()
-		}
 		return lipgloss.Place(m.width, m.height, lipgloss.Center, lipgloss.Center, m.confirmModal.View())
 	case stageDone:
 		return m.renderDone()
