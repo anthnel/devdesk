@@ -208,6 +208,11 @@ text field only (command palette, or the view while it is editing); it fires no
 action, so pasting `D` or `q` deletes and quits nothing. Elsewhere it is dropped.
 See `docs/architecture/app-shell.md`.
 
+**The space key is `"space"`.** Under Bubble Tea v2, `KeyPressMsg.String()`
+returns `"space"` for it (v1 returned `" "`). Production code compares it
+through `keymap.Space`, never a literal. Space toggles a checkbox; Enter does
+not, and Space does not press a confirmation button.
+
 ### Rule 112 : Forms in the viewport (no modals)
 
 **Creation/edit forms must be displayed in the main viewport, not as a modal.**

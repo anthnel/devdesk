@@ -217,12 +217,12 @@ matches releases). A paste is a `tea.PasteMsg`, not a key (Rule 111). Guards in
 
 ## Dependencies
 
-Key libraries (see `go.mod`):
-- `charm.land/bubbletea/v2` - TUI framework (v2: `tea.KeyPressMsg`, `tea.PasteMsg`, `View() tea.View`)
-- `charm.land/bubbles/v2` - Pre-built TUI components (table, textinput, spinner, viewport)
-- `charm.land/lipgloss/v2` - Styling (no global colour profile; colours are `image/color.Color`)
-- `github.com/charmbracelet/colorprofile` - colour profile `main.go` forces under Windows Terminal (replaces `termenv`)
-- `github.com/NimbleMarkets/ntcharts/v2` - dashboard sparkline
+Go 1.27 (`go 1.27.3` in `go.mod`). Key libraries (versions as in `go.mod`):
+- `charm.land/bubbletea/v2` (v2.1.1) - TUI framework (v2: `tea.KeyPressMsg`, `tea.PasteMsg`, `View() tea.View`)
+- `charm.land/bubbles/v2` (v2.2.1) - Pre-built TUI components (table, textinput, spinner, viewport)
+- `charm.land/lipgloss/v2` (v2.0.6) - Styling (no global colour profile; colours are `image/color.Color`)
+- `github.com/charmbracelet/colorprofile` (v0.4.3) - colour profile `main.go` forces under Windows Terminal (replaces `termenv`)
+- `github.com/NimbleMarkets/ntcharts/v2` (v2.9.0) - dashboard sparkline
 - `github.com/charmbracelet/x/ansi` - ANSI-safe width, strip and cut
 - `gitlab.com/gitlab-org/api/client-go` - GitLab API client
 - `github.com/prometheus-community/pro-bing` - ICMP ping functionality (maintained fork of go-ping/ping)
