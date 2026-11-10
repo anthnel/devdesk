@@ -10,6 +10,7 @@ import (
 	"github.com/anthnel/devdesk/internal/forward"
 	"github.com/anthnel/devdesk/internal/jobs"
 	"github.com/anthnel/devdesk/internal/netcheck"
+	"github.com/anthnel/devdesk/internal/shared"
 	"github.com/anthnel/devdesk/internal/ui/components"
 	"github.com/anthnel/devdesk/internal/ui/keymap"
 )
@@ -95,6 +96,13 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	// Ports sub-model messages.
 	case portsTickMsg, portsDataMsg, portsKillResultMsg:
+		var cmd tea.Cmd
+		m.portsModel, cmd = m.portsModel.update(msg)
+		return m, cmd
+
+	// The terminal focus reaches the ports poll on every tab: its tick runs
+	// whichever tab shows.
+	case shared.TerminalFocusMsg:
 		var cmd tea.Cmd
 		m.portsModel, cmd = m.portsModel.update(msg)
 		return m, cmd

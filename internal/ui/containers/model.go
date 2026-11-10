@@ -37,6 +37,8 @@ type Model struct {
 	containerTable datatable.Model[docker.Container]
 	spinner        spinner.Model
 	loading        bool
+	// unfocused is true while the terminal is blurred: the tick skips its read.
+	unfocused bool
 	// footer is the one line of transient state below the viewport (Rule 128).
 	footer       sharedcomponents.FooterMessage
 	confirmModal *sharedcomponents.ConfirmModal
