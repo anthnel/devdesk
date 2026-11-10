@@ -1,0 +1,15 @@
+{
+  "tool_use_id": "toolu_01AmnKuYAbMS92ZdeCVps6DW",
+  "agent_id": "a50022e336d9a9829",
+  "subagent_type": "project-coder",
+  "task_description": "Étape A1 imports Charm v2",
+  "token_usage": {
+    "input_tokens": 16,
+    "cache_creation_tokens": 28680,
+    "cache_read_tokens": 164251,
+    "output_tokens": 3856,
+    "api_call_count": 8
+  },
+  "started_at": "2026-11-10T11:56:25.197092333+01:00",
+  "completed_at": "2026-11-10T11:57:14.596447569+01:00"
+}

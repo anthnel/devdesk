@@ -1,0 +1,64 @@
+{
+  "cli_version": "0.13.1",
+  "checkpoint_id": "15810f475b1f",
+  "strategy": "manual-commit",
+  "branch": "feat/DEVDESK-201-charm-v2",
+  "checkpoints_count": 2,
+  "files_touched": [
+    "internal/testutil/colorprofile/colorprofile_test.go",
+    "internal/ui/datatable/busy_test.go",
+    "internal/ui/datatable/foreground_test.go",
+    "internal/ui/datatable/indicator_pad_test.go",
+    "internal/ui/datatable/render_test.go",
+    "internal/ui/theme/activity_colors_test.go",
+    "internal/ui/theme/border_trail_test.go",
+    "internal/ui/theme/ciscore_test.go",
+    "internal/ui/theme/contrast_test.go",
+    "internal/ui/theme/footer_colors_test.go",
+    "internal/ui/theme/gauge_test.go",
+    "internal/ui/theme/iconcolors_container_test.go",
+    "internal/ui/theme/iconcolors_test.go",
+    "internal/ui/theme/manager_test.go",
+    "internal/ui/theme/palette_colors_test.go",
+    "internal/ui/theme/shortcut_colors_test.go",
+    "internal/ui/theme/tokencolors_test.go",
+    "internal/viewer/document_test.go"
+  ],
+  "sessions": [
+    {
+      "metadata": "/15/810f475b1f/0/metadata.json",
+      "transcript": "/15/810f475b1f/0/full.jsonl",
+      "compact_transcript": "/15/810f475b1f/0/transcript.jsonl",
+      "content_hash": "/15/810f475b1f/0/content_hash.txt",
+      "prompt": "/15/810f475b1f/0/prompt.txt"
+    }
+  ],
+  "token_usage": {
+    "input_tokens": 14,
+    "cache_creation_tokens": 9600,
+    "cache_read_tokens": 511245,
+    "output_tokens": 2245,
+    "api_call_count": 5,
+    "subagent_tokens": {
+      "input_tokens": 76,
+      "cache_creation_tokens": 118557,
+      "cache_read_tokens": 1941691,
+      "output_tokens": 29708,
+      "api_call_count": 38
+    }
+  },
+  "redaction": {
+    "replacements": 0,
+    "layers": {
+      "betterleaks": 0,
+      "connection_string": 0,
+      "credential_key": 0,
+      "credential_value": 0,
+      "credentialed_uri": 0,
+      "entropy": 0,
+      "key_context": 0,
+      "provider_token": 0,
+      "shell_stdin": 0
+    }
+  }
+}
