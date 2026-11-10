@@ -163,6 +163,13 @@ The four tables of `:oci` (Images, Networks, Volumes, Registries) and the
 registry browser's tag table are on the activity column (Rule 125; the router
 side is in `app-shell.md`).
 
+**Periodic refresh and terminal focus (DEVDESK-210).** `refreshInterval` is 10 s
+(a var, so a test can shorten it). `RefreshTickMsg` used to refresh once and
+never again; it now re-arms `tickCmd()` on every tick. While `Model.blurred` is
+set (from `shared.TerminalFocusMsg`) the tick only re-arms and skips
+`refreshReads()` (images, scan cache, networks, volumes; it never scans, Rule
+126). On the focus edge (`Resume`) it runs `refreshReads()` once, with no new tick.
+
 **Registry browser (DEVDESK-218, A-09a2).** The tag table
 (`registry_browser.go`, built by `newTagTable`, which `ActivityTables` also uses
 so the guard sees the real table open or not, as `oci/registry-browser`) takes
@@ -250,6 +257,11 @@ truncated value.
 
 The `:containers` table is on the activity column (Rule 125; the router side is
 in `app-shell.md`).
+
+**Terminal blurred (DEVDESK-210).** The two-second tick keeps re-arming itself
+but skips `fetchContainers` and `fetchMetrics` while `Model.unfocused` is set
+(from `shared.TerminalFocusMsg`). On the focus edge (`Resume`) `setTerminalFocus`
+reads both once, with no new tick, since the chain never stopped.
 
 - **The state comes from docker's `Status` text.** `docker.ParseStatus`
   (`internal/docker/status.go`) reads the `Status` column of `ps` once, into
@@ -356,6 +368,15 @@ verified: a declared exception.
 - **Forward tab** (`forward_model.go`, `forward_form.go`): the port
   redirections, `N` to open one, `space` to pause or resume it and `K` to delete
   it. It holds **no listener** — see `internal/forward` below.
+
+**Ports tab, terminal blurred (DEVDESK-210).** `PortsModel.unfocused` is set by
+`shared.TerminalFocusMsg`, which `netdiag.Model.Update` forwards to the ports
+poll whichever tab shows (the tick runs on every tab). The tick chain is kept:
+`handleTick` re-arms `portsTickCmd` and skips `fetchPortsCmd` while `unfocused`.
+On the focus edge (`Resume`) it reads once, with no new tick, so the chain is
+not doubled. `unfocused` is separate from `paused`, the user's own pause (shown
+in the bar): a user pause is never lifted by a focus, and the resume read is
+skipped while `paused`.
 
 **Ports tab, activity column (DEVDESK-150, Rule 125).** Column 0 of the socket
 table is `datatable.IndicatorColumn` (untitled, two cells wide), the same

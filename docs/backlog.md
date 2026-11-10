@@ -98,6 +98,34 @@ decided together and fixed in one pass; see [§1.2](#12-the-five-parked-defects)
 
 ### 1.1 Fixed
 
+**D122 — DEVDESK-210: a blurred terminal suspends the animation and the periodic reads. One router boolean, views skip their I/O and keep their timers, `app.when_unfocused: pause | run` (default `pause`). Option C of Q1 and the dashboard and OCI scope of Q2, chosen by the user. Decided.** **Plane:** DEVDESK-210, dated 2026-11-10; follow-up DEVDESK-318. Supersedes the deferral of focus in D118.
+
+Sources: `.claude/plans/DEVDESK-210-plan.md` (main checkout, untracked: Q1, Q2, H1–H6, ADR draft, options), `docs/architecture/app-shell.md` ("One tick, one chain"), `docs/architecture/agent-usage.md` ("Live updates"), commits `4fdb66b6`, `72da46be`, `a25d858f`, `faeaa725`, `7006df01` and the merges into `feat/DEVDESK-210-focus-views`.
+
+*Context.* Bubble Tea v2 reports terminal focus (mode 1004, `View.ReportFocus`). DevDesk animates and polls in the background, so a visible but unfocused terminal (a tmux pane, a second monitor) kept reading and blinking.
+
+*Decision.*
+- Focus is a router level: one boolean, `App.terminalBlurred` (zero value = focused). No generation counter, and `Leave`/`Init` are not reused to suspend or resume a view. The animation cadence reads it (`wantedCadence`): blurred → no chain.
+- Views learn the level through `shared.TerminalFocusMsg`: on each edge to the view on screen, and as a level when a view enters the screen (`enterView`, `reinitializeViews`). Only the focus edge sets `Resume`, once.
+- A periodic chain keeps its timer and skips its I/O while blurred, then does one read on focus. Covered: `:agent-usage` (stops its chain like `Leave`, resumes like `handleResume`), containers, ports, dashboard (host, docker, slow round) and OCI resources. Not covered: status monitors, viewer follow, netdiag forwards.
+- `app.when_unfocused: pause | run`, default `pause`. `run` restores the previous behaviour entirely, blink included. Editable in `:cfg` > Appearance.
+- Hypotheses kept: **H1**, a `FocusMsg` without a prior blur changes nothing. **H2**, a key or paste received while blurred counts as focus (self-heals a lost FocusIn, e.g. after a `teaexec` hand-off). **H4**, held views off screen receive nothing on the edges.
+- **Fix included:** the OCI refresh tick was not re-armed after a skipped read; `7006df01` re-arms it.
+
+*Accepted risk.* Re-entering a view while its previous periodic chain may still be alive can leave two tick chains running (doubled refresh). Accepted; tracked in DEVDESK-318.
+
+*Rejected.*
+- **Blink-only suspension** (Q1 option B): keeps all the I/O, so most of the battery and CPU gain is lost.
+- **Grace period** (Q1 option D, e.g. 2 min): does not cover the side-pane case and adds a timer.
+- **Per-view chain stop and restart** (views stop their chains, restart on focus): needs a generation per chain in two views; the containers comment on `PagerExitMsg` already records that bug.
+- **Reuse of `Leave()`/`Init()`** on blur and focus: `Init()` starts a second `tickCmd` in containers (doubles every refresh), and `Leave` also settles configuration edits and may refuse.
+
+*Known limits.*
+- Paths that change `currentView` without `enterView` do not send the level to the entering view.
+- Not tested: `reinitializeViews`, the path picker, `scan_details`.
+- Residual, by design (H5, H6): footer timers keep running while blurred; the text-input cursor blink and a view's own loading spinner keep running; one 2 s timer per suspended view, with no I/O.
+- Terminal support (Windows Terminal, WSL, tmux with and without `focus-events`, VS Code, iTerm2/Terminal.app) and the `teaexec` hand-off are checked by hand only; a terminal without mode 1004 behaves as before.
+
 **D121 — DEVDESK-290: the renderer ticker race after `tea.ExecProcess` is worked around in DevDesk by `internal/ui/teaexec`, a `Run` that holds the terminal for at least 50 ms. Option A, chosen. No fork, no `replace`. Decided.** **Plane:** DEVDESK-290, dated 2026-11-10
 
 Cause: in Bubble Tea v2.1.1, `stopRenderer` releases the renderer goroutine without waiting for it, and `startRenderer` reuses the same `ticker`. If the old goroutine runs `ticker.Stop()` after the new `ticker.Reset()`, the ticker stays dead: the screen is no longer written, while keys are still handled. Reproducible at `GOMAXPROCS(1)`; the race is lost when the child exits before it blocks (a missing binary, an instant exit). Acting in the exec callback does not help: it runs after `RestoreTerminal`. Fix: `settled.Run` sleeps out the rest of 50 ms after the child, inside `ExecCommand.Run`, between `stopRenderer` and `startRenderer`. A child that lasts longer than 50 ms pays nothing; a child that fails at start pays at most 50 ms. Measured: 0 failures in 140 runs (1 to 20 ms, 1 or 22 Ps), against 100 % without the wrapper at 1 P. It is a probabilistic guarantee, not a proof.

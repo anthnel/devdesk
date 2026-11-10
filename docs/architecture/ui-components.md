@@ -680,3 +680,18 @@ longer exists.
 A view must not use it. Going through here would be a second way to do what a
 field already does, and the message would be adopted by whatever view is active
 rather than by the one that meant it.
+
+## Dashboard clocks and terminal focus (DEVDESK-210)
+
+The dashboard runs three independent clocks (`internal/ui/dashboard/model.go`):
+host sampling every 1 s (`HostTickMsg`), docker metrics every 5 s
+(`DockerTickMsg`), and a slow round (`RefreshTickMsg`: services, forge stats,
+disk usage, workspaces, posture) at `refreshInterval`. The 1 s and 5 s
+intervals are vars so a test can shorten them.
+
+While `Model.blurred` is set (from `shared.TerminalFocusMsg`), each tick re-arms
+its own timer and skips its reads. On the focus edge (`Resume`)
+`handleTerminalFocus` reads once for each clock (`slowRound`, `sampleHost`,
+`fetchDockerMetrics`) and arms nothing: the chains kept their timers, so a new
+one would double the rate. `refreshAll` is `slowRound` plus its timer. The
+`OCI` view follows the same rule, see `network.md`.

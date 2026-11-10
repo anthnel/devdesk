@@ -205,6 +205,21 @@ which stops a forgotten `cache_read` from under-pricing silently.
 
 Config is injected into views at creation. Use `config.Save()` to persist changes.
 
+**`app.when_unfocused`** picks what DevDesk does while the terminal has no focus:
+`pause` (the default) suspends the animation and the periodic reads of the
+dashboard, `:oci`, `:containers`, the Ports tab and `:agent-usage`; `run`
+suspends nothing. The default is never written. The case must be exact. Any
+other value is kept as read, behaves as `pause` and logs
+`WARN [config] app.when_unfocused "<v>" is not pause or run, pausing`. Read through
+`AppConfig.EffectiveWhenUnfocused` / `RunsWhenUnfocused`; the values come from
+`config.WhenUnfocusedModes()`.
+
+In `:cfg` it is the **When unfocused** field of the `app` tab, group Appearance,
+a `←→` cycle field declared with `cycleWithDefault` (absent reads
+`pause (default)`). The setting applies without a restart: the router calls
+`applyWhenUnfocused` on `ConfigSavedMsg` and on a context switch (see
+`app-shell.md`, "Terminal focus").
+
 ## Configuration view — `internal/ui/configuration`
 
 Edits every **scalar** setting a context carries, in seven tabs (`app`, the

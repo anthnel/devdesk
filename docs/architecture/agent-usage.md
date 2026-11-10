@@ -940,10 +940,30 @@ sense, so that the zero value of a fresh model is "polling". It makes a late
 tick of the same generation start nothing, and every full read clears it.
 
 **The `Updates` header.** `Updates › live` while an aggregate is open and
-`pollStopped` is false, `paused` otherwise. It is derived on every frame
+`pollStopped` is false, `paused` otherwise (or
+`paused (terminal not focused)`, below). It is derived on every frame
 (`updatesState`), not stored. Pressing `ctrl+r` on a settled session clears
 `pollStopped` for the duration of the full read, so the header can go
 `paused → live → paused` in a few frames when the session is still quiet.
+
+**While the terminal is blurred (DEVDESK-210).** The view handles
+`shared.TerminalFocusMsg` (`handleTerminalFocus`). On a blur it sets `unfocused`
+and calls `stopChain()`, the part of `Leave` that bumps `agentGen` and clears
+`reading` and `agentsLoading` (keeping `fullPending` if a full read was lost).
+`Leave` calls the same `stopChain()`. On the focus edge (`Resume`) it clears
+`unfocused` and calls `handleResume`: a silent read from the cursor, so the
+session catches up and goes back to live if it is still written to. A message
+with `Resume:false` only clears the flag; `Init`'s resume starts the read. An
+`agentsResumeMsg` that arrives while `unfocused` is dropped: `Init` runs
+`resumeCmd()` on entry, and without the guard it would restart the chain on a
+blurred terminal. The sessions list is not live and does nothing here.
+
+`updatesState` answers `paused (terminal not focused)` while `unfocused` at the
+agents level, before it looks at `pollStopped`. The header reads
+`Updates › paused (terminal not focused)`. It is not a `pollStopped` state, so a
+session that was settled before the blur still reads `paused` once the focus
+is back. With `app.when_unfocused: run` the router sends `Focused:true`, so none
+of this happens.
 
 **`ctrl+r` is a full read.** It rewinds the cursor (`Cursor.Rewound()`), reads
 everything again, and shows the spinner. If a read is already in flight, it is
