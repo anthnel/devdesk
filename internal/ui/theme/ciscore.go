@@ -1,6 +1,6 @@
 package theme
 
-import "github.com/charmbracelet/lipgloss"
+import "charm.land/lipgloss/v2"
 
 // CIScoreState is what a scan can say about a repository's pipeline, and it has
 // four values rather than one letter (§3.42).

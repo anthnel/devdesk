@@ -3,7 +3,7 @@ package theme
 import (
 	"testing"
 
-	"github.com/charmbracelet/lipgloss"
+	"charm.land/lipgloss/v2"
 )
 
 func score(s string) *string { return &s }

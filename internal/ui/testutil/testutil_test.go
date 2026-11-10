@@ -3,7 +3,7 @@ package testutil
 import (
 	"testing"
 
-	tea "github.com/charmbracelet/bubbletea"
+	tea "charm.land/bubbletea/v2"
 )
 
 // The views dispatch on tea.KeyMsg.String(). If Key() ever stopped round-tripping

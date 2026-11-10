@@ -10,7 +10,7 @@ import (
 	"strings"
 	"testing"
 
-	tea "github.com/charmbracelet/bubbletea"
+	tea "charm.land/bubbletea/v2"
 
 	"github.com/charmbracelet/x/ansi"
 
@@ -353,7 +353,7 @@ type finding struct {
 func bubbleTeaName(file *ast.File) string {
 	for _, imp := range file.Imports {
 		path, err := strconv.Unquote(imp.Path.Value)
-		if err != nil || path != "github.com/charmbracelet/bubbletea" {
+		if err != nil || path != "charm.land/bubbletea/v2" {
 			continue
 		}
 		switch {
@@ -557,11 +557,11 @@ func TestActivityGuardGlyphConstantExceptionIsNarrow(t *testing.T) {
 
 // The detection itself, on sources held in strings.
 func TestActivityGuardRetiredMechanismsLogic(t *testing.T) {
-	const head = "package v\nimport tea \"github.com/charmbracelet/bubbletea\"\nimport \"github.com/charmbracelet/bubbles/spinner\"\n"
+	const head = "package v\nimport tea \"charm.land/bubbletea/v2\"\nimport \"charm.land/bubbles/v2/spinner\"\n"
 	const (
-		bt    = "package v\nimport bt \"github.com/charmbracelet/bubbletea\"\nimport \"github.com/charmbracelet/bubbles/spinner\"\n"
-		dot   = "package v\nimport . \"github.com/charmbracelet/bubbletea\"\nimport \"github.com/charmbracelet/bubbles/spinner\"\n"
-		other = "package v\nimport tea \"example.com/notbubbletea\"\nimport \"github.com/charmbracelet/bubbles/spinner\"\n"
+		bt    = "package v\nimport bt \"charm.land/bubbletea/v2\"\nimport \"charm.land/bubbles/v2/spinner\"\n"
+		dot   = "package v\nimport . \"charm.land/bubbletea/v2\"\nimport \"charm.land/bubbles/v2/spinner\"\n"
+		other = "package v\nimport tea \"example.com/notbubbletea\"\nimport \"charm.land/bubbles/v2/spinner\"\n"
 	)
 	tests := []struct {
 		name string

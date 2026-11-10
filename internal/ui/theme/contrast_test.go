@@ -4,7 +4,7 @@ import (
 	"math"
 	"testing"
 
-	"github.com/charmbracelet/lipgloss"
+	"charm.land/lipgloss/v2"
 )
 
 // Accepted forms: "#rgb" and "#rrggbb", case-insensitive. Anything else

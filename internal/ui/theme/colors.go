@@ -1,6 +1,6 @@
 package theme
 
-import "github.com/charmbracelet/lipgloss"
+import "charm.land/lipgloss/v2"
 
 // All color variables are populated by ApplyTheme(DefaultTheme()) in init().
 // DefaultTheme() in manager.go is the single source of truth for hex values.

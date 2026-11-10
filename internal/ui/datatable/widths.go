@@ -1,6 +1,6 @@
 package datatable
 
-import "github.com/charmbracelet/lipgloss"
+import "charm.land/lipgloss/v2"
 
 // Rule 116: the column widths must sum to exactly the space available, or the
 // selected row stops short of the right viewport border.

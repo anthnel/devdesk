@@ -5,7 +5,7 @@ import (
 	"os"
 	"testing"
 
-	tea "github.com/charmbracelet/bubbletea"
+	tea "charm.land/bubbletea/v2"
 )
 
 // Live updates, step 5 (DEVDESK-45, DEVDESK-79): the view stops its chain when

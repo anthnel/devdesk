@@ -9,7 +9,7 @@ import (
 	"github.com/anthnel/devdesk/internal/config"
 	"github.com/anthnel/devdesk/internal/ui/setup"
 	"github.com/anthnel/devdesk/internal/ui/theme"
-	tea "github.com/charmbracelet/bubbletea"
+	tea "charm.land/bubbletea/v2"
 )
 
 func getCurrentContextName() string {

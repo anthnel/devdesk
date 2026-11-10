@@ -1,6 +1,6 @@
 package theme
 
-import "github.com/charmbracelet/lipgloss"
+import "charm.land/lipgloss/v2"
 
 // SecretsState is what a scan can say about secrets, and it has three values
 // rather than two. "Nothing found" and "nobody looked" look a lot alike and

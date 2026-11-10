@@ -17,8 +17,8 @@ import (
 	uiterminal "github.com/anthnel/devdesk/internal/ui/terminal"
 	"github.com/anthnel/devdesk/internal/ui/theme"
 	uiviewer "github.com/anthnel/devdesk/internal/ui/viewer"
-	"github.com/charmbracelet/bubbles/spinner"
-	tea "github.com/charmbracelet/bubbletea"
+	"charm.land/bubbles/v2/spinner"
+	tea "charm.land/bubbletea/v2"
 
 	"github.com/anthnel/devdesk/internal/jobs"
 )

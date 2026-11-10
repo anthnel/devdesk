@@ -5,7 +5,7 @@ import (
 	"unicode/utf8"
 
 	"github.com/anthnel/devdesk/internal/ui/theme"
-	"github.com/charmbracelet/lipgloss"
+	"charm.land/lipgloss/v2"
 )
 
 // HeaderInfo represents a key-value pair displayed in the header

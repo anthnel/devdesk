@@ -3,7 +3,7 @@ package theme
 import (
 	"testing"
 
-	"github.com/charmbracelet/lipgloss"
+	"charm.land/lipgloss/v2"
 )
 
 // ColorShortcutDisabled is an alias assigned in ApplyTheme, like the footer and

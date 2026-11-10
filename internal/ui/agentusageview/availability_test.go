@@ -9,7 +9,7 @@ import (
 	"github.com/anthnel/devdesk/internal/agentusage"
 	sharedcomponents "github.com/anthnel/devdesk/internal/ui/components"
 	"github.com/anthnel/devdesk/internal/ui/testutil"
-	"github.com/charmbracelet/lipgloss"
+	"charm.land/lipgloss/v2"
 )
 
 // Step 3 of DEVDESK-42: Rules 130, 123, 128 and 114 for the two levels.

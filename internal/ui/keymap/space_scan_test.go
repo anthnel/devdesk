@@ -11,7 +11,7 @@ import (
 	"testing"
 )
 
-const bubbleteaPath = "github.com/charmbracelet/bubbletea"
+const bubbleteaPath = "charm.land/bubbletea/v2"
 
 // The space key is named " " by bubbletea v1 and "space" by v2, and nothing
 // reports the change: a `case " "` just stops matching and every checkbox stops
@@ -71,7 +71,7 @@ func literalSpaceComparisons(fset *token.FileSet, path string, file *ast.File) [
 }
 
 func TestLiteralSpaceComparisonsDetector(t *testing.T) {
-	const head = "package p\nimport tea \"github.com/charmbracelet/bubbletea\"\nvar _ tea.Msg\n"
+	const head = "package p\nimport tea \"charm.land/bubbletea/v2\"\nvar _ tea.Msg\n"
 	tests := []struct {
 		name string
 		src  string

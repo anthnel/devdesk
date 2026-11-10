@@ -3,7 +3,7 @@ package theme
 import (
 	"testing"
 
-	"github.com/charmbracelet/lipgloss"
+	"charm.land/lipgloss/v2"
 )
 
 // The default theme gives ColorError and SeverityCritical the same hex, and

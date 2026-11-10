@@ -3,7 +3,7 @@ package theme
 import (
 	"strconv"
 
-	"github.com/charmbracelet/lipgloss"
+	"charm.land/lipgloss/v2"
 )
 
 // MisconfigState is what a scan can say about misconfigurations, and like

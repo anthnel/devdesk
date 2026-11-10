@@ -59,7 +59,7 @@ func teaImportName(file *ast.File) string {
 }
 
 func TestLegacyKeyReadsDetector(t *testing.T) {
-	const head = "package p\nimport tea \"github.com/charmbracelet/bubbletea\"\n"
+	const head = "package p\nimport tea \"charm.land/bubbletea/v2\"\n"
 	tests := []struct {
 		name string
 		src  string
@@ -76,7 +76,7 @@ func TestLegacyKeyReadsDetector(t *testing.T) {
 		{"String", head + "func f(msg tea.KeyMsg) string { return msg.String() }\n", 0},
 		{"non-key Type field", head + "type C struct{ Type string }\nfunc f(c C) bool { return c.Type == \"ssl\" }\n", 0},
 		{"no bubbletea import", "package p\nfunc f(x struct{ Alt bool }) bool { return x.Alt }\n", 0},
-		{"aliased import", "package p\nimport bt \"github.com/charmbracelet/bubbletea\"\nvar _ = bt.KeyEsc\n", 1},
+		{"aliased import", "package p\nimport bt \"charm.land/bubbletea/v2\"\nvar _ = bt.KeyEsc\n", 1},
 	}
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {

@@ -3,7 +3,7 @@ package colorprofile_test
 import (
 	"testing"
 
-	"github.com/charmbracelet/lipgloss"
+	"charm.land/lipgloss/v2"
 	"github.com/muesli/termenv"
 
 	"github.com/anthnel/devdesk/internal/testutil/colorprofile"
