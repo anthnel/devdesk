@@ -11,6 +11,7 @@ import (
 	"charm.land/bubbles/v2/viewport"
 	tea "charm.land/bubbletea/v2"
 	"charm.land/lipgloss/v2"
+	"github.com/charmbracelet/colorprofile"
 	"github.com/charmbracelet/x/term"
 
 	"github.com/anthnel/devdesk/internal/command"
@@ -91,6 +92,10 @@ type App struct {
 	// ctxArgs is the snapshot behind the :ctx argument suggestions.
 	ctxArgs  *contextArgs
 	viewport viewport.Model
+	// colorProfile is the terminal's colour profile as last reported by
+	// Bubble Tea (tea.ColorProfileMsg). The zero value (Unknown) keeps the
+	// terminal background untouched until the first report.
+	colorProfile colorprofile.Profile
 
 	// Navigation
 	currentView command.ViewType
@@ -469,6 +474,11 @@ func (a *App) update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
 	case tea.WindowSizeMsg:
 		a.resize(msg.Width, msg.Height)
+		return a, nil
+
+	case tea.ColorProfileMsg:
+		// Router state only (View sets the terminal background); not forwarded.
+		a.colorProfile = msg.Profile
 		return a, nil
 
 	case tea.KeyPressMsg:

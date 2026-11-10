@@ -54,8 +54,10 @@ var bannedFields = map[string]bool{"Runes": true, "Alt": true, "Paste": true}
 // strips it (ansi.Strip); only a test that runs a real tea.Program at a chosen
 // profile needs the type.
 var colorprofileAllowed = map[string]string{
-	"internal/app/profile_test.go":        "runs a real tea.Program at TrueColor, ANSI256 and Ascii",
-	"internal/app/redraw_measure_test.go": "runs a real tea.Program forced to TrueColor to match the v1 reference",
+	"internal/app/profile_test.go":                     "runs a real tea.Program at TrueColor, ANSI256 and Ascii",
+	"internal/app/redraw_measure_test.go":              "runs a real tea.Program forced to TrueColor to match the v1 reference",
+	"internal/app/terminal_background_test.go":         "maps each colour profile to the terminal background (DEVDESK-209)",
+	"internal/app/terminal_background_program_test.go": "runs a real tea.Program at chosen profiles to read the background sequences (DEVDESK-209)",
 }
 
 // skippedDirs are module-relative slash paths the scan does not enter.

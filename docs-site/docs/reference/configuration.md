@@ -7,7 +7,7 @@ default — an absent key is not an error, `config.Default()` fills it in.
 
 | Key | Type | Default | Meaning |
 |---|---|---|---|
-| `theme` | string | `default` | `""`, `default`, or `dark` all mean the built-in theme; any other name loads `~/.devdesk/themes/<name>.json` — copy the bundled files from `themes/` in the repository there first, DevDesk does not install them automatically |
+| `theme` | string | `default` | `""`, `default`, or `dark` all mean the built-in theme; any other name loads `~/.devdesk/themes/<name>.json` — copy the bundled files from `themes/` in the repository there first, DevDesk does not install them automatically. DevDesk also sets the terminal's default background to the theme's for the session (OSC 11) and resets it on exit; not under `NO_COLOR` or in 16-colour terminals |
 | `log_file` | string | | Path to the log file |
 | `default_view` | string | `dashboard` | View opened at startup |
 | `workspaces_dir` | string | `~/workspaces` | Scanned by Workspaces; default clone target for the forge explorer |

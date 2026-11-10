@@ -44,8 +44,8 @@ App (Router)
 `app.Screen` is `tea.Model` plus `Render() string`; the router holds
 `map[ViewType]Screen` and installs every view through the single `setView`,
 which panics naming the view when a model has no `Render()`. Only the router
-sets terminal state: `App.View()` wraps `App.Render()` and sets `AltScreen`
-(`main.go` passes no `tea.WithAltScreen()`). The setup wizard is its own
+sets terminal state: `App.View()` wraps `App.Render()` and sets `AltScreen` and
+`BackgroundColor` (`main.go` passes no `tea.WithAltScreen()`). The setup wizard is its own
 program and sets `AltScreen` in its own `View()`. Components (datatable, forms,
 `FilterBar`) keep `View() string`. A bracketed paste arrives as `tea.PasteMsg`
 and goes through `handlePasteMsg`: it is text for the focused field (palette,
@@ -74,6 +74,69 @@ prompt) and drops it otherwise or behind a modal; it never reaches the key
 handlers. `FilterBar.Update` takes a paste only while searching. Newlines become
 spaces because the one-line `textinput` sanitizes them. `tea.PasteStartMsg` and
 `tea.PasteEndMsg` fall through and are ignored.
+
+**Terminal background (DEVDESK-209).** `App.View()` also sets
+`tea.View.BackgroundColor`, so the terminal's own default background is the
+theme's `ColorBackground` for the session. Rule 115 (`theme.Bg`, `PadWithBg`, ...)
+stays mandatory: this is a safety net, not a replacement (see the gaps below).
+
+- *Profile.* The router stores the last `tea.ColorProfileMsg` in
+  `App.colorProfile` and does not forward it to the view (no view handles it).
+  Bubble Tea sends the message at startup, even when the profile is forced, so
+  the first frame may go out without the background and the next one carries it.
+  `terminalBackground(profile, colour)` (`internal/app/terminal_background.go`)
+  maps it:
+
+  | Profile | `BackgroundColor` |
+  |---|---|
+  | `TrueColor` | the exact theme colour |
+  | `ANSI256` | the colour converted with `colorprofile.ANSI256.Convert`, the same tone Bubble Tea gives painted cells (no seam) |
+  | `ANSI` (16 colours), `ASCII` (including `NO_COLOR`), `NoTTY`, `Unknown` | `nil`: the terminal keeps its own background |
+
+  A `nil` or fully transparent theme colour (`lipgloss.NoColor`) also gives `nil`.
+  The result must be of a comparable type: the renderer compares frames with `!=`.
+- *Theme changes.* `View()` reads `theme.ColorBackground` on every call, with no
+  copy in the model, so the background follows `applyThemeNow` (a saved theme
+  change) and any future path that calls `theme.ApplyTheme`. A refused theme
+  keeps the previous background.
+- *Sequences.* Bubble Tea writes OSC 11 (`ESC ] 11 ; #rrggbb BEL`) when the value
+  changes and when it starts or resumes, never per frame. On close it writes
+  OSC 111 (`ESC ] 111 BEL`, "reset to the terminal's default background") after
+  leaving the alternate screen. Close runs on quit, `ctrl+c`, `SIGINT`,
+  `SIGTERM`, `Kill()` and a panic in `Update`, `View` or a `Cmd`.
+- *`tea.ExecProcess`.* Before the child starts, Bubble Tea sends OSC 111, so the
+  child (pager, shell, `docker run -it`) sees the terminal's default background,
+  not the theme's. When it returns, the renderer restarts, sends OSC 11 again and
+  repaints in full. This also holds when the child fails.
+- *What is verified.* `terminal_background_test.go` covers `terminalBackground`
+  per profile, comparability on every shipped theme, the router per profile (with
+  an overlay open, latest profile wins, `ColorProfileMsg` not forwarded, only
+  `internal/app/view.go` assigns `BackgroundColor`, enforced by
+  `TestOnlyTheRouterSetsTheTerminalBackground`) and theme changes.
+  `terminal_background_program_test.go` runs a real `tea.Program` without a TTY
+  and checks the bytes written: the sequence starts with the theme's OSC 11 and
+  ends with OSC 111 on normal quit, `ctrl+c`, `InterruptMsg`, `Kill()` and a
+  panic; OSC 11 then OSC 11 again then OSC 111 on a theme change in session;
+  nothing at all under ASCII; the converted colour under ANSI256; and around a
+  `tea.Exec`, OSC 111 before the child, OSC 11 after it, and OSC 111 at exit,
+  also when the child returns an error. These tests pin Bubble Tea's contract: a
+  version bump that changes it fails them.
+- *Limits.* Nothing restores the background after `kill -9`, after a panic in a
+  goroutine that is not a `Cmd` (the MCP server), or when the terminal is closed
+  (the alternate screen has the same gap). To recover, run `printf '\e]111\a'` or
+  `reset`. The "original" background that OSC 111 restores is the default of the
+  terminal's profile, not necessarily the colour at launch: a user who changed it
+  on the fly (base16-shell, an OSC 11 script) gets the profile's default back.
+  `ForegroundColor` is not set, so a light theme on a dark terminal keeps the
+  terminal's text colour wherever a cell sets none. There is no config key to turn
+  this off; `NO_COLOR` does. A terminal or tmux that ignores OSC 11 shows the
+  Rule 115 rendering only. `dk setup` is a separate program and is not covered.
+- *To verify (DEVDESK-209, step 6).* Not covered by any test and not documented
+  as a finding yet: what the shell started by `tea.ExecProcess` shows on a real
+  terminal (inherits the default background or repaints its own: prompt,
+  `ls --color`, `less`), the absence of a seam at odd widths, and the behaviour
+  under Windows Terminal, tmux and a terminal without OSC 11. To be run by hand
+  on a built binary after the merge; the results go in a table here.
 
 ## View Switching & Command Mode
 
