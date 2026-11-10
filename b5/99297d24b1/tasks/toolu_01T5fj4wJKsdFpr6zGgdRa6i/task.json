@@ -1,0 +1,18 @@
+{
+  "tool_use_id": "toolu_01T5fj4wJKsdFpr6zGgdRa6i",
+  "agent_id": "a67afcf1c6fc5739e",
+  "subagent_type": "project-coder",
+  "task_description": "Corriger revue garde KeyPressMsg",
+  "files": [
+    "internal/ui/keymap/keypress_field_scan_test.go"
+  ],
+  "token_usage": {
+    "input_tokens": 10,
+    "cache_creation_tokens": 87102,
+    "cache_read_tokens": 267258,
+    "output_tokens": 8425,
+    "api_call_count": 5
+  },
+  "started_at": "2026-11-10T16:39:58.728136123+01:00",
+  "completed_at": "2026-11-10T16:41:01.178529351+01:00"
+}
