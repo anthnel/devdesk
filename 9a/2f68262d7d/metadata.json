@@ -1,0 +1,90 @@
+{
+  "cli_version": "0.13.1",
+  "checkpoint_id": "9a2f68262d7d",
+  "strategy": "manual-commit",
+  "branch": "feat/DEVDESK-201-charm-v2",
+  "checkpoints_count": 5,
+  "files_touched": [
+    "docs/CODEMAPS/dependencies.md",
+    "go.mod",
+    "internal/app/animation_chain_test.go",
+    "internal/app/command_palette_test.go",
+    "internal/app/header_hint_test.go",
+    "internal/app/header_test.go",
+    "internal/app/view_test.go",
+    "internal/testutil/colorprofile/colorprofile.go",
+    "internal/testutil/colorprofile/colorprofile_test.go",
+    "internal/ui/about/about_test.go",
+    "internal/ui/agentusageview/agents_test.go",
+    "internal/ui/agentusageview/agentusageview_test.go",
+    "internal/ui/agentusageview/breakdown_column_test.go",
+    "internal/ui/agentusageview/breakdown_tab_test.go",
+    "internal/ui/agentusageview/breakdown_view_test.go",
+    "internal/ui/agentusageview/cost_test.go",
+    "internal/ui/cmdsuggest/args_test.go",
+    "internal/ui/cmdsuggest/cmdsuggest_test.go",
+    "internal/ui/cmdsuggest/palette_test.go",
+    "internal/ui/components/footer_message_test.go",
+    "internal/ui/configuration/model_test.go",
+    "internal/ui/containers/containers_test.go",
+    "internal/ui/dashboard/chart_test.go",
+    "internal/ui/dashboard/secrets_test.go",
+    "internal/ui/datatable/render_test.go",
+    "internal/ui/forge/explorer/explorer_test.go",
+    "internal/ui/forge/explorer/paste_test.go",
+    "internal/ui/fuzzy/paste_test.go",
+    "internal/ui/jobsview/jobsview_test.go",
+    "internal/ui/netdiag/forward_test.go",
+    "internal/ui/oci_resources/footer_test.go",
+    "internal/ui/oci_resources/view_test.go",
+    "internal/ui/overlay/overlay_test.go",
+    "internal/ui/security/footer_test.go",
+    "internal/ui/security/view_test.go",
+    "internal/ui/shortcut/shortcut_test.go",
+    "internal/ui/status/placed_modal_test.go",
+    "internal/ui/status/view_test.go",
+    "internal/ui/templates/indicator_test.go",
+    "internal/ui/testutil/source_guard_test.go",
+    "internal/ui/theme/border_trail_test.go",
+    "internal/ui/theme/initrender_test.go",
+    "internal/ui/viewer/viewer_test.go",
+    "main.go"
+  ],
+  "sessions": [
+    {
+      "metadata": "/9a/2f68262d7d/0/metadata.json",
+      "transcript": "/9a/2f68262d7d/0/full.jsonl",
+      "compact_transcript": "/9a/2f68262d7d/0/transcript.jsonl",
+      "content_hash": "/9a/2f68262d7d/0/content_hash.txt",
+      "prompt": "/9a/2f68262d7d/0/prompt.txt"
+    }
+  ],
+  "token_usage": {
+    "input_tokens": 28,
+    "cache_creation_tokens": 19513,
+    "cache_read_tokens": 2008660,
+    "output_tokens": 6005,
+    "api_call_count": 9,
+    "subagent_tokens": {
+      "input_tokens": 196,
+      "cache_creation_tokens": 387559,
+      "cache_read_tokens": 6359555,
+      "output_tokens": 58082,
+      "api_call_count": 95
+    }
+  },
+  "redaction": {
+    "replacements": 8,
+    "layers": {
+      "betterleaks": 0,
+      "connection_string": 0,
+      "credential_key": 0,
+      "credential_value": 0,
+      "credentialed_uri": 0,
+      "entropy": 8,
+      "key_context": 0,
+      "provider_token": 0,
+      "shell_stdin": 0
+    }
+  }
+}

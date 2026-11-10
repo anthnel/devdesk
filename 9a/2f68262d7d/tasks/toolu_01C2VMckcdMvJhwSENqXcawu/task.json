@@ -1,0 +1,15 @@
+{
+  "tool_use_id": "toolu_01C2VMckcdMvJhwSENqXcawu",
+  "agent_id": "a4b20ab759d89beb7",
+  "subagent_type": "project-tester",
+  "task_description": "Tests explorer collage D3 retour",
+  "token_usage": {
+    "input_tokens": 44,
+    "cache_creation_tokens": 58205,
+    "cache_read_tokens": 940150,
+    "output_tokens": 12771,
+    "api_call_count": 22
+  },
+  "started_at": "2026-11-10T13:11:21.081551568+01:00",
+  "completed_at": "2026-11-10T13:13:46.23202391+01:00"
+}
