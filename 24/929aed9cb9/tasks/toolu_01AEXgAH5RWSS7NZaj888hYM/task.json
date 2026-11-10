@@ -1,0 +1,15 @@
+{
+  "tool_use_id": "toolu_01AEXgAH5RWSS7NZaj888hYM",
+  "agent_id": "a4df75c9603180d8b",
+  "subagent_type": "team-core:archivist",
+  "task_description": "Add backlog note for 220",
+  "token_usage": {
+    "input_tokens": 14,
+    "cache_creation_tokens": 36216,
+    "cache_read_tokens": 190460,
+    "output_tokens": 4385,
+    "api_call_count": 7
+  },
+  "started_at": "2026-11-09T22:06:11.821555305+01:00",
+  "completed_at": "2026-11-09T22:06:42.726041913+01:00"
+}

@@ -1,0 +1,15 @@
+{
+  "tool_use_id": "toolu_018iAG77okxMhudRtryZ9yLU",
+  "agent_id": "a0385ad5620abaf73",
+  "subagent_type": "dev-team:devops",
+  "task_description": "Clean up worktrees after merge",
+  "token_usage": {
+    "input_tokens": 8,
+    "cache_creation_tokens": 36963,
+    "cache_read_tokens": 97740,
+    "output_tokens": 1427,
+    "api_call_count": 4
+  },
+  "started_at": "2026-11-09T22:14:51.352282223+01:00",
+  "completed_at": "2026-11-09T22:15:13.40235069+01:00"
+}
