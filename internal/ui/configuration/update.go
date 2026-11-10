@@ -84,7 +84,10 @@ func (m Model) handleKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	case "right":
 		return m.cycleField(1)
 	case keymap.Space:
-		return m.toggleField()
+		// A text field keeps the space: it falls through to the input below.
+		if !m.current().takesText() {
+			return m.toggleField()
+		}
 	case "enter":
 		if m.current().path {
 			return m.requestPick()

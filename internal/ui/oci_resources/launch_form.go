@@ -316,7 +316,11 @@ func (f *LaunchForm) handleKeyMsg(msg tea.KeyPressMsg) (*LaunchForm, tea.Cmd) {
 			f.ports[f.focusedField-f.firstPortField()].enabled = !f.ports[f.focusedField-f.firstPortField()].enabled
 			return f, nil
 		}
-		return f.handleSpaceKey()
+		if f.isOptionField(f.focusedField) {
+			return f.handleSpaceKey()
+		}
+		// A text field takes the space as a character (DEVDESK-266).
+		return f.updateActiveInput(msg)
 
 	case "enter":
 		// Enter advances to next field or submits; never toggles (Rule 135)
@@ -335,6 +339,12 @@ func (f *LaunchForm) handleEnterKey() (*LaunchForm, tea.Cmd) {
 	f.focusedField = (f.focusedField + 1) % (maxField + 1)
 	f.updateFocus()
 	return f, nil
+}
+
+// isOptionField reports whether a field is one of the option checkboxes.
+func (f *LaunchForm) isOptionField(field int) bool {
+	return field == f.fieldOptionRemove() || field == f.fieldOptionDetach() ||
+		field == f.fieldOptionInteractive()
 }
 
 // handleSpaceKey processes Space: toggles option checkboxes (Rule 135).
