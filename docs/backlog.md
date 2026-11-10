@@ -139,7 +139,7 @@ Sources: `.claude/plans/charm-v2-impact.md` §2, §4 and §5 (impact report, rec
 
 **D117 — DEVDESK-201: what is not covered by a test, and what only a person can check. Open.** **Plane:** DEVDESK-201, dated 2026-11-10
 
-Not covered by a test, to decide before the story closes: (a) the guard that a key is read through `String()` only (DEVDESK-200) does not cover `.Code`, `.Text` and `.Mod`; either a guard is added or the gap is accepted; (b) 15 `lipgloss.Place` call sites have no dedicated test (the Rule 115 test covers the confirm modal only); (c) `tea.PasteStartMsg` and `tea.PasteEndMsg` are ignored without a test.
+Not covered by a test, to decide before the story closes: (a) the guard that a key is read through `String()` only (DEVDESK-200) did not cover `.Code`, `.Text` and `.Mod`; gap closed by DEVDESK-279 (`internal/ui/keymap/keypress_field_scan_test.go`); (b) 15 `lipgloss.Place` call sites have no dedicated test (the Rule 115 test covers the confirm modal only); (c) `tea.PasteStartMsg` and `tea.PasteEndMsg` are ignored without a test.
 
 Manual checks, run by the user and not by the agents (no TTY in the sandbox), on Windows Terminal (`dk.exe`) and WSL in Windows Terminal: the four `tea.ExecProcess` calls (container shell `T`, OCI launch `-it`, viewer pager `V`, workspace terminal `T`: alt screen restored, colours intact, no stray output); `dk setup` (alt screen, fields, space on its confirm, paste); space in every checkbox form; paste in the palette, a filter bar and a form, multi-line paste in a single-line field; one uppercase action (`S` in `ws`) and `ctrl+r`; colours under WSL with and without `NO_COLOR=1`; a VS16 emoji and a Nerd Font icon column with no shift (mode 2027); the textinput cursor background (Rule 115).
 
