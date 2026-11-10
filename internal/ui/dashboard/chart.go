@@ -4,7 +4,7 @@ import (
 	"strings"
 
 	"charm.land/lipgloss/v2"
-	"github.com/NimbleMarkets/ntcharts/sparkline"
+	"github.com/NimbleMarkets/ntcharts/v2/sparkline"
 
 	"github.com/anthnel/devdesk/internal/metrics"
 	"github.com/anthnel/devdesk/internal/ui/theme"
