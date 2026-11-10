@@ -1,0 +1,15 @@
+{
+  "tool_use_id": "toolu_01HP514jJMFGJAc56jmmbzzu",
+  "agent_id": "af6ff898c3cd9dde5",
+  "subagent_type": "project-coder",
+  "task_description": "Vert étapes 3-4 migration",
+  "token_usage": {
+    "input_tokens": 34,
+    "cache_creation_tokens": 89024,
+    "cache_read_tokens": 1219900,
+    "output_tokens": 8475,
+    "api_call_count": 16
+  },
+  "started_at": "2026-11-10T09:47:02.976660821+01:00",
+  "completed_at": "2026-11-10T09:54:08.552324781+01:00"
+}

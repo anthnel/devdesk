@@ -1,0 +1,15 @@
+{
+  "tool_use_id": "toolu_013BijAxu2qfiQ13V6nfxayC",
+  "agent_id": "a9168fbe6e93962f8",
+  "subagent_type": "dev-team:reviewer",
+  "task_description": "Revue DEVDESK-199",
+  "token_usage": {
+    "input_tokens": 12,
+    "cache_creation_tokens": 51690,
+    "cache_read_tokens": 195182,
+    "output_tokens": 5483,
+    "api_call_count": 6
+  },
+  "started_at": "2026-11-10T09:54:29.428809062+01:00",
+  "completed_at": "2026-11-10T09:55:58.285857302+01:00"
+}

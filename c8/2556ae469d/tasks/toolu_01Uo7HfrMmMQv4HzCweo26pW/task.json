@@ -1,0 +1,15 @@
+{
+  "tool_use_id": "toolu_01Uo7HfrMmMQv4HzCweo26pW",
+  "agent_id": "a3cd3eb0222decf73",
+  "subagent_type": "project-coder",
+  "task_description": "Durcir le garde AST",
+  "token_usage": {
+    "input_tokens": 10,
+    "cache_creation_tokens": 78194,
+    "cache_read_tokens": 257710,
+    "output_tokens": 9673,
+    "api_call_count": 5
+  },
+  "started_at": "2026-11-10T09:56:11.330721499+01:00",
+  "completed_at": "2026-11-10T09:57:59.909828582+01:00"
+}

@@ -1,0 +1,15 @@
+{
+  "tool_use_id": "toolu_0193Eo2MPLKftjzRsKzVZhCX",
+  "agent_id": "a074ff83ba9343afe",
+  "subagent_type": "team-core:archivist",
+  "task_description": "Doc Testing CLAUDE.md",
+  "token_usage": {
+    "input_tokens": 14,
+    "cache_creation_tokens": 38755,
+    "cache_read_tokens": 170571,
+    "output_tokens": 2441,
+    "api_call_count": 6
+  },
+  "started_at": "2026-11-10T09:56:11.331814075+01:00",
+  "completed_at": "2026-11-10T09:56:26.970858404+01:00"
+}

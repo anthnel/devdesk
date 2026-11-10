@@ -1,0 +1,91 @@
+{
+  "cli_version": "0.13.1",
+  "checkpoint_id": "c82556ae469d",
+  "strategy": "manual-commit",
+  "branch": "test/devdesk-199-test-helpers",
+  "checkpoints_count": 12,
+  "files_touched": [
+    "internal/app/animation_chain_test.go",
+    "internal/app/animation_guard_test.go",
+    "internal/app/animation_router_test.go",
+    "internal/app/command_palette_test.go",
+    "internal/app/failures_test.go",
+    "internal/app/header_hint_test.go",
+    "internal/app/header_test.go",
+    "internal/app/lifecycle_test.go",
+    "internal/app/mcp_concurrency_test.go",
+    "internal/app/paste_test.go",
+    "internal/app/redraw_measure_test.go",
+    "internal/app/view_test.go",
+    "internal/testutil/colorprofile/colorprofile.go",
+    "internal/testutil/colorprofile/colorprofile_test.go",
+    "internal/ui/about/about_test.go",
+    "internal/ui/agentusageview/agents_test.go",
+    "internal/ui/agentusageview/agentusageview_test.go",
+    "internal/ui/agentusageview/breakdown_column_test.go",
+    "internal/ui/agentusageview/breakdown_tab_test.go",
+    "internal/ui/agentusageview/breakdown_view_test.go",
+    "internal/ui/agentusageview/cost_test.go",
+    "internal/ui/cmdsuggest/args_test.go",
+    "internal/ui/cmdsuggest/cmdsuggest_test.go",
+    "internal/ui/cmdsuggest/palette_test.go",
+    "internal/ui/components/footer_message_test.go",
+    "internal/ui/components/wrapped_input_test.go",
+    "internal/ui/containers/containers_test.go",
+    "internal/ui/dashboard/chart_test.go",
+    "internal/ui/datatable/render_test.go",
+    "internal/ui/forge/explorer/explorer_test.go",
+    "internal/ui/forge/explorer/model_test.go",
+    "internal/ui/jobsview/jobsview_test.go",
+    "internal/ui/oci_resources/view_test.go",
+    "internal/ui/overlay/overlay_test.go",
+    "internal/ui/security/view_test.go",
+    "internal/ui/shortcut/shortcut_test.go",
+    "internal/ui/status/components/component_form_test.go",
+    "internal/ui/status/view_test.go",
+    "internal/ui/templates/indicator_test.go",
+    "internal/ui/templates/templates_test.go",
+    "internal/ui/testutil/testutil.go",
+    "internal/ui/testutil/testutil_test.go",
+    "internal/ui/theme/border_trail_test.go",
+    "internal/ui/viewer/viewer_test.go",
+    "internal/ui/workspaces/fuzzyfind_test.go"
+  ],
+  "sessions": [
+    {
+      "metadata": "/c8/2556ae469d/0/metadata.json",
+      "transcript": "/c8/2556ae469d/0/full.jsonl",
+      "compact_transcript": "/c8/2556ae469d/0/transcript.jsonl",
+      "content_hash": "/c8/2556ae469d/0/content_hash.txt",
+      "prompt": "/c8/2556ae469d/0/prompt.txt"
+    }
+  ],
+  "token_usage": {
+    "input_tokens": 104,
+    "cache_creation_tokens": 103860,
+    "cache_read_tokens": 3586462,
+    "output_tokens": 21652,
+    "api_call_count": 38,
+    "subagent_tokens": {
+      "input_tokens": 176,
+      "cache_creation_tokens": 680065,
+      "cache_read_tokens": 3968426,
+      "output_tokens": 76390,
+      "api_call_count": 85
+    }
+  },
+  "redaction": {
+    "replacements": 0,
+    "layers": {
+      "betterleaks": 0,
+      "connection_string": 0,
+      "credential_key": 0,
+      "credential_value": 0,
+      "credentialed_uri": 0,
+      "entropy": 0,
+      "key_context": 0,
+      "provider_token": 0,
+      "shell_stdin": 0
+    }
+  }
+}

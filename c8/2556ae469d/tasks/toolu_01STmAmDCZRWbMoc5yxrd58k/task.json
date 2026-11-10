@@ -1,0 +1,15 @@
+{
+  "tool_use_id": "toolu_01STmAmDCZRWbMoc5yxrd58k",
+  "agent_id": "a4294bb0ec1a96854",
+  "subagent_type": "project-tester",
+  "task_description": "Rouge étape 4 garde AST",
+  "token_usage": {
+    "input_tokens": 8,
+    "cache_creation_tokens": 23369,
+    "cache_read_tokens": 69197,
+    "output_tokens": 5904,
+    "api_call_count": 4
+  },
+  "started_at": "2026-11-10T09:45:47.284059679+01:00",
+  "completed_at": "2026-11-10T09:46:38.035234562+01:00"
+}

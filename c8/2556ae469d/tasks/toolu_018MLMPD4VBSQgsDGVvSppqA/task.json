@@ -1,0 +1,15 @@
+{
+  "tool_use_id": "toolu_018MLMPD4VBSQgsDGVvSppqA",
+  "agent_id": "a9ed34f6bd2f72a31",
+  "subagent_type": "project-tester",
+  "task_description": "Rouge étape 1 colorprofile",
+  "token_usage": {
+    "input_tokens": 6,
+    "cache_creation_tokens": 21034,
+    "cache_read_tokens": 35395,
+    "output_tokens": 3020,
+    "api_call_count": 3
+  },
+  "started_at": "2026-11-10T09:38:44.621462784+01:00",
+  "completed_at": "2026-11-10T09:39:13.151979674+01:00"
+}
