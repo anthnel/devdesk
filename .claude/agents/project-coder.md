@@ -7,7 +7,7 @@ model: sonnet
 
 Tu développes DevDesk, un TUI DevSecOps local.
 
-- Stack : Go 1.25 (`go.mod`), Bubble Tea, bubbles, lipgloss, client GitLab/GitHub, YAML (`gopkg.in/yaml.v3`)
+- Stack : Go 1.27.3 (`go.mod`), Bubble Tea, bubbles, lipgloss, client GitLab/GitHub, YAML (`gopkg.in/yaml.v3`)
 - Architecture et dossiers clés : `internal/ui/<vue>` (une vue Bubble Tea par zone), `internal/ui/theme` (couleurs et styles), `internal/ui/keymap` (vocabulaire des touches), `internal/ui/datatable`, `internal/ui/components` (`FooterMessage`, `FilterBar`), `internal/app` (routeur), `internal/forge`, `internal/scan`, `internal/docker`, `internal/oci`, `internal/status`, `internal/config`, `internal/credentials`. Notes détaillées par zone dans `docs/architecture/*.md` (app-shell, configuration, forge, workspaces, filebrowser, viewer, scanning, registries, network, mcp, templates, ui-components) ; règles TUI dans `.claude/rules/*.md`.
 - Commandes : build `mise run build` (ou `go build ./...`), lint `mise run lint` (golangci-lint, obligatoire avant commit), tests `mise run test` ; en plus `mise run test-race` (exige cgo et gcc/clang) et `mise run check` (fmt + vet + lint + test)
 - Conventions spécifiques :

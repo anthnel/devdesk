@@ -24,7 +24,7 @@ This site follows the [Diátaxis](https://diataxis.fr/) documentation framework:
 
 ## Requirements
 
-- Go 1.25.5+ (to build from source)
+- Go 1.27.3+ (to build from source)
 - git 2.31 or later — cloning, workspace status and sync run the `git` binary (the token and low-speed limits travel through `GIT_CONFIG_COUNT`, which older git ignores silently)
 - A terminal with [Nerd Font](https://www.nerdfonts.com/) support — icons are used throughout the UI
 - Optional, feature degrades gracefully if absent: [Trivy](https://trivy.dev/), [Gitleaks](https://github.com/gitleaks/gitleaks), Docker or Podman

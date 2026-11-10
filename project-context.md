@@ -27,7 +27,7 @@ _This file contains critical rules and patterns that AI agents must follow when 
 
 ## Technology Stack & Versions
 
-- **Language**: Go 1.25.5
+- **Language**: Go 1.27.3
 - **TUI Framework**: Bubble Tea (github.com/charmbracelet/bubbletea v1.3.10)
 - **UI Components**: Bubbles (github.com/charmbracelet/bubbles v0.21.0)
 - **Styling**: Lipgloss (github.com/charmbracelet/lipgloss v1.1.0)

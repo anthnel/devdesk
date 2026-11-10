@@ -203,7 +203,7 @@ go run . --help               # Manual verification
 
 | Dependency | Version | Reason |
 |------------|---------|--------|
-| Go | 1.25.5 | Latest stable |
+| Go | 1.27.3 | Latest stable |
 | Bubble Tea | 1.3.10 | TUI framework (must match lipgloss) |
 | pro-bing | 0.5.0 | Maintained ping fork (replaced go-ping/ping) |
 | Trivy | Latest | CVE database freshness |
