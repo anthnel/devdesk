@@ -1,0 +1,15 @@
+{
+  "tool_use_id": "toolu_01RJfTMX7GkTC87JAeyzfQpG",
+  "agent_id": "ad08cbe4c0d1b83d8",
+  "subagent_type": "dev-team:architect",
+  "task_description": "Plan migration Charm v2",
+  "token_usage": {
+    "input_tokens": 78,
+    "cache_creation_tokens": 172686,
+    "cache_read_tokens": 4071864,
+    "output_tokens": 51239,
+    "api_call_count": 38
+  },
+  "started_at": "2026-11-10T11:45:55.630463242+01:00",
+  "completed_at": "2026-11-10T11:54:28.142252018+01:00"
+}

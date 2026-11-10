@@ -1,0 +1,45 @@
+{
+  "cli_version": "0.13.1",
+  "checkpoint_id": "4921e6161428",
+  "strategy": "manual-commit",
+  "branch": "feat/DEVDESK-201-charm-v2",
+  "checkpoints_count": 3,
+  "files_touched": null,
+  "sessions": [
+    {
+      "metadata": "/49/21e6161428/0/metadata.json",
+      "transcript": "/49/21e6161428/0/full.jsonl",
+      "compact_transcript": "/49/21e6161428/0/transcript.jsonl",
+      "content_hash": "/49/21e6161428/0/content_hash.txt",
+      "prompt": "/49/21e6161428/0/prompt.txt"
+    }
+  ],
+  "token_usage": {
+    "input_tokens": 34,
+    "cache_creation_tokens": 71963,
+    "cache_read_tokens": 1032012,
+    "output_tokens": 10960,
+    "api_call_count": 14,
+    "subagent_tokens": {
+      "input_tokens": 84,
+      "cache_creation_tokens": 208361,
+      "cache_read_tokens": 4134822,
+      "output_tokens": 51785,
+      "api_call_count": 41
+    }
+  },
+  "redaction": {
+    "replacements": 0,
+    "layers": {
+      "betterleaks": 0,
+      "connection_string": 0,
+      "credential_key": 0,
+      "credential_value": 0,
+      "credentialed_uri": 0,
+      "entropy": 0,
+      "key_context": 0,
+      "provider_token": 0,
+      "shell_stdin": 0
+    }
+  }
+}
