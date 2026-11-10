@@ -7,7 +7,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/charmbracelet/lipgloss"
+	tea "charm.land/bubbletea/v2"
+	"charm.land/lipgloss/v2"
 
 	"github.com/anthnel/devdesk/internal/cache"
 	"github.com/anthnel/devdesk/internal/git"
@@ -29,15 +30,19 @@ import (
 // datatable's TestTheWorkspacesLayoutFitsANarrowTerminal was written against.
 // The widths are in columns.go now and the arithmetic is the solver's.
 
-// View renders the view
-func (m Model) View() string {
+// View is the Bubble Tea v2 face of Render: the content only. The terminal
+// state (alternate screen, colours) belongs to whoever owns the program.
+func (m Model) View() tea.View { return tea.NewView(m.Render()) }
+
+// Render renders the view
+func (m Model) Render() string {
 	// Mode input - show input form overlay
 	if m.mode == ModeAdding && m.input != nil {
 		return lipgloss.Place(
 			m.width, m.height,
 			lipgloss.Center, lipgloss.Center,
 			m.input.View(),
-			lipgloss.WithWhitespaceBackground(theme.ColorBackground),
+			lipgloss.WithWhitespaceStyle(lipgloss.NewStyle().Background(theme.ColorBackground)),
 		)
 	}
 
@@ -47,7 +52,7 @@ func (m Model) View() string {
 			m.width, m.height,
 			lipgloss.Center, lipgloss.Center,
 			m.confirmModal.View(),
-			lipgloss.WithWhitespaceBackground(theme.ColorBackground),
+			lipgloss.WithWhitespaceStyle(lipgloss.NewStyle().Background(theme.ColorBackground)),
 		)
 	}
 
@@ -57,7 +62,7 @@ func (m Model) View() string {
 			m.width, m.height,
 			lipgloss.Center, lipgloss.Center,
 			m.scanAllModal.View(),
-			lipgloss.WithWhitespaceBackground(theme.ColorBackground),
+			lipgloss.WithWhitespaceStyle(lipgloss.NewStyle().Background(theme.ColorBackground)),
 		)
 	}
 
@@ -67,7 +72,7 @@ func (m Model) View() string {
 			m.width, m.height,
 			lipgloss.Center, lipgloss.Center,
 			m.input.View(),
-			lipgloss.WithWhitespaceBackground(theme.ColorBackground),
+			lipgloss.WithWhitespaceStyle(lipgloss.NewStyle().Background(theme.ColorBackground)),
 		)
 	}
 

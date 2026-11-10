@@ -8,8 +8,8 @@ import (
 	"strings"
 	"time"
 
-	tea "github.com/charmbracelet/bubbletea"
-	"github.com/charmbracelet/lipgloss"
+	tea "charm.land/bubbletea/v2"
+	"charm.land/lipgloss/v2"
 
 	"github.com/anthnel/devdesk/internal/ports"
 	"github.com/anthnel/devdesk/internal/ui/components"
@@ -278,8 +278,10 @@ func (pm *PortsModel) update(msg tea.Msg) (*PortsModel, tea.Cmd) {
 	case components.ConfirmModalNoMsg:
 		pm.confirmModal = nil
 		return pm, nil
-	case tea.KeyMsg:
+	case tea.KeyPressMsg:
 		return pm.handleKey(msg)
+	case tea.PasteMsg:
+		return pm.handlePaste(msg)
 	}
 	return pm, nil
 }
@@ -353,7 +355,7 @@ func killFailureMessage(pid string, err error) string {
 	return fmt.Sprintf("Failed to kill PID %s — check logs", pid)
 }
 
-func (pm *PortsModel) handleKey(msg tea.KeyMsg) (*PortsModel, tea.Cmd) {
+func (pm *PortsModel) handleKey(msg tea.KeyPressMsg) (*PortsModel, tea.Cmd) {
 	if pm.confirmModal != nil {
 		var cmd tea.Cmd
 		pm.confirmModal, cmd = pm.confirmModal.Update(msg)
@@ -367,6 +369,17 @@ func (pm *PortsModel) handleKey(msg tea.KeyMsg) (*PortsModel, tea.Cmd) {
 	return pm.handleKeyNormal(msg)
 }
 
+// handlePaste gives pasted text to the filter bar while it has the keyboard and
+// no modal is open; otherwise it is dropped (Rule 111).
+func (pm *PortsModel) handlePaste(msg tea.PasteMsg) (*PortsModel, tea.Cmd) {
+	if pm.confirmModal != nil || !pm.table.InEditMode() {
+		return pm, nil
+	}
+	cmd := pm.table.Update(msg)
+	pm.table.GotoTop() // a narrowing query starts from the first match
+	return pm, cmd
+}
+
 // toggleToken flips a filter and returns to the top, since the list under the
 // cursor is not the list the user was looking at any more.
 func (pm *PortsModel) toggleToken(label string) {
@@ -374,7 +387,7 @@ func (pm *PortsModel) toggleToken(label string) {
 	pm.table.GotoTop()
 }
 
-func (pm *PortsModel) handleKeyNormal(msg tea.KeyMsg) (*PortsModel, tea.Cmd) {
+func (pm *PortsModel) handleKeyNormal(msg tea.KeyPressMsg) (*PortsModel, tea.Cmd) {
 	switch msg.String() {
 	case "up", "down", "pgup", "pgdown", "home", "end", "/":
 		return pm, pm.table.Update(msg)

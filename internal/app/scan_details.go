@@ -3,7 +3,7 @@ package app
 import (
 	"log"
 
-	tea "github.com/charmbracelet/bubbletea"
+	tea "charm.land/bubbletea/v2"
 
 	"github.com/anthnel/devdesk/internal/cache"
 	"github.com/anthnel/devdesk/internal/command"
@@ -83,7 +83,7 @@ func (a *App) rescanInOrigin(view command.ViewType, request tea.Msg) (tea.Model,
 	// before it handles the request.
 	enter := a.enterView(view)
 	updatedView, cmd := a.views[view].Update(request)
-	a.views[view] = updatedView
+	a.setView(view, updatedView)
 	return a, tea.Batch(enter, cmd, a.requestResize())
 }
 
@@ -91,7 +91,7 @@ func (a *App) rescanInOrigin(view command.ViewType, request tea.Msg) (tea.Model,
 // should return to, and lays it out.
 func (a *App) openSecurityView(view security.Model, origin command.ViewType) tea.Cmd {
 	view.OriginView = origin
-	a.views[command.ViewSecurity] = view
+	a.setView(command.ViewSecurity, view)
 	a.currentView = command.ViewSecurity
 	return tea.Batch(view.Init(), a.requestResize(), a.enterView(command.ViewSecurity))
 }

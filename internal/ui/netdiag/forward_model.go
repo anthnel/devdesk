@@ -5,8 +5,8 @@ import (
 	"strconv"
 	"time"
 
-	tea "github.com/charmbracelet/bubbletea"
-	"github.com/charmbracelet/lipgloss"
+	tea "charm.land/bubbletea/v2"
+	"charm.land/lipgloss/v2"
 
 	"github.com/anthnel/devdesk/internal/forward"
 	"github.com/anthnel/devdesk/internal/ui/components"
@@ -225,8 +225,10 @@ func (fm *ForwardModel) update(msg tea.Msg) (*ForwardModel, tea.Cmd) {
 	case components.ConfirmModalNoMsg:
 		fm.confirmModal = nil
 		return fm, nil
-	case tea.KeyMsg:
+	case tea.KeyPressMsg:
 		return fm.handleKey(msg)
+	case tea.PasteMsg:
+		return fm.handlePaste(msg)
 	}
 	return fm, nil
 }
@@ -270,7 +272,7 @@ func (fm *ForwardModel) handleFormSubmit(msg ForwardFormSubmitMsg) (*ForwardMode
 	return fm, forward.Open(msg.LocalPort, msg.Target)
 }
 
-func (fm *ForwardModel) handleKey(msg tea.KeyMsg) (*ForwardModel, tea.Cmd) {
+func (fm *ForwardModel) handleKey(msg tea.KeyPressMsg) (*ForwardModel, tea.Cmd) {
 	if fm.confirmModal != nil {
 		var cmd tea.Cmd
 		fm.confirmModal, cmd = fm.confirmModal.Update(msg)
@@ -287,9 +289,24 @@ func (fm *ForwardModel) handleKey(msg tea.KeyMsg) (*ForwardModel, tea.Cmd) {
 	return fm.handleKeyNormal(msg)
 }
 
+// handlePaste gives pasted text to the form or the filter bar, whichever has
+// the keyboard; with a modal open or neither focused it is dropped (Rule 111).
+func (fm *ForwardModel) handlePaste(msg tea.PasteMsg) (*ForwardModel, tea.Cmd) {
+	var cmd tea.Cmd
+	switch {
+	case fm.confirmModal != nil:
+	case fm.form != nil:
+		fm.form, cmd = fm.form.Update(msg)
+	case fm.table.InEditMode():
+		cmd = fm.table.Update(msg)
+		fm.table.GotoTop() // a narrowing query starts from the first match
+	}
+	return fm, cmd
+}
+
 // handleFormKey lets the form have the keyboard, and answers the refusals the
 // form itself decides rather than letting the keypress vanish (Rule 130).
-func (fm *ForwardModel) handleFormKey(msg tea.KeyMsg) (*ForwardModel, tea.Cmd) {
+func (fm *ForwardModel) handleFormKey(msg tea.KeyPressMsg) (*ForwardModel, tea.Cmd) {
 	if msg.String() == "enter" {
 		if reason := fm.form.Problem(); reason != "" {
 			return fm, fm.footer.Warn(reason)
@@ -300,7 +317,7 @@ func (fm *ForwardModel) handleFormKey(msg tea.KeyMsg) (*ForwardModel, tea.Cmd) {
 	return fm, cmd
 }
 
-func (fm *ForwardModel) handleKeyNormal(msg tea.KeyMsg) (*ForwardModel, tea.Cmd) {
+func (fm *ForwardModel) handleKeyNormal(msg tea.KeyPressMsg) (*ForwardModel, tea.Cmd) {
 	switch msg.String() {
 	case "up", "down", "pgup", "pgdown", "home", "end", "/":
 		return fm, fm.table.Update(msg)

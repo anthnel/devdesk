@@ -7,11 +7,10 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/charmbracelet/lipgloss"
+	"charm.land/lipgloss/v2"
 	"github.com/charmbracelet/x/ansi"
 
 	"github.com/anthnel/devdesk/internal/agentusage"
-	"github.com/anthnel/devdesk/internal/testutil/colorprofile"
 	sharedcomponents "github.com/anthnel/devdesk/internal/ui/components"
 	"github.com/anthnel/devdesk/internal/ui/testutil"
 )
@@ -54,7 +53,7 @@ func typed(t *testing.T, m Model, s string) Model {
 // panelLines is what the panel renders for m, whatever the window shows.
 func panelLines(m Model) []string { return renderBreakdown(m.breakdown, m.width-2) }
 
-func viewText(m Model) string { return ansi.Strip(m.View()) }
+func viewText(m Model) string { return ansi.Strip(m.Render()) }
 
 // refusedWith checks the Warn a refused key leaves, and that nothing else moved.
 func refusedWith(t *testing.T, before Model, key, reason string) {
@@ -639,7 +638,6 @@ func TestBreakdownTabSessionsFooterHasNoTabRow(t *testing.T) {
 }
 
 func TestBreakdownTabRowIsPaddedAndMarksTheActiveTab(t *testing.T) {
-	colorprofile.TrueColor(t) // the default test profile emits no styling at all
 	agents := atAgents(t, threeSubs())
 	breakdownTab := atBreakdown(t, threeSubs())
 	for _, m := range []Model{agents, breakdownTab} {
@@ -738,7 +736,7 @@ func TestBreakdownTabBeforeTheFirstReadItIsEmptyNotBroken(t *testing.T) {
 	if m.tab != tabBreakdown {
 		t.Fatalf("tab is available while the read is in flight, got %v", m.tab)
 	}
-	_ = m.View() // must not panic
+	_ = m.Render() // must not panic
 	if headerValue(t, m, "Agents") != "0" {
 		t.Errorf("Agents = %q while loading", headerValue(t, m, "Agents"))
 	}
@@ -779,7 +777,7 @@ func TestBreakdownTabHelpListsTheKeyAndDocumentsThePanel(t *testing.T) {
 }
 
 // viewHeight is the number of lines View renders.
-func viewHeight(m Model) int { return len(strings.Split(m.View(), "\n")) }
+func viewHeight(m Model) int { return len(strings.Split(m.Render(), "\n")) }
 
 // The panel and the table must fill the same number of lines at every
 // terminal height, the shortest included, so the viewport border never moves
@@ -807,7 +805,7 @@ func TestBreakdownTabEndShowsTheLastLineAtHeightOne(t *testing.T) {
 		t.Errorf("end: top = %d, want %d", m.breakdownTop, want)
 	}
 	last := strings.TrimSpace(ansi.Strip(lines[len(lines)-1]))
-	if got := ansi.Strip(m.View()); !strings.Contains(got, last) {
+	if got := ansi.Strip(m.Render()); !strings.Contains(got, last) {
 		t.Errorf("end must show the last panel line %q:\n%s", last, got)
 	}
 }

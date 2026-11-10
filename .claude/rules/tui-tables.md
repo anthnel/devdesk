@@ -52,6 +52,19 @@ columns plus two each therefore asks for less than what the row occupies,
 and fails on an otherwise correct layout. This is D61 seen from the other
 side.
 
+#### Which width library measures what
+
+Lip Gloss v2 and the viewport measure with `x/ansi` (`ansi.StringWidth`,
+grapheme clusters); `datatable` pads and truncates with `go-runewidth` (render.go).
+Rule 116 holds only while the two agree on what a cell holds.
+`TestDatatableWidthAgreesWithTheGraphemeWidth` pins the agreement for flags, ZWJ
+sequences, Nerd Font glyphs, CJK and combining marks. **Known divergence:** a
+VS16 emoji (`❤️`, `✔️`) is 1 cell for `runewidth` and 2 for `x/ansi`;
+`TestVS16EmojiIsAKnownWidthDivergence` pins it, and the width tests leave such
+glyphs out. Whether the terminal draws 1 or 2 cells depends on mode 2027. Do not
+put a VS16 emoji in a table cell. A library fix will fail that test, which is
+the cue to turn it into an agreement test.
+
 #### Every column declares its nature (§3.45)
 
 `Sizing` has **no** default value: `SizingFixed` (exact width) or
@@ -88,7 +101,7 @@ falls *inside* the escape sequence — `"\x1b[38;2;166;2…"`. The unterminated
 sequence then bleeds onto every following row.
 
 This is a limitation of `bubbles/table`, not of Bubble Tea or lipgloss, and
-it is unchanged in `bubbles v1.0.0`. `internal/ui/datatable` therefore
+it is the same in Bubbles v2 (`charm.land/bubbles/v2`). `internal/ui/datatable` therefore
 renders its own rows (`render.go`): the text is measured while still plain,
 color is applied afterward. **The prohibition therefore targets `Cell`, not
 color.**

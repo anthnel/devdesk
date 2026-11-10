@@ -4,7 +4,7 @@ import (
 	"strings"
 	"testing"
 
-	tea "github.com/charmbracelet/bubbletea"
+	tea "charm.land/bubbletea/v2"
 
 	githubforge "github.com/anthnel/devdesk/internal/forge/github"
 	"github.com/anthnel/devdesk/internal/jobs"

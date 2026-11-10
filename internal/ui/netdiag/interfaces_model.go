@@ -7,9 +7,9 @@ import (
 	"strconv"
 	"time"
 
-	"github.com/charmbracelet/bubbles/spinner"
-	tea "github.com/charmbracelet/bubbletea"
-	"github.com/charmbracelet/lipgloss"
+	"charm.land/bubbles/v2/spinner"
+	tea "charm.land/bubbletea/v2"
+	"charm.land/lipgloss/v2"
 
 	"github.com/anthnel/devdesk/internal/netiface"
 	"github.com/anthnel/devdesk/internal/ui/components"
@@ -301,8 +301,14 @@ func (im *InterfacesModel) update(msg tea.Msg) (*InterfacesModel, tea.Cmd) {
 		// a spinner stuck on frame zero reads as a hang (Rule 139).
 		im.footer.SetSpinnerFrame(im.spinner.View())
 		return im, cmd
-	case tea.KeyMsg:
+	case tea.KeyPressMsg:
 		return im.handleKey(msg)
+	case tea.PasteMsg:
+		// Only the filter bar takes text; otherwise the paste is dropped (Rule 111).
+		if im.table.FilterBar().InEditMode() {
+			return im, im.table.Update(msg)
+		}
+		return im, nil
 	}
 	im.footer.Handle(msg)
 	return im, nil
@@ -323,7 +329,7 @@ func (im *InterfacesModel) handleData(msg ifaceDataMsg) (*InterfacesModel, tea.C
 	return im, nil
 }
 
-func (im *InterfacesModel) handleKey(msg tea.KeyMsg) (*InterfacesModel, tea.Cmd) {
+func (im *InterfacesModel) handleKey(msg tea.KeyPressMsg) (*InterfacesModel, tea.Cmd) {
 	if im.table.FilterBar().InEditMode() {
 		return im, im.table.Update(msg)
 	}

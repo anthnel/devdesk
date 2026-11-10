@@ -5,8 +5,8 @@ import (
 	"github.com/anthnel/devdesk/internal/shared"
 	"log"
 
-	"github.com/charmbracelet/bubbles/spinner"
-	tea "github.com/charmbracelet/bubbletea"
+	"charm.land/bubbles/v2/spinner"
+	tea "charm.land/bubbletea/v2"
 
 	"github.com/anthnel/devdesk/internal/jobs"
 
@@ -77,14 +77,14 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.resizeFindings()
 		m.inventory.Resize(m.width, max(m.height, 5))
 		// Update details viewport size and refresh content
-		m.detailsViewport.Width = msg.Width
-		m.detailsViewport.Height = msg.Height
+		m.detailsViewport.SetWidth(msg.Width)
+		m.detailsViewport.SetHeight(msg.Height)
 		if m.state == StateDetails {
 			m.detailsViewport.SetContent(m.buildDetailsContent())
 		}
 		return m, nil
 
-	case tea.KeyMsg:
+	case tea.KeyPressMsg:
 		// Whichever modal is open takes every key before the view sees one.
 		if m.confirmModal != nil {
 			var cmd tea.Cmd
@@ -97,6 +97,9 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return m, cmd
 		}
 		return m.handleKeyMsg(msg)
+
+	case tea.PasteMsg:
+		return m.handlePaste(msg)
 
 	case SecretIgnoredMsg:
 		if msg.Error != nil {
@@ -184,8 +187,24 @@ func (m Model) handleSpinnerTick(msg spinner.TickMsg) (tea.Model, tea.Cmd) {
 	return m, cmd
 }
 
+// handlePaste hands pasted text to the filter bar of the table on screen while
+// it has the keyboard and no modal is open; otherwise a paste is dropped, never
+// read as keys (Rule 111).
+func (m Model) handlePaste(msg tea.PasteMsg) (tea.Model, tea.Cmd) {
+	if m.confirmModal != nil || m.scanAllModal != nil {
+		return m, nil
+	}
+	switch {
+	case m.state == StateInventory && m.inventory.InEditMode():
+		return m, m.inventory.Update(msg)
+	case m.state == StateResults && m.findingsTable.InEditMode():
+		return m, m.findingsTable.Update(msg)
+	}
+	return m, nil
+}
+
 // handleKeyMsg processes keyboard input
-func (m Model) handleKeyMsg(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
+func (m Model) handleKeyMsg(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	switch m.state {
 	case StateInventory:
 		return m.handleInventoryState(msg)

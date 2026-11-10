@@ -7,7 +7,7 @@ import (
 	"testing"
 	"time"
 
-	tea "github.com/charmbracelet/bubbletea"
+	tea "charm.land/bubbletea/v2"
 
 	"github.com/anthnel/devdesk/internal/jobs"
 	"github.com/anthnel/devdesk/internal/ui/datatable"
@@ -51,7 +51,7 @@ func imageColByTitle(t *testing.T, title string) datatable.Column[imageRow] {
 
 func imageLine(t *testing.T, m Model, name string) string {
 	t.Helper()
-	return renderedRow(t, m.View(), name)
+	return renderedRow(t, m.Render(), name)
 }
 
 func TestImagesColumnZeroIsTheActivityColumn(t *testing.T) {

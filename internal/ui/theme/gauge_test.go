@@ -1,10 +1,10 @@
 package theme
 
 import (
+	"image/color"
 	"strings"
 	"testing"
 
-	"github.com/charmbracelet/lipgloss"
 	"github.com/mattn/go-runewidth"
 
 	"github.com/anthnel/devdesk/internal/config"
@@ -95,7 +95,7 @@ func TestGaugeFillWidthSurvivesAnEmptyWidth(t *testing.T) {
 func TestLoadTextStyleTakesItsColourFromTheLevel(t *testing.T) {
 	tests := []struct {
 		pct  float64
-		want lipgloss.Color
+		want color.Color
 	}{
 		{0, ColorOK},
 		{LoadWarnPercent - 0.1, ColorOK},
@@ -106,7 +106,7 @@ func TestLoadTextStyleTakesItsColourFromTheLevel(t *testing.T) {
 	}
 
 	for _, tc := range tests {
-		if got := LoadTextStyle(tc.pct).GetForeground(); got != lipgloss.TerminalColor(tc.want) {
+		if got := LoadTextStyle(tc.pct).GetForeground(); got != tc.want {
 			t.Errorf("LoadTextStyle(%v) foreground = %v, want %v", tc.pct, got, tc.want)
 		}
 	}
@@ -115,7 +115,7 @@ func TestLoadTextStyleTakesItsColourFromTheLevel(t *testing.T) {
 // The track's colour is fixed and takes no argument — the whole point being
 // that it never changes with the level next to it.
 func TestGaugeTrackStyleIsFixed(t *testing.T) {
-	if got := GaugeTrackStyle().GetForeground(); got != lipgloss.TerminalColor(ColorSeverityLow) {
+	if got := GaugeTrackStyle().GetForeground(); got != ColorSeverityLow {
 		t.Errorf("GaugeTrackStyle foreground = %v, want %v", got, ColorSeverityLow)
 	}
 }

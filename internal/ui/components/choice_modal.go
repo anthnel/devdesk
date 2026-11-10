@@ -3,10 +3,9 @@ package components
 import (
 	"strings"
 
-	tea "github.com/charmbracelet/bubbletea"
-	"github.com/charmbracelet/lipgloss"
+	tea "charm.land/bubbletea/v2"
+	"charm.land/lipgloss/v2"
 
-	"github.com/anthnel/devdesk/internal/ui/keymap"
 	"github.com/anthnel/devdesk/internal/ui/theme"
 )
 
@@ -60,7 +59,7 @@ func (m *ChoiceModal) Update(msg tea.Msg) (*ChoiceModal, tea.Cmd) {
 		m.width = msg.Width
 		m.height = msg.Height
 
-	case tea.KeyMsg:
+	case tea.KeyPressMsg:
 		switch msg.String() {
 		// ←/→ between buttons (Rule 135 — Tab is reserved for tabs). The
 		// traversal is bounded rather than cyclic: Cancel must stay the end
@@ -73,7 +72,7 @@ func (m *ChoiceModal) Update(msg tea.Msg) (*ChoiceModal, tea.Cmd) {
 			m.focused = min(m.focused+1, len(m.choices))
 			return m, nil
 
-		case "enter", keymap.Space:
+		case "enter":
 			return m, m.pick()
 
 		case "esc":

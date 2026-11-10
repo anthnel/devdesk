@@ -2,6 +2,7 @@ package app
 
 import (
 	"errors"
+	"image/color"
 	"io"
 	"log"
 	"os"
@@ -9,8 +10,8 @@ import (
 	"strings"
 	"testing"
 
-	tea "github.com/charmbracelet/bubbletea"
-	"github.com/charmbracelet/lipgloss"
+	tea "charm.land/bubbletea/v2"
+	"charm.land/lipgloss/v2"
 	"github.com/charmbracelet/x/ansi"
 
 	"github.com/anthnel/devdesk/internal/command"
@@ -96,7 +97,7 @@ type fakeView struct {
 func (v *fakeView) Init() tea.Cmd { v.inits++; return nil }
 
 func (v *fakeView) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
-	if key, ok := msg.(tea.KeyMsg); ok && v.onKey != nil {
+	if key, ok := msg.(tea.KeyPressMsg); ok && v.onKey != nil {
 		_ = key
 		v.onKey(v)
 	}
@@ -104,7 +105,8 @@ func (v *fakeView) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	return v, nil
 }
 
-func (v *fakeView) View() string                     { return v.body }
+func (v *fakeView) Render() string                   { return v.body }
+func (v *fakeView) View() tea.View                   { return tea.NewView(v.Render()) }
 func (v *fakeView) InEditMode() bool                 { return v.editing }
 func (v *fakeView) FilterBarVisible() bool           { return v.filterBar }
 func (v *fakeView) GetFooterHeight() int             { return v.footerHeight }
@@ -121,7 +123,7 @@ func (v *fakeView) GetHeaderInfo(ctx string) []shortcut.HeaderInfo {
 func (v *fakeView) keysSeen() []string {
 	var out []string
 	for _, msg := range v.received {
-		if key, ok := msg.(tea.KeyMsg); ok {
+		if key, ok := msg.(tea.KeyPressMsg); ok {
 			out = append(out, key.String())
 		}
 	}
@@ -157,7 +159,8 @@ func (v *bareView) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	v.received = append(v.received, msg)
 	return v, nil
 }
-func (v *bareView) View() string { return "bare" }
+func (v *bareView) Render() string { return "bare" }
+func (v *bareView) View() tea.View { return tea.NewView(v.Render()) }
 
 // isolateHome gives the test a HOME of its own. The one TestMain sets lives as
 // long as the process, so under -count=N a test met the files its own previous
@@ -173,12 +176,12 @@ func isolateHome(t *testing.T) {
 }
 
 // router builds an App hosting view as the dashboard, laid out at 180x40.
-func router(t *testing.T, view tea.Model) *App {
+func router(t *testing.T, view Screen) *App {
 	t.Helper()
 	return routerAt(t, view, 180, 40)
 }
 
-func routerAt(t *testing.T, view tea.Model, width, height int) *App {
+func routerAt(t *testing.T, view Screen, width, height int) *App {
 	t.Helper()
 	isolateHome(t)
 	a := &App{
@@ -186,7 +189,7 @@ func routerAt(t *testing.T, view tea.Model, width, height int) *App {
 		currentContext: "default",
 		viewport:       newViewport(width, height),
 		currentView:    command.ViewDashboard,
-		views:          map[command.ViewType]tea.Model{command.ViewDashboard: view},
+		views:          map[command.ViewType]Screen{command.ViewDashboard: view},
 		// A session-only store, as newWithSize builds: it keeps the tests off
 		// the developer's real keychain and makes seeding a token one Save call.
 		sharedState: &shared.State{
@@ -206,7 +209,7 @@ func routerAt(t *testing.T, view tea.Model, width, height int) *App {
 }
 
 // feedKey drives one key through the router and returns the command it emitted.
-func feedKey(t *testing.T, a *App, key tea.KeyMsg) tea.Cmd {
+func feedKey(t *testing.T, a *App, key tea.KeyPressMsg) tea.Cmd {
 	t.Helper()
 	_, cmd := a.handleKeyMsg(key)
 	return cmd
@@ -250,7 +253,7 @@ func footedFake(body string) *footedView { return &footedView{fakeView{body: bod
 func fullWidthBody() string { return strings.Repeat("abcdefghij", 40) }
 
 // screen is the rendered view, ANSI stripped, one entry per terminal row.
-func screen(a *App) []string { return strings.Split(ansi.Strip(a.View()), "\n") }
+func screen(a *App) []string { return strings.Split(ansi.Strip(a.Render()), "\n") }
 
 // paletteFrame is the palette as found on the screen.
 type paletteFrame struct {
@@ -371,11 +374,11 @@ func activeParams(raw string, idx int) string {
 var fgRe = regexp.MustCompile(`38;2;\d+;\d+;\d+`)
 
 // fgParams is the truecolor foreground parameter lipgloss emits for c.
-func fgParams(t *testing.T, c lipgloss.Color) string {
+func fgParams(t *testing.T, c color.Color) string {
 	t.Helper()
 	got := fgRe.FindString(lipgloss.NewStyle().Foreground(c).Render("x"))
 	if got == "" {
-		t.Fatalf("no truecolor foreground for %q (call testutil.TrueColor first)", string(c))
+		t.Fatalf("no truecolor foreground for %v (call testutil.TrueColor first)", c)
 	}
 	return got
 }

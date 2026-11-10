@@ -3,7 +3,7 @@ package jobs
 import (
 	"context"
 
-	tea "github.com/charmbracelet/bubbletea"
+	tea "charm.land/bubbletea/v2"
 )
 
 // StartMsg asks the router to register a run and then dispatch the work that

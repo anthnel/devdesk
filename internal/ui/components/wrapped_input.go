@@ -3,9 +3,9 @@ package components
 import (
 	"strings"
 
-	"github.com/charmbracelet/bubbles/textinput"
-	tea "github.com/charmbracelet/bubbletea"
-	"github.com/charmbracelet/lipgloss"
+	"charm.land/bubbles/v2/textinput"
+	tea "charm.land/bubbletea/v2"
+	"charm.land/lipgloss/v2"
 
 	"github.com/anthnel/devdesk/internal/ui/theme"
 )
@@ -39,7 +39,7 @@ func NewWrappedInput(wrapWidth, charLimit int, placeholder string) WrappedInput 
 	input := textinput.New()
 	input.Placeholder = placeholder
 	input.CharLimit = charLimit
-	input.Width = 4096 // never scrolls internally; display is word-wrapped manually
+	input.SetWidth(4096) // never scrolls internally; display is word-wrapped manually
 	theme.StyleTextInput(&input)
 	return WrappedInput{
 		input:     input,

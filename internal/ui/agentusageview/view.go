@@ -6,7 +6,8 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/charmbracelet/lipgloss"
+	tea "charm.land/bubbletea/v2"
+	"charm.land/lipgloss/v2"
 
 	"github.com/anthnel/devdesk/internal/agentusage/pricing"
 	sharedcomponents "github.com/anthnel/devdesk/internal/ui/components"
@@ -17,8 +18,12 @@ import (
 // baseFooterHeight is the blank line and the message line (Rule 124).
 const baseFooterHeight = 2
 
-// View is the table, whatever it holds (Rule 139).
-func (m Model) View() string {
+// View is the Bubble Tea v2 face of Render: the content only. The terminal
+// state (alternate screen, colours) belongs to whoever owns the program.
+func (m Model) View() tea.View { return tea.NewView(m.Render()) }
+
+// Render is the table, whatever it holds (Rule 139).
+func (m Model) Render() string {
 	if m.onBreakdown() {
 		return m.breakdownWindow()
 	}

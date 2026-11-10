@@ -1,10 +1,11 @@
 package ociresources
 
 import (
-	tea "github.com/charmbracelet/bubbletea"
 	"strings"
 	"testing"
 	"time"
+
+	tea "charm.land/bubbletea/v2"
 
 	"github.com/anthnel/devdesk/internal/jobs"
 	"github.com/anthnel/devdesk/internal/ui/indicator"

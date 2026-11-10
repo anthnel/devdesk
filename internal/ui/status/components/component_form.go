@@ -5,9 +5,9 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/charmbracelet/bubbles/textinput"
-	tea "github.com/charmbracelet/bubbletea"
-	"github.com/charmbracelet/lipgloss"
+	"charm.land/bubbles/v2/textinput"
+	tea "charm.land/bubbletea/v2"
+	"charm.land/lipgloss/v2"
 
 	"github.com/anthnel/devdesk/internal/config"
 	"github.com/anthnel/devdesk/internal/ui/theme"
@@ -38,28 +38,28 @@ func NewComponentForm(component *config.ComponentConfig) *ComponentForm {
 	nameInput := textinput.New()
 	nameInput.Placeholder = "my-service"
 	nameInput.CharLimit = 50
-	nameInput.Width = 40
+	nameInput.SetWidth(40)
 	nameInput.Focus()
 
 	targetInput := textinput.New()
 	targetInput.Placeholder = "example.com or 192.168.1.1"
 	targetInput.CharLimit = 200
-	targetInput.Width = 40
+	targetInput.SetWidth(40)
 
 	timeoutInput := textinput.New()
 	timeoutInput.Placeholder = "10"
 	timeoutInput.CharLimit = 3
-	timeoutInput.Width = 10
+	timeoutInput.SetWidth(10)
 
 	countInput := textinput.New()
 	countInput.Placeholder = "4"
 	countInput.CharLimit = 2
-	countInput.Width = 10
+	countInput.SetWidth(10)
 
 	nsInput := textinput.New()
 	nsInput.Placeholder = "8.8.8.8 (optional)"
 	nsInput.CharLimit = 50
-	nsInput.Width = 40
+	nsInput.SetWidth(40)
 
 	// Apply theme background to all textinputs
 	theme.StyleTextInput(&nameInput)
@@ -113,7 +113,7 @@ func (f *ComponentForm) Update(msg tea.Msg) (*ComponentForm, tea.Cmd) {
 	case tea.WindowSizeMsg:
 		f.width = msg.Width
 		f.height = msg.Height
-	case tea.KeyMsg:
+	case tea.KeyPressMsg:
 		return f.handleKeyMsg(msg)
 	}
 
@@ -121,7 +121,7 @@ func (f *ComponentForm) Update(msg tea.Msg) (*ComponentForm, tea.Cmd) {
 }
 
 // handleKeyMsg traite les entrées clavier du formulaire
-func (f *ComponentForm) handleKeyMsg(msg tea.KeyMsg) (*ComponentForm, tea.Cmd) {
+func (f *ComponentForm) handleKeyMsg(msg tea.KeyPressMsg) (*ComponentForm, tea.Cmd) {
 	switch msg.String() {
 	case "esc":
 		return nil, nil

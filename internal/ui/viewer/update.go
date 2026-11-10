@@ -5,9 +5,9 @@ import (
 	"os/exec"
 	"time"
 
+	"charm.land/bubbles/v2/spinner"
+	tea "charm.land/bubbletea/v2"
 	"github.com/anthnel/devdesk/internal/clipboard"
-	"github.com/charmbracelet/bubbles/spinner"
-	tea "github.com/charmbracelet/bubbletea"
 
 	"github.com/anthnel/devdesk/internal/ui/keymap"
 	"github.com/anthnel/devdesk/internal/viewer"
@@ -76,8 +76,11 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.resize(msg.Width, msg.Height)
 		return m, nil
 
-	case tea.KeyMsg:
+	case tea.KeyPressMsg:
 		return m.handleKeyMsg(msg)
+
+	case tea.PasteMsg:
+		return m.handlePaste(msg)
 
 	case DocumentLoadedMsg:
 		return m.handleDocumentLoaded(msg)
@@ -118,8 +121,8 @@ func (m *Model) resize(width, height int) {
 
 	m.tree.Resize(width, height)
 
-	m.textViewport.Width = width
-	m.textViewport.Height = max(height, 1)
+	m.textViewport.SetWidth(width)
+	m.textViewport.SetHeight(max(height, 1))
 	m.bar.Resize(width)
 	m.rebuildText() // the wrap and the padding both depend on the width
 }
@@ -170,7 +173,22 @@ func (m Model) handlePagerExit(msg PagerExitMsg) (tea.Model, tea.Cmd) {
 	return m, tea.Batch(report, loadCmd(m.source))
 }
 
-func (m Model) handleKeyMsg(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
+// handlePaste gives pasted text to the go-to-line prompt or the search bar,
+// whichever has the keyboard. With neither it is dropped: a paste is never read
+// as keys, so none of the pane's letters fires (Rule 111).
+func (m Model) handlePaste(msg tea.PasteMsg) (tea.Model, tea.Cmd) {
+	var cmd tea.Cmd
+	switch {
+	case m.gotoActive:
+		m.gotoInput, cmd = m.gotoInput.Update(msg)
+	case m.bar.InEditMode():
+		m.bar, cmd = m.bar.Update(msg)
+		m.rebuildText()
+	}
+	return m, cmd
+}
+
+func (m Model) handleKeyMsg(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	// The prompt is a mode: it claims every key before the pane sees one, the
 	// way a confirmation modal does, so a digit cannot also scroll and `esc`
 	// closes the prompt rather than leaving the viewer.
@@ -232,7 +250,7 @@ func (m Model) reload() (tea.Model, tea.Cmd) {
 	return m, tea.Batch(loadCmd(m.source), m.spinner.Tick)
 }
 
-func (m Model) handleTreeKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
+func (m Model) handleTreeKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	switch msg.String() {
 	case "right":
 		m.toggleNode(true)
@@ -244,7 +262,7 @@ func (m Model) handleTreeKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	return m, m.tree.Update(msg)
 }
 
-func (m Model) handleTextKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
+func (m Model) handleTextKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	switch msg.String() {
 	case "/":
 		return m, m.bar.ActivateSearch()

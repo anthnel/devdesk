@@ -5,7 +5,7 @@ import (
 	"strings"
 	"testing"
 
-	tea "github.com/charmbracelet/bubbletea"
+	tea "charm.land/bubbletea/v2"
 
 	"github.com/anthnel/devdesk/internal/command"
 	"github.com/anthnel/devdesk/internal/scan"
@@ -223,7 +223,7 @@ func TestEnterOpensTheDetailsOfTheHighlightedFinding(t *testing.T) {
 	if m.selectedFinding == nil || m.selectedFinding.ID != "CVE-2026-0002" {
 		t.Errorf("selectedFinding = %v, want the highlighted row", m.selectedFinding)
 	}
-	if view := m.View(); !strings.Contains(view, "CVE-2026-0002") {
+	if view := m.Render(); !strings.Contains(view, "CVE-2026-0002") {
 		t.Errorf("the details do not show the selected finding:\n%s", view)
 	}
 }
@@ -639,7 +639,7 @@ func TestIgnoringIsOfferedForGitleaksFindingsOnly(t *testing.T) {
 // case — a description plus references routinely runs past the terminal.
 func TestTheDetailsPaneScrolls(t *testing.T) {
 	tall := detailsModel(t)
-	tall.detailsViewport.Height = 10
+	tall.detailsViewport.SetHeight(10)
 	tall.detailsViewport.SetContent(strings.Repeat("a line of the description\n", 40))
 
 	for _, tc := range []struct {
@@ -656,7 +656,7 @@ func TestTheDetailsPaneScrolls(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			m := feed(t, tall, testutil.Keys(tc.keys...)...)
 
-			if got := m.detailsViewport.YOffset; got != tc.want {
+			if got := m.detailsViewport.YOffset(); got != tc.want {
 				t.Errorf("offset = %d after %v, want %d", got, tc.keys, tc.want)
 			}
 			if m.state != StateDetails {

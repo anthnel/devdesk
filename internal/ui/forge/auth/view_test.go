@@ -54,7 +54,7 @@ func TestInEditModeIsFalseWhileBusyOrSignedIn(t *testing.T) {
 func TestViewRendersTheLoginForm(t *testing.T) {
 	m := newTestModel(t, testConfig(), newFakeStorage())
 
-	out := m.View()
+	out := m.Render()
 
 	for _, want := range []string{"GitLab URL", "Personal Access Token", "Login"} {
 		if !strings.Contains(out, want) {
@@ -82,7 +82,7 @@ func TestViewWarnsWhenNothingIsPersisted(t *testing.T) {
 	m := New(testConfig(), credentials.SessionOnly("no store under test"), nil)
 	m = feed(t, m, testutil.Resize(100, 30))
 
-	out := m.View()
+	out := m.Render()
 	if !strings.Contains(out, "Nothing is saved") {
 		t.Errorf("View() does not warn that the token will not be kept:\n%s", out)
 	}
@@ -97,7 +97,7 @@ func TestViewReportsTheMigrationNotices(t *testing.T) {
 	m := New(testConfig(), persisted(newFakeStorage()), []string{"The GitLab token moved out of the configuration file."})
 	m = feed(t, m, testutil.Resize(100, 30))
 
-	if !strings.Contains(m.View(), "moved out of the configuration file") {
+	if !strings.Contains(m.Render(), "moved out of the configuration file") {
 		t.Error("View() does not report what the migration did")
 	}
 }
@@ -105,7 +105,7 @@ func TestViewReportsTheMigrationNotices(t *testing.T) {
 func TestViewIsSilentWithoutMigrationNotices(t *testing.T) {
 	m := newTestModel(t, testConfig(), newFakeStorage())
 
-	if strings.Contains(m.View(), theme.IconLock) {
+	if strings.Contains(m.Render(), theme.IconLock) {
 		t.Error("View() rendered a migration notice block with nothing to report")
 	}
 }
@@ -117,7 +117,7 @@ func TestViewNeverRendersTheTokenInClear(t *testing.T) {
 
 	for field := fieldToken; field <= fieldSubmit; field++ {
 		m.currentField = field
-		if strings.Contains(m.View(), "supersecret") {
+		if strings.Contains(m.Render(), "supersecret") {
 			t.Fatalf("View() rendered the token in clear with field %d focused", field)
 		}
 	}
@@ -127,7 +127,7 @@ func TestViewShowsTheSpinnerWhileAuthenticating(t *testing.T) {
 	m := newTestModel(t, testConfig(), newFakeStorage())
 	m.authenticating = true
 
-	out := m.View()
+	out := m.Render()
 	if !strings.Contains(out, "Authenticating") {
 		t.Error("View() does not report an in-flight login")
 	}
@@ -143,7 +143,7 @@ func TestViewShowsTheLoggedInStateInsteadOfTheForm(t *testing.T) {
 
 	m = feed(t, m, AuthResultMsg{User: testUser()})
 
-	out := m.View()
+	out := m.Render()
 	if !strings.Contains(out, "Authenticated as") || !strings.Contains(out, "anthoni") {
 		t.Error("the logged-in view does not name the user")
 	}
@@ -167,7 +167,7 @@ func TestSuccessBannerIsNotRepeatedWhileSignedIn(t *testing.T) {
 	m := newTestModel(t, testConfig(), newFakeStorage())
 	m = feed(t, m, AuthResultMsg{User: testUser()})
 
-	if count := strings.Count(m.View(), "anthoni"); count != 1 {
+	if count := strings.Count(m.Render(), "anthoni"); count != 1 {
 		t.Errorf("the username appears %d times in the signed-in view, want once", count)
 	}
 }
@@ -176,7 +176,7 @@ func TestSuccessBannerShowsAfterLogout(t *testing.T) {
 	m := newTestModel(t, testConfig(), newFakeStorage())
 	m = feed(t, m, AuthResultMsg{User: testUser()}, LogoutCompleteMsg{})
 
-	out := m.View()
+	out := m.Render()
 	if !strings.Contains(out, "Logged out") {
 		t.Error("the logout confirmation is not shown")
 	}
@@ -190,7 +190,7 @@ func TestViewRendersTheError(t *testing.T) {
 
 	m = feed(t, m, AuthResultMsg{Error: errors.New("401 unauthorized")})
 
-	if !strings.Contains(m.View(), "401 unauthorized") {
+	if !strings.Contains(m.Render(), "401 unauthorized") {
 		t.Error("View() does not surface the authentication error")
 	}
 }
@@ -200,7 +200,7 @@ func TestViewRendersTheSaveWarning(t *testing.T) {
 
 	m = feed(t, m, AuthResultMsg{User: testUser(), SaveWarning: "the secret store refused the write"})
 
-	if !strings.Contains(m.View(), "the secret store refused the write") {
+	if !strings.Contains(m.Render(), "the secret store refused the write") {
 		t.Error("View() does not surface the save warning")
 	}
 }
@@ -212,7 +212,7 @@ func TestViewSurvivesANarrowTerminal(t *testing.T) {
 	m = feed(t, m, AuthResultMsg{User: testUser(), SaveWarning: "the secret store refused the write"})
 	m = feed(t, m, testutil.Resize(10, 10))
 
-	if out := m.View(); out == "" {
+	if out := m.Render(); out == "" {
 		t.Error("View() returned nothing on a narrow terminal")
 	}
 }

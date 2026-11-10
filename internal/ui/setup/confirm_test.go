@@ -58,26 +58,19 @@ func TestConfirmPromptEnterConfirmsTheCurrentSelection(t *testing.T) {
 	}
 }
 
-func TestConfirmPromptSpaceConfirmsTheCurrentSelection(t *testing.T) {
-	tests := []struct {
-		name    string
-		yes     bool
-		wantYes bool
-	}{
-		{"space on No", false, false},
-		{"space on Yes", true, true},
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			c := newConfirmPrompt("Title", "Message?")
-			c.yes = tt.yes
+// Rule 135: Space only toggles a checkbox; it must not answer a Yes/No prompt.
+func TestConfirmPromptSpaceDoesNotAnswer(t *testing.T) {
+	for _, yes := range []bool{false, true} {
+		c := newConfirmPrompt("Title", "Message?")
+		c.yes = yes
 
-			_, cmd := c.Update(testutil.Key(" "))
-			if cmd == nil {
-				t.Fatal("space produced no command")
-			}
-			assertConfirmResult(t, cmd(), tt.wantYes)
-		})
+		c, cmd := c.Update(testutil.Key("space"))
+		if cmd != nil {
+			t.Errorf("space with yes=%v produced a command, want none", yes)
+		}
+		if c.yes != yes {
+			t.Errorf("space moved the selection from %v to %v", yes, c.yes)
+		}
 	}
 }
 

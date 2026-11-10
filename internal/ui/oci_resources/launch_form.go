@@ -4,8 +4,8 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/charmbracelet/bubbles/textinput"
-	tea "github.com/charmbracelet/bubbletea"
+	"charm.land/bubbles/v2/textinput"
+	tea "charm.land/bubbletea/v2"
 
 	"github.com/anthnel/devdesk/internal/cache"
 	"github.com/anthnel/devdesk/internal/docker"
@@ -122,7 +122,7 @@ func NewLaunchForm(imageName string, exposedPorts []string, networks []docker.Ne
 		}
 		hi := textinput.New()
 		hi.CharLimit = 10
-		hi.Width = 6
+		hi.SetWidth(6)
 		theme.StyleTextInput(&hi)
 		hi.SetValue(portNum)
 		ports = append(ports, portEntry{
@@ -239,12 +239,12 @@ func (f *LaunchForm) resizeInputs() {
 		inputWidth = f.width*55/100 - 4
 	}
 	inputWidth = max(inputWidth, 20)
-	f.nameInput.Width = inputWidth
-	f.entrypointInput.Width = inputWidth
-	f.envInput.Width = inputWidth
-	f.volInput.Width = inputWidth
-	f.userInput.Width = inputWidth
-	f.extraPortsInput.Width = inputWidth
+	f.nameInput.SetWidth(inputWidth)
+	f.entrypointInput.SetWidth(inputWidth)
+	f.envInput.SetWidth(inputWidth)
+	f.volInput.SetWidth(inputWidth)
+	f.userInput.SetWidth(inputWidth)
+	f.extraPortsInput.SetWidth(inputWidth)
 }
 
 // Field indices follow the visual render order:
@@ -271,7 +271,7 @@ func (f *LaunchForm) isPortField(idx int) bool {
 // Update handles messages for the launch form
 func (f *LaunchForm) Update(msg tea.Msg) (*LaunchForm, tea.Cmd) {
 	switch msg := msg.(type) {
-	case tea.KeyMsg:
+	case tea.KeyPressMsg:
 		return f.handleKeyMsg(msg)
 	case EntrypointVerifyFinishedMsg:
 		return f.handleVerifyFinished(msg)
@@ -279,7 +279,7 @@ func (f *LaunchForm) Update(msg tea.Msg) (*LaunchForm, tea.Cmd) {
 	return f.updateActiveInput(msg)
 }
 
-func (f *LaunchForm) handleKeyMsg(msg tea.KeyMsg) (*LaunchForm, tea.Cmd) {
+func (f *LaunchForm) handleKeyMsg(msg tea.KeyPressMsg) (*LaunchForm, tea.Cmd) {
 	maxField := f.fieldSubmit()
 
 	switch msg.String() {

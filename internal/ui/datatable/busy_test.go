@@ -1,13 +1,14 @@
 package datatable
 
 import (
+	"image/color"
 	"reflect"
 	"strings"
 	"testing"
 
-	"github.com/charmbracelet/bubbles/spinner"
-	"github.com/charmbracelet/bubbles/table"
-	"github.com/charmbracelet/lipgloss"
+	"charm.land/bubbles/v2/spinner"
+	"charm.land/bubbles/v2/table"
+	"charm.land/lipgloss/v2"
 	"github.com/charmbracelet/x/ansi"
 
 	"github.com/anthnel/devdesk/internal/ui/theme"
@@ -191,7 +192,7 @@ func TestABusyRowIsDimmed(t *testing.T) {
 		t.Errorf("the busy row is not dimmed: %q", line)
 	}
 	// Every cell is dim: nothing keeps a column's colour or a highlight.
-	for _, c := range []lipgloss.Color{theme.ColorOK, theme.ColorHighlight} {
+	for _, c := range []color.Color{theme.ColorOK, theme.ColorHighlight} {
 		if strings.Contains(line, foreground(c)) {
 			t.Errorf("the busy row kept a colour that is not dim: %q", line)
 		}
@@ -260,7 +261,7 @@ func TestABusyRowKeepsTheAppBackground(t *testing.T) {
 
 	line := renderedRow(t, m, "web")
 
-	for i, segment := range strings.Split(line, "\x1b[0m") {
+	for i, segment := range strings.Split(line, "\x1b[m") {
 		if visible(segment) == "" {
 			continue
 		}

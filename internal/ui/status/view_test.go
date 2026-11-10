@@ -6,11 +6,10 @@ import (
 	"testing"
 	"time"
 
-	"github.com/charmbracelet/bubbles/table"
-	tea "github.com/charmbracelet/bubbletea"
+	"charm.land/bubbles/v2/table"
+	tea "charm.land/bubbletea/v2"
 
 	"github.com/anthnel/devdesk/internal/status"
-	"github.com/anthnel/devdesk/internal/testutil/colorprofile"
 	"github.com/anthnel/devdesk/internal/ui/keymap"
 	"github.com/anthnel/devdesk/internal/ui/shortcut"
 	"github.com/anthnel/devdesk/internal/ui/testutil"
@@ -107,7 +106,7 @@ func hasShortcut(shortcuts shortcut.Shortcuts, key string) bool {
 func TestViewRendersTheFormWhenOpen(t *testing.T) {
 	m := feed(t, loadedModel(t), testutil.Key(keymap.New))
 
-	out := m.View()
+	out := m.Render()
 
 	if !strings.Contains(out, "Save Monitor") {
 		t.Error("View() does not render the form while it is open")
@@ -117,7 +116,7 @@ func TestViewRendersTheFormWhenOpen(t *testing.T) {
 func TestViewRendersTheConfirmationWhenOpen(t *testing.T) {
 	m := feed(t, loadedModel(t), testutil.Key(keymap.Delete))
 
-	out := m.View()
+	out := m.Render()
 
 	if !strings.Contains(out, "Delete Monitor") {
 		t.Error("View() does not render the confirmation while it is open")
@@ -131,7 +130,7 @@ func TestViewRendersTheError(t *testing.T) {
 	m := newTestModel(t)
 	m = feed(t, m, CheckCompleteMsg{Err: errors.New("checker exploded"), Timestamp: time.Now()})
 
-	if out := m.View(); !strings.Contains(out, "checker exploded") {
+	if out := m.Render(); !strings.Contains(out, "checker exploded") {
 		t.Error("View() does not surface the check error")
 	}
 }
@@ -142,12 +141,12 @@ func TestViewRendersTheError(t *testing.T) {
 func TestViewRendersTheEmptyStateOnlyAfterTheFirstCheck(t *testing.T) {
 	m := newTestModel(t)
 
-	if view, table := m.View(), m.renderTable(); view != table {
+	if view, table := m.Render(), m.renderTable(); view != table {
 		t.Errorf("View() before the first check is %q, want the plain table view", view)
 	}
 
 	m = feed(t, m, CheckCompleteMsg{Components: nil, Timestamp: time.Now()})
-	if view, table := m.View(), m.renderTable(); view != table {
+	if view, table := m.Render(), m.renderTable(); view != table {
 		t.Errorf("View() after an empty check is %q, want the plain table view", view)
 	}
 	if info := m.GetHeaderInfo(""); info[len(info)-1].Value != "0" {
@@ -165,7 +164,7 @@ func TestTheCheckIsReportedInTheFooterWhileItRuns(t *testing.T) {
 	if !strings.Contains(m.RenderFooter(160), "Checking components") {
 		t.Error("the footer does not report an in-flight check on an empty list")
 	}
-	if strings.Contains(m.View(), "Checking components") {
+	if strings.Contains(m.Render(), "Checking components") {
 		t.Error("the body reports the check; it belongs in the footer alone")
 	}
 }
@@ -173,13 +172,13 @@ func TestTheCheckIsReportedInTheFooterWhileItRuns(t *testing.T) {
 func TestViewRendersTheActiveTable(t *testing.T) {
 	m := loadedModel(t)
 
-	monitors := m.View()
+	monitors := m.Render()
 	if !strings.Contains(monitors, "api.example.com") {
 		t.Error("the monitor table is not rendered on the Monitors tab")
 	}
 
 	m = feed(t, m, testutil.Key("tab"))
-	certificates := m.View()
+	certificates := m.Render()
 	if !strings.Contains(certificates, "Let's Encrypt") {
 		t.Error("the SSL table is not rendered on the Certificates tab")
 	}
@@ -311,7 +310,6 @@ func TestUpdateTableFormatsMonitorCells(t *testing.T) {
 // no TTY under `go test`, falls back to the Ascii profile and strips every
 // sequence, which would make this pass whatever the code does.
 func TestTableCellsCarryNoANSISequences(t *testing.T) {
-	colorprofile.TrueColor(t)
 
 	m := loadedModel(t)
 

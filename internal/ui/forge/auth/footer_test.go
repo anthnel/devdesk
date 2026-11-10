@@ -5,7 +5,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/charmbracelet/lipgloss"
+	"charm.land/lipgloss/v2"
 	"github.com/charmbracelet/x/ansi"
 
 	"github.com/anthnel/devdesk/internal/ui/components"
@@ -103,7 +103,7 @@ func TestAuthStatesStillShowWithoutAFooterMessage(t *testing.T) {
 	m := newTestModel(t, testConfig(), newFakeStorage())
 	m = feed(t, m, AuthResultMsg{Error: errors.New("401 unauthorized")})
 
-	if !strings.Contains(m.View(), "401 unauthorized") {
+	if !strings.Contains(m.Render(), "401 unauthorized") {
 		t.Error("View() lost the authentication error")
 	}
 	footer := ansi.Strip(m.RenderFooter(100))

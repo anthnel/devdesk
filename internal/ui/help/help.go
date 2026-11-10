@@ -4,8 +4,8 @@ import (
 	"strings"
 	"unicode/utf8"
 
+	"charm.land/lipgloss/v2"
 	"github.com/anthnel/devdesk/internal/ui/theme"
-	"github.com/charmbracelet/lipgloss"
 )
 
 // Section represents a section of the help content

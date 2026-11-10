@@ -9,6 +9,7 @@ import (
 	"strings"
 	"testing"
 
+	tea "charm.land/bubbletea/v2"
 	"github.com/anthnel/devdesk/internal/config"
 	"github.com/anthnel/devdesk/internal/docker"
 	"github.com/anthnel/devdesk/internal/imagepull"
@@ -19,7 +20,6 @@ import (
 	"github.com/anthnel/devdesk/internal/ui/sigcol"
 	"github.com/anthnel/devdesk/internal/ui/testutil"
 	"github.com/anthnel/devdesk/internal/ui/theme"
-	tea "github.com/charmbracelet/bubbletea"
 )
 
 // unverifiedPull is what every test of this package pulls with unless it says

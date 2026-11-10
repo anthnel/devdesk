@@ -5,8 +5,8 @@ import (
 	"strings"
 	"testing"
 
-	tea "github.com/charmbracelet/bubbletea"
-	"github.com/charmbracelet/lipgloss"
+	tea "charm.land/bubbletea/v2"
+	"charm.land/lipgloss/v2"
 	"github.com/charmbracelet/x/ansi"
 
 	"github.com/anthnel/devdesk/internal/command"
@@ -63,7 +63,7 @@ func TestNoRowsWhenTheViewportIsTooShortButTheInputStaysUsable(t *testing.T) {
 			if f.rule() == "" || !strings.HasPrefix(f.rule(), "└") || !strings.HasSuffix(f.rule(), "┘") {
 				t.Errorf("the reduced frame is not closed by └…┘: %q", f.rule())
 			}
-			if got := lipgloss.Height(a.View()); got != h {
+			if got := lipgloss.Height(a.Render()); got != h {
 				t.Errorf("View is %d lines, want %d", got, h)
 			}
 		})
@@ -156,7 +156,7 @@ func TestViewHeightIsTheTerminalsWithThePaletteClosedOrOpen(t *testing.T) {
 	for _, sz := range sizes {
 		t.Run(fmt.Sprintf("%dx%d/closed", sz[0], sz[1]), func(t *testing.T) {
 			a := routerAt(t, &fakeView{body: "body"}, sz[0], sz[1])
-			if h := lipgloss.Height(a.View()); h != sz[1] {
+			if h := lipgloss.Height(a.Render()); h != sz[1] {
 				t.Errorf("View is %d lines, want %d", h, sz[1])
 			}
 		})
@@ -164,7 +164,7 @@ func TestViewHeightIsTheTerminalsWithThePaletteClosedOrOpen(t *testing.T) {
 			a := routerAt(t, &fakeView{body: "body"}, sz[0], sz[1])
 			press(t, a, "ctrl+p")
 			typeCommand(t, a, "co")
-			if h := lipgloss.Height(a.View()); h != sz[1] {
+			if h := lipgloss.Height(a.Render()); h != sz[1] {
 				t.Errorf("View is %d lines, want %d", h, sz[1])
 			}
 		})
@@ -210,10 +210,10 @@ func TestTheInputIsVisibleDownToNineLines(t *testing.T) {
 // own, not the continuation of the viewport. A filter bar's ├…┤ under the view
 // is untouched while the frame does not reach it.
 func TestThePaletteAlwaysClosesWithCornersWhateverTheView(t *testing.T) {
-	views := map[string]func() tea.Model{
-		"framed":    func() tea.Model { return &fakeView{body: "body"} },
-		"frameless": func() tea.Model { return &framelessFake{fakeView{body: "body"}} },
-		"filterbar": func() tea.Model {
+	views := map[string]func() Screen{
+		"framed":    func() Screen { return &fakeView{body: "body"} },
+		"frameless": func() Screen { return &framelessFake{fakeView{body: "body"}} },
+		"filterbar": func() Screen {
 			return &fakeView{body: "body", filterBar: true, footerHeight: 2, footer: "bar\nbar"}
 		},
 	}
@@ -235,7 +235,7 @@ func TestThePaletteAlwaysClosesWithCornersWhateverTheView(t *testing.T) {
 					t.Errorf("row %q lacks its sides", r)
 				}
 			}
-			if got := lipgloss.Height(a.View()); got != 30 {
+			if got := lipgloss.Height(a.Render()); got != 30 {
 				t.Errorf("View is %d lines, want 30", got)
 			}
 		})
@@ -272,7 +272,7 @@ func TestResizingWithTheListOpenKeepsTheHighlightAndTheHeight(t *testing.T) {
 
 	for _, sz := range [][2]int{{80, 24}, {60, 20}, {40, 16}, {120, 40}} {
 		resizeTo(t, a, sz[0], sz[1])
-		if got := lipgloss.Height(a.View()); got != sz[1] {
+		if got := lipgloss.Height(a.Render()); got != sz[1] {
 			t.Errorf("%dx%d: View is %d lines", sz[0], sz[1], got)
 		}
 		if len(highlighted(listRows(t, a))) != 1 {
@@ -289,9 +289,9 @@ func TestShrinkingToATinyTerminalAndBackDoesNotPanicNorLoseTheHighlight(t *testi
 
 	for _, sz := range [][2]int{{40, 12}, {20, 5}, {10, 3}, {1, 1}, {80, 12}, {80, 40}} {
 		resizeTo(t, a, sz[0], sz[1])
-		_ = a.View()
+		_ = a.Render()
 	}
-	if got := lipgloss.Height(a.View()); got != 40 {
+	if got := lipgloss.Height(a.Render()); got != 40 {
 		t.Errorf("View is %d lines after coming back, want 40", got)
 	}
 	if len(highlighted(listRows(t, a))) != 1 {
@@ -334,7 +334,7 @@ func TestNarrowWidthsNeverWrapTheHeaderAndKeepRowsExact(t *testing.T) {
 			if got := ansi.StringWidth(filet(t, a)); got != w {
 				t.Errorf("rule is %d cells, want %d", got, w)
 			}
-			if got := lipgloss.Height(a.View()); got != 30 {
+			if got := lipgloss.Height(a.Render()); got != 30 {
 				t.Errorf("View is %d lines, want 30", got)
 			}
 		})

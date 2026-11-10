@@ -3,7 +3,7 @@ package netdiag
 import (
 	"context"
 
-	tea "github.com/charmbracelet/bubbletea"
+	tea "charm.land/bubbletea/v2"
 
 	"github.com/anthnel/devdesk/internal/netcheck"
 )

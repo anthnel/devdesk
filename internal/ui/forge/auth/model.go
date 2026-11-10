@@ -3,10 +3,10 @@ package auth
 import (
 	"log"
 
+	"charm.land/bubbles/v2/spinner"
+	"charm.land/bubbles/v2/textinput"
+	tea "charm.land/bubbletea/v2"
 	"github.com/anthnel/devdesk/internal/forge"
-	"github.com/charmbracelet/bubbles/spinner"
-	"github.com/charmbracelet/bubbles/textinput"
-	tea "github.com/charmbracelet/bubbletea"
 
 	"github.com/anthnel/devdesk/internal/config"
 	"github.com/anthnel/devdesk/internal/credentials"
@@ -79,7 +79,7 @@ func New(cfg *config.Config, secrets credentials.Selection, notices []string) *M
 	// carrying one.
 	tokenInput.Placeholder = forge.VocabularyFor(forgeTypeOf(cfg)).TokenPlaceholder
 	tokenInput.CharLimit = 100
-	tokenInput.Width = 60
+	tokenInput.SetWidth(60)
 	tokenInput.EchoMode = textinput.EchoPassword
 	tokenInput.EchoCharacter = '•'
 	theme.StyleTextInput(&tokenInput)

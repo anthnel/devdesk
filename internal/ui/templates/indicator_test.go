@@ -7,12 +7,11 @@ import (
 	"testing"
 	"time"
 
-	"github.com/charmbracelet/lipgloss"
+	"charm.land/lipgloss/v2"
 
 	"github.com/anthnel/devdesk/internal/command"
 	"github.com/anthnel/devdesk/internal/jobs"
 	"github.com/anthnel/devdesk/internal/template"
-	"github.com/anthnel/devdesk/internal/testutil/colorprofile"
 	"github.com/anthnel/devdesk/internal/ui/datatable"
 	"github.com/anthnel/devdesk/internal/ui/indicator"
 	"github.com/anthnel/devdesk/internal/ui/testutil"
@@ -67,12 +66,12 @@ func scanDirOf(t *testing.T, slug string) string {
 
 func lineOf(t *testing.T, m Model, name string) string {
 	t.Helper()
-	for _, l := range strings.Split(m.View(), "\n") {
+	for _, l := range strings.Split(m.Render(), "\n") {
 		if strings.Contains(l, name) {
 			return l
 		}
 	}
-	t.Fatalf("no rendered line holds %q:\n%s", name, m.View())
+	t.Fatalf("no rendered line holds %q:\n%s", name, m.Render())
 	return ""
 }
 
@@ -195,7 +194,6 @@ func TestEachActivityStateRendersItsGlyphOnItsRow(t *testing.T) {
 }
 
 func TestAFailedRowIsFixedAndFailureColoured(t *testing.T) {
-	colorprofile.TrueColor(t)
 	m := indFixture(t)
 	// Web is not the selected row (the cursor opens on the first one, API).
 	m = snapshot(t, m, nil, []jobs.Failure{indFailure(jobs.KindSync, "web", "sync failed — check logs")})
@@ -373,7 +371,6 @@ func TestThePickerBlinksToo(t *testing.T) {
 // ── Q1-B: the Synced column says "syncing" while a sync of the row runs ──────
 
 func TestTheSyncedColumnSaysSyncingWhileASyncRuns(t *testing.T) {
-	colorprofile.TrueColor(t)
 	syncedAt := time.Now().Add(-3 * 24 * time.Hour)
 	setup := func(t *testing.T) Model {
 		m := indFixture(t)

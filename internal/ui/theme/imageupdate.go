@@ -1,6 +1,6 @@
 package theme
 
-import "github.com/charmbracelet/lipgloss"
+import "charm.land/lipgloss/v2"
 
 // UpdateStyle colours the cell: an update in the structural blue, everything
 // else dim — up to date is the nominal state, and the others are explanations,

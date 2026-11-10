@@ -5,17 +5,22 @@ import (
 	"strings"
 	"time"
 
-	"github.com/charmbracelet/bubbles/textinput"
-	"github.com/charmbracelet/bubbles/viewport"
-	"github.com/charmbracelet/lipgloss"
+	"charm.land/bubbles/v2/textinput"
+	"charm.land/bubbles/v2/viewport"
+	tea "charm.land/bubbletea/v2"
+	"charm.land/lipgloss/v2"
 
 	"github.com/anthnel/devdesk/internal/netcheck"
 	"github.com/anthnel/devdesk/internal/ui/datatable"
 	"github.com/anthnel/devdesk/internal/ui/theme"
 )
 
-// View implements tea.Model
-func (m *Model) View() string {
+// View is the Bubble Tea v2 face of Render: the content only. The terminal
+// state (alternate screen, colours) belongs to whoever owns the program.
+func (m *Model) View() tea.View { return tea.NewView(m.Render()) }
+
+// Render implements tea.Model
+func (m *Model) Render() string {
 	switch m.activeTab {
 	case tabPorts:
 		// The kill confirmation is centred over the tab, like every other
@@ -25,7 +30,7 @@ func (m *Model) View() string {
 				m.width, m.height,
 				lipgloss.Center, lipgloss.Center,
 				modal.View(),
-				lipgloss.WithWhitespaceBackground(theme.ColorBackground),
+				lipgloss.WithWhitespaceStyle(lipgloss.NewStyle().Background(theme.ColorBackground)),
 			)
 		}
 		return m.portsModel.view()
@@ -39,7 +44,7 @@ func (m *Model) View() string {
 				m.width, m.height,
 				lipgloss.Center, lipgloss.Center,
 				modal.View(),
-				lipgloss.WithWhitespaceBackground(theme.ColorBackground),
+				lipgloss.WithWhitespaceStyle(lipgloss.NewStyle().Background(theme.ColorBackground)),
 			)
 		}
 		return m.forwardModel.view()
@@ -246,14 +251,14 @@ func (m *Model) resizeInputs() {
 	// Viewport border (2) + form padding (2) + prefix (2) + longest label "DNS Server " + chevron + spaces (~15)
 	const labelOverhead = 21
 	wide := max(m.width-labelOverhead, 20)
-	m.targetInput.Width = wide
-	m.dnsServerInput.Width = wide
-	m.portInput.Width = 10
+	m.targetInput.SetWidth(wide)
+	m.dnsServerInput.SetWidth(wide)
+	m.portInput.SetWidth(10)
 }
 
 func (m *Model) resizeDetailsViewport() {
 	// Header ~9 lines + tab footer 3 lines + viewport border 2 lines = 14 overhead
-	m.detailsViewport = viewport.New(max(m.width-4, 20), max(m.height-13, 3))
+	m.detailsViewport = viewport.New(viewport.WithWidth(max(m.width-4, 20)), viewport.WithHeight(max(m.height-13, 3)))
 	m.detailsViewport.Style = lipgloss.NewStyle().Background(theme.ColorBackground)
 }
 

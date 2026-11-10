@@ -1,12 +1,12 @@
 package agentusageview
 
 import (
+	"image/color"
 	"math"
 	"strings"
 	"testing"
 	"time"
 
-	"github.com/charmbracelet/lipgloss"
 	"gopkg.in/yaml.v3"
 
 	"github.com/anthnel/devdesk/internal/agentusage"
@@ -146,7 +146,7 @@ func TestHeaderCostOrder(t *testing.T) {
 }
 
 func TestANegativeUnattributedIsOrangeAndTheRestIsNot(t *testing.T) {
-	orange := lipgloss.TerminalColor(theme.ColorSeverityMedium)
+	orange := color.Color(theme.ColorSeverityMedium)
 	normal := theme.HeaderValueStyle.GetForeground()
 
 	neg := atPricedAgents(t, cfgWith(t, pricesYAML), 160, sumUsage(billed(7.80)))
@@ -182,7 +182,7 @@ func TestFloatNoiseInUnattributedIsNotOrange(t *testing.T) {
 	}
 	m = atPricedAgents(t, cfgWith(t, pricesYAML), 160, sumUsage(billed(8.20-0.006)))
 	h, _ = headerEntry(m, unattributedKey)
-	if got := h.Style.GetForeground(); got != lipgloss.TerminalColor(theme.ColorSeverityMedium) {
+	if got := h.Style.GetForeground(); got != color.Color(theme.ColorSeverityMedium) {
 		t.Errorf("Unattributed %q at -$0.01 foreground = %v, want orange", h.Value, got)
 	}
 }

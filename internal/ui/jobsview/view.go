@@ -11,6 +11,8 @@ import (
 	"github.com/anthnel/devdesk/internal/ui/keymap"
 	"github.com/anthnel/devdesk/internal/ui/shortcut"
 	"github.com/anthnel/devdesk/internal/ui/theme"
+
+	tea "charm.land/bubbletea/v2"
 )
 
 // GetTitle names the view, and the run when one is open.
@@ -133,14 +135,18 @@ func (m Model) selectedDetail() sharedcomponents.RowDetail {
 	return sharedcomponents.RowDetail{}
 }
 
-// View renders the table of the level on screen.
+// View is the Bubble Tea v2 face of Render: the content only. The terminal
+// state (alternate screen, colours) belongs to whoever owns the program.
+func (m Model) View() tea.View { return tea.NewView(m.Render()) }
+
+// Render renders the table of the level on screen.
 //
 // There is no loading branch: this view fetches nothing, so it is never between
 // a request and an answer. A table with nothing to show still renders its
 // header and no rows (datatable.View() does this on its own) — the count that
 // says why (zero runs, or a filter matching none of them) lives in the header
 // (GetHeaderInfo), not in the body.
-func (m Model) View() string {
+func (m Model) Render() string {
 	if m.level == levelItems {
 		return m.itemTable.View()
 	}

@@ -3,8 +3,8 @@ package ociresources
 import (
 	"strings"
 
-	"github.com/charmbracelet/bubbles/textinput"
-	tea "github.com/charmbracelet/bubbletea"
+	"charm.land/bubbles/v2/textinput"
+	tea "charm.land/bubbletea/v2"
 
 	"github.com/anthnel/devdesk/internal/ui/theme"
 )
@@ -78,20 +78,20 @@ func (f *ResourceCreateForm) resizeInputs() {
 	// Label overhead: viewport border (2) + indent (2) + longest label "Driver " + chevron + spaces (~12)
 	const labelOverhead = 16
 	w := max(f.width-labelOverhead, 20)
-	f.nameInput.Width = w
-	f.driverInput.Width = w
+	f.nameInput.SetWidth(w)
+	f.driverInput.SetWidth(w)
 }
 
 // Update handles messages for the resource form
 func (f *ResourceCreateForm) Update(msg tea.Msg) (*ResourceCreateForm, tea.Cmd) {
 	switch msg := msg.(type) {
-	case tea.KeyMsg:
+	case tea.KeyPressMsg:
 		return f.handleKeyMsg(msg)
 	}
 	return f.updateActiveInput(msg)
 }
 
-func (f *ResourceCreateForm) handleKeyMsg(msg tea.KeyMsg) (*ResourceCreateForm, tea.Cmd) {
+func (f *ResourceCreateForm) handleKeyMsg(msg tea.KeyPressMsg) (*ResourceCreateForm, tea.Cmd) {
 	switch msg.String() {
 	case "esc":
 		return f, func() tea.Msg { return ResourceFormCancelMsg{} }

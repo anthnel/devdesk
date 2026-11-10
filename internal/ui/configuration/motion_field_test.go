@@ -33,7 +33,7 @@ func motionModel(t *testing.T, v string) Model {
 
 func plainFooter(m Model) string { return ansi.Strip(m.RenderFooter(120)) }
 
-func plainRows(m Model) string { return ansi.Strip(m.View()) }
+func plainRows(m Model) string { return ansi.Strip(m.Render()) }
 
 func TestMotionIsACycleFieldInTheAppearanceGroup(t *testing.T) {
 	f := fieldNamed(t, motionLabel)

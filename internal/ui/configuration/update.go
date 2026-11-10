@@ -4,7 +4,7 @@ import (
 	"log"
 	"strings"
 
-	tea "github.com/charmbracelet/bubbletea"
+	tea "charm.land/bubbletea/v2"
 
 	"github.com/anthnel/devdesk/internal/command"
 	"github.com/anthnel/devdesk/internal/config"
@@ -45,7 +45,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		log.Printf("ERROR [configuration] save: %v", msg.err)
 		return m, m.footer.Error("Failed to save — check logs")
 
-	case tea.KeyMsg:
+	case tea.KeyPressMsg:
 		if m.confirmModal != nil {
 			var cmd tea.Cmd
 			m.confirmModal, cmd = m.confirmModal.Update(msg)
@@ -57,6 +57,9 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			next = updated
 		}
 		return next, cmd
+
+	case tea.PasteMsg:
+		return m.handlePaste(msg)
 	}
 
 	m.footer.Handle(msg)
@@ -66,7 +69,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 // handleKey routes a keystroke. Rule 135 assigns each key exactly one job, and
 // a tabbed form is the layout that lets it: Tab switches section, ↑↓ moves
 // between fields, ←→ cycles a closed set, Space toggles.
-func (m Model) handleKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
+func (m Model) handleKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	switch msg.String() {
 	case "tab":
 		return m.switchTab(1)
@@ -107,6 +110,17 @@ func (m Model) handleKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		return m, cmd
 	}
 	return m, nil
+}
+
+// handlePaste gives pasted text to the focused text field. A modal, or a field
+// that takes no text, drops it: a paste is never read as keys (Rule 111).
+func (m Model) handlePaste(msg tea.PasteMsg) (tea.Model, tea.Cmd) {
+	if m.confirmModal != nil || !m.current().takesText() {
+		return m, nil
+	}
+	var cmd tea.Cmd
+	m.input, cmd = m.input.Update(msg)
+	return m, cmd
 }
 
 // switchTab commits the field being edited before leaving, so a value typed and
@@ -443,7 +457,7 @@ const (
 // its column — half the width on a two-column tab.
 func (m *Model) resizeInput() {
 	const focusIndicator, borders = 2, 4
-	m.input.Width = max(m.columnWidth()-m.chevronColumn()-4-focusIndicator-borders, 20)
+	m.input.SetWidth(max(m.columnWidth()-m.chevronColumn()-4-focusIndicator-borders, 20))
 }
 
 // requestDetection asks the router to detect the tools again — ctrl+r, and only

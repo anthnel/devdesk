@@ -8,27 +8,18 @@ import (
 	"testing"
 	"time"
 
-	tea "github.com/charmbracelet/bubbletea"
+	tea "charm.land/bubbletea/v2"
 
 	"github.com/anthnel/devdesk/internal/config"
-	"github.com/anthnel/devdesk/internal/testutil/colorprofile"
 	viewerpkg "github.com/anthnel/devdesk/internal/viewer"
 )
 
 // The view logs every load failure, and several fixtures are failures on
 // purpose.
-//
-// The colour profile is forced for the whole package: `go test` has no terminal,
-// so lipgloss resolves to Ascii and every style renders as bare text — which
-// would make the colour and background assertions pass by rendering nothing at
-// all.
 func TestMain(m *testing.M) {
 	log.SetOutput(io.Discard)
-	restore := colorprofile.Force()
 
 	code := m.Run()
-
-	restore()
 
 	log.SetOutput(os.Stderr)
 	os.Exit(code)

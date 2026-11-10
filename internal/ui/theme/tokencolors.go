@@ -1,12 +1,10 @@
 package theme
 
 import (
-	"fmt"
+	"image/color"
 	"math"
-	"strconv"
-	"strings"
 
-	"github.com/charmbracelet/lipgloss"
+	"charm.land/lipgloss/v2"
 )
 
 // TokenRole is what a segment of the token-mix bar counts. Like IconRole it is
@@ -30,7 +28,7 @@ func TokenRoles() []TokenRole {
 // An unrecognised role falls back to the ordinary text colour rather than to
 // the zero Color, for the same reason IconColor does: an empty colour inherits
 // whatever the terminal last emitted (Rule 122).
-func TokenColor(role TokenRole) lipgloss.Color {
+func TokenColor(role TokenRole) color.Color {
 	switch role {
 	case TokenRoleInput:
 		return ColorTokenInput
@@ -50,9 +48,9 @@ func TokenStyle(role TokenRole) lipgloss.Style {
 	return lipgloss.NewStyle().Foreground(TokenColor(role))
 }
 
-// ColorDistance is the CIE76 delta E between two hex colours, in Lab (D65).
-// Colours are #rgb or #rrggbb; anything else is an error.
-func ColorDistance(a, b lipgloss.Color) (float64, error) {
+// ColorDistance is the CIE76 delta E between two colours, in Lab (D65).
+// Colours are color.RGBA values; anything else is an error.
+func ColorDistance(a, b color.Color) (float64, error) {
 	la, err := hexToLab(a)
 	if err != nil {
 		return 0, err
@@ -65,25 +63,14 @@ func ColorDistance(a, b lipgloss.Color) (float64, error) {
 	return math.Sqrt(dl*dl + da*da + db*db), nil
 }
 
-// hexToLab converts a #rgb or #rrggbb colour to CIE Lab with a D65 white point.
-func hexToLab(c lipgloss.Color) ([3]float64, error) {
-	s := string(c)
-	h := strings.TrimPrefix(s, "#")
-	if h == s {
-		return [3]float64{}, fmt.Errorf("color distance: %q is not a #rgb or #rrggbb color", s)
-	}
-	if len(h) == 3 {
-		h = string([]byte{h[0], h[0], h[1], h[1], h[2], h[2]})
-	}
-	if len(h) != 6 {
-		return [3]float64{}, fmt.Errorf("color distance: %q is not a #rgb or #rrggbb color", s)
+// hexToLab converts a colour to CIE Lab with a D65 white point.
+func hexToLab(c color.Color) ([3]float64, error) {
+	rgb, err := rgb8(c, "color distance")
+	if err != nil {
+		return [3]float64{}, err
 	}
 	var lin [3]float64
-	for i := range lin {
-		v, err := strconv.ParseUint(h[i*2:i*2+2], 16, 8)
-		if err != nil {
-			return [3]float64{}, fmt.Errorf("color distance: %q is not a #rgb or #rrggbb color", s)
-		}
+	for i, v := range rgb {
 		f := float64(v) / 255
 		if f <= 0.04045 {
 			lin[i] = f / 12.92

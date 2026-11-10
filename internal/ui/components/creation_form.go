@@ -5,9 +5,9 @@ import (
 	"github.com/anthnel/devdesk/internal/forge"
 	"strings"
 
-	"github.com/charmbracelet/bubbles/textinput"
-	tea "github.com/charmbracelet/bubbletea"
-	"github.com/charmbracelet/lipgloss"
+	"charm.land/bubbles/v2/textinput"
+	tea "charm.land/bubbletea/v2"
+	"charm.land/lipgloss/v2"
 
 	"github.com/anthnel/devdesk/internal/ui/theme"
 )
@@ -104,7 +104,7 @@ func NewCreationForm(defaultResourceType int, parentName string, parentID string
 	nameInput := textinput.New()
 	nameInput.Placeholder = "name"
 	nameInput.CharLimit = 100
-	nameInput.Width = 50
+	nameInput.SetWidth(50)
 	theme.StyleTextInput(&nameInput)
 
 	descInput := NewWrappedInput(descWrapWidth, descriptionCharLimit, "description (optional)")
@@ -153,7 +153,7 @@ func (f *CreationForm) Update(msg tea.Msg) (*CreationForm, tea.Cmd) {
 		f.height = msg.Height
 		f.descInput.SetDisplayWidth(msg.Width)
 
-	case tea.KeyMsg:
+	case tea.KeyPressMsg:
 		return f.handleKeyMsg(msg)
 	}
 
@@ -177,7 +177,7 @@ func (f *CreationForm) maxField() int {
 	return 4
 }
 
-func (f *CreationForm) handleKeyMsg(msg tea.KeyMsg) (*CreationForm, tea.Cmd) {
+func (f *CreationForm) handleKeyMsg(msg tea.KeyPressMsg) (*CreationForm, tea.Cmd) {
 	max := f.maxField()
 
 	switch msg.String() {

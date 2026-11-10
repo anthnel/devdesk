@@ -5,7 +5,7 @@ import (
 	"testing"
 	"time"
 
-	tea "github.com/charmbracelet/bubbletea"
+	tea "charm.land/bubbletea/v2"
 	"github.com/charmbracelet/x/ansi"
 
 	"github.com/anthnel/devdesk/internal/forward"
@@ -324,7 +324,7 @@ func TestTheFooterKeepsItsBudget(t *testing.T) {
 // inputs whichever way the form was built or resized.
 func TestTheFormShowsWholePlaceholders(t *testing.T) {
 	f := NewForwardForm(100)
-	view := f.View()
+	view := ansi.Strip(f.View())
 	for _, want := range []string{"8080", "host:port"} {
 		if !strings.Contains(view, want) {
 			t.Errorf("the form renders %q, want the whole placeholder %q", view, want)
@@ -332,9 +332,9 @@ func TestTheFormShowsWholePlaceholders(t *testing.T) {
 	}
 
 	f.SetWidth(60)
-	if f.targetInput.Width <= 1 || f.portInput.Width < 5 {
+	if f.targetInput.Width() <= 1 || f.portInput.Width() < 5 {
 		t.Errorf("after a resize the inputs are %d and %d wide, want room for a port and a target",
-			f.portInput.Width, f.targetInput.Width)
+			f.portInput.Width(), f.targetInput.Width())
 	}
 }
 
@@ -453,7 +453,7 @@ func TestTheTabOffersTheSameKeysWhateverTheRowsState(t *testing.T) {
 func TestTheTableSaysWhatIsNotListening(t *testing.T) {
 	m := onForwardTab(t)
 	m = feed(t, m, forward.ChangedMsg{Forwards: mixedForwards()})
-	out := ansi.Strip(m.View())
+	out := ansi.Strip(m.Render())
 
 	for _, want := range []string{"paused", "the local port is already in use"} {
 		if !strings.Contains(out, want) {
@@ -736,7 +736,7 @@ func TestTheTableShowsTheNameOfARouteAndADashForAForward(t *testing.T) {
 		{ID: "1", LocalPort: 8080, Target: "127.0.0.1:3000", Name: "api.localhost", Opened: time.Now()},
 		{ID: "2", LocalPort: 5432, Target: "db:5432", Opened: time.Now()},
 	}})
-	out := ansi.Strip(m.View())
+	out := ansi.Strip(m.Render())
 	for _, want := range []string{"Name", "api.localhost", "8080"} {
 		if !strings.Contains(out, want) {
 			t.Errorf("the table does not show %q:\n%s", want, out)

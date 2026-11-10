@@ -1,6 +1,6 @@
 package forward
 
-import tea "github.com/charmbracelet/bubbletea"
+import tea "charm.land/bubbletea/v2"
 
 // The messages a view exchanges with the router about forwards.
 //

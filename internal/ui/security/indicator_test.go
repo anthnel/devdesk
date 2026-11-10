@@ -6,7 +6,7 @@ import (
 	"testing"
 	"time"
 
-	tea "github.com/charmbracelet/bubbletea"
+	tea "charm.land/bubbletea/v2"
 
 	"github.com/anthnel/devdesk/internal/jobs"
 	"github.com/anthnel/devdesk/internal/ui/datatable"
@@ -28,12 +28,12 @@ func inventoryLine(t *testing.T, m Model, name string) string {
 	if i := strings.LastIndex(name, "/"); i >= 0 {
 		short = name[i+1:]
 	}
-	for _, l := range strings.Split(m.View(), "\n") {
+	for _, l := range strings.Split(m.Render(), "\n") {
 		if strings.Contains(l, short) {
 			return l
 		}
 	}
-	t.Fatalf("no rendered line holds %q:\n%s", short, m.View())
+	t.Fatalf("no rendered line holds %q:\n%s", short, m.Render())
 	return ""
 }
 
@@ -235,7 +235,7 @@ func TestTheSelectedRunningRowStartsWithTheDot(t *testing.T) {
 		jobs.ChangedMsg{Runs: []jobs.Run{secRun(jobs.KindScan, secCtx, jobs.ItemRunning, indImage)}, Context: secCtx},
 		jobs.FrameMsg{Blink: true})
 	dot := indicator.Glyph(indicator.Running, true)
-	for _, l := range strings.Split(m.View(), "\n") {
+	for _, l := range strings.Split(m.Render(), "\n") {
 		if strings.Contains(l, "api:1.4") {
 			if !strings.Contains(l, dot) || strings.Index(l, dot) > strings.Index(l, "api") {
 				t.Errorf("the dot is not the first visible cell:\n%s", l)

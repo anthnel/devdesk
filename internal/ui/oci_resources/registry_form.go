@@ -4,8 +4,8 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/charmbracelet/bubbles/textinput"
-	tea "github.com/charmbracelet/bubbletea"
+	"charm.land/bubbles/v2/textinput"
+	tea "charm.land/bubbletea/v2"
 
 	"github.com/anthnel/devdesk/internal/config"
 	"github.com/anthnel/devdesk/internal/ui/theme"
@@ -165,13 +165,13 @@ func (f *RegistryForm) resizeInputs() {
 	// "Management URL " + chevron + spaces (~18)
 	const labelOverhead = 20
 	w := max(f.width-labelOverhead, 20)
-	f.urlInput.Width = w
-	f.slugInput.Width = w
-	f.usernameInput.Width = w
-	f.passwordInput.Width = w
-	f.aliasInput.Width = w
-	f.prefixInput.Width = w
-	f.nexusURLInput.Width = w
+	f.urlInput.SetWidth(w)
+	f.slugInput.SetWidth(w)
+	f.usernameInput.SetWidth(w)
+	f.passwordInput.SetWidth(w)
+	f.aliasInput.SetWidth(w)
+	f.prefixInput.SetWidth(w)
+	f.nexusURLInput.SetWidth(w)
 }
 
 // isGroup reports whether the entry being edited is a repository-manager group.
@@ -220,13 +220,13 @@ func (f *RegistryForm) GetTitle() string {
 // Update handles messages for the registry form
 func (f *RegistryForm) Update(msg tea.Msg) (*RegistryForm, tea.Cmd) {
 	switch msg := msg.(type) {
-	case tea.KeyMsg:
+	case tea.KeyPressMsg:
 		return f.handleKeyMsg(msg)
 	}
 	return f.updateActiveInput(msg)
 }
 
-func (f *RegistryForm) handleKeyMsg(msg tea.KeyMsg) (*RegistryForm, tea.Cmd) {
+func (f *RegistryForm) handleKeyMsg(msg tea.KeyPressMsg) (*RegistryForm, tea.Cmd) {
 	switch msg.String() {
 	case "esc":
 		return f, func() tea.Msg { return RegistryFormCancelMsg{} }

@@ -3,9 +3,9 @@ package filebrowser
 import (
 	"strings"
 
-	"github.com/charmbracelet/bubbles/textinput"
-	tea "github.com/charmbracelet/bubbletea"
-	"github.com/charmbracelet/lipgloss"
+	"charm.land/bubbles/v2/textinput"
+	tea "charm.land/bubbletea/v2"
+	"charm.land/lipgloss/v2"
 
 	"github.com/anthnel/devdesk/internal/ui/theme"
 )
@@ -48,7 +48,7 @@ func newCreateForm(isDir bool, width int) *createForm {
 	in := textinput.New()
 	in.Placeholder = "name"
 	in.CharLimit = nameCharLimit
-	in.Width = 40
+	in.SetWidth(40)
 	theme.StyleTextInput(&in)
 	f := &createForm{name: in, width: width, focus: fieldName}
 	if !isDir {
@@ -64,7 +64,7 @@ func (f *createForm) isDir() bool { return f.kindIdx == 0 }
 
 // Update follows Rule 135: ↑↓ move between fields, ←→ cycle the Type, enter
 // acts on a button or submits from the name, esc cancels.
-func (f *createForm) Update(msg tea.KeyMsg) (*createForm, tea.Cmd) {
+func (f *createForm) Update(msg tea.KeyPressMsg) (*createForm, tea.Cmd) {
 	switch msg.String() {
 	case "esc":
 		return f, func() tea.Msg { return createFormCancelMsg{} }
@@ -87,6 +87,17 @@ func (f *createForm) Update(msg tea.KeyMsg) (*createForm, tea.Cmd) {
 		return f, cmd
 	}
 	return f, nil
+}
+
+// paste gives pasted text to the name field. The Type field takes none, so a
+// paste there is dropped (Rule 111).
+func (f *createForm) paste(msg tea.PasteMsg) (*createForm, tea.Cmd) {
+	if f.focus != fieldName {
+		return f, nil
+	}
+	var cmd tea.Cmd
+	f.name, cmd = f.name.Update(msg)
+	return f, cmd
 }
 
 // cycle turns the Type on its field; on the name it moves the caret, which is

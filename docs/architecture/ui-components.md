@@ -263,10 +263,20 @@ cycling `.` does not resize it and shift every column beside it.
 seven-cell string carrying a colour measures 28, so it is truncated in a column
 twice wide enough and the cut lands inside the escape — the unterminated
 sequence then bleeds over every row below. That is Rule 122, it is a
-`bubbles/table` limitation rather than a Bubble Tea one, and `bubbles v1.0.0`
-has the same line. Inverting the order — `Cell` is measured while plain, `Style`
+`bubbles/table` limitation rather than a Bubble Tea one, and Bubbles v2
+(`charm.land/bubbles/v2`) has the same line. Inverting the order — `Cell` is measured while plain, `Style`
 is applied to the finished cell — makes the failure unexpressible instead of
 forbidden by review.
+
+**Bubble Tea / Bubbles / Lip Gloss v2 (DEVDESK-201).** Components keep
+`View() string`; only top-level views have `Render()` and a `View() tea.View`
+(see `app-shell.md`). Colours are `color.Color`. Sizes go through accessors:
+`textinput.SetWidth(n)` and `Width()`, `viewport.SetWidth/SetHeight` and
+`Width()/Height()`, not field assignment. `lipgloss.Place` takes
+`WithWhitespaceStyle(lipgloss.NewStyle().Background(theme.ColorBackground))`
+(Rule 115). Two widths coexist: the table pads and cuts with `runewidth`,
+Lip Gloss and the viewport measure with `x/ansi`; they differ on VS16 emoji
+(Rule 116, pinned by `TestVS16EmojiIsAKnownWidthDivergence`).
 
 bubbles is still the state: rows, columns, cursor, focus and height. What moved
 here is the drawing and the scroll offset (`clampOffset`), which its viewport

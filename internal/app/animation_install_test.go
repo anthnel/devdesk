@@ -4,7 +4,7 @@ import (
 	"reflect"
 	"testing"
 
-	tea "github.com/charmbracelet/bubbletea"
+	tea "charm.land/bubbletea/v2"
 
 	"github.com/anthnel/devdesk/internal/command"
 	"github.com/anthnel/devdesk/internal/ui/filebrowser"
@@ -20,7 +20,7 @@ import (
 
 // runningRouter returns a router with a scan in flight and a frame that is not
 // the zero value, so "never received" and "received the zero frame" differ.
-func runningRouter(t *testing.T, current tea.Model) *App {
+func runningRouter(t *testing.T, current Screen) *App {
 	t.Helper()
 	a := router(t, current)
 	a.jobs.Start(scanRun("default", "a"))

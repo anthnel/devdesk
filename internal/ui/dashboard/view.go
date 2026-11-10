@@ -11,13 +11,19 @@ import (
 	"github.com/anthnel/devdesk/internal/ui/shortcut"
 	"github.com/anthnel/devdesk/internal/ui/theme"
 	"github.com/anthnel/devdesk/internal/version"
+
+	tea "charm.land/bubbletea/v2"
 )
 
-// View renders the dashboard as a grid of titled boxes. There is no outer
+// View is the Bubble Tea v2 face of Render: the content only. The terminal
+// state (alternate screen, colours) belongs to whoever owns the program.
+func (m Model) View() tea.View { return tea.NewView(m.Render()) }
+
+// Render renders the dashboard as a grid of titled boxes. There is no outer
 // frame: every other view frames one object (a table, a form), the
 // dashboard is made of heterogeneous groups that a single frame wouldn't
 // help read.
-func (m Model) View() string {
+func (m Model) Render() string {
 	t := layoutTier(m.width, m.height)
 	colWidth := t.columnWidth(m.width)
 	columns := m.columnsFor(t)

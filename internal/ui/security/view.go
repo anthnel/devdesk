@@ -4,7 +4,8 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/charmbracelet/lipgloss"
+	tea "charm.land/bubbletea/v2"
+	"charm.land/lipgloss/v2"
 
 	"github.com/anthnel/devdesk/internal/command"
 	"github.com/anthnel/devdesk/internal/jobs"
@@ -13,8 +14,12 @@ import (
 	"github.com/anthnel/devdesk/internal/ui/theme"
 )
 
-// View renders the UI
-func (m Model) View() string {
+// View is the Bubble Tea v2 face of Render: the content only. The terminal
+// state (alternate screen, colours) belongs to whoever owns the program.
+func (m Model) View() tea.View { return tea.NewView(m.Render()) }
+
+// Render renders the UI
+func (m Model) Render() string {
 	// Show whichever modal is active (Rule 112: modals confirm, forms fill the
 	// viewport).
 	if modal := m.modalView(); modal != "" {
@@ -22,7 +27,7 @@ func (m Model) View() string {
 			m.width, m.height,
 			lipgloss.Center, lipgloss.Center,
 			modal,
-			lipgloss.WithWhitespaceBackground(theme.ColorBackground),
+			lipgloss.WithWhitespaceStyle(lipgloss.NewStyle().Background(theme.ColorBackground)),
 		)
 	}
 

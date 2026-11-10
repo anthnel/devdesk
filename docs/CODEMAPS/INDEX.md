@@ -49,7 +49,7 @@ Press `:` to enter command mode, then type view name:
 
 **All views receive messages via Bubble Tea Update():**
 
-1. User presses key → `tea.KeyMsg`
+1. User presses key → `tea.KeyPressMsg`
 2. View handler processes → returns `(tea.Model, tea.Cmd)`
 3. Cmd performs I/O (network, disk, Docker, etc.)
 4. Result → custom `tea.Msg` → back to `Update()`

@@ -3,9 +3,9 @@ package theme
 import (
 	"strings"
 
-	"github.com/charmbracelet/bubbles/table"
-	"github.com/charmbracelet/bubbles/textinput"
-	"github.com/charmbracelet/lipgloss"
+	"charm.land/bubbles/v2/table"
+	"charm.land/bubbles/v2/textinput"
+	"charm.land/lipgloss/v2"
 )
 
 // Layout styles
@@ -190,15 +190,24 @@ func OverlayBoxStyle() lipgloss.Style {
 		Background(ColorBackground)
 }
 
-// StyleTextInput applies the app background to a bubbles textinput
+// StyleTextInput applies the app background to a bubbles textinput.
+//
+// The virtual cursor has no background in bubbles v2 (CursorStyle carries a
+// colour only), so Rule 115 cannot be honored for that one cell.
 func StyleTextInput(ti *textinput.Model) {
-	bgStyle := lipgloss.NewStyle().Background(ColorBackground)
 	ti.Prompt = "" // Label and separator are handled externally (Rule 120)
-	ti.TextStyle = bgStyle.Foreground(ColorText)
-	ti.PromptStyle = bgStyle.Foreground(ColorHighlight)
-	ti.PlaceholderStyle = bgStyle.Foreground(ColorDim)
-	ti.Cursor.Style = bgStyle.Foreground(ColorHighlight)
-	ti.Cursor.TextStyle = bgStyle.Foreground(ColorText)
+	bgStyle := lipgloss.NewStyle().Background(ColorBackground)
+	state := textinput.StyleState{
+		Text:        bgStyle.Foreground(ColorText),
+		Placeholder: bgStyle.Foreground(ColorDim),
+		Suggestion:  bgStyle.Foreground(ColorDim),
+		Prompt:      bgStyle.Foreground(ColorHighlight),
+	}
+	styles := ti.Styles()
+	styles.Focused = state
+	styles.Blurred = state
+	styles.Cursor.Color = ColorHighlight
+	ti.SetStyles(styles)
 }
 
 // SpinnerStyle returns the standard spinner style (secondary color on theme background)

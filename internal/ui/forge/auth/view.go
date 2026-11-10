@@ -3,7 +3,8 @@ package auth
 import (
 	"strings"
 
-	"github.com/charmbracelet/lipgloss"
+	tea "charm.land/bubbletea/v2"
+	"charm.land/lipgloss/v2"
 
 	"github.com/anthnel/devdesk/internal/config"
 	"github.com/anthnel/devdesk/internal/forge"
@@ -103,8 +104,12 @@ func (m Model) GetHelpContent() help.Content {
 	}
 }
 
-// View renders the view
-func (m *Model) View() string {
+// View is the Bubble Tea v2 face of Render: the content only. The terminal
+// state (alternate screen, colours) belongs to whoever owns the program.
+func (m *Model) View() tea.View { return tea.NewView(m.Render()) }
+
+// Render renders the view
+func (m *Model) Render() string {
 	var sections []string
 
 	// Status (only show when not authenticated, to avoid duplication with logged-in view)

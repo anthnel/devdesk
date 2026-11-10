@@ -7,7 +7,7 @@ import (
 	"testing"
 	"time"
 
-	tea "github.com/charmbracelet/bubbletea"
+	tea "charm.land/bubbletea/v2"
 
 	"github.com/anthnel/devdesk/internal/cache"
 	"github.com/anthnel/devdesk/internal/jobs"
@@ -20,7 +20,7 @@ import (
 // ── View states ──────────────────────────────────────────────────────────────
 
 func TestViewRendersTheTable(t *testing.T) {
-	out := loadedModel(t).View()
+	out := loadedModel(t).Render()
 
 	for _, want := range []string{"devdesk", "clean-repo", "anthnel/devdesk"} {
 		if !strings.Contains(out, want) {
@@ -35,8 +35,8 @@ func TestViewRendersTheTable(t *testing.T) {
 // to be empty — is now the header's Directory and Items fields.
 func TestViewDistinguishesTheTwoEmptyStates(t *testing.T) {
 	root := feed(t, newTestModel(t), EntriesLoadedMsg{Entries: nil})
-	if root.View() != root.renderTable() {
-		t.Errorf("the root empty state does not render the plain table:\n%s", root.View())
+	if root.Render() != root.renderTable() {
+		t.Errorf("the root empty state does not render the plain table:\n%s", root.Render())
 	}
 	if _, value, _ := findHeaderInfo(root, "Items"); value != "0" {
 		t.Errorf("GetHeaderInfo Items = %q, want \"0\"", value)
@@ -46,8 +46,8 @@ func TestViewDistinguishesTheTwoEmptyStates(t *testing.T) {
 	nested.table.SetCursor(3)
 	nested = feed(t, nested, testutil.Key("right"))
 	nested = feed(t, nested, EntriesLoadedMsg{Path: nested.currentPath})
-	if nested.View() != nested.renderTable() {
-		t.Errorf("the nested empty state does not render the plain table:\n%s", nested.View())
+	if nested.Render() != nested.renderTable() {
+		t.Errorf("the nested empty state does not render the plain table:\n%s", nested.Render())
 	}
 	if _, value, _ := findHeaderInfo(nested, "Directory"); value == "" || value == "~" {
 		t.Errorf("GetHeaderInfo Directory = %q, want the nested directory named", value)
@@ -66,7 +66,7 @@ func findHeaderInfo(m Model, key string) (foundKey, value string, ok bool) {
 func TestViewRendersTheError(t *testing.T) {
 	m := feed(t, newTestModel(t), LoadErrorMsg{Error: errors.New("permission denied")})
 
-	if !strings.Contains(m.View(), "permission denied") {
+	if !strings.Contains(m.Render(), "permission denied") {
 		t.Error("View() does not surface the load error")
 	}
 }
@@ -86,7 +86,7 @@ func TestViewRendersOverlays(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			m := feed(t, loadedModel(t), testutil.Key(tc.key))
 
-			if out := m.View(); !strings.Contains(out, tc.want) {
+			if out := m.Render(); !strings.Contains(out, tc.want) {
 				t.Errorf("the %s overlay is not rendered:\n%s", tc.name, out)
 			}
 		})

@@ -7,8 +7,8 @@ import (
 	"strings"
 	"testing"
 
-	tea "github.com/charmbracelet/bubbletea"
-	"github.com/charmbracelet/lipgloss"
+	tea "charm.land/bubbletea/v2"
+	"charm.land/lipgloss/v2"
 	"github.com/charmbracelet/x/ansi"
 
 	"github.com/anthnel/devdesk/internal/config"
@@ -104,7 +104,7 @@ func TestOnlySpaceTogglesACheckbox(t *testing.T) {
 		t.Error("enter toggled a checkbox")
 	}
 
-	m = feed(t, m, testutil.Key(" "))
+	m = feed(t, m, testutil.Key("space"))
 	if m.config.Status.AutoRefresh == before {
 		t.Error("space did not toggle the checkbox")
 	}
@@ -170,7 +170,7 @@ func TestAServerLocksWhatItCannotDoWithoutUnticking(t *testing.T) {
 	m.config.Scan.Categories.Misconfig.Enabled = true
 	m.config.Scan.Categories.License.Enabled = true
 
-	m = feed(t, m, testutil.Key(" "))
+	m = feed(t, m, testutil.Key("space"))
 
 	if !m.config.Scan.Tools.Trivy.Server.Enabled {
 		t.Fatal("the checkbox did not turn server mode on")
@@ -213,7 +213,7 @@ func TestALockedCheckboxCannotBeToggledAndSaysWhy(t *testing.T) {
 	m.config.Scan.Tools.Trivy.Server.Enabled = true
 	m = focusOn(t, m, "Licenses")
 
-	m = feed(t, m, testutil.Key(" "))
+	m = feed(t, m, testutil.Key("space"))
 
 	if m.config.Scan.Categories.License.Enabled {
 		t.Error("a locked checkbox was toggled on")
@@ -229,7 +229,7 @@ func TestUntickingTheLastToolSaysWhy(t *testing.T) {
 	m.config.Scan.Categories.Secret = m.config.Scan.Categories.Secret.With(config.ToolGitleaks, false)
 	m = focusOnField(t, m, scanRowOf(t, m, "Secrets", "Trivy"))
 
-	m = feed(t, m, testutil.Key(" "))
+	m = feed(t, m, testutil.Key("space"))
 
 	if !m.config.Scan.Categories.Secret.Has(config.ToolTrivy) {
 		t.Error("the last tool of an enabled category was unticked")
@@ -245,7 +245,7 @@ func TestSpaceChangesWhatTheFooterSays(t *testing.T) {
 	m := focusOnField(t, newModel(t), scanRowOf(t, newModel(t), "Secrets", "Gitleaks"))
 	before := m.hint(m.current())
 
-	m = feed(t, m, testutil.Key(" "))
+	m = feed(t, m, testutil.Key("space"))
 
 	after := m.hint(m.current())
 	if before == after || !strings.Contains(before, "gitleaks is required") || !strings.Contains(after, "not required") {
@@ -422,14 +422,14 @@ func TestShortcutsOmitTheObviousOnes(t *testing.T) {
 
 // Rule 131: exactly one blank line above the form.
 func TestTheFormOpensWithOneBlankLine(t *testing.T) {
-	lines := strings.Split(newModel(t).View(), "\n")
+	lines := strings.Split(newModel(t).Render(), "\n")
 	if len(lines) < 3 {
 		t.Fatalf("the view rendered %d lines", len(lines))
 	}
-	if strings.TrimSpace(lines[0]) != "" {
+	if strings.TrimSpace(ansi.Strip(lines[0])) != "" {
 		t.Errorf("line 1 = %q, want a blank padding line", lines[0])
 	}
-	if strings.TrimSpace(lines[1]) == "" {
+	if strings.TrimSpace(ansi.Strip(lines[1])) == "" {
 		t.Error("line 2 is blank too; Rule 131 allows exactly one")
 	}
 }
@@ -472,7 +472,7 @@ func TestTheHeaderNoLongerCarriesTheFilePath(t *testing.T) {
 
 	m = focusOn(t, m, "Workspaces dir")
 	m.activeTab = 0
-	rendered := stripANSI(m.View())
+	rendered := stripANSI(m.Render())
 	if !strings.Contains(rendered, "Config file") {
 		t.Error("the app tab does not show the config file path")
 	}
@@ -521,7 +521,7 @@ func TestEachTabRendersItsGroupHeadingsOnceInOrder(t *testing.T) {
 			}
 		}
 
-		rendered := m.View()
+		rendered := m.Render()
 		for _, g := range order {
 			if strings.Count(rendered, g) < 1 {
 				t.Errorf("tab %q: group heading %q is not rendered", m.sections[tab].Title, g)

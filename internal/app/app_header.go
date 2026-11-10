@@ -3,9 +3,9 @@ package app
 import (
 	"strings"
 
+	"charm.land/lipgloss/v2"
 	"github.com/anthnel/devdesk/internal/ui/shortcut"
 	"github.com/anthnel/devdesk/internal/ui/theme"
-	"github.com/charmbracelet/lipgloss"
 	"github.com/charmbracelet/x/ansi"
 )
 

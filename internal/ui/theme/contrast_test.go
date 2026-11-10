@@ -4,7 +4,7 @@ import (
 	"math"
 	"testing"
 
-	"github.com/charmbracelet/lipgloss"
+	"charm.land/lipgloss/v2"
 )
 
 // Accepted forms: "#rgb" and "#rrggbb", case-insensitive. Anything else
@@ -12,7 +12,7 @@ import (
 func TestContrastRatio_ReferenceValues(t *testing.T) {
 	tests := []struct {
 		name   string
-		fg, bg lipgloss.Color
+		fg, bg string
 		want   float64
 	}{
 		{"white on black", "#ffffff", "#000000", 21},
@@ -24,7 +24,7 @@ func TestContrastRatio_ReferenceValues(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got, err := ContrastRatio(tt.fg, tt.bg)
+			got, err := ContrastRatio(lipgloss.Color(tt.fg), lipgloss.Color(tt.bg))
 			if err != nil {
 				t.Fatalf("ContrastRatio(%q, %q) error: %v", tt.fg, tt.bg, err)
 			}
@@ -36,8 +36,8 @@ func TestContrastRatio_ReferenceValues(t *testing.T) {
 }
 
 func TestContrastRatio_Symmetric(t *testing.T) {
-	a, errA := ContrastRatio("#cdd6f4", "#1e1e2e")
-	b, errB := ContrastRatio("#1e1e2e", "#cdd6f4")
+	a, errA := ContrastRatio(lipgloss.Color("#cdd6f4"), lipgloss.Color("#1e1e2e"))
+	b, errB := ContrastRatio(lipgloss.Color("#1e1e2e"), lipgloss.Color("#cdd6f4"))
 	if errA != nil || errB != nil {
 		t.Fatalf("errors: %v, %v", errA, errB)
 	}
@@ -47,12 +47,12 @@ func TestContrastRatio_Symmetric(t *testing.T) {
 }
 
 func TestContrastRatio_RejectsNonHex(t *testing.T) {
-	for _, c := range []lipgloss.Color{"", "red", "12", "ffffff", "#ggg", "#12345", "#1234567", "rgb(1,2,3)"} {
-		t.Run(string(c), func(t *testing.T) {
-			if _, err := ContrastRatio(c, "#000000"); err == nil {
+	for _, c := range []string{"", "red", "12", "ffffff", "#ggg", "#12345", "#1234567", "rgb(1,2,3)"} {
+		t.Run(c, func(t *testing.T) {
+			if _, err := ContrastRatio(lipgloss.Color(c), lipgloss.Color("#000000")); err == nil {
 				t.Errorf("foreground %q: want an error", c)
 			}
-			if _, err := ContrastRatio("#ffffff", c); err == nil {
+			if _, err := ContrastRatio(lipgloss.Color("#ffffff"), lipgloss.Color(c)); err == nil {
 				t.Errorf("background %q: want an error", c)
 			}
 		})

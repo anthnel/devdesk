@@ -1,7 +1,7 @@
 package jobsview
 
 import (
-	tea "github.com/charmbracelet/bubbletea"
+	tea "charm.land/bubbletea/v2"
 
 	"github.com/anthnel/devdesk/internal/jobs"
 	sharedcomponents "github.com/anthnel/devdesk/internal/ui/components"
@@ -29,8 +29,11 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case jobs.FrameMsg:
 		return m.handleFrameMsg(msg)
 
-	case tea.KeyMsg:
+	case tea.KeyPressMsg:
 		return m.handleKeyMsg(msg)
+
+	case tea.PasteMsg:
+		return m.handlePaste(msg)
 	}
 
 	m.footer.Handle(msg)
@@ -106,9 +109,18 @@ func (m *Model) refreshRows() {
 	m.itemTable.SetItems(items)
 }
 
+// handlePaste hands pasted text to the filter while it has the keyboard; with
+// no field focused a paste is dropped, never read as keys (Rule 111).
+func (m Model) handlePaste(msg tea.PasteMsg) (tea.Model, tea.Cmd) {
+	if m.inFilter() {
+		return m.forwardToTable(msg)
+	}
+	return m, nil
+}
+
 // handleKeyMsg routes a key. The filter comes first (Rule 136): while it has
 // the keyboard, every key is text.
-func (m Model) handleKeyMsg(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
+func (m Model) handleKeyMsg(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	if m.inFilter() {
 		return m.forwardToTable(msg)
 	}

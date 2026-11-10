@@ -5,9 +5,9 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/charmbracelet/bubbles/textinput"
-	tea "github.com/charmbracelet/bubbletea"
-	"github.com/charmbracelet/lipgloss"
+	"charm.land/bubbles/v2/textinput"
+	tea "charm.land/bubbletea/v2"
+	"charm.land/lipgloss/v2"
 
 	sharedcomponents "github.com/anthnel/devdesk/internal/ui/components"
 	"github.com/anthnel/devdesk/internal/ui/datatable"
@@ -70,7 +70,7 @@ func New(loadingText string) *Finder {
 	ti.Placeholder = fmt.Sprintf("type at least %d characters", MinQueryLen)
 	ti.Focus()
 	ti.CharLimit = 200
-	ti.Width = 60
+	ti.SetWidth(60)
 	theme.StyleTextInput(&ti)
 
 	return &Finder{
@@ -124,7 +124,7 @@ func (f *Finder) Resize(width, height int) {
 
 // Update handles input while the prompt is active.
 func (f *Finder) Update(msg tea.Msg) (*Finder, tea.Cmd) {
-	if key, ok := msg.(tea.KeyMsg); ok {
+	if key, ok := msg.(tea.KeyPressMsg); ok {
 		switch key.String() {
 		case "esc":
 			return f, func() tea.Msg { return CancelMsg{} }

@@ -55,7 +55,7 @@ func openTemplates(t *testing.T, a *App) {
 
 func templatesRow(t *testing.T, a *App) string {
 	t.Helper()
-	return rowOf(t, ansi.Strip(a.views[command.ViewTemplates].View()), "API")
+	return rowOf(t, ansi.Strip(a.views[command.ViewTemplates].Render()), "API")
 }
 
 func failSyncOnRow(a *App) {

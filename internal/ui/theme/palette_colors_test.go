@@ -8,7 +8,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/charmbracelet/lipgloss"
+	"charm.land/lipgloss/v2"
 )
 
 const (
@@ -115,14 +115,11 @@ func TestPaletteFrameTextContrastsWithBackground(t *testing.T) {
 // The header hint "ctrl+p Commands" must not be the dim decoration tone.
 func TestShortcutHintStyleIsReadable(t *testing.T) {
 	eachShippedTheme(t, func(t *testing.T, name string) {
-		fg, ok := ShortcutHintStyle.GetForeground().(lipgloss.Color)
-		if !ok {
-			t.Fatalf("theme %s: ShortcutHintStyle foreground is %T, want lipgloss.Color", name, ShortcutHintStyle.GetForeground())
-		}
+		fg := ShortcutHintStyle.GetForeground()
 		if fg == ColorDim {
 			t.Errorf("theme %s: ShortcutHintStyle uses ColorDim (%s)", name, ColorDim)
 		}
-		if bg := ShortcutHintStyle.GetBackground(); bg != lipgloss.TerminalColor(ColorBackground) {
+		if bg := ShortcutHintStyle.GetBackground(); bg != ColorBackground {
 			t.Errorf("theme %s: ShortcutHintStyle background = %v, want app background (Rule 115)", name, bg)
 		}
 		r, err := ContrastRatio(fg, ColorBackground)

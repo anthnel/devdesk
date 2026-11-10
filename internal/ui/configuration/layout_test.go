@@ -4,8 +4,8 @@ import (
 	"strings"
 	"testing"
 
-	tea "github.com/charmbracelet/bubbletea"
-	"github.com/charmbracelet/lipgloss"
+	tea "charm.land/bubbletea/v2"
+	"charm.land/lipgloss/v2"
 	"github.com/charmbracelet/x/ansi"
 
 	"github.com/anthnel/devdesk/internal/config"
@@ -67,7 +67,7 @@ func TestNoLineIsWiderThanTheView(t *testing.T) {
 	for _, width := range []int{80, 130, 200} {
 		for _, tab := range []string{"app", "scan", toolsTab, "mcp"} {
 			m := sized(t, width, 200, tab)
-			for i, line := range strings.Split(m.View(), "\n") {
+			for i, line := range strings.Split(m.Render(), "\n") {
 				if w := lipgloss.Width(line); w > width {
 					t.Errorf("%s at %d: line %d is %d wide: %q", tab, width, i, w, ansi.Strip(line))
 				}
@@ -85,7 +85,7 @@ func TestTheFocusedFieldIsAlwaysOnScreen(t *testing.T) {
 	}
 	seen := map[int]bool{}
 	for range len(m.fields()) + 2 {
-		view := m.View()
+		view := m.Render()
 		if n := strings.Count(view, "\n") + 1; n > 12 {
 			t.Fatalf("the view is %d lines tall, want at most 12", n)
 		}

@@ -300,9 +300,10 @@ command line has no tabs and no fields, so neither job of `tab` exists on it.
 
 **`Space` — toggle checkbox**
 - The only valid key to check/uncheck a checkbox
-- Match it as `keymap.Space`, never as a `" "` literal (bubbletea v1 `" "`, v2 `"space"`); `TestNoKeyIsComparedToALiteralSpace` fails on a literal
+- Match it as `keymap.Space`, never as a `" "` literal (Bubble Tea v1 `" "`, v2 `"space"`; `keymap.Space` is `"space"`); `TestNoKeyIsComparedToALiteralSpace` fails on a literal
 - Reference implementation: `LaunchForm` (`internal/ui/oci_resources`), pinned by `launch_form_keys_test.go` — `TestLaunchFormSpaceTogglesEachCheckbox`, `TestLaunchFormDetachAndInteractiveExcludeEachOther`, `TestLaunchFormEnterNeverTogglesACheckbox`
 - `Enter` on a checkbox must be ignored or advance to the next field, never toggle it
+- **Confirmation buttons are the mirror case**: `Space` never answers Yes or No. `components.ConfirmModal`, `ChoiceModal`, `OptionConfirmModal` and the setup wizard's confirmation answer on `enter` only (plus `y`/`n` on the yes/no ones). In `OptionConfirmModal`, `space` toggles the option checkbox when it has focus (inert when locked) and `enter` on that checkbox is ignored
 
 **`Enter` — validation / action**
 - Validates the currently focused button

@@ -8,11 +8,10 @@ import (
 	"strings"
 	"testing"
 
-	tea "github.com/charmbracelet/bubbletea"
-	"github.com/charmbracelet/lipgloss"
+	tea "charm.land/bubbletea/v2"
+	"charm.land/lipgloss/v2"
 
 	"github.com/anthnel/devdesk/internal/metrics"
-	"github.com/anthnel/devdesk/internal/testutil/colorprofile"
 	"github.com/anthnel/devdesk/internal/ui/theme"
 )
 
@@ -54,7 +53,6 @@ func TestAChartLineIsExactlyTheColumnWidth(t *testing.T) {
 // test looking for escape sequences without this would pass with
 // DrawColumnsOnly too.
 func TestEveryChartCellCarriesABackground(t *testing.T) {
-	colorprofile.TrueColor(t)
 
 	// A sparse series: lots of zeros, so lots of gaps to fill.
 	sparse := make([]float64, 40)
@@ -168,7 +166,7 @@ func TestTheBareGridLeavesRoomForItsCharts(t *testing.T) {
 
 	for _, height := range []int{20, 33, 47, 80} {
 		at := feed(t, m, tea.WindowSizeMsg{Width: 250, Height: height})
-		rendered := strings.Count(at.View(), "\n") + 1
+		rendered := strings.Count(at.Render(), "\n") + 1
 
 		if at.chartLines != 0 {
 			t.Errorf("View() left chartLines = %d on the model — it is a layout result, not state", at.chartLines)

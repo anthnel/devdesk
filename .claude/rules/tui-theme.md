@@ -37,7 +37,13 @@ paths:
 
 `JoinHorizontal`/`JoinVertical` are acceptable **only** if the result is wrapped in a `.Background(ColorBackground).Width(w)` style.
 
-`lipgloss.Place` → always use `WithWhitespaceBackground(theme.ColorBackground)`.
+`lipgloss.Place` → always use `WithWhitespaceStyle(lipgloss.NewStyle().Background(theme.ColorBackground))`
+(Lip Gloss v2 removed `WithWhitespaceBackground`).
+
+**Known gap: the text input's cursor cell.** In Bubbles v2 the virtual cursor
+(`textinput.Styles.Cursor`) carries a colour and no background, so that one cell
+cannot take `ColorBackground`. `theme.StyleTextInput` sets every other state and
+the cursor colour (`ColorHighlight`); the single-cell gap is accepted.
 
 **Drawing over an already rendered screen** (the command palette) goes through
 `overlay.Compose` (`internal/ui/overlay`) and nothing else: it splices with
@@ -104,7 +110,12 @@ Forbidden:
 
 ### Rule 119 : No hardcoded hex color outside `colors.go`
 
-**`lipgloss.Color("#...")` must appear ONLY in `internal/ui/theme/colors.go`.**
+**A hex literal (`lipgloss.Color("#...")`, `color.RGBA{…}`) must appear ONLY in `internal/ui/theme/colors.go`.**
+
+Palette variables are `color.Color` (`image/color`), not a Lip Gloss type. Read
+one back with `theme.Hex(c)` (`#rrggbb`). A theme file is validated on load:
+`theme.LoadTheme` refuses the whole file when a non-empty colour is not `#rgb`
+or `#rrggbb` (see `docs/architecture/configuration.md`).
 
 3-level architecture:
 
@@ -120,7 +131,7 @@ If a hex color is needed with no semantic equivalent:
 
 ```go
 // ✅ CORRECT
-var ColorMaroon = lipgloss.Color("#eba0ac")  // dans palette de base
+var ColorMaroon = lipgloss.Color("#eba0ac")  // in the base palette
 ColorSeverityHigh = ColorMaroon              // in the semantic section
 
 // ❌ WRONG

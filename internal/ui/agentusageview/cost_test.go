@@ -9,13 +9,12 @@ import (
 	"testing"
 	"unicode/utf8"
 
-	"github.com/charmbracelet/lipgloss"
+	"charm.land/lipgloss/v2"
 	"gopkg.in/yaml.v3"
 
 	"github.com/anthnel/devdesk/internal/agentusage"
 	"github.com/anthnel/devdesk/internal/agentusage/pricing"
 	"github.com/anthnel/devdesk/internal/config"
-	"github.com/anthnel/devdesk/internal/testutil/colorprofile"
 	"github.com/anthnel/devdesk/internal/ui/datatable"
 	"github.com/anthnel/devdesk/internal/ui/testutil"
 	"github.com/anthnel/devdesk/internal/ui/theme"
@@ -114,7 +113,6 @@ func TestCostCell(t *testing.T) {
 
 // Rule 122: the cell is measured before it is styled.
 func TestCostCellsCarryNoEscapeSequence(t *testing.T) {
-	colorprofile.TrueColor(t)
 	col := column(t, costTitle)
 	for _, r := range []agentRow{
 		{Agent: orchestrator(1, 0), cost: priced(1.5)},
@@ -431,9 +429,9 @@ func TestEstCostLayoutAtEachWidth(t *testing.T) {
 				if got := m.agentTable.RenderedWidth(); got != tt.width-2 {
 					t.Errorf("rendered width = %d, want %d (Rule 116)", got, tt.width-2)
 				}
-				got := header(t, m.View())
+				got := header(t, m.Render())
 				if strings.Join(got, ",") != strings.Join(tt.want, ",") {
-					t.Errorf("columns at %d = %v, want %v:\n%s", tt.width, got, tt.want, m.View())
+					t.Errorf("columns at %d = %v, want %v:\n%s", tt.width, got, tt.want, m.Render())
 				}
 			})
 		}
@@ -449,7 +447,7 @@ func TestEstCostIsTheThirdTitledColumnAndRule116HoldsAtEveryWidth(t *testing.T) 
 		if got := m.agentTable.RenderedWidth(); got != w-2 {
 			t.Fatalf("width %d: rendered width = %d, want %d (Rule 116)", w, got, w-2)
 		}
-		cols := header(t, m.View())
+		cols := header(t, m.Render())
 		for i, c := range cols {
 			if c == costTitle {
 				shown++
@@ -462,7 +460,7 @@ func TestEstCostIsTheThirdTitledColumnAndRule116HoldsAtEveryWidth(t *testing.T) 
 	if shown == 0 {
 		t.Fatal("Est. cost never appears between 50 and 230 columns")
 	}
-	if cols := header(t, atPricedAgents(t, nil, 200, costUsage()).View()); len(cols) < 3 || cols[2] != costTitle {
+	if cols := header(t, atPricedAgents(t, nil, 200, costUsage()).Render()); len(cols) < 3 || cols[2] != costTitle {
 		t.Errorf("at 200 columns Est. cost must be third, got %v", cols)
 	}
 }

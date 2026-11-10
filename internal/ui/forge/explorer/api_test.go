@@ -10,7 +10,7 @@ import (
 	"sync"
 	"testing"
 
-	tea "github.com/charmbracelet/bubbletea"
+	tea "charm.land/bubbletea/v2"
 
 	gitlabclient "gitlab.com/gitlab-org/api/client-go"
 

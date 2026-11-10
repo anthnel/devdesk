@@ -19,7 +19,7 @@ import (
 	"strings"
 	"time"
 
-	tea "github.com/charmbracelet/bubbletea"
+	tea "charm.land/bubbletea/v2"
 
 	"github.com/anthnel/devdesk/internal/ui/shortcut"
 )
@@ -44,10 +44,10 @@ func FastTimers(t interface{ Cleanup(func()) }, d *time.Duration) {
 }
 
 // namedKeys maps the key names used throughout the views (they all dispatch on
-// tea.KeyMsg.String()) onto the key types that render back to those names.
-// The space is deliberately absent: see spaceKey. The ctrl+a..ctrl+z names are
-// computed by Key rather than listed.
-var namedKeys = map[string]tea.KeyType{
+// tea.KeyPressMsg.String()) onto the key codes that render back to those
+// names. The space is deliberately absent: see spaceKey. The ctrl+a..ctrl+z
+// names are computed by Key rather than listed.
+var namedKeys = map[string]rune{
 	"enter":     tea.KeyEnter,
 	"esc":       tea.KeyEsc,
 	"escape":    tea.KeyEscape,
@@ -56,7 +56,6 @@ var namedKeys = map[string]tea.KeyType{
 	"left":      tea.KeyLeft,
 	"right":     tea.KeyRight,
 	"tab":       tea.KeyTab,
-	"shift+tab": tea.KeyShiftTab,
 	"backspace": tea.KeyBackspace,
 	"delete":    tea.KeyDelete,
 	"insert":    tea.KeyInsert,
@@ -78,51 +77,51 @@ var namedKeys = map[string]tea.KeyType{
 	"f12":       tea.KeyF12,
 }
 
-// spaceKey is the one place the space key is built. In bubbletea v1 the space
-// is its own key type but also carries its rune, as a real terminal delivers it.
-func spaceKey() tea.KeyMsg {
-	return tea.KeyMsg{Type: tea.KeySpace, Runes: []rune{' '}}
+// spaceKey is the one place the space key is built: the code is KeySpace and
+// the text is " ", as a terminal delivers it. Its String() is computed by
+// bubbletea ("space" in v2) and never imposed here.
+func spaceKey() tea.KeyPressMsg {
+	return tea.KeyPressMsg{Code: tea.KeySpace, Text: " "}
 }
 
-// Key builds the tea.KeyMsg a terminal would deliver for the named key.
+// Key builds the tea.KeyPressMsg a terminal would deliver for the named key.
 //
 // Accepted names, and nothing else (anything unknown panics, so a typo fails
 // loudly instead of silently typing literal runes):
-//   - the names in namedKeys ("enter", "esc", "shift+tab", "pgdown", "f5"...);
+//   - the names in namedKeys ("enter", "esc", "pgdown", "f5"...);
+//   - "shift+tab", computed as the tab key with the shift modifier;
 //   - "ctrl+a" to "ctrl+z", computed;
 //   - " " or "space", the space key;
-//   - a single rune ("y", ":"), a KeyRunes message;
-//   - an "alt+" prefix on any of the above, which sets Alt: Key("alt+:") is a
-//     colon carrying Alt, not the five runes "alt+:".
+//   - a single rune ("y", ":", "S"), carrying its text;
+//   - an "alt+" prefix on any of the above, which adds the alt modifier and
+//     clears the text: Key("alt+:") is a colon carrying Alt, not the five
+//     runes "alt+:".
 //
 // For several characters typed in a row, use Type; for a bracketed paste, Paste.
 //
-// The space is built, never compared through String(): in bubbletea v1
-// KeyMsg.String() of the space is " ", in v2 it is "space". The v2 equivalents
-// of what this function builds, for the migration that will replace it:
-//
-//	space:    tea.KeyPressMsg{Code: tea.KeySpace, Text: " "}
-//	rune r:   tea.KeyPressMsg{Code: r, Text: string(r)}
-//	ctrl+x:   tea.KeyPressMsg{Code: 'x', Mod: tea.ModCtrl}
-//	alt+...:  the same with Mod: tea.ModAlt
-//	enter:    tea.KeyPressMsg{Code: tea.KeyEnter}
-func Key(name string) tea.KeyMsg {
+// Under bubbletea v2 the space key's String() is "space"; production code
+// matches it as keymap.Space and never as a literal.
+func Key(name string) tea.KeyPressMsg {
 	if rest, isAlt := strings.CutPrefix(name, "alt+"); isAlt && rest != "" {
 		msg := Key(rest)
-		msg.Alt = true
+		msg.Mod |= tea.ModAlt
+		msg.Text = ""
 		return msg
 	}
 	if name == " " || name == "space" {
 		return spaceKey()
 	}
-	if kt, ok := namedKeys[name]; ok {
-		return tea.KeyMsg{Type: kt}
+	if name == "shift+tab" {
+		return tea.KeyPressMsg{Code: tea.KeyTab, Mod: tea.ModShift}
+	}
+	if code, ok := namedKeys[name]; ok {
+		return tea.KeyPressMsg{Code: code}
 	}
 	if letter, ok := strings.CutPrefix(name, "ctrl+"); ok && len(letter) == 1 && letter[0] >= 'a' && letter[0] <= 'z' {
-		return tea.KeyMsg{Type: tea.KeyCtrlA + tea.KeyType(letter[0]-'a')}
+		return tea.KeyPressMsg{Code: rune(letter[0]), Mod: tea.ModCtrl}
 	}
 	if r := []rune(name); len(r) == 1 {
-		return tea.KeyMsg{Type: tea.KeyRunes, Runes: r}
+		return tea.KeyPressMsg{Code: r[0], Text: name}
 	}
 	panic(fmt.Sprintf("testutil.Key: unknown key name %q (use Type for several characters, Paste for a paste)", name))
 }
@@ -136,9 +135,10 @@ func Keys(names ...string) []tea.Msg {
 	return msgs
 }
 
-// Type builds one rune message per character of s, reproducing a user typing
+// Type builds one key press per character of s, reproducing a user typing
 // into a text input. Use this instead of Key(s) when the target is a
-// bubbles/textinput: it consumes runes one keypress at a time.
+// textinput: it consumes characters one keypress at a time. A space is built
+// like Key("space").
 func Type(s string) []tea.Msg {
 	msgs := make([]tea.Msg, 0, len(s))
 	for _, r := range s {
@@ -146,7 +146,7 @@ func Type(s string) []tea.Msg {
 			msgs = append(msgs, spaceKey())
 			continue
 		}
-		msgs = append(msgs, tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{r}})
+		msgs = append(msgs, tea.KeyPressMsg{Code: r, Text: string(r)})
 	}
 	return msgs
 }
@@ -279,26 +279,29 @@ func findShortcut(shortcuts shortcut.Shortcuts, key string) (shortcut.Shortcut, 
 	return shortcut.Shortcut{}, false
 }
 
-// Paste builds the message a bracketed paste of s delivers: one KeyRunes
-// message carrying the whole text, flagged Paste.
+// Paste builds the message a bracketed paste of s delivers: one PasteMsg
+// carrying the whole text.
 func Paste(s string) tea.Msg {
-	return tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune(s), Paste: true}
+	return tea.PasteMsg{Content: s}
 }
 
-// IsText reports whether msg is a key message carrying text, typed or pasted:
-// what a text input would insert. It replaces reading key.Type directly, which
-// a v2 migration would break.
+// IsText reports whether msg carries text a text input would insert: a key
+// press with text and no ctrl/alt modifier, or a paste.
 func IsText(msg tea.Msg) bool {
-	km, ok := msg.(tea.KeyMsg)
-	return ok && (km.Type == tea.KeyRunes || km.Type == tea.KeySpace)
+	_, ok := Text(msg)
+	return ok
 }
 
-// Text returns the text a key message carries, typed or pasted, and whether
-// msg is such a message. It replaces reading KeyMsg.Runes directly, which a
-// v2 migration would break.
+// Text returns the text msg carries, typed or pasted, and whether msg is such
+// a message.
 func Text(msg tea.Msg) (string, bool) {
-	if !IsText(msg) {
-		return "", false
+	switch m := msg.(type) {
+	case tea.PasteMsg:
+		return m.Content, true
+	case tea.KeyPressMsg:
+		if m.Text != "" && !m.Mod.Contains(tea.ModCtrl) && !m.Mod.Contains(tea.ModAlt) {
+			return m.Text, true
+		}
 	}
-	return string(msg.(tea.KeyMsg).Runes), true
+	return "", false
 }

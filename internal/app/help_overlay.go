@@ -1,9 +1,9 @@
 package app
 
 import (
-	"github.com/charmbracelet/bubbles/key"
-	"github.com/charmbracelet/bubbles/viewport"
-	tea "github.com/charmbracelet/bubbletea"
+	"charm.land/bubbles/v2/key"
+	"charm.land/bubbles/v2/viewport"
+	tea "charm.land/bubbletea/v2"
 
 	"github.com/anthnel/devdesk/internal/ui/help"
 	"github.com/anthnel/devdesk/internal/ui/theme"
@@ -33,7 +33,7 @@ func (a *App) maybeOpenHelp(msg tea.Msg) (tea.Model, tea.Cmd) {
 	}
 
 	height := max(a.height-helpOverlayMargin, helpViewportMinHeight)
-	a.helpViewport = viewport.New(a.width-helpOverlayMargin, height)
+	a.helpViewport = viewport.New(viewport.WithWidth(a.width-helpOverlayMargin), viewport.WithHeight(height))
 	a.helpViewport.KeyMap = arrowOnlyScroll()
 	a.helpViewport.SetContent(help.Render(provider.GetHelpContent(), a.width))
 	a.showHelp = true
@@ -57,7 +57,7 @@ func arrowOnlyScroll() viewport.KeyMap {
 }
 
 // handleHelpKeyMsg handles key presses in the help overlay
-func (a *App) handleHelpKeyMsg(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
+func (a *App) handleHelpKeyMsg(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	switch msg.String() {
 	case "esc", "q", "?":
 		a.showHelp = false

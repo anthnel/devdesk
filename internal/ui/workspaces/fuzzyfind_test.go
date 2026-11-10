@@ -64,8 +64,8 @@ func TestFuzzyFindQuerySitsInTheFilterBarSlot(t *testing.T) {
 	if !strings.Contains(footer, "1 match(es)") {
 		t.Errorf("RenderFooter = %q, want the match count", footer)
 	}
-	if strings.Contains(m.View(), "Find") {
-		t.Errorf("View() = %q, the query bar belongs in the footer, not the viewport", m.View())
+	if strings.Contains(m.Render(), "Find") {
+		t.Errorf("View() = %q, the query bar belongs in the footer, not the viewport", m.Render())
 	}
 }
 

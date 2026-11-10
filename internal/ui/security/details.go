@@ -5,8 +5,8 @@ import (
 	"log"
 	"strings"
 
-	tea "github.com/charmbracelet/bubbletea"
-	"github.com/charmbracelet/lipgloss"
+	tea "charm.land/bubbletea/v2"
+	"charm.land/lipgloss/v2"
 
 	"github.com/anthnel/devdesk/internal/browser"
 	"github.com/anthnel/devdesk/internal/scan"
@@ -15,7 +15,7 @@ import (
 )
 
 // handleDetailsState processes input in details state
-func (m Model) handleDetailsState(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
+func (m Model) handleDetailsState(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	switch msg.String() {
 	// backspace was an alias of esc, and the only one in the application.
 	case "esc":

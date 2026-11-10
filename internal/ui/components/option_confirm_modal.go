@@ -3,8 +3,8 @@ package components
 import (
 	"strings"
 
-	tea "github.com/charmbracelet/bubbletea"
-	"github.com/charmbracelet/lipgloss"
+	tea "charm.land/bubbletea/v2"
+	"charm.land/lipgloss/v2"
 
 	"github.com/anthnel/devdesk/internal/ui/keymap"
 	"github.com/anthnel/devdesk/internal/ui/theme"
@@ -102,7 +102,7 @@ func (m *OptionConfirmModal) Update(msg tea.Msg) (*OptionConfirmModal, tea.Cmd) 
 		m.width = msg.Width
 		m.height = msg.Height
 
-	case tea.KeyMsg:
+	case tea.KeyPressMsg:
 		switch msg.String() {
 		// Rule 135: ↑/↓ are the only field navigation. They cycle rather than
 		// clamp, so every control stays reachable in one direction — that is
@@ -130,12 +130,12 @@ func (m *OptionConfirmModal) Update(msg tea.Msg) (*OptionConfirmModal, tea.Cmd) 
 			return m, nil
 
 		case keymap.Space:
-			// Toggle the checkbox if it has focus, otherwise confirm the selection
+			// Rule 135: space toggles a checkbox, and only when it has focus
+			// (a locked one is inert). It never answers Yes or No.
 			if m.focused == 0 {
 				m.toggleCheckbox()
-				return m, nil
 			}
-			return m.handleConfirm()
+			return m, nil
 
 		case "enter":
 			return m.handleConfirm()
@@ -174,13 +174,10 @@ func (m *OptionConfirmModal) toggleCheckbox() {
 	m.option = !m.option
 }
 
-// handleConfirm handles confirmation based on the selected element
+// handleConfirm answers Yes or No. Enter on the checkbox is ignored: only
+// space toggles it (Rule 135).
 func (m *OptionConfirmModal) handleConfirm() (*OptionConfirmModal, tea.Cmd) {
 	switch m.focused {
-	case 0:
-		// Toggle checkbox
-		m.toggleCheckbox()
-		return m, nil
 	case 1:
 		// Yes
 		return m, func() tea.Msg {

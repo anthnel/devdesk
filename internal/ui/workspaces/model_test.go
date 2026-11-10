@@ -7,7 +7,7 @@ import (
 	"strings"
 	"testing"
 
-	tea "github.com/charmbracelet/bubbletea"
+	tea "charm.land/bubbletea/v2"
 
 	"github.com/anthnel/devdesk/internal/cache"
 	"github.com/anthnel/devdesk/internal/jobs"
@@ -77,7 +77,7 @@ func TestLoadErrorSurfaces(t *testing.T) {
 	if m.error == "" {
 		t.Error("a failed load left the error empty")
 	}
-	if !strings.Contains(m.View(), "permission denied") {
+	if !strings.Contains(m.Render(), "permission denied") {
 		t.Error("the load failure is not shown")
 	}
 }
@@ -1246,7 +1246,7 @@ func TestResizeKeepsTheTableUsable(t *testing.T) {
 	if m.table.Table().Height() < 0 {
 		t.Errorf("table height = %d on a tiny terminal, want it non-negative", m.table.Table().Height())
 	}
-	if m.View() == "" {
+	if m.Render() == "" {
 		t.Error("View() returned nothing on a tiny terminal")
 	}
 }
@@ -1270,7 +1270,7 @@ func TestAFilteredSelectionActsOnTheRowTheUserSees(t *testing.T) {
 	if m.mode != ModeConfirmingDelete {
 		t.Fatalf("mode = %d after ctrl+d, want the delete confirmation", m.mode)
 	}
-	if !strings.Contains(m.View(), "empty-dir") {
+	if !strings.Contains(m.Render(), "empty-dir") {
 		t.Errorf("the confirmation does not name empty-dir — it resolved the cursor against the unfiltered list")
 	}
 }

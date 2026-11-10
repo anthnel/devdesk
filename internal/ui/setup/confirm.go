@@ -3,11 +3,10 @@ package setup
 import (
 	"strings"
 
-	tea "github.com/charmbracelet/bubbletea"
-	"github.com/charmbracelet/lipgloss"
+	tea "charm.land/bubbletea/v2"
+	"charm.land/lipgloss/v2"
 
 	"github.com/anthnel/devdesk/internal/ui/components"
-	"github.com/anthnel/devdesk/internal/ui/keymap"
 	"github.com/anthnel/devdesk/internal/ui/theme"
 )
 
@@ -28,10 +27,11 @@ func newConfirmPrompt(title, message string) *confirmPrompt {
 	return &confirmPrompt{title: title, message: message}
 }
 
-// Update mirrors components.ConfirmModal's key handling exactly, so the two
-// confirmations in this wizard behave like every other one in the app.
+// Update reproduces components.ConfirmModal's key handling (enter answers,
+// space does not: Rule 135), so the confirmations in this wizard behave like
+// every other one in the app.
 func (c *confirmPrompt) Update(msg tea.Msg) (*confirmPrompt, tea.Cmd) {
-	keyMsg, ok := msg.(tea.KeyMsg)
+	keyMsg, ok := msg.(tea.KeyPressMsg)
 	if !ok {
 		return c, nil
 	}
@@ -39,7 +39,7 @@ func (c *confirmPrompt) Update(msg tea.Msg) (*confirmPrompt, tea.Cmd) {
 	case "left", "right":
 		c.yes = !c.yes
 		return c, nil
-	case "enter", keymap.Space:
+	case "enter":
 		return c, confirmResultCmd(c.yes)
 	case "y", "Y":
 		return c, confirmResultCmd(true)

@@ -5,7 +5,7 @@ import (
 	"github.com/anthnel/devdesk/internal/shared"
 	"log"
 
-	tea "github.com/charmbracelet/bubbletea"
+	tea "charm.land/bubbletea/v2"
 
 	"github.com/anthnel/devdesk/internal/jobs"
 	"github.com/anthnel/devdesk/internal/template"
@@ -87,8 +87,11 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.pendingDelete = ""
 		return m, nil
 
-	case tea.KeyMsg:
+	case tea.KeyPressMsg:
 		return m.handleKeyMsg(msg)
+
+	case tea.PasteMsg:
+		return m.handlePaste(msg)
 	}
 
 	m.footer.Handle(msg)
@@ -200,9 +203,24 @@ func (m Model) handleConfirmDelete() (tea.Model, tea.Cmd) {
 	return m, deleteCmd(m.store, m.cache, slug)
 }
 
+// handlePaste gives pasted text to the form or the filter, whichever has the
+// keyboard. A modal or no focused field drops it: a paste is never read as keys
+// (Rule 111).
+func (m Model) handlePaste(msg tea.PasteMsg) (tea.Model, tea.Cmd) {
+	switch {
+	case m.confirmModal != nil:
+		return m, nil
+	case m.form != nil:
+		return m, m.form.forward(msg)
+	case m.table.InEditMode():
+		return m, m.table.Update(msg)
+	}
+	return m, nil
+}
+
 // handleKeyMsg routes a key. A mode takes it first (the modal, then the form),
 // then the filter while it has the keyboard (Rule 136), then the actions.
-func (m Model) handleKeyMsg(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
+func (m Model) handleKeyMsg(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	if m.confirmModal != nil {
 		var cmd tea.Cmd
 		m.confirmModal, cmd = m.confirmModal.Update(msg)
@@ -243,7 +261,7 @@ func (m Model) handleKeyMsg(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 // handleSelectingKey is the key set of a view lent to pick a template: choose,
 // look inside, filter, sort, leave. The actions that change the catalog are not
 // bound at all.
-func (m Model) handleSelectingKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
+func (m Model) handleSelectingKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	switch msg.String() {
 	case "enter":
 		return m.chooseSelected()

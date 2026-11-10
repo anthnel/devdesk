@@ -10,9 +10,9 @@ import (
 	"log"
 	"strings"
 
-	"github.com/charmbracelet/bubbles/spinner"
-	"github.com/charmbracelet/bubbles/textinput"
-	tea "github.com/charmbracelet/bubbletea"
+	"charm.land/bubbles/v2/spinner"
+	"charm.land/bubbles/v2/textinput"
+	tea "charm.land/bubbletea/v2"
 
 	"github.com/anthnel/devdesk/internal/config"
 	"github.com/anthnel/devdesk/internal/forge"
@@ -160,25 +160,25 @@ func New() Model {
 	nameInput := textinput.New()
 	nameInput.Placeholder = "e.g. work, staging"
 	nameInput.CharLimit = 64
-	nameInput.Width = 40
+	nameInput.SetWidth(40)
 	styleTextInput(&nameInput)
 	nameInput.Focus()
 
 	urlInput := textinput.New()
 	urlInput.CharLimit = 200
-	urlInput.Width = 50
+	urlInput.SetWidth(50)
 	styleTextInput(&urlInput)
 
 	nsInput := textinput.New()
 	nsInput.Placeholder = "optional"
 	nsInput.CharLimit = 100
-	nsInput.Width = 40
+	nsInput.SetWidth(40)
 	styleTextInput(&nsInput)
 
 	tokenInput := textinput.New()
 	tokenInput.Placeholder = "optional — can be set later via the auth view"
 	tokenInput.CharLimit = 200
-	tokenInput.Width = 50
+	tokenInput.SetWidth(50)
 	tokenInput.EchoMode = textinput.EchoPassword
 	styleTextInput(&tokenInput)
 
@@ -218,8 +218,11 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.height = msg.Height
 		return m, nil
 
-	case tea.KeyMsg:
+	case tea.KeyPressMsg:
 		return m.handleKeyMsg(msg)
+
+	case tea.PasteMsg:
+		return m.handlePaste(msg)
 
 	case spinner.TickMsg:
 		var cmd tea.Cmd
@@ -260,7 +263,16 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	return m, nil
 }
 
-func (m Model) handleKeyMsg(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
+// handlePaste gives pasted text to the focused step field. A confirmation or
+// the final screen drops it: a paste is never read as keys (Rule 111).
+func (m Model) handlePaste(msg tea.PasteMsg) (tea.Model, tea.Cmd) {
+	if m.stage == stageConfirmOverwrite || m.stage == stageConfirmSetCurrent || m.stage == stageDone {
+		return m, nil
+	}
+	return m.updateFocusedInput(msg)
+}
+
+func (m Model) handleKeyMsg(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	if m.stage == stageConfirmOverwrite || m.stage == stageConfirmSetCurrent {
 		var cmd tea.Cmd
 		m.confirmModal, cmd = m.confirmModal.Update(msg)
@@ -421,7 +433,7 @@ func (m Model) visibilityOptions() []string {
 	return []string{"private", "internal", "public"}
 }
 
-func (m Model) updateFocusedInput(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
+func (m Model) updateFocusedInput(msg tea.Msg) (tea.Model, tea.Cmd) {
 	var cmd tea.Cmd
 	switch m.step {
 	case stepContextName:

@@ -13,11 +13,13 @@
 
 | Package | Version | Purpose |
 |---------|---------|---------|
-| `github.com/charmbracelet/bubbles` | 0.21.0 | Pre-built TUI components (table, spinner, textinput) |
-| `github.com/charmbracelet/bubbletea` | 1.3.10 | TUI framework (Elm architecture) |
-| `github.com/charmbracelet/lipgloss` | 1.1.0 | Styling + layout (colors, borders, positioning) |
-| `github.com/charmbracelet/x/ansi` | 0.10.1 | ANSI sequence parsing |
-| `github.com/charmbracelet/x/term` | 0.2.1 | Terminal size detection, primitives |
+| `charm.land/bubbles/v2` | 2.2.1 | Pre-built TUI components (table, spinner, textinput, viewport) |
+| `charm.land/bubbletea/v2` | 2.1.1 | TUI framework (Elm architecture) |
+| `charm.land/lipgloss/v2` | 2.0.6 | Styling + layout (colors, borders, positioning) |
+| `github.com/NimbleMarkets/ntcharts/v2` | 2.9.0 | Dashboard sparkline |
+| `github.com/charmbracelet/colorprofile` | 0.4.3 | Colour profile (`main.go` forces TrueColor in Windows Terminal) |
+| `github.com/charmbracelet/x/ansi` | 0.11.9 | ANSI sequence parsing, grapheme-aware width |
+| `github.com/charmbracelet/x/term` | 0.2.2 | Terminal size detection, primitives |
 | `github.com/prometheus-community/pro-bing` | 0.5.0 | ICMP ping (maintained fork of go-ping/ping) |
 | `gitlab.com/gitlab-org/api/client-go` | 1.10.0 | GitLab REST API client |
 | `golang.org/x/sync` | 0.19.0 | errgroup for concurrent operations |
@@ -29,7 +31,6 @@
 |---------|---------|
 | `github.com/atotto/clipboard` | OS clipboard access (bubbles) |
 | `github.com/aymanbagabas/go-osc52/v2` | OSC-52 clipboard (terminal sequences) |
-| `github.com/charmbracelet/colorprofile` | Terminal color capability detection |
 | `github.com/charmbracelet/x/cellbuf` | Character cell buffer |
 | `github.com/erikgeiser/coninput` | Console input handling (Windows) |
 | `github.com/google/go-querystring` | URL query encoding (GitLab client) |
@@ -41,7 +42,6 @@
 | `github.com/mattn/go-runewidth` | Unicode width calculation |
 | `github.com/muesli/ansi` | ANSI parsing utilities |
 | `github.com/muesli/cancelreader` | Context-aware input reading |
-| `github.com/muesli/termenv` | Terminal capabilities |
 | `golang.org/x/net` | HTTP/2, IPv6 support |
 | `golang.org/x/oauth2` | OAuth2 flow (GitLab) |
 | `golang.org/x/sys` | OS-specific syscalls |

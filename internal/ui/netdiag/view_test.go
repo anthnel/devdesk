@@ -6,7 +6,7 @@ import (
 	"testing"
 	"unicode/utf8"
 
-	tea "github.com/charmbracelet/bubbletea"
+	tea "charm.land/bubbletea/v2"
 
 	"github.com/anthnel/devdesk/internal/command"
 	"github.com/anthnel/devdesk/internal/netcheck"
@@ -18,7 +18,7 @@ import (
 // ── View states ──────────────────────────────────────────────────────────────
 
 func TestViewRendersTheForm(t *testing.T) {
-	out := newTestModel(t).View()
+	out := newTestModel(t).Render()
 	for _, want := range []string{"Target", "Port", "DNS Server", "Run Diagnostics"} {
 		if !strings.Contains(out, want) {
 			t.Errorf("the form has no %q", want)
@@ -29,7 +29,7 @@ func TestViewRendersTheForm(t *testing.T) {
 // TestTheFormNoLongerOffersAToolPicker — the checkboxes are the thing this
 // change removes, so their absence is asserted rather than assumed.
 func TestTheFormNoLongerOffersAToolPicker(t *testing.T) {
-	out := newTestModel(t).View()
+	out := newTestModel(t).Render()
 	for _, gone := range []string{"Diagnostic Tests", "Netcat", "Traceroute", "SSL Certificate", "Curl"} {
 		if strings.Contains(out, gone) {
 			t.Errorf("the form still offers %q", gone)
@@ -47,7 +47,7 @@ func TestTheTableStaysOnScreenWhileTheRunWalks(t *testing.T) {
 		results: netcheck.ResultsOf(check(netcheck.CheckResolve, netcheck.OK, "example.com resolves")),
 	})
 
-	out := m.View()
+	out := m.Render()
 	if !strings.Contains(out, "Check") || !strings.Contains(out, "Verdict") {
 		t.Error("the table header is not on screen mid-run")
 	}
@@ -72,7 +72,7 @@ func TestTheProgressLineNamesTheQuestionBeingAsked(t *testing.T) {
 }
 
 func TestTheTableShowsTheVerdictAndTheObservation(t *testing.T) {
-	out := resultsModel(t).View()
+	out := resultsModel(t).Render()
 	for _, want := range []string{"DNS resolution", "TCP connect", "OK", "FAIL", "N/A",
 		"Port 443 does not accept connections"} {
 		if !strings.Contains(out, want) {
@@ -83,7 +83,7 @@ func TestTheTableShowsTheVerdictAndTheObservation(t *testing.T) {
 
 func TestTheEmptyMessageWaitsForTheRunToFinish(t *testing.T) {
 	running := runningModel(t, "example.com")
-	if strings.Contains(running.View(), "No checks") {
+	if strings.Contains(running.Render(), "No checks") {
 		t.Error("the table announces the absence of what it is fetching")
 	}
 }
@@ -97,7 +97,7 @@ func TestFilteringToNothingSaysWhy(t *testing.T) {
 		check(netcheck.CheckTCP, netcheck.OK, "open"))
 	m = feed(t, m, testutil.Key("p"))
 
-	if view, table := m.View(), m.checksTable.View(); view != table {
+	if view, table := m.Render(), m.checksTable.View(); view != table {
 		t.Errorf("an empty problems view is %q, want the plain table view", view)
 	}
 	info := m.GetHeaderInfo("")
@@ -369,7 +369,7 @@ func TestCheckColumnsHoldTheWidthInvariant(t *testing.T) {
 			check(netcheck.CheckTCP, netcheck.Fail, "Port 443 does not accept connections"))
 		m = feed(t, m, tea.WindowSizeMsg{Width: width, Height: 30})
 
-		for _, line := range strings.Split(m.View(), "\n") {
+		for _, line := range strings.Split(m.Render(), "\n") {
 			if got := utf8.RuneCountInString(stripANSI(line)); got > width {
 				t.Fatalf("at %d columns a line is %d wide", width, got)
 			}

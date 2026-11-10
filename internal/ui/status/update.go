@@ -5,8 +5,8 @@ import (
 	"log"
 	"time"
 
-	"github.com/charmbracelet/bubbles/spinner"
-	tea "github.com/charmbracelet/bubbletea"
+	"charm.land/bubbles/v2/spinner"
+	tea "charm.land/bubbletea/v2"
 
 	"github.com/anthnel/devdesk/internal/config"
 	"github.com/anthnel/devdesk/internal/status"
@@ -36,8 +36,11 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case tea.WindowSizeMsg:
 		m.resize(msg.Width, msg.Height)
 
-	case tea.KeyMsg:
+	case tea.KeyPressMsg:
 		return m.handleInputKeyMsg(msg)
+
+	case tea.PasteMsg:
+		return m.handlePaste(msg)
 
 	case TickMsg:
 		return m.handleTick()
@@ -251,7 +254,23 @@ func (m *Model) getSelectedComponentIndex() int {
 	return -1
 }
 
-func (m Model) handleInputKeyMsg(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
+// handlePaste gives pasted text to the filter bar or the monitor form, whichever
+// has the keyboard. With neither focused it is dropped, never read as keys
+// (Rule 111).
+func (m Model) handlePaste(msg tea.PasteMsg) (tea.Model, tea.Cmd) {
+	var cmd tea.Cmd
+	switch {
+	case m.filterBar.InEditMode():
+		m.filterBar, cmd = m.filterBar.Update(msg)
+		m.updateTable()
+		m.getCurrentTable().GotoTop() // a narrowing query starts from the first match
+	case m.componentForm != nil:
+		m.componentForm, cmd = m.componentForm.Update(msg)
+	}
+	return m, cmd
+}
+
+func (m Model) handleInputKeyMsg(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	// Filter bar search mode - takes priority
 	if m.filterBar.InEditMode() {
 		var cmd tea.Cmd
@@ -355,7 +374,7 @@ func (m Model) handleConfirmDelete() (tea.Model, tea.Cmd) {
 }
 
 // handleMonitorOperations handles new, edit, and delete operations
-func (m Model) handleMonitorOperations(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
+func (m Model) handleMonitorOperations(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	switch msg.String() {
 	case keymap.New:
 		// New component

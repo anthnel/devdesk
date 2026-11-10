@@ -17,7 +17,7 @@ import (
 // View() must stay read-only (Rule 110), and re-rendering five megabytes per
 // frame would not be viable even if it did not.
 func (m *Model) rebuildText() {
-	width := m.textViewport.Width
+	width := m.textViewport.Width()
 	query := strings.TrimSpace(m.bar.SearchQuery())
 	isLog := m.doc.Kind == viewer.KindLog
 

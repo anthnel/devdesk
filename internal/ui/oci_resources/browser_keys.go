@@ -3,8 +3,8 @@ package ociresources
 import (
 	"strings"
 
-	"github.com/charmbracelet/bubbles/spinner"
-	tea "github.com/charmbracelet/bubbletea"
+	"charm.land/bubbles/v2/spinner"
+	tea "charm.land/bubbletea/v2"
 
 	"github.com/anthnel/devdesk/internal/config"
 	"github.com/anthnel/devdesk/internal/docker"
@@ -27,7 +27,7 @@ func (b *RegistryBrowser) IsSearching() bool {
 // Update handles all messages for the browser.
 func (b *RegistryBrowser) Update(msg tea.Msg) (*RegistryBrowser, tea.Cmd) {
 	switch msg := msg.(type) {
-	case tea.KeyMsg:
+	case tea.KeyPressMsg:
 		return b.handleKeyMsg(msg)
 	case spinner.TickMsg:
 		// Only a search turns this spinner, and it shows in the footer: a tag's
@@ -60,7 +60,7 @@ func (b *RegistryBrowser) delegateUpdate(msg tea.Msg) (*RegistryBrowser, tea.Cmd
 	return b, nil
 }
 
-func (b *RegistryBrowser) handleKeyMsg(msg tea.KeyMsg) (*RegistryBrowser, tea.Cmd) {
+func (b *RegistryBrowser) handleKeyMsg(msg tea.KeyPressMsg) (*RegistryBrowser, tea.Cmd) {
 	switch b.state {
 	case browserStateInput:
 		return b.handleInputKeyMsg(msg)
@@ -70,7 +70,7 @@ func (b *RegistryBrowser) handleKeyMsg(msg tea.KeyMsg) (*RegistryBrowser, tea.Cm
 	return b, nil
 }
 
-func (b *RegistryBrowser) handleInputKeyMsg(msg tea.KeyMsg) (*RegistryBrowser, tea.Cmd) {
+func (b *RegistryBrowser) handleInputKeyMsg(msg tea.KeyPressMsg) (*RegistryBrowser, tea.Cmd) {
 	switch msg.String() {
 	case "esc":
 		return b, func() tea.Msg { return RegistryBrowserCloseMsg{} }
@@ -178,7 +178,7 @@ func (b *RegistryBrowser) submitSearch() (*RegistryBrowser, tea.Cmd) {
 	return b, tea.Batch(cmds...)
 }
 
-func (b *RegistryBrowser) handleTagsKeyMsg(msg tea.KeyMsg) (*RegistryBrowser, tea.Cmd) {
+func (b *RegistryBrowser) handleTagsKeyMsg(msg tea.KeyPressMsg) (*RegistryBrowser, tea.Cmd) {
 	if b.filterActive {
 		switch msg.String() {
 		case "esc", "enter":

@@ -28,9 +28,9 @@ _This file contains critical rules and patterns that AI agents must follow when 
 ## Technology Stack & Versions
 
 - **Language**: Go 1.27.3
-- **TUI Framework**: Bubble Tea (github.com/charmbracelet/bubbletea v1.3.10)
-- **UI Components**: Bubbles (github.com/charmbracelet/bubbles v0.21.0)
-- **Styling**: Lipgloss (github.com/charmbracelet/lipgloss v1.1.0)
+- **TUI Framework**: Bubble Tea (charm.land/bubbletea/v2 v2.1.1)
+- **UI Components**: Bubbles (charm.land/bubbles/v2 v2.2.1)
+- **Styling**: Lip Gloss (charm.land/lipgloss/v2 v2.0.6)
 - **API Clients**: GitLab (gitlab.com/gitlab-org/api/client-go v1.10.0) **and**
   GitHub (github.com/google/go-github/v68) — `internal/forge` abstracts both;
   a context targets exactly one, never two.

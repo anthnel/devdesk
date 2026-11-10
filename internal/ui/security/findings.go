@@ -3,9 +3,9 @@ package security
 import (
 	"fmt"
 
-	"github.com/charmbracelet/bubbles/table"
-	tea "github.com/charmbracelet/bubbletea"
-	"github.com/charmbracelet/lipgloss"
+	"charm.land/bubbles/v2/table"
+	tea "charm.land/bubbletea/v2"
+	"charm.land/lipgloss/v2"
 
 	"github.com/anthnel/devdesk/internal/forge"
 	"github.com/anthnel/devdesk/internal/scan"
@@ -370,7 +370,7 @@ func (m Model) canExclude() shortcut.Availability {
 // leaving the results, and "enter" confirms it rather than opening a finding.
 // The inventory has had this guard since it gained a bar; this state gained one
 // the day the severity floor became tokens, and never got the guard with it.
-func (m Model) handleResultsState(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
+func (m Model) handleResultsState(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	if m.findingsTable.InEditMode() {
 		return m, m.findingsTable.Update(msg)
 	}
@@ -394,8 +394,8 @@ func (m Model) handleResultsState(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 			// under it, which is how workspaces got D24.
 			m.selectedFinding = &finding
 			m.state = StateDetails
-			m.detailsViewport.Width = m.width
-			m.detailsViewport.Height = m.height
+			m.detailsViewport.SetWidth(m.width)
+			m.detailsViewport.SetHeight(m.height)
 			m.detailsViewport.SetContent(m.buildDetailsContent())
 			m.detailsViewport.GotoTop()
 		}

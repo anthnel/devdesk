@@ -1,14 +1,14 @@
 package datatable
 
 import (
+	"image/color"
 	"strings"
 	"testing"
 
-	"github.com/charmbracelet/bubbles/table"
-	"github.com/charmbracelet/lipgloss"
+	"charm.land/bubbles/v2/table"
+	"charm.land/lipgloss/v2"
 	"github.com/mattn/go-runewidth"
 
-	"github.com/anthnel/devdesk/internal/testutil/colorprofile"
 	"github.com/anthnel/devdesk/internal/ui/testutil"
 	"github.com/anthnel/devdesk/internal/ui/theme"
 )
@@ -19,7 +19,6 @@ import (
 // file pass whatever the code does.
 func withTrueColor(t *testing.T) {
 	t.Helper()
-	colorprofile.TrueColor(t)
 }
 
 // visible returns what a string puts on screen, escape sequences removed. The
@@ -159,8 +158,8 @@ func TestAStateColouredSelectionKeepsItsHighlightToTheEnd(t *testing.T) {
 	withTrueColor(t)
 	m := errorStyledTable(t, colouredConfig)
 
-	selected := strings.TrimSuffix(rowLines(&m)[0], "\x1b[0m")
-	if body, _, early := strings.Cut(selected, "\x1b[0m"); early {
+	selected := strings.TrimSuffix(rowLines(&m)[0], "\x1b[m")
+	if body, _, early := strings.Cut(selected, "\x1b[m"); early {
 		t.Errorf("the selected row resets its styling after %q, losing the highlight for the rest of the line", visible(body))
 	}
 }
@@ -190,7 +189,7 @@ func TestEveryCellOnAnUnselectedRowOpensItsOwnStyling(t *testing.T) {
 	m := colouredTable(t)
 
 	unselected := rowLines(&m)[1] // row 0 is under the cursor
-	segments := strings.Split(unselected, "\x1b[0m")
+	segments := strings.Split(unselected, "\x1b[m")
 
 	if tail := segments[len(segments)-1]; tail != "" {
 		t.Errorf("%q trails the last reset, so it renders with no background", tail)
@@ -228,8 +227,8 @@ func TestTheColumnColourReachesTheCell(t *testing.T) {
 // foreground and background return the SGR parameters lipgloss emits for a
 // colour, without the escape or the terminating "m" — a cell carrying both has
 // them merged into one sequence, so neither full sequence appears on its own.
-func foreground(c lipgloss.Color) string { return sgrParams(lipgloss.NewStyle().Foreground(c)) }
-func background(c lipgloss.Color) string { return sgrParams(lipgloss.NewStyle().Background(c)) }
+func foreground(c color.Color) string { return sgrParams(lipgloss.NewStyle().Foreground(c)) }
+func background(c color.Color) string { return sgrParams(lipgloss.NewStyle().Background(c)) }
 
 func sgrParams(style lipgloss.Style) string {
 	opening, _, _ := strings.Cut(style.Render(" "), "m")

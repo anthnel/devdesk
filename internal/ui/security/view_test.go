@@ -5,7 +5,6 @@ import (
 	"testing"
 
 	"github.com/anthnel/devdesk/internal/scan"
-	"github.com/anthnel/devdesk/internal/testutil/colorprofile"
 	"github.com/anthnel/devdesk/internal/ui/keymap"
 	"github.com/anthnel/devdesk/internal/ui/testutil"
 )
@@ -15,13 +14,12 @@ import (
 // would make any assertion about styling pass whatever the code does.
 func withTrueColor(t *testing.T) {
 	t.Helper()
-	colorprofile.TrueColor(t)
 }
 
 // ── The four states ──────────────────────────────────────────────────────────
 
 func TestResultsViewShowsTheTable(t *testing.T) {
-	view := scannedModel(t).View()
+	view := scannedModel(t).Render()
 
 	if !strings.Contains(view, "CVE-2026-0001") {
 		t.Errorf("the results do not show the findings:\n%s", view)
@@ -36,13 +34,13 @@ func TestResultsViewWithNoFindings(t *testing.T) {
 
 	m := feed(t, NewWithPreloadedResult(testConfig(), nil, result), testutil.Resize(160, 30))
 
-	if view := m.View(); strings.Contains(view, "Scan Warnings") {
+	if view := m.Render(); strings.Contains(view, "Scan Warnings") {
 		t.Errorf("a clean scan is presented as a failure:\n%s", view)
 	}
 }
 
 func TestDetailsViewShowsWhatToDoAboutTheFinding(t *testing.T) {
-	view := detailsModel(t).View()
+	view := detailsModel(t).Render()
 
 	for _, want := range []string{"CVE-2026-0001", "libfoo", "1.0.1"} {
 		if !strings.Contains(view, want) {
@@ -58,7 +56,7 @@ func TestDetailsOfASecretShowWhereItIs(t *testing.T) {
 	m.switchTab(TabSecrets)
 	m = feed(t, m, testutil.Key("enter"))
 
-	view := m.View()
+	view := m.Render()
 
 	if !strings.Contains(view, "config/prod.env") {
 		t.Errorf("the details do not name the file:\n%s", view)
@@ -72,7 +70,7 @@ func TestConfirmationReplacesTheView(t *testing.T) {
 	m.switchTab(TabSecrets)
 	m = feed(t, m, testutil.Key(keymap.Exclude))
 
-	view := m.View()
+	view := m.Render()
 
 	if !strings.Contains(view, "Ignore Secret") {
 		t.Errorf("the confirmation is not shown:\n%s", view)

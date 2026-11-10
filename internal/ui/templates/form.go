@@ -4,9 +4,9 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/charmbracelet/bubbles/textinput"
-	tea "github.com/charmbracelet/bubbletea"
-	"github.com/charmbracelet/lipgloss"
+	"charm.land/bubbles/v2/textinput"
+	tea "charm.land/bubbletea/v2"
+	"charm.land/lipgloss/v2"
 
 	"github.com/anthnel/devdesk/internal/template"
 	sharedcomponents "github.com/anthnel/devdesk/internal/ui/components"
@@ -90,7 +90,7 @@ func newInput(placeholder string, limit int) textinput.Model {
 	in := textinput.New()
 	in.Placeholder = placeholder
 	in.CharLimit = limit
-	in.Width = 60
+	in.SetWidth(60)
 	theme.StyleTextInput(&in)
 	return in
 }
@@ -192,7 +192,7 @@ func (f *entryForm) InEditMode() bool { return true }
 
 // Update handles a key. Keys follow Rule 135: ↑↓ move between fields, ←→ cycle
 // the kind, tab does nothing, enter advances or confirms.
-func (f *entryForm) Update(msg tea.KeyMsg) tea.Cmd {
+func (f *entryForm) Update(msg tea.KeyPressMsg) tea.Cmd {
 	switch msg.String() {
 	case "esc":
 		return func() tea.Msg { return FormCancelMsg{} }
@@ -248,7 +248,7 @@ func (f *entryForm) cycleKind(forward bool) {
 	f.err = ""
 }
 
-func (f *entryForm) forward(msg tea.KeyMsg) tea.Cmd {
+func (f *entryForm) forward(msg tea.Msg) tea.Cmd {
 	var cmd tea.Cmd
 	switch f.focused() {
 	case fieldName:

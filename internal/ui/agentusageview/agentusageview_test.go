@@ -10,12 +10,11 @@ import (
 	"testing"
 	"time"
 
-	"github.com/charmbracelet/bubbles/spinner"
-	tea "github.com/charmbracelet/bubbletea"
+	"charm.land/bubbles/v2/spinner"
+	tea "charm.land/bubbletea/v2"
 
 	"github.com/anthnel/devdesk/internal/agentusage"
 	"github.com/anthnel/devdesk/internal/config"
-	"github.com/anthnel/devdesk/internal/testutil/colorprofile"
 	sharedcomponents "github.com/anthnel/devdesk/internal/ui/components"
 	"github.com/anthnel/devdesk/internal/ui/datatable"
 	"github.com/anthnel/devdesk/internal/ui/help"
@@ -119,7 +118,7 @@ func TestInitReadsTheListingAndStartsTheSpinner(t *testing.T) {
 
 func TestWhileLoadingTheTableKeepsItsHeadersAndHasNoRows(t *testing.T) {
 	m := newModel(t)
-	view := m.View()
+	view := m.Render()
 	for _, title := range []string{"Project", "Last active"} {
 		if !strings.Contains(view, title) {
 			t.Errorf("loading view lacks column %q:\n%s", title, view)
@@ -155,7 +154,7 @@ func TestRowsKeepTheOrderGivenNewestFirst(t *testing.T) {
 		session("22222222-bbbb", filepath.Join(home, "work", "middle"), 5*time.Hour),
 		session("33333333-cccc", "/srv/oldest", 48*time.Hour),
 	)
-	view := m.View()
+	view := m.Render()
 	order := []string{"newest", "middle", "oldest"}
 	last := -1
 	for _, name := range order {
@@ -177,7 +176,7 @@ func TestProjectIsTheFullPathWithHomeFoldedToATilde(t *testing.T) {
 	m := newModel(t)
 	home := os.Getenv("HOME")
 	m = loaded(t, m, session("11111111-aaaa", filepath.Join(home, "projects", "devdesk"), time.Hour))
-	view := m.View()
+	view := m.Render()
 	if !strings.Contains(view, "~/projects/devdesk") {
 		t.Errorf("project should read ~/projects/devdesk:\n%s", view)
 	}
@@ -188,16 +187,16 @@ func TestProjectIsTheFullPathWithHomeFoldedToATilde(t *testing.T) {
 
 func TestAMissingProjectIsADash(t *testing.T) {
 	m := loaded(t, newModel(t), session("11111111-aaaa", "", time.Hour))
-	if !strings.Contains(m.View(), "-") {
-		t.Errorf("an unknown project renders a dash:\n%s", m.View())
+	if !strings.Contains(m.Render(), "-") {
+		t.Errorf("an unknown project renders a dash:\n%s", m.Render())
 	}
 }
 
 func TestLastActiveReadsAsLocalDateAndTime(t *testing.T) {
 	m := loaded(t, newModel(t), session("11111111-aaaa", "/srv/p", 0))
 	want := base.Format("2006-01-02 15:04")
-	if !strings.Contains(m.View(), want) {
-		t.Errorf("view should contain %q:\n%s", want, m.View())
+	if !strings.Contains(m.Render(), want) {
+		t.Errorf("view should contain %q:\n%s", want, m.Render())
 	}
 }
 
@@ -240,7 +239,7 @@ func TestTheProjectColumnTruncatesFromTheLeft(t *testing.T) {
 // belongs to the footer.
 func TestZeroSessionsKeepsTheTableAndSaysSoInTheFooter(t *testing.T) {
 	m := loaded(t, newModel(t))
-	view := m.View()
+	view := m.Render()
 	for _, title := range []string{"Project", "Last active"} {
 		if !strings.Contains(view, title) {
 			t.Errorf("empty view lacks column %q:\n%s", title, view)
@@ -291,7 +290,7 @@ func TestAnErrorIsReportedInTheFooterAndKeepsTheRows(t *testing.T) {
 	if strings.Contains(f, "is not a directory") {
 		t.Error("the raw error is logged, not shown (Rule 128)")
 	}
-	if !strings.Contains(m.View(), "/srv/alpha") {
+	if !strings.Contains(m.Render(), "/srv/alpha") {
 		t.Error("rows already shown must be kept after a failed refresh")
 	}
 	if got := sessionsValue(t, m); got != "1" {
@@ -343,7 +342,7 @@ func TestAStaleListingIsIgnored(t *testing.T) {
 		listing: agentusage.Listing{Sessions: []agentusage.Session{session("old", "/stale/project", 0)}},
 	}
 	m = feed(t, m, stale)
-	if strings.Contains(m.View(), "stale") {
+	if strings.Contains(m.Render(), "stale") {
 		t.Error("a response from an older generation must not reach the table")
 	}
 	if !m.loading {
@@ -368,7 +367,7 @@ func TestCtrlRStartsANewReadWithANewGeneration(t *testing.T) {
 	if cmd == nil {
 		t.Fatal("ctrl+r must return the read command")
 	}
-	if !strings.Contains(m.View(), "/x") {
+	if !strings.Contains(m.Render(), "/x") {
 		t.Error("rows stay on screen during a refresh (Rule 139)")
 	}
 	if f := footer(m); !strings.Contains(f, "Reading Claude Code sessions...") {
@@ -421,8 +420,8 @@ func TestListSessionsCmdReadsTheConfiguredRoot(t *testing.T) {
 
 	m := feed(t, New(config.Default()), testutil.Resize(120, 20))
 	m = feed(t, m, msg)
-	if !strings.Contains(m.View(), "~/alpha") {
-		t.Errorf("row missing after the real read:\n%s", m.View())
+	if !strings.Contains(m.Render(), "~/alpha") {
+		t.Errorf("row missing after the real read:\n%s", m.Render())
 	}
 }
 
@@ -451,7 +450,7 @@ func TestTheFilterNarrowsRowsAndHoldsTheKeyboard(t *testing.T) {
 	if got := sessionsValue(t, m); got != "1" {
 		t.Errorf("Sessions = %q, want 1", got)
 	}
-	view := m.View()
+	view := m.Render()
 	if !strings.Contains(view, "alpha") || strings.Contains(view, "beta") {
 		t.Errorf("only the alpha row should remain:\n%s", view)
 	}
@@ -485,7 +484,7 @@ func TestResizeFillsTheViewportExactly(t *testing.T) {
 func TestANarrowTerminalDropsSessionFirstAndKeepsProject(t *testing.T) {
 	m := loaded(t, newModel(t), session("11111111-aaaa", "/srv/alpha", time.Hour))
 	m = feed(t, m, testutil.Resize(40, 20))
-	view := m.View()
+	view := m.Render()
 	if strings.Contains(view, "Session") {
 		t.Errorf("Session is Optional and goes first at 40 columns:\n%s", view)
 	}
@@ -615,7 +614,6 @@ func TestEveryColumnDeclaresItsSizing(t *testing.T) {
 
 // Rule 122: a cell is measured before it is styled.
 func TestNoCellCarriesAnEscapeSequence(t *testing.T) {
-	colorprofile.TrueColor(t)
 	cols := sessionColumns()
 	if len(cols) == 0 {
 		t.Fatal("the table has no columns")

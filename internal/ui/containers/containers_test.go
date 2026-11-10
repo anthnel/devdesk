@@ -7,13 +7,12 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/charmbracelet/bubbles/table"
-	tea "github.com/charmbracelet/bubbletea"
+	"charm.land/bubbles/v2/table"
+	tea "charm.land/bubbletea/v2"
 
 	"github.com/anthnel/devdesk/internal/config"
 	"github.com/anthnel/devdesk/internal/docker"
 	"github.com/anthnel/devdesk/internal/imageupdate"
-	"github.com/anthnel/devdesk/internal/testutil/colorprofile"
 	sharedcomponents "github.com/anthnel/devdesk/internal/ui/components"
 	"github.com/anthnel/devdesk/internal/ui/datatable"
 	"github.com/anthnel/devdesk/internal/ui/keymap"
@@ -193,7 +192,6 @@ func pressK(t *testing.T, m Model, label string) (Model, tea.Cmd) {
 // assertion about styling pass whatever the code does.
 func withTrueColor(t *testing.T) {
 	t.Helper()
-	colorprofile.TrueColor(t)
 }
 
 // ansiPrefix returns the leading escape sequence of s, up to and including its

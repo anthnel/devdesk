@@ -5,8 +5,8 @@ import (
 	"strconv"
 	"time"
 
-	tea "github.com/charmbracelet/bubbletea"
-	"github.com/charmbracelet/lipgloss"
+	tea "charm.land/bubbletea/v2"
+	"charm.land/lipgloss/v2"
 
 	"github.com/anthnel/devdesk/internal/cache"
 	"github.com/anthnel/devdesk/internal/imageupdate"
@@ -522,7 +522,7 @@ func (m Model) scanCandidates() (tea.Model, tea.Cmd) {
 // rather than reaching the findings table behind the tab: it is empty on this
 // tab, but a search opened on it would take the keyboard from a table nobody
 // can see.
-func (m Model) handleRemediationKey(msg tea.KeyMsg) (tea.Model, tea.Cmd, bool) {
+func (m Model) handleRemediationKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd, bool) {
 	switch key := msg.String(); key {
 	case keymap.Scan:
 		next, cmd := m.scanCandidates()

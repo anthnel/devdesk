@@ -194,29 +194,36 @@ D85 in `docs/backlog.md`).
 
 **Test input and colour (DEVDESK-199).** Build keys only through
 `internal/ui/testutil` (`Key`, `Keys`, `Type`, `Paste`, `Text`, `IsText`), never a
-literal `tea.KeyMsg` or `tea.Key*`. `Key` is strict: an unknown name panics. The
-space key is built as a key (`KeySpace` + rune `' '`), never matched through
-`String()` (v1 `" "`, v2 `"space"`). The colour profile is forced through
-`internal/testutil/colorprofile` (`TrueColor(t)`, `Force()` in `TestMain`), the only
-importer of termenv; it is a leaf package because testutil→shortcut→theme would
-cycle. `internal/ui/testutil/source_guard_test.go` fails the suite on a hand-built
-key, a termenv import or `SetColorProfile` in any `_test.go`. Paste tests
+literal `tea.KeyPressMsg` or `tea.Key*`. `Key` returns a
+`tea.KeyPressMsg` (`Keys` and `Type` return a message list), `Paste` a `tea.PasteMsg`; `Key` is strict: an unknown name
+panics. The space key is built as a key (`Key("space")`), never matched through
+`String()` (v1 `" "`, v2 `"space"`). Lip Gloss v2 has no global colour profile (`Style.Render` always emits full
+colour), so a test needs no setup to check styling; it reads the SGR or strips it
+with `ansi.Strip`. `internal/ui/testutil/source_guard_test.go` fails the suite on a
+hand-built key, a `colorprofile` import outside `internal/app/profile_test.go` and
+`internal/app/redraw_measure_test.go` or `SetColorProfile` in any `_test.go`. Paste tests
 (`internal/app/paste_test.go`, `wrapped_input_test.go`, `component_form_test.go`):
 a paste reaches the focused field, newlines become spaces in single-line fields,
 and no key action fires (Rule 111).
 
 **Space and key API (DEVDESK-200).** Production code matches the space key as
 `keymap.Space`, never `" "`/`"space"`, and reads keys through `String()` only
-(no `.Runes`, `.Alt`, `.Paste`, `tea.KeyType` or `tea.Key<Name>`). Two guards in
-`internal/ui/keymap` (`space_scan_test.go`, `legacy_key_scan_test.go`) fail the
-suite otherwise; limits are listed in `docs/architecture/app-shell.md`.
+(no `.Runes`, `.Alt`, `.Paste`, `tea.KeyType` or `tea.Key<Name>`). Update
+handlers switch on `tea.KeyPressMsg`, never the `tea.KeyMsg` interface (it also
+matches releases). A paste is a `tea.PasteMsg`, not a key (Rule 111). Guards in
+`internal/ui/keymap` (`space_scan_test.go`, `legacy_key_scan_test.go`,
+`viewport_keymap_scan_test.go`) fail the suite otherwise; limits are listed in
+`docs/architecture/app-shell.md`.
 
 ## Dependencies
 
-Key libraries (see `go.mod`):
-- `github.com/charmbracelet/bubbletea` - TUI framework
-- `github.com/charmbracelet/bubbles` - Pre-built TUI components (table, textinput, spinner)
-- `github.com/charmbracelet/lipgloss` - Styling
+Go 1.27 (`go 1.27.3` in `go.mod`). Key libraries (versions as in `go.mod`):
+- `charm.land/bubbletea/v2` (v2.1.1) - TUI framework (v2: `tea.KeyPressMsg`, `tea.PasteMsg`, `View() tea.View`)
+- `charm.land/bubbles/v2` (v2.2.1) - Pre-built TUI components (table, textinput, spinner, viewport)
+- `charm.land/lipgloss/v2` (v2.0.6) - Styling (no global colour profile; colours are `image/color.Color`)
+- `github.com/charmbracelet/colorprofile` (v0.4.3) - colour profile `main.go` forces under Windows Terminal (replaces `termenv`)
+- `github.com/NimbleMarkets/ntcharts/v2` (v2.9.0) - dashboard sparkline
+- `github.com/charmbracelet/x/ansi` - ANSI-safe width, strip and cut
 - `gitlab.com/gitlab-org/api/client-go` - GitLab API client
 - `github.com/prometheus-community/pro-bing` - ICMP ping functionality (maintained fork of go-ping/ping)
 - `github.com/google/go-github/v68` - GitHub API client (§3.6)
@@ -246,5 +253,10 @@ Key libraries (see `go.mod`):
 **NEVER use `style.Render()` inside `table.Row{}`** (Rule 122) - ANSI sequences corrupt all subsequent rows:
 - Use plain text: `theme.IconError + " error"` not `theme.StatusErrorStyle.Render(...)`
 - Apply row styling via `table.SetStyles(theme.TableStylesForState("error"))`
+
+**Views render through `Render()`** (Bubble Tea v2): a top-level view implements
+`Render() string` and `View() tea.View { return tea.NewView(m.Render()) }`; only the
+router (`App.View()`) sets terminal state such as `AltScreen`. Components keep
+`View() string`. Colours are `color.Color`; hex literals stay in `theme/colors.go`.
 
 **Update() case extraction**: If a case block exceeds 5 lines, extract to `handle[MessageType]()` method returning `(tea.Model, tea.Cmd)`

@@ -1,15 +1,15 @@
 package cmdsuggest
 
 import (
+	"image/color"
 	"regexp"
 	"strings"
 	"testing"
 
-	"github.com/charmbracelet/lipgloss"
+	"charm.land/lipgloss/v2"
 	"github.com/charmbracelet/x/ansi"
 
 	"github.com/anthnel/devdesk/internal/command"
-	"github.com/anthnel/devdesk/internal/testutil/colorprofile"
 	"github.com/anthnel/devdesk/internal/ui/theme"
 )
 
@@ -105,7 +105,6 @@ func TestColumns(t *testing.T) {
 }
 
 func TestRenderEveryLineHasExactWidth(t *testing.T) {
-	colorprofile.TrueColor(t)
 	for _, w := range []int{120, 80, 60, 50, 40, 30} {
 		in := base(w)
 		in.Cursor = 1
@@ -126,7 +125,6 @@ func TestRenderBottomRuleIsClosed(t *testing.T) {
 }
 
 func TestRenderHighlightedRow(t *testing.T) {
-	colorprofile.TrueColor(t)
 	in := base(80)
 	in.Cursor = 2
 	raw := render(t, in)
@@ -278,7 +276,7 @@ func TestPalette(t *testing.T) {
 		t.Fatal("Palette is empty")
 	}
 	for _, pair := range p {
-		if pair.Name == "" || pair.Fg == "" || pair.Bg == "" {
+		if pair.Name == "" || pair.Fg == lipgloss.Color("") || pair.Bg == lipgloss.Color("") {
 			t.Errorf("incomplete pair %+v", pair)
 		}
 	}
@@ -287,7 +285,7 @@ func TestPalette(t *testing.T) {
 // bgSequence returns the SGR parameters lipgloss emits for a background
 // color ("48;2;r;g;b" in true color), which sit inside a longer sequence once
 // a foreground and bold are combined.
-func bgSequence(t *testing.T, c lipgloss.Color) string {
+func bgSequence(t *testing.T, c color.Color) string {
 	t.Helper()
 	out := lipgloss.NewStyle().Background(c).Render("x")
 	m := regexp.MustCompile(`48;[0-9;]+`).FindString(out)
@@ -298,7 +296,6 @@ func bgSequence(t *testing.T, c lipgloss.Color) string {
 }
 
 func TestHighlightedRowPaintsTheSelectionBackground(t *testing.T) {
-	colorprofile.TrueColor(t)
 	in := base(80)
 	in.Cursor = 2
 	raw := render(t, in)
@@ -322,7 +319,6 @@ func TestNoMatchWithNoUsableRowDrawsNoListLine(t *testing.T) {
 }
 
 func TestRenderTinyWidthsKeepExactWidth(t *testing.T) {
-	colorprofile.TrueColor(t)
 	for w := 0; w <= 7; w++ {
 		for _, rows := range [][]Row{allRows(), nil} {
 			in := base(w)
@@ -353,7 +349,6 @@ func TestRenderNegativeVisibleDoesNotPanic(t *testing.T) {
 }
 
 func TestWideCharactersKeepExactWidth(t *testing.T) {
-	colorprofile.TrueColor(t)
 	cjk := command.Entry{Name: "コマンド名前長い", Aliases: []string{"別名一つ", "別名二つ"}, Description: "これは非常に長い説明文です。日本語の幅を確認します"}
 	for _, w := range []int{120, 80, 60, 40, 30, 20, 8} {
 		in := Input{Rows: []Row{{Entry: cjk}, {Entry: cjk, Current: true}}, Total: 2, Cursor: 0, Width: w, Visible: 3, Notice: ""}

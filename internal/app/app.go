@@ -1,15 +1,16 @@
 package app
 
 import (
+	"fmt"
 	"log"
 	"net/http"
 	"os"
 	"sync/atomic"
 
-	"github.com/charmbracelet/bubbles/textinput"
-	"github.com/charmbracelet/bubbles/viewport"
-	tea "github.com/charmbracelet/bubbletea"
-	"github.com/charmbracelet/lipgloss"
+	"charm.land/bubbles/v2/textinput"
+	"charm.land/bubbles/v2/viewport"
+	tea "charm.land/bubbletea/v2"
+	"charm.land/lipgloss/v2"
 	"github.com/charmbracelet/x/term"
 
 	"github.com/anthnel/devdesk/internal/command"
@@ -30,6 +31,26 @@ import (
 	uiviewer "github.com/anthnel/devdesk/internal/ui/viewer"
 	"github.com/anthnel/devdesk/internal/ui/workspaces"
 )
+
+// Screen is what the router holds for a top-level view: a Bubble Tea model
+// whose content is also available as a plain string. Each view keeps Render()
+// and wraps it in View() tea.View; the router alone decides the terminal state
+// (alternate screen, colours, focus reporting) in App.View.
+type Screen interface {
+	tea.Model
+	Render() string
+}
+
+// setView is the one door into a.views. It panics, naming the view, when the
+// model has no Render(): a view that cannot be drawn is a programming error to
+// catch at the install site, not a blank screen later.
+func (a *App) setView(vt command.ViewType, m tea.Model) {
+	screen, ok := m.(Screen)
+	if !ok {
+		panic(fmt.Sprintf("app: view %q (%T) has no Render() string, it is not a Screen", vt, m))
+	}
+	a.views[vt] = screen
+}
 
 // FormView interface for views that can have active forms
 // Views implementing this interface can prevent command mode activation
@@ -73,7 +94,7 @@ type App struct {
 
 	// Navigation
 	currentView command.ViewType
-	views       map[command.ViewType]tea.Model
+	views       map[command.ViewType]Screen
 	sharedState *shared.State
 
 	commandMode  bool
@@ -176,7 +197,7 @@ func newCommandInput() textinput.Model {
 }
 
 func newViewport(width, height int) viewport.Model {
-	vp := viewport.New(width, height)
+	vp := viewport.New(viewport.WithWidth(width), viewport.WithHeight(height))
 	vp.Style = viewportStyle()
 	return vp
 }
@@ -228,7 +249,7 @@ func (a *App) useSecrets(sel credentials.Selection) {
 	// The auth view holds the storage it was built with, so rebuild it if it
 	// already exists. Every other view reaches secrets through the router.
 	if _, ok := a.views[command.ViewGitAuth]; ok {
-		a.views[command.ViewGitAuth] = a.newAuthView()
+		a.setView(command.ViewGitAuth, a.newAuthView())
 	}
 }
 
@@ -254,7 +275,7 @@ func newWithSize(cfg *config.Config, width, height int) *App {
 		currentContext: currentContext,
 		viewport:       newViewport(width, height),
 		currentView:    defaultView(cfg),
-		views:          make(map[command.ViewType]tea.Model),
+		views:          make(map[command.ViewType]Screen),
 		sharedState:    sharedState,
 		jobs:           jobs.New(),
 		anim:           animationState{blinkOn: true},
@@ -357,8 +378,8 @@ func (a *App) layoutOnce(width, height int) (changed bool) {
 	headerHeight := lipgloss.Height(a.renderHeader())
 	a.lastHeaderHeight = headerHeight
 	availableHeight := height - headerHeight - footerHeight
-	a.viewport.Width = width
-	a.viewport.Height = availableHeight - 1 // -1 for the custom title border line
+	a.viewport.SetWidth(width)
+	a.viewport.SetHeight(availableHeight - 1) // -1 for the custom title border line
 
 	// Propagate to the active view. The viewport has 1 border (bottom only),
 	// the view must know the inner height. A frameless view has none and
@@ -372,7 +393,7 @@ func (a *App) layoutOnce(width, height int) (changed bool) {
 	contentHeight := max((availableHeight-1)-viewportBorderHeight, 1)
 	if view, ok := a.views[a.currentView]; ok {
 		updatedView, _ := view.Update(tea.WindowSizeMsg{Width: width, Height: contentHeight})
-		a.views[a.currentView] = updatedView
+		a.setView(a.currentView, updatedView)
 	}
 
 	return a.getFooterHeight() != footerHeight
@@ -392,7 +413,7 @@ func (a *App) getFooterHeight() int {
 // config, and returns the init cmd for the one on screen.
 func (a *App) reinitializeViews() tea.Cmd {
 	log.Printf("Reinitializing views with new config")
-	a.views = make(map[command.ViewType]tea.Model)
+	a.views = make(map[command.ViewType]Screen)
 	a.createView(a.currentView)
 
 	var initCmd tea.Cmd
@@ -450,8 +471,11 @@ func (a *App) update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		a.resize(msg.Width, msg.Height)
 		return a, nil
 
-	case tea.KeyMsg:
+	case tea.KeyPressMsg:
 		return a.handleKeyMsg(msg)
+
+	case tea.PasteMsg:
+		return a.handlePasteMsg(msg)
 
 	// ── Contexts and themes ──────────────────────────────────────────────
 	case configuration.ConfigSavedMsg:
@@ -750,6 +774,6 @@ func (a *App) routeToView(target command.ViewType, msg tea.Msg) (tea.Model, tea.
 		return a, nil
 	}
 	updatedView, cmd := view.Update(msg)
-	a.views[target] = updatedView
+	a.setView(target, updatedView)
 	return a, cmd
 }

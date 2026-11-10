@@ -1,13 +1,13 @@
 package agentusageview
 
 import (
+	"image/color"
 	"strings"
 	"testing"
 
-	"github.com/charmbracelet/lipgloss"
+	"charm.land/lipgloss/v2"
 	"github.com/charmbracelet/x/ansi"
 
-	"github.com/anthnel/devdesk/internal/testutil/colorprofile"
 	"github.com/anthnel/devdesk/internal/ui/theme"
 )
 
@@ -62,7 +62,6 @@ func plain(lines []string) []string {
 }
 
 func TestRenderBreakdownEveryLineIsExactlyWidthCells(t *testing.T) {
-	colorprofile.TrueColor(t)
 	for name, b := range map[string]breakdown{"filled": viewBreakdown(), "empty": emptyBreakdown()} {
 		for _, w := range viewWidths {
 			lines := renderBreakdown(b, w)
@@ -118,7 +117,7 @@ func TestRenderBreakdownEachBlockEndsWithATotalAtOneHundredPercent(t *testing.T)
 }
 
 // fgCode is the "38;2;r;g;b" parameter lipgloss emits for a foreground colour.
-func fgCode(t *testing.T, c lipgloss.Color) string {
+func fgCode(t *testing.T, c color.Color) string {
 	t.Helper()
 	out := lipgloss.NewStyle().Foreground(c).Render("x")
 	at := strings.Index(out, "38;")
@@ -130,7 +129,6 @@ func fgCode(t *testing.T, c lipgloss.Color) string {
 }
 
 func TestRenderBreakdownSwatchCarriesTheRoleColour(t *testing.T) {
-	colorprofile.TrueColor(t)
 	lines := renderBreakdown(viewBreakdown(), 118)
 	cases := []struct {
 		label string

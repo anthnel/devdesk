@@ -6,9 +6,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/charmbracelet/bubbles/spinner"
-	"github.com/charmbracelet/bubbles/table"
-	tea "github.com/charmbracelet/bubbletea"
+	"charm.land/bubbles/v2/spinner"
+	"charm.land/bubbles/v2/table"
+	tea "charm.land/bubbletea/v2"
 
 	"github.com/anthnel/devdesk/internal/command"
 	"github.com/anthnel/devdesk/internal/config"
@@ -164,7 +164,7 @@ func TestRowActionsOnAnEmptyInventoryAreRefusedWithAReason(t *testing.T) {
 }
 
 func TestAFilledInventoryRendersItsRows(t *testing.T) {
-	rendered := inventoryModel(t, inventoryFixtures()...).View()
+	rendered := inventoryModel(t, inventoryFixtures()...).Render()
 
 	for _, want := range []string{"nexus/api:1.4", "CRIT", "Scanned"} {
 		if !strings.Contains(rendered, want) {
@@ -498,7 +498,7 @@ func TestTheInventoryTitleDoesNotRepeatTheContext(t *testing.T) {
 }
 
 func TestAnEmptyInventorySaysWhereScansComeFrom(t *testing.T) {
-	rendered := inventoryModel(t).View()
+	rendered := inventoryModel(t).Render()
 
 	for _, want := range []string{"Nothing scanned yet", "OCI resources", "workspaces"} {
 		if !strings.Contains(rendered, want) {
@@ -577,10 +577,10 @@ func TestInitLoadsTheInventory(t *testing.T) {
 func TestNothingScannedYetWaitsForTheCachesToAnswer(t *testing.T) {
 	m := feed(t, New(testConfig(), nil), tea.WindowSizeMsg{Width: 160, Height: 30})
 
-	if got := m.View(); strings.Contains(got, "Nothing scanned yet") {
+	if got := m.Render(); strings.Contains(got, "Nothing scanned yet") {
 		t.Errorf("the inventory claims nothing was scanned before reading the caches:\n%s", got)
 	}
-	if got := m.View(); !strings.Contains(got, "Target") {
+	if got := m.Render(); !strings.Contains(got, "Target") {
 		t.Errorf("the table left the screen while loading, Rule 139 keeps it:\n%s", got)
 	}
 	if got := m.RenderFooter(160); !strings.Contains(got, "Loading scan inventory") {
@@ -594,7 +594,7 @@ func TestNothingScannedYetWaitsForTheCachesToAnswer(t *testing.T) {
 func TestTheEmptyMessageAppearsOnceTheCachesAnswer(t *testing.T) {
 	m := inventoryModel(t)
 
-	if got := m.View(); !strings.Contains(got, "Nothing scanned yet") {
+	if got := m.Render(); !strings.Contains(got, "Nothing scanned yet") {
 		t.Errorf("the loaded, empty inventory says nothing about where scans come from:\n%s", got)
 	}
 	if got := m.RenderFooter(160); strings.Contains(got, "Loading scan inventory") {

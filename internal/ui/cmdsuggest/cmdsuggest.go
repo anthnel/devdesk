@@ -4,9 +4,10 @@ package cmdsuggest
 
 import (
 	"fmt"
+	"image/color"
 	"strings"
 
-	"github.com/charmbracelet/lipgloss"
+	"charm.land/lipgloss/v2"
 	"github.com/charmbracelet/x/ansi"
 
 	"github.com/anthnel/devdesk/internal/command"
@@ -48,7 +49,7 @@ type Layout struct{ Marker, Name, Alias, Desc int }
 // Pair is a foreground/background combination the list paints.
 type Pair struct {
 	Name   string
-	Fg, Bg lipgloss.Color
+	Fg, Bg color.Color
 }
 
 // Layout constants, in cells. The widths below are the whole grid: a line is
@@ -142,8 +143,8 @@ func FiletLabel(in Input) string {
 // time so that a theme applied after start-up is honored.
 type look struct {
 	name string
-	fg   lipgloss.Color
-	bg   lipgloss.Color
+	fg   color.Color
+	bg   color.Color
 	bold bool
 }
 
@@ -199,7 +200,7 @@ func Render(in Input) []string {
 
 // renderWith is Render with the border color chosen by the caller: the
 // palette draws its frame in ColorPaletteBorder.
-func renderWith(in Input, borderColor lipgloss.Color) []string {
+func renderWith(in Input, borderColor color.Color) []string {
 	in.Visible = max(in.Visible, 0)
 	if in.Width < minRenderWidth {
 		return degenerate(in, borderColor)
@@ -234,7 +235,7 @@ func renderWith(in Input, borderColor lipgloss.Color) []string {
 
 // degenerate renders the lines of a terminal too narrow for a frame: blank
 // background lines and a bare rule, each exactly Width cells (possibly zero).
-func degenerate(in Input, borderColor lipgloss.Color) []string {
+func degenerate(in Input, borderColor color.Color) []string {
 	w := max(in.Width, 0)
 	lines := make([]string, 0, in.Visible+1)
 	for i := 0; i < in.Visible; i++ {

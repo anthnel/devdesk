@@ -4,7 +4,8 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/charmbracelet/lipgloss"
+	tea "charm.land/bubbletea/v2"
+	"charm.land/lipgloss/v2"
 
 	"github.com/anthnel/devdesk/internal/config"
 	"github.com/anthnel/devdesk/internal/forge"
@@ -15,14 +16,22 @@ import (
 // terminal doesn't stretch a sentence edge to edge.
 const bodyMaxWidth = 72
 
-// View renders the wizard: the current question, or whichever overlay is
+// View wraps Render and asks for the alternate screen: the wizard runs as its
+// own program, so nothing above it owns the terminal state.
+func (m Model) View() tea.View {
+	v := tea.NewView(m.Render())
+	v.AltScreen = true
+	return v
+}
+
+// Render renders the wizard: the current question, or whichever overlay is
 // active on top of it (Rule 112 — a confirmation is a centered modal, never
 // the viewport).
 //
 // Unlike every themed view, nothing here paints a background: the wizard
 // runs standalone, before any theme is loaded, and is meant to sit on
 // whatever terminal background the user already has (see styles.go).
-func (m Model) View() string {
+func (m Model) Render() string {
 	switch m.stage {
 	case stageConfirmOverwrite, stageConfirmSetCurrent:
 		return lipgloss.Place(m.width, m.height, lipgloss.Center, lipgloss.Center, m.confirmModal.View())

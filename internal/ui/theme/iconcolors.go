@@ -1,6 +1,10 @@
 package theme
 
-import "github.com/charmbracelet/lipgloss"
+import (
+	"image/color"
+
+	"charm.land/lipgloss/v2"
+)
 
 // IconRole is what a glyph *means*, which is the only thing a palette can have
 // an opinion about.
@@ -42,11 +46,11 @@ const (
 // IconColor is the colour a role is painted in.
 //
 // An unrecognised role falls back to the ordinary text colour rather than to
-// the zero Color: a zero lipgloss.Color is the empty string, which renders as
+// the zero Color: a zero color.Color is the empty string, which renders as
 // "no colour set" and inherits whatever the terminal last emitted — the exact
 // bleed Rule 122 is about. A role nobody declared should look like plain text,
 // not like the row above it.
-func IconColor(role IconRole) lipgloss.Color {
+func IconColor(role IconRole) color.Color {
 	switch role {
 	case IconRoleNamespace:
 		return ColorIconNamespace

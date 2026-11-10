@@ -86,7 +86,7 @@ func TestEachSettledStateShowsItsGlyphInTheTables(t *testing.T) {
 		run(2, jobs.KindScan, "~/b", jobs.ItemFailed),
 		run(3, jobs.KindScan, "~/c", jobs.ItemQueued),
 	)
-	v := m.View()
+	v := m.Render()
 	for _, s := range []indicator.State{indicator.Done, indicator.Failed, indicator.Queued} {
 		if g := indicator.Glyph(s, true); !strings.Contains(v, g) {
 			t.Errorf("the runs table does not show %s (%s):\n%s", s, g, v)
@@ -100,7 +100,7 @@ func TestEachSettledStateShowsItsGlyphInTheTables(t *testing.T) {
 
 	m = withRuns(t, run(1, jobs.KindSync, "~/a", jobs.ItemSkipped, jobs.ItemQueued, jobs.ItemDone))
 	m, _ = step(t, m, testutil.Key("right"))
-	v = m.View()
+	v = m.Render()
 	for _, s := range []indicator.State{indicator.Skipped, indicator.Queued, indicator.Done} {
 		if g := indicator.Glyph(s, true); !strings.Contains(v, g) {
 			t.Errorf("the targets table does not show %s (%s):\n%s", s, g, v)
@@ -170,7 +170,7 @@ func TestAQueuedRowStaysSteadyWhateverThePhase(t *testing.T) {
 	m := withRuns(t, run(1, jobs.KindScan, "~/work", jobs.ItemQueued))
 	for _, blink := range []bool{true, false} {
 		m = feed(t, m, jobs.FrameMsg{Blink: blink})
-		if !strings.Contains(m.View(), indicator.Glyph(indicator.Queued, true)) {
+		if !strings.Contains(m.Render(), indicator.Glyph(indicator.Queued, true)) {
 			t.Errorf("the queued run lost its glyph at blink=%v", blink)
 		}
 	}
@@ -181,7 +181,7 @@ func TestUnderStaticMotionARunningRowIsAFixedFilledDot(t *testing.T) {
 	m := withRuns(t, run(1, jobs.KindScan, "~/work", jobs.ItemRunning))
 	for range 3 {
 		m = feed(t, m, jobs.FrameMsg{Blink: true})
-		if v := m.View(); !strings.Contains(v, "●") || strings.Contains(v, "○") {
+		if v := m.Render(); !strings.Contains(v, "●") || strings.Contains(v, "○") {
 			t.Fatalf("a running row is not a steady ●:\n%s", v)
 		}
 	}
@@ -190,7 +190,7 @@ func TestUnderStaticMotionARunningRowIsAFixedFilledDot(t *testing.T) {
 func TestTheModelCarriesNoRowSpinnerAnyMore(t *testing.T) {
 	m := withRuns(t, run(1, jobs.KindScan, "~/work", jobs.ItemRunning))
 	m = feed(t, m, jobs.FrameMsg{Frame: "ZZ", Blink: true})
-	if strings.Contains(m.View(), "ZZ") {
+	if strings.Contains(m.Render(), "ZZ") {
 		t.Error("the bare spinner frame still reaches the table")
 	}
 }
@@ -361,13 +361,13 @@ func cancelledRun(t *testing.T, label string) jobs.Run {
 
 func TestACancelledRunShowsItsGlyphAtBothLevels(t *testing.T) {
 	m := withRuns(t, cancelledRun(t, "~/stopped"))
-	if g := indicator.Glyph(indicator.Cancelled, true); !strings.Contains(m.View(), g) {
-		t.Errorf("the runs table does not show cancelled (%s):\n%s", g, m.View())
+	if g := indicator.Glyph(indicator.Cancelled, true); !strings.Contains(m.Render(), g) {
+		t.Errorf("the runs table does not show cancelled (%s):\n%s", g, m.Render())
 	}
 	m, _ = step(t, m, testutil.Key("right"))
 	// Targets never started are skipped by the cancellation, not cancelled.
-	if g := indicator.Glyph(indicator.Skipped, true); !strings.Contains(m.View(), g) {
-		t.Errorf("the targets table does not show skipped (%s):\n%s", g, m.View())
+	if g := indicator.Glyph(indicator.Skipped, true); !strings.Contains(m.Render(), g) {
+		t.Errorf("the targets table does not show skipped (%s):\n%s", g, m.Render())
 	}
 }
 

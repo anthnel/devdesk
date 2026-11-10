@@ -47,7 +47,7 @@ func openWorkspaces(t *testing.T, a *App) {
 }
 
 // wsScreen is the ws view's body, ANSI stripped.
-func wsScreen(a *App) string { return ansi.Strip(a.views[command.ViewWorkspaces].View()) }
+func wsScreen(a *App) string { return ansi.Strip(a.views[command.ViewWorkspaces].Render()) }
 
 // rowOf returns the screen line naming name.
 func rowOf(t *testing.T, screen, name string) string {

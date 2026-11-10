@@ -5,7 +5,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/charmbracelet/bubbles/spinner"
+	"charm.land/bubbles/v2/spinner"
 
 	"github.com/anthnel/devdesk/internal/jobs"
 )
@@ -48,7 +48,7 @@ func TestAFrameNeverReachesTheTableCells(t *testing.T) {
 	m := loadedModel(t)
 	m = scanning(t, m, m.images[0].Name())
 	m = feed(t, m, jobs.FrameMsg{Frame: "ZZ", RenderedFrame: "FOOTERFRAME", Blink: true})
-	if strings.Contains(m.View(), "ZZ") {
+	if strings.Contains(m.Render(), "ZZ") {
 		t.Error("the bare frame still reaches the table")
 	}
 }

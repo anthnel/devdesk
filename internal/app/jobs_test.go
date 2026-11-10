@@ -5,7 +5,7 @@ import (
 	"strings"
 	"testing"
 
-	tea "github.com/charmbracelet/bubbletea"
+	tea "charm.land/bubbletea/v2"
 
 	"github.com/anthnel/devdesk/internal/command"
 	"github.com/anthnel/devdesk/internal/jobs"
@@ -437,7 +437,7 @@ func TestTheJobsViewArrivesHoldingWhatIsAlreadyRunning(t *testing.T) {
 	if !ok {
 		t.Fatalf("the jobs view is a %T", a.views[command.ViewJobs])
 	}
-	if body := view.View(); !strings.Contains(body, "~/work") {
+	if body := view.Render(); !strings.Contains(body, "~/work") {
 		t.Errorf("the jobs view opened empty while a run was going: %s", body)
 	}
 }

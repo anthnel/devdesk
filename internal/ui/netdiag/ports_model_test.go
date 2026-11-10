@@ -7,7 +7,7 @@ import (
 	"strings"
 	"testing"
 
-	tea "github.com/charmbracelet/bubbletea"
+	tea "charm.land/bubbletea/v2"
 
 	"github.com/anthnel/devdesk/internal/ports"
 	"github.com/anthnel/devdesk/internal/ui/components"
@@ -562,7 +562,7 @@ func TestPortsViewStates(t *testing.T) {
 	}
 
 	loaded := portsModel(t)
-	if !strings.Contains(loaded.View(), "sshd") {
+	if !strings.Contains(loaded.Render(), "sshd") {
 		t.Error("the ports table is not rendered once data arrives")
 	}
 }
@@ -573,7 +573,7 @@ func TestPortsViewKeepsTheTableWhenAFilterMatchesNothing(t *testing.T) {
 	m := feed(t, portsModel(t), testutil.Key("/"))
 	m = feed(t, m, testutil.Type("nomatch")...)
 
-	if strings.Contains(m.View(), "No active ports found") {
+	if strings.Contains(m.Render(), "No active ports found") {
 		t.Error("the empty state replaced the table while a filter was active")
 	}
 }

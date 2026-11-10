@@ -119,20 +119,20 @@ func TestApplyTheme(t *testing.T) {
 
 	ApplyTheme(custom)
 
-	if string(ColorPrimary) != "#1111aa" {
-		t.Errorf("After ApplyTheme, ColorPrimary = %q, want %q", string(ColorPrimary), "#1111aa")
+	if Hex(ColorPrimary) != "#1111aa" {
+		t.Errorf("After ApplyTheme, ColorPrimary = %q, want %q", Hex(ColorPrimary), "#1111aa")
 	}
-	if string(ColorOK) != "#11aa11" {
-		t.Errorf("After ApplyTheme, ColorOK = %q, want %q", string(ColorOK), "#11aa11")
+	if Hex(ColorOK) != "#11aa11" {
+		t.Errorf("After ApplyTheme, ColorOK = %q, want %q", Hex(ColorOK), "#11aa11")
 	}
 
 	// Restore
 	ApplyTheme(DefaultTheme())
-	if string(ColorPrimary) != string(origPrimary) {
-		t.Errorf("After restore, ColorPrimary = %q, want %q", string(ColorPrimary), string(origPrimary))
+	if Hex(ColorPrimary) != Hex(origPrimary) {
+		t.Errorf("After restore, ColorPrimary = %q, want %q", Hex(ColorPrimary), Hex(origPrimary))
 	}
-	if string(ColorOK) != string(origOK) {
-		t.Errorf("After restore, ColorOK = %q, want %q", string(ColorOK), string(origOK))
+	if Hex(ColorOK) != Hex(origOK) {
+		t.Errorf("After restore, ColorOK = %q, want %q", Hex(ColorOK), Hex(origOK))
 	}
 }
 

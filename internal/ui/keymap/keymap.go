@@ -97,10 +97,9 @@ const (
 // already learned — command palette.
 const CommandMode = "ctrl+p"
 
-// Space is the space key as KeyMsg.String() reports it in bubbletea v1 (" ").
-// Code matches it through this name, so a bubbletea v2 move (where it becomes
-// "space") changes one line.
-const Space = " "
+// Space is the space key as KeyPressMsg.String() reports it in bubbletea v2
+// ("space"). Code matches it through this name, never through a literal.
+const Space = "space"
 
 // actions maps each action key to its meaning. This is the table the tests
 // check the code against; the table in §3.26 is its readable form.

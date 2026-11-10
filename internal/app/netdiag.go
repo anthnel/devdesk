@@ -1,7 +1,7 @@
 package app
 
 import (
-	tea "github.com/charmbracelet/bubbletea"
+	tea "charm.land/bubbletea/v2"
 
 	"github.com/anthnel/devdesk/internal/command"
 	"github.com/anthnel/devdesk/internal/ui/netdiag"
@@ -17,7 +17,7 @@ func (a *App) handleNetdiagOpenRequest(msg netdiag.OpenRequestMsg) (tea.Model, t
 	view := netdiag.NewWithTarget(a.config, msg.Target)
 	view.OriginView = a.currentView
 
-	a.views[command.ViewNetdiag] = view
+	a.setView(command.ViewNetdiag, view)
 	a.currentView = command.ViewNetdiag
 
 	cmds := []tea.Cmd{view.Init(), a.requestResize()}

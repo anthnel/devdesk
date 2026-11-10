@@ -4,7 +4,7 @@ import (
 	"strings"
 	"testing"
 
-	tea "github.com/charmbracelet/bubbletea"
+	tea "charm.land/bubbletea/v2"
 	"github.com/charmbracelet/x/ansi"
 
 	"github.com/anthnel/devdesk/internal/ui/keymap"
@@ -28,29 +28,29 @@ func TestScrollKeys(t *testing.T) {
 	// and since §3.53 `g` opens the go-to-line prompt — which this test used to
 	// press before scrolling, and would now be typing into.
 	m = feed(t, m, testutil.Key("home"))
-	if m.textViewport.YOffset != 0 {
-		t.Errorf("YOffset = %d after home, want the top", m.textViewport.YOffset)
+	if m.textViewport.YOffset() != 0 {
+		t.Errorf("YOffset = %d after home, want the top", m.textViewport.YOffset())
 	}
 
 	m = feed(t, m, testutil.Key("down"))
-	if m.textViewport.YOffset != 1 {
-		t.Errorf("YOffset = %d after down, want 1", m.textViewport.YOffset)
+	if m.textViewport.YOffset() != 1 {
+		t.Errorf("YOffset = %d after down, want 1", m.textViewport.YOffset())
 	}
 
 	m = feed(t, m, testutil.Key("up"))
-	if m.textViewport.YOffset != 0 {
-		t.Errorf("YOffset = %d after up, want 0", m.textViewport.YOffset)
+	if m.textViewport.YOffset() != 0 {
+		t.Errorf("YOffset = %d after up, want 0", m.textViewport.YOffset())
 	}
 
 	m = feed(t, m, testutil.Key("pgdown"))
-	if m.textViewport.YOffset == 0 {
+	if m.textViewport.YOffset() == 0 {
 		t.Error("pgdown did not scroll")
 	}
 
 	m = feed(t, m, testutil.Key("end"))
-	atBottom := m.textViewport.YOffset
+	atBottom := m.textViewport.YOffset()
 	m = feed(t, m, testutil.Key("pgup"))
-	if m.textViewport.YOffset >= atBottom {
+	if m.textViewport.YOffset() >= atBottom {
 		t.Error("pgup did not scroll back up")
 	}
 }
@@ -94,8 +94,8 @@ func TestResizeReflowsWrappedText(t *testing.T) {
 
 	m = feed(t, m, tea.WindowSizeMsg{Width: 40, Height: 20})
 
-	if m.textViewport.Width != 40 {
-		t.Errorf("text viewport width = %d after the resize, want 40", m.textViewport.Width)
+	if m.textViewport.Width() != 40 {
+		t.Errorf("text viewport width = %d after the resize, want 40", m.textViewport.Width())
 	}
 	for _, line := range strings.Split(m.textViewport.View(), "\n") {
 		if width := len([]rune(ansi.Strip(line))); width > 40 {
@@ -290,7 +290,7 @@ func TestYAMLAndTOMLReachTheScreenColored(t *testing.T) {
 			if got := m.formatLabel(); got != tc.format {
 				t.Errorf("formatLabel = %q, want %q", got, tc.format)
 			}
-			rendered := m.View()
+			rendered := m.Render()
 			if !strings.Contains(rendered, syntaxStyle(viewerpkg.ClassKey).Render(tc.key)) {
 				t.Errorf("%q is not colored as a key", tc.key)
 			}
@@ -317,8 +317,8 @@ func TestNeitherYAMLNorTOMLOffersTheTree(t *testing.T) {
 			}
 		}
 
-		before := m.View()
-		if after := feed(t, m, testutil.Key("f")).View(); after != before {
+		before := m.Render()
+		if after := feed(t, m, testutil.Key("f")).Render(); after != before {
 			t.Errorf("f changed the %s display", file)
 		}
 	}

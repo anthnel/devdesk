@@ -4,7 +4,7 @@ import (
 	"strings"
 	"testing"
 
-	tea "github.com/charmbracelet/bubbletea"
+	tea "charm.land/bubbletea/v2"
 	"github.com/charmbracelet/x/ansi"
 
 	"github.com/anthnel/devdesk/internal/ui/components"
@@ -37,7 +37,7 @@ func TestGoToLineScrollsThere(t *testing.T) {
 	if m.gotoActive {
 		t.Error("the prompt stayed open after enter")
 	}
-	if got := m.textViewport.YOffset; got != 119 {
+	if got := m.textViewport.YOffset(); got != 119 {
 		t.Errorf("YOffset = %d after going to line 120, want 119 — the line belongs at the top", got)
 	}
 }
@@ -56,8 +56,8 @@ func TestThePromptOwnsTheKeyboard(t *testing.T) {
 	}
 
 	m = feed(t, m, testutil.Type("12")...)
-	if m.textViewport.YOffset != 0 {
-		t.Errorf("YOffset = %d after typing into the prompt, want 0 — a digit must not also scroll", m.textViewport.YOffset)
+	if m.textViewport.YOffset() != 0 {
+		t.Errorf("YOffset = %d after typing into the prompt, want 0 — a digit must not also scroll", m.textViewport.YOffset())
 	}
 	if got := m.gotoInput.Value(); got != "12" {
 		t.Errorf("the field holds %q, want %q", got, "12")
@@ -90,7 +90,7 @@ func TestThePromptTakesTheFilterBarsSlot(t *testing.T) {
 
 func TestEscapeClosesThePromptAndChangesNothing(t *testing.T) {
 	m := feed(t, longLog(t), testutil.Key("end"))
-	atBottom := m.textViewport.YOffset
+	atBottom := m.textViewport.YOffset()
 
 	m = feed(t, m, testutil.Key("g"))
 	m = feed(t, m, testutil.Type("1")...)
@@ -99,8 +99,8 @@ func TestEscapeClosesThePromptAndChangesNothing(t *testing.T) {
 	if m.gotoActive {
 		t.Error("esc left the prompt open")
 	}
-	if m.textViewport.YOffset != atBottom {
-		t.Errorf("YOffset = %d after esc, want %d — a cancelled prompt moves nothing", m.textViewport.YOffset, atBottom)
+	if m.textViewport.YOffset() != atBottom {
+		t.Errorf("YOffset = %d after esc, want %d — a cancelled prompt moves nothing", m.textViewport.YOffset(), atBottom)
 	}
 	if m.OriginView != "" {
 		t.Error("esc reached the viewer's own handler; the prompt must consume it")
@@ -115,7 +115,7 @@ func TestAnEmptyPromptIsSilent(t *testing.T) {
 	if cmd != nil {
 		t.Error("an empty prompt reported something")
 	}
-	if m.textViewport.YOffset != 0 {
+	if m.textViewport.YOffset() != 0 {
 		t.Error("an empty prompt scrolled the pane")
 	}
 }
@@ -128,7 +128,7 @@ func TestALineBeyondTheDocumentIsRefused(t *testing.T) {
 	if cmd == nil {
 		t.Fatal("a number past the end of the document was refused in silence")
 	}
-	if m.textViewport.YOffset != 0 {
+	if m.textViewport.YOffset() != 0 {
 		t.Error("a refused jump moved the pane anyway")
 	}
 	if got := footerText(t, m, cmd); !strings.Contains(got, "200 lines") {
@@ -143,7 +143,7 @@ func TestALineHiddenByTheFilterIsRefusedByName(t *testing.T) {
 	if cmd == nil {
 		t.Fatal("a line hidden by the search was refused in silence")
 	}
-	if m.textViewport.YOffset != 0 {
+	if m.textViewport.YOffset() != 0 {
 		t.Error("the pane jumped to a line that is not on screen")
 	}
 	if got := footerText(t, m, cmd); !strings.Contains(got, "Line 3 is hidden") {
@@ -164,7 +164,7 @@ func TestAJumpLandsOnAWrappedLinesFirstRow(t *testing.T) {
 
 	// Two source lines wrapped into three rows each at this width, so line 3
 	// starts at row 6 — not at row 2, which is what an unwrapped count would say.
-	if got, want := m.textViewport.YOffset, m.rowOfLine[3]; got != want {
+	if got, want := m.textViewport.YOffset(), m.rowOfLine[3]; got != want {
 		t.Errorf("YOffset = %d, want %d — the jump must use the rendered row", got, want)
 	}
 	if m.rowOfLine[3] <= 2 {

@@ -1,7 +1,7 @@
 package app
 
 import (
-	tea "github.com/charmbracelet/bubbletea"
+	tea "charm.land/bubbletea/v2"
 
 	"github.com/anthnel/devdesk/internal/command"
 	uiviewer "github.com/anthnel/devdesk/internal/ui/viewer"
@@ -25,7 +25,7 @@ func (a *App) handleViewerOpenRequest(msg uiviewer.OpenRequestMsg) (tea.Model, t
 	// producer naming itself would be a second copy of that fact.
 	view.OriginView = a.currentView
 
-	a.views[command.ViewViewer] = view
+	a.setView(command.ViewViewer, view)
 	a.currentView = command.ViewViewer
 	return a, tea.Batch(view.Init(), a.requestResize())
 }

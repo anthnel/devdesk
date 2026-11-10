@@ -12,7 +12,7 @@ import (
 	"strings"
 	"testing"
 
-	tea "github.com/charmbracelet/bubbletea"
+	tea "charm.land/bubbletea/v2"
 
 	"github.com/anthnel/devdesk/internal/command"
 	"github.com/anthnel/devdesk/internal/config"
@@ -101,7 +101,7 @@ func requireSettled(t *testing.T, a *App, wantContext string) {
 	if a.switchingTo != "" {
 		t.Errorf("switchingTo = %q, want the overlay gone", a.switchingTo)
 	}
-	if strings.Contains(a.View(), "Switching to context") {
+	if strings.Contains(a.Render(), "Switching to context") {
 		t.Error("the switching overlay is still on screen")
 	}
 	if a.currentContext != wantContext {
@@ -434,7 +434,7 @@ func TestCtxNewCreatesSwitchesAndAnnounces(t *testing.T) {
 	if a.currentView != command.ViewGitAuth {
 		t.Errorf("view = %v, want the auth view (no forge in a new context)", a.currentView)
 	}
-	if !strings.Contains(a.View(), `Context "staging" created`) {
+	if !strings.Contains(a.Render(), `Context "staging" created`) {
 		t.Error("the view shown after the switch does not display the creation notice")
 	}
 	if !slices.Contains(a.snapshot().Names, "staging") {

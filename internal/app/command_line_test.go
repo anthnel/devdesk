@@ -4,7 +4,7 @@ import (
 	"strings"
 	"testing"
 
-	tea "github.com/charmbracelet/bubbletea"
+	tea "charm.land/bubbletea/v2"
 
 	"github.com/anthnel/devdesk/internal/command"
 	"github.com/anthnel/devdesk/internal/netcheck"
@@ -17,7 +17,7 @@ import (
 
 // commanding returns a router with the command line open, which is the state
 // every test here starts from.
-func commanding(t *testing.T, view tea.Model) *App {
+func commanding(t *testing.T, view Screen) *App {
 	t.Helper()
 	a := router(t, view)
 	a.enterCommandMode()
@@ -29,7 +29,7 @@ func commanding(t *testing.T, view tea.Model) *App {
 func typeCommand(t *testing.T, a *App, s string) {
 	t.Helper()
 	for _, msg := range testutil.Type(s) {
-		a.handleKeyMsg(msg.(tea.KeyMsg))
+		a.handleKeyMsg(msg.(tea.KeyPressMsg))
 	}
 }
 

@@ -7,7 +7,7 @@ import (
 	"strconv"
 	"sync/atomic"
 
-	tea "github.com/charmbracelet/bubbletea"
+	tea "charm.land/bubbletea/v2"
 
 	"github.com/anthnel/devdesk/internal/forward"
 	"github.com/anthnel/devdesk/internal/jobs"

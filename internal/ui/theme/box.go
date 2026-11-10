@@ -3,7 +3,7 @@ package theme
 import (
 	"strings"
 
-	"github.com/charmbracelet/lipgloss"
+	"charm.land/lipgloss/v2"
 )
 
 // RenderTitledBox draws a box of exactly `width` cells per line, carrying its

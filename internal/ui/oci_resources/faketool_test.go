@@ -10,7 +10,7 @@ import (
 	"sync"
 	"testing"
 
-	tea "github.com/charmbracelet/bubbletea"
+	tea "charm.land/bubbletea/v2"
 )
 
 // The commands in commands.go shell out to docker and, for a scan, to trivy.

@@ -5,7 +5,7 @@ import (
 	"testing"
 	"time"
 
-	tea "github.com/charmbracelet/bubbletea"
+	tea "charm.land/bubbletea/v2"
 
 	"github.com/anthnel/devdesk/internal/agentusage"
 	"github.com/anthnel/devdesk/internal/jobs"
@@ -155,12 +155,12 @@ func TestWantsBlinkIgnoresARunningRowTheFilterHides(t *testing.T) {
 // agentLine is the rendered line naming the coder, ANSI stripped.
 func agentLine(t *testing.T, m Model) string {
 	t.Helper()
-	for _, line := range strings.Split(stripANSI(m.View()), "\n") {
+	for _, line := range strings.Split(stripANSI(m.Render()), "\n") {
 		if strings.Contains(line, "coder") {
 			return line
 		}
 	}
-	t.Fatalf("no coder row in:\n%s", m.View())
+	t.Fatalf("no coder row in:\n%s", m.Render())
 	return ""
 }
 

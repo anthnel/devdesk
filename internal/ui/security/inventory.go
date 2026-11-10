@@ -6,8 +6,8 @@ import (
 	"strings"
 	"sync"
 
-	tea "github.com/charmbracelet/bubbletea"
-	"github.com/charmbracelet/lipgloss"
+	tea "charm.land/bubbletea/v2"
+	"charm.land/lipgloss/v2"
 
 	"github.com/anthnel/devdesk/internal/credentials"
 	"github.com/anthnel/devdesk/internal/docker"
@@ -30,7 +30,7 @@ import (
 // from: with the options in the config there is nothing left to carry across.
 
 // handleInventoryState processes keys on the inventory.
-func (m Model) handleInventoryState(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
+func (m Model) handleInventoryState(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	if m.inventory.InEditMode() {
 		return m, m.inventory.Update(msg)
 	}

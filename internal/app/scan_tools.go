@@ -1,7 +1,7 @@
 package app
 
 import (
-	tea "github.com/charmbracelet/bubbletea"
+	tea "charm.land/bubbletea/v2"
 
 	"github.com/anthnel/devdesk/internal/command"
 	"github.com/anthnel/devdesk/internal/config"
@@ -83,7 +83,8 @@ func (a *App) sendScanToolsTo(target command.ViewType) {
 		return
 	}
 	// A view stores the report and asks for nothing, so the Cmd is nil.
-	a.views[target], _ = view.Update(shared.ScanToolsMsg{Report: a.sharedState.Tools})
+	updated, _ := view.Update(shared.ScanToolsMsg{Report: a.sharedState.Tools})
+	a.setView(target, updated)
 }
 
 // toolsState is the router's bookkeeping of detection, kept apart so App reads

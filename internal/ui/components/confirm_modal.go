@@ -3,10 +3,9 @@ package components
 import (
 	"strings"
 
-	tea "github.com/charmbracelet/bubbletea"
-	"github.com/charmbracelet/lipgloss"
+	tea "charm.land/bubbletea/v2"
+	"charm.land/lipgloss/v2"
 
-	"github.com/anthnel/devdesk/internal/ui/keymap"
 	"github.com/anthnel/devdesk/internal/ui/theme"
 )
 
@@ -41,14 +40,14 @@ func (m *ConfirmModal) Update(msg tea.Msg) (*ConfirmModal, tea.Cmd) {
 		m.width = msg.Width
 		m.height = msg.Height
 
-	case tea.KeyMsg:
+	case tea.KeyPressMsg:
 		switch msg.String() {
 		case "left", "right":
 			// Toggle between Yes and No (Rule 135 — Tab exclusively for tabs)
 			m.focused = !m.focused
 			return m, nil
 
-		case "enter", keymap.Space:
+		case "enter":
 			// Confirm the selection
 			if m.focused {
 				return m, func() tea.Msg {

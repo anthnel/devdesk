@@ -4,8 +4,8 @@ import (
 	"strings"
 	"testing"
 
-	tea "github.com/charmbracelet/bubbletea"
-	"github.com/charmbracelet/lipgloss"
+	tea "charm.land/bubbletea/v2"
+	"charm.land/lipgloss/v2"
 
 	"github.com/anthnel/devdesk/internal/netiface"
 	"github.com/anthnel/devdesk/internal/ui/testutil"
@@ -86,7 +86,7 @@ func TestAFailedReadKeepsTheRowsAndDatesThem(t *testing.T) {
 	m := interfacesModel(t, netiface.Interface{Name: "Ethernet 2", State: netiface.StateUp, MTU: 1500})
 	m = feed(t, m, ifaceDataMsg{err: errRead})
 
-	if !strings.Contains(m.View(), "Ethernet 2") {
+	if !strings.Contains(m.Render(), "Ethernet 2") {
 		t.Fatal("a failed read emptied the table")
 	}
 	footer := m.RenderFooter(140)
@@ -117,7 +117,7 @@ func TestTheTableSurvivesARefresh(t *testing.T) {
 	m := interfacesModel(t, netiface.Interface{Name: "Ethernet 2", State: netiface.StateUp, MTU: 1500})
 	m = feed(t, m, testutil.Key("ctrl+r"))
 
-	view := m.View()
+	view := m.Render()
 	if !strings.Contains(view, "Interface") {
 		t.Fatalf("the table header vanished during a refresh: %q", view)
 	}
@@ -191,12 +191,12 @@ func (e readError) Error() string { return string(e) }
 // made against what is on screen rather than against the model behind it.
 func interfaceRowFor(t *testing.T, m *Model, name string) string {
 	t.Helper()
-	for _, line := range strings.Split(m.View(), "\n") {
+	for _, line := range strings.Split(m.Render(), "\n") {
 		if strings.Contains(line, name) {
 			return line
 		}
 	}
-	t.Fatalf("no row for %q in:\n%s", name, m.View())
+	t.Fatalf("no row for %q in:\n%s", name, m.Render())
 	return ""
 }
 
@@ -336,7 +336,7 @@ func TestTheInterfacesLayoutFitsANarrowTerminal(t *testing.T) {
 		IPv6: []string{"fe80::1c2d:3e4f:5a6b:7c8d/64"},
 	}}})
 
-	for i, line := range strings.Split(m.View(), "\n") {
+	for i, line := range strings.Split(m.Render(), "\n") {
 		if got := lipgloss.Width(line); got > 80 {
 			t.Errorf("line %d is %d cells wide, want at most 80:\n%s", i, got, line)
 		}

@@ -6,8 +6,8 @@ import (
 	"strings"
 	"unicode"
 
-	"github.com/charmbracelet/bubbles/textinput"
-	tea "github.com/charmbracelet/bubbletea"
+	"charm.land/bubbles/v2/textinput"
+	tea "charm.land/bubbletea/v2"
 
 	"github.com/anthnel/devdesk/internal/ui/components"
 	"github.com/anthnel/devdesk/internal/ui/theme"
@@ -55,7 +55,7 @@ func (m *Model) closeGoto() {
 // It takes every key before the pane sees one — the prompt is a mode, the way a
 // confirmation modal is — so a digit typed into it cannot also scroll, and `esc`
 // closes the prompt rather than leaving the viewer.
-func (m Model) handleGotoKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
+func (m Model) handleGotoKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	switch msg.String() {
 	case "esc":
 		m.closeGoto()

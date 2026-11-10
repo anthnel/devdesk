@@ -4,10 +4,10 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/charmbracelet/bubbles/spinner"
-	"github.com/charmbracelet/bubbles/textinput"
+	"charm.land/bubbles/v2/spinner"
+	"charm.land/bubbles/v2/textinput"
 
-	"github.com/charmbracelet/lipgloss"
+	"charm.land/lipgloss/v2"
 
 	"github.com/anthnel/devdesk/internal/cache"
 	"github.com/anthnel/devdesk/internal/config"
@@ -436,8 +436,8 @@ func (b *RegistryBrowser) SetSize(width, height int) {
 
 func (b *RegistryBrowser) resizeInputs() {
 	w := max(b.width-22, 20)
-	b.repoInput.Width = w
-	b.filterInput.Width = max(b.width-6, 10)
+	b.repoInput.SetWidth(w)
+	b.filterInput.SetWidth(max(b.width-6, 10))
 }
 
 // resizeTagTable hands the table the viewport width.

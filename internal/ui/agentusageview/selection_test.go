@@ -271,7 +271,7 @@ func TestANewSubAgentIsRenderedWholeAtOnce(t *testing.T) {
 		orchestrator(1, 0), subAgent("a01", "coder", 1, 0), subAgent("a02", "general-purpose", 1, 0),
 	}}, false)
 
-	if view := stripANSI(m.View()); !strings.Contains(view, lastStem+"general-purpose") {
+	if view := stripANSI(m.Render()); !strings.Contains(view, lastStem+"general-purpose") {
 		t.Errorf("the new agent's type is cut:\n%s", view)
 	}
 }

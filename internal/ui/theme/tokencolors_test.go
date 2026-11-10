@@ -2,13 +2,14 @@ package theme
 
 import (
 	"encoding/json"
+	"image/color"
 	"math"
 	"os"
 	"path/filepath"
 	"strings"
 	"testing"
 
-	"github.com/charmbracelet/lipgloss"
+	"charm.land/lipgloss/v2"
 )
 
 const (
@@ -62,10 +63,10 @@ func requireTokenRoles(t *testing.T) []TokenRole {
 	return roles
 }
 
-func tokenColors(t *testing.T) map[TokenRole]lipgloss.Color {
+func tokenColors(t *testing.T) map[TokenRole]color.Color {
 	t.Helper()
 	roles := requireTokenRoles(t)
-	out := map[TokenRole]lipgloss.Color{}
+	out := map[TokenRole]color.Color{}
 	for _, r := range roles {
 		out[r] = TokenColor(r)
 	}
@@ -109,7 +110,7 @@ func TestTokenColorsContrastWithBackground(t *testing.T) {
 		for role, c := range tokenColors(t) {
 			for _, bg := range []struct {
 				what string
-				c    lipgloss.Color
+				c    color.Color
 			}{{"background", ColorBackground}, {"selected row", ColorTableLineSelected}} {
 				r, err := ContrastRatio(c, bg.c)
 				if err != nil {
@@ -126,7 +127,7 @@ func TestTokenColorsContrastWithBackground(t *testing.T) {
 
 func TestTokenColorsAreNotSeverityOrGaugeColours(t *testing.T) {
 	eachShippedTheme(t, func(t *testing.T, name string) {
-		others := map[string]lipgloss.Color{
+		others := map[string]color.Color{
 			"severity critical": ColorSeverityCritical,
 			"severity high":     ColorSeverityHigh,
 			"severity medium":   ColorSeverityMedium,
@@ -134,7 +135,7 @@ func TestTokenColorsAreNotSeverityOrGaugeColours(t *testing.T) {
 			"severity info":     ColorSeverityInfo,
 			"gauge fill (OK)":   ColorOK,
 			"dim":               ColorDim,
-			"gauge track":       GaugeTrackStyle().GetForeground().(lipgloss.Color),
+			"gauge track":       GaugeTrackStyle().GetForeground(),
 		}
 		for role, c := range tokenColors(t) {
 			for what, o := range others {
@@ -185,7 +186,7 @@ func TestEveryShippedThemeSetsTheTokenKeys(t *testing.T) {
 
 func TestTokenColorFallsBackWhenTheKeyIsMissing(t *testing.T) {
 	withTheme(t, partialTheme(t, "no-token-keys", nil))
-	want := map[TokenRole]lipgloss.Color{
+	want := map[TokenRole]color.Color{
 		TokenRoleInput:      ColorSecondary,
 		TokenRoleOutput:     ColorHighlight,
 		TokenRoleCacheWrite: ColorPrimary,
@@ -200,29 +201,29 @@ func TestTokenColorFallsBackWhenTheKeyIsMissing(t *testing.T) {
 
 func TestTokenColorOneKeyOverridesOnlyThatRole(t *testing.T) {
 	withTheme(t, partialTheme(t, "one-key", map[string]string{"token_output": "#123456"}))
-	if got := TokenColor(TokenRoleOutput); got != "#123456" {
-		t.Errorf("TokenColor(output) = %q, want #123456", got)
+	if got := TokenColor(TokenRoleOutput); Hex(got) != "#123456" {
+		t.Errorf("TokenColor(output) = %s, want #123456", Hex(got))
 	}
 	if got := TokenColor(TokenRoleInput); got != ColorSecondary {
-		t.Errorf("TokenColor(input) = %q, want fallback ColorSecondary %q", got, ColorSecondary)
+		t.Errorf("TokenColor(input) = %s, want fallback ColorSecondary %s", Hex(got), Hex(ColorSecondary))
 	}
 }
 
 func TestTokenColorFollowsAThemeChange(t *testing.T) {
 	withTheme(t, partialTheme(t, "a", map[string]string{"token_input": "#111111"}))
-	if got := TokenColor(TokenRoleInput); got != "#111111" {
-		t.Fatalf("TokenColor(input) = %q, want #111111", got)
+	if got := TokenColor(TokenRoleInput); Hex(got) != "#111111" {
+		t.Fatalf("TokenColor(input) = %s, want #111111", Hex(got))
 	}
 	ApplyTheme(partialTheme(t, "b", map[string]string{"token_input": "#222222"}))
-	if got := TokenColor(TokenRoleInput); got != "#222222" {
-		t.Errorf("TokenColor(input) = %q after a theme change, want #222222", got)
+	if got := TokenColor(TokenRoleInput); Hex(got) != "#222222" {
+		t.Errorf("TokenColor(input) = %s after a theme change, want #222222", Hex(got))
 	}
 }
 
 func TestTokenColorOfAnUnknownRoleIsText(t *testing.T) {
 	for _, r := range []TokenRole{"", "bogus"} {
-		if got := TokenColor(r); got != ColorText || got == "" {
-			t.Errorf("TokenColor(%q) = %q, want ColorText %q", r, got, ColorText)
+		if got := TokenColor(r); got != ColorText || got == lipgloss.Color("") {
+			t.Errorf("TokenColor(%q) = %s, want ColorText %s", r, Hex(got), Hex(ColorText))
 		}
 	}
 }
@@ -243,23 +244,23 @@ func TestTokenStyleIsForegroundOnly(t *testing.T) {
 }
 
 func TestColorDistance(t *testing.T) {
-	d, err := ColorDistance("#000000", "#ffffff")
+	d, err := ColorDistance(lipgloss.Color("#000000"), lipgloss.Color("#ffffff"))
 	if err != nil || math.Abs(d-100) > 0.5 {
 		t.Errorf("black/white = %.2f, %v; want ~100", d, err)
 	}
-	if d, err := ColorDistance("#89b4fa", "#89b4fa"); err != nil || d != 0 {
+	if d, err := ColorDistance(lipgloss.Color("#89b4fa"), lipgloss.Color("#89b4fa")); err != nil || d != 0 {
 		t.Errorf("identical = %v, %v; want 0", d, err)
 	}
-	ab, _ := ColorDistance("#89b4fa", "#f9e2af")
-	ba, _ := ColorDistance("#f9e2af", "#89b4fa")
+	ab, _ := ColorDistance(lipgloss.Color("#89b4fa"), lipgloss.Color("#f9e2af"))
+	ba, _ := ColorDistance(lipgloss.Color("#f9e2af"), lipgloss.Color("#89b4fa"))
 	if ab == 0 || math.Abs(ab-ba) > 1e-9 {
 		t.Errorf("not symmetric or zero: %v vs %v", ab, ba)
 	}
-	if d, _ := ColorDistance("#abc", "#aabbcc"); d != 0 {
+	if d, _ := ColorDistance(lipgloss.Color("#abc"), lipgloss.Color("#aabbcc")); d != 0 {
 		t.Errorf("#abc vs #aabbcc = %v, want 0 (same as ContrastRatio's short form)", d)
 	}
-	for _, bad := range []lipgloss.Color{"red", "", "#12345", "#gggggg", "5"} {
-		if _, err := ColorDistance(bad, "#000000"); err == nil {
+	for _, bad := range []string{"red", "", "#12345", "#gggggg", "5"} {
+		if _, err := ColorDistance(lipgloss.Color(bad), lipgloss.Color("#000000")); err == nil {
 			t.Errorf("ColorDistance(%q, ...) accepted a non-hex colour", bad)
 		}
 	}

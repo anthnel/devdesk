@@ -4,7 +4,7 @@ import (
 	"strings"
 	"testing"
 
-	tea "github.com/charmbracelet/bubbletea"
+	tea "charm.land/bubbletea/v2"
 
 	"github.com/anthnel/devdesk/internal/ui/testutil"
 )
@@ -39,7 +39,7 @@ func TestConfirmModalArrowsToggleSelection(t *testing.T) {
 	}
 }
 
-func TestConfirmModalEnterAndSpaceConfirmSelection(t *testing.T) {
+func TestConfirmModalEnterConfirmsSelection(t *testing.T) {
 	tests := []struct {
 		name    string
 		key     string
@@ -48,8 +48,6 @@ func TestConfirmModalEnterAndSpaceConfirmSelection(t *testing.T) {
 	}{
 		{"enter on No", "enter", false, false},
 		{"enter on Yes", "enter", true, true},
-		{"space on No", " ", false, false},
-		{"space on Yes", " ", true, true},
 	}
 
 	for _, tt := range tests {
@@ -60,6 +58,22 @@ func TestConfirmModalEnterAndSpaceConfirmSelection(t *testing.T) {
 			_, cmd := m.Update(testutil.Key(tt.key))
 			assertConfirmAnswer(t, cmd, tt.wantYes)
 		})
+	}
+}
+
+// Rule 135: Space only toggles a checkbox; it must not answer a Yes/No modal.
+func TestConfirmModalSpaceDoesNotAnswer(t *testing.T) {
+	for _, focused := range []bool{false, true} {
+		m := NewConfirmModal("Delete", "Sure?")
+		m.focused = focused
+
+		m, cmd := m.Update(testutil.Key("space"))
+		if cmd != nil {
+			t.Errorf("space with focus on Yes=%v emitted %T, want no command", focused, testutil.Msg(cmd))
+		}
+		if m.focused != focused {
+			t.Errorf("space moved the selection from %v to %v", focused, m.focused)
+		}
 	}
 }
 

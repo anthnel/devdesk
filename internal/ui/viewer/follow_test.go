@@ -112,8 +112,8 @@ func TestAFollowedDocumentStaysAtTheBottom(t *testing.T) {
 	long := strings.Repeat("a line\n", 200)
 	m := logModel(t, long)
 
-	if m.textViewport.YOffset != 0 {
-		t.Fatalf("a freshly opened document is at offset %d, want the top", m.textViewport.YOffset)
+	if m.textViewport.YOffset() != 0 {
+		t.Fatalf("a freshly opened document is at offset %d, want the top", m.textViewport.YOffset())
 	}
 
 	m = feed(t, m, testutil.Key(keymap.Fetch))
@@ -133,8 +133,8 @@ func TestStoppingFollowRestoresTheTopOnReload(t *testing.T) {
 
 	m = feed(t, m, resolve(t, loadCmd(m.source))...)
 
-	if m.textViewport.YOffset != 0 {
-		t.Errorf("offset = %d after a reload with following off, want the top", m.textViewport.YOffset)
+	if m.textViewport.YOffset() != 0 {
+		t.Errorf("offset = %d after a reload with following off, want the top", m.textViewport.YOffset())
 	}
 }
 

@@ -8,9 +8,9 @@ import (
 	"path/filepath"
 	"strings"
 
+	"charm.land/bubbles/v2/textinput"
+	tea "charm.land/bubbletea/v2"
 	"github.com/anthnel/devdesk/internal/clipboard"
-	"github.com/charmbracelet/bubbles/textinput"
-	tea "github.com/charmbracelet/bubbletea"
 
 	"github.com/anthnel/devdesk/internal/fsbrowse"
 	"github.com/anthnel/devdesk/internal/jobs"
@@ -29,8 +29,11 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.resize()
 		return m, nil
 
-	case tea.KeyMsg:
+	case tea.KeyPressMsg:
 		return m.handleKey(msg)
+
+	case tea.PasteMsg:
+		return m.handlePaste(msg)
 
 	case EntriesLoadedMsg:
 		return m.handleEntriesLoaded(msg)
@@ -112,7 +115,21 @@ func (m Model) handleLoadError(msg LoadErrorMsg) (tea.Model, tea.Cmd) {
 
 // ── Keys ────────────────────────────────────────────────────────────────────
 
-func (m Model) handleKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
+// handlePaste gives pasted text to the filter bar or the create form's name,
+// whichever has the keyboard. Anything else drops it: a paste is never read as
+// keys (Rule 111).
+func (m Model) handlePaste(msg tea.PasteMsg) (tea.Model, tea.Cmd) {
+	var cmd tea.Cmd
+	switch {
+	case m.table.InEditMode():
+		cmd = m.table.Update(msg)
+	case m.mode == modeCreating:
+		m.form, cmd = m.form.paste(msg)
+	}
+	return m, cmd
+}
+
+func (m Model) handleKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	if m.table.InEditMode() {
 		return m, m.table.Update(msg)
 	}

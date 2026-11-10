@@ -1,9 +1,8 @@
 package theme
 
 import (
+	"image/color"
 	"testing"
-
-	"github.com/charmbracelet/lipgloss"
 )
 
 func score(s string) *string { return &s }
@@ -56,7 +55,7 @@ func TestNotYetAndNeverAreDifferentCells(t *testing.T) {
 // dash by a shade, in four cells. Green does not say "well done", it says
 // *this is a grade*.
 func TestTheFiveGradesAreColouredAndBold(t *testing.T) {
-	want := map[string]lipgloss.TerminalColor{
+	want := map[string]color.Color{
 		"A": ColorOK,
 		"B": ColorOK,
 		"C": ColorSeverityMedium,

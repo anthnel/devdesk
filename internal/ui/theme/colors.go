@@ -1,47 +1,47 @@
 package theme
 
-import "github.com/charmbracelet/lipgloss"
+import "image/color"
 
 // All color variables are populated by ApplyTheme(DefaultTheme()) in init().
 // DefaultTheme() in manager.go is the single source of truth for hex values.
 
 // Status colors
 var (
-	ColorOK    lipgloss.Color
-	ColorError lipgloss.Color
-	ColorWarn  lipgloss.Color
+	ColorOK    color.Color
+	ColorError color.Color
+	ColorWarn  color.Color
 )
 
 // UI colors (populated by ApplyTheme from DefaultTheme)
 var (
-	ColorPrimary    lipgloss.Color
-	ColorSecondary  lipgloss.Color
-	ColorBorder     lipgloss.Color
-	ColorText       lipgloss.Color
-	ColorDim        lipgloss.Color
-	ColorHighlight  lipgloss.Color
-	ColorWhite      lipgloss.Color
-	ColorBlack      lipgloss.Color
-	ColorBackground lipgloss.Color
+	ColorPrimary    color.Color
+	ColorSecondary  color.Color
+	ColorBorder     color.Color
+	ColorText       color.Color
+	ColorDim        color.Color
+	ColorHighlight  color.Color
+	ColorWhite      color.Color
+	ColorBlack      color.Color
+	ColorBackground color.Color
 )
 
 // Component-specific colors (populated by ApplyTheme, fallback to semantic colors)
 var (
-	ColorTitleFg    lipgloss.Color
-	ColorAppTitleFg lipgloss.Color
-	ColorSubTitleFg lipgloss.Color
+	ColorTitleFg    color.Color
+	ColorAppTitleFg color.Color
+	ColorSubTitleFg color.Color
 
-	ColorButtonFg         lipgloss.Color
-	ColorButtonBg         lipgloss.Color
-	ColorButtonInactiveFg lipgloss.Color
-	ColorButtonInactiveBg lipgloss.Color
+	ColorButtonFg         color.Color
+	ColorButtonBg         color.Color
+	ColorButtonInactiveFg color.Color
+	ColorButtonInactiveBg color.Color
 
-	ColorTabActiveFg   lipgloss.Color
-	ColorTabActiveBg   lipgloss.Color
-	ColorTabInactiveFg lipgloss.Color
-	ColorTabInactiveBg lipgloss.Color
+	ColorTabActiveFg   color.Color
+	ColorTabActiveBg   color.Color
+	ColorTabInactiveFg color.Color
+	ColorTabInactiveBg color.Color
 
-	ColorTableHeaderFg lipgloss.Color
+	ColorTableHeaderFg color.Color
 
 	// ColorTableLineSelected is the background a datatable's plain "normal"
 	// selected row paints per cell (§3.72) — DefaultTableStyles' s.Selected,
@@ -49,19 +49,19 @@ var (
 	// It used to alias ColorSeverityLow directly; a dedicated key lets a theme
 	// tune the selection independently of the severity palette, which is what
 	// SeverityLow now is — see its own doc below.
-	ColorTableLineSelected lipgloss.Color
+	ColorTableLineSelected color.Color
 
-	ColorCmdLineFg         lipgloss.Color
-	ColorCmdLineBg         lipgloss.Color
-	ColorCmdLineInactiveFg lipgloss.Color
+	ColorCmdLineFg         color.Color
+	ColorCmdLineBg         color.Color
+	ColorCmdLineInactiveFg color.Color
 
-	ColorViewportBorder lipgloss.Color
+	ColorViewportBorder color.Color
 
 	// ColorChartBg is the surface a chart is drawn on: one shade lighter than
 	// the app background, so the frame reserved for the graph is visible.
-	ColorChartBg lipgloss.Color
+	ColorChartBg color.Color
 
-	ColorHeaderKey lipgloss.Color
+	ColorHeaderKey color.Color
 
 	// Syntax colors, for the viewer's highlighted text and tree.
 	//
@@ -77,22 +77,22 @@ var (
 	// same decision: they are text *attributes*, so they are carried by
 	// lipgloss's Bold, Italic and Strikethrough over the ordinary text colour.
 	// A bold word is bold in every theme, which a hue is not.
-	ColorSyntaxKey     lipgloss.Color
-	ColorSyntaxString  lipgloss.Color
-	ColorSyntaxNumber  lipgloss.Color
-	ColorSyntaxLiteral lipgloss.Color
-	ColorSyntaxKeyword lipgloss.Color
-	ColorSyntaxPunct   lipgloss.Color
-	ColorSyntaxTag     lipgloss.Color
-	ColorSyntaxAttr    lipgloss.Color
-	ColorSyntaxComment lipgloss.Color
-	ColorSyntaxHeading lipgloss.Color
+	ColorSyntaxKey     color.Color
+	ColorSyntaxString  color.Color
+	ColorSyntaxNumber  color.Color
+	ColorSyntaxLiteral color.Color
+	ColorSyntaxKeyword color.Color
+	ColorSyntaxPunct   color.Color
+	ColorSyntaxTag     color.Color
+	ColorSyntaxAttr    color.Color
+	ColorSyntaxComment color.Color
+	ColorSyntaxHeading color.Color
 
 	// A search occurrence, in reverse video like a selected row: it is the most
 	// urgent thing on the screen while a search is running, so it takes
 	// precedence over the syntax class or the log level underneath it.
-	ColorSearchMatch   lipgloss.Color
-	ColorSearchMatchFg lipgloss.Color
+	ColorSearchMatch   color.Color
+	ColorSearchMatchFg color.Color
 
 	// Footer message colors, one per level (Rule 128).
 	//
@@ -108,18 +108,18 @@ var (
 	// Info is deliberately ColorText, the application's ordinary text colour:
 	// ColorHighlight carried it before and is a yellow one notch from the
 	// warning's orange, which made the two levels indistinguishable.
-	ColorFooterInfo  lipgloss.Color
-	ColorFooterWarn  lipgloss.Color
-	ColorFooterError lipgloss.Color
+	ColorFooterInfo  color.Color
+	ColorFooterWarn  color.Color
+	ColorFooterError color.Color
 
 	// Activity colours: the state colours of the first-column activity
 	// indicator (DEVDESK-137). Closed aliases assigned in ApplyTheme, no theme
 	// file gains a key (D4): Running = ColorSecondary, Neutral = ColorText
 	// (never ColorDim), Suspended = ColorFooterWarn, Failed = ColorFooterError.
-	ColorActivityRunning   lipgloss.Color
-	ColorActivityNeutral   lipgloss.Color
-	ColorActivitySuspended lipgloss.Color
-	ColorActivityFailed    lipgloss.Color
+	ColorActivityRunning   color.Color
+	ColorActivityNeutral   color.Color
+	ColorActivitySuspended color.Color
+	ColorActivityFailed    color.Color
 
 	// ColorUpdateAvailable is the arrow that says a newer image exists (§3.88).
 	//
@@ -127,7 +127,7 @@ var (
 	// structural blue the headers use rather than a severity colour — an update
 	// is news, not a finding, and a table already coloured by CVE counts must
 	// not read one as another.
-	ColorUpdateAvailable lipgloss.Color
+	ColorUpdateAvailable color.Color
 
 	// ColorShortcutDisabled is the key of a header shortcut that exists in this
 	// mode but does not apply right now (Rule 130).
@@ -137,13 +137,13 @@ var (
 	// disabled line reads as one uniform grey, and what separates it from an
 	// available one is the key losing its hue and its weight. A theme wanting a
 	// third grey declares it here without touching a single caller.
-	ColorShortcutDisabled lipgloss.Color
+	ColorShortcutDisabled color.Color
 
 	// ColorPaletteBorder is the border and prompt glyph of the command palette
 	// overlay. A closed alias of ColorPrimary assigned in ApplyTheme: no theme
 	// file gains a key, so a user theme cannot break the 3:1 border contrast
 	// unseen.
-	ColorPaletteBorder lipgloss.Color
+	ColorPaletteBorder color.Color
 
 	// Icon colours, one per role rather than one per glyph (iconcolors.go).
 	//
@@ -155,22 +155,22 @@ var (
 	// theme file may override each of them, because these are the one part of the
 	// palette a user is likely to have an opinion about — an icon is the first
 	// thing seen on a row.
-	ColorIconNamespace   lipgloss.Color
-	ColorIconRepository  lipgloss.Color
-	ColorIconVisPublic   lipgloss.Color
-	ColorIconVisInternal lipgloss.Color
-	ColorIconVisPrivate  lipgloss.Color
-	ColorIconDirectory   lipgloss.Color
-	ColorIconFile        lipgloss.Color
-	ColorIconImage       lipgloss.Color
-	ColorIconContainer   lipgloss.Color
+	ColorIconNamespace   color.Color
+	ColorIconRepository  color.Color
+	ColorIconVisPublic   color.Color
+	ColorIconVisInternal color.Color
+	ColorIconVisPrivate  color.Color
+	ColorIconDirectory   color.Color
+	ColorIconFile        color.Color
+	ColorIconImage       color.Color
+	ColorIconContainer   color.Color
 
 	// Token-mix bar colours, one per role (tokencolors.go). Overridable from a
 	// theme file; a theme without the keys falls back to the structural palette.
-	ColorTokenInput      lipgloss.Color
-	ColorTokenOutput     lipgloss.Color
-	ColorTokenCacheWrite lipgloss.Color
-	ColorTokenCacheRead  lipgloss.Color
+	ColorTokenInput      color.Color
+	ColorTokenOutput     color.Color
+	ColorTokenCacheWrite color.Color
+	ColorTokenCacheRead  color.Color
 
 	// Severity colors (background + foreground pairs)
 	//
@@ -180,16 +180,16 @@ var (
 	// barely worth a glance next to CRITICAL/HIGH/MEDIUM. A theme may still
 	// separate the two; the default treats "low severity" and "nothing found"
 	// as the same shade of unremarkable.
-	ColorSeverityCritical   lipgloss.Color
-	ColorSeverityCriticalFg lipgloss.Color
-	ColorSeverityHigh       lipgloss.Color
-	ColorSeverityHighFg     lipgloss.Color
-	ColorSeverityMedium     lipgloss.Color
-	ColorSeverityMediumFg   lipgloss.Color
-	ColorSeverityLow        lipgloss.Color
-	ColorSeverityLowFg      lipgloss.Color
-	ColorSeverityInfo       lipgloss.Color
-	ColorSeverityInfoFg     lipgloss.Color
+	ColorSeverityCritical   color.Color
+	ColorSeverityCriticalFg color.Color
+	ColorSeverityHigh       color.Color
+	ColorSeverityHighFg     color.Color
+	ColorSeverityMedium     color.Color
+	ColorSeverityMediumFg   color.Color
+	ColorSeverityLow        color.Color
+	ColorSeverityLowFg      color.Color
+	ColorSeverityInfo       color.Color
+	ColorSeverityInfoFg     color.Color
 )
 
 // init populates all color variables from DefaultTheme.

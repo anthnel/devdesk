@@ -272,7 +272,7 @@ type ComponentStatus struct {
 **Core Methods:**
 - `Init() tea.Cmd` — Initialize Bubble Tea
 - `Update(msg tea.Msg) (tea.Model, tea.Cmd)` — Main message dispatcher
-- `View() string` — Render layout (header + viewport + footer)
+- `View() tea.View` — wraps `Render() string` (header + viewport + footer) and sets `AltScreen`
 
 **View Management:**
 - `initView(viewType)` — Lazy-load view instance

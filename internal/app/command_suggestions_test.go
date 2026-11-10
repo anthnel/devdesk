@@ -10,8 +10,8 @@ import (
 	"time"
 	"unicode"
 
-	tea "github.com/charmbracelet/bubbletea"
-	"github.com/charmbracelet/lipgloss"
+	tea "charm.land/bubbletea/v2"
+	"charm.land/lipgloss/v2"
 	"github.com/charmbracelet/x/ansi"
 
 	"github.com/anthnel/devdesk/internal/command"
@@ -73,7 +73,7 @@ func TestCtrlPShowsTheFullListWithNothingHighlighted(t *testing.T) {
 			t.Errorf("row is %d cells wide, want 76: %q", w, r)
 		}
 	}
-	if h := lipgloss.Height(a.View()); h != 24 {
+	if h := lipgloss.Height(a.Render()); h != 24 {
 		t.Errorf("View is %d lines, want 24", h)
 	}
 }
@@ -195,9 +195,9 @@ func TestTabAndShiftTabDoNothingWithoutAHighlightedRow(t *testing.T) {
 	for _, typed := range []string{"", "zz"} {
 		a := commanding(t, &fakeView{})
 		typeCommand(t, a, typed)
-		before := a.View()
+		before := a.Render()
 		press(t, a, "tab")
-		if a.commandInput.Value() != typed || a.View() != before {
+		if a.commandInput.Value() != typed || a.Render() != before {
 			t.Errorf("tab with %q and no highlight changed the screen or the line (%q)", typed, a.commandInput.Value())
 		}
 	}
@@ -206,10 +206,10 @@ func TestTabAndShiftTabDoNothingWithoutAHighlightedRow(t *testing.T) {
 func TestShiftTabDoesNothing(t *testing.T) {
 	a := commanding(t, &fakeView{})
 	typeCommand(t, a, "co")
-	before := a.View()
+	before := a.Render()
 	press(t, a, "shift+tab")
 
-	if a.commandInput.Value() != "co" || a.View() != before {
+	if a.commandInput.Value() != "co" || a.Render() != before {
 		t.Errorf("shift+tab changed the line (%q) or the screen", a.commandInput.Value())
 	}
 }
@@ -352,7 +352,7 @@ func TestEscClosesTheLineAndTheListInOnePressLeavingTheViewUntouched(t *testing.
 	a := routerAt(t, view, 80, 24)
 	before := *view
 	beforeView := a.currentView
-	beforeScreen := a.View()
+	beforeScreen := a.Render()
 
 	press(t, a, "ctrl+p")
 	typeCommand(t, a, "co")
@@ -368,7 +368,7 @@ func TestEscClosesTheLineAndTheListInOnePressLeavingTheViewUntouched(t *testing.
 	if a.currentView != beforeView || !reflect.DeepEqual(before, *view) {
 		t.Error("the view changed (or received a message) between opening and closing the palette")
 	}
-	if a.View() != beforeScreen {
+	if a.Render() != beforeScreen {
 		t.Error("the screen after esc is not byte-identical to the screen before ctrl+p")
 	}
 }
@@ -458,7 +458,7 @@ func TestTheLayoutHoldsWithThePaletteOpen(t *testing.T) {
 				press(t, a, "ctrl+p")
 				step(t, a)
 
-				if h := lipgloss.Height(a.View()); h != sz[1] {
+				if h := lipgloss.Height(a.Render()); h != sz[1] {
 					t.Errorf("View is %d lines, want %d", h, sz[1])
 				}
 				if h := lipgloss.Height(a.renderHeader()); h != paletteHeaderLines {

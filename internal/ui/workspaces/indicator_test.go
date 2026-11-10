@@ -6,7 +6,7 @@ import (
 	"testing"
 	"time"
 
-	tea "github.com/charmbracelet/bubbletea"
+	tea "charm.land/bubbletea/v2"
 
 	"github.com/anthnel/devdesk/internal/jobs"
 	"github.com/anthnel/devdesk/internal/ui/datatable"
@@ -25,12 +25,12 @@ const (
 // lineOf returns the rendered line holding the given row name.
 func lineOf(t *testing.T, m Model, name string) string {
 	t.Helper()
-	for _, l := range strings.Split(m.View(), "\n") {
+	for _, l := range strings.Split(m.Render(), "\n") {
 		if strings.Contains(l, name) {
 			return l
 		}
 	}
-	t.Fatalf("no rendered line holds %q:\n%s", name, m.View())
+	t.Fatalf("no rendered line holds %q:\n%s", name, m.Render())
 	return ""
 }
 
@@ -214,7 +214,7 @@ func TestAFrameSetsThePhaseWithoutRebuildingRows(t *testing.T) {
 func TestAFrameStillFeedsTheFooterSpinner(t *testing.T) {
 	m := withSnapshot(t, loadedModel(t), []jobs.Run{runningRun(jobs.KindScan, indRepo)}, nil)
 	m = feed(t, m, jobs.FrameMsg{Frame: "ZZ", RenderedFrame: "FOOTERFRAME", Blink: true})
-	if strings.Contains(m.View(), "ZZ") {
+	if strings.Contains(m.Render(), "ZZ") {
 		t.Error("the bare frame still reaches the table")
 	}
 	if !strings.Contains(m.RenderFooter(120), "FOOTERFRAME") {

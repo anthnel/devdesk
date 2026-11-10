@@ -1,12 +1,11 @@
 package theme
 
 import (
-	"github.com/anthnel/devdesk/internal/testutil/colorprofile"
 	"regexp"
 	"strings"
 	"testing"
 
-	"github.com/charmbracelet/lipgloss"
+	"charm.land/lipgloss/v2"
 	"github.com/charmbracelet/x/ansi"
 )
 
@@ -15,7 +14,6 @@ import (
 // trueColor forces colour output so background coverage can be inspected.
 func trueColor(t *testing.T) {
 	t.Helper()
-	colorprofile.TrueColor(t)
 }
 
 func TestBorderTrailChromeIsNine(t *testing.T) {
@@ -147,7 +145,7 @@ func TestRenderBorderTitleTrailWithNoRoomAtAll(t *testing.T) {
 	}
 }
 
-var styledRun = regexp.MustCompile(`\x1b\[[0-9;]*m[^\x1b]*\x1b\[0m`)
+var styledRun = regexp.MustCompile(`\x1b\[[0-9;]*m[^\x1b]*\x1b\[m`)
 
 func TestRenderBorderTitleTrailEveryCellCarriesTheBackground(t *testing.T) {
 	trueColor(t)

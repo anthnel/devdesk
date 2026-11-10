@@ -4,9 +4,9 @@ import (
 	"github.com/anthnel/devdesk/internal/shared"
 	"maps"
 
-	"github.com/charmbracelet/bubbles/spinner"
+	"charm.land/bubbles/v2/spinner"
 
-	tea "github.com/charmbracelet/bubbletea"
+	tea "charm.land/bubbletea/v2"
 
 	"github.com/anthnel/devdesk/internal/jobs"
 
@@ -35,8 +35,11 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.resize(msg.Width, msg.Height)
 		return m, nil
 
-	case tea.KeyMsg:
+	case tea.KeyPressMsg:
 		return m.handleKeyMsg(msg)
+
+	case tea.PasteMsg:
+		return m.handlePaste(msg)
 
 	// The router's detection (§3.86): it decides whether S is offered, and
 	// what a scan runs on.
@@ -299,7 +302,7 @@ func (m Model) delegateUpdate(msg tea.Msg) (tea.Model, tea.Cmd) {
 }
 
 // handleKeyMsg processes keyboard input with priority chain
-func (m Model) handleKeyMsg(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
+func (m Model) handleKeyMsg(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	// Priority 0: registry browser
 	if m.registryBrowser != nil {
 		var cmd tea.Cmd
@@ -347,8 +350,29 @@ func (m Model) handleKeyMsg(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	return m.handleNormalKeyMsg(msg)
 }
 
+// handlePaste gives pasted text to the form, browser or filter bar that has the
+// keyboard, in the order handleKeyMsg gives it. A modal or no focused field
+// drops it: a paste is never read as keys (Rule 111).
+func (m Model) handlePaste(msg tea.PasteMsg) (tea.Model, tea.Cmd) {
+	var cmd tea.Cmd
+	switch {
+	case m.registryBrowser != nil:
+		m.registryBrowser, cmd = m.registryBrowser.Update(msg)
+	case m.launchForm != nil:
+		m.launchForm, cmd = m.launchForm.Update(msg)
+	case m.resourceForm != nil:
+		m.resourceForm, cmd = m.resourceForm.Update(msg)
+	case m.registryForm != nil:
+		m.registryForm, cmd = m.registryForm.Update(msg)
+	case m.networkInspectForm != nil, m.confirmModal != nil, m.scanAllModal != nil:
+	case m.imageTable.InEditMode():
+		cmd = m.imageTable.Update(msg)
+	}
+	return m, cmd
+}
+
 // handleNormalKeyMsg handles keys in normal mode
-func (m Model) handleNormalKeyMsg(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
+func (m Model) handleNormalKeyMsg(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	// Tab switching (Rule 111: Tab/Shift+Tab)
 	switch msg.String() {
 	case "tab":

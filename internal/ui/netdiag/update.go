@@ -3,9 +3,9 @@ package netdiag
 import (
 	"log"
 
-	"github.com/charmbracelet/bubbles/spinner"
-	"github.com/charmbracelet/bubbles/textinput"
-	tea "github.com/charmbracelet/bubbletea"
+	"charm.land/bubbles/v2/spinner"
+	"charm.land/bubbles/v2/textinput"
+	tea "charm.land/bubbletea/v2"
 
 	"github.com/anthnel/devdesk/internal/forward"
 	"github.com/anthnel/devdesk/internal/jobs"
@@ -119,8 +119,11 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.interfacesModel, cmd = m.interfacesModel.update(msg)
 		return m, cmd
 
-	case tea.KeyMsg:
+	case tea.KeyPressMsg:
 		return m.handleKey(msg)
+
+	case tea.PasteMsg:
+		return m.handlePaste(msg)
 	}
 
 	// Each tab holds its own footer, so an expiry has to be offered to all
@@ -190,7 +193,30 @@ func (m *Model) handleStageDone(msg stageDoneMsg) (*Model, tea.Cmd) {
 	return m, runStageCmd(m.runGen, tg, m.checkSettings(), msg.next, m.results)
 }
 
-func (m *Model) handleKey(msg tea.KeyMsg) (*Model, tea.Cmd) {
+// handlePaste gives pasted text to the field that has the keyboard on the tab on
+// screen. It never reaches the key handlers, so no action fires (Rule 111).
+func (m *Model) handlePaste(msg tea.PasteMsg) (*Model, tea.Cmd) {
+	var cmd tea.Cmd
+	switch m.activeTab {
+	case tabPorts:
+		m.portsModel, cmd = m.portsModel.update(msg)
+	case tabInterfaces:
+		m.interfacesModel, cmd = m.interfacesModel.update(msg)
+	case tabForward:
+		m.forwardModel, cmd = m.forwardModel.update(msg)
+	default:
+		switch {
+		case m.filterBar.InEditMode():
+			m.filterBar, cmd = m.filterBar.Update(msg)
+			m.rebuildChecksTable()
+		case m.state == StateInput:
+			return m.updateActiveInput(msg)
+		}
+	}
+	return m, cmd
+}
+
+func (m *Model) handleKey(msg tea.KeyPressMsg) (*Model, tea.Cmd) {
 	// A filter bar in edit mode claims every key before anything else, or a
 	// query cannot contain the letters the view binds.
 	if m.activeTab == tabDiagnostics && m.filterBar.InEditMode() {
@@ -243,7 +269,7 @@ func (m *Model) handleKey(msg tea.KeyMsg) (*Model, tea.Cmd) {
 // handleKeyRunning cancels the run. The stage in flight is awaited rather than
 // interrupted — it is a network read that will time out on its own — and its
 // result is discarded by the generation counter.
-func (m *Model) handleKeyRunning(msg tea.KeyMsg) (*Model, tea.Cmd) {
+func (m *Model) handleKeyRunning(msg tea.KeyPressMsg) (*Model, tea.Cmd) {
 	if msg.String() != "esc" {
 		return m, nil
 	}
@@ -254,7 +280,7 @@ func (m *Model) handleKeyRunning(msg tea.KeyMsg) (*Model, tea.Cmd) {
 	return m, m.footer.Warn("Run cancelled — showing what completed")
 }
 
-func (m *Model) handleKeyInput(msg tea.KeyMsg) (*Model, tea.Cmd) {
+func (m *Model) handleKeyInput(msg tea.KeyPressMsg) (*Model, tea.Cmd) {
 	switch msg.String() {
 	case "down":
 		m.moveFocus(1)
@@ -295,7 +321,7 @@ func (m *Model) moveFocus(delta int) {
 	}
 }
 
-func (m *Model) updateActiveInput(msg tea.KeyMsg) (*Model, tea.Cmd) {
+func (m *Model) updateActiveInput(msg tea.Msg) (*Model, tea.Cmd) {
 	var cmd tea.Cmd
 	switch m.focusedField {
 	case fieldTarget:
@@ -308,7 +334,7 @@ func (m *Model) updateActiveInput(msg tea.KeyMsg) (*Model, tea.Cmd) {
 	return m, cmd
 }
 
-func (m *Model) handleKeyResults(msg tea.KeyMsg) (*Model, tea.Cmd) {
+func (m *Model) handleKeyResults(msg tea.KeyPressMsg) (*Model, tea.Cmd) {
 	switch msg.String() {
 	case "enter":
 		return m.openDetails()
@@ -343,7 +369,7 @@ func (m *Model) handleKeyResults(msg tea.KeyMsg) (*Model, tea.Cmd) {
 	return m, m.checksTable.Update(msg)
 }
 
-func (m *Model) handleKeyDetails(msg tea.KeyMsg) (*Model, tea.Cmd) {
+func (m *Model) handleKeyDetails(msg tea.KeyPressMsg) (*Model, tea.Cmd) {
 	switch msg.String() {
 	case "esc":
 		m.state = StateResults
@@ -372,7 +398,7 @@ func (m *Model) openDetails() (*Model, tea.Cmd) {
 	m.selected = c
 	m.state = StateDetails
 	m.resizeDetailsViewport()
-	m.detailsViewport.SetContent(m.renderDetailsContent(m.detailsViewport.Width))
+	m.detailsViewport.SetContent(m.renderDetailsContent(m.detailsViewport.Width()))
 	m.detailsViewport.GotoTop()
 	return m, nil
 }

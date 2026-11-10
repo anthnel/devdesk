@@ -1,8 +1,8 @@
 package setup
 
 import (
-	"github.com/charmbracelet/bubbles/textinput"
-	"github.com/charmbracelet/lipgloss"
+	"charm.land/bubbles/v2/textinput"
+	"charm.land/lipgloss/v2"
 
 	"github.com/anthnel/devdesk/internal/ui/components"
 	"github.com/anthnel/devdesk/internal/ui/theme"
@@ -44,9 +44,14 @@ func footerLevelStyle(l components.Level) lipgloss.Style {
 // styleTextInput mirrors theme.StyleTextInput, minus the background.
 func styleTextInput(ti *textinput.Model) {
 	ti.Prompt = ""
-	ti.TextStyle = lipgloss.NewStyle().Foreground(theme.ColorText)
-	ti.PromptStyle = lipgloss.NewStyle().Foreground(theme.ColorHighlight)
-	ti.PlaceholderStyle = lipgloss.NewStyle().Foreground(theme.ColorDim)
-	ti.Cursor.Style = lipgloss.NewStyle().Foreground(theme.ColorHighlight)
-	ti.Cursor.TextStyle = lipgloss.NewStyle().Foreground(theme.ColorText)
+	state := textinput.StyleState{
+		Text:        lipgloss.NewStyle().Foreground(theme.ColorText),
+		Prompt:      lipgloss.NewStyle().Foreground(theme.ColorHighlight),
+		Placeholder: lipgloss.NewStyle().Foreground(theme.ColorDim),
+	}
+	styles := ti.Styles()
+	styles.Focused = state
+	styles.Blurred = state
+	styles.Cursor.Color = theme.ColorHighlight
+	ti.SetStyles(styles)
 }

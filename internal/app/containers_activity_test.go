@@ -4,7 +4,7 @@ import (
 	"strings"
 	"testing"
 
-	tea "github.com/charmbracelet/bubbletea"
+	tea "charm.land/bubbletea/v2"
 
 	"github.com/anthnel/devdesk/internal/command"
 	"github.com/anthnel/devdesk/internal/docker"
@@ -22,7 +22,7 @@ func seedContainersFooter(t *testing.T, a *App) indicator.State {
 	t.Helper()
 	t.Setenv("PATH", t.TempDir())
 	a.createView(command.ViewContainers)
-	m := a.views[command.ViewContainers]
+	var m tea.Model = a.views[command.ViewContainers]
 	for _, msg := range []tea.Msg{
 		tea.WindowSizeMsg{Width: a.width, Height: a.height},
 		containers.ContainersListMsg{Containers: []docker.Container{{
@@ -33,6 +33,6 @@ func seedContainersFooter(t *testing.T, a *App) indicator.State {
 	} {
 		m, _ = m.Update(msg)
 	}
-	a.views[command.ViewContainers] = m
+	a.setView(command.ViewContainers, m)
 	return indicator.Running
 }

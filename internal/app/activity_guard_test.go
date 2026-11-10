@@ -10,7 +10,7 @@ import (
 	"strings"
 	"testing"
 
-	tea "github.com/charmbracelet/bubbletea"
+	tea "charm.land/bubbletea/v2"
 
 	"github.com/charmbracelet/x/ansi"
 
@@ -73,7 +73,7 @@ func builtView(t *testing.T, vt command.ViewType) tea.Model {
 	t.Helper()
 	a := routerAt(t, &bareView{}, 60, 30) // isolateHome, session-only secrets
 	a.createView(vt)
-	m := a.views[vt]
+	var m tea.Model = a.views[vt] // Update returns a tea.Model, not a Screen
 	if m == nil {
 		t.Fatalf("view %q: the router did not build it", vt)
 	}
@@ -353,7 +353,7 @@ type finding struct {
 func bubbleTeaName(file *ast.File) string {
 	for _, imp := range file.Imports {
 		path, err := strconv.Unquote(imp.Path.Value)
-		if err != nil || path != "github.com/charmbracelet/bubbletea" {
+		if err != nil || path != "charm.land/bubbletea/v2" {
 			continue
 		}
 		switch {
@@ -557,11 +557,11 @@ func TestActivityGuardGlyphConstantExceptionIsNarrow(t *testing.T) {
 
 // The detection itself, on sources held in strings.
 func TestActivityGuardRetiredMechanismsLogic(t *testing.T) {
-	const head = "package v\nimport tea \"github.com/charmbracelet/bubbletea\"\nimport \"github.com/charmbracelet/bubbles/spinner\"\n"
+	const head = "package v\nimport tea \"charm.land/bubbletea/v2\"\nimport \"charm.land/bubbles/v2/spinner\"\n"
 	const (
-		bt    = "package v\nimport bt \"github.com/charmbracelet/bubbletea\"\nimport \"github.com/charmbracelet/bubbles/spinner\"\n"
-		dot   = "package v\nimport . \"github.com/charmbracelet/bubbletea\"\nimport \"github.com/charmbracelet/bubbles/spinner\"\n"
-		other = "package v\nimport tea \"example.com/notbubbletea\"\nimport \"github.com/charmbracelet/bubbles/spinner\"\n"
+		bt    = "package v\nimport bt \"charm.land/bubbletea/v2\"\nimport \"charm.land/bubbles/v2/spinner\"\n"
+		dot   = "package v\nimport . \"charm.land/bubbletea/v2\"\nimport \"charm.land/bubbles/v2/spinner\"\n"
+		other = "package v\nimport tea \"example.com/notbubbletea\"\nimport \"charm.land/bubbles/v2/spinner\"\n"
 	)
 	tests := []struct {
 		name string
@@ -704,7 +704,7 @@ func seedJobsFooter(t *testing.T, a *App) indicator.State {
 func seedNetdiagFooter(t *testing.T, a *App) indicator.State {
 	t.Helper()
 	a.createView(command.ViewNetdiag)
-	m := a.views[command.ViewNetdiag]
+	var m tea.Model = a.views[command.ViewNetdiag]
 	for _, msg := range []tea.Msg{
 		tea.WindowSizeMsg{Width: a.width, Height: a.height},
 		testutil.Key("tab"), // the Ports tab
@@ -716,7 +716,7 @@ func seedNetdiagFooter(t *testing.T, a *App) indicator.State {
 	} {
 		m, _ = m.Update(msg)
 	}
-	a.views[command.ViewNetdiag] = m
+	a.setView(command.ViewNetdiag, m)
 	return indicator.Running
 }
 

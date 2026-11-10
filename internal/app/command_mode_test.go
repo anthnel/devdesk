@@ -3,7 +3,7 @@ package app
 import (
 	"testing"
 
-	tea "github.com/charmbracelet/bubbletea"
+	tea "charm.land/bubbletea/v2"
 
 	"github.com/anthnel/devdesk/internal/ui/testutil"
 )
@@ -25,7 +25,8 @@ func (v *editingView) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	return v, nil
 }
 
-func (v *editingView) View() string       { return "" }
+func (v *editingView) Render() string     { return "" }
+func (v *editingView) View() tea.View     { return tea.NewView(v.Render()) }
 func (v *editingView) InEditMode() bool   { return v.editing }
 func (v *editingView) keysSeen() []string { return v.received }
 
@@ -101,7 +102,7 @@ func TestOpeningThePaletteDoesNotResize(t *testing.T) {
 		t.Run(key, func(t *testing.T) {
 			view := &fakeView{}
 			a := router(t, view)
-			height := a.viewport.Height
+			height := a.viewport.Height()
 			received := len(view.received)
 
 			_, cmd := a.handleKeyMsg(testutil.Key(key))
@@ -112,9 +113,9 @@ func TestOpeningThePaletteDoesNotResize(t *testing.T) {
 			if requestsResize(cmd) {
 				t.Errorf("opening the palette with %s requested a resize", key)
 			}
-			if a.viewport.Height != height || len(view.received) != received {
+			if a.viewport.Height() != height || len(view.received) != received {
 				t.Errorf("opening changed the layout: viewport %d -> %d, view messages %d -> %d",
-					height, a.viewport.Height, received, len(view.received))
+					height, a.viewport.Height(), received, len(view.received))
 			}
 		})
 	}

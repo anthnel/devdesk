@@ -4,8 +4,8 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/charmbracelet/bubbles/textinput"
-	tea "github.com/charmbracelet/bubbletea"
+	"charm.land/bubbles/v2/textinput"
+	tea "charm.land/bubbletea/v2"
 
 	"github.com/anthnel/devdesk/internal/ui/theme"
 )
@@ -122,10 +122,10 @@ const forwardLabelCells = 2 + forwardLabelWidth + 1 + 1 + 1
 // unsized field read "8" and "h" instead of "8080" and "host:port".
 func (f *ForwardForm) SetWidth(width int) {
 	f.width = width
-	f.portInput.Width = forwardPortWidth
+	f.portInput.SetWidth(forwardPortWidth)
 	room := max(width-forwardLabelCells-2, 20)
-	f.nameInput.Width = room
-	f.targetInput.Width = room
+	f.nameInput.SetWidth(room)
+	f.targetInput.SetWidth(room)
 }
 
 // visibleFields are the fields the current type shows, in ↑↓ order.
@@ -183,7 +183,10 @@ func (f *ForwardForm) cycle(delta int) {
 // while it is focused, enter confirms and esc cancels (Rule 135); tab does
 // nothing here, it belongs to the tabs.
 func (f *ForwardForm) Update(msg tea.Msg) (*ForwardForm, tea.Cmd) {
-	key, ok := msg.(tea.KeyMsg)
+	if paste, ok := msg.(tea.PasteMsg); ok {
+		return f.paste(paste)
+	}
+	key, ok := msg.(tea.KeyPressMsg)
 	if !ok {
 		return f, nil
 	}
@@ -221,6 +224,22 @@ func (f *ForwardForm) Update(msg tea.Msg) (*ForwardForm, tea.Cmd) {
 	}
 	var cmd tea.Cmd
 	f.targetInput, cmd = f.targetInput.Update(msg)
+	return f, cmd
+}
+
+// paste gives pasted text to the focused text field. The Type field takes none,
+// so a paste there is dropped (Rule 111). The input turns newlines into spaces.
+func (f *ForwardForm) paste(msg tea.PasteMsg) (*ForwardForm, tea.Cmd) {
+	var cmd tea.Cmd
+	switch f.focused {
+	case forwardFieldType:
+	case forwardFieldPort:
+		f.portInput, cmd = f.portInput.Update(msg)
+	case forwardFieldName:
+		f.nameInput, cmd = f.nameInput.Update(msg)
+	default:
+		f.targetInput, cmd = f.targetInput.Update(msg)
+	}
 	return f, cmd
 }
 

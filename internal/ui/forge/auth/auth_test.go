@@ -8,8 +8,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/charmbracelet/bubbles/spinner"
-	tea "github.com/charmbracelet/bubbletea"
+	"charm.land/bubbles/v2/spinner"
+	tea "charm.land/bubbletea/v2"
 
 	"github.com/anthnel/devdesk/internal/config"
 	"github.com/anthnel/devdesk/internal/credentials"
@@ -116,7 +116,7 @@ func TestTheURLIsReadFromTheConfiguration(t *testing.T) {
 
 	m := newTestModel(t, cfg, newFakeStorage())
 
-	if !strings.Contains(m.View(), "https://gitlab.example.com") {
+	if !strings.Contains(m.Render(), "https://gitlab.example.com") {
 		t.Error("the configured URL is not shown")
 	}
 	if m.tokenInput.Value() != "" {

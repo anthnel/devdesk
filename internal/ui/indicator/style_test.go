@@ -1,15 +1,16 @@
 package indicator
 
 import (
+	"image/color"
 	"testing"
 
-	"github.com/charmbracelet/lipgloss"
+	"charm.land/lipgloss/v2"
 
 	"github.com/anthnel/devdesk/internal/ui/theme"
 )
 
 // wantAlias maps every state to the theme alias it must read at call time.
-func wantAlias(s State) lipgloss.Color {
+func wantAlias(s State) color.Color {
 	switch s {
 	case Running:
 		return theme.ColorActivityRunning
@@ -29,8 +30,8 @@ func allStates() []State { return append([]State{Idle}, States()...) }
 func TestColorMapsEachStateToItsAlias(t *testing.T) {
 	for _, s := range allStates() {
 		t.Run(s.String(), func(t *testing.T) {
-			if got, want := Color(s), wantAlias(s); got == "" || got != want {
-				t.Errorf("Color(%s) = %q, want %q", s, got, want)
+			if got, want := Color(s), wantAlias(s); got == lipgloss.Color("") || got != want {
+				t.Errorf("Color(%s) = %s, want %s", s, theme.Hex(got), theme.Hex(want))
 			}
 		})
 	}
@@ -54,7 +55,7 @@ func TestStyleIsForegroundOnly(t *testing.T) {
 		if _, ok := st.GetBackground().(lipgloss.NoColor); !ok {
 			t.Errorf("Style(%s) has a background %v; datatable paints it", s, st.GetBackground())
 		}
-		if got, want := st.GetForeground(), lipgloss.TerminalColor(Color(s)); got != want {
+		if got, want := st.GetForeground(), Color(s); got != want {
 			t.Errorf("Style(%s) foreground = %v, want %v", s, got, want)
 		}
 		if st.GetHorizontalPadding() != 0 || st.GetVerticalPadding() != 0 {
