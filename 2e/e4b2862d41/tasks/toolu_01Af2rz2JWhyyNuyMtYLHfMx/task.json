@@ -1,0 +1,15 @@
+{
+  "tool_use_id": "toolu_01Af2rz2JWhyyNuyMtYLHfMx",
+  "agent_id": "abc25038ad7f6172b",
+  "subagent_type": "dev-team:devops",
+  "task_description": "Relancer le run Release",
+  "token_usage": {
+    "input_tokens": 10,
+    "cache_creation_tokens": 25885,
+    "cache_read_tokens": 124759,
+    "output_tokens": 821,
+    "api_call_count": 5
+  },
+  "started_at": "2026-11-09T19:25:23.262273892+01:00",
+  "completed_at": "2026-11-09T19:26:43.21921558+01:00"
+}
