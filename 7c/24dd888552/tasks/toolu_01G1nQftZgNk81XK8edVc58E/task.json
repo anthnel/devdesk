@@ -1,0 +1,15 @@
+{
+  "tool_use_id": "toolu_01G1nQftZgNk81XK8edVc58E",
+  "agent_id": "aaffab93898458334",
+  "subagent_type": "dev-team:architect",
+  "task_description": "Plan contournement ExecProcess",
+  "token_usage": {
+    "input_tokens": 70,
+    "cache_creation_tokens": 148098,
+    "cache_read_tokens": 3417832,
+    "output_tokens": 38971,
+    "api_call_count": 34
+  },
+  "started_at": "2026-11-10T18:00:46.897460158+01:00",
+  "completed_at": "2026-11-10T18:14:59.535872092+01:00"
+}

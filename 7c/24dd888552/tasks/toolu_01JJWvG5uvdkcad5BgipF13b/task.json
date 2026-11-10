@@ -1,0 +1,15 @@
+{
+  "tool_use_id": "toolu_01JJWvG5uvdkcad5BgipF13b",
+  "agent_id": "a10de25453d42e91c",
+  "subagent_type": "team-core:tech-writer",
+  "task_description": "Doc app-shell teaexec",
+  "token_usage": {
+    "input_tokens": 12,
+    "cache_creation_tokens": 29901,
+    "cache_read_tokens": 121513,
+    "output_tokens": 2856,
+    "api_call_count": 6
+  },
+  "started_at": "2026-11-10T18:26:32.185865821+01:00",
+  "completed_at": "2026-11-10T18:26:55.737453119+01:00"
+}

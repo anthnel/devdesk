@@ -1,0 +1,15 @@
+{
+  "tool_use_id": "toolu_01ESwHTfiUTMb8zQw5e9nHuZ",
+  "agent_id": "a9fbb1c6807a1d00f",
+  "subagent_type": "project-tester",
+  "task_description": "Étape 4 assertion SET rétablie",
+  "token_usage": {
+    "input_tokens": 10,
+    "cache_creation_tokens": 33716,
+    "cache_read_tokens": 114710,
+    "output_tokens": 2477,
+    "api_call_count": 5
+  },
+  "started_at": "2026-11-10T18:20:17.723534426+01:00",
+  "completed_at": "2026-11-10T18:21:42.98365026+01:00"
+}

@@ -1,0 +1,18 @@
+{
+  "tool_use_id": "toolu_01QWaehmJw3HdMAh7TBk1BqC",
+  "agent_id": "a440d9e1a4c1fcf5e",
+  "subagent_type": "team-core:archivist",
+  "task_description": "D121 backlog et CLAUDE.md",
+  "files": [
+    "docs/backlog.md"
+  ],
+  "token_usage": {
+    "input_tokens": 10,
+    "cache_creation_tokens": 51583,
+    "cache_read_tokens": 114989,
+    "output_tokens": 4423,
+    "api_call_count": 4
+  },
+  "started_at": "2026-11-10T18:26:32.191000074+01:00",
+  "completed_at": "2026-11-10T18:26:55.140666479+01:00"
+}
