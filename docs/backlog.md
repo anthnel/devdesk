@@ -98,6 +98,36 @@ decided together and fixed in one pass; see [§1.2](#12-the-five-parked-defects)
 
 ### 1.1 Fixed
 
+**D118 — DEVDESK-201: Bubble Tea v2 features not adopted, what the migration found on the way, and what is still open. Decided for the first two lists, the rest to confirm.** **Plane:** DEVDESK-201, dated 2026-11-10; DEVDESK-208 (this entry)
+
+Sources: `.claude/plans/charm-v2-impact.md` §2, §4 and §5 (impact report, recommendations only), `docs/product/charm-v2/spike-report.md` §8–9, and the commit messages of the branch.
+
+*Not adopted.* The migration adopts the new renderer and synchronized output (automatic). Everything else in impact report §2:
+- **OSC 52 clipboard fallback** (`tea.SetClipboard`), F4: deferred to DEVDESK-212. OSC 52 gets no acknowledgement, so a "Copied" footer would no longer be verified (Rule 128); tmux needs `set-clipboard`. Worth doing only if DevDesk runs over SSH or without `xclip` (user question 1 of the report, not answered in the sources).
+- **Kitty keyboard enhancements**: ignored for the key vocabulary. `ctrl+i/m/h` and `ctrl+shift+x` are distinct only on compatible terminals, which would contradict Rule 101. The report asked for Rule 111 to be corrected ("v1.3.10 does not enable"); whether that landed is not verified here.
+- **Focus and blur** (`ReportFocus`), F2: deferred to DEVDESK-210. Without the events the application behaves as if it were in the foreground, which is today's behaviour; the report would suspend the tick and the re-reads (agent usage, container stats, ports) while the terminal is unfocused.
+- **Native progress bar** (OSC 9;4), F3: deferred, depends on the user's answer 3 (not in the sources).
+- **Terminal background** (F1), **window title** (F5) and **automatic light/dark theme** (F6): depend on the user's answers 2, 3 and 4 (not in the sources).
+- **Program Status** (OSC 7501): ignored, protocol too recent. **Real cursor**: ignored, `WrappedInput` keeps its virtual cursor (Rule 133). **Mouse**: ignored, it blocks native text selection. **viewport v2 `SoftWrap`, `LeftGutterFunc`, `SetHighlights`**: ignored, their semantics differ from the viewer's `w`/`n`/`/`/`s`. **Hyperlinks** (OSC 8): deferred. **`tea.Raw`, `RequestTerminalVersion`, `RequestCapability`, `EnvMsg`, `IsRepeat`**: no identified need.
+- The spike's "ntcharts v2 needs a fork" claim (§3.19) does not hold for the branch: `go.mod` pins `ntcharts/v2 v2.9.0` with no `replace` directive.
+
+*Found during the migration.*
+- **Enter toggled checkboxes; Space answered destructive Yes/No buttons** of the confirmation modals. Fixed in `ad0900d`, see D113.
+- **Paste never reached a focused field.** The router switched only on `tea.KeyMsg`, so a `tea.PasteMsg` was dropped or, worse, fired keys. Fixed in `6aa865d` (router, every text-entry view) and `103e80b0` (the forge explorer, which reached only its filter bar). The spike counted 36 `KeyMsg` gates to check; per-view tests are not recorded in the sources.
+- **A token pasted with a trailing newline** reached the forge as `"tok "` (one-line input turns the newline into a space). `authenticate()` now trims it, `3c18ea80`. Not recorded before this entry.
+- **Redraw harness**: without a TTY, v2 sends its own `WindowSizeMsg` built from 0×0, which shrinks the view to 489 bytes. Fixed in `e44dcb0`, see D114.
+- **`go mod tidy` moved `go-runewidth` to v0.0.31** and changed flag and ZWJ widths in 19 `runewidth` call sites (spike §9). The branch does not record a check of those 19 sites; see the open points.
+- **Router assertions `.(Screen)`** could panic at run time; `setView` now asserts once and panics with the view's name (H6, D116).
+- **Mode 2027/2026 negotiation, WSL and Windows Terminal colours, `tea.ExecProcess`**: never run in a TTY; see D117.
+
+*Open.*
+- Plan §5 questions 1–6 (remote use, terminal background, progress and title, automatic theme, option C, terminal matrix) have no recorded answer in the sources, so F1–F6 stay open.
+- DEVDESK-210 and DEVDESK-212 are cited from the brief of this entry; neither ID appears in the plan, the spike report or the backlog. Check them in Plane.
+- Whether Rule 111 and Rule 135 were corrected (plan item G1, `b35b80ef` is the docs commit): not verified.
+- `golangci-lint` and `test-race` on the branch: not recorded in the sources (the spike did not run them).
+- The 19 `runewidth` sites and the `go-runewidth` v0.0.31 effect (above).
+- The 36 `KeyMsg` gates: a test per view with an edit mode is not recorded.
+
 **D117 — DEVDESK-201: what is not covered by a test, and what only a person can check. Open.** **Plane:** DEVDESK-201, dated 2026-11-10
 
 Not covered by a test, to decide before the story closes: (a) the guard that a key is read through `String()` only (DEVDESK-200) does not cover `.Code`, `.Text` and `.Mod`; either a guard is added or the gap is accepted; (b) 15 `lipgloss.Place` call sites have no dedicated test (the Rule 115 test covers the confirm modal only); (c) `tea.PasteStartMsg` and `tea.PasteEndMsg` are ignored without a test.
@@ -163,7 +193,7 @@ The order differs from the plan (`A1 A2 B C D1 D2 D3 E F G1`): E came before C, 
 
 Architecture: option C, see D111.
 
-**D111 — DEVDESK-201: views are `Render() string` plus `View() tea.View`; the router alone sets the terminal state. Option C, chosen by the user. Decided.** **Plane:** DEVDESK-201, dated 2026-11-10
+**D111 — DEVDESK-201: views are `Render() string` plus `View() tea.View`; the router alone sets the terminal state. Option C, chosen by the user. Decided.** **Plane:** DEVDESK-201, dated 2026-11-10. Supersedes the analysis of §3.19 (Bubble Tea v2 deliberately not bundled). Features not adopted and surprises: D118.
 
 Three options were on the table (impact report §3, `.claude/plans/charm-v2-impact.md`):
 - **A.** Every view returns `tea.View` and the router reads `.Content`. Rejected: the test suite's `.View()` calls become `.View().Content` (about 400 sites), and every view carries terminal fields.
@@ -7180,7 +7210,9 @@ Deferred: workspace hygiene (`3 dirty, 2 behind`, §3.17). Right data, but the
 walk cost grows with the repository count. Rejected: listening ports — `ss`
 needs a privileged container.
 
-#### Bubble Tea v2 is deliberately not bundled
+#### Bubble Tea v2 is deliberately not bundled — superseded by D111
+
+> **Superseded by D111 (DEVDESK-201, 2026-11-10).** The migration landed in one pull request, option C (D111, D112). The reasoning below is kept as it was written. Two of its claims no longer hold: ntcharts v2.9.0 is used without a fork `replace` (`go.mod` on `feat/DEVDESK-201-charm-v2`), and the `" "` versus `"space"` risk is handled by `keymap.Space` (`0692c35`) with guard tests. Features not adopted and the migration's findings: D118.
 
 v2 is GA (bubbletea v2.0.8, lipgloss v2.0.6, bubbles v2.1.1); v1 is not
 deprecated; and **nothing here needs v2** — ntcharts v0.5.1 delivers braille and
