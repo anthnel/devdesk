@@ -1,0 +1,15 @@
+{
+  "tool_use_id": "toolu_01BxPi125Y3WoMBuPgD93PaJ",
+  "agent_id": "a33370880413072a8",
+  "subagent_type": "project-coder",
+  "task_description": "Nettoyage mineurs revue DEVDESK-145",
+  "token_usage": {
+    "input_tokens": 6,
+    "cache_creation_tokens": 60985,
+    "cache_read_tokens": 133142,
+    "output_tokens": 1405,
+    "api_call_count": 3
+  },
+  "started_at": "2026-11-09T12:20:15.786042288+01:00",
+  "completed_at": "2026-11-09T12:20:56.416223307+01:00"
+}
