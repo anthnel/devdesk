@@ -1,0 +1,15 @@
+{
+  "tool_use_id": "toolu_01XipDzQ8EjfNKj1wmZ5bXm9",
+  "agent_id": "a16bb6eb786f51f43",
+  "subagent_type": "project-tester",
+  "task_description": "Tests rouges étape 2 DEVDESK-210",
+  "token_usage": {
+    "input_tokens": 20,
+    "cache_creation_tokens": 43257,
+    "cache_read_tokens": 270745,
+    "output_tokens": 7855,
+    "api_call_count": 10
+  },
+  "started_at": "2026-11-10T19:56:24.746921523+01:00",
+  "completed_at": "2026-11-10T19:57:28.281522495+01:00"
+}

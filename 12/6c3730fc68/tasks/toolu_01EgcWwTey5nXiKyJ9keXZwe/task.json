@@ -1,0 +1,18 @@
+{
+  "tool_use_id": "toolu_01EgcWwTey5nXiKyJ9keXZwe",
+  "agent_id": "ae0caf1421a48decb",
+  "subagent_type": "team-core:tech-writer",
+  "task_description": "Doc app-shell étape 2",
+  "files": [
+    "docs/architecture/app-shell.md"
+  ],
+  "token_usage": {
+    "input_tokens": 8,
+    "cache_creation_tokens": 77023,
+    "cache_read_tokens": 167590,
+    "output_tokens": 2041,
+    "api_call_count": 4
+  },
+  "started_at": "2026-11-10T20:07:17.06590962+01:00",
+  "completed_at": "2026-11-10T20:07:34.879720652+01:00"
+}

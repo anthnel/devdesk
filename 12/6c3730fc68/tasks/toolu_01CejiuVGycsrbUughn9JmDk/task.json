@@ -1,0 +1,15 @@
+{
+  "tool_use_id": "toolu_01CejiuVGycsrbUughn9JmDk",
+  "agent_id": "ae5b4ae536531bcef",
+  "subagent_type": "dev-team:devops",
+  "task_description": "Worktree empilé étape 2",
+  "token_usage": {
+    "input_tokens": 6,
+    "cache_creation_tokens": 30247,
+    "cache_read_tokens": 69840,
+    "output_tokens": 416,
+    "api_call_count": 3
+  },
+  "started_at": "2026-11-10T19:56:13.354684573+01:00",
+  "completed_at": "2026-11-10T19:56:20.73530236+01:00"
+}

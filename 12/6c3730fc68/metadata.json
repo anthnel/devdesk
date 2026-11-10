@@ -1,0 +1,52 @@
+{
+  "cli_version": "0.13.1",
+  "checkpoint_id": "126c3730fc68",
+  "strategy": "manual-commit",
+  "branch": "feat/DEVDESK-210-focus-routing",
+  "checkpoints_count": 11,
+  "files_touched": [
+    "docs/architecture/app-shell.md",
+    "internal/app/app.go",
+    "internal/app/focus.go",
+    "internal/app/focus_routing_test.go",
+    "internal/app/jobs.go",
+    "internal/shared/focus.go"
+  ],
+  "sessions": [
+    {
+      "metadata": "/12/6c3730fc68/0/metadata.json",
+      "transcript": "/12/6c3730fc68/0/full.jsonl",
+      "compact_transcript": "/12/6c3730fc68/0/transcript.jsonl",
+      "content_hash": "/12/6c3730fc68/0/content_hash.txt",
+      "prompt": "/12/6c3730fc68/0/prompt.txt"
+    }
+  ],
+  "token_usage": {
+    "input_tokens": 70,
+    "cache_creation_tokens": 35049,
+    "cache_read_tokens": 2990823,
+    "output_tokens": 13347,
+    "api_call_count": 24,
+    "subagent_tokens": {
+      "input_tokens": 116,
+      "cache_creation_tokens": 460911,
+      "cache_read_tokens": 1992532,
+      "output_tokens": 30186,
+      "api_call_count": 55
+    }
+  },
+  "redaction": {
+    "replacements": 0,
+    "layers": {
+      "betterleaks": 0,
+      "connection_string": 0,
+      "credential_key": 0,
+      "credential_value": 0,
+      "credentialed_uri": 0,
+      "entropy": 0,
+      "key_context": 0,
+      "provider_token": 0,
+      "shell_stdin": 0
+    }
+  }
+}
