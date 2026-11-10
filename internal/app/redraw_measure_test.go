@@ -29,11 +29,42 @@ const (
 
 // countingWriter is the program's output: it counts what the renderer writes
 // and keeps nothing. There is no TTY behind it.
-type countingWriter struct{ n atomic.Int64 }
+type countingWriter struct{ n, writes atomic.Int64 }
 
 func (w *countingWriter) Write(p []byte) (int, error) {
 	w.n.Add(int64(len(p)))
+	w.writes.Add(1)
 	return len(p), nil
+}
+
+// timedProgramModel is programModel with a timed View: the program calls View
+// after every Update, so the mean View time is the cost of preparing a redraw.
+// The counters are atomics because the test reads them from another goroutine.
+type timedProgramModel struct {
+	app   *App
+	calls *atomic.Int64
+	nanos *atomic.Int64
+}
+
+func (m timedProgramModel) Init() tea.Cmd { return nil }
+func (m timedProgramModel) View() string {
+	start := time.Now()
+	s := m.app.View()
+	m.nanos.Add(int64(time.Since(start)))
+	m.calls.Add(1)
+	return s
+}
+func (m timedProgramModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
+	_, cmd := m.app.Update(msg)
+	return m, cmd
+}
+
+// redrawStats are the figures of one window.
+type redrawStats struct {
+	bytesPerSec, redrawsPerSec, bytesPerRedraw float64
+	viewCalls                                  int64
+	meanView                                   time.Duration
+	window                                     time.Duration
 }
 
 // measuredView draws `rows` lines whose first glyph depends on the animation:
@@ -78,13 +109,15 @@ func (v *measuredView) View() string {
 	return strings.Join(lines, "\n")
 }
 
-// measureBytesPerSecond runs the real router under a tea.Program for the
-// warm-up, then counts the bytes written during the window.
-func measureBytesPerSecond(t *testing.T, view *measuredView, runningJob bool) (float64, time.Duration) {
+// measureRedraws runs the real router under a tea.Program for the warm-up,
+// then measures what is written and how long View takes during the window.
+// A redraw is one Write: the renderer flushes once per frame.
+func measureRedraws(t *testing.T, view *measuredView, runningJob bool) redrawStats {
 	t.Helper()
 	a := routerAt(t, view, measureWidth, measureHeight)
 	out := &countingWriter{}
-	p := tea.NewProgram(programModel{app: a},
+	var calls, nanos atomic.Int64
+	p := tea.NewProgram(timedProgramModel{app: a, calls: &calls, nanos: &nanos},
 		tea.WithInput(nil), tea.WithOutput(out), tea.WithoutSignalHandler())
 
 	done := make(chan error, 1)
@@ -98,9 +131,10 @@ func measureBytesPerSecond(t *testing.T, view *measuredView, runningJob bool) (f
 	}
 
 	time.Sleep(measureWarmUp)
-	start, from := out.n.Load(), time.Now()
+	b0, w0, c0, n0, from := out.n.Load(), out.writes.Load(), calls.Load(), nanos.Load(), time.Now()
 	time.Sleep(measureWindow)
-	bytes, elapsed := out.n.Load()-start, time.Since(from)
+	bytes, writes := out.n.Load()-b0, out.writes.Load()-w0
+	viewCalls, viewNanos, elapsed := calls.Load()-c0, nanos.Load()-n0, time.Since(from)
 
 	p.Quit()
 	select {
@@ -111,7 +145,19 @@ func measureBytesPerSecond(t *testing.T, view *measuredView, runningJob bool) (f
 	case <-time.After(5 * time.Second):
 		t.Fatal("the program did not exit")
 	}
-	return float64(bytes) / elapsed.Seconds(), elapsed
+	st := redrawStats{
+		bytesPerSec:   float64(bytes) / elapsed.Seconds(),
+		redrawsPerSec: float64(writes) / elapsed.Seconds(),
+		viewCalls:     viewCalls,
+		window:        elapsed,
+	}
+	if writes > 0 {
+		st.bytesPerRedraw = float64(bytes) / float64(writes)
+	}
+	if viewCalls > 0 {
+		st.meanView = time.Duration(viewNanos / viewCalls)
+	}
+	return st
 }
 
 // TestMeasureRedrawCost logs the bytes per second the renderer writes for N
@@ -137,9 +183,16 @@ func TestMeasureRedrawCost(t *testing.T) {
 	for _, c := range cases {
 		t.Run(fmt.Sprintf("%s-%d", c.mode, c.rows), func(t *testing.T) {
 			v := &measuredView{rows: c.rows, blink: c.blink, spinner: c.spinner}
-			rate, elapsed := measureBytesPerSecond(t, v, c.spinner)
-			t.Logf("rows=%d mode=%s rate=%dHz terminal=%dx%d window=%s bytes/s=%.0f",
-				c.rows, c.mode, c.hz, measureWidth, measureHeight, elapsed.Round(time.Millisecond), rate)
+			st := measureRedraws(t, v, c.spinner)
+			t.Logf("rows=%d mode=%s rate=%dHz terminal=%dx%d window=%s bytes/s=%.0f redraws/s=%.2f bytes/redraw=%.0f view=%.1fµs (%d calls)",
+				c.rows, c.mode, c.hz, measureWidth, measureHeight, st.window.Round(time.Millisecond),
+				st.bytesPerSec, st.redrawsPerSec, st.bytesPerRedraw,
+				float64(st.meanView.Nanoseconds())/1000, st.viewCalls)
+			// Only a broken counter would record zeros; the figures themselves
+			// are wall-clock and asserted nowhere.
+			if c.spinner && c.rows == 20 && (st.redrawsPerSec <= 0 || st.viewCalls == 0) {
+				t.Fatalf("no redraw counted: %+v", st)
+			}
 		})
 	}
 }

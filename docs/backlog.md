@@ -98,6 +98,20 @@ decided together and fixed in one pass; see [§1.2](#12-the-five-parked-defects)
 
 ### 1.1 Fixed
 
+**D110 — Redraw cost reference on Bubble Tea v1.3.10, taken before the v2 move. Measured.** **Plane:** DEVDESK-200 (criterion 7)
+
+`TestMeasureRedrawCost` now also reports redraws per second, bytes per redraw and the mean `View()` time (a redraw is one `Write`: the v1 renderer flushes once per frame; the program calls `View()` after every `Update`). Medians of 3 runs, 6 s window after a 2 s warm-up, terminal 120x40, 36 rows per view (`blink-N` / `spinner-N`: N animated rows; blink at 1 Hz means 2 phase changes per second).
+
+| Case | bytes/s | redraws/s | bytes/redraw | mean `View()` |
+|---|---|---|---|---|
+| blink-0 | 0 | 0 | 0 | n/a (no call) |
+| blink-1 | 376 | 2.0 | 188 | 706 µs |
+| blink-20 | 5810 | 2.0 | 2905 | 832 µs |
+| spinner-1 | 1880 | 10.0 | 188 | 764 µs |
+| spinner-20 | 29046 | 10.0 | 2905 | 757 µs |
+
+Bytes and redraw rates are stable to under 0.1 % across runs; `View()` times are noisy (about 30 % spread, so a figure below roughly 1 ms is an order of magnitude, not a value). Command: `DEVDESK_MEASURE_REDRAW=1 go test ./internal/app/ -run TestMeasureRedrawCost -v -count=1` (about 40 s). Commit measured: `d869dcc` plus the uncommitted DEVDESK-200 working tree (none of its changes touch the renderer or the router's animation). Machine: host, Intel Core Ultra 7 155H (22 threads), Linux 6.12.94+deb13-amd64 (Debian 13), go1.27.3 linux/amd64, bubbletea v1.3.10. Limit (as in D96 section 11): in-process, no TTY, this is what the renderer writes and not what a terminal shows. The v2 story reruns this commit and its own on one machine, so the baseline does not depend on this one.
+
 **D109 — The datatable's own row spinner is removed; a busy row shows its activity only through the `Indicator` column. Decided.** **Plane:** DEVDESK-143 (A-16), dated 2026-11-09
 
 `Config.StatusColumn`, `AdvanceSpinner` and the table's spinner frame are deleted, along with the `ColorHighlight` style of the busy spinner cell: a busy row without an `Indicator` column is only greyed (`DimStyle`). Known consequence: a table with a `Key` but no `Indicator` column shows no activity at all, only dimmed cells. Accepted because every caller of `MarkBusy` has an `Indicator` column (guarded by `internal/app/activity_guard_test.go`). The footer's loading spinner (`components.FooterMessage`) is a separate mechanism and stays.

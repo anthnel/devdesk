@@ -31,21 +31,22 @@ import (
 func (a *App) handleCommandMode(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	a.sugNotice = ""
 
-	switch msg.Type {
-	case tea.KeyEsc:
+	// The palette ignores Alt: alt+up is up.
+	switch strings.TrimPrefix(msg.String(), "alt+") {
+	case "esc":
 		return a, a.closeCommandLine()
-	case tea.KeyTab:
+	case "tab":
 		a.completeHighlighted()
 		return a, nil
-	case tea.KeyShiftTab:
+	case "shift+tab":
 		return a, nil
-	case tea.KeyUp:
+	case "up":
 		a.moveHighlight(-1)
 		return a, nil
-	case tea.KeyDown:
+	case "down":
 		a.moveHighlight(1)
 		return a, nil
-	case tea.KeyEnter:
+	case "enter":
 		return a.runCommand()
 	}
 	return a.handleCommandInput(msg)

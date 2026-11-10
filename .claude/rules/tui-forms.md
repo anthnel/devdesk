@@ -300,6 +300,8 @@ command line has no tabs and no fields, so neither job of `tab` exists on it.
 
 **`Space` — toggle checkbox**
 - The only valid key to check/uncheck a checkbox
+- Match it as `keymap.Space`, never as a `" "` literal (bubbletea v1 `" "`, v2 `"space"`); `TestNoKeyIsComparedToALiteralSpace` fails on a literal
+- Reference implementation: `LaunchForm` (`internal/ui/oci_resources`), pinned by `launch_form_keys_test.go` — `TestLaunchFormSpaceTogglesEachCheckbox`, `TestLaunchFormDetachAndInteractiveExcludeEachOther`, `TestLaunchFormEnterNeverTogglesACheckbox`
 - `Enter` on a checkbox must be ignored or advance to the next field, never toggle it
 
 **`Enter` — validation / action**
@@ -326,7 +328,7 @@ case "enter":
     }
 
 // ✅ CORRECT — Space to toggle
-case " ":
+case keymap.Space:
     if m.focusedField == fieldMyCheckbox {
         m.myCheckbox = !m.myCheckbox
     }

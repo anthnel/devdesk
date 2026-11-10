@@ -309,7 +309,7 @@ func (fm *ForwardModel) handleKeyNormal(msg tea.KeyMsg) (*ForwardModel, tea.Cmd)
 		return fm, nil
 	case keymap.Kill:
 		return fm.confirmClose()
-	case " ":
+	case keymap.Space:
 		return fm.toggleSelected()
 	}
 	return fm, nil

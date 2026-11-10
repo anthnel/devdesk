@@ -378,7 +378,7 @@ func (pm *PortsModel) handleKeyNormal(msg tea.KeyMsg) (*PortsModel, tea.Cmd) {
 	switch msg.String() {
 	case "up", "down", "pgup", "pgdown", "home", "end", "/":
 		return pm, pm.table.Update(msg)
-	case " ":
+	case keymap.Space:
 		pm.paused = !pm.paused
 		pm.table.SetTokenActive(filterTokenPaused, pm.paused)
 		// Pausing is a state, not an event: it is derived in statusLine rather

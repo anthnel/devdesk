@@ -5,6 +5,8 @@ import (
 	"testing"
 
 	tea "github.com/charmbracelet/bubbletea"
+
+	"github.com/anthnel/devdesk/internal/ui/keymap"
 )
 
 func TestKeySpaceIsTheSpaceKey(t *testing.T) {
@@ -137,5 +139,13 @@ func TestText(t *testing.T) {
 				t.Errorf("Text(%s) = %q, %v; want %q, %v", tc.name, got, ok, tc.want, tc.wantOK)
 			}
 		})
+	}
+}
+
+// TestTheSpaceKeyIsNamedLikeKeymapSpace is the migration tripwire: String() is
+// computed by bubbletea, so under v2 ("space") it fails until keymap.Space follows.
+func TestTheSpaceKeyIsNamedLikeKeymapSpace(t *testing.T) {
+	if got := Key("space").String(); got != keymap.Space {
+		t.Errorf("Key(\"space\").String() = %q, keymap.Space = %q: bubbletea and the constant disagree on the space key's name", got, keymap.Space)
 	}
 }
