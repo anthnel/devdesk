@@ -6,7 +6,7 @@ security scan against a local repository. By the end you will have a working
 
 ## 1. Install
 
-You need Go 1.25.5+ and a terminal with [Nerd Font](https://www.nerdfonts.com/)
+You need Go 1.27.3+ and a terminal with [Nerd Font](https://www.nerdfonts.com/)
 support (DevDesk uses icons throughout the UI).
 
 ```bash

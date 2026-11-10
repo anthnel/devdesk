@@ -1,13 +1,13 @@
 # DevDesk Dependencies Codemap
 
 **Last Updated:** 2026-08-01
-**Language:** Go 1.25.5
+**Language:** Go 1.27.3
 **Total Files:** 105 Go files (~33k LOC)
 
 ## Go Module Structure
 
 **Module:** `github.com/anthnel/devdesk`
-**Latest Commit:** Uses Go 1.25.5
+**Latest Commit:** Uses Go 1.27.3
 
 ## Direct Dependencies (go.mod)
 
@@ -122,7 +122,7 @@ scan:
 
 | Tool | Purpose |
 |------|---------|
-| `go` (1.25.5) | Compiler, test runner |
+| `go` (1.27.3) | Compiler, test runner |
 | `golangci-lint` | Linter (Rule 301) |
 | `go vet` | Static analysis |
 | Standard library | testing, log, os, path/filepath, time, sync, context, encoding/json |

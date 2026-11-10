@@ -2,7 +2,7 @@
 
 ## Requirements
 
-- Go 1.25.5+
+- Go 1.27.3+
 - git 2.31 or later — cloning, workspace status and sync run the `git` binary.
   DevDesk passes the token and the low-speed limits through `GIT_CONFIG_COUNT`,
   which older git ignores silently: HTTPS clone and sync of a private

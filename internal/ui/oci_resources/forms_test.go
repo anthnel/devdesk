@@ -100,7 +100,7 @@ func TestRegistryFormDistinguishesNewFromEdit(t *testing.T) {
 		t.Errorf("a new registry form has index %d, want -1", fresh.index)
 	}
 
-	existing := config.RegistryItem{URL: "registry.example.com", Username: "anthnel", Alias: "prod", AuthEnabled: true}
+	existing := config.RegistryItem{URL: "registry.example.com", Username: "anthnel", Alias: "prod", AuthMode: config.AuthCredentials}
 	edit := NewRegistryEditForm(3, existing, []config.RegistryItem{existing}, 120)
 	if edit.index != 3 {
 		t.Errorf("an edit form has index %d, want the row it came from", edit.index)
@@ -113,11 +113,11 @@ func TestRegistryFormDistinguishesNewFromEdit(t *testing.T) {
 // The password never reaches the config file — it travels alongside for the
 // docker login and is dropped after.
 func TestRegistryFormKeepsThePasswordOutOfTheItem(t *testing.T) {
-	f := NewRegistryEditForm(0, config.RegistryItem{URL: "registry.example.com", AuthEnabled: true}, nil, 120)
+	f := NewRegistryEditForm(0, config.RegistryItem{URL: "registry.example.com", AuthMode: config.AuthCredentials}, nil, 120)
 
 	msg := RegistryFormSubmitMsg{
 		Index:    0,
-		Item:     config.RegistryItem{URL: "registry.example.com", Username: "anthnel", AuthEnabled: true},
+		Item:     config.RegistryItem{URL: "registry.example.com", Username: "anthnel", AuthMode: config.AuthCredentials},
 		Password: "hunter2",
 	}
 

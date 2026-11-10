@@ -1,6 +1,6 @@
 module github.com/anthnel/devdesk
 
-go 1.25.5
+go 1.27.3
 
 require (
 	github.com/NimbleMarkets/ntcharts v0.5.1

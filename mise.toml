@@ -4,10 +4,13 @@
 # `windows_default_inline_shell_args` setting is refused from a project config.
 
 [tools]
-go = "1.25"
+go = "1.27"
 # Pinned so CI and every machine lint against the same rules. Without a pin, two
 # golangci-lint versions disagree on what Rule 305 considers a clean run.
-golangci-lint = "2.12.2"
+# 2.15.0 is the first line built with Go 1.27 (2.12.2 was built with go1.26 and
+# refuses a go.mod that targets 1.27: "Go language version used to build
+# golangci-lint is lower than the targeted Go version").
+golangci-lint = "2.15.0"
 # Pinned for the same reason, and it matters more here: goreleaser's own
 # configuration schema changes between minor versions, so an unpinned tool
 # would fail on `version: 2` syntax that was valid when it was written.
