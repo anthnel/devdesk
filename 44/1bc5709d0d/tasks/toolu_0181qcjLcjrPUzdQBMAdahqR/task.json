@@ -1,0 +1,15 @@
+{
+  "tool_use_id": "toolu_0181qcjLcjrPUzdQBMAdahqR",
+  "agent_id": "a11c9782315759fbc",
+  "subagent_type": "dev-team:devops",
+  "task_description": "DEVDESK-219 en Done",
+  "token_usage": {
+    "input_tokens": 8,
+    "cache_creation_tokens": 80906,
+    "cache_read_tokens": 242094,
+    "output_tokens": 1273,
+    "api_call_count": 4
+  },
+  "started_at": "2026-11-09T14:26:52.513019994+01:00",
+  "completed_at": "2026-11-09T14:27:19.502721725+01:00"
+}
