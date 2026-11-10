@@ -1,0 +1,15 @@
+{
+  "tool_use_id": "toolu_01FHrAYMdiZ9YGw6vWdPj49j",
+  "agent_id": "ad94e7f356fd6ade0",
+  "subagent_type": "project-tester",
+  "task_description": "Vérif complète étape 3",
+  "token_usage": {
+    "input_tokens": 14,
+    "cache_creation_tokens": 32912,
+    "cache_read_tokens": 148902,
+    "output_tokens": 3681,
+    "api_call_count": 7
+  },
+  "started_at": "2026-11-10T20:33:37.53919318+01:00",
+  "completed_at": "2026-11-10T20:38:55.10322037+01:00"
+}

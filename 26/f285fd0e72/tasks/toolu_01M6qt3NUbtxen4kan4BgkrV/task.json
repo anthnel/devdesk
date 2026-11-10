@@ -1,0 +1,15 @@
+{
+  "tool_use_id": "toolu_01M6qt3NUbtxen4kan4BgkrV",
+  "agent_id": "ae1ed7a0cf4d305ee",
+  "subagent_type": "project-tester",
+  "task_description": "Tests rouges étape 3 agent-usage",
+  "token_usage": {
+    "input_tokens": 12,
+    "cache_creation_tokens": 45254,
+    "cache_read_tokens": 161842,
+    "output_tokens": 6136,
+    "api_call_count": 6
+  },
+  "started_at": "2026-11-10T20:19:23.501388131+01:00",
+  "completed_at": "2026-11-10T20:20:30.39972209+01:00"
+}

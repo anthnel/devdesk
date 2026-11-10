@@ -1,0 +1,15 @@
+{
+  "tool_use_id": "toolu_01Wi2RbG6pQt7ouvKJHMXhci",
+  "agent_id": "a4da74ddd50332f5b",
+  "subagent_type": "project-coder",
+  "task_description": "Code vert étape 3 agent-usage",
+  "token_usage": {
+    "input_tokens": 10,
+    "cache_creation_tokens": 25291,
+    "cache_read_tokens": 107018,
+    "output_tokens": 4181,
+    "api_call_count": 5
+  },
+  "started_at": "2026-11-10T20:20:35.819216125+01:00",
+  "completed_at": "2026-11-10T20:21:41.875850541+01:00"
+}

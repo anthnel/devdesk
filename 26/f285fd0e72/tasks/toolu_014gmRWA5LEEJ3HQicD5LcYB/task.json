@@ -1,0 +1,18 @@
+{
+  "tool_use_id": "toolu_014gmRWA5LEEJ3HQicD5LcYB",
+  "agent_id": "a12dffbb9991eb463",
+  "subagent_type": "project-coder",
+  "task_description": "Test réarmement OCI étape 7",
+  "files": [
+    "internal/ui/oci_resources/focus_routing_test.go"
+  ],
+  "token_usage": {
+    "input_tokens": 8,
+    "cache_creation_tokens": 71717,
+    "cache_read_tokens": 177882,
+    "output_tokens": 1541,
+    "api_call_count": 4
+  },
+  "started_at": "2026-11-10T20:32:59.833758627+01:00",
+  "completed_at": "2026-11-10T20:33:26.36171108+01:00"
+}

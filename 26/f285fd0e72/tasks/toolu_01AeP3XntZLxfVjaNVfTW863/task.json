@@ -1,0 +1,15 @@
+{
+  "tool_use_id": "toolu_01AeP3XntZLxfVjaNVfTW863",
+  "agent_id": "a734feb96cd7d703f",
+  "subagent_type": "project-coder",
+  "task_description": "Aide agent-usage étape 3",
+  "token_usage": {
+    "input_tokens": 6,
+    "cache_creation_tokens": 68988,
+    "cache_read_tokens": 98514,
+    "output_tokens": 931,
+    "api_call_count": 3
+  },
+  "started_at": "2026-11-10T20:30:18.885618325+01:00",
+  "completed_at": "2026-11-10T20:31:04.49036497+01:00"
+}
