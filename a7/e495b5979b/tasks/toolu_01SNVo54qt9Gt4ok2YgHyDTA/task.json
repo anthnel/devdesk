@@ -1,0 +1,15 @@
+{
+  "tool_use_id": "toolu_01SNVo54qt9Gt4ok2YgHyDTA",
+  "agent_id": "a32189fa4c0262087",
+  "subagent_type": "team-core:tech-writer",
+  "task_description": "Doc app-shell étape 1",
+  "token_usage": {
+    "input_tokens": 12,
+    "cache_creation_tokens": 49741,
+    "cache_read_tokens": 132347,
+    "output_tokens": 3036,
+    "api_call_count": 5
+  },
+  "started_at": "2026-11-10T19:48:28.163349206+01:00",
+  "completed_at": "2026-11-10T19:48:52.839267396+01:00"
+}

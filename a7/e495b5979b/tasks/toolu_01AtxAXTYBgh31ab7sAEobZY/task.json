@@ -1,0 +1,15 @@
+{
+  "tool_use_id": "toolu_01AtxAXTYBgh31ab7sAEobZY",
+  "agent_id": "a2c1c04826518acba",
+  "subagent_type": "dev-team:architect",
+  "task_description": "Plan DEVDESK-210 focus/blur",
+  "token_usage": {
+    "input_tokens": 60,
+    "cache_creation_tokens": 184207,
+    "cache_read_tokens": 3497472,
+    "output_tokens": 39422,
+    "api_call_count": 29
+  },
+  "started_at": "2026-11-10T19:00:08.32391194+01:00",
+  "completed_at": "2026-11-10T19:07:07.594008959+01:00"
+}

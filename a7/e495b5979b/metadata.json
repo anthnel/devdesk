@@ -1,0 +1,53 @@
+{
+  "cli_version": "0.13.1",
+  "checkpoint_id": "a7e495b5979b",
+  "strategy": "manual-commit",
+  "branch": "feat/DEVDESK-210-focus-blur-animation",
+  "checkpoints_count": 9,
+  "files_touched": [
+    "docs/architecture/app-shell.md",
+    "internal/app/animation.go",
+    "internal/app/app.go",
+    "internal/app/focus.go",
+    "internal/app/focus_test.go",
+    "internal/app/screen_test.go",
+    "internal/app/view.go"
+  ],
+  "sessions": [
+    {
+      "metadata": "/a7/e495b5979b/0/metadata.json",
+      "transcript": "/a7/e495b5979b/0/full.jsonl",
+      "compact_transcript": "/a7/e495b5979b/0/transcript.jsonl",
+      "content_hash": "/a7/e495b5979b/0/content_hash.txt",
+      "prompt": "/a7/e495b5979b/0/prompt.txt"
+    }
+  ],
+  "token_usage": {
+    "input_tokens": 68,
+    "cache_creation_tokens": 81064,
+    "cache_read_tokens": 2025853,
+    "output_tokens": 11948,
+    "api_call_count": 24,
+    "subagent_tokens": {
+      "input_tokens": 150,
+      "cache_creation_tokens": 702612,
+      "cache_read_tokens": 5722584,
+      "output_tokens": 72944,
+      "api_call_count": 71
+    }
+  },
+  "redaction": {
+    "replacements": 0,
+    "layers": {
+      "betterleaks": 0,
+      "connection_string": 0,
+      "credential_key": 0,
+      "credential_value": 0,
+      "credentialed_uri": 0,
+      "entropy": 0,
+      "key_context": 0,
+      "provider_token": 0,
+      "shell_stdin": 0
+    }
+  }
+}

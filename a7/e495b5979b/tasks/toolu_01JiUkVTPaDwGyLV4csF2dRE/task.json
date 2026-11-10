@@ -1,0 +1,18 @@
+{
+  "tool_use_id": "toolu_01JiUkVTPaDwGyLV4csF2dRE",
+  "agent_id": "ae87c383e622a7d28",
+  "subagent_type": "project-coder",
+  "task_description": "Test blur phase on, étape 1",
+  "files": [
+    "internal/app/focus_test.go"
+  ],
+  "token_usage": {
+    "input_tokens": 8,
+    "cache_creation_tokens": 72715,
+    "cache_read_tokens": 176883,
+    "output_tokens": 1990,
+    "api_call_count": 4
+  },
+  "started_at": "2026-11-10T19:43:38.074246162+01:00",
+  "completed_at": "2026-11-10T19:44:33.940937444+01:00"
+}

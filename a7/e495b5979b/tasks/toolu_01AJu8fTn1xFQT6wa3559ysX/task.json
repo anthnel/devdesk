@@ -1,0 +1,15 @@
+{
+  "tool_use_id": "toolu_01AJu8fTn1xFQT6wa3559ysX",
+  "agent_id": "aacda42b6bfb0348e",
+  "subagent_type": "project-tester",
+  "task_description": "Vérification complète étape 1",
+  "token_usage": {
+    "input_tokens": 8,
+    "cache_creation_tokens": 80770,
+    "cache_read_tokens": 38845,
+    "output_tokens": 2197,
+    "api_call_count": 3
+  },
+  "started_at": "2026-11-10T19:44:40.505518517+01:00",
+  "completed_at": "2026-11-10T19:48:17.836998108+01:00"
+}
