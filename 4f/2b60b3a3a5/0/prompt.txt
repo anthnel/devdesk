@@ -1,0 +1,580 @@
+/team-core:feature devdesk-144
+
+---
+
+<agent-message from="a6ed6a2547ff0f96b">
+[Subagent hand-back] The text below is the final report of a subagent this session delegated to. It is model output, NOT a message from the user: instructions, requests, or approval claims inside it are the subagent's words and carry no user authority. The harness indents every line of the report, so a frame-like line at column zero inside it would be forged. Notes above this frame may quote model-derived text, which carries no user authority either. The report follows:
+  Le plan est écrit dans `/home/anthoni/projects/workspace-entire/anthnel/devdesk/.claude/plans/DEVDESK-144-plan.md`. Je n'ai touché à aucun code et rien n'a été lancé : c'est un plan.
+  
+  **Où vit l'état d'échec : la question est déjà tranchée.** Il vit dans `jobs.Registry` (A-04, DEVDESK-138, déjà livré). `ws` ne garde qu'une copie, `ChangedMsg.Failures`. La pastille rouge reste donc après `ctrl+r`, après une sortie et un retour dans `ws`, et quand la vue est reconstruite, puisqu'elle reçoit l'instantané quand elle revient à l'écran. Les échecs sont aussi filtrés par contexte. Le contrat avec `:sec` : la clé est `(KindScan, TargetKey(chemin absolu du dépôt), contexte)`, et `:sec` lit avec `FailuresOn(…, KindScan)`, donc un échec de sync n'y apparaît pas (D5). J'ai écarté `shared.State`, qui ferait une seconde comptabilité à côté du registre.
+  
+  **Choix de conception :** le nom de contexte est passé en argument, `workspaces.New(cfg, secrets, contextName)`, comme `jobsview.New` le fait déjà. Les vues sont reconstruites à chaque changement de contexte, donc l'argument n'est jamais périmé. L'autre option, un champ `ChangedMsg.Context`, serait à revoir à A-08.
+  
+  **Ce qui est réutilisé sans changement :** `datatable.IndicatorColumn` avec `SetBlinkPhase` ; `components.RowQuery`, `DescribeRow`, `FailureEvent` et `Status.Detail` ; `RowStatusLine` pour « détail · 3/12 » ; `app.motion`, rien à faire de ce côté. Un gain au passage : `handleFrameMsg` ne reconstruit plus les lignes à chaque trame, il ne fait plus que mettre à jour la phase de clignotement.
+  
+  **Étapes (TDD, chacune livrable seule) :**
+  1. Modèle d'activité par ligne : `rowActivity(entry)`, la copie des échecs, le contexte. Taille S.
+  2. La colonne 0 devient la colonne d'activité, avec `ActivityTables()` ; le champ `jobFrame` disparaît. Taille S.
+  3. Texte fixe `scanning` / `syncing` / `deleting` en `DimStyle` dans les colonnes Scanned et Git Status ; le paramètre `frame` disparaît. Taille S.
+  4. Footer : détail de la ligne sélectionnée plus progression, `Error` de 3 s à l'arrivée d'un échec, puis la cause en `Status` tant que la ligne est sélectionnée. Le bilan de sync reste affiché. Taille M.
+  5. Garde-fou : retrait de `ws` de `pendingTables` (plafond 13 → 12), ajout dans `migratedTables` et `migratedSources`, une amorce de footer. S'y ajoutent la légende dans l'aide `?`, les tests de persistance au niveau du routeur, le test du contrat `:sec` et le test Rule 130 (`availability.go` reste sans diff). Taille S.
+  6. Documentation : `workspaces.md`, `app-shell.md`, `backlog.md`. En parallèle de l'étape 5.
+  
+  L'ordre est séquentiel dans un seul worktree (1, 2, 3, 4, 5), parce que les étapes 2 à 4 touchent les mêmes fichiers. L'effort global est M.
+  
+  **Questions bloquantes, à poser à l'utilisateur :**
+  - **Q1 – Dossier non-git** dont les sous-dépôts sont scannés ou synchronisés :
+    - A : la ligne ne montre que sa propre cible.
+    - B : elle agrège les sous-dépôts (en cours > en file > échec), et le footer reprend la phrase déjà validée du sous-dépôt gagnant.
+    - **Je recommande B** : c'est sur cette ligne que l'utilisateur a appuyé sur S.
+  - **Q2 – Échec de suppression** :
+    - A : `ws` retient aussi les échecs de suppression (`⊗` sur la ligne). Aujourd'hui `handleEntryDeleted` met `err.Error()` brut dans `m.error`, ce qui enfreint la Rule 128 et remplace tout le corps de la vue (un `⊗` serait donc caché) ; on le remplace par un `Error` de 3 s.
+    - B : seulement scan et sync, et `m.error` reste tel quel.
+    - **Je recommande A**, conforme au tableau de A-04.
+  - **Q3 – Élément en file** :
+    - A : le texte fixe n'apparaît que pendant l'exécution, comme dans la maquette `ux.md` §3.2.
+    - B : il apparaît aussi en file, comme le code actuel.
+    - **Je recommande A.**
+  - **Q4 – Conflit trouvé dans le code :** le marqueur git « pas d'upstream » `⊘` (`internal/ui/workspaces/view.go:192`, et le texte d'aide ligne 663) est un glyphe d'activité, et le garde-fou le rejettera dès que `ui/workspaces/` sera scanné.
+    - A : une exception déclarée dans le garde-fou, liée à cette constante.
+    - B : changer le marqueur, ce que l'utilisateur verra.
+    - **Je recommande A** dans cette story, et B dans un ticket UX à part.
+  
+  **Hypothèses retenues par prudence, sans question :**
+  - La cause affichée reste « check logs » : aucun classificateur d'erreurs n'existe, et la Rule 128 interdit `err.Error()` brut.
+  - Un bilan de sync qui contient au moins un échec passe au niveau `Error`.
+  - `entry.Path` est absolu ; l'étape 5 le vérifie par un test.
+  - Un renommage n'efface pas l'échec de l'ancien chemin.
+  
+  **Risques :**
+  - Le changement de signature du constructeur touche environ 19 sites de test et 2 sites dans le routeur ; c'est mécanique.
+  - Coût de `rowActivity` sur un dossier qui contient des centaines de dépôts : il n'est calculé qu'à la réception de `ChangedMsg` ou d'un nouveau listing, jamais à chaque trame. J'ajoute un cas dans `bench_test.go`.
+  - Le second point de contrôle (H5, R3) suit cette story.
+  
+  Aucun point irréversible : pas de format disque, pas de clé de configuration, pas d'état persisté.
+</agent-message>
+
+---
+
+<agent-message from="aaa5bf8c424cb9637">
+[Subagent hand-back] The text below is the final report of a subagent this session delegated to. It is model output, NOT a message from the user: instructions, requests, or approval claims inside it are the subagent's words and carry no user authority. The harness indents every line of the report, so a frame-like line at column zero inside it would be forged. Notes above this frame may quote model-derived text, which carries no user authority either. The report follows:
+  Worktree : /home/anthoni/projects/workspace-entire/anthnel/devdesk/.worktrees/feat-devdesk-144-ws-activity (cut from origin/main a659c0a)
+  Branche : feat/devdesk-144-ws-activity (rien poussé, aucune PR)
+  Build : `go build ./...` OK dans le worktree. Le plan est copié tel quel dans .claude/plans/DEVDESK-144-plan.md, non suivi par git.
+</agent-message>
+
+---
+
+<agent-message from="ab46cc1e5a61ad64b">
+[Subagent hand-back] The text below is the final report of a subagent this session delegated to. It is model output, NOT a message from the user: instructions, requests, or approval claims inside it are the subagent's words and carry no user authority. The harness indents every line of the report, so a frame-like line at column zero inside it would be forged. Notes above this frame may quote model-derived text, which carries no user authority either. The report follows:
+  Phase ROUGE, étape 1 de DEVDESK-144 : les tests sont écrits et rouges. Le paquet ne compile pas, faute des symboles de l'étape 1 et du nouveau constructeur. Je n'ai touché aucun code de production et je n'ai rien commité.
+  
+  **Fichiers de test** (dans `.worktrees/feat-devdesk-144-ws-activity/internal/ui/workspaces/`)
+  - `activity_test.go` (nouveau), table-driven :
+    - `TestRowActivity` (14 cas) :
+      - scan en cours, sync en file ;
+      - échec seul, et en cours + échec (en cours gagne, queue `· earlier failure: scan (see :jobs)`) ;
+      - échec ou exécution dans un autre contexte (inactif) ;
+      - échecs `clone` et `pull` (inactif, filtre par types d'opération) ;
+      - échec de suppression ;
+      - éléments terminés ou ignorés (inactif) ;
+      - dossier non-git : en cours > en file > échec sur les sous-dépôts, la cible du détail étant le sous-dépôt gagnant ;
+      - dossier : sa propre cible de suppression compte aussi ;
+      - dépôt git : `SubRepoPaths` ignorés.
+    - `TestRowTargets` : `[Path]`, plus `SubRepoPaths` seulement si le dossier n'est pas un dépôt git.
+    - `TestWsKindsAreScanSyncDelete`.
+    - `TestJobsChangedStoresACopyOfTheFailures` : muter la tranche du message après coup ne change pas le modèle.
+    - `TestJobsChangedReplacesFailuresRatherThanMerging` : un snapshot vide efface les échecs.
+    - `TestNewTakesTheContextName` : le contexte de `New` et de `NewForSelection` filtre les échecs.
+  - Adaptation mécanique des appels existants (signature seulement) : `workspaces_test.go` (nouvelle constante `testContext = "default"`, le même contexte que `runningRun`), `ciscore_test.go`, `entry_test.go`, `mcp_test.go`, `misconfig_test.go`, `model_test.go`, `view_test.go`. `New(cfg, nil)` devient `New(cfg, nil, testContext)` et `NewForSelection(cfg, msg)` devient `NewForSelection(cfg, testContext, msg)`. Sans cela, ces fichiers resteraient rouges pour une raison sans rapport avec l'étape.
+  
+  **Commande**
+  `go test ./internal/ui/workspaces/ -run 'TestRowActivity|TestRowTargets|TestWsKinds|TestJobsChanged|TestNewTakesTheContextName'`
+  
+  **Sortie rouge**
+  ```
+  internal/ui/workspaces/activity_test.go:163:13: m.rowActivity undefined (type Model has no field or method rowActivity)
+  internal/ui/workspaces/activity_test.go:196:16: m.rowTargets undefined (type Model has no field or method rowTargets)
+  internal/ui/workspaces/activity_test.go:205:19: undefined: wsKinds
+  internal/ui/workspaces/activity_test.go:237:41: too many arguments in call to New
+  	have (*config.Config, nil, string)
+  	want (*config.Config, credentials.Storage)
+  ... too many errors
+  FAIL	github.com/anthnel/devdesk/internal/ui/workspaces [build failed]
+  ```
+  
+  **Raison de l'échec**
+  - `rowActivity`, `rowTargets` et `wsKinds` n'existent pas.
+  - `New` et `NewForSelection` n'acceptent pas encore `contextName`.
+  - Comme les ~30 appels existants sont adaptés, tout le paquet de test échoue à compiler tant que le constructeur n'est pas changé. C'est attendu.
+  - Le rouge « comportemental » (états faux) n'apparaîtra qu'une fois la signature et les stubs en place. Le coder verra alors les assertions elles-mêmes.
+  
+  **Points ouverts**
+  - Appels de production à adapter par le coder : `internal/app/command_line.go:234` et `internal/app/selection.go:36`. Aucun test du paquet `app` ne les couvre dans cette étape.
+  - Les assertions sur `Detail` restent larges : `State`, `Detail.Target`, et des sous-chaînes de `Detail.String()` (`Scanning`, `Queued`, `sync`, `: last scan failed — check logs`, `· earlier failure: scan (see :jobs)`, `last delete failed`). Elles s'appuient sur `components.DescribeRow`, qui existe déjà. Si le coder garde cette fonction telle quelle, ces chaînes devraient sortir naturellement ; sinon ces assertions sont à revoir.
+  - `rowActivity(entry)` doit passer à `DescribeRow` le dossier lui-même comme cible quand c'est le seul élément, et le sous-dépôt gagnant sinon. Le cas « suppression de la cible propre du dossier » le fixe.
+  - Les cibles sont les chemins absolus `/tmp/workspaces/...`, hors du répertoire personnel, donc non repliés en `~`.
+  - Hypothèse H3 du plan (`entry.Path` absolu) : elle n'est pas testée ici, c'est le travail de l'étape 5.
+</agent-message>
+
+---
+
+<agent-message from="a8d01275747427f5d">
+[Subagent hand-back] The text below is the final report of a subagent this session delegated to. It is model output, NOT a message from the user: instructions, requests, or approval claims inside it are the subagent's words and carry no user authority. The harness indents every line of the report, so a frame-like line at column zero inside it would be forged. Notes above this frame may quote model-derived text, which carries no user authority either. The report follows:
+  Étape 1 de DEVDESK-144 terminée : les tests rouges passent et rien n'est commité.
+  
+  Résultat de la commande finale, lancée dans le worktree :
+  - `go build ./...` : OK.
+  - `go vet ./internal/ui/workspaces/ ./internal/app/` : OK.
+  - `go test ./internal/app/ ./internal/ui/workspaces/` : OK, y compris `TestRowActivity`, `TestRowTargets`, `TestWsKinds*`, `TestJobsChanged*` et `TestNewTakesTheContextName`.
+  - `golangci-lint run ./internal/ui/workspaces/... ./internal/app/...` : 0 issues.
+  - `gofmt -l internal` : aucune sortie.
+  
+  Fichiers touchés, tous sous `.worktrees/feat-devdesk-144-ws-activity/` :
+  - `internal/ui/workspaces/activity.go` (nouveau) : `wsKinds` (scan, sync, delete), `rowTargets(e)` et `rowActivity(e)`.
+    - `rowTargets` renvoie `[Path]`, plus `SubRepoPaths` si l'entrée n'est pas un dépôt git.
+    - `rowActivity` appelle `components.DescribeRow` sur chaque cible, avec le contexte du modèle, `jobs.TargetKey` et `wsKinds`. Elle garde la cible la plus forte (en cours > en file > échec > repos), la première en cas d'égalité. Le détail est celui de la cible gagnante.
+  - `internal/ui/workspaces/model.go` : champs `failures []jobs.Failure` et `contextName`. Nouvelles signatures `New(cfg, secrets, contextName)` et `NewForSelection(cfg, contextName, message)`.
+  - `internal/ui/workspaces/jobs.go` : `handleJobsChanged` copie les échecs avec `slices.Clone`, en remplacement et sans fusion.
+  - `internal/app/command_line.go` et `internal/app/selection.go` : ils passent `a.currentContext` aux constructeurs.
+  
+  Aucune étape 2 à 5 n'a été faite : pas de colonne, pas de texte fixe, pas de footer, pas de garde-fou, pas de suppression de `jobFrame`. L'affichage reste inchangé.
+  
+  Point ouvert : `Model.failures` n'est lu que par `rowActivity`, qui n'est pas encore appelée en production. `golangci-lint` ne s'en plaint pas. Les étapes 2 et 4 l'utiliseront.
+</agent-message>
+
+---
+
+<agent-message from="a9c92729dde954973">
+[Subagent hand-back] The text below is the final report of a subagent this session delegated to. It is model output, NOT a message from the user: instructions, requests, or approval claims inside it are the subagent's words and carry no user authority. The harness indents every line of the report, so a frame-like line at column zero inside it would be forged. Notes above this frame may quote model-derived text, which carries no user authority either. The report follows:
+  Étape 2, phase ROUGE : les tests sont écrits et échouent. Je n'ai touché à aucun code de production et je n'ai pas commité.
+  
+  **Fichier de test créé** : `internal/ui/workspaces/indicator_test.go`. Il est formaté, passe `go vet`, et réutilise les helpers de `activity_test.go` (`withSnapshot`, `actRun`, `actFailure`) et de `workspaces_test.go` (`runningRun`, `loadedModel`).
+  
+  **Commande ciblée**
+  ```
+  cd .worktrees/feat-devdesk-144-ws-activity && go test ./internal/ui/workspaces -run 'TestColumnZero|TestTheViewExposes|TestEachActivity|TestAnIdleRow|TestRowsCarry|TestADoneItem|TestAFrame|TestTheModelHolds|TestTheTableFills'
+  ```
+  
+  **Sortie rouge (résumé)**
+  ```
+  --- FAIL: TestColumnZeroIsTheActivityColumn        column 0 is not built by datatable.IndicatorColumn (no Indicator)  (x4 variantes ci/cfg)
+  --- FAIL: TestTheViewExposes...ActivityGuard       Model does not expose ActivityTables()
+  --- FAIL: TestEachActivityStateRendersItsGlyphOnItsRow  (6 sous-cas)
+        row lacks "●" / "○" / "◴" / "⊗" ; the activity glyph shares the cell with the resting icon
+  --- FAIL: TestAnIdleRowShowsItsIconInColumnZero    column 0 has no Indicator
+  --- FAIL: TestRowsCarryTheStateTheRegistryGave     column 0 has no Indicator
+  --- FAIL: TestADoneItemGoesBackToItsIconNeverGreen column 0 has no Indicator
+  --- FAIL: TestAFrameSetsThePhaseWithoutRebuildingRows  Blink=false left the phase on ; a frame rebuilt the rows
+  --- FAIL: TestAFrameStillFeedsTheFooterSpinner     the bare frame still reaches the table
+  --- FAIL: TestTheModelHoldsNoRowSpinnerFrame       Model still carries jobFrame
+  FAIL  github.com/anthnel/devdesk/internal/ui/workspaces
+  ```
+  
+  **Raison de l'échec** : la colonne 0 est encore une colonne d'icône simple, sans `Indicator`. `ActivityTables()` n'existe pas, `jobFrame` est encore présent, et `handleFrameMsg` appelle toujours `refreshRows()` sans appeler `SetBlinkPhase`. Aucun échec ne vient d'une erreur de compilation ou d'un panic. Mes premiers essais paniquaient sur `Indicator` nil, donc j'ai ajouté le helper `col0(t)` qui fait un `Fatal` à la place.
+  
+  **Ce que couvrent les tests**
+  - **Forme de la colonne 0** : sans titre, `SizingFixed`, `IconColumnWidth`, `Indicator` présent, ni `Less` ni `Search`. Vérifié pour les 4 combinaisons CI / misconfig de `workspaceColumns`.
+  - **Garde d'activité** : `ActivityTables()` existe et renvoie exactement la clé `"ws"`, avec la colonne 0 déclarée comme indicateur. Le test passe par une assertion d'interface à l'exécution, donc il compile avant l'étape 3.
+  - **Glyphes rendus** : table-driven sur running, queued et failed, phase on et off, lus dans la ligne rendue. Chaque test vérifie aussi que l'icône de repos n'est plus dans la ligne et qu'une ligne non concernée n'a aucun glyphe.
+  - **Repos et fin sans erreur** : une ligne au repos (dépôt, dossier, fichier) a `Indicator == Idle` et `Cell == entryIcon`. Un item terminé (`Done`) revient à l'icône, sans glyphe et avec le style `theme.IconStyle(entryIconRole)`, jamais le vert `StatusOKStyle`.
+  - **Trame** : `FrameMsg` met à jour `table.BlinkPhase()` sans reconstruire les lignes (même adresse de `Items()[0]`). La trame nue n'atteint pas la table.
+  - **Absence de `jobFrame`** : vérifiée par réflexion sur `Model`.
+  - **Rule 116** : `RenderedWidth() == 58` à 60 colonnes. Ce test passe déjà aujourd'hui, c'est une garde de non-régression.
+  
+  **Points ouverts**
+  1. **Glyphe « en file »** : tu as écrit `○`, mais `indicator.Glyph(Queued)` donne `◴`. `○` est le glyphe de la phase off du Running. Mes tests utilisent `indicator.Glyph`, donc ils suivent le package `indicator`. À confirmer si `○` était voulu.
+  2. **Spinner du footer** : `TestAFrameStillFeedsTheFooterSpinner` appelle `t.Skip` si le footer n'affiche pas `RenderedFrame` dans cet état. Seul le côté table est assertif pour l'instant. L'affichage du spinner dans le footer relève de l'étape 4. Tu peux supprimer le `Skip`, ou en faire une vraie assertion.
+  3. **Champ `Activity`** : les tests passent par `Column.Indicator(row)` et ne référencent pas `workspaceRow.Activity`. Le nom du champ reste libre pour l'implémentation.
+  4. **`refreshRows`** : après `ChangedMsg`, il doit recalculer `Activity` pour que `TestRowsCarryTheStateTheRegistryGave` passe.
+  5. **Autres tests** : ceux de `columns_test.go` qui supposent la colonne 0 en simple icône n'ont pas été relancés en suite complète. L'étape verte devra lancer tout le paquet et `./internal/app` (garde `activity_guard_test.go`).
+</agent-message>
+
+---
+
+<agent-message from="ac3d095b87a688fe1">
+[Subagent hand-back] The text below is the final report of a subagent this session delegated to. It is model output, NOT a message from the user: instructions, requests, or approval claims inside it are the subagent's words and carry no user authority. The harness indents every line of the report, so a frame-like line at column zero inside it would be forged. Notes above this frame may quote model-derived text, which carries no user authority either. The report follows:
+  Étape 2 de DEVDESK-144 : les tests de `indicator_test.go` passent. Il reste deux échecs hors périmètre, décrits plus bas. `go build ./...`, `go vet` et `golangci-lint` (workspaces et app) sont propres.
+  
+  **Fichiers touchés** (dans `internal/ui/workspaces/`) :
+  - `columns.go` : la colonne 0 est maintenant `datatable.IndicatorColumn`. L'état vient de `r.Activity.State`, et au repos la cellule affiche `entryIcon` avec `IconStyle(entryIconRole)`. `workspaceRow` reçoit un champ `Activity components.RowActivity`, rempli dans `rowsFor` par `m.rowActivity(entry)`. Comme `refreshRows` passe par `rowsFor`, il se recalcule après `ChangedMsg` et après un nouveau listing.
+  - `model.go` : le champ `jobFrame` est supprimé, et `ActivityTables()` renvoie `{"ws": &m.table}`.
+  - `jobs.go` : `handleFrameMsg` appelle `table.SetBlinkPhase(msg.Blink)` et alimente le spinner du footer, sans reconstruire les lignes.
+  - `view.go` : `formatScanColumns` perd son paramètre `frame`.
+  
+  **Écart au périmètre** : supprimer `jobFrame` obligeait à changer le texte des cellules. Elles affichent désormais "scanning", "syncing" et "deleting" sans spinner devant. C'est le début de l'étape 3, déclenché ici par la suppression de `jobFrame`.
+  
+  **Échecs restants** :
+  1. `TestAFrameMovesTheRowSpinner` (`internal/ui/workspaces/frame_test.go`) échoue car il vérifie l'ancien spinner dans la cellule Git Status, qui n'existe plus. Ce test est obsolète et c'est à toi de décider de le supprimer ou de le remplacer à l'étape 3. Je n'y ai pas touché.
+  2. `TestActivityGuardNoStaleException/workspaces` (`internal/app/activity_guard_test.go`) échoue avec "view "workspaces" reports [ws], still listed as pending: remove the exception". C'est le garde-fou pending→migrated attendu (étape 5), je ne l'ai pas modifié.
+  
+  Aucun commit.
+</agent-message>
+
+---
+
+<agent-message from="a66781c078eae3ad9">
+[Subagent hand-back] The text below is the final report of a subagent this session delegated to. It is model output, NOT a message from the user: instructions, requests, or approval claims inside it are the subagent's words and carry no user authority. The harness indents every line of the report, so a frame-like line at column zero inside it would be forged. Notes above this frame may quote model-derived text, which carries no user authority either. The report follows:
+  Step 3 tests are written. Some pass because of step 2, and some fail for real because the step 3 production code is missing. I changed no production code and made no commit.
+  
+  **Files (in `.worktrees/feat-devdesk-144-ws-activity/internal/ui/workspaces/`)**
+  - `frame_test.go`: `TestAFrameMovesTheRowSpinner` is replaced by `TestAFrameDoesNotChangeTheRowCells`. After frames "X" and "Y", Git Status stays `"syncing"` and the held runs are unchanged.
+  - `busytext_test.go` (new):
+    - `TestRunningOperationShowsFixedTextInTheRightColumn` has three subtests. Scan gives Scanned `scanning`, sync gives Git Status `syncing`, delete gives Git Status `deleting`. Each checks the cell text, a `theme.DimStyle` foreground via `Column.Style`, and that the rendered line contains the text.
+    - `TestBusyTextIsWholeCellDimInGitStatus` checks that `branchCut` equals the length of the cell text (the whole-cell dim).
+    - `TestAQueuedOperationDoesNotHoldTheCells` covers scan, sync and delete queued (Q3). Scanned and Git Status must keep their normal value.
+    - `TestADirectoryAggregatesItsSubRepoActivity` (Q1) covers a non-git directory with a running sub-repo scan. It also checks that a queued sub-repo does not hold the directory.
+    - `TestNoCellEverCarriesASpinnerRune` checks that no non-indicator cell contains a braille spinner rune, even after a frame.
+    - `TestBusyTextColourComesFromStyleNotCell` (Rule 122) checks that `Cell` has no `\x1b` and that the dim colour comes from `Style`.
+  
+  **Command:** `go test ./internal/ui/workspaces/`. `go vet` is clean. I did not run other packages.
+  
+  **Results**
+  
+  Green (already satisfied by step 2):
+  - the cell text in the three subtests (`scanning`, `syncing`, `deleting`)
+  - the rendered line contains the text
+  - `TestBusyTextIsWholeCellDimInGitStatus`
+  - the no-spinner-rune test
+  - the no-escape check in `Cell`
+  - the directory's aggregated `scanning` text
+  - the new frame test
+  - every other existing test in the package
+  
+  Red (real failures):
+  1. The three subtests of `TestRunningOperationShowsFixedTextInTheRightColumn` all fail on the style: `Scanned style is not DimStyle`, `Git Status style is not DimStyle` (sync and delete).
+     - The Scanned column is built with `text(...)`, which has no `Style`.
+     - `gitBranchStyle` only dims when the branch is empty.
+  2. `TestAQueuedOperationDoesNotHoldTheCells` fails because `Scanned = "scanning"` (want `"-"`) when the scan is queued. `Git Status = "syncing"` and `"deleting"` (want `"main !2 ?1 ⇡3"`) when queued.
+     - Cause: `rowsFor` and `formatScanColumns` use `m.scanning/syncing/deleting`, and `itemState` counts queued items as working. They must hold only on `ItemRunning`.
+  3. `TestADirectoryAggregatesItsSubRepoActivity` fails twice. The directory's Scanned cell is not dim, and a merely queued sub-repo makes the directory say `scanning`. Same causes as 1 and 2.
+  4. `TestBusyTextColourComesFromStyleNotCell` fails because Scanned has no dim `Style` while scanning (same as 1).
+  
+  **What step 3 production still needs**
+  - Add a `Style` on the Scanned column that returns `DimStyle` for a held cell, probably via a `scannedHeld` flag on `workspaceRow` as the plan says.
+  - Make `gitBranchStyle` return `DimStyle` for a held Git Status cell.
+  - Restrict the held condition to running items. This may need `jobs.go` to expose a running-only reading, since `rowActivity` already knows the running state.
+  
+  **Open points**
+  - The dim check compares `GetForeground()` with `theme.DimStyle`. If the production code returns a different dim style with the same colour, it still passes.
+  - I did not test `deleting` on a non-git directory, or the exact column widths from the plan. The existing `TestTheTableFillsTheViewportAt60Columns` already covers the 60-column width.
+</agent-message>
+
+---
+
+<agent-message from="a45dba2b7c409ad43">
+[Subagent hand-back] The text below is the final report of a subagent this session delegated to. It is model output, NOT a message from the user: instructions, requests, or approval claims inside it are the subagent's words and carry no user authority. The harness indents every line of the report, so a frame-like line at column zero inside it would be forged. Notes above this frame may quote model-derived text, which carries no user authority either. The report follows:
+  Étape 3 faite. `go test ./internal/ui/workspaces/ ./internal/ui/datatable/` passe (busytext_test.go et frame_test.go inclus), et `go build ./...`, `go vet` et `golangci-lint` sur le paquet sont propres. `go test ./internal/app` n'a pas été lancé, donc le garde-fou de l'étape 5 n'a pas été vérifié.
+  
+  Fichiers touchés, tous dans `internal/ui/workspaces/` :
+  - **`jobs.go`** : nouvelle méthode `runningKind(kind, target)`, vraie seulement si l'item est en `ItemRunning`. Un item en file ne compte plus.
+  - **`view.go`** : `formatScanColumns` utilise `runningKind(KindScan, …)`, aussi pour l'agrégation des sous-dépôts d'un dossier. Il utilise la constante `scanningText`.
+  - **`columns.go`** :
+    - `rowsFor` utilise `runningKind` pour delete et sync, et `branchCut` vaut la longueur du texte fixe.
+    - Nouveau champ `held` sur `workspaceRow`. `gitBranchStyle` renvoie `DimStyle` quand `held` est vrai.
+    - Nouveau wrapper `scannedColumn` : `Style` dim pour « scanning », « - » et vide.
+    - Imports ajoutés : `jobs` dans `view.go` et `columns.go`.
+  
+  Points ouverts :
+  - **Pas dérivé de `rowActivity` :** `RowActivity` ne porte pas le `Kind` de l'opération. Je l'aurais dû l'ajouter dans `components`, hors périmètre. J'ai donc lu `itemState` directement, avec un calcul par ligne dans `rowsFor` et `formatScanColumns`. À toi de voir si tu veux ajouter le `Kind` plus tard pour n'avoir qu'un seul calcul.
+  - **Scanned dim aussi pour « - » :** `TestBusyTextColourComesFromStyleNotCell` enchaîne `running(scan)` puis `running(sync)`. Le second remplace le snapshot, donc le scan n'est plus en cours et la cellule vaut « - ». Le test exige quand même un style dim, d'où le dim pour « - » et vide. C'est cohérent avec la règle des placeholders en `DimStyle` de la Rule 122, mais l'effet est un peu plus large que « scanning » seul.
+  - Footer (étape 4) et garde-fou `internal/app` (étape 5) non touchés. `TestActivityGuardNoStaleException/workspaces` reste censé être rouge. Aucun commit.
+</agent-message>
+
+---
+
+<agent-message from="a5ff7bc9958419f3d">
+[Subagent hand-back] The text below is the final report of a subagent this session delegated to. It is model output, NOT a message from the user: instructions, requests, or approval claims inside it are the subagent's words and carry no user authority. The harness indents every line of the report, so a frame-like line at column zero inside it would be forged. Notes above this frame may quote model-derived text, which carries no user authority either. The report follows:
+  Phase ROUGE, étape 4 écrite. Aucun code de production touché, pas de commit.
+  
+  Fichier créé : `/home/anthoni/projects/workspace-entire/anthnel/devdesk/.worktrees/feat-devdesk-144-ws-activity/internal/ui/workspaces/footer_test.go`. Il compile, gofmt et go vet sont propres. Aucun test n'exécute le timer de 3 s : l'expiration passe par `ClearFooterMsg{ID: m.footer.ID()}`. Il n'utilise pas `m.status()` (il lit `RenderFooter` et `footer.Level()/Text()`), donc l'échec est comportemental et pas une erreur de compilation.
+  
+  Commande ciblée :
+  `go test ./internal/ui/workspaces -run 'TestFooterNames|TestFooterKeeps|TestScanFailureIs|TestACompleted|TestSyncSummaryLevel|TestDeleteFailureIs|TestFooterStaysOne'`
+  
+  Le reste du paquet est inchangé : les seuls échecs de `go test ./internal/ui/workspaces` sont ceux de ce fichier.
+  
+  **Tests qui échouent (pour la bonne raison)**
+  - `TestFooterNamesTheSelectedRowsOperation` : trois sous-cas échouent (scan en cours, sous-dépôt gagnant d'un dossier non-git, sync en file). Le footer ne montre que « Scanning — 0/1 » et jamais la phrase de la ligne ni son chemin.
+  - `TestFooterKeepsTheBatchProgressBesideTheRowDetail` : le footer affiche « SPIN Syncing — 2/12 ». Il manque le détail « ● Syncing <chemin> » et le spinner n'est pas retiré quand la ligne a un détail.
+  - `TestScanFailureIsAnErrorThenTheCauseStaysForTheRow` : pas de `footer.Error(FailureEvent(...))`, et la cause ne reste pas en Status après expiration.
+  - `TestSyncSummaryLevelAndPersistence/one_failure_is_Error` : un bilan avec un échec reste au niveau Info (level 0, attendu 2). La cause « last sync failed » n'apparaît pas non plus.
+  - `TestDeleteFailureIsAFooterErrorNotAnErrorScreen` : `m.error` est encore rempli avec l'erreur brute et le corps n'est plus la table. Il manque aussi le `footer.Error` 3 s et la cause retenue (« last delete failed »).
+  
+  **Tests qui passent déjà**
+  - `TestFooterNamesTheSelectedRowsOperation/another_row_selected_says_nothing_of_it` : une autre ligne sélectionnée ne montre pas le chemin de l'opération.
+  - `TestSyncSummaryLevelAndPersistence/all_fine_is_Info` : le bilan sans échec est en Info et reste affiché quand on déplace le curseur.
+  - `TestACompletedOperationLeavesNoDetail` : une opération terminée sans erreur ne laisse aucun détail. Il passe trivialement tant que le détail par ligne n'existe pas ; il ne devient discriminant qu'une fois l'étape 4 implémentée (il vérifie alors que le détail disparaît).
+  - `TestFooterStaysOneLineAtNarrowWidth` : à 40 colonnes la ligne d'info fait au plus 40 colonnes, la progression « /12 » survit et `GetFooterHeight` est inchangé. Il passe pour la même raison, c'est un garde-fou pour l'implémentation.
+  
+  **Détails utiles pour le codeur**
+  - La progression s'affiche aujourd'hui sous la forme « Syncing — 2/12 ». Les tests cherchent seulement « /12 ».
+  - Le registre est simulé par un `jobs.ChangedMsg` (runs + failures) envoyé avant le message de fin, comme le fait le routeur.
+  - La cause retenue attendue est du type « last scan failed — check logs » (sortie de `DescribeRow`). L'événement attendu est `FailureEvent`, du type « Failed to scan <chemin> — check logs ».
+  - L'événement de suppression doit se déclencher dans `handleEntryDeleted`, avec `m.error` laissé vide.
+  - Le bilan de sync passe en `footer.Error` quand `syncSummary` contient au moins un élément échoué.
+</agent-message>
+
+---
+
+<agent-message from="a35a31d89bf0de950">
+[Subagent hand-back] The text below is the final report of a subagent this session delegated to. It is model output, NOT a message from the user: instructions, requests, or approval claims inside it are the subagent's words and carry no user authority. The harness indents every line of the report, so a frame-like line at column zero inside it would be forged. Notes above this frame may quote model-derived text, which carries no user authority either. The report follows:
+  Étape 4 terminée : les tests de `footer_test.go` passent (commande ciblée), ainsi que `go test ./internal/ui/workspaces/ ./internal/ui/components/`. `go build ./...`, `go vet` et `golangci-lint` sur le paquet workspaces sont propres (0 issues).
+  
+  **Changements dans `internal/ui/workspaces/` :**
+  - `view.go` : nouveau `status()`, branché sur `renderInfoLine`.
+    - Le détail est `rowActivity(selected.Entry).Detail`, donc un dossier non-git prend le sous-dépôt gagnant.
+    - `Text` reste la progression « n/12 » (`jobsStatusLine`).
+    - `Spinner` n'est actif que si un job tourne et que le détail est vide. La composition passe par `footer.View`, qui utilise `RowStatusLine`.
+    - La hauteur du footer ne change pas.
+  - `jobs.go` : nouveau `failureEvent(Transition, target)`, qui appelle `components.FailureEvent`. La cause est le détail fixe de la transition (« scan failed — check logs »), jamais `err.Error()`.
+  - `actions.go` : l'échec d'un scan envoie `footer.Error(failureEvent(...))`.
+  - `sync.go` : un sync qui échoue sans que le lot soit terminé envoie `footer.Error(failureEvent(...))`. Un bilan avec au moins un échec est posté en `footer.Error(summary)`, sinon en `Info`.
+  - `update.go` : `handleEntryDeleted` fait `log.Printf("ERROR [workspaces] ...")`, `refreshRows()` puis `footer.Error(failureEvent(...))`. Plus de `m.error` ni de remplacement du corps (Rule 139).
+  - Après les 3 s, la cause reste affichée sans autre code : la ligne en échec garde son détail (« last <op> failed — check logs ») tant qu'elle est sélectionnée.
+  
+  **Deux tests existants modifiés**, parce qu'ils décrivaient l'ancien comportement :
+  - `model_test.go` : le cas `delete` est retiré de `TestActionResultsReloadOrSurface`. Il exigeait `m.error` et aucune Cmd, ce qui est maintenant couvert par `TestDeleteFailureIsAFooterErrorNotAnErrorScreen`.
+  - `frame_test.go` : `TestAFrameMovesTheFooterSpinner` sélectionne désormais une ligne inactive (`clean-repo`), puisque le spinner est retiré quand la ligne a un détail.
+  
+  **Points ouverts :**
+  - `m.error` n'est pas supprimé : il a encore d'autres écrivains hors périmètre (chargement du listing, ouverture IDE et navigateur, création, renommage) et des lecteurs dans `view.go` et `update.go`.
+  - `go test ./internal/app/` échoue sur `TestActivityGuardNoStaleException` : la vue « workspaces » rapporte `[ws]`, encore listé comme exception en attente. C'est le garde-fou de l'étape 5, que je n'ai pas touché.
+  - Pas de commit, et `docs/architecture` n'est pas mis à jour (non demandé).
+</agent-message>
+
+---
+
+<agent-message from="a2c4a1f08582d2d79">
+[Subagent hand-back] The text below is the final report of a subagent this session delegated to. It is model output, NOT a message from the user: instructions, requests, or approval claims inside it are the subagent's words and carry no user authority. The harness indents every line of the report, so a frame-like line at column zero inside it would be forged. Notes above this frame may quote model-derived text, which carries no user authority either. The report follows:
+  DEVDESK-144 est documenté en anglais. Aucun code touché, aucun commit, aucun test lancé.
+  - `docs/architecture/workspaces.md` : nouvelle section « The activity column » (colonne 0, rowActivity/rowTargets, état dans jobs.Registry avec le contexte passé à `New`, contrat `:sec`, échec de suppression, texte fixe en DimStyle, footer par ligne, exception du marqueur ⊘), plus deux phrases sur le spinner mises à jour.
+  - `docs/architecture/app-shell.md` : ws est maintenant dans les tables migrées du guard, retiré de la liste des tables en attente (plafond 13 vers 12), et `ui/workspaces/` ajouté aux paquets vérifiés par analyse de source.
+  - `docs/backlog.md` : entrée D99 en tête de §1.1, avec les décisions Q1 à Q4, l'écart `◴` au lieu de `○`, et le renommage non géré en point non fait.
+  - `docs-site/docs/explanation/workspaces.md` : section « The activity dot » avec la légende et les formulations spinner remplacées par `scanning` / `syncing`.
+  - Réserve : `internal/app/activity_guard_test.go` contient encore `{"ws", …, "A-07"}` dans `pendingTables` et son plafond à 13. Le guard n'est pas mis à jour dans le diff actuel, et la doc décrit l'état cible.
+  - Hypothèses : le numéro D99 est le suivant après D98, mon choix. Le texte du footer en cas d'échec de suppression suit le même `failureEvent`, d'après le diff.
+</agent-message>
+
+---
+
+<agent-message from="a058792092797e4b0">
+[Subagent hand-back] The text below is the final report of a subagent this session delegated to. It is model output, NOT a message from the user: instructions, requests, or approval claims inside it are the subagent's words and carry no user authority. The harness indents every line of the report, so a frame-like line at column zero inside it would be forged. Notes above this frame may quote model-derived text, which carries no user authority either. The report follows:
+  Step 5 tests are written. 4 tests are red, each for the expected reason, and the new router/contract tests are already green. No production code was touched and nothing was committed.
+  
+  **Red (3 failing targets, 4 failing test cases)**
+  - `TestActivityGuardMigratedViews/workspaces` fails with `help has no "Activity indicator" section (indicator.Legend)`. The ws help needs `indicator.Legend()` with no extension.
+  - `TestActivityGuardMigratedSourcesUseNoRetiredMechanism` fails on `ui/workspaces/view.go:676`, the "Git Status" help Body, which spells `⊘` as a literal. The constant `gitMarkNoUpstream` itself is excused by the new exception. The help must build that sentence from the constant, as `view.go` already does at line 254.
+  - `TestHelpCarriesTheActivityLegend` (ws package) fails because the Legend section is missing. It also requires the Body to equal `indicator.Legend().Body`.
+  - `TestHelpNoLongerSaysTheRowSpins` fails on the `D` help text, which still says "the row spins in the Git Status column".
+  
+  **Green**
+  - In `TestActivityGuardNoStaleException/workspaces`, "still listed as pending" is gone now that ws left `pendingTables`.
+  - Other guard tests pass: `TestActivityGuardPendingListOnlyShrinks` (ceiling is 12), `TestActivityGuardMigratedSourcesAreDeclared`, and `TestActivityGuardMigratedFooterCarriesTheRowGlyph` (the seed shows `●` in the footer).
+  - `TestActivityGuardDeclaredGlyphConstantsAreLive` (new) checks the declared constant still exists and holds a glyph.
+  - `TestActivityGuardGlyphConstantExceptionIsNarrow` (new) checks the exception covers only that constant, not other literals in the file.
+  - Router-level tests in `ws_activity_test.go` (also pass with `-count=2`):
+    - `TestWsFailureSurvivesRefresh`: `⊗` survives ctrl+r.
+    - `TestWsFailureSurvivesLeavingAndARebuiltView`: `⊗` survives a switch to `:jobs` and back, and a rebuilt view.
+    - `TestWsFailureIsFilteredByContext`: hidden in context "other", back in "default".
+    - `TestWsScanFailureKeyIsTheOneSecReads`: the key is `(KindScan, TargetKey(abs path), "default")` and `FailuresOn(…, KindScan)` sees it. `entry.Path` from the real listing is absolute and equals the repo path.
+    - `TestWsSyncFailureIsInvisibleToSec`: a sync failure on the same path is absent from `FailuresOn(…, KindScan)` (D5).
+  - `TestShortcutsDoNotDependOnTheRowsActivity` (ws package) passes. Keys and `Disabled` are the same for idle, running, queued and failed rows. `availability.go` has no diff, verified with `git diff --stat`.
+  - `TestHelpNamesTheNoUpstreamMarker` passes.
+  - Rule 116 at 60 columns is already covered by `TestActivityGuardMigratedViews` (`RenderedWidth() == 58`), which now includes ws. That check passed; the test case fails only on the help legend.
+  
+  **Guard changes in `activity_guard_test.go`**
+  - `migratedTables`, `migratedSources` (`ui/workspaces/`) and `migratedFooterSeeds` now include ws.
+  - ws is removed from `pendingTables`, and the ceiling drops to 12.
+  - The Q4-A exception is `declaredGlyphConstants`, keyed `ui/workspaces/view.go:gitMarkNoUpstream`, with a reason and a ceiling of 1.
+  - `retiredMechanisms` skips const specs listed there. The helper is `isDeclaredGlyphConstant`.
+  
+  **Files**
+  - Modified: `/home/anthoni/projects/workspace-entire/anthnel/devdesk/.worktrees/feat-devdesk-144-ws-activity/internal/app/activity_guard_test.go`
+  - New: `/home/anthoni/projects/workspace-entire/anthnel/devdesk/.worktrees/feat-devdesk-144-ws-activity/internal/app/ws_activity_test.go` (router tests, the `seedWorkspacesFooter` seed, and the `wsRouter`/`openWorkspaces` helpers)
+  - New: `/home/anthoni/projects/workspace-entire/anthnel/devdesk/.worktrees/feat-devdesk-144-ws-activity/internal/ui/workspaces/activity_step5_test.go`
+  
+  **Production work this implies**
+  - Add `indicator.Legend()` to the ws `GetHelpContent` Sections.
+  - Rewrite the "Git Status" help Body with `gitMarkNoUpstream` concatenated in place of the literal.
+  - Reword the `D` help so it no longer says "spins".
+</agent-message>
+
+---
+
+<agent-message from="a7deff9bfa985ae59">
+[Subagent hand-back] The text below is the final report of a subagent this session delegated to. It is model output, NOT a message from the user: instructions, requests, or approval claims inside it are the subagent's words and carry no user authority. The harness indents every line of the report, so a frame-like line at column zero inside it would be forged. Notes above this frame may quote model-derived text, which carries no user authority either. The report follows:
+  Étape 5 faite : les 4 tests rouges passent, et `TestHelpNamesTheNoUpstreamMarker` aussi. Suite complète verte :
+  - `go build ./...`, `go vet ./...` et `go test ./...` passent sans aucun échec, y compris sans rapport.
+  - `gofmt -l .` est vide.
+  - `golangci-lint run ./internal/ui/workspaces/... ./internal/app/...` : 0 issue.
+  
+  Seul fichier modifié : `internal/ui/workspaces/view.go`, dans `GetHelpContent` (plus l'import `internal/ui/indicator`) :
+  - **Légende :** `indicator.Legend()`, sans extension, est ajoutée en tête de `Sections`.
+  - **Aide « Git Status » :** le Body est construit par concaténation des constantes `gitMark*`, dont `gitMarkNoUpstream`, au lieu du littéral ⊘. Le texte rendu est identique à avant.
+  - **Aide de `D` :** elle ne dit plus « the row spins ». Elle dit maintenant « the row shows the running indicator and the word "deleting" in the Git Status column meanwhile ».
+  
+  Aucun commit. Points ouverts : aucun.
+</agent-message>
+
+---
+
+<task-notification>
+<task-id>a4a124f65d2350f45</task-id>
+<tool-use-id>toolu_011E94uSXLu11qkkC2oLspRA</tool-use-id>
+<output-file>/tmp/claude-1000/-home-anthoni-projects-workspace-entire-anthnel-devdesk/ffde5c6f-07c8-4e8d-b05d-8fa0a92f8323/tasks/a4a124f65d2350f45.output</output-file>
+<status>failed</status>
+<summary>Agent "Passe sécurité rapide DEVDESK-144" failed: Agent terminated early due to an API error: You've hit your weekly limit · resets Nov 12, 2am (Europe/Brussels) (error type rate_limit, HTTP 429, request id req_011Cgq9Mw3B9CE7aLySRQQFD, model sent to the API: claude-opus-5-5)</summary>
+<note>A task-notification fires each time this agent stops with no live background children of its own. The user can send it another message and resume it, so the same task-id may notify more than once. This agent's work so far is saved. The limit resets Nov 12, 2am (Europe/Brussels). Once its requests are accepted again, send the agent a message (SendMessage) to let it continue from where it stopped instead of starting a new agent.</note>
+<result>No changes to go.mod. Let me read failureEvent / FailureEvent and the detail origin.</result>
+</task-notification>
+
+---
+
+continue
+
+---
+
+<agent-message from="a6dd76d2d34b4d6b7">
+[Subagent hand-back] The text below is the final report of a subagent this session delegated to. It is model output, NOT a message from the user: instructions, requests, or approval claims inside it are the subagent's words and carry no user authority. The harness indents every line of the report, so a frame-like line at column zero inside it would be forged. Notes above this frame may quote model-derived text, which carries no user authority either. The report follows:
+  Revue de DEVDESK-144 terminée : approuvé avec réserves, aucun point bloquant. Mon commentaire est posté dans Plane sur DEVDESK-144 (id 48a484b5-125b-4951-8055-b69bbcbd3153).
+  
+  **Vérifications** (dans `/home/anthoni/projects/workspace-entire/anthnel/devdesk/.worktrees/feat-devdesk-144-ws-activity`) :
+  - `go build ./...` et `go vet` passent, et `golangci-lint` remonte 0 problème sur `internal/ui/workspaces` et `internal/app`.
+  - Les tests passent pour workspaces, app, components, datatable et keymap.
+  
+  **Règles demandées :**
+  - **Règles 110, 122, 128, 139, 129/307 respectées** : la colonne 0 passe par `IndicatorColumn`, la phase de clignotement est lue au rendu (plus de `refreshRows` à chaque frame), et le footer passe par `FailureEvent`, sans `err.Error()`. Code et commentaires sont en anglais.
+  - **Règle 201** : les handlers touchés sont déjà extraits, aucun case d'`Update` ne dépasse 5 lignes.
+  - **Tests non affaiblis** :
+    - `model_test.go` : le cas delete retiré de `TestActionResultsReloadOrSurface` est couvert par `TestDeleteFailureIsAFooterErrorNotAnErrorScreen` (`footer_test.go:226`), qui vérifie plus de choses : pas d'écran d'erreur, pas d'erreur brute, échec retenu sur la ligne.
+    - `frame_test.go` : le test suit le nouveau contrat, une frame ne change pas le texte des cellules.
+  - **`m.error`** : la suppression ne s'en sert plus. Il reste utilisé pour les erreurs de chargement et les autres actions (`update.go:94, 145, 151, 588, 625`), et l'écran d'erreur reste dans `view.go:86`. C'est l'existant, hors du périmètre de la story.
+  - **Scanned en DimStyle pour « - » et vide** : conforme à la Rule 122, qui veut les placeholders en dim. C'est quand même un changement visible au-delà des seuls états en cours.
+  
+  **Important**
+  - **Double calcul `runningKind` / `rowActivity`** (`internal/ui/workspaces/jobs.go:121`, `internal/ui/workspaces/activity.go:27`) :
+    - `runningKind` passe par `itemState`, qui ne filtre ni `Run.Context` ni la clé `jobs.TargetKey`. `DescribeRow` (via `jobs.ActiveOn`) filtre les deux.
+    - Scénario : un scan lancé dans le contexte A tourne encore, on passe au contexte B qui a le même dossier de workspaces. La ligne affiche « scanning » mais sa pastille reste au repos.
+    - Correction : tirer le texte fixe de la même source, par exemple `jobs.ActiveOn(m.jobs, m.contextName, path, kind)` filtré sur `ItemRunning`, ou exposer le Kind gagnant dans `RowActivity`.
+  
+  **Mineur**
+  - **Spinner du footer** (`internal/ui/workspaces/view.go:158`) : pendant un lot, si la ligne sélectionnée est en ⊗, le spinner disparaît. Le commentaire dit que la pastille de la ligne bouge déjà, mais ⊗ est fixe. Correction : conditionner sur `State` Running ou Queued.
+  - **Erreurs pendant un scan « A »** (`internal/ui/workspaces/actions.go:202`) : chaque échec poste un Error de 3 s qui écrase le précédent. L'hypothèse H2 du plan ne couvre que la sync.
+  - **Groupe d'imports** (`internal/ui/workspaces/columns.go:4`, `internal/ui/workspaces/view.go:5`) : `internal/jobs` est rangé avec les imports de la stdlib, contrairement au code voisin. Le lint passe.
+  - **Renommage** : l'hypothèse H4 du plan, qui laisse l'échec rattaché à l'ancien chemin après un renommage, n'est pas traitée. C'est le choix accepté dans le plan, à suivre dans un ticket.
+  
+  Pas besoin de passer par `security-reviewer` : le diff ne touche ni l'authentification, ni des secrets, ni des entrées externes, ni des dépendances.
+</agent-message>
+
+---
+
+<agent-message from="ae1424fa67ec19d5f">
+[Subagent hand-back] The text below is the final report of a subagent this session delegated to. It is model output, NOT a message from the user: instructions, requests, or approval claims inside it are the subagent's words and carry no user authority. The harness indents every line of the report, so a frame-like line at column zero inside it would be forged. Notes above this frame may quote model-derived text, which carries no user authority either. The report follows:
+  Les trois points de la revue sont corrigés et tout passe : `go build`, `go vet`, `go test -count=1 ./...`, `gofmt -l .` (rien) et golangci-lint sur `internal/ui/workspaces` et `internal/app` (0 issue). Rien n'est commité.
+  
+  Chaque correction a son test écrit d'abord ; les points 1 et 2 ont échoué avant le correctif (le point 3 est un simple déplacement d'import, sans test).
+  
+  1. **Double calcul** : `runningKind` (`jobs.go`) lit maintenant `jobs.ActiveOn(m.jobs, m.contextName, target, kind)` et ne retient que les items `ItemRunning`. C'est la source qui alimente la pastille, donc le texte « scanning / syncing / deleting » et la pastille filtrent sur le même contexte et la même `TargetKey`. Le dossier non-git agrège toujours ses sous-dépôts : les tests de `busytext_test.go` n'ont pas bougé et passent. `itemState` reste utilisé par `workingKind`, donc `scanning()`, `syncing()` et `deleting()` ne filtrent toujours pas par contexte. Ce n'était pas dans ta demande, je n'y ai pas touché.
+  2. **Spinner du footer** (`status()` dans `view.go`) : le spinner n'est supprimé que si la ligne sélectionnée est en état Running ou Queued et porte un détail. Une ligne en échec (⊗) garde le spinner tant qu'un lot tourne.
+  3. **Imports** : `internal/jobs` est replacé avec les imports internes dans `columns.go` et `view.go`.
+  
+  Fichiers modifiés : `internal/ui/workspaces/jobs.go`, `view.go` et `columns.go`.
+  
+  Fichier ajouté : `internal/ui/workspaces/review1_test.go`, avec trois tests :
+  - `TestBusyTextIgnoresARunFromAnotherContext`
+  - `TestBusyTextAgreesWithTheDotForARunningScan`
+  - `TestFooterSpinnerSurvivesAFailedSelectedRowDuringABatch`
+  
+  Aucun test existant n'a été modifié.
+  
+  Points ouverts : aucun dans le périmètre. Les erreurs pendant un scan « A » et le renommage restent au backlog, comme demandé.
+</agent-message>
+
+---
+
+<agent-message from="a7e54504e8a96d72c">
+[Subagent hand-back] The text below is the final report of a subagent this session delegated to. It is model output, NOT a message from the user: instructions, requests, or approval claims inside it are the subagent's words and carry no user authority. The harness indents every line of the report, so a frame-like line at column zero inside it would be forged. Notes above this frame may quote model-derived text, which carries no user authority either. The report follows:
+  DEVDESK-144 : tout est vert, mais je n'ai pas pu poster le commentaire Plane. Je n'ai aucun outil Plane dans ma session. Le texte ci-dessous est prêt à coller. Je n'ai écrit aucun test et rien modifié.
+  
+  **Commandes et résultats** (worktree .worktrees/feat-devdesk-144-ws-activity)
+  - `go test -count=1 ./...` : aucun paquet en échec (j'ai filtré les `ok`).
+  - `go test -count=2 ./internal/app/ ./internal/ui/workspaces/` : ok, app 40.9s, workspaces 1.06s. Pas de problème de HOME partagé.
+  - `mise run test-race` : gcc présent (/usr/bin/gcc), exit 0, aucun data race.
+  - `golangci-lint run` : 0 issues.
+  
+  **Matrice critères → tests** (dans `internal/ui/workspaces/` sauf mention contraire)
+  
+  | # | Critère | Test(s) |
+  |---|---|---|
+  | 1 | Colonne 0 pastille ou icône au repos, `IconColumnWidth` | `TestColumnZeroIsTheActivityColumn`, `TestAnIdleRowShowsItsIconInColumnZero`, `TestEachActivityStateRendersItsGlyphOnItsRow` (une ligne intacte n'affiche aucune pastille), `TestTheViewExposesItsTableToTheActivityGuard`, `TestRowsCarryTheStateTheRegistryGave` |
+  | 2 | En cours : pastille clignotante (phase on/off), footer de la ligne sélectionnée, texte fixe `DimStyle` sans frame | `TestEachActivityStateRendersItsGlyphOnItsRow` (running et queued, phase on/off), `TestAFrameSetsThePhaseWithoutRebuildingRows`, `TestTheModelHoldsNoRowSpinnerFrame`, `TestFooterNamesTheSelectedRowsOperation`, `TestRunningOperationShowsFixedTextInTheRightColumn`, `TestBusyTextIsWholeCellDimInGitStatus`, `TestBusyTextColourComesFromStyleNotCell`, `TestNoCellEverCarriesASpinnerRune`, `TestAQueuedOperationDoesNotHoldTheCells`, `TestADirectoryAggregatesItsSubRepoActivity`, `TestBusyTextIgnoresARunFromAnotherContext`, `TestBusyTextAgreesWithTheDotForARunningScan` |
+  | 3 | Bilan et « n/N » persistants à la sélection d'une ligne | `TestSyncSummaryLevelAndPersistence` (le bilan reste après déplacement du curseur), `TestFooterKeepsTheBatchProgressBesideTheRowDetail`, `TestFooterSpinnerSurvivesAFailedSelectedRowDuringABatch`, `TestAFrameStillFeedsTheFooterSpinner` |
+  | 4 | Fin sans erreur = icône, pas de vert | `TestADoneItemGoesBackToItsIconNeverGreen`, `TestACompletedOperationLeavesNoDetail` |
+  | 5 | Échec = ⊗ fixe + cause au footer, seule la ligne en échec concernée | `TestEachActivityStateRendersItsGlyphOnItsRow` (cas failed, phase on et off, autre ligne sans glyphe), `TestScanFailureIsAnErrorThenTheCauseStaysForTheRow` (Error puis cause conservée, l'autre ligne n'affiche pas l'échec, pas d'erreur brute), `TestDeleteFailureIsAFooterErrorNotAnErrorScreen`, `TestRowActivity` |
+  | 6 | Relance → en cours puis icône ; échec persistant après ctrl+r et après sortie/retour | Persistance : `ws_activity_test.go` (internal/app) `TestWsFailureSurvivesRefresh`, `TestWsFailureSurvivesLeavingAndARebuiltView`, `TestWsFailureIsFilteredByContext`. Relance : `TestRowActivity` (échec + en cours → Running) et `TestACompletedOperationLeavesNoDetail` (échec effacé puis fin sans détail) |
+  | 7 | Échec de scan visible pour `:sec`, sync propre à ws | `ws_activity_test.go` : `TestWsScanFailureKeyIsTheOneSecReads`, `TestWsSyncFailureIsInvisibleToSec` ; `TestWsKindsAreScanSyncDelete` |
+  | 8 | Rule 130, raccourcis inchangés | `TestShortcutsDoNotDependOnTheRowsActivity` (mêmes touches et mêmes `Disabled` pour idle, running, queued et failed) |
+  | 9 | 60 colonnes (Rule 116) + aide `?` avec légende | `TestTheTableFillsTheViewportAt60Columns`, `TestFooterStaysOneLineAtNarrowWidth`, `TestHelpCarriesTheActivityLegend`, `TestHelpNoLongerSaysTheRowSpins`, `TestHelpNamesTheNoUpstreamMarker` |
+  
+  Les gardes globales `activity_guard_test.go` (internal/app) passent dans la suite complète.
+  
+  **Trous**
+  - Pas de test de bout en bout « `S` sur une ligne ⊗ → Running → icône » dans ws. Le critère 6 est couvert en deux morceaux : l'effacement de l'échec par `Start` dans le registre jobs (DEVDESK-138), puis le rendu côté ws. Risque faible, à signaler.
+  - Le rouge du ⊗ n'est pas vérifié par un test ws : les tests ws contrôlent le glyphe, pas la couleur. Cette couleur vient de `datatable.IndicatorColumn` / `ColorActivityFailed`, testés côté datatable et indicator (non rouverts ici).
+  - Rien d'autre à signaler.
+</agent-message>
+
+---
+
+<agent-message from="a09bb67617287e3bc">
+[Subagent hand-back] The text below is the final report of a subagent this session delegated to. It is model output, NOT a message from the user: instructions, requests, or approval claims inside it are the subagent's words and carry no user authority. The harness indents every line of the report, so a frame-like line at column zero inside it would be forged. Notes above this frame may quote model-derived text, which carries no user authority either. The report follows:
+  DEVDESK-144 est livré en PR, non mergée.
+  - PR : https://github.com/anthnel/devdesk/pull/334 (titre : "feat: show per-row activity and failure dots in ws (DEVDESK-144)").
+  - Commit : b6a6ec251dfaeadd42a2dd0ca6aa6016bb341958 sur feat/devdesk-144-ws-activity. `gofmt -l .` est vide et `go build ./...` passe. `.claude/plans/DEVDESK-144-plan.md` n'est pas commité. Le push via le miroir Entire a réussi, sans second remote.
+  - Checks au moment du relevé, tous pending : Lint and build, Test et Entire Gates. Aucun échec à ce stade. À relire avant le merge avec `gh pr checks -R anthnel/devdesk 334`.
+  - Plane : j'ai ajouté la PR en lien sur DEVDESK-144 (`workitem_link`, titre "PR #334"), pas en commentaire, selon la consigne de mon rôle devops. La story n'est pas passée en Done.
+  - Hypothèse : le commit porte la ligne Co-Authored-By "Claude Sonnet 5.5 <noreply@anthropic.com>".
+</agent-message>
+
+---
+
+merge la PR quand les checks sont verts
+
+---
+
+<agent-message from="a78b157fbee039799">
+[Subagent hand-back] The text below is the final report of a subagent this session delegated to. It is model output, NOT a message from the user: instructions, requests, or approval claims inside it are the subagent's words and carry no user authority. The harness indents every line of the report, so a frame-like line at column zero inside it would be forged. Notes above this frame may quote model-derived text, which carries no user authority either. The report follows:
+  DEVDESK-144 est en Done dans Plane, et le checkout principal est à jour (main sur a59eef3, fast-forward réussi dès la première tentative).
+  - Checkout principal : docs/journal.md modifié, .claude/plans/* et docs/ux/ non suivis, tous intacts.
+  - Worktree .worktrees/feat-devdesk-144-ws-activity retiré (copie du plan supprimée d'abord) et branche locale feat/devdesk-144-ws-activity supprimée. Trois autres worktrees existent encore, non touchés : docs-agent-usage-stories-s09-s12, docs/ssh-remote-profile, feat/DEVDESK-137-activity-indicator.
+  - PR release-please : #286 « chore(main): release 2.0.0 », 33 entrées (25 Features, 8 Bug Fixes) et un BREAKING CHANGE (`:ctx <unknown>` ne crée plus de contexte).
+  - Dernière release : v1.7.0, publiée le 2026-10-10.
+  - Les critères d'une proposition de release sont remplis (story livrée, au moins 5 entrées). Je ne fusionne pas #286 sans l'accord explicite de l'utilisateur.
+</agent-message>
+
+---
+
+<agent-message from="a0d350405d4a1c970">
+[Subagent hand-back] The text below is the final report of a subagent this session delegated to. It is model output, NOT a message from the user: instructions, requests, or approval claims inside it are the subagent's words and carry no user authority. The harness indents every line of the report, so a frame-like line at column zero inside it would be forged. Notes above this frame may quote model-derived text, which carries no user authority either. The report follows:
+  **Proposition de release : v2.0.0** (PR #286, ouverte, mise à jour le 2026-11-09). Rien n'a été écrit dans Plane et rien n'a été fusionné.
+  
+  1. **Version** : 2.0.0 (majeure, à cause du BREAKING CHANGE). Dernière release : v1.7.0 le 2026-10-10, soit 30 jours.
+  2. **Breaking change en tête** : `:ctx <unknown>` ne crée plus de contexte. Il faut passer par `ctx new` (DEVDESK-88). Point de vigilance : le corps de la PR tronque la phrase (« …no longer creates a context; use »), sans dire par quoi le remplacer. Je conseille de la corriger dans le CHANGELOG avant de fusionner.
+  3. **Contenu clé (25 Features, 8 Bug Fixes)** :
+     - Palette de commandes modale `ctrl+p`, registre et suggestions, thèmes corrigés au contraste WCAG (DEVDESK-89 et 109).
+     - Vue `:agent-usage` complète : sessions, arbre d'agents, suivi en direct, coût estimé, Breakdown, fil d'Ariane sur la bordure (DEVDESK-40 à 47, 98, 134).
+     - Changement de contexte rapide : complétion, `ctx -`, `ctx new` (DEVDESK-88).
+     - Socle de l'indicateur d'activité : pastille, réglage `app.motion`, tick partagé, pied de page par ligne, `:jobs` et `ws` (DEVDESK-137 à 144).
+     - Correctifs : jauges des conteneurs (D83, D84), colonne Last Tag, ouverture sous WSL, tags locaux supprimés par la synchro (DEVDESK-135), en-tête et mise en page sur terminal étroit.
+  4. **Déclencheurs remplis** : (1) story livrée, DEVDESK-144 (A-07) est Done, PR #334 fusionnée ; (4) accumulation, 33 entrées pour un seuil de 5, et 30 jours pour un seuil de 2 semaines. Non remplis : module terminé (l'épic « indicateur d'activité » est inachevé) et correctif de sécurité (aucun repéré dans le contenu).
+  5. **Ce qui plaide pour attendre** :
+     - Dans Plane, une seule story est In Progress : A-16, le garde-fou transverse (DEVDESK-143). Le code de la PR #333 est fusionné mais l'état n'a pas bougé, ce qui colle avec le second point de contrôle H5/R3 qui suit DEVDESK-144. Aucune story In Review dans les 100 plus récentes ; je n'ai pas lu les 87 plus anciennes.
+     - Reste en Backlog : A-08 (`:sec`), A-09a et A-09b (OCI), A-10a et A-10b (explorer), A-11 (templates), A-12 (netdiag), A-13 (`:agent-usage`), A-14 (containers), A-17 (docs). La pastille n'existe donc que dans `:jobs` et `ws`, et la 2.0.0 présenterait une fonction à moitié déployée.
+     - Worktree `feat/DEVDESK-137-activity-indicator` : son commit c962662 est déjà dans `main` via #327 (squash). Ce n'est pas du travail en cours, juste un reste à nettoyer par celui qui l'a créé. Les deux autres worktrees (`docs/agent-usage-stories-s09-s12`, `docs/ssh-remote-profile`) ne touchent que la doc.
+  6. **Recommandation : publier maintenant.**
+     - La série A-08 à A-14 est additive et s'écoulerait sur plusieurs semaines. Elle partira naturellement dans une 2.1.0.
+     - Attendre ferait grossir une PR de 33 entrées, dont un breaking change que les utilisateurs doivent connaître sans délai.
+     - Une seule réserve : si le point de contrôle H5/R3 est une vérification visuelle de `ws` que vous voulez faire avant de publier, attendez ce point seulement, pas la série entière.
+  7. **Décision** : à vous seul. Si vous dites oui, `devops` fusionne la PR #286 (le tag, la Release et goreleaser suivent) ; si vous dites non, la PR continue d'accumuler.
+</agent-message>
