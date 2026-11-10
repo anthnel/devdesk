@@ -8,8 +8,9 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
 
+	"github.com/anthnel/devdesk/internal/testutil/colorprofile"
+	"github.com/anthnel/devdesk/internal/ui/testutil"
 	"github.com/anthnel/devdesk/internal/ui/theme"
-	"github.com/muesli/termenv"
 )
 
 // expiry is the message the current message's timer will eventually deliver.
@@ -277,7 +278,7 @@ func TestHandleIgnoresMessagesItDoesNotOwn(t *testing.T) {
 	var f FooterMessage
 	f.Info("still here")
 
-	if f.Handle(tea.KeyMsg{}) {
+	if f.Handle(testutil.Key("x")) {
 		t.Error("Handle claimed a message that is not a ClearFooterMsg")
 	}
 	if !f.IsSet() {
@@ -355,9 +356,7 @@ func TestAStatusRendersInItsLevel(t *testing.T) {
 	// styles at that moment, and lipgloss strips colour entirely under the
 	// Ascii profile a test process gets.
 	theme.ApplyTheme(theme.DefaultTheme())
-	saved := lipgloss.ColorProfile()
-	lipgloss.SetColorProfile(termenv.TrueColor)
-	t.Cleanup(func() { lipgloss.SetColorProfile(saved) })
+	colorprofile.TrueColor(t)
 
 	var f FooterMessage
 

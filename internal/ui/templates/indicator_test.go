@@ -12,6 +12,7 @@ import (
 	"github.com/anthnel/devdesk/internal/command"
 	"github.com/anthnel/devdesk/internal/jobs"
 	"github.com/anthnel/devdesk/internal/template"
+	"github.com/anthnel/devdesk/internal/testutil/colorprofile"
 	"github.com/anthnel/devdesk/internal/ui/datatable"
 	"github.com/anthnel/devdesk/internal/ui/indicator"
 	"github.com/anthnel/devdesk/internal/ui/testutil"
@@ -194,7 +195,7 @@ func TestEachActivityStateRendersItsGlyphOnItsRow(t *testing.T) {
 }
 
 func TestAFailedRowIsFixedAndFailureColoured(t *testing.T) {
-	testutil.TrueColor(t)
+	colorprofile.TrueColor(t)
 	m := indFixture(t)
 	// Web is not the selected row (the cursor opens on the first one, API).
 	m = snapshot(t, m, nil, []jobs.Failure{indFailure(jobs.KindSync, "web", "sync failed — check logs")})
@@ -372,7 +373,7 @@ func TestThePickerBlinksToo(t *testing.T) {
 // ── Q1-B: the Synced column says "syncing" while a sync of the row runs ──────
 
 func TestTheSyncedColumnSaysSyncingWhileASyncRuns(t *testing.T) {
-	testutil.TrueColor(t)
+	colorprofile.TrueColor(t)
 	syncedAt := time.Now().Add(-3 * 24 * time.Hour)
 	setup := func(t *testing.T) Model {
 		m := indFixture(t)

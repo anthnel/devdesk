@@ -71,21 +71,18 @@ func TestKeyAltPrefixSetsTheModifier(t *testing.T) {
 	}
 }
 
-// A bare "alt+" has no key to modify, so it stays literal rather than producing
-// an Alt-modified nothing.
-func TestKeyBareAltPrefixIsLiteral(t *testing.T) {
-	msg := Key("alt+")
-
-	if msg.Alt {
-		t.Error(`Key("alt+").Alt is true; there is no key to modify`)
-	}
-	if got := msg.String(); got != "alt+" {
-		t.Errorf(`Key("alt+").String() = %q`, got)
-	}
+// A bare "alt+" has no key to modify; Key is strict and refuses it.
+func TestKeyBareAltPrefixPanics(t *testing.T) {
+	defer func() {
+		if recover() == nil {
+			t.Error(`Key("alt+") did not panic`)
+		}
+	}()
+	Key("alt+")
 }
 
 func TestKeyRunes(t *testing.T) {
-	tests := []string{"y", "n", "Y", "N", "q", "j", "k", "gg", "/"}
+	tests := []string{"y", "n", "Y", "N", "q", "j", "k", "/"}
 	for _, s := range tests {
 		t.Run(s, func(t *testing.T) {
 			msg := Key(s)

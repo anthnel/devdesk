@@ -10,14 +10,13 @@ import (
 
 	"github.com/charmbracelet/bubbles/table"
 	tea "github.com/charmbracelet/bubbletea"
-	"github.com/charmbracelet/lipgloss"
-	"github.com/muesli/termenv"
 
 	"github.com/anthnel/devdesk/internal/config"
 	"github.com/anthnel/devdesk/internal/forge"
 	gitlabforge "github.com/anthnel/devdesk/internal/forge/gitlab"
 	"github.com/anthnel/devdesk/internal/jobs"
 	"github.com/anthnel/devdesk/internal/shared"
+	"github.com/anthnel/devdesk/internal/testutil/colorprofile"
 	"github.com/anthnel/devdesk/internal/ui/components"
 	"github.com/anthnel/devdesk/internal/ui/testutil"
 )
@@ -130,7 +129,7 @@ func drilledModel(t *testing.T) Model {
 	t.Helper()
 	m := loadedModel(t)
 	alpha := m.nodes[0]
-	m = feed(t, m, tea.KeyMsg{Type: tea.KeyRight})
+	m = feed(t, m, testutil.Key("right"))
 	return feed(t, m, ChildrenLoadedMsg{ParentNode: alpha, Children: childFixtures(alpha)})
 }
 
@@ -180,9 +179,7 @@ func newUser(username string) forge.User {
 // would make any assertion about styling pass whatever the code does.
 func withTrueColor(t *testing.T) {
 	t.Helper()
-	previous := lipgloss.ColorProfile()
-	lipgloss.SetColorProfile(termenv.TrueColor)
-	t.Cleanup(func() { lipgloss.SetColorProfile(previous) })
+	colorprofile.TrueColor(t)
 }
 
 // creationSubmit builds the form result the create commands read.

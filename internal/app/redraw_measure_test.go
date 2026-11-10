@@ -11,6 +11,7 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 
 	"github.com/anthnel/devdesk/internal/jobs"
+	"github.com/anthnel/devdesk/internal/ui/testutil"
 )
 
 // Measurement of the renderer's output cost (DEVDESK-139, criterion 8). Opt-in:
@@ -91,7 +92,7 @@ func measureBytesPerSecond(t *testing.T, view *measuredView, runningJob bool) (f
 	// No TTY, so the program learns the size from a message, as the renderer does.
 	p.Send(tea.WindowSizeMsg{Width: measureWidth, Height: measureHeight})
 	// A key press makes the router ask the view whether it wants a blink.
-	p.Send(tea.KeyMsg{Type: tea.KeyDown})
+	p.Send(testutil.Key("down"))
 	if runningJob {
 		p.Send(jobs.StartMsg{Run: scanRun("default", "a")})
 	}

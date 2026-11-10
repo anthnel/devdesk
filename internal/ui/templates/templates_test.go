@@ -69,7 +69,7 @@ func drive(t *testing.T, m Model, msg tea.Msg) Model {
 	if !ok {
 		t.Fatalf("Update returned %T, want templates.Model", updated)
 	}
-	if key, isKey := msg.(tea.KeyMsg); isKey && key.Type == tea.KeyRunes && m.confirmModal == nil {
+	if testutil.IsText(msg) && m.confirmModal == nil {
 		return next
 	}
 	for _, produced := range testutil.Msgs(cmd) {

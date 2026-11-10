@@ -1,13 +1,13 @@
 package theme
 
 import (
+	"github.com/anthnel/devdesk/internal/testutil/colorprofile"
 	"regexp"
 	"strings"
 	"testing"
 
 	"github.com/charmbracelet/lipgloss"
 	"github.com/charmbracelet/x/ansi"
-	"github.com/muesli/termenv"
 )
 
 // ── BorderTrailBudget / RenderBorderTitleTrail (DEVDESK-134) ──────────────────
@@ -15,9 +15,7 @@ import (
 // trueColor forces colour output so background coverage can be inspected.
 func trueColor(t *testing.T) {
 	t.Helper()
-	previous := lipgloss.ColorProfile()
-	lipgloss.SetColorProfile(termenv.TrueColor)
-	t.Cleanup(func() { lipgloss.SetColorProfile(previous) })
+	colorprofile.TrueColor(t)
 }
 
 func TestBorderTrailChromeIsNine(t *testing.T) {

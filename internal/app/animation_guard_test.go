@@ -228,11 +228,11 @@ func TestTheAnimationChainUnderARealProgram(t *testing.T) {
 	go func() {
 		p.Send(jobs.StartMsg{Run: scanRun("default", "a")})
 		time.Sleep(60 * time.Millisecond)
-		p.Send(tea.KeyMsg{Type: tea.KeyDown}) // wants = true
+		p.Send(testutil.Key("down")) // wants = true
 		time.Sleep(60 * time.Millisecond)
 		p.Send(jobs.CancelMsg{ID: 1}) // the run ends; the blink keeps the chain
 		time.Sleep(60 * time.Millisecond)
-		p.Send(tea.KeyMsg{Type: tea.KeyDown}) // wants = false
+		p.Send(testutil.Key("down")) // wants = false
 		time.Sleep(120 * time.Millisecond)
 		p.Quit()
 	}()

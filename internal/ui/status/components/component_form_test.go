@@ -513,3 +513,32 @@ func TestComponentFormViewShowsTypeSpecificField(t *testing.T) {
 		})
 	}
 }
+
+// A paste reaches the focused text input and submits nothing (DEVDESK-199).
+// A single-line input turns each newline into a space.
+func TestComponentFormPasteReachesTheFocusedInput(t *testing.T) {
+	tests := []struct{ name, paste, want string }{
+		{"one line", "q? api", "q? api"},
+		{"several lines", "l1\nl2", "l1 l2"},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			f := NewComponentForm(nil)
+			f, cmd := f.Update(testutil.Paste(tc.paste))
+			if f == nil {
+				t.Fatal("the paste closed the form")
+			}
+			if got := f.nameInput.Value(); got != tc.want {
+				t.Errorf("name input = %q after pasting %q, want %q", got, tc.paste, tc.want)
+			}
+			if f.focusIndex != 0 || !f.nameInput.Focused() {
+				t.Errorf("focus moved: index %d, name focused %v", f.focusIndex, f.nameInput.Focused())
+			}
+			for _, msg := range testutil.Msgs(cmd) {
+				if _, ok := msg.(ComponentFormSubmitMsg); ok {
+					t.Error("the paste submitted the form")
+				}
+			}
+		})
+	}
+}

@@ -11,6 +11,7 @@ import (
 	"github.com/charmbracelet/x/ansi"
 
 	"github.com/anthnel/devdesk/internal/agentusage"
+	"github.com/anthnel/devdesk/internal/testutil/colorprofile"
 	sharedcomponents "github.com/anthnel/devdesk/internal/ui/components"
 	"github.com/anthnel/devdesk/internal/ui/testutil"
 )
@@ -638,7 +639,7 @@ func TestBreakdownTabSessionsFooterHasNoTabRow(t *testing.T) {
 }
 
 func TestBreakdownTabRowIsPaddedAndMarksTheActiveTab(t *testing.T) {
-	testutil.TrueColor(t) // the default test profile emits no styling at all
+	colorprofile.TrueColor(t) // the default test profile emits no styling at all
 	agents := atAgents(t, threeSubs())
 	breakdownTab := atBreakdown(t, threeSubs())
 	for _, m := range []Model{agents, breakdownTab} {

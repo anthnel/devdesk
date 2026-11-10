@@ -9,10 +9,9 @@ import (
 	"time"
 
 	tea "github.com/charmbracelet/bubbletea"
-	"github.com/charmbracelet/lipgloss"
-	"github.com/muesli/termenv"
 
 	"github.com/anthnel/devdesk/internal/config"
+	"github.com/anthnel/devdesk/internal/testutil/colorprofile"
 	viewerpkg "github.com/anthnel/devdesk/internal/viewer"
 )
 
@@ -25,9 +24,11 @@ import (
 // all.
 func TestMain(m *testing.M) {
 	log.SetOutput(io.Discard)
-	lipgloss.SetColorProfile(termenv.TrueColor)
+	restore := colorprofile.Force()
 
 	code := m.Run()
+
+	restore()
 
 	log.SetOutput(os.Stderr)
 	os.Exit(code)

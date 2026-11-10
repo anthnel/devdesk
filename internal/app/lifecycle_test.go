@@ -586,7 +586,7 @@ func TestASwitchInFlightHoldsTheKeyboard(t *testing.T) {
 	a := router(t, view)
 	_ = a.switchContext("work")
 
-	feedKey(t, a, tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'D'}})
+	feedKey(t, a, testutil.Key("D"))
 
 	for _, msg := range view.received {
 		if _, isKey := msg.(tea.KeyMsg); isKey {

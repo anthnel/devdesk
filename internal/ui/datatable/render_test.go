@@ -7,8 +7,8 @@ import (
 	"github.com/charmbracelet/bubbles/table"
 	"github.com/charmbracelet/lipgloss"
 	"github.com/mattn/go-runewidth"
-	"github.com/muesli/termenv"
 
+	"github.com/anthnel/devdesk/internal/testutil/colorprofile"
 	"github.com/anthnel/devdesk/internal/ui/testutil"
 	"github.com/anthnel/devdesk/internal/ui/theme"
 )
@@ -19,9 +19,7 @@ import (
 // file pass whatever the code does.
 func withTrueColor(t *testing.T) {
 	t.Helper()
-	previous := lipgloss.ColorProfile()
-	lipgloss.SetColorProfile(termenv.TrueColor)
-	t.Cleanup(func() { lipgloss.SetColorProfile(previous) })
+	colorprofile.TrueColor(t)
 }
 
 // visible returns what a string puts on screen, escape sequences removed. The

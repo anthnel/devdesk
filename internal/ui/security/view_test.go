@@ -4,10 +4,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/charmbracelet/lipgloss"
-	"github.com/muesli/termenv"
-
 	"github.com/anthnel/devdesk/internal/scan"
+	"github.com/anthnel/devdesk/internal/testutil/colorprofile"
 	"github.com/anthnel/devdesk/internal/ui/keymap"
 	"github.com/anthnel/devdesk/internal/ui/testutil"
 )
@@ -17,9 +15,7 @@ import (
 // would make any assertion about styling pass whatever the code does.
 func withTrueColor(t *testing.T) {
 	t.Helper()
-	previous := lipgloss.ColorProfile()
-	lipgloss.SetColorProfile(termenv.TrueColor)
-	t.Cleanup(func() { lipgloss.SetColorProfile(previous) })
+	colorprofile.TrueColor(t)
 }
 
 // ── The four states ──────────────────────────────────────────────────────────

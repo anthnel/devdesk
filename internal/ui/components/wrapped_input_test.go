@@ -206,3 +206,27 @@ func TestWrappedInputViewPadsEveryLine(t *testing.T) {
 		}
 	}
 }
+
+// A paste reaches a focused WrappedInput. It wraps a single-line textinput, so
+// Value() has each newline turned into a space, the rest unchanged (DEVDESK-199).
+func TestWrappedInputPaste(t *testing.T) {
+	tests := []struct{ name, paste, want string }{
+		{"one line", "q? hello", "q? hello"},
+		{"several lines", "l1\nl2", "l1 l2"},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			w := NewWrappedInput(80, 250, "placeholder")
+			w.Focus()
+
+			w, _ = w.Update(testutil.Paste(tc.paste))
+
+			if got := w.Value(); got != tc.want {
+				t.Errorf("Value() = %q after pasting %q, want %q", got, tc.paste, tc.want)
+			}
+			if !w.focused {
+				t.Error("the paste dropped the focus")
+			}
+		})
+	}
+}

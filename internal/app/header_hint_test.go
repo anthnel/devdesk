@@ -7,8 +7,8 @@ import (
 	"github.com/charmbracelet/lipgloss"
 	"github.com/charmbracelet/x/ansi"
 
+	"github.com/anthnel/devdesk/internal/testutil/colorprofile"
 	"github.com/anthnel/devdesk/internal/ui/shortcut"
-	"github.com/anthnel/devdesk/internal/ui/testutil"
 	"github.com/anthnel/devdesk/internal/ui/theme"
 )
 
@@ -53,7 +53,7 @@ func TestTheHeaderAlwaysShowsThePaletteHint(t *testing.T) {
 // The hint is drawn in ShortcutHintStyle (readable), not in the dim colour, and
 // clipping the shortcut column around it never leaves a torn escape sequence.
 func TestThePaletteHintIsStyledAndNeverTearsAnEscape(t *testing.T) {
-	testutil.TrueColor(t)
+	colorprofile.TrueColor(t)
 	want := theme.ShortcutHintStyle.Render(paletteHint)
 	info := []shortcut.HeaderInfo{{Key: "Context", Value: "default"}}
 
