@@ -1,0 +1,15 @@
+{
+  "tool_use_id": "toolu_01Jm54jJPumPUyi5L4HifXju",
+  "agent_id": "ac523f07c6eb68cd1",
+  "subagent_type": "dev-team:reviewer",
+  "task_description": "Review test fix diff",
+  "token_usage": {
+    "input_tokens": 24,
+    "cache_creation_tokens": 63269,
+    "cache_read_tokens": 514316,
+    "output_tokens": 8320,
+    "api_call_count": 12
+  },
+  "started_at": "2026-11-10T17:34:54.946477846+01:00",
+  "completed_at": "2026-11-10T17:37:56.214066779+01:00"
+}

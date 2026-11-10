@@ -1,0 +1,18 @@
+{
+  "tool_use_id": "toolu_01Gi7UD4RQQMBdchJW6rA1eV",
+  "agent_id": "acbae0fcac5406da9",
+  "subagent_type": "project-coder",
+  "task_description": "Apply review nits",
+  "files": [
+    "internal/app/terminal_background_program_test.go"
+  ],
+  "token_usage": {
+    "input_tokens": 12,
+    "cache_creation_tokens": 71366,
+    "cache_read_tokens": 198063,
+    "output_tokens": 1873,
+    "api_call_count": 5
+  },
+  "started_at": "2026-11-10T17:38:01.246229111+01:00",
+  "completed_at": "2026-11-10T17:38:22.440286129+01:00"
+}

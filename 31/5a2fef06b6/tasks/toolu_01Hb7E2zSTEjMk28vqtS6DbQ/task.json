@@ -1,0 +1,15 @@
+{
+  "tool_use_id": "toolu_01Hb7E2zSTEjMk28vqtS6DbQ",
+  "agent_id": "ae047de5ffe99d9f0",
+  "subagent_type": "dev-team:debugger",
+  "task_description": "Diagnose flaky ExecProcess tests",
+  "token_usage": {
+    "input_tokens": 46,
+    "cache_creation_tokens": 107117,
+    "cache_read_tokens": 1900110,
+    "output_tokens": 12393,
+    "api_call_count": 22
+  },
+  "started_at": "2026-11-10T17:15:42.567760319+01:00",
+  "completed_at": "2026-11-10T17:22:59.530492392+01:00"
+}

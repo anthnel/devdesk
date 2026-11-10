@@ -1,0 +1,15 @@
+{
+  "tool_use_id": "toolu_01Fsx2rGeqxs6v81WN8EQuZN",
+  "agent_id": "a023139e32e6a044b",
+  "subagent_type": "project-coder",
+  "task_description": "Fix flaky ExecProcess test",
+  "token_usage": {
+    "input_tokens": 22,
+    "cache_creation_tokens": 33898,
+    "cache_read_tokens": 244394,
+    "output_tokens": 3638,
+    "api_call_count": 10
+  },
+  "started_at": "2026-11-10T17:26:12.850187833+01:00",
+  "completed_at": "2026-11-10T17:34:46.735341538+01:00"
+}
