@@ -1,0 +1,15 @@
+{
+  "tool_use_id": "toolu_012GKapHFtyr8sjdxm2HYkAX",
+  "agent_id": "ab60b7826a5b7536b",
+  "subagent_type": "dev-team:devops",
+  "task_description": "Nettoyage worktree et story Done",
+  "token_usage": {
+    "input_tokens": 12,
+    "cache_creation_tokens": 45613,
+    "cache_read_tokens": 199883,
+    "output_tokens": 2323,
+    "api_call_count": 6
+  },
+  "started_at": "2026-11-10T10:58:38.819471516+01:00",
+  "completed_at": "2026-11-10T10:59:19.97523973+01:00"
+}
