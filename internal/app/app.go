@@ -153,6 +153,12 @@ type App struct {
 	// chain that animates it (D5). Views read a snapshot carried in
 	// JobsChangedMsg and the frame in jobs.FrameMsg — see jobs.go.
 	jobs *jobs.Registry
+
+	// Terminal progress (DEVDESK-211): the last summary View() reads, the
+	// context it was computed for, and the acknowledgement watermark per context.
+	progress            jobs.Progress
+	progressContext     string
+	failuresReadThrough map[string]uint64
 	// The one detection of the scanners — see scan_tools.go.
 	toolsState
 	forgeIndexState
@@ -456,6 +462,7 @@ func (a *App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return a, nil // focus with no prior blur: nothing to do (DEVDESK-210)
 	}
 	model, cmd := a.update(msg)
+	a.syncTerminalProgress()
 	return model, tea.Batch(cmd, a.ensureTick())
 }
 

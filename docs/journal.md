@@ -3,6 +3,10 @@
 Dated entries, most recent first (AAAA-MM-JJ). Each entry records what was
 decided, why, and which alternative was rejected. Sources live in `docs/product/`.
 
+## 2026-11-11 — DEVDESK-211: terminal tab progress bar (D123)
+
+1. **Decided: the tab shows the current context's jobs, through OSC 9;4.** Scope, precedence and acknowledgement are in D123 (`docs/backlog.md` §1.1). Rejected: all contexts, which would show a failure `:jobs` does not show. Source: `.claude/plans/DEVDESK-211-plan.md` (main checkout).
+
 ## 2026-10-24 — agent-usage-monitor: spike S-01 result (DEVDESK-39)
 
 Source: `docs/product/agent-usage-monitor/spike-s01.md`. Recommendation: **go with

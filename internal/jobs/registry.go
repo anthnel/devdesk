@@ -34,6 +34,8 @@ type Registry struct {
 	// failures is the failure memory, oldest first, one entry per FailureKey.
 	// It is independent of runs: pruning a settled run does not touch it.
 	failures []Failure
+	// lastSeq is the Seq of the newest failure ever posed; it never goes back.
+	lastSeq uint64
 }
 
 // New returns an empty registry.
@@ -488,6 +490,8 @@ func (r *Registry) record(run *Run, item Item) {
 // the newest position; past MaxFailures the oldest entry is evicted.
 func (r *Registry) pose(f Failure) {
 	r.clear(f.FailureKey)
+	r.lastSeq++
+	f.Seq = r.lastSeq
 	r.failures = append(r.failures, f)
 	if excess := len(r.failures) - MaxFailures; excess > 0 {
 		r.failures = slices.Delete(r.failures, 0, excess)

@@ -458,3 +458,42 @@ func TestFailuresReturnsACopy(t *testing.T) {
 		t.Errorf("mutating the result changed the registry: %+v", again)
 	}
 }
+
+func TestFailureSeqIsStrictlyIncreasingAndNeverReused(t *testing.T) {
+	r := New()
+	failItem(r, KindScan, "ctx", "/w/a", "x")
+	failItem(r, KindScan, "ctx", "/w/b", "x")
+	fs := r.Failures()
+	if len(fs) != 2 || fs[0].Seq == 0 || fs[1].Seq <= fs[0].Seq {
+		t.Fatalf("Seq = %+v, want two strictly increasing non-zero values", fs)
+	}
+	oldA := fs[0].Seq
+
+	// Re-posing a key gives it a larger Seq than any before.
+	failItem(r, KindScan, "ctx", "/w/a", "again")
+	fs = r.Failures()
+	if got := LatestFailureSeq(fs); got <= fs[0].Seq || fs[1].Seq <= oldA || fs[1].Seq != got {
+		t.Errorf("re-posed failure Seq = %+v, want it above %d and the newest", fs, oldA)
+	}
+}
+
+func TestFailureSeqSurvivesEviction(t *testing.T) {
+	r := New()
+	for i := 0; i < MaxFailures+5; i++ {
+		failItem(r, KindScan, "ctx", fmt.Sprintf("/w/%d", i), "x")
+	}
+	fs := r.Failures()
+	if len(fs) != MaxFailures {
+		t.Fatalf("kept %d failures, want %d", len(fs), MaxFailures)
+	}
+	seen := map[uint64]bool{}
+	for i, f := range fs {
+		if seen[f.Seq] || (i > 0 && f.Seq <= fs[i-1].Seq) {
+			t.Fatalf("Seq %d at %d reused or out of order", f.Seq, i)
+		}
+		seen[f.Seq] = true
+	}
+	if got := LatestFailureSeq(fs); got != uint64(MaxFailures+5) {
+		t.Errorf("LatestFailureSeq() = %d, want %d (no Seq reused after eviction)", got, MaxFailures+5)
+	}
+}

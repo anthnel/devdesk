@@ -37,6 +37,7 @@ func (m Model) GetHeaderInfo(_ string) []shortcut.HeaderInfo {
 	return []shortcut.HeaderInfo{
 		{Key: "Running", Value: strconv.Itoa(len(jobs.Unfinished(runs))), Style: theme.HeaderValueStyle},
 		{Key: "Runs", Value: strconv.Itoa(len(runs)), Style: theme.HeaderValueStyle},
+		{Key: "Failed", Value: strconv.Itoa(len(jobs.FailuresIn(m.failures, m.contextName))), Style: theme.HeaderValueStyle},
 	}
 }
 
@@ -110,8 +111,11 @@ func (m Model) renderBreadcrumb(width int) string {
 // dropped.
 func (m Model) status() sharedcomponents.Status {
 	var st sharedcomponents.Status
-	if live := jobs.Unfinished(m.visibleRuns()); len(live) > 0 {
-		st.Text = sharedcomponents.Plural(len(live), "job", "jobs") + " running"
+	if p := jobs.Summarize(m.visibleRuns(), nil, 0); p.Running > 0 {
+		st.Text = sharedcomponents.Plural(p.Running, "job", "jobs") + " running"
+		if p.Stopping > 0 {
+			st.Text += " · " + strconv.Itoa(p.Stopping) + " stopping"
+		}
 	}
 	st.Detail = m.selectedDetail()
 	st.Spinner = st.Text != "" && st.Detail.IsZero()
@@ -199,6 +203,11 @@ func (m Model) GetHelpContent() help.Content {
 				Body: "'" + keymap.Kill + "' on a run stops its queue: nothing further starts, whatever the kind. Targets still waiting are marked skipped, and the ones already running report their own outcome when they get there — a run that was stopped reads 'cancelled' rather than 'done', which is the distinction the list exists to keep.\n\n" +
 					"'" + keymap.Kill + "' on a single target is offered only where cutting the work leaves nothing behind: a scan and an image pull can be cut, a clone cannot — a half-written repository on disk is worse than one that finished. A sync waits out the fetch in flight, and a delete is never cut at all.\n\n" +
 					"The key is greyed when there is nothing to stop, and pressing it then says why in the footer rather than doing nothing.",
+			},
+			{
+				Title: "Terminal tab",
+				Body: "The terminal's tab bar shows the same work as a progress bar: indeterminate or a percentage while jobs run, orange while a stopped run has not settled, and red when a job has failed (the Failed count in the header).\n\n" +
+					"The red bar stays until you read it by opening this view with the terminal in the foreground (focused); the failures stay counted in Failed.",
 			},
 			{
 				Title: "Where the rows come from",

@@ -47,6 +47,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 // freeze it at the moment it was opened.
 func (m Model) handleJobsChanged(msg jobs.ChangedMsg) (tea.Model, tea.Cmd) {
 	m.runs = msg.Runs
+	m.failures = msg.Failures
 	m.refreshRows()
 	return m, nil
 }

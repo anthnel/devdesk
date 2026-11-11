@@ -152,6 +152,7 @@ func (a *App) jobsChanged() tea.Cmd {
 // check covers the loop.
 func (a *App) broadcastJobs() tea.Cmd {
 	msg := a.changedMsg()
+	a.summarizeJobs(msg)
 
 	cmds := make([]tea.Cmd, 0, len(a.views))
 	for name, view := range a.views {
