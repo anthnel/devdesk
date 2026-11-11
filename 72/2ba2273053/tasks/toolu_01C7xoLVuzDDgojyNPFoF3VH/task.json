@@ -1,0 +1,15 @@
+{
+  "tool_use_id": "toolu_01C7xoLVuzDDgojyNPFoF3VH",
+  "agent_id": "a9b9de2555739a9e6",
+  "subagent_type": "product-team:pm",
+  "task_description": "Créer 4 stories de suivi DEVDESK-201",
+  "token_usage": {
+    "input_tokens": 18,
+    "cache_creation_tokens": 74545,
+    "cache_read_tokens": 464052,
+    "output_tokens": 8289,
+    "api_call_count": 9
+  },
+  "started_at": "2026-11-10T13:54:53.443570245+01:00",
+  "completed_at": "2026-11-10T13:56:10.53781115+01:00"
+}
