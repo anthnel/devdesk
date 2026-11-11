@@ -34,7 +34,7 @@ func TestMain(m *testing.M) {
 
 func newModel(t *testing.T) Model {
 	t.Helper()
-	m := New(config.Default(), MCPFacts{})
+	m := New(config.Default(), MCPFacts{}, ThemeFacts{})
 	updated, _ := m.Update(tea.WindowSizeMsg{Width: 120, Height: 30})
 	return updated.(Model)
 }
@@ -597,7 +597,7 @@ func TestAnUnreadableThemeDirectoryStillOffersTheDefault(t *testing.T) {
 	t.Setenv("HOME", filepath.Join(t.TempDir(), "nonexistent"))
 	t.Setenv("USERPROFILE", filepath.Join(t.TempDir(), "nonexistent"))
 
-	m := New(config.Default(), MCPFacts{})
+	m := New(config.Default(), MCPFacts{}, ThemeFacts{})
 
 	f := fieldNamed(t, "Theme")
 	_ = f

@@ -96,9 +96,45 @@ stays mandatory: this is a safety net, not a replacement (see the gaps below).
   A `nil` or fully transparent theme colour (`lipgloss.NoColor`) also gives `nil`.
   The result must be of a comparable type: the renderer compares frames with `!=`.
 - *Theme changes.* `View()` reads `theme.ColorBackground` on every call, with no
-  copy in the model, so the background follows `applyThemeNow` (a saved theme
-  change) and any future path that calls `theme.ApplyTheme`. A refused theme
-  keeps the previous background.
+  copy in the model, so the background follows `chooseTheme` (startup and a saved theme
+  change) and any future path that calls `theme.ApplyTheme`. A theme that cannot
+  be used gives the default theme and one footer warning (DEVDESK-258).
+- *`app.theme: auto` (DEVDESK-258).* `newWithSize` applies `app.theme` itself
+  (`App.chooseTheme`, `internal/app/theme_auto.go`; `main.go` no longer does).
+  With `auto` it applies `theme_dark` at once and `Init` (`themeInitCmd`) sends
+  one `tea.RequestBackgroundColor` plus a 500 ms `themeDetectTimeoutMsg{gen}`.
+  While the answer is pending `View()` leaves `BackgroundColor` nil, so the
+  terminal cannot answer with DevDesk's own colour. The router owns
+  `tea.BackgroundColorMsg` (not forwarded): the first answer while pending picks
+  `theme_light` or `theme_dark` and is kept for the process; a later one is
+  ignored. A current timeout falls back to dark without a footer message; a stale
+  `gen` does nothing. A named theme chosen in `:config` cancels the wait.
+  `chooseTheme(app config.AppConfig, fresh bool) []string` returns the footer
+  warnings, one per invalid candidate (`theme_dark` and `theme_light` both in
+  `auto`). `fresh` starts a new choice (startup, a save) and clears
+  `themeState.warned`, so the terminal's answer (`fresh` false) does not repeat a
+  warning already given at startup. Whether to ask is derived from the cached
+  answer (`themeState.answer`) and `pending`. `settleTheme` calls `rebuildViews()`
+  when the effective theme name changed, since views capture styles with the
+  palette in force. Choosing `auto` mid-session
+  (`handleConfigSaved`) uses the cached answer at once; without one it starts
+  from dark with `pending` set, so `View()` drops its background (OSC 111) and
+  `themeQueryDueCmd` defers the query by `themeQueryDelay` (100 ms) as a
+  `themeQueryDueMsg{gen}`. `handleThemeQueryDue` then sends the one query plus
+  the 500 ms timeout; a stale `gen` or a settled wait does nothing.
+  While the startup detection is pending, `Init` does not run the start view's
+  `Init` (a theme change would rebuild that view and drop its load);
+  `themeState.startInitDeferred` makes `settleTheme` run it once, after
+  `rebuildViews()`, on the view then on screen. The flag is consumed by whoever
+  runs an `Init` on the view on screen first: `switchView`, `reinitializeViews`,
+  or `handleConfigSaved` (when the save leaves no answer pending, including with
+  the kept `:config` view). A choice of `auto` in session
+  never sets it.
+  `ThemeFacts` (`themeFacts()`: `InUse` = the resolution's name, `Reason` =
+  `"auto: " + reason` for auto, empty for a named theme) goes to `:config`:
+  `configuration.New(..., a.themeFacts())` builds it, and `sendThemeFacts` hands
+  a `configuration.ThemeFactsMsg` to the kept view when detection settles
+  (answer or timeout) and after a theme save.
 - *Sequences.* Bubble Tea writes OSC 11 (`ESC ] 11 ; #rrggbb BEL`) when the value
   changes and when it starts or resumes, never per frame. On close it writes
   OSC 111 (`ESC ] 111 BEL`, "reset to the terminal's default background") after

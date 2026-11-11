@@ -201,6 +201,35 @@ func cycleWithDefault(label string, ref func(*config.Config) *string, options []
 	return f
 }
 
+// withAuto returns the theme list with auto right after default: it is a way of
+// choosing, not a theme, so it is not in the list of themes itself.
+func withAuto(themes []string) []string {
+	out := make([]string, 0, len(themes)+1)
+	for i, name := range themes {
+		if name == config.ThemeAuto {
+			continue
+		}
+		out = append(out, name)
+		if i == 0 {
+			out = append(out, config.ThemeAuto)
+		}
+	}
+	return out
+}
+
+// themeInUseText is the Theme in use row: the name, and the reason in
+// parentheses when there is one. Plain text (Rule 122). A view built before the
+// router resolved anything says so rather than showing an empty row.
+func themeInUseText(f ThemeFacts) string {
+	if f.InUse == "" {
+		return "unknown"
+	}
+	if f.Reason == "" {
+		return f.InUse
+	}
+	return f.InUse + " (" + f.Reason + ")"
+}
+
 func static(label, value, hint string) field {
 	return field{Label: label, Kind: kindStatic, fact: value, hint: hint}
 }
@@ -338,12 +367,20 @@ func (f field) Apply(c *config.Config, raw string) error {
 //
 // contextName is the name of the context being edited; the config does not
 // carry it, which is the same reason configPath is passed.
-func sections(themes, views []string, configPath, contextName, forgeType string, v forge.Vocabulary, mcp MCPFacts) []section {
+func sections(themes, views []string, configPath, contextName, forgeType string, v forge.Vocabulary, mcp MCPFacts, themeFacts ThemeFacts) []section {
 	return []section{
 		{Title: "app", Fields: slices.Concat(
 			group("Appearance", theme.IconDashboard,
-				cycle("Theme", func(c *config.Config) *string { return &c.App.Theme }, themes,
-					"Applied as you cycle it"),
+				cycle(themeLabel, func(c *config.Config) *string { return &c.App.Theme }, withAuto(themes),
+					"Applied as you cycle it — auto follows the terminal's background"),
+				cycleWithDefault(themeDarkLabel, func(c *config.Config) *string { return &c.App.ThemeDark },
+					themes, config.DefaultThemeDark,
+					"The theme auto uses on a dark terminal"),
+				cycleWithDefault(themeLightLabel, func(c *config.Config) *string { return &c.App.ThemeLight },
+					themes, config.DefaultThemeLight,
+					"The theme auto uses on a light terminal"),
+				static(themeInUseFieldLabel, themeInUseText(themeFacts),
+					"What is on screen now and, for auto, why"),
 				cycle("Default view", func(c *config.Config) *string { return &c.App.DefaultView }, views,
 					"The view DevDesk opens on"),
 				cycle("Gauge glyph", func(c *config.Config) *string { return &c.App.GaugeGlyph },

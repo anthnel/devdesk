@@ -119,7 +119,7 @@ Config is stored per context: the `default` context lives at
 
 ```yaml
 app:
-  theme: catppuccin-mocha   # see Themes below
+  theme: catppuccin-mocha   # a theme name, or auto; see Themes below
   default_view: dashboard
   workspaces_dir: ~/workspaces   # scanned by Workspaces, and where the explorer clones into
 
@@ -152,21 +152,36 @@ keyring or git credential helper — never in the config file. See
 
 ### Themes
 
-The built-in `default` theme needs no setup. Twelve more ship as JSON files
-in `themes/` in this repository — `catppuccin-mocha`, `catppuccin-latte`,
-`catppuccin-frappe`, `catppuccin-macchiato`, `tokyo-night`, `one-dark`,
-`dark-plus` (Windows Terminal Dark+), `nord`, `solarized-dark`,
-`solarized-light`, `github-dark`, `github-light` — but DevDesk only looks
-for theme files in `~/.devdesk/themes/`, so copy the ones you want there
-first:
+The built-in `default` theme and twelve more ship inside the binary —
+`catppuccin-mocha`, `catppuccin-latte`, `catppuccin-frappe`,
+`catppuccin-macchiato`, `tokyo-night`, `one-dark`, `dark-plus` (Windows
+Terminal Dark+), `nord`, `solarized-dark`, `solarized-light`, `github-dark`,
+`github-light`. Nothing to copy or download. Set `app.theme` to one of these
+names, or pick it in the `:config` view (`←/→`). A file of the same name in
+`~/.devdesk/themes/` takes precedence over the embedded one, and any other
+`.json` file there is offered too.
 
-```bash
-mkdir -p ~/.devdesk/themes
-cp themes/*.json ~/.devdesk/themes/
+`app.theme: auto` follows the terminal's background:
+
+```yaml
+app:
+  theme: auto
+  theme_dark: default        # used on a dark terminal (default: default)
+  theme_light: github-light  # used on a light terminal (default: github-light)
 ```
 
-Once copied, they appear in the `:config` view's theme cycle (`←/→`), or
-set `app.theme` directly to a theme's file name without `.json`.
+With `auto`, DevDesk asks the terminal once for its background color (OSC 11),
+starts on the dark theme, and switches to the light one if the terminal says it
+is light. If the terminal does not answer within 500 ms (some older tmux,
+some Terminal.app versions, conhost), DevDesk stays on the dark theme without a
+message. It asks once per run and does not watch for later changes. With
+`theme` empty or absent, DevDesk uses the dark `default` theme and asks the
+terminal nothing.
+
+A theme that is unknown, unreadable or invalid, or whose text contrast is
+under 4.5:1 when `auto` picks it, gives the `default` theme and a warning in
+the footer. The `:config` view shows `Dark theme`, `Light theme` and `Theme in
+use` (with the reason). Choosing a named theme there replaces `auto`.
 
 ### MCP server
 

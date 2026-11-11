@@ -17,7 +17,7 @@ import (
 // sized builds the view at a size, on a tab.
 func sized(t *testing.T, width, height int, tab string) Model {
 	t.Helper()
-	m := New(config.Default(), MCPFacts{})
+	m := New(config.Default(), MCPFacts{}, ThemeFacts{})
 	m = feed(t, m, tea.WindowSizeMsg{Width: width, Height: height})
 	for i, s := range m.sections {
 		if s.Title == tab {

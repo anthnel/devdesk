@@ -189,6 +189,8 @@ func (a *App) switchView(view command.ViewType) tea.Cmd {
 	// work in progress: the view was kept up to date for as long as it
 	// existed, but a view built just now was not there for anything that had
 	// already started.
+	// This Init is the start view's Init too when App.Init held it back.
+	a.theme.startInitDeferred = false
 	return tea.Batch(newView.Init(), a.requestResize(), a.enterView(view))
 }
 
@@ -244,7 +246,7 @@ func (a *App) createView(view command.ViewType) {
 	case command.ViewAgentUsage:
 		a.setView(view, agentusageview.New(a.config))
 	case command.ViewConfiguration:
-		a.setView(view, configuration.New(a.config, a.mcpFacts()))
+		a.setView(view, configuration.New(a.config, a.mcpFacts(), a.themeFacts()))
 	case command.ViewJobs:
 		a.setView(view, jobsview.New(a.config, a.currentContext))
 	case command.ViewTemplates:

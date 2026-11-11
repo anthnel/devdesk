@@ -156,7 +156,12 @@ const (
 
 // AppConfig holds the app's global settings
 type AppConfig struct {
-	Theme           string `yaml:"theme"`
+	Theme string `yaml:"theme"`
+	// ThemeDark and ThemeLight name the themes app.theme "auto" picks for a
+	// dark and a light terminal. Absent keys stay absent: the defaults are
+	// applied by EffectiveThemeDark and EffectiveThemeLight, never written.
+	ThemeDark       string `yaml:"theme_dark,omitempty"`
+	ThemeLight      string `yaml:"theme_light,omitempty"`
 	LogFile         string `yaml:"log_file"`
 	DefaultView     string `yaml:"default_view"`
 	WorkspacesDir   string `yaml:"workspaces_dir"`
@@ -263,6 +268,33 @@ const (
 
 // GaugeGlyphs lists the values app.gauge_glyph names, safe default first.
 func GaugeGlyphs() []string { return []string{GaugeGlyphShade, GaugeGlyphBlock} }
+
+// Theme names app.theme and its auto pair know about.
+const (
+	ThemeAuto         = "auto"
+	ThemeDefault      = "default"
+	DefaultThemeDark  = "default"
+	DefaultThemeLight = "github-light"
+)
+
+// IsAutoTheme reports whether app.theme asks for the terminal-based choice.
+func (a AppConfig) IsAutoTheme() bool { return a.Theme == ThemeAuto }
+
+// EffectiveThemeDark returns the theme auto uses on a dark terminal.
+func (a AppConfig) EffectiveThemeDark() string {
+	if a.ThemeDark != "" {
+		return a.ThemeDark
+	}
+	return DefaultThemeDark
+}
+
+// EffectiveThemeLight returns the theme auto uses on a light terminal.
+func (a AppConfig) EffectiveThemeLight() string {
+	if a.ThemeLight != "" {
+		return a.ThemeLight
+	}
+	return DefaultThemeLight
+}
 
 // Values app.motion accepts.
 const (
@@ -547,7 +579,7 @@ func applyDefaults(cfg *Config) error {
 	// a config saying "dark" named a theme no picker could show. Normalised at
 	// load; LoadTheme still accepts the old name for a file not yet rewritten.
 	if cfg.App.Theme == "" || cfg.App.Theme == "dark" {
-		cfg.App.Theme = "default"
+		cfg.App.Theme = ThemeDefault
 	}
 	if cfg.App.LogFile == "" {
 		cfg.App.LogFile = filepath.Join(homeDir, ".devdesk", "devdesk.log")

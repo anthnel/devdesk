@@ -98,6 +98,30 @@ decided together and fixed in one pass; see [§1.2](#12-the-five-parked-defects)
 
 ### 1.1 Fixed
 
+**D125 — DEVDESK-258: `app.theme: auto` picks a dark or a light theme from the terminal's background (OSC 11), the 12 shipped themes are embedded in the binary, and a theme that cannot be used falls back to the default with a footer warning. Decided (recommended options taken, the user's choices recorded in the context).** **Plane:** DEVDESK-258, dated 2026-11-11. Sources: `.claude/plans/DEVDESK-258-plan.md` (branch `feat/devdesk-258-auto-theme`, uncommitted when this entry was written: questions Q1 to Q4, risks R1 to R6), `docs/architecture/app-shell.md` ("Terminal background"), `docs/architecture/configuration.md`. Local, reversible decisions: no ADR (see below).
+
+*Context.* `app.theme` names a theme loaded from `~/.devdesk/themes/`. `github-light` is not installed by default, so a light terminal with the default settings gave an unknown-theme warning at every launch, unless the user had run the wizard, which downloaded the themes from GitHub. The terminal background was never read.
+
+*Decision.*
+- **`app.theme: auto`** uses `app.theme_dark` (default `default`) or `app.theme_light` (default `github-light`), chosen from the terminal's background. An empty `app.theme` means dark, with no query (user decision).
+- **Detection, once per process.** OSC 11 is queried at start-up, with a 500 ms timeout, then a silent fall back to dark. The answer is cached for the process. While detection runs, `View()` sets `BackgroundColor` to nil. The reason: in Bubble Tea v2.1.1 the order between the `Init` command and the first render is not guaranteed, so the first frame must not read DevDesk's own background.
+- **`auto` chosen in session with no cached answer.** DevDesk first resets its own background (OSC 111), then sends the query after `themeQueryDelay` (100 ms), with the 500 ms timeout.
+- **Embedded themes.** The 12 files of `themes/` are embedded (`go:embed`, `themes/embed.go`). A user file of the same name wins. `ListThemes` is the union of both. The embedded list is now a durable contract: a removed file breaks any config that names it. `dk setup` no longer downloads anything, and `RemoteThemesFetchedMsg` is gone. This replaces the plan's Q1 choice to leave the download in place.
+- **Any theme that fails to load** (unknown name, unreadable JSON, invalid hex) gives the default theme and a footer warning. This replaces the DEVDESK-201 H3 rule that kept the previous palette, and the test that fixed that rule is rewritten.
+- **Personal themes under `auto`** must reach 4.5:1 text contrast on the background, checked at run time. Below that, the default theme and a warning. The shipped themes are covered by `internal/ui/cmdsuggest/contrast_test.go`.
+- **A changed effective theme rebuilds the views** (`rebuildViews`), because views capture their styles at construction.
+
+*Rejected.*
+- Not embedding the themes (plan Q1-B): `auto` would work only where the user had installed them.
+- Embedding `github-light` alone (plan Q1-C): the other shipped themes would still need the download.
+- Keeping the previous palette on a failed load (DEVDESK-201 H3): the user cannot tell why their colours are not the ones they chose.
+
+*Out of scope, to open as a separate story.* A context switch (`handleContextSwitchComplete`) does not re-apply the theme, and `auto` is not queried again after a switch. The cached answer stays valid for the process.
+
+*No ADR.* The repository has no `docs/decisions/` or `docs/adr/` folder, and keeps its lasting decisions in this file (the same reasoning as the "No ADR" note of the DEVDESK-210 entries). The embedded-themes contract is recorded here and in `docs/architecture/configuration.md`. An ADR can be written later if the team wants one for it.
+
+*To check by hand after merge* (plan R3 and R5): a light and a dark terminal (kitty or WezTerm, GNOME Terminal), tmux, Windows Terminal, and SSH. The query is answered by most modern terminals, not by conhost, which falls back to dark.
+
 **D124 — DEVDESK-257: the window title is `dk · <view> · <context>`, a pure function of the router's state, and DevDesk restores the title the terminal had (XTWINOPS push/pop in `internal/termtitle`, outside the router). Option (a) for the view name, (a) for an empty context, strict sanitising, option (b) for the restore, chosen by the user. Decided.** **Plane:** DEVDESK-257, dated 2026-11-11. Sources: `.claude/plans/DEVDESK-257-plan.md` (branch `feat/devdesk-257-window-title`, uncommitted when this entry was written). Number: the plan says D122, already taken by DEVDESK-210; D124 is the next free one after D123, which is itself uncommitted on `feat/devdesk-211-terminal-progress`.
 
 *Context.* Bubble Tea v2.1.1 sets `View.WindowTitle` and writes it only when the string changes, but it clears the title on exit (`OSC 2 ;""`) and does not restore the previous one. DevDesk never set a title.

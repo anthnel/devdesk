@@ -216,22 +216,11 @@ func (m Model) containerEngineQuestion() (title, body, control string) {
 	return "Container engine", body, control
 }
 
-// themeQuestion reflects the one-shot background fetch's state: in flight,
-// unreachable (with a pointer to the manual-copy docs), or done.
+// themeQuestion offers the embedded themes plus any the user dropped into
+// ~/.devdesk/themes/; nothing is downloaded.
 func (m Model) themeQuestion() (title, body, control string) {
-	body = "Pick the color theme DevDesk renders with."
-	switch m.themeCheckState {
-	case themeCheckUnreachable:
-		body += " Only the built-in theme is available right now — no network " +
-			"reachable to fetch more. Browse the rest at " +
-			"https://github.com/anthnel/devdesk/tree/main/themes and copy one into " +
-			"~/.devdesk/themes/ by hand; see README.md for the exact steps."
-	case themeCheckDone:
-		if m.themeFetchAddedCount > 0 {
-			body += fmt.Sprintf(" %d additional theme(s) were downloaded from the "+
-				"DevDesk repository and are ready to use below.", m.themeFetchAddedCount)
-		}
-	}
+	body = "Pick the color theme DevDesk renders with. More themes can be added " +
+		"by copying a theme file into ~/.devdesk/themes/; see the documentation."
 	return "Theme", body, renderQuestionCycle("Theme", m.themeOptions[m.themeIdx])
 }
 

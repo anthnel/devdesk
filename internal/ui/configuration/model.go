@@ -75,6 +75,10 @@ type Model struct {
 	// because only the router has it, and the view is rebuilt when it changes.
 	mcp MCPFacts
 
+	// themeFacts is what the router resolved the theme to, for the Theme in use
+	// row.
+	themeFacts ThemeFacts
+
 	// shown holds the secret rows the user has revealed, keyed by label: the
 	// field table is rebuilt on every save, so an index would point elsewhere
 	// afterwards.
@@ -119,7 +123,22 @@ type MCPFacts struct {
 	Reason string
 }
 
-func New(cfg *config.Config, mcp MCPFacts) Model {
+// ThemeFacts is what the configuration view shows about the theme on screen:
+// its name and, for app.theme: auto, why it was chosen. Nothing here is
+// editable; Theme, Dark theme and Light theme are the settings.
+type ThemeFacts struct {
+	InUse  string
+	Reason string
+}
+
+// ThemeFactsMsg replaces the ThemeFacts the view shows, when the router
+// resolves the theme again (startup, the terminal's answer, a save).
+type ThemeFactsMsg struct {
+	InUse  string
+	Reason string
+}
+
+func New(cfg *config.Config, mcp MCPFacts, themeFacts ThemeFacts) Model {
 	themes, err := theme.ListThemes()
 	if err != nil || len(themes) == 0 {
 		// A theme directory that cannot be read still leaves the built-in one, so
@@ -144,11 +163,12 @@ func New(cfg *config.Config, mcp MCPFacts) Model {
 	m := Model{
 		config:       cfg,
 		context:      context,
-		sections:     sections(themes, command.ViewNames(), configPath, context, cfg.Forge.Type, forge.VocabularyFor(cfg.Forge.Type), mcp),
+		sections:     sections(themes, command.ViewNames(), configPath, context, cfg.Forge.Type, forge.VocabularyFor(cfg.Forge.Type), mcp, themeFacts),
 		input:        in,
 		themes:       themes,
 		configPath:   configPath,
 		mcp:          mcp,
+		themeFacts:   themeFacts,
 		shown:        map[string]bool{},
 		forgeOnFocus: cfg.Forge.Type,
 	}

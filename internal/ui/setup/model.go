@@ -67,17 +67,6 @@ const (
 	modalSetCurrent
 )
 
-// themeCheckState tracks the one-shot, best-effort attempt to fetch the
-// bundled themes from the repository when the wizard reaches that question.
-type themeCheckState int
-
-const (
-	themeCheckNotStarted themeCheckState = iota
-	themeCheckInFlight
-	themeCheckDone
-	themeCheckUnreachable
-)
-
 // secretBackendCheckState tracks whether the currently selected secret
 // backend actually resolves to somewhere durable — re-checked every time the
 // answer changes, not just once, since the whole point is to catch this
@@ -128,10 +117,8 @@ type Model struct {
 
 	fontCheckIdx int
 
-	themeOptions         []string
-	themeIdx             int
-	themeCheckState      themeCheckState
-	themeFetchAddedCount int
+	themeOptions []string
+	themeIdx     int
 
 	forgeTypeIdx int
 	// forgeURLTouched stops the URL field from being overwritten once the user
@@ -238,9 +225,6 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case ContextExistsMsg:
 		return m.handleContextExists(msg)
 
-	case RemoteThemesFetchedMsg:
-		return m.handleRemoteThemesFetched(msg)
-
 	case SecretBackendCheckedMsg:
 		return m.handleSecretBackendChecked(msg)
 
@@ -327,11 +311,6 @@ func (m Model) advance() (tea.Model, tea.Cmd) {
 	m.updateFocus()
 	if m.step == stepContainerEngine {
 		return m, m.recheckContainerEngineCmd()
-	}
-	if m.step == stepTheme && m.themeCheckState == themeCheckNotStarted {
-		m.themeCheckState = themeCheckInFlight
-		m.pending = "Checking for more themes..."
-		return m, fetchRemoteThemesCmd()
 	}
 	return m, nil
 }
@@ -499,7 +478,7 @@ func (m Model) handleContextExists(msg ContextExistsMsg) (tea.Model, tea.Cmd) {
 
 // advanceToNextStep is what answering the context name question resolves
 // to, once the name is free (or its overwrite is confirmed): move on to the
-// next question, triggering the theme fetch if that happens to be it.
+// next question, the secret backend check.
 func (m Model) advanceToNextStep() (tea.Model, tea.Cmd) {
 	m.step = stepSecretBackend
 	m.updateFocus()
@@ -538,22 +517,6 @@ func (m Model) handleConfirmNo() (tea.Model, tea.Cmd) {
 	case modalSetCurrent:
 		m.stage = stageDone
 		return m, nil
-	}
-	return m, nil
-}
-
-func (m Model) handleRemoteThemesFetched(msg RemoteThemesFetchedMsg) (tea.Model, tea.Cmd) {
-	m.pending = ""
-	if msg.Unreachable {
-		m.themeCheckState = themeCheckUnreachable
-		return m, nil
-	}
-	m.themeCheckState = themeCheckDone
-	m.themeFetchAddedCount = len(msg.Added)
-	if len(msg.Added) > 0 {
-		if themes, err := theme.ListThemes(); err == nil {
-			m.themeOptions = themes
-		}
 	}
 	return m, nil
 }

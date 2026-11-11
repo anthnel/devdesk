@@ -23,6 +23,8 @@ paths:
 
 ### Rule 115 : Uniform background handling (lipgloss)
 
+With `app.theme: auto` the OSC 11 query comes before the theme's background: `View().BackgroundColor` stays `nil` while the detection is pending, so the terminal answers with its own color.
+
 **lipgloss does NOT propagate a parent's background to its children.**
 
 `JoinHorizontal`/`JoinVertical` insert "bare" spaces that show the terminal's native background.

@@ -35,6 +35,9 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.tools = msg.Report
 		return m, nil
 
+	case ThemeFactsMsg:
+		return m.handleThemeFacts(msg)
+
 	case filebrowser.PathPickedMsg:
 		return m.handlePathPicked(msg)
 
@@ -294,6 +297,15 @@ func (m Model) commitFocused() (Model, tea.Cmd, bool) {
 	return m, m.persist(saved{}), true
 }
 
+// handleThemeFacts takes the router's new resolution. The field table is rebuilt
+// for the Theme in use row only; the tab and the focused field stay where they
+// are, and nothing is saved.
+func (m Model) handleThemeFacts(msg ThemeFactsMsg) (tea.Model, tea.Cmd) {
+	m.themeFacts = ThemeFacts(msg)
+	m.sections = sections(m.themes, command.ViewNames(), m.configPath, m.context, m.config.Forge.Type, m.vocab(), m.mcp, m.themeFacts)
+	return m, nil
+}
+
 // cycleField advances a closed-set field (Rule 132).
 func (m Model) cycleField(step int) (tea.Model, tea.Cmd) {
 	f := m.current()
@@ -305,7 +317,7 @@ func (m Model) cycleField(step int) (tea.Model, tea.Cmd) {
 	// The theme is the one setting whose effect is the screen itself, so it is
 	// applied as it is cycled rather than on blur — otherwise the user is
 	// choosing blind.
-	if f.Label == themeLabel {
+	if f.Label == themeLabel || f.Label == themeDarkLabel || f.Label == themeLightLabel {
 		return m, m.persist(saved{theme: true})
 	}
 	// The backend is confirmed on blur, so nothing is written here.
@@ -447,9 +459,12 @@ func (m *Model) bindInput() {
 }
 
 // Labels the view has to recognise. Comparing on the label keeps the field
-// table declarative; these four are the only settings that need special
+// table declarative; these are the only settings that need special
 // handling, and naming them here is what makes that visible.
 const (
+	themeDarkLabel       = "Dark theme"
+	themeLightLabel      = "Light theme"
+	themeInUseFieldLabel = "Theme in use"
 	themeLabel           = "Theme"
 	secretBackendLabel   = "Secret backend"
 	forgeLabel           = "Forge"

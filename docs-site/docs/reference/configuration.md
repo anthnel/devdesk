@@ -7,7 +7,9 @@ default — an absent key is not an error, `config.Default()` fills it in.
 
 | Key | Type | Default | Meaning |
 |---|---|---|---|
-| `theme` | string | `default` | `""`, `default`, or `dark` all mean the built-in theme; any other name loads `~/.devdesk/themes/<name>.json` — copy the bundled files from `themes/` in the repository there first, DevDesk does not install them automatically. DevDesk also sets the terminal's default background to the theme's for the session (OSC 11) and resets it on exit; not under `NO_COLOR` or in 16-colour terminals |
+| `theme` | string | `default` | A theme name, or `auto`. `""`, `default`, or `dark` all mean the built-in dark theme, and DevDesk asks the terminal nothing. The 12 bundled themes (`catppuccin-mocha`, `github-light`, ...) are embedded in the binary and need no copying; a file of the same name in `~/.devdesk/themes/` takes precedence, and other files there are offered too. `auto` picks `theme_dark` or `theme_light` from the terminal's background (see below). An unknown, unreadable or invalid theme gives the built-in theme and a footer warning. DevDesk also sets the terminal's default background to the theme's for the session (OSC 11) and resets it on exit; not under `NO_COLOR` or in 16-colour terminals |
+| `theme_dark` | string | `default` | Theme used when `theme: auto` and the terminal is dark, or does not answer. Same names as `theme` (not `auto`). Editable in `:cfg` > Appearance > Dark theme |
+| `theme_light` | string | `github-light` | Theme used when `theme: auto` and the terminal is light. Editable in `:cfg` > Appearance > Light theme |
 | `log_file` | string | | Path to the log file |
 | `default_view` | string | `dashboard` | View opened at startup |
 | `workspaces_dir` | string | `~/workspaces` | Scanned by Workspaces; default clone target for the forge explorer |
@@ -18,6 +20,8 @@ default — an absent key is not an error, `config.Default()` fills it in.
 | `secret_backend` | string | `auto` | `auto` \| `keyring` \| `git-credential` — pins the credential storage backend |
 | `motion` | string | `blink` | `blink` \| `static` — whether a running row's activity dot blinks; `static` keeps it a steady `●`. Per context, exact case (`Static` is invalid). Editable in `:cfg` > Appearance > Motion. Any other value behaves as `blink` and logs `WARN [config] app.motion …` |
 | `when_unfocused` | string | `pause` | `pause` \| `run` — what DevDesk does while the terminal has no focus: `pause` suspends the animation and the periodic dashboard and image reads, `run` suspends nothing. Per context, exact case. Editable in `:cfg` > Appearance > When unfocused. Any other value behaves as `pause` and logs `WARN [config] app.when_unfocused …` |
+
+**`theme: auto`.** DevDesk asks the terminal once for its background color (OSC 11). It applies `theme_dark` first, waits up to 500 ms, then switches to `theme_light` if the terminal reports a light background. No answer (older tmux, some Terminal.app versions, conhost) keeps the dark theme, with no message. The answer is kept for the run; the terminal is not asked again, and a later change of terminal color is not followed. A custom theme used by `auto` must reach a 4.5:1 text contrast; below that, or if it is unreadable or invalid, DevDesk uses `default` and shows a footer warning, once per theme. Choosing a named theme in `:cfg` replaces `auto` and is saved. The `:cfg` row `Theme in use` shows the theme applied and why.
 | `container_engine` | string | `auto` | `auto` \| `docker` \| `podman`, or an explicit path to a binary. `auto` picks Docker if it's on PATH, Podman otherwise. A pinned engine that isn't installed is an error, not a silent fall back to the other one — see [Container engine](../explanation/network.md#container-engine-docker-or-podman) |
 
 ## `forge:`

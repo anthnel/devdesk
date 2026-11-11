@@ -130,6 +130,13 @@ func sendProfile(t *testing.T, a *App, p colorprofile.Profile) {
 	a.Update(tea.ColorProfileMsg{Profile: p})
 }
 
+// sendTrueColor is sendProfile at TrueColor, for tests outside the colorprofile
+// allow-list, which cannot name the type.
+func sendTrueColor(t *testing.T, a *App) {
+	t.Helper()
+	sendProfile(t, a, colorprofile.TrueColor)
+}
+
 func TestRouterSetsTheTerminalBackgroundFromTheProfile(t *testing.T) {
 	theme.ApplyTheme(theme.DefaultTheme())
 	t.Cleanup(func() { theme.ApplyTheme(theme.DefaultTheme()) })
@@ -378,7 +385,9 @@ func TestTheTerminalBackgroundFollowsTheTheme(t *testing.T) {
 	}
 }
 
-func TestARefusedThemeKeepsThePreviousTerminalBackground(t *testing.T) {
+// DEVDESK-258: any load failure falls back to the default theme (it used to
+// keep the previous palette, DEVDESK-201 H3).
+func TestARefusedThemeFallsBackToTheDefaultTerminalBackground(t *testing.T) {
 	a := router(t, &fakeView{body: "hello"})
 	resetThemeAfter(t)
 	writeTheme(t, "light", "#ffffff")
@@ -392,8 +401,8 @@ func TestARefusedThemeKeepsThePreviousTerminalBackground(t *testing.T) {
 
 	saveTheme(a, "light")
 	saveTheme(a, "broken")
-	if got := bgHex(a); got != "#ffffff" {
-		t.Errorf("refused theme from light: got %s, want #ffffff kept", got)
+	if got := bgHex(a); got != "#1e1e2e" {
+		t.Errorf("refused theme from light: got %s, want the default #1e1e2e", got)
 	}
 }
 
