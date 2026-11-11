@@ -17,7 +17,8 @@ func (a *App) View() tea.View {
 	v.AltScreen = true
 	v.ReportFocus = true // mode 1004: BlurMsg/FocusMsg (DEVDESK-210)
 	v.BackgroundColor = terminalBackground(a.colorProfile, theme.ColorBackground)
-	v.ProgressBar = terminalProgress(a.progress) // DEVDESK-211
+	v.ProgressBar = terminalProgress(a.progress)                 // DEVDESK-211
+	v.WindowTitle = windowTitle(a.currentView, a.currentContext) // DEVDESK-257
 	return v
 }
 

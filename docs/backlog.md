@@ -98,6 +98,21 @@ decided together and fixed in one pass; see [§1.2](#12-the-five-parked-defects)
 
 ### 1.1 Fixed
 
+**D124 — DEVDESK-257: the window title is `dk · <view> · <context>`, a pure function of the router's state, and DevDesk restores the title the terminal had (XTWINOPS push/pop in `internal/termtitle`, outside the router). Option (a) for the view name, (a) for an empty context, strict sanitising, option (b) for the restore, chosen by the user. Decided.** **Plane:** DEVDESK-257, dated 2026-11-11. Sources: `.claude/plans/DEVDESK-257-plan.md` (branch `feat/devdesk-257-window-title`, uncommitted when this entry was written). Number: the plan says D122, already taken by DEVDESK-210; D124 is the next free one after D123, which is itself uncommitted on `feat/devdesk-211-terminal-progress`.
+
+*Context.* Bubble Tea v2.1.1 sets `View.WindowTitle` and writes it only when the string changes, but it clears the title on exit (`OSC 2 ;""`) and does not restore the previous one. DevDesk never set a title.
+
+*Decision.*
+- **View name:** the canonical command name, `command.ViewType` (`dashboard`, `security`, `agent-usage`…), not the alias typed (`sec`), not the frame title. Rejected: the alias, which would need state and would differ by entry path; the frame title, which carries file and project names and changes with the view's inner state. The story's example `dk · sec · prod` becomes `dk · security · prod`.
+- **Empty context:** shown as `default`, the name `config.GetCurrentContext` already falls back to. The segment is never left out, so no orphan separator.
+- **Sanitising:** strict. `ansi.Strip`, then control, format (Cf), line and paragraph separators removed, and the title truncated to 60 cells. Needed because Bubble Tea does not sanitise the title, and `.current-context` is not validated on load (D91), so a hand-edited file can inject a sequence.
+- **Restore:** `internal/termtitle.Preserve` writes `CSI 22;2 t` before `p.Run()` and `CSI 23;2 t` after, deferred so it also runs on error and panic. Called from `main.go` only, when stdout is a terminal. Option (b) of Q3, chosen by the user. Consequence: DevDesk writes terminal sequences outside the router, the only place that sets terminal state today (D111). Confined to the package by a source guard. Terminals without a title stack ignore both sequences, so they fall back to the clear.
+- **Limits:** a `SIGKILL` leaves the title as DevDesk set it. A panic outside Bubble Tea's recovery is not covered. The title stays cleared during an `exec` child (Bubble Tea clears it before the child starts); `teaexec` is not changed (D121). Not tested on conhost without VT. Real support of the title stack by Windows Terminal, WSL, tmux and Terminal.app is to be checked by hand.
+
+*Rejected.* Restoring by hand from `teaexec` or with `tea.Raw` at exit: it would move terminal state out of the router and make the wrapper do more than its one workaround (D121).
+
+Local, reversible decision: no ADR. Removing the `View()` line and the `Preserve` call reverts it.
+
 **D123 — DEVDESK-211: the terminal tab shows the progress of the jobs, through OSC 9;4 and `View.ProgressBar`. Scope is the current context; one precedence table (error, warning, weighted percentage, indeterminate, nil); failures are acknowledged by `Failure.Seq` while `:jobs` is on screen and the terminal is focused. Local, reversible decision: no ADR. Decided.** **Plane:** DEVDESK-211, dated 2026-11-11. Sources: `.claude/plans/DEVDESK-211-plan.md` (main checkout, untracked: questions 1 to 3, aggregation rules, steps 1 to 5), branch `feat/devdesk-211-terminal-progress` (uncommitted when this entry was written).
 
 *Context.* Bubble Tea v2.1.1 can set the tab's progress bar (`View.ProgressBar`, written as OSC 9;4). DevDesk ran its jobs in the background without showing anything there.

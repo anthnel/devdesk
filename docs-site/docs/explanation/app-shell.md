@@ -52,6 +52,12 @@ When the terminal reports that it lost the focus (xterm mode 1004), the router s
 
 `app.when_unfocused: run` turns this off: nothing is suspended. Under tmux, `set -g focus-events on` is required. A terminal without mode 1004 never reports a blur, so nothing is paused there.
 
+### Terminal window title
+
+The router sets the title of the terminal window or tab to `dk · <view> · <context>`, for example `dk · security · prod`. The view is its full name, and an empty context shows as `default`. The title is at most 60 cells wide; a longer one ends with `…`. When DevDesk exits, the title the terminal had before is put back. While a child process such as a pager or a shell runs, the title is cleared, then set again when the child returns.
+
+A terminal that does not support window titles ignores it. Under tmux, set `set-titles on` to pass the title to the outer terminal. If DevDesk is killed (`kill -9`), the previous title is not restored.
+
 ### Terminal tab progress
 
 Many terminals (Windows Terminal, for one) can show a progress bar on the tab or in the taskbar. DevDesk uses it to show the work of the current context:

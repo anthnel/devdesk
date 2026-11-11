@@ -44,8 +44,8 @@ App (Router)
 `app.Screen` is `tea.Model` plus `Render() string`; the router holds
 `map[ViewType]Screen` and installs every view through the single `setView`,
 which panics naming the view when a model has no `Render()`. Only the router
-sets terminal state: `App.View()` wraps `App.Render()` and sets `AltScreen` and
-`BackgroundColor` (`main.go` passes no `tea.WithAltScreen()`). The setup wizard is its own
+sets terminal state: `App.View()` wraps `App.Render()` and sets `AltScreen`,
+`ReportFocus`, `BackgroundColor`, `ProgressBar` and `WindowTitle` (`main.go` passes no `tea.WithAltScreen()`). The setup wizard is its own
 program and sets `AltScreen` in its own `View()`. Components (datatable, forms,
 `FilterBar`) keep `View() string`. A bracketed paste arrives as `tea.PasteMsg`
 and goes through `handlePasteMsg`: it is text for the focused field (palette,
@@ -228,6 +228,54 @@ clock, no registry) reduces runs and failures to a `jobs.Progress`;
   printed, tab unchanged), and a terminal without support such as Terminal.app or
   the Linux console (nothing printed). Open question: whether a full bar at 100 for
   Error and Warning reads right, or looks like completion.
+
+**Window title (DEVDESK-257).** `App.View()` also sets `tea.View.WindowTitle`, so the
+terminal's tab or title bar reads `dk · <view> · <context>` (for example
+`dk · security · prod`).
+
+- *Content.* `windowTitle(view, context)` (`internal/app/window_title.go`) is a pure
+  function. The view is its canonical command name (`string(a.currentView)`, so
+  `security`, not the alias `sec`). An empty context name becomes `default`. Each
+  segment goes through `titleSegment`: `ansi.Strip`, then every control rune and every
+  `Cf`, `Zl` and `Zp` rune is removed (bidi overrides, zero-width characters, BOM, line
+  and paragraph separators), then blanks are trimmed. A context name comes from a file
+  on disk, so it must not inject a terminal sequence. A segment left empty is skipped
+  (the context is the exception: it falls back to `default`). The whole string is cut
+  on the right to 60 cells with `…`, so a long context name is shortened first.
+- *Computed at render time.* The title is derived from `currentView` and
+  `currentContext` in every `View()`, with no state of its own. Overlays (help,
+  context list, palette) do not change it.
+- *No re-emission.* Nothing writes the title again by hand: the Bubble Tea renderer
+  writes it only when the string differs from the last one it wrote.
+- *One owner.* Only the router sets `WindowTitle`, and a source guard
+  (`TestOnlyTheRouterSetsTheWindowTitle`) fails the suite otherwise.
+- *Restoring the previous title (`internal/termtitle`).* Bubble Tea clears the title
+  when it exits, which would lose the one the shell or terminal had before. In
+  `runTUI`, `termtitle.Preserve` writes XTWINOPS push (`CSI 22;2t`) before `p.Run()`
+  and pop (`CSI 23;2t`) after it, in a `defer`, so the pop also runs on an error and
+  while a panic unwinds (the panic keeps propagating). Only the two constant sequences
+  are written. `main.go` does this **only when stdout is a terminal**
+  (`term.IsTerminal`); on a pipe the sequences would arrive as text.
+- *Around an exec.* Bubble Tea clears the title before it starts a child
+  (`tea.ExecProcess`, and so `teaexec`) and writes it again when the child returns.
+  The push and pop stay outside, around `Run()` as a whole: the child sees the
+  terminal's own title.
+- *Limits.* `kill -9`, or a panic that is not recovered by Bubble Tea (a goroutine that
+  is not a `Cmd`), leaves the title cleared or as DevDesk last set it, and the pop
+  does not run. A terminal without OSC 0/2 ignores the title, and one without the
+  XTWINOPS stack ignores push and pop (the title then stays cleared after exit). Under
+  tmux, the title is not passed to the outer terminal unless `set-titles on`.
+- *What is verified.* `window_title_test.go` (format, fallback, injection, truncation,
+  purity), `window_title_view_test.go` (the router sets it; follows context and view;
+  not changed by render events or overlays; does not disturb the other terminal state;
+  the guard) and `window_title_program_test.go` (a real `tea.Program` without a TTY:
+  written once, cleared on quit and `ctrl+c`, not rewritten by frames, changes with
+  the view, cleared then written again around an exec, including one that fails).
+  `termtitle_test.go` covers `Preserve`.
+- *To verify by hand* (not covered by any test): Windows Terminal, WSL inside Windows
+  Terminal, tmux (with and without `set-titles on`) and a console without VT (legacy
+  conhost). Check the title shown, the title after quitting (the previous one is back),
+  and the title during `T` and any other exec.
 
 ## View Switching & Command Mode
 
