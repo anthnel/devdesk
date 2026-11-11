@@ -1,0 +1,15 @@
+{
+  "tool_use_id": "toolu_01Pv5Ht2hCAisbQyURxezhqQ",
+  "agent_id": "a0b7eb7dbf0fa3a4f",
+  "subagent_type": "dev-team:devops",
+  "task_description": "Passer 201 et 207 en Done",
+  "token_usage": {
+    "input_tokens": 8,
+    "cache_creation_tokens": 42385,
+    "cache_read_tokens": 103618,
+    "output_tokens": 1553,
+    "api_call_count": 4
+  },
+  "started_at": "2026-11-10T15:01:10.233319019+01:00",
+  "completed_at": "2026-11-10T15:01:35.336388901+01:00"
+}

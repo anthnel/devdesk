@@ -1,0 +1,15 @@
+{
+  "tool_use_id": "toolu_01LwP4CEqNbj8TFLPkEyXEun",
+  "agent_id": "a0183ede745066b96",
+  "subagent_type": "dev-team:devops",
+  "task_description": "Push et renommer PR 355",
+  "token_usage": {
+    "input_tokens": 28,
+    "cache_creation_tokens": 46641,
+    "cache_read_tokens": 454342,
+    "output_tokens": 3908,
+    "api_call_count": 12
+  },
+  "started_at": "2026-11-10T14:44:24.372905898+01:00",
+  "completed_at": "2026-11-10T14:53:07.353779522+01:00"
+}
