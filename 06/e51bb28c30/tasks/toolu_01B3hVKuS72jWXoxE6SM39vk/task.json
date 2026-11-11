@@ -1,0 +1,15 @@
+{
+  "tool_use_id": "toolu_01B3hVKuS72jWXoxE6SM39vk",
+  "agent_id": "a26b21c8d8f79dacd",
+  "subagent_type": "project-coder",
+  "task_description": "Vert 6a requête auto en session",
+  "token_usage": {
+    "input_tokens": 20,
+    "cache_creation_tokens": 88166,
+    "cache_read_tokens": 492233,
+    "output_tokens": 6041,
+    "api_call_count": 9
+  },
+  "started_at": "2026-11-11T15:41:17.62894653+01:00",
+  "completed_at": "2026-11-11T15:43:55.261458895+01:00"
+}

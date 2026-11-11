@@ -1,0 +1,15 @@
+{
+  "tool_use_id": "toolu_014t9XrNbVMWo5fxncQJS4gY",
+  "agent_id": "ad383ec7980180ccb",
+  "subagent_type": "dev-team:architect",
+  "task_description": "Plan DEVDESK-258 thème auto",
+  "token_usage": {
+    "input_tokens": 50,
+    "cache_creation_tokens": 153442,
+    "cache_read_tokens": 2600484,
+    "output_tokens": 29527,
+    "api_call_count": 24
+  },
+  "started_at": "2026-11-11T11:51:49.793560588+01:00",
+  "completed_at": "2026-11-11T11:57:05.586351999+01:00"
+}

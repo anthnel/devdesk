@@ -1,0 +1,15 @@
+{
+  "tool_use_id": "toolu_01W8BzKBfijGshRjprnLCEX6",
+  "agent_id": "abfb85295d36d5ecb",
+  "subagent_type": "project-coder",
+  "task_description": "Vert Init différé vue de départ",
+  "token_usage": {
+    "input_tokens": 22,
+    "cache_creation_tokens": 92633,
+    "cache_read_tokens": 818111,
+    "output_tokens": 4388,
+    "api_call_count": 11
+  },
+  "started_at": "2026-11-11T17:36:55.959077712+01:00",
+  "completed_at": "2026-11-11T17:45:42.617679424+01:00"
+}

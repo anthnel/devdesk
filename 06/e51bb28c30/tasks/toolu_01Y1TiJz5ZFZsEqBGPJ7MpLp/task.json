@@ -1,0 +1,15 @@
+{
+  "tool_use_id": "toolu_01Y1TiJz5ZFZsEqBGPJ7MpLp",
+  "agent_id": "ad9cfb7e72a23075b",
+  "subagent_type": "project-coder",
+  "task_description": "Vert étape 3 routeur thème",
+  "token_usage": {
+    "input_tokens": 18,
+    "cache_creation_tokens": 82208,
+    "cache_read_tokens": 370881,
+    "output_tokens": 3821,
+    "api_call_count": 8
+  },
+  "started_at": "2026-11-11T15:26:32.997224773+01:00",
+  "completed_at": "2026-11-11T15:29:12.467022466+01:00"
+}

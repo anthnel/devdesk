@@ -1,0 +1,15 @@
+{
+  "tool_use_id": "toolu_01SUfzDBvfq9ReqZuAna9SAf",
+  "agent_id": "a8a9254267f4329f1",
+  "subagent_type": "team-core:tech-writer",
+  "task_description": "Documentation DEVDESK-258",
+  "token_usage": {
+    "input_tokens": 14,
+    "cache_creation_tokens": 90266,
+    "cache_read_tokens": 302640,
+    "output_tokens": 6340,
+    "api_call_count": 6
+  },
+  "started_at": "2026-11-11T16:04:33.140217058+01:00",
+  "completed_at": "2026-11-11T16:05:16.779457419+01:00"
+}

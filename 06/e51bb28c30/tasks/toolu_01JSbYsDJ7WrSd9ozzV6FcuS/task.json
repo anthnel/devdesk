@@ -1,0 +1,15 @@
+{
+  "tool_use_id": "toolu_01JSbYsDJ7WrSd9ozzV6FcuS",
+  "agent_id": "afbc6a8e7b80b4a87",
+  "subagent_type": "project-tester",
+  "task_description": "Rouge drapeau Init différé",
+  "token_usage": {
+    "input_tokens": 24,
+    "cache_creation_tokens": 106740,
+    "cache_read_tokens": 848667,
+    "output_tokens": 10498,
+    "api_call_count": 11
+  },
+  "started_at": "2026-11-11T17:50:34.471283997+01:00",
+  "completed_at": "2026-11-11T17:54:07.512168888+01:00"
+}

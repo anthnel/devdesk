@@ -1,0 +1,15 @@
+{
+  "tool_use_id": "toolu_012bzh6jP52orMPFtzry8h4A",
+  "agent_id": "a6e2a4241e1a5351d",
+  "subagent_type": "project-tester",
+  "task_description": "Rouge étape 2 résolution thème",
+  "token_usage": {
+    "input_tokens": 12,
+    "cache_creation_tokens": 46422,
+    "cache_read_tokens": 174038,
+    "output_tokens": 7994,
+    "api_call_count": 6
+  },
+  "started_at": "2026-11-11T15:19:19.973561607+01:00",
+  "completed_at": "2026-11-11T15:20:11.965534153+01:00"
+}
