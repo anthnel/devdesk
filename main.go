@@ -8,9 +8,11 @@ import (
 	tea "charm.land/bubbletea/v2"
 	"github.com/anthnel/devdesk/internal/app"
 	"github.com/anthnel/devdesk/internal/config"
+	"github.com/anthnel/devdesk/internal/termtitle"
 	"github.com/anthnel/devdesk/internal/ui/setup"
 	"github.com/anthnel/devdesk/internal/ui/theme"
 	"github.com/charmbracelet/colorprofile"
+	"github.com/charmbracelet/x/term"
 )
 
 func getCurrentContextName() string {
@@ -113,7 +115,19 @@ func runTUI() {
 	// (Rule 110). Written here, once, while nothing else is running.
 	m.AttachProgram(p)
 
-	if _, err := p.Run(); err != nil {
+	// Bubble Tea clears the window title on exit; keep the one the terminal had
+	// and put it back afterwards. Only on a terminal: a pipe would receive the
+	// escape sequences as text.
+	run := func() error {
+		_, err := p.Run()
+		return err
+	}
+	if term.IsTerminal(os.Stdout.Fd()) {
+		err = termtitle.Preserve(os.Stdout, run)
+	} else {
+		err = run()
+	}
+	if err != nil {
 		fmt.Printf("Error running application: %v\n", err)
 		os.Exit(1)
 	}
