@@ -1,0 +1,15 @@
+{
+  "tool_use_id": "toolu_015uaeaPnV86YotprLt8LmUk",
+  "agent_id": "aa374a7a04351122d",
+  "subagent_type": "product-team:pm",
+  "task_description": "Story test instable background",
+  "token_usage": {
+    "input_tokens": 12,
+    "cache_creation_tokens": 52665,
+    "cache_read_tokens": 222339,
+    "output_tokens": 2227,
+    "api_call_count": 6
+  },
+  "started_at": "2026-11-10T16:53:35.545454284+01:00",
+  "completed_at": "2026-11-10T16:54:01.041920472+01:00"
+}

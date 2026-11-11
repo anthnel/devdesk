@@ -1,0 +1,15 @@
+{
+  "tool_use_id": "toolu_017YunEgiV7jphkKCcTS88WT",
+  "agent_id": "a18defe1663bcf9d8",
+  "subagent_type": "dev-team:devops",
+  "task_description": "Commit, PR et merge DEVDESK-279",
+  "token_usage": {
+    "input_tokens": 30,
+    "cache_creation_tokens": 54794,
+    "cache_read_tokens": 566110,
+    "output_tokens": 3822,
+    "api_call_count": 14
+  },
+  "started_at": "2026-11-10T16:42:04.573106865+01:00",
+  "completed_at": "2026-11-10T16:51:36.26749007+01:00"
+}

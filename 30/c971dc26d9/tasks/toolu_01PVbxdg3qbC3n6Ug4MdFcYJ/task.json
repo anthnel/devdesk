@@ -1,0 +1,15 @@
+{
+  "tool_use_id": "toolu_01PVbxdg3qbC3n6Ug4MdFcYJ",
+  "agent_id": "a7ecd10af3f0b9076",
+  "subagent_type": "dev-team:devops",
+  "task_description": "Story DEVDESK-279 en Done",
+  "token_usage": {
+    "input_tokens": 6,
+    "cache_creation_tokens": 30679,
+    "cache_read_tokens": 68139,
+    "output_tokens": 664,
+    "api_call_count": 3
+  },
+  "started_at": "2026-11-10T16:51:51.31608795+01:00",
+  "completed_at": "2026-11-10T16:52:01.743240192+01:00"
+}
