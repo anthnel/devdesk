@@ -1,0 +1,15 @@
+{
+  "tool_use_id": "toolu_01H4HFJav49uRmbZvF2r5kbe",
+  "agent_id": "afae3463f15cb8a31",
+  "subagent_type": "team-core:tech-writer",
+  "task_description": "Documentation étape 5",
+  "token_usage": {
+    "input_tokens": 34,
+    "cache_creation_tokens": 69119,
+    "cache_read_tokens": 784898,
+    "output_tokens": 11917,
+    "api_call_count": 17
+  },
+  "started_at": "2026-11-11T18:54:32.169227319+01:00",
+  "completed_at": "2026-11-11T18:56:09.620350509+01:00"
+}

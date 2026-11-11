@@ -1,0 +1,15 @@
+{
+  "tool_use_id": "toolu_01TX5GxCjHApXaGvPnyhH23y",
+  "agent_id": "a5bff791a69972ac5",
+  "subagent_type": "project-coder",
+  "task_description": "Coder 4a ComponentForm",
+  "token_usage": {
+    "input_tokens": 20,
+    "cache_creation_tokens": 93662,
+    "cache_read_tokens": 529397,
+    "output_tokens": 6032,
+    "api_call_count": 8
+  },
+  "started_at": "2026-11-11T18:44:51.375739787+01:00",
+  "completed_at": "2026-11-11T18:45:36.180436801+01:00"
+}

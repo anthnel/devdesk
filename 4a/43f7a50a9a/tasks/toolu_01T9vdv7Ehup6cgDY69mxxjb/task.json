@@ -1,0 +1,18 @@
+{
+  "tool_use_id": "toolu_01T9vdv7Ehup6cgDY69mxxjb",
+  "agent_id": "a0ee167a7f02bee8b",
+  "subagent_type": "project-tester",
+  "task_description": "Réécrire test fallback non numérique",
+  "files": [
+    "internal/ui/status/components/component_form_test.go"
+  ],
+  "token_usage": {
+    "input_tokens": 10,
+    "cache_creation_tokens": 78099,
+    "cache_read_tokens": 266053,
+    "output_tokens": 2971,
+    "api_call_count": 5
+  },
+  "started_at": "2026-11-11T18:45:47.756816169+01:00",
+  "completed_at": "2026-11-11T18:46:12.048800463+01:00"
+}

@@ -1,0 +1,15 @@
+{
+  "tool_use_id": "toolu_0192AELGQbArKfEbEhZ3rryk",
+  "agent_id": "a498e3feec89331e5",
+  "subagent_type": "project-coder",
+  "task_description": "Coder 4c LaunchForm",
+  "token_usage": {
+    "input_tokens": 20,
+    "cache_creation_tokens": 41020,
+    "cache_read_tokens": 350689,
+    "output_tokens": 5826,
+    "api_call_count": 10
+  },
+  "started_at": "2026-11-11T18:44:51.388589053+01:00",
+  "completed_at": "2026-11-11T18:46:08.742673143+01:00"
+}

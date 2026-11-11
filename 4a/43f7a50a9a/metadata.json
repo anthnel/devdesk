@@ -1,0 +1,70 @@
+{
+  "cli_version": "0.13.1",
+  "checkpoint_id": "4a43f7a50a9a",
+  "strategy": "manual-commit",
+  "branch": "feat/DEVDESK-292-invalid-field",
+  "checkpoints_count": 28,
+  "files_touched": [
+    "docs/architecture/ui-components.md",
+    "docs/backlog.md",
+    "internal/ui/components/creation_form.go",
+    "internal/ui/components/creation_form_test.go",
+    "internal/ui/components/wrapped_input.go",
+    "internal/ui/components/wrapped_input_test.go",
+    "internal/ui/forge/auth/auth_test.go",
+    "internal/ui/forge/auth/model.go",
+    "internal/ui/forge/auth/update.go",
+    "internal/ui/forge/auth/view.go",
+    "internal/ui/forge/explorer/view.go",
+    "internal/ui/oci_resources/launch_form.go",
+    "internal/ui/oci_resources/launch_form_render.go",
+    "internal/ui/oci_resources/view.go",
+    "internal/ui/status/components/component_form.go",
+    "internal/ui/status/components/component_form_test.go",
+    "internal/ui/status/components/component_form_validation_test.go",
+    "internal/ui/status/view.go",
+    "internal/ui/testutil/testutil.go",
+    "internal/ui/theme/colors.go",
+    "internal/ui/theme/invalid_field_test.go",
+    "internal/ui/theme/manager.go",
+    "internal/ui/theme/source_guard_test.go",
+    "internal/ui/theme/styles.go"
+  ],
+  "sessions": [
+    {
+      "metadata": "/4a/43f7a50a9a/0/metadata.json",
+      "transcript": "/4a/43f7a50a9a/0/full.jsonl",
+      "compact_transcript": "/4a/43f7a50a9a/0/transcript.jsonl",
+      "content_hash": "/4a/43f7a50a9a/0/content_hash.txt",
+      "prompt": "/4a/43f7a50a9a/0/prompt.txt"
+    }
+  ],
+  "token_usage": {
+    "input_tokens": 176,
+    "cache_creation_tokens": 192708,
+    "cache_read_tokens": 8539077,
+    "output_tokens": 51197,
+    "api_call_count": 59,
+    "subagent_tokens": {
+      "input_tokens": 592,
+      "cache_creation_tokens": 1947899,
+      "cache_read_tokens": 19387268,
+      "output_tokens": 237202,
+      "api_call_count": 285
+    }
+  },
+  "redaction": {
+    "replacements": 24,
+    "layers": {
+      "betterleaks": 0,
+      "connection_string": 0,
+      "credential_key": 0,
+      "credential_value": 4,
+      "credentialed_uri": 0,
+      "entropy": 20,
+      "key_context": 0,
+      "provider_token": 0,
+      "shell_stdin": 0
+    }
+  }
+}

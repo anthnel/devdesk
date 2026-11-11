@@ -1,0 +1,15 @@
+{
+  "tool_use_id": "toolu_01KkZqarNPufU4fXYPJqZM1S",
+  "agent_id": "a68585d54d84b7204",
+  "subagent_type": "project-tester",
+  "task_description": "Durcir garde source et test focalisé",
+  "token_usage": {
+    "input_tokens": 12,
+    "cache_creation_tokens": 81717,
+    "cache_read_tokens": 355022,
+    "output_tokens": 5698,
+    "api_call_count": 6
+  },
+  "started_at": "2026-11-11T18:40:36.894380195+01:00",
+  "completed_at": "2026-11-11T18:41:17.568823301+01:00"
+}

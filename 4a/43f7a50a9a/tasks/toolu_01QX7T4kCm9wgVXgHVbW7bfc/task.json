@@ -1,0 +1,15 @@
+{
+  "tool_use_id": "toolu_01QX7T4kCm9wgVXgHVbW7bfc",
+  "agent_id": "a6f5fdd895a306467",
+  "subagent_type": "project-tester",
+  "task_description": "Tests rouges étape 4a ComponentForm",
+  "token_usage": {
+    "input_tokens": 18,
+    "cache_creation_tokens": 44595,
+    "cache_read_tokens": 296001,
+    "output_tokens": 10633,
+    "api_call_count": 9
+  },
+  "started_at": "2026-11-11T18:43:03.794597574+01:00",
+  "completed_at": "2026-11-11T18:44:25.751505198+01:00"
+}

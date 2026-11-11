@@ -1,0 +1,15 @@
+{
+  "tool_use_id": "toolu_01FSwkompyVJ2mb9aRRRh9C1",
+  "agent_id": "a92ea7876703a97d7",
+  "subagent_type": "project-tester",
+  "task_description": "Tests rouges étape 4d Auth",
+  "token_usage": {
+    "input_tokens": 22,
+    "cache_creation_tokens": 100465,
+    "cache_read_tokens": 726831,
+    "output_tokens": 9968,
+    "api_call_count": 10
+  },
+  "started_at": "2026-11-11T18:43:03.80564279+01:00",
+  "completed_at": "2026-11-11T18:44:18.28767014+01:00"
+}

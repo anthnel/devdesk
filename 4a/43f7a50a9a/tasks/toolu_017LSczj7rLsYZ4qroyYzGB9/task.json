@@ -1,0 +1,15 @@
+{
+  "tool_use_id": "toolu_017LSczj7rLsYZ4qroyYzGB9",
+  "agent_id": "a6c438592bfb1ff5c",
+  "subagent_type": "dev-team:reviewer",
+  "task_description": "Revue 2 des corrections",
+  "token_usage": {
+    "input_tokens": 26,
+    "cache_creation_tokens": 71240,
+    "cache_read_tokens": 706822,
+    "output_tokens": 10955,
+    "api_call_count": 13
+  },
+  "started_at": "2026-11-11T18:54:32.172759348+01:00",
+  "completed_at": "2026-11-11T19:01:13.596134545+01:00"
+}

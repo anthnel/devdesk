@@ -1,0 +1,15 @@
+{
+  "tool_use_id": "toolu_01FLiJF7DsHHC231EMn4EJ1u",
+  "agent_id": "a874a66dccce8706a",
+  "subagent_type": "project-tester",
+  "task_description": "Vérification finale DEVDESK-292",
+  "token_usage": {
+    "input_tokens": 14,
+    "cache_creation_tokens": 28138,
+    "cache_read_tokens": 140915,
+    "output_tokens": 4518,
+    "api_call_count": 7
+  },
+  "started_at": "2026-11-11T19:01:34.347008463+01:00",
+  "completed_at": "2026-11-11T19:06:58.812756863+01:00"
+}

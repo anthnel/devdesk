@@ -1,0 +1,15 @@
+{
+  "tool_use_id": "toolu_0112aHcUNW3UsV2tNZxwUkJ9",
+  "agent_id": "a3c2024505ac47983",
+  "subagent_type": "dev-team:security-reviewer",
+  "task_description": "Audit sécurité diff auth et formulaires",
+  "token_usage": {
+    "input_tokens": 18,
+    "cache_creation_tokens": 51887,
+    "cache_read_tokens": 335982,
+    "output_tokens": 4497,
+    "api_call_count": 9
+  },
+  "started_at": "2026-11-11T18:46:46.973834812+01:00",
+  "completed_at": "2026-11-11T18:47:37.320949113+01:00"
+}

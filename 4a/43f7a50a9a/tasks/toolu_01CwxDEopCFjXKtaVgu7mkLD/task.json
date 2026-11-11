@@ -1,0 +1,15 @@
+{
+  "tool_use_id": "toolu_01CwxDEopCFjXKtaVgu7mkLD",
+  "agent_id": "acc42921e27103edf",
+  "subagent_type": "project-tester",
+  "task_description": "Tests rouges étape 4c LaunchForm",
+  "token_usage": {
+    "input_tokens": 16,
+    "cache_creation_tokens": 38558,
+    "cache_read_tokens": 217672,
+    "output_tokens": 7752,
+    "api_call_count": 8
+  },
+  "started_at": "2026-11-11T18:43:03.789887231+01:00",
+  "completed_at": "2026-11-11T18:44:12.435329425+01:00"
+}

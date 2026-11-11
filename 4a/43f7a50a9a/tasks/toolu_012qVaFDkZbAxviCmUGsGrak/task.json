@@ -1,0 +1,15 @@
+{
+  "tool_use_id": "toolu_012qVaFDkZbAxviCmUGsGrak",
+  "agent_id": "ab6aea7d8a06b1187",
+  "subagent_type": "dev-team:reviewer",
+  "task_description": "Revue étapes 4a à 4d",
+  "token_usage": {
+    "input_tokens": 46,
+    "cache_creation_tokens": 149585,
+    "cache_read_tokens": 2014029,
+    "output_tokens": 19687,
+    "api_call_count": 22
+  },
+  "started_at": "2026-11-11T18:46:46.969747007+01:00",
+  "completed_at": "2026-11-11T18:49:56.3953106+01:00"
+}
