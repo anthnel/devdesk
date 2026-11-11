@@ -1,0 +1,15 @@
+{
+  "tool_use_id": "toolu_01Pd8cSvtB9TFnRUNLMn9jvd",
+  "agent_id": "aa91d079a00571868",
+  "subagent_type": "dev-team:devops",
+  "task_description": "Merge PR 357 et nettoyage",
+  "token_usage": {
+    "input_tokens": 10,
+    "cache_creation_tokens": 41107,
+    "cache_read_tokens": 145641,
+    "output_tokens": 1477,
+    "api_call_count": 5
+  },
+  "started_at": "2026-11-10T16:34:51.714840694+01:00",
+  "completed_at": "2026-11-10T16:35:26.318387338+01:00"
+}
