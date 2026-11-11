@@ -1,0 +1,15 @@
+{
+  "tool_use_id": "toolu_011eCeFUaU9ZckJWxfWPLQdD",
+  "agent_id": "a294c4186f546e187",
+  "subagent_type": "dev-team:devops",
+  "task_description": "Create PR and merge DEVDESK-289",
+  "token_usage": {
+    "input_tokens": 28,
+    "cache_creation_tokens": 38786,
+    "cache_read_tokens": 514261,
+    "output_tokens": 2787,
+    "api_call_count": 14
+  },
+  "started_at": "2026-11-10T17:48:54.134743804+01:00",
+  "completed_at": "2026-11-10T17:56:02.169669824+01:00"
+}
