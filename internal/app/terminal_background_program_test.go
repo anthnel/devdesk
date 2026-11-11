@@ -356,3 +356,15 @@ func TestBackgroundAroundExecProcess(t *testing.T) { testExec(t, nil) }
 func TestBackgroundAroundExecProcessThatFails(t *testing.T) {
 	testExec(t, errors.New("child failed"))
 }
+
+// runRouterTrueColor and runRouterToTrueColor run the router at TrueColor for
+// tests outside the colorprofile allow-list, which cannot name the type.
+func runRouterTrueColor(t *testing.T, a *App, script routerScript) (string, error) {
+	t.Helper()
+	return runRouter(t, a, colorprofile.TrueColor, script)
+}
+
+func runRouterToTrueColor(t *testing.T, a *App, out *lockedBuffer, script routerScript) (string, error) {
+	t.Helper()
+	return runRouterTo(t, a, colorprofile.TrueColor, out, script)
+}

@@ -46,6 +46,9 @@ type Model struct {
 	// context switch hides its runs rather than dropping them (D8).
 	runs        []jobs.Run
 	contextName string
+	// failures is the registry's failure memory, every context included; the
+	// header counts the ones of contextName.
+	failures []jobs.Failure
 
 	level   level
 	openRun jobs.JobID

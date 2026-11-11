@@ -234,28 +234,20 @@ func TestColorProfileMsgDoesNotReachTheActiveView(t *testing.T) {
 // sets it. Any other assignment or composite-literal field named
 // BackgroundColor in non-test code is reported with file:line.
 func TestOnlyTheRouterSetsTheTerminalBackground(t *testing.T) {
-	const owner = "internal/app/view.go"
+	assertOnlyOwnerSets(t, "internal/app/view.go", "BackgroundColor")
+}
+
+// assertOnlyOwnerSets walks the non-test sources and fails on any assignment or
+// composite-literal key named field outside owner (file:line), and when owner
+// itself never sets it (the guard would pass vacuously).
+func assertOnlyOwnerSets(t *testing.T, owner, field string) {
+	t.Helper()
 	root := filepath.Join("..", "..")
 	fset := token.NewFileSet()
 	var offences []string
 	ownerSets := false
 
-	err := filepath.WalkDir(root, func(path string, d fs.DirEntry, err error) error {
-		if err != nil {
-			return err
-		}
-		rel, _ := filepath.Rel(root, path)
-		rel = filepath.ToSlash(rel)
-		if d.IsDir() {
-			switch d.Name() {
-			case ".git", ".worktrees", "vendor", "node_modules":
-				return filepath.SkipDir
-			}
-			return nil
-		}
-		if !strings.HasSuffix(rel, ".go") || strings.HasSuffix(rel, "_test.go") {
-			return nil
-		}
+	err := walkProductionGo(root, func(rel, path string) error {
 		f, err := parser.ParseFile(fset, path, nil, 0)
 		if err != nil {
 			return err
@@ -271,12 +263,12 @@ func TestOnlyTheRouterSetsTheTerminalBackground(t *testing.T) {
 			switch x := n.(type) {
 			case *ast.AssignStmt:
 				for _, lhs := range x.Lhs {
-					if sel, ok := lhs.(*ast.SelectorExpr); ok && sel.Sel.Name == "BackgroundColor" {
+					if sel, ok := lhs.(*ast.SelectorExpr); ok && sel.Sel.Name == field {
 						report(sel.Pos())
 					}
 				}
 			case *ast.KeyValueExpr:
-				if id, ok := x.Key.(*ast.Ident); ok && id.Name == "BackgroundColor" {
+				if id, ok := x.Key.(*ast.Ident); ok && id.Name == field {
 					report(id.Pos())
 				}
 			}
@@ -288,11 +280,34 @@ func TestOnlyTheRouterSetsTheTerminalBackground(t *testing.T) {
 		t.Fatal(err)
 	}
 	for _, o := range offences {
-		t.Errorf("%s sets BackgroundColor; only %s may (the router owns terminal state)", o, owner)
+		t.Errorf("%s sets %s; only %s may (the router owns terminal state)", o, field, owner)
 	}
 	if !ownerSets {
-		t.Errorf("%s never assigns BackgroundColor: the guard would pass vacuously", owner)
+		t.Errorf("%s never assigns %s: the guard would pass vacuously", owner, field)
 	}
+}
+
+// walkProductionGo calls visit for every non-test .go file under root, with its
+// slash path relative to root.
+func walkProductionGo(root string, visit func(rel, path string) error) error {
+	return filepath.WalkDir(root, func(path string, d fs.DirEntry, err error) error {
+		if err != nil {
+			return err
+		}
+		rel, _ := filepath.Rel(root, path)
+		rel = filepath.ToSlash(rel)
+		if d.IsDir() {
+			switch d.Name() {
+			case ".git", ".worktrees", "vendor", "node_modules":
+				return filepath.SkipDir
+			}
+			return nil
+		}
+		if !strings.HasSuffix(rel, ".go") || strings.HasSuffix(rel, "_test.go") {
+			return nil
+		}
+		return visit(rel, path)
+	})
 }
 
 // writeTheme writes a valid theme named name under the isolated HOME's theme

@@ -142,6 +142,93 @@ stays mandatory: this is a safety net, not a replacement (see the gaps below).
   under Windows Terminal, tmux and a terminal without OSC 11. To be run by hand
   on a built binary after the merge; the results go in a table here.
 
+**Terminal progress (DEVDESK-211).** `App.View()` also sets
+`tea.View.ProgressBar` (OSC 9;4), so the terminal's tab or taskbar shows the work
+the jobs registry holds. `jobs.Summarize` (`internal/jobs/progress.go`, pure: no
+clock, no registry) reduces runs and failures to a `jobs.Progress`;
+`terminalProgress` (`internal/app/terminal_progress.go`) maps it to a
+`*tea.ProgressBar`.
+
+- *Scope.* Only the current context (D8): `summarizeJobs` filters runs and
+  failures with `jobs.FilterContext` / `jobs.FailuresIn`, and only unfinished runs
+  count. Failures of the `index` kind count like any other (`:jobs` lists them), so
+  an offline start turns the tab red until `:jobs` is shown once.
+- *Precedence* (strongest first, the order of Rule 128):
+
+  | Condition | `Progress.State` | `tea.ProgressBar` |
+  |---|---|---|
+  | a failure with `Seq` above the read mark | `ProgressError` | `{Error, 100}` |
+  | an unfinished run is `Cancelled()` | `ProgressWarning` | `{Warning, Percent}` when measured, else `{Warning, 100}` |
+  | unfinished runs, all measured | `ProgressPercent` | `{Default, Percent}` |
+  | unfinished runs, at least one not measured | `ProgressIndeterminate` | `{Indeterminate, 0}` |
+  | nothing | `ProgressIdle` | `nil`: the bar is cleared |
+
+  A run is *measured* when it is sealed (not open) and holds at least two targets
+  (`measurable`): an open run has no total yet, and a one-target run has no
+  halfway. `Percent` is `100 * sum(Done) / sum(Total)` over all unfinished runs
+  (integer division, so it floors). There is no persistent green bar (Rule 125):
+  idle is `nil`. Error and Warning are drawn full so the state is the message and
+  the bar stays visible on terminals that hide a 0 value; the 100 is untested on
+  real terminals (see below).
+- *Acknowledgement.* A failure is "read" once `:jobs` is on screen **and the
+  terminal has the focus** (`!terminalBlurred`). `Failure.Seq`
+  is a registry-assigned, strictly increasing number (see "The last failure per
+  target"). The router keeps one watermark per context
+  (`App.failuresReadThrough`); `summarizeJobs` raises it to
+  `jobs.LatestFailureSeq` while `currentView == command.ViewJobs` and the terminal is
+  not blurred. A failure that arrives while blurred stays red even with `:jobs`
+  shown, and opening `:jobs` while blurred reads nothing; on `tea.FocusMsg`,
+  the `syncTerminalProgress` that follows every `Update` re-summarizes, so a
+  still-shown `:jobs` reads them then. This holds with `app.when_unfocused: run`
+  too (the early return in `handleTerminalFocus` changes nothing): the bar stays
+  red while blurred and clears on focus.
+  The blur does not suspend the bar itself (only the animation tick stops).
+  Failures with a higher `Seq` are unread. The failures stay listed in `:jobs`; only the bar goes
+  back. A new failure for the same target gets a new `Seq`, so it turns the bar
+  red again. The watermark lives in the process, per context, and is not written
+  to disk.
+- *When it is computed.* `broadcastJobs` calls `summarizeJobs` (from `Update`
+  only, Rule 110). `syncTerminalProgress`, run after every `Update`, is a level
+  check: it re-summarizes only when the context changed or when `:jobs` is on
+  screen, focused, with an unread failure, whatever path brought the view in. Otherwise a
+  tick copies no snapshot. `View()` reads the stored `a.progress` and does no work.
+- *Limit (criterion 7).* The aggregate percentage has no text equivalent, and the red bar has none outside `:jobs`.
+- *One owner.* Only `internal/app/view.go` assigns `ProgressBar`
+  (`TestOnlyTheRouterSetsTheTerminalProgress`), and only `terminal_progress.go`
+  builds a `tea.ProgressBar` (`TestOnlyTerminalProgressBuildsAProgressBar`): a
+  second source would overwrite the first on the next frame.
+- *A fresh pointer per `View()`.* `terminalProgress` returns a new pointer on every
+  call. The renderer keeps the pointer it last drew and compares through it, so a
+  bar mutated in place would look unchanged and never be redrawn
+  (`TestViewHandsOutAFreshProgressBarEveryCall`). The renderer writes OSC 9;4 only
+  when the value changes, not per frame.
+- *Exit and `tea.ExecProcess`.* Bubble Tea 2.1.1 resets the bar (OSC 9;4;0) on
+  close, on the same paths as the background reset, and around an exec; it sends
+  the bar again when the renderer restarts. DevDesk adds nothing. Exec still goes
+  through `internal/ui/teaexec`.
+- *Degradation.* A terminal without OSC 9;4 ignores the sequence, and there is no
+  way to detect that, so DevDesk does not try. There is no config key to turn the
+  bar off (a future `app.terminal_progress: off` is a separate story if a terminal
+  is found that prints the sequence). tmux needs `allow-passthrough` to forward it.
+- *Text equivalent* (the bar is not the only channel): the `:jobs` header shows
+  `Failed N` (the context's remembered failures), the footer appends
+  `· M stopping` to `N jobs running`, and the help has a "Terminal tab" section.
+- *What is verified.* `internal/jobs/progress_test.go` covers `Summarize`
+  (precedence, floor, measured or not, `Seq` mark); `terminal_progress_test.go`
+  the mapping, the fresh pointer, a measured scan, an open run, acknowledgement,
+  scoping per context, a cancelled sync, that the bar does not change the content,
+  and the two source guards; `terminal_progress_program_test.go` runs a real
+  `tea.Program` and checks the bytes written (needs `mise run test-race`);
+  `terminal_progress_text_test.go` the `:jobs` text.
+- *Limits.* Nothing resets the bar after `kill -9`, a panic in a goroutine that is
+  not a `Cmd`, or a closed terminal: run `printf '\e]9;4;0\a'` to clear it.
+- *To verify by hand* (not covered by any test): Windows Terminal (indeterminate,
+  0 %, 50 %, full red, full yellow; cleared at the end; reset on exit and around
+  `T`), WSL inside Windows Terminal, tmux without `allow-passthrough` (nothing
+  printed, tab unchanged), and a terminal without support such as Terminal.app or
+  the Linux console (nothing printed). Open question: whether a full bar at 100 for
+  Error and Warning reads right, or looks like completion.
+
 ## View Switching & Command Mode
 
 Press `ctrl+p` to enter command mode, then type:
@@ -901,6 +988,12 @@ and `Discover`:
 | `delete` item `done` | clears the target for every kind, and its descendants when it is an absolute path |
 | item `skipped`, `Cancel` | nothing: a refusal or a stop is not a failure |
 | `ForgetTargetMsg` | same as a done delete, for a removal no run did (an image remove) |
+
+**`Failure.Seq`** (DEVDESK-211) is a number the registry assigns, strictly
+increasing across all contexts, each time a failure is posed (a replacement gets a
+new one). A reader keeps the highest `Seq` it has shown and treats anything above it
+as unread: the terminal progress bar does this (see "Terminal progress").
+`jobs.LatestFailureSeq` and `jobs.FailuresIn(failures, context)` serve it.
 
 `ForgetTargetMsg` is stamped with the **current** context by the router
 (`handleForgetTarget`); it never touches another context's failures, and

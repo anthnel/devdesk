@@ -26,6 +26,9 @@ type Failure struct {
 	// Detail is the failure reason.
 	Detail string
 	At     time.Time
+	// Seq orders failures: the registry assigns it on pose, strictly increasing
+	// and never reused, even after an eviction or a re-pose of the same key.
+	Seq uint64
 }
 
 // TargetKey normalizes a target so every view naming the same thing produces

@@ -98,6 +98,28 @@ decided together and fixed in one pass; see [§1.2](#12-the-five-parked-defects)
 
 ### 1.1 Fixed
 
+**D123 — DEVDESK-211: the terminal tab shows the progress of the jobs, through OSC 9;4 and `View.ProgressBar`. Scope is the current context; one precedence table (error, warning, weighted percentage, indeterminate, nil); failures are acknowledged by `Failure.Seq` while `:jobs` is on screen and the terminal is focused. Local, reversible decision: no ADR. Decided.** **Plane:** DEVDESK-211, dated 2026-11-11. Sources: `.claude/plans/DEVDESK-211-plan.md` (main checkout, untracked: questions 1 to 3, aggregation rules, steps 1 to 5), branch `feat/devdesk-211-terminal-progress` (uncommitted when this entry was written).
+
+*Context.* Bubble Tea v2.1.1 can set the tab's progress bar (`View.ProgressBar`, written as OSC 9;4). DevDesk ran its jobs in the background without showing anything there.
+
+*Decision.*
+- **Scope:** the current context, as `:jobs` does (D8). A run or failure of another context does not reach the bar. Rejected: all contexts, because the bar would turn red over a failure `:jobs` does not show.
+- **Aggregation,** by precedence:
+  1. a failure not yet read (`Failure.Seq` above the context's read-through) → error, 100;
+  2. an unsettled run that is cancelled → warning;
+  3. every unsettled run measured → percentage `floor(100 × ΣDone / ΣTotal)`, weighted and not the average of the percentages (1/2 and 0/8 give 10 %, not 25 %);
+  4. an unsettled run not measured → indeterminate;
+  5. otherwise → nil.
+  A run is measured when it is sealed and has at least 2 targets. A one-target run (a single scan, create, delete, index or pull) counts as not measured.
+- **Acknowledgement:** a context's failures are read through when `:jobs` is on screen and the terminal has focus, and again on each return of focus. No key is added.
+- **Warning only while a cancelled run is unsettled.** The registry has no "suspended" state (a blur suspends no job), so only cancellation counts. Once settled, the bar goes back to nil.
+- **`KindIndex` counts.** An index failure offline turns the bar red until `:jobs` is visited. Accepted, and to be documented.
+- **Error and warning are emitted at 100.** Whether a full bar shows as intended on Windows Terminal is to be checked by hand (step 5).
+- **No configuration switch.** A story is possible if a user needs one.
+- **No detection of OSC 9;4 support.** The sequence goes to every terminal. Bubble Tea offers no capability query. tmux without passthrough remains to check by hand.
+- **Limit on criterion 7** (the textual equivalent): the percentage has no text in the tab, and the red state outside `:jobs` has no text. The text equivalent exists in `:jobs` only.
+---
+
 **D122 — DEVDESK-210: a blurred terminal suspends the animation and the periodic reads. One router boolean, views skip their I/O and keep their timers, `app.when_unfocused: pause | run` (default `pause`). Option C of Q1 and the dashboard and OCI scope of Q2, chosen by the user. Decided.** **Plane:** DEVDESK-210, dated 2026-11-10; follow-up DEVDESK-318. Supersedes the deferral of focus in D118.
 
 Sources: `.claude/plans/DEVDESK-210-plan.md` (main checkout, untracked: Q1, Q2, H1–H6, ADR draft, options), `docs/architecture/app-shell.md` ("One tick, one chain"), `docs/architecture/agent-usage.md` ("Live updates"), commits `4fdb66b6`, `72da46be`, `a25d858f`, `faeaa725`, `7006df01` and the merges into `feat/DEVDESK-210-focus-views`.

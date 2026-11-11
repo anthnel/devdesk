@@ -52,6 +52,20 @@ When the terminal reports that it lost the focus (xterm mode 1004), the router s
 
 `app.when_unfocused: run` turns this off: nothing is suspended. Under tmux, `set -g focus-events on` is required. A terminal without mode 1004 never reports a blur, so nothing is paused there.
 
+### Terminal tab progress
+
+Many terminals (Windows Terminal, for one) can show a progress bar on the tab or in the taskbar. DevDesk uses it to show the work of the current context:
+
+- no bar when nothing runs;
+- an indeterminate bar while a running job has no known size yet (a clone that is still listing repositories, or a run of a single target);
+- a percentage when every running job has a known size of at least two targets;
+- orange while a stopped job has not settled yet;
+- red while a failure has not been read.
+
+A failure is read when `:jobs` is on screen while the terminal has the focus. The red bar then goes away, and the failed runs stay in the list. If the failure happens while the terminal is not focused, the bar stays red even with `:jobs` shown, and opening `:jobs` in the background reads nothing: the failure is read when the focus comes back and `:jobs` is still shown. The aggregate percentage has no text equivalent, and the red bar has none outside `:jobs`. The `:jobs` header shows `Failed N`, and its footer adds `· M stopping` while stopped work settles. A failure of the forge index at start-up counts too, so working offline turns the tab red until you open `:jobs`.
+
+A terminal that does not support the sequence ignores it, so nothing shows. Under tmux, set `allow-passthrough on` to let it through. If a bar stays after a crash, run `printf '\e]9;4;0\a'`.
+
 ## The keyboard vocabulary — `internal/ui/keymap`
 
 The keyboard follows a small set of namespaces, enforced by tests that scan the source for keybinding switches rather than by convention alone (an unenforced convention is exactly what produced a wave of key collisions before this package existed):
