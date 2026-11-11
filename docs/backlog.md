@@ -98,6 +98,28 @@ decided together and fixed in one pass; see [§1.2](#12-the-five-parked-defects)
 
 ### 1.1 Fixed
 
+**D126 — DEVDESK-292: an invalid form field is underlined in wavy red and the error is also in the footer at level Error, derived on every render. One entry point (`theme.StyleInvalidField`), a closed colour alias, validation rules added to the monitor form and the container launch form. Decided (recommended options taken: Q1-B, Q2-B for the monitors and Q2-A for `LaunchForm`).** **Plane:** DEVDESK-292, dated 2026-11-11. Sources: `.claude/plans/DEVDESK-292-plan.md` (branch `feat/DEVDESK-292-invalid-field`, uncommitted when this entry was written), `docs/ux/bubbletea-v2-improvements.md` §2.4 (main checkout, untracked), Rule 140 in `.claude/rules/tui-forms.md`, `docs/architecture/ui-components.md` ("Invalid form fields"). Local, reversible decisions: no ADR (see D125).
+
+*Context.* A validation error was one red footer line: with a long form the user could not see which field to fix, and colour alone is not enough (WCAG 1.4.1). Two of the four forms refused nothing or refused in silence (the monitor form returned without a word on an empty Name; `LaunchForm` validated nothing).
+
+*Decision.*
+- **Underline.** `theme.StyleInvalidField` is the only code that calls lipgloss's underline API (`UnderlineCurly`, colour `theme.ColorInvalidField`, `UnderlineSpaces(false)`); `TestGuardInvalidFieldUnderlineHasOneEntryPoint` enforces it. `ColorInvalidField` is a closed alias of `ColorFooterError`, no theme key (as D4 did for the activity colours); contrast against the background is at least 3:1 on every shipped theme.
+- **The footer carries the message.** `components.Validation.Status()` returns a `LevelError` status recomputed at each render, not a timed `footer.Error()`, which would expire after 3 s and leave the underline as the only carrier. Same doctrine as D47 (a state, not an event). The level follows the acceptance criterion; Rule 128 would have classed a refused input as Warn: for the reviewer.
+- **Life cycle.** Nothing is invalid before the first refused submit; afterwards every change revalidates the whole form. A required field left empty has its placeholder underlined (Q1-B).
+- **Restyle on change only** (`components.InvalidMarks.Sync`): `SetTextInputInvalid` resets the cursor blink, so it must not run on every message.
+- **Rules added** (Q2). Monitors: Name and Target required, Timeout 1 to 999, Ping count 1 to 99, empty keeps the default (an `abc` used to be replaced by 10 and 4 in silence). `CreationForm`: Name required, the old `err` line removed. `LaunchForm`: host port of each ticked EXPOSE port, empty accepted, otherwise 1 to 65535. Auth: token required.
+- **Auth spinner fixed.** Validation now runs before `authenticating` is set; a refused submit no longer leaves the spinner running.
+
+*Rejected.*
+- A mention `invalid` to the right of the field (Q1-C): it adds cells and breaks "the rendered width does not change".
+- Nothing for an empty required field (Q1-A): the most frequent failure would show no faulty field.
+- Parsing the additional ports and Environment of `LaunchForm` (Q2-B and C): risk of refusing a valid docker syntax (`KEY` alone is valid). Docker stays the judge, and its error already reaches the footer.
+- `UnderlineSpaces(true)`: the `textinput` padding up to its width would be underlined.
+
+*Limits.* A value made only of spaces is not underlined (spaces are plain): the footer is then the only carrier. A focused empty `WrappedInput` shows a cursor instead of its placeholder: nothing to underline. Out of scope: `templates/form.go`, netdiag, the `ctrl+p` palette, `FilterBar`.
+
+*To check by hand after merge.* Curly underline and its colour on Windows Terminal, WSL, iTerm2, kitty, tmux; the plain-underline fallback and SGR 58 / `4:3` on an old terminal. Cost is about 60 bytes per underlined character.
+
 **D125 — DEVDESK-258: `app.theme: auto` picks a dark or a light theme from the terminal's background (OSC 11), the 12 shipped themes are embedded in the binary, and a theme that cannot be used falls back to the default with a footer warning. Decided (recommended options taken, the user's choices recorded in the context).** **Plane:** DEVDESK-258, dated 2026-11-11. Sources: `.claude/plans/DEVDESK-258-plan.md` (branch `feat/devdesk-258-auto-theme`, uncommitted when this entry was written: questions Q1 to Q4, risks R1 to R6), `docs/architecture/app-shell.md` ("Terminal background"), `docs/architecture/configuration.md`. Local, reversible decisions: no ADR (see below).
 
 *Context.* `app.theme` names a theme loaded from `~/.devdesk/themes/`. `github-light` is not installed by default, so a light terminal with the default settings gave an unknown-theme warning at every launch, unless the user had run the wizard, which downloaded the themes from GitHub. The terminal background was never read.

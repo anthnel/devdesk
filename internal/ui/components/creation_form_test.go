@@ -6,8 +6,11 @@ import (
 	"testing"
 
 	tea "charm.land/bubbletea/v2"
+	"charm.land/lipgloss/v2"
+	"github.com/charmbracelet/x/ansi"
 
 	"github.com/anthnel/devdesk/internal/ui/testutil"
+	"github.com/anthnel/devdesk/internal/ui/theme"
 )
 
 // Field indices used by CreationForm.
@@ -285,6 +288,26 @@ func TestCreationFormEnterAdvancesThenSubmits(t *testing.T) {
 	}
 }
 
+// nameRequired is the footer sentence a refused submit leaves for an empty
+// Name (DEVDESK-292): the field, then what to do, in the forge's own word.
+func nameRequired(f *CreationForm) string {
+	return "Name is required \u2014 type a name for the " + strings.ToLower(f.resourceLabels[f.resourceType])
+}
+
+// refuseSubmit presses enter on the Create button with whatever the form holds.
+func refuseSubmit(t *testing.T, f *CreationForm) *CreationForm {
+	t.Helper()
+	f.focusedField = f.maxField()
+	f.updateFocus()
+	f, cmd := f.Update(testutil.Key("enter"))
+	if cmd != nil {
+		t.Fatalf("the submit was accepted, got %T", testutil.Msg(cmd))
+	}
+	return f
+}
+
+// Rewritten (DEVDESK-292): the refusal used to land in f.err and an
+// "Error: " line in the body; it is now the footer status, derived on demand.
 func TestCreationFormSubmitRequiresName(t *testing.T) {
 	f := newGroupForm()
 	f.focusedField = f.maxField()
@@ -294,11 +317,16 @@ func TestCreationFormSubmitRequiresName(t *testing.T) {
 	if cmd != nil {
 		t.Error("submitting without a name produced a command")
 	}
-	if f.err != "Name is required" {
-		t.Errorf("err = %q, want %q", f.err, "Name is required")
+	st := f.ValidationStatus()
+	if st.Text != nameRequired(f) {
+		t.Errorf("ValidationStatus().Text = %q, want %q", st.Text, nameRequired(f))
+	}
+	if st.Level != LevelError {
+		t.Errorf("ValidationStatus().Level = %v, want LevelError", st.Level)
 	}
 }
 
+// Rewritten (DEVDESK-292), same reason as above.
 func TestCreationFormSubmitRejectsWhitespaceOnlyName(t *testing.T) {
 	f := newGroupForm()
 	f = feedForm(f, testutil.Key("down"))
@@ -310,8 +338,113 @@ func TestCreationFormSubmitRejectsWhitespaceOnlyName(t *testing.T) {
 	if cmd != nil {
 		t.Error("a whitespace-only name was accepted")
 	}
-	if f.err == "" {
-		t.Error("a whitespace-only name produced no error message")
+	st := f.ValidationStatus()
+	if st.Text != nameRequired(f) || st.Level != LevelError {
+		t.Errorf("ValidationStatus() = %+v, want %q at LevelError", st, nameRequired(f))
+	}
+}
+
+func TestCreationFormUnderlinesNothingBeforeASubmit(t *testing.T) {
+	f := newGroupForm()
+	f = feedForm(f, testutil.Key("down"))
+	if strings.Contains(f.View(), "4:3") {
+		t.Error("an untouched form underlines a field")
+	}
+	if st := f.ValidationStatus(); st != (Status{}) {
+		t.Errorf("an untouched form has a status: %+v", st)
+	}
+}
+
+func TestCreationFormUnderlinesTheEmptyNamePlaceholderAfterARefusal(t *testing.T) {
+	f := refuseSubmit(t, newGroupForm())
+	if !strings.Contains(f.nameInput.View(), "4:3") {
+		t.Errorf("the empty Name placeholder is not underlined:\n%q", f.nameInput.View())
+	}
+	if !strings.Contains(f.View(), "4:3") {
+		t.Error("the form view does not carry the underline")
+	}
+}
+
+// A name made only of spaces is refused and the field is invalid, but it
+// cannot be underlined: theme.StyleInvalidField sets UnderlineSpaces(false) on
+// purpose, otherwise the textinput's padding would be underlined across the
+// whole width. So no "4:3" is expected here; the footer status carries the
+// message instead (WCAG 1.4.1, the cue is not colour or underline alone), and
+// the render keeps its width and its plain text.
+func TestCreationFormWhitespaceOnlyNameIsInvalidButCannotBeUnderlined(t *testing.T) {
+	f := newGroupForm()
+	f = feedForm(f, testutil.Key("down"))
+	f = feedForm(f, testutil.Type("   ")...)
+	before := f.nameInput.View()
+	f = refuseSubmit(t, f)
+
+	if !f.validation.Invalid(fieldKeyName) {
+		t.Error("a whitespace-only Name is not flagged invalid")
+	}
+	st := f.ValidationStatus()
+	if st.Level != LevelError || st.Text != nameRequired(f) {
+		t.Errorf("ValidationStatus() = %+v, want an Error saying %q", st, nameRequired(f))
+	}
+	after := f.nameInput.View()
+	if ansi.StringWidth(after) != ansi.StringWidth(before) || ansi.Strip(after) != ansi.Strip(before) {
+		t.Errorf("the refusal changed the Name render:\nbefore %q\nafter  %q", before, after)
+	}
+}
+
+func TestCreationFormCorrectionClearsTheUnderlineAndTheStatus(t *testing.T) {
+	f := refuseSubmit(t, newGroupForm())
+	f = feedForm(f, testutil.Key("down"), testutil.Key("down")) // Type, then Name
+	f = feedForm(f, testutil.Type("a")...)
+
+	if strings.Contains(f.View(), "4:3") {
+		t.Errorf("the underline survives a correction:\n%q", f.View())
+	}
+	if st := f.ValidationStatus(); st != (Status{}) {
+		t.Errorf("ValidationStatus() = %+v after a correction, want none", st)
+	}
+}
+
+func TestCreationFormErasingTheNameAfterARefusalUnderlinesAgain(t *testing.T) {
+	f := refuseSubmit(t, newGroupForm())
+	f = feedForm(f, testutil.Key("down"), testutil.Key("down"))
+	f = feedForm(f, testutil.Type("a")...)
+	f = feedForm(f, testutil.Key("backspace"))
+
+	if !strings.Contains(f.View(), "4:3") || f.ValidationStatus().Text != nameRequired(f) {
+		t.Error("revalidation stopped once the form had gone clean")
+	}
+}
+
+func TestCreationFormBodyNoLongerSaysError(t *testing.T) {
+	f := refuseSubmit(t, newGroupForm())
+	if strings.Contains(ansi.Strip(f.View()), "Error: ") {
+		t.Errorf("the body repeats the footer message:\n%s", ansi.Strip(f.View()))
+	}
+}
+
+// Rule 120 and DEVDESK-292: the underline adds no cell and moves nothing.
+func TestCreationFormInvalidKeepsWidthsAndTheFocusPrefix(t *testing.T) {
+	valid := feedForm(newGroupForm(), testutil.Key("down"))
+	invalid := feedForm(refuseSubmit(t, newGroupForm()), testutil.Key("down"), testutil.Key("down"))
+	if valid.focusedField != fieldName || invalid.focusedField != fieldName {
+		t.Fatalf("focus = %d / %d, want both on Name", valid.focusedField, invalid.focusedField)
+	}
+
+	vl := strings.Split(valid.View(), "\n")
+	il := strings.Split(invalid.View(), "\n")
+	if len(vl) != len(il) {
+		t.Fatalf("line count %d valid, %d invalid", len(vl), len(il))
+	}
+	for i := range vl {
+		if ansi.Strip(vl[i]) != ansi.Strip(il[i]) {
+			t.Errorf("line %d text differs: %q vs %q", i, ansi.Strip(vl[i]), ansi.Strip(il[i]))
+		}
+		if lipgloss.Width(vl[i]) != lipgloss.Width(il[i]) {
+			t.Errorf("line %d width differs: %d vs %d", i, lipgloss.Width(vl[i]), lipgloss.Width(il[i]))
+		}
+		if strings.Contains(ansi.Strip(vl[i]), theme.IconCircleSmall+" Name") && vl[i] != il[i] {
+			t.Errorf("the focus prefix line changed: %q vs %q", vl[i], il[i])
+		}
 	}
 }
 
@@ -486,4 +619,16 @@ func TestCreationFormAlwaysInEditMode(t *testing.T) {
 	if !newGroupForm().InEditMode() {
 		t.Error("InEditMode() = false; an open form must block command mode")
 	}
+}
+
+// DEVDESK-292: Update restyles the Name field only when its invalid state
+// changes, so the cursor keeps blinking.
+func TestCreationFormNameCursorStillBlinks(t *testing.T) {
+	f := newGroupForm()
+	f.focusedField = fieldName
+	f.updateFocus()
+	testutil.RequireBlinks(t, func(m tea.Msg) tea.Cmd {
+		_, cmd := f.Update(m)
+		return cmd
+	}, func() string { return f.nameInput.View() })
 }

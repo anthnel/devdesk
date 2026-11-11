@@ -210,6 +210,34 @@ func StyleTextInput(ti *textinput.Model) {
 	ti.SetStyles(styles)
 }
 
+// StyleInvalidField returns base with the invalid-field mark: a wavy underline
+// in ColorInvalidField, spaces left plain. It is the only place that touches
+// the underline API. The plain underline is set too, as the fallback for
+// terminals that ignore the styled one.
+func StyleInvalidField(base lipgloss.Style) lipgloss.Style {
+	return base.
+		Underline(true).
+		UnderlineStyle(lipgloss.UnderlineCurly).
+		UnderlineColor(ColorInvalidField).
+		UnderlineSpaces(false)
+}
+
+// SetTextInputInvalid styles ti like StyleTextInput and, when invalid, marks
+// its value and its placeholder with StyleInvalidField. With invalid false the
+// result is identical to StyleTextInput.
+func SetTextInputInvalid(ti *textinput.Model, invalid bool) {
+	StyleTextInput(ti)
+	if !invalid {
+		return
+	}
+	styles := ti.Styles()
+	for _, st := range []*textinput.StyleState{&styles.Focused, &styles.Blurred} {
+		st.Text = StyleInvalidField(st.Text)
+		st.Placeholder = StyleInvalidField(st.Placeholder)
+	}
+	ti.SetStyles(styles)
+}
+
 // SpinnerStyle returns the standard spinner style (secondary color on theme background)
 func SpinnerStyle() lipgloss.Style {
 	return lipgloss.NewStyle().

@@ -10,6 +10,7 @@ import (
 
 	"charm.land/bubbles/v2/spinner"
 	tea "charm.land/bubbletea/v2"
+	"github.com/charmbracelet/x/ansi"
 
 	"github.com/anthnel/devdesk/internal/config"
 	"github.com/anthnel/devdesk/internal/credentials"
@@ -350,11 +351,15 @@ func TestEnterOnTheButtonRequiresBothFields(t *testing.T) {
 		url   string
 		token string
 		want  bool
+		// A missing token is a field error shown in the footer (DEVDESK-292);
+		// a missing URL is not a field of this form and stays in the body.
+		wantFooter string
+		wantBody   bool
 	}{
-		{"both present", "https://gitlab.example.com", "glpat-x", true},
-		{"no token", "https://gitlab.example.com", "", false},
-		{"no url", "", "glpat-x", false},
-		{"neither", "", "", false},
+		{"both present", "https://gitlab.example.com", "glpat-x", true, "", false},
+		{"no token", "https://gitlab.example.com", "", false, "Token is required", false},
+		{"no url", "", "glpat-x", false, "", true},
+		{"neither", "", "", false, "Token is required", false},
 	}
 
 	for _, tc := range tests {
@@ -375,8 +380,17 @@ func TestEnterOnTheButtonRequiresBothFields(t *testing.T) {
 				}
 				return
 			}
-			if m.error == "" {
-				t.Error("an incomplete submission produced no error message")
+			if cmd != nil {
+				t.Error("an incomplete submission issued a command")
+			}
+			if m.authenticating {
+				t.Error("an incomplete submission left the spinner on")
+			}
+			if (m.error != "") != tc.wantBody {
+				t.Errorf("body error = %q, want one: %v", m.error, tc.wantBody)
+			}
+			if !strings.Contains(ansi.Strip(m.RenderFooter(100)), tc.wantFooter) {
+				t.Errorf("footer = %q, want %q", ansi.Strip(m.RenderFooter(100)), tc.wantFooter)
 			}
 		})
 	}
@@ -616,4 +630,15 @@ func TestWindowSizeIsStored(t *testing.T) {
 // view reads it. Tests that used to type into a URL input set it here instead.
 func setConfigURL(m *Model, url string) {
 	m.config.Forge.URL = url
+}
+
+// A stored token made of blanks must neither start a spinner nor an anonymous call.
+func TestCredentialsLoadedWithABlankTokenStartsNothing(t *testing.T) {
+	m := newTestModel(t, testConfig(), newFakeStorage())
+
+	m, cmd := step(t, m, CredentialsLoadedMsg{URL: "https://gitlab.example.com", Token: "   "})
+
+	if m.authenticating || cmd != nil {
+		t.Errorf("authenticating = %v, cmd = %v; want no login for a blank token", m.authenticating, cmd != nil)
+	}
 }

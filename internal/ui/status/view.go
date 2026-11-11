@@ -118,6 +118,11 @@ func (m Model) renderError() string {
 // status is what the view derives on every frame. The check has no timer: it
 // lasts exactly as long as it lasts.
 func (m Model) status() sharedcomponents.Status {
+	if m.componentForm != nil {
+		if st := m.componentForm.ValidationStatus(); st.Text != "" {
+			return st
+		}
+	}
 	if m.checking {
 		return sharedcomponents.Status{Text: "Checking components...", Spinner: true}
 	}

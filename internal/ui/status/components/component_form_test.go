@@ -7,6 +7,7 @@ import (
 	tea "charm.land/bubbletea/v2"
 
 	"github.com/anthnel/devdesk/internal/config"
+	sharedcomponents "github.com/anthnel/devdesk/internal/ui/components"
 	"github.com/anthnel/devdesk/internal/ui/testutil"
 )
 
@@ -367,7 +368,6 @@ func TestComponentFormSubmitParsesNumericInputs(t *testing.T) {
 		wantCount   int
 	}{
 		{"parsed", "45", "9", 45, 9},
-		{"non-numeric falls back", "abc", "xyz", 10, 4},
 		{"empty falls back", "", "", 10, 4},
 		{"whitespace falls back", "  ", "  ", 10, 4},
 	}
@@ -389,6 +389,46 @@ func TestComponentFormSubmitParsesNumericInputs(t *testing.T) {
 			}
 			if msg.Component.Count != tc.wantCount {
 				t.Errorf("Count = %d, want %d", msg.Component.Count, tc.wantCount)
+			}
+		})
+	}
+}
+
+// DEVDESK-292: a non-numeric Timeout or Ping count is refused, never silently
+// replaced by the default (only an empty field keeps its default).
+func TestComponentFormSubmitRefusesNonNumericInputs(t *testing.T) {
+	tests := []struct {
+		name    string
+		timeout string
+		count   string
+		want    string
+	}{
+		{"timeout", "abc", "4", "Timeout"},
+		{"ping count", "10", "xyz", "Ping count"},
+		{"both", "abc", "xyz", "Timeout"},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			f := fillValid(t, "icmp")
+			f.timeoutInput.SetValue(tc.timeout)
+			f.countInput.SetValue(tc.count)
+			f.focusIndex = f.maxFieldIndex()
+
+			f, cmd := f.Update(testutil.Key("enter"))
+			if cmd != nil {
+				t.Fatalf("submit emitted %T for Timeout=%q count=%q, want a refusal", testutil.Msg(cmd), tc.timeout, tc.count)
+			}
+			st := f.ValidationStatus()
+			if st.Level != sharedcomponents.LevelError || !strings.HasPrefix(st.Text, tc.want) {
+				t.Errorf("ValidationStatus() = %+v, want an Error naming %q", st, tc.want)
+			}
+			// The form stays open: a further valid submit still works.
+			f.timeoutInput.SetValue("10")
+			f.countInput.SetValue("4")
+			f.focusIndex = f.maxFieldIndex()
+			if _, cmd := f.Update(testutil.Key("enter")); cmd == nil {
+				t.Error("the form did not accept a corrected submit, it was not left open")
 			}
 		})
 	}

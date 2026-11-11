@@ -9,6 +9,7 @@ import (
 	tea "charm.land/bubbletea/v2"
 	"github.com/anthnel/devdesk/internal/forge"
 	"github.com/anthnel/devdesk/internal/forge/session"
+	"github.com/anthnel/devdesk/internal/ui/components"
 )
 
 // ForgeAuthSuccessMsg is the successful authentication message (coming from app.go)
@@ -100,8 +101,38 @@ func (m *Model) handleEnterKey() (tea.Model, tea.Cmd) {
 		m.nextField()
 		return m, nil
 	}
+	// Validate before the spinner: a refused submit starts nothing.
+	if !m.validation.Submit(m.tokenErrors()) {
+		m.restyleToken()
+		return m, nil
+	}
+	m.restyleToken()
+	if m.config.Forge.URL == "" {
+		m.error = m.missingURLMessage()
+		return m, nil
+	}
 	m.authenticating = true
 	return m, tea.Batch(m.spinner.Tick, m.authenticate())
+}
+
+// tokenErrors lists the field errors of the form: the token is required once
+// trimmed. The URL is configuration, not a field of this form.
+func (m *Model) tokenErrors() []components.FieldError {
+	if strings.TrimSpace(m.tokenInput.Value()) == "" {
+		return []components.FieldError{{Key: keyToken, Text: "Token is required"}}
+	}
+	return nil
+}
+
+// restyleToken applies the invalid mark to the token field. It runs from
+// Update() only, never from a Cmd or View() (Rule 110).
+func (m *Model) restyleToken() {
+	m.marks.Sync(keyToken, &m.tokenInput, m.validation.Invalid(keyToken))
+}
+
+// missingURLMessage is the body error for an unconfigured forge URL.
+func (m *Model) missingURLMessage() string {
+	return "No " + m.vocab().Name + " URL configured — set it in :config, " + m.forgeTab() + " tab"
 }
 
 // handleInputUpdate forwards messages to the active inputs
@@ -109,6 +140,8 @@ func (m *Model) handleInputUpdate(msg tea.Msg) (tea.Model, tea.Cmd) {
 	var cmd tea.Cmd
 	if m.currentField == fieldToken {
 		m.tokenInput, cmd = m.tokenInput.Update(msg)
+		m.validation.Revalidate(m.tokenErrors())
+		m.restyleToken()
 	}
 	return m, cmd
 }
@@ -138,7 +171,7 @@ func (m *Model) handleAuthResult(msg AuthResultMsg) (tea.Model, tea.Cmd) {
 // handleCredentialsLoaded handles the credentials loaded from storage
 func (m *Model) handleCredentialsLoaded(msg CredentialsLoadedMsg) (tea.Model, tea.Cmd) {
 	log.Printf("AUTH: CredentialsLoadedMsg received (URL: %s, Token: %v)", msg.URL, msg.Token != "")
-	if msg.URL != "" && msg.Token != "" {
+	if msg.URL != "" && strings.TrimSpace(msg.Token) != "" {
 		m.tokenInput.SetValue(msg.Token)
 		log.Printf("AUTH: Starting auto-login")
 		m.authenticating = true
@@ -206,12 +239,13 @@ func (m *Model) authenticate() tea.Cmd {
 	url := m.config.Forge.URL
 	token := strings.TrimSpace(m.tokenInput.Value())
 
-	if url == "" {
-		m.error = "No " + m.vocab().Name + " URL configured — set it in :config, " + m.forgeTab() + " tab"
+	// Defence in depth: the auto-login path comes here without handleEnterKey,
+	// and a stored token of blanks must not start an anonymous call.
+	if token == "" {
 		return nil
 	}
-	if token == "" {
-		m.error = "Token is required"
+	if url == "" {
+		m.error = m.missingURLMessage()
 		return nil
 	}
 

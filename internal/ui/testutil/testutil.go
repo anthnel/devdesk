@@ -17,8 +17,10 @@ import (
 	"fmt"
 	"reflect"
 	"strings"
+	"testing"
 	"time"
 
+	"charm.land/bubbles/v2/cursor"
 	tea "charm.land/bubbletea/v2"
 
 	"github.com/anthnel/devdesk/internal/ui/shortcut"
@@ -304,4 +306,30 @@ func Text(msg tea.Msg) (string, bool) {
 		}
 	}
 	return "", false
+}
+
+// BlinkTick returns the cursor.BlinkMsg the focused input behind update expects
+// next. update must feed a message to the model under test and return its
+// command, exactly like Update does. It waits for one cursor blink (about half
+// a second) because the message only exists once that timer ran.
+func BlinkTick(update func(tea.Msg) tea.Cmd) (cursor.BlinkMsg, bool) {
+	return MsgOf[cursor.BlinkMsg](update(cursor.Blink()))
+}
+
+// RequireBlinks fails the test unless a cursor blink delivered through update
+// changes view, as it does on a bare focused textinput. update feeds a message
+// to the model under test and returns its command, like Update; view renders the
+// focused input. A form that restyles its inputs on every message resets the
+// blink state each time and fails this (DEVDESK-292).
+func RequireBlinks(t testing.TB, update func(tea.Msg) tea.Cmd, view func() string) {
+	t.Helper()
+	before := view()
+	msg, ok := BlinkTick(update)
+	if !ok {
+		t.Fatal("the focused input produced no cursor.BlinkMsg")
+	}
+	update(msg)
+	if view() == before {
+		t.Error("a cursor.BlinkMsg through Update did not toggle the cursor: the input is restyled on every message")
+	}
 }

@@ -1,7 +1,9 @@
 package ociresources
 
 import (
+	"fmt"
 	"path/filepath"
+	"strconv"
 	"strings"
 
 	"charm.land/bubbles/v2/textinput"
@@ -9,6 +11,7 @@ import (
 
 	"github.com/anthnel/devdesk/internal/cache"
 	"github.com/anthnel/devdesk/internal/docker"
+	sharedcomponents "github.com/anthnel/devdesk/internal/ui/components"
 	"github.com/anthnel/devdesk/internal/ui/keymap"
 	"github.com/anthnel/devdesk/internal/ui/theme"
 )
@@ -46,7 +49,10 @@ func (p *portEntry) containerPortNum() string {
 // mappingArg returns the "-p host:container" argument value for docker run.
 // Falls back to the container port number when the host input is empty.
 func (p *portEntry) mappingArg() string {
-	host := strings.TrimSpace(p.hostPortInput.Value())
+	host, ok := normalizeHostPort(p.hostPortInput.Value())
+	if !ok {
+		host = strings.TrimSpace(p.hostPortInput.Value()) // refused by validate() before it gets here
+	}
 	container := p.containerPortNum()
 	if host == "" {
 		host = container
@@ -90,7 +96,8 @@ type LaunchForm struct {
 	verifySeq            int    // incremented on each new verification to discard stale results
 	lastEntrypoint       string // tracks previous entrypoint value for change detection
 	focusedField         int
-	err                  string
+	validation           sharedcomponents.Validation // host port errors, live after a refused submit (DEVDESK-292)
+	marks                sharedcomponents.InvalidMarks
 	width                int // viewport content width for two-column layout
 }
 
@@ -218,6 +225,7 @@ func (f *LaunchForm) ApplyCached(entry cache.LaunchOptionsEntry) {
 	for i := range f.ports {
 		if pm, ok := entry.PortMappings[f.ports[i].containerPort]; ok {
 			f.ports[i].hostPortInput.SetValue(pm.HostPort)
+			f.ports[i].hostPortInput.CursorEnd() // SetValue while blurred leaves a stale cursor
 			f.ports[i].enabled = pm.Enabled
 		}
 	}
@@ -314,6 +322,7 @@ func (f *LaunchForm) handleKeyMsg(msg tea.KeyPressMsg) (*LaunchForm, tea.Cmd) {
 		// Space toggles checkboxes (Rule 135): port fields and option checkboxes
 		if f.isPortField(f.focusedField) {
 			f.ports[f.focusedField-f.firstPortField()].enabled = !f.ports[f.focusedField-f.firstPortField()].enabled
+			f.revalidate()
 			return f, nil
 		}
 		if f.isOptionField(f.focusedField) {
@@ -397,7 +406,8 @@ func (f *LaunchForm) updateFocus() {
 	case f.focusedField == 0:
 		f.nameInput.Focus()
 	case f.isPortField(f.focusedField):
-		f.ports[f.focusedField-f.firstPortField()].hostPortInput.Focus()
+		in := &f.ports[f.focusedField-f.firstPortField()].hostPortInput
+		in.Focus()
 	case f.focusedField == f.fieldExtraPorts():
 		f.extraPortsInput.Focus()
 	case f.focusedField == f.fieldEntrypoint():
@@ -419,6 +429,7 @@ func (f *LaunchForm) updateActiveInput(msg tea.Msg) (*LaunchForm, tea.Cmd) {
 	case f.isPortField(f.focusedField):
 		portIdx := f.focusedField - f.firstPortField()
 		f.ports[portIdx].hostPortInput, cmd = f.ports[portIdx].hostPortInput.Update(msg)
+		f.revalidate()
 	case f.focusedField == f.fieldExtraPorts():
 		f.extraPortsInput, cmd = f.extraPortsInput.Update(msg)
 	case f.focusedField == f.fieldEntrypoint():
@@ -461,7 +472,76 @@ func (f *LaunchForm) onEntrypointChanged(newVal string) tea.Cmd {
 	return verifyEntrypointCmd(f.verifySeq, f.image, newVal)
 }
 
+// portKey is the validation key of the host port at index i.
+func portKey(i int) string { return fmt.Sprintf("port:%d", i) }
+
+// normalizeHostPort trims s and returns the port it names without leading
+// zeros ("0080" is "80"). Empty or blank is accepted and stays empty (the
+// container port is used); anything else must be ASCII digits between 1 and
+// 65535, so no sign and no "+80".
+func normalizeHostPort(s string) (string, bool) {
+	s = strings.TrimSpace(s)
+	if s == "" {
+		return "", true
+	}
+	for _, r := range s {
+		if r < '0' || r > '9' {
+			return "", false
+		}
+	}
+	n, err := strconv.Atoi(s)
+	if err != nil || n < 1 || n > 65535 {
+		return "", false
+	}
+	return strconv.Itoa(n), true
+}
+
+// validHostPort reports whether s is acceptable as a host port.
+func validHostPort(s string) bool {
+	_, ok := normalizeHostPort(s)
+	return ok
+}
+
+// validate returns the invalid host ports of the ticked EXPOSE ports, in
+// display order. Additional ports and Environment stay free-form.
+func (f *LaunchForm) validate() []sharedcomponents.FieldError {
+	var errs []sharedcomponents.FieldError
+	for i := range f.ports {
+		if f.ports[i].enabled && !validHostPort(f.ports[i].hostPortInput.Value()) {
+			errs = append(errs, sharedcomponents.FieldError{
+				Key:  portKey(i),
+				Text: "Host port for " + f.ports[i].containerPort + " must be a number between 1 and 65535",
+			})
+		}
+	}
+	return errs
+}
+
+// revalidate refreshes the errors after a change; it says nothing until a
+// submit has been refused.
+func (f *LaunchForm) revalidate() {
+	f.validation.Revalidate(f.validate())
+	f.applyInvalid()
+}
+
+// applyInvalid underlines the host ports that currently fail validation,
+// restyling only those whose state changed.
+func (f *LaunchForm) applyInvalid() {
+	for i := range f.ports {
+		f.marks.Sync(portKey(i), &f.ports[i].hostPortInput, f.validation.Invalid(portKey(i)))
+	}
+}
+
+// ValidationStatus is the footer line for the current errors, derived on every
+// call; the zero Status means none.
+func (f *LaunchForm) ValidationStatus() sharedcomponents.Status { return f.validation.Status() }
+
 func (f *LaunchForm) submit() (*LaunchForm, tea.Cmd) {
+	ok := f.validation.Submit(f.validate())
+	f.applyInvalid()
+	if !ok {
+		return f, nil
+	}
 	opts := docker.ContainerLaunchOptions{
 		Image:       f.image,
 		Name:        strings.TrimSpace(f.nameInput.Value()),

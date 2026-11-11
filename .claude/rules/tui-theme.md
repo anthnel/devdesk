@@ -122,6 +122,8 @@ Forbidden:
 
 **A hex literal (`lipgloss.Color("#...")`, `color.RGBA{…}`) must appear ONLY in `internal/ui/theme/colors.go`.**
 
+One exemption: the body of `DefaultTheme` in `internal/ui/theme/manager.go`, the embedded default theme. `TestGuardNoHexColorOutsideColorsGo` (`internal/ui/theme/source_guard_test.go`) enforces both. The invalid-field underline colour is `theme.ColorInvalidField`, an alias (Rule 140).
+
 Palette variables are `color.Color` (`image/color`), not a Lip Gloss type. Read
 one back with `theme.Hex(c)` (`#rrggbb`). A theme file is validated on load:
 `theme.LoadTheme` refuses the whole file when a non-empty colour is not `#rgb`

@@ -112,6 +112,11 @@ var (
 	ColorFooterWarn  color.Color
 	ColorFooterError color.Color
 
+	// ColorInvalidField colours the wavy underline of an invalid form field
+	// (DEVDESK-292). Closed alias of ColorFooterError assigned in ApplyTheme,
+	// no theme key.
+	ColorInvalidField color.Color
+
 	// Activity colours: the state colours of the first-column activity
 	// indicator (DEVDESK-137). Closed aliases assigned in ApplyTheme, no theme
 	// file gains a key (D4): Running = ColorSecondary, Neutral = ColorText
