@@ -1,0 +1,15 @@
+{
+  "tool_use_id": "toolu_017oJGY33t6ey4asswKs3eoC",
+  "agent_id": "a38d8858aa3f99125",
+  "subagent_type": "dev-team:devops",
+  "task_description": "PR docs du rapport spike",
+  "token_usage": {
+    "input_tokens": 14,
+    "cache_creation_tokens": 39823,
+    "cache_read_tokens": 219586,
+    "output_tokens": 1705,
+    "api_call_count": 7
+  },
+  "started_at": "2026-11-10T11:32:18.695402959+01:00",
+  "completed_at": "2026-11-10T11:32:55.090883701+01:00"
+}

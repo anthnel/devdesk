@@ -1,0 +1,15 @@
+{
+  "tool_use_id": "toolu_01B3xqUTXm4i57BTqs3feDEH",
+  "agent_id": "a645163c62683a9d3",
+  "subagent_type": "dev-team:reviewer",
+  "task_description": "Revue du rapport spike",
+  "token_usage": {
+    "input_tokens": 22,
+    "cache_creation_tokens": 72902,
+    "cache_read_tokens": 512400,
+    "output_tokens": 9144,
+    "api_call_count": 10
+  },
+  "started_at": "2026-11-10T11:29:28.533535364+01:00",
+  "completed_at": "2026-11-10T11:30:49.741996326+01:00"
+}
