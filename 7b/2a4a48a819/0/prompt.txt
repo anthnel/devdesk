@@ -1,0 +1,70 @@
+<task-notification>
+<task-id>a2da3a55e6a4d4ee4</task-id>
+<output-file>/tmp/claude-1000/-home-anthoni-projects-workspace-entire-anthnel-devdesk/ab45d90d-d883-4c2c-837b-7a92a3c89c8f/tasks/a2da3a55e6a4d4ee4.output</output-file>
+<status>completed</status>
+<summary>Agent "Merge PR 361 si checks verts" is waiting on its own background work</summary>
+<note>This agent stopped with background work of its own still running. It may resume on its own when that work completes or reports, and the same task-id notifies again if it does; the result below may be interim.</note>
+<result>This agent's report was delivered to you as a message from "a2da3a55e6a4d4ee4" (its SubagentHandback call). Read it there; it is not repeated here.
+</result>
+<usage><subagent_tokens>53986</subagent_tokens><tool_uses>12</tool_uses><duration_ms>951788</duration_ms></usage>
+</task-notification>
+
+---
+
+<task-notification>
+<task-id>a2da3a55e6a4d4ee4</task-id>
+<output-file>/tmp/claude-1000/-home-anthoni-projects-workspace-entire-anthnel-devdesk/ab45d90d-d883-4c2c-837b-7a92a3c89c8f/tasks/a2da3a55e6a4d4ee4.output</output-file>
+<status>completed</status>
+<summary>Agent "Merge PR 361 si checks verts" is waiting on its own background work</summary>
+<note>This agent stopped with background work of its own still running. It may resume on its own when that work completes or reports, and the same task-id notifies again if it does; the result below may be interim.</note>
+<result>This agent's report was delivered to you as a message from "a2da3a55e6a4d4ee4" (its SubagentHandback call). Read it there; it is not repeated here.
+
+This agent called SubagentHandback again after that report and was refused (one report per result), so anything new in that call has not reached you through it.
+</result>
+<usage><subagent_tokens>83402</subagent_tokens><tool_uses>19</tool_uses><duration_ms>997152</duration_ms></usage>
+</task-notification>
+
+---
+
+<task-notification>
+<task-id>a2da3a55e6a4d4ee4</task-id>
+<output-file>/tmp/claude-1000/-home-anthoni-projects-workspace-entire-anthnel-devdesk/ab45d90d-d883-4c2c-837b-7a92a3c89c8f/tasks/a2da3a55e6a4d4ee4.output</output-file>
+<status>completed</status>
+<summary>Agent "Merge PR 361 si checks verts" is waiting on its own background work</summary>
+<note>This agent stopped with background work of its own still running. It may resume on its own when that work completes or reports, and the same task-id notifies again if it does; the result below may be interim.</note>
+<result>This agent's report was delivered to you as a message from "a2da3a55e6a4d4ee4" (its SubagentHandback call). Read it there; it is not repeated here.
+
+This agent called SubagentHandback again after that report and was refused (one report per result), so anything new in that call has not reached you through it.
+</result>
+<usage><subagent_tokens>83641</subagent_tokens><tool_uses>19</tool_uses><duration_ms>1061522</duration_ms></usage>
+</task-notification>
+
+---
+
+<task-notification>
+<task-id>a2da3a55e6a4d4ee4</task-id>
+<output-file>/tmp/claude-1000/-home-anthoni-projects-workspace-entire-anthnel-devdesk/ab45d90d-d883-4c2c-837b-7a92a3c89c8f/tasks/a2da3a55e6a4d4ee4.output</output-file>
+<status>completed</status>
+<summary>Agent "Merge PR 361 si checks verts" is waiting on its own background work</summary>
+<note>This agent stopped with background work of its own still running. It may resume on its own when that work completes or reports, and the same task-id notifies again if it does; the result below may be interim.</note>
+<result>This agent's report was delivered to you as a message from "a2da3a55e6a4d4ee4" (its SubagentHandback call). Read it there; it is not repeated here.
+
+This agent called SubagentHandback again after that report and was refused (one report per result), so anything new in that call has not reached you through it.
+</result>
+<usage><subagent_tokens>83818</subagent_tokens><tool_uses>19</tool_uses><duration_ms>1531656</duration_ms></usage>
+</task-notification>
+
+---
+
+<task-notification>
+<task-id>a2da3a55e6a4d4ee4</task-id>
+<output-file>/tmp/claude-1000/-home-anthoni-projects-workspace-entire-anthnel-devdesk/ab45d90d-d883-4c2c-837b-7a92a3c89c8f/tasks/a2da3a55e6a4d4ee4.output</output-file>
+<status>completed</status>
+<summary>Agent "Merge PR 361 si checks verts" is waiting on its own background work</summary>
+<note>This agent stopped with background work of its own still running. It may resume on its own when that work completes or reports, and the same task-id notifies again if it does; the result below may be interim.</note>
+<result>This agent's report was delivered to you as a message from "a2da3a55e6a4d4ee4" (its SubagentHandback call). Read it there; it is not repeated here.
+
+This agent called SubagentHandback again after that report and was refused (one report per result), so anything new in that call has not reached you through it.
+</result>
+<usage><subagent_tokens>83926</subagent_tokens><tool_uses>19</tool_uses><duration_ms>1539160</duration_ms></usage>
+</task-notification>
