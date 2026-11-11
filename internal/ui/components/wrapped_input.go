@@ -29,6 +29,7 @@ type WrappedInput struct {
 	wrapWidth    int
 	displayWidth int
 	focused      bool
+	invalid      bool
 }
 
 // NewWrappedInput creates a WrappedInput.
@@ -51,6 +52,24 @@ func NewWrappedInput(wrapWidth, charLimit int, placeholder string) WrappedInput 
 // Call this whenever a tea.WindowSizeMsg is received.
 func (w *WrappedInput) SetDisplayWidth(width int) {
 	w.displayWidth = width
+}
+
+// SetInvalid marks the field as failing validation: its value, or its
+// placeholder when empty, gets the invalid-field underline. Width and text do
+// not change, and false renders exactly as a field never marked. A focused,
+// empty field shows a cursor rather than its placeholder, so there is nothing
+// to underline there: the footer carries the message.
+func (w *WrappedInput) SetInvalid(invalid bool) {
+	w.invalid = invalid
+}
+
+// invalidText renders s with the invalid-field underline; empty stays empty.
+func (w WrappedInput) invalidText(s string) string {
+	if !w.invalid || s == "" {
+		return s
+	}
+	base := lipgloss.NewStyle().Background(theme.ColorBackground).Foreground(theme.ColorText)
+	return theme.StyleInvalidField(base).Render(s)
 }
 
 // Focus gives keyboard focus to the input and returns the blink command.
@@ -95,6 +114,10 @@ func (w WrappedInput) View() string {
 			cur := lipgloss.NewStyle().Background(theme.ColorText).Foreground(theme.ColorBackground).Render(" ")
 			return theme.PadWithBg("  "+cur, w.displayWidth)
 		}
+		if w.invalid {
+			placeholder := theme.StyleInvalidField(theme.DimStyle).Render(w.input.Placeholder)
+			return theme.PadWithBg(theme.DimStyle.Render("  ")+placeholder, w.displayWidth)
+		}
 		return theme.PadWithBg(theme.DimStyle.Render("  "+w.input.Placeholder), w.displayWidth)
 	}
 
@@ -116,9 +139,9 @@ func (w WrappedInput) View() string {
 			} else {
 				cur = cursorStyle.Render(" ")
 			}
-			displayLine = "  " + before + cur + after
+			displayLine = "  " + w.invalidText(before) + cur + w.invalidText(after)
 		} else {
-			displayLine = "  " + wl.text
+			displayLine = "  " + w.invalidText(wl.text)
 		}
 
 		b.WriteString(theme.PadWithBg(displayLine, w.displayWidth))

@@ -8,7 +8,6 @@ import (
 
 	"github.com/anthnel/devdesk/internal/config"
 	"github.com/anthnel/devdesk/internal/forge"
-	"github.com/anthnel/devdesk/internal/ui/components"
 	"github.com/anthnel/devdesk/internal/ui/help"
 	"github.com/anthnel/devdesk/internal/ui/shortcut"
 	"github.com/anthnel/devdesk/internal/ui/theme"
@@ -39,7 +38,7 @@ func (m Model) GetFooterHeight() int {
 
 // RenderFooter returns the footer content rendered below the viewport (Rule 124).
 func (m Model) RenderFooter(width int) string {
-	return theme.EmptyLineBg(width) + "\n" + m.footer.View(width, components.Status{})
+	return theme.EmptyLineBg(width) + "\n" + m.footer.View(width, m.validation.Status())
 }
 
 // vocab is the wording of the forge this context targets. Resolved from the

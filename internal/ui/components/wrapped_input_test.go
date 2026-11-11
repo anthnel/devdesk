@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	"github.com/anthnel/devdesk/internal/ui/testutil"
+	"github.com/charmbracelet/x/ansi"
 )
 
 // wrapInputLines is the whole reason WrappedInput exists (Rule 133 bans
@@ -228,5 +229,135 @@ func TestWrappedInputPaste(t *testing.T) {
 				t.Error("the paste dropped the focus")
 			}
 		})
+	}
+}
+
+// underlineSGR is the curly underline (4:3) StyleInvalidField emits.
+const underlineSGR = "4:3"
+
+func invalidTestInput(value string) WrappedInput {
+	w := NewWrappedInput(80, 250, "Name")
+	w.SetDisplayWidth(100)
+	w.SetValue(value)
+	return w
+}
+
+func TestAWrappedInputIsNotInvalidByDefault(t *testing.T) {
+	for _, tc := range []struct {
+		name, value string
+		focus       bool
+	}{
+		{"empty unfocused", "", false},
+		{"empty focused", "", true},
+		{"value unfocused", "hello", false},
+		{"value focused", "hello", true},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			w := invalidTestInput(tc.value)
+			if tc.focus {
+				w.Focus()
+			}
+			want := w.View()
+			if strings.Contains(want, underlineSGR) {
+				t.Fatal("a default WrappedInput is underlined")
+			}
+			w.SetInvalid(true)
+			w.SetInvalid(false)
+			if got := w.View(); got != want {
+				t.Errorf("SetInvalid(true) then (false) changed the render:\n got %q\nwant %q", got, want)
+			}
+		})
+	}
+}
+
+func TestAnInvalidWrappedInputUnderlinesEachLineOfText(t *testing.T) {
+	w := invalidTestInput("alpha beta gamma delta")
+	w.wrapWidth = 12 // two visual lines
+	valid := w.View()
+	w.SetInvalid(true)
+	got := w.View()
+
+	lines, validLines := strings.Split(got, "\n"), strings.Split(valid, "\n")
+	if len(lines) < 2 || len(lines) != len(validLines) {
+		t.Fatalf("lines = %d (valid %d), want the same count and at least 2", len(lines), len(validLines))
+	}
+	for i, line := range lines {
+		idx := strings.Index(line, underlineSGR)
+		if idx < 0 {
+			t.Fatalf("line %d has no underline: %q", i, line)
+		}
+		if lead := ansi.Strip(line[:idx]); lead != "  " {
+			t.Errorf("line %d: text before the underline = %q, want only the 2-space indent", i, lead)
+		}
+		if ansi.Strip(line) != ansi.Strip(validLines[i]) {
+			t.Errorf("line %d text changed: %q vs %q", i, ansi.Strip(line), ansi.Strip(validLines[i]))
+		}
+		if ansi.StringWidth(line) != ansi.StringWidth(validLines[i]) {
+			t.Errorf("line %d width %d, want %d", i, ansi.StringWidth(line), ansi.StringWidth(validLines[i]))
+		}
+	}
+}
+
+func TestAnInvalidFocusedWrappedInputKeepsItsCursor(t *testing.T) {
+	w := invalidTestInput("hello")
+	w.Focus()
+	valid := w.View()
+	w.SetInvalid(true)
+	got := w.View()
+	if !strings.Contains(got, underlineSGR) {
+		t.Fatal("focused invalid field is not underlined")
+	}
+	if ansi.Strip(got) != ansi.Strip(valid) || ansi.StringWidth(got) != ansi.StringWidth(valid) {
+		t.Errorf("focused invalid render changed text or width: %q vs %q", ansi.Strip(got), ansi.Strip(valid))
+	}
+}
+
+// Decision: a required empty field refused on submit underlines its placeholder.
+func TestAnInvalidEmptyWrappedInputUnderlinesItsPlaceholder(t *testing.T) {
+	w := invalidTestInput("")
+	valid := w.View()
+	w.SetInvalid(true)
+	got := w.View()
+
+	idx := strings.Index(got, underlineSGR)
+	if idx < 0 {
+		t.Fatalf("placeholder is not underlined: %q", got)
+	}
+	if lead := ansi.Strip(got[:idx]); lead != "  " {
+		t.Errorf("text before the underline = %q, want only the 2-space indent", lead)
+	}
+	if !strings.Contains(ansi.Strip(got), "Name") {
+		t.Errorf("placeholder text lost: %q", ansi.Strip(got))
+	}
+	if ansi.Strip(got) != ansi.Strip(valid) || ansi.StringWidth(got) != ansi.StringWidth(valid) {
+		t.Errorf("invalid placeholder changed text or width: %q vs %q", ansi.Strip(got), ansi.Strip(valid))
+	}
+}
+
+// Rule 120: the focus prefix belongs to the form's label, never to the input,
+// so invalidity must not add a glyph to the input's own render.
+func TestInvalidWrappedInputAddsNoPrefixGlyph(t *testing.T) {
+	for _, value := range []string{"", "hello"} {
+		w := invalidTestInput(value)
+		w.SetInvalid(true)
+		if out := ansi.Strip(w.View()); strings.Contains(out, "●") || strings.Contains(out, "") {
+			t.Errorf("value %q: invalid render carries a focus glyph: %q", value, out)
+		}
+	}
+}
+
+// A focused empty field shows a cursor, not its placeholder: nothing to
+// underline, and the footer carries the message.
+func TestAnInvalidEmptyFocusedWrappedInputIsUnchanged(t *testing.T) {
+	w := invalidTestInput("")
+	w.Focus()
+	valid := w.View()
+	w.SetInvalid(true)
+	got := w.View()
+	if strings.Contains(got, underlineSGR) {
+		t.Errorf("focused empty field is underlined: %q", got)
+	}
+	if got != valid {
+		t.Errorf("render changed:\n got %q\nwant %q", got, valid)
 	}
 }

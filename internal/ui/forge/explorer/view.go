@@ -130,6 +130,9 @@ func (m Model) renderInfoLine(width int) string {
 // they last.
 func (m Model) status() components.Status {
 	switch {
+	// A refused creation: derived from the form on every frame, no timer.
+	case m.creationForm != nil && m.creationForm.ValidationStatus().Text != "":
+		return m.creationForm.ValidationStatus()
 	// Signed out and a failed load are states, not events: they are true for as
 	// long as they are true, so they carry the error level and no timer (Rule
 	// 128). A three-second message would leave an empty table explaining

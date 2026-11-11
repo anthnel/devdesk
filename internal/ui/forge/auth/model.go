@@ -25,6 +25,9 @@ const (
 	lastField = fieldSubmit
 )
 
+// keyToken names the token field in validation errors.
+const keyToken = "token"
+
 // Model represents the GitLab authentication view
 type Model struct {
 	config *config.Config
@@ -52,6 +55,11 @@ type Model struct {
 	error          string
 	success        string
 	warning        string // Non-blocking warning (e.g. credentials save failure)
+
+	// validation holds the token's field error once a submit was refused
+	// (DEVDESK-292); the footer derives its message from it at every render.
+	validation components.Validation
+	marks      components.InvalidMarks
 
 	// footer carries the messages other parts of the app post to this view (Rule 128).
 	footer components.FooterMessage

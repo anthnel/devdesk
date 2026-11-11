@@ -662,6 +662,72 @@ used as progress titles, and `Failed to <verb>`, which explorer, templates and
 `app/context.go` still write themselves. Their migration stories move them to
 `FailureEvent`, and the ban can be added then.
 
+## Invalid form fields (DEVDESK-292, Rule 140)
+
+A form field that fails validation is underlined in wavy red, and the error
+is also in the footer at level Error. The underline reinforces the message; it
+never replaces it.
+
+| Piece | Where | Role |
+|---|---|---|
+| `theme.ColorInvalidField` | `theme/colors.go`, assigned in `ApplyTheme` | closed alias of `ColorFooterError`, no theme key; contrast >= 3:1 against `ColorBackground`, tested on each shipped theme |
+| `theme.StyleInvalidField(base)` | `theme/styles.go` | the only code that calls the underline API (`UnderlineCurly`, `UnderlineColor`, `UnderlineSpaces(false)`) |
+| `theme.SetTextInputInvalid(&ti, invalid)` | `theme/styles.go` | `StyleTextInput`, plus the underline on the value and the placeholder when `invalid`; identical to `StyleTextInput` otherwise |
+| `components.Validation` | `components/validation.go` | `Submit(errs)`, `Revalidate(errs)`, `Invalid(key)`, `Status()` |
+| `components.FieldError{Key, Text}` | same | one failing field: its key in the form, and the footer sentence |
+| `components.InvalidMarks` | same | `Sync(key, &ti, invalid)` restyles an input only when its state changes |
+| `WrappedInput.SetInvalid(bool)` | `components/wrapped_input.go` | the same mark for a multi-line field; width and text unchanged |
+
+**Life cycle.** Nothing is invalid until a submit is refused: `Submit` records
+the errors and arms revalidation. From then on every change calls `Revalidate`
+with the form's own `errors()` and the underline follows. `Status()` returns the
+first error, followed by `(+N more)` when others remain, at `LevelError`. It is
+derived on every render, so unlike `footer.Error()` it does not expire after 3 s.
+
+**Why `InvalidMarks`.** `SetTextInputInvalid` rebuilds the input's styles, which
+resets the cursor blink (`IsBlinked` goes back to false). Calling it on every
+message, blink ticks included, would freeze the cursor. `Sync` calls it only on
+a change of state, and only from `Update()` (Rule 110).
+
+**Rendering limits.**
+- Spaces are not underlined, or the `textinput` padding up to `Width()` would be
+  underlined across the whole field. A value made only of spaces is therefore not
+  underlined; the footer is the only carrier.
+- A required field left empty has nothing to underline: its **placeholder** is
+  underlined. A focused empty `WrappedInput` shows a cursor, not its placeholder,
+  so it shows no underline either.
+- The focus prefix `●` (Rule 120) and the rendered width do not change.
+- A terminal without styled underlines shows a plain one. Cost: about 60 bytes
+  per underlined character. Risk: SGR 58 and `4:3` on old terminals.
+
+**Forms and rules.** Each form has `errors()` (or `validate()`), a restyle in
+`Update()`, and `ValidationStatus()`, which the parent view returns from its
+footer status while the form is open.
+
+| Form | File | Rules |
+|---|---|---|
+| status monitor (`ComponentForm`) | `internal/ui/status/components/component_form.go`, footer in `internal/ui/status/view.go` | Name and Target required; Timeout an integer 1 to 999 (`CharLimit` 3); Ping count an integer 1 to 99 (`CharLimit` 2); an empty Timeout or Ping count keeps its default |
+| forge creation (`CreationForm`) | `internal/ui/components/creation_form.go`, footer in `internal/ui/forge/explorer/view.go` | Name required (trimmed). Replaces the old `err` line in the form body |
+| container launch (`LaunchForm`) | `internal/ui/oci_resources/launch_form.go`, footer through `formStatus()` in `view.go` | host port of each ticked EXPOSE port: empty is accepted (the container port is used), otherwise ASCII digits 1 to 65535. Additional ports and Environment stay free-form; docker judges them |
+| forge sign-in (`internal/ui/forge/auth`) | `model.go`, `update.go`, `view.go` | token required (trimmed) |
+
+**Auth spinner fix.** In the sign-in view `handleEnterKey` set `authenticating`
+and started the spinner, then `authenticate()` returned nil with "Token is
+required" (or the missing-URL message) in the body: nothing ever cleared the
+flag, so the spinner kept running. Validation now runs before `authenticating`
+is set, for the token and for the missing URL, and a refused submit starts
+nothing. A stored token made only of blanks no longer triggers the auto-login
+(`handleCredentialsLoaded`) either.
+
+**Out of scope.** `internal/ui/templates/form.go`, netdiag, the `ctrl+p` palette
+and `FilterBar` do not use the underline yet.
+
+**Guards.** `internal/ui/theme/source_guard_test.go`:
+`TestGuardNoHexColorOutsideColorsGo` (Rule 119, `DefaultTheme` in `manager.go`
+exempt), `TestGuardInvalidFieldUnderlineHasOneEntryPoint` (no `Underline*`
+outside `StyleInvalidField`), and `TestGuardDetectors` (the scanners fire on a
+faulty fragment).
+
 ## `PostFooterMsg` — the router's one line
 
 `FooterMessage` belongs to a view, and a view calls `Info`, `Warn` or `Error` on

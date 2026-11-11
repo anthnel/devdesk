@@ -58,7 +58,8 @@ type CreationForm struct {
 	focusedField int
 	width        int
 	height       int
-	err          string
+	validation   Validation // what a refused submit found, live afterwards (DEVDESK-292)
+	marks        InvalidMarks
 }
 
 // CreationFormSubmitMsg is sent when form is submitted
@@ -147,6 +148,15 @@ func (f *CreationForm) SetVisibilityNote(msg string) {
 
 // Update handles messages
 func (f *CreationForm) Update(msg tea.Msg) (*CreationForm, tea.Cmd) {
+	f, cmd := f.update(msg)
+	// The only place the underline and the errors change, so View stays
+	// read-only (Rule 110).
+	f.validation.Revalidate(f.errors())
+	f.marks.Sync(fieldKeyName, &f.nameInput, f.validation.Invalid(fieldKeyName))
+	return f, cmd
+}
+
+func (f *CreationForm) update(msg tea.Msg) (*CreationForm, tea.Cmd) {
 	switch msg := msg.(type) {
 	case tea.WindowSizeMsg:
 		f.width = msg.Width
@@ -286,11 +296,10 @@ func (f *CreationForm) InEditMode() bool {
 }
 
 func (f *CreationForm) submit() (*CreationForm, tea.Cmd) {
-	name := strings.TrimSpace(f.nameInput.Value())
-	if name == "" {
-		f.err = "Name is required"
+	if !f.validation.Submit(f.errors()) {
 		return f, nil
 	}
+	name := strings.TrimSpace(f.nameInput.Value())
 
 	template := ""
 	if f.formType == FormTypeProject {
@@ -309,16 +318,28 @@ func (f *CreationForm) submit() (*CreationForm, tea.Cmd) {
 	}
 }
 
+// fieldKeyName is the validation key of the Name field.
+const fieldKeyName = "name"
+
+// errors lists what currently prevents a submit, in display order. The label
+// is the forge's own word for the resource, lower-cased.
+func (f *CreationForm) errors() []FieldError {
+	if strings.TrimSpace(f.nameInput.Value()) != "" {
+		return nil
+	}
+	label := strings.ToLower(f.resourceLabels[f.resourceType])
+	return []FieldError{{Key: fieldKeyName, Text: "Name is required \u2014 type a name for the " + label}}
+}
+
+// ValidationStatus is the footer line for the form's current errors; the zero
+// Status when there are none, which is always the case before a refused submit.
+func (f *CreationForm) ValidationStatus() Status { return f.validation.Status() }
+
 // View renders the form
 func (f *CreationForm) View() string {
 	var b strings.Builder
 
 	b.WriteString(theme.EmptyLineBg(f.width) + "\n")
-
-	// Error message
-	if f.err != "" {
-		b.WriteString(lipgloss.NewStyle().Background(theme.ColorBackground).Foreground(theme.ColorError).Render("Error: "+f.err) + "\n\n")
-	}
 
 	// Resource type selector (cycle ←→)
 	b.WriteString(f.renderResourceTypeField())

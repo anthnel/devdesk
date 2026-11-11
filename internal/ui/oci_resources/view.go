@@ -161,6 +161,11 @@ func (m Model) formStatus() sharedcomponents.Status {
 	if m.networkInspectForm != nil && m.networkInspectForm.loading {
 		return sharedcomponents.Status{Text: "Loading containers...", Spinner: true}
 	}
+	if m.launchForm != nil {
+		if st := m.launchForm.ValidationStatus(); st.Text != "" {
+			return st
+		}
+	}
 	return sharedcomponents.Status{}
 }
 

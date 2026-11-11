@@ -153,11 +153,6 @@ func (f *LaunchForm) renderFormContent() string {
 	b.WriteString(theme.DimStyle.Render(f.image))
 	b.WriteString("\n\n")
 
-	if f.err != "" {
-		b.WriteString(theme.StatusErrorStyle.Render("  " + f.err))
-		b.WriteString("\n\n")
-	}
-
 	// Name
 	b.WriteString(f.renderTextField("Name", f.nameInput.View(), 0))
 	b.WriteString("\n\n")

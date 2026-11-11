@@ -340,3 +340,31 @@ case "up":
 case "down":
     m.focusedField = min(m.focusedField+1, fieldCount-1)
 ```
+
+### Rule 140 : An invalid field is underlined, and the footer says why (DEVDESK-292)
+
+**A field that fails validation gets a wavy red underline, and the same error is in the footer. The underline is never the only carrier.**
+
+- **One entry point.** The underline comes from `theme.StyleInvalidField(base)` (curly underline, `UnderlineCurly`, colour `theme.ColorInvalidField`). Never call `Underline*` anywhere else: `TestGuardInvalidFieldUnderlineHasOneEntryPoint` fails the suite. For a `textinput` use `theme.SetTextInputInvalid(&ti, invalid)`; for a `WrappedInput`, `SetInvalid(bool)`.
+- **Colour.** `theme.ColorInvalidField` is a closed alias of `ColorFooterError` (no theme key, Rule 119). Its contrast against `ColorBackground` is at least 3:1 (WCAG 1.4.11), tested on every shipped theme.
+- **The message is in the footer, level Error (Rule 128)**, taken from `components.Validation.Status()`. It is derived on every render, so it does not vanish after 3 s like a timed `footer.Error()`. The parent view returns it from its status function while the form is open.
+- **Nothing is invalid before the first refused submit.** After it, every change revalidates the whole form (`Validation.Revalidate`) and the footer follows.
+- **A required field left empty:** its placeholder is underlined. A focused empty `WrappedInput` shows a cursor, not its placeholder: nothing to underline, the footer carries the message.
+- **Spaces are not underlined** (`UnderlineSpaces(false)`), otherwise the `textinput` padding would be underlined across the whole width. A value made only of spaces is therefore not underlined: the footer is the only carrier.
+- **Restyle on a change of state only.** `SetTextInputInvalid` resets the cursor blink (`IsBlinked` goes back to false), so calling it on every message freezes the cursor. Go through `components.InvalidMarks.Sync(key, &ti, invalid)`, from `Update()` only (Rule 110), never from `View()` or a `Cmd`.
+- **Prefix unchanged.** The focus prefix `●` stays as in Rule 120. The underline adds no cell: the rendered width does not change.
+- **Fallback.** A terminal without styled underlines gets a plain underline (SGR 4), still readable. Cost: about 60 bytes per underlined character. Risk: SGR 58 and `4:3` on old terminals, to check by hand.
+
+```go
+// ✅ CORRECT — state change only, in Update()
+f.validation.Revalidate(f.errors())
+f.marks.Sync(keyName, &f.nameInput, f.validation.Invalid(keyName))
+
+// ❌ WRONG — a local underline, and a restyle on every message
+f.nameInput.SetStyles(lipgloss.NewStyle().Underline(true)...)
+theme.SetTextInputInvalid(&f.nameInput, true) // in every Update
+```
+
+Forms covered, and where the rules live: `docs/architecture/ui-components.md` ("Invalid form fields"). Out of scope: `templates/form.go`, netdiag, the `ctrl+p` palette, `FilterBar`.
+
+Guards: `internal/ui/theme/source_guard_test.go` (`TestGuardNoHexColorOutsideColorsGo`, `TestGuardInvalidFieldUnderlineHasOneEntryPoint`, `TestGuardDetectors`).

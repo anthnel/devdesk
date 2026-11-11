@@ -10,6 +10,7 @@ import (
 	"charm.land/lipgloss/v2"
 
 	"github.com/anthnel/devdesk/internal/config"
+	sharedcomponents "github.com/anthnel/devdesk/internal/ui/components"
 	"github.com/anthnel/devdesk/internal/ui/theme"
 )
 
@@ -27,6 +28,12 @@ type ComponentForm struct {
 	compType   string // http, https, icmp, dns
 	editing    bool   // true si édition, false si création
 	original   *config.ComponentConfig
+
+	// Validation (DEVDESK-292): errors found by the last refused submit, kept
+	// live afterwards. shown records which inputs currently carry the invalid
+	// style, so the style is only reapplied when a field changes state.
+	validation sharedcomponents.Validation
+	shown      map[string]bool
 
 	// Dimensions
 	width  int
@@ -114,10 +121,16 @@ func (f *ComponentForm) Update(msg tea.Msg) (*ComponentForm, tea.Cmd) {
 		f.width = msg.Width
 		f.height = msg.Height
 	case tea.KeyPressMsg:
-		return f.handleKeyMsg(msg)
+		nf, cmd := f.handleKeyMsg(msg)
+		if nf != nil {
+			nf.revalidate()
+		}
+		return nf, cmd
 	}
 
-	return f, f.updateActiveInput(msg)
+	cmd := f.updateActiveInput(msg)
+	f.revalidate()
+	return f, cmd
 }
 
 // handleKeyMsg traite les entrées clavier du formulaire
@@ -178,11 +191,13 @@ func (f *ComponentForm) handleEnterKey() (*ComponentForm, tea.Cmd) {
 
 // submitForm valide et soumet le formulaire
 func (f *ComponentForm) submitForm() (*ComponentForm, tea.Cmd) {
-	name := strings.TrimSpace(f.nameInput.Value())
-	target := strings.TrimSpace(f.targetInput.Value())
-	if name == "" || target == "" {
+	accepted := f.validation.Submit(f.validate())
+	f.syncInvalid()
+	if !accepted {
 		return f, nil
 	}
+	name := strings.TrimSpace(f.nameInput.Value())
+	target := strings.TrimSpace(f.targetInput.Value())
 
 	component := config.ComponentConfig{
 		Name:    name,
@@ -204,6 +219,75 @@ func (f *ComponentForm) submitForm() (*ComponentForm, tea.Cmd) {
 			Original:  f.original,
 		}
 	}
+}
+
+// Field keys used by the validation.
+const (
+	keyName    = "name"
+	keyTarget  = "target"
+	keyTimeout = "timeout"
+	keyCount   = "count"
+)
+
+// validate lists the faulty fields in display order. A hidden field (Ping
+// count outside an icmp form) is never counted, and an empty Timeout or
+// Ping count is valid: it takes its default.
+func (f *ComponentForm) validate() []sharedcomponents.FieldError {
+	var errs []sharedcomponents.FieldError
+	if strings.TrimSpace(f.nameInput.Value()) == "" {
+		errs = append(errs, sharedcomponents.FieldError{Key: keyName, Text: "Name is required"})
+	}
+	if strings.TrimSpace(f.targetInput.Value()) == "" {
+		errs = append(errs, sharedcomponents.FieldError{Key: keyTarget, Text: "Target is required"})
+	}
+	if !validNumber(f.timeoutInput.Value(), 999) {
+		errs = append(errs, sharedcomponents.FieldError{Key: keyTimeout, Text: "Timeout must be a number between 1 and 999"})
+	}
+	if f.compType == "icmp" && !validNumber(f.countInput.Value(), 99) {
+		errs = append(errs, sharedcomponents.FieldError{Key: keyCount, Text: "Ping count must be a number between 1 and 99"})
+	}
+	return errs
+}
+
+// validNumber reports whether s is empty or an integer between 1 and max.
+func validNumber(s string, max int) bool {
+	s = strings.TrimSpace(s)
+	if s == "" {
+		return true
+	}
+	n, err := strconv.Atoi(s)
+	return err == nil && n >= 1 && n <= max
+}
+
+// revalidate refreshes the errors after a change (no-op until a submit was
+// refused) and restyles the inputs whose state changed.
+func (f *ComponentForm) revalidate() {
+	f.validation.Revalidate(f.validate())
+	f.syncInvalid()
+}
+
+// syncInvalid applies the invalid style to the inputs whose state changed.
+// It runs from Update() only, never from View() or a Cmd (Rule 110).
+func (f *ComponentForm) syncInvalid() {
+	if f.shown == nil {
+		f.shown = map[string]bool{}
+	}
+	inputs := map[string]*textinput.Model{
+		keyName: &f.nameInput, keyTarget: &f.targetInput,
+		keyTimeout: &f.timeoutInput, keyCount: &f.countInput,
+	}
+	for key, in := range inputs {
+		if inv := f.validation.Invalid(key); inv != f.shown[key] {
+			theme.SetTextInputInvalid(in, inv)
+			f.shown[key] = inv
+		}
+	}
+}
+
+// ValidationStatus is the footer line for the form's current errors, at
+// LevelError and derived on every call. The zero Status means no error.
+func (f *ComponentForm) ValidationStatus() sharedcomponents.Status {
+	return f.validation.Status()
 }
 
 // parseTimeout parses the timeout input value with default of 10
