@@ -1,0 +1,15 @@
+{
+  "tool_use_id": "toolu_01HmoLbcKcBB4E6Gq9uPVXA9",
+  "agent_id": "a4bd01caa15dedfb4",
+  "subagent_type": "dev-team:devops",
+  "task_description": "Créer la PR DEVDESK-277",
+  "token_usage": {
+    "input_tokens": 10,
+    "cache_creation_tokens": 39730,
+    "cache_read_tokens": 144299,
+    "output_tokens": 1848,
+    "api_call_count": 5
+  },
+  "started_at": "2026-11-11T19:35:02.288991017+01:00",
+  "completed_at": "2026-11-11T19:35:50.371037555+01:00"
+}

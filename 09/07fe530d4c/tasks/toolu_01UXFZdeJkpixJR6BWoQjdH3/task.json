@@ -1,0 +1,15 @@
+{
+  "tool_use_id": "toolu_01UXFZdeJkpixJR6BWoQjdH3",
+  "agent_id": "a82147af460638411",
+  "subagent_type": "dev-team:devops",
+  "task_description": "Merger la PR 369 si autorisé",
+  "token_usage": {
+    "input_tokens": 10,
+    "cache_creation_tokens": 42571,
+    "cache_read_tokens": 150170,
+    "output_tokens": 1953,
+    "api_call_count": 5
+  },
+  "started_at": "2026-11-11T19:47:51.565734174+01:00",
+  "completed_at": "2026-11-11T19:48:28.66441331+01:00"
+}

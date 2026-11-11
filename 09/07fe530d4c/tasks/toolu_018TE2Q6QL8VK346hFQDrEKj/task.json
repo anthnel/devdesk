@@ -1,0 +1,18 @@
+{
+  "tool_use_id": "toolu_018TE2Q6QL8VK346hFQDrEKj",
+  "agent_id": "ada1819417ae5c92d",
+  "subagent_type": "project-tester",
+  "task_description": "Rouge WantsBlink explorer non authentifié",
+  "files": [
+    "internal/ui/forge/explorer/wants_blink_invariant_test.go"
+  ],
+  "token_usage": {
+    "input_tokens": 22,
+    "cache_creation_tokens": 31428,
+    "cache_read_tokens": 304818,
+    "output_tokens": 5876,
+    "api_call_count": 11
+  },
+  "started_at": "2026-11-11T20:36:46.400945277+01:00",
+  "completed_at": "2026-11-11T20:37:44.81738255+01:00"
+}

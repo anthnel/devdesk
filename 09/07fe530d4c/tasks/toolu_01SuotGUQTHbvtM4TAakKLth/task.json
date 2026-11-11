@@ -1,0 +1,15 @@
+{
+  "tool_use_id": "toolu_01SuotGUQTHbvtM4TAakKLth",
+  "agent_id": "a3bd43c6f28c538f0",
+  "subagent_type": "project-tester",
+  "task_description": "Reliquats étape 3 DEVDESK-341",
+  "token_usage": {
+    "input_tokens": 28,
+    "cache_creation_tokens": 52129,
+    "cache_read_tokens": 605248,
+    "output_tokens": 9508,
+    "api_call_count": 14
+  },
+  "started_at": "2026-11-11T20:28:30.291708941+01:00",
+  "completed_at": "2026-11-11T20:30:56.128283203+01:00"
+}

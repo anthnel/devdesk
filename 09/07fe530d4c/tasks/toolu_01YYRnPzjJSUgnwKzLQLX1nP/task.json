@@ -1,0 +1,15 @@
+{
+  "tool_use_id": "toolu_01YYRnPzjJSUgnwKzLQLX1nP",
+  "agent_id": "a4b8cbc8346296ba7",
+  "subagent_type": "project-tester",
+  "task_description": "Tests app pour l'explorer migré",
+  "token_usage": {
+    "input_tokens": 30,
+    "cache_creation_tokens": 108594,
+    "cache_read_tokens": 1174623,
+    "output_tokens": 9945,
+    "api_call_count": 14
+  },
+  "started_at": "2026-11-11T20:33:01.046287888+01:00",
+  "completed_at": "2026-11-11T20:34:56.150673894+01:00"
+}

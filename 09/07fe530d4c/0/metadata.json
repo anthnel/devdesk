@@ -1,0 +1,203 @@
+{
+  "cli_version": "0.13.1",
+  "checkpoint_id": "0907fe530d4c",
+  "session_id": "3a0ae566-f2d0-46bd-8940-13efdfdce880",
+  "strategy": "manual-commit",
+  "created_at": "2026-11-11T19:39:38.057162408Z",
+  "branch": "feat/DEVDESK-341-footer-activity-dot",
+  "checkpoints_count": 27,
+  "save_step_count": 31,
+  "files_touched": [
+    "internal/app/activity_guard_test.go",
+    "internal/app/animation_install_test.go",
+    "internal/app/footer_activity_test.go",
+    "internal/ui/components/footer_activity_test.go",
+    "internal/ui/components/footer_guard_test.go",
+    "internal/ui/components/footer_message.go",
+    "internal/ui/dashboard/dashboard_test.go",
+    "internal/ui/dashboard/frame_test.go",
+    "internal/ui/dashboard/model.go",
+    "internal/ui/dashboard/view.go",
+    "internal/ui/filebrowser/frame_test.go",
+    "internal/ui/filebrowser/jobs.go",
+    "internal/ui/filebrowser/update.go",
+    "internal/ui/forge/explorer/activity_wants.go",
+    "internal/ui/forge/explorer/clone.go",
+    "internal/ui/forge/explorer/footer_test.go",
+    "internal/ui/forge/explorer/frame_test.go",
+    "internal/ui/forge/explorer/index.go",
+    "internal/ui/forge/explorer/index_test.go",
+    "internal/ui/forge/explorer/jobs.go",
+    "internal/ui/forge/explorer/model.go",
+    "internal/ui/forge/explorer/model_test.go",
+    "internal/ui/forge/explorer/navigation.go",
+    "internal/ui/forge/explorer/update.go",
+    "internal/ui/forge/explorer/view.go",
+    "internal/ui/jobsview/indicator_test.go",
+    "internal/ui/jobsview/update.go",
+    "internal/ui/jobsview/view.go",
+    "internal/ui/oci_resources/footer_test.go",
+    "internal/ui/oci_resources/jobs.go",
+    "internal/ui/oci_resources/view.go",
+    "internal/ui/security/footer_test.go",
+    "internal/ui/security/frame_test.go",
+    "internal/ui/security/jobs.go",
+    "internal/ui/security/view.go",
+    "internal/ui/templates/footer_test.go",
+    "internal/ui/templates/frame_test.go",
+    "internal/ui/templates/scan.go",
+    "internal/ui/templates/scan_test.go",
+    "internal/ui/workspaces/footer_test.go",
+    "internal/ui/workspaces/frame_test.go",
+    "internal/ui/workspaces/indicator_test.go",
+    "internal/ui/workspaces/jobs.go",
+    "internal/ui/workspaces/review1_test.go",
+    "internal/ui/workspaces/view.go"
+  ],
+  "agent": "Claude Code",
+  "model": "claude-sonnet-5-5",
+  "turn_id": "bd7ff1292b36",
+  "checkpoint_transcript_start": 176,
+  "transcript_lines_at_start": 176,
+  "compact_transcript_start": 27,
+  "token_usage": {
+    "input_tokens": 176,
+    "cache_creation_tokens": 141946,
+    "cache_read_tokens": 10193654,
+    "output_tokens": 42772,
+    "api_call_count": 61,
+    "subagent_tokens": {
+      "input_tokens": 564,
+      "cache_creation_tokens": 1625565,
+      "cache_read_tokens": 21342715,
+      "output_tokens": 210222,
+      "api_call_count": 272
+    }
+  },
+  "redaction": {
+    "replacements": 0,
+    "layers": {
+      "betterleaks": 0,
+      "connection_string": 0,
+      "credential_key": 0,
+      "credential_value": 0,
+      "credentialed_uri": 0,
+      "entropy": 0,
+      "key_context": 0,
+      "provider_token": 0,
+      "shell_stdin": 0
+    }
+  },
+  "skill_events_version": 1,
+  "skill_events": [
+    {
+      "id": "prompt-skill-claude-code-team-core:feature-2026-11-11T18:27:56.580336255Z",
+      "event_type": "prompt_invocation",
+      "skill": {
+        "name": "team-core:feature"
+      },
+      "source": {
+        "agent": "claude-code",
+        "signal": "prompt_slash_command",
+        "confidence": "explicit"
+      },
+      "turn_id": "5bba96a01a7a",
+      "timestamp": "2026-11-11T18:27:56.580336255Z",
+      "native": {
+        "command": "/team-core:feature"
+      },
+      "collapse": {
+        "target": "user_message",
+        "label": "/team-core:feature",
+        "default_collapsed": true
+      }
+    },
+    {
+      "id": "claude-skill-toolu_01Cj2ELCGJ4Q4phRYHZbSHZq",
+      "event_type": "tool_invocation",
+      "skill": {
+        "name": "team-core:resume-work"
+      },
+      "source": {
+        "agent": "claude-code",
+        "signal": "skill_tool_use",
+        "confidence": "explicit"
+      },
+      "turn_id": "b2f5612e330a",
+      "transcript_anchor": {
+        "unit": "line",
+        "start": 37,
+        "end": 38,
+        "entry_ids": [
+          "2281cc6a-eabe-463b-a274-d8357e1c07b0"
+        ],
+        "tool_use_id": "toolu_01Cj2ELCGJ4Q4phRYHZbSHZq"
+      },
+      "native": {
+        "tool_name": "Skill",
+        "tool_use_id": "toolu_01Cj2ELCGJ4Q4phRYHZbSHZq"
+      },
+      "collapse": {
+        "target": "tool_pair",
+        "label": "Skill: team-core:resume-work",
+        "default_collapsed": true
+      }
+    },
+    {
+      "id": "claude-skill-toolu_01Ks3xNgdLB8CQUhDk8DP3fV",
+      "event_type": "tool_invocation",
+      "skill": {
+        "name": "plane-integration:plane-conventions"
+      },
+      "source": {
+        "agent": "claude-code",
+        "signal": "skill_tool_use",
+        "confidence": "explicit"
+      },
+      "turn_id": "b2f5612e330a",
+      "transcript_anchor": {
+        "unit": "line",
+        "start": 41,
+        "end": 42,
+        "entry_ids": [
+          "8f50e54a-5a33-459e-9211-a71f2d56eb79"
+        ],
+        "tool_use_id": "toolu_01Ks3xNgdLB8CQUhDk8DP3fV"
+      },
+      "native": {
+        "tool_name": "Skill",
+        "tool_use_id": "toolu_01Ks3xNgdLB8CQUhDk8DP3fV"
+      },
+      "collapse": {
+        "target": "tool_pair",
+        "label": "Skill: plane-integration:plane-conventions",
+        "default_collapsed": true
+      }
+    },
+    {
+      "id": "prompt-skill-claude-code-team-core:feature-2026-11-11T18:45:42.08799473Z",
+      "event_type": "prompt_invocation",
+      "skill": {
+        "name": "team-core:feature"
+      },
+      "source": {
+        "agent": "claude-code",
+        "signal": "prompt_slash_command",
+        "confidence": "explicit"
+      },
+      "turn_id": "399ca32fd76d",
+      "timestamp": "2026-11-11T18:45:42.08799473Z",
+      "native": {
+        "command": "/team-core:feature"
+      },
+      "collapse": {
+        "target": "user_message",
+        "label": "/team-core:feature",
+        "default_collapsed": true
+      }
+    }
+  ],
+  "session_metrics": {
+    "turn_count": 31
+  }
+}
