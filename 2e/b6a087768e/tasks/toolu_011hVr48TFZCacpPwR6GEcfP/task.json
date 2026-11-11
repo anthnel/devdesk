@@ -1,0 +1,15 @@
+{
+  "tool_use_id": "toolu_011hVr48TFZCacpPwR6GEcfP",
+  "agent_id": "a1907347bdf121722",
+  "subagent_type": "product-team:pm",
+  "task_description": "Rédiger stories migration Charm v2",
+  "token_usage": {
+    "input_tokens": 20,
+    "cache_creation_tokens": 114637,
+    "cache_read_tokens": 752197,
+    "output_tokens": 15357,
+    "api_call_count": 10
+  },
+  "started_at": "2026-11-10T08:28:54.493675797+01:00",
+  "completed_at": "2026-11-10T08:31:16.829579857+01:00"
+}
