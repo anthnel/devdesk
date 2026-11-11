@@ -3,7 +3,6 @@ package explorer
 import (
 	"log"
 
-	"charm.land/bubbles/v2/spinner"
 	tea "charm.land/bubbletea/v2"
 
 	"github.com/anthnel/devdesk/internal/browser"
@@ -27,9 +26,6 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	case tea.PasteMsg:
 		return m.handlePaste(msg)
-
-	case spinner.TickMsg:
-		return m.handleSpinnerTick(msg)
 
 	case RootGroupsLoadedMsg:
 		return m.handleRootGroupsLoaded(msg)
@@ -248,25 +244,6 @@ func (m Model) handleCloningKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 		return m.handleCloneEsc()
 	}
 	return m, m.clone.table.Update(msg)
-}
-
-// handleSpinnerTick advances the spinner the view owns, which is now the
-// **load** and nothing else.
-//
-// It used to drive the clone rows as well, and that was the fourth hand-stamped
-// chain D5 removed: the rows take the router's frame from the broadcast now, so
-// a clone keeps turning whether or not this view is on screen — and cannot
-// freeze on frame zero if this chain dies.
-func (m Model) handleSpinnerTick(msg spinner.TickMsg) (tea.Model, tea.Cmd) {
-	if !m.loading && m.refreshing == 0 {
-		return m, nil
-	}
-	var cmd tea.Cmd
-	m.spinner, cmd = m.spinner.Update(msg)
-	// The load is reported in the footer, so the frame has to reach it — a
-	// spinner stuck on frame zero reads as a hang.
-	m.footer.SetSpinnerFrame(m.spinner.View())
-	return m, cmd
 }
 
 // handleOpenInBrowser opens the selected node's web URL in the default browser

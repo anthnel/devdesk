@@ -12,6 +12,7 @@ import (
 	"github.com/anthnel/devdesk/internal/ui/datatable"
 	"github.com/anthnel/devdesk/internal/ui/indicator"
 	"github.com/anthnel/devdesk/internal/ui/theme"
+	"github.com/charmbracelet/x/ansi"
 )
 
 // DEVDESK-144 step 2: column 0 of the ws table is the activity column
@@ -211,14 +212,19 @@ func TestAFrameSetsThePhaseWithoutRebuildingRows(t *testing.T) {
 	}
 }
 
-func TestAFrameStillFeedsTheFooterSpinner(t *testing.T) {
-	m := withSnapshot(t, loadedModel(t), []jobs.Run{runningRun(jobs.KindScan, indRepo)}, nil)
-	m = feed(t, m, jobs.FrameMsg{Frame: "ZZ", RenderedFrame: "FOOTERFRAME", Blink: true})
+func TestAFrameStillFeedsTheFooterDot(t *testing.T) {
+	// A scan on indRepo with the cursor on another, idle row: no detail glyph
+	// takes the footer dot's place.
+	m := selectRow(t, withSnapshot(t, loadedModel(t), []jobs.Run{runningRun(jobs.KindScan, indRepo)}, nil), "clean-repo")
+	m = feed(t, m, jobs.FrameMsg{Frame: "ZZ", RenderedFrame: "FOOTERFRAME", Blink: false})
 	if strings.Contains(m.Render(), "ZZ") {
 		t.Error("the bare frame still reaches the table")
 	}
-	if !strings.Contains(m.RenderFooter(120), "FOOTERFRAME") {
-		t.Skip("footer shows no spinner for this state; only the table side is asserted")
+	if strings.Contains(m.RenderFooter(120), "FOOTERFRAME") {
+		t.Error("the router's rendered frame reaches the footer; it takes the blink phase only")
+	}
+	if !strings.Contains(m.RenderFooter(120), indicator.Glyph(indicator.Running, false)) {
+		t.Errorf("the footer shows no hollow dot on an idle row during a scan: %q", ansi.Strip(m.RenderFooter(120)))
 	}
 }
 

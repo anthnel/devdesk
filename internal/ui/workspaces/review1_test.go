@@ -32,7 +32,7 @@ func TestBusyTextAgreesWithTheDotForARunningScan(t *testing.T) {
 	}
 }
 
-func TestFooterSpinnerSurvivesAFailedSelectedRowDuringABatch(t *testing.T) {
+func TestFooterDotSurvivesAFailedSelectedRowDuringABatch(t *testing.T) {
 	batch := runningRun(jobs.KindSync, "/tmp/workspaces/other01")
 	fail := []jobs.Failure{actFailure(jobs.KindSync, testContext, ftDev, "sync failed — check logs", time.Now())}
 	m := withSnapshot(t, loadedModel(t), []jobs.Run{batch}, fail)
@@ -41,7 +41,7 @@ func TestFooterSpinnerSurvivesAFailedSelectedRowDuringABatch(t *testing.T) {
 	if st.Detail.IsZero() {
 		t.Fatal("precondition: the failed row should carry a detail")
 	}
-	if !st.Spinner {
-		t.Error("spinner dropped while a batch is still running")
+	if !st.Activity {
+		t.Error("activity dot dropped while a batch is still running")
 	}
 }

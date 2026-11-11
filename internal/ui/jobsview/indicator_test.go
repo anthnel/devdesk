@@ -371,15 +371,15 @@ func TestACancelledRunShowsItsGlyphAtBothLevels(t *testing.T) {
 	}
 }
 
-func TestRunningJobsWithEveryRowFilteredOutKeepTheFooterSpinner(t *testing.T) {
+func TestRunningJobsWithEveryRowFilteredOutKeepTheFooterDot(t *testing.T) {
 	m := withRuns(t, run(1, jobs.KindScan, "~/work", jobs.ItemRunning))
 	m, _ = step(t, m, testutil.Key("/"))
 	for _, msg := range testutil.Type("nothing-matches-this") {
 		m, _ = step(t, m, msg)
 	}
 	status := m.status()
-	if !status.Spinner || !status.Detail.IsZero() {
-		t.Errorf("Spinner = %v, Detail zero = %v; want a spinner and no detail", status.Spinner, status.Detail.IsZero())
+	if !status.Activity || !status.Detail.IsZero() {
+		t.Errorf("Activity = %v, Detail zero = %v; want a dot and no detail", status.Activity, status.Detail.IsZero())
 	}
 	if status.Text != "1 job running" {
 		t.Errorf("Text = %q, want the count", status.Text)

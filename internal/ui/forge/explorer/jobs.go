@@ -12,9 +12,8 @@ import (
 // they are the two that talk to a forge over the network. Left outside, each
 // would have needed its own flag, its own blink chain and its own guard —
 // which is the fourth bookkeeping the package doc of internal/jobs opens by
-// describing, and the animation is the half that fails silently: this view's
-// own spinner chain stops on `!m.loading` (handleSpinnerTick), so a blink
-// phase taken from it would freeze the moment the tree settled.
+// describing, and the animation is the half that fails silently: blink
+// phase comes from the router's frame, which keeps running while a run is live.
 
 // createRun and deleteRun are single-target runs. The label is the name a human
 // gave the thing, not the path: it is what `:jobs` shows, and the path is

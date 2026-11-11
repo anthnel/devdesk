@@ -77,11 +77,11 @@ func TestStatusDetailForAFailedDelete(t *testing.T) {
 	}
 }
 
-func TestTheGlobalLoadKeepsItsSpinner(t *testing.T) {
+func TestTheGlobalLoadKeepsItsLine(t *testing.T) {
 	m := newTestModel(t)
 	st := m.status()
-	if !st.Spinner || st.Text != "Loading GitLab groups..." {
-		t.Errorf("first load status = %+v, want the spinner and %q (criterion 2)", st, "Loading GitLab groups...")
+	if !st.Activity || st.Spinner || st.Text != "Loading GitLab groups..." {
+		t.Errorf("first load status = %+v, want the activity dot and %q (criterion 2)", st, "Loading GitLab groups...")
 	}
 	if !st.Detail.IsZero() {
 		t.Errorf("first load carries a row detail: %q", st.Detail.String())

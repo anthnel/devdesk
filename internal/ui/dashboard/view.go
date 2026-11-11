@@ -296,7 +296,7 @@ func (m Model) status() sharedcomponents.Status {
 	if line == "" {
 		return sharedcomponents.Status{}
 	}
-	return sharedcomponents.Status{Text: line, Spinner: true}
+	return sharedcomponents.Status{Text: line, Activity: true}
 }
 
 // GetShortcuts returns the keyboard shortcuts for the header.

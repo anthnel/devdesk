@@ -711,14 +711,14 @@ func TestTheFooterCountsWorkStartedElsewhere(t *testing.T) {
 			running(command.ViewSecurity, jobs.KindScan, "inventory"),
 		},
 	})
-	m = feed(t, m, jobs.FrameMsg{RenderedFrame: "*"})
+	m = feed(t, m, jobs.FrameMsg{Blink: true})
 
 	status := m.status()
 	if want := "2 jobs running — :jobs for details"; status.Text != want {
 		t.Errorf("the footer says %q, want %q", status.Text, want)
 	}
-	if !status.Spinner {
-		t.Error("the count carries no spinner")
+	if !status.Activity {
+		t.Error("the count carries no activity dot")
 	}
 	if !strings.Contains(m.RenderFooter(180), "jobs running") {
 		t.Error("the rendered footer does not carry the line")

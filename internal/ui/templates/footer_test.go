@@ -70,7 +70,7 @@ func TestTheFooterSaysWhatTheSelectedRowIsDoing(t *testing.T) {
 			m := indFixture(t)
 			runs, failures := tc.build(t)
 			m = snapshot(t, m, runs, failures)
-			m = send(t, m, jobs.FrameMsg{RenderedFrame: "<R1>"})
+			m = send(t, m, jobs.FrameMsg{Blink: true})
 			got := footerLine(m, 120)
 			if !strings.Contains(got, tc.want) {
 				t.Errorf("footer = %q, want it to contain %q", got, tc.want)
@@ -91,13 +91,13 @@ func TestARunningSyncKeepsTheJobsProgressAfterTheDetail(t *testing.T) {
 	}
 }
 
-func TestAnIdleRowKeepsTheSpinnerWhileAnotherRowSyncs(t *testing.T) {
+func TestAnIdleRowKeepsTheDotWhileAnotherRowSyncs(t *testing.T) {
 	m := indFixture(t) // the cursor is on API
 	m = snapshot(t, m, []jobs.Run{named(jobs.KindSync, jobs.ItemRunning, "web", "Web")}, nil)
-	m = send(t, m, jobs.FrameMsg{RenderedFrame: "<R1>"})
+	m = send(t, m, jobs.FrameMsg{Blink: true})
 	got := footerLine(m, 120)
-	if !strings.Contains(got, "<R1>") || !strings.Contains(got, "0/1") {
-		t.Errorf("footer = %q, want the spinner frame and the progress", got)
+	if !strings.Contains(got, indicator.Glyph(indicator.Running, true)) || !strings.Contains(got, "0/1") {
+		t.Errorf("footer = %q, want the activity dot and the progress", got)
 	}
 	if strings.Contains(got, "Syncing API") || strings.Contains(got, "Syncing Web") {
 		t.Errorf("an idle row's footer carries another row's detail: %q", got)

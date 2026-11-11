@@ -155,12 +155,12 @@ func (m Model) status() components.Status {
 	st := components.Status{}
 	switch {
 	case m.loadingTree():
-		st = components.Status{Text: "Loading " + m.vocab().Name + " " + strings.ToLower(m.vocab().Namespaces) + "...", Spinner: true}
+		st = components.Status{Text: "Loading " + m.vocab().Name + " " + strings.ToLower(m.vocab().Namespaces) + "...", Activity: true}
 	// A level on screen from the index while the forge is asked again: the
 	// rows are there, so this is the lowest-priority line, and it says what
 	// is still coming rather than that anything is missing.
 	case m.refreshing > 0:
-		st = components.Status{Text: "Updating from " + m.vocab().Name + "...", Spinner: true}
+		st = components.Status{Text: "Updating from " + m.vocab().Name + "...", Activity: true}
 	}
 	// The selected row says what it is doing, or what last went wrong on it.
 	// Selection mode returned above, so its checkbox column keeps the line.

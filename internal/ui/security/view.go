@@ -205,9 +205,11 @@ func (m Model) inventoryStatus() sharedcomponents.Status {
 		st.Detail = a.Detail
 		moving = a.State == indicator.Running || a.State == indicator.Queued
 	}
-	// Only a detail whose dot moves replaces the spinner; a failed row's is fixed.
-	st.Spinner = m.inventoryLoading ||
-		(len(jobs.Unfinished(m.jobs)) > 0 && (!moving || st.Detail.IsZero()))
+	// The load keeps its own spinner; jobs work gets the activity dot, and only a
+	// detail whose dot moves replaces it (a failed row's is fixed).
+	st.Spinner = m.inventoryLoading
+	st.Activity = !m.inventoryLoading &&
+		len(jobs.Unfinished(m.jobs)) > 0 && (!moving || st.Detail.IsZero())
 	return st
 }
 
