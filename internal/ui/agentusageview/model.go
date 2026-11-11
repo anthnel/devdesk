@@ -79,6 +79,9 @@ type Model struct {
 	// agg reads the open session incrementally. Update owns it; a Cmd only
 	// ever gets a copy of its Cursor (Rule 110). nil at the sessions level.
 	agg *agentusage.Aggregate
+	// unfocused is true while the terminal is blurred: the chain is stopped and
+	// a resume message is dropped until the focus edge (DEVDESK-210).
+	unfocused bool
 	// reading is true while a read of agentGen is in flight: one at a time.
 	reading bool
 	// fullPending records a ctrl+r pressed during a read; the full read starts

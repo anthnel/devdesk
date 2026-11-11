@@ -25,7 +25,8 @@ import (
 	"github.com/anthnel/devdesk/internal/scan"
 )
 
-const refreshInterval = 10 * time.Second
+// refreshInterval is a var so a test can shorten it (testutil.FastTimers).
+var refreshInterval = 10 * time.Second
 
 // tickCmd returns a tick command for periodic refresh
 func tickCmd() tea.Cmd {

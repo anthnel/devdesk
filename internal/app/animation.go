@@ -132,7 +132,7 @@ func (a *App) handleAnimationTick(msg animationTickMsg) (tea.Model, tea.Cmd) {
 		a.anim.ticking = false
 		// A blur always hands the view one last pinned frame: the tick that
 		// lands after it is the last the view will see for a while.
-		if a.anim.blinkOn && !a.terminalBlurred {
+		if a.anim.blinkOn && !a.suspended() {
 			return a, nil
 		}
 		a.anim.blinkOn = true

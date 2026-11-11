@@ -1029,8 +1029,9 @@ nothing able to restart it, leaving the spinner frozen on the frame it died at.
 #### Terminal focus (DEVDESK-210)
 
 Bubble Tea v2 reports whether the terminal has the focus (xterm mode 1004) when
-the view asks for it. The router uses this for one thing so far: the animation
-chain stops while the terminal is blurred.
+the view asks for it. The router uses it to stop the animation chain while the
+terminal is blurred, and to tell the view on screen so it can skip its periodic
+reads (see "Routing the level to a view").
 
 - **Asking.** `App.View` is the only place that sets `ReportFocus`. A view's
   `View()` never does, like `AltScreen` and `BackgroundColor`.
@@ -1057,13 +1058,16 @@ chain stops while the terminal is blurred.
 **Routing the level to a view (step 2).** The router does not relay the raw
 events (see "Not relayed"). It sends the view its own message,
 `shared.TerminalFocusMsg{Focused, Resume}` (`internal/shared/focus.go`), built
-by `App.sendFocusTo` (`internal/app/focus.go`). No view consumes it yet; views
-start reading it in steps 3 and 4.
+by `App.sendFocusTo` (`internal/app/focus.go`). Five views consume it:
+`:agent-usage`, `:containers`, `:net` (Ports poll), the dashboard and `:oci`;
+their behaviour is in `agent-usage.md`, `network.md` and `ui-components.md`.
 
 - **Who receives it.** Only the view on screen (`a.currentView`). A view the
   router keeps but does not show gets nothing, so a retained view never learns
   of a blur while it is hidden.
-- **`Focused`** is `!terminalBlurred` at the time of sending.
+- **`Focused`** is `!suspended()` at the time of sending (see "The
+  `when_unfocused` policy" below): true whenever the terminal has the focus, and
+  also while it is blurred under `run`.
 - **`Resume`** is true only on the focus edge that follows a blur. It tells
   the view it may catch up on what it paused (a refresh tick, for example). It
   is never true while blurred.
@@ -1099,10 +1103,27 @@ Two hypotheses keep a lost or missing event from leaving the router wrong:
   focus-in (a tmux pane switch, or a hand-off to a child process, see
   [Handing the terminal to a child](#handing-the-terminal-to-a-child--internaluiteaexec)).
 
+**The `when_unfocused` policy.** `app.when_unfocused` (`pause`, the default, or
+`run`; see `configuration.md`) decides whether a blur suspends anything.
+`App.runWhenUnfocused` holds it, read from the config by `RunsWhenUnfocused()`.
+`App.suspended()` is `terminalBlurred && !runWhenUnfocused`. Everything above
+that stops on a blur reads `suspended()`, not `terminalBlurred`: `wantedCadence`,
+the pinned last frame, and the `Focused` and `Resume` fields of
+`TerminalFocusMsg` (`Resume` is `resume && !suspended()`). With `run`, nothing is
+suspended: the animation chain keeps going and every view gets `Focused:true`.
+`terminalBlurred` itself still tracks the real focus.
+
+The setting applies without a restart. `applyWhenUnfocused` runs on
+`ConfigSavedMsg` and on a context switch. If the policy changes while the
+terminal is blurred, the view on screen is told at once (`pause` to `run`:
+resumed; `run` to `pause`: suspended).
+
 **Degradation.** A terminal without mode 1004 never sends `BlurMsg`, so
 `terminalBlurred` stays false and the application behaves as before. Under tmux
-the host needs `set -g focus-events on`. A terminal that is visible but not
-focused (a side pane) is treated as blurred: its animation stops.
+the host needs `set -g focus-events on`; without it tmux swallows the events and
+DevDesk never sees a blur. A terminal that is visible but not focused (a side
+pane) is treated as blurred: its animation and periodic reads stop, unless
+`app.when_unfocused` is `run`.
 
 #### A row dot or a loading spinner
 

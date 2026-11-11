@@ -46,6 +46,12 @@ Leave() (tea.Model, tea.Cmd, bool)
 
 A view that implements it returns its settled state, whatever command it still wants to run, and whether the switch may proceed. Returning `false` cancels the switch. `switchContext` calls it too, since switching contexts rebuilds every view against a different config file. The interface is probed for silently — most views don't implement it and are left alone.
 
+### Terminal focus
+
+When the terminal reports that it lost the focus (xterm mode 1004), the router stops the animation tick and tells the view on screen with a `shared.TerminalFocusMsg`. That view skips its periodic reads: the dashboard, `:oci`, `:containers`, the Ports tab and `:agent-usage` (whose header then reads `Updates › paused (terminal not focused)`). When the focus returns, each view reads once and the animation restarts. Jobs are never paused. Pressing a key while the router thinks the terminal is blurred counts as the focus coming back, which heals a lost focus event.
+
+`app.when_unfocused: run` turns this off: nothing is suspended. Under tmux, `set -g focus-events on` is required. A terminal without mode 1004 never reports a blur, so nothing is paused there.
+
 ## The keyboard vocabulary — `internal/ui/keymap`
 
 The keyboard follows a small set of namespaces, enforced by tests that scan the source for keybinding switches rather than by convention alone (an unenforced convention is exactly what produced a wave of key collisions before this package existed):

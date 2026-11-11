@@ -10,6 +10,7 @@ import (
 
 	"github.com/anthnel/devdesk/internal/agentusage"
 	"github.com/anthnel/devdesk/internal/jobs"
+	"github.com/anthnel/devdesk/internal/shared"
 	sharedcomponents "github.com/anthnel/devdesk/internal/ui/components"
 	"github.com/anthnel/devdesk/internal/ui/theme"
 )
@@ -26,7 +27,12 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case usagePollTickMsg:
 		return m.handlePollTick(msg)
 	case agentsResumeMsg:
+		if m.unfocused {
+			return m, nil
+		}
 		return m.handleResume()
+	case shared.TerminalFocusMsg:
+		return m.handleTerminalFocus(msg)
 	case spinner.TickMsg:
 		return m.handleSpinnerTick(msg)
 	case jobs.FrameMsg:
@@ -186,12 +192,35 @@ func (m Model) handlePollTick(msg usagePollTickMsg) (tea.Model, tea.Cmd) {
 // A pending ctrl+r is kept, and so is a full read lost in flight (a ctrl+r, or
 // the open's first read): the resume repeats it as a full read. It never refuses.
 func (m Model) Leave() (tea.Model, tea.Cmd, bool) {
+	m.stopChain()
+	return m, nil, true
+}
+
+// stopChain drops the open session's poll chain, if one is open: the new
+// generation ignores any tick or read still in flight. Shared by Leave and a
+// terminal blur.
+func (m *Model) stopChain() {
 	if m.level == levelAgents {
 		m.agentGen++
 		m.fullPending = m.fullPending || (m.reading && m.agentsLoading)
 		m.reading, m.agentsLoading = false, false
 	}
-	return m, nil, true
+}
+
+// handleTerminalFocus suspends the open session's chain on a blur and, on the
+// focus edge that follows one, resumes it. A view entering the screen (Resume
+// false) only clears the flag: Init's resume starts the read.
+func (m Model) handleTerminalFocus(msg shared.TerminalFocusMsg) (tea.Model, tea.Cmd) {
+	if !msg.Focused {
+		m.unfocused = true
+		m.stopChain()
+		return m, nil
+	}
+	m.unfocused = false
+	if msg.Resume {
+		return m.handleResume()
+	}
+	return m, nil
 }
 
 // handleResume restarts the open session's chain under a new generation, which

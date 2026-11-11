@@ -12,6 +12,7 @@ import (
 	"charm.land/lipgloss/v2"
 
 	"github.com/anthnel/devdesk/internal/ports"
+	"github.com/anthnel/devdesk/internal/shared"
 	"github.com/anthnel/devdesk/internal/ui/components"
 	"github.com/anthnel/devdesk/internal/ui/datatable"
 	"github.com/anthnel/devdesk/internal/ui/indicator"
@@ -99,6 +100,9 @@ type PortsModel struct {
 	table datatable.Model[ports.Socket]
 
 	paused bool
+	// unfocused is true while the terminal is blurred. It is separate from
+	// paused, which is the user's own choice and shows in the bar.
+	unfocused bool
 
 	// address display
 	// numericAddrs true shows addresses as the system reports them; false asks
@@ -268,6 +272,8 @@ func (pm *PortsModel) update(msg tea.Msg) (*PortsModel, tea.Cmd) {
 	switch msg := msg.(type) {
 	case portsTickMsg:
 		return pm.handleTick()
+	case shared.TerminalFocusMsg:
+		return pm.setTerminalFocus(msg)
 	case portsDataMsg:
 		return pm.handleData(msg)
 	case portsKillResultMsg:
@@ -287,10 +293,20 @@ func (pm *PortsModel) update(msg tea.Msg) (*PortsModel, tea.Cmd) {
 }
 
 func (pm *PortsModel) handleTick() (*PortsModel, tea.Cmd) {
-	if pm.paused {
+	if pm.paused || pm.unfocused {
 		return pm, portsTickCmd(pm.refresh)
 	}
 	return pm, tea.Batch(fetchPortsCmd(pm.numericAddrs), portsTickCmd(pm.refresh))
+}
+
+// setTerminalFocus records the focus. On the edge after a blur it reads once,
+// with no new tick (the chain kept running), unless the user paused the poll.
+func (pm *PortsModel) setTerminalFocus(msg shared.TerminalFocusMsg) (*PortsModel, tea.Cmd) {
+	pm.unfocused = !msg.Focused
+	if msg.Focused && msg.Resume && !pm.paused {
+		return pm, fetchPortsCmd(pm.numericAddrs)
+	}
+	return pm, nil
 }
 
 func (pm *PortsModel) handleData(msg portsDataMsg) (*PortsModel, tea.Cmd) {

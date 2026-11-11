@@ -17,6 +17,7 @@ default — an absent key is not an error, `config.Default()` fills it in.
 | `show_hidden_files` | bool | `false` | Whether Workspaces lists dot-prefixed entries — governs both the listing and what `S`/`F`/`A` act on |
 | `secret_backend` | string | `auto` | `auto` \| `keyring` \| `git-credential` — pins the credential storage backend |
 | `motion` | string | `blink` | `blink` \| `static` — whether a running row's activity dot blinks; `static` keeps it a steady `●`. Per context, exact case (`Static` is invalid). Editable in `:cfg` > Appearance > Motion. Any other value behaves as `blink` and logs `WARN [config] app.motion …` |
+| `when_unfocused` | string | `pause` | `pause` \| `run` — what DevDesk does while the terminal has no focus: `pause` suspends the animation and the periodic dashboard and image reads, `run` suspends nothing. Per context, exact case. Editable in `:cfg` > Appearance > When unfocused. Any other value behaves as `pause` and logs `WARN [config] app.when_unfocused …` |
 | `container_engine` | string | `auto` | `auto` \| `docker` \| `podman`, or an explicit path to a binary. `auto` picks Docker if it's on PATH, Podman otherwise. A pinned engine that isn't installed is an error, not a silent fall back to the other one — see [Container engine](../explanation/network.md#container-engine-docker-or-podman) |
 
 ## `forge:`

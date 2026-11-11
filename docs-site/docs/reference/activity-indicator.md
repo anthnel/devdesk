@@ -24,6 +24,29 @@ state, never the operation: a scan, a clone and a `docker stop` all show the
 same running dot. Failed is red, running is the running color, suspended and
 restarting share one color, and the rest are neutral. Done is not green.
 
+## When the terminal is not focused
+
+While the terminal window has no focus, DevDesk stops the blink: running rows
+show a steady `●`, and the periodic reads of the dashboard, `:oci`,
+`:containers`, the Ports tab and `:agent-usage` are skipped. Jobs keep running.
+When the focus comes back, each view reads once and the blink restarts. In
+`:agent-usage` the header shows `Updates › paused (terminal not focused)` in the
+meantime.
+
+Set `app.when_unfocused` to `run` (or use `:cfg` > Appearance > When unfocused)
+to suspend nothing. See [Configuration](configuration.md).
+
+DevDesk learns about focus from the terminal (xterm focus reporting, mode
+1004). Under tmux, add this to `~/.tmux.conf`, or tmux never forwards it:
+
+```
+set -g focus-events on
+```
+
+A terminal without mode 1004 never reports a blur, so DevDesk behaves as if it
+were always focused: nothing is paused. A visible window that is not focused,
+such as a side pane, counts as blurred.
+
 A running container shows its usual container icon, not a dot: the dot appears
 while an action (stop, restart, pause, resume, delete) is running on it.
 

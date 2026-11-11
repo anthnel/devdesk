@@ -13,6 +13,7 @@ import (
 	tea "charm.land/bubbletea/v2"
 	"github.com/anthnel/devdesk/internal/docker"
 	"github.com/anthnel/devdesk/internal/engine"
+	"github.com/anthnel/devdesk/internal/shared"
 	sharedcomponents "github.com/anthnel/devdesk/internal/ui/components"
 	"github.com/anthnel/devdesk/internal/ui/keymap"
 	ociresources "github.com/anthnel/devdesk/internal/ui/oci_resources"
@@ -65,7 +66,15 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		// The next tick is requested here: a tick that does not re-arm itself
 		// refreshes once, two seconds after Init, and never again — which is
 		// what made ctrl+r the only way to see the gauges move.
+		if m.unfocused {
+			// Blurred terminal: keep the chain alive, skip the read. The
+			// focus edge reads once (DEVDESK-210).
+			return m, tickCmd()
+		}
 		return m, tea.Batch(tickCmd(), fetchContainers(), fetchMetrics())
+
+	case shared.TerminalFocusMsg:
+		return m.setTerminalFocus(msg)
 
 	case ContainersListMsg:
 		return m.handleContainersList(msg)
@@ -681,4 +690,15 @@ func (m *Model) resize(width, height int) {
 	// Widths, headers and height in one call; the Rule 116 arithmetic is the
 	// component's rather than ten percentages written out here.
 	m.containerTable.Resize(width, height-2)
+}
+
+// setTerminalFocus records whether the terminal has the focus. On the edge that
+// follows a blur it reads the list and the metrics once, without a new tick:
+// the chain kept running while blurred (DEVDESK-210).
+func (m Model) setTerminalFocus(msg shared.TerminalFocusMsg) (tea.Model, tea.Cmd) {
+	m.unfocused = !msg.Focused
+	if msg.Focused && msg.Resume {
+		return m, tea.Batch(fetchContainers(), fetchMetrics())
+	}
+	return m, nil
 }
