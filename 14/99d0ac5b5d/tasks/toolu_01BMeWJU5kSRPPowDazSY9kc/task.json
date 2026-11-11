@@ -1,0 +1,18 @@
+{
+  "tool_use_id": "toolu_01BMeWJU5kSRPPowDazSY9kc",
+  "agent_id": "a345944e3dc57d311",
+  "subagent_type": "product-team:pm",
+  "task_description": "Rédiger brief.md Dagger",
+  "files": [
+    "docs/product/dagger-ci-release/brief.md"
+  ],
+  "token_usage": {
+    "input_tokens": 4,
+    "cache_creation_tokens": 39523,
+    "cache_read_tokens": 31303,
+    "output_tokens": 2830,
+    "api_call_count": 2
+  },
+  "started_at": "2026-11-11T11:27:04.762875052+01:00",
+  "completed_at": "2026-11-11T11:27:24.951563539+01:00"
+}

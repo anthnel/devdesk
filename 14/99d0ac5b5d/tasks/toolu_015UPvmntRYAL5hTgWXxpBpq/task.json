@@ -1,0 +1,15 @@
+{
+  "tool_use_id": "toolu_015UPvmntRYAL5hTgWXxpBpq",
+  "agent_id": "ad092ce321d189350",
+  "subagent_type": "project-coder",
+  "task_description": "Code étape 1 windowTitle",
+  "token_usage": {
+    "input_tokens": 20,
+    "cache_creation_tokens": 163230,
+    "cache_read_tokens": 536454,
+    "output_tokens": 7985,
+    "api_call_count": 9
+  },
+  "started_at": "2026-11-11T10:58:38.923276584+01:00",
+  "completed_at": "2026-11-11T10:59:42.071533168+01:00"
+}

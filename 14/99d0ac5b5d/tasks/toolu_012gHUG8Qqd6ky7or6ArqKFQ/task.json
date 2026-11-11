@@ -1,0 +1,18 @@
+{
+  "tool_use_id": "toolu_012gHUG8Qqd6ky7or6ArqKFQ",
+  "agent_id": "a7e96fca2d6ae3e14",
+  "subagent_type": "team-core:archivist",
+  "task_description": "ADR D122 et CLAUDE.md",
+  "files": [
+    "docs/backlog.md"
+  ],
+  "token_usage": {
+    "input_tokens": 10,
+    "cache_creation_tokens": 108894,
+    "cache_read_tokens": 347478,
+    "output_tokens": 4370,
+    "api_call_count": 5
+  },
+  "started_at": "2026-11-11T11:09:39.813266637+01:00",
+  "completed_at": "2026-11-11T11:10:03.18817507+01:00"
+}

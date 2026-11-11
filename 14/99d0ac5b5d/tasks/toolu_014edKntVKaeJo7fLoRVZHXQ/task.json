@@ -1,0 +1,19 @@
+{
+  "tool_use_id": "toolu_014edKntVKaeJo7fLoRVZHXQ",
+  "agent_id": "a938c434229ef9ea8",
+  "subagent_type": "project-tester",
+  "task_description": "Tests rouges étapes 2 et 3",
+  "files": [
+    "internal/app/window_title_program_test.go",
+    "internal/app/window_title_view_test.go"
+  ],
+  "token_usage": {
+    "input_tokens": 30,
+    "cache_creation_tokens": 83725,
+    "cache_read_tokens": 829979,
+    "output_tokens": 10697,
+    "api_call_count": 14
+  },
+  "started_at": "2026-11-11T10:59:52.288898811+01:00",
+  "completed_at": "2026-11-11T11:01:25.918475095+01:00"
+}

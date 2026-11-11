@@ -1,0 +1,15 @@
+{
+  "tool_use_id": "toolu_01KLY7UtxmJRZMT9WoqXMXwr",
+  "agent_id": "a445255f14ea70381",
+  "subagent_type": "product-team:critic",
+  "task_description": "Critique idée Dagger",
+  "token_usage": {
+    "input_tokens": 4,
+    "cache_creation_tokens": 28559,
+    "cache_read_tokens": 18067,
+    "output_tokens": 2864,
+    "api_call_count": 2
+  },
+  "started_at": "2026-11-11T11:27:04.750844025+01:00",
+  "completed_at": "2026-11-11T11:27:34.115027151+01:00"
+}
