@@ -52,7 +52,7 @@ Two things fixed this. First, the view implements the router's `Leave()` hook (s
 
 ### Two settings that don't follow the general pattern
 
-- **Theme** applies live as it's cycled through, not on blur — waiting until the field loses focus would mean choosing a theme blind, unable to see it applied.
+- **Theme**, **Dark theme** and **Light theme** apply live as they're cycled through, not on blur — waiting until the field loses focus would mean choosing a theme blind, unable to see it applied. Cycling Theme off `auto` writes the named theme: `auto` is gone from the file. `Theme in use` is a read-only row saying which theme is applied and why.
 - **Secret backend** commits only when focus leaves the field (not on every keypress while cycling), and switching backends **never migrates an existing secret** between them — an earlier version that copied a token to two backends at once is exactly the kind of dual-write this design avoids reintroducing.
 
 ### The forge tab

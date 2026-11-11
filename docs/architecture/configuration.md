@@ -12,11 +12,18 @@ Config loaded from `~/.devdesk/config.yaml` with schema defined in `internal/con
   the default. An absent key stays absent (it is not written back at load)
   because the default may change with A-06; an explicit value keeps its meaning
   when it does.
-  `app.theme` names a JSON file under `~/.devdesk/themes/`. `theme.LoadTheme` refuses the
+  `app.theme` is a theme name or `auto`. A name resolves to a JSON file under
+  `~/.devdesk/themes/` first, then to the 12 files of `themes/` embedded in the binary
+  (`themes/embed.go`); `dk setup` downloads nothing. `auto` picks `app.theme_dark`
+  (default `default`) or `app.theme_light` (default `github-light`) from the terminal's
+  background (`AppConfig.EffectiveThemeDark/Light`, never written back); see
+  `app-shell.md`. `theme.LoadTheme` refuses the
   whole file when a non-empty colour is not `#rgb` or `#rrggbb` (error names the key and the
   value, e.g. `color_ok: "#ggg" is not #rgb or #rrggbb`); an empty or absent optional colour
-  falls back to the semantic palette. `main.go` and `App.applyThemeNow` log the error and keep
-  the current palette (no footer message). Palette variables are `color.Color`; `theme.Hex`
+  falls back to the semantic palette. A theme that cannot be used (unknown, unreadable, invalid,
+  or under 4.5:1 text contrast when `auto` picks it) gives the default theme and a footer
+  warning (`App.chooseTheme`): one per invalid candidate, `theme_dark` and `theme_light`
+  both checked in `auto`, whether selected or not. Palette variables are `color.Color`; `theme.Hex`
   formats one as `#rrggbb` (`none` for anything that is not a `color.RGBA`).
 - `Status` - Monitoring settings (refresh interval, components)
 - `Forge` - the platform this context targets: `type`, URL and clone settings
@@ -351,8 +358,17 @@ cycle field have already written by the time the cursor could leave.
 
 Two settings are special-cased, matched by label:
 
-- **Theme** applies as it is cycled, not on blur — otherwise the user chooses
-  blind.
+- **Theme**, **Dark theme** and **Light theme** apply as they are cycled, not on
+  blur — otherwise the user chooses blind. Theme offers `default`, `auto`, then
+  the other themes (user files and embedded ones, `auto` once); Dark/Light theme
+  are cycle fields on `app.theme_dark` / `app.theme_light` (defaults shown as
+  `(default)`, never `auto`) and say in their hint that they apply when Theme is
+  `auto`. Cycling Theme from `auto` writes the next named theme: `auto` is gone
+  from the file.
+- **Theme in use** is a read-only row (`kindStatic`, plain text, Rule 122) fed by
+  `configuration.ThemeFacts{InUse, Reason}`, e.g. `github-light (auto: terminal is
+  light)`; the router refreshes it with `ThemeFactsMsg`, which rebuilds the field
+  table without moving the tab or the cursor and saves nothing (Rule 110).
 - **Secret backend** is confirmed when focus *leaves* the field, not on every
   `←→`, and **nothing is migrated between backends**. §3.9 removed the option
   that wrote a token to two stores at once; copying one here would rebuild it.

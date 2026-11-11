@@ -368,3 +368,43 @@ func runRouterToTrueColor(t *testing.T, a *App, out *lockedBuffer, script router
 	t.Helper()
 	return runRouterTo(t, a, colorprofile.TrueColor, out, script)
 }
+
+// runProgramWithInput runs m in a real tea.Program at TrueColor whose input is
+// an io.Pipe: script writes what a terminal would answer to in. The input is
+// not nil, so Bubble Tea sends its own queries; those, and the router's, are
+// read off the output. The script runs once the program is started and returns
+// an error instead of failing the test (it has its own goroutine). Defined here
+// because only this file may name a colorprofile.Profile.
+func runProgramWithInput(t *testing.T, m tea.Model, script func(p *tea.Program, out *lockedBuffer, in io.Writer) error) (string, error) {
+	t.Helper()
+	pr, pw := io.Pipe()
+	t.Cleanup(func() { _ = pw.Close() })
+	out := &lockedBuffer{}
+	p := tea.NewProgram(m, tea.WithInput(pr), tea.WithOutput(out),
+		tea.WithWindowSize(100, 30), tea.WithoutSignalHandler(), tea.WithColorProfile(colorprofile.TrueColor))
+	scriptErr := make(chan error, 1)
+	go func() {
+		err := script(p, out, pw)
+		if err != nil {
+			p.Kill()
+		}
+		scriptErr <- err
+	}()
+	done := make(chan error, 1)
+	go func() { _, err := p.Run(); done <- err }()
+	var runErr error
+	select {
+	case runErr = <-done:
+	case <-time.After(10 * time.Second):
+		p.Kill()
+		if err := <-scriptErr; err != nil {
+			t.Errorf("script: %v", err)
+		}
+		t.Fatal("the program did not exit")
+	}
+	_ = pw.Close()
+	if err := <-scriptErr; err != nil {
+		t.Errorf("script: %v", err)
+	}
+	return out.String(), runErr
+}

@@ -2,11 +2,10 @@ package setup
 
 import (
 	"errors"
+	"fmt"
 	"io"
 	"io/fs"
 	"log"
-	"net/http"
-	"net/http/httptest"
 	"os"
 	"path/filepath"
 	"strings"
@@ -308,56 +307,76 @@ func TestEnterOnTheLastStepWithNoTokenGoesStraightToSaving(t *testing.T) {
 	}
 }
 
-func TestThemeFetchAddsNewThemesAndTheyBecomeCyclable(t *testing.T) {
-	isolateHome(t)
-	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		_, _ = w.Write([]byte(`{"name":"test","color_ok":"#000000","color_error":"#000000","color_warn":"#000000","color_primary":"#000000","color_secondary":"#000000","color_border":"#000000","color_text":"#000000","color_dim":"#000000","color_highlight":"#000000","color_white":"#000000","color_black":"#000000","color_background":"#000000"}`))
-	}))
-	defer srv.Close()
+func TestThemePickerOffersTheEmbeddedThemesWithoutAnyFetch(t *testing.T) {
+	isolateHome(t) // empty HOME: no user theme file exists
+	m := New()
 
-	restore := remoteThemeBaseURL
-	remoteThemeBaseURL = srv.URL + "/"
-	t.Cleanup(func() { remoteThemeBaseURL = restore })
-
-	before := New()
-	beforeCount := len(before.themeOptions)
-
-	msg, ok := testutil.MsgOf[RemoteThemesFetchedMsg](fetchRemoteThemesCmd())
-	if !ok {
-		t.Fatal("fetchRemoteThemesCmd returned no RemoteThemesFetchedMsg")
-	}
-	if msg.Unreachable {
-		t.Fatal("Unreachable = true against a working test server")
-	}
-	if len(msg.Added) != len(knownRemoteThemes) {
-		t.Fatalf("Added = %d themes, want %d", len(msg.Added), len(knownRemoteThemes))
-	}
-
-	m := feed(t, before, msg)
-	if m.themeCheckState != themeCheckDone {
-		t.Errorf("themeCheckState = %v, want themeCheckDone", m.themeCheckState)
-	}
-	if len(m.themeOptions) != beforeCount+len(knownRemoteThemes) {
-		t.Errorf("themeOptions grew by %d, want %d", len(m.themeOptions)-beforeCount, len(knownRemoteThemes))
+	for _, want := range []string{"default", "github-light", "nord", "catppuccin-mocha"} {
+		found := false
+		for _, o := range m.themeOptions {
+			if o == want {
+				found = true
+			}
+		}
+		if !found {
+			t.Errorf("themeOptions = %v, want it to contain the embedded theme %q", m.themeOptions, want)
+		}
 	}
 }
 
-func TestThemeFetchUnreachableFallsBackToTheDocsPointer(t *testing.T) {
-	restore := remoteThemeBaseURL
-	// A closed local port refuses the connection immediately — no need to
-	// wait out remoteThemeFetchTimeout for this to fail.
-	remoteThemeBaseURL = "http://127.0.0.1:1/"
-	t.Cleanup(func() { remoteThemeBaseURL = restore })
-
+func TestEnteringTheThemeStepStartsNoNetworkCheck(t *testing.T) {
+	isolateHome(t)
 	m := New()
-	m = feed(t, m, RemoteThemesFetchedMsg{Unreachable: true})
+	m.step = stepTheme - 1
 
-	if m.themeCheckState != themeCheckUnreachable {
-		t.Errorf("themeCheckState = %v, want themeCheckUnreachable", m.themeCheckState)
+	updated, cmd := m.Update(testutil.Key("enter"))
+	m = updated.(Model)
+
+	if m.step != stepTheme {
+		t.Fatalf("step = %d, want stepTheme (%d)", m.step, stepTheme)
 	}
-	_, body, _ := m.currentQuestionAt(stepTheme)
-	if body == "" {
-		t.Fatal("theme question body is empty")
+	if cmd != nil {
+		t.Error("entering the theme step returned a Cmd, want none (no fetch)")
+	}
+	if m.pending != "" {
+		t.Errorf("pending = %q, want empty: nothing is being checked", m.pending)
+	}
+}
+
+func TestInitEmitsNoNetworkCommand(t *testing.T) {
+	isolateHome(t)
+	// Init may only blink the cursor. Anything that dials out would block
+	// or return a non-blink message; run it and inspect the type name.
+	cmd := New().Init()
+	if cmd == nil {
+		return
+	}
+	if msg := cmd(); msg != nil && !strings.Contains(strings.ToLower(fmt.Sprintf("%T", msg)), "blink") {
+		t.Errorf("Init produced %T, want only the cursor blink", msg)
+	}
+}
+
+// The download is removed, not merely unused: no source of the package may
+// still name the remote host or build an HTTP client.
+func TestSetupPackageHasNoThemeDownload(t *testing.T) {
+	files, err := filepath.Glob("*.go")
+	if err != nil {
+		t.Fatal(err)
+	}
+	banned := []string{"raw.githubusercontent.com", "RemoteThemesFetchedMsg", "fetchRemoteTheme", "remoteThemeBaseURL", "net/http\""}
+	for _, f := range files {
+		if strings.HasSuffix(f, "_test.go") {
+			continue
+		}
+		data, err := os.ReadFile(f)
+		if err != nil {
+			t.Fatal(err)
+		}
+		for _, b := range banned {
+			if strings.Contains(string(data), b) {
+				t.Errorf("%s still contains %q", f, b)
+			}
+		}
 	}
 }
 

@@ -3,6 +3,14 @@
 Dated entries, most recent first (AAAA-MM-JJ). Each entry records what was
 decided, why, and which alternative was rejected. Sources live in `docs/product/`.
 
+## 2026-11-11 — DEVDESK-258: `app.theme: auto`, embedded themes (D125)
+
+1. **Decided: `auto` picks `theme_dark` or `theme_light` from the terminal's background (OSC 11).** Detection runs once per process with a 500 ms timeout, then falls back to dark silently. Scope, guard and timing are in D125 (`docs/backlog.md` §1.1). Source: `.claude/plans/DEVDESK-258-plan.md` (branch `feat/devdesk-258-auto-theme`, uncommitted).
+2. **Decided: the 12 shipped themes are embedded in the binary.** `dk setup` no longer downloads them. Rejected: leaving the download, which made `github-light` fail on a fresh install. The embedded list is now a durable contract.
+3. **Decided: any theme that fails to load gives the default theme and a footer warning.** This replaces the DEVDESK-201 H3 rule that kept the previous palette.
+4. **Open, separate story: a context switch does not re-apply the theme.** `handleContextSwitchComplete` is unchanged, and `auto` is not queried again after a switch.
+5. **No ADR.** The repository keeps lasting decisions in `docs/backlog.md`. Manual checks on real terminals (light and dark, tmux, Windows Terminal, SSH) are still to do after merge.
+
 ## 2026-11-11 — DEVDESK-211: terminal tab progress bar (D123)
 
 1. **Decided: the tab shows the current context's jobs, through OSC 9;4.** Scope, precedence and acknowledgement are in D123 (`docs/backlog.md` §1.1). Rejected: all contexts, which would show a failure `:jobs` does not show. Source: `.claude/plans/DEVDESK-211-plan.md` (main checkout).

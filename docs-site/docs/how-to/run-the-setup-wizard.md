@@ -22,8 +22,8 @@ This runs standalone — no context is loaded first, so it works even before
 4. **Container engine** — `auto`, `docker`, or `podman`; checks live whether
    the selected engine's daemon actually answers, not just whether the
    binary is on `PATH`.
-5. **Theme** — the built-in theme plus, network permitting, any additional
-   ones fetched from the DevDesk repository.
+5. **Theme** — the built-in theme, the twelve bundled ones (they ship inside
+   the binary, nothing is downloaded) and any you put in `~/.devdesk/themes/`.
 6. **Forge** — platform (GitLab/GitHub), instance URL, default
    group/organization, default visibility, clone method, and an access
    token, validated live against the real API before it's saved.

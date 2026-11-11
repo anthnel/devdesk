@@ -30,8 +30,14 @@ func (a *App) handleConfigSaved(msg configuration.ConfigSavedMsg) (tea.Model, te
 	// Cheap and idempotent, so no flag: every view is rebuilt below anyway.
 	theme.SetGaugeGlyph(msg.Config.App.GaugeGlyph)
 
+	var themeCmd tea.Cmd
 	if msg.ThemeChanged {
-		a.applyThemeNow(msg.Config.App.Theme)
+		wasPending := a.theme.pending
+		themeCmd = a.warnTheme(a.chooseTheme(msg.Config.App, true))
+		if a.theme.pending && !wasPending {
+			themeCmd = tea.Batch(themeCmd, a.themeQueryDueCmd())
+		}
+		a.sendThemeFacts()
 	}
 	if msg.BackendChanged {
 		a.resolveSecretBackend()
@@ -43,34 +49,33 @@ func (a *App) handleConfigSaved(msg configuration.ConfigSavedMsg) (tea.Model, te
 		a.closeForgeSession()
 	}
 
-	// Every view except this one is dropped so it is rebuilt against the saved
-	// config on next use. Keeping the configuration view is what stops a save
-	// from throwing away the cursor after every keystroke.
+	resizeCmd := a.rebuildViews()
+	motionCmd := tea.Batch(a.applyMotion(msg.Config), a.applyWhenUnfocused(msg.Config))
+
+	// A save that settles the wait without a terminal answer (a named theme)
+	// still owes the start view its held-back Init.
+	var initCmd tea.Cmd
+	if !a.theme.pending {
+		initCmd = a.runDeferredStartInit()
+	}
+
+	return a, tea.Batch(initCmd, resizeCmd, a.syncProxyPortCmd(), a.redetectIfToolsMoved(msg.EngineChanged), motionCmd, themeCmd)
+}
+
+// rebuildViews drops every view except the configuration view so it is rebuilt
+// against the saved config or the new palette on next use, recreates the one on
+// screen and returns the resize that sizes it. Keeping the configuration view is
+// what stops a save from throwing away the cursor after every keystroke. The
+// recreated view's Init is not run, as in a save;
+// settleTheme runs the start view's deferred Init itself.
+func (a *App) rebuildViews() tea.Cmd {
 	current := a.views[command.ViewConfiguration]
 	a.views = make(map[command.ViewType]Screen)
 	if current != nil {
 		a.setView(command.ViewConfiguration, current)
 	}
 	a.createView(a.currentView)
-	motionCmd := tea.Batch(a.applyMotion(msg.Config), a.applyWhenUnfocused(msg.Config))
-
-	return a, tea.Batch(a.requestResize(), a.syncProxyPortCmd(), a.redetectIfToolsMoved(msg.EngineChanged), motionCmd)
-}
-
-// applyThemeNow switches the palette in place.
-//
-// It does not save: the configuration view already did, and writing twice would
-// make the view's own config object and the file disagree about who is
-// authoritative. That double write is what the `:theme` command did — it is
-// gone, and this replaced it.
-func (a *App) applyThemeNow(name string) {
-	t, err := theme.LoadTheme(name)
-	if err != nil {
-		log.Printf("ERROR [app] load theme %q: %v", name, err)
-		return
-	}
-	theme.ApplyTheme(t)
-	theme.CurrentThemeName = name
+	return a.requestResize()
 }
 
 // resolveSecretBackend picks up the new app.secret_backend for this context.

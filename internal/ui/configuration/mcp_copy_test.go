@@ -21,7 +21,7 @@ const (
 // serving is the view as it is built once the server has bound.
 func serving(t *testing.T) Model {
 	t.Helper()
-	m := New(config.Default(), MCPFacts{Addr: testMCPAddr, Token: testMCPToken})
+	m := New(config.Default(), MCPFacts{Addr: testMCPAddr, Token: testMCPToken}, ThemeFacts{})
 	return feed(t, m, testutil.Resize(120, 30))
 }
 
@@ -59,7 +59,7 @@ func TestTheConnectCommandUsesTheBoundAddress(t *testing.T) {
 	written := stubClipboard(t, nil)
 	cfg := config.Default()
 	cfg.MCP.Listen = "127.0.0.1:0"
-	m := feed(t, New(cfg, MCPFacts{Addr: testMCPAddr, Token: testMCPToken}), testutil.Resize(120, 30))
+	m := feed(t, New(cfg, MCPFacts{Addr: testMCPAddr, Token: testMCPToken}, ThemeFacts{}), testutil.Resize(120, 30))
 
 	m = pressCopy(t, focusOn(t, m, "State"))
 
@@ -83,7 +83,7 @@ func TestYIsRefusedWithAReasonWhereItCannotCopy(t *testing.T) {
 		{"another tab", func(t *testing.T) Model { return focusOn(t, serving(t), "Theme") }, reasonNotOnMCPTab},
 		{"server not running", func(t *testing.T) Model { return focusOn(t, newModel(t), "State") }, reasonMCPNotRunning},
 		{"server failed", func(t *testing.T) Model {
-			m := feed(t, New(config.Default(), MCPFacts{Reason: "address already in use"}), testutil.Resize(120, 30))
+			m := feed(t, New(config.Default(), MCPFacts{Reason: "address already in use"}, ThemeFacts{}), testutil.Resize(120, 30))
 			return focusOn(t, m, "State")
 		}, reasonMCPNotRunning},
 	} {

@@ -97,6 +97,10 @@ type App struct {
 	// terminal background untouched until the first report.
 	colorProfile colorprofile.Profile
 
+	// theme is the theme in force and the state of the terminal-background
+	// detection behind app.theme: auto (DEVDESK-258).
+	theme themeState
+
 	// Navigation
 	currentView command.ViewType
 	views       map[command.ViewType]Screen
@@ -306,6 +310,8 @@ func newWithSize(cfg *config.Config, width, height int) *App {
 		width:            width,
 		height:           height,
 	}
+	app.theme.startWarns = app.chooseTheme(cfg.App, true)
+	app.theme.startInitDeferred = app.theme.pending
 	app.ctxArgs = &contextArgs{}
 	app.suggester.WithProvider("context", app.ctxArgs)
 	app.wantedProxyPort.Store(int64(cfg.Network.ProxyPort))
@@ -349,9 +355,11 @@ func (a *App) AttachProgram(p *tea.Program) {
 // Init initializes the application
 func (a *App) Init() tea.Cmd {
 	// Note: resize() is already called in newWithSize() to initialize the dimensions
-	cmds := []tea.Cmd{a.tryAutoLogin(), a.startMCPCmd(), a.restoreForwardsCmd(), a.detectScanTools()}
+	cmds := []tea.Cmd{a.tryAutoLogin(), a.startMCPCmd(), a.restoreForwardsCmd(), a.detectScanTools(), a.themeInitCmd()}
 
-	if view, ok := a.views[a.currentView]; ok {
+	// While the terminal is still being asked, the start view's Init waits for
+	// settleTheme: a view built now would be dropped by the theme change.
+	if view, ok := a.views[a.currentView]; ok && !a.theme.pending {
 		cmds = append(cmds, view.Init())
 	}
 
@@ -438,6 +446,7 @@ func (a *App) reinitializeViews() tea.Cmd {
 
 	var initCmd tea.Cmd
 	if view, ok := a.views[a.currentView]; ok {
+		a.theme.startInitDeferred = false
 		initCmd = view.Init()
 	}
 	// The rebuilt view starts unaware of a blur that is still in effect.
@@ -516,6 +525,15 @@ func (a *App) update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		// Router state only (View sets the terminal background); not forwarded.
 		a.colorProfile = msg.Profile
 		return a, nil
+
+	case tea.BackgroundColorMsg:
+		return a.handleBackgroundColor(msg)
+
+	case themeQueryDueMsg:
+		return a.handleThemeQueryDue(msg)
+
+	case themeDetectTimeoutMsg:
+		return a.handleThemeDetectTimeout(msg)
 
 	case tea.BlurMsg:
 		return a.handleTerminalBlur()

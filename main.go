@@ -85,18 +85,7 @@ func runTUI() {
 		log.Printf("DEBUG mode: %v", len(os.Getenv("DEBUG")) > 0)
 	}
 
-	// Load and apply the saved theme
-	if cfg.App.Theme != "" && cfg.App.Theme != "dark" {
-		t, err := theme.LoadTheme(cfg.App.Theme)
-		if err != nil {
-			log.Printf("Warning: Could not load theme '%s': %v, using default", cfg.App.Theme, err)
-		} else {
-			theme.ApplyTheme(t)
-			theme.CurrentThemeName = cfg.App.Theme
-			log.Printf("Theme loaded: %s", cfg.App.Theme)
-		}
-	}
-
+	// app.theme is applied by the router (app.New).
 	theme.SetGaugeGlyph(cfg.App.GaugeGlyph)
 
 	// Create the application with the router

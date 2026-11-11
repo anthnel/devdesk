@@ -13,7 +13,7 @@ import (
 func allFields(t *testing.T) []field {
 	t.Helper()
 	var out []field
-	for _, s := range sections([]string{"default", "mocha"}, command.ViewNames(), "/home/u/.devdesk/config.yaml", "work", config.ForgeGitLab, forge.VocabularyFor(config.ForgeGitLab), MCPFacts{}) {
+	for _, s := range sections([]string{"default", "mocha"}, command.ViewNames(), "/home/u/.devdesk/config.yaml", "work", config.ForgeGitLab, forge.VocabularyFor(config.ForgeGitLab), MCPFacts{}, ThemeFacts{}) {
 		out = append(out, s.Fields...)
 	}
 	return out
@@ -330,7 +330,7 @@ func TestTheConfigFileRowIsReadOnly(t *testing.T) {
 // without renaming the key would have left the one tab about to grow as the
 // only one whose name says nothing about where its values land.
 func TestEveryTabIsNamedAfterTheSectionItWrites(t *testing.T) {
-	all := sections([]string{"default"}, command.ViewNames(), "/tmp/config.yaml", "work", config.ForgeGitLab, forge.VocabularyFor(config.ForgeGitLab), MCPFacts{})
+	all := sections([]string{"default"}, command.ViewNames(), "/tmp/config.yaml", "work", config.ForgeGitLab, forge.VocabularyFor(config.ForgeGitLab), MCPFacts{}, ThemeFacts{})
 
 	want := []string{"app", "gitlab", "scan", "tools", "network", "mcp", "status"}
 	got := make([]string, 0, len(all))
@@ -407,7 +407,7 @@ func TestTheMCPTabTogglesTheServer(t *testing.T) {
 // The tab must also carry no trace of the subcommand: a row still naming it
 // would be instructions for a binary that no longer has that argument.
 func TestTheMCPTabOffersTheAddressAndNoSubcommand(t *testing.T) {
-	all := sections([]string{"default"}, command.ViewNames(), "/tmp/config.yaml", "work", config.ForgeGitLab, forge.VocabularyFor(config.ForgeGitLab), MCPFacts{})
+	all := sections([]string{"default"}, command.ViewNames(), "/tmp/config.yaml", "work", config.ForgeGitLab, forge.VocabularyFor(config.ForgeGitLab), MCPFacts{}, ThemeFacts{})
 
 	var mcp *section
 	for i := range all {
@@ -448,7 +448,7 @@ func TestTheMCPTabOffersTheAddressAndNoSubcommand(t *testing.T) {
 // password), and one screen showing one in clear would be the exception nobody
 // remembers making.
 func TestTheMCPTokenIsMaskedUntilItIsRevealed(t *testing.T) {
-	m := New(config.Default(), MCPFacts{Addr: "127.0.0.1:7777", Token: "s3cr3t-token"})
+	m := New(config.Default(), MCPFacts{Addr: "127.0.0.1:7777", Token: "s3cr3t-token"}, ThemeFacts{})
 
 	// From the model, not from allFields: the value is what the router handed
 	// this view, and a field table built with empty facts carries none.

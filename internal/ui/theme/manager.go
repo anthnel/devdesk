@@ -2,15 +2,20 @@ package theme
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"image/color"
+	"io/fs"
 	"os"
 	"path/filepath"
 	"reflect"
 	"regexp"
+	"sort"
 	"strings"
 
 	"charm.land/lipgloss/v2"
+
+	"github.com/anthnel/devdesk/themes"
 )
 
 // Theme represents a color theme for the application
@@ -163,13 +168,7 @@ func LoadTheme(name string) (*Theme, error) {
 		return DefaultTheme(), nil
 	}
 
-	dir, err := ThemeDir()
-	if err != nil {
-		return nil, fmt.Errorf("failed to get theme directory: %w", err)
-	}
-
-	path := filepath.Join(dir, name+".json")
-	data, err := os.ReadFile(path)
+	data, err := readThemeFile(name)
 	if err != nil {
 		return nil, fmt.Errorf("failed to read theme '%s': %w", name, err)
 	}
@@ -191,36 +190,47 @@ func LoadTheme(name string) (*Theme, error) {
 	return &t, nil
 }
 
-// ListThemes returns the list of available themes.
-// Always includes "default" (built-in theme) + the JSON files in the themes directory
-func ListThemes() ([]string, error) {
-	themes := []string{"default"}
-
-	dir, err := ThemeDir()
-	if err != nil {
-		return themes, nil // Return at least "dark"
-	}
-
-	entries, err := os.ReadDir(dir)
-	if err != nil {
-		return themes, nil // Directory doesn't exist yet
-	}
-
-	for _, entry := range entries {
-		if entry.IsDir() {
-			continue
+// readThemeFile returns the bytes of <name>.json: the user's copy in
+// ~/.devdesk/themes first, then the one embedded in the binary. A name that is
+// in neither gives an error wrapping fs.ErrNotExist.
+func readThemeFile(name string) ([]byte, error) {
+	file := name + ".json"
+	if dir, err := ThemeDir(); err == nil {
+		data, err := os.ReadFile(filepath.Join(dir, file))
+		if err == nil || !errors.Is(err, fs.ErrNotExist) {
+			return data, err
 		}
-		name := entry.Name()
-		if themeName, ok := strings.CutSuffix(name, ".json"); ok {
-			// Avoid duplicating the built-in theme
-			if themeName == "default" {
+	}
+	return themes.FS.ReadFile(file)
+}
+
+// ListThemes returns the list of available themes: "default" (built-in) first,
+// then the union of the shipped themes and the JSON files in the themes
+// directory, sorted, without duplicates.
+func ListThemes() ([]string, error) {
+	seen := map[string]bool{"default": true}
+	var names []string
+	add := func(entries []fs.DirEntry) {
+		for _, entry := range entries {
+			if entry.IsDir() {
 				continue
 			}
-			themes = append(themes, themeName)
+			if themeName, ok := strings.CutSuffix(entry.Name(), ".json"); ok && !seen[themeName] {
+				seen[themeName] = true
+				names = append(names, themeName)
+			}
 		}
 	}
-
-	return themes, nil
+	if dir, err := ThemeDir(); err == nil {
+		if entries, err := os.ReadDir(dir); err == nil {
+			add(entries)
+		}
+	}
+	if entries, err := themes.FS.ReadDir("."); err == nil {
+		add(entries)
+	}
+	sort.Strings(names)
+	return append([]string{"default"}, names...), nil
 }
 
 // hexColorPattern is the only colour form a theme file may hold.
