@@ -1,0 +1,15 @@
+{
+  "tool_use_id": "toolu_01P2zhz3i7n1aKJNMHCh2P8g",
+  "agent_id": "a4bfc9fae863a2a97",
+  "subagent_type": "project-tester",
+  "task_description": "Relancer la mesure de redraw",
+  "token_usage": {
+    "input_tokens": 10,
+    "cache_creation_tokens": 27727,
+    "cache_read_tokens": 65703,
+    "output_tokens": 3763,
+    "api_call_count": 4
+  },
+  "started_at": "2026-11-11T19:29:17.338123241+01:00",
+  "completed_at": "2026-11-11T19:31:38.166803454+01:00"
+}

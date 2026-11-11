@@ -1,0 +1,47 @@
+{
+  "cli_version": "0.13.1",
+  "checkpoint_id": "104a8be87fdd",
+  "strategy": "manual-commit",
+  "branch": "docs/DEVDESK-277-redraw-remeasure",
+  "checkpoints_count": 4,
+  "files_touched": [
+    "docs/backlog.md"
+  ],
+  "sessions": [
+    {
+      "metadata": "/10/4a8be87fdd/0/metadata.json",
+      "transcript": "/10/4a8be87fdd/0/full.jsonl",
+      "compact_transcript": "/10/4a8be87fdd/0/transcript.jsonl",
+      "content_hash": "/10/4a8be87fdd/0/content_hash.txt",
+      "prompt": "/10/4a8be87fdd/0/prompt.txt"
+    }
+  ],
+  "token_usage": {
+    "input_tokens": 38,
+    "cache_creation_tokens": 65165,
+    "cache_read_tokens": 1140461,
+    "output_tokens": 7322,
+    "api_call_count": 15,
+    "subagent_tokens": {
+      "input_tokens": 18,
+      "cache_creation_tokens": 66075,
+      "cache_read_tokens": 162552,
+      "output_tokens": 6266,
+      "api_call_count": 8
+    }
+  },
+  "redaction": {
+    "replacements": 0,
+    "layers": {
+      "betterleaks": 0,
+      "connection_string": 0,
+      "credential_key": 0,
+      "credential_value": 0,
+      "credentialed_uri": 0,
+      "entropy": 0,
+      "key_context": 0,
+      "provider_token": 0,
+      "shell_stdin": 0
+    }
+  }
+}
