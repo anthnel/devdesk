@@ -1,0 +1,15 @@
+{
+  "tool_use_id": "toolu_01AmrqX9N1Vd4gpdLgQanXPL",
+  "agent_id": "ab97890809a80c9a2",
+  "subagent_type": "project-tester",
+  "task_description": "Rouge acquittement sous blur",
+  "token_usage": {
+    "input_tokens": 12,
+    "cache_creation_tokens": 80672,
+    "cache_read_tokens": 194544,
+    "output_tokens": 3428,
+    "api_call_count": 5
+  },
+  "started_at": "2026-11-11T10:16:15.947995165+01:00",
+  "completed_at": "2026-11-11T10:16:43.87631135+01:00"
+}

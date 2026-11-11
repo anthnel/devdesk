@@ -1,0 +1,15 @@
+{
+  "tool_use_id": "toolu_01K5ZnsnkLd1m7beqV9NJ5ph",
+  "agent_id": "a78bc37fe192718c1",
+  "subagent_type": "dev-team:reviewer",
+  "task_description": "Revue correctif blur DEVDESK-211",
+  "token_usage": {
+    "input_tokens": 12,
+    "cache_creation_tokens": 46292,
+    "cache_read_tokens": 212937,
+    "output_tokens": 4573,
+    "api_call_count": 6
+  },
+  "started_at": "2026-11-11T10:18:52.191861663+01:00",
+  "completed_at": "2026-11-11T10:20:06.24091143+01:00"
+}

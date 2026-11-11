@@ -1,0 +1,15 @@
+{
+  "tool_use_id": "toolu_01TgtPxhSxwP95FuAvNEesLN",
+  "agent_id": "a70e481e24a581a72",
+  "subagent_type": "project-tester",
+  "task_description": "Rouge étape 1 DEVDESK-211",
+  "token_usage": {
+    "input_tokens": 10,
+    "cache_creation_tokens": 46115,
+    "cache_read_tokens": 129374,
+    "output_tokens": 6956,
+    "api_call_count": 5
+  },
+  "started_at": "2026-11-11T09:53:18.381461178+01:00",
+  "completed_at": "2026-11-11T09:54:03.238778668+01:00"
+}

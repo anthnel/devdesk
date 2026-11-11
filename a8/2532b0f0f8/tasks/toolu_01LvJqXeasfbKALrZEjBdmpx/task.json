@@ -1,0 +1,15 @@
+{
+  "tool_use_id": "toolu_01LvJqXeasfbKALrZEjBdmpx",
+  "agent_id": "a3df9d3ab66bbc428",
+  "subagent_type": "team-core:tech-writer",
+  "task_description": "Docs étape 5 DEVDESK-211",
+  "token_usage": {
+    "input_tokens": 14,
+    "cache_creation_tokens": 42927,
+    "cache_read_tokens": 185254,
+    "output_tokens": 9478,
+    "api_call_count": 7
+  },
+  "started_at": "2026-11-11T10:10:09.311697884+01:00",
+  "completed_at": "2026-11-11T10:11:09.308023342+01:00"
+}

@@ -1,0 +1,15 @@
+{
+  "tool_use_id": "toolu_017nt8im18fu9fr4PMBT5wjr",
+  "agent_id": "ad8876214162b09fb",
+  "subagent_type": "project-coder",
+  "task_description": "Vert correctif blur DEVDESK-211",
+  "token_usage": {
+    "input_tokens": 18,
+    "cache_creation_tokens": 91379,
+    "cache_read_tokens": 612016,
+    "output_tokens": 7399,
+    "api_call_count": 9
+  },
+  "started_at": "2026-11-11T10:16:51.041123396+01:00",
+  "completed_at": "2026-11-11T10:18:37.598087763+01:00"
+}

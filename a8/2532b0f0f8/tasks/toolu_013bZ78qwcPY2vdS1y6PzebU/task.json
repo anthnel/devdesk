@@ -1,0 +1,15 @@
+{
+  "tool_use_id": "toolu_013bZ78qwcPY2vdS1y6PzebU",
+  "agent_id": "ad83df98b26cd6d15",
+  "subagent_type": "project-coder",
+  "task_description": "Finitions revue blur DEVDESK-211",
+  "token_usage": {
+    "input_tokens": 12,
+    "cache_creation_tokens": 30060,
+    "cache_read_tokens": 144439,
+    "output_tokens": 2842,
+    "api_call_count": 6
+  },
+  "started_at": "2026-11-11T10:26:10.935702801+01:00",
+  "completed_at": "2026-11-11T10:27:15.77595126+01:00"
+}

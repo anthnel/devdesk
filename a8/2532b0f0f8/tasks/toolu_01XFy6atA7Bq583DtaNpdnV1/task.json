@@ -1,0 +1,18 @@
+{
+  "tool_use_id": "toolu_01XFy6atA7Bq583DtaNpdnV1",
+  "agent_id": "a187c662e21550c16",
+  "subagent_type": "project-coder",
+  "task_description": "Vert étape 4 DEVDESK-211",
+  "files": [
+    "internal/ui/jobsview/view.go"
+  ],
+  "token_usage": {
+    "input_tokens": 12,
+    "cache_creation_tokens": 90942,
+    "cache_read_tokens": 366938,
+    "output_tokens": 3431,
+    "api_call_count": 6
+  },
+  "started_at": "2026-11-11T10:07:41.156231403+01:00",
+  "completed_at": "2026-11-11T10:08:49.612694973+01:00"
+}

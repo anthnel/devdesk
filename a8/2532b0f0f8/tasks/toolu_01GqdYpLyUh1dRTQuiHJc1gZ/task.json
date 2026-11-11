@@ -1,0 +1,18 @@
+{
+  "tool_use_id": "toolu_01GqdYpLyUh1dRTQuiHJc1gZ",
+  "agent_id": "a28782561b4c7f9bb",
+  "subagent_type": "project-tester",
+  "task_description": "Rouge étape 4 DEVDESK-211",
+  "files": [
+    "internal/ui/jobsview/terminal_progress_text_test.go"
+  ],
+  "token_usage": {
+    "input_tokens": 20,
+    "cache_creation_tokens": 101860,
+    "cache_read_tokens": 648147,
+    "output_tokens": 7939,
+    "api_call_count": 9
+  },
+  "started_at": "2026-11-11T10:06:35.773771111+01:00",
+  "completed_at": "2026-11-11T10:07:33.618820427+01:00"
+}
