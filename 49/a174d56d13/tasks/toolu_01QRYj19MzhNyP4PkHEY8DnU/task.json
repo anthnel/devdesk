@@ -1,0 +1,15 @@
+{
+  "tool_use_id": "toolu_01QRYj19MzhNyP4PkHEY8DnU",
+  "agent_id": "a0754ca633eabc689",
+  "subagent_type": "dev-team:devops",
+  "task_description": "Fusionner PR 350 et nettoyer",
+  "token_usage": {
+    "input_tokens": 12,
+    "cache_creation_tokens": 41283,
+    "cache_read_tokens": 180472,
+    "output_tokens": 1957,
+    "api_call_count": 6
+  },
+  "started_at": "2026-11-10T09:12:29.737765497+01:00",
+  "completed_at": "2026-11-10T09:13:16.233430663+01:00"
+}
