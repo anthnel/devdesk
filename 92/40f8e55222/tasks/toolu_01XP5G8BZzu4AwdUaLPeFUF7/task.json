@@ -1,0 +1,15 @@
+{
+  "tool_use_id": "toolu_01XP5G8BZzu4AwdUaLPeFUF7",
+  "agent_id": "addd97e54b6b7d2a6",
+  "subagent_type": "team-core:tech-writer",
+  "task_description": "Checklist terminaux réels DEVDESK-207",
+  "token_usage": {
+    "input_tokens": 12,
+    "cache_creation_tokens": 25968,
+    "cache_read_tokens": 82836,
+    "output_tokens": 3238,
+    "api_call_count": 5
+  },
+  "started_at": "2026-11-10T14:05:27.650241662+01:00",
+  "completed_at": "2026-11-10T14:05:56.704239407+01:00"
+}
