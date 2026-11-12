@@ -1,0 +1,15 @@
+{
+  "tool_use_id": "toolu_01MiSEBUj6PjVdeX47bFpoRR",
+  "agent_id": "aabb136d3d88794ba",
+  "subagent_type": "product-team:pm",
+  "task_description": "Story CI docs seule",
+  "token_usage": {
+    "input_tokens": 9,
+    "cache_creation_tokens": 70516,
+    "cache_read_tokens": 237136,
+    "output_tokens": 3719,
+    "api_call_count": 5
+  },
+  "started_at": "2026-11-12T15:45:55.0630409+01:00",
+  "completed_at": "2026-11-12T15:46:26.0310369+01:00"
+}
