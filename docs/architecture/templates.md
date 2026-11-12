@@ -261,4 +261,4 @@ materialised tree for the scanners, not a cache of the fetch.
   none of those. It shows on the next of them.
 - A private git repository on a host that is not the forge's is fetched
   anonymously, so it fails with git's own reason: use an SSH URL.
-- No spinner on the row itself: the footer status carries the live scan.
+- No activity mark on the row itself: the footer status carries the live scan.

@@ -34,8 +34,8 @@ func idleRowDuringBatch(t *testing.T) Model {
 
 func TestJobsWorkShowsTheActivityDotNotABrailleFrame(t *testing.T) {
 	m := idleRowDuringBatch(t)
-	if st := m.inventoryStatus(); !st.Activity || st.Spinner {
-		t.Fatalf("status Activity=%v Spinner=%v, want Activity only", st.Activity, st.Spinner)
+	if st := m.inventoryStatus(); !st.Activity {
+		t.Fatalf("status Activity=%v, want Activity only", st.Activity)
 	}
 	m = feed(t, m, jobs.FrameMsg{Blink: true})
 	got := infoLine(m, 200)

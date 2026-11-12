@@ -473,12 +473,12 @@ is **the footer's and header's business**, never the body's:
   footer, the shared dot, for a view's own load and for work the router
   tracks (Rule 128). That mark is for the *table's data*
   loading; an operation on one row is the row's activity dot (Rule 125),
-  never a spinner in the body;
+  never a loading body;
 - the row count, or whatever stands in for it (a verdict, a total), is a
   field of `GetHeaderInfo` (`shortcut.HeaderInfo{Key: "Images", Value: "0"}`) —
   it, not the body, answers "what am I looking at."
 
-**Why.** A body that substitutes itself for the table — with a spinner or
+**Why.** A body that substitutes itself for the table — with a loading screen or
 with text — loses its header and its columns for as long as the condition
 holds, then regains them: the layout jumps on every refresh, every
 `ctrl+r`, every keystroke in the filter. The header and the footer, on the
@@ -504,9 +504,9 @@ func (m Model) GetHeaderInfo(_ string) []shortcut.HeaderInfo {
     }
 }
 
-// ❌ WRONG — the body replaces itself with a spinner
+// ❌ WRONG — the body replaces itself with a loading screen
 if m.loading && len(m.images) == 0 {
-    return theme.SpinnerMessage(m.spinner.View(), "Loading images...")
+    return theme.DimStyle.Render("Loading images...")
 }
 
 // ❌ WRONG — the body replaces itself with a message, empty or filtered
@@ -517,13 +517,12 @@ if len(m.imageTable.Visible()) == 0 {
 
 The blink phase is pushed from the `jobs.FrameMsg` handler:
 `m.footer.SetBlinkPhase(msg.Blink)`, and the view implements `WantsBlink()`
-(return `status().Activity`); without them the dot is steady on. No view keeps
-a `spinner.Model` (`TestNoViewImportsTheBubblesSpinner`).
+(return `status().Activity`); without them the dot is steady on. The braille
+spinner is removed: no file under `internal/` imports
+`charm.land/bubbles/v2/spinner` (`TestNoViewImportsTheBubblesSpinner`).
 
 `TestNoTableViewRendersALoadingBody` (`internal/ui/components`) rejects a
-`theme.SpinnerMessage` in table views. An operation screen with no table
-behind it (a `docker pull` in progress) is an exception **declared in the
-test**.
+loading body in table views, with no declared exception.
 
 **Declared exception: a welcome screen, not a status message.** The empty
 `:sec` inventory (`internal/ui/security/inventory.go`, `renderEmptyInventory`)

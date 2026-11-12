@@ -155,7 +155,7 @@ Single-item work (creating or deleting a single repository, say) is still regist
 
 ### One animation, broadcast everywhere
 
-Views never hold a pointer into the registry. The router hands out a read-only snapshot via `jobs.ChangedMsg`, broadcast to every held view (on screen or not) whenever anything changes — so navigating back to a view that missed some progress shows the current state without it having to ask. There is exactly one animation tick chain for the whole application, owned by the router, ticking every 500 ms and carrying only the blink phase of the activity dot (the dot in a row, and the dot in the footer). It is identified by a sequence number so a stale tick from a superseded chain is simply dropped. A few views still turn a spinner of their own while they load their data.
+Views never hold a pointer into the registry. The router hands out a read-only snapshot via `jobs.ChangedMsg`, broadcast to every held view (on screen or not) whenever anything changes — so navigating back to a view that missed some progress shows the current state without it having to ask. There is exactly one animation tick chain for the whole application, owned by the router, ticking every 500 ms and carrying only the blink phase of the activity dot (the dot in a row, and the dot in the footer). It is identified by a sequence number so a stale tick from a superseded chain is simply dropped. No view runs an animation of its own: a view that loads its own data asks the router to animate the footer dot.
 
 ### The `:jobs` view
 

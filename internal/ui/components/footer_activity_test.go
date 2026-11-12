@@ -57,12 +57,11 @@ func TestActivityDotFollowsTheBlinkPhase(t *testing.T) {
 	}
 }
 
-// 3: colour and background come from indicator.Style, never from the spinner style.
+// 3: colour and background come from indicator.Style.
 func TestActivityDotIsStyledAsTheRunningIndicator(t *testing.T) {
 	for _, on := range []bool{true, false} {
 		var f FooterMessage
 		f.SetBlinkPhase(on)
-		f.SetSpinnerFrame(theme.SpinnerStyle().Render("⠹"))
 		got := f.View(60, Status{Text: "work", Activity: true})
 		if want := runningDot(on); !strings.Contains(got, want) {
 			t.Errorf("on=%v: the dot is not rendered as indicator.Style(Running) on the app background\n got: %q\nwant it to contain: %q",
@@ -142,20 +141,6 @@ func TestTimedMessageHidesTheActivityDot(t *testing.T) {
 				t.Errorf("status leaked through a %s message: %q", name, got)
 			}
 		})
-	}
-}
-
-// 9: Activity wins over Spinner.
-func TestActivityWinsOverSpinner(t *testing.T) {
-	var f FooterMessage
-	f.SetSpinnerFrame("⠹")
-	got := f.View(60, Status{Text: "work", Activity: true, Spinner: true})
-	plain := ansi.Strip(got)
-	if !strings.Contains(plain, "● work") {
-		t.Errorf("the activity dot is missing: %q", plain)
-	}
-	if hasBrailleRune(got) {
-		t.Errorf("a braille frame is shown next to Activity: %q", plain)
 	}
 }
 
@@ -249,13 +234,12 @@ func TestActivityWithNothingToSayIsABlankLine(t *testing.T) {
 	}
 }
 
-// Activity + Spinner with a glyph detail: the detail's glyph only, no braille.
-func TestActivityAndSpinnerWithAGlyphDetailShowOneDot(t *testing.T) {
+// Activity with a glyph detail: the detail's glyph only, no second dot.
+func TestActivityWithAGlyphDetailShowsOneDot(t *testing.T) {
 	var f FooterMessage
-	f.SetSpinnerFrame("⠹")
 	got := f.View(80, Status{
-		Activity: true, Spinner: true,
-		Detail: RowDetail{Glyph: "●", Lead: "Scanning ", Target: "x"},
+		Activity: true,
+		Detail:   RowDetail{Glyph: "●", Lead: "Scanning ", Target: "x"},
 	})
 	if n := strings.Count(ansi.Strip(got), "●"); n != 1 {
 		t.Errorf("want exactly one ●, got %d in %q", n, ansi.Strip(got))

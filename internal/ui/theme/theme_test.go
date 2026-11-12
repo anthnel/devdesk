@@ -244,18 +244,6 @@ func TestStatusStyle_OKDiffersFromErrorAndWarning(t *testing.T) {
 	}
 }
 
-// ── SpinnerMessage ────────────────────────────────────────────────────────────
-
-func TestSpinnerMessage(t *testing.T) {
-	result := SpinnerMessage("⠋", "Loading...")
-	if result == "" {
-		t.Error("SpinnerMessage() returned empty string")
-	}
-	if !strings.Contains(result, "Loading...") {
-		t.Errorf("SpinnerMessage() should contain message, got %q", result)
-	}
-}
-
 // ── RenderBorderTitle ─────────────────────────────────────────────────────────
 
 func TestRenderBorderTitle(t *testing.T) {

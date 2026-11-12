@@ -1302,13 +1302,12 @@ pane) is treated as blurred: its animation and periodic reads stop, unless
 
 #### A row dot or a footer mark
 
-Two things move on screen, and they answer different questions:
+Two things move on screen, and they answer different questions. The footer's braille spinner is gone (DEVDESK-377): `Status.Spinner`, `FooterMessage.spinnerFrame`, `SetSpinnerFrame`, `theme.SpinnerMessage` and `theme.SpinnerStyle` no longer exist, and the dot is the only mark.
 
 | | Says | Where | Driven by |
 |---|---|---|---|
 | activity dot (`●`/`○`) in a row | an operation is running **on this row's target** | column 0 of a table (Rule 125) | the registry (`jobs`), or a `MarkBusy` key, read at render; blink phase from the shared tick |
 | activity dot in the footer | **work the router tracks is running**, or the view is loading data it asked the router to animate (`WantsBlink()`) | the footer, `components.Status{Activity: true}` (Rules 128, 139) | the same shared tick: the view calls `footer.SetBlinkPhase(msg.Blink)` from its `jobs.FrameMsg` handler |
-| braille spinner in the footer | nothing: **no view uses it any more** (DEVDESK-371 to 376). `Status.Spinner`, `SetSpinnerFrame` and `theme.SpinnerMessage` are still defined, with no production caller; removing them is a separate story (T10) | the footer, `components.Status{Spinner: true}` | no `spinner.Model` in `internal/ui` |
 
 Every loading state uses the shared dot: `:status` (DEVDESK-369), the viewer (DEVDESK-370), `:oci` (DEVDESK-374: a tab's load, the tag search, the network inspection), `:containers` and `:agent-usage` (DEVDESK-371), `:sec` (DEVDESK-372), `:net` diagnostics, ports and interfaces (DEVDESK-373), and the forge sign-in (DEVDESK-375: `Authenticating...` in the footer, the form stays visible). Two details:
 
@@ -1316,11 +1315,11 @@ Every loading state uses the shared dot: `:status` (DEVDESK-369), the viewer (DE
 - The `dk setup` wizard is its own program, with no router and no `FrameMsg`. It shows a fixed `●` before the pending text (`Checking whether it's running...`), with no animation (DEVDESK-376).
 
 The footer dot has the glyph and colour of the row dots (`indicator.Running`),
-and `Activity` wins over `Spinner`. A view never draws a spinner in a row: the
+A view never draws a spinner in a row: the
 per-row spinner chains (`AdvanceSpinner`, `busyTick`, a node spinner) were
 deleted by the migrations (DEVDESK-139 to 153) and `StatusColumn` with them
 (DEVDESK-143). When the selected row has a footer detail with a glyph, the
-footer shows neither the dot nor a spinner: the row's dot already moves.
+footer shows no dot: the row's dot already moves.
 
 The router arms its chain for a footer dot through `jobs.Running() > 0` or
 through `WantsBlink()` on the view on screen. A view whose `Activity` status
@@ -1341,9 +1340,12 @@ is steady.
   with its seeded view (the footer shows the dot) or with an `Exempt` reason.
   No consumer is exempt now: all thirteen packages name a view. The `Exempt`
   field stays for a future case. A new consumer fails until it is classified.
-- `TestNoViewImportsTheBubblesSpinner`: no package under `internal/ui` imports
-  `charm.land/bubbles/v2/spinner` in non-test code. `pendingSpinnerImports`, the
-  list of temporary exceptions with their story, is empty and stays empty.
+- `TestNoViewImportsTheBubblesSpinner`: no non-test file under `internal/`
+  imports `charm.land/bubbles/v2/spinner`, `dk setup` included (DEVDESK-376,
+  DEVDESK-377). There is no exception list.
+- `TestRemovedSpinnerSymbolsStayGone`: no `Spinner`, `spinnerFrame`,
+  `SetSpinnerFrame`, `SpinnerMessage` or `SpinnerStyle` identifier in a file
+  under `internal/ui`.
 - `TestActivityGuardNoFrameFieldAnywhere`: no identifier named `RenderedFrame`
   under `internal/` (the field no longer exists).
 

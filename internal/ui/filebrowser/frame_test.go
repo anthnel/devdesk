@@ -1,7 +1,6 @@
 package filebrowser
 
 import (
-	"strings"
 	"testing"
 
 	"github.com/anthnel/devdesk/internal/jobs"
@@ -15,15 +14,12 @@ import (
 // spinner line exactly as it was.
 func TestAFrameLeavesTheFooterSpinnerAlone(t *testing.T) {
 	m := openAt(t, tree(t))
-	status := sharedcomponents.Status{Text: "Deleting", Spinner: true}
+	status := sharedcomponents.Status{Text: "Deleting"}
 	before := m.footer.View(80, status)
 
 	m, _ = step(t, m, jobs.FrameMsg{Blink: false})
 
 	if got := m.footer.View(80, status); got != before {
 		t.Errorf("a frame changed the footer line:\nbefore %q\nafter  %q", before, got)
-	}
-	if strings.ContainsAny(before, "●○") {
-		t.Errorf("a dot beside the footer spinner: %q", before)
 	}
 }

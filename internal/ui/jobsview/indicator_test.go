@@ -208,9 +208,6 @@ func TestTheFooterDetailIsTheSelectedRunsSentence(t *testing.T) {
 	if want := "1 job running"; status.Text != want {
 		t.Errorf("Text = %q, want %q", status.Text, want)
 	}
-	if status.Spinner {
-		t.Error("the footer spins beside a row whose own dot moves")
-	}
 	footer := m.RenderFooter(120)
 	if !strings.Contains(footer, "Scanning") || !strings.Contains(footer, "~/work") || !strings.Contains(footer, "1 job running") {
 		t.Errorf("the footer lacks the sentence or the count:\n%s", footer)

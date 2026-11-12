@@ -382,47 +382,39 @@ func TestActivityGuardFooterHasNoBraille(t *testing.T) {
 }
 
 // footerFrameConsumers lists every package under internal/ui whose Update takes
-// a jobs.FrameMsg, and what it does with it for the footer: the view whose seed
-// in footerActivitySeeds proves the dot, or the reason the package is exempt.
+// a jobs.FrameMsg, and the view whose seed in footerActivitySeeds proves the
+// footer dot. There is no exemption: no footer keeps its own spinner (DEVDESK-377).
 // A package that starts handling jobs.FrameMsg fails the test below until it is
 // written down here (DEVDESK-341, plan section 3).
-var footerFrameConsumers = map[string]struct {
-	View   command.ViewType // set: the footer shows the dot, seeded in footerActivitySeeds
-	Exempt string           // set: why the footer keeps its own spinner or has none
-}{
-	"ui/dashboard":      {View: command.ViewDashboard},
-	"ui/jobsview":       {View: command.ViewJobs},
-	"ui/workspaces":     {View: command.ViewWorkspaces},
-	"ui/templates":      {View: command.ViewTemplates},
-	"ui/security":       {View: command.ViewSecurity},
-	"ui/oci_resources":  {View: command.ViewOCIResources},
-	"ui/forge/explorer": {View: command.ViewGitExplorer},
-	"ui/status":         {View: command.ViewStatus},
-	"ui/viewer":         {View: command.ViewViewer},
-	"ui/containers":     {View: command.ViewContainers},
-	"ui/agentusageview": {View: command.ViewAgentUsage},
-	"ui/netdiag":        {View: command.ViewNetdiag},
-	"ui/forge/auth":     {View: command.ViewGitAuth},
+var footerFrameConsumers = map[string]command.ViewType{
+	"ui/dashboard":      command.ViewDashboard,
+	"ui/jobsview":       command.ViewJobs,
+	"ui/workspaces":     command.ViewWorkspaces,
+	"ui/templates":      command.ViewTemplates,
+	"ui/security":       command.ViewSecurity,
+	"ui/oci_resources":  command.ViewOCIResources,
+	"ui/forge/explorer": command.ViewGitExplorer,
+	"ui/status":         command.ViewStatus,
+	"ui/viewer":         command.ViewViewer,
+	"ui/containers":     command.ViewContainers,
+	"ui/agentusageview": command.ViewAgentUsage,
+	"ui/netdiag":        command.ViewNetdiag,
+	"ui/forge/auth":     command.ViewGitAuth,
 }
 
 // footerFrameConsumerProblems compares the packages found handling a
 // jobs.FrameMsg with the classification table.
-func footerFrameConsumerProblems(found map[string]bool, table map[string]struct {
-	View   command.ViewType
-	Exempt string
-}, seeds map[command.ViewType]footerSeed) []string {
+func footerFrameConsumerProblems(found map[string]bool, table map[string]command.ViewType, seeds map[command.ViewType]footerSeed) []string {
 	var out []string
 	for dir := range found {
-		c, ok := table[dir]
+		vt, ok := table[dir]
 		switch {
 		case !ok:
-			out = append(out, fmt.Sprintf("%s handles jobs.FrameMsg but is in neither footerActivitySeeds nor an exemption (footerFrameConsumers)", dir))
-		case c.View != "" && c.Exempt != "":
-			out = append(out, fmt.Sprintf("%s is both seeded and exempt", dir))
-		case c.View == "" && c.Exempt == "":
-			out = append(out, fmt.Sprintf("%s is classified without a view or a reason", dir))
-		case c.View != "" && seeds[c.View] == nil:
-			out = append(out, fmt.Sprintf("%s names view %q, which has no footer seed", dir, c.View))
+			out = append(out, fmt.Sprintf("%s handles jobs.FrameMsg but is not in footerFrameConsumers (no exemption exists: seed its footer dot)", dir))
+		case vt == "":
+			out = append(out, fmt.Sprintf("%s is classified without a view", dir))
+		case seeds[vt] == nil:
+			out = append(out, fmt.Sprintf("%s names view %q, which has no footer seed", dir, vt))
 		}
 	}
 	for dir := range table {
@@ -432,8 +424,8 @@ func footerFrameConsumerProblems(found map[string]bool, table map[string]struct 
 	}
 	for vt := range seeds {
 		listed := false
-		for _, c := range table {
-			listed = listed || c.View == vt
+		for _, v := range table {
+			listed = listed || v == vt
 		}
 		if !listed {
 			out = append(out, fmt.Sprintf("footerActivitySeeds has view %q, which footerFrameConsumers does not map to a consumer", vt))
@@ -459,25 +451,21 @@ func frameConsumerSeeds() map[command.ViewType]footerSeed {
 }
 
 func TestActivityGuardFrameConsumersAreClassifiedLogic(t *testing.T) {
-	type entry = struct {
-		View   command.ViewType
-		Exempt string
-	}
 	seeds := map[command.ViewType]footerSeed{command.ViewDashboard: seedDashboardActivity}
-	good := map[string]entry{"ui/dashboard": {View: command.ViewDashboard}, "ui/x": {Exempt: "own spinner"}}
-	if p := footerFrameConsumerProblems(map[string]bool{"ui/dashboard": true, "ui/x": true}, good, seeds); len(p) != 0 {
+	good := map[string]command.ViewType{"ui/dashboard": command.ViewDashboard}
+	if p := footerFrameConsumerProblems(map[string]bool{"ui/dashboard": true}, good, seeds); len(p) != 0 {
 		t.Errorf("a classified set reported %v", p)
 	}
-	if p := footerFrameConsumerProblems(map[string]bool{"ui/dashboard": true, "ui/x": true, "ui/new": true}, good, seeds); len(p) != 1 {
+	if p := footerFrameConsumerProblems(map[string]bool{"ui/dashboard": true, "ui/new": true}, good, seeds); len(p) != 1 {
 		t.Errorf("an unclassified consumer: %v", p)
 	}
-	if p := footerFrameConsumerProblems(map[string]bool{"ui/dashboard": true}, good, seeds); len(p) != 1 {
-		t.Errorf("a stale exemption: %v", p)
+	if p := footerFrameConsumerProblems(map[string]bool{}, good, seeds); len(p) != 1 {
+		t.Errorf("a stale entry: %v", p)
 	}
-	if p := footerFrameConsumerProblems(map[string]bool{"ui/dashboard": true, "ui/x": true}, map[string]entry{"ui/dashboard": {View: command.ViewDashboard}, "ui/x": {}}, seeds); len(p) != 1 {
-		t.Errorf("a consumer with neither view nor reason: %v", p)
+	if p := footerFrameConsumerProblems(map[string]bool{"ui/dashboard": true, "ui/x": true}, map[string]command.ViewType{"ui/dashboard": command.ViewDashboard, "ui/x": ""}, seeds); len(p) != 1 {
+		t.Errorf("a consumer with no view: %v", p)
 	}
-	if p := footerFrameConsumerProblems(map[string]bool{"ui/dashboard": true, "ui/x": true}, good, map[command.ViewType]footerSeed{command.ViewDashboard: seedDashboardActivity, command.ViewJobs: seedJobsActivity}); len(p) != 1 {
+	if p := footerFrameConsumerProblems(map[string]bool{"ui/dashboard": true}, good, map[command.ViewType]footerSeed{command.ViewDashboard: seedDashboardActivity, command.ViewJobs: seedJobsActivity}); len(p) != 1 {
 		t.Errorf("a seed no consumer maps to: %v", p)
 	}
 }

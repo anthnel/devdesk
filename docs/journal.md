@@ -7,7 +7,7 @@ decided, why, and which alternative was rejected. Sources live in `docs/product/
 
 1. **Decided: work the jobs registry tracks shows the shared activity dot (`●`/`○`) in the footer, not a braille frame.** The view passes the router's blink phase with `SetBlinkPhase`. Scope: the 8 `jobs.FrameMsg` consumers, plus the explorer's load lines (option B). Details and rejected options are in D127 (`docs/backlog.md` §1.1).
 2. **Decided: the router sends only the blink.** `jobs.FrameMsg` drops its braille frame and the 100 ms cadence goes, so 2 ticks per second run while jobs run, instead of 10. Source: `.claude/plans/DEVDESK-341-plan.md` (branch `feat/DEVDESK-341-footer-activity-dot`, untracked).
-3. **Open, separate stories: seven view-owned loading spinners still show braille and ignore `app.motion: static` and blur, and `:status` has a spinner that is never drawn.** To create in Plane, with the same plan as the source.
+3. **Open, separate stories (since closed, DEVDESK-369 to 377): seven view-owned loading spinners still showed braille and ignored `app.motion: static` and blur, and `:status` had a spinner that was never drawn.** To create in Plane, with the same plan as the source.
 4. **Not checked by hand yet:** `ws` sync, `app.motion: static`, losing terminal focus, and an error during a sync.
 
 ## 2026-11-11 — DEVDESK-258: `app.theme: auto`, embedded themes (D125)

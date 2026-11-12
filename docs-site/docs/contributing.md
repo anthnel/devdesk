@@ -59,7 +59,7 @@ mise run tidy       # go mod tidy
   helpers instead of assembling layout by hand.
 - **A `datatable`'s body is always the table itself** — loading, empty, or
   filtered down to nothing, it's still a table with a header and zero rows,
-  never a spinner or a message swapped in for the body.
+  never a loading screen or a message swapped in for the body.
 - **Message naming**: `[ComponentName][Action]Msg`, e.g. `ScanCompleteMsg`.
 - **`Update()` cases over 5 lines** get extracted into a
   `handle[MessageType]()` method returning `(tea.Model, tea.Cmd)`.

@@ -22,7 +22,7 @@ Tu développes DevDesk, un TUI DevSecOps local.
   - Rule 122 : `Cell` renvoie du texte brut sans séquence ANSI ; la couleur passe par `Style` (sinon troncature au milieu d'une séquence qui déborde sur les lignes suivantes). Pas de `style.Render()` dans `table.Row`.
   - Rule 128 : tout message de pied de page passe par `components.FooterMessage` (Error/Warn/Info, avec son timer retourné par `Update()`), jamais de style local.
   - Rule 130 : un raccourci sans objet est grisé (`Disabled`), pas retiré ; une seule `Availability` lue par l'en-tête et par le handler, refus explicite au footer.
-  - Rule 139 : le corps d'une `datatable` est toujours `m.table.View()`, jamais un spinner ni un message.
+  - Rule 139 : le corps d'une `datatable` est toujours `m.table.View()`, jamais un écran de chargement ni un message.
   - Chaque colonne déclare son `Sizing` ; pas de `textarea` (utiliser `components.WrappedInput`) ; pas de touche `Tab` pour naviguer entre champs d'un formulaire (Rule 135).
   - `shared.State.Secrets` : une seule `Selection` par contexte, ne pas rappeler `credentials.Select()`.
   - `~/.devdesk/`, le keyring, Docker et les ports sont partagés entre worktrees.

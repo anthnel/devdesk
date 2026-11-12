@@ -32,7 +32,7 @@ func wantsBlink(m Model) bool {
 func wantLoading(t *testing.T, m Model, name, what string) {
 	t.Helper()
 	st := m.status()
-	if want := "Loading " + name + "..."; st.Text != want || !st.Activity || st.Spinner {
+	if want := "Loading " + name + "..."; st.Text != want || !st.Activity {
 		t.Errorf("%s: status() = %+v, want Text %q, Activity and no Spinner", what, st, want)
 	}
 	if !wantsBlink(m) {
@@ -51,7 +51,7 @@ func TestViewerActivityWhileLoadingThenEnds(t *testing.T) {
 	wantLoading(t, m, "notes.txt", "a new model")
 
 	m, _ = step(t, m, DocumentLoadedMsg{Name: "notes.txt", Content: []byte("hello\n")})
-	if st := m.status(); st.Text != "" || st.Activity || st.Spinner {
+	if st := m.status(); st.Text != "" || st.Activity {
 		t.Errorf("status() = %+v after DocumentLoadedMsg, want empty", st)
 	}
 	if wantsBlink(m) {
@@ -103,7 +103,7 @@ func TestViewerActivityPagerErrorStillReloads(t *testing.T) {
 func TestViewerFollowShowsNoDot(t *testing.T) {
 	m := logModel(t, "a\nb\n")
 	m, _ = step(t, m, testutil.Key(keymap.Fetch))
-	if st := m.status(); st.Activity || st.Spinner {
+	if st := m.status(); st.Activity {
 		t.Errorf("following shows an indicator: %+v", st)
 	}
 	if wantsBlink(m) {

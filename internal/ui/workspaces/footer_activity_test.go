@@ -36,8 +36,8 @@ func syncOnIdleRow(t *testing.T) Model {
 
 func TestTheProgressLineShowsTheActivityDotNotABrailleFrame(t *testing.T) {
 	m := syncOnIdleRow(t)
-	if st := m.status(); !st.Activity || st.Spinner {
-		t.Fatalf("status Activity=%v Spinner=%v, want Activity only", st.Activity, st.Spinner)
+	if st := m.status(); !st.Activity {
+		t.Fatalf("status Activity=%v, want Activity only", st.Activity)
 	}
 	m = feed(t, m, jobs.FrameMsg{Blink: true})
 	if got := infoLine(m, 160); !strings.Contains(got, "●") {
