@@ -1,0 +1,15 @@
+{
+  "tool_use_id": "toolu_01UWdXdDCD47Z8HfexGDNZhr",
+  "agent_id": "a20f702e36ce25876",
+  "subagent_type": "project-coder",
+  "task_description": "Corriger test setup dépendant de l'env",
+  "token_usage": {
+    "input_tokens": 10,
+    "cache_creation_tokens": 78483,
+    "cache_read_tokens": 271754,
+    "output_tokens": 3100,
+    "api_call_count": 5
+  },
+  "started_at": "2026-11-12T14:28:49.323809774+01:00",
+  "completed_at": "2026-11-12T14:29:19.745961325+01:00"
+}

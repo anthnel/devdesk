@@ -1,0 +1,15 @@
+{
+  "tool_use_id": "toolu_013Sr53GkPaV4h8HrqvQsEh6",
+  "agent_id": "a7eeeee80155abc79",
+  "subagent_type": "dev-team:devops",
+  "task_description": "Créer worktree et branche",
+  "token_usage": {
+    "input_tokens": 6,
+    "cache_creation_tokens": 36780,
+    "cache_read_tokens": 65640,
+    "output_tokens": 886,
+    "api_call_count": 3
+  },
+  "started_at": "2026-11-12T13:45:22.927021777+01:00",
+  "completed_at": "2026-11-12T13:45:33.291405056+01:00"
+}

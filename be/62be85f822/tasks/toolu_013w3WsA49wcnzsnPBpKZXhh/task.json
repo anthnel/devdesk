@@ -1,0 +1,15 @@
+{
+  "tool_use_id": "toolu_013w3WsA49wcnzsnPBpKZXhh",
+  "agent_id": "ad8840756546f50d4",
+  "subagent_type": "project-tester",
+  "task_description": "Vérification finale suite complète",
+  "token_usage": {
+    "input_tokens": 22,
+    "cache_creation_tokens": 94353,
+    "cache_read_tokens": 338435,
+    "output_tokens": 4926,
+    "api_call_count": 10
+  },
+  "started_at": "2026-11-12T14:31:10.691545263+01:00",
+  "completed_at": "2026-11-12T14:34:36.889522272+01:00"
+}

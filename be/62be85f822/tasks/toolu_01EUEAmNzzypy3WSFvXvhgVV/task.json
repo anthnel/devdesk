@@ -1,0 +1,15 @@
+{
+  "tool_use_id": "toolu_01EUEAmNzzypy3WSFvXvhgVV",
+  "agent_id": "af4ac5c008e831589",
+  "subagent_type": "dev-team:architect",
+  "task_description": "Plan pastille partagée 5 stories",
+  "token_usage": {
+    "input_tokens": 80,
+    "cache_creation_tokens": 192405,
+    "cache_read_tokens": 5262314,
+    "output_tokens": 34186,
+    "api_call_count": 39
+  },
+  "started_at": "2026-11-12T13:38:25.832355323+01:00",
+  "completed_at": "2026-11-12T13:44:11.558287917+01:00"
+}
