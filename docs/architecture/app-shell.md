@@ -1308,9 +1308,9 @@ Two things move on screen, and they answer different questions:
 |---|---|---|---|
 | activity dot (`●`/`○`) in a row | an operation is running **on this row's target** | column 0 of a table (Rule 125) | the registry (`jobs`), or a `MarkBusy` key, read at render; blink phase from the shared tick |
 | activity dot in the footer | **work the router tracks is running**, or the view is loading data it asked the router to animate (`WantsBlink()`) | the footer, `components.Status{Activity: true}` (Rules 128, 139) | the same shared tick: the view calls `footer.SetBlinkPhase(msg.Blink)` from its `jobs.FrameMsg` handler |
-| braille spinner in the footer | **the view is fetching its own data** (agent usage, containers, netdiag, OCI resources, security remediation) | the footer, `components.Status{Spinner: true}` | the view's own `spinner.Model`, which turns only while it loads |
+| braille spinner in the footer | **the view is fetching its own data** (agent usage, containers, netdiag, security remediation) | the footer, `components.Status{Spinner: true}` | the view's own `spinner.Model`, which turns only while it loads |
 
-`:status` (DEVDESK-369) and the viewer (DEVDESK-370) use the shared dot.
+`:status` (DEVDESK-369), the viewer (DEVDESK-370) and `:oci` (DEVDESK-374: a tab's load, the tag search, the network inspection) use the shared dot.
 
 The footer dot has the glyph and colour of the row dots (`indicator.Running`),
 and `Activity` wins over `Spinner`. A view never draws a spinner in a row: the

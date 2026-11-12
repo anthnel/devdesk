@@ -1,12 +1,10 @@
 package ociresources
 
 import (
-	"reflect"
 	"slices"
 	"strings"
 	"testing"
 
-	"charm.land/bubbles/v2/spinner"
 	"github.com/charmbracelet/x/ansi"
 
 	"github.com/anthnel/devdesk/internal/cache"
@@ -268,52 +266,28 @@ func TestTheBlinkPhaseReachesTheBrowserTable(t *testing.T) {
 	}
 }
 
-// 7. No row chain any more: a spinner tick animates nothing on the rows. Only a
-// search keeps the browser's own spinner (the footer's loading state).
-func TestASpinnerTickDoesNotTouchTheRows(t *testing.T) {
+// 7. No row chain any more, and no spinner of the browser's own: a search shows
+// the shared activity dot in the footer and follows the router's blink phase
+// (DEVDESK-374).
+func TestTheSearchShowsTheDotAndFollowsTheRouterFrame(t *testing.T) {
 	m := resultsModel(t)
-	b := m.registryBrowser
-	b.SetJobs([]jobs.Run{ociRun(jobs.KindScan, ociCtx, jobs.ItemRunning, tagProd)}, nil, ociCtx)
-	if b.IsSearching() {
-		t.Fatal("precondition: the browser is searching")
-	}
-	rowsBefore := b.tagTable.Items()
-	cellsBefore := b.tagTable.Table().Rows()
+	m.registryBrowser.pendingSearches = 1
 
-	next, cmd := b.Update(spinner.TickMsg{})
-	if cmd != nil {
-		t.Error("a tick with a scan running and no search returned a Cmd: the chain is still alive")
+	for _, phase := range []struct {
+		blink      bool
+		want, deny string
+	}{{true, "●", "○"}, {false, "○", "●"}} {
+		m = feed(t, m, jobs.FrameMsg{Blink: phase.blink})
+		info := ansi.Strip(ociInfoLine(m, 200))
+		if !strings.Contains(info, "Searching registries...") {
+			t.Fatalf("the footer lacks the search label:\n%s", info)
+		}
+		if strings.Count(info, phase.want) != 1 || strings.Contains(info, phase.deny) || hasBraille(info) {
+			t.Errorf("blink=%v: want exactly one %s, no %s, no braille:\n%s", phase.blink, phase.want, phase.deny, info)
+		}
 	}
-	if !reflect.DeepEqual(next.tagTable.Items(), rowsBefore) || !reflect.DeepEqual(next.tagTable.Table().Rows(), cellsBefore) {
-		t.Error("a spinner tick changed the rows")
-	}
-
-	b.pendingSearches = 1
-	if _, cmd := b.Update(spinner.TickMsg{}); cmd == nil {
-		t.Error("a tick during a search returned no Cmd: the search spinner stopped")
-	}
-}
-
-// The search spinner feeds the footer frame, and the router's frame does not
-// overwrite it while a search runs.
-func TestTheSearchSpinnerFeedsTheFooterAndTheRouterFrameDoesNotOverwriteIt(t *testing.T) {
-	m := resultsModel(t)
-	b := m.registryBrowser
-	b.pendingSearches = 1
-
-	m = feed(t, m, spinner.TickMsg{})
-	info := ansi.Strip(ociInfoLine(m, 200))
-	if !strings.Contains(info, "Searching registries...") {
-		t.Fatalf("the footer lacks the search label:\n%s", info)
-	}
-	frame := strings.TrimSpace(ansi.Strip(b.spinner.View()))
-	if frame == "" || !strings.Contains(info, frame) {
-		t.Errorf("the footer lacks the search spinner frame %q:\n%s", frame, info)
-	}
-
-	m = feed(t, m, jobs.FrameMsg{Blink: true})
-	if info := ansi.Strip(ociInfoLine(m, 200)); !strings.Contains(info, frame) {
-		t.Errorf("the router's frame overwrote the search spinner:\n%s", info)
+	if !m.WantsBlink() {
+		t.Error("a search in flight does not ask for the blink")
 	}
 }
 

@@ -183,9 +183,9 @@ really runs (not queued) the C/H/M/L cells hold `…` in `DimStyle`; a queued sc
 or a pull keeps the counts. The blink phase arrives with `SetBlinkPhase` and
 `WantsBlink` is true for a visible running tag row. Rule 116: Updated drops
 under 102 columns, L under 84, M under 78, H under 72, C under 66; at 60 only
-the dot, Registry and Tag remain. The browser's spinner now turns only for a
-search: its frame goes to the footer (`Searching registries...`), and the
-router's frame does not overwrite it while a search runs. After the search the
+the dot, Registry and Tag remain. The browser has no spinner of its own
+(DEVDESK-374): a search shows the shared activity dot in the footer
+(`Searching registries...`), and `WantsBlink` is true while it runs. After the search the
 footer describes the selected tag (`Status{Detail}`). `tagScanSpinnerIdx` and
 the local frame are deleted. `DescribeRow` filters by context: a scan of another
 context no longer shows on a tag (D108).
@@ -201,8 +201,12 @@ leaves a `⊗` dot, only a footer message. On Registries, a group whose members 
 the row's dot says it, and `WantsBlink` is true while a group refreshes or a
 row action runs, so the periodic refresh alone never blinks. The row spinner is
 gone from the whole view: `advanceBusySpinners`, `busyTick`, `spinnerFrameIdx`
-and every `AdvanceSpinner` call are deleted. The view's `spinner.Model` remains
-and turns only while a tab *loads* (footer, Rule 128).
+and every `AdvanceSpinner` call are deleted. The view's `spinner.Model` and `loadingRegs` are
+deleted (DEVDESK-374): a tab's load, the tag search and the network inspection
+show the shared activity dot in the footer (Rule 128), and `footerLoading()`
+feeds `WantsBlink` with the same priority order as `formStatus()`. A load shows
+only while the active tab's table is empty: `ctrl+r` on a filled table is
+silent.
 
 **Images (DEVDESK-146, A-09a).**
 

@@ -57,22 +57,30 @@ var footerActivitySeeds = map[command.ViewType]footerSeed{
 	command.ViewGitExplorer:  seedExplorerActivity,
 }
 
+// loadingSeed is one loading state of a view and the message that ends it.
+type loadingSeed struct {
+	name string // subtest name
+	seed footerSeed
+	end  func() tea.Msg
+}
+
 // footerLoadingSeeds are the views whose footer shows the activity dot for a
 // load of their own, with no job in the registry (DEVDESK-369): the view is
 // created on screen in its "loading" state and no Cmd is executed. Each view
-// migrated from a spinner.Model adds its seeds here, and its end-of-load message
-// to footerLoadingEnds. The two tables below the seeds are checked by
-// TestActivityGuardFooterHasNoBraille and TestALoadingViewDrivesTheChain.
-var footerLoadingSeeds = map[command.ViewType][]footerSeed{
-	command.ViewStatus: {seedStatusLoading},
-	command.ViewViewer: {seedViewerLoading},
-}
-
-// footerLoadingEnds is the message that ends the load of each seeded view.
-var footerLoadingEnds = map[command.ViewType]func() tea.Msg{
-	command.ViewStatus: func() tea.Msg { return uistatus.CheckCompleteMsg{Timestamp: time.Now()} },
-	command.ViewViewer: func() tea.Msg {
-		return uiviewer.DocumentLoadedMsg{Name: "notes.txt", Content: []byte("hello\n")}
+// migrated from a spinner.Model adds its seeds here, every one with the message
+// that ends its load. The table is checked by TestActivityGuardFooterHasNoBraille
+// and TestALoadingViewDrivesTheChain.
+var footerLoadingSeeds = map[command.ViewType][]loadingSeed{
+	command.ViewStatus: {{"first check", seedStatusLoading,
+		func() tea.Msg { return uistatus.CheckCompleteMsg{Timestamp: time.Now()} }}},
+	command.ViewViewer: {{"document", seedViewerLoading,
+		func() tea.Msg { return uiviewer.DocumentLoadedMsg{Name: "notes.txt", Content: []byte("hello\n")} }}},
+	command.ViewOCIResources: {
+		{"images tab", seedOCIImagesLoading, func() tea.Msg { return ociresources.ImagesListMsg{} }},
+		{"networks tab", seedOCINetworksLoading, func() tea.Msg { return ociresources.NetworksListMsg{} }},
+		{"volumes tab", seedOCIVolumesLoading, func() tea.Msg { return ociresources.VolumesListMsg{} }},
+		{"tag search", seedOCITagSearch, ociTagSearchEnd},
+		{"network inspect", seedOCINetworkInspect, ociNetworkInspectEnd},
 	},
 }
 
@@ -257,10 +265,10 @@ func TestActivityGuardFooterHasNoBraille(t *testing.T) {
 	// A loading view: phase on, then off, no braille, exactly one dot each time.
 	on, off := indicator.Glyph(indicator.Running, true), indicator.Glyph(indicator.Running, false)
 	for vt, seeds := range footerLoadingSeeds {
-		for i, seed := range seeds {
-			t.Run(fmt.Sprintf("loading/%s/%d", vt, i), func(t *testing.T) {
+		for _, ls := range seeds {
+			t.Run(fmt.Sprintf("loading/%s/%s", vt, ls.name), func(t *testing.T) {
 				a := routerAt(t, &bareView{}, 180, 40)
-				seed(t, a)
+				ls.seed(t, a)
 				if a.currentView != vt {
 					t.Fatalf("the seed left %q on screen, want %q", a.currentView, vt)
 				}
@@ -372,7 +380,7 @@ func frameConsumerSeeds() map[command.ViewType]footerSeed {
 	}
 	for vt, seeds := range footerLoadingSeeds {
 		if len(seeds) > 0 {
-			out[vt] = seeds[0]
+			out[vt] = seeds[0].seed
 		}
 	}
 	return out
@@ -733,12 +741,12 @@ func loadingRouter(t *testing.T, vt command.ViewType, seed footerSeed) (*App, *[
 
 func TestALoadingViewDrivesTheChain(t *testing.T) {
 	for vt, seeds := range footerLoadingSeeds {
-		end := footerLoadingEnds[vt]
-		if end == nil {
-			t.Fatalf("view %q has loading seeds but no footerLoadingEnds message", vt)
-		}
-		for i, seed := range seeds {
-			name := fmt.Sprintf("%s/%d", vt, i)
+		for _, ls := range seeds {
+			seed, end := ls.seed, ls.end
+			if end == nil {
+				t.Fatalf("view %q seed %q has no end message", vt, ls.name)
+			}
+			name := fmt.Sprintf("%s/%s", vt, ls.name)
 			t.Run(name+"/arms the blink chain", func(t *testing.T) {
 				a, _ := loadingRouter(t, vt, seed)
 				held, ok := a.views[vt].(BlinkingView)
@@ -818,7 +826,7 @@ func TestFooterActivityStatusReturnShowsTheCurrentPhase(t *testing.T) {
 // itself must arm the chain, or the dot stays a steady glyph (DEVDESK-370).
 func TestFooterActivityViewerReloadArmsTheChain(t *testing.T) {
 	a, _ := loadingRouter(t, command.ViewViewer, seedViewerLoading)
-	a.Update(footerLoadingEnds[command.ViewViewer]())
+	a.Update(footerLoadingSeeds[command.ViewViewer][0].end())
 	a.anim.ticking = false
 	a.Update(testutil.Key("ctrl+r"))
 	held, ok := a.views[command.ViewViewer].(BlinkingView)

@@ -7,8 +7,6 @@ import (
 
 	"time"
 
-	"charm.land/bubbles/v2/spinner"
-
 	"github.com/anthnel/devdesk/internal/cache"
 	"github.com/anthnel/devdesk/internal/config"
 	"github.com/anthnel/devdesk/internal/docker"
@@ -19,7 +17,6 @@ import (
 	"github.com/anthnel/devdesk/internal/trust"
 	sharedcomponents "github.com/anthnel/devdesk/internal/ui/components"
 	"github.com/anthnel/devdesk/internal/ui/datatable"
-	"github.com/anthnel/devdesk/internal/ui/theme"
 )
 
 // ociTab represents the active tab in the OCI resources view
@@ -83,7 +80,6 @@ type Model struct {
 	// column (§3.88).
 	updates    imageupdate.Tracker
 	imageTable datatable.Model[imageRow]
-	spinner    spinner.Model
 	loading    bool
 	// Networks tab
 
@@ -96,7 +92,6 @@ type Model struct {
 	// Registries tab
 	registries          []config.RegistryItem
 	registryTable       datatable.Model[registryRow]
-	loadingRegs         bool
 	registryForm        *RegistryForm
 	registryBrowser     *RegistryBrowser
 	registryLoginStatus map[string]docker.LoginState // URL → where its credentials are
@@ -425,10 +420,6 @@ type ContainerLaunchCompleteMsg struct {
 
 // New creates a new OCI resources view
 func New(cfg *config.Config) Model {
-	s := spinner.New()
-	s.Spinner = spinner.Dot
-	s.Style = theme.SpinnerStyle()
-
 	it := datatable.New(datatable.Config[imageRow]{
 		Columns:    imageColumns(cfg.Scan.Categories.Misconfig.Enabled),
 		SortColumn: imageColumnName,
@@ -479,7 +470,6 @@ func New(cfg *config.Config) Model {
 		signatures:          make(map[string]trust.Result),
 		sigAsked:            make(map[string]sigAsk),
 		sigVerifying:        make(map[string]bool),
-		spinner:             s,
 		imageTable:          it,
 		networkTable:        nt,
 		volumeTable:         vt,

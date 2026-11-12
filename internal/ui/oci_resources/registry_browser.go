@@ -4,7 +4,6 @@ import (
 	"strconv"
 	"strings"
 
-	"charm.land/bubbles/v2/spinner"
 	"charm.land/bubbles/v2/textinput"
 
 	"charm.land/lipgloss/v2"
@@ -250,10 +249,6 @@ type RegistryBrowser struct {
 	filterInput  textinput.Model
 	filterActive bool
 
-	// spinner animates the searches in flight, in the footer. A row's state is
-	// drawn by the activity column, which the router's blink phase animates.
-	spinner spinner.Model
-
 	state browserState
 }
 
@@ -279,10 +274,6 @@ func newRegistryBrowser(
 	fi.CharLimit = 128
 	theme.StyleTextInput(&fi)
 
-	sp := spinner.New()
-	sp.Spinner = spinner.Dot
-	sp.Style = theme.SpinnerStyle()
-
 	b := &RegistryBrowser{
 		registries:   registries,
 		width:        width,
@@ -292,7 +283,6 @@ func newRegistryBrowser(
 		focusedField: brFieldRepo,
 		filterInput:  fi,
 		tagTable:     *newTagTable(),
-		spinner:      sp,
 		scanCache:    make(map[string]cache.ImageScanEntry),
 		state:        browserStateInput,
 	}

@@ -9,7 +9,7 @@ import (
 )
 
 // DEVDESK-341 step 2f: jobs work shows the shared activity dot (phase from
-// jobs.FrameMsg.Blink); a tab load keeps the view's own braille spinner.
+// jobs.FrameMsg.Blink); a tab load does too (DEVDESK-374).
 
 func hasBraille(s string) bool {
 	for _, r := range s {
@@ -68,23 +68,22 @@ func TestJobsDotFollowsTheBlinkPhase(t *testing.T) {
 	}
 }
 
-// Load and jobs are separate: a tab load keeps the view's own spinner frame, no
-// dot, and the router frame does not replace it.
-func TestATabLoadKeepsItsOwnSpinnerAndNoDot(t *testing.T) {
-	m := scanOnAnotherImage(t)
-	m.images = nil
-	m.loading = true
-	m.footer.SetSpinnerFrame("⠹") // the view's own spinner.TickMsg handler
-	if st := m.status(); !st.Spinner || st.Activity {
-		t.Fatalf("while loading: Spinner=%v Activity=%v, want Spinner only", st.Spinner, st.Activity)
+// A tab load shows the shared dot and follows the router's phase; the view
+// holds no spinner of its own (DEVDESK-374).
+func TestATabLoadShowsTheDotAndFollowsThePhase(t *testing.T) {
+	m := newTestModel(t)
+	if st := m.status(); !st.Activity || st.Spinner || st.Text != "Loading images..." {
+		t.Fatalf("while loading: %+v, want Activity with the same text and no Spinner", st)
 	}
-	m = feed(t, m, jobs.FrameMsg{Blink: true})
-	got := ociInfoLine(m, 200)
-	if !strings.Contains(got, "⠹") {
-		t.Errorf("the own spinner must stay and the router frame stay out: %q", ansi.Strip(got))
-	}
-	if strings.ContainsAny(ansi.Strip(got), "●○") {
-		t.Errorf("a dot beside the load spinner: %q", ansi.Strip(got))
+	for _, phase := range []struct {
+		blink      bool
+		want, deny string
+	}{{true, "●", "○"}, {false, "○", "●"}} {
+		got := plainOciInfoLine(feed(t, m, jobs.FrameMsg{Blink: phase.blink}), 200)
+		if !strings.Contains(got, "Loading images...") || strings.Count(got, phase.want) != 1 ||
+			strings.Contains(got, phase.deny) || hasBraille(got) {
+			t.Errorf("blink=%v: want one %s, no %s, no braille, the load text: %q", phase.blink, phase.want, phase.deny, got)
+		}
 	}
 }
 

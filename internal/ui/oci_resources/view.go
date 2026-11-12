@@ -73,10 +73,15 @@ func (m Model) GetFooterHeight() int {
 	return 2 // empty line + info line (no filter bar in form mode)
 }
 
+// formMode reports whether a form or the registry browser has the viewport.
+func (m Model) formMode() bool {
+	return m.registryBrowser != nil || m.launchForm != nil || m.resourceForm != nil || m.registryForm != nil ||
+		m.networkInspectForm != nil
+}
+
 // RenderFooter returns the footer content rendered below the viewport (Rule 124).
 func (m Model) RenderFooter(width int) string {
-	if m.registryBrowser != nil || m.launchForm != nil || m.resourceForm != nil || m.registryForm != nil ||
-		m.networkInspectForm != nil {
+	if m.formMode() {
 		// No tab bar or filter bar in form mode — empty line + info line
 		infoLine := m.footer.View(width, m.formStatus())
 		if m.registryBrowser != nil && m.registryBrowser.FilterIsVisible() {
@@ -103,7 +108,7 @@ func (m Model) RenderFooter(width int) string {
 // composed with the running action or the batch progress. None has a timer.
 func (m Model) status() sharedcomponents.Status {
 	if text, ok := m.loadingLabel(); ok {
-		return sharedcomponents.Status{Text: text, Spinner: true}
+		return sharedcomponents.Status{Text: text, Activity: true}
 	}
 	st := sharedcomponents.Status{Text: m.actionLine()}
 	if st.Text == "" {
@@ -151,7 +156,7 @@ func (m Model) inlineSecretLine() string {
 func (m Model) formStatus() sharedcomponents.Status {
 	if m.registryBrowser != nil {
 		if text, ok := m.registryBrowser.LoadingLabel(); ok {
-			return sharedcomponents.Status{Text: text, Spinner: true}
+			return sharedcomponents.Status{Text: text, Activity: true}
 		}
 		// Past the search, the footer says what the tag under the cursor is doing.
 		if row, ok := m.registryBrowser.tagTable.Selected(); ok && m.registryBrowser.state == browserStateTags {
@@ -159,7 +164,7 @@ func (m Model) formStatus() sharedcomponents.Status {
 		}
 	}
 	if m.networkInspectForm != nil && m.networkInspectForm.loading {
-		return sharedcomponents.Status{Text: "Loading containers...", Spinner: true}
+		return sharedcomponents.Status{Text: "Loading containers...", Activity: true}
 	}
 	if m.launchForm != nil {
 		if st := m.launchForm.ValidationStatus(); st.Text != "" {
@@ -182,6 +187,23 @@ func (m Model) loadingLabel() (string, bool) {
 		return "Loading volumes...", m.loadingVols && len(m.volumeTable.Items()) == 0
 	}
 	return "", false
+}
+
+// footerLoading reports whether the footer shows a load of this view's own,
+// whichever face it renders: the active tab's (table empty only), the
+// browser's search, or the network inspection. WantsBlink reads it, in the
+// same priority order as formStatus.
+func (m Model) footerLoading() bool {
+	if !m.formMode() {
+		_, ok := m.loadingLabel()
+		return ok
+	}
+	if m.registryBrowser != nil {
+		if _, ok := m.registryBrowser.LoadingLabel(); ok {
+			return true
+		}
+	}
+	return m.networkInspectForm != nil && m.networkInspectForm.loading
 }
 
 // renderRegistryBreadcrumb renders the drill-down trail below the table when
@@ -493,7 +515,7 @@ func (m Model) renderRegistriesView() string {
 
 // renderImagesView renders the images table.
 //
-// The load says so in the footer, with a spinner, and the table stays on
+// The load says so in the footer, with the shared dot, and the table stays on
 // screen: a body that swapped itself for a spinner lost its header and its
 // columns for the length of every refresh. An empty table — loaded and
 // genuinely empty, or filtered down to nothing — stays a table too (Rule 139):
