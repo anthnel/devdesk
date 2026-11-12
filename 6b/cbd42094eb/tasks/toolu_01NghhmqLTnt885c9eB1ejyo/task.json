@@ -1,0 +1,15 @@
+{
+  "tool_use_id": "toolu_01NghhmqLTnt885c9eB1ejyo",
+  "agent_id": "a8e2ab22c0a85e3ef",
+  "subagent_type": "dev-team:reviewer",
+  "task_description": "Revue étapes 6 et 7",
+  "token_usage": {
+    "input_tokens": 36,
+    "cache_creation_tokens": 99184,
+    "cache_read_tokens": 1175598,
+    "output_tokens": 14911,
+    "api_call_count": 18
+  },
+  "started_at": "2026-11-12T19:29:31.470082578+01:00",
+  "completed_at": "2026-11-12T19:31:47.804690242+01:00"
+}

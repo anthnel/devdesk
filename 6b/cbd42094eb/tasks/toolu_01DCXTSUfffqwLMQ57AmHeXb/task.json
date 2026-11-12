@@ -1,0 +1,15 @@
+{
+  "tool_use_id": "toolu_01DCXTSUfffqwLMQ57AmHeXb",
+  "agent_id": "afe7fe0b21db80725",
+  "subagent_type": "team-core:tech-writer",
+  "task_description": "Documentation étape 8",
+  "token_usage": {
+    "input_tokens": 24,
+    "cache_creation_tokens": 67307,
+    "cache_read_tokens": 464055,
+    "output_tokens": 12726,
+    "api_call_count": 12
+  },
+  "started_at": "2026-11-12T19:32:02.596511129+01:00",
+  "completed_at": "2026-11-12T19:33:31.453120532+01:00"
+}

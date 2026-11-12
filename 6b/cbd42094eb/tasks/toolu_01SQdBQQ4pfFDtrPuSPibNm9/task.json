@@ -1,0 +1,15 @@
+{
+  "tool_use_id": "toolu_01SQdBQQ4pfFDtrPuSPibNm9",
+  "agent_id": "ad2bef6fe68febb87",
+  "subagent_type": "project-tester",
+  "task_description": "Corriger test activité 5→6 tables",
+  "token_usage": {
+    "input_tokens": 8,
+    "cache_creation_tokens": 77235,
+    "cache_read_tokens": 170935,
+    "output_tokens": 982,
+    "api_call_count": 4
+  },
+  "started_at": "2026-11-12T19:29:31.476273987+01:00",
+  "completed_at": "2026-11-12T19:31:13.95019904+01:00"
+}

@@ -1,0 +1,15 @@
+{
+  "tool_use_id": "toolu_01GSLHzu6ji2KkwqTQ6eqJp4",
+  "agent_id": "a920e5f1ec6767d89",
+  "subagent_type": "project-tester",
+  "task_description": "Tests étape 5 niveau 1",
+  "token_usage": {
+    "input_tokens": 20,
+    "cache_creation_tokens": 55990,
+    "cache_read_tokens": 359247,
+    "output_tokens": 10941,
+    "api_call_count": 10
+  },
+  "started_at": "2026-11-12T19:00:28.31881671+01:00",
+  "completed_at": "2026-11-12T19:01:41.790817553+01:00"
+}

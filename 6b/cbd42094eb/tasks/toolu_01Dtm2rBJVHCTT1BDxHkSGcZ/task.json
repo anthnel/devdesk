@@ -1,0 +1,15 @@
+{
+  "tool_use_id": "toolu_01Dtm2rBJVHCTT1BDxHkSGcZ",
+  "agent_id": "a750313f3e778f63d",
+  "subagent_type": "project-tester",
+  "task_description": "Tests étape 7 garde d'activité",
+  "token_usage": {
+    "input_tokens": 10,
+    "cache_creation_tokens": 41720,
+    "cache_read_tokens": 126498,
+    "output_tokens": 3978,
+    "api_call_count": 5
+  },
+  "started_at": "2026-11-12T19:12:47.641131604+01:00",
+  "completed_at": "2026-11-12T19:13:18.348511027+01:00"
+}
