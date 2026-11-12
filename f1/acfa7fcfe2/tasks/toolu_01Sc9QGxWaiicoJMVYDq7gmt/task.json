@@ -1,0 +1,15 @@
+{
+  "tool_use_id": "toolu_01Sc9QGxWaiicoJMVYDq7gmt",
+  "agent_id": "a4ad7fafa837b4715",
+  "subagent_type": "dev-team:devops",
+  "task_description": "Story 210 en Done",
+  "token_usage": {
+    "input_tokens": 6,
+    "cache_creation_tokens": 40056,
+    "cache_read_tokens": 63407,
+    "output_tokens": 667,
+    "api_call_count": 3
+  },
+  "started_at": "2026-11-11T09:37:09.903033447+01:00",
+  "completed_at": "2026-11-11T09:37:18.06495853+01:00"
+}

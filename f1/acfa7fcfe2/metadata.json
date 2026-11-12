@@ -1,0 +1,59 @@
+{
+  "cli_version": "0.13.1",
+  "checkpoint_id": "f1acfa7fcfe2",
+  "strategy": "manual-commit",
+  "branch": "main",
+  "checkpoints_count": 10,
+  "files_touched": [
+    "docs/architecture/app-shell.md",
+    "docs/journal.md",
+    "docs/product/agent-usage-prices/stories.md",
+    "docs/product/image-search/brief.md",
+    "docs/product/image-search/feasibility.md",
+    "docs/product/image-search/research.md",
+    "docs/product/image-search/stories.md",
+    "docs/ux/bubbletea-v2-improvements.md",
+    "docs/ux/command-suggestions.md",
+    "docs/ux/context-switch.md",
+    "internal/app/app.go",
+    "internal/app/focus_test.go",
+    "internal/ui/oci_resources/focus_routing_test.go"
+  ],
+  "sessions": [
+    {
+      "metadata": "/f1/acfa7fcfe2/0/metadata.json",
+      "transcript": "/f1/acfa7fcfe2/0/full.jsonl",
+      "compact_transcript": "/f1/acfa7fcfe2/0/transcript.jsonl",
+      "content_hash": "/f1/acfa7fcfe2/0/content_hash.txt",
+      "prompt": "/f1/acfa7fcfe2/0/prompt.txt"
+    }
+  ],
+  "token_usage": {
+    "input_tokens": 68,
+    "cache_creation_tokens": 98127,
+    "cache_read_tokens": 4433493,
+    "output_tokens": 9349,
+    "api_call_count": 23,
+    "subagent_tokens": {
+      "input_tokens": 60,
+      "cache_creation_tokens": 117920,
+      "cache_read_tokens": 1000427,
+      "output_tokens": 9859,
+      "api_call_count": 29
+    }
+  },
+  "redaction": {
+    "replacements": 4,
+    "layers": {
+      "betterleaks": 0,
+      "connection_string": 0,
+      "credential_key": 0,
+      "credential_value": 0,
+      "credentialed_uri": 0,
+      "entropy": 4,
+      "key_context": 0,
+      "provider_token": 0,
+      "shell_stdin": 0
+    }
+  }
+}

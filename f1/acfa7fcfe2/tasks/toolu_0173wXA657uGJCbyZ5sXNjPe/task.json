@@ -1,0 +1,15 @@
+{
+  "tool_use_id": "toolu_0173wXA657uGJCbyZ5sXNjPe",
+  "agent_id": "a388b7f7fdd12656a",
+  "subagent_type": "dev-team:devops",
+  "task_description": "Nettoyer les worktrees DEVDESK-210",
+  "token_usage": {
+    "input_tokens": 14,
+    "cache_creation_tokens": 36517,
+    "cache_read_tokens": 230598,
+    "output_tokens": 3015,
+    "api_call_count": 7
+  },
+  "started_at": "2026-11-11T09:38:32.871291797+01:00",
+  "completed_at": "2026-11-11T09:39:08.358470214+01:00"
+}
