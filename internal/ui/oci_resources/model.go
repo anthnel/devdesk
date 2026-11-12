@@ -10,6 +10,7 @@ import (
 	"github.com/anthnel/devdesk/internal/cache"
 	"github.com/anthnel/devdesk/internal/config"
 	"github.com/anthnel/devdesk/internal/docker"
+	"github.com/anthnel/devdesk/internal/imagesearch"
 	"github.com/anthnel/devdesk/internal/imageupdate"
 	"github.com/anthnel/devdesk/internal/jobs"
 	"github.com/anthnel/devdesk/internal/registrymgr"
@@ -296,6 +297,20 @@ type MultiRegistryTagsLoadedMsg struct {
 	// Gen is the browser's request generation the answer belongs to.
 	Gen uint64
 }
+
+// ImageSearchResultMsg carries what one registry answered to a level 1 image
+// search. Gen is the browser's request generation the answer belongs to.
+type ImageSearchResultMsg struct {
+	Gen      uint64
+	EntryKey string
+	Images   []imagesearch.Image
+	Partial  bool
+	Err      error
+}
+
+// RegistryBrowserWarnMsg asks the router to show Text in the footer at the
+// warning level: the browser has no footer of its own.
+type RegistryBrowserWarnMsg struct{ Text string }
 
 // MultiRegistryTagsMetaMsg carries last-updated times for tags from one registry (background enrichment).
 type MultiRegistryTagsMetaMsg struct {

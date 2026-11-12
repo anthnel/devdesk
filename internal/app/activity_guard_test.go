@@ -49,7 +49,7 @@ var migratedTables = map[command.ViewType][]string{
 	command.ViewJobs:         {"jobs/runs", "jobs/targets"},
 	command.ViewWorkspaces:   {"ws"},
 	command.ViewSecurity:     {"sec/inventory"},
-	command.ViewOCIResources: {"oci/images", "oci/networks", "oci/volumes", "oci/registries", "oci/registry-browser"},
+	command.ViewOCIResources: {"oci/images", "oci/networks", "oci/volumes", "oci/registries", "oci/registry-browser", "oci/registry-search"},
 	command.ViewGitExplorer:  {"explorer/tree", "explorer/clone-list"},
 	command.ViewTemplates:    {"templates"},
 	command.ViewNetdiag:      {"netdiag/ports"},
@@ -236,7 +236,7 @@ var migratedSources = map[command.ViewType][]string{
 		"ui/oci_resources/registry_browser.go", "ui/oci_resources/browser_keys.go",
 		"ui/oci_resources/browser_view.go", "ui/oci_resources/browser_state.go",
 		"ui/oci_resources/browser_bridge.go", "ui/oci_resources/browser_tags.go",
-		"ui/oci_resources/browser_flow.go",
+		"ui/oci_resources/browser_flow.go", "ui/oci_resources/browser_images.go",
 	},
 	// The explorer is fully migrated (A-10a the tree, A-10b the clone list):
 	// the whole package is scanned.

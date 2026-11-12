@@ -198,6 +198,12 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case MultiRegistryTagsLoadedMsg:
 		return m.handleMultiRegistryTagsLoaded(msg)
 
+	case ImageSearchResultMsg:
+		return m.handleImageSearchResult(msg)
+
+	case RegistryBrowserWarnMsg:
+		return m.handleRegistryBrowserWarn(msg)
+
 	case MultiRegistryTagsMetaMsg:
 		return m.handleMultiRegistryTagsMeta(msg)
 

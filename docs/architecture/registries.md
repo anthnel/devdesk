@@ -124,6 +124,10 @@ as their source of truth, and `config.yaml` is what the user declares.
 - The **registry browser reads this cache**, never the network: it opens on the
   first frame and works offline. `→` on a group row in the Registries tab drills
   into its members, `←`/`esc` go back.
+- **The image search (level 1) reads the same entries, keys and credentials**
+  as the tag flow: the checked entries (`selected(entry)`, D40), `credsFor`
+  (anonymous stays anonymous, D12) and the entry's repository prefix (D39). It
+  writes nothing: the remembered selection is unchanged (`network.md`).
 - `internal/cache/browser_selection.go` remembers what the browser had
   **un**checked, per context. Storing the exceptions is what makes a
   newly-discovered member arrive checked rather than silently excluded.

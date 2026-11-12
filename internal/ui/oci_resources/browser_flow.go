@@ -3,7 +3,11 @@ package ociresources
 import (
 	"context"
 	"sync/atomic"
+	"time"
 
+	tea "charm.land/bubbletea/v2"
+
+	"github.com/anthnel/devdesk/internal/imagesearch"
 	"github.com/anthnel/devdesk/internal/oci"
 )
 
@@ -47,4 +51,51 @@ func (m Model) RegistryBrowserGen() uint64 {
 		return 0
 	}
 	return m.registryBrowser.gen
+}
+
+// defaultImageSearcher is what a browser opens with. It is nil in production:
+// level 1 stays off until an adapter exists, and a short name keeps listing
+// tags. Tests inject one before opening the browser.
+var defaultImageSearcher imagesearch.Searcher
+
+// imageSearchDeadline bounds one registry's whole search.
+var imageSearchDeadline = 15 * time.Second
+
+// targetFor describes entry for the Searcher, with the same alias, address and
+// credentials (D12) the tag flow uses.
+func (b *RegistryBrowser) targetFor(entry browserRegistryEntry) imagesearch.Target {
+	user, pass := b.credsFor(entry)
+	return imagesearch.Target{
+		EntryKey: entry.key, Alias: entryAlias(entry), RegistryURL: entry.URL,
+		APIURL: registryAPIURL(entry.URL), RepoPrefix: entry.repoPrefix,
+		Username: user, Password: pass,
+	}
+}
+
+// startImageSearch opens a lot and asks the Searcher once per entry.
+func (b *RegistryBrowser) startImageSearch(query string, entries []browserRegistryEntry) (*RegistryBrowser, tea.Cmd) {
+	ctx := b.beginRequests()
+	b.images = nil
+	b.searchTable.SetItems(nil)
+
+	cmds := make([]tea.Cmd, 0, len(entries))
+	for _, entry := range entries {
+		b.pendingSearches++
+		cmds = append(cmds, searchImagesCmd(ctx, b.gen, b.targetFor(entry), imagesearch.Query{Text: query}, b.searcher, imageSearchDeadline))
+	}
+	b.state = browserStateImages
+	b.searchTable.Focus()
+	return b, tea.Batch(cmds...)
+}
+
+// searchImagesCmd runs one registry's search under deadline (read from
+// imageSearchDeadline by the caller, in Update), inside the lot's context. It
+// reads no model state (Rule 110).
+func searchImagesCmd(parent context.Context, gen uint64, t imagesearch.Target, q imagesearch.Query, s imagesearch.Searcher, deadline time.Duration) tea.Cmd {
+	return func() tea.Msg {
+		ctx, cancel := context.WithTimeout(parent, deadline)
+		defer cancel()
+		images, partial, err := s.Search(ctx, t, q)
+		return ImageSearchResultMsg{Gen: gen, EntryKey: t.EntryKey, Images: images, Partial: partial, Err: err}
+	}
 }

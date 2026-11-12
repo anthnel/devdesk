@@ -67,9 +67,12 @@ func (b *RegistryBrowser) SetJobs(runs []jobs.Run, failures []jobs.Failure, cont
 	}
 }
 
-// SetBlinkPhase hands the router's blink phase to the tag table. Nothing is
+// SetBlinkPhase hands the router's blink phase to both tables. Nothing is
 // rebuilt: the table reads the phase at render.
-func (b *RegistryBrowser) SetBlinkPhase(on bool) { b.tagTable.SetBlinkPhase(on) }
+func (b *RegistryBrowser) SetBlinkPhase(on bool) {
+	b.tagTable.SetBlinkPhase(on)
+	b.searchTable.SetBlinkPhase(on)
+}
 
 // WantsBlink reports whether a visible tag row has a running operation.
 func (b *RegistryBrowser) WantsBlink() bool {

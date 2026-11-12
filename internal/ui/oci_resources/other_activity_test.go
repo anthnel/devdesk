@@ -87,15 +87,15 @@ func TestRegistryColumnZeroIsTheActivityColumn(t *testing.T) {
 	}
 }
 
-func TestActivityTablesListsTheFiveTables(t *testing.T) {
+func TestActivityTablesListsTheSixTables(t *testing.T) {
 	got := loadedModel(t).ActivityTables()
-	for _, name := range []string{"oci/images", "oci/networks", "oci/volumes", "oci/registries", "oci/registry-browser"} {
+	for _, name := range []string{"oci/images", "oci/networks", "oci/volumes", "oci/registries", "oci/registry-browser", "oci/registry-search"} {
 		if got[name] == nil {
 			t.Errorf("ActivityTables lacks %q", name)
 		}
 	}
-	if len(got) != 5 {
-		t.Errorf("ActivityTables has %d tables, want 5", len(got))
+	if len(got) != 6 {
+		t.Errorf("ActivityTables has %d tables, want 6", len(got))
 	}
 }
 
