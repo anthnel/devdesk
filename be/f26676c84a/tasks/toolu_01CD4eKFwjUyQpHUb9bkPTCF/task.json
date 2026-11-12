@@ -1,0 +1,15 @@
+{
+  "tool_use_id": "toolu_01CD4eKFwjUyQpHUb9bkPTCF",
+  "agent_id": "addcf962619b0e28b",
+  "subagent_type": "dev-team:devops",
+  "task_description": "Attendre les checks et merger PR 365",
+  "token_usage": {
+    "input_tokens": 18,
+    "cache_creation_tokens": 39653,
+    "cache_read_tokens": 268662,
+    "output_tokens": 2343,
+    "api_call_count": 8
+  },
+  "started_at": "2026-11-11T10:33:25.405823359+01:00",
+  "completed_at": "2026-11-11T10:38:54.306818311+01:00"
+}
