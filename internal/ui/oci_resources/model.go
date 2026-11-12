@@ -293,6 +293,8 @@ type MultiRegistryTagsLoadedMsg struct {
 	Repo        string
 	Tags        []string
 	Err         error
+	// Gen is the browser's request generation the answer belongs to.
+	Gen uint64
 }
 
 // MultiRegistryTagsMetaMsg carries last-updated times for tags from one registry (background enrichment).
@@ -302,6 +304,8 @@ type MultiRegistryTagsMetaMsg struct {
 	Repo        string
 	Meta        map[string]time.Time
 	Err         error
+	// Gen is the browser's request generation the answer belongs to.
+	Gen uint64
 }
 
 // RegistryPullCompleteMsg signals the result of a docker pull initiated from the browser.

@@ -50,10 +50,10 @@ func resultsFrom(t *testing.T, m Model) Model {
 	}
 	m = typeInto(t, m, "api")
 	m = feed(t, m, testutil.Key("enter"))
-	return feed(t, m,
+	return feed(t, m, stampGen(m,
 		MultiRegistryTagsLoadedMsg{EntryKey: "prod", RegistryURL: "registry.example.com", Alias: "prod", Repo: "api", Tags: []string{"v1", "v2"}},
 		MultiRegistryTagsLoadedMsg{EntryKey: "hub", RegistryURL: "docker.io", Alias: "hub", Repo: "api", Tags: []string{"latest"}},
-	)
+	)...)
 }
 
 func withCounts(t *testing.T, m Model, name string) Model {

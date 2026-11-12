@@ -165,7 +165,7 @@ func TestEndOfALoadStopsTheBlink(t *testing.T) {
 				if !m.WantsBlink() {
 					t.Fatalf("fixture %d: not blinking before the end", i)
 				}
-				m = feed(t, m, msg)
+				m = feed(t, m, stampGen(m, msg)...)
 				if m.WantsBlink() {
 					t.Error("still asks for the blink after the load ended")
 				}

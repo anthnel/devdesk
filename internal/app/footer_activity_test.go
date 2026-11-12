@@ -109,7 +109,7 @@ var footerLoadingSeeds = map[command.ViewType][]loadingSeed{
 		{"images tab", seedOCIImagesLoading, func() tea.Msg { return ociresources.ImagesListMsg{} }, nil},
 		{"networks tab", seedOCINetworksLoading, func() tea.Msg { return ociresources.NetworksListMsg{} }, nil},
 		{"volumes tab", seedOCIVolumesLoading, func() tea.Msg { return ociresources.VolumesListMsg{} }, nil},
-		{"tag search", seedOCITagSearch, ociTagSearchEnd, nil},
+		{"tag search", seedOCITagSearch, nil, ociTagSearchEnd},
 		{"network inspect", seedOCINetworkInspect, ociNetworkInspectEnd, nil},
 	},
 }

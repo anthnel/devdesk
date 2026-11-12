@@ -1,6 +1,7 @@
 package ociresources
 
 import (
+	"context"
 	"strconv"
 	"strings"
 
@@ -232,9 +233,13 @@ type RegistryBrowser struct {
 	// Results state
 	tags            []MultiRegistryTag
 	pendingSearches int
-	registryFilter  resultFilter
-	tagTable        datatable.Model[tagRow]
-	scanCache       map[string]cache.ImageScanEntry
+	// gen names the lot of requests whose answers the browser takes, and cancel
+	// stops that lot (browser_flow.go).
+	gen            uint64
+	cancel         context.CancelFunc
+	registryFilter resultFilter
+	tagTable       datatable.Model[tagRow]
+	scanCache      map[string]cache.ImageScanEntry
 
 	// The router's snapshot, for the activity column and the footer: the
 	// registry's runs and remembered failures, and the context they are read in.

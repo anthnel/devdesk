@@ -20,7 +20,6 @@ import (
 	"github.com/anthnel/devdesk/internal/docker"
 	"github.com/anthnel/devdesk/internal/imagepull"
 	"github.com/anthnel/devdesk/internal/imageupdate"
-	"github.com/anthnel/devdesk/internal/oci"
 	"github.com/anthnel/devdesk/internal/registrymgr"
 	"github.com/anthnel/devdesk/internal/scan"
 )
@@ -380,11 +379,14 @@ func registryAPIURL(registryURL string) string {
 }
 
 // searchRegistryTagsCmd fetches tags from one registry and returns a MultiRegistryTagsLoadedMsg.
-func searchRegistryTagsCmd(entryKey, registryURL, alias, apiURL, repo, username, password string) tea.Cmd {
+//
+// ctx belongs to the browser's lot: the command never cancels it. gen is echoed
+// on the message so Update can drop an answer a newer lot or a closed browser left behind.
+func searchRegistryTagsCmd(ctx context.Context, gen uint64, entryKey, registryURL, alias, apiURL, repo, username, password string) tea.Cmd {
 	return func() tea.Msg {
-		tags, err := oci.ListRegistryTags(apiURL, repo, username, password)
+		tags, err := listRegistryTags(ctx, apiURL, repo, username, password)
 		return MultiRegistryTagsLoadedMsg{
-			EntryKey: entryKey, RegistryURL: registryURL, Alias: alias, Repo: repo, Tags: tags, Err: err,
+			Gen: gen, EntryKey: entryKey, RegistryURL: registryURL, Alias: alias, Repo: repo, Tags: tags, Err: err,
 		}
 	}
 }
@@ -430,9 +432,9 @@ func fetchDockerHubTagsMeta(namespace, repo string) (map[string]time.Time, error
 
 // loadMultiRegistryTagsMetaCmd fetches tag metadata for one registry in the background.
 // For Docker Hub it uses the Hub API; other registries return empty (no error).
-func loadMultiRegistryTagsMetaCmd(entryKey, registryURL, repo string) tea.Cmd {
+func loadMultiRegistryTagsMetaCmd(gen uint64, entryKey, registryURL, repo string) tea.Cmd {
 	return func() tea.Msg {
-		empty := MultiRegistryTagsMetaMsg{EntryKey: entryKey, RegistryURL: registryURL, Repo: repo}
+		empty := MultiRegistryTagsMetaMsg{Gen: gen, EntryKey: entryKey, RegistryURL: registryURL, Repo: repo}
 		base := strings.ToLower(strings.TrimSuffix(registryURL, "/"))
 		isDockerhub := base == "docker.io" || base == "registry-1.docker.io"
 		if !isDockerhub {
@@ -444,7 +446,7 @@ func loadMultiRegistryTagsMetaCmd(entryKey, registryURL, repo string) tea.Cmd {
 		}
 		meta, err := fetchDockerHubTagsMeta(parts[0], parts[1])
 		return MultiRegistryTagsMetaMsg{
-			EntryKey: entryKey, RegistryURL: registryURL, Repo: repo, Meta: meta, Err: err,
+			Gen: gen, EntryKey: entryKey, RegistryURL: registryURL, Repo: repo, Meta: meta, Err: err,
 		}
 	}
 }

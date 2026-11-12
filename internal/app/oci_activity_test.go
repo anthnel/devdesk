@@ -243,9 +243,15 @@ func seedOCITagSearch(t *testing.T, a *App) {
 	a.Update(testutil.Key("enter"))
 }
 
-func ociTagSearchEnd() tea.Msg {
-	// AddRegistryTags decrements pendingSearches whatever the entry key.
-	return ociresources.MultiRegistryTagsLoadedMsg{EntryKey: "prod", RegistryURL: "registry.example.com", Alias: "prod", Repo: "nginx", Tags: []string{"1.27"}}
+func ociTagSearchEnd(t *testing.T, a *App) tea.Msg {
+	t.Helper()
+	// AddRegistryTags decrements pendingSearches whatever the entry key; the
+	// message carries the generation the open browser accepts (DEVDESK-393).
+	m, ok := a.views[command.ViewOCIResources].(ociresources.Model)
+	if !ok {
+		t.Fatalf("the :oci view is %T, want ociresources.Model", a.views[command.ViewOCIResources])
+	}
+	return ociresources.MultiRegistryTagsLoadedMsg{Gen: m.RegistryBrowserGen(), EntryKey: "prod", RegistryURL: "registry.example.com", Alias: "prod", Repo: "nginx", Tags: []string{"1.27"}}
 }
 
 // seedOCINetworkInspect opens the inspection of the first network.

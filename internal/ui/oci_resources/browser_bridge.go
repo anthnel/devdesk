@@ -19,6 +19,8 @@ func (m Model) openMultiRegistryBrowser() (tea.Model, tea.Cmd) {
 	}
 	// Config plus cache, read here and now: no network, no waiting, no state
 	// that ignores esc (D13).
+	// Reopening replaces a browser that may still have a lot in flight.
+	m.registryBrowser.cancelInFlight()
 	m.registryBrowser = newRegistryBrowser(m.registries, m.groupCache, m.browserDeselected, m.width-2, m.height)
 	m.registryBrowser.SetScanCache(m.scanCache)
 	m.registryBrowser.SetJobs(m.jobs, m.failures, m.contextName)
@@ -31,6 +33,7 @@ func (m Model) closeMultiRegistryBrowser() (tea.Model, tea.Cmd) {
 	if m.registryBrowser == nil {
 		return m, nil
 	}
+	m.registryBrowser.cancelInFlight()
 	deselected := m.registryBrowser.Deselected()
 	m.registryBrowser = nil
 
@@ -43,7 +46,7 @@ func (m Model) closeMultiRegistryBrowser() (tea.Model, tea.Cmd) {
 
 // handleMultiRegistryTagsLoaded incorporates tag results from one registry into the browser.
 func (m Model) handleMultiRegistryTagsLoaded(msg MultiRegistryTagsLoadedMsg) (tea.Model, tea.Cmd) {
-	if m.registryBrowser == nil {
+	if m.registryBrowser == nil || msg.Gen != m.registryBrowser.gen {
 		return m, nil
 	}
 	if msg.Err != nil {
@@ -53,12 +56,12 @@ func (m Model) handleMultiRegistryTagsLoaded(msg MultiRegistryTagsLoadedMsg) (te
 	}
 	m.registryBrowser.SetScanCache(m.scanCache)
 	m.registryBrowser.AddRegistryTags(msg.EntryKey, msg.RegistryURL, msg.Alias, msg.Repo, msg.Tags)
-	return m, loadMultiRegistryTagsMetaCmd(msg.EntryKey, msg.RegistryURL, msg.Repo)
+	return m, loadMultiRegistryTagsMetaCmd(msg.Gen, msg.EntryKey, msg.RegistryURL, msg.Repo)
 }
 
 // handleMultiRegistryTagsMeta stores tag metadata for one registry in the browser.
 func (m Model) handleMultiRegistryTagsMeta(msg MultiRegistryTagsMetaMsg) (tea.Model, tea.Cmd) {
-	if m.registryBrowser == nil {
+	if m.registryBrowser == nil || msg.Gen != m.registryBrowser.gen {
 		return m, nil
 	}
 	if msg.Err != nil {
