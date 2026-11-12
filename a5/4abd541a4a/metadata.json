@@ -1,0 +1,45 @@
+{
+  "cli_version": "0.13.1",
+  "checkpoint_id": "a54abd541a4a",
+  "strategy": "manual-commit",
+  "branch": "feat/DEVDESK-301-hub-image-search",
+  "checkpoints_count": 7,
+  "files_touched": null,
+  "sessions": [
+    {
+      "metadata": "/a5/4abd541a4a/0/metadata.json",
+      "transcript": "/a5/4abd541a4a/0/full.jsonl",
+      "compact_transcript": "/a5/4abd541a4a/0/transcript.jsonl",
+      "content_hash": "/a5/4abd541a4a/0/content_hash.txt",
+      "prompt": "/a5/4abd541a4a/0/prompt.txt"
+    }
+  ],
+  "token_usage": {
+    "input_tokens": 0,
+    "cache_creation_tokens": 0,
+    "cache_read_tokens": 0,
+    "output_tokens": 0,
+    "api_call_count": 0,
+    "subagent_tokens": {
+      "input_tokens": 2,
+      "cache_creation_tokens": 498,
+      "cache_read_tokens": 40390,
+      "output_tokens": 392,
+      "api_call_count": 1
+    }
+  },
+  "redaction": {
+    "replacements": 0,
+    "layers": {
+      "betterleaks": 0,
+      "connection_string": 0,
+      "credential_key": 0,
+      "credential_value": 0,
+      "credentialed_uri": 0,
+      "entropy": 0,
+      "key_context": 0,
+      "provider_token": 0,
+      "shell_stdin": 0
+    }
+  }
+}
