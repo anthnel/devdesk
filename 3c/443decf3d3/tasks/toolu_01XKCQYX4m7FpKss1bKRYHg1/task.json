@@ -1,0 +1,15 @@
+{
+  "tool_use_id": "toolu_01XKCQYX4m7FpKss1bKRYHg1",
+  "agent_id": "a354ab90632f00dac",
+  "subagent_type": "dev-team:devops",
+  "task_description": "Fusionner la PR de release 353",
+  "token_usage": {
+    "input_tokens": 6,
+    "cache_creation_tokens": 42140,
+    "cache_read_tokens": 71217,
+    "output_tokens": 1475,
+    "api_call_count": 3
+  },
+  "started_at": "2026-11-12T10:09:19.010991552+01:00",
+  "completed_at": "2026-11-12T10:09:36.267264928+01:00"
+}
