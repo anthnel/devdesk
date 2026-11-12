@@ -1,0 +1,15 @@
+{
+  "tool_use_id": "toolu_01WrFsfeqQPVEpHKiLKWCWLZ",
+  "agent_id": "acbdb4d0bfb7e83b6",
+  "subagent_type": "dev-team:architect",
+  "task_description": "Plan CI doc-only skip",
+  "token_usage": {
+    "input_tokens": 20,
+    "cache_creation_tokens": 61325,
+    "cache_read_tokens": 420920,
+    "output_tokens": 17828,
+    "api_call_count": 10
+  },
+  "started_at": "2026-11-12T15:51:27.330346805+01:00",
+  "completed_at": "2026-11-12T15:54:33.673944729+01:00"
+}

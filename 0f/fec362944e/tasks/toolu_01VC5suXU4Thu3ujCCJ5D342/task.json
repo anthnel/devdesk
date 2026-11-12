@@ -1,0 +1,15 @@
+{
+  "tool_use_id": "toolu_01VC5suXU4Thu3ujCCJ5D342",
+  "agent_id": "a7ec59a390906b30c",
+  "subagent_type": "project-coder",
+  "task_description": "Write docs-only.sh script",
+  "token_usage": {
+    "input_tokens": 6,
+    "cache_creation_tokens": 45227,
+    "cache_read_tokens": 62751,
+    "output_tokens": 2293,
+    "api_call_count": 3
+  },
+  "started_at": "2026-11-12T15:56:55.770179283+01:00",
+  "completed_at": "2026-11-12T15:57:16.253708863+01:00"
+}

@@ -1,0 +1,18 @@
+{
+  "tool_use_id": "toolu_0174dVwcvYNYPt7tYQExX7tG",
+  "agent_id": "a0c6744eac1877042",
+  "subagent_type": "project-coder",
+  "task_description": "Wire ci.yml docs-only skip",
+  "files": [
+    ".github/workflows/ci.yml"
+  ],
+  "token_usage": {
+    "input_tokens": 10,
+    "cache_creation_tokens": 32452,
+    "cache_read_tokens": 128769,
+    "output_tokens": 3751,
+    "api_call_count": 5
+  },
+  "started_at": "2026-11-12T15:57:51.468548657+01:00",
+  "completed_at": "2026-11-12T15:58:18.957629304+01:00"
+}

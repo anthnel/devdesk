@@ -1,0 +1,15 @@
+{
+  "tool_use_id": "toolu_01V49FJwxtoFKTnKxUavG86p",
+  "agent_id": "a7df9e5ad972fe42e",
+  "subagent_type": "dev-team:reviewer",
+  "task_description": "Review DEVDESK-386 diff",
+  "token_usage": {
+    "input_tokens": 20,
+    "cache_creation_tokens": 56598,
+    "cache_read_tokens": 423640,
+    "output_tokens": 9326,
+    "api_call_count": 10
+  },
+  "started_at": "2026-11-12T15:58:25.997201548+01:00",
+  "completed_at": "2026-11-12T15:59:50.305784409+01:00"
+}

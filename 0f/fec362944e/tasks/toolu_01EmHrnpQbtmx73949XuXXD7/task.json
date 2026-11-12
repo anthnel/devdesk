@@ -1,0 +1,15 @@
+{
+  "tool_use_id": "toolu_01EmHrnpQbtmx73949XuXXD7",
+  "agent_id": "afc303d2c872e3d4d",
+  "subagent_type": "project-tester",
+  "task_description": "Red tests for docs-only script",
+  "token_usage": {
+    "input_tokens": 8,
+    "cache_creation_tokens": 43202,
+    "cache_read_tokens": 40343,
+    "output_tokens": 5163,
+    "api_call_count": 3
+  },
+  "started_at": "2026-11-12T15:56:14.070900003+01:00",
+  "completed_at": "2026-11-12T15:56:48.448403741+01:00"
+}

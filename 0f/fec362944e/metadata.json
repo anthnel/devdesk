@@ -1,0 +1,49 @@
+{
+  "cli_version": "0.13.1",
+  "checkpoint_id": "0ffec362944e",
+  "strategy": "manual-commit",
+  "branch": "devdesk-386-ci-docs-only",
+  "checkpoints_count": 12,
+  "files_touched": [
+    ".github/scripts/docs-only.sh",
+    ".github/workflows/ci.yml",
+    "ci_docs_only_test.go"
+  ],
+  "sessions": [
+    {
+      "metadata": "/0f/fec362944e/0/metadata.json",
+      "transcript": "/0f/fec362944e/0/full.jsonl",
+      "compact_transcript": "/0f/fec362944e/0/transcript.jsonl",
+      "content_hash": "/0f/fec362944e/0/content_hash.txt",
+      "prompt": "/0f/fec362944e/0/prompt.txt"
+    }
+  ],
+  "token_usage": {
+    "input_tokens": 92,
+    "cache_creation_tokens": 90869,
+    "cache_read_tokens": 3092816,
+    "output_tokens": 18197,
+    "api_call_count": 34,
+    "subagent_tokens": {
+      "input_tokens": 120,
+      "cache_creation_tokens": 395795,
+      "cache_read_tokens": 1875944,
+      "output_tokens": 45593,
+      "api_call_count": 56
+    }
+  },
+  "redaction": {
+    "replacements": 0,
+    "layers": {
+      "betterleaks": 0,
+      "connection_string": 0,
+      "credential_key": 0,
+      "credential_value": 0,
+      "credentialed_uri": 0,
+      "entropy": 0,
+      "key_context": 0,
+      "provider_token": 0,
+      "shell_stdin": 0
+    }
+  }
+}
