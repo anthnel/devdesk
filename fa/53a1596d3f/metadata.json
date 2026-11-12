@@ -1,0 +1,46 @@
+{
+  "cli_version": "0.13.2",
+  "checkpoint_id": "fa53a1596d3f",
+  "strategy": "manual-commit",
+  "branch": "spike/dagger-fail",
+  "checkpoints_count": 2,
+  "files_touched": null,
+  "sessions": [
+    {
+      "metadata": "/fa/53a1596d3f/0/metadata.json",
+      "transcript": "/fa/53a1596d3f/0/full.jsonl",
+      "compact_transcript": "/fa/53a1596d3f/0/transcript.jsonl",
+      "content_hash": "/fa/53a1596d3f/0/content_hash.txt",
+      "prompt": "/fa/53a1596d3f/0/prompt.txt"
+    }
+  ],
+  "token_usage": {
+    "input_tokens": 10,
+    "cache_creation_tokens": 8480,
+    "cache_read_tokens": 878715,
+    "output_tokens": 5372,
+    "api_call_count": 5,
+    "subagent_tokens": {
+      "input_tokens": 31,
+      "cache_creation_tokens": 80217,
+      "cache_read_tokens": 811156,
+      "output_tokens": 16778,
+      "api_call_count": 16
+    },
+    "subagent_tokens_complete": true
+  },
+  "redaction": {
+    "replacements": 0,
+    "layers": {
+      "betterleaks": 0,
+      "connection_string": 0,
+      "credential_key": 0,
+      "credential_value": 0,
+      "credentialed_uri": 0,
+      "entropy": 0,
+      "key_context": 0,
+      "provider_token": 0,
+      "shell_stdin": 0
+    }
+  }
+}
