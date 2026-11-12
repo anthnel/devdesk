@@ -169,9 +169,11 @@ would be cleared while the tenth is still running.
 ```go
 func (m Model) status() sharedcomponents.Status {
     if m.loading && len(m.table.Items()) == 0 {
+        // the view's own load: its own spinner
         return sharedcomponents.Status{Text: "Loading images...", Spinner: true}
     }
-    return sharedcomponents.Status{Text: m.actionLine()}
+    // work the router tracks (a run in the registry): the shared dot
+    return sharedcomponents.Status{Text: m.progressLine(), Activity: m.anyRunning()}
 }
 ```
 
@@ -179,11 +181,25 @@ Precedence in `View`: **error → warning → info → status**. A failure the
 user has not read takes priority over the progress of whatever is still
 running.
 
-`Spinner: true` prefixes the current frame, which the view pushes from its
-`spinner.TickMsg` handler via `m.footer.SetSpinnerFrame(m.spinner.View())`.
-This is the **rendered** spinner, not a raw frame: each view already gives
-its spinner the `theme.SpinnerStyle()` style, and restyling it would nest
-one escape sequence inside another. The measurement goes through
+Two fields prefix the line with a mark. They are not interchangeable:
+
+| Field | Mark | Use it for | Driven by |
+|---|---|---|---|
+| `Activity: true` | the shared activity dot, `●` / `○` (same glyph and colour as the row dots, `indicator.Running`) | work the **router tracks**: a run in the jobs registry, or a view's `WantsBlink()` | the router's 500 ms blink phase: the view calls `m.footer.SetBlinkPhase(msg.Blink)` from its `jobs.FrameMsg` handler |
+| `Spinner: true` | the braille spinner frame | a view's **own** loading (agent usage, containers, netdiag, OCI resources, security remediation, status, viewer), not yet migrated | the view's `spinner.TickMsg` handler: `m.footer.SetSpinnerFrame(m.spinner.View())` |
+
+`Activity` wins over `Spinner` when both are set. Without a `SetBlinkPhase`
+call the dot is steady on. `●` and `○` are one column wide and share a width,
+so the phase never shifts the text.
+
+A future `Activity` value that does not depend on the jobs registry must make
+its view implement `WantsBlink() bool` (return `status().Activity`, as the
+forge explorer does); otherwise the router arms no animation chain and the dot
+stays fixed on `●`.
+
+`SetSpinnerFrame` takes the **rendered** spinner, not a raw frame: each view
+already gives its spinner the `theme.SpinnerStyle()` style, and restyling it
+would nest one escape sequence inside another. The measurement goes through
 `lipgloss.Width`, which ignores escape sequences — the opposite of the rule
 for a table cell (Rule 122), and the difference comes down to who does the
 measuring.
@@ -191,15 +207,17 @@ measuring.
 #### A table's loading state belongs to the footer
 
 **When a `datatable` is loading, the table stays on screen** and the
-loading state is an info message with a spinner, in the footer only. A body
-that replaces itself with a spinner loses its header and columns for the
+loading state is an info message with a mark (the view's own spinner for its
+own load; the shared activity dot when the router tracks the work, as for the
+forge explorer's load lines), in the footer only. A body that replaces itself with a spinner loses its header and columns for the
 duration of every `ctrl+r`, then regains them: a layout jump on every
 refresh.
 
-**A spinner in the footer is for a table's data loading, never for one row.**
+**A footer mark is for a table's data loading, never for one row.**
 What is happening to a single row (a scan, a clone, a stop) is that row's
 activity dot (Rule 125, "The activity column"); when the selected row has a
-footer detail with a glyph, the footer spinner is not shown.
+footer detail with a glyph (`Detail.Glyph`), the footer shows neither the dot
+nor the spinner.
 
 Mandatory consequence: the empty message ("No images found") is
 **conditioned on loading being finished**, otherwise the table announces the

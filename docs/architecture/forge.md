@@ -272,7 +272,8 @@ The explorer reads the router's index (`shared.State.ForgeIndex`, see
 the index (`seedFromIndex`); on `→`, a group's children do (`indexedLevel`). The
 level is then read from the forge anyway, decorated, **behind** what is shown
 (`refreshLevel`): the table keeps its rows, the breadcrumb and the shortcuts,
-and the footer says `Updating from GitLab...` with the spinner. Only a level the
+and the footer says `Updating from GitLab...` with the shared activity dot
+(`Status.Activity`). Only a level the
 index does not know waits on the forge, as every level used to.
 
 - **The answer is laid over, not swapped in** (`mergeLevel`). A node that stayed
@@ -341,7 +342,12 @@ registry's dot instead. `explorerRow.Activity` is stamped by `rowsFor` from
 `rowState`, which reads `components.DescribeRow` over the `ChangedMsg` copies
 (`Runs`, `Failures`, `Context`; Rule 110). The blink phase is read by the table
 at render: `handleFrameMsg` calls `SetBlinkPhase(msg.Blink)` and rebuilds no
-row. The first-load and refresh spinners in the footer are unchanged.
+row. The explorer has no spinner of its own any more (DEVDESK-341): the
+first-load and refresh lines in the footer (`Loading ...`, `Updating from ...`)
+carry the shared activity dot, and `WantsBlink()` (`activity_wants.go`) returns
+`status().Activity`, so the router runs its blink chain exactly while a load
+line is displayed (not while a clone, a selection or an error masks it). Under
+`app.motion: static` the dot is steady.
 
 Which kinds a row answers for (`rowKinds`):
 
@@ -387,7 +393,7 @@ Three things follow, and each is the reason for a piece of the shape:
 | | |
 |---|---|
 | The path is a **prediction** | the row needs a key before there is an answer. The forge is free to differ, so `Target` travels on the message — it is the only thing that can still find the row that was put on screen |
-| The blink phase comes from the **broadcast** | `jobs.FrameMsg.Blink`, read at render. This view's own chain stops on `!m.loading` (`handleSpinnerTick`), so a phase taken from it would freeze the moment the tree settled. It is D5's argument, reached from the other side |
+| The blink phase comes from the **broadcast** | `jobs.FrameMsg.Blink`, read at render. The explorer used to run its own spinner chain, which stopped on `!m.loading`, so a phase taken from it froze the moment the tree settled; that chain is gone (DEVDESK-341) and the broadcast is the only source. It is D5's argument, reached from the other side |
 | The row is **inert** while it blinks | `actionable()` refuses it, `GetShortcuts` greys `D`, and pressing the key says which of the two reasons applies (Rule 130). A placeholder carries no identifier, so an action addressing one would send an empty ID |
 
 Both are `jobs` runs (`KindCreate`, `KindDelete`) rather than a local flag — see

@@ -16,7 +16,7 @@ TUI rules are split across 5 topic files:
 
 **Rule 122** — `Cell` returns plain text (it gets measured), color goes through `Style`. A `style.Render(...)` inside `Cell` gets truncated in the middle of its escape sequence and bleeds onto every following row.
 
-**Rule 128** — A footer message goes through `components.FooterMessage`: three levels (neutral info, orange warning, red error), always centered, a single implementation. A table's loading state is shown in the footer with a spinner, never in the body.
+**Rule 128** — A footer message goes through `components.FooterMessage`: three levels (neutral info, orange warning, red error), always centered, a single implementation. A table's loading state is shown in the footer, never in the body: with `Spinner` + `SetSpinnerFrame` for a view's own loading, with the shared activity dot (`Status.Activity`, `●`/`○`, `SetBlinkPhase`) for work the router tracks. A new `Activity` value not driven by the jobs registry must implement `WantsBlink()`, or the dot stays fixed.
 
 **Rule 139** — A `datatable`'s body is always `m.table.View()`, never a spinner or a message: an empty table (loading, nothing to list, a filter with no results) stays a table — a header, no rows. The count goes in `GetHeaderInfo`, the status in the footer.
 

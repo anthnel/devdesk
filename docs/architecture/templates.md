@@ -129,7 +129,7 @@ the registry. The blink phase is read at render (`handleFrameMsg`).
 - **The `Synced` cell reads `syncing`** (dim) while a sync of the row is running
   (`Model.syncing`: running, not merely queued).
 - **Footer.** `jobsStatus` puts the selected row's sentence (`RowActivity.Detail`)
-  before the batch progress; the footer spinner is dropped when the row's own dot
+  before the batch progress; the footer dot is dropped when the row's own dot
   already moves. A failed row's `⊗` stays until the next try on that target.
 - **Failure message.** A failed sync or scan posts
   `Failed to sync <name> — <cause>` / `Failed to scan <name> — <cause>`

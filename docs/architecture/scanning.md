@@ -1060,7 +1060,7 @@ carry the failure. The persistence is the registry's (cleared by the next
 
 **The footer** (`inventoryStatus`) composes the selected row's detail
 (`DescribeRow`, e.g. `● Scanning ~/…/api`, `⊗ ~/…/api: last scan failed — check
-logs`) with the batch progress (`components.JobsStatusLine`). The footer spinner
+logs`) with the batch progress (`components.JobsStatusLine`). The footer activity dot
 shows only while work runs and the selected row's own dot is not moving; the load
 text (`Loading scan inventory...`) replaces the progress but no longer hides the
 detail. When a scan **this view ran** fails, `InventoryScanFinishedMsg` posts a
@@ -1074,9 +1074,11 @@ dot and the footer carry the state.
 `inventoryLoading || remediationBusy()` — decides whether the view's own
 `spinner.Model` chain keeps going (`handleSpinnerTick` renews it,
 `spinnerTickIfIdle` refuses a second chain alongside a live one). It no longer
-answers for scans: those are the router's animation. The footer's spinner frame
-has one writer at a time: the view's own chain while `spinnerAlive()`, the
-router's `FrameMsg` otherwise (`handleFrameMsg`). For the same reason as
+answers for scans: those are the router's animation. The footer's two marks
+have separate writers (DEVDESK-341): the view's own chain feeds the braille
+spinner frame (`SetSpinnerFrame`) for loads, the router's `FrameMsg` feeds the
+activity dot's phase (`SetBlinkPhase`, in `handleFrameMsg`) for scans. The dot
+shows only when no inventory load is in progress. For the same reason as
 before, `reloadInventory` takes its tick *before* raising the flag.
 
 `esc` and `ctrl+r` return to the inventory, or to the list the results were

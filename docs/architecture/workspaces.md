@@ -94,8 +94,8 @@ row is busy it shows an `internal/ui/indicator` glyph instead: `●`/`○` runni
 (blinking), `◴` queued, `⊗` failed. The colour says the state, never the
 operation. `workspaceRow.Activity` is a `components.RowActivity` resolved when
 the rows are built (on a jobs `ChangedMsg` or a listing), never per frame: the
-animation tick only calls `m.table.SetBlinkPhase(msg.Blink)` and pushes the footer
-spinner frame, so no row is rebuilt at 10 Hz. The view exposes
+animation tick only calls `m.table.SetBlinkPhase(msg.Blink)` and
+`m.footer.SetBlinkPhase(msg.Blink)`, so no row is rebuilt per tick. The view exposes
 `ActivityTables()` (`{"ws": &m.table}`) for the activity-column guard.
 
 **`rowActivity` and `rowTargets` (`activity.go`).** `rowTargets(e)` is the list of
@@ -141,7 +141,7 @@ of its sub-repositories scans.
 
 **The footer is per row.** `status()` combines the selected row's detail
 (`rowActivity(...).Detail`, a `components.Status.Detail`) with the batch
-progress `jobsStatusLine` (`Syncing — 3/12`). The footer spinner is shown only
+progress `jobsStatusLine` (`Syncing — 3/12`). The footer activity dot is shown only
 when the selected row has no detail, as a running row already has a moving dot.
 A failure is announced as a 3-second `Error` built by `failureEvent`
 (`components.FailureEvent`), for example `Failed to scan ~/…/web — check logs`;
