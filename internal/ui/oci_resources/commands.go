@@ -20,6 +20,7 @@ import (
 	"github.com/anthnel/devdesk/internal/docker"
 	"github.com/anthnel/devdesk/internal/imagepull"
 	"github.com/anthnel/devdesk/internal/imageupdate"
+	"github.com/anthnel/devdesk/internal/oci"
 	"github.com/anthnel/devdesk/internal/registrymgr"
 	"github.com/anthnel/devdesk/internal/scan"
 )
@@ -365,10 +366,10 @@ var ociHTTPClient = &http.Client{Timeout: 15 * time.Second}
 // This is the one place that *keeps* a scheme rather than stripping it: an
 // explicit `http://` is how a registry on a plain-HTTP port is reached, and
 // upgrading it would break that registry rather than fix anything. Everything
-// Docker-facing goes through registryHost instead (D39).
+// Docker-facing goes through oci.RegistryHost instead (D39).
 func registryAPIURL(registryURL string) string {
 	base := strings.TrimSuffix(strings.TrimSpace(registryURL), "/")
-	if isDockerHub(base) {
+	if oci.IsDockerHub(base) {
 		return "https://registry-1.docker.io"
 	}
 	lower := strings.ToLower(base)
