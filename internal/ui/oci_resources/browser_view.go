@@ -116,8 +116,8 @@ func (b *RegistryBrowser) renderInputField(label, value string, fieldIdx int) st
 	return labelStr + "\n  " + value
 }
 
-// viewTags renders the tag table. The search says so in the footer, with a
-// spinner (LoadingLabel), and an empty table stays a table (Rule 139) — the
+// viewTags renders the tag table. The search says so in the footer, with the
+// shared activity dot (LoadingLabel), and an empty table stays a table (Rule 139) — the
 // count lives in GetHeaderInfo's "Tags" field.
 func (b *RegistryBrowser) viewTags() string {
 	return b.tagTable.View()

@@ -94,7 +94,7 @@ shape. Three things follow from it, each with a test:
 - **A followed document lands at the bottom**, where the new lines are. Every
   other arrival lands at the top, because a first load, a reload and a
   timestamps toggle all mean "here is the document".
-- **`m.loading` stays false on a follow read.** The footer spinner belongs to a
+- **`m.loading` stays false on a follow read.** The footer dot belongs to a
   load the user waits on, and one blinking every two seconds reads as a fault in
   the thing that is working. `Following — F to stop` is what says the pane is
   live, derived per frame rather than posted (Rule 128).

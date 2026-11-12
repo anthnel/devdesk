@@ -27,7 +27,9 @@ import (
 	ociresources "github.com/anthnel/devdesk/internal/ui/oci_resources"
 	uistatus "github.com/anthnel/devdesk/internal/ui/status"
 	"github.com/anthnel/devdesk/internal/ui/testutil"
+	uiviewer "github.com/anthnel/devdesk/internal/ui/viewer"
 	"github.com/anthnel/devdesk/internal/ui/workspaces"
+	"github.com/anthnel/devdesk/internal/viewer"
 )
 
 // DEVDESK-341 step 3: the footer's activity dot, guarded and accepted at the
@@ -55,19 +57,31 @@ var footerActivitySeeds = map[command.ViewType]footerSeed{
 	command.ViewGitExplorer:  seedExplorerActivity,
 }
 
+// loadingSeed is one loading state of a view and the message that ends it.
+type loadingSeed struct {
+	name string // subtest name
+	seed footerSeed
+	end  func() tea.Msg
+}
+
 // footerLoadingSeeds are the views whose footer shows the activity dot for a
 // load of their own, with no job in the registry (DEVDESK-369): the view is
 // created on screen in its "loading" state and no Cmd is executed. Each view
-// migrated from a spinner.Model adds its seeds here, and its end-of-load message
-// to footerLoadingEnds. The two tables below the seeds are checked by
-// TestActivityGuardFooterHasNoBraille and TestALoadingViewDrivesTheChain.
-var footerLoadingSeeds = map[command.ViewType][]footerSeed{
-	command.ViewStatus: {seedStatusLoading},
-}
-
-// footerLoadingEnds is the message that ends the load of each seeded view.
-var footerLoadingEnds = map[command.ViewType]func() tea.Msg{
-	command.ViewStatus: func() tea.Msg { return uistatus.CheckCompleteMsg{Timestamp: time.Now()} },
+// migrated from a spinner.Model adds its seeds here, every one with the message
+// that ends its load. The table is checked by TestActivityGuardFooterHasNoBraille
+// and TestALoadingViewDrivesTheChain.
+var footerLoadingSeeds = map[command.ViewType][]loadingSeed{
+	command.ViewStatus: {{"first check", seedStatusLoading,
+		func() tea.Msg { return uistatus.CheckCompleteMsg{Timestamp: time.Now()} }}},
+	command.ViewViewer: {{"document", seedViewerLoading,
+		func() tea.Msg { return uiviewer.DocumentLoadedMsg{Name: "notes.txt", Content: []byte("hello\n")} }}},
+	command.ViewOCIResources: {
+		{"images tab", seedOCIImagesLoading, func() tea.Msg { return ociresources.ImagesListMsg{} }},
+		{"networks tab", seedOCINetworksLoading, func() tea.Msg { return ociresources.NetworksListMsg{} }},
+		{"volumes tab", seedOCIVolumesLoading, func() tea.Msg { return ociresources.VolumesListMsg{} }},
+		{"tag search", seedOCITagSearch, ociTagSearchEnd},
+		{"network inspect", seedOCINetworkInspect, ociNetworkInspectEnd},
+	},
 }
 
 // seedStatusLoading creates :status on screen with its first check unanswered.
@@ -75,6 +89,14 @@ func seedStatusLoading(t *testing.T, a *App) {
 	t.Helper()
 	delete(a.views, command.ViewStatus)
 	_ = a.switchView(command.ViewStatus) // its Init would run the checks: dropped
+	a.resize(a.width, a.height)
+}
+
+// seedViewerLoading opens a file in the viewer; its Init Cmd is not run, so the
+// document stays loading (DEVDESK-370).
+func seedViewerLoading(t *testing.T, a *App) {
+	t.Helper()
+	a.Update(uiviewer.OpenRequestMsg{Source: viewer.NewFileSource("notes.txt")})
 	a.resize(a.width, a.height)
 }
 
@@ -243,10 +265,10 @@ func TestActivityGuardFooterHasNoBraille(t *testing.T) {
 	// A loading view: phase on, then off, no braille, exactly one dot each time.
 	on, off := indicator.Glyph(indicator.Running, true), indicator.Glyph(indicator.Running, false)
 	for vt, seeds := range footerLoadingSeeds {
-		for i, seed := range seeds {
-			t.Run(fmt.Sprintf("loading/%s/%d", vt, i), func(t *testing.T) {
+		for _, ls := range seeds {
+			t.Run(fmt.Sprintf("loading/%s/%s", vt, ls.name), func(t *testing.T) {
 				a := routerAt(t, &bareView{}, 180, 40)
-				seed(t, a)
+				ls.seed(t, a)
 				if a.currentView != vt {
 					t.Fatalf("the seed left %q on screen, want %q", a.currentView, vt)
 				}
@@ -305,6 +327,7 @@ var footerFrameConsumers = map[string]struct {
 	"ui/oci_resources":  {View: command.ViewOCIResources},
 	"ui/forge/explorer": {View: command.ViewGitExplorer},
 	"ui/status":         {View: command.ViewStatus},
+	"ui/viewer":         {View: command.ViewViewer},
 	"ui/netdiag":        {Exempt: "own spinner.Model feeds its Spinner status; the frame only drives table blink (plan 1.2)"},
 	"ui/containers":     {Exempt: "own spinner.Model feeds its Spinner status; the frame only drives table blink (plan 1.2)"},
 	"ui/agentusageview": {Exempt: "own spinner.Model feeds its Spinner status; the frame only drives table blink (plan 1.2)"},
@@ -357,7 +380,7 @@ func frameConsumerSeeds() map[command.ViewType]footerSeed {
 	}
 	for vt, seeds := range footerLoadingSeeds {
 		if len(seeds) > 0 {
-			out[vt] = seeds[0]
+			out[vt] = seeds[0].seed
 		}
 	}
 	return out
@@ -718,12 +741,12 @@ func loadingRouter(t *testing.T, vt command.ViewType, seed footerSeed) (*App, *[
 
 func TestALoadingViewDrivesTheChain(t *testing.T) {
 	for vt, seeds := range footerLoadingSeeds {
-		end := footerLoadingEnds[vt]
-		if end == nil {
-			t.Fatalf("view %q has loading seeds but no footerLoadingEnds message", vt)
-		}
-		for i, seed := range seeds {
-			name := fmt.Sprintf("%s/%d", vt, i)
+		for _, ls := range seeds {
+			seed, end := ls.seed, ls.end
+			if end == nil {
+				t.Fatalf("view %q seed %q has no end message", vt, ls.name)
+			}
+			name := fmt.Sprintf("%s/%s", vt, ls.name)
 			t.Run(name+"/arms the blink chain", func(t *testing.T) {
 				a, _ := loadingRouter(t, vt, seed)
 				held, ok := a.views[vt].(BlinkingView)
@@ -797,4 +820,21 @@ func TestFooterActivityStatusReturnShowsTheCurrentPhase(t *testing.T) {
 		t.Fatal(":status stopped asking for the blink after the return")
 	}
 	wantDot(t, a, command.ViewStatus, 0, 1)
+}
+
+// ctrl+r in the viewer starts a new load with no job behind it: the view
+// itself must arm the chain, or the dot stays a steady glyph (DEVDESK-370).
+func TestFooterActivityViewerReloadArmsTheChain(t *testing.T) {
+	a, _ := loadingRouter(t, command.ViewViewer, seedViewerLoading)
+	a.Update(footerLoadingSeeds[command.ViewViewer][0].end())
+	a.anim.ticking = false
+	a.Update(testutil.Key("ctrl+r"))
+	held, ok := a.views[command.ViewViewer].(BlinkingView)
+	if !ok || !held.WantsBlink() {
+		t.Fatal("a reloading viewer does not ask for the blink")
+	}
+	if !a.anim.ticking {
+		t.Fatal("ctrl+r in the viewer armed no animation chain")
+	}
+	wantDot(t, a, command.ViewViewer, 1, 0)
 }

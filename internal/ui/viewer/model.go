@@ -1,7 +1,6 @@
 package viewer
 
 import (
-	"charm.land/bubbles/v2/spinner"
 	"charm.land/bubbles/v2/textinput"
 	"charm.land/bubbles/v2/viewport"
 	tea "charm.land/bubbletea/v2"
@@ -42,12 +41,12 @@ type Model struct {
 	// source is where the document came from, and it is kept rather than
 	// discarded after the first read: reload, follow and the timestamps toggle
 	// are all questions for the origin, not for the bytes.
-	source  viewer.Source
-	doc     viewer.Document
+	source viewer.Source
+	doc    viewer.Document
+	// loading is set while the document is being read. The load is reported in
+	// the footer with the shared activity dot, so the pane keeps whatever it
+	// was already showing.
 	loading bool
-	// spinner turns while the document is being read. The load is reported in
-	// the footer, so the pane keeps whatever it was already showing.
-	spinner spinner.Model
 
 	display   display
 	highlight bool
@@ -118,10 +117,6 @@ type Model struct {
 // there is nothing open, which is the truth and is only ever reached by opening
 // the view without a document.
 func New(cfg *config.Config) Model {
-	s := spinner.New()
-	s.Spinner = spinner.Dot
-	s.Style = theme.SpinnerStyle()
-
 	gi := textinput.New()
 	theme.StyleTextInput(&gi)
 	// A line number and nothing else: the field refuses anything but digits, so
@@ -130,7 +125,6 @@ func New(cfg *config.Config) Model {
 	gi.Validate = digitsOnly
 
 	return Model{
-		spinner:      s,
 		config:       cfg,
 		highlight:    true,
 		collapsed:    make(map[int]bool),

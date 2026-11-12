@@ -24,7 +24,7 @@ func (m Model) Render() string {
 
 	switch {
 	case m.loading && !m.hasDocument():
-		// The load says so in the footer, with a spinner. Nothing is shown here
+		// The load says so in the footer, with the activity dot. Nothing is shown here
 		// because there is nothing yet to show — and a reload keeps the
 		// document on screen rather than blanking it, which is the case below.
 		return ""
@@ -72,13 +72,13 @@ func (m Model) RenderFooter(width int) string {
 // the pane does not swap itself for a message.
 func (m Model) status() components.Status {
 	if m.loading {
-		return components.Status{Text: "Loading " + m.Name() + "...", Spinner: true}
+		return components.Status{Text: "Loading " + m.Name() + "...", Activity: true}
 	}
 	// Following is a state, not an event, so it is derived here rather than
 	// posted as a footer message — one would expire after three seconds while
 	// the pane went on refreshing (Rule 128). It is also the only thing on
 	// screen saying the document is live: the reads themselves are deliberately
-	// silent, because a spinner blinking every two seconds would read as
+	// silent, because an activity dot blinking every two seconds would read as
 	// something going wrong with the thing that is working.
 	if m.following {
 		return components.Status{Text: "Following — " + keymap.Fetch + " to stop"}

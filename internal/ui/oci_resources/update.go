@@ -4,8 +4,6 @@ import (
 	"github.com/anthnel/devdesk/internal/shared"
 	"maps"
 
-	"charm.land/bubbles/v2/spinner"
-
 	tea "charm.land/bubbletea/v2"
 
 	"github.com/anthnel/devdesk/internal/jobs"
@@ -16,7 +14,6 @@ import (
 // Init initializes the OCI resources view
 func (m Model) Init() tea.Cmd {
 	return tea.Batch(
-		m.spinner.Tick,
 		tickCmd(),
 		fetchImages(),
 		loadScanCache(),
@@ -84,33 +81,6 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	case jobs.FrameMsg:
 		return m.handleFrameMsg(msg)
-
-	case spinner.TickMsg:
-		var cmds []tea.Cmd
-		// Only a load turns this spinner: a row's state is drawn by the activity
-		// column, which jobs.FrameMsg animates.
-		if m.loading || m.loadingNets || m.loadingVols || m.loadingRegs {
-			var cmd tea.Cmd
-			m.spinner, cmd = m.spinner.Update(msg)
-			// A tab's load is reported in the footer, so the frame has to reach
-			// it — a spinner stuck on frame zero reads as a hang.
-			m.footer.SetSpinnerFrame(m.spinner.View())
-			cmds = append(cmds, cmd)
-		}
-		if m.registryBrowser != nil {
-			var cmd tea.Cmd
-			m.registryBrowser, cmd = m.registryBrowser.Update(msg)
-			if cmd != nil {
-				cmds = append(cmds, cmd)
-			}
-			// A search is reported in the footer, so its frame has to reach it.
-			if m.registryBrowser.IsSearching() {
-				m.footer.SetSpinnerFrame(m.registryBrowser.spinner.View())
-			}
-		}
-		if len(cmds) > 0 {
-			return m, tea.Batch(cmds...)
-		}
 
 	case shared.TerminalFocusMsg:
 		m.blurred = !msg.Focused

@@ -48,7 +48,7 @@ func (m Model) handleImagesKeyMsg(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 		return m.confirmScanAll()
 	case "ctrl+r":
 		m.loading = true
-		return m, tea.Batch(m.spinner.Tick, fetchImages(), loadScanCache())
+		return m, tea.Batch(fetchImages(), loadScanCache())
 	}
 	// Navigation, `/` and `.` are the table's, not the view's.
 	return m, m.imageTable.Update(msg)
@@ -82,7 +82,7 @@ func (m Model) handleNetworksKeyMsg(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 		return m, nil
 	case "ctrl+r":
 		m.loadingNets = true
-		return m, tea.Batch(m.spinner.Tick, fetchNetworks())
+		return m, fetchNetworks()
 	}
 	// Anything the tab does not claim goes to the table. It used to be an
 	// allow-list of four navigation keys followed by `return m, nil`, which is
@@ -106,7 +106,7 @@ func (m Model) handleVolumesKeyMsg(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 		return m, nil
 	case "ctrl+r":
 		m.loadingVols = true
-		return m, tea.Batch(m.spinner.Tick, fetchVolumes())
+		return m, fetchVolumes()
 	}
 	return m, m.volumeTable.Update(msg)
 }

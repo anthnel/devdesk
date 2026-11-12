@@ -19,10 +19,10 @@ import (
 // image, the same cache entry — went unnoticed here, so `S` offered itself on a
 // row already being scanned and the two wrote the same file.
 //
-// The view's own `spinner.Model` stays, and deliberately: it animates *loading*
-// — the image list, the networks, a `docker` action on a row — and a load is not
-// a job. What moved is the blink phase of the activity column, which comes from
-// the one chain the router holds (D5).
+// A *loading* — the image list, the networks, a tag search — is not a job, but
+// it shows on the same shared activity dot (DEVDESK-374), so the view no longer
+// holds a spinner of its own. The blink phase comes from the one chain the
+// router holds (D5), and WantsBlink arms it for a load too.
 
 // handleJobsChanged takes the router's snapshot. It is the only writer of the
 // two fields.
@@ -30,10 +30,8 @@ func (m Model) handleJobsChanged(msg jobs.ChangedMsg) (tea.Model, tea.Cmd) {
 	m.jobs = msg.Runs
 	m.failures = slices.Clone(msg.Failures)
 	m.contextName = msg.Context
-	// The footer's spinner is deliberately not touched: here it belongs to
-	// *loading* — a tab reading its list — and this view's scan progress is on
-	// the rows, not in the footer. Two writers of one field would fight every
-	// frame a scan and a load overlapped.
+	// The footer is not touched here: this view's scan progress is on the rows,
+	// and a load's dot is derived from the view's state at render.
 	m.updateImageTable()
 	if m.registryBrowser != nil {
 		m.registryBrowser.SetJobs(m.jobs, m.failures, m.contextName)
@@ -43,7 +41,7 @@ func (m Model) handleJobsChanged(msg jobs.ChangedMsg) (tea.Model, tea.Cmd) {
 
 // handleFrameMsg takes the blink phase of the activity column. Nothing is
 // rebuilt: the table reads the phase at render, and so does the footer's
-// activity dot. The view's own load spinner is a separate field.
+// activity dot, which a load shows too.
 func (m Model) handleFrameMsg(msg jobs.FrameMsg) (tea.Model, tea.Cmd) {
 	m.imageTable.SetBlinkPhase(msg.Blink)
 	m.networkTable.SetBlinkPhase(msg.Blink)
@@ -57,8 +55,9 @@ func (m Model) handleFrameMsg(msg jobs.FrameMsg) (tea.Model, tea.Cmd) {
 }
 
 // WantsBlink reports whether an Images row or a registry-browser tag row is in
-// an animated state (running, or an action observed on it). A queued row and a
-// remembered failure are steady. It is the level the router's BlinkingView
+// an animated state (running, or an action observed on it), or whether the
+// footer shows a load of the view's own. A queued row and a remembered failure
+// are steady. It is the level the router's BlinkingView
 // check reads.
 func (m Model) WantsBlink() bool {
 	for _, r := range m.imageTable.Items() {
@@ -71,7 +70,8 @@ func (m Model) WantsBlink() bool {
 	}
 	// A busy row (network, volume, registry) and a group being discovered both
 	// show a blinking dot.
-	return len(m.refreshingGroups) > 0 ||
+	return m.footerLoading() ||
+		len(m.refreshingGroups) > 0 ||
 		len(m.networkTable.BusyLabels()) > 0 ||
 		len(m.volumeTable.BusyLabels()) > 0 ||
 		len(m.registryTable.BusyLabels()) > 0

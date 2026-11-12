@@ -110,7 +110,7 @@ func TestReloadRefetches(t *testing.T) {
 	m, cmd := step(t, m, testutil.Key("ctrl+r"))
 
 	if !m.loading {
-		t.Error("loading = false after ctrl+r, so the spinner never shows")
+		t.Error("loading = false after ctrl+r, so the dot never shows")
 	}
 	if cmd == nil {
 		t.Error("ctrl+r issued no fetch")

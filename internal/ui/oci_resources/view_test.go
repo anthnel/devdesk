@@ -66,19 +66,6 @@ func TestEachTabRendersItsOwnTable(t *testing.T) {
 	}
 }
 
-// Before the first list arrives the tab shows a spinner rather than an empty
-// table, which would read as "you have none".
-func TestTabsShowASpinnerBeforeLoading(t *testing.T) {
-	view := newTestModel(t).Render()
-
-	if strings.Contains(view, "api:v1") {
-		t.Error("the table has rows before anything loaded")
-	}
-	if strings.TrimSpace(view) == "" {
-		t.Error("the view is blank while loading")
-	}
-}
-
 // ── Scan counts ──────────────────────────────────────────────────────────────
 
 // The severity columns are the point of the images tab; a never-scanned image

@@ -85,8 +85,7 @@ table announces the absence of what it is in the middle of fetching.
 present (the selected row's own dot already moves), and both come after the
 timed messages in the precedence. `Activity` is for work the router tracks
 (jobs, or a view's `WantsBlink()`); `Spinner` stays for a view's own loading
-(agent usage, containers, netdiag, OCI resources, security remediation, status,
-viewer). The router runs its 500 ms chain only if `jobs.Running() > 0` or the
+(agent usage, containers, netdiag, security remediation). The router runs its 500 ms chain only if `jobs.Running() > 0` or the
 view on screen answers `WantsBlink()`, so an `Activity` status that does not
 come from a job needs `WantsBlink()` or the dot stays fixed (see `app-shell.md`,
 "A row dot or a footer mark").
@@ -458,7 +457,7 @@ on that host.
 one: an action started on Images goes on running after `tab`, and a spinner that
 stopped turning because the user looked elsewhere would read as a hang on the
 way back. Row state is drawn by the activity column and animated by the router's
-`jobs.FrameMsg`; the view's own spinner turns only while a tab loads.
+`jobs.FrameMsg`; a tab's load shows the shared footer dot (DEVDESK-374), the view holds no spinner.
 
 Deliberately outside this:
 

@@ -6,9 +6,11 @@ import (
 	"testing"
 	"time"
 
+	tea "charm.land/bubbletea/v2"
 	"github.com/charmbracelet/x/ansi"
 
 	"github.com/anthnel/devdesk/internal/command"
+	"github.com/anthnel/devdesk/internal/config"
 	"github.com/anthnel/devdesk/internal/docker"
 	"github.com/anthnel/devdesk/internal/jobs"
 	sharedcomponents "github.com/anthnel/devdesk/internal/ui/components"
@@ -203,4 +205,58 @@ func TestOCINetworkRemovalBlinksItsDotThroughTheRouter(t *testing.T) {
 			t.Errorf("blink=%v: the other network shows a dot: %q", on, other)
 		}
 	}
+}
+
+// DEVDESK-374: the :oci loading seeds of footerLoadingSeeds. The view is created
+// on screen and its Init is not run, so loading, loadingNets and loadingVols stay
+// true; a seed is one of the five reasons the footer shows the dot.
+
+// seedOCILoading puts :oci on screen with nothing received, then presses keys.
+func seedOCILoading(t *testing.T, a *App, keys ...string) {
+	t.Helper()
+	t.Setenv("PATH", t.TempDir()) // no docker: a Cmd must stay inert
+	delete(a.views, command.ViewOCIResources)
+	_ = a.switchView(command.ViewOCIResources)
+	a.resize(a.width, a.height)
+	for _, k := range keys {
+		a.Update(testutil.Key(k))
+	}
+}
+
+func seedOCIImagesLoading(t *testing.T, a *App)   { seedOCILoading(t, a) }
+func seedOCINetworksLoading(t *testing.T, a *App) { seedOCILoading(t, a, "tab") }
+func seedOCIVolumesLoading(t *testing.T, a *App)  { seedOCILoading(t, a, "tab", "tab") }
+
+// seedOCITagSearch submits a search in the registry browser: the Cmds are not run.
+func seedOCITagSearch(t *testing.T, a *App) {
+	t.Helper()
+	a.config.Registry.Registries = []config.RegistryItem{{URL: "registry.example.com", Alias: "prod", Slug: "prod", AuthMode: config.AuthAnonymous}}
+	seedOCILoading(t, a)
+	a.Update(ociresources.ImagesListMsg{Images: []docker.Image{
+		{ID: "aaa1111", Repository: "nginx", Tag: "1.27"},
+		{ID: "bbb2222", Repository: "redis", Tag: "7"},
+	}})
+	a.Update(testutil.Key(keymap.Browser))
+	for _, msg := range testutil.Type("nginx") {
+		a.Update(msg)
+	}
+	a.Update(testutil.Key("enter"))
+}
+
+func ociTagSearchEnd() tea.Msg {
+	// AddRegistryTags decrements pendingSearches whatever the entry key.
+	return ociresources.MultiRegistryTagsLoadedMsg{EntryKey: "prod", RegistryURL: "registry.example.com", Alias: "prod", Repo: "nginx", Tags: []string{"1.27"}}
+}
+
+// seedOCINetworkInspect opens the inspection of the first network.
+func seedOCINetworkInspect(t *testing.T, a *App) {
+	t.Helper()
+	seedOCILoading(t, a)
+	a.Update(ociresources.NetworksListMsg{Networks: []docker.Network{{ID: "net1", Name: "bridge"}}})
+	a.Update(testutil.Key("tab"))
+	a.Update(testutil.Key("enter"))
+}
+
+func ociNetworkInspectEnd() tea.Msg {
+	return ociresources.NetworkInspectLoadedMsg{NetworkID: "net1", NetworkName: "bridge"}
 }

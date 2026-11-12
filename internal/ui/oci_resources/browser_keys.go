@@ -3,7 +3,6 @@ package ociresources
 import (
 	"strings"
 
-	"charm.land/bubbles/v2/spinner"
 	tea "charm.land/bubbletea/v2"
 
 	"github.com/anthnel/devdesk/internal/config"
@@ -29,15 +28,6 @@ func (b *RegistryBrowser) Update(msg tea.Msg) (*RegistryBrowser, tea.Cmd) {
 	switch msg := msg.(type) {
 	case tea.KeyPressMsg:
 		return b.handleKeyMsg(msg)
-	case spinner.TickMsg:
-		// Only a search turns this spinner, and it shows in the footer: a tag's
-		// state is drawn by the activity column, which jobs.FrameMsg animates.
-		if b.pendingSearches > 0 {
-			var cmd tea.Cmd
-			b.spinner, cmd = b.spinner.Update(msg)
-			return b, cmd
-		}
-		return b, nil
 	}
 	return b.delegateUpdate(msg)
 }
@@ -174,7 +164,6 @@ func (b *RegistryBrowser) submitSearch() (*RegistryBrowser, tea.Cmd) {
 	b.state = browserStateTags
 	b.tagTable.Focus()
 	b.rebuildTagTable()
-	cmds = append(cmds, b.spinner.Tick)
 	return b, tea.Batch(cmds...)
 }
 

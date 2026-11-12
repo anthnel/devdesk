@@ -5,9 +5,9 @@ import (
 	"os/exec"
 	"time"
 
-	"charm.land/bubbles/v2/spinner"
 	tea "charm.land/bubbletea/v2"
 	"github.com/anthnel/devdesk/internal/clipboard"
+	"github.com/anthnel/devdesk/internal/jobs"
 	"github.com/anthnel/devdesk/internal/ui/teaexec"
 
 	"github.com/anthnel/devdesk/internal/ui/keymap"
@@ -19,7 +19,7 @@ func (m Model) Init() tea.Cmd {
 	if m.source == nil {
 		return nil
 	}
-	return tea.Batch(loadCmd(m.source), m.spinner.Tick)
+	return loadCmd(m.source)
 }
 
 // loadCmd fetches a source's content. Every read the viewer does goes through
@@ -98,15 +98,9 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case IDEOpenedMsg:
 		return m.handleIDEOpened(msg)
 
-	case spinner.TickMsg:
-		// The chain stops when nothing is loading, and Init/reload restart it.
-		if !m.loading {
-			return m, nil
-		}
-		var cmd tea.Cmd
-		m.spinner, cmd = m.spinner.Update(msg)
-		m.footer.SetSpinnerFrame(m.spinner.View())
-		return m, cmd
+	case jobs.FrameMsg:
+		m.footer.SetBlinkPhase(msg.Blink)
+		return m, nil
 	}
 
 	m.footer.Handle(msg)
@@ -248,7 +242,7 @@ func (m Model) reload() (tea.Model, tea.Cmd) {
 		return m, nil
 	}
 	m.loading = true
-	return m, tea.Batch(loadCmd(m.source), m.spinner.Tick)
+	return m, loadCmd(m.source)
 }
 
 func (m Model) handleTreeKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
@@ -407,7 +401,7 @@ func (m Model) handleFollowTick(msg followTickMsg) (tea.Model, tea.Cmd) {
 		return m.stopFollowing(), nil
 	}
 	// m.loading stays false deliberately: a load is reported in the footer with
-	// a spinner (Rule 139), and one blinking every two seconds would read as
+	// a dot (Rule 139), and one blinking every two seconds would read as
 	// something going wrong with the thing that is working. The follow status
 	// line is what says the pane is live.
 	return m, tea.Batch(loadCmd(m.source), followTickCmd(src.FollowInterval(), msg.gen))

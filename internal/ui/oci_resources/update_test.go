@@ -63,25 +63,35 @@ func TestListsFillTheirTables(t *testing.T) {
 	}
 }
 
-// A Docker failure has to clear the spinner as well as report, or the tab shows
-// a spinner forever.
-func TestListFailuresStopTheSpinner(t *testing.T) {
+// A Docker failure has to clear the load as well as report, or the dot blinks
+// forever.
+func TestListFailuresStopTheLoad(t *testing.T) {
 	tests := []struct {
 		name string
+		tabs int // tab presses to reach the tab whose list fails
 		msg  tea.Msg
 		busy func(Model) bool
 	}{
-		{"images", ImagesListMsg{Err: errors.New("docker daemon not running")}, func(m Model) bool { return m.loading }},
-		{"networks", NetworksListMsg{Err: errors.New("docker daemon not running")}, func(m Model) bool { return m.loadingNets }},
-		{"volumes", VolumesListMsg{Err: errors.New("docker daemon not running")}, func(m Model) bool { return m.loadingVols }},
+		{"images", 0, ImagesListMsg{Err: errors.New("docker daemon not running")}, func(m Model) bool { return m.loading }},
+		{"networks", 1, NetworksListMsg{Err: errors.New("docker daemon not running")}, func(m Model) bool { return m.loadingNets }},
+		{"volumes", 2, VolumesListMsg{Err: errors.New("docker daemon not running")}, func(m Model) bool { return m.loadingVols }},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			m := feed(t, newTestModel(t), tt.msg)
+			m := newTestModel(t)
+			// Only the tab on screen counts: the Images load would keep the
+			// dot going while another tab's list fails.
+			for range tt.tabs {
+				m = feed(t, m, testutil.Key("tab"))
+			}
+			m = feed(t, m, tt.msg)
 
 			if tt.busy(m) {
 				t.Error("still loading after the failure")
+			}
+			if m.WantsBlink() {
+				t.Error("the view still asks for the blink after the failure")
 			}
 			if !m.footer.IsSet() {
 				t.Error("the failure was not reported")
