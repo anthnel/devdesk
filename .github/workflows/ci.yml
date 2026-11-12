@@ -1,5 +1,14 @@
 # Every step runs a mise task rather than a raw go command, so CI and a local
 # `mise run check` cannot drift apart. Tool versions come from mise.toml.
+#
+# Docs-only pull requests skip the expensive steps, never the jobs. There is
+# deliberately no `paths-ignore`: a workflow that does not start never reports
+# its checks, and the required `Lint and build` and `Test` checks would stay
+# "pending" forever, blocking the PR. Instead both jobs always run, and the
+# `scope` step asks .github/scripts/docs-only.sh whether the diff touches only
+# documentation. The list of documentation paths lives in that script alone.
+# Steps are skipped only when the output is exactly `true`; on a push to main,
+# or when the scope step is skipped, fails or prints nothing, everything runs.
 name: CI
 
 on:
@@ -20,21 +29,45 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v5
+        with:
+          fetch-depth: 2
+      - id: scope
+        if: github.event_name == 'pull_request'
+        continue-on-error: true
+        run: echo "docs_only=$(bash .github/scripts/docs-only.sh diff)" >> "$GITHUB_OUTPUT"
+      - if: steps.scope.outputs.docs_only == 'true'
+        run: 'echo "Docs-only PR: mise tasks skipped" >> "$GITHUB_STEP_SUMMARY"'
       - uses: jdx/mise-action@v4
-      - run: mise run fmt-check
-      - run: mise run vet
-      - run: mise run lint
-      - run: mise run build
+        if: steps.scope.outputs.docs_only != 'true'
+      - if: steps.scope.outputs.docs_only != 'true'
+        run: mise run fmt-check
+      - if: steps.scope.outputs.docs_only != 'true'
+        run: mise run vet
+      - if: steps.scope.outputs.docs_only != 'true'
+        run: mise run lint
+      - if: steps.scope.outputs.docs_only != 'true'
+        run: mise run build
 
   test:
     name: Test
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v5
+        with:
+          fetch-depth: 2
+      - id: scope
+        if: github.event_name == 'pull_request'
+        continue-on-error: true
+        run: echo "docs_only=$(bash .github/scripts/docs-only.sh diff)" >> "$GITHUB_OUTPUT"
+      - if: steps.scope.outputs.docs_only == 'true'
+        run: 'echo "Docs-only PR: mise tasks skipped" >> "$GITHUB_STEP_SUMMARY"'
       - uses: jdx/mise-action@v4
-      - run: mise run test
+        if: steps.scope.outputs.docs_only != 'true'
+      - if: steps.scope.outputs.docs_only != 'true'
+        run: mise run test
       # The race detector needs cgo and therefore a C toolchain, which the
       # Windows development machines do not have. CI is the only place this
       # check ever runs, and Bubble Tea Cmds make it the one most likely to
       # catch a Rule 110 violation.
-      - run: mise run test-race
+      - if: steps.scope.outputs.docs_only != 'true'
+        run: mise run test-race
