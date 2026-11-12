@@ -1,0 +1,15 @@
+{
+  "tool_use_id": "toolu_01LGsbadRpE8q9t7uugHqJ4H",
+  "agent_id": "ad7a98ecde03803da",
+  "subagent_type": "product-team:pm",
+  "task_description": "Créer le backlog Plane",
+  "token_usage": {
+    "input_tokens": 14,
+    "cache_creation_tokens": 85913,
+    "cache_read_tokens": 366652,
+    "output_tokens": 13831,
+    "api_call_count": 7
+  },
+  "started_at": "2026-11-11T10:42:11.221929456+01:00",
+  "completed_at": "2026-11-11T10:43:43.741525087+01:00"
+}

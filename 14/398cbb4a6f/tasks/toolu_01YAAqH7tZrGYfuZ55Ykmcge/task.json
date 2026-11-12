@@ -1,0 +1,18 @@
+{
+  "tool_use_id": "toolu_01YAAqH7tZrGYfuZ55Ykmcge",
+  "agent_id": "a3a13acd2fe343148",
+  "subagent_type": "product-team:researcher",
+  "task_description": "Recherche alternatives cartographie réseau",
+  "files": [
+    "docs/product/network-map/research.md"
+  ],
+  "token_usage": {
+    "input_tokens": 16,
+    "cache_creation_tokens": 71640,
+    "cache_read_tokens": 273184,
+    "output_tokens": 12593,
+    "api_call_count": 8
+  },
+  "started_at": "2026-11-11T10:15:53.723898285+01:00",
+  "completed_at": "2026-11-11T10:18:00.611241413+01:00"
+}

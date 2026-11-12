@@ -1,0 +1,18 @@
+{
+  "tool_use_id": "toolu_01XX9C5tUu5UQzxXoFTcFiHa",
+  "agent_id": "af6e2fe82fec09f78",
+  "subagent_type": "team-core:archivist",
+  "task_description": "Consigner décisions au journal",
+  "files": [
+    "docs/journal.md"
+  ],
+  "token_usage": {
+    "input_tokens": 16,
+    "cache_creation_tokens": 71292,
+    "cache_read_tokens": 331404,
+    "output_tokens": 8645,
+    "api_call_count": 7
+  },
+  "started_at": "2026-11-11T10:45:15.811357797+01:00",
+  "completed_at": "2026-11-11T10:45:48.024253975+01:00"
+}
