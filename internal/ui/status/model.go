@@ -3,14 +3,11 @@ package status
 import (
 	"time"
 
-	"charm.land/bubbles/v2/spinner"
-
 	"github.com/anthnel/devdesk/internal/config"
 	"github.com/anthnel/devdesk/internal/status"
 	sharedcomponents "github.com/anthnel/devdesk/internal/ui/components"
 	"github.com/anthnel/devdesk/internal/ui/datatable"
 	"github.com/anthnel/devdesk/internal/ui/status/components"
-	"github.com/anthnel/devdesk/internal/ui/theme"
 )
 
 // Tab constants
@@ -39,10 +36,13 @@ type Model struct {
 	autoRefresh bool
 	checking    bool
 	// footer is the one line of transient state below the tab bar (Rule 128).
-	// This view raises no message; it carries the spinner the check is reported
-	// with.
+	// This view raises no message; it carries the blink phase of the activity
+	// dot the check is reported with.
 	footer     sharedcomponents.FooterMessage
 	firstCheck bool
+	// quietCheck marks an auto-refresh: the table is already filled, so the
+	// check shows no dot. The first check, ctrl+r and a config reload do.
+	quietCheck bool
 	error      string
 
 	// Tables. Two datatables plus a focus helper, not a multi-table
@@ -53,7 +53,6 @@ type Model struct {
 	activeTab    int // TabMonitors or TabCertificates
 
 	// Bubbles components
-	spinner       spinner.Model
 	componentForm *components.ComponentForm
 	confirmModal  *sharedcomponents.ConfirmModal
 
@@ -70,11 +69,6 @@ type Model struct {
 
 // New creates a new model
 func New(cfg *config.Config) Model {
-	// Spinner for loading
-	s := spinner.New()
-	s.Spinner = spinner.Dot
-	s.Style = theme.SpinnerStyle()
-
 	monitorTable := datatable.New(datatable.Config[status.ComponentStatus]{
 		Columns:    monitorColumns(),
 		SortColumn: columnName,
@@ -92,7 +86,6 @@ func New(cfg *config.Config) Model {
 		autoRefresh:     cfg.Status.AutoRefresh,
 		checking:        false,
 		firstCheck:      true,
-		spinner:         s,
 		monitorTable:    monitorTable,
 		sslTable:        sslTable,
 		activeTab:       TabMonitors,

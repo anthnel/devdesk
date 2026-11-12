@@ -5,10 +5,10 @@ import (
 	"log"
 	"time"
 
-	"charm.land/bubbles/v2/spinner"
 	tea "charm.land/bubbletea/v2"
 
 	"github.com/anthnel/devdesk/internal/config"
+	"github.com/anthnel/devdesk/internal/jobs"
 	"github.com/anthnel/devdesk/internal/status"
 	sharedcomponents "github.com/anthnel/devdesk/internal/ui/components"
 	"github.com/anthnel/devdesk/internal/ui/datatable"
@@ -21,7 +21,6 @@ import (
 // Init starts the application
 func (m Model) Init() tea.Cmd {
 	return tea.Batch(
-		m.spinner.Tick,
 		tickCmd(),
 		checkComponents(m.config),
 	)
@@ -29,7 +28,6 @@ func (m Model) Init() tea.Cmd {
 
 // Update handles messages and updates the state
 func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
-	var cmd tea.Cmd
 	var cmds []tea.Cmd
 
 	switch msg := msg.(type) {
@@ -45,11 +43,8 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case TickMsg:
 		return m.handleTick()
 
-	case spinner.TickMsg:
-		if m.checking {
-			m.spinner, cmd = m.spinner.Update(msg)
-			cmds = append(cmds, cmd)
-		}
+	case jobs.FrameMsg:
+		m.footer.SetBlinkPhase(msg.Blink)
 
 	case CheckCompleteMsg:
 		return m.handleCheckComplete(msg)
@@ -89,6 +84,8 @@ func (m Model) handleTick() (tea.Model, tea.Cmd) {
 	// Check whether a check is due
 	if m.autoRefresh && !m.checking && time.Now().After(m.nextCheck) {
 		m.checking = true
+		// An auto-refresh refills a table that is already on screen: no dot.
+		m.quietCheck = !m.firstCheck
 		return m, tea.Batch(
 			tickCmd(),
 			checkComponents(m.config),
@@ -100,6 +97,7 @@ func (m Model) handleTick() (tea.Model, tea.Cmd) {
 // handleCheckComplete processes completed component checks
 func (m Model) handleCheckComplete(msg CheckCompleteMsg) (tea.Model, tea.Cmd) {
 	m.checking = false
+	m.quietCheck = false
 	m.firstCheck = false
 	m.lastCheck = msg.Timestamp
 	m.nextCheck = msg.Timestamp.Add(m.refreshInterval)
@@ -145,8 +143,8 @@ func (m Model) reloadConfigAndCheck() (tea.Model, tea.Cmd) {
 
 	m.config = cfg
 	m.checking = true
+	m.quietCheck = false
 	return m, tea.Batch(
-		m.spinner.Tick,
 		checkComponents(m.config),
 	)
 }
@@ -332,8 +330,8 @@ func (m Model) handleManualRefresh() (tea.Model, tea.Cmd) {
 	}
 
 	m.checking = true
+	m.quietCheck = false
 	return m, tea.Batch(
-		m.spinner.Tick,
 		checkComponents(m.config),
 	)
 }

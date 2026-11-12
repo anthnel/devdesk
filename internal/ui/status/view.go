@@ -123,8 +123,9 @@ func (m Model) status() sharedcomponents.Status {
 			return st
 		}
 	}
-	if m.checking {
-		return sharedcomponents.Status{Text: "Checking components...", Spinner: true}
+	// firstCheck covers the frames before Init's check answers.
+	if m.checking || m.firstCheck {
+		return sharedcomponents.Status{Text: "Checking components...", Activity: !m.quietCheck}
 	}
 	return sharedcomponents.Status{}
 }
