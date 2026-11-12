@@ -5,7 +5,6 @@ import (
 	"testing"
 	"time"
 
-	"charm.land/bubbles/v2/spinner"
 	tea "charm.land/bubbletea/v2"
 
 	"github.com/anthnel/devdesk/internal/command"
@@ -325,17 +324,6 @@ func TestOtherKeysAreInertWhileRunning(t *testing.T) {
 		if m.state != StateRunning {
 			t.Fatalf("%q left StateRunning", key)
 		}
-	}
-}
-
-func TestSpinnerTicksOnlyWhileSomethingRuns(t *testing.T) {
-	idle := newTestModel(t)
-	if _, cmd := step(t, idle, spinner.TickMsg{}); cmd != nil {
-		t.Error("the spinner ticks on the idle form")
-	}
-	running := runningModel(t, "example.com")
-	if _, cmd := step(t, running, spinner.TickMsg{}); cmd == nil {
-		t.Error("the spinner does not tick while the pipeline runs")
 	}
 }
 

@@ -279,7 +279,7 @@ func (m Model) status() sharedcomponents.Status {
 			Level: sharedcomponents.LevelError,
 		}
 	case m.loading:
-		return sharedcomponents.Status{Text: "Reading Claude Code sessions...", Spinner: true}
+		return sharedcomponents.Status{Text: "Reading Claude Code sessions...", Activity: true}
 	case len(m.table.Items()) == 0:
 		return sharedcomponents.Status{Text: "No Claude Code sessions found in " + theme.FoldHome(m.root)}
 	}
@@ -295,7 +295,7 @@ func (m Model) agentsStatus() sharedcomponents.Status {
 			Level: sharedcomponents.LevelError,
 		}
 	case m.agentsLoading:
-		return sharedcomponents.Status{Text: "Reading session...", Spinner: true}
+		return sharedcomponents.Status{Text: "Reading session...", Activity: true}
 	case m.usage.Diagnostics.Degraded():
 		return sharedcomponents.Status{
 			Text:   "Totals are approximate — some transcript data could not be read",

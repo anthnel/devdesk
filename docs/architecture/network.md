@@ -283,9 +283,12 @@ reads both once, with no new tick, since the chain never stopped.
   `stopped` reads like `exited`; other podman states fall to `◌`.
 - **An action in flight shows `●`/`○`** (stop, restart, pause, resume, delete,
   through `startAction`), and it wins over the observed state. The row shows
-  its observed state again at the next list. `Model.WantsBlink()` is true only
-  while a row is busy: a refresh or a `restarting` row never blinks. The blink
-  phase comes from `jobs.FrameMsg`; the loading spinner keeps its own chain.
+  its observed state again at the next list. `Model.WantsBlink()` is true
+  while a row is busy or while the footer shows the load dot: a refresh or a
+  `restarting` row never blinks. The blink phase comes from `jobs.FrameMsg`.
+  The first load (no rows yet) shows the shared dot in the footer; `ctrl+r`
+  with rows on screen stays silent, so the footer does not flicker on every
+  refresh. The view holds no `spinner.Model` (DEVDESK-371).
 - **The selected row is red only for `Failed`**, so a clean exit is not red under
   the cursor.
 - **Footer.** `status()` shows the load first; otherwise the selected row's
@@ -393,8 +396,10 @@ always `Idle` and an idle row shows an empty cell (a socket has no rest icon).
   spinner did before. The blink phase comes from `jobs.FrameMsg`, handled in
   `Model.Update` (`SetBlinkPhase`, nothing rebuilt); `Model.WantsBlink()` is true
   while any row is busy, whatever the active tab. The Diagnostics and Interfaces
-  footers keep their own `spinner.TickMsg` chain, and a `FrameMsg` does not
-  advance it.
+  footers show the same shared dot while a run or an interfaces read is in
+  flight (DEVDESK-373), driven by the same `FrameMsg`: `WantsBlink()` is also
+  true while the active tab's footer is on `Activity`. The `netdiag` package
+  holds no `spinner.Model` and no `spinner.TickMsg` handler.
 - **The line spinner is gone**: `StatusColumn`, `portsSpinnerTickMsg`,
   `portsSpinnerCmd` and `handleSpinnerTick` are deleted. **State keeps its
   text** (`LISTEN`), dimmed like every busy row. This reverses the letter of

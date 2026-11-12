@@ -10,7 +10,6 @@ import (
 	"testing"
 	"time"
 
-	"charm.land/bubbles/v2/spinner"
 	tea "charm.land/bubbletea/v2"
 
 	"github.com/anthnel/devdesk/internal/agentusage"
@@ -106,13 +105,13 @@ func footer(m Model) string { return m.RenderFooter(120) }
 
 // ── Loading ──────────────────────────────────────────────────────────────────
 
-func TestInitReadsTheListingAndStartsTheSpinner(t *testing.T) {
+func TestInitReadsTheListing(t *testing.T) {
 	m := New(config.Default())
 	if !m.loading {
 		t.Fatal("a new model is loading")
 	}
 	if m.Init() == nil {
-		t.Fatal("Init returns the read and the spinner tick")
+		t.Fatal("Init returns the read")
 	}
 }
 
@@ -133,14 +132,6 @@ func TestWhileLoadingTheTableKeepsItsHeadersAndHasNoRows(t *testing.T) {
 	}
 	if strings.Contains(f, "No Claude Code sessions") {
 		t.Error("the empty message must wait for the load to finish")
-	}
-}
-
-func TestASpinnerTickWhileNotLoadingIsDropped(t *testing.T) {
-	m := loaded(t, newModel(t), session("a", "/x", 0))
-	_, cmd := m.Update(spinnerTick())
-	if cmd != nil {
-		t.Error("a tick after the load must not reschedule itself")
 	}
 }
 
@@ -631,8 +622,6 @@ func TestNoCellCarriesAnEscapeSequence(t *testing.T) {
 // ── Helpers ──────────────────────────────────────────────────────────────────
 
 func send(t *testing.T, m Model, msg tea.Msg) Model { return feed(t, m, msg) }
-
-func spinnerTick() tea.Msg { return spinner.TickMsg{Time: time.Now()} }
 
 // renderedWidth is what the table's lines span (Rule 116).
 func renderedWidth(m Model) int { return m.table.RenderedWidth() }

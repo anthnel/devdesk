@@ -5,10 +5,10 @@ import (
 	"log"
 	"strings"
 
-	"charm.land/bubbles/v2/spinner"
 	tea "charm.land/bubbletea/v2"
 	"github.com/anthnel/devdesk/internal/forge"
 	"github.com/anthnel/devdesk/internal/forge/session"
+	"github.com/anthnel/devdesk/internal/jobs"
 	"github.com/anthnel/devdesk/internal/ui/components"
 )
 
@@ -20,8 +20,6 @@ type ForgeAuthSuccessMsg struct {
 
 // Update handles updates
 func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
-	var cmd tea.Cmd
-
 	switch msg := msg.(type) {
 	case tea.WindowSizeMsg:
 		m.width = msg.Width
@@ -35,16 +33,14 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	case AuthStartMsg:
 		m.authenticating = true
-		return m, m.spinner.Tick
+		return m, nil
 
 	case AuthResultMsg:
 		return m.handleAuthResult(msg)
 
-	case spinner.TickMsg:
-		if m.authenticating {
-			m.spinner, cmd = m.spinner.Update(msg)
-			return m, cmd
-		}
+	case jobs.FrameMsg:
+		m.footer.SetBlinkPhase(msg.Blink)
+		return m, nil
 
 	case CredentialsLoadedMsg:
 		return m.handleCredentialsLoaded(msg)
@@ -101,7 +97,7 @@ func (m *Model) handleEnterKey() (tea.Model, tea.Cmd) {
 		m.nextField()
 		return m, nil
 	}
-	// Validate before the spinner: a refused submit starts nothing.
+	// Validate before the activity dot: a refused submit starts nothing.
 	if !m.validation.Submit(m.tokenErrors()) {
 		m.restyleToken()
 		return m, nil
@@ -112,7 +108,7 @@ func (m *Model) handleEnterKey() (tea.Model, tea.Cmd) {
 		return m, nil
 	}
 	m.authenticating = true
-	return m, tea.Batch(m.spinner.Tick, m.authenticate())
+	return m, m.authenticate()
 }
 
 // tokenErrors lists the field errors of the form: the token is required once
@@ -175,7 +171,7 @@ func (m *Model) handleCredentialsLoaded(msg CredentialsLoadedMsg) (tea.Model, te
 		m.tokenInput.SetValue(msg.Token)
 		log.Printf("AUTH: Starting auto-login")
 		m.authenticating = true
-		return m, tea.Batch(m.spinner.Tick, m.authenticate())
+		return m, m.authenticate()
 	}
 	log.Printf("AUTH: No credentials to auto-login")
 	return m, nil

@@ -740,7 +740,7 @@ whatever reads the file without that filter. The file is written atomically
 under a lock, since scans of several candidates finish together.
 
 The scans are not in the jobs registry (`:jobs`): the tab keeps its own set of
-images in flight and its own spinner, like the inventory's load. Trivy runs one
+images in flight and shows the footer dot itself, like the inventory's load. Trivy runs one
 process at a time (`scan.trivySem`), so the scans queue there rather than in
 parallel, and `max_concurrent_scans` does not apply to them.
 
@@ -1032,7 +1032,7 @@ Three invariants, each with a test that fails without it:
   D65). An empty table covers two opposite facts — both caches replied and there
   is nothing, or `loadInventoryCmd` is still in flight — and branching on
   `len(Items()) == 0` alone asserts the first about the second. The table stays
-  on screen while it loads and the footer carries the spinner (Rule 139).
+  on screen while it loads and the footer carries the shared activity dot (Rule 139).
 
 **What the row says.** `setInventory` stamps each `scanTarget` with
 `Activity` (`components.DescribeRow`, through `rowActivity`) and `ScanRunning`
@@ -1070,16 +1070,14 @@ afterwards. A failure posed from `ws` or OCI posts no event here. At 60 columns
 `Scanned` is dropped (it is `Optional`), so `scanning` is not visible there; the
 dot and the footer carry the state.
 
-**The view's own spinner is for loads only.** `spinnerAlive()` —
-`inventoryLoading || remediationBusy()` — decides whether the view's own
-`spinner.Model` chain keeps going (`handleSpinnerTick` renews it,
-`spinnerTickIfIdle` refuses a second chain alongside a live one). It no longer
-answers for scans: those are the router's animation. The footer's two marks
-have separate writers (DEVDESK-341): the view's own chain feeds the braille
-spinner frame (`SetSpinnerFrame`) for loads, the router's `FrameMsg` feeds the
-activity dot's phase (`SetBlinkPhase`, in `handleFrameMsg`) for scans. The dot
-shows only when no inventory load is in progress. For the same reason as
-before, `reloadInventory` takes its tick *before* raising the flag.
+**One mark, no spinner of its own (DEVDESK-372).** The view holds no
+`spinner.Model`: the inventory load, the image list fetch and the Remediation
+tab's reads and scans all show the shared activity dot in the footer, and so do
+scans (the router's animation). `Model.WantsBlink()` follows the footer: it is
+true while `status().Activity` holds, except when the selected row's detail has
+a glyph of its own, which replaces the dot (nothing to blink then). The
+router's `FrameMsg` feeds the phase (`SetBlinkPhase`, in `handleFrameMsg`).
+`TestNoViewImportsTheBubblesSpinner` keeps the package free of the spinner.
 
 `esc` and `ctrl+r` return to the inventory, or to the list the results were
 opened from when `OriginView` is set.
@@ -1196,9 +1194,9 @@ in `setInventory` (see "The security inventory"), so a reload has nothing to
 preserve. With DEVDESK-145 the failure is derived too, from the registry's
 failure memory, and `scanTarget.Failed` is removed.
 
-**A load is not a job.** The view keeps its own `spinner.Model` for reading the
-caches, fetching the image list and the Remediation tab; scans are the router's
-animation (D5) and no longer touch it.
+**A load is not a job.** Reading the caches, fetching the image list and the
+Remediation tab are the view's own loads, shown by the footer dot through
+`WantsBlink()`; scans are jobs in the registry and the router's animation (D5).
 
 **`rescanCmd` had no starting message** — only a finished one — so a target went
 from queued straight to done and nothing said which of a batch was actually

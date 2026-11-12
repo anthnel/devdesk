@@ -23,8 +23,7 @@ func (m Model) handleJobsChanged(msg jobs.ChangedMsg) (tea.Model, tea.Cmd) {
 }
 
 // handleFrameMsg takes the animation's blink phase, which the table reads at
-// render, and the footer's activity dot; no row is rebuilt. The view's own load
-// and remediation spinner is a separate field and is not touched here.
+// render, and the footer's activity dot; no row is rebuilt.
 func (m Model) handleFrameMsg(msg jobs.FrameMsg) (tea.Model, tea.Cmd) {
 	m.inventory.SetBlinkPhase(msg.Blink)
 	m.footer.SetBlinkPhase(msg.Blink)
@@ -87,3 +86,12 @@ var (
 	_ jobs.Reporter = InventoryScanStartingMsg{}
 	_ jobs.Reporter = InventoryScanFinishedMsg{}
 )
+
+// WantsBlink is the router's BlinkingView hook: true while the inventory is
+// read or the remediation tab reads or scans, so the router frames the view
+// for the shared dot's blink. It follows the footer: a row detail with its own
+// fixed glyph replaces the dot, so there is nothing to blink then.
+func (m Model) WantsBlink() bool {
+	st := m.status()
+	return st.Activity && st.Detail.Glyph == ""
+}

@@ -473,12 +473,12 @@ func TestStatusPrecedenceAtTheAgentsLevel(t *testing.T) {
 	// loading wins over degraded
 	m := atAgents(t, degraded())
 	m.agentsLoading = true
-	if st := m.status(); !st.Spinner || strings.Contains(st.Text, "approximate") {
-		t.Errorf("loading + degraded = %+v, want the spinner line", st)
+	if st := m.status(); !st.Activity || strings.Contains(st.Text, "approximate") {
+		t.Errorf("loading + degraded = %+v, want the dot line", st)
 	}
 	// error wins over loading and degraded
 	m.agentsErr = true
-	if st := m.status(); st.Level != sharedcomponents.LevelError || st.Spinner {
+	if st := m.status(); st.Level != sharedcomponents.LevelError || st.Activity {
 		t.Errorf("error + loading + degraded = %+v, want the error", st)
 	}
 }

@@ -5,7 +5,6 @@ import (
 	"log"
 	"os"
 
-	"charm.land/bubbles/v2/spinner"
 	tea "charm.land/bubbletea/v2"
 
 	"github.com/anthnel/devdesk/internal/agentusage"
@@ -33,12 +32,11 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m.handleResume()
 	case shared.TerminalFocusMsg:
 		return m.handleTerminalFocus(msg)
-	case spinner.TickMsg:
-		return m.handleSpinnerTick(msg)
 	case jobs.FrameMsg:
 		// The router's frame: only the blink phase of the State dot, read at
-		// render. The view's footer spinner keeps its own chain.
+		// render, for the agents' State dot and the footer's loading dot.
 		m.agentTable.SetBlinkPhase(msg.Blink)
+		m.footer.SetBlinkPhase(msg.Blink)
 		return m, nil
 	case tea.KeyPressMsg:
 		return m.handleKey(msg)
@@ -91,18 +89,6 @@ func rowsOf(msg sessionListLoadedMsg) []sessionRow {
 		rows[i] = sessionRow{Session: s, project: project}
 	}
 	return rows
-}
-
-// handleSpinnerTick advances the spinner only while a read or a parse is in
-// flight, so the chain ends with the load.
-func (m Model) handleSpinnerTick(msg spinner.TickMsg) (tea.Model, tea.Cmd) {
-	if !m.loading && !m.agentsLoading {
-		return m, nil
-	}
-	var cmd tea.Cmd
-	m.spinner, cmd = m.spinner.Update(msg)
-	m.footer.SetSpinnerFrame(m.spinner.View())
-	return m, cmd
 }
 
 // handleUsageDelta takes the answer to the read in flight, or drops one that
@@ -177,8 +163,8 @@ func (m Model) failRead(msg usageDeltaMsg) (tea.Model, tea.Cmd) {
 }
 
 // handlePollTick starts the incremental read a tick asks for, unless the tick
-// belongs to a superseded chain or a read is already in flight. No spinner:
-// polling is silent.
+// belongs to a superseded chain or a read is already in flight. Polling is
+// silent: it shows no dot.
 func (m Model) handlePollTick(msg usagePollTickMsg) (tea.Model, tea.Cmd) {
 	if msg.gen != m.agentGen || m.level != levelAgents || m.agg == nil || m.reading || m.pollStopped {
 		return m, nil
@@ -225,7 +211,7 @@ func (m Model) handleTerminalFocus(msg shared.TerminalFocusMsg) (tea.Model, tea.
 
 // handleResume restarts the open session's chain under a new generation, which
 // drops the answers of any earlier chain. It reads from the cursor, silently;
-// a ctrl+r left pending by Leave becomes a full read, with its spinner.
+// a ctrl+r left pending by Leave becomes a full read, with its dot.
 func (m Model) handleResume() (tea.Model, tea.Cmd) {
 	if m.level != levelAgents || m.agg == nil {
 		return m, nil
@@ -234,7 +220,7 @@ func (m Model) handleResume() (tea.Model, tea.Cmd) {
 	m.pollStopped = false
 	if m.fullPending {
 		m.fullPending = false
-		return m, tea.Batch(m.startRead(true), m.spinner.Tick)
+		return m, m.startRead(true)
 	}
 	return m, m.startRead(false)
 }
@@ -394,7 +380,7 @@ func (m Model) openSelected() (tea.Model, tea.Cmd) {
 	m.tab, m.breakdown, m.breakdownTop = tabAgents, breakdown{}, 0
 	m.agentTable.FilterBar().ClearSearch() // a filter typed for another session
 	m.agentTable.SetItems(nil)
-	return m, tea.Batch(m.startRead(true), m.spinner.Tick)
+	return m, m.startRead(true)
 }
 
 // closeAgents returns to the sessions, cursor and filter as they were. Bumping
@@ -419,7 +405,7 @@ func (m Model) refresh() (tea.Model, tea.Cmd) {
 	m.gen++
 	m.loading = true
 	m.loadErr = false
-	return m, tea.Batch(listSessionsCmd(m.gen), m.spinner.Tick)
+	return m, listSessionsCmd(m.gen)
 }
 
 // refreshAgents reads the open session from the start. A read already in
@@ -429,15 +415,11 @@ func (m Model) refreshAgents() (tea.Model, tea.Cmd) {
 		m.agg = agentusage.NewAggregate(m.open.Parent)
 	}
 	if m.reading {
-		spin := !m.agentsLoading // a spinner chain already runs otherwise
 		m.fullPending, m.agentsLoading = true, true
-		if spin {
-			return m, m.spinner.Tick
-		}
 		return m, nil
 	}
 	m.agentGen++
-	return m, tea.Batch(m.startRead(true), m.spinner.Tick)
+	return m, m.startRead(true)
 }
 
 // InEditMode tells the router the filter has the keyboard.

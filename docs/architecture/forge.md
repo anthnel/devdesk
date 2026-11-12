@@ -233,6 +233,16 @@ that switch and printed their own names too.
 The view's `default:` branch survives both. It is unreachable for a backend that
 keeps the promise, and it is what a backend that breaks it should hit — a
 truncated word is a bad answer, and no answer at all is worse.
+## The sign-in view while it authenticates (DEVDESK-375)
+
+`internal/ui/forge/auth` no longer replaces its body with a spinner while a
+login is in flight. The form stays on screen (it ignores keys meanwhile, as
+before) and the footer shows `Authenticating...` with the shared activity dot
+(`Status{Activity: true}`). `Model.WantsBlink()` returns `authenticating`, so the
+router animates the dot from `jobs.FrameMsg`. A refused submit's field error
+(`validation.Status()`) wins over the line, and a timed footer message hides it
+for its 3 seconds (Rule 128 precedence). The view holds no `spinner.Model`.
+
 ## The explorer table (§3.56)
 
 Eight columns, in this order: **icon, Name, Slug, Visibility, Role, CI, Created,

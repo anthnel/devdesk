@@ -1308,9 +1308,12 @@ Two things move on screen, and they answer different questions:
 |---|---|---|---|
 | activity dot (`●`/`○`) in a row | an operation is running **on this row's target** | column 0 of a table (Rule 125) | the registry (`jobs`), or a `MarkBusy` key, read at render; blink phase from the shared tick |
 | activity dot in the footer | **work the router tracks is running**, or the view is loading data it asked the router to animate (`WantsBlink()`) | the footer, `components.Status{Activity: true}` (Rules 128, 139) | the same shared tick: the view calls `footer.SetBlinkPhase(msg.Blink)` from its `jobs.FrameMsg` handler |
-| braille spinner in the footer | **the view is fetching its own data** (agent usage, containers, netdiag, security remediation) | the footer, `components.Status{Spinner: true}` | the view's own `spinner.Model`, which turns only while it loads |
+| braille spinner in the footer | nothing: **no view uses it any more** (DEVDESK-371 to 376). `Status.Spinner`, `SetSpinnerFrame` and `theme.SpinnerMessage` are still defined, with no production caller; removing them is a separate story (T10) | the footer, `components.Status{Spinner: true}` | no `spinner.Model` in `internal/ui` |
 
-`:status` (DEVDESK-369), the viewer (DEVDESK-370) and `:oci` (DEVDESK-374: a tab's load, the tag search, the network inspection) use the shared dot.
+Every loading state uses the shared dot: `:status` (DEVDESK-369), the viewer (DEVDESK-370), `:oci` (DEVDESK-374: a tab's load, the tag search, the network inspection), `:containers` and `:agent-usage` (DEVDESK-371), `:sec` (DEVDESK-372), `:net` diagnostics, ports and interfaces (DEVDESK-373), and the forge sign-in (DEVDESK-375: `Authenticating...` in the footer, the form stays visible). Two details:
+
+- `:containers` stays silent during `ctrl+r` while rows are on screen: the dot shows only when the table is empty and loading. `:agent-usage` keeps its own loading condition.
+- The `dk setup` wizard is its own program, with no router and no `FrameMsg`. It shows a fixed `●` before the pending text (`Checking whether it's running...`), with no animation (DEVDESK-376).
 
 The footer dot has the glyph and colour of the row dots (`indicator.Running`),
 and `Activity` wins over `Spinner`. A view never draws a spinner in a row: the
@@ -1330,12 +1333,17 @@ is steady.
 
 - `TestActivityGuardFooterHasNoBraille`: each view seeded in
   `footerActivitySeeds` (dashboard, `:jobs`, workspaces, templates, `:sec`, OCI,
-  explorer) renders a footer with no braille character and exactly one `●`.
+  explorer) and in `footerLoadingSeeds` (`:status`, viewer, `:containers`,
+  `:agent-usage`, `:sec`, `:net`, forge sign-in, `:oci` loads) renders a footer
+  with no braille character and exactly one `●`.
 - `TestActivityGuardFrameConsumersAreClassified`: every package under
   `internal/ui` with a `case jobs.FrameMsg` is in `footerFrameConsumers`, either
-  with its seeded view (the footer shows the dot) or with a reason it keeps its
-  own spinner (netdiag, containers, agentusageview). A new consumer fails until
-  it is classified.
+  with its seeded view (the footer shows the dot) or with an `Exempt` reason.
+  No consumer is exempt now: all thirteen packages name a view. The `Exempt`
+  field stays for a future case. A new consumer fails until it is classified.
+- `TestNoViewImportsTheBubblesSpinner`: no package under `internal/ui` imports
+  `charm.land/bubbles/v2/spinner` in non-test code. `pendingSpinnerImports`, the
+  list of temporary exceptions with their story, is empty and stays empty.
 - `TestActivityGuardNoFrameFieldAnywhere`: no identifier named `RenderedFrame`
   under `internal/` (the field no longer exists).
 

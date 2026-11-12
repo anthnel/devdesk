@@ -278,29 +278,6 @@ func TestARefreshWhileAKillRunsKeepsEveryRowOfThePIDDottedAndTheCursor(t *testin
 	}
 }
 
-// Criterion 5: a row frame leaves the footers' own spinner chains alone.
-func TestAFrameLeavesTheDiagnosticsFooterSpinnerAlone(t *testing.T) {
-	m := runningModel(t, "example.com")
-	if m.state != StateRunning {
-		t.Fatal("the pipeline is not running")
-	}
-	render := func(m *Model) string {
-		footer, status := m.activeFooter()
-		return footer.View(120, status)
-	}
-	before := render(m)
-
-	m = feed(t, m, jobs.FrameMsg{Blink: true})
-	if after := render(m); after != before {
-		t.Errorf("a jobs frame changed the Diagnostics footer:\nbefore %q\nafter  %q", before, after)
-	}
-
-	m = feed(t, m, spinner.TickMsg{ID: m.spinner.ID()})
-	if after := render(m); after == before {
-		t.Error("a spinner.TickMsg no longer turns the Diagnostics footer spinner")
-	}
-}
-
 // Criterion 4 / Q1-A: a failed network test stays in the Verdict column and the
 // other tables get no activity column.
 func TestOnlyThePortsTableCarriesAnActivityColumn(t *testing.T) {
@@ -379,11 +356,6 @@ func TestThePortsRowChainIsGone(t *testing.T) {
 				continue
 			}
 			for _, name := range retired {
-				// netdiag's own Diagnostics spinner keeps handleSpinnerTick on *Model.
-				if name == "handleSpinnerTick" && !strings.Contains(line, "pm *PortsModel") &&
-					!strings.Contains(line, "portsModel.handleSpinnerTick") {
-					continue
-				}
 				if strings.Contains(line, name) {
 					t.Errorf("%s:%d still uses the retired %s", f, i+1, name)
 				}

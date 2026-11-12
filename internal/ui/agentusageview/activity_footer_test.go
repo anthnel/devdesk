@@ -135,8 +135,8 @@ func TestAReadErrorStillWinsOverTheAgentDetail(t *testing.T) {
 	}
 	m = runningTeam(t)
 	m.agentsLoading = true
-	if st := m.status(); !st.Spinner || !st.Detail.IsZero() {
-		t.Errorf("a loading status = %+v, want the spinner alone", st)
+	if st := m.status(); !st.Activity || !st.Detail.IsZero() {
+		t.Errorf("a loading status = %+v, want the dot alone", st)
 	}
 }
 

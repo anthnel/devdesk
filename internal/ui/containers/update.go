@@ -9,7 +9,6 @@ import (
 	"strings"
 	"time"
 
-	"charm.land/bubbles/v2/spinner"
 	tea "charm.land/bubbletea/v2"
 	"github.com/anthnel/devdesk/internal/docker"
 	"github.com/anthnel/devdesk/internal/engine"
@@ -28,7 +27,6 @@ import (
 // Init initializes the containers view
 func (m Model) Init() tea.Cmd {
 	return tea.Batch(
-		m.spinner.Tick,
 		tickCmd(),
 		fetchContainers(),
 	)
@@ -50,17 +48,8 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case jobs.FrameMsg:
 		// The blink phase of a busy row's dot; nothing is rebuilt.
 		m.containerTable.SetBlinkPhase(msg.Blink)
+		m.footer.SetBlinkPhase(msg.Blink)
 		return m, nil
-
-	case spinner.TickMsg:
-		if m.loading {
-			var cmd tea.Cmd
-			m.spinner, cmd = m.spinner.Update(msg)
-			// The load is reported in the footer, so the frame has to reach it —
-			// a spinner stuck on frame zero reads as a hang.
-			m.footer.SetSpinnerFrame(m.spinner.View())
-			return m, cmd
-		}
 
 	case RefreshTickMsg:
 		// The next tick is requested here: a tick that does not re-arm itself
@@ -201,7 +190,7 @@ func (m Model) handleNormalKeyMsg(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 
 	case "ctrl+r":
 		m.loading = true
-		return m, tea.Batch(m.spinner.Tick, fetchContainers(), fetchMetrics())
+		return m, tea.Batch(fetchContainers(), fetchMetrics())
 
 	// The "new window" variant is a setting rather than a second key: the
 	// capability belongs to the environment, not to the moment (§3.26).
@@ -275,7 +264,7 @@ const busyMessage = "Already busy — an action is running on this container"
 // when it did not.
 //
 // The guard asks the table rather than a field of this model, because the table
-// is what the spinner is read from — one answer, so the screen and the refusal
+// is what the dot is read from — one answer, so the screen and the refusal
 // cannot disagree.
 func (m Model) startAction(c *docker.Container, label string, cmd tea.Cmd) (tea.Model, tea.Cmd) {
 	if m.containerTable.IsBusy(c.ID) {

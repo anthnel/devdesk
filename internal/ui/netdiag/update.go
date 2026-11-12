@@ -3,7 +3,6 @@ package netdiag
 import (
 	"log"
 
-	"charm.land/bubbles/v2/spinner"
 	"charm.land/bubbles/v2/textinput"
 	tea "charm.land/bubbletea/v2"
 
@@ -82,13 +81,13 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.forwardModel.resize(msg.Width, msg.Height)
 		return m, nil
 
-	case spinner.TickMsg:
-		return m.handleSpinnerTick(msg)
-
-	// The router's animation frame: only the blink phase of the Ports dot. The
-	// footers keep their own spinner chains.
+	// The router's animation frame: the blink phase of the Ports dot and of the
+	// two footers that show the shared activity dot, whichever tab is on screen
+	// so a tab never comes back with a frozen phase.
 	case jobs.FrameMsg:
 		m.portsModel.table.SetBlinkPhase(msg.Blink)
+		m.footer.SetBlinkPhase(msg.Blink)
+		m.interfacesModel.footer.SetBlinkPhase(msg.Blink)
 		return m, nil
 
 	case stageDoneMsg:
@@ -152,21 +151,6 @@ func (m *Model) routeConfirm(msg tea.Msg) (*Model, tea.Cmd) {
 	}
 	m.portsModel, cmd = m.portsModel.update(msg)
 	return m, cmd
-}
-
-func (m *Model) handleSpinnerTick(msg spinner.TickMsg) (*Model, tea.Cmd) {
-	if m.state == StateRunning {
-		var cmd tea.Cmd
-		m.spinner, cmd = m.spinner.Update(msg)
-		m.footer.SetSpinnerFrame(m.spinner.View())
-		return m, cmd
-	}
-	if m.activeTab == tabInterfaces {
-		var cmd tea.Cmd
-		m.interfacesModel, cmd = m.interfacesModel.update(msg)
-		return m, cmd
-	}
-	return m, nil
 }
 
 // handleStageDone records one stage's answers and starts the next.

@@ -292,7 +292,6 @@ readable elsewhere.
 Checklist:
 - [ ] No `style.Render(...)` inside what `Cell` returns
 - [ ] Status icons as plain text: `theme.IconError + " error"`
-- [ ] Spinners as plain text: `frame + " scanning"`
 - [ ] Per-cell color via `Style`, never via `Cell`
 - [ ] Multi-run cells via Cut/TailStyle or Spans, never by styling inside Cell
 - [ ] Selected-row color via `SelectedStyles` / `TableStylesForState/Severity()`
@@ -457,7 +456,7 @@ Forbidden:
 - ❌ An icon column with no `Style`, while the other three have one
 - ❌ A role per file type where the row offers the same actions
 
-### Rule 139 : A `datatable`'s body is never replaced — not by a spinner, not by a message
+### Rule 139 : A `datatable`'s body is never replaced — not by a loading screen, not by a message
 
 **A `datatable` stays a table, whatever it contains.** Whether it is
 loading its data, empty because nothing has run yet, or empty because a
@@ -470,9 +469,9 @@ in a view therefore needs to detect this case.
 What a body would have said instead — loading, the row count, a verdict —
 is **the footer's and header's business**, never the body's:
 
-- loading is a `components.Status{Text: "...", Spinner: true}` in the
-  footer for a view's own load (Rule 128; `Activity: true`, the shared dot,
-  when the router tracks the work). That mark is for the *table's data*
+- loading is a `components.Status{Text: "...", Activity: true}` in the
+  footer, the shared dot, for a view's own load and for work the router
+  tracks (Rule 128). That mark is for the *table's data*
   loading; an operation on one row is the row's activity dot (Rule 125),
   never a spinner in the body;
 - the row count, or whatever stands in for it (a verdict, a total), is a
@@ -494,7 +493,7 @@ func (m Model) renderImagesView() string {
 
 func (m Model) status() sharedcomponents.Status {
     if text, ok := m.loadingLabel(); ok {
-        return sharedcomponents.Status{Text: text, Spinner: true}
+        return sharedcomponents.Status{Text: text, Activity: true}
     }
     return sharedcomponents.Status{Text: m.actionLine()}
 }
@@ -516,11 +515,10 @@ if len(m.imageTable.Visible()) == 0 {
 }
 ```
 
-For `Activity`, the blink phase is pushed from the `jobs.FrameMsg` handler:
-`m.footer.SetBlinkPhase(msg.Blink)`; without it the dot is steady on. For a
-view's own `Spinner`, the frame is pushed from the `spinner.TickMsg` handler:
-`m.footer.SetSpinnerFrame(m.spinner.View())`; without it the spinner stays on
-frame zero, which reads as a hang.
+The blink phase is pushed from the `jobs.FrameMsg` handler:
+`m.footer.SetBlinkPhase(msg.Blink)`, and the view implements `WantsBlink()`
+(return `status().Activity`); without them the dot is steady on. No view keeps
+a `spinner.Model` (`TestNoViewImportsTheBubblesSpinner`).
 
 `TestNoTableViewRendersALoadingBody` (`internal/ui/components`) rejects a
 `theme.SpinnerMessage` in table views. An operation screen with no table

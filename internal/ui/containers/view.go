@@ -65,7 +65,7 @@ func (m Model) RenderFooter(width int) string {
 // a timer, and both are displaced by a message.
 func (m Model) status() sharedcomponents.Status {
 	if m.loading && len(m.containerTable.Items()) == 0 {
-		return sharedcomponents.Status{Text: "Loading containers...", Spinner: true}
+		return sharedcomponents.Status{Text: "Loading containers...", Activity: true}
 	}
 	return sharedcomponents.Status{Detail: m.selectedDetail(), Text: m.progressLine()}
 }
@@ -178,8 +178,8 @@ func (m Model) Render() string {
 
 // renderNormalView renders the main container list view.
 //
-// The load says so in the footer, with a spinner, and the table stays on
-// screen: a body that swapped itself for a spinner lost its header and its
+// The load says so in the footer, with the shared activity dot (only when no
+// row is on screen), and the table stays on screen: a body that swapped itself for a loader lost its header and its
 // columns for the length of every ctrl+r, then got them back — a jump in the
 // layout on every refresh. An empty table — the engine has none, or the state
 // tokens hide them all — stays a table too (Rule 139): its header and no rows,

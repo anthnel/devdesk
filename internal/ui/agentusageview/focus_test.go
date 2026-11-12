@@ -114,7 +114,7 @@ func TestBlurAndFocusOnASettledSessionReadOnceAndSettleAgain(t *testing.T) {
 }
 
 // 4
-func TestAFullReadInFlightAtBlurResumesAsAFullReadWithASpinner(t *testing.T) {
+func TestAFullReadInFlightAtBlurResumesAsAFullReadWithTheDot(t *testing.T) {
 	m, _ := atFixture(t)
 	m, _ = opened(t, m, "ctrl+r") // full read in flight
 	if !m.reading || !m.agentsLoading {
@@ -128,15 +128,15 @@ func TestAFullReadInFlightAtBlurResumesAsAFullReadWithASpinner(t *testing.T) {
 	m, cmd := focused(t, m, refocus())
 
 	if !m.agentsLoading {
-		t.Error("a resumed full read shows its spinner")
+		t.Error("a resumed full read shows its dot")
 	}
 	msgs := batchMsgs(t, cmd)
 	reads := usageMsgs(msgs)
 	if len(reads) != 1 || !reads[0].delta.Full() {
 		t.Fatalf("the resume must start one full read, got %+v", msgs)
 	}
-	if spinnerTicks(msgs) == 0 {
-		t.Error("the spinner must tick with the full read")
+	if spinnerTicks(msgs) != 0 {
+		t.Error("the full read schedules a spinner tick: the dot follows the router frame")
 	}
 }
 

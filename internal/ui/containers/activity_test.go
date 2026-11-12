@@ -338,7 +338,7 @@ func TestAnActionShowsTheRunningDotThatBlinks(t *testing.T) {
 	}
 }
 
-func TestTheFrameMsgDoesNotTouchTheFooterSpinner(t *testing.T) {
+func TestTheFrameMsgReturnsNoCommand(t *testing.T) {
 	m := activityModel(t, 120, stateFixtures()...)
 	m2, cmd := step(t, m, jobs.FrameMsg{Blink: false})
 	if cmd != nil {
@@ -426,14 +426,6 @@ func TestAnActionSchedulesNoSpinnerTick(t *testing.T) {
 	_, cmd := m.startAction(&c, "Stopping", func() tea.Msg { return nil })
 	if _, ok := testutil.MsgOf[spinner.TickMsg](cmd); ok {
 		t.Error("startAction batches a spinner tick: the row animation is the blink now")
-	}
-}
-
-func TestTheSpinnerStopsWhileAnActionRunsAndNothingLoads(t *testing.T) {
-	m := busyVia(t, "stop")
-	m.loading = false
-	if _, cmd := step(t, m, spinner.TickMsg{}); cmd != nil {
-		t.Error("the spinner chain keeps going for a busy row")
 	}
 }
 

@@ -5,7 +5,6 @@ import (
 	"github.com/anthnel/devdesk/internal/shared"
 	"log"
 
-	"charm.land/bubbles/v2/spinner"
 	tea "charm.land/bubbletea/v2"
 
 	"github.com/anthnel/devdesk/internal/jobs"
@@ -160,31 +159,10 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	case jobs.FrameMsg:
 		return m.handleFrameMsg(msg)
-
-	case spinner.TickMsg:
-		return m.handleSpinnerTick(msg)
 	}
 
 	m.footer.Handle(msg)
 	return m, nil
-}
-
-// handleSpinnerTick advances the spinner while the caches are being read.
-//
-// It animates a *load* and nothing else now. A scan's frame comes from the
-// registry, which holds the one chain for the whole application (D5), and the
-// rows are restamped when its snapshot arrives — see handleJobsChanged.
-func (m Model) handleSpinnerTick(msg spinner.TickMsg) (tea.Model, tea.Cmd) {
-	if !m.spinnerAlive() {
-		return m, nil
-	}
-	var cmd tea.Cmd
-	m.spinner, cmd = m.spinner.Update(msg)
-	// The footer renders the frame, not a raw one: the spinner already carries
-	// theme.SpinnerStyle() and restyling it would nest one sequence in another
-	// (Rule 128).
-	m.footer.SetSpinnerFrame(m.spinner.View())
-	return m, cmd
 }
 
 // handlePaste hands pasted text to the filter bar of the table on screen while

@@ -277,7 +277,7 @@ func (m *Model) activeFooter() (*components.FooterMessage, components.Status) {
 // a message expires after three seconds and a run outlives that (Rule 128).
 func (m *Model) statusLine() components.Status {
 	if m.state == StateRunning {
-		return components.Status{Text: m.progressLabel(), Spinner: true}
+		return components.Status{Text: m.progressLabel(), Activity: true}
 	}
 	return components.Status{}
 }

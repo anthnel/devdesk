@@ -3,7 +3,6 @@ package auth
 import (
 	"log"
 
-	"charm.land/bubbles/v2/spinner"
 	"charm.land/bubbles/v2/textinput"
 	tea "charm.land/bubbletea/v2"
 	"github.com/anthnel/devdesk/internal/forge"
@@ -51,7 +50,6 @@ type Model struct {
 	user forge.User
 
 	authenticating bool
-	spinner        spinner.Model
 	error          string
 	success        string
 	warning        string // Non-blocking warning (e.g. credentials save failure)
@@ -92,11 +90,6 @@ func New(cfg *config.Config, secrets credentials.Selection, notices []string) *M
 	tokenInput.EchoCharacter = '•'
 	theme.StyleTextInput(&tokenInput)
 
-	// Spinner
-	sp := spinner.New()
-	sp.Spinner = spinner.Dot
-	sp.Style = theme.SpinnerStyle()
-
 	// Focus on the first field
 	tokenInput.Focus()
 
@@ -107,7 +100,6 @@ func New(cfg *config.Config, secrets credentials.Selection, notices []string) *M
 		notices:        notices,
 		currentField:   fieldToken,
 		authenticating: false,
-		spinner:        sp,
 		error:          "",
 		success:        "",
 	}

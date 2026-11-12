@@ -113,35 +113,10 @@ func (m Model) rescanSelected() (tea.Model, tea.Cmd) {
 	)
 }
 
-// spinnerTickIfIdle restarts the spinner chain, unless something is already
-// keeping it alive. handleSpinnerTick stops scheduling once nothing is running,
-// so a rescan has to start it again — and starting a second chain alongside a
-// live one makes the frames advance at twice the rate.
-func (m Model) spinnerTickIfIdle() tea.Cmd {
-	if m.spinnerAlive() {
-		return nil
-	}
-	return m.spinner.Tick
-}
-
-// spinnerAlive decides whether this view's own frames keep coming.
-//
-// One condition answers it now: a load. A rescan used to be the other, and
-// keeping it here would be a second chain beside the router's — which is the
-// failure D5 removed, not one to reintroduce a view at a time.
-func (m Model) spinnerAlive() bool {
-	return m.inventoryLoading || m.remediationBusy()
-}
-
 // reloadInventory re-reads the caches and says so in the footer.
-//
-// The tick is taken **before** the flag flips: spinnerTickIfIdle reads
-// spinnerAlive, so setting the flag first would make it answer "already
-// running" about the chain this reload is trying to start.
 func (m Model) reloadInventory() (tea.Model, tea.Cmd) {
-	tick := m.spinnerTickIfIdle()
 	m.inventoryLoading = true
-	return m, tea.Batch(tick, loadInventoryCmd(m.ciForgeURL()))
+	return m, loadInventoryCmd(m.ciForgeURL())
 }
 
 // confirmRescanAll asks before rescanning everything, and the purge is the

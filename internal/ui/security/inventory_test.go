@@ -6,7 +6,6 @@ import (
 	"testing"
 	"time"
 
-	"charm.land/bubbles/v2/spinner"
 	"charm.land/bubbles/v2/table"
 	tea "charm.land/bubbletea/v2"
 
@@ -599,25 +598,6 @@ func TestTheEmptyMessageAppearsOnceTheCachesAnswer(t *testing.T) {
 	}
 	if got := m.RenderFooter(160); strings.Contains(got, "Loading scan inventory") {
 		t.Errorf("the footer still says loading after the caches answered:\n%s", got)
-	}
-}
-
-// The spinner chain used to stop as soon as nothing was being scanned, so a
-// loading spinner would have stayed on frame zero — which reads as a hang
-// (Rule 139).
-func TestTheSpinnerKeepsTickingWhileTheInventoryLoads(t *testing.T) {
-	m := feed(t, New(testConfig(), nil), tea.WindowSizeMsg{Width: 160, Height: 30})
-
-	if len(m.scanningTargets()) != 0 {
-		t.Fatal("the fixture is meant to be loading, not scanning")
-	}
-	updated, cmd := m.handleSpinnerTick(spinner.TickMsg{})
-	if cmd == nil {
-		t.Error("the spinner chain stopped while the inventory was still loading")
-	}
-	got := updated.(Model)
-	if frame := strings.TrimSpace(got.spinner.View()); !strings.Contains(got.RenderFooter(160), frame) {
-		t.Errorf("the footer does not render the spinner frame %q:\n%s", frame, got.RenderFooter(160))
 	}
 }
 

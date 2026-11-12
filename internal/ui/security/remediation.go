@@ -341,11 +341,8 @@ func (m *Model) enterRemediation() tea.Cmd {
 		m.remediation.phase = phaseReady
 		return nil
 	}
-	// The tick is taken before the phase flips, or spinnerTickIfIdle would
-	// answer "already running" about the chain this is trying to start.
-	tick := m.spinnerTickIfIdle()
 	m.remediation.phase = phaseLoading
-	return tea.Batch(tick, discoverRemediationCmd(m.result.Target, remediation.ParseTrack(m.config.Scan.BaseImageTrack)))
+	return discoverRemediationCmd(m.result.Target, remediation.ParseTrack(m.config.Scan.BaseImageTrack))
 }
 
 func (m Model) handleRemediationDiscovered(msg RemediationDiscoveredMsg) (tea.Model, tea.Cmd) {
@@ -422,7 +419,7 @@ func (m *Model) refreshRemediation() {
 }
 
 // remediationBusy is true while anything is being read or scanned, which is
-// what keeps the view's spinner going.
+// what shows the shared activity dot.
 func (m Model) remediationBusy() bool {
 	return m.remediation.phase == phaseLoading || len(m.remediation.scanning) > 0
 }
@@ -498,7 +495,6 @@ func (m Model) scanCandidates() (tea.Model, tea.Cmd) {
 	if len(refs) == 0 {
 		return m, m.footer.Warn("Scan already in progress")
 	}
-	tick := m.spinnerTickIfIdle()
 	for _, ref := range refs {
 		m.remediation.scanning[ref] = true
 	}
@@ -509,7 +505,7 @@ func (m Model) scanCandidates() (tea.Model, tea.Cmd) {
 		timeout = 5 * time.Minute
 	}
 	cmds := scanRemediationCmds(m.remediation.target, refs, m.scanOptions(), timeout)
-	return m, tea.Batch(append(cmds, tick)...)
+	return m, tea.Batch(cmds...)
 }
 
 // ── Keys ─────────────────────────────────────────────────────────────────────
@@ -554,11 +550,11 @@ func (m Model) remediationStatus() (sharedcomponents.Status, bool) {
 	}
 	switch {
 	case m.remediation.phase == phaseLoading:
-		return sharedcomponents.Status{Text: "Reading Dockerfiles and listing tags...", Spinner: true}, true
+		return sharedcomponents.Status{Text: "Reading Dockerfiles and listing tags...", Activity: true}, true
 	case len(m.remediation.scanning) > 0:
 		return sharedcomponents.Status{
-			Text:    fmt.Sprintf("Scanning %d image(s) from their registries...", len(m.remediation.scanning)),
-			Spinner: true,
+			Text:     fmt.Sprintf("Scanning %d image(s) from their registries...", len(m.remediation.scanning)),
+			Activity: true,
 		}, true
 	case m.remediation.phase != phaseReady || m.remediation.failed:
 		return sharedcomponents.Status{}, false

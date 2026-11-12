@@ -341,7 +341,7 @@ view:
 Two causes of greying out, and only two: the state of the **selected row**,
 and a **global** unavailability (a tool the machine does not have). An
 operation in progress is not one of these: it changes on every tick, the row
-already says so with its spinner, and a blinking entry says the opposite of
+already says so with its activity dot, and a blinking entry says the opposite of
 what this rule is after.
 
 #### Rendering
