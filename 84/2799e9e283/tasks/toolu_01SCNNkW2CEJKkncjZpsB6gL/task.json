@@ -1,0 +1,15 @@
+{
+  "tool_use_id": "toolu_01SCNNkW2CEJKkncjZpsB6gL",
+  "agent_id": "ab6a80c1423070879",
+  "subagent_type": "project-tester",
+  "task_description": "Tests rouges garde mise ci",
+  "token_usage": {
+    "input_tokens": 12,
+    "cache_creation_tokens": 29828,
+    "cache_read_tokens": 122985,
+    "output_tokens": 5192,
+    "api_call_count": 6
+  },
+  "started_at": "2026-11-12T10:57:37.485213861+01:00",
+  "completed_at": "2026-11-12T10:58:14.512944722+01:00"
+}
