@@ -1,0 +1,15 @@
+{
+  "tool_use_id": "toolu_019e1YMNXtZEWkEzTUSu8Byz",
+  "agent_id": "a4c2a55bd896bb74b",
+  "subagent_type": "dev-team:reviewer",
+  "task_description": "Review 301 diff",
+  "token_usage": {
+    "input_tokens": 40,
+    "cache_creation_tokens": 86385,
+    "cache_read_tokens": 1175340,
+    "output_tokens": 12870,
+    "api_call_count": 19
+  },
+  "started_at": "2026-11-13T00:11:53.161842641+01:00",
+  "completed_at": "2026-11-13T00:19:00.890326479+01:00"
+}

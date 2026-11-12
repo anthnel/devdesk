@@ -1,0 +1,15 @@
+{
+  "tool_use_id": "toolu_01Jvw9WCjbek7zQa2eZZAwKp",
+  "agent_id": "a9ed3db3932a1e86f",
+  "subagent_type": "project-coder",
+  "task_description": "Fix review findings 302",
+  "token_usage": {
+    "input_tokens": 24,
+    "cache_creation_tokens": 39218,
+    "cache_read_tokens": 398505,
+    "output_tokens": 7498,
+    "api_call_count": 12
+  },
+  "started_at": "2026-11-13T00:20:33.194916589+01:00",
+  "completed_at": "2026-11-13T00:22:03.517745919+01:00"
+}

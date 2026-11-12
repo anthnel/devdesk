@@ -1,0 +1,15 @@
+{
+  "tool_use_id": "toolu_01AZfb4j3JmttTJcotDV66Y4",
+  "agent_id": "aab0c608b1bad4578",
+  "subagent_type": "project-coder",
+  "task_description": "Fix review and security findings 301",
+  "token_usage": {
+    "input_tokens": 20,
+    "cache_creation_tokens": 39815,
+    "cache_read_tokens": 349472,
+    "output_tokens": 7211,
+    "api_call_count": 10
+  },
+  "started_at": "2026-11-13T00:19:13.879156508+01:00",
+  "completed_at": "2026-11-13T00:20:29.089704446+01:00"
+}
