@@ -1,0 +1,15 @@
+{
+  "tool_use_id": "toolu_01VAe4HKLiEMJu1FBnauKRjN",
+  "agent_id": "a5f57958334698120",
+  "subagent_type": "dev-team:architect",
+  "task_description": "Plan DEVDESK-281 perf",
+  "token_usage": {
+    "input_tokens": 40,
+    "cache_creation_tokens": 131184,
+    "cache_read_tokens": 1728486,
+    "output_tokens": 32065,
+    "api_call_count": 19
+  },
+  "started_at": "2026-11-12T10:11:20.65598741+01:00",
+  "completed_at": "2026-11-12T10:16:56.332236197+01:00"
+}
