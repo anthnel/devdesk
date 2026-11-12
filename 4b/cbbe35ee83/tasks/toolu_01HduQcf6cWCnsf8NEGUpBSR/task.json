@@ -1,0 +1,7 @@
+{
+  "tool_use_id": "toolu_01HduQcf6cWCnsf8NEGUpBSR",
+  "agent_id": "a7194bc525854bfab",
+  "subagent_type": "dev-team:devops",
+  "task_description": "Anonymiser les docs de la PR 374",
+  "started_at": "2026-11-12T15:52:27.7293069+01:00"
+}
