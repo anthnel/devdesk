@@ -1,0 +1,15 @@
+{
+  "tool_use_id": "toolu_01MehNaUZyfWFrQCQQFMtPU6",
+  "agent_id": "a34e61d7542a0b3fb",
+  "subagent_type": "project-tester",
+  "task_description": "Profilage tests agentusage",
+  "token_usage": {
+    "input_tokens": 8,
+    "cache_creation_tokens": 25922,
+    "cache_read_tokens": 60409,
+    "output_tokens": 5722,
+    "api_call_count": 4
+  },
+  "started_at": "2026-11-12T11:27:50.433396054+01:00",
+  "completed_at": "2026-11-12T11:30:16.004867109+01:00"
+}

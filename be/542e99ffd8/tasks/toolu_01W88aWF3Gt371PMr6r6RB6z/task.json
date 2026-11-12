@@ -1,0 +1,15 @@
+{
+  "tool_use_id": "toolu_01W88aWF3Gt371PMr6r6RB6z",
+  "agent_id": "a062efa6f622a49ee",
+  "subagent_type": "dev-team:devops",
+  "task_description": "Fusionner la PR 373",
+  "token_usage": {
+    "input_tokens": 10,
+    "cache_creation_tokens": 42608,
+    "cache_read_tokens": 146313,
+    "output_tokens": 1943,
+    "api_call_count": 5
+  },
+  "started_at": "2026-11-12T11:44:11.045061579+01:00",
+  "completed_at": "2026-11-12T11:44:49.123070152+01:00"
+}
