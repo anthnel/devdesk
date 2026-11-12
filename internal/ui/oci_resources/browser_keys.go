@@ -128,16 +128,13 @@ func (b *RegistryBrowser) submitSearch() (*RegistryBrowser, tea.Cmd) {
 		return b, nil
 	}
 
-	b.tags = nil
-	b.registryFilter = resultFilter{}
-	b.pendingSearches = 0
-	b.filterInput.SetValue("")
-	b.filterActive = false
-	// A new search starts from the default order, not wherever the last one's
-	// `.` presses left the table.
-	b.tagTable.SetSort(tagColumnTag, false)
-
-	var cmds []tea.Cmd
+	// Gather the requests first: a validation that starts none must leave the
+	// lot in flight, its generation and its context alone.
+	type request struct {
+		entry                         browserRegistryEntry
+		alias, apiURL, repo, user, pw string
+	}
+	var reqs []request
 	for _, entry := range b.entries {
 		if !b.selected(entry) {
 			continue
@@ -152,13 +149,25 @@ func (b *RegistryBrowser) submitSearch() (*RegistryBrowser, tea.Cmd) {
 		// know nothing about it. Teaching both would be two places free to
 		// drift, which is the disagreement D39 already is (§3.18).
 		normalizedRepo := joinRepoPrefix(entry.repoPrefix, normalizeRepoForRegistry(entry.URL, repo))
-		apiURL := registryAPIURL(entry.URL)
-		b.pendingSearches++
-		cmds = append(cmds, searchRegistryTagsCmd(entry.key, entry.URL, alias, apiURL, normalizedRepo, username, storedPass))
+		reqs = append(reqs, request{entry, alias, registryAPIURL(entry.URL), normalizedRepo, username, storedPass})
+	}
+	if len(reqs) == 0 {
+		return b, nil
 	}
 
-	if len(cmds) == 0 {
-		return b, nil
+	ctx := b.beginRequests()
+	b.tags = nil
+	b.registryFilter = resultFilter{}
+	b.filterInput.SetValue("")
+	b.filterActive = false
+	// A new search starts from the default order, not wherever the last one's
+	// `.` presses left the table.
+	b.tagTable.SetSort(tagColumnTag, false)
+
+	cmds := make([]tea.Cmd, 0, len(reqs))
+	for _, r := range reqs {
+		b.pendingSearches++
+		cmds = append(cmds, searchRegistryTagsCmd(ctx, b.gen, r.entry.key, r.entry.URL, r.alias, r.apiURL, r.repo, r.user, r.pw))
 	}
 
 	b.state = browserStateTags

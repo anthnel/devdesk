@@ -55,7 +55,28 @@ func resultsModel(t *testing.T, msgs ...tea.Msg) Model {
 			MultiRegistryTagsLoadedMsg{EntryKey: "hub", RegistryURL: "docker.io", Alias: "hub", Repo: "api", Tags: []string{"latest"}},
 		}
 	}
-	return feed(t, m, msgs...)
+	return feed(t, m, stampGen(m, msgs...)...)
+}
+
+// stampGen gives the tag messages the generation the open browser accepts: the
+// fixtures are written before the search whose answers they stand for, so they
+// cannot know it (DEVDESK-393). Messages sent with no search keep Gen 0, which
+// is what a fresh browser holds.
+func stampGen(m Model, msgs ...tea.Msg) []tea.Msg {
+	gen := m.RegistryBrowserGen()
+	out := make([]tea.Msg, len(msgs))
+	for i, msg := range msgs {
+		switch v := msg.(type) {
+		case MultiRegistryTagsLoadedMsg:
+			v.Gen = gen
+			msg = v
+		case MultiRegistryTagsMetaMsg:
+			v.Gen = gen
+			msg = v
+		}
+		out[i] = msg
+	}
+	return out
 }
 
 // ── The search form ──────────────────────────────────────────────────────────
@@ -481,10 +502,10 @@ func TestSortingByUpdatedPutsTheNewestFirst(t *testing.T) {
 		EntryKey: "prod", RegistryURL: "registry.example.com", Alias: "prod", Repo: "api",
 		Tags: []string{"old", "new"},
 	})
-	m = feed(t, m, MultiRegistryTagsMetaMsg{
+	m = feed(t, m, stampGen(m, MultiRegistryTagsMetaMsg{
 		EntryKey: "prod", RegistryURL: "registry.example.com", Repo: "api",
 		Meta: map[string]time.Time{"old": at(1), "new": at(5)},
-	})
+	})...)
 	b := m.registryBrowser
 
 	m = feed(t, m, testutil.Key("."), testutil.Key(".")) // onto updated, ascending
@@ -835,10 +856,10 @@ func TestTheUpdatedColumnIsRelative(t *testing.T) {
 		t.Errorf("Updated = %q, want a dash before the metadata lands", got)
 	}
 
-	m = feed(t, m, MultiRegistryTagsMetaMsg{
+	m = feed(t, m, stampGen(m, MultiRegistryTagsMetaMsg{
 		EntryKey: "prod", RegistryURL: "registry.example.com", Repo: "api",
 		Meta: map[string]time.Time{"v1": time.Now().Add(-2 * time.Hour)},
-	})
+	})...)
 	if got := b.tagTable.Table().Rows()[0][3]; !strings.Contains(got, "hr ago") {
 		t.Errorf("Updated = %q, want a relative time", got)
 	}
@@ -1048,11 +1069,11 @@ func TestTheResultFilterHasAGroupLevel(t *testing.T) {
 	m := groupedModel(t)
 	m = typeInto(t, m, "api")
 	m = feed(t, m, testutil.Key("enter"))
-	m = feed(t, m,
+	m = feed(t, m, stampGen(m,
 		MultiRegistryTagsLoadedMsg{EntryKey: memberKey("prod", "registry.example.com", "docker-hosted"), RegistryURL: "registry.example.com", Alias: "prod/docker-hosted", Repo: "docker-hosted/api", Tags: []string{"v1"}},
 		MultiRegistryTagsLoadedMsg{EntryKey: memberKey("prod", "registry.example.com", "dhi-proxy"), RegistryURL: "registry.example.com", Alias: "prod/dhi", Repo: "dhi-proxy/api", Tags: []string{"v2"}},
 		MultiRegistryTagsLoadedMsg{EntryKey: "hub", RegistryURL: "docker.io", Alias: "hub", Repo: "api", Tags: []string{"latest"}},
-	)
+	)...)
 	b := m.registryBrowser
 
 	m = feed(t, m, testutil.Key("r"))

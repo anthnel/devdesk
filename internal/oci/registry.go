@@ -1,6 +1,7 @@
 package oci
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -25,6 +26,41 @@ const (
 	maxTagResponse = 32 << 20
 )
 
+// StatusSource says which endpoint answered with a non-success status.
+type StatusSource int
+
+const (
+	// SourceRegistry is the registry's v2 API.
+	SourceRegistry StatusSource = iota
+	// SourceToken is the Bearer token endpoint.
+	SourceToken
+)
+
+// StatusError is a registry or token endpoint answering with a non-success
+// status. Failures that are not a status (unreadable body, missing realm, no
+// token field) are plain errors.
+type StatusError struct {
+	Code   int
+	Source StatusSource
+	// Challenge is the Www-Authenticate header of a 401 whose challenge is not
+	// Bearer; empty otherwise.
+	Challenge string
+	// unexpectedChallenge tells that 401 apart from a 401 answered after a
+	// token exchange, so Error() keeps both historical messages.
+	unexpectedChallenge bool
+}
+
+// Error returns the message the plain errors carried before the type existed.
+func (e *StatusError) Error() string {
+	switch {
+	case e.Source == SourceToken:
+		return fmt.Sprintf("token endpoint returned %d", e.Code)
+	case e.unexpectedChallenge:
+		return fmt.Sprintf("unexpected auth challenge: %s", e.Challenge)
+	}
+	return fmt.Sprintf("registry returned %d", e.Code)
+}
+
 // ListRegistryTags lists the tags of a repository through the registry's v2 API.
 //
 // apiURL is the API base (see the browser's registryAPIURL). Credentials, when
@@ -38,6 +74,16 @@ const (
 // template client's ListTags (Client.ListTags) reads a registry the user
 // configured for templates and only ever sends Basic auth.
 func ListRegistryTags(apiURL, repo, username, password string) ([]string, error) {
+	return ListRegistryTagsContext(context.Background(), apiURL, repo, username, password)
+}
+
+// ListRegistryTagsContext is ListRegistryTags bound to ctx: a cancelled or
+// expired context stops the walk, including a request in flight, and the
+// returned error wraps the context's error. A context already done sends
+// nothing. registryHTTPClient's own timeout still applies per request; when
+// both expire, whichever comes first ends the request, and either way the
+// error satisfies errors.Is(err, context.DeadlineExceeded).
+func ListRegistryTagsContext(ctx context.Context, apiURL, repo, username, password string) ([]string, error) {
 	next := fmt.Sprintf("%s/v2/%s/tags/list", strings.TrimSuffix(apiURL, "/"), repo)
 	var (
 		tags  []string
@@ -47,7 +93,7 @@ func ListRegistryTags(apiURL, repo, username, password string) ([]string, error)
 		if page == maxTagPages {
 			return nil, fmt.Errorf("tag list of %s is longer than %d pages", repo, maxTagPages)
 		}
-		body, link, usedToken, err := registryGET(next, username, password, token)
+		body, link, usedToken, err := registryGETContext(ctx, next, username, password, token)
 		if err != nil {
 			return nil, err
 		}
@@ -67,13 +113,18 @@ func ListRegistryTags(apiURL, repo, username, password string) ([]string, error)
 // registryGET performs a GET, answering a Bearer challenge once. It returns the
 // body, the Link header, and the token to send on the following requests.
 func registryGET(rawURL, username, password, token string) (body []byte, link, usedToken string, err error) {
-	resp, token, err := registryDo(http.MethodGet, rawURL, "", username, password, token)
+	return registryGETContext(context.Background(), rawURL, username, password, token)
+}
+
+// registryGETContext is registryGET bound to ctx.
+func registryGETContext(ctx context.Context, rawURL, username, password, token string) (body []byte, link, usedToken string, err error) {
+	resp, token, err := registryDoContext(ctx, http.MethodGet, rawURL, "", username, password, token)
 	if err != nil {
 		return nil, "", token, err
 	}
 	defer func() { _ = resp.Body.Close() }()
 	if resp.StatusCode != http.StatusOK {
-		return nil, "", token, fmt.Errorf("registry returned %d", resp.StatusCode)
+		return nil, "", token, &StatusError{Code: resp.StatusCode, Source: SourceRegistry}
 	}
 	body, err = io.ReadAll(io.LimitReader(resp.Body, maxTagResponse))
 	return body, resp.Header.Get("Link"), token, err
@@ -82,7 +133,12 @@ func registryGET(rawURL, username, password, token string) (body []byte, link, u
 // registryDo sends one request, answering a Bearer challenge once. The caller
 // closes the response body and reads the status.
 func registryDo(method, rawURL, accept, username, password, token string) (*http.Response, string, error) {
-	resp, err := doRequest(method, rawURL, accept, username, password, token)
+	return registryDoContext(context.Background(), method, rawURL, accept, username, password, token)
+}
+
+// registryDoContext is registryDo bound to ctx.
+func registryDoContext(ctx context.Context, method, rawURL, accept, username, password, token string) (*http.Response, string, error) {
+	resp, err := doRequestContext(ctx, method, rawURL, accept, username, password, token)
 	if err != nil {
 		return nil, token, err
 	}
@@ -92,13 +148,13 @@ func registryDo(method, rawURL, accept, username, password, token string) (*http
 	challenge := resp.Header.Get("Www-Authenticate")
 	_ = resp.Body.Close()
 	if !strings.HasPrefix(challenge, "Bearer ") {
-		return nil, token, fmt.Errorf("unexpected auth challenge: %s", challenge)
+		return nil, token, &StatusError{Code: http.StatusUnauthorized, Source: SourceRegistry, Challenge: challenge, unexpectedChallenge: true}
 	}
-	token, err = exchangeBearerToken(challenge[7:], username, password)
+	token, err = exchangeBearerTokenContext(ctx, challenge[7:], username, password)
 	if err != nil {
 		return nil, "", err
 	}
-	if resp, err = doRequest(method, rawURL, accept, "", "", token); err != nil {
+	if resp, err = doRequestContext(ctx, method, rawURL, accept, "", "", token); err != nil {
 		return nil, token, fmt.Errorf("%s (retry) %s: %w", method, rawURL, err)
 	}
 	return resp, token, nil
@@ -107,7 +163,13 @@ func registryDo(method, rawURL, accept, username, password, token string) (*http
 // doRequest sends one request: a bearer token when there is one, Basic auth
 // when there are credentials and no token.
 func doRequest(method, rawURL, accept, username, password, token string) (*http.Response, error) {
-	req, err := http.NewRequest(method, rawURL, nil)
+	return doRequestContext(context.Background(), method, rawURL, accept, username, password, token)
+}
+
+// doRequestContext is doRequest bound to ctx; a context already done sends
+// nothing.
+func doRequestContext(ctx context.Context, method, rawURL, accept, username, password, token string) (*http.Response, error) {
+	req, err := http.NewRequestWithContext(ctx, method, rawURL, nil)
 	if err != nil {
 		return nil, fmt.Errorf("build request: %w", err)
 	}
@@ -201,6 +263,11 @@ func resolveNext(current, link string) string {
 
 // exchangeBearerToken fetches a bearer token from the registry's token endpoint.
 func exchangeBearerToken(challenge, username, password string) (string, error) {
+	return exchangeBearerTokenContext(context.Background(), challenge, username, password)
+}
+
+// exchangeBearerTokenContext is exchangeBearerToken bound to ctx.
+func exchangeBearerTokenContext(ctx context.Context, challenge, username, password string) (string, error) {
 	params := parseBearerChallenge(challenge)
 	realm, ok := params["realm"]
 	if !ok {
@@ -219,7 +286,7 @@ func exchangeBearerToken(challenge, username, password string) (string, error) {
 	}
 	u.RawQuery = q.Encode()
 
-	req, err := http.NewRequest("GET", u.String(), nil)
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, u.String(), nil)
 	if err != nil {
 		return "", fmt.Errorf("build token request: %w", err)
 	}
@@ -232,7 +299,7 @@ func exchangeBearerToken(challenge, username, password string) (string, error) {
 	}
 	defer func() { _ = resp.Body.Close() }()
 	if resp.StatusCode != http.StatusOK {
-		return "", fmt.Errorf("token endpoint returned %d", resp.StatusCode)
+		return "", &StatusError{Code: resp.StatusCode, Source: SourceToken}
 	}
 	body, err := io.ReadAll(resp.Body)
 	if err != nil {

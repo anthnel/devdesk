@@ -1,6 +1,7 @@
 package ociresources
 
 import (
+	"context"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
@@ -51,7 +52,7 @@ func TestATagSearchNamesTheRegistryItAnswersFor(t *testing.T) {
 	}))
 	defer srv.Close()
 
-	msg := run(t, searchRegistryTagsCmd("prod", "registry.example.com", "prod", srv.URL, "api", "", "")).(MultiRegistryTagsLoadedMsg)
+	msg := run(t, searchRegistryTagsCmd(context.Background(), 7, "prod", "registry.example.com", "prod", srv.URL, "api", "", "")).(MultiRegistryTagsLoadedMsg)
 
 	if msg.RegistryURL != "registry.example.com" || msg.Alias != "prod" || msg.Repo != "api" {
 		t.Errorf("msg = %+v, want the registry, alias and repo it was asked about", msg)
@@ -62,7 +63,7 @@ func TestATagSearchNamesTheRegistryItAnswersFor(t *testing.T) {
 }
 
 func TestAFailedTagSearchStillNamesItsRegistry(t *testing.T) {
-	msg := run(t, searchRegistryTagsCmd("prod", "registry.example.com", "prod", "http://127.0.0.1:1", "api", "", "")).(MultiRegistryTagsLoadedMsg)
+	msg := run(t, searchRegistryTagsCmd(context.Background(), 7, "prod", "registry.example.com", "prod", "http://127.0.0.1:1", "api", "", "")).(MultiRegistryTagsLoadedMsg)
 
 	if msg.Err == nil {
 		t.Fatal("an unreachable registry was reported as having no tags")
@@ -78,7 +79,7 @@ func TestAFailedTagSearchStillNamesItsRegistry(t *testing.T) {
 // metadata and no error: the Updated column is simply empty, which is not a
 // failure worth showing the user.
 func TestOnlyDockerHubIsAskedForTagMetadata(t *testing.T) {
-	msg := run(t, loadMultiRegistryTagsMetaCmd("prod", "registry.example.com", "api")).(MultiRegistryTagsMetaMsg)
+	msg := run(t, loadMultiRegistryTagsMetaCmd(7, "prod", "registry.example.com", "api")).(MultiRegistryTagsMetaMsg)
 
 	if msg.Err != nil || msg.Meta != nil {
 		t.Errorf("msg = %+v, want a private registry to answer with nothing and no error", msg)
@@ -88,7 +89,7 @@ func TestOnlyDockerHubIsAskedForTagMetadata(t *testing.T) {
 // The Hub API is addressed as namespace/repository, so a bare name has no
 // endpoint to call — and it is not an error either.
 func TestAHubRepoWithNoNamespaceIsNotAsked(t *testing.T) {
-	msg := run(t, loadMultiRegistryTagsMetaCmd("hub", "docker.io", "nginx")).(MultiRegistryTagsMetaMsg)
+	msg := run(t, loadMultiRegistryTagsMetaCmd(7, "hub", "docker.io", "nginx")).(MultiRegistryTagsMetaMsg)
 
 	if msg.Err != nil || msg.Meta != nil {
 		t.Errorf("msg = %+v, want nothing asked for an unqualified repo", msg)
@@ -108,7 +109,7 @@ func TestHubTagMetadataIsKeyedByTag(t *testing.T) {
 	defer srv.Close()
 	redirectHTTP(t, srv.URL)
 
-	msg := run(t, loadMultiRegistryTagsMetaCmd("hub", "docker.io", "library/nginx")).(MultiRegistryTagsMetaMsg)
+	msg := run(t, loadMultiRegistryTagsMetaCmd(7, "hub", "docker.io", "library/nginx")).(MultiRegistryTagsMetaMsg)
 
 	if msg.Err != nil {
 		t.Fatalf("Err = %v", msg.Err)
@@ -130,7 +131,7 @@ func TestAHubErrorIsCarriedWithoutMetadata(t *testing.T) {
 	defer srv.Close()
 	redirectHTTP(t, srv.URL)
 
-	msg := run(t, loadMultiRegistryTagsMetaCmd("hub", "docker.io", "library/nginx")).(MultiRegistryTagsMetaMsg)
+	msg := run(t, loadMultiRegistryTagsMetaCmd(7, "hub", "docker.io", "library/nginx")).(MultiRegistryTagsMetaMsg)
 
 	if msg.Err == nil {
 		t.Fatal("a rate-limited hub was reported as having no metadata")

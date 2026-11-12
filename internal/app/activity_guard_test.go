@@ -236,6 +236,7 @@ var migratedSources = map[command.ViewType][]string{
 		"ui/oci_resources/registry_browser.go", "ui/oci_resources/browser_keys.go",
 		"ui/oci_resources/browser_view.go", "ui/oci_resources/browser_state.go",
 		"ui/oci_resources/browser_bridge.go", "ui/oci_resources/browser_tags.go",
+		"ui/oci_resources/browser_flow.go",
 	},
 	// The explorer is fully migrated (A-10a the tree, A-10b the clone list):
 	// the whole package is scanned.
