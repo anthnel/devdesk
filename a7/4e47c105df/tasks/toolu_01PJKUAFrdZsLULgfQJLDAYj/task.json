@@ -1,0 +1,15 @@
+{
+  "tool_use_id": "toolu_01PJKUAFrdZsLULgfQJLDAYj",
+  "agent_id": "a51c1bdc90547e3ce",
+  "subagent_type": "dev-team:devops",
+  "task_description": "Supprimer le worktree DEVDESK-258",
+  "token_usage": {
+    "input_tokens": 2,
+    "cache_creation_tokens": 23692,
+    "cache_read_tokens": 5550,
+    "output_tokens": 228,
+    "api_call_count": 1
+  },
+  "started_at": "2026-11-11T18:25:02.260262098+01:00",
+  "completed_at": "2026-11-11T18:25:13.834450643+01:00"
+}
