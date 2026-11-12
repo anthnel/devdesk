@@ -1,0 +1,15 @@
+{
+  "tool_use_id": "toolu_01JXqtbzSb7LTVLizftDwoKR",
+  "agent_id": "abe813c5848e25c02",
+  "subagent_type": "product-team:pm",
+  "task_description": "Identifier les spikes Dagger",
+  "token_usage": {
+    "input_tokens": 7,
+    "cache_creation_tokens": 73106,
+    "cache_read_tokens": 182380,
+    "output_tokens": 4932,
+    "api_call_count": 4
+  },
+  "started_at": "2026-11-12T10:13:12.2230143+01:00",
+  "completed_at": "2026-11-12T10:13:56.5387021+01:00"
+}
