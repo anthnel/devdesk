@@ -1,0 +1,15 @@
+{
+  "tool_use_id": "toolu_01XXoqBCjLKPyAqmJntV6QFF",
+  "agent_id": "a7f8d00e310f77084",
+  "subagent_type": "dev-team:devops",
+  "task_description": "Créer worktree DEVDESK-377",
+  "token_usage": {
+    "input_tokens": 6,
+    "cache_creation_tokens": 31166,
+    "cache_read_tokens": 71180,
+    "output_tokens": 627,
+    "api_call_count": 3
+  },
+  "started_at": "2026-11-12T15:08:11.808965449+01:00",
+  "completed_at": "2026-11-12T15:08:22.013102055+01:00"
+}

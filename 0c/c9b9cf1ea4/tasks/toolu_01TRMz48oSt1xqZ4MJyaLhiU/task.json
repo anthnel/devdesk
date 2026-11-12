@@ -1,0 +1,15 @@
+{
+  "tool_use_id": "toolu_01TRMz48oSt1xqZ4MJyaLhiU",
+  "agent_id": "ab406c53bf700500d",
+  "subagent_type": "team-core:tech-writer",
+  "task_description": "Docs: retrait du spinner",
+  "token_usage": {
+    "input_tokens": 46,
+    "cache_creation_tokens": 63761,
+    "cache_read_tokens": 1009864,
+    "output_tokens": 11989,
+    "api_call_count": 23
+  },
+  "started_at": "2026-11-12T15:27:57.200041732+01:00",
+  "completed_at": "2026-11-12T15:29:46.811174831+01:00"
+}
