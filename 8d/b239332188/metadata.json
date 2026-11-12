@@ -1,0 +1,48 @@
+{
+  "cli_version": "0.13.1",
+  "checkpoint_id": "8db239332188",
+  "strategy": "manual-commit",
+  "branch": "fix/DEVDESK-297-isdockerhub-tag-dates",
+  "checkpoints_count": 17,
+  "files_touched": [
+    "internal/ui/oci_resources/commands.go",
+    "internal/ui/oci_resources/hub_tags_meta_test.go"
+  ],
+  "sessions": [
+    {
+      "metadata": "/8d/b239332188/0/metadata.json",
+      "transcript": "/8d/b239332188/0/full.jsonl",
+      "compact_transcript": "/8d/b239332188/0/transcript.jsonl",
+      "content_hash": "/8d/b239332188/0/content_hash.txt",
+      "prompt": "/8d/b239332188/0/prompt.txt"
+    }
+  ],
+  "token_usage": {
+    "input_tokens": 126,
+    "cache_creation_tokens": 165776,
+    "cache_read_tokens": 5077768,
+    "output_tokens": 40375,
+    "api_call_count": 45,
+    "subagent_tokens": {
+      "input_tokens": 326,
+      "cache_creation_tokens": 893427,
+      "cache_read_tokens": 7380095,
+      "output_tokens": 119211,
+      "api_call_count": 158
+    }
+  },
+  "redaction": {
+    "replacements": 0,
+    "layers": {
+      "betterleaks": 0,
+      "connection_string": 0,
+      "credential_key": 0,
+      "credential_value": 0,
+      "credentialed_uri": 0,
+      "entropy": 0,
+      "key_context": 0,
+      "provider_token": 0,
+      "shell_stdin": 0
+    }
+  }
+}

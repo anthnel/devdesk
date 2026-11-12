@@ -1,0 +1,15 @@
+{
+  "tool_use_id": "toolu_014kKgCWvDv858m3MocQA2L3",
+  "agent_id": "a59833fe513412e46",
+  "subagent_type": "dev-team:reviewer",
+  "task_description": "Review 297 diff",
+  "token_usage": {
+    "input_tokens": 14,
+    "cache_creation_tokens": 101176,
+    "cache_read_tokens": 355044,
+    "output_tokens": 3872,
+    "api_call_count": 6
+  },
+  "started_at": "2026-11-13T00:00:06.916253328+01:00",
+  "completed_at": "2026-11-13T00:00:38.285313783+01:00"
+}

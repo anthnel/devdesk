@@ -1,0 +1,15 @@
+{
+  "tool_use_id": "toolu_01LToABYD3sqbnj3mtAyyajh",
+  "agent_id": "a50e0be2cbe4bab6b",
+  "subagent_type": "dev-team:architect",
+  "task_description": "Plan image search lot",
+  "token_usage": {
+    "input_tokens": 48,
+    "cache_creation_tokens": 183011,
+    "cache_read_tokens": 2727790,
+    "output_tokens": 33607,
+    "api_call_count": 23
+  },
+  "started_at": "2026-11-12T23:50:27.75232203+01:00",
+  "completed_at": "2026-11-12T23:56:10.226381831+01:00"
+}
