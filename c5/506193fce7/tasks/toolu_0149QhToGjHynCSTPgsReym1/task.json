@@ -1,0 +1,15 @@
+{
+  "tool_use_id": "toolu_0149QhToGjHynCSTPgsReym1",
+  "agent_id": "aa7fcf115959a3736",
+  "subagent_type": "general-purpose",
+  "task_description": "Fix plane-mcp.ps1 startup",
+  "token_usage": {
+    "input_tokens": 12,
+    "cache_creation_tokens": 79066,
+    "cache_read_tokens": 363466,
+    "output_tokens": 5369,
+    "api_call_count": 6
+  },
+  "started_at": "2026-11-12T11:42:47.452516+01:00",
+  "completed_at": "2026-11-12T11:44:29.3685034+01:00"
+}
