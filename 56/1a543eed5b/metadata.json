@@ -1,0 +1,65 @@
+{
+  "cli_version": "0.13.1",
+  "checkpoint_id": "561a543eed5b",
+  "strategy": "manual-commit",
+  "branch": "main",
+  "checkpoints_count": 5,
+  "files_touched": [
+    "docs/journal.md",
+    "docs/product/agent-usage-prices/stories.md",
+    "docs/product/dagger-ci-release/brief.md",
+    "docs/product/dagger-ci-release/research.md",
+    "docs/product/dagger-ci-release/stories.md",
+    "docs/product/image-search/brief.md",
+    "docs/product/image-search/feasibility.md",
+    "docs/product/image-search/research.md",
+    "docs/product/image-search/stories.md",
+    "docs/product/network-map/brief.md",
+    "docs/product/network-map/feasibility.md",
+    "docs/product/network-map/research.md",
+    "docs/product/network-map/stories.md",
+    "docs/ux/bubbletea-v2-improvements.md",
+    "docs/ux/command-suggestions.md",
+    "docs/ux/context-switch.md",
+    "docs/ux/footer-activity-indicator.md",
+    "internal/ui/components/validation.go",
+    "internal/ui/status/components/component_form_test.go"
+  ],
+  "sessions": [
+    {
+      "metadata": "/56/1a543eed5b/0/metadata.json",
+      "transcript": "/56/1a543eed5b/0/full.jsonl",
+      "compact_transcript": "/56/1a543eed5b/0/transcript.jsonl",
+      "content_hash": "/56/1a543eed5b/0/content_hash.txt",
+      "prompt": "/56/1a543eed5b/0/prompt.txt"
+    }
+  ],
+  "token_usage": {
+    "input_tokens": 24,
+    "cache_creation_tokens": 12329,
+    "cache_read_tokens": 1654414,
+    "output_tokens": 4873,
+    "api_call_count": 7,
+    "subagent_tokens": {
+      "input_tokens": 58,
+      "cache_creation_tokens": 61696,
+      "cache_read_tokens": 1046416,
+      "output_tokens": 7010,
+      "api_call_count": 25
+    }
+  },
+  "redaction": {
+    "replacements": 24,
+    "layers": {
+      "betterleaks": 0,
+      "connection_string": 0,
+      "credential_key": 0,
+      "credential_value": 4,
+      "credentialed_uri": 0,
+      "entropy": 20,
+      "key_context": 0,
+      "provider_token": 0,
+      "shell_stdin": 0
+    }
+  }
+}

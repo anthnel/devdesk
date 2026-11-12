@@ -1,0 +1,15 @@
+{
+  "tool_use_id": "toolu_01MrJw6u5ihyZcufkoCACtpS",
+  "agent_id": "a97e0c97001ea6e10",
+  "subagent_type": "dev-team:devops",
+  "task_description": "Merger PR 368 et nettoyer",
+  "token_usage": {
+    "input_tokens": 18,
+    "cache_creation_tokens": 42087,
+    "cache_read_tokens": 284888,
+    "output_tokens": 2741,
+    "api_call_count": 8
+  },
+  "started_at": "2026-11-11T19:24:24.897476669+01:00",
+  "completed_at": "2026-11-11T19:25:18.053565333+01:00"
+}
