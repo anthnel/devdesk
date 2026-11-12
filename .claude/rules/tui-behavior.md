@@ -181,16 +181,19 @@ Precedence in `View`: **error → warning → info → status**. A failure the
 user has not read takes priority over the progress of whatever is still
 running.
 
-Two fields prefix the line with a mark; only the first is in use:
+One field prefixes the line with a mark:
 
 | Field | Mark | Use it for | Driven by |
 |---|---|---|---|
-| `Activity: true` | the shared activity dot, `●` / `○` (same glyph and colour as the row dots, `indicator.Running`) | work the **router tracks**: a run in the jobs registry, or a view's `WantsBlink()` | the router's 500 ms blink phase: the view calls `m.footer.SetBlinkPhase(msg.Blink)` from its `jobs.FrameMsg` handler |
-| `Spinner: true` | the braille spinner frame | **nothing**: every view is migrated to the dot. Still defined (with `SetSpinnerFrame` and `theme.SpinnerMessage`), no production caller; a separate story removes it | — |
+| `Activity: true` | the shared activity dot, `●` / `○` (same glyph and colour as the row dots, `indicator.Running`) | any loading or running state: work the **router tracks** (a run in the jobs registry) and a view's own load (`WantsBlink()`) | the router's 500 ms blink phase: the view calls `m.footer.SetBlinkPhase(msg.Blink)` from its `jobs.FrameMsg` handler |
 
-`Activity` is the only mark a view uses, for its own loads too. It wins over
-`Spinner` if both are set. `dk setup` has no router: it shows a fixed `●` and
-the pending text, with no blink. Without a `SetBlinkPhase`
+The braille spinner is removed (DEVDESK-377): `Status.Spinner`,
+`FooterMessage.SetSpinnerFrame`, `theme.SpinnerMessage` and
+`theme.SpinnerStyle` no longer exist, and no file under `internal/` may import
+`charm.land/bubbles/v2/spinner`. `TestNoViewImportsTheBubblesSpinner` and
+`TestRemovedSpinnerSymbolsStayGone` (`internal/app/activity_guard_test.go`)
+fail on a reintroduction, with no exception. `dk setup` has no router: it shows
+a fixed `●` and the pending text, with no blink. Without a `SetBlinkPhase`
 call the dot is steady on. `●` and `○` are one column wide and share a width,
 so the phase never shifts the text.
 
@@ -198,11 +201,6 @@ A future `Activity` value that does not depend on the jobs registry must make
 its view implement `WantsBlink() bool` (return `status().Activity`, as the
 forge explorer does); otherwise the router arms no animation chain and the dot
 stays fixed on `●`.
-
-`SetSpinnerFrame` (no caller) takes the **rendered** spinner, not a raw frame,
-so restyling would nest one escape sequence inside another; it measures with
-`lipgloss.Width`, which ignores escape sequences — the opposite of the rule for
-a table cell (Rule 122).
 
 #### A table's loading state belongs to the footer
 
@@ -222,10 +220,8 @@ Mandatory consequence: the empty message ("No images found") is
 **conditioned on loading being finished**, otherwise the table announces the
 absence of what it is still looking for.
 
-`TestNoTableViewRendersALoadingBody` rejects a `theme.SpinnerMessage` in the
-views it covers. The exceptions — an operation screen with no table behind
-it — are **declared** in the test, the same way as
-`keymap.DeclaredExceptions()`.
+`TestNoTableViewRendersALoadingBody` (`internal/ui/components`) rejects a
+loading body in the table views it covers. There is no declared exception.
 
 #### Tests — the timer really does sleep
 

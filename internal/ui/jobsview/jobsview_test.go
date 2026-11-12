@@ -331,8 +331,8 @@ func TestTheFooterCountsWhatIsRunning(t *testing.T) {
 	}
 	// A selected row brings its own sentence and a dot that moves, so the
 	// footer spinner is dropped (DEVDESK-142).
-	if status.Spinner || status.Detail.IsZero() {
-		t.Errorf("Spinner = %v, Detail zero = %v; want no spinner beside a detail", status.Spinner, status.Detail.IsZero())
+	if status.Detail.IsZero() {
+		t.Error("Detail is zero; want the selected row's sentence")
 	}
 	// The sentence stops there: ":jobs for details" is what every other footer
 	// adds, and this is where that link leads.

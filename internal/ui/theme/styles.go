@@ -238,22 +238,10 @@ func SetTextInputInvalid(ti *textinput.Model, invalid bool) {
 	ti.SetStyles(styles)
 }
 
-// SpinnerStyle returns the standard spinner style (secondary color on theme background)
-func SpinnerStyle() lipgloss.Style {
-	return lipgloss.NewStyle().
-		Foreground(ColorSecondary).
-		Background(ColorBackground)
-}
-
 // HeaderWarnValueStyle returns HeaderValueStyle in the warning (MEDIUM) color,
 // for a header value that deserves a second look.
 func HeaderWarnValueStyle() lipgloss.Style {
 	return HeaderValueStyle.Foreground(ColorSeverityMedium)
-}
-
-// SpinnerMessage renders a spinner + text with consistent styling (spinner in secondary, text in dim)
-func SpinnerMessage(spinnerView, text string) string {
-	return SpinnerStyle().Render(spinnerView) + Bg(" ") + DimStyle.Render(text)
 }
 
 // Helper functions for dynamic styles

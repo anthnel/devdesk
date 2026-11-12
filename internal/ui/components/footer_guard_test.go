@@ -81,9 +81,8 @@ func rendersFooter(name string) bool {
 // stays on screen — a body that swaps itself for a spinner loses its header and
 // its columns for the length of every refresh.
 //
-// theme.SpinnerMessage is what those bodies called. It survives for screens
-// that are not a table at all: a form waiting on authentication, a progress
-// screen, an operation with no rows behind it.
+// theme.SpinnerMessage is what those bodies called; it was removed
+// (DEVDESK-377) and no body may name it.
 var viewsWithATableBody = []string{
 	"containers/view.go",
 	"oci_resources/view.go",
@@ -134,18 +133,6 @@ func TestEveryGuardedFileExists(t *testing.T) {
 	}
 }
 
-// declaredSpinnerExceptions are the functions inside a guarded file that draw a
-// spinner for something that is not a table load. They are written down as
-// exceptions, the way keymap.DeclaredExceptions is, so the next audit does not
-// read them as drift.
-//
-//	RegistryBrowser.viewStatus — a pull replaces the whole viewport for several
-//	seconds and there is no table behind it. Moving it to the footer would leave
-//	a blank screen with one line at the bottom, which says less, not more.
-var declaredSpinnerExceptions = map[string]bool{
-	"viewStatus": true,
-}
-
 func TestNoTableViewRendersALoadingBody(t *testing.T) {
 	forEachUIFile(t, func(path string, file *ast.File, fset *token.FileSet) {
 		slash := filepath.ToSlash(path)
@@ -161,17 +148,14 @@ func TestNoTableViewRendersALoadingBody(t *testing.T) {
 		}
 
 		inspect := func(fn string, body ast.Node) {
-			if declaredSpinnerExceptions[fn] {
-				return
-			}
 			ast.Inspect(body, func(n ast.Node) bool {
 				sel, ok := n.(*ast.SelectorExpr)
 				if !ok || sel.Sel.Name != "SpinnerMessage" {
 					return true
 				}
 				t.Errorf("%s: %s renders a spinner in the body of a table view.\n"+
-					"A load is reported in the footer: return components.Status{Text: …, Spinner: true} "+
-					"from the view's status() (Activity: true for work tracked by the jobs registry) "+
+					"A load is reported in the footer: return components.Status{Text: …, Activity: true} "+
+					"from the view's status() "+
 					"and leave the table on screen.",
 					fset.Position(sel.Pos()), fn)
 				return true

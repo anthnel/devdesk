@@ -865,13 +865,10 @@ func seedAgentUsageFooter(t *testing.T, a *App) indicator.State {
 }
 
 // DEVDESK-371..376: no view owns a braille spinner any more. Every loading state
-// is the shared activity dot, driven by the router frame. A package under
-// internal/ui that still imports bubbles/v2/spinner is listed here with the story
-// that removes it; each step drops its line, and the map ends empty and stays
-// empty as the final guard.
+// is the shared activity dot, driven by the router frame. No non-test file under
+// internal/ imports bubbles/v2/spinner, dk setup included (DEVDESK-376,
+// DEVDESK-377). There is no exception list: a reintroduction fails.
 const bubblesSpinnerPath = "charm.land/bubbles/v2/spinner"
-
-var pendingSpinnerImports = map[string]string{}
 
 // importsBubblesSpinner reports whether file imports bubbles/v2/spinner, under
 // any alias (a blank or dot import counts too).
@@ -884,19 +881,11 @@ func importsBubblesSpinner(file *ast.File) bool {
 	return false
 }
 
-// spinnerImportProblems compares the packages found importing the spinner with
-// the pending list.
-func spinnerImportProblems(found map[string]bool, pending map[string]string) []string {
+// spinnerImportProblems reports every package found importing the spinner.
+func spinnerImportProblems(found map[string]bool) []string {
 	var out []string
 	for dir := range found {
-		if _, ok := pending[dir]; !ok {
-			out = append(out, fmt.Sprintf("%s imports %s: use the shared activity dot (Status.Activity, WantsBlink, jobs.FrameMsg), or list it in pendingSpinnerImports with its story", dir, bubblesSpinnerPath))
-		}
-	}
-	for dir, story := range pending {
-		if !found[dir] {
-			out = append(out, fmt.Sprintf("pendingSpinnerImports lists %s (%s), which no longer imports the spinner: drop the entry", dir, story))
-		}
+		out = append(out, fmt.Sprintf("%s imports %s: use the shared activity dot (Status.Activity, WantsBlink, jobs.FrameMsg); there is no exception", dir, bubblesSpinnerPath))
 	}
 	sort.Strings(out)
 	return out
@@ -922,25 +911,85 @@ func TestNoViewImportsTheBubblesSpinnerLogic(t *testing.T) {
 			t.Errorf("%s spinner import not detected", name)
 		}
 	}
-	if p := spinnerImportProblems(map[string]bool{"ui/a": true}, map[string]string{}); len(p) != 1 {
-		t.Errorf("an unlisted importer: %v", p)
+	if p := spinnerImportProblems(map[string]bool{"ui/a": true, "x/b": true}); len(p) != 2 {
+		t.Errorf("importers must each be reported: %v", p)
 	}
-	if p := spinnerImportProblems(map[string]bool{}, map[string]string{"ui/a": "DEVDESK-1"}); len(p) != 1 {
-		t.Errorf("a stale entry: %v", p)
-	}
-	if p := spinnerImportProblems(map[string]bool{"ui/a": true}, map[string]string{"ui/a": "DEVDESK-1"}); len(p) != 0 {
-		t.Errorf("a listed importer reported %v", p)
+	if p := spinnerImportProblems(map[string]bool{}); len(p) != 0 {
+		t.Errorf("no importer reported %v", p)
 	}
 }
 
 func TestNoViewImportsTheBubblesSpinner(t *testing.T) {
 	found := map[string]bool{}
 	sourceFiles(t, func(rel string, _ *token.FileSet, file *ast.File) {
-		if strings.HasPrefix(rel, "ui/") && importsBubblesSpinner(file) {
+		if importsBubblesSpinner(file) {
 			found[filepath.ToSlash(filepath.Dir(rel))] = true
 		}
 	})
-	for _, p := range spinnerImportProblems(found, pendingSpinnerImports) {
+	for _, p := range spinnerImportProblems(found) {
 		t.Error(p)
+	}
+}
+
+// DEVDESK-377: the footer's own spinner API is gone. Status has no Spinner
+// field, FooterMessage keeps no frame, and theme has no spinner style or
+// message: the activity dot is the only loading indicator.
+var removedSpinnerSymbols = map[string]bool{
+	"Spinner":         true, // components.Status.Spinner (field, selector, literal key)
+	"spinnerFrame":    true,
+	"SetSpinnerFrame": true,
+	"SpinnerMessage":  true,
+	"SpinnerStyle":    true,
+}
+
+// removedSpinnerSymbolUses reports every identifier in file that names a
+// removed symbol.
+func removedSpinnerSymbolUses(fset *token.FileSet, file *ast.File) []string {
+	var out []string
+	ast.Inspect(file, func(n ast.Node) bool {
+		if id, ok := n.(*ast.Ident); ok && removedSpinnerSymbols[id.Name] {
+			out = append(out, fmt.Sprintf("%s: %s", fset.Position(id.Pos()), id.Name))
+		}
+		return true
+	})
+	return out
+}
+
+func TestRemovedSpinnerSymbolsStayGone(t *testing.T) {
+	parse := func(src string) (*token.FileSet, *ast.File) {
+		fset := token.NewFileSet()
+		f, err := parser.ParseFile(fset, "v.go", src, 0)
+		if err != nil {
+			t.Fatal(err)
+		}
+		return fset, f
+	}
+	for name, src := range map[string]string{
+		"field":    "package v\ntype S struct{ Spinner bool }\n",
+		"selector": "package v\nfunc f(s S) bool { return s.Spinner }\n",
+		"literal":  "package v\nvar s = S{Spinner: true}\n",
+		"frame":    "package v\ntype F struct{ spinnerFrame string }\nfunc (f *F) SetSpinnerFrame(s string) {}\n",
+		"theme":    "package v\nvar _ = SpinnerMessage\nvar _ = SpinnerStyle()\n",
+	} {
+		if len(removedSpinnerSymbolUses(parse(src))) == 0 {
+			t.Errorf("%s: a removed symbol was not detected", name)
+		}
+	}
+	if got := removedSpinnerSymbolUses(parse("package v\nvar Activity bool\n")); len(got) != 0 {
+		t.Errorf("a clean file was flagged: %v", got)
+	}
+
+	scanned := 0
+	sourceFiles(t, func(rel string, fset *token.FileSet, file *ast.File) {
+		if !strings.HasPrefix(rel, "ui/") {
+			return
+		}
+		scanned++
+		for _, use := range removedSpinnerSymbolUses(fset, file) {
+			t.Errorf("%s (internal/%s): the footer spinner API was removed in DEVDESK-377; use Status.Activity and the shared dot", use, rel)
+		}
+	})
+	if scanned == 0 {
+		t.Fatal("no file under internal/ui scanned")
 	}
 }

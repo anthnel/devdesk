@@ -162,5 +162,5 @@ func (b *RegistryBrowser) FilterBarView(width int) string {
 }
 
 // viewStatus is gone with browserStateStatus (§3.60). It was a
-// theme.SpinnerMessage filling the panel — the shape Rule 139 keeps out of a
+// loading message filling the panel — the shape Rule 139 keeps out of a
 // table body — and what it announced is now a row in the Images tab.

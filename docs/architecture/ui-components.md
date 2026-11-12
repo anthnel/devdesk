@@ -22,7 +22,6 @@ return m, m.footer.Info("Image pulled: " + name)
 
 m.footer.Handle(msg)                              // consumes its own expiry
 m.footer.SetBlinkPhase(msg.Blink)                 // from the jobs.FrameMsg handler (Activity)
-m.footer.SetSpinnerFrame(frame)                   // legacy (Spinner): no view calls it any more
 
 // From View(), read-only. Always one full-width, centred line — empty included,
 // because Rule 124 budgets one whatever it holds.
@@ -69,22 +68,23 @@ Precedence inside `View`: **error → warning → info → status**. A failure t
 user has not read yet matters more than the progress of what is still running.
 
 **A table's load is a footer status** (Rule 139). The table stays
-on screen: a body that swapped itself for a spinner or a message lost its header and its
+on screen: a body that swapped itself for a loading screen or a message lost its header and its
 columns for the length of every `ctrl+r`, then got them back. The empty state
 (`No images found`) is therefore conditional on the load being over, or the
 table announces the absence of what it is in the middle of fetching.
 
-**`Status.Activity` and `Status.Spinner` are two different marks** (DEVDESK-341):
+**`Status.Activity` is the only footer mark** (DEVDESK-341, DEVDESK-377):
 
 | Field | Renders | Fed by |
 |---|---|---|
 | `Activity` | the `indicator.Running` dot, `●` or `○`, with the glyph, colour and background of the row dots (`indicator.Glyph`, `indicator.Style`), then a space | `FooterMessage.SetBlinkPhase(on)`, called from the view's `jobs.FrameMsg` handler with `msg.Blink`. Without a call the dot is steady on |
-| `Spinner` | the rendered spinner frame, then a space | `FooterMessage.SetSpinnerFrame(frame)`. **No production caller** since DEVDESK-371 to 376; kept until a separate story (T10) removes it. Nothing is drawn until a frame was stored |
 
-`Activity` wins when both are set. Both are dropped when `Detail.Glyph` is
-present (the selected row's own dot already moves), and both come after the
-timed messages in the precedence. `Activity` is for every load and for work the router tracks
-(jobs, or a view's `WantsBlink()`); `Spinner` is not used by any view. The router runs its 500 ms chain only if `jobs.Running() > 0` or the
+The braille spinner API is removed: `Status.Spinner`,
+`FooterMessage.spinnerFrame`, `SetSpinnerFrame`, `theme.SpinnerMessage` and
+`theme.SpinnerStyle` no longer exist. `Activity` is dropped when `Detail.Glyph`
+is present (the selected row's own dot already moves), and it comes after the
+timed messages in the precedence. It is for every load: work the router tracks
+(jobs) and a view's own load (`WantsBlink()`). The router runs its 500 ms chain only if `jobs.Running() > 0` or the
 view on screen answers `WantsBlink()`, so an `Activity` status that does not
 come from a job needs `WantsBlink()` or the dot stays fixed (see `app-shell.md`,
 "A row dot or a footer mark").
@@ -95,12 +95,6 @@ for the dot, and shrinks the centring target by
 `theme.StringWidth(glyph) - lipgloss.Width(glyph)` (the East Asian ambiguous
 width correction, as for a detail line) so the line is `width` columns for
 `runewidth` too.
-
-If a spinner frame is ever pushed again (no view does today), it is the **rendered** `spinner.View()`, not a bare frame: every
-view already styles its spinner with `theme.SpinnerStyle()`, and restyling would
-nest one escape inside another. It is measured with `lipgloss.Width`, which
-ignores escapes — the opposite of a table cell's rule (Rule 122), and the
-difference is which measurer is doing the work.
 
 **`FooterMsgDuration` is an exported var, and only tests touch it.** `tea.Tick`
 blocks for its whole duration and `testutil.Msgs` runs every command it is
@@ -114,10 +108,13 @@ Two source-level tests hold the line, on the model of `internal/ui/keymap`'s:
 `TestNoViewStylesItsOwnFooterMessage` fails on a `StatusErrorStyle`,
 `StatusOKStyle`, `StatusWarningStyle` or `ColorHighlight` inside a
 `RenderFooter`/`renderInfoLine`/`renderInfoText`, and
-`TestNoTableViewRendersALoadingBody` fails on a `theme.SpinnerMessage` in a
-table view. The one screen that legitimately fills itself with a spinner — the
-registry browser mid-pull, which has no table behind it — is written down as a
-declared exception, the way `keymap.DeclaredExceptions()` is.
+`TestNoTableViewRendersALoadingBody` fails on a loading body in a table view.
+There is no declared exception. Two guards in `internal/app/activity_guard_test.go`
+keep the spinner gone: `TestNoViewImportsTheBubblesSpinner` (no file under
+`internal/` imports `charm.land/bubbles/v2/spinner`) and
+`TestRemovedSpinnerSymbolsStayGone` (no `Spinner`, `spinnerFrame`,
+`SetSpinnerFrame`, `SpinnerMessage` or `SpinnerStyle` identifier under
+`internal/ui`).
 
 ## Tables — `internal/ui/datatable`
 
@@ -248,7 +245,7 @@ exactly the property wanted.
 
 `ws` had to detach `refreshRows` from `setEntries` for this: both went through
 one point and one of them arrives several times a second while a scan runs, so
-measuring there would have moved the columns at the spinner's rhythm.
+measuring there would have moved the columns at the scan's rhythm.
 
 The cost is written down rather than discovered: a value that grew between two
 measurements stays truncated until the next one.
@@ -453,10 +450,10 @@ is host-scoped: one `docker login` really does change the answer for every entry
 on that host.
 
 `oci_resources` gathers `BusyLabels()` from **all four tabs**, not the active
-one: an action started on Images goes on running after `tab`, and a spinner that
+one: an action started on Images goes on running after `tab`, and a dot that
 stopped turning because the user looked elsewhere would read as a hang on the
 way back. Row state is drawn by the activity column and animated by the router's
-`jobs.FrameMsg`; a tab's load shows the shared footer dot (DEVDESK-374), the view holds no spinner.
+`jobs.FrameMsg`; a tab's load shows the shared footer dot (DEVDESK-374); the view holds no spinner state.
 
 Deliberately outside this:
 
@@ -622,7 +619,7 @@ a field of its own because only a path is ever shortened.
   the progress stands alone.
 - **Precedence is unchanged:** error → warning → info → status. `Detail` is
   part of the status, so a footer message still wins over it.
-- **A detail with a glyph suppresses the dot and the spinner:** the row's own
+- **A detail with a glyph suppresses the dot:** the row's own
   dot already moves.
 - **East Asian width.** `centerLine` pads by `lipgloss.Width`, which counts
   ambiguous glyphs as one cell. `View` shrinks its target width by

@@ -34,8 +34,8 @@ func refreshingModel(t *testing.T) Model {
 func TestLoadLinesCarryTheActivityDotNotTheOwnSpinner(t *testing.T) {
 	for name, m := range map[string]Model{"first load": newTestModel(t), "refresh": refreshingModel(t)} {
 		t.Run(name, func(t *testing.T) {
-			if st := m.status(); !st.Activity || st.Spinner {
-				t.Fatalf("status Activity=%v Spinner=%v, want Activity only", st.Activity, st.Spinner)
+			if st := m.status(); !st.Activity {
+				t.Fatalf("status Activity=%v, want Activity only", st.Activity)
 			}
 		})
 	}
@@ -78,8 +78,8 @@ func TestLoadDoneMeansNoDot(t *testing.T) {
 	if (strings.Contains(plain, "●") && strings.Contains(plain, "Updating")) || strings.Contains(plain, "Loading GitLab") {
 		t.Errorf("an idle explorer still shows a load line: %q", plain)
 	}
-	if st := m.status(); st.Activity || st.Spinner {
-		t.Errorf("idle status carries Activity=%v Spinner=%v", st.Activity, st.Spinner)
+	if st := m.status(); st.Activity {
+		t.Errorf("idle status carries Activity=%v", st.Activity)
 	}
 }
 
@@ -87,7 +87,7 @@ func TestAnErrorBeatsTheLoadDot(t *testing.T) {
 	m := refreshingModel(t)
 	m.error = "boom"
 	st := m.status()
-	if st.Activity || st.Spinner || st.Text != "boom" {
+	if st.Activity || st.Text != "boom" {
 		t.Errorf("status = %+v, want the bare error", st)
 	}
 }

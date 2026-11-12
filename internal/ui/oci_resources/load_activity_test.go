@@ -76,21 +76,21 @@ func loadStates() []loadState {
 	}
 }
 
-func currentStatus(m Model) (text string, activity, spinner bool) {
+func currentStatus(m Model) (text string, activity bool) {
 	st := m.status()
 	if m.registryBrowser != nil || m.networkInspectForm != nil {
 		st = m.formStatus()
 	}
-	return st.Text, st.Activity, st.Spinner
+	return st.Text, st.Activity
 }
 
 func TestEveryOwnLoadShowsTheDotWithTheSameText(t *testing.T) {
 	for _, s := range loadStates() {
 		t.Run(s.name, func(t *testing.T) {
 			m := s.model(t)
-			text, activity, spin := currentStatus(m)
-			if text != s.text || !activity || spin {
-				t.Errorf("status = {%q Activity=%v Spinner=%v}, want {%q Activity=true Spinner=false}", text, activity, spin, s.text)
+			text, activity := currentStatus(m)
+			if text != s.text || !activity {
+				t.Errorf("status = {%q Activity=%v}, want {%q Activity=true}", text, activity, s.text)
 			}
 			if !m.WantsBlink() {
 				t.Error("a loading view does not ask for the blink (the dot would stay fixed)")
@@ -181,7 +181,7 @@ func TestEndOfALoadStopsTheBlink(t *testing.T) {
 // spinner nobody ticked.
 func TestNetworkInspectionLoadShowsTheDot(t *testing.T) {
 	st := inspecting(t).formStatus()
-	if st.Text != "Loading containers..." || !st.Activity || st.Spinner {
+	if st.Text != "Loading containers..." || !st.Activity {
 		t.Errorf("formStatus = %+v", st)
 	}
 }

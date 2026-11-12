@@ -480,7 +480,7 @@ is also why it has no token.
 
 **The scan form is gone** (phase 3), and with it `StateScanning`: there is no
 screen that runs one scan and waits on it. The inventory rescans in the
-background with a spinner on the row, the way the images list does. What went
+background with the activity dot on the row, the way the images list does. What went
 with the form, because nothing else read it:
 
 | Gone | Why it existed |
@@ -1077,7 +1077,7 @@ scans (the router's animation). `Model.WantsBlink()` follows the footer: it is
 true while `status().Activity` holds, except when the selected row's detail has
 a glyph of its own, which replaces the dot (nothing to blink then). The
 router's `FrameMsg` feeds the phase (`SetBlinkPhase`, in `handleFrameMsg`).
-`TestNoViewImportsTheBubblesSpinner` keeps the package free of the spinner.
+`TestNoViewImportsTheBubblesSpinner` keeps the package free of the spinner, and `TestRemovedSpinnerSymbolsStayGone` keeps the footer spinner API out (DEVDESK-377).
 
 `esc` and `ctrl+r` return to the inventory, or to the list the results were
 opened from when `OriginView` is set.
@@ -1188,7 +1188,7 @@ reading.
 `:sec` gained the most. `scanTarget.Scanning` was a flag the view set and
 cleared, and `handleInventoryLoaded` carried it across every reload by hand: the
 caches say nothing about a scan that has not finished writing to them, so a
-refresh landing mid-rescan cleared the spinner and left the row looking settled.
+refresh landing mid-rescan cleared the dot and left the row looking settled.
 That reconciliation is *gone* rather than fixed: the row's activity is derived
 in `setInventory` (see "The security inventory"), so a reload has nothing to
 preserve. With DEVDESK-145 the failure is derived too, from the registry's

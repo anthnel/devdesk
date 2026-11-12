@@ -30,8 +30,8 @@ func otherRowSyncing(t *testing.T) Model {
 
 func TestTheProgressShowsTheActivityDotNotABrailleFrame(t *testing.T) {
 	m := otherRowSyncing(t)
-	if st := m.jobsStatus(); !st.Activity || st.Spinner {
-		t.Fatalf("status Activity=%v Spinner=%v, want Activity only", st.Activity, st.Spinner)
+	if st := m.jobsStatus(); !st.Activity {
+		t.Fatalf("status Activity=%v, want Activity only", st.Activity)
 	}
 	m = send(t, m, jobs.FrameMsg{Blink: true})
 	got := footerLine(m, 120)

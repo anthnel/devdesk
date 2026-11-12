@@ -50,8 +50,8 @@ func dots(s string) int { return strings.Count(s, "●") + strings.Count(s, "○
 func TestTheInventoryLoadIsTheActivityDot(t *testing.T) {
 	m := loadingModel(t)
 	st := m.inventoryStatus()
-	if !st.Activity || st.Spinner {
-		t.Fatalf("status Activity=%v Spinner=%v, want Activity only", st.Activity, st.Spinner)
+	if !st.Activity {
+		t.Fatalf("status Activity=%v, want Activity only", st.Activity)
 	}
 	if st.Text != "Loading scan inventory..." {
 		t.Errorf("text = %q", st.Text)
@@ -95,8 +95,8 @@ func TestALoadAndAScanShowOneDotAndTheLoadText(t *testing.T) {
 	if !strings.Contains(got, "Loading scan inventory...") || strings.Contains(got, "Scanning —") {
 		t.Errorf("the load text must replace the jobs line: %q", got)
 	}
-	if st := m.inventoryStatus(); !st.Activity || st.Spinner {
-		t.Errorf("status Activity=%v Spinner=%v", st.Activity, st.Spinner)
+	if st := m.inventoryStatus(); !st.Activity {
+		t.Errorf("status Activity=%v", st.Activity)
 	}
 }
 
@@ -105,7 +105,7 @@ func TestInventoryStatusPrecedenceKeepsItsTexts(t *testing.T) {
 	scanOnly := footerModel(t, []jobs.Run{batch()}, nil)
 	scanOnly.inventoryLoading = false
 	scanOnly = selectTarget(t, scanOnly, ftOther)
-	if st := scanOnly.inventoryStatus(); !st.Activity || !strings.Contains(st.Text, "1/3") || st.Spinner {
+	if st := scanOnly.inventoryStatus(); !st.Activity || !strings.Contains(st.Text, "1/3") {
 		t.Errorf("scan alone: %+v", st)
 	}
 	if !wantsBlink(t, scanOnly) {
@@ -151,7 +151,7 @@ func TestReadingTheDockerfilesIsTheActivityDot(t *testing.T) {
 		t.Fatalf("phase = %d, want loading", m.remediation.phase)
 	}
 	st := m.status()
-	if !st.Activity || st.Spinner || st.Text != "Reading Dockerfiles and listing tags..." {
+	if !st.Activity || st.Text != "Reading Dockerfiles and listing tags..." {
 		t.Errorf("status = %+v", st)
 	}
 	if !wantsBlink(t, m) {
@@ -170,7 +170,7 @@ func TestScanningTheBaseImagesIsTheActivityDotUntilTheyAnswer(t *testing.T) {
 	}
 	m, _ = step(t, m, testutil.Key("S"))
 	st := m.status()
-	if !st.Activity || st.Spinner || !strings.Contains(st.Text, "4 image") {
+	if !st.Activity || !strings.Contains(st.Text, "4 image") {
 		t.Fatalf("status = %+v", st)
 	}
 	if !wantsBlink(t, m) {

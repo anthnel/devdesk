@@ -13,7 +13,7 @@
 
 | Package | Version | Purpose |
 |---------|---------|---------|
-| `charm.land/bubbles/v2` | 2.2.1 | Pre-built TUI components (table, spinner, textinput, viewport) |
+| `charm.land/bubbles/v2` | 2.2.1 | Pre-built TUI components (table, textinput, viewport) |
 | `charm.land/bubbletea/v2` | 2.1.1 | TUI framework (Elm architecture) |
 | `charm.land/lipgloss/v2` | 2.0.6 | Styling + layout (colors, borders, positioning) |
 | `github.com/NimbleMarkets/ntcharts/v2` | 2.9.0 | Dashboard sparkline |

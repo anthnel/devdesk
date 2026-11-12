@@ -43,8 +43,8 @@ func scanOnAnotherImage(t *testing.T) Model {
 
 func TestJobsWorkShowsTheActivityDotNotABrailleFrame(t *testing.T) {
 	m := scanOnAnotherImage(t)
-	if st := m.status(); !st.Activity || st.Spinner {
-		t.Fatalf("status Activity=%v Spinner=%v, want Activity only", st.Activity, st.Spinner)
+	if st := m.status(); !st.Activity {
+		t.Fatalf("status Activity=%v, want Activity only", st.Activity)
 	}
 	m = feed(t, m, jobs.FrameMsg{Blink: true})
 	got := ociInfoLine(m, 200)
@@ -72,7 +72,7 @@ func TestJobsDotFollowsTheBlinkPhase(t *testing.T) {
 // holds no spinner of its own (DEVDESK-374).
 func TestATabLoadShowsTheDotAndFollowsThePhase(t *testing.T) {
 	m := newTestModel(t)
-	if st := m.status(); !st.Activity || st.Spinner || st.Text != "Loading images..." {
+	if st := m.status(); !st.Activity || st.Text != "Loading images..." {
 		t.Fatalf("while loading: %+v, want Activity with the same text and no Spinner", st)
 	}
 	for _, phase := range []struct {

@@ -41,8 +41,8 @@ func unselectedRunning(t *testing.T) Model {
 
 func TestTheJobsCountShowsTheActivityDotNotABrailleFrame(t *testing.T) {
 	m := unselectedRunning(t)
-	if st := m.status(); !st.Activity || st.Spinner {
-		t.Fatalf("status Activity=%v Spinner=%v, want Activity only", st.Activity, st.Spinner)
+	if st := m.status(); !st.Activity {
+		t.Fatalf("status Activity=%v, want Activity only", st.Activity)
 	}
 	m = feed(t, m, jobs.FrameMsg{Blink: true})
 	footer := m.RenderFooter(120)

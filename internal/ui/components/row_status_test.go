@@ -199,37 +199,29 @@ func legacyView(f *FooterMessage, width int, status Status) string {
 	if status.Text == "" {
 		return theme.EmptyLineBg(width)
 	}
-	spinner, budget := "", width
-	if status.Spinner && f.spinnerFrame != "" {
-		spinner = f.spinnerFrame + theme.Bg(" ")
-		budget -= lipgloss.Width(f.spinnerFrame) + 1
-	}
+	budget := width
 	if budget <= 0 {
 		return theme.EmptyLineBg(width)
 	}
-	return centerLine(spinner+status.Level.Style().Render(theme.TruncateWidth(status.Text, budget)), width)
+	return centerLine(status.Level.Style().Render(theme.TruncateWidth(status.Text, budget)), width)
 }
 
 func TestAStatusWithoutDetailRendersAsBefore(t *testing.T) {
 	statuses := map[string]Status{
 		"empty":         {},
 		"text":          {Text: "Scanning — 3/12"},
-		"text spinner":  {Text: "Loading images...", Spinner: true},
 		"error level":   {Text: "Docker unreachable", Level: LevelError},
 		"warning level": {Text: "Nothing to scan", Level: LevelWarning},
 		"long":          {Text: strings.Repeat("long status ", 20)},
 	}
-	for _, frame := range []string{"", "⠋"} {
-		for name, st := range statuses {
-			for _, width := range []int{0, 1, 2, 3, 20, 80, 140} {
-				t.Run(fmt.Sprintf("%s/frame=%q/%d", name, frame, width), func(t *testing.T) {
-					var f FooterMessage
-					f.SetSpinnerFrame(frame)
-					if got, want := f.View(width, st), legacyView(&f, width, st); got != want {
-						t.Errorf("View differs from the reference\n got: %q\nwant: %q", got, want)
-					}
-				})
-			}
+	for name, st := range statuses {
+		for _, width := range []int{0, 1, 2, 3, 20, 80, 140} {
+			t.Run(fmt.Sprintf("%s/%d", name, width), func(t *testing.T) {
+				var f FooterMessage
+				if got, want := f.View(width, st), legacyView(&f, width, st); got != want {
+					t.Errorf("View differs from the reference\n got: %q\nwant: %q", got, want)
+				}
+			})
 		}
 	}
 }
@@ -318,34 +310,6 @@ func TestAStaleExpiryDoesNotRevealTheDetail(t *testing.T) {
 	got := strings.TrimSpace(stripANSI(f.View(120, Status{Detail: runningDetail()})))
 	if got != "second" {
 		t.Errorf("View = %q, want the newer message", got)
-	}
-}
-
-// A glyph means the row's dot already moves: no spinner frame beside it. A
-// detail with no glyph keeps the spinner the view asked for.
-func TestAGlyphDetailDropsTheSpinner(t *testing.T) {
-	isolateRowHome(t)
-	const frame = "⠋"
-	tests := []struct {
-		name      string
-		detail    RowDetail
-		wantFrame bool
-	}{
-		{"glyph", runningDetail(), false},
-		{"no glyph", RowDetail{Lead: "Running since 3 hr ago"}, true},
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			var f FooterMessage
-			f.SetSpinnerFrame(frame)
-			got := stripANSI(f.View(80, Status{Detail: tt.detail, Spinner: true}))
-			if has := strings.Contains(got, frame); has != tt.wantFrame {
-				t.Errorf("spinner frame present = %v, want %v: %q", has, tt.wantFrame, got)
-			}
-			if w := lipgloss.Width(got); w != 80 {
-				t.Errorf("width = %d, want 80", w)
-			}
-		})
 	}
 }
 

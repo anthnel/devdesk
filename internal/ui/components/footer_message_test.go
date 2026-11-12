@@ -133,9 +133,7 @@ func TestALongMessageIsTruncatedRatherThanWrapped(t *testing.T) {
 
 func TestALongStatusIsTruncatedToo(t *testing.T) {
 	var f FooterMessage
-	f.SetSpinnerFrame("⠋")
-
-	line := f.View(30, Status{Text: strings.Repeat("loading ", 20), Spinner: true})
+	line := f.View(30, Status{Text: strings.Repeat("loading ", 20)})
 	if strings.Contains(line, "\n") {
 		t.Errorf("long status wrapped onto a second line:\n%q", line)
 	}
@@ -168,40 +166,6 @@ func TestTheStatusReturnsOnceTheMessageExpires(t *testing.T) {
 	line := stripANSI(f.View(80, Status{Text: "Loading images…"}))
 	if !strings.Contains(line, "Loading images") {
 		t.Errorf("the status did not come back after the message expired:\n%q", line)
-	}
-}
-
-// ── The spinner ──────────────────────────────────────────────────────────────
-
-func TestALoadingStatusShowsTheSpinnerFrameThenTheText(t *testing.T) {
-	var f FooterMessage
-	f.SetSpinnerFrame("⠹")
-
-	line := stripANSI(f.View(60, Status{Text: "Loading images…", Spinner: true}))
-	if !strings.Contains(line, "⠹ Loading images…") {
-		t.Errorf("loading status does not read as spinner then text:\n%q", line)
-	}
-}
-
-func TestANonLoadingStatusHasNoSpinner(t *testing.T) {
-	var f FooterMessage
-	f.SetSpinnerFrame("⠹")
-
-	line := stripANSI(f.View(60, Status{Text: "Pruning containers…"}))
-	if strings.Contains(line, "⠹") {
-		t.Errorf("a status that did not ask for a spinner got one:\n%q", line)
-	}
-}
-
-// A message is not a loading state: the spinner belongs to the status.
-func TestATimedMessageNeverCarriesTheSpinner(t *testing.T) {
-	var f FooterMessage
-	f.SetSpinnerFrame("⠹")
-	f.Warn("Scan already in progress")
-
-	line := stripANSI(f.View(60, Status{Text: "Loading images…", Spinner: true}))
-	if strings.Contains(line, "⠹") {
-		t.Errorf("a timed message rendered the spinner:\n%q", line)
 	}
 }
 

@@ -183,10 +183,10 @@ Forbidden: local implementations, long formats, compact with no space.
 
 ```go
 // ✅ CORRECT
-theme.SpinnerMessage(m.spinner.View(), "Loading workspaces...")
+m.footerStatus = "Loading workspaces..."
 m.footerError = "Failed to refresh — check logs"
 
 // ❌ WRONG
-theme.SpinnerMessage(m.spinner.View(), "Chargement des workspaces...")
+m.footerStatus = "Chargement des workspaces..."
 m.footerError = "Échec du rafraîchissement — voir les logs"
 ```

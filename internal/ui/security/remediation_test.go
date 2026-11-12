@@ -263,7 +263,7 @@ func TestTheFooterSaysItIsReading(t *testing.T) {
 	for range TabRemediation {
 		m = feed(t, m, testutil.Key("tab"))
 	}
-	if st := m.status(); !st.Activity || st.Spinner || !strings.Contains(st.Text, "Reading") {
+	if st := m.status(); !st.Activity || !strings.Contains(st.Text, "Reading") {
 		t.Errorf("status = %+v, want the activity dot reading the Dockerfiles", st)
 	}
 }
@@ -306,7 +306,7 @@ func TestScanStartsEveryUnmeasuredImageOnce(t *testing.T) {
 	if !reflect.DeepEqual(m.remediation.scanning, want) {
 		t.Errorf("scanning = %v, want %v", m.remediation.scanning, want)
 	}
-	if st := m.status(); !st.Activity || st.Spinner || !strings.Contains(st.Text, "4 image") {
+	if st := m.status(); !st.Activity || !strings.Contains(st.Text, "4 image") {
 		t.Errorf("status = %+v, want the activity dot", st)
 	}
 	if !wantsBlink(t, m) {
