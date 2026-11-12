@@ -1,0 +1,15 @@
+{
+  "tool_use_id": "toolu_01TNgfvY6vNvU5gqkBvrsZyw",
+  "agent_id": "aa66387b62c878e6b",
+  "subagent_type": "dev-team:reviewer",
+  "task_description": "Relire docs anonymisés PR 374 et 377",
+  "token_usage": {
+    "input_tokens": 17,
+    "cache_creation_tokens": 103749,
+    "cache_read_tokens": 543165,
+    "output_tokens": 28249,
+    "api_call_count": 8
+  },
+  "started_at": "2026-11-12T15:54:04.0529578+01:00",
+  "completed_at": "2026-11-12T15:57:05.4416947+01:00"
+}
