@@ -1,0 +1,15 @@
+{
+  "tool_use_id": "toolu_01AjiuwD91nGbL6UcW4H7GE1",
+  "agent_id": "a7d908cdc475db918",
+  "subagent_type": "dev-team:devops",
+  "task_description": "Créer le worktree",
+  "token_usage": {
+    "input_tokens": 6,
+    "cache_creation_tokens": 36517,
+    "cache_read_tokens": 65340,
+    "output_tokens": 660,
+    "api_call_count": 3
+  },
+  "started_at": "2026-11-12T10:33:44.783753935+01:00",
+  "completed_at": "2026-11-12T10:33:55.377137325+01:00"
+}

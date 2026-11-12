@@ -1,0 +1,15 @@
+{
+  "tool_use_id": "toolu_01YUujKgd7zRJEKNRuhDsJvS",
+  "agent_id": "a09c093764fbe489a",
+  "subagent_type": "project-coder",
+  "task_description": "T1 vert : :status Activity",
+  "token_usage": {
+    "input_tokens": 22,
+    "cache_creation_tokens": 39211,
+    "cache_read_tokens": 317783,
+    "output_tokens": 5243,
+    "api_call_count": 11
+  },
+  "started_at": "2026-11-12T10:39:40.185254264+01:00",
+  "completed_at": "2026-11-12T10:42:30.56639243+01:00"
+}

@@ -1,0 +1,15 @@
+{
+  "tool_use_id": "toolu_015wHSsXn7VDjSEwZ8SqdcA3",
+  "agent_id": "a48cf543d8cea1c0f",
+  "subagent_type": "project-tester",
+  "task_description": "T0 rouge : banc d'essai",
+  "token_usage": {
+    "input_tokens": 38,
+    "cache_creation_tokens": 64284,
+    "cache_read_tokens": 806775,
+    "output_tokens": 13812,
+    "api_call_count": 18
+  },
+  "started_at": "2026-11-12T10:34:03.579444594+01:00",
+  "completed_at": "2026-11-12T10:39:33.464968578+01:00"
+}
