@@ -505,6 +505,14 @@ own footer rather than the table's. Its **sort** is the table's — `.` cycles
 Tag and Updated through `CycleSort`, and `SetSort` is what puts a new search
 back on the default order.
 
+The browser's **search form** has one `enter` entry in the header
+(Rule 130), whose label follows the focus (`RegistryBrowser.FormEnter()`):
+`Search` on Repository and on the Search button, `Open tags` on the Open Tags
+button, `Browse tags` where no `Searcher` is wired. It is lit on Repository and
+on a button, greyed on a checkbox (there `enter` only moves the focus). The
+buttons come from `formButtons()`, the same list the keyboard and the rendering
+read (`network.md`); the help text follows the mode (`registryBrowserHelpBody`).
+
 The browser's **level 1** (image search results, `searchTable`) is the
 opposite case: it uses the `datatable` filter bar as is (Rule 136). `/` opens it
 and filters on the Name column; the bar is drawn in the OCI view's footer

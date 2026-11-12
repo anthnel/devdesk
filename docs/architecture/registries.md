@@ -125,7 +125,8 @@ as their source of truth, and `config.yaml` is what the user declares.
   first frame and works offline. `→` on a group row in the Registries tab drills
   into its members, `←`/`esc` go back.
 - **The image search (level 1) reads the same entries, keys and credentials**
-  as the tag flow: the checked entries (`selected(entry)`, D40), `credsFor`
+  as the tag flow, and the selection applies to both form actions, Search and
+  Open Tags (`submit(action)`, `network.md`): the checked entries (`selected(entry)`, D40), `credsFor`
   (anonymous stays anonymous, D12) and the entry's repository prefix (D39). It
   writes nothing: the remembered selection is unchanged (`network.md`).
 - `internal/cache/browser_selection.go` remembers what the browser had

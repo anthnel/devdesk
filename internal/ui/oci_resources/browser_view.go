@@ -102,8 +102,7 @@ func (b *RegistryBrowser) viewInput() string {
 		sb.WriteString("\n\n")
 	}
 
-	sb.WriteString("  ")
-	sb.WriteString(theme.RenderButton("Browse Tags", b.focusedField == b.brFieldSubmit(), "primary"))
+	sb.WriteString(b.renderFormButtons())
 
 	return sb.String()
 }

@@ -364,12 +364,13 @@ func (m Model) GetShortcuts() shortcut.Shortcuts {
 				{Key: "esc", Description: escLabel},
 			}
 		default: // browserStateInput
-			// enter submits, so it is greyed until the submit button has the
-			// focus. A control, not an action: greying is the whole of it, and
-			// a footer line on every stray enter in a form would be noise.
+			// One enter entry whose label follows the focus; it is greyed on a
+			// checkbox, where enter only advances. A control, not an action:
+			// greying is the whole of it, and a footer line on every stray enter
+			// in a form would be noise.
+			enterLabel, enterLit := m.registryBrowser.FormEnter()
 			return []shortcut.Shortcut{
-				{Key: "enter", Description: "Browse tags",
-					Disabled: m.registryBrowser.focusedField != m.registryBrowser.brFieldSubmit()},
+				{Key: "enter", Description: enterLabel, Disabled: !enterLit},
 				{Key: "esc", Description: "Close browser"},
 			}
 		}
@@ -629,14 +630,7 @@ func (m Model) GetHelpContent() help.Content {
 			},
 			{
 				Title: "Registry Browser",
-				Body: "Opened from the Images tab with 'b'. Type a repository name (e.g. nginx or library/nginx), " +
-					"select which registries to search using Space, then press Browse Tags. " +
-					"Results show tags from all selected registries concurrently. " +
-					"Press 'r' to cycle the registry filter (one registry at a time), '/' to filter by tag name, '.' to sort. " +
-					"Press G to pull the selected tag, S to scan it directly via Trivy (no pull), or Enter to view cached CVE details. " +
-					"The first column is the activity dot: a scan or a pull of the tag running, queued or failed; the Critical, High, Medium and Low counts show an ellipsis while its scan runs. The footer says what the selected tag is doing. " +
-					"Press Esc to go back to the search form. " +
-					"An image search (level 1) lists one row per registry and image: the first column is the image icon, '/' filters by name, Esc closes the filter, then goes back to the form, and Enter does nothing yet.",
+				Body:  registryBrowserHelpBody(m.browserSearchEnabled()),
 			},
 			{
 				Title: "Image Signatures",
@@ -654,4 +648,40 @@ func (m Model) GetHelpContent() help.Content {
 			},
 		},
 	}
+}
+
+// browserSearchEnabled reports whether the registry browser has, or will open
+// with, a Searcher: the open browser's own, else the default newRegistryBrowser
+// reads.
+func (m Model) browserSearchEnabled() bool {
+	if m.registryBrowser != nil {
+		return m.registryBrowser.searcher != nil
+	}
+	return defaultImageSearcher != nil
+}
+
+// registryBrowserHelpBody is the Registry Browser help text. It follows the
+// form's mode (Rule 114): without a Searcher the form has one Browse Tags
+// button; with one it has Search and Open Tags.
+func registryBrowserHelpBody(searchEnabled bool) string {
+	var b strings.Builder
+	b.WriteString("Opened from the Images tab with 'b'. Type a repository name (e.g. nginx or library/nginx), " +
+		"select which registries to search using Space, then ")
+	if searchEnabled {
+		b.WriteString("press Enter in the Repository field, which runs Search. Press down to reach the buttons. " +
+			"Search looks an image up by its short name (level 1) and lists one row per registry and image; " +
+			"Open Tags opens the tags of the name exactly as typed, without searching. " +
+			"The selected registries apply to both. ")
+	} else {
+		b.WriteString("press Browse Tags. ")
+	}
+	b.WriteString("Results show tags from all selected registries concurrently. " +
+		"Press 'r' to cycle the registry filter (one registry at a time), '/' to filter by tag name, '.' to sort. " +
+		"Press G to pull the selected tag, S to scan it directly via Trivy (no pull), or Enter to view cached CVE details. " +
+		"The first column is the activity dot: a scan or a pull of the tag running, queued or failed; the Critical, High, Medium and Low counts show an ellipsis while its scan runs. The footer says what the selected tag is doing. " +
+		"Press Esc to go back to the search form.")
+	if searchEnabled {
+		b.WriteString(" An image search (level 1) lists one row per registry and image: the first column is the image icon, '/' filters by name, Esc closes the filter, then goes back to the form, and Enter does nothing yet.")
+	}
+	return b.String()
 }

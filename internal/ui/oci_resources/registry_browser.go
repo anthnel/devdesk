@@ -203,9 +203,6 @@ const brFieldRepo = 0
 // brFieldReg returns the form field index for the i-th picker row.
 func (b *RegistryBrowser) brFieldReg(i int) int { return 1 + i }
 
-// brFieldSubmit returns the form field index for the Browse Tags button.
-func (b *RegistryBrowser) brFieldSubmit() int { return 1 + len(b.rows) }
-
 // RegistryBrowserCloseMsg is sent when the user presses ESC on the browser input screen.
 type RegistryBrowserCloseMsg struct{}
 
