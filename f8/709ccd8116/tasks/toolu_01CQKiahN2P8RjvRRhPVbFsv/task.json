@@ -1,0 +1,15 @@
+{
+  "tool_use_id": "toolu_01CQKiahN2P8RjvRRhPVbFsv",
+  "agent_id": "ac8aaf91ad4b69dd4",
+  "subagent_type": "team-core:archivist",
+  "task_description": "Consigner décisions Dagger au journal",
+  "token_usage": {
+    "input_tokens": 2,
+    "cache_creation_tokens": 28401,
+    "cache_read_tokens": 0,
+    "output_tokens": 345,
+    "api_call_count": 1
+  },
+  "started_at": "2026-11-11T11:46:50.874187893+01:00",
+  "completed_at": "2026-11-11T11:46:55.288171197+01:00"
+}
