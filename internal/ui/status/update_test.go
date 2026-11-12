@@ -8,7 +8,6 @@ import (
 	"testing"
 	"time"
 
-	"charm.land/bubbles/v2/spinner"
 	"charm.land/bubbles/v2/table"
 	tea "charm.land/bubbletea/v2"
 
@@ -58,7 +57,7 @@ func TestNewAutoRefreshEnabledRefreshesOnTicks(t *testing.T) {
 
 // Init must schedule the first check itself: nothing else in the view triggers
 // one before the first tick elapses.
-func TestInitBatchesSpinnerTickAndCheck(t *testing.T) {
+func TestInitSchedulesTheFirstCheck(t *testing.T) {
 	if cmd := New(testConfig()).Init(); cmd == nil {
 		t.Fatal("Init() returned no command, so no initial check is ever run")
 	}
@@ -154,25 +153,6 @@ func TestTickStartsACheckOnlyWhenDue(t *testing.T) {
 				t.Error("the tick loop stopped: no command returned")
 			}
 		})
-	}
-}
-
-// The spinner only animates while a check is in flight; ticking it when idle
-// would keep the render loop busy for nothing.
-func TestSpinnerTickIsIgnoredWhenIdle(t *testing.T) {
-	m := newTestModel(t)
-
-	_, cmd := step(t, m, spinner.TickMsg{})
-	if cmd != nil {
-		if _, batched := cmd().(tea.BatchMsg); !batched && cmd() != nil {
-			t.Errorf("an idle model answered a spinner tick with %T", cmd())
-		}
-	}
-
-	m.checking = true
-	_, cmd = step(t, m, spinner.TickMsg{})
-	if cmd == nil {
-		t.Error("a checking model did not keep the spinner running")
 	}
 }
 
