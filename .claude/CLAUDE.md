@@ -53,6 +53,7 @@ mise run vet          # Run go vet
 mise run lint         # MANDATORY before commits - golangci-lint
 mise run tidy         # Tidy dependencies
 mise run check        # fmt + vet + lint + test in one go
+mise run ci           # the six CI checks in order (fmt-check, vet, lint, build, test, test-race), stops at the first failure; unlike check it rewrites no file and also runs build and test-race
 
 # Installation
 mise run install      # Install to $GOPATH/bin
