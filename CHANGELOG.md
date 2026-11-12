@@ -475,3 +475,4 @@
 * remove SBOM generation (§3.14) ([#47](https://github.com/anthnel/devdesk/issues/47)) ([7dea42f](https://github.com/anthnel/devdesk/commit/7dea42fe3ef722a13dedefc5954594400f6a2052))
 * split docker/client.go and route every CLI call through a seam ([#6](https://github.com/anthnel/devdesk/issues/6)) ([343886c](https://github.com/anthnel/devdesk/commit/343886c5a6adc399ed48b0de285b587f1d237d34))
 * the last four tables move to datatable (§3.21) ([#64](https://github.com/anthnel/devdesk/issues/64)) ([244a0d3](https://github.com/anthnel/devdesk/commit/244a0d36c8b0623ba369d28edb2a6ab288399c44))
+<!-- ci verification -->
