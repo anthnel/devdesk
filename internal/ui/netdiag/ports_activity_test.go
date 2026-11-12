@@ -187,8 +187,8 @@ func TestABusyRowKeepsItsStateText(t *testing.T) {
 
 func TestNoPortsCellCarriesASpinnerFrame(t *testing.T) {
 	m := killingSSHD(t)
-	m = feed(t, m, jobs.FrameMsg{Frame: "ZZ", RenderedFrame: "ZZ", Blink: true})
-	if view := m.portsModel.table.View(); hasSpinnerFrame(view) || strings.Contains(view, "ZZ") {
+	m = feed(t, m, jobs.FrameMsg{Blink: true})
+	if view := m.portsModel.table.View(); hasSpinnerFrame(view) {
 		t.Errorf("a spinner frame reached the Ports table:\n%s", view)
 	}
 	for _, row := range m.portsModel.table.Table().Rows() {
@@ -290,7 +290,7 @@ func TestAFrameLeavesTheDiagnosticsFooterSpinnerAlone(t *testing.T) {
 	}
 	before := render(m)
 
-	m = feed(t, m, jobs.FrameMsg{Frame: "ZZ", RenderedFrame: "ZZ", Blink: true})
+	m = feed(t, m, jobs.FrameMsg{Blink: true})
 	if after := render(m); after != before {
 		t.Errorf("a jobs frame changed the Diagnostics footer:\nbefore %q\nafter  %q", before, after)
 	}

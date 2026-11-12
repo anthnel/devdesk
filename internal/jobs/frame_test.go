@@ -20,15 +20,6 @@ func TestAFrameMessageCarriesNoSnapshot(t *testing.T) {
 			t.Errorf("FrameMsg.%s is a %s; a frame holds values only", typ.Field(i).Name, typ.Field(i).Type.Kind())
 		}
 	}
-	want := map[string]reflect.Kind{"Frame": reflect.String, "RenderedFrame": reflect.String, "Blink": reflect.Bool}
-	if typ.NumField() != len(want) {
-		t.Errorf("FrameMsg has %d fields, want exactly %d", typ.NumField(), len(want))
-	}
-	for name, kind := range want {
-		if f, ok := typ.FieldByName(name); !ok || f.Type.Kind() != kind {
-			t.Errorf("FrameMsg.%s missing or not a %s", name, kind)
-		}
-	}
 }
 
 // The frame left ChangedMsg: ChangedMsg is for changes of the registry only.
@@ -38,5 +29,22 @@ func TestAChangedMessageCarriesNoFrame(t *testing.T) {
 		if _, ok := typ.FieldByName(name); ok {
 			t.Errorf("ChangedMsg still has a %s field; it belongs to FrameMsg", name)
 		}
+	}
+}
+
+// DEVDESK-341 step 5 (red): the router animates no spinner, so FrameMsg carries
+// the blink phase and nothing else.
+func TestAFrameMessageCarriesOnlyTheBlinkPhase(t *testing.T) {
+	typ := reflect.TypeOf(FrameMsg{})
+	if typ.NumField() != 1 {
+		t.Errorf("FrameMsg has %d fields, want exactly 1 (Blink)", typ.NumField())
+	}
+	for _, name := range []string{"Frame", "RenderedFrame"} {
+		if _, ok := typ.FieldByName(name); ok {
+			t.Errorf("FrameMsg still has a %s field", name)
+		}
+	}
+	if f, ok := typ.FieldByName("Blink"); !ok || f.Type.Kind() != reflect.Bool {
+		t.Error("FrameMsg.Blink is missing or not a bool")
 	}
 }

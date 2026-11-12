@@ -186,8 +186,8 @@ func TestFocusRestartsExactlyOneChain(t *testing.T) {
 
 		a.Update(tea.FocusMsg{})
 
-		if len(*got) != before+1 || (*got)[before] != animationFastInterval {
-			t.Errorf("intervals after focus = %v, want one of %v", (*got)[before:], animationFastInterval)
+		if len(*got) != before+1 || (*got)[before] != animationBlinkInterval {
+			t.Errorf("intervals after focus = %v, want one of %v", (*got)[before:], animationBlinkInterval)
 		}
 	})
 	t.Run("focus before the in-flight tick lands", func(t *testing.T) {
@@ -317,7 +317,6 @@ func (m countingModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 // -race: a blur and a focus under a real tea.Program.
 func TestTheChainStopsOnBlurAndResumesOnFocusUnderARealProgram(t *testing.T) {
-	testutil.FastTimers(t, &animationFastInterval)
 	testutil.FastTimers(t, &animationBlinkInterval)
 
 	a := router(t, &blinkView{wants: true})

@@ -151,9 +151,9 @@ func TestNoImageCellCarriesASpinnerFrame(t *testing.T) {
 		ociRun(jobs.KindPull, ociCtx, jobs.ItemRunning, "web:v3"),
 		ociRun(jobs.KindPull, ociCtx, jobs.ItemRunning, imgNewRef),
 	}, nil)
-	m = feed(t, m, jobs.FrameMsg{Frame: "ZZ", RenderedFrame: "ZZ", Blink: true})
+	m = feed(t, m, jobs.FrameMsg{Blink: true})
 	m.imageTable.MarkBusy(imageRowByName(t, m, "cache:v2").Image.ID, "Removing cache:v2")
-	if view := m.imageTable.View(); hasSpinnerFrame(view) || strings.Contains(view, "ZZ") {
+	if view := m.imageTable.View(); hasSpinnerFrame(view) {
 		t.Errorf("a spinner frame reached the Images table:\n%s", view)
 	}
 	for _, row := range m.imageTable.Table().Rows() {

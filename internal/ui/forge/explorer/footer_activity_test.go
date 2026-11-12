@@ -16,12 +16,9 @@ func TestARouterFrameDoesNotReplaceTheExplorersLoadLine(t *testing.T) {
 	m := loadedModel(t)
 	m.refreshing = 1 // "Updating from ..." is on screen
 
-	m = feed(t, m, jobs.FrameMsg{Frame: "<R>", RenderedFrame: "<R>", Blink: true})
+	m = feed(t, m, jobs.FrameMsg{Blink: true})
 
 	footer := m.RenderFooter(160)
-	if strings.Contains(footer, "<R>") {
-		t.Errorf("the router frame text reached the footer:\n%s", footer)
-	}
 	if !strings.Contains(footer, "●") || !strings.Contains(footer, "Updating from") {
 		t.Errorf("the load line lost its dot or text:\n%s", footer)
 	}

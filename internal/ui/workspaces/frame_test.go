@@ -16,10 +16,10 @@ func TestAFrameDoesNotChangeTheRowCells(t *testing.T) {
 	m := running(t, loadedModel(t), jobs.KindSync, devdeskPath)
 	nRuns := len(m.jobs)
 
-	for _, frame := range []string{"X", "Y"} {
-		m = feed(t, m, jobs.FrameMsg{Frame: frame, RenderedFrame: frame})
+	for _, blink := range []bool{true, false} {
+		m = feed(t, m, jobs.FrameMsg{Blink: blink})
 		if got := m.table.Items()[0].GitStatus; got != "syncing" {
-			t.Errorf("Git Status = %q after frame %q, want %q unchanged", got, frame, "syncing")
+			t.Errorf("Git Status = %q after Blink=%v, want %q unchanged", got, blink, "syncing")
 		}
 	}
 	if len(m.jobs) != nRuns {
@@ -47,7 +47,7 @@ func TestAFrameMovesTheFooterDot(t *testing.T) {
 func TestAFrameKeepsTheSnapshot(t *testing.T) {
 	m := running(t, loadedModel(t), jobs.KindSync, devdeskPath)
 
-	m = feed(t, m, jobs.FrameMsg{Frame: "X", RenderedFrame: "X"})
+	m = feed(t, m, jobs.FrameMsg{})
 
 	if !m.syncing(devdeskPath) {
 		t.Error("a frame made the running sync disappear from the view")

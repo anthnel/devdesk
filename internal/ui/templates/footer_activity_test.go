@@ -33,7 +33,7 @@ func TestTheProgressShowsTheActivityDotNotABrailleFrame(t *testing.T) {
 	if st := m.jobsStatus(); !st.Activity || st.Spinner {
 		t.Fatalf("status Activity=%v Spinner=%v, want Activity only", st.Activity, st.Spinner)
 	}
-	m = send(t, m, jobs.FrameMsg{Blink: true, Frame: "⠹", RenderedFrame: "⠹"})
+	m = send(t, m, jobs.FrameMsg{Blink: true})
 	got := footerLine(m, 120)
 	if !strings.Contains(ansi.Strip(got), "● ") || !strings.Contains(got, "0/1") {
 		t.Errorf("want the dot and the progress, got %q", ansi.Strip(got))

@@ -249,7 +249,7 @@ func TestInSelectionTheRestIsTheCheckboxAndFailedShowsItToo(t *testing.T) {
 }
 
 func TestNoTreeCellCarriesASpinnerRuneOrEscape(t *testing.T) {
-	m := feed(t, deleting(t), jobs.FrameMsg{Frame: spinner.Dot.Frames[0], Blink: true})
+	m := feed(t, deleting(t), jobs.FrameMsg{Blink: true})
 	for _, row := range m.table.Items() {
 		for i, col := range explorerColumns() {
 			cell := col.Cell(row)

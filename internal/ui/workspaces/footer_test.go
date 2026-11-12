@@ -111,7 +111,7 @@ func TestFooterNamesTheSelectedRowsOperation(t *testing.T) {
 
 func TestFooterKeepsTheBatchProgressBesideTheRowDetail(t *testing.T) {
 	m := withSnapshot(t, loadedModel(t), []jobs.Run{syncBatch()}, nil)
-	m = feed(t, m, jobsFrame("*"))
+	m = feed(t, m, jobsFrame())
 
 	running := selectRow(t, m, "devdesk").RenderFooter(200)
 	for _, w := range []string{"Syncing", ftDev, "/12"} {
@@ -265,8 +265,8 @@ func TestFooterStaysOneLineAtNarrowWidth(t *testing.T) {
 	}
 }
 
-func jobsFrame(rendered string) jobs.FrameMsg {
-	return jobs.FrameMsg{Frame: rendered, RenderedFrame: rendered, Blink: true}
+func jobsFrame() jobs.FrameMsg {
+	return jobs.FrameMsg{Blink: true}
 }
 
 func t0() time.Time { return time.Date(2026, 11, 1, 10, 0, 0, 0, time.UTC) }

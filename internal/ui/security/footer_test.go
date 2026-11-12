@@ -72,7 +72,7 @@ func infoLine(m Model, width int) string {
 
 func TestFooterNamesTheSelectedRowAndKeepsTheProgress(t *testing.T) {
 	m := footerModel(t, []jobs.Run{batch()}, nil)
-	m = feed(t, m, jobs.FrameMsg{Frame: "SPIN", RenderedFrame: "SPIN", Blink: true})
+	m = feed(t, m, jobs.FrameMsg{Blink: true})
 
 	running := infoLine(selectTarget(t, m, ftRepo), 200)
 	for _, w := range []string{"Scanning", ftRepo, "Scanning — 1/3"} {

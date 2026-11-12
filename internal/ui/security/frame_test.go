@@ -54,10 +54,10 @@ func TestAFrameChangesTheGlyphNotTheItems(t *testing.T) {
 func TestAFrameNeverReachesTheTableCells(t *testing.T) {
 	m := inventoryModel(t, inventoryFixtures()...)
 	m = withJobs(t, m, scanningRun("nexus/api:1.4"))
-	m = feed(t, m, jobs.FrameMsg{Frame: "ZZ", RenderedFrame: "FOOTERFRAME", Blink: true})
+	m = feed(t, m, jobs.FrameMsg{Blink: true})
 
-	if strings.Contains(m.Render(), "ZZ") {
-		t.Error("the bare frame still reaches the table")
+	if hasBraille(m.Render()) {
+		t.Error("a spinner frame reaches the table")
 	}
 }
 
@@ -82,12 +82,9 @@ func TestAFrameStillFeedsTheFooterDotWhenTheViewHasNoChain(t *testing.T) {
 	// The cursor sits on an idle row (see idleRowDuringBatch): no detail glyph
 	// takes the footer dot's place, so the hollow dot must be there.
 	m := idleRowDuringBatch(t)
-	m = feed(t, m, jobs.FrameMsg{Frame: "ZZ", RenderedFrame: "FOOTERFRAME", Blink: false})
+	m = feed(t, m, jobs.FrameMsg{Blink: false})
 
 	footer := m.RenderFooter(200)
-	if strings.Contains(footer, "FOOTERFRAME") {
-		t.Error("the router's rendered frame reaches the footer")
-	}
 	if !strings.Contains(footer, indicator.Glyph(indicator.Running, false)) {
 		t.Errorf("the footer shows no hollow dot on an idle row during a batch: %q", ansi.Strip(footer))
 	}

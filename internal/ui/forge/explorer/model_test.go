@@ -662,7 +662,7 @@ func TestAWorkingRowTakesItsBlinkFromTheBroadcast(t *testing.T) {
 	m = feed(t, m, jobs.ChangedMsg{
 		Runs: []jobs.Run{createRun("new", "new")},
 	})
-	m = feed(t, m, jobs.FrameMsg{Frame: "⣾", Blink: true})
+	m = feed(t, m, jobs.FrameMsg{Blink: true})
 
 	row, ok := rowFor(m, "new")
 	if !ok {

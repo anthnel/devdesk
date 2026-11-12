@@ -189,9 +189,9 @@ func TestUnderStaticMotionARunningRowIsAFixedFilledDot(t *testing.T) {
 
 func TestTheModelCarriesNoRowSpinnerAnyMore(t *testing.T) {
 	m := withRuns(t, run(1, jobs.KindScan, "~/work", jobs.ItemRunning))
-	m = feed(t, m, jobs.FrameMsg{Frame: "ZZ", Blink: true})
-	if strings.Contains(m.Render(), "ZZ") {
-		t.Error("the bare spinner frame still reaches the table")
+	m = feed(t, m, jobs.FrameMsg{Blink: true})
+	if hasBraille(m.Render()) {
+		t.Error("a spinner frame reaches the table")
 	}
 }
 

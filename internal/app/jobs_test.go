@@ -124,7 +124,7 @@ func TestSendingTheSnapshotToAMissingViewIsSilent(t *testing.T) {
 // path that starts one, so a chain alive afterwards is the broadcast having
 // happened.
 func TestAContextSwitchTellsTheRebuiltViewsWhatIsRunning(t *testing.T) {
-	testutil.FastTimers(t, &animationFastInterval)
+	testutil.FastTimers(t, &animationBlinkInterval)
 
 	a := router(t, &fakeView{})
 	id := a.jobs.Start(scanRun("default", "a"))
@@ -211,7 +211,7 @@ func TestAViewsWorkIsRegisteredAndAdvancedByItsOwnMessages(t *testing.T) {
 	a.views[command.ViewWorkspaces] = ws
 	a.currentContext = "prod"
 
-	testutil.FastTimers(t, &animationFastInterval)
+	testutil.FastTimers(t, &animationBlinkInterval)
 
 	worked := ""
 	_, cmd := a.Update(jobs.StartMsg{
@@ -294,7 +294,7 @@ func TestAPullIsRegisteredAndAdvancedByItsOwnMessages(t *testing.T) {
 	a := router(t, &fakeView{})
 	a.views[command.ViewOCIResources] = oci
 
-	testutil.FastTimers(t, &animationFastInterval)
+	testutil.FastTimers(t, &animationBlinkInterval)
 
 	const image = "dhi/debian-base:trixie"
 	a.Update(jobs.StartMsg{
@@ -330,7 +330,7 @@ func TestAFailedPullSettlesTheRun(t *testing.T) {
 	a := router(t, &fakeView{})
 	a.views[command.ViewOCIResources] = &fakeView{}
 
-	testutil.FastTimers(t, &animationFastInterval)
+	testutil.FastTimers(t, &animationBlinkInterval)
 
 	const image = "dhi/debian-base:nope"
 	a.Update(jobs.StartMsg{
@@ -641,7 +641,7 @@ func TestATemplateScanIsRegisteredAndAdvancedByItsOwnMessages(t *testing.T) {
 	tpl := &fakeView{}
 	a := router(t, &fakeView{})
 	a.views[command.ViewTemplates] = tpl
-	testutil.FastTimers(t, &animationFastInterval)
+	testutil.FastTimers(t, &animationBlinkInterval)
 
 	const dir = "/cache/template-scan/spring-api"
 	a.Update(jobs.StartMsg{Run: jobs.NewRun(jobs.KindScan, command.ViewTemplates, "", "Spring API", dir)})
@@ -676,7 +676,7 @@ func TestATemplateSyncIsRegisteredAndAdvancedByItsOwnMessages(t *testing.T) {
 	tpl := &fakeView{}
 	a := router(t, &fakeView{})
 	a.views[command.ViewTemplates] = tpl
-	testutil.FastTimers(t, &animationFastInterval)
+	testutil.FastTimers(t, &animationBlinkInterval)
 
 	a.Update(jobs.StartMsg{Run: jobs.NewRun(jobs.KindSync, command.ViewTemplates, "", "Spring API", "spring-api")})
 
@@ -705,7 +705,7 @@ func TestATemplateSyncIsRegisteredAndAdvancedByItsOwnMessages(t *testing.T) {
 func TestAFailedTemplateSyncSettlesTheRun(t *testing.T) {
 	a := router(t, &fakeView{})
 	a.views[command.ViewTemplates] = &fakeView{}
-	testutil.FastTimers(t, &animationFastInterval)
+	testutil.FastTimers(t, &animationBlinkInterval)
 
 	a.Update(jobs.StartMsg{Run: jobs.NewRun(jobs.KindSync, command.ViewTemplates, "", "Spring API", "spring-api")})
 	a.Update(templates.SyncStartingMsg{Slug: "spring-api"})

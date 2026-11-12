@@ -44,7 +44,7 @@ func TestTheJobsCountShowsTheActivityDotNotABrailleFrame(t *testing.T) {
 	if st := m.status(); !st.Activity || st.Spinner {
 		t.Fatalf("status Activity=%v Spinner=%v, want Activity only", st.Activity, st.Spinner)
 	}
-	m = feed(t, m, jobs.FrameMsg{Blink: true, Frame: "⠹", RenderedFrame: "⠹"})
+	m = feed(t, m, jobs.FrameMsg{Blink: true})
 	footer := m.RenderFooter(120)
 	if !strings.Contains(ansi.Strip(footer), "● 1 job running") {
 		t.Errorf("want the dot before the count, got %q", ansi.Strip(footer))

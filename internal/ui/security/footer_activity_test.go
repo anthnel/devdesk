@@ -38,7 +38,7 @@ func TestJobsWorkShowsTheActivityDotNotABrailleFrame(t *testing.T) {
 	if st := m.inventoryStatus(); !st.Activity || st.Spinner {
 		t.Fatalf("status Activity=%v Spinner=%v, want Activity only", st.Activity, st.Spinner)
 	}
-	m = feed(t, m, jobs.FrameMsg{Blink: true, Frame: "⠹", RenderedFrame: "⠹"})
+	m = feed(t, m, jobs.FrameMsg{Blink: true})
 	got := infoLine(m, 200)
 	if !strings.Contains(ansi.Strip(got), "● ") || !strings.Contains(ansi.Strip(got), "1/3") {
 		t.Errorf("want the dot and the progress, got %q", ansi.Strip(got))
@@ -70,9 +70,9 @@ func TestTheInventoryLoadKeepsItsOwnSpinnerAndNoDot(t *testing.T) {
 	if st := m.inventoryStatus(); !st.Spinner || st.Activity {
 		t.Fatalf("while loading: Spinner=%v Activity=%v, want Spinner only", st.Spinner, st.Activity)
 	}
-	m = feed(t, m, jobs.FrameMsg{Blink: true, Frame: "ZZ", RenderedFrame: "FOOTERFRAME"})
+	m = feed(t, m, jobs.FrameMsg{Blink: true})
 	got := infoLine(m, 200)
-	if !strings.Contains(got, "⠹") || strings.Contains(got, "FOOTERFRAME") {
+	if !strings.Contains(got, "⠹") {
 		t.Errorf("the own spinner must stay and the router frame stay out: %q", ansi.Strip(got))
 	}
 	if strings.ContainsAny(ansi.Strip(got), "●○") {

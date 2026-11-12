@@ -35,7 +35,7 @@ import (
 // footer must carry its own dot.
 
 // renderedFrameName is the router's styled braille frame, which no footer reads
-// any more. It is retired under internal/ui.
+// and which jobs.FrameMsg no longer carries (retired in step 5).
 const renderedFrameName = "RenderedFrame"
 
 // footerSeed puts a view on screen, jobs work running and no selected row busy.
@@ -158,11 +158,9 @@ func footerBrailleProblem(footer string) string {
 	return ""
 }
 
-// forceRouterFrame makes the router's frame as non-empty as it can be and hands
-// it to the view on screen: a regression that still wrote the frame into a footer
-// would show a braille character here.
+// forceRouterFrame hands the view on screen the router's "on" phase: a regression
+// that still wrote a braille frame into a footer would show it here.
 func forceRouterFrame(a *App, vt command.ViewType) {
-	a.anim.frameIdx = 3
 	a.anim.blinkOn = true
 	_ = a.sendFrameTo(vt)
 }
@@ -388,26 +386,9 @@ func TestActivityGuardRenderedFrameLogic(t *testing.T) {
 	}
 }
 
-// DEVDESK-341: nothing under internal/ui reads the router's styled frame. The
-// two remaining mentions, jobs.FrameMsg.RenderedFrame (internal/jobs/message.go)
-// and its producer (internal/app/animation.go), are outside internal/ui on
-// purpose: step 5 of the plan retires the field, and this guard does not cover
-// them.
-func TestActivityGuardNoRenderedFrameUnderUI(t *testing.T) {
-	scanned := 0
-	sourceFiles(t, func(rel string, fset *token.FileSet, file *ast.File) {
-		if !strings.HasPrefix(rel, "ui/") {
-			return
-		}
-		scanned++
-		for _, f := range renderedFrameUses(fset, file) {
-			t.Errorf("%s: %s under internal/ui (DEVDESK-341: a footer shows the activity dot, not the router's frame)", f.Pos, f.What)
-		}
-	})
-	if scanned == 0 {
-		t.Fatal("no source file found under internal/ui: the scan reads nothing")
-	}
-}
+// The "nothing under internal/ui reads RenderedFrame" guard is merged into
+// TestActivityGuardNoFrameFieldAnywhere (animation_cadence_test.go), which covers
+// internal/jobs, internal/app and internal/ui.
 
 // --- Router acceptance -----------------------------------------------------
 

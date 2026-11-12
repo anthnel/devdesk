@@ -18,7 +18,7 @@ import (
 func withJobs(t *testing.T, m Model, runs ...jobs.Run) Model {
 	t.Helper()
 	next, _ := m.Update(jobs.ChangedMsg{Runs: runs, Context: "default"})
-	next, _ = next.Update(jobs.FrameMsg{Frame: "*", RenderedFrame: "*"})
+	next, _ = next.Update(jobs.FrameMsg{})
 	updated, ok := next.(Model)
 	if !ok {
 		t.Fatalf("Update() returned %T, want ociresources.Model", next)

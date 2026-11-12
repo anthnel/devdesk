@@ -24,7 +24,6 @@ func runningRouter(t *testing.T, current Screen) *App {
 	t.Helper()
 	a := router(t, current)
 	a.jobs.Start(scanRun("default", "a"))
-	a.anim.frameIdx = 3
 	a.anim.blinkOn = true
 	return a
 }

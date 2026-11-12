@@ -20,7 +20,7 @@ func TestAFrameMovesTheRowDot(t *testing.T) {
 	m = feed(t, m, jobs.ChangedMsg{Runs: []jobs.Run{createRun("new", "new")}})
 
 	for _, blink := range []bool{true, false} {
-		m = feed(t, m, jobs.FrameMsg{Frame: "X", Blink: blink})
+		m = feed(t, m, jobs.FrameMsg{Blink: blink})
 		row, ok := rowFor(m, "new")
 		if !ok {
 			t.Fatal("the placeholder row is gone")
@@ -47,10 +47,7 @@ func TestAFrameDrivesTheLoadDot(t *testing.T) {
 	m.loading = true // the tree is reloading: the footer shows a load line
 
 	for blink, glyph := range map[bool]string{true: "●", false: "○"} {
-		got := feed(t, m, jobs.FrameMsg{Blink: blink, RenderedFrame: "<R1>"}).RenderFooter(160)
-		if strings.Contains(got, "<R1>") {
-			t.Errorf("a frame text reached the footer:\n%s", got)
-		}
+		got := feed(t, m, jobs.FrameMsg{Blink: blink}).RenderFooter(160)
 		if hasBraille(got) {
 			t.Errorf("braille in the footer:\n%s", got)
 		}

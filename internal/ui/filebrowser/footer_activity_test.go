@@ -16,7 +16,7 @@ func TestAFrameLeavesTheFooterWithoutASpinnerFrame(t *testing.T) {
 	m := openAt(t, tree(t))
 	before := m.RenderFooter(80)
 
-	m, cmd := step(t, m, jobs.FrameMsg{Frame: "⠹", RenderedFrame: "⠹", Blink: true})
+	m, cmd := step(t, m, jobs.FrameMsg{Blink: true})
 
 	if cmd != nil {
 		t.Error("a FrameMsg returned a Cmd; the router owns the chain")

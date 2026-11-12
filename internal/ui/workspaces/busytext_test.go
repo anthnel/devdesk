@@ -115,7 +115,7 @@ func TestADirectoryAggregatesItsSubRepoActivity(t *testing.T) {
 func TestNoCellEverCarriesASpinnerRune(t *testing.T) {
 	m := running(t, loadedModel(t), jobs.KindScan, devdeskPath, bzSubA)
 	m = running(t, m, jobs.KindSync, devdeskPath)
-	m = feed(t, m, jobs.FrameMsg{Frame: "⠋", RenderedFrame: "⠋"})
+	m = feed(t, m, jobs.FrameMsg{})
 	for _, r := range m.table.Items() {
 		for _, c := range workspaceColumns(true, true) {
 			if c.Indicator != nil {

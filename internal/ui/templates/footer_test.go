@@ -75,8 +75,8 @@ func TestTheFooterSaysWhatTheSelectedRowIsDoing(t *testing.T) {
 			if !strings.Contains(got, tc.want) {
 				t.Errorf("footer = %q, want it to contain %q", got, tc.want)
 			}
-			if strings.Contains(got, "<R1>") {
-				t.Errorf("a detail with a glyph still shows the spinner frame: %q", got)
+			if strings.ContainsAny(got, "⠋⠙⠹⠸⠼⠴⠦⠧⠇⠏") {
+				t.Errorf("a detail with a glyph still shows a spinner frame: %q", got)
 			}
 		})
 	}

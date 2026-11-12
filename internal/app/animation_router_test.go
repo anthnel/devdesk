@@ -139,40 +139,12 @@ func TestAnOperationStartedAfterTheChainDiedRestartsItOnce(t *testing.T) {
 	a := router(t, &blinkView{})
 
 	a.Update(jobs.StartMsg{Run: scanRun("default", "a")})
-	if len(*got) != 1 || (*got)[0] != animationFastInterval {
-		t.Fatalf("intervals after a start = %v, want one of %v", *got, animationFastInterval)
+	if len(*got) != 1 || (*got)[0] != animationBlinkInterval {
+		t.Fatalf("intervals after a start = %v, want one of %v", *got, animationBlinkInterval)
 	}
 	a.Update(testutil.Key("down"))
 	if len(*got) != 1 {
 		t.Errorf("a later Update asked for another chain: %v", *got)
-	}
-}
-
-// Criterion 3: a faster need replaces the slower chain; the old one is dropped.
-func TestAFasterNeedReplacesTheSlowerChain(t *testing.T) {
-	a, v, got := blinkRouter(t, true)
-	startBlinkChain(t, a)
-	old := a.anim.seq
-	if a.anim.interval != animationBlinkInterval {
-		t.Fatalf("blink chain interval = %v, want %v", a.anim.interval, animationBlinkInterval)
-	}
-
-	a.Update(jobs.StartMsg{Run: scanRun("default", "a")})
-
-	if a.anim.seq != old+1 {
-		t.Errorf("seq = %d, want %d (a new chain)", a.anim.seq, old+1)
-	}
-	if last := (*got)[len(*got)-1]; last != animationFastInterval {
-		t.Errorf("replacement interval = %v, want %v", last, animationFastInterval)
-	}
-	frames := len(framesSeen(&v.fakeView))
-	_, cmd := a.Update(animationTickMsg{seq: old, at: time.UnixMilli(1000)})
-	if cmd != nil || len(framesSeen(&v.fakeView)) != frames {
-		t.Error("a tick of the replaced chain was not dropped silently")
-	}
-	cmd = tickAt(a, 1000)
-	if m, ok := testutil.MsgOf[animationTickMsg](cmd); !ok || m.seq != old+1 {
-		t.Error("the new chain was not renewed")
 	}
 }
 
@@ -186,8 +158,8 @@ func TestTheCadenceFollowsTheRegistry(t *testing.T) {
 
 	id := a.jobs.Start(scanRun("default", "a"))
 	a.jobsChanged()
-	if (*got)[len(*got)-1] != animationFastInterval {
-		t.Fatalf("run started: intervals %v, want %v", *got, animationFastInterval)
+	if (*got)[len(*got)-1] != animationBlinkInterval {
+		t.Fatalf("run started: intervals %v, want %v", *got, animationBlinkInterval)
 	}
 
 	seq := a.anim.seq
@@ -198,19 +170,6 @@ func TestTheCadenceFollowsTheRegistry(t *testing.T) {
 	}
 	if last := (*got)[len(*got)-1]; last != animationBlinkInterval {
 		t.Errorf("renewal interval = %v, want %v", last, animationBlinkInterval)
-	}
-}
-
-// Criterion 7: the spinner frame moves only while work runs.
-func TestTheFrameOnlyMovesWhileWorkRuns(t *testing.T) {
-	a, _, _ := blinkRouter(t, true)
-	startBlinkChain(t, a)
-	before := a.animationFrame()
-	for ms := int64(1000); ms <= 3000; ms += 500 {
-		tickAt(a, ms)
-	}
-	if a.animationFrame() != before {
-		t.Error("blink-only ticks advanced the spinner frame")
 	}
 }
 
@@ -233,13 +192,13 @@ func TestStaticMotionNeverStartsAChainForIndicators(t *testing.T) {
 	}
 }
 
-// Criterion 5: a running spinner still ticks at 100 ms, with the phase pinned on.
+// Criterion 5: a running job still ticks at the blink interval under static motion, with the phase pinned on.
 func TestStaticMotionPinsThePhaseOn(t *testing.T) {
 	a, v, got := blinkRouter(t, true)
 	a.setMotionStatic(true)
 	a.Update(jobs.StartMsg{Run: scanRun("default", "a")})
-	if len(*got) == 0 || (*got)[len(*got)-1] != animationFastInterval {
-		t.Fatalf("static motion with a run: intervals %v, want %v", *got, animationFastInterval)
+	if len(*got) == 0 || (*got)[len(*got)-1] != animationBlinkInterval {
+		t.Fatalf("static motion with a run: intervals %v, want %v", *got, animationBlinkInterval)
 	}
 	for _, ms := range []int64{1500, 2500} {
 		tickAt(a, ms)

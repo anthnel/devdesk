@@ -42,7 +42,7 @@ func TestLoadLinesCarryTheActivityDotNotTheOwnSpinner(t *testing.T) {
 }
 
 func TestRefreshShowsTheDotBeforeTheUnchangedText(t *testing.T) {
-	m := feed(t, refreshingModel(t), jobs.FrameMsg{Blink: true, Frame: "⠹", RenderedFrame: "⠹"})
+	m := feed(t, refreshingModel(t), jobs.FrameMsg{Blink: true})
 	footer := m.RenderFooter(160)
 	if plain := ansi.Strip(footer); !strings.Contains(plain, "● Updating from GitLab...") {
 		t.Errorf("want the dot before the text, got %q", plain)

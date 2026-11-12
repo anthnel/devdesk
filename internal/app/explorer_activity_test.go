@@ -37,7 +37,7 @@ func explorerRoots() []*explorer.TreeNode {
 func openExplorer(t *testing.T, a *App) {
 	t.Helper()
 	testutil.FastTimers(t, &components.FooterMsgDuration)
-	testutil.FastTimers(t, &animationFastInterval)
+	testutil.FastTimers(t, &animationBlinkInterval)
 	a.sharedState.Forge = gitlabforge.NewWithClient(nil, "https://gitlab.example.com")
 	a.sharedState.IsAuthenticated = true
 	_ = a.switchView(command.ViewGitExplorer) // its Init would list the groups: dropped
