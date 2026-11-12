@@ -1,0 +1,15 @@
+{
+  "tool_use_id": "toolu_012VeLgGX9LjCaKzUpcp1PuJ",
+  "agent_id": "a53731a06396d3d4c",
+  "subagent_type": "team-core:tech-writer",
+  "task_description": "Docs étape 4 DEVDESK-280",
+  "token_usage": {
+    "input_tokens": 12,
+    "cache_creation_tokens": 38967,
+    "cache_read_tokens": 138708,
+    "output_tokens": 6712,
+    "api_call_count": 6
+  },
+  "started_at": "2026-11-12T09:20:53.606072995+01:00",
+  "completed_at": "2026-11-12T09:21:38.364939538+01:00"
+}

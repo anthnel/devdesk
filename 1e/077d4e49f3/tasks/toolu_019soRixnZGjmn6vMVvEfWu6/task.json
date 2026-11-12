@@ -1,0 +1,15 @@
+{
+  "tool_use_id": "toolu_019soRixnZGjmn6vMVvEfWu6",
+  "agent_id": "a4fd078f3ed0b3247",
+  "subagent_type": "team-core:tech-writer",
+  "task_description": "Corriger règle tui-tables ligne 62",
+  "token_usage": {
+    "input_tokens": 14,
+    "cache_creation_tokens": 37728,
+    "cache_read_tokens": 190346,
+    "output_tokens": 3090,
+    "api_call_count": 7
+  },
+  "started_at": "2026-11-12T09:43:17.188684904+01:00",
+  "completed_at": "2026-11-12T09:43:52.406498053+01:00"
+}

@@ -1,0 +1,15 @@
+{
+  "tool_use_id": "toolu_016BwVb8i8BSBJhTLFp3kLps",
+  "agent_id": "ae9580fb81536a84c",
+  "subagent_type": "team-core:tech-writer",
+  "task_description": "Doc tabulations D128",
+  "token_usage": {
+    "input_tokens": 8,
+    "cache_creation_tokens": 19334,
+    "cache_read_tokens": 66220,
+    "output_tokens": 949,
+    "api_call_count": 4
+  },
+  "started_at": "2026-11-12T09:26:49.982025001+01:00",
+  "completed_at": "2026-11-12T09:27:01.027253103+01:00"
+}

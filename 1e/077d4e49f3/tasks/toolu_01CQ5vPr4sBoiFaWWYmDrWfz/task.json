@@ -1,0 +1,15 @@
+{
+  "tool_use_id": "toolu_01CQ5vPr4sBoiFaWWYmDrWfz",
+  "agent_id": "ad313224f06493012",
+  "subagent_type": "team-core:tech-writer",
+  "task_description": "Corrections revue docs",
+  "token_usage": {
+    "input_tokens": 14,
+    "cache_creation_tokens": 29241,
+    "cache_read_tokens": 161558,
+    "output_tokens": 3144,
+    "api_call_count": 7
+  },
+  "started_at": "2026-11-12T09:24:34.771401692+01:00",
+  "completed_at": "2026-11-12T09:25:02.701610553+01:00"
+}
