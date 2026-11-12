@@ -4,6 +4,8 @@ import (
 	"strings"
 	"testing"
 	"unicode/utf8"
+
+	"github.com/charmbracelet/x/ansi"
 )
 
 func TestStringWidthCountsColumnsNotBytes(t *testing.T) {
@@ -103,6 +105,68 @@ func TestTruncateTailWidthNeverExceedsBudgetOnDoubleWidthGlyphs(t *testing.T) {
 		}
 		if !utf8.ValidString(got) {
 			t.Errorf("TruncateTailWidth(%q, %d) produced invalid UTF-8", s, maxWidth)
+		}
+	}
+}
+
+// agreedWidths are the strings theme.StringWidth (runewidth) and
+// ansi.StringWidth, which the renderer, Lip Gloss and the viewport lay the
+// screen out with, must count the same way.
+var agreedWidths = []struct {
+	name, s string
+	want    int
+}{
+	{"flag FR", "\U0001F1EB\U0001F1F7", 2},
+	{"ZWJ family", "\U0001F468\u200d\U0001F469\u200d\U0001F467", 2},
+	{"Nerd Font PUA glyph", "\uF07B", 1},
+	{"Nerd Font Material glyph (supplementary PUA)", "\U000F0219", 1},
+	{"emoji", "\U0001F4C1", 2},
+	{"CJK", "日本", 4},
+	{"e + combining acute", "é", 1},
+	{"ambiguous bullet", "●", 1},
+	{"sort arrow", "▲", 1},
+	{"mixed", "a\uF07B\U0001F1EB\U0001F1F7b", 5},
+}
+
+// TestThemeStringWidthAgreesWithTheGraphemeWidth: StringWidth, which the footer
+// and the other helpers here measure with, equals ansi.StringWidth.
+//
+// Red proof: go-runewidth v0.0.16 (the version before the v2 migration moved
+// MVS to v0.0.30) counts the flag as 1 and fails the "flag FR" and "mixed"
+// cases.
+func TestThemeStringWidthAgreesWithTheGraphemeWidth(t *testing.T) {
+	for _, tc := range agreedWidths {
+		t.Run(tc.name, func(t *testing.T) {
+			rw, an := StringWidth(tc.s), ansi.StringWidth(tc.s)
+			if rw != an {
+				t.Errorf("%q: StringWidth %d, ansi.StringWidth %d", tc.s, rw, an)
+			}
+			if an != tc.want {
+				t.Errorf("%q: ansi.StringWidth %d, want %d", tc.s, an, tc.want)
+			}
+		})
+	}
+}
+
+// TestThemeStringWidthVS16IsAKnownDivergence pins the one place the two
+// measures differ: a text-presentation base plus U+FE0F. runewidth counts the
+// base (1 cell), ansi the emoji presentation (2). theme.StringWidth stays on
+// runewidth because the footer honours the East Asian setting. The datatable no
+// longer shares this gap (DEVDESK-280). If this test fails, the divergence is
+// closed: it is the cue for the follow-up story.
+func TestThemeStringWidthVS16IsAKnownDivergence(t *testing.T) {
+	for _, tc := range []struct {
+		s              string
+		theme, ansiWid int
+	}{
+		{"✔️", 1, 2},
+		{"a❤️x", 3, 4},
+	} {
+		if got := StringWidth(tc.s); got != tc.theme {
+			t.Errorf("theme.StringWidth(%q) = %d, want %d", tc.s, got, tc.theme)
+		}
+		if got := ansi.StringWidth(tc.s); got != tc.ansiWid {
+			t.Errorf("ansi.StringWidth(%q) = %d, want %d", tc.s, got, tc.ansiWid)
 		}
 	}
 }

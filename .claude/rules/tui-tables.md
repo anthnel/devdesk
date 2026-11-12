@@ -55,15 +55,20 @@ side.
 #### Which width library measures what
 
 Lip Gloss v2 and the viewport measure with `x/ansi` (`ansi.StringWidth`,
-grapheme clusters); `datatable` pads and truncates with `go-runewidth` (render.go).
-Rule 116 holds only while the two agree on what a cell holds.
-`TestDatatableWidthAgreesWithTheGraphemeWidth` pins the agreement for flags, ZWJ
-sequences, Nerd Font glyphs, CJK and combining marks. **Known divergence:** a
-VS16 emoji (`❤️`, `✔️`) is 1 cell for `runewidth` and 2 for `x/ansi`;
-`TestVS16EmojiIsAKnownWidthDivergence` pins it, and the width tests leave such
-glyphs out. Whether the terminal draws 1 or 2 cells depends on mode 2027. Do not
-put a VS16 emoji in a table cell. A library fix will fail that test, which is
-the cue to turn it into an agreement test.
+grapheme clusters). `datatable` measures, truncates and pads by grapheme
+clusters too (`ansi.FirstGraphemeCluster` with `ansi.GraphemeWidth`, the
+primitive `StringWidth` sums; render.go, DEVDESK-280), so a cell is as wide for
+the table as for Lip Gloss and the viewport, VS16 emoji and keycaps included.
+`TestThemeStringWidthAgreesWithTheGraphemeWidth` (`internal/ui/theme/text_test.go`) pins the agreement for flags, ZWJ
+sequences, Nerd Font glyphs, CJK and combining marks,
+`TestDatatableMeasuresVS16LikeAnsi` for VS16 emoji (`❤️`, `✔️`), and
+`TestDatatableMeasuresWithOneLibrary` for the whole table.
+`runewidth.FillRight` remains for the indicator cell only (ambiguous-width
+glyphs follow the terminal). The `theme.*` width helpers still measure with
+`runewidth`, so they still count a VS16 emoji as 1 cell: do not size a table
+with them. Whether the terminal draws a VS16 emoji in 1 or 2 cells depends on
+mode 2027: Bubble Tea's renderer measures with WcWidth until the terminal
+answers that mode (manual check, D117).
 
 #### Every column declares its nature (§3.45)
 
@@ -94,8 +99,8 @@ Forbidden:
 `Style`, and through nothing else.**
 
 **Why.** A cell is measured and truncated *before* it is dressed up, and the
-measurement goes through `runewidth`, which counts an escape sequence's
-bytes as width. A string of 7 visible cells carrying a color measures 28: it
+measurement, which walks grapheme clusters, counts an escape sequence's
+bytes as width (`bubbles/table` measured with `runewidth`, which does the same). A string of 7 visible cells carrying a color measures 28: it
 therefore gets truncated in a column that is twice wide enough, and the cut
 falls *inside* the escape sequence — `"\x1b[38;2;166;2…"`. The unterminated
 sequence then bleeds onto every following row.

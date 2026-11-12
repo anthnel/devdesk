@@ -5,6 +5,7 @@ import (
 
 	"charm.land/bubbles/v2/table"
 	"charm.land/lipgloss/v2"
+	"github.com/charmbracelet/x/ansi"
 	"github.com/mattn/go-runewidth"
 
 	"github.com/anthnel/devdesk/internal/ui/indicator"
@@ -195,14 +196,91 @@ func (m *Model[T]) indicatorCellStyle(state indicator.State, selected bool) lipg
 
 // fit truncates the text to the column and pads it out, emitting no escape
 // sequence of its own — the caller styles what comes back. Doing it in that
-// order is the whole point of this file: runewidth counts an escape sequence's
-// bytes as width, so text has to be measured while it is still plain.
+// order is the whole point of this file: an escape sequence's bytes would count
+// as width, so text has to be measured while it is still plain.
+//
+// Measuring, cutting and padding all go by grapheme clusters, the primitive
+// x/ansi sums in StringWidth, so a cell is exactly as wide as Lip Gloss and the
+// viewport think it is, VS16 emoji and keycaps included (DEVDESK-280).
 func fit(text string, width int, head bool) string {
-	cut := runewidth.Truncate(text, width, truncationMarker)
+	if width <= 0 {
+		return ""
+	}
+	// A cell is one line. Lip Gloss Inline(true), which this replaced, deleted
+	// line breaks outright; so does this, only when there is one to delete.
+	if strings.ContainsAny(text, "\r\n") {
+		text = lineBreaks.Replace(text)
+	}
+	// Inline(true) also turned a tab into four spaces; a raw tab measures 0.
+	if strings.Contains(text, "\t") {
+		text = strings.ReplaceAll(text, "\t", "    ")
+	}
+	var cut string
 	if head {
 		cut = truncateHead(text, width)
+	} else {
+		cut = truncateTail(text, width)
 	}
-	return lipgloss.NewStyle().Width(width).MaxWidth(width).Inline(true).Render(cut)
+	if pad := width - cellWidth(cut); pad > 0 {
+		// A trailing Prepend character is invisible and would merge with the
+		// first padding space into one zero-width cluster.
+		cut = strings.TrimRightFunc(cut, isPrepend)
+		cut += strings.Repeat(" ", pad)
+	}
+	return cut
+}
+
+// isPrepend reports the Prepend grapheme-break characters, which attach to the
+// character after them.
+func isPrepend(r rune) bool {
+	return r >= 0x0600 && r <= 0x0605 || r == 0x06DD || r == 0x070F || r == 0x08E2
+}
+
+// lineBreaks deletes every kind of line break from a cell.
+var lineBreaks = strings.NewReplacer("\r\n", "", "\n", "", "\r", "")
+
+// cellWidth is the width of text in terminal cells, summed per grapheme
+// cluster. It equals ansi.StringWidth for any input.
+func cellWidth(text string) int {
+	total := 0
+	for len(text) > 0 {
+		cluster, w := ansi.FirstGraphemeCluster(text, ansi.GraphemeWidth)
+		if cluster == "" {
+			break
+		}
+		total += w
+		text = text[len(cluster):]
+	}
+	return total
+}
+
+// truncateTail keeps the start of text, ending it with the marker when
+// something is cut. It never splits a grapheme cluster, and the result is never
+// wider than width.
+func truncateTail(text string, width int) string {
+	if width <= 0 {
+		return ""
+	}
+	if cellWidth(text) <= width {
+		return text
+	}
+	marker := cellWidth(truncationMarker)
+	if width < marker {
+		return ""
+	}
+	budget := width - marker
+	var b strings.Builder
+	used := 0
+	for rest := text; rest != ""; {
+		cluster, w := ansi.FirstGraphemeCluster(rest, ansi.GraphemeWidth)
+		if cluster == "" || used+w > budget {
+			break
+		}
+		b.WriteString(cluster)
+		used += w
+		rest = rest[len(cluster):]
+	}
+	return b.String() + truncationMarker
 }
 
 // truncateHead keeps the *end* of the text, for the columns that declare it
@@ -213,20 +291,33 @@ func fit(text string, width int, head bool) string {
 // and it does so precisely when the column is squeezed to its floor, which is
 // when it is hardest to read. Keeping the end is what tells the rows apart.
 //
-// runewidth rather than runes throughout: a cell is measured in terminal cells,
-// and a CJK name counts two per rune.
+// Cells rather than runes throughout: a cell is measured in terminal cells,
+// and a CJK name counts two per rune. The cut falls on a cluster boundary.
 func truncateHead(text string, width int) string {
-	total := runewidth.StringWidth(text)
-	if total <= width || width <= 0 {
+	if width <= 0 || cellWidth(text) <= width {
 		return text
 	}
-	marker := runewidth.StringWidth(truncationMarker)
+	marker := cellWidth(truncationMarker)
 	if width <= marker {
 		// No room for the marker and anything after it. Saying "there is more"
 		// with no idea what beats a single arbitrary character.
-		return runewidth.Truncate(truncationMarker, width, "")
+		return truncateTail(truncationMarker, width)
 	}
-	return runewidth.TruncateLeft(text, total-(width-marker), truncationMarker)
+	// Drop clusters from the front until the rest fits next to the marker.
+	skip := cellWidth(text) - (width - marker)
+	dropped := 0
+	for text != "" && dropped < skip {
+		cluster, w := ansi.FirstGraphemeCluster(text, ansi.GraphemeWidth)
+		if cluster == "" {
+			break
+		}
+		dropped += w
+		text = text[len(cluster):]
+	}
+	// A wide cluster straddling the cut leaves a hole: it sits after the marker,
+	// so the kept end stays flush right.
+	hole := width - marker - cellWidth(text)
+	return truncationMarker + strings.Repeat(" ", max(hole, 0)) + text
 }
 
 // cellStyle is the style one cell is rendered with.

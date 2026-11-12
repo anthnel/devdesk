@@ -7,7 +7,6 @@ import (
 
 	"charm.land/bubbles/v2/table"
 	"charm.land/lipgloss/v2"
-	"github.com/mattn/go-runewidth"
 
 	"github.com/anthnel/devdesk/internal/ui/testutil"
 	"github.com/anthnel/devdesk/internal/ui/theme"
@@ -69,8 +68,8 @@ func rowLines(m *Model[row]) []string {
 
 // ── The defect this file exists to make unexpressible ─────────────────────────
 
-// The whole point. bubbles/table measured the cell value with runewidth before
-// styling it, and runewidth counts an escape sequence's bytes as width: a
+// The whole point. bubbles/table measured the cell value before styling it,
+// and a width library that reads an escape sequence as text counts its bytes: a
 // seven-cell string carrying a colour measures 28, so it was truncated inside
 // its own escape and the unterminated sequence bled over every row below.
 //
@@ -370,18 +369,18 @@ func TestAShorterListPullsTheWindowBack(t *testing.T) {
 	}
 }
 
-// runewidth is what measures the cells, and it is only safe because Cell is
-// plain. Stated as a test so the reason survives the next person to read
-// Column: a styled string of seven visible cells measures 28, and a column of
-// twelve would truncate it.
-func TestRunewidthMisreadsStyledTextWhichIsWhyCellIsPlain(t *testing.T) {
+// The table's cut walks grapheme clusters and, like runewidth, reads an escape
+// sequence as text; it is only safe because Cell is plain. Stated as a test so
+// the reason survives the next person to read Column: a styled string of seven
+// visible cells measures 28, and a column of twelve would truncate it.
+func TestTheTableCutMisreadsStyledTextWhichIsWhyCellIsPlain(t *testing.T) {
 	withTrueColor(t)
 
 	styled := lipgloss.NewStyle().Foreground(theme.ColorOK).Render("running")
-	if runewidth.StringWidth(styled) <= lipgloss.Width(styled) {
+	if cellWidth(styled) <= lipgloss.Width(styled) {
 		t.Fatal("the renderer emitted no escape sequence, so this proves nothing")
 	}
-	if runewidth.Truncate(styled, 12, truncationMarker) == styled {
-		t.Fatal("runewidth no longer over-measures escape sequences — Cell could take a styled value")
+	if truncateTail(styled, 12) == styled {
+		t.Fatal("the cut no longer over-measures escape sequences — Cell could take a styled value")
 	}
 }
