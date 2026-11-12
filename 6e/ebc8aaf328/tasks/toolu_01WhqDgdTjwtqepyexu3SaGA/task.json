@@ -1,0 +1,15 @@
+{
+  "tool_use_id": "toolu_01WhqDgdTjwtqepyexu3SaGA",
+  "agent_id": "a41734074b944d0a6",
+  "subagent_type": "project-tester",
+  "task_description": "Tests étape 1 StatusError",
+  "token_usage": {
+    "input_tokens": 8,
+    "cache_creation_tokens": 32783,
+    "cache_read_tokens": 71614,
+    "output_tokens": 4091,
+    "api_call_count": 4
+  },
+  "started_at": "2026-11-12T17:53:20.082030827+01:00",
+  "completed_at": "2026-11-12T17:53:45.408839539+01:00"
+}

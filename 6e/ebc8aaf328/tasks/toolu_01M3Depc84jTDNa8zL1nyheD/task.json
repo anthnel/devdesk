@@ -1,0 +1,15 @@
+{
+  "tool_use_id": "toolu_01M3Depc84jTDNa8zL1nyheD",
+  "agent_id": "af4ab36f17692ea9e",
+  "subagent_type": "project-coder",
+  "task_description": "Implémenter étape 1 StatusError",
+  "token_usage": {
+    "input_tokens": 10,
+    "cache_creation_tokens": 43343,
+    "cache_read_tokens": 96592,
+    "output_tokens": 2598,
+    "api_call_count": 4
+  },
+  "started_at": "2026-11-12T17:53:51.159458499+01:00",
+  "completed_at": "2026-11-12T17:54:34.142188142+01:00"
+}

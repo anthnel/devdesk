@@ -1,0 +1,18 @@
+{
+  "tool_use_id": "toolu_01WmBzmsBWDyQ2Fb5m8W6i55",
+  "agent_id": "a6555544b49a44fd3",
+  "subagent_type": "project-tester",
+  "task_description": "Tests étape 2 context",
+  "files": [
+    "internal/oci/registry_context_test.go"
+  ],
+  "token_usage": {
+    "input_tokens": 10,
+    "cache_creation_tokens": 46685,
+    "cache_read_tokens": 91860,
+    "output_tokens": 7061,
+    "api_call_count": 4
+  },
+  "started_at": "2026-11-12T17:54:42.099184014+01:00",
+  "completed_at": "2026-11-12T17:55:24.042432785+01:00"
+}
