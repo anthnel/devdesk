@@ -1,0 +1,15 @@
+{
+  "tool_use_id": "toolu_013e2Bv7ExKLPUras9WpmRJ5",
+  "agent_id": "afac8e0775144b538",
+  "subagent_type": "product-team:critic",
+  "task_description": "Critiquer idée image-search",
+  "token_usage": {
+    "input_tokens": 16,
+    "cache_creation_tokens": 79529,
+    "cache_read_tokens": 333981,
+    "output_tokens": 7932,
+    "api_call_count": 7
+  },
+  "started_at": "2026-11-10T17:51:02.340064715+01:00",
+  "completed_at": "2026-11-10T17:52:35.831943761+01:00"
+}

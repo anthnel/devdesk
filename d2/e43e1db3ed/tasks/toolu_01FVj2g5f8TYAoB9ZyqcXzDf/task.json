@@ -1,0 +1,18 @@
+{
+  "tool_use_id": "toolu_01FVj2g5f8TYAoB9ZyqcXzDf",
+  "agent_id": "aedf95f5147a43449",
+  "subagent_type": "product-team:researcher",
+  "task_description": "Recherche recherche d'images registres",
+  "files": [
+    "docs/product/image-search/research.md"
+  ],
+  "token_usage": {
+    "input_tokens": 22,
+    "cache_creation_tokens": 73405,
+    "cache_read_tokens": 418542,
+    "output_tokens": 15264,
+    "api_call_count": 11
+  },
+  "started_at": "2026-11-10T17:51:02.342126042+01:00",
+  "completed_at": "2026-11-10T17:54:04.131628577+01:00"
+}

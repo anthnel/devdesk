@@ -1,0 +1,18 @@
+{
+  "tool_use_id": "toolu_01USwJNsc4v43f94zaYo2VrF",
+  "agent_id": "a669cbb5800aabd3f",
+  "subagent_type": "product-team:pm",
+  "task_description": "Réécrire story DEVDESK-314",
+  "files": [
+    "docs/product/agent-usage-prices/stories.md"
+  ],
+  "token_usage": {
+    "input_tokens": 36,
+    "cache_creation_tokens": 300570,
+    "cache_read_tokens": 1119221,
+    "output_tokens": 42552,
+    "api_call_count": 14
+  },
+  "started_at": "2026-11-10T20:26:39.436601863+01:00",
+  "completed_at": "2026-11-10T20:29:54.460080791+01:00"
+}

@@ -1,0 +1,18 @@
+{
+  "tool_use_id": "toolu_013Ev13RaYCVuJk5JH6STcsX",
+  "agent_id": "a89a3d7485aa0414b",
+  "subagent_type": "product-team:pm",
+  "task_description": "Finaliser stories image-search",
+  "files": [
+    "docs/product/image-search/stories.md"
+  ],
+  "token_usage": {
+    "input_tokens": 22,
+    "cache_creation_tokens": 102064,
+    "cache_read_tokens": 772204,
+    "output_tokens": 25493,
+    "api_call_count": 11
+  },
+  "started_at": "2026-11-10T19:52:47.15597616+01:00",
+  "completed_at": "2026-11-10T19:55:21.83709419+01:00"
+}

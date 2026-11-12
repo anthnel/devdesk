@@ -1,0 +1,15 @@
+{
+  "tool_use_id": "toolu_01KH5peWGyrzZxmwYKMW1xPD",
+  "agent_id": "a1975438b11be6bb0",
+  "subagent_type": "product-team:pm",
+  "task_description": "Créer stories Bubble Tea v2",
+  "token_usage": {
+    "input_tokens": 24,
+    "cache_creation_tokens": 139265,
+    "cache_read_tokens": 1120484,
+    "output_tokens": 19771,
+    "api_call_count": 12
+  },
+  "started_at": "2026-11-10T17:39:43.67417789+01:00",
+  "completed_at": "2026-11-10T17:42:18.159835185+01:00"
+}

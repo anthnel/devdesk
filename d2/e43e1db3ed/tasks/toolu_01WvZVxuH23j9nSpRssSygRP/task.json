@@ -1,0 +1,18 @@
+{
+  "tool_use_id": "toolu_01WvZVxuH23j9nSpRssSygRP",
+  "agent_id": "a4e29c11aff58e15c",
+  "subagent_type": "product-team:pm",
+  "task_description": "Créer backlog image-search Plane",
+  "files": [
+    "docs/product/image-search/stories.md"
+  ],
+  "token_usage": {
+    "input_tokens": 28,
+    "cache_creation_tokens": 141839,
+    "cache_read_tokens": 1311921,
+    "output_tokens": 40226,
+    "api_call_count": 14
+  },
+  "started_at": "2026-11-10T19:55:29.446843878+01:00",
+  "completed_at": "2026-11-10T19:59:46.934352264+01:00"
+}

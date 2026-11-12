@@ -1,0 +1,53 @@
+{
+  "cli_version": "0.13.1",
+  "checkpoint_id": "d2e43e1db3ed",
+  "strategy": "manual-commit",
+  "branch": "main",
+  "checkpoints_count": 37,
+  "files_touched": [
+    "docs/journal.md",
+    "docs/product/agent-usage-prices/stories.md",
+    "docs/product/image-search/brief.md",
+    "docs/product/image-search/feasibility.md",
+    "docs/product/image-search/research.md",
+    "docs/product/image-search/stories.md",
+    "docs/ux/bubbletea-v2-improvements.md"
+  ],
+  "sessions": [
+    {
+      "metadata": "/d2/e43e1db3ed/0/metadata.json",
+      "transcript": "/d2/e43e1db3ed/0/full.jsonl",
+      "compact_transcript": "/d2/e43e1db3ed/0/transcript.jsonl",
+      "content_hash": "/d2/e43e1db3ed/0/content_hash.txt",
+      "prompt": "/d2/e43e1db3ed/0/prompt.txt"
+    }
+  ],
+  "token_usage": {
+    "input_tokens": 178,
+    "cache_creation_tokens": 365177,
+    "cache_read_tokens": 6146130,
+    "output_tokens": 52251,
+    "api_call_count": 54,
+    "subagent_tokens": {
+      "input_tokens": 328,
+      "cache_creation_tokens": 1638877,
+      "cache_read_tokens": 13407367,
+      "output_tokens": 315336,
+      "api_call_count": 154
+    }
+  },
+  "redaction": {
+    "replacements": 0,
+    "layers": {
+      "betterleaks": 0,
+      "connection_string": 0,
+      "credential_key": 0,
+      "credential_value": 0,
+      "credentialed_uri": 0,
+      "entropy": 0,
+      "key_context": 0,
+      "provider_token": 0,
+      "shell_stdin": 0
+    }
+  }
+}
