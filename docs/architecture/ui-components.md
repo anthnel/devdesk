@@ -299,9 +299,13 @@ forbidden by review.
 `textinput.SetWidth(n)` and `Width()`, `viewport.SetWidth/SetHeight` and
 `Width()/Height()`, not field assignment. `lipgloss.Place` takes
 `WithWhitespaceStyle(lipgloss.NewStyle().Background(theme.ColorBackground))`
-(Rule 115). Two widths coexist: the table pads and cuts with `runewidth`,
-Lip Gloss and the viewport measure with `x/ansi`; they differ on VS16 emoji
-(Rule 116, pinned by `TestVS16EmojiIsAKnownWidthDivergence`).
+(Rule 115). The table measures, cuts and pads by grapheme clusters
+(`ansi.FirstGraphemeCluster`, `ansi.GraphemeWidth`), the width `x/ansi` gives
+Lip Gloss and the viewport, so VS16 emoji agree (Rule 116, DEVDESK-280,
+D128). `ansi.Truncate` and `ansi.TruncateLeft` are not used for the cut:
+`ansi.Truncate` overflows on keycaps (`1️⃣2️⃣3️⃣` at width 3 gives 5 cells),
+and `ansi.TruncateLeft` keeps a wide cluster that straddles the cut. The `theme.*` width helpers still use
+`runewidth` and still count a VS16 emoji as 1 cell.
 
 bubbles is still the state: rows, columns, cursor, focus and height. What moved
 here is the drawing and the scroll offset (`clampOffset`), which its viewport
@@ -561,7 +565,8 @@ m.table.SetBlinkPhase(on) // from Update, on jobs.FrameMsg (msg.Blink); default 
 - **Padding follows the terminal.** The glyphs `● ○ ◐ ◕ ◉` have ambiguous
   width. lipgloss always counts them as one cell; a terminal in East Asian mode
   draws two. An indicator cell is therefore padded with
-  `runewidth.FillRight`, which follows `runewidth.DefaultCondition`.
+  `runewidth.FillRight`, which follows `runewidth.DefaultCondition`. It is the
+  only `runewidth` call left in the datatable's `render.go`.
 - **The selected row is padded structurally**, not by measuring the rendered
   line: `padToContent` adds `gap = width - 2 - RenderedWidth()` spaces, computed
   from the column widths. A second measurement with another library would

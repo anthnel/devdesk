@@ -130,9 +130,9 @@ type Column[T any] struct {
 	// cutting an IPv6 endpoint in half. That is what Sizing answers.
 	Flex int
 	// Cell returns the text for this column. Plain text only: it is measured
-	// and truncated before anything is applied to it, and runewidth counts an
-	// escape sequence's bytes as width — a styled string is cut mid-escape and
-	// bleeds over every row below it (Rule 122). Taking a string rather than a
+	// and truncated before anything is applied to it, and the table's grapheme
+	// loop counts an escape sequence's bytes as width — a styled string is cut
+	// mid-escape and bleeds over every row below it (Rule 122). Taking a string rather than a
 	// styled value is what makes that unexpressible here.
 	//
 	// It must be pure and cheap. The rendering calls it once per visible cell;

@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	"github.com/anthnel/devdesk/internal/ui/testutil"
+	"github.com/charmbracelet/x/ansi"
 )
 
 // The measurement, and above all *when* it happens. The width a column takes is
@@ -208,5 +209,35 @@ func TestNothingIsCutWhenItFits(t *testing.T) {
 func TestAColumnTooNarrowForTheMarkerSaysOnlyThat(t *testing.T) {
 	if got := strings.TrimSpace(fit("a-long-value", 1, true)); got != truncationMarker {
 		t.Errorf("fit(..., 1, head) = %q, want just the marker", got)
+	}
+}
+
+// TestTruncateHeadKeepsWideClustersWhole: a head cut never keeps half of a
+// wide cluster. CJK outputs are what go-runewidth produced before DEVDESK-280,
+// kept byte for byte.
+func TestTruncateHeadKeepsWideClustersWhole(t *testing.T) {
+	tests := []struct {
+		name, in string
+		width    int
+		want     string // "" means: only check the width
+	}{
+		{"CJK, a wide cluster straddles the cut", "日本語テキスト", 4, "… ト"},
+		{"CJK, the cut falls between clusters", "日本語テキスト", 5, "…スト"},
+		{"VS16 at the end, width 2", "x✔️", 2, ""},
+		{"VS16 at the end, width 3", "x✔️", 3, ""},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			got := fit(tc.in, tc.width, true)
+			if tc.want != "" && got != tc.want {
+				t.Errorf("fit(%q, %d, head) = %q, want %q", tc.in, tc.width, got, tc.want)
+			}
+			if w := ansi.StringWidth(got); w != tc.width {
+				t.Errorf("fit(%q, %d, head) = %q: %d cells, want %d", tc.in, tc.width, got, w, tc.width)
+			}
+			if strings.Contains(got, "\uFE0F") && !strings.Contains(got, "✔\uFE0F") {
+				t.Errorf("fit(%q, %d, head) = %q: a U+FE0F without its base", tc.in, tc.width, got)
+			}
+		})
 	}
 }
