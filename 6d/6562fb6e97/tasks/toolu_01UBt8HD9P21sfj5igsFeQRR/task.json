@@ -1,0 +1,15 @@
+{
+  "tool_use_id": "toolu_01UBt8HD9P21sfj5igsFeQRR",
+  "agent_id": "a0f3d0d7f481cf43d",
+  "subagent_type": "project-tester",
+  "task_description": "Tests rouges commit viewer 370",
+  "token_usage": {
+    "input_tokens": 14,
+    "cache_creation_tokens": 45878,
+    "cache_read_tokens": 192111,
+    "output_tokens": 7216,
+    "api_call_count": 7
+  },
+  "started_at": "2026-11-12T11:56:24.099634904+01:00",
+  "completed_at": "2026-11-12T11:57:28.200538444+01:00"
+}

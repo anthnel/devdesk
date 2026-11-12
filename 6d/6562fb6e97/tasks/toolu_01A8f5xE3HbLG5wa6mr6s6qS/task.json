@@ -1,0 +1,15 @@
+{
+  "tool_use_id": "toolu_01A8f5xE3HbLG5wa6mr6s6qS",
+  "agent_id": "a7471deaad31f50f5",
+  "subagent_type": "dev-team:reviewer",
+  "task_description": "Revue commit viewer 370",
+  "token_usage": {
+    "input_tokens": 16,
+    "cache_creation_tokens": 65268,
+    "cache_read_tokens": 303447,
+    "output_tokens": 5019,
+    "api_call_count": 7
+  },
+  "started_at": "2026-11-12T12:04:02.40638931+01:00",
+  "completed_at": "2026-11-12T12:05:18.819819826+01:00"
+}

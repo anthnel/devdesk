@@ -1,0 +1,59 @@
+{
+  "cli_version": "0.13.1",
+  "checkpoint_id": "6d6562fb6e97",
+  "strategy": "manual-commit",
+  "branch": "feat-devdesk-370-374-loading-dot",
+  "checkpoints_count": 7,
+  "files_touched": [
+    "docs-site/docs/explanation/viewer.md",
+    "docs/architecture/app-shell.md",
+    "docs/architecture/viewer.md",
+    "docs/backlog.md",
+    "internal/app/footer_activity_test.go",
+    "internal/ui/viewer/activity_test.go",
+    "internal/ui/viewer/activity_wants.go",
+    "internal/ui/viewer/follow_test.go",
+    "internal/ui/viewer/model.go",
+    "internal/ui/viewer/text_test.go",
+    "internal/ui/viewer/update.go",
+    "internal/ui/viewer/view.go",
+    "internal/ui/viewer/viewer_test.go"
+  ],
+  "sessions": [
+    {
+      "metadata": "/6d/6562fb6e97/0/metadata.json",
+      "transcript": "/6d/6562fb6e97/0/full.jsonl",
+      "compact_transcript": "/6d/6562fb6e97/0/transcript.jsonl",
+      "content_hash": "/6d/6562fb6e97/0/content_hash.txt",
+      "prompt": "/6d/6562fb6e97/0/prompt.txt"
+    }
+  ],
+  "token_usage": {
+    "input_tokens": 58,
+    "cache_creation_tokens": 91474,
+    "cache_read_tokens": 1786859,
+    "output_tokens": 10936,
+    "api_call_count": 21,
+    "subagent_tokens": {
+      "input_tokens": 130,
+      "cache_creation_tokens": 376046,
+      "cache_read_tokens": 4204970,
+      "output_tokens": 56373,
+      "api_call_count": 64
+    }
+  },
+  "redaction": {
+    "replacements": 0,
+    "layers": {
+      "betterleaks": 0,
+      "connection_string": 0,
+      "credential_key": 0,
+      "credential_value": 0,
+      "credentialed_uri": 0,
+      "entropy": 0,
+      "key_context": 0,
+      "provider_token": 0,
+      "shell_stdin": 0
+    }
+  }
+}
