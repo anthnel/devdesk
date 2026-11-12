@@ -17230,3 +17230,4 @@ Detailed plans live in `.claude/plans/`. One is outstanding:
 Plans for shipped work are removed from `.claude/plans/` once their feature
 lands and the corresponding §3.x entry above is marked **done** — the backlog
 entry is the lasting record, not the plan file.
+<!-- ci verification -->
