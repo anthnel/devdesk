@@ -238,7 +238,7 @@ func (m Model) GetTitle() string {
 	base := theme.ContainerEngineIcon(engine.Current().Name) + " OCI Resources"
 	if m.registryBrowser != nil {
 		title := base + " " + theme.IconChevronRight + " Registry Browser"
-		if m.registryBrowser.state == browserStateTags && m.registryBrowser.repoInput.Value() != "" {
+		if m.registryBrowser.state != browserStateInput && m.registryBrowser.repoInput.Value() != "" {
 			title += " " + theme.IconChevronRight + " " + m.registryBrowser.repoInput.Value()
 		}
 		if !m.registryBrowser.registryFilter.isEmpty() {
@@ -271,6 +271,11 @@ func (m Model) GetHeaderInfo(_ string) []shortcut.HeaderInfo {
 	if m.registryBrowser != nil && m.registryBrowser.state == browserStateTags {
 		return []shortcut.HeaderInfo{
 			{Key: "Tags", Value: fmt.Sprintf("%d", len(m.registryBrowser.tagTable.Items())), Style: theme.HeaderValueStyle},
+		}
+	}
+	if m.registryBrowser != nil && m.registryBrowser.state == browserStateImages {
+		return []shortcut.HeaderInfo{
+			{Key: "Images", Value: fmt.Sprintf("%d", len(m.registryBrowser.searchTable.Visible())), Style: theme.HeaderValueStyle},
 		}
 	}
 	if m.networkInspectForm != nil {
@@ -339,6 +344,24 @@ func (m Model) GetShortcuts() shortcut.Shortcuts {
 				{Key: "/", Description: "Filter"},
 				{Key: ".", Description: "Sort"},
 				{Key: "esc", Description: "Go back"},
+			}
+		case browserStateImages:
+			// No enter (a row has no action yet), no sort, no drill-down: the
+			// set of keys never depends on the rows (Rule 130).
+			if m.registryBrowser.searchTable.InEditMode() {
+				return []shortcut.Shortcut{
+					{Key: "enter/esc", Description: "Close filter"},
+				}
+			}
+			// esc clears a confirmed query before it goes back: same key,
+			// the label follows what it will do.
+			escLabel := "Go back"
+			if m.registryBrowser.searchTable.FilterBar().SearchQuery() != "" {
+				escLabel = "Clear filter"
+			}
+			return []shortcut.Shortcut{
+				{Key: "/", Description: "Filter"},
+				{Key: "esc", Description: escLabel},
 			}
 		default: // browserStateInput
 			// enter submits, so it is greyed until the submit button has the
@@ -570,6 +593,8 @@ func (m Model) GetHelpContent() help.Content {
 			{Key: "→ (Registries)", Description: "Show a group's discovered members"},
 			{Key: "← (Registries)", Description: "Go back to the registry list"},
 			{Key: "/", Description: "Filter images by repository or tag (Images tab only)"},
+			{Key: "/ (Browser images)", Description: "Filter the images a registry search found, by name"},
+			{Key: "esc (Browser images)", Description: "Close the filter bar, then clear the confirmed filter, then go back to the search form"},
 			{Key: "↑/k", Description: "Move selection up"},
 			{Key: "↓/j", Description: "Move selection down"},
 			{Key: "ctrl+p", Description: "Open command mode"},
@@ -610,7 +635,8 @@ func (m Model) GetHelpContent() help.Content {
 					"Press 'r' to cycle the registry filter (one registry at a time), '/' to filter by tag name, '.' to sort. " +
 					"Press G to pull the selected tag, S to scan it directly via Trivy (no pull), or Enter to view cached CVE details. " +
 					"The first column is the activity dot: a scan or a pull of the tag running, queued or failed; the Critical, High, Medium and Low counts show an ellipsis while its scan runs. The footer says what the selected tag is doing. " +
-					"Press Esc to go back to the search form.",
+					"Press Esc to go back to the search form. " +
+					"An image search (level 1) lists one row per registry and image: the first column is the image icon, '/' filters by name, Esc closes the filter, then goes back to the form, and Enter does nothing yet.",
 			},
 			{
 				Title: "Image Signatures",

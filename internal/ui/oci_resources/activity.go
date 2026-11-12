@@ -56,10 +56,14 @@ func (m Model) ActivityTables() map[string]datatable.ActivityTable {
 	// The browser's table is listed open or not, so the guard sees the real one.
 	if m.registryBrowser != nil {
 		tables["oci/registry-browser"] = &m.registryBrowser.tagTable
+		tables["oci/registry-search"] = &m.registryBrowser.searchTable
 	} else {
 		t := newTagTable()
 		t.Resize(m.width, max(m.height, 1))
 		tables["oci/registry-browser"] = t
+		s := newSearchTable()
+		s.Resize(m.width, max(m.height, 1))
+		tables["oci/registry-search"] = s
 	}
 	return tables
 }

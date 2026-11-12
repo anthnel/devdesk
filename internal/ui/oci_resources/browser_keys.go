@@ -15,6 +15,9 @@ func (b *RegistryBrowser) InEditMode() bool {
 	if b.state == browserStateInput && b.focusedField == brFieldRepo {
 		return true
 	}
+	if b.state == browserStateImages {
+		return b.searchTable.InEditMode()
+	}
 	return b.state == browserStateTags && b.filterActive
 }
 
@@ -47,6 +50,9 @@ func (b *RegistryBrowser) delegateUpdate(msg tea.Msg) (*RegistryBrowser, tea.Cmd
 		}
 		return b, b.tagTable.Update(msg)
 	}
+	if b.state == browserStateImages {
+		return b, b.searchTable.Update(msg)
+	}
 	return b, nil
 }
 
@@ -56,6 +62,8 @@ func (b *RegistryBrowser) handleKeyMsg(msg tea.KeyPressMsg) (*RegistryBrowser, t
 		return b.handleInputKeyMsg(msg)
 	case browserStateTags:
 		return b.handleTagsKeyMsg(msg)
+	case browserStateImages:
+		return b.handleImagesKeyMsg(msg)
 	}
 	return b, nil
 }
@@ -122,37 +130,55 @@ func (b *RegistryBrowser) credsFor(entry browserRegistryEntry) (string, string) 
 	return username, storedPass
 }
 
+// submitSearch validates the form and routes it: a name with no "/" is an
+// image search when a Searcher is injected (level 1), anything else lists tags
+// as before. An empty name starts nothing; no checked registry warns.
 func (b *RegistryBrowser) submitSearch() (*RegistryBrowser, tea.Cmd) {
 	repo := strings.TrimSpace(b.repoInput.Value())
 	if repo == "" {
 		return b, nil
 	}
+	var entries []browserRegistryEntry
+	for _, entry := range b.entries {
+		if b.selected(entry) {
+			entries = append(entries, entry)
+		}
+	}
+	if len(entries) == 0 {
+		return b, func() tea.Msg { return RegistryBrowserWarnMsg{Text: "No registry selected"} }
+	}
+	if b.searcher != nil && !strings.Contains(repo, "/") {
+		return b.startImageSearch(repo, entries)
+	}
+	return b.startTagLookup(repo, entries)
+}
 
-	// Gather the requests first: a validation that starts none must leave the
-	// lot in flight, its generation and its context alone.
+// entryAlias is the label a result of entry carries: the alias, behind its
+// group's when it is a member.
+func entryAlias(entry browserRegistryEntry) string {
+	if entry.ParentAlias != "" {
+		return entry.ParentAlias + "/" + entry.Alias
+	}
+	return entry.Alias
+}
+
+// startTagLookup lists the tags of repo on every entry.
+func (b *RegistryBrowser) startTagLookup(repo string, entries []browserRegistryEntry) (*RegistryBrowser, tea.Cmd) {
+	// Gather the requests first, then begin the lot: nothing is cancelled
+	// unless a request really starts.
 	type request struct {
 		entry                         browserRegistryEntry
 		alias, apiURL, repo, user, pw string
 	}
-	var reqs []request
-	for _, entry := range b.entries {
-		if !b.selected(entry) {
-			continue
-		}
+	reqs := make([]request, 0, len(entries))
+	for _, entry := range entries {
 		username, storedPass := b.credsFor(entry)
-		alias := entry.Alias
-		if entry.ParentAlias != "" {
-			alias = entry.ParentAlias + "/" + entry.Alias
-		}
 		// The prefix is applied here and nowhere else: it is then already part
 		// of MultiRegistryTag.Repo, so multiImageName and registryAPIURL need to
 		// know nothing about it. Teaching both would be two places free to
 		// drift, which is the disagreement D39 already is (§3.18).
 		normalizedRepo := joinRepoPrefix(entry.repoPrefix, normalizeRepoForRegistry(entry.URL, repo))
-		reqs = append(reqs, request{entry, alias, registryAPIURL(entry.URL), normalizedRepo, username, storedPass})
-	}
-	if len(reqs) == 0 {
-		return b, nil
+		reqs = append(reqs, request{entry, entryAlias(entry), registryAPIURL(entry.URL), normalizedRepo, username, storedPass})
 	}
 
 	ctx := b.beginRequests()
@@ -183,7 +209,7 @@ func (b *RegistryBrowser) handleTagsKeyMsg(msg tea.KeyPressMsg) (*RegistryBrowse
 			b.filterActive = false
 			b.filterInput.Blur()
 			b.rebuildTagTable()
-			b.resizeTagTable()
+			b.resizeTables()
 			return b, nil
 		}
 		return b.delegateUpdate(msg)
@@ -198,7 +224,7 @@ func (b *RegistryBrowser) handleTagsKeyMsg(msg tea.KeyPressMsg) (*RegistryBrowse
 	case "/":
 		b.filterActive = true
 		b.filterInput.Focus()
-		b.resizeTagTable()
+		b.resizeTables()
 		return b, nil
 	case "r":
 		b.cycleRegistryFilter()

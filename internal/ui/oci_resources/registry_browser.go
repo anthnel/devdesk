@@ -11,6 +11,7 @@ import (
 
 	"github.com/anthnel/devdesk/internal/cache"
 	"github.com/anthnel/devdesk/internal/config"
+	"github.com/anthnel/devdesk/internal/imagesearch"
 	"github.com/anthnel/devdesk/internal/jobs"
 	"github.com/anthnel/devdesk/internal/ui/components"
 	"github.com/anthnel/devdesk/internal/ui/datatable"
@@ -29,8 +30,9 @@ type browserState int
 // while a pull ran, and a pull is a job now: the row spins in the Images tab,
 // which is where asking for one leaves the user.
 const (
-	browserStateInput browserState = iota // search form
-	browserStateTags                      // results table
+	browserStateInput  browserState = iota // search form
+	browserStateTags                       // results table
+	browserStateImages                     // level 1: image search results
 )
 
 // browserRegistryEntry is one selectable registry in the browser form.
@@ -241,6 +243,12 @@ type RegistryBrowser struct {
 	tagTable       datatable.Model[tagRow]
 	scanCache      map[string]cache.ImageScanEntry
 
+	// Level 1 (image search): the Searcher read at open (nil: the tag flow
+	// only), what came back, and the table showing it.
+	searcher    imagesearch.Searcher
+	images      []imagesearch.Image
+	searchTable datatable.Model[searchRow]
+
 	// The router's snapshot, for the activity column and the footer: the
 	// registry's runs and remembered failures, and the context they are read in.
 	jobs        []jobs.Run
@@ -288,12 +296,14 @@ func newRegistryBrowser(
 		focusedField: brFieldRepo,
 		filterInput:  fi,
 		tagTable:     *newTagTable(),
+		searcher:     defaultImageSearcher,
+		searchTable:  *newSearchTable(),
 		scanCache:    make(map[string]cache.ImageScanEntry),
 		state:        browserStateInput,
 	}
 	b.buildEntries(groups, deselected)
 	b.resizeInputs()
-	b.resizeTagTable()
+	b.resizeTables()
 	b.updateFocus()
 	return b
 }
@@ -426,7 +436,7 @@ func (b *RegistryBrowser) SetSize(width, height int) {
 	b.width = width
 	b.height = height
 	b.resizeInputs()
-	b.resizeTagTable()
+	b.resizeTables()
 }
 
 func (b *RegistryBrowser) resizeInputs() {
@@ -435,12 +445,14 @@ func (b *RegistryBrowser) resizeInputs() {
 	b.filterInput.SetWidth(max(b.width-6, 10))
 }
 
-// resizeTagTable hands the table the viewport width.
+// resizeTables hands both tables (tags at level 2, images at level 1) the
+// viewport width.
 //
 // b.width is already the content width — the caller subtracted the borders —
 // and datatable.Resize subtracts them itself, so they are added back here. The
 // column solving, the Rule 116 remainder and the selected row's width are all
 // its business now.
-func (b *RegistryBrowser) resizeTagTable() {
+func (b *RegistryBrowser) resizeTables() {
 	b.tagTable.Resize(b.width+2, max(b.height, 1))
+	b.searchTable.Resize(b.width+2, max(b.height, 1))
 }

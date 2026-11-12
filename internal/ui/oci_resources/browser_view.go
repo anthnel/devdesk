@@ -41,7 +41,7 @@ func (b *RegistryBrowser) rebuildTagTable() {
 	}
 
 	b.tagTable.SetItems(rows)
-	b.resizeTagTable()
+	b.resizeTables()
 }
 
 // tagActivity resolves what one tag row says about its activity: a scan or a
@@ -70,6 +70,8 @@ func (b *RegistryBrowser) View() string {
 	switch b.state {
 	case browserStateTags:
 		return b.viewTags()
+	case browserStateImages:
+		return b.searchTable.View()
 	default:
 		return b.viewInput()
 	}
@@ -126,7 +128,7 @@ func (b *RegistryBrowser) viewTags() string {
 // LoadingLabel names what the browser is fetching, for the OCI view's footer.
 // The second result is false when nothing is in flight.
 func (b *RegistryBrowser) LoadingLabel() (string, bool) {
-	if b.state == browserStateTags && b.pendingSearches > 0 {
+	if (b.state == browserStateTags || b.state == browserStateImages) && b.pendingSearches > 0 {
 		return "Searching registries...", true
 	}
 	return "", false
@@ -134,11 +136,17 @@ func (b *RegistryBrowser) LoadingLabel() (string, bool) {
 
 // FilterIsVisible returns true when the tag filter bar should be shown in the footer.
 func (b *RegistryBrowser) FilterIsVisible() bool {
+	if b.state == browserStateImages {
+		return b.searchTable.FilterBar().IsVisible()
+	}
 	return b.state == browserStateTags && (b.filterActive || b.filterInput.Value() != "" || !b.registryFilter.isEmpty())
 }
 
 // FilterBarView renders the filter bar (2 lines) for display in the footer.
 func (b *RegistryBrowser) FilterBarView(width int) string {
+	if b.state == browserStateImages {
+		return b.searchTable.FilterBar().View()
+	}
 	borderStyle := lipgloss.NewStyle().Foreground(theme.ColorViewportBorder).Background(theme.ColorBackground)
 
 	var left string

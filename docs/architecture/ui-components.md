@@ -505,6 +505,20 @@ own footer rather than the table's. Its **sort** is the table's — `.` cycles
 Tag and Updated through `CycleSort`, and `SetSort` is what puts a new search
 back on the default order.
 
+The browser's **level 1** (image search results, `searchTable`) is the
+opposite case: it uses the `datatable` filter bar as is (Rule 136). `/` opens it
+and filters on the Name column; the bar is drawn in the OCI view's footer
+through `FilterBarView`, and its height counts through `FilterIsVisible`. `esc`
+acts in order: it closes the bar while it is being typed in (the bar takes the
+key), then clears a confirmed query (`ClearSearch`, level 1 stays), then
+cancels the lot in flight (late answers are ignored) and goes back to the
+search form, which keeps the typed name and the selection. The plan had `esc`
+go back without cancelling; cancelling was chosen and recorded in D129.
+`enter` does nothing at level 1 (a row has no action yet) and is not in the
+shortcuts, which do not depend on the rows (Rule 130): `/ Filter` and
+`esc Go back`, or `enter/esc Close filter` while typing. The title carries the
+typed name.
+
 `status` is the two-table case: two `datatable.Model` plus a focus helper.
 `Focus` and `Blur` carry the styles with them (Rule 118), so a tab switch does
 not touch `SetStyles`.

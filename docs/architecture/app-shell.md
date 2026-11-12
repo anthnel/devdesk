@@ -1489,7 +1489,7 @@ closed it) and no exception to shrink:
 
 | List | Meaning |
 |---|---|
-| `migratedTables` | the view's tables are on the activity column (`:jobs`: `jobs/runs`, `jobs/targets`; ws: `ws`; `:sec`: `sec/inventory`; OCI: `oci/images`, `oci/networks`, `oci/volumes`, `oci/registries`, `oci/registry-browser`; explorer: `explorer/tree`, `explorer/clone-list`; templates: `templates`; netdiag: `netdiag/ports`; `:agent-usage`: `agent-usage/agents`; containers: `containers`) |
+| `migratedTables` | the view's tables are on the activity column (`:jobs`: `jobs/runs`, `jobs/targets`; ws: `ws`; `:sec`: `sec/inventory`; OCI: `oci/images`, `oci/networks`, `oci/volumes`, `oci/registries`, `oci/registry-browser`, `oci/registry-search` (6 tables for `:oci`; the guard also scans `browser_flow.go` and `browser_images.go`); explorer: `explorer/tree`, `explorer/clone-list`; templates: `templates`; netdiag: `netdiag/ports`; `:agent-usage`: `agent-usage/agents`; containers: `containers`) |
 | `exemptViews` | views with no activity to show (dashboard, status, git-auth, configuration, about, files, viewer), each with its reason |
 
 A view in neither list, or an exempt view that is also migrated, fails by name (`classificationProblems`, unit-tested on fictitious classifications). A migrated view

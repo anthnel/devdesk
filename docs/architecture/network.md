@@ -52,6 +52,50 @@ Two things about the engine are worth knowing before changing this code:
 download and extract a tar.gz (a repository template is one — `templates.md`). It speaks the distribution spec over `net/http`
 and never shells out, so it is engine-agnostic and podman changed nothing in it.
 
+**Typed status errors and context variants (DEVDESK-298, IS-18).** A registry
+or token endpoint answering with a non-success status returns
+`*oci.StatusError{Code, Source, Challenge}`; read it with `errors.As`. `Source`
+is `SourceRegistry` (the v2 API) or `SourceToken` (the Bearer token endpoint).
+`Challenge` is the `Www-Authenticate` header of a 401 whose challenge is not
+Bearer. `Error()` keeps the three historical messages to the character
+(`registry returned 404`, `token endpoint returned 403`,
+`unexpected auth challenge: ...`), so nothing on screen or in a log changed.
+Failures that are not a status (unreadable body, missing realm, no token
+field) stay plain errors and do not match `errors.As`.
+
+The unexported `unexpectedChallenge` field is a deviation from the plan, which
+had only `Code`, `Source` and `Challenge`: with those three, a 401 with a
+non-Bearer challenge and a 401 returned by the registry after a token exchange
+both read `Source == SourceRegistry`, `Code == 401`, and `Error()` could not
+give each its own message. The flag tells them apart without widening the
+exported surface.
+
+`ListRegistryTagsContext` and the `...Context` variants of `registryGET`,
+`registryDo`, `doRequest` and `exchangeBearerToken` take a `context.Context`
+(the token endpoint request included) and check `ctx.Err()` at the head of
+every page. The old names delegate with `context.Background()`, signatures
+unchanged. A deadline or a cancel reaches the caller as an error that
+satisfies `errors.Is(err, context.DeadlineExceeded)` or `context.Canceled`,
+and never as a `StatusError`. **Limit:** `registryHTTPClient` keeps its own
+`Timeout: 15s` per request, and the client wraps `context.DeadlineExceeded`
+for that timeout too. A caller cannot tell the client timeout from the
+context's deadline, so IS-12 (verdicts) will classify both as the same failure.
+
+## Image search — `internal/imagesearch` (DEVDESK-298, IS-18)
+
+Pure Go, no UI. Types and one interface, no adapter yet (Docker Hub is IS-02,
+catalogue walking IS-03):
+
+- `Target`: one registry to search (`EntryKey`, `Alias`, `RegistryURL`,
+  `APIURL`, `RepoPrefix`, `Username`, `Password`; the credentials are empty for
+  an anonymous entry, D12).
+- `Query{Text, Limit}`: `Limit` 0 is the adapter's default.
+- `Image`: one result (`EntryKey`, `Name`, `Repo`, `Description`, `Stars`,
+  `HasStars`, `Official`). `Repo` is the final path, with the prefix and
+  `library/` applied once (D39).
+- `Searcher.Search(ctx, Target, Query) (images, partial, err)`, and
+  `SearcherFunc`, the function adapter.
+
 ## Image updates — `internal/imageupdate` (§3.88)
 
 Three tables carry an **Update** column (`internal/ui/updatecol`): oci's Images
@@ -189,6 +233,64 @@ the dot, Registry and Tag remain. The browser has no spinner of its own
 footer describes the selected tag (`Status{Detail}`). `tagScanSpinnerIdx` and
 the local frame are deleted. `DescribeRow` filters by context: a scan of another
 context no longer shows on a tag (D108).
+
+**Cancelling a lot and ignoring late answers (DEVDESK-298, IS-18).** The
+browser launches requests in lots (one per validation that starts something).
+`browserGen` is a package-wide `atomic.Uint64`, incremented only from `Update`
+(`nextBrowserGen`). `beginRequests()` cancels the previous lot (one
+`CancelFunc`, `cancelRequests`, per lot, not per registry), takes a new
+generation and resets `pendingSearches`; the `context` is born in `Update`
+(Rule 110). `MultiRegistryTagsLoadedMsg`, `MultiRegistryTagsMetaMsg` and
+`ImageSearchResultMsg` carry the `Gen` they were started with, and their
+handlers return before logging anything when it differs from the open
+browser's. The counter is global rather than per browser so that a browser
+closed and reopened, or a new `Model` after a context switch, cannot accept the
+answer of an older instance. `closeMultiRegistryBrowser` calls
+`cancelInFlight()`, which also covers closing through `G` (a pull). A validation
+that starts nothing (empty name, no registry checked) cancels nothing and
+leaves `gen` alone. The tag lookups go through the `listRegistryTags` variable
+(`oci.ListRegistryTagsContext`), the seam tests swap to capture the context;
+there is no deadline on a tag lookup, only `maxTagPages` and the per-request
+client timeout. `Model.RegistryBrowserGen()` exposes the generation to tests
+only.
+
+**Level 1: image search (DEVDESK-299, IS-01).** The browser has three states:
+`browserStateInput` (form), `browserStateImages` (level 1, appended last in the
+`iota` list) and `browserStateTags` (level 2). `submitSearch` routes a
+validation: an empty name starts nothing; no registry checked sends
+`RegistryBrowserWarnMsg{"No registry selected"}`, which the `Model` shows as a
+footer warning (the browser has no footer; this also applies to a name that
+contains `/`, where the tag flow used to refuse silently); a name with no `/`
+goes to `startImageSearch` when `b.searcher != nil`; anything else goes to
+`startTagLookup`, the former code extracted as is.
+
+**`defaultImageSearcher` is `nil` in production, so level 1 is inactive until
+IS-02 ships.** `newRegistryBrowser` copies it into `b.searcher`; with `nil`, a
+short name such as `nginx` still lists tags as before. Tests inject a fake with
+`withImageSearcher`. IS-02 assigns the real searcher (and IS-11 adds "Open
+tags"); until then the only visible change is the "No registry selected"
+warning.
+
+`startImageSearch` runs one `searchImagesCmd` per checked registry, with
+`targetFor(entry)` (same credentials as the tag flow, `credsFor`). Each command
+wraps the lot's context in `context.WithTimeout(ctx, imageSearchDeadline)`:
+`imageSearchDeadline` is 15 s **per registry**, the whole walk included, on top
+of the 15 s client timeout per request (see the limit above). A registry's
+answer arrives as `ImageSearchResultMsg{Gen, EntryKey, Images, Partial, Err}`
+and `AddImageResults` appends it (false when stale; `pendingSearches` never goes
+under 0). A search error is only logged,
+`ERROR [oci_resources] image search on <alias>: <jobs.SafeCause(err)>`, with no
+message on screen and nothing in `:jobs`, until IS-12 adds the verdicts.
+
+Level 1 shows `searchTable` (`datatable.Model[searchRow]`, built by
+`newSearchTable`, also used by `ActivityTables` as `oci/registry-search`).
+Columns: the activity column (`IndicatorColumn`, always `Idle`, `IconDocker` in
+the `IconRoleImage` role), Name (flex, searchable) and Registry. Results show
+in arrival order (no sort until IS-04/IS-05). Rule 139: an empty table keeps its
+header. The header reads `Images: <visible rows>`, the title carries the typed
+name (`... > Registry Browser > <name>`), and the footer shows the shared
+activity dot with `Searching registries...` while `pendingSearches > 0`. The
+keys are in `ui-components.md`.
 
 **Networks, Volumes and Registries (DEVDESK-153, A-09b).** Each takes
 `datatable.IndicatorColumn` as column 0. Rows carry no `components.RowActivity`:
