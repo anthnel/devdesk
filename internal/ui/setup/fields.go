@@ -9,6 +9,7 @@ import (
 
 	"github.com/anthnel/devdesk/internal/config"
 	"github.com/anthnel/devdesk/internal/forge"
+	"github.com/anthnel/devdesk/internal/ui/indicator"
 	"github.com/anthnel/devdesk/internal/ui/theme"
 )
 
@@ -186,7 +187,7 @@ func (m Model) secretBackendQuestion() (title, body, control string) {
 	control = renderQuestionCycle("Secret backend", secretBackendOptions[m.secretBackendIdx])
 	switch m.secretBackendCheck {
 	case secretBackendChecking:
-		control += "\n\n" + dimStyle.Render(m.spinner.View()+" Checking whether this is reachable...")
+		control += "\n\n" + pendingLine("Checking whether this is reachable...")
 	case secretBackendReachable:
 		control += "\n\n" + dimStyle.Render(m.secretBackendCheckDetail)
 	case secretBackendUnreachable:
@@ -207,7 +208,7 @@ func (m Model) containerEngineQuestion() (title, body, control string) {
 	control = renderQuestionCycle("Container engine", config.ContainerEngines()[m.containerEngineIdx])
 	switch m.engineCheck {
 	case engineChecking:
-		control += "\n\n" + dimStyle.Render(m.spinner.View()+" Checking whether it's running...")
+		control += "\n\n" + pendingLine("Checking whether it's running...")
 	case engineReachable:
 		control += "\n\n" + dimStyle.Render(m.engineCheckDetail)
 	case engineUnreachable, engineMissing:
@@ -269,7 +270,7 @@ func (m Model) renderFooterLine() string {
 		return footerLevelStyle(m.footer.Level()).Render(m.footer.Text())
 	}
 	if m.pending != "" {
-		return m.spinner.View() + " " + dimStyle.Render(m.pending)
+		return pendingLine(m.pending)
 	}
 	return ""
 }
@@ -323,4 +324,15 @@ func renderQuestionText(label, valueView string) string {
 func renderQuestionCycle(label, value string) string {
 	return focusStyle.Render(theme.IconCircleSmall+" "+label+" "+theme.IconSelect+" "+theme.IconChevronRight+" ") +
 		valueStyle.Render(value)
+}
+
+// pendingMark is the fixed activity dot: dk setup has no router, hence no jobs
+// registry and no blink phase, so the dot is always on and nothing ticks.
+func pendingMark() string {
+	return indicator.Style(indicator.Running).Render(indicator.Glyph(indicator.Running, true))
+}
+
+// pendingLine renders a verification in flight: the dot, one space, the text.
+func pendingLine(text string) string {
+	return pendingMark() + " " + dimStyle.Render(text)
 }

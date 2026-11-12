@@ -7,7 +7,6 @@ import (
 	"testing"
 	"time"
 
-	"charm.land/bubbles/v2/spinner"
 	"charm.land/bubbles/v2/table"
 	tea "charm.land/bubbletea/v2"
 
@@ -1154,21 +1153,6 @@ func TestCtrlRRefreshes(t *testing.T) {
 	}
 	if cmd == nil {
 		t.Error("ctrl+r issued no command")
-	}
-}
-
-func TestSpinnerTicksOnlyWhileLoading(t *testing.T) {
-	m := loadedModel(t) // loading is false once the list arrived
-
-	_, cmd := step(t, m, spinner.TickMsg{})
-	if cmd != nil {
-		t.Error("an idle model kept the spinner running")
-	}
-
-	m.loading = true
-	_, cmd = step(t, m, spinner.TickMsg{})
-	if cmd == nil {
-		t.Error("the spinner stopped while the list was loading")
 	}
 }
 

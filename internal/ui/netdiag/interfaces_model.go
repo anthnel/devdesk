@@ -7,7 +7,6 @@ import (
 	"strconv"
 	"time"
 
-	"charm.land/bubbles/v2/spinner"
 	tea "charm.land/bubbletea/v2"
 	"charm.land/lipgloss/v2"
 
@@ -28,6 +27,12 @@ type ifaceDataMsg struct {
 // against a wedged platform call rather than a budget anything is expected to
 // approach.
 const ifaceFetchTimeout = 5 * time.Second
+
+// NewInterfacesDataMsg hands interface rows to the Interfaces tab without
+// reading the machine (guard seed, DEVDESK-373).
+func NewInterfacesDataMsg(ifaces []netiface.Interface) tea.Msg {
+	return ifaceDataMsg{interfaces: ifaces}
+}
 
 func fetchInterfacesCmd() tea.Cmd {
 	return func() tea.Msg {
@@ -51,8 +56,7 @@ type InterfacesModel struct {
 	width  int
 	height int
 
-	table   datatable.Model[netiface.Interface]
-	spinner spinner.Model
+	table datatable.Model[netiface.Interface]
 
 	loading bool
 	// lastOK dates the rows, and loadErr says the most recent read failed.
@@ -70,13 +74,8 @@ type InterfacesModel struct {
 }
 
 func newInterfacesModel() *InterfacesModel {
-	sp := spinner.New()
-	sp.Spinner = spinner.Dot
-	sp.Style = theme.SpinnerStyle()
-
 	return &InterfacesModel{
 		loading: true,
-		spinner: sp,
 		table: datatable.New(datatable.Config[netiface.Interface]{
 			Columns:    interfaceColumns(),
 			SortColumn: 0,
@@ -265,9 +264,9 @@ func interfaceStateStyle(i netiface.Interface) lipgloss.Style {
 	}
 }
 
-// initInterfaces returns the initial commands: one read, and the spinner.
+// initInterfaces returns the initial command: one read.
 func (im *InterfacesModel) initInterfaces() tea.Cmd {
-	return tea.Batch(fetchInterfacesCmd(), im.spinner.Tick)
+	return fetchInterfacesCmd()
 }
 
 // InEditMode reports whether a text field has the keyboard.
@@ -291,16 +290,6 @@ func (im *InterfacesModel) update(msg tea.Msg) (*InterfacesModel, tea.Cmd) {
 	switch msg := msg.(type) {
 	case ifaceDataMsg:
 		return im.handleData(msg)
-	case spinner.TickMsg:
-		if !im.loading {
-			return im, nil
-		}
-		var cmd tea.Cmd
-		im.spinner, cmd = im.spinner.Update(msg)
-		// The load is reported in the footer, so the frame has to reach it —
-		// a spinner stuck on frame zero reads as a hang (Rule 139).
-		im.footer.SetSpinnerFrame(im.spinner.View())
-		return im, cmd
 	case tea.KeyPressMsg:
 		return im.handleKey(msg)
 	case tea.PasteMsg:
@@ -336,7 +325,7 @@ func (im *InterfacesModel) handleKey(msg tea.KeyPressMsg) (*InterfacesModel, tea
 
 	if msg.String() == "ctrl+r" {
 		im.loading = true
-		return im, tea.Batch(fetchInterfacesCmd(), im.spinner.Tick)
+		return im, fetchInterfacesCmd()
 	}
 
 	return im, im.table.Update(msg)
@@ -351,7 +340,7 @@ func (im *InterfacesModel) statusLine() components.Status {
 		return components.Status{Text: im.staleLabel(), Level: components.LevelError}
 	}
 	if im.loading {
-		return components.Status{Text: "Reading network interfaces...", Spinner: true}
+		return components.Status{Text: "Reading network interfaces...", Activity: true}
 	}
 	return components.Status{}
 }

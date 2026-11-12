@@ -6,7 +6,6 @@
 package agentusageview
 
 import (
-	"charm.land/bubbles/v2/spinner"
 	tea "charm.land/bubbletea/v2"
 
 	"github.com/anthnel/devdesk/internal/agentusage"
@@ -14,7 +13,6 @@ import (
 	"github.com/anthnel/devdesk/internal/config"
 	sharedcomponents "github.com/anthnel/devdesk/internal/ui/components"
 	"github.com/anthnel/devdesk/internal/ui/datatable"
-	"github.com/anthnel/devdesk/internal/ui/theme"
 )
 
 // sessionRow is one table row. project is computed once, in Update, so a Cell
@@ -51,9 +49,8 @@ const (
 
 // Model is the agent usage view.
 type Model struct {
-	table   datatable.Model[sessionRow]
-	spinner spinner.Model
-	footer  sharedcomponents.FooterMessage
+	table  datatable.Model[sessionRow]
+	footer sharedcomponents.FooterMessage
 
 	// level says which table is on screen. The sessions table keeps its cursor
 	// and filter while the agents level is open.
@@ -91,7 +88,7 @@ type Model struct {
 	// transcript): a late tick of the same generation starts nothing. A full
 	// read clears it.
 	pollStopped bool
-	// agentsLoading says a full read is in flight (the footer spinner).
+	// agentsLoading says a full read is in flight (the footer dot).
 	agentsLoading bool
 	// agentsErr says the most recent parse failed (a state, like loadErr).
 	agentsErr bool
@@ -113,14 +110,9 @@ type Model struct {
 
 // New builds the view with its first read pending.
 func New(cfg *config.Config) Model {
-	sp := spinner.New()
-	sp.Spinner = spinner.Dot
-	sp.Style = theme.SpinnerStyle()
-
 	return Model{
 		loading: true,
 		prices:  pricesFrom(cfg),
-		spinner: sp,
 		table: datatable.New(datatable.Config[sessionRow]{
 			Columns: sessionColumns(),
 			// The listing arrives newest first, which is the order wanted.
@@ -134,9 +126,9 @@ func New(cfg *config.Config) Model {
 	}
 }
 
-// Init starts the first read and the spinner.
+// Init starts the first read.
 func (m Model) Init() tea.Cmd {
-	cmds := []tea.Cmd{listSessionsCmd(m.gen), m.spinner.Tick}
+	cmds := []tea.Cmd{listSessionsCmd(m.gen)}
 	if m.level == levelAgents {
 		// Init cannot change the model: Update restarts the open session's chain.
 		cmds = append(cmds, resumeCmd())

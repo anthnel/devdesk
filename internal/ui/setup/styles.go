@@ -25,8 +25,6 @@ var (
 	errorStyle = lipgloss.NewStyle().Foreground(theme.ColorFooterError).Bold(true)
 	warnStyle  = lipgloss.NewStyle().Foreground(theme.ColorFooterWarn).Bold(true)
 	infoStyle  = lipgloss.NewStyle().Foreground(theme.ColorFooterInfo)
-
-	spinnerStyle = lipgloss.NewStyle().Foreground(theme.ColorSecondary)
 )
 
 // footerLevelStyle mirrors components.Level.Style() without the background.

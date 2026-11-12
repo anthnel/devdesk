@@ -10,7 +10,13 @@ func (m *Model) ActivityTables() map[string]datatable.ActivityTable {
 }
 
 // WantsBlink is the router's BlinkingView hook: true while a kill runs on a
-// row, so the router frames the view for the dot's blink. A level, not an edge.
+// row, or while the active tab's footer shows the shared activity dot (a run,
+// an interfaces read), so the router frames the view for the dot's blink. A
+// level, not an edge.
 func (m *Model) WantsBlink() bool {
-	return len(m.portsModel.table.BusyLabels()) > 0
+	if len(m.portsModel.table.BusyLabels()) > 0 {
+		return true
+	}
+	_, st := m.activeFooter()
+	return st.Activity
 }

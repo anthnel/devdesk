@@ -5,7 +5,6 @@ import (
 	"strings"
 	"time"
 
-	"charm.land/bubbles/v2/spinner"
 	"charm.land/bubbles/v2/table"
 	"charm.land/lipgloss/v2"
 
@@ -35,7 +34,6 @@ type Model struct {
 	// closure built once in New; it is written from Update only (Rule 110).
 	updates        *containerUpdates
 	containerTable datatable.Model[docker.Container]
-	spinner        spinner.Model
 	loading        bool
 	// unfocused is true while the terminal is blurred: the tick skips its read.
 	unfocused bool
@@ -422,14 +420,9 @@ func matchContainerTokens(c docker.Container, active map[string]bool) bool {
 
 // New creates a new containers view
 func New(cfg *config.Config) Model {
-	s := spinner.New()
-	s.Spinner = spinner.Dot
-	s.Style = theme.SpinnerStyle()
-
 	updates := &containerUpdates{}
 	return Model{
 		config:  cfg,
-		spinner: s,
 		updates: updates,
 		containerTable: datatable.New(datatable.Config[docker.Container]{
 			Columns: containerColumns(updates.status),

@@ -8,6 +8,7 @@ import (
 
 	"github.com/anthnel/devdesk/internal/config"
 	"github.com/anthnel/devdesk/internal/forge"
+	"github.com/anthnel/devdesk/internal/ui/components"
 	"github.com/anthnel/devdesk/internal/ui/help"
 	"github.com/anthnel/devdesk/internal/ui/shortcut"
 	"github.com/anthnel/devdesk/internal/ui/theme"
@@ -38,8 +39,24 @@ func (m Model) GetFooterHeight() int {
 
 // RenderFooter returns the footer content rendered below the viewport (Rule 124).
 func (m Model) RenderFooter(width int) string {
-	return theme.EmptyLineBg(width) + "\n" + m.footer.View(width, m.validation.Status())
+	return theme.EmptyLineBg(width) + "\n" + m.footer.View(width, m.status())
 }
+
+// status is the footer line derived from state: a refused submit's field error
+// wins, else the login in flight with the shared activity dot (DEVDESK-375).
+func (m Model) status() components.Status {
+	if st := m.validation.Status(); st.Text != "" {
+		return st
+	}
+	if m.authenticating {
+		return components.Status{Text: "Authenticating...", Activity: true}
+	}
+	return components.Status{}
+}
+
+// WantsBlink is the router's BlinkingView hook: true while a login is in
+// flight, so the router frames the view for the dot's blink.
+func (m Model) WantsBlink() bool { return m.authenticating }
 
 // vocab is the wording of the forge this context targets. Resolved from the
 // config rather than carried on shared.State: the title and the help are needed
@@ -139,12 +156,6 @@ func (m *Model) Render() string {
 
 func (m *Model) renderForm() string {
 	var b strings.Builder
-
-	// Spinner if authentication is in progress
-	if m.authenticating {
-		b.WriteString(theme.SpinnerMessage(m.spinner.View(), "Authenticating...") + "\n\n")
-		return lipgloss.NewStyle().Background(theme.ColorBackground).Padding(1, 2).Render(b.String())
-	}
 
 	// If authenticated, show the "Logged in" view
 	if m.authenticated {

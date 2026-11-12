@@ -26,7 +26,7 @@ func (m *Model) StartRun() (*Model, tea.Cmd) {
 	m.totalSteps = len(netcheck.Steps())
 	m.runStage = netcheck.Steps()[0]
 
-	return m, tea.Batch(m.spinner.Tick, runStageCmd(m.runGen, tg, m.checkSettings(), 0, netcheck.Results{}))
+	return m, runStageCmd(m.runGen, tg, m.checkSettings(), 0, netcheck.Results{})
 }
 
 // runStageCmd runs one stage of the pipeline and reports the accumulated

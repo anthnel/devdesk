@@ -4,8 +4,6 @@ import (
 	"strings"
 	"testing"
 
-	"charm.land/bubbles/v2/spinner"
-
 	"github.com/anthnel/devdesk/internal/ui/keymap"
 	"github.com/anthnel/devdesk/internal/ui/testutil"
 )
@@ -58,6 +56,9 @@ func TestAScanningRowCarriesNoEscapeSequence(t *testing.T) {
 	}
 }
 
+// spinnerFrames are the braille frames the footer used to animate.
+var spinnerFrames = []string{"⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"}
+
 // No cell ever holds a spinner frame: the Scanned cell is the same text on
 // every tick, so a tick cannot move it.
 func TestTheScannedCellIsStaticWhileAScanRuns(t *testing.T) {
@@ -69,7 +70,7 @@ func TestTheScannedCellIsStaticWhileAScanRuns(t *testing.T) {
 	if first != scanningText {
 		t.Fatalf("the scanning cell = %q, want exactly %q", first, scanningText)
 	}
-	for _, f := range spinner.Dot.Frames {
+	for _, f := range spinnerFrames {
 		if strings.Contains(first, f) {
 			t.Errorf("the cell holds the spinner frame %q", f)
 		}

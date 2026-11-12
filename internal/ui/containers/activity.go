@@ -55,7 +55,9 @@ func (m Model) ActivityTables() map[string]datatable.ActivityTable {
 
 // WantsBlink is the router's BlinkingView hook: true while a row action is in
 // flight, so the router frames the view for the running dot's blink.
-func (m Model) WantsBlink() bool { return len(m.containerTable.BusyLabels()) > 0 }
+func (m Model) WantsBlink() bool {
+	return len(m.containerTable.BusyLabels()) > 0 || m.status().Activity
+}
 
 // observedText is the footer sentence for a container at rest, without a
 // glyph: the glyph is added by components.DescribeRow from observedState.

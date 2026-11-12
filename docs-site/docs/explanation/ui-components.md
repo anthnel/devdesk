@@ -16,7 +16,6 @@ return m, m.footer.Warn("Scan already in progress")
 return m, m.footer.Info("Image pulled: " + name)
 
 m.footer.Handle(msg)                        // consumes its own expiry message
-m.footer.SetSpinnerFrame(m.spinner.View())  // a view's own spinner, pushed from its tick
 m.footer.SetBlinkPhase(msg.Blink)           // the shared activity dot, pushed from the router's animation message
 
 // Read-only, from View(): always renders one full-width, centered line
@@ -51,7 +50,7 @@ Precedence when rendering the footer is **error → warning → info → status*
 
 ### A loading table stays a table
 
-When a table-backed view is loading data, the *table itself* stays on screen — with its header and columns — and the loading indication is a `Status` in the footer: the shared activity dot (`●`/`○`, the same glyph as the row dots) when the router tracks the work, or the view's own spinner when the view loads its data itself. A body that swapped itself out for a spinner while loading would visibly lose its header and columns for the duration of every refresh, then regain them — a layout jump on every single reload. As a direct consequence, an "empty" message like "No images found" is only shown once loading has actually finished; otherwise the table would be announcing the absence of results it hasn't even finished looking for yet.
+When a table-backed view is loading data, the *table itself* stays on screen — with its header and columns — and the loading indication is a `Status` in the footer: the shared activity dot (`●`/`○`, the same glyph as the row dots) both for work the router tracks and for a view loading its own data (the view asks the router to animate the dot). No view uses a braille spinner any more. A body that swapped itself out for a spinner while loading would visibly lose its header and columns for the duration of every refresh, then regain them — a layout jump on every single reload. As a direct consequence, an "empty" message like "No images found" is only shown once loading has actually finished; otherwise the table would be announcing the absence of results it hasn't even finished looking for yet.
 
 ## Tables: one shared mechanism for width, sorting, and filtering
 

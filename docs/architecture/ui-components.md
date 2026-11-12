@@ -22,7 +22,7 @@ return m, m.footer.Info("Image pulled: " + name)
 
 m.footer.Handle(msg)                              // consumes its own expiry
 m.footer.SetBlinkPhase(msg.Blink)                 // from the jobs.FrameMsg handler (Activity)
-m.footer.SetSpinnerFrame(m.spinner.View())        // from the spinner tick (Spinner)
+m.footer.SetSpinnerFrame(frame)                   // legacy (Spinner): no view calls it any more
 
 // From View(), read-only. Always one full-width, centred line — empty included,
 // because Rule 124 budgets one whatever it holds.
@@ -69,7 +69,7 @@ Precedence inside `View`: **error → warning → info → status**. A failure t
 user has not read yet matters more than the progress of what is still running.
 
 **A table's load is a footer status** (Rule 139). The table stays
-on screen: a body that swapped itself for a spinner lost its header and its
+on screen: a body that swapped itself for a spinner or a message lost its header and its
 columns for the length of every `ctrl+r`, then got them back. The empty state
 (`No images found`) is therefore conditional on the load being over, or the
 table announces the absence of what it is in the middle of fetching.
@@ -79,13 +79,12 @@ table announces the absence of what it is in the middle of fetching.
 | Field | Renders | Fed by |
 |---|---|---|
 | `Activity` | the `indicator.Running` dot, `●` or `○`, with the glyph, colour and background of the row dots (`indicator.Glyph`, `indicator.Style`), then a space | `FooterMessage.SetBlinkPhase(on)`, called from the view's `jobs.FrameMsg` handler with `msg.Blink`. Without a call the dot is steady on |
-| `Spinner` | the rendered spinner frame, then a space | `FooterMessage.SetSpinnerFrame(frame)`, called from the view's `spinner.TickMsg` handler. Nothing is drawn until a frame was stored |
+| `Spinner` | the rendered spinner frame, then a space | `FooterMessage.SetSpinnerFrame(frame)`. **No production caller** since DEVDESK-371 to 376; kept until a separate story (T10) removes it. Nothing is drawn until a frame was stored |
 
 `Activity` wins when both are set. Both are dropped when `Detail.Glyph` is
 present (the selected row's own dot already moves), and both come after the
-timed messages in the precedence. `Activity` is for work the router tracks
-(jobs, or a view's `WantsBlink()`); `Spinner` stays for a view's own loading
-(agent usage, containers, netdiag, security remediation). The router runs its 500 ms chain only if `jobs.Running() > 0` or the
+timed messages in the precedence. `Activity` is for every load and for work the router tracks
+(jobs, or a view's `WantsBlink()`); `Spinner` is not used by any view. The router runs its 500 ms chain only if `jobs.Running() > 0` or the
 view on screen answers `WantsBlink()`, so an `Activity` status that does not
 come from a job needs `WantsBlink()` or the dot stays fixed (see `app-shell.md`,
 "A row dot or a footer mark").
@@ -97,7 +96,7 @@ for the dot, and shrinks the centring target by
 width correction, as for a detail line) so the line is `width` columns for
 `runewidth` too.
 
-The spinner frame is the **rendered** `spinner.View()`, not a bare frame: every
+If a spinner frame is ever pushed again (no view does today), it is the **rendered** `spinner.View()`, not a bare frame: every
 view already styles its spinner with `theme.SpinnerStyle()`, and restyling would
 nest one escape inside another. It is measured with `lipgloss.Width`, which
 ignores escapes — the opposite of a table cell's rule (Rule 122), and the
@@ -745,7 +744,7 @@ and started the spinner, then `authenticate()` returned nil with "Token is
 required" (or the missing-URL message) in the body: nothing ever cleared the
 flag, so the spinner kept running. Validation now runs before `authenticating`
 is set, for the token and for the missing URL, and a refused submit starts
-nothing. A stored token made only of blanks no longer triggers the auto-login
+nothing (the in-flight mark is now the footer dot, DEVDESK-375). A stored token made only of blanks no longer triggers the auto-login
 (`handleCredentialsLoaded`) either.
 
 **Out of scope.** `internal/ui/templates/form.go`, netdiag, the `ctrl+p` palette

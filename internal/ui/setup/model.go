@@ -10,7 +10,6 @@ import (
 	"log"
 	"strings"
 
-	"charm.land/bubbles/v2/spinner"
 	"charm.land/bubbles/v2/textinput"
 	tea "charm.land/bubbletea/v2"
 
@@ -132,10 +131,9 @@ type Model struct {
 	forgeTokenInput     textinput.Model
 
 	// pending names the async step in flight, shown in the footer with a
-	// spinner (Rule 128); empty when nothing is running.
+	// fixed activity dot (Rule 128); empty when nothing is running.
 	pending string
 	footer  components.FooterMessage
-	spinner spinner.Model
 
 	savedPath             string
 	currentContextWarning string
@@ -174,10 +172,6 @@ func New() Model {
 		themes = []string{"default"}
 	}
 
-	s := spinner.New()
-	s.Spinner = spinner.Dot
-	s.Style = spinnerStyle
-
 	m := Model{
 		contextNameInput:    nameInput,
 		themeOptions:        themes,
@@ -185,7 +179,6 @@ func New() Model {
 		forgeNamespaceInput: nsInput,
 		visibilityValue:     "private",
 		forgeTokenInput:     tokenInput,
-		spinner:             s,
 	}
 	m.forgeURLInput.SetValue(forge.VocabularyFor(config.ForgeTypes()[m.forgeTypeIdx]).ExampleURL)
 	return m
@@ -210,11 +203,6 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	case tea.PasteMsg:
 		return m.handlePaste(msg)
-
-	case spinner.TickMsg:
-		var cmd tea.Cmd
-		m.spinner, cmd = m.spinner.Update(msg)
-		return m, cmd
 
 	case components.ConfirmModalYesMsg:
 		return m.handleConfirmYes()
@@ -376,7 +364,7 @@ func (m *Model) recheckSecretBackendCmd() tea.Cmd {
 	m.secretBackendCheck = secretBackendChecking
 	name := strings.TrimSpace(m.contextNameInput.Value())
 	pref := secretBackendOptions[m.secretBackendIdx]
-	return tea.Batch(m.spinner.Tick, checkSecretBackendCmd(name, pref))
+	return checkSecretBackendCmd(name, pref)
 }
 
 // recheckContainerEngineCmd re-tests whichever container engine is currently
@@ -385,7 +373,7 @@ func (m *Model) recheckSecretBackendCmd() tea.Cmd {
 func (m *Model) recheckContainerEngineCmd() tea.Cmd {
 	m.engineCheck = engineChecking
 	pref := config.ContainerEngines()[m.containerEngineIdx]
-	return tea.Batch(m.spinner.Tick, checkContainerEngineCmd(pref))
+	return checkContainerEngineCmd(pref)
 }
 
 // onForgeTypeChanged keeps the URL placeholder and the visibility value
@@ -456,7 +444,7 @@ func (m Model) submitContextName() (tea.Model, tea.Cmd) {
 	}
 	m.contextNameInput.SetValue(name)
 	m.pending = "Checking context name..."
-	return m, tea.Batch(m.spinner.Tick, checkContextExistsCmd(name))
+	return m, checkContextExistsCmd(name)
 }
 
 func (m Model) handleContextExists(msg ContextExistsMsg) (tea.Model, tea.Cmd) {

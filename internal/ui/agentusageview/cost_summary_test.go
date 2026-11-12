@@ -350,7 +350,7 @@ func TestFooterPriceHint(t *testing.T) {
 				}
 			}
 			if len(tt.contains) > 0 {
-				if st.Level != sharedcomponents.LevelInfo || st.Spinner {
+				if st.Level != sharedcomponents.LevelInfo || st.Activity {
 					t.Errorf("the hint is a plain Info line (nothing failed, nothing is waiting), got %+v", st)
 				}
 				if !strings.Contains(stripANSI(footerText(m)), tt.contains[0]) {
@@ -396,8 +396,8 @@ func TestPriceHintPrecedence(t *testing.T) {
 		t.Errorf("degraded + hint = %+v, want the approximate warning first", st)
 	}
 	m.agentsLoading = true
-	if st := m.status(); !st.Spinner || strings.Contains(st.Text, pricesKey) {
-		t.Errorf("loading + hint = %+v, want the spinner line", st)
+	if st := m.status(); !st.Activity || strings.Contains(st.Text, pricesKey) {
+		t.Errorf("loading + hint = %+v, want the dot line", st)
 	}
 	m.agentsErr = true
 	if st := m.status(); st.Level != sharedcomponents.LevelError || strings.Contains(st.Text, pricesKey) {

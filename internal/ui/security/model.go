@@ -1,7 +1,6 @@
 package security
 
 import (
-	"charm.land/bubbles/v2/spinner"
 	"charm.land/bubbles/v2/viewport"
 	tea "charm.land/bubbletea/v2"
 
@@ -12,7 +11,6 @@ import (
 	"github.com/anthnel/devdesk/internal/scan"
 	sharedcomponents "github.com/anthnel/devdesk/internal/ui/components"
 	"github.com/anthnel/devdesk/internal/ui/datatable"
-	"github.com/anthnel/devdesk/internal/ui/theme"
 )
 
 // ViewState represents the current state of the security view.
@@ -46,8 +44,6 @@ type Model struct {
 
 	// Inventory state
 	inventory datatable.Model[scanTarget]
-	// spinner animates the view's own loads (caches, remediation) in the footer.
-	spinner spinner.Model
 
 	// jobs is the router snapshot of everything running anywhere. See jobs.go:
 	// the rows' activity is derived from it, so there is no in-flight state here
@@ -66,8 +62,7 @@ type Model struct {
 	// before the caches were read is a claim the view cannot make, and the one
 	// the user saw flash by before the list appeared.
 	//
-	// It also keeps the spinner chain alive, which is why it is read by
-	// spinnerAlive rather than only by the renderer.
+	// It also drives the shared activity dot (status, WantsBlink).
 	inventoryLoading bool
 
 	// targetPath is what the result on screen is about — an image reference or a
@@ -136,10 +131,6 @@ type Model struct {
 // two screens grading one repository differently is the shape §3.11 and §3.12
 // each had to undo.
 func New(cfg *config.Config, secrets credentials.Storage) Model {
-	s := spinner.New()
-	s.Spinner = spinner.Dot
-	s.Style = theme.SpinnerStyle()
-
 	t := datatable.New(datatable.Config[scan.Finding]{
 		Columns:        findingColumns(),
 		SortColumn:     -1, // the order the scanner reported
@@ -157,7 +148,6 @@ func New(cfg *config.Config, secrets credentials.Storage) Model {
 		// that starts saying "not loading" would render the empty message for
 		// the frame before the first Cmd runs.
 		inventoryLoading: true,
-		spinner:          s,
 		findingsTable:    t,
 		remediation:      newRemediationState(),
 	}
@@ -233,13 +223,10 @@ func (m *Model) setResult(result *scan.Result) {
 
 // Init initializes the model
 func (m Model) Init() tea.Cmd {
-	return tea.Batch(
-		m.spinner.Tick,
-		// Loaded whatever the opening state: a view opened on a result returns
-		// to the inventory on ctrl+r, and reading two small files is cheaper
-		// than the branch that would decide not to.
-		loadInventoryCmd(m.ciForgeURL()),
-	)
+	// Loaded whatever the opening state: a view opened on a result returns
+	// to the inventory on ctrl+r, and reading two small files is cheaper
+	// than the branch that would decide not to.
+	return loadInventoryCmd(m.ciForgeURL())
 }
 
 // InEditMode reports whether a field or a modal has the keyboard, which is what

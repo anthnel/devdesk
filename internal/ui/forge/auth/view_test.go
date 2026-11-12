@@ -123,19 +123,6 @@ func TestViewNeverRendersTheTokenInClear(t *testing.T) {
 	}
 }
 
-func TestViewShowsTheSpinnerWhileAuthenticating(t *testing.T) {
-	m := newTestModel(t, testConfig(), newFakeStorage())
-	m.authenticating = true
-
-	out := m.Render()
-	if !strings.Contains(out, "Authenticating") {
-		t.Error("View() does not report an in-flight login")
-	}
-	if strings.Contains(out, "Personal Access Token") {
-		t.Error("the form is still rendered under the spinner")
-	}
-}
-
 func TestViewShowsTheLoggedInStateInsteadOfTheForm(t *testing.T) {
 	cfg := testConfig()
 	cfg.Forge.URL = "https://gitlab.example.com"

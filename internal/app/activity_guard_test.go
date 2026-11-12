@@ -5,6 +5,7 @@ import (
 	"go/ast"
 	"go/parser"
 	"go/token"
+	"path/filepath"
 	"sort"
 	"strconv"
 	"strings"
@@ -240,11 +241,14 @@ var migratedSources = map[command.ViewType][]string{
 	// the whole package is scanned.
 	command.ViewGitExplorer: {"ui/forge/explorer/"},
 	command.ViewTemplates:   {"ui/templates/"},
-	// Netdiag migrates only its Ports tab (A-12): the files that belong to it.
-	// Excluded: the diagnostics, interfaces and forward tabs, whose own spinners
-	// stay (the footers keep their own chains), and ports_commands.go (portsTickCmd
-	// is the data refresh tick, not a row animation).
-	command.ViewNetdiag: {"ui/netdiag/ports_model.go", "ui/netdiag/ports_activity.go"},
+	// Netdiag is migrated except forward_model.go, whose ticker is a data
+	// refresh, and ports_commands.go (portsTickCmd is the data refresh tick, not
+	// a row animation). Diagnostics and Interfaces loads are the shared dot
+	// (DEVDESK-373).
+	command.ViewNetdiag: {
+		"ui/netdiag/model.go", "ui/netdiag/update.go", "ui/netdiag/run.go", "ui/netdiag/header.go",
+		"ui/netdiag/interfaces_model.go", "ui/netdiag/ports_model.go", "ui/netdiag/ports_activity.go",
+	},
 	// The agent-usage view is fully migrated (A-13, DEVDESK-151): the whole package.
 	command.ViewAgentUsage: {"ui/agentusageview/"},
 	// Containers is fully migrated (A-14, DEVDESK-152) except commands.go, whose
@@ -858,4 +862,85 @@ func seedAgentUsageFooter(t *testing.T, a *App) indicator.State {
 	live, _ := openLiveAgentSession(t)
 	a.views[command.ViewAgentUsage] = live.views[command.ViewAgentUsage]
 	return indicator.Running
+}
+
+// DEVDESK-371..376: no view owns a braille spinner any more. Every loading state
+// is the shared activity dot, driven by the router frame. A package under
+// internal/ui that still imports bubbles/v2/spinner is listed here with the story
+// that removes it; each step drops its line, and the map ends empty and stays
+// empty as the final guard.
+const bubblesSpinnerPath = "charm.land/bubbles/v2/spinner"
+
+var pendingSpinnerImports = map[string]string{}
+
+// importsBubblesSpinner reports whether file imports bubbles/v2/spinner, under
+// any alias (a blank or dot import counts too).
+func importsBubblesSpinner(file *ast.File) bool {
+	for _, imp := range file.Imports {
+		if path, err := strconv.Unquote(imp.Path.Value); err == nil && path == bubblesSpinnerPath {
+			return true
+		}
+	}
+	return false
+}
+
+// spinnerImportProblems compares the packages found importing the spinner with
+// the pending list.
+func spinnerImportProblems(found map[string]bool, pending map[string]string) []string {
+	var out []string
+	for dir := range found {
+		if _, ok := pending[dir]; !ok {
+			out = append(out, fmt.Sprintf("%s imports %s: use the shared activity dot (Status.Activity, WantsBlink, jobs.FrameMsg), or list it in pendingSpinnerImports with its story", dir, bubblesSpinnerPath))
+		}
+	}
+	for dir, story := range pending {
+		if !found[dir] {
+			out = append(out, fmt.Sprintf("pendingSpinnerImports lists %s (%s), which no longer imports the spinner: drop the entry", dir, story))
+		}
+	}
+	sort.Strings(out)
+	return out
+}
+
+func TestNoViewImportsTheBubblesSpinnerLogic(t *testing.T) {
+	parse := func(src string) *ast.File {
+		f, err := parser.ParseFile(token.NewFileSet(), "v.go", src, parser.ImportsOnly)
+		if err != nil {
+			t.Fatal(err)
+		}
+		return f
+	}
+	if importsBubblesSpinner(parse("package v\nimport \"fmt\"\n")) {
+		t.Error("a file with no spinner import was flagged")
+	}
+	for name, src := range map[string]string{
+		"plain":   "package v\nimport \"" + bubblesSpinnerPath + "\"\n",
+		"aliased": "package v\nimport sp \"" + bubblesSpinnerPath + "\"\n",
+		"blank":   "package v\nimport _ \"" + bubblesSpinnerPath + "\"\n",
+	} {
+		if !importsBubblesSpinner(parse(src)) {
+			t.Errorf("%s spinner import not detected", name)
+		}
+	}
+	if p := spinnerImportProblems(map[string]bool{"ui/a": true}, map[string]string{}); len(p) != 1 {
+		t.Errorf("an unlisted importer: %v", p)
+	}
+	if p := spinnerImportProblems(map[string]bool{}, map[string]string{"ui/a": "DEVDESK-1"}); len(p) != 1 {
+		t.Errorf("a stale entry: %v", p)
+	}
+	if p := spinnerImportProblems(map[string]bool{"ui/a": true}, map[string]string{"ui/a": "DEVDESK-1"}); len(p) != 0 {
+		t.Errorf("a listed importer reported %v", p)
+	}
+}
+
+func TestNoViewImportsTheBubblesSpinner(t *testing.T) {
+	found := map[string]bool{}
+	sourceFiles(t, func(rel string, _ *token.FileSet, file *ast.File) {
+		if strings.HasPrefix(rel, "ui/") && importsBubblesSpinner(file) {
+			found[filepath.ToSlash(filepath.Dir(rel))] = true
+		}
+	})
+	for _, p := range spinnerImportProblems(found, pendingSpinnerImports) {
+		t.Error(p)
+	}
 }

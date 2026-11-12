@@ -9,9 +9,8 @@ import (
 )
 
 // DEVDESK-341 step 2e: the footer separates two things the router frame used to
-// share. The inventory LOAD keeps the view's own braille spinner (out of scope);
-// jobs work gets the shared activity dot, whatever the load or remediation
-// spinner is doing.
+// share. Both the inventory LOAD and jobs work get the shared activity dot
+// (DEVDESK-372); loading_dot_test.go covers the load.
 
 func hasBraille(s string) bool {
 	for _, r := range s {
@@ -57,26 +56,6 @@ func TestJobsDotFollowsTheBlinkPhase(t *testing.T) {
 	}
 	if strings.Index(on, "Scanning") != strings.Index(off, "Scanning") {
 		t.Errorf("the text moved between phases: %q vs %q", on, off)
-	}
-}
-
-// Load wins over jobs: the inventory load keeps the view's own spinner frame and
-// no dot, and a router frame does not replace it.
-func TestTheInventoryLoadKeepsItsOwnSpinnerAndNoDot(t *testing.T) {
-	m := footerModel(t, []jobs.Run{batch()}, nil)
-	m = selectTarget(t, m, ftOther) // idle row: no glyph detail
-	m.inventoryLoading = true
-	m.footer.SetSpinnerFrame("⠹") // the view's own spinner.TickMsg handler
-	if st := m.inventoryStatus(); !st.Spinner || st.Activity {
-		t.Fatalf("while loading: Spinner=%v Activity=%v, want Spinner only", st.Spinner, st.Activity)
-	}
-	m = feed(t, m, jobs.FrameMsg{Blink: true})
-	got := infoLine(m, 200)
-	if !strings.Contains(got, "⠹") {
-		t.Errorf("the own spinner must stay and the router frame stay out: %q", ansi.Strip(got))
-	}
-	if strings.ContainsAny(ansi.Strip(got), "●○") {
-		t.Errorf("a dot beside the load spinner: %q", ansi.Strip(got))
 	}
 }
 

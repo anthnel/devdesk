@@ -8,7 +8,6 @@ import (
 	"strings"
 	"testing"
 
-	"charm.land/bubbles/v2/spinner"
 	tea "charm.land/bubbletea/v2"
 	"github.com/charmbracelet/x/ansi"
 
@@ -224,6 +223,7 @@ func TestLoadSavedCredentialsReportsNothingFound(t *testing.T) {
 // press Login on a prefilled form.
 func TestCredentialsLoadedStartsAnAutoLogin(t *testing.T) {
 	m := newTestModel(t, testConfig(), newFakeStorage())
+	setConfigURL(m, "https://gitlab.example.com") // authenticate() refuses an unconfigured URL
 
 	m, cmd := step(t, m, CredentialsLoadedMsg{URL: "https://gitlab.example.com", Token: "glpat-x"})
 
@@ -398,31 +398,13 @@ func TestEnterOnTheButtonRequiresBothFields(t *testing.T) {
 
 // ── Authentication result ────────────────────────────────────────────────────
 
-func TestAuthStartShowsTheSpinner(t *testing.T) {
+func TestAuthStartSetsTheAuthenticatingState(t *testing.T) {
 	m := newTestModel(t, testConfig(), newFakeStorage())
 
-	m, cmd := step(t, m, AuthStartMsg{})
+	m, _ = step(t, m, AuthStartMsg{})
 
 	if !m.authenticating {
 		t.Error("authenticating = false after AuthStartMsg")
-	}
-	if cmd == nil {
-		t.Error("the spinner was not started")
-	}
-}
-
-func TestSpinnerTicksOnlyWhileAuthenticating(t *testing.T) {
-	m := newTestModel(t, testConfig(), newFakeStorage())
-
-	_, cmd := step(t, m, spinner.TickMsg{})
-	if cmd != nil {
-		t.Error("an idle model kept the spinner running")
-	}
-
-	m.authenticating = true
-	_, cmd = step(t, m, spinner.TickMsg{})
-	if cmd == nil {
-		t.Error("the spinner stopped while authentication was in flight")
 	}
 }
 

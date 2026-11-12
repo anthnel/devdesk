@@ -379,21 +379,6 @@ func TestInitAtTheAgentsLevelRelistsAndResumes(t *testing.T) {
 	}
 }
 
-func TestASpinnerTickKeepsRunningWhileTheAgentsLoad(t *testing.T) {
-	m := withSessions(t, "/p/a.jsonl")
-	if _, cmd := m.Update(spinnerTick()); cmd != nil {
-		t.Error("not loading at either level: the chain ends")
-	}
-	m, _ = opened(t, m, "right")
-	if _, cmd := m.Update(spinnerTick()); cmd == nil {
-		t.Error("loading agents: the chain continues")
-	}
-	m = answer(t, m, threeSubs())
-	if _, cmd := m.Update(spinnerTick()); cmd != nil {
-		t.Error("the answer ends the chain")
-	}
-}
-
 // ── Filter ───────────────────────────────────────────────────────────────────
 
 func TestTheAgentsLevelHasItsOwnFilter(t *testing.T) {

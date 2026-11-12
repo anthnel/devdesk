@@ -1,6 +1,7 @@
 package app
 
 import (
+	"errors"
 	"fmt"
 	"go/ast"
 	"go/parser"
@@ -22,9 +23,13 @@ import (
 	"github.com/anthnel/devdesk/internal/jobs"
 	"github.com/anthnel/devdesk/internal/template"
 	"github.com/anthnel/devdesk/internal/ui/components"
+	"github.com/anthnel/devdesk/internal/ui/containers"
+	"github.com/anthnel/devdesk/internal/ui/forge/auth"
 	"github.com/anthnel/devdesk/internal/ui/forge/explorer"
 	"github.com/anthnel/devdesk/internal/ui/indicator"
+	"github.com/anthnel/devdesk/internal/ui/netdiag"
 	ociresources "github.com/anthnel/devdesk/internal/ui/oci_resources"
+	"github.com/anthnel/devdesk/internal/ui/security"
 	uistatus "github.com/anthnel/devdesk/internal/ui/status"
 	"github.com/anthnel/devdesk/internal/ui/testutil"
 	uiviewer "github.com/anthnel/devdesk/internal/ui/viewer"
@@ -62,6 +67,18 @@ type loadingSeed struct {
 	name string // subtest name
 	seed footerSeed
 	end  func() tea.Msg
+	// endFrom is used instead of end when the ending message depends on the
+	// state of the view (:agent-usage: its read generation). DEVDESK-371.
+	endFrom func(*testing.T, *App) tea.Msg
+}
+
+// endMsg is the message that ends the load: endFrom when set, else end.
+func (ls loadingSeed) endMsg(t *testing.T, a *App) tea.Msg {
+	t.Helper()
+	if ls.endFrom != nil {
+		return ls.endFrom(t, a)
+	}
+	return ls.end()
 }
 
 // footerLoadingSeeds are the views whose footer shows the activity dot for a
@@ -72,15 +89,28 @@ type loadingSeed struct {
 // and TestALoadingViewDrivesTheChain.
 var footerLoadingSeeds = map[command.ViewType][]loadingSeed{
 	command.ViewStatus: {{"first check", seedStatusLoading,
-		func() tea.Msg { return uistatus.CheckCompleteMsg{Timestamp: time.Now()} }}},
+		func() tea.Msg { return uistatus.CheckCompleteMsg{Timestamp: time.Now()} }, nil}},
 	command.ViewViewer: {{"document", seedViewerLoading,
-		func() tea.Msg { return uiviewer.DocumentLoadedMsg{Name: "notes.txt", Content: []byte("hello\n")} }}},
+		func() tea.Msg { return uiviewer.DocumentLoadedMsg{Name: "notes.txt", Content: []byte("hello\n")} }, nil}},
+	command.ViewContainers: {{"first load", seedContainersLoading,
+		func() tea.Msg { return containers.ContainersListMsg{} }, nil}},
+	command.ViewAgentUsage: {{"sessions list", seedAgentUsageLoading, nil, agentUsageListEnd}},
+	command.ViewSecurity: {{"inventory", seedSecurityLoading,
+		func() tea.Msg { return security.InventoryLoadedMsg{} }, nil}},
+	command.ViewNetdiag: {
+		{"diagnostics run", seedNetdiagDiagnosticsRun,
+			func() tea.Msg { return testutil.Key("esc") }, nil},
+		{"interfaces", seedNetdiagInterfacesLoading,
+			func() tea.Msg { return netdiag.NewInterfacesDataMsg(nil) }, nil},
+	},
+	command.ViewGitAuth: {{"login", seedGitAuthLoading,
+		func() tea.Msg { return auth.AuthResultMsg{Error: errors.New("401 Unauthorized")} }, nil}},
 	command.ViewOCIResources: {
-		{"images tab", seedOCIImagesLoading, func() tea.Msg { return ociresources.ImagesListMsg{} }},
-		{"networks tab", seedOCINetworksLoading, func() tea.Msg { return ociresources.NetworksListMsg{} }},
-		{"volumes tab", seedOCIVolumesLoading, func() tea.Msg { return ociresources.VolumesListMsg{} }},
-		{"tag search", seedOCITagSearch, ociTagSearchEnd},
-		{"network inspect", seedOCINetworkInspect, ociNetworkInspectEnd},
+		{"images tab", seedOCIImagesLoading, func() tea.Msg { return ociresources.ImagesListMsg{} }, nil},
+		{"networks tab", seedOCINetworksLoading, func() tea.Msg { return ociresources.NetworksListMsg{} }, nil},
+		{"volumes tab", seedOCIVolumesLoading, func() tea.Msg { return ociresources.VolumesListMsg{} }, nil},
+		{"tag search", seedOCITagSearch, ociTagSearchEnd, nil},
+		{"network inspect", seedOCINetworkInspect, ociNetworkInspectEnd, nil},
 	},
 }
 
@@ -90,6 +120,47 @@ func seedStatusLoading(t *testing.T, a *App) {
 	delete(a.views, command.ViewStatus)
 	_ = a.switchView(command.ViewStatus) // its Init would run the checks: dropped
 	a.resize(a.width, a.height)
+}
+
+// seedContainersLoading creates :containers on screen with nothing received
+// (DEVDESK-371). Its Init Cmd is dropped and no engine is reachable.
+func seedContainersLoading(t *testing.T, a *App) {
+	t.Helper()
+	t.Setenv("PATH", t.TempDir())
+	delete(a.views, command.ViewContainers)
+	_ = a.switchView(command.ViewContainers)
+	a.resize(a.width, a.height)
+}
+
+// seedSecurityLoading creates :sec on screen with its inventory unanswered
+// (DEVDESK-372). Its Init Cmd is dropped, so inventoryLoading stays true.
+func seedSecurityLoading(t *testing.T, a *App) {
+	t.Helper()
+	delete(a.views, command.ViewSecurity)
+	_ = a.switchView(command.ViewSecurity)
+	a.resize(a.width, a.height)
+}
+
+// seedAgentUsageLoading creates :agent-usage on screen with its listing unanswered.
+func seedAgentUsageLoading(t *testing.T, a *App) {
+	t.Helper()
+	t.Setenv("CLAUDE_CONFIG_DIR", t.TempDir())
+	delete(a.views, command.ViewAgentUsage)
+	_ = a.switchView(command.ViewAgentUsage)
+	a.resize(a.width, a.height)
+}
+
+// agentUsageListEnd is the listing answer of the seeded view: Init does not
+// change the read generation, so the answer of a fresh Init carries the right one.
+func agentUsageListEnd(t *testing.T, a *App) tea.Msg {
+	t.Helper()
+	for _, msg := range testutil.Msgs(a.views[command.ViewAgentUsage].Init()) {
+		if msg != nil {
+			return msg
+		}
+	}
+	t.Fatal("the :agent-usage Init produced no message")
+	return nil
 }
 
 // seedViewerLoading opens a file in the viewer; its Init Cmd is not run, so the
@@ -328,9 +399,10 @@ var footerFrameConsumers = map[string]struct {
 	"ui/forge/explorer": {View: command.ViewGitExplorer},
 	"ui/status":         {View: command.ViewStatus},
 	"ui/viewer":         {View: command.ViewViewer},
-	"ui/netdiag":        {Exempt: "own spinner.Model feeds its Spinner status; the frame only drives table blink (plan 1.2)"},
-	"ui/containers":     {Exempt: "own spinner.Model feeds its Spinner status; the frame only drives table blink (plan 1.2)"},
-	"ui/agentusageview": {Exempt: "own spinner.Model feeds its Spinner status; the frame only drives table blink (plan 1.2)"},
+	"ui/containers":     {View: command.ViewContainers},
+	"ui/agentusageview": {View: command.ViewAgentUsage},
+	"ui/netdiag":        {View: command.ViewNetdiag},
+	"ui/forge/auth":     {View: command.ViewGitAuth},
 }
 
 // footerFrameConsumerProblems compares the packages found handling a
@@ -742,8 +814,8 @@ func loadingRouter(t *testing.T, vt command.ViewType, seed footerSeed) (*App, *[
 func TestALoadingViewDrivesTheChain(t *testing.T) {
 	for vt, seeds := range footerLoadingSeeds {
 		for _, ls := range seeds {
-			seed, end := ls.seed, ls.end
-			if end == nil {
+			seed := ls.seed
+			if ls.end == nil && ls.endFrom == nil {
 				t.Fatalf("view %q seed %q has no end message", vt, ls.name)
 			}
 			name := fmt.Sprintf("%s/%s", vt, ls.name)
@@ -791,7 +863,7 @@ func TestALoadingViewDrivesTheChain(t *testing.T) {
 				if !a.anim.ticking {
 					t.Fatal("the chain died while the view was still loading")
 				}
-				a.Update(end())
+				a.Update(ls.endMsg(t, a))
 				if held, ok := a.views[vt].(BlinkingView); ok && held.WantsBlink() {
 					t.Fatal("the view still asks for the blink after its load ended")
 				}

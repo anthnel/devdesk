@@ -610,8 +610,8 @@ and when a session ran at this level (see the privacy amendment above). `→` or
   only when non-zero, `Skipped` (`Listing.Omitted`).
 - **Footer** (Rule 128), derived on every frame with no timer, in this order:
   a failed read (red, "Failed to list Claude Code sessions — check logs"; the
-  error is logged, never shown, since it can name a path), then loading (spinner,
-  "Reading Claude Code sessions..."), then "No Claude Code sessions found in
+  error is logged, never shown, since it can name a path), then loading (the shared
+  activity dot, "Reading Claude Code sessions..."), then "No Claude Code sessions found in
   <root>" when the listing is empty before any filter.
 - **Shortcuts**: `ctrl+r` Refresh, `/` Filter, `?` Help. The same keys in every
   state, none greyed (Rule 130): each always acts. `.` cycles the sort column
@@ -621,7 +621,7 @@ and when a session ran at this level (see the privacy amendment above). `→` or
   `switchView` (`internal/app/command_line.go`), which calls `Init()` on every
   entry, and `Init` starts a read. The rows from the previous visit stay on
   screen until the answer arrives. Unlike `ctrl+r`, this entry reload shows no
-  spinner and no "Reading..." line, because `Init` cannot set `loading` to
+  dot and no "Reading..." line, because `Init` cannot set `loading` to
   true. `ctrl+r` reads again under a new generation number, and a stale answer
   (older generation) is dropped. A failed refresh keeps the previous rows: they
   are dated, not wrong.
@@ -745,7 +745,7 @@ and when a session ran at this level (see the privacy amendment above). `→` or
 - **Header** (before DEVDESK-47): `Agents`, `Tokens` (sum of Total), both following the filter, and
   `Updates` (`live` or `paused`, see "Live updates"); the list above adds the cost fields.
 - **Footer status**: a failed read (red, "Failed to read this session — check
-  logs"), then loading (a full read only; spinner, "Reading session..."), then, when
+  logs"), then loading (a full read only; the shared activity dot, "Reading session..."), then, when
   `Diagnostics.Degraded()`, a warning "Totals are approximate — some transcript
   data could not be read", then a price hint (Info, a state derived on every frame):
   with no price configured and tokens in the session, "Set agent_usage.prices in this
@@ -916,9 +916,9 @@ incremental API of DEVDESK-44 (`Cursor`, `Delta`, `Aggregate`), not
 read applies a `Delta` to it.
 
 **The polling chain.** Opening a session starts a full read (cursor
-`Rewound()`, spinner, "Reading session..."). Each answer schedules the next
+`Rewound()`, activity dot, "Reading session..."). Each answer schedules the next
 step: wait `pollInterval` (2 s, `pollTickCmd`), then `startRead(false)` reads
-from the cursor, silently (no spinner). At most one read and one tick exist per
+from the cursor, silently (no dot). At most one read and one tick exist per
 `agentGen`: `reading` blocks a tick that arrives while a read is in flight, and
 a tick or an answer of another generation is dropped. An empty delta changes
 nothing on screen; a non-empty or full one rebuilds the rows (`withUsage`).
@@ -966,7 +966,7 @@ is back. With `app.when_unfocused: run` the router sends `Focused:true`, so none
 of this happens.
 
 **`ctrl+r` is a full read.** It rewinds the cursor (`Cursor.Rewound()`), reads
-everything again, and shows the spinner. If a read is already in flight, it is
+everything again, and shows the activity dot. If a read is already in flight, it is
 never doubled (one per `Aggregate`): `fullPending` is set and the full read
 starts when that read answers, whether it succeeded or failed.
 
@@ -980,7 +980,7 @@ starts when that read answers, whether it succeeded or failed.
   `agentGen` again, clears `pollStopped` and starts a read from the cursor,
   silent: coming back reads what changed while away, and goes back to live if
   the session is still being written. With `fullPending`, the read is full and
-  has its spinner.
+  shows the dot.
 
 **The cursor stays on the same agent.** `selection.go` gives each agent a
 stable key: `main` for the orchestrator, `sub:<ID>#n` for a sub-agent, `n`

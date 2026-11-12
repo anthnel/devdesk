@@ -13,11 +13,16 @@ func (m Model) ActivityTables() map[string]datatable.ActivityTable {
 	return map[string]datatable.ActivityTable{"agent-usage/agents": &m.agentTable}
 }
 
-// WantsBlink is the router's BlinkingView hook: true while a running agent is
-// on screen, so the router frames the view for the dot's blink. A level, not
-// an edge: only the agents level, on the Agents tab, and only for the rows the
-// filter leaves visible.
+// WantsBlink is the router's BlinkingView hook: true while a load shows the
+// shared dot, or while a running agent is on screen, so the router frames the
+// view for the dot's blink. A level, not an edge: only the agents level, on the
+// Agents tab, and only for the rows the filter leaves visible.
 func (m Model) WantsBlink() bool {
+	return m.status().Activity || m.agentsRunning()
+}
+
+// agentsRunning is the old condition: a running agent is visible.
+func (m Model) agentsRunning() bool {
 	if m.level != levelAgents || m.tab != tabAgents {
 		return false
 	}

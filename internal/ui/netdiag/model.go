@@ -5,7 +5,6 @@ import (
 	"strings"
 	"time"
 
-	"charm.land/bubbles/v2/spinner"
 	"charm.land/bubbles/v2/textinput"
 	"charm.land/bubbles/v2/viewport"
 
@@ -95,7 +94,6 @@ type Model struct {
 	focusedField   int
 
 	// Running state
-	spinner    spinner.Model
 	runGen     int // incremented each run; results from a superseded run are dropped
 	runStage   netcheck.StageID
 	runStep    int
@@ -141,10 +139,6 @@ func New(cfg *config.Config) *Model {
 	dnsIn.Placeholder = "system resolver"
 	dnsIn.CharLimit = 64
 
-	sp := spinner.New()
-	sp.Spinner = spinner.Dot
-	sp.Style = theme.SpinnerStyle()
-
 	return &Model{
 		config:          cfg,
 		state:           StateInput,
@@ -156,7 +150,6 @@ func New(cfg *config.Config) *Model {
 		portInput:       portIn,
 		dnsServerInput:  dnsIn,
 		focusedField:    fieldTarget,
-		spinner:         sp,
 		filterBar:       components.NewFilterBarWithTokens([]components.FilterToken{{Label: problemsToken}}),
 		checksTable: datatable.New(datatable.Config[netcheck.Check]{
 			Columns: checkColumns(),
