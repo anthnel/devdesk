@@ -27,7 +27,9 @@ import (
 	ociresources "github.com/anthnel/devdesk/internal/ui/oci_resources"
 	uistatus "github.com/anthnel/devdesk/internal/ui/status"
 	"github.com/anthnel/devdesk/internal/ui/testutil"
+	uiviewer "github.com/anthnel/devdesk/internal/ui/viewer"
 	"github.com/anthnel/devdesk/internal/ui/workspaces"
+	"github.com/anthnel/devdesk/internal/viewer"
 )
 
 // DEVDESK-341 step 3: the footer's activity dot, guarded and accepted at the
@@ -63,11 +65,15 @@ var footerActivitySeeds = map[command.ViewType]footerSeed{
 // TestActivityGuardFooterHasNoBraille and TestALoadingViewDrivesTheChain.
 var footerLoadingSeeds = map[command.ViewType][]footerSeed{
 	command.ViewStatus: {seedStatusLoading},
+	command.ViewViewer: {seedViewerLoading},
 }
 
 // footerLoadingEnds is the message that ends the load of each seeded view.
 var footerLoadingEnds = map[command.ViewType]func() tea.Msg{
 	command.ViewStatus: func() tea.Msg { return uistatus.CheckCompleteMsg{Timestamp: time.Now()} },
+	command.ViewViewer: func() tea.Msg {
+		return uiviewer.DocumentLoadedMsg{Name: "notes.txt", Content: []byte("hello\n")}
+	},
 }
 
 // seedStatusLoading creates :status on screen with its first check unanswered.
@@ -75,6 +81,14 @@ func seedStatusLoading(t *testing.T, a *App) {
 	t.Helper()
 	delete(a.views, command.ViewStatus)
 	_ = a.switchView(command.ViewStatus) // its Init would run the checks: dropped
+	a.resize(a.width, a.height)
+}
+
+// seedViewerLoading opens a file in the viewer; its Init Cmd is not run, so the
+// document stays loading (DEVDESK-370).
+func seedViewerLoading(t *testing.T, a *App) {
+	t.Helper()
+	a.Update(uiviewer.OpenRequestMsg{Source: viewer.NewFileSource("notes.txt")})
 	a.resize(a.width, a.height)
 }
 
@@ -305,6 +319,7 @@ var footerFrameConsumers = map[string]struct {
 	"ui/oci_resources":  {View: command.ViewOCIResources},
 	"ui/forge/explorer": {View: command.ViewGitExplorer},
 	"ui/status":         {View: command.ViewStatus},
+	"ui/viewer":         {View: command.ViewViewer},
 	"ui/netdiag":        {Exempt: "own spinner.Model feeds its Spinner status; the frame only drives table blink (plan 1.2)"},
 	"ui/containers":     {Exempt: "own spinner.Model feeds its Spinner status; the frame only drives table blink (plan 1.2)"},
 	"ui/agentusageview": {Exempt: "own spinner.Model feeds its Spinner status; the frame only drives table blink (plan 1.2)"},
@@ -797,4 +812,21 @@ func TestFooterActivityStatusReturnShowsTheCurrentPhase(t *testing.T) {
 		t.Fatal(":status stopped asking for the blink after the return")
 	}
 	wantDot(t, a, command.ViewStatus, 0, 1)
+}
+
+// ctrl+r in the viewer starts a new load with no job behind it: the view
+// itself must arm the chain, or the dot stays a steady glyph (DEVDESK-370).
+func TestFooterActivityViewerReloadArmsTheChain(t *testing.T) {
+	a, _ := loadingRouter(t, command.ViewViewer, seedViewerLoading)
+	a.Update(footerLoadingEnds[command.ViewViewer]())
+	a.anim.ticking = false
+	a.Update(testutil.Key("ctrl+r"))
+	held, ok := a.views[command.ViewViewer].(BlinkingView)
+	if !ok || !held.WantsBlink() {
+		t.Fatal("a reloading viewer does not ask for the blink")
+	}
+	if !a.anim.ticking {
+		t.Fatal("ctrl+r in the viewer armed no animation chain")
+	}
+	wantDot(t, a, command.ViewViewer, 1, 0)
 }

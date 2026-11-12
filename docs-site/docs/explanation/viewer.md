@@ -46,7 +46,7 @@ A few consequences of building follow this way, each independently worth knowing
 
 - Stopping follow needs to invalidate any timer tick that was already scheduled before the stop — otherwise a tick in flight when the user turns follow off can still land and silently restart it.
 - A followed document opens scrolled to the bottom, since that's where new content appears; every other way of opening a document (first load, manual reload, toggling timestamps) scrolls to the top, since those all mean "here's the document."
-- The loading spinner is suppressed during automatic follow reloads — a spinner blinking every couple of seconds reads as something being wrong, when in fact everything is working as intended. A quieter "Following" indicator communicates the live state instead.
+- The loading indicator is suppressed during automatic follow reloads — a dot blinking every couple of seconds reads as something being wrong, when in fact everything is working as intended. A quieter "Following" indicator communicates the live state instead.
 
 ## Log level filtering: unlabeled lines inherit context
 

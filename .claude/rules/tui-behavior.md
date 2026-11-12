@@ -186,7 +186,7 @@ Two fields prefix the line with a mark. They are not interchangeable:
 | Field | Mark | Use it for | Driven by |
 |---|---|---|---|
 | `Activity: true` | the shared activity dot, `●` / `○` (same glyph and colour as the row dots, `indicator.Running`) | work the **router tracks**: a run in the jobs registry, or a view's `WantsBlink()` | the router's 500 ms blink phase: the view calls `m.footer.SetBlinkPhase(msg.Blink)` from its `jobs.FrameMsg` handler |
-| `Spinner: true` | the braille spinner frame | a view's **own** loading (agent usage, containers, netdiag, OCI resources, security remediation, status, viewer), not yet migrated | the view's `spinner.TickMsg` handler: `m.footer.SetSpinnerFrame(m.spinner.View())` |
+| `Spinner: true` | the braille spinner frame | a view's **own** loading (agent usage, containers, netdiag, OCI resources, security remediation), not yet migrated | the view's `spinner.TickMsg` handler: `m.footer.SetSpinnerFrame(m.spinner.View())` |
 
 `Activity` wins over `Spinner` when both are set. Without a `SetBlinkPhase`
 call the dot is steady on. `●` and `○` are one column wide and share a width,

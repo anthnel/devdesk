@@ -74,9 +74,9 @@ func open(t *testing.T, source viewerpkg.Source) Model {
 }
 
 // resolve runs a Cmd and returns the messages it produced, unwrapping a
-// tea.Batch into its members. Init batches the load with the spinner's first
-// tick, so calling the Cmd alone yields a BatchMsg and the document never
-// arrives — which is exactly the silence this unwraps.
+// tea.Batch into its members. Init returns the load alone, but a Cmd that
+// batches (follow, for one) yields a BatchMsg and the document never arrives
+// — which is exactly the silence this unwraps.
 func resolve(t *testing.T, cmd tea.Cmd) []tea.Msg {
 	t.Helper()
 	if cmd == nil {

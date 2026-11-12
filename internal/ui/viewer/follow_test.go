@@ -164,8 +164,8 @@ func TestTheFooterSaysItIsFollowing(t *testing.T) {
 	if got := m.status().Text; !strings.Contains(strings.ToLower(got), "following") {
 		t.Errorf("status = %q while following, want it to say so", got)
 	}
-	if m.status().Spinner {
-		t.Error("the follow status carries a spinner; it would blink on every read")
+	if m.status().Activity {
+		t.Error("the follow status carries a dot; it would blink on every read")
 	}
 }
 
