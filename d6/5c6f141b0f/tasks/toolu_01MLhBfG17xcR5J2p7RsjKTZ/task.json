@@ -1,0 +1,15 @@
+{
+  "tool_use_id": "toolu_01MLhBfG17xcR5J2p7RsjKTZ",
+  "agent_id": "a83d326dc17a79187",
+  "subagent_type": "project-coder",
+  "task_description": "Prototype trace natif S-01",
+  "token_usage": {
+    "input_tokens": 41,
+    "cache_creation_tokens": 120273,
+    "cache_read_tokens": 1578631,
+    "output_tokens": 38917,
+    "api_call_count": 18
+  },
+  "started_at": "2026-11-12T12:01:09.587301+01:00",
+  "completed_at": "2026-11-12T12:08:10.5768312+01:00"
+}

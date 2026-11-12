@@ -1,0 +1,15 @@
+{
+  "tool_use_id": "toolu_01NTdUCqrb5cL6cgQ3WAeHza",
+  "agent_id": "a6d1dddb20fc7f220",
+  "subagent_type": "dev-team:reviewer",
+  "task_description": "Revue du prototype spike",
+  "token_usage": {
+    "input_tokens": 5,
+    "cache_creation_tokens": 69457,
+    "cache_read_tokens": 102924,
+    "output_tokens": 28442,
+    "api_call_count": 3
+  },
+  "started_at": "2026-11-12T12:08:40.7786424+01:00",
+  "completed_at": "2026-11-12T12:12:27.7581347+01:00"
+}
