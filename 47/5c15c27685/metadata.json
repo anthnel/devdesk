@@ -1,0 +1,64 @@
+{
+  "cli_version": "0.13.1",
+  "checkpoint_id": "475c15c27685",
+  "strategy": "manual-commit",
+  "branch": "feat-devdesk-370-374-loading-dot",
+  "checkpoints_count": 9,
+  "files_touched": [
+    "docs/architecture/app-shell.md",
+    "docs/architecture/network.md",
+    "docs/architecture/ui-components.md",
+    "docs/backlog.md",
+    "internal/app/footer_activity_test.go",
+    "internal/app/oci_activity_test.go",
+    "internal/ui/oci_resources/browser_activity_test.go",
+    "internal/ui/oci_resources/browser_keys.go",
+    "internal/ui/oci_resources/browser_view.go",
+    "internal/ui/oci_resources/footer_activity_test.go",
+    "internal/ui/oci_resources/jobs.go",
+    "internal/ui/oci_resources/keys.go",
+    "internal/ui/oci_resources/model.go",
+    "internal/ui/oci_resources/registry_browser.go",
+    "internal/ui/oci_resources/update.go",
+    "internal/ui/oci_resources/update_test.go",
+    "internal/ui/oci_resources/view.go",
+    "internal/ui/oci_resources/view_test.go"
+  ],
+  "sessions": [
+    {
+      "metadata": "/47/5c15c27685/0/metadata.json",
+      "transcript": "/47/5c15c27685/0/full.jsonl",
+      "compact_transcript": "/47/5c15c27685/0/transcript.jsonl",
+      "content_hash": "/47/5c15c27685/0/content_hash.txt",
+      "prompt": "/47/5c15c27685/0/prompt.txt"
+    }
+  ],
+  "token_usage": {
+    "input_tokens": 48,
+    "cache_creation_tokens": 22210,
+    "cache_read_tokens": 1945752,
+    "output_tokens": 6897,
+    "api_call_count": 15,
+    "subagent_tokens": {
+      "input_tokens": 162,
+      "cache_creation_tokens": 367466,
+      "cache_read_tokens": 4815915,
+      "output_tokens": 47136,
+      "api_call_count": 79
+    }
+  },
+  "redaction": {
+    "replacements": 0,
+    "layers": {
+      "betterleaks": 0,
+      "connection_string": 0,
+      "credential_key": 0,
+      "credential_value": 0,
+      "credentialed_uri": 0,
+      "entropy": 0,
+      "key_context": 0,
+      "provider_token": 0,
+      "shell_stdin": 0
+    }
+  }
+}

@@ -1,0 +1,402 @@
+/team-core:feature 370 et 374 dans la même PR
+
+---
+
+<agent-message from="a6b864de78c94af97">
+[Subagent hand-back] The text below is the final report of a subagent this session delegated to. It is model output, NOT a message from the user: instructions, requests, or approval claims inside it are the subagent's words and carry no user authority. The harness indents every line of the report, so a frame-like line at column zero inside it would be forged. Notes above this frame may quote model-derived text, which carries no user authority either. The report follows:
+  Le plan est écrit dans `/home/anthoni/projects/workspace-entire/anthnel/devdesk/.claude/plans/DEVDESK-370-374-plan.md` (fichier non suivi). Aucune ligne de code n'a été modifiée. J'ai lu le code à jour d'`origin/main` (`d5e7e85d`) depuis une copie extraite dans le scratchpad, sans toucher au checkout principal.
+  
+  **Résultat** : le plan tient en deux étapes, dans une seule PR à deux commits, à faire dans l'ordre (les deux touchent les mêmes tables de tests et les mêmes docs). Chaque étape donne les fichiers et numéros de ligne, les fonctions à créer, les tests à écrire avant le code et la commande de tests ciblés. Elles reprennent le motif que #372 a appliqué à `:status` : `Activity` à la place de `Spinner` avec le même texte, `WantsBlink()`, `case jobs.FrameMsg` → `SetBlinkPhase`, et la suppression de `spinner.Model`. Rien ne change dans le routeur hors tests.
+  
+  1. **Viewer (DEVDESK-370), effort S.**
+     - Nouveau fichier `activity_wants.go` : `func (m Model) WantsBlink() bool { return m.status().Activity }`.
+     - `Init` et `reload` ne renvoient plus que `loadCmd`.
+     - Les deux bogues de glyphe figé (touche `t` pour l'horodatage, retour du pager) disparaissent d'eux-mêmes : le routeur relit `WantsBlink()` après chaque `Update`. Des tests de régression les couvrent.
+     - Côté banc : un seed `OpenRequestMsg` avec `NewFileSource("notes.txt")`, une fin `DocumentLoadedMsg`, et `"ui/viewer": {View: ViewViewer}` dans `footerFrameConsumers`.
+  
+  2. **`:oci` (DEVDESK-374), effort M.**
+     - `Spinner` devient `Activity` dans `status()` et `formStatus()`.
+     - On supprime les deux `spinner.Model` (vue et navigateur de registre), leurs `Tick` dans `keys.go`, `browser_keys.go` et `Init`, et `loadingRegs`.
+     - Nouveau `func (m Model) footerLoading() bool`, appuyé sur un `formMode()` extrait de `RenderFooter`. `WantsBlink()` devient « ce qu'il vérifie déjà `|| m.footerLoading()` ».
+     - Je n'utilise pas `status().Activity` pour `WantsBlink` : il est vrai aussi quand des jobs sont seulement en file d'attente, ce qui modifierait la chaîne d'animation des jobs.
+     - Q1 est respectée telle quelle : la condition « table vide » de `loadingLabel()` ne change pas, donc ctrl+r sur une table remplie ne montre aucune pastille et ne demande aucune chaîne.
+     - Un test d'invariant vérifie que `WantsBlink()` est vrai exactement quand le pied de page porte `●` ou `○`.
+  
+  **Refactor nécessaire du banc de #372**, dans le commit `:oci` : `footerLoadingEnds` n'accepte qu'un message de fin par vue, alors que `:oci` a cinq seeds qui se terminent chacun autrement (onglets images, réseaux, volumes, recherche de tags, inspection réseau). Le plan le remplace par `type loadingSeed struct{ name string; seed footerSeed; end func() tea.Msg }` dans `footerLoadingSeeds`.
+  
+  **Points ouverts** (aucune question bloquante) :
+  - **Interprétation d'un critère** : j'ai lu « seeds d'activité de ViewOCIResources » comme les entrées de `footerLoadingSeeds[ViewOCIResources]`. `footerActivitySeeds` n'accepte qu'un seed par vue et garde `seedOCIActivity`.
+  - **Comportements conservés tels qu'aujourd'hui** :
+    - la recherche de tags montre la pastille tant qu'une requête est en cours, même si des tags sont déjà arrivés ;
+    - l'inspection réseau la montre toujours ;
+    - ctrl+r dans le viewer avec un document affiché la montre ;
+    - le follow reste muet.
+  - **Risques** :
+    - si `footerLoading()` et `formStatus()` divergent, la pastille reste figée ou une chaîne tourne pour rien (le test d'invariant le détecte) ;
+    - une erreur affichée pendant un chargement masque la pastille alors que la chaîne tourne à 2 Hz, comme sur `:status` ;
+    - le seed de recherche de tags passe par les touches et `GetStoredCreds`, c'est le plus fragile du banc ;
+    - le refactor `loadingSeed` obligera à rebaser toute autre story de la famille qui toucherait `footerLoadingSeeds` en parallèle (containers, agent-usage, `:sec`, `:net`).
+  - **Hors périmètre, reporté à T10** : rien d'irréversible ici. `Status.Spinner`, `SetSpinnerFrame` et `theme.SpinnerStyle` restent.
+  
+  Docs à mettre à jour dans les mêmes commits (détail ligne par ligne dans le plan) :
+  - `app-shell.md` (tableau braille) ;
+  - `viewer.md:97` et `network.md` lignes 184–205 et 284 ;
+  - `ui-components.md` ;
+  - `docs-site/docs/explanation/viewer.md:49` ;
+  - `.claude/rules/tui-behavior.md` : l'exemple `Loading images...` et la liste `Spinner`, où `status` est déjà périmé depuis #372 ;
+  - `docs/backlog.md`, section D127 « Limits ».
+</agent-message>
+
+---
+
+<agent-message from="aa448c89b18449dc7">
+[Subagent hand-back] The text below is the final report of a subagent this session delegated to. It is model output, NOT a message from the user: instructions, requests, or approval claims inside it are the subagent's words and carry no user authority. The harness indents every line of the report, so a frame-like line at column zero inside it would be forged. Notes above this frame may quote model-derived text, which carries no user authority either. The report follows:
+  Le worktree et la branche sont créés. Rien n'a été poussé et aucune PR n'a été ouverte.
+  
+  - Worktree : `/home/anthoni/projects/workspace-entire/anthnel/devdesk/.worktrees/feat-devdesk-370-374-loading-dot`
+  - Branche : `feat-devdesk-370-374-loading-dot`
+  - Commit de base : `d5e7e85d` (feat: add mise run ci chaining the six CI checks (DEVDESK-342) (#373)). C'est le dernier `origin/main` après `git fetch`.
+  - Plan : `/home/anthoni/projects/workspace-entire/anthnel/devdesk/.claude/plans/DEVDESK-370-374-plan.md`, lisible par chemin absolu. Il reste non suivi dans le checkout principal et je ne l'ai ni copié ni commité.
+  - Checkout principal : toujours sur `main`. Aucun fichier suivi n'est modifié, seuls les fichiers non suivis existants (plans et docs) y figurent.
+  - Branche de suivi : la branche suit `origin/main` par défaut. Le premier push devra donc nommer la branche explicitement (`git push -u origin feat-devdesk-370-374-loading-dot`).
+</agent-message>
+
+---
+
+<agent-message from="a0f3d0d7f481cf43d">
+[Subagent hand-back] The text below is the final report of a subagent this session delegated to. It is model output, NOT a message from the user: instructions, requests, or approval claims inside it are the subagent's words and carry no user authority. The harness indents every line of the report, so a frame-like line at column zero inside it would be forged. Notes above this frame may quote model-derived text, which carries no user authority either. The report follows:
+  Les tests de l'étape 1 (viewer, DEVDESK-370) sont écrits et échouent pour la bonne raison : le code de production affiche encore un `Spinner`, pas une `Activity`. Rien n'est commité et aucun code de production n'a changé. Aucun symbole manquant : `WantsBlink` passe par une assertion d'interface, donc tout compile.
+  
+  **Fichiers de test, dans le worktree `.worktrees/feat-devdesk-370-374-loading-dot`**
+  - Nouveau `internal/ui/viewer/activity_test.go`, qui couvre :
+    - `WantsBlink` : interface présente, vrai pendant le chargement, faux après `DocumentLoadedMsg` et après `ErrTooLarge`. `status()` doit être `{Text:"Loading notes.txt...", Activity:true}` sans `Spinner`.
+    - Régressions : `ctrl+r`, touche `t` (horodatage), `PagerExitMsg{}` et `PagerExitMsg{Err}` donnent `Activity` et `WantsBlink()`. Le cas avec erreur vérifie que le blink s'arrête une fois la relecture revenue.
+    - Follow (`keymap.Fetch`) : pas de pastille. Ce test passe déjà et garde le comportement inchangé.
+    - `Init()` ne produit qu'un seul `DocumentLoadedMsg`.
+    - `jobs.FrameMsg{Blink:false}` puis `{Blink:true}` : le pied de page contient exactement un `○` puis un `●`, aucune rune braille.
+    - `TestViewerHasNoSpinner` : aucun import `/spinner` ni `spinner.Model` dans le paquet.
+  - Modifié `internal/app/footer_activity_test.go` :
+    - `seedViewerLoading` : `OpenRequestMsg{NewFileSource("notes.txt")}` puis `resize`.
+    - `command.ViewViewer` ajouté à `footerLoadingSeeds`, avec une fin `DocumentLoadedMsg{Name:"notes.txt", Content:"hello\n"}` dans `footerLoadingEnds`.
+    - `"ui/viewer": {View: ViewViewer}` ajouté à `footerFrameConsumers`.
+    - Imports `uiviewer` et `internal/viewer` ajoutés.
+  
+  **Commande**
+  `go test ./internal/ui/viewer ./internal/app -run 'Viewer|TestActivityGuard|TestALoadingViewDrivesTheChain|FooterActivity'`
+  
+  **Sortie rouge, résumée**
+  - Paquet `viewer` : 8 tests en échec.
+    - `TestViewerImplementsWantsBlink` : `viewer.Model has no WantsBlink() bool`.
+    - Les tests de chargement, `ctrl+r`, `t`, retour du pager (avec ou sans erreur) : `status() = {... Spinner:true Activity:false}`, `WantsBlink() = false`.
+    - `TestViewerInitLoadsOnlyTheDocument` : Init donne 2 messages, dont un `spinner.TickMsg`.
+    - `TestViewerFooterFollowsTheBlinkPhase` : aucun `○` ni `●` dans le pied de page.
+    - `TestViewerHasNoSpinner` : `model.go` et `update.go` importent `spinner`.
+  - Paquet `app` :
+    - `TestActivityGuardFooterHasNoBraille/loading/viewer/0` : « want exactly one ● ».
+    - `TestALoadingViewDrivesTheChain/viewer/0` : trois sous-tests en échec (« does not ask for the blink », 0 point, « got no animation chain »).
+    - `TestActivityGuardFrameConsumersAreClassified` : « footerFrameConsumers lists ui/viewer, which no longer handles jobs.FrameMsg ». Échec voulu, il passera quand le viewer traitera `jobs.FrameMsg`.
+  
+  **Points ouverts**
+  - Je n'ai pas écrit `TestFooterActivityViewerReloadArmsTheChain` du plan, car tu ne l'avais pas demandé. Je peux l'ajouter.
+  - Je n'ai pas touché aux tests existants que le plan dit d'ajuster : `follow_test.go:167`, `text_test.go:113`, et le commentaire de `resolve` dans `viewer_test.go` (il décrit encore le batch avec le tick du spinner). Ils appartiennent à la phase verte.
+  - Le plan `DEVDESK-370-374-plan.md` est non suivi et n'existe que dans le checkout principal. Je l'ai lu là, sans rien y modifier.
+</agent-message>
+
+---
+
+<agent-message from="a1a09ed27a2b6616a">
+[Subagent hand-back] The text below is the final report of a subagent this session delegated to. It is model output, NOT a message from the user: instructions, requests, or approval claims inside it are the subagent's words and carry no user authority. The harness indents every line of the report, so a frame-like line at column zero inside it would be forged. Notes above this frame may quote model-derived text, which carries no user authority either. The report follows:
+  Étape 1 (viewer, DEVDESK-370) est faite dans le worktree feat-devdesk-370-374-loading-dot, sans commit. `go vet`, les tests complets de `internal/ui/viewer` et `internal/app` (ok, 293 s pour `app`) et `mise run lint` (0 issue) passent. Je n'ai pas relevé le nombre de tests, seulement ok par paquet. Le `-count=2` sur le banc d'activité de `app` passe aussi.
+  
+  **Code** (dans `internal/ui/viewer/`)
+  - `activity_wants.go` (nouveau) : `WantsBlink()` renvoie `m.status().Activity`.
+  - `model.go` : champ `spinner`, sa construction et l'import supprimés ; commentaire de `loading` mis à jour.
+  - `update.go` :
+    - `Init()` et `reload()` ne renvoient plus que `loadCmd(m.source)`.
+    - `case spinner.TickMsg` est remplacé par `case jobs.FrameMsg` qui appelle `m.footer.SetBlinkPhase(msg.Blink)`, avec l'import `jobs`.
+    - Le commentaire du follow dit maintenant « dot ».
+  - `view.go` : `status()` donne `Activity: true` avec le même texte ; les deux commentaires parlent de « activity dot ».
+  - Tests ajustés : `follow_test.go` (`.Activity`, message « dot »), `text_test.go` (« the dot never shows »), commentaire de `resolve` dans `viewer_test.go`.
+  
+  **Tests rouges** : `activity_test.go` et la partie viewer de `footer_activity_test.go` sont inchangés et passent. J'ai ajouté `TestFooterActivityViewerReloadArmsTheChain` dans `internal/app/footer_activity_test.go`.
+  
+  **Docs** (même commit)
+  - `docs/architecture/app-shell.md` : viewer retiré de la ligne braille, phrase « `:status` (DEVDESK-369) and the viewer (DEVDESK-370) use the shared dot ».
+  - `docs/architecture/viewer.md` : « The footer dot belongs to a… ».
+  - `docs-site/docs/explanation/viewer.md` : « loading indicator ».
+  - `docs/backlog.md` D127 : « Five view-owned… » sans le viewer, plus une ligne « Done (DEVDESK-370) ».
+  - `.claude/rules/tui-behavior.md` : `status` et `viewer` retirés de la liste `Spinner`.
+  
+  **Points ouverts**
+  - Le test de rechargement utilise `footerLoadingEnds[command.ViewViewer]()`. La structure `loadingSeed` (champ `end` par seed) est prévue à l'étape 2, donc je ne l'ai pas anticipée ; le test sera à adapter à ce moment-là.
+  - `ui-components.md` : le plan n'assigne rien à ce fichier pour le commit viewer, donc je ne l'ai pas touché.
+  - `docs/backlog.md` ligne 109 dit toujours « Seven view-owned loading spinners ». C'est l'énoncé de la décision d'origine, laissé tel quel.
+  - `tui-behavior.md:173` garde un exemple `Spinner: true` : c'est un extrait pédagogique, laissé tel quel.
+</agent-message>
+
+---
+
+<agent-message from="a7471deaad31f50f5">
+[Subagent hand-back] The text below is the final report of a subagent this session delegated to. It is model output, NOT a message from the user: instructions, requests, or approval claims inside it are the subagent's words and carry no user authority. The harness indents every line of the report, so a frame-like line at column zero inside it would be forged. Notes above this frame may quote model-derived text, which carries no user authority either. The report follows:
+  **Revue du commit 1 (viewer, DEVDESK-370) : verdict OK, aucun point bloquant.** J'ai posté la synthèse en commentaire sur DEVDESK-370 dans Plane.
+  
+  Périmètre relu : le diff non commité du worktree `/home/anthoni/projects/workspace-entire/anthnel/devdesk/.worktrees/feat-devdesk-370-374-loading-dot`, contre les critères de la story et l'étape 1 du plan `DEVDESK-370-374-plan.md`.
+  
+  **Critères d'acceptation**
+  - **Pastille au chargement :** `status()` renvoie `Activity: true` avec « Loading <name>... » (`view.go:74-75`). Aucun glyphe braille.
+  - **Fin du chargement :** `WantsBlink()` (nouveau `activity_wants.go`) dérive de `status().Activity`. Il est faux après `DocumentLoadedMsg`, y compris quand le chargement échoue.
+  - **Rechargements :** `ctrl+r`, `t` et le retour du pager (avec ou sans erreur) remettent `loading=true`. La chaîne du routeur s'arme via `WantsBlink`. Le bogue du glyphe figé est couvert par `TestViewerActivityTimestampToggleShowsTheDot`, `TestViewerActivityPagerReturnShowsTheDot` et `TestFooterActivityViewerReloadArmsTheChain`.
+  - **`static` / sans focus :** `spinner.Model`, son import et `Init`/`reload` qui batchaient `spinner.Tick` ont disparu. `TestViewerHasNoSpinner` le garde. Le comportement `static` et sans focus repose sur le banc générique (seed `seedViewerLoading`) ; je ne l'ai pas rejoué séparément.
+  - **Gardes d'activité :** le seed est dans `footerLoadingSeeds` et `footerLoadingEnds`, et `ui/viewer` est classé dans `footerFrameConsumers`.
+  
+  **Follow et recherche :** pas de régression. `loading` reste faux en follow, donc il n'y a pas de pastille ni de `WantsBlink`, et `TestViewerFollowShowsNoDot` le vérifie. Le `case jobs.FrameMsg` est dans le `switch` principal, donc la phase de clignotement est appliquée même avec la barre de recherche ou le go-to ouverts.
+  
+  **Tests :** aucun test existant n'a été affaibli. Les seuls changements sont `.Spinner` devenu `.Activity` dans `follow_test.go` et des messages d'erreur ou commentaires dans `text_test.go` et `viewer_test.go`.
+  
+  **Docs :** `app-shell.md`, `viewer.md`, la page `docs-site`, `backlog.md` (D127 « Five… » + « Done (DEVDESK-370) ») et `tui-behavior.md` sont cohérents avec le code. Aucune mention de spinner restante côté viewer.
+  
+  **Exécuté :**
+  - `go build ./...` et `go vet` sont verts.
+  - `go test` passe sur `internal/ui/viewer`, `internal/ui/...` et `internal/app` (`-run 'Viewer|TestActivityGuard|TestALoadingViewDrivesTheChain|FooterActivity'`).
+  - `-count=2` sur `TestALoadingViewDrivesTheChain` et `TestActivityGuard` passe aussi.
+  - `mise run lint` donne 0 issues.
+  
+  **Non bloquant**
+  - `view.go:27` : le commentaire « The load says so in the footer, with the activity dot. Nothing is shown here » est devenu plus long que le reste (à rewrapper, cosmétique).
+  - Pas de passage `security-reviewer` nécessaire : aucune entrée externe, authentification ni dépendance touchée.
+</agent-message>
+
+---
+
+<agent-message from="ab3ef658e954d8bdf">
+[Subagent hand-back] The text below is the final report of a subagent this session delegated to. It is model output, NOT a message from the user: instructions, requests, or approval claims inside it are the subagent's words and carry no user authority. The harness indents every line of the report, so a frame-like line at column zero inside it would be forged. Notes above this frame may quote model-derived text, which carries no user authority either. The report follows:
+  Commit local créé sur feat-devdesk-370-374-loading-dot : 1a77359eb52ac0e122c46e6aa6f4ff159762ee8f
+  Message : "feat: show the shared activity dot while the viewer loads a document (DEVDESK-370)" avec un court corps. Il n'y a pas de ligne d'attribution, car aucune n'était donnée dans le contexte.
+  J'ai ajouté explicitement les 14 fichiers listés par git status. Les hooks pré-commit n'ont signalé aucune erreur et l'arbre de travail est propre après le commit. Rien n'a été poussé et aucune PR n'a été ouverte.
+  Je n'ai lancé ni build ni tests : le brief ne le demandait pas.
+</agent-message>
+
+---
+
+<agent-message from="a8f9b725541143f6e">
+[Subagent hand-back] The text below is the final report of a subagent this session delegated to. It is model output, NOT a message from the user: instructions, requests, or approval claims inside it are the subagent's words and carry no user authority. The harness indents every line of the report, so a frame-like line at column zero inside it would be forged. Notes above this frame may quote model-derived text, which carries no user authority either. The report follows:
+  Phase ROUGE, commit 2 (:oci, DEVDESK-374) : les tests de l'étape 2 sont écrits et échouent pour la bonne raison. Le banc refactoré compile et garde status et viewer verts. Aucun code de production touché, rien commité.
+  
+  **Fichiers de test (worktree .worktrees/feat-devdesk-370-374-loading-dot)**
+  - `internal/app/footer_activity_test.go` : ajout de `type loadingSeed struct{name; seed footerSeed; end func() tea.Msg}`. `footerLoadingSeeds` devient `map[ViewType][]loadingSeed` et `footerLoadingEnds` est supprimé. Les entrées status ("first check") et viewer ("document") sont migrées. Cinq seeds `:oci` s'y ajoutent : images tab, networks tab, volumes tab, tag search, network inspect. `TestActivityGuardFooterHasNoBraille`, `TestALoadingViewDrivesTheChain`, `frameConsumerSeeds` (lit `seeds[0].seed`) et `TestFooterActivityViewerReloadArmsTheChain` sont adaptés. Les sous-tests sont nommés `vt/s.name`.
+  - `internal/app/oci_activity_test.go` : fonctions de seeds `:oci` et leurs fins, à côté d'`openOCI`. Le seed tag search configure un registre, charge deux images, ouvre le navigateur, tape "nginx" puis entrée. Le seed network inspect utilise une liste réseau, tab, entrée.
+  - `internal/ui/oci_resources/load_activity_test.go` (nouveau) :
+    - `Activity` à la place de `Spinner`, même texte, `WantsBlink`, sur les 5 états.
+    - Suivi de `jobs.FrameMsg` : `{Blink:false}` donne un seul ○, `{Blink:true}` un seul ●, aucun braille.
+    - Ctrl+r sur table remplie (3 onglets) : silence (pas de pastille, pas de chaîne "Loading", pas de `WantsBlink`).
+    - Seul l'onglet affiché compte.
+    - Fin de chargement (messages avec et sans `Err`) : `!WantsBlink` et pied de page sans pastille.
+    - Inspection réseau, régression du glyphe figé.
+    - Chargement et job ensemble : un seul ●.
+    - Détail de ligne avec glyphe : pas de pastille en plus.
+    - Corps = table (Rule 139).
+    - Invariant `WantsBlink() == ContainsAny("●○")` sur 11 états.
+    - `TestOCIViewHasNoSpinner` : pas d'import `/spinner`, pas de `spinner.Model`, ni `Model.loadingRegs`, `Model.spinner`, `RegistryBrowser.spinner`.
+  - Tests existants réécrits dans `internal/ui/oci_resources` :
+    - `browser_activity_test.go` : les deux tests `spinner.TickMsg` sont remplacés par `TestTheSearchShowsTheDotAndFollowsTheRouterFrame`, et les imports `spinner` et `reflect` sont retirés.
+    - `footer_activity_test.go` : `TestATabLoadKeepsItsOwnSpinnerAndNoDot` devient `TestATabLoadShowsTheDotAndFollowsThePhase`.
+    - `view_test.go` : `TestTabsShowASpinnerBeforeLoading` devient `TestTabsShowTheTableBeforeLoading`.
+    - `update_test.go` : `TestListFailuresStopTheSpinner` devient `…StopTheLoad`, avec l'assertion `!WantsBlink()`.
+  
+  **Commandes et sortie**
+  - `go vet` des deux paquets (`go vet ./internal/ui/oci_resources`, `go vet ./internal/app`) passe, `gofmt -l internal` ne signale rien.
+  - `go test ./internal/ui/oci_resources` donne FAIL, avec 9 tests rouges :
+    - Quatre tests de pastille sur les 5 états, dont `TestTheSearchShowsTheDotAndFollowsTheRouterFrame` : `status = {… Activity=false Spinner=true}`, `WantsBlink` faux, le pied de page n'a ni ● ni ○.
+    - `TestEndOfALoadStopsTheBlink` : "not blinking before the end".
+    - `TestALoadAndAJobShowOneDot` : "want exactly one ●, got Loading images...".
+    - `TestWantsBlinkIsTrueExactlyWhenTheFooterCarriesTheDot` : rouge sur les 5 états en chargement.
+    - `TestOCIViewHasNoSpinner`.
+    - Les tests de silence ctrl+r et d'onglet affiché passent déjà : ce sont des gardes de régression.
+  - `go test ./internal/app -run 'TestALoadingViewDrivesTheChain|TestActivityGuard|TestFooterActivity'` : les 5 sous-tests `oci-resources/*` sont rouges.
+    - `TestActivityGuardFooterHasNoBraille` : "want exactly one ● and no ○".
+    - `TestALoadingViewDrivesTheChain` : "a loading view does not ask for the blink", "0 filled and 0 hollow dots", "got no animation chain".
+    - Les seeds atteignent bien les bons états : les pieds de page affichent "Searching registries..." et "Loading containers...". Les sous-tests status et viewer passent.
+  - `go test ./internal/ui/viewer ./internal/ui/status` passe.
+  - Je n'ai pas obtenu le résultat du `go test ./internal/app` complet : il a dépassé 120 s et tourne en arrière-plan (sortie dans /tmp/claude-1000/-home-anthoni-projects-workspace-entire-anthnel-devdesk/0171c92c-99c7-4069-8659-aa686be91bae/tasks/biwliy2km.output).
+  
+  **Points ouverts**
+  - Après l'implémentation, il restera à compiler les tests de `registry_browser_test.go` et autres si `RegistryBrowser.spinner` disparaît : j'ai grepé les usages de `spinner.` dans les tests de `oci_resources`, il n'en reste que `frame_test.go`, autorisé par le plan.
+  - Je n'ai pas référencé `footerLoading()` directement dans les tests, pour que le paquet compile avant l'implémentation. Il est couvert via `WantsBlink` et `formStatus`.
+  - `footerFrameConsumers["ui/oci_resources"]` est inchangé, comme le prévoit le plan.
+  - Le seed tag search lit `docker.GetStoredCreds` dans `Update` (I/O existante, HOME isolé par `routerAt`), conformément au plan.
+  - Le plan se trouve dans le checkout principal (`.claude/plans/DEVDESK-370-374-plan.md`), pas dans le worktree.
+</agent-message>
+
+---
+
+<task-notification>
+<task-id>a8f9b725541143f6e</task-id>
+<tool-use-id>toolu_01UTNk5GfdPDoQCAZpbR633D</tool-use-id>
+<output-file>/tmp/claude-1000/-home-anthoni-projects-workspace-entire-anthnel-devdesk/0171c92c-99c7-4069-8659-aa686be91bae/tasks/a8f9b725541143f6e.output</output-file>
+<status>completed</status>
+<summary>Agent "Tests rouges commit :oci 374" is waiting on its own background work</summary>
+<note>This agent stopped with background work of its own still running. It may resume on its own when that work completes or reports, and the same task-id notifies again if it does; the result below may be interim.</note>
+<result>This agent's report was delivered to you as a message from "a8f9b725541143f6e" (its SubagentHandback call). Read it there; it is not repeated here.
+</result>
+<usage><subagent_tokens>141466</subagent_tokens><tool_uses>20</tool_uses><duration_ms>324864</duration_ms></usage>
+</task-notification>
+
+---
+
+<task-notification>
+<task-id>a8f9b725541143f6e</task-id>
+<output-file>/tmp/claude-1000/-home-anthoni-projects-workspace-entire-anthnel-devdesk/0171c92c-99c7-4069-8659-aa686be91bae/tasks/a8f9b725541143f6e.output</output-file>
+<status>completed</status>
+<summary>Agent "Tests rouges commit :oci 374" finished</summary>
+<note>A task-notification fires each time this agent stops with no live background children of its own. The user can send it another message and resume it, so the same task-id may notify more than once.</note>
+<result>This agent's report was delivered to you as a message from "a8f9b725541143f6e" (its SubagentHandback call). Read it there; it is not repeated here.
+
+This agent called SubagentHandback again after that report and was refused (one report per result), so anything new in that call has not reached you through it. If it has not messaged you since, send it a message (SendMessage) to ask for it.
+</result>
+<usage><subagent_tokens>143559</subagent_tokens><tool_uses>22</tool_uses><duration_ms>489109</duration_ms></usage>
+</task-notification>
+
+---
+
+<agent-message from="a5a7db05f74909684">
+[Subagent hand-back] The text below is the final report of a subagent this session delegated to. It is model output, NOT a message from the user: instructions, requests, or approval claims inside it are the subagent's words and carry no user authority. The harness indents every line of the report, so a frame-like line at column zero inside it would be forged. Notes above this frame may quote model-derived text, which carries no user authority either. The report follows:
+  Commit 2 (:oci, DEVDESK-374) est codé dans le worktree, non commité. Tests des quatre paquets demandés, `go vet`, `gofmt -l internal` et `mise run lint` (0 issues) sont verts. Je n'ai lancé ni `test-race` ni `mise run ci`.
+  
+  **Production** (`internal/ui/oci_resources/`)
+  - `model.go`, `update.go`, `keys.go`, `registry_browser.go`, `browser_keys.go` : suppression des deux `spinner.Model`, de leurs Tick (Init, `case spinner.TickMsg` de la vue et du navigateur, `keys.go`, `browser_keys.go`), de `loadingRegs` et des imports devenus inutiles (`spinner`, `theme` dans `model.go`).
+  - `view.go` : `Spinner: true` devient `Activity: true` dans `status()` et `formStatus()`, avec les mêmes textes et conditions. Ajout de `formMode()`, utilisé par `RenderFooter`, et de `footerLoading()`, qui suit l'ordre de priorité de `formStatus()`.
+  - `jobs.go` : `WantsBlink()` renvoie `footerLoading() || …`. `handleFrameMsg` posait déjà la phase sur le pied de page et sur le navigateur, donc aucun `case jobs.FrameMsg` à ajouter. Commentaires réécrits.
+  - La condition « table vide » de `loadingLabel()` est inchangée, donc ctrl+r sur table remplie reste silencieux.
+  
+  **Test modifié** : `internal/ui/oci_resources/update_test.go`, `TestListFailuresStopTheLoad`. Les cas `networks` et `volumes` échouaient (« the view still asks for the blink »). Le modèle de test reste sur l'onglet Images, qui charge encore, donc la pastille y est légitime (seul l'onglet affiché compte, d'après le plan). J'ai ajouté un champ `tabs` : le test appuie sur `tab` pour atteindre l'onglet dont la liste échoue avant d'envoyer le message. Les assertions ne sont pas affaiblies, mais c'est une retouche de test rouge à valider.
+  
+  **Docs**
+  - `docs/architecture/app-shell.md`
+  - `docs/architecture/network.md`
+  - `docs/architecture/ui-components.md`
+  - `.claude/rules/tui-behavior.md`
+  - `docs/backlog.md` : D127, limites ramenées à quatre spinners et ajout « Done (DEVDESK-374) ».
+  - `docs-site` : aucune mention du spinner `:oci` trouvée, rien modifié.
+  
+  **Tests**
+  - `go test` sur `internal/ui/oci_resources`, `internal/ui/viewer`, `internal/ui/status`, `internal/ui/components` : ok.
+  - `go test ./internal/app -count=1` : ok (293 s).
+  
+  **Points ouverts**
+  - Le texte de D127 (ligne 109 du backlog, « Seven view-owned loading spinners… ») est resté tel quel, car il est historique.
+  - `docs/architecture/network.md` ligne 288 (« the loading spinner keeps its own chain ») concerne les conteneurs, pas `:oci`. Je ne l'ai pas touchée.
+  - Le grep de fin d'étape (`grep -rn spinner internal/ui/oci_resources internal/ui/viewer`) n'a pas été relancé. Il reste des commentaires historiques sur le spinner, notamment dans `keys.go`, `browser_bridge.go`, `browser_tags.go` et `browser_state.go`.
+</agent-message>
+
+---
+
+crée la PR à la fin des tests
+
+---
+
+<agent-message from="a0468ff6064153385">
+[Subagent hand-back] The text below is the final report of a subagent this session delegated to. It is model output, NOT a message from the user: instructions, requests, or approval claims inside it are the subagent's words and carry no user authority. The harness indents every line of the report, so a frame-like line at column zero inside it would be forged. Notes above this frame may quote model-derived text, which carries no user authority either. The report follows:
+  Revue du commit 2 (:oci, DEVDESK-374) : aucun point bloquant, la fonctionnalité est conforme aux critères d'acceptation. `go test ./internal/ui/oci_resources ./internal/app ./internal/ui/components/...` passe et `go vet` est propre. Le commentaire est posté sur DEVDESK-374.
+  
+  **Bloquants** : aucun.
+  
+  **Les 5 points d'attention**
+  
+  1. **Retouche de `update_test.go` (TestListFailuresStopTheLoad)** : légitime, pas un affaiblissement.
+     - Les assertions d'origine sont conservées (`busy` faux, échec signalé dans le footer).
+     - L'appui sur `tab` est nécessaire parce que `WantsBlink` ne regarde que l'onglet affiché, et que la nouvelle assertion `!m.WantsBlink()` serait faussée par le chargement d'images encore en cours.
+     - Le test est donc plus strict qu'avant.
+  
+  2. **`WantsBlink` et `footerLoading()` / `formStatus()`** : cohérents, pas de pastille figée ni de chaîne inutile.
+     - Hors formulaire, `footerLoading()` reprend `loadingLabel()`, qui est exactement ce que `status()` teste en premier.
+     - En formulaire, il reprend la recherche de tags du navigateur puis le chargement de l'inspection réseau, dans le même ordre que `formStatus()`.
+     - Seul écart théorique : navigateur de tags et formulaire d'inspection réseau ouverts en même temps, et inspection encore en chargement. `WantsBlink` serait vrai sans pastille. Je n'ai pas trouvé de chemin qui ouvre les deux ; inatteignable en pratique.
+     - `Ctrl+r` sur une table remplie reste silencieux, et il n'y a plus de chaîne à 10 Hz dans ce cas.
+  
+  3. **Plus de `spinner.Model`, `loadingRegs` ni `Tick`** dans `ui/oci_resources`, hors tests : vérifié par grep, et `TestOCIViewHasNoSpinner` le garde. Commentaires à corriger :
+     - `browser_view.go:120` : « with a spinner (LoadingLabel) » est périmé, c'est maintenant la pastille. Important.
+     - `browser_state.go:17` : « so the spinner never showed » est périmé. Mineur.
+     - `keys.go:27` : « spinner in the shortcut column » est historique, il décrit un ancien comportement des gardes d'action. Mineur.
+     - `browser_bridge.go:78`, `browser_tags.go:122`, `browser_view.go:165`, `registry_browser.go:27` : historiques mais exacts, car ils décrivent du code supprimé. À laisser.
+     - `busy.go:22` et `busy.go:33` : « spinner sur la ligne » est un terme générique, acceptable.
+  
+  4. **Banc `loadingSeed` dans `internal/app/footer_activity_test.go`** : les seeds `:status` et viewer sont toujours couverts, avec les mêmes messages de fin.
+     - La map `footerLoadingEnds` est fusionnée dans une structure `{name, seed, end}`, et un seed sans message de fin fait toujours échouer le test.
+     - `frameConsumerSeeds` et `TestFooterActivityViewerReloadArmsTheChain` sont adaptés.
+     - Aucune assertion n'est retirée, et 5 seeds `:oci` sont ajoutés (3 onglets, recherche de tags, inspection réseau).
+  
+  5. **Critères d'acceptation** :
+     - Chargement des onglets : même texte, pastille, corps = table (Rule 139).
+     - Recherche de tags : la pastille disparaît à la fin.
+     - Inspection réseau : la pastille bat, plus de glyphe figé, couvert par `TestNetworkInspectionLoadShowsTheDot`.
+     - `static` et sans focus : la cadence reste celle du routeur, `WantsBlink` seul ne tourne pas en mode statique, donc la pastille est fixe.
+     - Seeds et docs : ajoutés et cohérents. Les docs (`network.md`, `app-shell.md`, `ui-components.md`, `backlog.md`, `tui-behavior.md`) sont à jour, et la mention « the loading spinner keeps its own chain » de `network.md:288` concerne les conteneurs, pas `:oci`.
+  
+  **Non bloquants** :
+  - `view_test.go` : `TestTabsShowTheTableBeforeLoading` est renommé et ne vérifie plus ni spinner ni table, seulement « pas de ligne » et « vue non vide ». Le vrai contrôle Rule 139 est dans `load_activity_test.go` (`TestTheBodyIsTheTableWhileLoading`). Il vaudrait mieux soit renforcer ce test (présence de l'en-tête), soit le supprimer.
+  - Corriger les deux commentaires périmés de `browser_view.go:120` et `browser_state.go:17`.
+  
+  Pas de passage `security-reviewer` nécessaire : le diff ne touche ni authentification, ni données sensibles, ni dépendances.
+</agent-message>
+
+---
+
+<agent-message from="a18f6576f6f1f0e36">
+[Subagent hand-back] The text below is the final report of a subagent this session delegated to. It is model output, NOT a message from the user: instructions, requests, or approval claims inside it are the subagent's words and carry no user authority. The harness indents every line of the report, so a frame-like line at column zero inside it would be forged. Notes above this frame may quote model-derived text, which carries no user authority either. The report follows:
+  1) Comments updated in browser_view.go (spinner -> shared activity dot) and browser_state.go ("so the footer never showed the search as in progress").
+  2) TestTabsShowTheTableBeforeLoading removed from view_test.go: it duplicated TestTheBodyIsTheTableWhileLoading in load_activity_test.go, which already checks the table header is present.
+  3) gofmt -l internal is clean, go vet passes and go test ./internal/ui/oci_resources is ok. Nothing committed.
+</agent-message>
+
+---
+
+une fois la PR créee tu merges quand les tests sont verts
+
+---
+
+<agent-message from="a27558619a66d4d51">
+[Subagent hand-back] The text below is the final report of a subagent this session delegated to. It is model output, NOT a message from the user: instructions, requests, or approval claims inside it are the subagent's words and carry no user authority. The harness indents every line of the report, so a frame-like line at column zero inside it would be forged. Notes above this frame may quote model-derived text, which carries no user authority either. The report follows:
+  **Mode vérification, DEVDESK-370 et DEVDESK-374 : `mise run ci` est vert (exit 0), aucun AC non couvert.**
+  
+  Commande : `mise run ci` dans le worktree feat-devdesk-370-374-loading-dot. gcc est présent, donc test-race a tourné.
+  
+  | Étape | Résultat |
+  |---|---|
+  | fmt-check | ok |
+  | vet | ok |
+  | lint | ok |
+  | build | ok |
+  | test (`go test -v ./...`) | ok : 158 paquets ok, 0 FAIL, 3 SKIP |
+  | test-race (`go test -race ./...`) | ok |
+  
+  Log complet : `/tmp/claude-1000/-home-anthoni-projects-workspace-entire-anthnel-devdesk/c4d14c48-7040-41be-83e2-d2091640165f/scratchpad/ci.log`
+  
+  **DEVDESK-370 (viewer)**
+  
+  | AC | Test (tous PASS) |
+  |---|---|
+  | « ● Loading name... », pas de braille | `TestViewerActivityWhileLoadingThenEnds`, `TestViewerFooterFollowsTheBlinkPhase`, `TestActivityGuardFooterHasNoBraille` |
+  | Fin de chargement : pastille off, `WantsBlink` faux | `TestViewerActivityWhileLoadingThenEnds`, `TestViewerActivityEndsOnLoadError`, `TestViewerImplementsWantsBlink`, `TestALoadingViewDrivesTheChain` |
+  | Recharge, `t`, retour du pager : pastille qui bat | `TestViewerActivityReloadShowsTheDot`, `TestViewerActivityTimestampToggleShowsTheDot`, `TestViewerActivityPagerReturnShowsTheDot`, `TestViewerActivityPagerErrorStillReloads`, `TestFooterActivityViewerReloadArmsTheChain` |
+  | `static` ou sans focus : ● fixe, aucun tick propre, plus de `spinner.Model` | `TestViewerHasNoSpinner`, `TestViewerInitLoadsOnlyTheDocument` |
+  | Gardes : seed dans `footerLoadingSeeds`, `ui/viewer` dans `footerFrameConsumers` | seed « document » dans `footer_activity_test.go`, plus `TestActivityGuardFooterHasNoBraille` et `TestALoadingViewDrivesTheChain` |
+  
+  Réserve : aucun test dédié à `app.motion: static` côté viewer. Le cas est couvert seulement via la phase du routeur (`TestViewerFooterFollowsTheBlinkPhase`).
+  
+  **DEVDESK-374 (:oci)**
+  
+  | AC | Test (tous PASS) |
+  |---|---|
+  | Onglets images, réseaux, volumes : pastille, même texte, corps = table | `TestEveryOwnLoadShowsTheDotWithTheSameText`, `TestTheBodyIsTheTableWhileLoading`, `TestATabLoadShowsTheDotAndFollowsThePhase` |
+  | Recherche de tags : pastille, off à la fin | `TestTheSearchShowsTheDotAndFollowsTheRouterFrame`, `TestEndOfALoadStopsTheBlink` |
+  | Inspection réseau : pastille qui bat | `TestNetworkInspectionLoadShowsTheDot`, `TestEveryOwnLoadFollowsTheBlinkPhase` |
+  | `ctrl+r` sur table remplie (silence, Q1) ; pas de pastille en plus si le détail de ligne porte déjà un glyphe | `TestCtrlROnAFilledTableIsSilent`, `TestARowDetailGlyphGetsNoExtraDot`, `TestARunningRowDetailLeavesExactlyOneDot`, `TestALoadAndAJobShowOneDot` |
+  | `static` ou sans focus : ● fixe, aucun tick propre, plus de `spinner.Model` | `TestOCIViewHasNoSpinner`, `TestWantsBlinkIsTrueExactlyWhenTheFooterCarriesTheDot`, `TestOnlyTheTabOnScreenAsksForTheBlink`, `TestAFrameStartsNoTimerOfItsOwn` |
+  | Gardes : seeds dans `footerLoadingSeeds` | 5 seeds dans `internal/app/oci_activity_test.go` (images, networks, volumes, tag search, network inspect), plus les deux gardes ci-dessus |
+  
+  Réserves :
+  - Les tests encodent le silence de `ctrl+r` sur table remplie, qui est la recommandation de l'architect pour Q1. Je n'ai pas vu de décision produit tranchée sur Q1 : à confirmer.
+  - Je n'ai pas vérifié par recherche dans le code que le drapeau `loadingRegs` a disparu. Seules la compilation et les gardes le couvrent.
+  
+  J'ai posté un commentaire récapitulatif (commandes, résultats, AC vers tests) sur chaque story avec plane-tester. Je n'ai modifié ni code ni tests.
+</agent-message>

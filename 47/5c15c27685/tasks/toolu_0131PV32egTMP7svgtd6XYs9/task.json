@@ -1,0 +1,15 @@
+{
+  "tool_use_id": "toolu_0131PV32egTMP7svgtd6XYs9",
+  "agent_id": "a0468ff6064153385",
+  "subagent_type": "dev-team:reviewer",
+  "task_description": "Revue commit :oci 374",
+  "token_usage": {
+    "input_tokens": 28,
+    "cache_creation_tokens": 72043,
+    "cache_read_tokens": 748222,
+    "output_tokens": 8054,
+    "api_call_count": 14
+  },
+  "started_at": "2026-11-12T12:19:17.437999605+01:00",
+  "completed_at": "2026-11-12T12:25:12.05734062+01:00"
+}
