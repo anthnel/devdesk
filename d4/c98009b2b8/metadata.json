@@ -1,0 +1,93 @@
+{
+  "cli_version": "0.13.1",
+  "checkpoint_id": "d4c98009b2b8",
+  "strategy": "manual-commit",
+  "branch": "feat/DEVDESK-341-footer-activity-dot",
+  "checkpoints_count": 9,
+  "files_touched": [
+    "internal/app/animation.go",
+    "internal/app/animation_chain_test.go",
+    "internal/app/animation_guard_test.go",
+    "internal/app/animation_install_test.go",
+    "internal/app/animation_router_test.go",
+    "internal/app/animation_test.go",
+    "internal/app/explorer_activity_test.go",
+    "internal/app/failures_test.go",
+    "internal/app/focus_test.go",
+    "internal/app/footer_activity_test.go",
+    "internal/app/forge_index_test.go",
+    "internal/app/jobs_test.go",
+    "internal/app/redraw_measure_test.go",
+    "internal/app/sec_activity_test.go",
+    "internal/app/templates_activity_test.go",
+    "internal/app/ws_activity_test.go",
+    "internal/jobs/frame_test.go",
+    "internal/jobs/message.go",
+    "internal/ui/containers/activity_test.go",
+    "internal/ui/dashboard/footer_activity_test.go",
+    "internal/ui/filebrowser/footer_activity_test.go",
+    "internal/ui/filebrowser/frame_test.go",
+    "internal/ui/forge/explorer/footer_activity_test.go",
+    "internal/ui/forge/explorer/footer_loading_test.go",
+    "internal/ui/forge/explorer/frame_test.go",
+    "internal/ui/forge/explorer/indicator_test.go",
+    "internal/ui/forge/explorer/model_test.go",
+    "internal/ui/jobsview/footer_activity_test.go",
+    "internal/ui/jobsview/indicator_test.go",
+    "internal/ui/netdiag/ports_activity_test.go",
+    "internal/ui/oci_resources/browser_activity_test.go",
+    "internal/ui/oci_resources/footer_activity_test.go",
+    "internal/ui/oci_resources/frame_test.go",
+    "internal/ui/oci_resources/images_activity_test.go",
+    "internal/ui/oci_resources/jobs_test.go",
+    "internal/ui/security/footer_activity_test.go",
+    "internal/ui/security/footer_test.go",
+    "internal/ui/security/frame_test.go",
+    "internal/ui/security/security_jobs_test.go",
+    "internal/ui/templates/footer_activity_test.go",
+    "internal/ui/templates/footer_test.go",
+    "internal/ui/workspaces/busytext_test.go",
+    "internal/ui/workspaces/footer_activity_test.go",
+    "internal/ui/workspaces/footer_test.go",
+    "internal/ui/workspaces/frame_test.go",
+    "internal/ui/workspaces/indicator_test.go",
+    "internal/ui/workspaces/workspaces_test.go"
+  ],
+  "sessions": [
+    {
+      "metadata": "/d4/c98009b2b8/0/metadata.json",
+      "transcript": "/d4/c98009b2b8/0/full.jsonl",
+      "compact_transcript": "/d4/c98009b2b8/0/transcript.jsonl",
+      "content_hash": "/d4/c98009b2b8/0/content_hash.txt",
+      "prompt": "/d4/c98009b2b8/0/prompt.txt"
+    }
+  ],
+  "token_usage": {
+    "input_tokens": 48,
+    "cache_creation_tokens": 119321,
+    "cache_read_tokens": 3672687,
+    "output_tokens": 18222,
+    "api_call_count": 16,
+    "subagent_tokens": {
+      "input_tokens": 240,
+      "cache_creation_tokens": 628149,
+      "cache_read_tokens": 8378380,
+      "output_tokens": 75265,
+      "api_call_count": 116
+    }
+  },
+  "redaction": {
+    "replacements": 0,
+    "layers": {
+      "betterleaks": 0,
+      "connection_string": 0,
+      "credential_key": 0,
+      "credential_value": 0,
+      "credentialed_uri": 0,
+      "entropy": 0,
+      "key_context": 0,
+      "provider_token": 0,
+      "shell_stdin": 0
+    }
+  }
+}

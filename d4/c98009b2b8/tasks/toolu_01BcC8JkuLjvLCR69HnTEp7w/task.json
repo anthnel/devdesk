@@ -1,0 +1,19 @@
+{
+  "tool_use_id": "toolu_01BcC8JkuLjvLCR69HnTEp7w",
+  "agent_id": "a74e1713777cecdba",
+  "subagent_type": "team-core:archivist",
+  "task_description": "Consigner la décision DEVDESK-341",
+  "files": [
+    "docs/backlog.md",
+    "docs/journal.md"
+  ],
+  "token_usage": {
+    "input_tokens": 26,
+    "cache_creation_tokens": 81049,
+    "cache_read_tokens": 780339,
+    "output_tokens": 13091,
+    "api_call_count": 13
+  },
+  "started_at": "2026-11-11T20:55:08.611517527+01:00",
+  "completed_at": "2026-11-11T20:56:15.218011406+01:00"
+}

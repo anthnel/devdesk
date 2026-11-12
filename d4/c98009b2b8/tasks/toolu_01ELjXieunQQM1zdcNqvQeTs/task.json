@@ -1,0 +1,15 @@
+{
+  "tool_use_id": "toolu_01ELjXieunQQM1zdcNqvQeTs",
+  "agent_id": "a84951b918ca2b5b6",
+  "subagent_type": "project-coder",
+  "task_description": "Nettoyage final étape 5",
+  "token_usage": {
+    "input_tokens": 6,
+    "cache_creation_tokens": 19117,
+    "cache_read_tokens": 49783,
+    "output_tokens": 1514,
+    "api_call_count": 3
+  },
+  "started_at": "2026-11-11T20:52:22.202138032+01:00",
+  "completed_at": "2026-11-11T20:52:46.175471347+01:00"
+}
