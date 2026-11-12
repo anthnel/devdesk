@@ -1,0 +1,18 @@
+{
+  "tool_use_id": "toolu_015689acXB2wW7FV8RZgpgNV",
+  "agent_id": "a79fa55dfa382d68f",
+  "subagent_type": "project-coder",
+  "task_description": "Aide selon le mode (étape 4)",
+  "files": [
+    "internal/ui/oci_resources/browser_help_test.go"
+  ],
+  "token_usage": {
+    "input_tokens": 18,
+    "cache_creation_tokens": 25615,
+    "cache_read_tokens": 219808,
+    "output_tokens": 3808,
+    "api_call_count": 9
+  },
+  "started_at": "2026-11-12T21:00:11.556767297+01:00",
+  "completed_at": "2026-11-12T21:00:58.772718316+01:00"
+}

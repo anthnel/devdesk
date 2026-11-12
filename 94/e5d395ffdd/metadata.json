@@ -1,0 +1,59 @@
+{
+  "cli_version": "0.13.1",
+  "checkpoint_id": "94e5d395ffdd",
+  "strategy": "manual-commit",
+  "branch": "feat/devdesk-300-open-tags",
+  "checkpoints_count": 18,
+  "files_touched": [
+    "docs/architecture/network.md",
+    "docs/architecture/registries.md",
+    "docs/architecture/ui-components.md",
+    "docs/backlog.md",
+    "internal/app/activity_guard_test.go",
+    "internal/ui/oci_resources/browser_form.go",
+    "internal/ui/oci_resources/browser_keys.go",
+    "internal/ui/oci_resources/browser_open_tags_test.go",
+    "internal/ui/oci_resources/browser_search_test.go",
+    "internal/ui/oci_resources/browser_view.go",
+    "internal/ui/oci_resources/model.go",
+    "internal/ui/oci_resources/registry_browser.go",
+    "internal/ui/oci_resources/view.go"
+  ],
+  "sessions": [
+    {
+      "metadata": "/94/e5d395ffdd/0/metadata.json",
+      "transcript": "/94/e5d395ffdd/0/full.jsonl",
+      "compact_transcript": "/94/e5d395ffdd/0/transcript.jsonl",
+      "content_hash": "/94/e5d395ffdd/0/content_hash.txt",
+      "prompt": "/94/e5d395ffdd/0/prompt.txt"
+    }
+  ],
+  "token_usage": {
+    "input_tokens": 128,
+    "cache_creation_tokens": 130590,
+    "cache_read_tokens": 4976331,
+    "output_tokens": 24375,
+    "api_call_count": 44,
+    "subagent_tokens": {
+      "input_tokens": 250,
+      "cache_creation_tokens": 813915,
+      "cache_read_tokens": 6535441,
+      "output_tokens": 90046,
+      "api_call_count": 122
+    }
+  },
+  "redaction": {
+    "replacements": 0,
+    "layers": {
+      "betterleaks": 0,
+      "connection_string": 0,
+      "credential_key": 0,
+      "credential_value": 0,
+      "credentialed_uri": 0,
+      "entropy": 0,
+      "key_context": 0,
+      "provider_token": 0,
+      "shell_stdin": 0
+    }
+  }
+}
