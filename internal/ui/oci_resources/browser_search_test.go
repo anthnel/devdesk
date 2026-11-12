@@ -102,11 +102,11 @@ func TestTheFormWalksFromTheRepoThroughEveryRegistryToTheButton(t *testing.T) {
 		}
 	}
 	m = feed(t, m, testutil.Key("down"))
-	if b.focusedField != b.brFieldSubmit() {
+	if b.focusedField != b.brFieldLast() {
 		t.Errorf("focus = %d, want the button", b.focusedField)
 	}
 	feed(t, m, testutil.Key("down"))
-	if b.focusedField != b.brFieldSubmit() {
+	if b.focusedField != b.brFieldLast() {
 		t.Errorf("focus = %d, want it held on the button", b.focusedField)
 	}
 }
@@ -952,6 +952,11 @@ func TestTheFormGroupsMembersUnderTheirParent(t *testing.T) {
 	}
 	if !strings.Contains(view, "Browse Tags") {
 		t.Error("the submit button is missing")
+	}
+	for _, label := range []string{"Search", "Open Tags"} {
+		if strings.Contains(view, label) {
+			t.Errorf("without a Searcher the form shows %q, want only Browse Tags", label)
+		}
 	}
 }
 

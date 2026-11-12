@@ -276,7 +276,7 @@ type VolumePruneCompleteMsg struct {
 // identifies anything on its own: several entries share one host once a
 // registry is an address — a host plus a repo prefix — rather than a URL
 // (§3.18). It is kept because it is what the pull reference is built from.
-// Repo already carries the prefix, applied once in submitSearch.
+// Repo already carries the prefix, applied once in startTagLookup.
 type MultiRegistryTag struct {
 	EntryKey    string
 	RegistryURL string

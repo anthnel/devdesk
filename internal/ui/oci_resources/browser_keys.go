@@ -1,8 +1,6 @@
 package ociresources
 
 import (
-	"strings"
-
 	tea "charm.land/bubbletea/v2"
 
 	"github.com/anthnel/devdesk/internal/config"
@@ -73,7 +71,7 @@ func (b *RegistryBrowser) handleInputKeyMsg(msg tea.KeyPressMsg) (*RegistryBrows
 	case "esc":
 		return b, func() tea.Msg { return RegistryBrowserCloseMsg{} }
 	case "down":
-		b.focusedField = min(b.focusedField+1, b.brFieldSubmit())
+		b.focusedField = min(b.focusedField+1, b.brFieldLast())
 		b.updateFocus()
 		return b, nil
 	case "up":
@@ -92,10 +90,13 @@ func (b *RegistryBrowser) handleInputKeyMsg(msg tea.KeyPressMsg) (*RegistryBrows
 			return b, nil
 		}
 	case "enter":
-		if b.focusedField == brFieldRepo || b.focusedField == b.brFieldSubmit() {
-			return b.submitSearch()
+		if b.focusedField == brFieldRepo {
+			return b.submit(actionSearch)
 		}
-		b.focusedField = min(b.focusedField+1, b.brFieldSubmit())
+		if btn, ok := b.focusedButton(); ok {
+			return b.submit(btn.action)
+		}
+		b.focusedField = min(b.focusedField+1, b.brFieldLast())
 		b.updateFocus()
 		return b, nil
 	}
@@ -128,29 +129,6 @@ func (b *RegistryBrowser) credsFor(entry browserRegistryEntry) (string, string) 
 		username = storedUser
 	}
 	return username, storedPass
-}
-
-// submitSearch validates the form and routes it: a name with no "/" is an
-// image search when a Searcher is injected (level 1), anything else lists tags
-// as before. An empty name starts nothing; no checked registry warns.
-func (b *RegistryBrowser) submitSearch() (*RegistryBrowser, tea.Cmd) {
-	repo := strings.TrimSpace(b.repoInput.Value())
-	if repo == "" {
-		return b, nil
-	}
-	var entries []browserRegistryEntry
-	for _, entry := range b.entries {
-		if b.selected(entry) {
-			entries = append(entries, entry)
-		}
-	}
-	if len(entries) == 0 {
-		return b, func() tea.Msg { return RegistryBrowserWarnMsg{Text: "No registry selected"} }
-	}
-	if b.searcher != nil && !strings.Contains(repo, "/") {
-		return b.startImageSearch(repo, entries)
-	}
-	return b.startTagLookup(repo, entries)
 }
 
 // entryAlias is the label a result of entry carries: the alias, behind its

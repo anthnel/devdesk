@@ -254,22 +254,49 @@ there is no deadline on a tag lookup, only `maxTagPages` and the per-request
 client timeout. `Model.RegistryBrowserGen()` exposes the generation to tests
 only.
 
-**Level 1: image search (DEVDESK-299, IS-01).** The browser has three states:
-`browserStateInput` (form), `browserStateImages` (level 1, appended last in the
-`iota` list) and `browserStateTags` (level 2). `submitSearch` routes a
-validation: an empty name starts nothing; no registry checked sends
-`RegistryBrowserWarnMsg{"No registry selected"}`, which the `Model` shows as a
-footer warning (the browser has no footer; this also applies to a name that
-contains `/`, where the tag flow used to refuse silently); a name with no `/`
-goes to `startImageSearch` when `b.searcher != nil`; anything else goes to
-`startTagLookup`, the former code extracted as is.
+**Level 1: image search (DEVDESK-299, IS-01; Open Tags DEVDESK-300, IS-11).**
+The browser has three states: `browserStateInput` (form), `browserStateImages`
+(level 1, appended last in the `iota` list) and `browserStateTags` (level 2).
 
-**`defaultImageSearcher` is `nil` in production, so level 1 is inactive until
-IS-02 ships.** `newRegistryBrowser` copies it into `b.searcher`; with `nil`, a
-short name such as `nginx` still lists tags as before. Tests inject a fake with
-`withImageSearcher`. IS-02 assigns the real searcher (and IS-11 adds "Open
-tags"); until then the only visible change is the "No registry selected"
-warning.
+*The form's buttons.* `formButtons()` (`browser_form.go`) is the single source
+of the buttons: the keyboard, the rendering (`renderFormButtons`, one line) and
+the header (`FormEnter`) all read it. Without a `Searcher` there is one button,
+`Browse Tags` (action `actionSearch`). With one there are two, `Search`
+(`actionSearch`) then `Open Tags` (`actionOpenTags`).
+
+*Field indices.* Repository is `brFieldRepo` (0); the picker checkboxes are
+1..n (n = `len(b.rows)`); the buttons follow: `brFieldButton(i)` = `1 + n + i`,
+and `brFieldLast()` is the last button. `focusedButton()` maps the focus back to
+a button (false on Repository or a checkbox). `down` stops at `brFieldLast()`.
+
+*Validation.* `submit(action)` is common to both actions: an empty name starts
+nothing; no registry checked sends `RegistryBrowserWarnMsg{"No registry
+selected"}`, which the `Model` shows as a footer warning (the browser has no
+footer; this also applies to a name that contains `/`, where the tag flow used
+to refuse silently). Then `actionOpenTags` always goes to `startTagLookup`
+(the former code extracted as is, name as typed). `actionSearch` follows the
+IS-01 rule: a name with no `/` goes to `startImageSearch` when `b.searcher !=
+nil`, anything else to `startTagLookup`. `enter` on Repository runs
+`actionSearch`; `enter` on a button runs that button's action; `enter` on a
+checkbox only advances the focus. The selection applies to both actions.
+
+*Header.* `FormEnter()` returns the label and the lit state of the header's
+single `enter` entry. The label follows the focus: `Search` on Repository and
+on the Search button (`Browse tags` without a `Searcher`), `Open tags` on the
+Open Tags button. `enter` is lit on Repository (Rule 130: it submits there) and
+on a button, and greyed on a checkbox.
+
+*Help.* `registryBrowserHelpBody(searchEnabled)` (`view.go`) depends on the
+mode (Rule 114): without a `Searcher` it names Browse Tags only; with one it
+describes Search, Open Tags and the shared selection, and the level 1 sentence.
+
+**`defaultImageSearcher` is `nil` in production, so level 1 and Open Tags are
+inactive until IS-02 ships.** `newRegistryBrowser` copies it into `b.searcher`;
+with `nil`, the form keeps its one Browse Tags button and a short name such as
+`nginx` still lists tags as before. Tests inject a fake with
+`withImageSearcher`. IS-02 assigns the real searcher; until then the visible
+changes are the "No registry selected" warning and `enter` lit on Repository in
+the header.
 
 `startImageSearch` runs one `searchImagesCmd` per checked registry, with
 `targetFor(entry)` (same credentials as the tag flow, `credsFor`). Each command
