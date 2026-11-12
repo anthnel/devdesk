@@ -163,8 +163,8 @@ func (m Model) status() sharedcomponents.Status {
 		st.Detail = a.Detail
 		moving = a.State == indicator.Running || a.State == indicator.Queued
 	}
-	// Only a detail whose dot moves replaces the spinner; a failed row's is fixed.
-	st.Spinner = m.anyWorking() && (!moving || st.Detail.IsZero())
+	// Only a detail whose dot moves replaces the dot; a failed row's is fixed.
+	st.Activity = m.anyWorking() && (!moving || st.Detail.IsZero())
 	return st
 }
 

@@ -23,7 +23,7 @@ import (
 // repository, "api". It returns the router and the repository's path.
 func wsRouter(t *testing.T) (*App, string) {
 	t.Helper()
-	testutil.FastTimers(t, &animationFastInterval)
+	testutil.FastTimers(t, &animationBlinkInterval)
 	a := routerAt(t, &bareView{}, 180, 40)
 	dir := t.TempDir()
 	repo := filepath.Join(dir, "api")

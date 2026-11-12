@@ -373,7 +373,8 @@ func bubbleTeaName(file *ast.File) string {
 // glyph literal, and any reference to bubbletea's Tick / Every (under whatever name the file
 // imports it): the router's one tick animates every row.
 // rel is the file's path relative to internal/; it keys declaredGlyphConstants.
-// RenderedFrame (a method of the viewport frame) is allowed.
+// RenderedFrame is retired too (DEVDESK-341): no footer takes the router's
+// styled braille frame any more.
 func retiredMechanisms(fset *token.FileSet, file *ast.File, rel string) []finding {
 	var out []finding
 	report := func(pos token.Pos, what string) {
@@ -389,7 +390,7 @@ func retiredMechanisms(fset *token.FileSet, file *ast.File, rel string) []findin
 		}
 	}
 	isFrame := func(name string) bool {
-		return name == "Frame" || name == "frame" || name == "SpinnerFrame"
+		return name == "Frame" || name == "frame" || name == "SpinnerFrame" || name == renderedFrameName
 	}
 	visit := func() func(ast.Node) bool {
 		return func(n ast.Node) bool {
@@ -578,6 +579,9 @@ func TestActivityGuardRetiredMechanismsLogic(t *testing.T) {
 		{"glyph literal", "", "var g = \"\u25cf\"", 1, "4:9"},
 		{"StatusColumn key", "", "var x = T{StatusColumn: 1}", 1, "4:11"},
 		{"clean", "", "func f() {}", 0, ""},
+		{"RenderedFrame selector", "", "func f(m M) { _ = m.RenderedFrame }", 1, "4:21"},
+		{"RenderedFrame key", "", "var x = T{RenderedFrame: \"\"}", 1, "4:11"},
+		{"a name that merely starts with RenderedFrame", "", "func f(m M) { _ = m.RenderedFrameCount }", 0, ""},
 		{"aliased import", bt, "func f() { _ = bt.Tick(0, nil) }", 1, "4:16"},
 		{"dot import", dot, "func f() { _ = Tick(0, nil) }", 1, "4:16"},
 		{"dot import, bare reference", dot, "var tick = Every", 1, "4:12"},
@@ -745,8 +749,13 @@ func footerGlyphProblem(footer string, state indicator.State) string {
 	if glyph == "" {
 		return fmt.Sprintf("state %v has no glyph: the seed must put the row in a visible state", state)
 	}
-	if !strings.Contains(ansi.Strip(footer), glyph) {
+	// Exactly one: the row's own dot is in the footer detail, and the footer's
+	// activity dot is dropped when a detail has a glyph (DEVDESK-341, Q4).
+	switch n := strings.Count(ansi.Strip(footer), glyph); {
+	case n == 0:
 		return fmt.Sprintf("the footer does not carry the glyph %q of state %v", glyph, state)
+	case n > 1:
+		return fmt.Sprintf("the footer carries the glyph %q of state %v %d times, want exactly one (a detail glyph and the activity dot together)", glyph, state, n)
 	}
 	return ""
 }
@@ -764,6 +773,9 @@ func TestActivityGuardMigratedFooterCarriesTheRowGlyph(t *testing.T) {
 		t.Run(string(vt), func(t *testing.T) {
 			a := routerAt(t, &bareView{}, 180, 40)
 			state := seed(t, a)
+			// The phase on, so a footer dot would show as the same glyph as the
+			// row's own (a hollow one would hide a double dot).
+			forceRouterFrame(a, vt)
 			fr, ok := a.views[vt].(footerRenderer)
 			if !ok {
 				t.Fatalf("view %q is migrated but is a %T, which renders no footer", vt, a.views[vt])
@@ -797,6 +809,9 @@ func TestActivityGuardFooterLogic(t *testing.T) {
 	}
 	if msg := footerGlyphProblem("  1 job running", indicator.Running); msg == "" {
 		t.Error("a footer without the glyph passed")
+	}
+	if msg := footerGlyphProblem("  "+run+" Scanning a "+run+" 1/3", indicator.Running); msg == "" {
+		t.Error("a footer with two running glyphs passed")
 	}
 	if msg := footerGlyphProblem("anything", indicator.Idle); msg == "" {
 		t.Error("an idle seed passed: it has no glyph to look for")

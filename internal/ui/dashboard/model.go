@@ -248,7 +248,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, nil
 
 	case jobs.FrameMsg:
-		m.footer.SetSpinnerFrame(msg.RenderedFrame)
+		m.footer.SetBlinkPhase(msg.Blink)
 		return m, nil
 
 	case StatusCheckMsg:

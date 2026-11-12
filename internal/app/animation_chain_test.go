@@ -1,7 +1,6 @@
 package app
 
 import (
-	"strings"
 	"testing"
 	"time"
 
@@ -52,15 +51,15 @@ func TestOnlyOneAnimationChainIsEverAlive(t *testing.T) {
 	}
 }
 
-func TestTheChainStartsAtTheFastInterval(t *testing.T) {
+func TestTheChainStartsAtTheBlinkInterval(t *testing.T) {
 	got := stubAnimationEvery(t, time.UnixMilli(1000))
 	a := router(t, &fakeView{})
 	a.jobs.Start(scanRun("default", "a"))
 
 	a.ensureTick()
 
-	if len(*got) != 1 || (*got)[0] != animationFastInterval {
-		t.Errorf("chain intervals = %v, want one of %v", *got, animationFastInterval)
+	if len(*got) != 1 || (*got)[0] != animationBlinkInterval {
+		t.Errorf("chain intervals = %v, want one of %v", *got, animationBlinkInterval)
 	}
 }
 
@@ -70,11 +69,11 @@ func TestATickFromAnOlderChainIsDropped(t *testing.T) {
 	a.jobs.Start(scanRun("default", "a"))
 	a.ensureTick()
 
-	before := a.animationFrame()
-	_, cmd := a.Update(animationTickMsg{seq: a.anim.seq - 1, at: time.UnixMilli(1000)})
+	before := a.anim.blinkOn
+	_, cmd := a.Update(animationTickMsg{seq: a.anim.seq - 1, at: time.UnixMilli(1500)})
 
-	if a.animationFrame() != before {
-		t.Error("a stale tick advanced the frame")
+	if a.anim.blinkOn != before {
+		t.Error("a stale tick moved the blink phase")
 	}
 	if cmd != nil {
 		t.Error("a stale tick was answered with a command")
@@ -111,18 +110,17 @@ func TestATickSendsAFrameAndNoSnapshot(t *testing.T) {
 	}
 }
 
-func TestATickAdvancesTheFrameAndRenewsTheChain(t *testing.T) {
-	testutil.FastTimers(t, &animationFastInterval)
+func TestATickSetsThePhaseAndRenewsTheChain(t *testing.T) {
+	testutil.FastTimers(t, &animationBlinkInterval)
 	view := &fakeView{}
 	a := router(t, view)
 	a.jobs.Start(scanRun("default", "a"))
 	a.jobsChanged()
 
-	before := a.animationFrame()
-	_, cmd := a.Update(animationTickMsg{seq: a.anim.seq, at: time.UnixMilli(1000)})
+	_, cmd := a.Update(animationTickMsg{seq: a.anim.seq, at: time.UnixMilli(1500)})
 
-	if a.animationFrame() == before {
-		t.Error("the frame did not advance")
+	if a.anim.blinkOn {
+		t.Error("the tick on the off half left the phase on")
 	}
 	if _, ok := testutil.MsgOf[animationTickMsg](cmd); !ok {
 		t.Error("the chain was not renewed while work was running")
@@ -130,7 +128,7 @@ func TestATickAdvancesTheFrameAndRenewsTheChain(t *testing.T) {
 }
 
 func TestTheChainDiesWhenNothingRunsAndRestartsAfterwards(t *testing.T) {
-	testutil.FastTimers(t, &animationFastInterval)
+	testutil.FastTimers(t, &animationBlinkInterval)
 	view := &fakeView{}
 	a := router(t, view)
 	id := a.jobs.Start(scanRun("default", "a"))
@@ -151,32 +149,9 @@ func TestTheChainDiesWhenNothingRunsAndRestartsAfterwards(t *testing.T) {
 	}
 }
 
-// Rule 122: the frame is bare, its rendering is not.
-func TestTheFrameIsBareAndItsRenderingIsNot(t *testing.T) {
-	view := &fakeView{}
-	a := router(t, view)
-	a.jobs.Start(scanRun("default", "a"))
-	a.jobsChanged()
-
-	frames := framesSeen(view)
-	if len(frames) == 0 {
-		t.Fatal("the view on screen was never handed a FrameMsg")
-	}
-	f := frames[len(frames)-1]
-	if f.Frame == "" {
-		t.Fatal("no spinner frame was carried")
-	}
-	if strings.Contains(f.Frame, "\x1b") {
-		t.Errorf("Frame = %q carries an escape sequence; Rule 122", f.Frame)
-	}
-	if !strings.Contains(f.RenderedFrame, "\x1b") || !strings.Contains(f.RenderedFrame, f.Frame) {
-		t.Errorf("RenderedFrame = %q, want the styled Frame %q (Rule 128)", f.RenderedFrame, f.Frame)
-	}
-}
-
 // The blink phase is read off the message's own time, not the wall clock.
 func TestTheFrameCarriesThePhaseOfTheTickTime(t *testing.T) {
-	testutil.FastTimers(t, &animationFastInterval)
+	testutil.FastTimers(t, &animationBlinkInterval)
 	view := &fakeView{}
 	a := router(t, view)
 	a.jobs.Start(scanRun("default", "a"))

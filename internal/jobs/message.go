@@ -212,11 +212,8 @@ func (m ChangedMsg) Running() int {
 	return len(Unfinished(m.Runs))
 }
 
-// FrameMsg says the animation moved: the spinner frame, the blink phase, or
-// both. It carries no snapshot — ChangedMsg is for changes of the registry.
-// The router sends it to the view on screen only (DEVDESK-139).
+// FrameMsg says the animation moved: the blink phase. It carries no snapshot —
+// ChangedMsg is for changes of the registry. The router sends it to the view on screen only (DEVDESK-139).
 type FrameMsg struct {
-	Frame         string // bare, Rule 122 (a cell measures it)
-	RenderedFrame string // styled, Rule 128 (a footer takes it)
-	Blink         bool   // true = the "on" half of the blink
+	Blink bool // true = the "on" half of the blink
 }

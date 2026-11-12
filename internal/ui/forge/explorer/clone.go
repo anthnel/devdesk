@@ -122,10 +122,7 @@ func (m Model) handleCloneDestinationSelected(msg CloneDestinationSelectedMsg) (
 	// with it because the pipeline was started here, in Update — which is also
 	// what makes `esc` reach the registry rather than the channel behind its
 	// back.
-	return m, tea.Batch(
-		jobs.StartCancellable(m.cloneJobRun(msg.Path), waitForCloneEvent(run.events), run.cancel),
-		m.spinner.Tick,
-	)
+	return m, jobs.StartCancellable(m.cloneJobRun(msg.Path), waitForCloneEvent(run.events), run.cancel)
 }
 
 // cloneRun describes the batch to the registry. The destination names it: it is
@@ -205,11 +202,12 @@ func (m Model) handleJobsChanged(msg jobs.ChangedMsg) (tea.Model, tea.Cmd) {
 	return m, nil
 }
 
-// handleFrameMsg takes the animation's frame. The tree table reads the blink
-// phase at render, and so does the clone list: no row is rebuilt.
+// handleFrameMsg takes the animation's blink phase. The tree table reads it at
+// render, and so does the clone list: no row is rebuilt. The footer load line
+// takes the same phase for its activity dot.
 func (m Model) handleFrameMsg(msg jobs.FrameMsg) (tea.Model, tea.Cmd) {
-	m.footer.SetSpinnerFrame(msg.RenderedFrame)
 	m.table.SetBlinkPhase(msg.Blink)
+	m.footer.SetBlinkPhase(msg.Blink)
 
 	if m.clone != nil {
 		m.clone.table.SetBlinkPhase(msg.Blink)

@@ -118,7 +118,7 @@ func (m Model) status() sharedcomponents.Status {
 		}
 	}
 	st.Detail = m.selectedDetail()
-	st.Spinner = st.Text != "" && st.Detail.IsZero()
+	st.Activity = st.Text != "" && st.Detail.IsZero()
 	return st
 }
 

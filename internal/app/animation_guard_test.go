@@ -216,7 +216,6 @@ func (m programModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 // Criterion 6: the chain under a real tea.Program, with real Cmds on their own
 // goroutines. Its value is under -race.
 func TestTheAnimationChainUnderARealProgram(t *testing.T) {
-	testutil.FastTimers(t, &animationFastInterval)
 	testutil.FastTimers(t, &animationBlinkInterval)
 
 	v := &blinkView{wants: false}

@@ -56,10 +56,10 @@ func (m Model) handleJobsChanged(msg jobs.ChangedMsg) (tea.Model, tea.Cmd) {
 }
 
 // handleFrameMsg takes the animation's frame: the blink phase, which the table
-// reads at render, and the footer spinner. No row is rebuilt.
+// reads at render, and the footer dot. No row is rebuilt.
 func (m Model) handleFrameMsg(msg jobs.FrameMsg) (tea.Model, tea.Cmd) {
 	m.table.SetBlinkPhase(msg.Blink)
-	m.footer.SetSpinnerFrame(msg.RenderedFrame)
+	m.footer.SetBlinkPhase(msg.Blink)
 	return m, nil
 }
 

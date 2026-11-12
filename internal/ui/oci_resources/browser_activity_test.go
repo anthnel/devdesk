@@ -311,8 +311,8 @@ func TestTheSearchSpinnerFeedsTheFooterAndTheRouterFrameDoesNotOverwriteIt(t *te
 		t.Errorf("the footer lacks the search spinner frame %q:\n%s", frame, info)
 	}
 
-	m = feed(t, m, jobs.FrameMsg{Frame: "ZZ", RenderedFrame: "ZZ", Blink: true})
-	if info := ansi.Strip(ociInfoLine(m, 200)); strings.Contains(info, "ZZ") || !strings.Contains(info, frame) {
+	m = feed(t, m, jobs.FrameMsg{Blink: true})
+	if info := ansi.Strip(ociInfoLine(m, 200)); !strings.Contains(info, frame) {
 		t.Errorf("the router's frame overwrote the search spinner:\n%s", info)
 	}
 }

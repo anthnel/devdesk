@@ -264,8 +264,8 @@ func TestALiveScanShowsInTheFooterStatus(t *testing.T) {
 
 	m = send(t, m, jobs.ChangedMsg{Runs: []jobs.Run{run}})
 
-	if status := m.jobsStatus(); !status.Spinner || !strings.Contains(status.Text, "Scanning") {
-		t.Errorf("status = %+v, want a spinner saying it is scanning", status)
+	if status := m.jobsStatus(); !status.Activity || !strings.Contains(status.Text, "Scanning") {
+		t.Errorf("status = %+v, want an activity dot saying it is scanning", status)
 	}
 }
 

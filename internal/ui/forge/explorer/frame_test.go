@@ -20,7 +20,7 @@ func TestAFrameMovesTheRowDot(t *testing.T) {
 	m = feed(t, m, jobs.ChangedMsg{Runs: []jobs.Run{createRun("new", "new")}})
 
 	for _, blink := range []bool{true, false} {
-		m = feed(t, m, jobs.FrameMsg{Frame: "X", Blink: blink})
+		m = feed(t, m, jobs.FrameMsg{Blink: blink})
 		row, ok := rowFor(m, "new")
 		if !ok {
 			t.Fatal("the placeholder row is gone")
@@ -40,13 +40,19 @@ func TestAFrameMovesTheRowDot(t *testing.T) {
 	}
 }
 
-func TestAFrameMovesTheFooterSpinner(t *testing.T) {
+// The explorer's load line carries the shared activity dot: the router frame's
+// text never reaches it, only its blink phase does.
+func TestAFrameDrivesTheLoadDot(t *testing.T) {
 	m := loadedModel(t)
-	m.loading = true // the tree is reloading: the footer shows a spinner line
+	m.loading = true // the tree is reloading: the footer shows a load line
 
-	m = feed(t, m, jobs.FrameMsg{RenderedFrame: "<R1>"})
-
-	if footer := m.RenderFooter(160); !strings.Contains(footer, "<R1>") {
-		t.Errorf("the footer does not carry the new frame:\n%s", footer)
+	for blink, glyph := range map[bool]string{true: "●", false: "○"} {
+		got := feed(t, m, jobs.FrameMsg{Blink: blink}).RenderFooter(160)
+		if hasBraille(got) {
+			t.Errorf("braille in the footer:\n%s", got)
+		}
+		if !strings.Contains(got, glyph) {
+			t.Errorf("Blink=%v: footer lacks %s:\n%s", blink, glyph, got)
+		}
 	}
 }

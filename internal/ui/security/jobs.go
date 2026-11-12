@@ -23,13 +23,11 @@ func (m Model) handleJobsChanged(msg jobs.ChangedMsg) (tea.Model, tea.Cmd) {
 }
 
 // handleFrameMsg takes the animation's blink phase, which the table reads at
-// render; no row is rebuilt. The footer frame is the router's only while the
-// view's own load or remediation spinner is not running.
+// render, and the footer's activity dot; no row is rebuilt. The view's own load
+// and remediation spinner is a separate field and is not touched here.
 func (m Model) handleFrameMsg(msg jobs.FrameMsg) (tea.Model, tea.Cmd) {
 	m.inventory.SetBlinkPhase(msg.Blink)
-	if !m.spinnerAlive() {
-		m.footer.SetSpinnerFrame(msg.RenderedFrame)
-	}
+	m.footer.SetBlinkPhase(msg.Blink)
 	return m, nil
 }
 

@@ -6,7 +6,6 @@ import (
 	"testing"
 	"time"
 
-	"charm.land/bubbles/v2/spinner"
 	tea "charm.land/bubbletea/v2"
 
 	"github.com/anthnel/devdesk/internal/command"
@@ -663,7 +662,7 @@ func TestAWorkingRowTakesItsBlinkFromTheBroadcast(t *testing.T) {
 	m = feed(t, m, jobs.ChangedMsg{
 		Runs: []jobs.Run{createRun("new", "new")},
 	})
-	m = feed(t, m, jobs.FrameMsg{Frame: "⣾", Blink: true})
+	m = feed(t, m, jobs.FrameMsg{Blink: true})
 
 	row, ok := rowFor(m, "new")
 	if !ok {
@@ -831,19 +830,8 @@ func TestResizeSurvivesATinyTerminal(t *testing.T) {
 	}
 }
 
-// The spinner only animates while something is loading; ticking otherwise would
-// keep waking the event loop for nothing.
-func TestSpinnerTicksOnlyWhileLoading(t *testing.T) {
-	idle := loadedModel(t)
-	if _, cmd := step(t, idle, spinner.TickMsg{}); cmd != nil {
-		t.Error("the spinner ticked while idle")
-	}
-
-	busy := feed(t, loadedModel(t), testutil.Key("right"))
-	if _, cmd := step(t, busy, spinner.TickMsg{}); cmd == nil {
-		t.Error("the spinner stopped while loading")
-	}
-}
+// The router only sends blink frames while something is loading; asking
+// otherwise would keep waking the event loop for nothing.
 
 // ── Delete ───────────────────────────────────────────────────────────────────
 

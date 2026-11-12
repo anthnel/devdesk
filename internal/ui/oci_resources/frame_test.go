@@ -47,9 +47,9 @@ func TestAFrameSetsThePhaseWithoutRebuildingRows(t *testing.T) {
 func TestAFrameNeverReachesTheTableCells(t *testing.T) {
 	m := loadedModel(t)
 	m = scanning(t, m, m.images[0].Name())
-	m = feed(t, m, jobs.FrameMsg{Frame: "ZZ", RenderedFrame: "FOOTERFRAME", Blink: true})
-	if strings.Contains(m.Render(), "ZZ") {
-		t.Error("the bare frame still reaches the table")
+	m = feed(t, m, jobs.FrameMsg{Blink: true})
+	if hasSpinnerFrame(m.Render()) {
+		t.Error("a spinner frame reaches the table")
 	}
 }
 

@@ -171,7 +171,8 @@ func TestNoTableViewRendersALoadingBody(t *testing.T) {
 				}
 				t.Errorf("%s: %s renders a spinner in the body of a table view.\n"+
 					"A load is reported in the footer: return components.Status{Text: …, Spinner: true} "+
-					"from the view's status() and leave the table on screen.",
+					"from the view's status() (Activity: true for work tracked by the jobs registry) "+
+					"and leave the table on screen.",
 					fset.Position(sel.Pos()), fn)
 				return true
 			})

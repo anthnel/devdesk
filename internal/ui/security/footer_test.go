@@ -12,6 +12,7 @@ import (
 	"github.com/anthnel/devdesk/internal/command"
 	"github.com/anthnel/devdesk/internal/jobs"
 	"github.com/anthnel/devdesk/internal/ui/components"
+	"github.com/anthnel/devdesk/internal/ui/indicator"
 	"github.com/anthnel/devdesk/internal/ui/testutil"
 )
 
@@ -71,7 +72,7 @@ func infoLine(m Model, width int) string {
 
 func TestFooterNamesTheSelectedRowAndKeepsTheProgress(t *testing.T) {
 	m := footerModel(t, []jobs.Run{batch()}, nil)
-	m = feed(t, m, jobs.FrameMsg{Frame: "SPIN", RenderedFrame: "SPIN", Blink: true})
+	m = feed(t, m, jobs.FrameMsg{Blink: true})
 
 	running := infoLine(selectTarget(t, m, ftRepo), 200)
 	for _, w := range []string{"Scanning", ftRepo, "Scanning — 1/3"} {
@@ -79,13 +80,13 @@ func TestFooterNamesTheSelectedRowAndKeepsTheProgress(t *testing.T) {
 			t.Errorf("selected running row: footer lacks %q:\n%s", w, running)
 		}
 	}
-	if strings.Contains(running, "SPIN") {
-		t.Errorf("a row detail with a glyph drops the spinner:\n%s", running)
+	if selectTarget(t, m, ftRepo).inventoryStatus().Activity {
+		t.Errorf("a row detail with a glyph drops the activity dot:\n%s", running)
 	}
 
 	idle := infoLine(selectTarget(t, m, ftOther), 200)
-	if !strings.Contains(idle, "1/3") || !strings.Contains(idle, "SPIN") {
-		t.Errorf("idle row during the batch: want the progress alone, spinning:\n%s", idle)
+	if !strings.Contains(idle, "1/3") || !strings.Contains(idle, indicator.Glyph(indicator.Running, true)) {
+		t.Errorf("idle row during the batch: want the progress alone, with the activity dot:\n%s", idle)
 	}
 	if strings.Contains(idle, ftRepo) {
 		t.Errorf("idle row shows another row's detail:\n%s", idle)

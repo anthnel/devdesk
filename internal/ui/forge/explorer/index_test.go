@@ -61,7 +61,7 @@ func TestTheExplorerOpensOnTheIndexedRoots(t *testing.T) {
 	if !m.showsTree() {
 		t.Error("the breadcrumb is hidden while the roots are re-read — the footer would jump")
 	}
-	if st := m.status(); !st.Spinner || !strings.Contains(st.Text, "Updating") {
+	if st := m.status(); !st.Activity || !strings.Contains(st.Text, "Updating") {
 		t.Errorf("status = %+v, want the background refresh in the footer", st)
 	}
 }

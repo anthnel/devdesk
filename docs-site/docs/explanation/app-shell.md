@@ -99,7 +99,7 @@ A view that wants a title, icon, shortcut list and header info bar must implemen
 
 When an action doesn't apply to the current state, its entry stays in the shortcut list but loses its color and weight rather than disappearing. The reasoning: a shortcut list is read out of the corner of the eye while scanning rows, and a list that reorders itself as the cursor moves defeats that.
 
-This only applies to *state within a mode* — the selected row, or a tool the machine doesn't have. A different *mode* (a form instead of a table, a confirmation instead of a list) legitimately replaces the whole shortcut list, since it's a different vocabulary entirely. An operation actually in flight is neither: it changes every tick and the row's own spinner already communicates that, so greying and un-greying a key several times a second would just look broken.
+This only applies to *state within a mode* — the selected row, or a tool the machine doesn't have. A different *mode* (a form instead of a table, a confirmation instead of a list) legitimately replaces the whole shortcut list, since it's a different vocabulary entirely. An operation actually in flight is neither: it changes every tick and the row's own activity dot already communicates that, so greying and un-greying a key several times a second would just look broken.
 
 The mechanism is centralized: `shortcut.Availability` carries a single `Reason string` (empty means available), read by both the header (to grey the key) and the handler (to refuse the action with that same reason in the footer). This guarantees the two can't disagree — a greyed key that still works, or a live key that silently does nothing, are both ruled out by construction. Reference implementations: `internal/ui/workspaces/availability.go` and `internal/ui/oci_resources/availability.go`.
 
@@ -147,15 +147,15 @@ The model has two levels: a **`Run`** is one batch started in one go from one vi
 | `Snapshot()` | a read-only copy, with cancel functions stripped out |
 | `Running()` | runs that haven't settled yet |
 
-Single-item work (creating or deleting a single repository, say) is still registered as a run rather than tracked with a local flag, because the registry gives it three things a local flag can't: a shared spinner (rather than a per-view chain that stops the moment its own view settles), visibility to any "is something running" guard regardless of which view started it, and a context stamp fixed at launch time — so a create that outlives a context switch can't accidentally write into the newly-switched-to context.
+Single-item work (creating or deleting a single repository, say) is still registered as a run rather than tracked with a local flag, because the registry gives it three things a local flag can't: a shared activity dot (rather than a per-view chain that stops the moment its own view settles), visibility to any "is something running" guard regardless of which view started it, and a context stamp fixed at launch time — so a create that outlives a context switch can't accidentally write into the newly-switched-to context.
 
 **Open runs.** Most launches know their full target list up front, which is what lets the UI say "8 waiting". Cloning doesn't — discovering which repositories exist *is* the slow part — so `jobs.NewOpenRun` registers a run with no targets yet, and `Discover`/`Seal`/`CancelOpen` add targets as the walk finds them and eventually close it off. An open run is never considered "finished" just because its current items are — only an explicit seal closes it.
 
 **Stopping work has two distinct scopes**, and both are exposed as separate keys where applicable: cancelling a *run* stops the queue (nothing further starts; anything still queued is marked skipped), while cancelling a *target* interrupts one piece of work already running. Not every kind of work can be safely interrupted mid-flight — a delete request already sent to a forge can't be un-sent — so the registry tracks per-kind whether cancellation-in-flight is even offered.
 
-### One spinner, broadcast everywhere
+### One animation, broadcast everywhere
 
-Views never hold a pointer into the registry. The router hands out a read-only snapshot via `jobs.ChangedMsg`, broadcast to every held view (on screen or not) whenever anything changes — so navigating back to a view that missed some progress shows the current state without it having to ask. There is exactly one spinner tick chain for the whole application, owned by the router, identified by a sequence number so a stale tick from a superseded chain is simply dropped.
+Views never hold a pointer into the registry. The router hands out a read-only snapshot via `jobs.ChangedMsg`, broadcast to every held view (on screen or not) whenever anything changes — so navigating back to a view that missed some progress shows the current state without it having to ask. There is exactly one animation tick chain for the whole application, owned by the router, ticking every 500 ms and carrying only the blink phase of the activity dot (the dot in a row, and the dot in the footer). It is identified by a sequence number so a stale tick from a superseded chain is simply dropped. A few views still turn a spinner of their own while they load their data.
 
 ### The `:jobs` view
 

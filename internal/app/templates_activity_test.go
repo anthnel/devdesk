@@ -23,7 +23,7 @@ import (
 // template, "api", under the isolated HOME.
 func templatesRouter(t *testing.T) *App {
 	t.Helper()
-	testutil.FastTimers(t, &animationFastInterval)
+	testutil.FastTimers(t, &animationBlinkInterval)
 	a := routerAt(t, &bareView{}, 180, 40)
 	path, err := template.DefaultPath()
 	if err != nil {

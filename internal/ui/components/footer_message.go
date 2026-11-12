@@ -7,6 +7,7 @@ import (
 	tea "charm.land/bubbletea/v2"
 	"charm.land/lipgloss/v2"
 
+	"github.com/anthnel/devdesk/internal/ui/indicator"
 	"github.com/anthnel/devdesk/internal/ui/theme"
 )
 
@@ -85,6 +86,10 @@ type Status struct {
 	Detail RowDetail
 	// Spinner prepends the current spinner frame — a table loading its rows.
 	Spinner bool
+	// Activity prepends the Running activity dot (● / ○, following SetBlinkPhase)
+	// — work is in progress. It wins over Spinner, and a detail with a glyph
+	// drops it for the same reason it drops the spinner.
+	Activity bool
 	// Level colours the line, and the zero value is LevelInfo, so a status that
 	// says nothing about it renders exactly as it always did.
 	//
@@ -153,6 +158,7 @@ type FooterMessage struct {
 	level        Level
 	id           uint64
 	spinnerFrame string
+	blinkOff     bool
 }
 
 // Info, Warn and Error set the message and return its expiry timer. Call them
@@ -223,6 +229,10 @@ func (f *FooterMessage) Handle(msg tea.Msg) bool {
 // lipgloss.Width, which does not.
 func (f *FooterMessage) SetSpinnerFrame(frame string) { f.spinnerFrame = frame }
 
+// SetBlinkPhase sets the phase the activity dot renders with. Read at render;
+// nothing is rebuilt. Without a call the dot is steady on.
+func (f *FooterMessage) SetBlinkPhase(on bool) { f.blinkOff = !on }
+
 // IsSet reports whether a message is currently displayed.
 func (f *FooterMessage) IsSet() bool { return f.text != "" }
 
@@ -263,8 +273,17 @@ func (f *FooterMessage) View(width int, status Status) string {
 
 	// lipgloss.Width, not theme.StringWidth: the frame arrives already styled,
 	// and runewidth would count its escape sequence as columns.
-	spinner, budget := "", width
-	if status.Spinner && f.spinnerFrame != "" && status.Detail.Glyph == "" {
+	spinner, budget, dotExtra := "", width, 0
+	switch {
+	case status.Activity && status.Detail.Glyph == "":
+		// Same glyph and colour as the row dots (indicator.Style), on the app
+		// background (Rule 115). ● and ○ are one column wide and share a width,
+		// so the phase never shifts the text.
+		glyph := indicator.Glyph(indicator.Running, !f.blinkOff)
+		spinner = indicator.Style(indicator.Running).Background(theme.ColorBackground).Render(glyph) + theme.Bg(" ")
+		dotExtra = max(theme.StringWidth(glyph)-lipgloss.Width(glyph), 0)
+		budget -= theme.StringWidth(glyph) + 1
+	case status.Spinner && f.spinnerFrame != "" && status.Detail.Glyph == "":
 		spinner = f.spinnerFrame + theme.Bg(" ")
 		budget -= lipgloss.Width(f.spinnerFrame) + 1
 	}
@@ -277,9 +296,9 @@ func (f *FooterMessage) View(width int, status Status) string {
 		// width; shrink its target by the difference so the line is exactly
 		// `width` columns for runewidth too.
 		extra := theme.StringWidth(line) - lipgloss.Width(line)
-		return centerLine(spinner+status.Level.Style().Render(line), width-max(extra, 0))
+		return centerLine(spinner+status.Level.Style().Render(line), width-max(extra, 0)-dotExtra)
 	}
-	return centerLine(spinner+status.Level.Style().Render(theme.TruncateWidth(status.Text, budget)), width)
+	return centerLine(spinner+status.Level.Style().Render(theme.TruncateWidth(status.Text, budget)), width-dotExtra)
 }
 
 // centerLine centres already-styled content on a line filled with the app

@@ -69,22 +69,20 @@ type redrawStats struct {
 }
 
 // measuredView draws `rows` lines whose first glyph depends on the animation:
-// the blink phase (mode "blink") or the spinner frame (mode "spinner"). The
+// the blink phase. The
 // state is only written from Update, which the program calls from one goroutine.
 type measuredView struct {
 	fakeView
-	rows    int
-	blink   bool // WantsBlink
-	spinner bool // rows show the spinner frame, not the phase
-	frame   string
-	phase   bool
+	rows  int
+	blink bool // WantsBlink
+	phase bool
 }
 
 func (v *measuredView) WantsBlink() bool { return v.blink }
 
 func (v *measuredView) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	if f, ok := msg.(jobs.FrameMsg); ok {
-		v.frame, v.phase = f.Frame, f.Blink
+		v.phase = f.Blink
 	}
 	return v, nil
 }
@@ -95,9 +93,6 @@ func (v *measuredView) Render() string {
 	glyph := "○"
 	if v.phase {
 		glyph = "●"
-	}
-	if v.spinner {
-		glyph = v.frame
 	}
 	lines := make([]string, 0, measureHeight)
 	for i := 0; i < measureHeight-14; i++ {
@@ -115,7 +110,7 @@ func (v *measuredView) Render() string {
 // measureRedraws runs the real router under a tea.Program for the warm-up,
 // then measures what is written and how long View takes during the window.
 // A redraw is one Write: the renderer flushes once per frame.
-func measureRedraws(t *testing.T, view *measuredView, runningJob bool) redrawStats {
+func measureRedraws(t *testing.T, view *measuredView) redrawStats {
 	t.Helper()
 	a := routerAt(t, view, measureWidth, measureHeight)
 	out := &countingWriter{}
@@ -133,9 +128,6 @@ func measureRedraws(t *testing.T, view *measuredView, runningJob bool) redrawSta
 	go func() { _, err := p.Run(); done <- err }()
 	// A key press makes the router ask the view whether it wants a blink.
 	p.Send(testutil.Key("down"))
-	if runningJob {
-		p.Send(jobs.StartMsg{Run: scanRun("default", "a")})
-	}
 
 	time.Sleep(measureWarmUp)
 	b0, w0, c0, n0, from := out.n.Load(), out.writes.Load(), calls.Load(), nanos.Load(), time.Now()
@@ -168,36 +160,32 @@ func measureRedraws(t *testing.T, view *measuredView, runningJob bool) redrawSta
 }
 
 // TestMeasureRedrawCost logs the bytes per second the renderer writes for N
-// animated rows: 0, 1 and 20 blinking at 1 Hz, and 1 and 20 carrying the
-// spinner at 10 Hz as the reference. Opt-in: DEVDESK_MEASURE_REDRAW=1.
+// animated rows: 0, 1 and 20 blinking at 1 Hz. Opt-in: DEVDESK_MEASURE_REDRAW=1.
 func TestMeasureRedrawCost(t *testing.T) {
 	if os.Getenv("DEVDESK_MEASURE_REDRAW") != "1" {
 		t.Skip("set DEVDESK_MEASURE_REDRAW=1 to measure the renderer's output")
 	}
 	cases := []struct {
-		mode    string
-		rows    int
-		hz      int
-		blink   bool
-		spinner bool
+		mode  string
+		rows  int
+		hz    int
+		blink bool
 	}{
-		{"blink", 0, 0, false, false},
-		{"blink", 1, 1, true, false},
-		{"blink", 20, 1, true, false},
-		{"spinner", 1, 10, false, true},
-		{"spinner", 20, 10, false, true},
+		{"blink", 0, 0, false},
+		{"blink", 1, 1, true},
+		{"blink", 20, 1, true},
 	}
 	for _, c := range cases {
 		t.Run(fmt.Sprintf("%s-%d", c.mode, c.rows), func(t *testing.T) {
-			v := &measuredView{rows: c.rows, blink: c.blink, spinner: c.spinner}
-			st := measureRedraws(t, v, c.spinner)
+			v := &measuredView{rows: c.rows, blink: c.blink}
+			st := measureRedraws(t, v)
 			t.Logf("rows=%d mode=%s rate=%dHz terminal=%dx%d window=%s bytes/s=%.0f redraws/s=%.2f bytes/redraw=%.0f view=%.1fµs (%d calls)",
 				c.rows, c.mode, c.hz, measureWidth, measureHeight, st.window.Round(time.Millisecond),
 				st.bytesPerSec, st.redrawsPerSec, st.bytesPerRedraw,
 				float64(st.meanView.Nanoseconds())/1000, st.viewCalls)
 			// Only a broken counter would record zeros; the figures themselves
 			// are wall-clock and asserted nowhere.
-			if c.spinner && c.rows == 20 && (st.redrawsPerSec <= 0 || st.viewCalls == 0) {
+			if c.blink && c.rows == 20 && (st.redrawsPerSec <= 0 || st.viewCalls == 0) {
 				t.Fatalf("no redraw counted: %+v", st)
 			}
 		})

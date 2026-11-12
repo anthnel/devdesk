@@ -24,7 +24,6 @@ func runningRouter(t *testing.T, current Screen) *App {
 	t.Helper()
 	a := router(t, current)
 	a.jobs.Start(scanRun("default", "a"))
-	a.anim.frameIdx = 3
 	a.anim.blinkOn = true
 	return a
 }
@@ -96,7 +95,7 @@ func TestAPickerAnswerHandsTheFrameBackToTheBorrower(t *testing.T) {
 	}
 }
 
-func TestHandlePickRequestHandsThePickerTheSnapshotAndTheFrame(t *testing.T) {
+func TestHandlePickRequestHandsThePickerTheSnapshot(t *testing.T) {
 	a := runningRouter(t, &fakeView{})
 
 	a.handlePickRequest(filebrowser.PickRequestMsg{})
@@ -105,9 +104,8 @@ func TestHandlePickRequestHandsThePickerTheSnapshotAndTheFrame(t *testing.T) {
 	if n := unexported(t, picker, "jobs").Len(); n == 0 {
 		t.Error("the picker holds no run: it was installed without the snapshot")
 	}
-	if got := unexported(t, picker, "footer", "spinnerFrame").String(); got == "" {
-		t.Error("the picker's footer has no spinner frame: it was installed without the frame")
-	}
+	// DEVDESK-341: the picker's footer holds no frame any more (its status never
+	// showed a spinner), so there is no field left to read the frame from.
 }
 
 func TestOpenSecurityViewHandsItTheSnapshotAndTheFrame(t *testing.T) {

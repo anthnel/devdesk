@@ -223,10 +223,10 @@ func (m Model) handleJobsChanged(msg jobs.ChangedMsg) (tea.Model, tea.Cmd) {
 }
 
 // handleFrameMsg takes the animation's frame: the blink phase, which the table
-// reads at render (no row is rebuilt), and the footer spinner.
+// reads at render (no row is rebuilt), and the footer activity dot.
 func (m Model) handleFrameMsg(msg jobs.FrameMsg) (tea.Model, tea.Cmd) {
 	m.table.SetBlinkPhase(msg.Blink)
-	m.footer.SetSpinnerFrame(msg.RenderedFrame)
+	m.footer.SetBlinkPhase(msg.Blink)
 	return m, nil
 }
 
@@ -260,7 +260,7 @@ func scanSummary(msg ScanCompleteMsg) string {
 
 // jobsStatus is the footer's derived line: the selected row's own sentence (what
 // it is doing, or the failure it remembers), then the batch progress. A row whose
-// detail has a moving dot drops the footer spinner; a failed row's dot is fixed.
+// detail has a moving dot drops the footer dot; a failed row's dot is fixed.
 func (m Model) jobsStatus() sharedcomponents.Status {
 	st := sharedcomponents.Status{Text: sharedcomponents.JobsStatusLine(m.jobs, command.ViewTemplates)}
 	moving := false
@@ -269,6 +269,6 @@ func (m Model) jobsStatus() sharedcomponents.Status {
 		st.Detail = a.Detail
 		moving = a.State == indicator.Running || a.State == indicator.Queued
 	}
-	st.Spinner = st.Text != "" && (!moving || st.Detail.IsZero())
+	st.Activity = st.Text != "" && (!moving || st.Detail.IsZero())
 	return st
 }

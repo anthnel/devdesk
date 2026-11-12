@@ -466,9 +466,10 @@ What a body would have said instead — loading, the row count, a verdict —
 is **the footer's and header's business**, never the body's:
 
 - loading is a `components.Status{Text: "...", Spinner: true}` in the
-  footer (Rule 128). That spinner is for the *table's data* loading; an
-  operation on one row is the row's activity dot (Rule 125), never a spinner
-  in the body;
+  footer for a view's own load (Rule 128; `Activity: true`, the shared dot,
+  when the router tracks the work). That mark is for the *table's data*
+  loading; an operation on one row is the row's activity dot (Rule 125),
+  never a spinner in the body;
 - the row count, or whatever stands in for it (a verdict, a total), is a
   field of `GetHeaderInfo` (`shortcut.HeaderInfo{Key: "Images", Value: "0"}`) —
   it, not the body, answers "what am I looking at."
@@ -510,9 +511,11 @@ if len(m.imageTable.Visible()) == 0 {
 }
 ```
 
-The spinner's frame is pushed from the `spinner.TickMsg` handler:
-`m.footer.SetSpinnerFrame(m.spinner.View())`. Without this call the spinner
-stays on frame zero, which reads as a hang.
+For `Activity`, the blink phase is pushed from the `jobs.FrameMsg` handler:
+`m.footer.SetBlinkPhase(msg.Blink)`; without it the dot is steady on. For a
+view's own `Spinner`, the frame is pushed from the `spinner.TickMsg` handler:
+`m.footer.SetSpinnerFrame(m.spinner.View())`; without it the spinner stays on
+frame zero, which reads as a hang.
 
 `TestNoTableViewRendersALoadingBody` (`internal/ui/components`) rejects a
 `theme.SpinnerMessage` in table views. An operation screen with no table

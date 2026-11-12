@@ -1,7 +1,6 @@
 package explorer
 
 import (
-	"charm.land/bubbles/v2/spinner"
 	tea "charm.land/bubbletea/v2"
 
 	"github.com/anthnel/devdesk/internal/config"
@@ -11,7 +10,6 @@ import (
 	"github.com/anthnel/devdesk/internal/ui/components"
 	"github.com/anthnel/devdesk/internal/ui/datatable"
 	"github.com/anthnel/devdesk/internal/ui/fuzzy"
-	"github.com/anthnel/devdesk/internal/ui/theme"
 )
 
 // ViewMode represents the current mode of the view
@@ -41,8 +39,7 @@ type Model struct {
 	height int
 
 	// Table
-	table   datatable.Model[explorerRow]
-	spinner spinner.Model
+	table datatable.Model[explorerRow]
 
 	// Tree state
 	nodes   []*TreeNode
@@ -117,10 +114,6 @@ type Model struct {
 
 // New creates a new instance of the explorer model
 func New(cfg *config.Config, sharedState *shared.State) Model {
-	s := spinner.New()
-	s.Spinner = spinner.Dot
-	s.Style = theme.SpinnerStyle()
-
 	m := Model{
 		config:        cfg,
 		shared:        sharedState,
@@ -138,7 +131,6 @@ func New(cfg *config.Config, sharedState *shared.State) Model {
 			// the forge's order is reachable again after cycling away from it.
 			SortColumn: -1,
 		}),
-		spinner: s,
 	}
 	m.seedFromIndex()
 	return m
@@ -151,7 +143,7 @@ func (m Model) Init() tea.Cmd {
 	}
 	// The roots are always asked of the forge. When the index already had
 	// them, New put them on screen and this is a refresh (seedFromIndex).
-	return tea.Batch(m.spinner.Tick, m.loadRootGroups())
+	return m.loadRootGroups()
 }
 
 // InEditMode returns true if the view is in an edit mode or filter search.

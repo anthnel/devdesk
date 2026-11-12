@@ -18,7 +18,7 @@ import (
 func withJobs(t *testing.T, m Model, runs ...jobs.Run) Model {
 	t.Helper()
 	m = feed(t, m, jobs.ChangedMsg{Runs: runs, Context: "default"})
-	return feed(t, m, jobs.FrameMsg{Frame: "*", RenderedFrame: "*"})
+	return feed(t, m, jobs.FrameMsg{})
 }
 
 func scanningRun(names ...string) jobs.Run {

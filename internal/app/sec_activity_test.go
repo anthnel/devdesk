@@ -83,7 +83,7 @@ func seedSecCaches(t *testing.T) string {
 // scanned targets, and the repository's path.
 func secRouter(t *testing.T, width int) (*App, string) {
 	t.Helper()
-	testutil.FastTimers(t, &animationFastInterval)
+	testutil.FastTimers(t, &animationBlinkInterval)
 	a := routerAt(t, &bareView{}, width, 30)
 	stubImageNames(t, secImage)
 	return a, seedSecCaches(t)

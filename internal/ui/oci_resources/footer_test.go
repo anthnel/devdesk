@@ -8,6 +8,7 @@ import (
 	"github.com/charmbracelet/x/ansi"
 
 	"github.com/anthnel/devdesk/internal/jobs"
+	"github.com/anthnel/devdesk/internal/ui/indicator"
 	"github.com/anthnel/devdesk/internal/ui/testutil"
 )
 
@@ -117,9 +118,9 @@ func TestFooterStaysOneLineWithARowDetail(t *testing.T) {
 	}
 }
 
-// A scan with no load still shows the footer spinner on an idle row; the router's
-// frames must move it, or "Scanning — 1/3" carries a frozen frame (Rule 128).
-func TestAFrameMovesTheFooterSpinnerDuringAScanWithNoLoad(t *testing.T) {
+// A scan with no load still shows the footer dot on an idle row; the router's
+// blink phase must move it, or "Scanning — 1/3" carries a frozen dot (Rule 128).
+func TestAFrameMovesTheFooterDotDuringAScanWithNoLoad(t *testing.T) {
 	m := ociSnapshot(t, ociCtx, []jobs.Run{ociRun(jobs.KindScan, ociCtx, jobs.ItemRunning, imgRef)}, nil)
 	other := ""
 	for _, r := range m.imageTable.Items() {
@@ -134,10 +135,10 @@ func TestAFrameMovesTheFooterSpinnerDuringAScanWithNoLoad(t *testing.T) {
 	m = selectImage(t, m, other)
 	m.loading = false
 
-	for _, frame := range []string{"<F1>", "<F2>"} {
-		m = feed(t, m, jobs.FrameMsg{Frame: frame, RenderedFrame: frame})
-		if got := ociInfoLine(m, 200); !strings.Contains(got, frame) {
-			t.Errorf("footer spinner did not move to %q during a scan:\n%s", frame, got)
+	for _, blink := range []bool{true, false} {
+		m = feed(t, m, jobs.FrameMsg{Blink: blink})
+		if got := ociInfoLine(m, 200); !strings.Contains(got, indicator.Glyph(indicator.Running, blink)) {
+			t.Errorf("footer dot did not follow blink=%v during a scan:\n%s", blink, got)
 		}
 	}
 }

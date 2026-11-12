@@ -340,7 +340,7 @@ func TestAnActionShowsTheRunningDotThatBlinks(t *testing.T) {
 
 func TestTheFrameMsgDoesNotTouchTheFooterSpinner(t *testing.T) {
 	m := activityModel(t, 120, stateFixtures()...)
-	m2, cmd := step(t, m, jobs.FrameMsg{Frame: "X", RenderedFrame: "X", Blink: false})
+	m2, cmd := step(t, m, jobs.FrameMsg{Blink: false})
 	if cmd != nil {
 		t.Error("a FrameMsg returned a command")
 	}

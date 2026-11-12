@@ -21,7 +21,8 @@ return m, m.footer.Warn("Scan already in progress")
 return m, m.footer.Info("Image pulled: " + name)
 
 m.footer.Handle(msg)                              // consumes its own expiry
-m.footer.SetSpinnerFrame(m.spinner.View())        // from the spinner tick
+m.footer.SetBlinkPhase(msg.Blink)                 // from the jobs.FrameMsg handler (Activity)
+m.footer.SetSpinnerFrame(m.spinner.View())        // from the spinner tick (Spinner)
 
 // From View(), read-only. Always one full-width, centred line — empty included,
 // because Rule 124 budgets one whatever it holds.
@@ -67,11 +68,35 @@ push it on.
 Precedence inside `View`: **error → warning → info → status**. A failure the
 user has not read yet matters more than the progress of what is still running.
 
-**A table's load is a footer status with a spinner** (Rule 139). The table stays
+**A table's load is a footer status** (Rule 139). The table stays
 on screen: a body that swapped itself for a spinner lost its header and its
 columns for the length of every `ctrl+r`, then got them back. The empty state
 (`No images found`) is therefore conditional on the load being over, or the
 table announces the absence of what it is in the middle of fetching.
+
+**`Status.Activity` and `Status.Spinner` are two different marks** (DEVDESK-341):
+
+| Field | Renders | Fed by |
+|---|---|---|
+| `Activity` | the `indicator.Running` dot, `●` or `○`, with the glyph, colour and background of the row dots (`indicator.Glyph`, `indicator.Style`), then a space | `FooterMessage.SetBlinkPhase(on)`, called from the view's `jobs.FrameMsg` handler with `msg.Blink`. Without a call the dot is steady on |
+| `Spinner` | the rendered spinner frame, then a space | `FooterMessage.SetSpinnerFrame(frame)`, called from the view's `spinner.TickMsg` handler. Nothing is drawn until a frame was stored |
+
+`Activity` wins when both are set. Both are dropped when `Detail.Glyph` is
+present (the selected row's own dot already moves), and both come after the
+timed messages in the precedence. `Activity` is for work the router tracks
+(jobs, or a view's `WantsBlink()`); `Spinner` stays for a view's own loading
+(agent usage, containers, netdiag, OCI resources, security remediation, status,
+viewer). The router runs its 500 ms chain only if `jobs.Running() > 0` or the
+view on screen answers `WantsBlink()`, so an `Activity` status that does not
+come from a job needs `WantsBlink()` or the dot stays fixed (see `app-shell.md`,
+"A row dot or a footer mark").
+
+**Width.** `●` and `○` are one column wide and measure the same, so the phase
+never shifts the text. `View` budgets `theme.StringWidth(glyph) + 1` columns
+for the dot, and shrinks the centring target by
+`theme.StringWidth(glyph) - lipgloss.Width(glyph)` (the East Asian ambiguous
+width correction, as for a detail line) so the line is `width` columns for
+`runewidth` too.
 
 The spinner frame is the **rendered** `spinner.View()`, not a bare frame: every
 view already styles its spinner with `theme.SpinnerStyle()`, and restyling would
@@ -594,8 +619,8 @@ a field of its own because only a path is ever shortened.
   the progress stands alone.
 - **Precedence is unchanged:** error → warning → info → status. `Detail` is
   part of the status, so a footer message still wins over it.
-- **A detail with a glyph suppresses the spinner:** the row's own dot already
-  moves.
+- **A detail with a glyph suppresses the dot and the spinner:** the row's own
+  dot already moves.
 - **East Asian width.** `centerLine` pads by `lipgloss.Width`, which counts
   ambiguous glyphs as one cell. `View` shrinks its target width by
   `theme.StringWidth(line) - lipgloss.Width(line)` so the line is `width`

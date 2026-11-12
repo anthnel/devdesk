@@ -35,11 +35,11 @@ func TestTheCadence(t *testing.T) {
 		want                        time.Duration
 		wantOK                      bool
 	}{
-		{"running alone is fast", true, false, false, animationFastInterval, true},
-		{"running and blinking is fast", true, true, false, animationFastInterval, true},
-		{"running with static motion is fast", true, false, true, animationFastInterval, true},
-		{"running, blinking, static is fast", true, true, true, animationFastInterval, true},
-		{"only blinking is slow", false, true, false, animationBlinkInterval, true},
+		{"running alone runs the chain", true, false, false, animationBlinkInterval, true},
+		{"running and blinking runs the chain", true, true, false, animationBlinkInterval, true},
+		{"running with static motion runs the chain", true, false, true, animationBlinkInterval, true},
+		{"running, blinking, static runs the chain", true, true, true, animationBlinkInterval, true},
+		{"only blinking runs the chain", false, true, false, animationBlinkInterval, true},
 		{"blinking under static motion is none", false, true, true, 0, false},
 		{"nothing wanted is none", false, false, false, 0, false},
 		{"nothing wanted, static is none", false, false, true, 0, false},
@@ -56,9 +56,6 @@ func TestTheCadence(t *testing.T) {
 }
 
 func TestTheIntervalsMatchTheSpec(t *testing.T) {
-	if animationFastInterval != 100*time.Millisecond {
-		t.Errorf("fast interval = %v, want 100ms", animationFastInterval)
-	}
 	if animationBlinkInterval != 500*time.Millisecond {
 		t.Errorf("blink interval = %v, want 500ms", animationBlinkInterval)
 	}

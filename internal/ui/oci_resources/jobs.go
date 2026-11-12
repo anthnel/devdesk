@@ -42,24 +42,17 @@ func (m Model) handleJobsChanged(msg jobs.ChangedMsg) (tea.Model, tea.Cmd) {
 }
 
 // handleFrameMsg takes the blink phase of the activity column. Nothing is
-// rebuilt: the table reads the phase at render. The footer frame is the
-// router's only while no tab load is running: the view's own spinner owns it
-// then, and two writers would fight every frame.
+// rebuilt: the table reads the phase at render, and so does the footer's
+// activity dot. The view's own load spinner is a separate field.
 func (m Model) handleFrameMsg(msg jobs.FrameMsg) (tea.Model, tea.Cmd) {
 	m.imageTable.SetBlinkPhase(msg.Blink)
 	m.networkTable.SetBlinkPhase(msg.Blink)
 	m.volumeTable.SetBlinkPhase(msg.Blink)
 	m.registryTable.SetBlinkPhase(msg.Blink)
-	searching := false
 	if m.registryBrowser != nil {
 		m.registryBrowser.SetBlinkPhase(msg.Blink)
-		searching = m.registryBrowser.IsSearching()
 	}
-	// The footer frame is the router's only while neither a tab load nor a
-	// registry search runs: their own spinner owns it then.
-	if !m.loading && !m.loadingNets && !m.loadingVols && !m.loadingRegs && !searching {
-		m.footer.SetSpinnerFrame(msg.RenderedFrame)
-	}
+	m.footer.SetBlinkPhase(msg.Blink)
 	return m, nil
 }
 

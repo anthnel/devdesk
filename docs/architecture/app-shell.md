@@ -1140,9 +1140,9 @@ footer's height. A view built lazily on the way in was there for none of it, so
 every path that installs a view hands it the snapshot (`sendJobsTo`).
 
 **The animation travels in `jobs.FrameMsg`, to the view on screen only.** It
-carries `Frame` (bare, Rule 122: a table cell is measured before it is styled),
-`RenderedFrame` (styled, Rule 128: what a footer takes) and `Blink` (true is the
-"on" half). Only the router builds one (`frameMsg`, in `internal/app/animation.go`).
+carries `Blink` only (true is the "on" half): no router frame text exists any
+more, rows and footers draw the activity dot from the phase (DEVDESK-341).
+Only the router builds one (`frameMsg`, in `internal/app/animation.go`).
 Before DEVDESK-139 the frame rode in `ChangedMsg` and every tick made every held
 view rebuild its rows; now a tick touches one view. `enterView` (snapshot plus
 current frame) is called wherever a view takes the screen: `switchView`,
@@ -1165,7 +1165,7 @@ within one `Update`.
 
 | Need | Cadence |
 |---|---|
-| `jobs.Running() > 0` (footer spinners depend on the frame) | 100 ms (`spinner.Dot.FPS`) |
+| `jobs.Running() > 0` (the views refresh durations and the dot), `motionStatic` included | 500 ms |
 | the view on screen has nothing running but `WantsBlink()` (`BlinkingView`) | 500 ms |
 | the terminal is blurred (`terminalBlurred`), whatever the two above say | no chain |
 | neither, or `motionStatic` with no running work | no chain |
@@ -1177,14 +1177,12 @@ agent running, children loading). The router asks the view on screen after every
 
 - **Seq.** A tick of a chain that was replaced is dropped without a Cmd, so a
   second chain is impossible rather than merely unlikely.
-- **Faster need.** `ensureTick` replaces a slower live chain (`seq++`), never
-  adds a second.
-- **Slower need.** The live chain downgrades at its next renewal, without a new
-  seq. When no cadence is wanted it is not renewed and dies.
+- **One interval.** Every need runs at 500 ms, so a live chain is never replaced
+  when a job starts (`ensureTick` keeps a chain whose interval is `<=` the wanted
+  one). When no cadence is wanted it is not renewed and dies.
 - **Phase.** Read off the tick's own time, not a counter:
   `(t.UnixMilli()/500)%2 == 0` is on. Every view blinks in step whatever the
   interval the chain runs at (1 Hz).
-- **Frame.** Advances only while `Running() > 0`.
 - **At rest the phase is forced "on".** When the chain stops on an "off" phase,
   the router pins it on and sends one last `FrameMsg` to the view on screen: a
   settled row is left on a steady glyph, never a half-blinked one.
@@ -1302,21 +1300,42 @@ DevDesk never sees a blur. A terminal that is visible but not focused (a side
 pane) is treated as blurred: its animation and periodic reads stop, unless
 `app.when_unfocused` is `run`.
 
-#### A row dot or a loading spinner
+#### A row dot or a footer mark
 
 Two things move on screen, and they answer different questions:
 
 | | Says | Where | Driven by |
 |---|---|---|---|
-| activity dot (`●`/`○`) | an operation is running **on this row's target** | column 0 of a table (Rule 125) | the registry (`jobs`), or a `MarkBusy` key, read at render; blink phase from the shared tick |
-| loading spinner | **the view is fetching its data** (a list, a tab, a refresh) | the footer, `components.Status{Spinner: true}` (Rules 128, 139) | the view's own `spinner.Model`, which turns only while it loads |
+| activity dot (`●`/`○`) in a row | an operation is running **on this row's target** | column 0 of a table (Rule 125) | the registry (`jobs`), or a `MarkBusy` key, read at render; blink phase from the shared tick |
+| activity dot in the footer | **work the router tracks is running**, or the view is loading data it asked the router to animate (`WantsBlink()`) | the footer, `components.Status{Activity: true}` (Rules 128, 139) | the same shared tick: the view calls `footer.SetBlinkPhase(msg.Blink)` from its `jobs.FrameMsg` handler |
+| braille spinner in the footer | **the view is fetching its own data** (agent usage, containers, netdiag, OCI resources, security remediation, status, viewer) | the footer, `components.Status{Spinner: true}` | the view's own `spinner.Model`, which turns only while it loads |
 
-A view never draws a spinner in a row: the per-row spinner chains
-(`AdvanceSpinner`, `busyTick`, a node spinner) were deleted by the migrations
-(DEVDESK-139 to 153) and `StatusColumn` with them (DEVDESK-143). The loading
-spinner is the only animation left that a view owns; it stops on `!loading` and
-is not the router's chain. When the selected row has a footer detail with a
-glyph, the footer spinner is not shown: the row's dot already moves.
+The footer dot has the glyph and colour of the row dots (`indicator.Running`),
+and `Activity` wins over `Spinner`. A view never draws a spinner in a row: the
+per-row spinner chains (`AdvanceSpinner`, `busyTick`, a node spinner) were
+deleted by the migrations (DEVDESK-139 to 153) and `StatusColumn` with them
+(DEVDESK-143). When the selected row has a footer detail with a glyph, the
+footer shows neither the dot nor a spinner: the row's dot already moves.
+
+The router arms its chain for a footer dot through `jobs.Running() > 0` or
+through `WantsBlink()` on the view on screen. A view whose `Activity` status
+does not come from a job (the forge explorer's load lines) must implement
+`WantsBlink()`, returning `status().Activity`; without it the dot stays fixed on
+`●`. Under `app.motion: static` a blink-only need starts no chain, so that dot
+is steady.
+
+**Guards** (`internal/app/footer_activity_test.go`, `activity_guard_test.go`):
+
+- `TestActivityGuardFooterHasNoBraille`: each view seeded in
+  `footerActivitySeeds` (dashboard, `:jobs`, workspaces, templates, `:sec`, OCI,
+  explorer) renders a footer with no braille character and exactly one `●`.
+- `TestActivityGuardFrameConsumersAreClassified`: every package under
+  `internal/ui` with a `case jobs.FrameMsg` is in `footerFrameConsumers`, either
+  with its seeded view (the footer shows the dot) or with a reason it keeps its
+  own spinner (netdiag, containers, agentusageview). A new consumer fails until
+  it is classified.
+- `TestActivityGuardNoFrameFieldAnywhere`: no identifier named `RenderedFrame`
+  under `internal/` (the field no longer exists).
 
 #### Row chains outside the router
 
@@ -1338,11 +1357,14 @@ counts the bytes Bubble Tea's renderer writes to an `io.Writer` on a simulated
 | no animated row | 0 B/s |
 | 1 row blinking at 1 Hz | 376 B/s |
 | 20 rows blinking at 1 Hz | 5 809 B/s |
-| reference: spinner at 10 Hz, 1 row | 1 880 B/s |
-| reference: spinner at 10 Hz, 20 rows | 29 049 B/s |
+| reference: spinner at 10 Hz, 1 row (historical) | 1 880 B/s |
+| reference: spinner at 10 Hz, 20 rows (historical) | 29 049 B/s |
 
-Nothing animated costs nothing, and a 1 Hz blink costs about a fifth of the
-10 Hz spinner it sits beside.
+The two "spinner at 10 Hz" lines are historical measurements: the router no
+longer runs a 10 Hz chain (DEVDESK-341) and the spinner mode of
+`TestMeasureRedrawCost` was removed, so they cannot be reproduced. Nothing
+animated costs nothing, and a 1 Hz blink costs about a fifth of the 10 Hz
+spinner it was measured against.
 
 
 ### The `:jobs` view — `internal/ui/jobsview`
@@ -1374,13 +1396,12 @@ green, and queued, cancelled and skipped now share that neutral colour.
 
 **The blink phase is read at render.** The rows carry nothing animated:
 `runRow`/`itemRow` wrap the record only. `jobs.FrameMsg` calls
-`SetBlinkPhase(msg.Blink)` on both tables and pushes the footer spinner frame;
-no row is rebuilt (`SetItems` stays the only way rows are rebuilt, from
+`SetBlinkPhase(msg.Blink)` on both tables and the footer; no row is rebuilt (`SetItems` stays the only way rows are rebuilt, from
 `ChangedMsg`). A queued run no longer spins: it shows a fixed `◴`.
 
 **The footer says the selected row.** `status()` fills `Status.Detail` with
 `components.DescribeRun` (or `DescribeItem` at the target level) of the row
-under the cursor, and keeps `N jobs running` as the text. The footer spinner is
+under the cursor, and keeps `N jobs running` as the text. The footer dot is
 shown only when no detail is, since the row's own dot moves. A `Warn` (a refused
 `K` or `.`) keeps priority over the detail and the detail returns when it
 expires. The help ends with `indicator.Legend(indicator.JobsLegend...)`.
@@ -1478,7 +1499,7 @@ no `Search`); `RenderedWidth()` equals `width-2` after a 60-column resize
 
 **Checked by source analysis**, on migrated packages only (`ui/jobsview/`, `ui/workspaces/`, `ui/security/`): no
 `AdvanceSpinner` call, no `StatusColumn:` key, no `Frame`/`frame`/`SpinnerFrame`
-field or selector (`RenderedFrame` is allowed), no string or rune literal
+field or selector (`RenderedFrame` is banned too, everywhere under `internal/`: `TestActivityGuardNoFrameFieldAnywhere`), no string or rune literal
 holding an indicator glyph. Verified to fail on a positive case by injecting a `Frame`
 field, an `AdvanceSpinner` call and a `"◉"` literal into `jobsview`.
 

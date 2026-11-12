@@ -6,6 +6,8 @@ import (
 	"testing"
 
 	"github.com/anthnel/devdesk/internal/jobs"
+	"github.com/anthnel/devdesk/internal/ui/indicator"
+	"github.com/charmbracelet/x/ansi"
 )
 
 // ── DEVDESK-145: a frame sets the blink phase, nothing else ──────────────────
@@ -52,10 +54,10 @@ func TestAFrameChangesTheGlyphNotTheItems(t *testing.T) {
 func TestAFrameNeverReachesTheTableCells(t *testing.T) {
 	m := inventoryModel(t, inventoryFixtures()...)
 	m = withJobs(t, m, scanningRun("nexus/api:1.4"))
-	m = feed(t, m, jobs.FrameMsg{Frame: "ZZ", RenderedFrame: "FOOTERFRAME", Blink: true})
+	m = feed(t, m, jobs.FrameMsg{Blink: true})
 
-	if strings.Contains(m.Render(), "ZZ") {
-		t.Error("the bare frame still reaches the table")
+	if hasBraille(m.Render()) {
+		t.Error("a spinner frame reaches the table")
 	}
 }
 
@@ -74,14 +76,16 @@ func TestTheModelHoldsNoRowSpinnerState(t *testing.T) {
 	}
 }
 
-// The router's frame still feeds the footer spinner when the view has no chain
-// of its own running.
-func TestAFrameStillFeedsTheFooterSpinnerWhenTheViewHasNoChain(t *testing.T) {
-	m := inventoryModel(t, inventoryFixtures()...)
-	m = withJobs(t, m, scanningRun("nexus/api:1.4"))
-	m = feed(t, m, jobs.FrameMsg{Frame: "ZZ", RenderedFrame: "FOOTERFRAME", Blink: true})
+// The router's blink phase feeds the footer dot when the view has no chain of
+// its own running; the rendered frame no longer reaches the footer.
+func TestAFrameStillFeedsTheFooterDotWhenTheViewHasNoChain(t *testing.T) {
+	// The cursor sits on an idle row (see idleRowDuringBatch): no detail glyph
+	// takes the footer dot's place, so the hollow dot must be there.
+	m := idleRowDuringBatch(t)
+	m = feed(t, m, jobs.FrameMsg{Blink: false})
 
-	if !strings.Contains(m.RenderFooter(120), "FOOTERFRAME") {
-		t.Skip("the footer shows no spinner for this state; the table side is asserted above")
+	footer := m.RenderFooter(200)
+	if !strings.Contains(footer, indicator.Glyph(indicator.Running, false)) {
+		t.Errorf("the footer shows no hollow dot on an idle row during a batch: %q", ansi.Strip(footer))
 	}
 }

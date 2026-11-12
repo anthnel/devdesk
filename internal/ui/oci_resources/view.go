@@ -120,8 +120,8 @@ func (m Model) status() sharedcomponents.Status {
 	if st.Text == "" {
 		st.Text = m.inlineSecretLine()
 	}
-	// Only a detail whose dot moves replaces the spinner; a failed row's is fixed.
-	st.Spinner = len(jobs.Unfinished(m.jobs)) > 0 && (!moving || st.Detail.IsZero())
+	// Only a detail whose dot moves replaces the dot; a failed row's is fixed.
+	st.Activity = len(jobs.Unfinished(m.jobs)) > 0 && (!moving || st.Detail.IsZero())
 	return st
 }
 

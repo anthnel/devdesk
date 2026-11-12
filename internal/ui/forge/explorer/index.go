@@ -167,7 +167,7 @@ func (m *Model) refreshLevel(parent *TreeNode) tea.Cmd {
 		load = m.loadChildren(parent)
 	}
 	m.refreshing++
-	return tea.Batch(m.spinner.Tick, load)
+	return load
 }
 
 // levelChanged records that the forge confirmed a create or a delete in the

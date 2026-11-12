@@ -37,7 +37,7 @@ func (m Model) handleDrillDown() (tea.Model, tea.Cmd) {
 			node.Blocking = true
 			m.loading = true
 			m.updateTableRows()
-			return m, tea.Batch(m.spinner.Tick, m.loadChildren(node))
+			return m, m.loadChildren(node)
 		}
 	}
 	m.updateTableRows()
@@ -130,7 +130,7 @@ func (m Model) handleRefresh() (tea.Model, tea.Cmd) {
 	// line through the refresh, and SetItems(nil) would blank it for the length
 	// of the reload.
 	m.updateTableRows()
-	return m, tea.Batch(walk, m.spinner.Tick, m.loadRootGroups())
+	return m, tea.Batch(walk, m.loadRootGroups())
 }
 
 // handleChildrenLoaded handles ChildrenLoadedMsg

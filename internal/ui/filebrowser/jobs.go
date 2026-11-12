@@ -37,12 +37,6 @@ func (m Model) handleJobsChanged(msg jobs.ChangedMsg) (tea.Model, tea.Cmd) {
 	return m, nil
 }
 
-// handleFrameMsg takes the animation's frame for the footer spinner.
-func (m Model) handleFrameMsg(msg jobs.FrameMsg) (tea.Model, tea.Cmd) {
-	m.footer.SetSpinnerFrame(msg.RenderedFrame)
-	return m, nil
-}
-
 // Transition applies a delete's outcome to the registry.
 func (m EntryDeletedMsg) Transition() jobs.Transition {
 	t := jobs.Transition{Kind: jobs.KindDelete, Target: m.Path, State: jobs.ItemDone}
