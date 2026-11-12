@@ -435,9 +435,8 @@ func fetchDockerHubTagsMeta(namespace, repo string) (map[string]time.Time, error
 func loadMultiRegistryTagsMetaCmd(gen uint64, entryKey, registryURL, repo string) tea.Cmd {
 	return func() tea.Msg {
 		empty := MultiRegistryTagsMetaMsg{Gen: gen, EntryKey: entryKey, RegistryURL: registryURL, Repo: repo}
-		base := strings.ToLower(strings.TrimSuffix(registryURL, "/"))
-		isDockerhub := base == "docker.io" || base == "registry-1.docker.io"
-		if !isDockerhub {
+		// isDockerHub accepts a scheme, a trailing slash and either Hub host.
+		if !isDockerHub(registryURL) {
 			return empty
 		}
 		parts := strings.SplitN(repo, "/", 2)
