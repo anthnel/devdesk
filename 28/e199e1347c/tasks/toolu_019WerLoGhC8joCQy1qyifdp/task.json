@@ -1,0 +1,15 @@
+{
+  "tool_use_id": "toolu_019WerLoGhC8joCQy1qyifdp",
+  "agent_id": "ad1cb0a37582c4285",
+  "subagent_type": "dev-team:devops",
+  "task_description": "Merge PR 370 et clôture Plane",
+  "token_usage": {
+    "input_tokens": 10,
+    "cache_creation_tokens": 42608,
+    "cache_read_tokens": 146851,
+    "output_tokens": 1745,
+    "api_call_count": 5
+  },
+  "started_at": "2026-11-12T08:35:42.576646096+01:00",
+  "completed_at": "2026-11-12T08:36:15.59626248+01:00"
+}

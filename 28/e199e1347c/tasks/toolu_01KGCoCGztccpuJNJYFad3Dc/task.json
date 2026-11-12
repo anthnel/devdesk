@@ -1,0 +1,15 @@
+{
+  "tool_use_id": "toolu_01KGCoCGztccpuJNJYFad3Dc",
+  "agent_id": "a2a71a5eaf2c40850",
+  "subagent_type": "dev-team:devops",
+  "task_description": "Nettoyage worktree et main",
+  "token_usage": {
+    "input_tokens": 10,
+    "cache_creation_tokens": 38438,
+    "cache_read_tokens": 139333,
+    "output_tokens": 2370,
+    "api_call_count": 5
+  },
+  "started_at": "2026-11-12T08:43:59.105432397+01:00",
+  "completed_at": "2026-11-12T08:44:31.224281862+01:00"
+}
