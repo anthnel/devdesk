@@ -94,6 +94,10 @@ func (b *RegistryBrowser) startImageSearch(query string, entries []browserRegist
 	for i, entry := range entries {
 		b.searchKeys[i] = entry.key
 	}
+	// A new search starts from the default order and without the previous
+	// confirmed `/` filter (DEVDESK-309).
+	b.searchTable.FilterBar().ClearSearch()
+	b.searchTable.SetSort(-1, false)
 	b.searchTable.SetItems(nil)
 
 	cmds := make([]tea.Cmd, 0, len(entries))

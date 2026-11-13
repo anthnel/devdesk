@@ -26,3 +26,25 @@ func sortSearchRows(query string, rows []searchRow) {
 		)
 	})
 }
+
+// lessSearchName orders by lower-cased name; names equal ignoring case tie.
+func lessSearchName(a, b searchRow) bool {
+	return strings.ToLower(a.img.Name) < strings.ToLower(b.img.Name)
+}
+
+// lessSearchRegistry orders by lower-cased registry label.
+func lessSearchRegistry(a, b searchRow) bool {
+	return strings.ToLower(a.label) < strings.ToLower(b.label)
+}
+
+// lessSearchStars orders by starsKey: no stars, then zero, then the count.
+func lessSearchStars(a, b searchRow) bool { return starsKey(a) < starsKey(b) }
+
+// starsKey is -1 when the registry reports no stars, so those rows stay in one
+// block apart from an image that has zero stars.
+func starsKey(r searchRow) int {
+	if !r.img.HasStars {
+		return -1
+	}
+	return r.img.Stars
+}

@@ -484,20 +484,31 @@ the `IconRoleImage` role), Name (flex, searchable), Registry, Stars (empty when
 `HasStars` is false), Official (`official` or empty) and Description
 (searchable). All cells are plain text (Rule 122). When the terminal narrows,
 Description, then Stars, then Official leave whole (`Optional`, with
-`DropFirst` on Description and Stars); at 60 columns only the activity column,
+`DropFirst` on Description and Stars). Stars reserves 7 cells (title plus sort arrow). On Docker Hub rows this makes Description and Stars each leave one cell later than before DEVDESK-309 (Description at 92 columns instead of 91, Stars at 70 instead of 69). Official does not move (61), because Stars is already gone when Official leaves (`TestSearchColumnsLeaveAtTheMeasuredWidths`, `hubRows` fixture). At 60 columns only the activity column,
 Name and Registry remain, and the line spans width-2 at every width (Rule 116). Results are
 ordered by `sortSearchRows` (`browser_images_order.go`), a pure function of the
 rows and the typed name (`RegistryBrowser.searchQuery`, set by
 `startImageSearch`), so the order never depends on which registry answered
 first. Ranks (`imagesearch.MatchTier`, case-insensitive): 0 name equals the query, 1 last
 path segment equals it, 2 last segment starts with it, 3 name contains it, 4 no
-match; then name, registry alias, `EntryKey` and `Repo`. Stars play no part. The
+match; then name, registry alias, `EntryKey` and `Repo`. Stars play no part in this default order; they serve the
+`.` sort below. The
 cursor follows the selected row by `EntryKey` + `Repo`, never by index:
 `rebuildSearchTable` remembers the selection before `SetItems` and puts the
 cursor back with `SetCursor` (all in `Update()`, `datatable` untouched). With
 nothing selected (empty table, so also a new search, which starts from
 `SetItems(nil)`) the cursor goes to the first row received; a row that
-disappears leaves the cursor where it is. Rule 139: an empty table keeps its
+disappears leaves the cursor where it is. **Sort (DEVDESK-309, IS-05).** `.` calls `cycleSearchSort`, which advances
+`datatable.CycleSort`: Name ▲, Name ▼, Registry ▲, Registry ▼, Stars ▼ (Stars
+opens descending, `DescFirst`), Stars ▲, then back to the default order above.
+Name compares lower-cased, Registry on its lower-cased label (`Less` on each
+column); ties keep the default order. `starsKey` gives rows without stars
+(`HasStars` false, private registries) one contiguous block, last in ▼ and first
+in ▲, apart from an image with zero stars. The cursor follows the selected row
+by `EntryKey` + `Repo` (`reselect`, shared with `rebuildSearchTable`). A new
+search (`startImageSearch`) resets the sort and clears a confirmed `/` filter.
+`.` typed in the open filter bar stays a character of the field.
+Rule 139: an empty table keeps its
 header. The header reads `Images: <visible rows>`, the title carries the typed
 name (`... > Registry Browser > <name>`) at level 1 (once `→` opens a row, the
 title carries that row's name, see below), and the footer shows the shared

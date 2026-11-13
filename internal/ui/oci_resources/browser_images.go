@@ -42,6 +42,13 @@ func searchRowReference(registryURL string, img imagesearch.Image) string {
 	return host + "/" + img.Repo
 }
 
+// Column indexes of the level 1 table that can be sorted by (DEVDESK-309).
+const (
+	searchColName     = 1
+	searchColRegistry = 2
+	searchColStars    = 3
+)
+
 // searchColumns describes the level 1 table. Stars, Official and Description
 // leave whole when the terminal narrows, in that reverse order (Description,
 // Stars, Official), through Optional and DropFirst: drop() takes the rightmost
@@ -57,13 +64,16 @@ func searchColumns() []datatable.Column[searchRow] {
 			Title: "Name", Sizing: datatable.SizingContent, MinWidth: 24, Flex: 1,
 			Cell:   func(r searchRow) string { return r.img.Name },
 			Search: func(r searchRow) string { return r.img.Name },
+			Less:   lessSearchName,
 		},
 		{
 			Title: "Registry", Sizing: datatable.SizingContent, MinWidth: 16,
 			Cell: func(r searchRow) string { return r.label },
+			Less: lessSearchRegistry,
 		},
 		{
-			Title: "Stars", Sizing: datatable.SizingFixed, Optional: true, DropFirst: true, MinWidth: 6,
+			Title: "Stars", Sizing: datatable.SizingFixed, Optional: true, DropFirst: true, MinWidth: 7,
+			Less: lessSearchStars, DescFirst: true,
 			Cell: func(r searchRow) string {
 				if !r.img.HasStars {
 					return ""
@@ -110,23 +120,37 @@ func (b *RegistryBrowser) rebuildSearchTable() {
 		rows[i] = searchRow{img: img, label: label, ref: ref}
 	}
 	sortSearchRows(b.searchQuery, rows)
-	// The cursor follows the selected row by (EntryKey, Repo), not by index:
-	// rows of another registry land before or after it. Nothing selected (an
-	// empty table, so also a new search) goes to the first row, because an
-	// empty table keeps its old cursor index; a vanished row stays put.
+	// Nothing selected (an empty table, so also a new search) goes to the
+	// first row, because an empty table keeps its old cursor index.
 	prev, hadSel := b.searchTable.Selected()
 	b.searchTable.SetItems(rows)
-	if !hadSel {
+	b.reselect(prev, hadSel)
+	b.resizeTables()
+}
+
+// reselect puts the cursor back on the row prev, by (EntryKey, Repo) and not by
+// index: rows of another registry land before or after it, and a sort moves it.
+// Without a previous selection the cursor goes to the first row; a vanished row
+// leaves the cursor where it is.
+func (b *RegistryBrowser) reselect(prev searchRow, had bool) {
+	if !had {
 		b.searchTable.GotoTop()
-	} else {
-		for i, r := range b.searchTable.Visible() {
-			if r.img.EntryKey == prev.img.EntryKey && r.img.Repo == prev.img.Repo {
-				b.searchTable.SetCursor(i)
-				break
-			}
+		return
+	}
+	for i, r := range b.searchTable.Visible() {
+		if r.img.EntryKey == prev.img.EntryKey && r.img.Repo == prev.img.Repo {
+			b.searchTable.SetCursor(i)
+			return
 		}
 	}
-	b.resizeTables()
+}
+
+// cycleSearchSort advances the level 1 sort (`.`); the cursor follows the row
+// it was on (DEVDESK-309).
+func (b *RegistryBrowser) cycleSearchSort() {
+	prev, had := b.searchTable.Selected()
+	b.searchTable.CycleSort()
+	b.reselect(prev, had)
 }
 
 // AddImageResults takes one registry's answer. It returns false, touching
@@ -166,12 +190,18 @@ func (b *RegistryBrowser) handleImagesKeyMsg(msg tea.KeyPressMsg) (*RegistryBrow
 		return b, b.searchTable.Update(msg)
 	}
 	switch msg.String() {
+	case ".":
+		b.cycleSearchSort()
+		return b, nil
 	case "right":
 		return b.openSelectedImageTags()
 	case "esc":
 		if bar := b.searchTable.FilterBar(); bar.SearchQuery() != "" {
+			// The cursor stays on the selected row once the filter is gone.
+			prev, had := b.searchTable.Selected()
 			bar.ClearSearch()
 			b.searchTable.SetItems(b.searchTable.Items())
+			b.reselect(prev, had)
 			return b, nil
 		}
 		return b.backToForm()
