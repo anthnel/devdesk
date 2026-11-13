@@ -240,7 +240,7 @@ func TestLevelOneEnterDoesNothing(t *testing.T) {
 func TestLevelOneShortcuts(t *testing.T) {
 	m := lvl1ImagesModel(t)
 	sc := m.GetShortcuts()
-	for _, key := range []string{"→", "/", "esc"} {
+	for _, key := range []string{"→", "/", ".", "esc"} {
 		if !testutil.HasShortcut(sc, key) {
 			t.Errorf("level 1 lacks the %q shortcut", key)
 		}
@@ -248,10 +248,17 @@ func TestLevelOneShortcuts(t *testing.T) {
 			t.Errorf("%q is greyed at level 1", key)
 		}
 	}
-	for _, key := range []string{"enter", ".", "r"} {
+	for _, key := range []string{"enter", "r"} {
 		if testutil.HasShortcut(sc, key) {
 			t.Errorf("level 1 advertises %q", key)
 		}
+	}
+
+	if got, want := testutil.ShortcutKeys(sc), []string{"→", "/", ".", "esc"}; !slices.Equal(got, want) {
+		t.Errorf("level 1 keys = %v, want %v (Sort between / and esc)", got, want)
+	}
+	if !slices.ContainsFunc(sc, func(s shortcut.Shortcut) bool { return s.Key == "." && s.Description == "Sort" }) {
+		t.Error(`level 1 lacks {Key: ".", Description: "Sort"}`)
 	}
 
 	m = feed(t, m, testutil.Key("/"))
@@ -296,6 +303,20 @@ func TestLevelOneHelpListsItsKeysAndTheLegend(t *testing.T) {
 	for _, want := range []string{"→ (Browser images)", "/ (Browser images)", "esc (Browser images)"} {
 		if !keys[want] {
 			t.Errorf("help lacks the %q binding", want)
+		}
+	}
+	if !keys[". (Browser images)"] {
+		t.Error("help lacks the \". (Browser images)\" binding")
+	}
+	for _, kb := range c.KeyBindings {
+		if kb.Key != ". (Browser images)" {
+			continue
+		}
+		d := strings.ToLower(kb.Description)
+		for _, w := range []string{"cycle", "sort", "name", "registry", "stars", "most first", "each way", "default order"} {
+			if !strings.Contains(d, w) {
+				t.Errorf("help text for . lacks %q: %q", w, kb.Description)
+			}
 		}
 	}
 	if keys["enter (Browser images)"] {

@@ -360,7 +360,7 @@ func (m Model) GetShortcuts() shortcut.Shortcuts {
 				{Key: "esc", Description: "Go back"},
 			}
 		case browserStateImages:
-			// No enter (a row has no action yet), no sort: the set of keys never
+			// No enter (a row has no action yet): the set of keys never
 			// depends on the rows, → is greyed without one (Rule 130).
 			if m.registryBrowser.searchTable.InEditMode() {
 				return []shortcut.Shortcut{
@@ -376,6 +376,7 @@ func (m Model) GetShortcuts() shortcut.Shortcuts {
 			return []shortcut.Shortcut{
 				{Key: "→", Description: "Open tags", Disabled: !m.registryBrowser.imageDrillIn().Enabled()},
 				{Key: "/", Description: "Filter"},
+				{Key: ".", Description: "Sort"},
 				{Key: "esc", Description: escLabel},
 			}
 		default: // browserStateInput
@@ -612,6 +613,7 @@ func (m Model) GetHelpContent() help.Content {
 			{Key: "→ (Browser images)", Description: "Open the tags of the selected image, on its registry only"},
 			{Key: "/ (Browser images)", Description: "Filter the images a registry search found, by name"},
 			{Key: "Header (Browser images)", Description: "Below the image count, one line per kind of registry that has something to report: Pending (still searching), Interrupted (search stopped before it answered), Failed (error), Refused (does not support image search), Partial (answer cut at a cap), Cached only (Nexus group or group member: the list is limited to cached content; \"(no result)\" means nothing in the cache), No result (answered with nothing), Skipped (catalog not browsed for a one-character query). A long list ends with +N"},
+			{Key: ". (Browser images)", Description: "Cycle the sort: Name, Registry, Stars (most first), each way, then the default order"},
 			{Key: "esc (Browser images)", Description: "Close the filter bar, then clear the confirmed filter, then go back to the search form"},
 			{Key: "↑/k", Description: "Move selection up"},
 			{Key: "↓/j", Description: "Move selection down"},
