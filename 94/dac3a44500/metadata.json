@@ -1,0 +1,47 @@
+{
+  "cli_version": "0.13.2",
+  "checkpoint_id": "94dac3a44500",
+  "strategy": "manual-commit",
+  "branch": "main",
+  "checkpoints_count": 1,
+  "files_touched": [
+    "internal/oci/registry_context_test.go"
+  ],
+  "sessions": [
+    {
+      "metadata": "/94/dac3a44500/0/metadata.json",
+      "transcript": "/94/dac3a44500/0/full.jsonl",
+      "compact_transcript": "/94/dac3a44500/0/transcript.jsonl",
+      "content_hash": "/94/dac3a44500/0/content_hash.txt",
+      "prompt": "/94/dac3a44500/0/prompt.txt"
+    }
+  ],
+  "token_usage": {
+    "input_tokens": 14,
+    "cache_creation_tokens": 8766,
+    "cache_read_tokens": 1421627,
+    "output_tokens": 4037,
+    "api_call_count": 6,
+    "subagent_tokens": {
+      "input_tokens": 28,
+      "cache_creation_tokens": 25423,
+      "cache_read_tokens": 620605,
+      "output_tokens": 4004,
+      "api_call_count": 14
+    }
+  },
+  "redaction": {
+    "replacements": 1,
+    "layers": {
+      "betterleaks": 0,
+      "connection_string": 0,
+      "credential_key": 0,
+      "credential_value": 0,
+      "credentialed_uri": 0,
+      "entropy": 10,
+      "key_context": 0,
+      "provider_token": 0,
+      "shell_stdin": 0
+    }
+  }
+}
