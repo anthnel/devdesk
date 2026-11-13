@@ -232,6 +232,11 @@ type RegistryBrowser struct {
 	// Results state
 	tags            []MultiRegistryTag
 	pendingSearches int
+	// tagsFromSearch records that the current tag table was opened from level 1
+	// rather than from the form; written only by startTagRequests.
+	tagsFromSearch bool
+	// tagsImage names the opened level 1 row for the title; empty otherwise.
+	tagsImage string
 	// searchQuery is the name typed for the level 1 search; it fixes the order.
 	searchQuery string
 	// gen names the lot of requests whose answers the browser takes, and cancel

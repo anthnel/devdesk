@@ -15,6 +15,7 @@ import (
 	"github.com/anthnel/devdesk/internal/oci"
 	"github.com/anthnel/devdesk/internal/ui/datatable"
 	"github.com/anthnel/devdesk/internal/ui/indicator"
+	"github.com/anthnel/devdesk/internal/ui/shortcut"
 	"github.com/anthnel/devdesk/internal/ui/theme"
 )
 
@@ -156,12 +157,14 @@ func (b *RegistryBrowser) AddImageResults(msg ImageSearchResultMsg) bool {
 // cancels the lot and goes back to the form (which keeps the typed name and
 // the selection). The lot's late answers are no longer wanted and are dropped
 // (TestEscAtLevelOneCancelsTheLotAndIgnoresItsLateAnswers). enter does
-// nothing: a row has no action yet.
+// nothing: a row has no action yet; → opens the row's tags.
 func (b *RegistryBrowser) handleImagesKeyMsg(msg tea.KeyPressMsg) (*RegistryBrowser, tea.Cmd) {
 	if b.searchTable.InEditMode() {
 		return b, b.searchTable.Update(msg)
 	}
 	switch msg.String() {
+	case "right":
+		return b.openSelectedImageTags()
 	case "esc":
 		if bar := b.searchTable.FilterBar(); bar.SearchQuery() != "" {
 			bar.ClearSearch()
@@ -214,4 +217,43 @@ func searchErrorCause(err error) string {
 // handleRegistryBrowserWarn shows the browser's warning in the footer.
 func (m Model) handleRegistryBrowserWarn(msg RegistryBrowserWarnMsg) (tea.Model, tea.Cmd) {
 	return m, m.footer.Warn(strings.TrimSpace(msg.Text))
+}
+
+// tagsLoadFailedText is the footer text of a failed tag listing opened by →.
+const tagsLoadFailedText = "Could not load tags"
+
+// selectedImage returns the level 1 row under the cursor with its registry
+// entry; false when there is no row or the entry is no longer known.
+func (b *RegistryBrowser) selectedImage() (searchRow, *browserRegistryEntry, bool) {
+	row, ok := b.searchTable.Selected()
+	if !ok {
+		return searchRow{}, nil, false
+	}
+	entry := b.entryFor(row.img.EntryKey)
+	return row, entry, entry != nil
+}
+
+// imageDrillIn reports whether → has an image to open: a row under the cursor
+// whose registry entry is still known. One computation for the header and the
+// handler (Rule 130).
+func (b *RegistryBrowser) imageDrillIn() shortcut.Availability {
+	if _, _, ok := b.selectedImage(); !ok {
+		return shortcut.Unavailable(reasonNoImage)
+	}
+	return shortcut.Availability{}
+}
+
+// openSelectedImageTags lists the tags of the selected level 1 row, on that
+// row's registry only, with the row's final repository as is (no prefix, no
+// library/ added again). Without a row it changes nothing and warns. A level 1
+// search still running is cancelled: the browser has one lot at a time.
+func (b *RegistryBrowser) openSelectedImageTags() (*RegistryBrowser, tea.Cmd) {
+	if av := b.imageDrillIn(); !av.Enabled() {
+		reason := av.Reason
+		return b, func() tea.Msg { return RegistryBrowserWarnMsg{Text: reason} }
+	}
+	row, entry, _ := b.selectedImage()
+	b, cmd := b.startTagRequests([]tagRequest{b.newTagRequest(*entry, row.img.Repo)}, true)
+	b.tagsImage = row.img.Name
+	return b, cmd
 }
