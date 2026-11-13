@@ -1,0 +1,47 @@
+{
+  "cli_version": "0.13.1",
+  "checkpoint_id": "3519a0cf87d4",
+  "strategy": "manual-commit",
+  "branch": "feat/DEVDESK-301-hub-image-search",
+  "checkpoints_count": 1,
+  "files_touched": [
+    "internal/ui/oci_resources/hub_tags_meta_test.go"
+  ],
+  "sessions": [
+    {
+      "metadata": "/35/19a0cf87d4/0/metadata.json",
+      "transcript": "/35/19a0cf87d4/0/full.jsonl",
+      "compact_transcript": "/35/19a0cf87d4/0/transcript.jsonl",
+      "content_hash": "/35/19a0cf87d4/0/content_hash.txt",
+      "prompt": "/35/19a0cf87d4/0/prompt.txt"
+    }
+  ],
+  "token_usage": {
+    "input_tokens": 8,
+    "cache_creation_tokens": 218639,
+    "cache_read_tokens": 425738,
+    "output_tokens": 1489,
+    "api_call_count": 3,
+    "subagent_tokens": {
+      "input_tokens": 56,
+      "cache_creation_tokens": 19954,
+      "cache_read_tokens": 1382049,
+      "output_tokens": 6475,
+      "api_call_count": 28
+    }
+  },
+  "redaction": {
+    "replacements": 0,
+    "layers": {
+      "betterleaks": 0,
+      "connection_string": 0,
+      "credential_key": 0,
+      "credential_value": 0,
+      "credentialed_uri": 0,
+      "entropy": 0,
+      "key_context": 0,
+      "provider_token": 0,
+      "shell_stdin": 0
+    }
+  }
+}
