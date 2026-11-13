@@ -1,0 +1,15 @@
+{
+  "tool_use_id": "toolu_01QYVuUfyWKLTPnQioGCvKRj",
+  "agent_id": "ab9a9294b57b55dcb",
+  "subagent_type": "team-core:tech-writer",
+  "task_description": "Docs for DEVDESK-307",
+  "token_usage": {
+    "input_tokens": 10,
+    "cache_creation_tokens": 35608,
+    "cache_read_tokens": 106912,
+    "output_tokens": 3246,
+    "api_call_count": 5
+  },
+  "started_at": "2026-11-13T13:11:48.585005773+01:00",
+  "completed_at": "2026-11-13T13:12:13.774084519+01:00"
+}

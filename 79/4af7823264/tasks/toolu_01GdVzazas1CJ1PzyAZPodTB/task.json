@@ -1,0 +1,15 @@
+{
+  "tool_use_id": "toolu_01GdVzazas1CJ1PzyAZPodTB",
+  "agent_id": "a56784fc2580712c1",
+  "subagent_type": "project-coder",
+  "task_description": "Fix review points DEVDESK-307",
+  "token_usage": {
+    "input_tokens": 10,
+    "cache_creation_tokens": 21275,
+    "cache_read_tokens": 99703,
+    "output_tokens": 2281,
+    "api_call_count": 5
+  },
+  "started_at": "2026-11-13T13:13:25.336169171+01:00",
+  "completed_at": "2026-11-13T13:13:58.250355294+01:00"
+}
