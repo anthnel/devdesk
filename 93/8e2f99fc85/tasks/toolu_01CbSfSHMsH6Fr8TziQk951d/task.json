@@ -1,0 +1,15 @@
+{
+  "tool_use_id": "toolu_01CbSfSHMsH6Fr8TziQk951d",
+  "agent_id": "a1651870e9767edea",
+  "subagent_type": "dev-team:reviewer",
+  "task_description": "Review DEVDESK-309 whole PR",
+  "token_usage": {
+    "input_tokens": 28,
+    "cache_creation_tokens": 115631,
+    "cache_read_tokens": 1071865,
+    "output_tokens": 10780,
+    "api_call_count": 13
+  },
+  "started_at": "2026-11-13T18:30:35.661979323+01:00",
+  "completed_at": "2026-11-13T18:32:22.829422117+01:00"
+}
