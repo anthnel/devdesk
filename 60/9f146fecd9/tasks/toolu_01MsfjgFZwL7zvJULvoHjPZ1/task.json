@@ -1,0 +1,15 @@
+{
+  "tool_use_id": "toolu_01MsfjgFZwL7zvJULvoHjPZ1",
+  "agent_id": "a442c9f7aeeb6c449",
+  "subagent_type": "project-coder",
+  "task_description": "Corrections revue DEVDESK-303",
+  "token_usage": {
+    "input_tokens": 12,
+    "cache_creation_tokens": 22089,
+    "cache_read_tokens": 127500,
+    "output_tokens": 2585,
+    "api_call_count": 6
+  },
+  "started_at": "2026-11-13T14:30:08.169338398+01:00",
+  "completed_at": "2026-11-13T14:33:30.122658434+01:00"
+}

@@ -1,0 +1,20 @@
+{
+  "tool_use_id": "toolu_01VfEbHriXj3UCGKmn843XLK",
+  "agent_id": "aa29b1ad25fde4f8e",
+  "subagent_type": "team-core:archivist",
+  "task_description": "Docs et décision D134 DEVDESK-303",
+  "files": [
+    "docs/architecture/network.md",
+    "docs/architecture/registries.md",
+    "docs/backlog.md"
+  ],
+  "token_usage": {
+    "input_tokens": 24,
+    "cache_creation_tokens": 85394,
+    "cache_read_tokens": 604034,
+    "output_tokens": 11791,
+    "api_call_count": 11
+  },
+  "started_at": "2026-11-13T14:33:36.630484455+01:00",
+  "completed_at": "2026-11-13T14:34:38.454406538+01:00"
+}

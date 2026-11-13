@@ -1,0 +1,15 @@
+{
+  "tool_use_id": "toolu_01XXHexzE1LbsedM9AAA2fMC",
+  "agent_id": "a03a8f211f81b1ea8",
+  "subagent_type": "project-coder",
+  "task_description": "Vert étape 4 DEVDESK-303",
+  "token_usage": {
+    "input_tokens": 14,
+    "cache_creation_tokens": 26762,
+    "cache_read_tokens": 173746,
+    "output_tokens": 3334,
+    "api_call_count": 7
+  },
+  "started_at": "2026-11-13T14:22:28.373862119+01:00",
+  "completed_at": "2026-11-13T14:26:50.196014213+01:00"
+}

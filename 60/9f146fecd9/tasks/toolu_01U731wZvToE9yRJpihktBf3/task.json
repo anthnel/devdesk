@@ -1,0 +1,18 @@
+{
+  "tool_use_id": "toolu_01U731wZvToE9yRJpihktBf3",
+  "agent_id": "a2ced5c94cc021ba9",
+  "subagent_type": "project-tester",
+  "task_description": "Rouge étape 4 DEVDESK-303",
+  "files": [
+    "internal/ui/oci_resources/browser_verdicts_test.go"
+  ],
+  "token_usage": {
+    "input_tokens": 24,
+    "cache_creation_tokens": 72747,
+    "cache_read_tokens": 612473,
+    "output_tokens": 15705,
+    "api_call_count": 12
+  },
+  "started_at": "2026-11-13T14:19:47.066993188+01:00",
+  "completed_at": "2026-11-13T14:22:21.721273773+01:00"
+}

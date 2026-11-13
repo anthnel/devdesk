@@ -1,0 +1,15 @@
+{
+  "tool_use_id": "toolu_01Eqbnx4cwVC4ob3JPv86GTn",
+  "agent_id": "ac484fb61c7cbf7db",
+  "subagent_type": "dev-team:reviewer",
+  "task_description": "Revue étapes 3-4 DEVDESK-303",
+  "token_usage": {
+    "input_tokens": 18,
+    "cache_creation_tokens": 126163,
+    "cache_read_tokens": 507788,
+    "output_tokens": 8519,
+    "api_call_count": 8
+  },
+  "started_at": "2026-11-13T14:27:14.847875811+01:00",
+  "completed_at": "2026-11-13T14:30:02.6942908+01:00"
+}
