@@ -36,7 +36,9 @@ func (v Verdict) String() string {
 	return "pending"
 }
 
-// Outcome is a verdict and its marks.
+// Outcome is a verdict and its marks. Invariant: Partial is set only with ok
+// or no result (a partial walk that found nothing is still "no result"), never
+// with refused or failed.
 type Outcome struct {
 	Verdict Verdict
 	Partial bool
@@ -50,11 +52,13 @@ var ErrQueryTooShort = errors.New("query too short to walk a catalog")
 var ErrPrefixNotInCatalog = errors.New("no catalog name carries the entry's prefix")
 
 // Classify turns a search answer (error, row count, partial flag) into one
-// Outcome. An error always wins over n and partial.
+// Outcome. An error always wins over n and partial. With no error, n == 0
+// keeps the Partial mark: the verdict is "no result" and Partial is set when
+// the walk was cut short.
 func Classify(err error, n int, partial bool) Outcome {
 	switch {
 	case err == nil && n == 0:
-		return Outcome{Verdict: VerdictNoResult}
+		return Outcome{Verdict: VerdictNoResult, Partial: partial}
 	case err == nil:
 		return Outcome{Verdict: VerdictOK, Partial: partial}
 	case errors.Is(err, ErrQueryTooShort):

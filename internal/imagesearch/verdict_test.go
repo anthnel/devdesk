@@ -27,7 +27,9 @@ func classifyCases() []classifyCase {
 		{"rows", nil, 3, false, Outcome{Verdict: VerdictOK}},
 		{"rows at the cap", nil, 100, true, Outcome{Verdict: VerdictOK, Partial: true}},
 		{"empty answer", nil, 0, false, Outcome{Verdict: VerdictNoResult}},
-		{"empty partial answer", nil, 0, true, Outcome{Verdict: VerdictNoResult}},
+		// DEVDESK-306 Q1=A: a walk cut at the cap with no match is not a
+		// definitive "nothing": the verdict stays no result, with the mark.
+		{"empty partial answer", nil, 0, true, Outcome{Verdict: VerdictNoResult, Partial: true}},
 		{"query too short", ErrQueryTooShort, 0, false, Outcome{Verdict: VerdictNoResult, Skipped: true}},
 		{"query too short wrapped", fmt.Errorf("x: %w", ErrQueryTooShort), 0, false, Outcome{Verdict: VerdictNoResult, Skipped: true}},
 		{"unsupported", ErrUnsupported, 0, false, refused},
@@ -77,8 +79,11 @@ func TestClassifyMarksOnlyTheirVerdict(t *testing.T) {
 			default:
 				t.Fatalf("verdict = %d, want one of the four", o.Verdict)
 			}
-			if o.Partial && o.Verdict != VerdictOK {
+			if o.Partial && o.Verdict != VerdictOK && o.Verdict != VerdictNoResult {
 				t.Errorf("Partial set with %v", o.Verdict)
+			}
+			if o.Partial && o.Skipped {
+				t.Error("Partial and Skipped set together")
 			}
 			if o.Skipped && o.Verdict != VerdictNoResult {
 				t.Errorf("Skipped set with %v", o.Verdict)

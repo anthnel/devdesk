@@ -3,6 +3,7 @@ package imagesearch
 import (
 	"context"
 	"errors"
+	"net/url"
 	"strings"
 
 	"github.com/anthnel/devdesk/internal/oci"
@@ -13,12 +14,17 @@ import (
 var ErrUnsupported = errors.New("image search not supported on this registry")
 
 // isDHI reports whether the registry's host is exactly dhi.io, ignoring
-// scheme, port, path and case.
+// scheme, port, path, case and a trailing dot. Userinfo is not the host.
 func isDHI(registryURL string) bool {
-	host := oci.RegistryHost(registryURL)
-	host, _, _ = strings.Cut(host, "/")
-	host, _, _ = strings.Cut(host, ":")
-	return strings.EqualFold(host, "dhi.io")
+	raw := strings.TrimSpace(registryURL)
+	if !strings.Contains(raw, "://") {
+		raw = "https://" + raw
+	}
+	u, err := url.Parse(raw)
+	if err != nil {
+		return false
+	}
+	return strings.EqualFold(strings.TrimSuffix(u.Hostname(), "."), "dhi.io")
 }
 
 // ByRegistry sends a Hub target (oci.IsDockerHub(t.RegistryURL)) to hub, any

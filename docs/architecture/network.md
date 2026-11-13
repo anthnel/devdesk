@@ -82,10 +82,29 @@ for that timeout too. A caller cannot tell the client timeout from the
 context's deadline, so `imagesearch.Classify` (DEVDESK-303, IS-12) puts both in
 the `failed` verdict.
 
+**Catalog walk (DEVDESK-306, IS-03).** `ListCatalogContext(ctx, apiURL,
+username, password, maxPages, pageSize)` returns `(names, truncated, err)`. It
+asks `<apiURL>/v2/_catalog?n=<pageSize>` and follows `Link: rel="next"` for at
+most `maxPages` pages (non-positive limits are an error). `truncated` is true
+when names were left: the page cap was reached with a `next` link, more than
+`maxPages*pageSize` names came back (the list is cut to that), or the `next`
+link points to another origin. Each page body is capped at 1 MiB; a larger
+page is an error, not a silent cut. A non-200 answer is a `*StatusError`.
+Authentication is the tags' flow: Basic, then Bearer on a challenge, the token
+kept across pages.
+
+- **`next` is followed only to the same origin.** `sameOrigin` compares scheme
+  and host strictly (`host` and `host:443` differ), so a registry cannot make
+  the walk send the Basic credentials or the token elsewhere. A foreign or
+  differently written `next` ends the walk as `truncated`, with no error.
+- **HTTP 3xx redirects are not hardened**: they follow `registryHTTPClient`,
+  as the tags do. The origin guard covers the `next` link only. A separate
+  ticket is proposed.
+
 ## Image search — `internal/imagesearch` (DEVDESK-298, IS-18)
 
-Pure Go, no UI. Types and one interface; one adapter so far, `HubSearcher`
-(IS-02); catalogue walking is IS-03, dhi.io IS-17:
+Pure Go, no UI. Types and one interface; two adapters, `HubSearcher` (IS-02)
+and `CatalogSearcher` (IS-03); dhi.io is IS-17:
 
 - `Target`: one registry to search (`EntryKey`, `Alias`, `RegistryURL`,
   `APIURL`, `RepoPrefix`, `Username`, `Password`; the credentials are empty for
@@ -115,17 +134,59 @@ Pure Go, no UI. Types and one interface; one adapter so far, `HubSearcher`
   request to either searcher, since dhi.io has no documented catalogue API
   (IS-17). Otherwise a target for which `oci.IsDockerHub(RegistryURL)` is true
   goes to `hub`, any other to `other`. A nil searcher answers `ErrUnsupported`
-  with no request at all. Production uses `ByRegistry(HubSearcher{}, nil)`, so
-  every non-Hub registry is unsupported until IS-03.
+  with no request at all. Production uses
+  `ByRegistry(HubSearcher{}, CatalogSearcher{})`: Hub goes to the Hub search,
+  every other registry to its catalog. `isDHI` parses the URL (`url.Parse`, with
+  `https://` added when there is no scheme) and compares `Hostname()`, so
+  userinfo (`dhi.io@evil.example`), a trailing dot and a port cannot fool it.
+- `CatalogSearcher` (DEVDESK-306, IS-03, `catalog.go`): searches a private
+  registry by walking `/v2/_catalog` through `oci.ListCatalogContext` and
+  filtering **client-side**: the text the user typed is never sent to the
+  registry. Steps, in order:
+  1. The query is trimmed; fewer than `CatalogMinQueryRunes` (2) runes returns
+     `ErrQueryTooShort` with **no request**.
+  2. The walk: `CatalogPageSize` (1000) names per page, at most
+     `CatalogMaxPages` (10) pages, so at most 10 000 names. A cut walk sets
+     `truncated`. An error from the walk (status, deadline, unreadable page)
+     is returned as is, with no row.
+  3. Guard R1 (before the filter): when the target has a `RepoPrefix`, only the
+     names that start with `<prefix>/` are candidates. If the walk is complete and
+     no name carries the prefix, the answer is `ErrPrefixNotInCatalog` (the
+     cause names the prefix); this protects against a catalog that does not
+     list names the way the entry reaches them (Nexus, IS-16) and would
+     otherwise read as a false "no result". If the walk is truncated, the
+     prefix may be on a page not read: the answer is no result with
+     `partial` set, not an error.
+  4. Filter: case-insensitive substring match on the part **after** the prefix.
+     `Image.Name` is that part, `Image.Repo` the full catalog name.
+  5. Only valid names are kept (`validRepoPath`, `names.go`: every
+     `/`-separated component follows the distribution-spec grammar, as for Hub);
+     others are dropped.
+  6. Order by `MatchTier`, then name, then `Repo`; at most `CatalogMaxRows`
+     (100) rows (`Query.Limit` can only lower that). Rows cut by the limit set
+     `partial`, as does a truncated walk.
+
+  `MatchTier` (ranks 0 to 4, see the order below) now lives in `imagesearch`
+  (`names.go`) so the searcher and the table share one ranking;
+  `oci_resources.matchTier` delegates to it. The 15 s per-registry deadline
+  (`imageSearchDeadline`, below) covers the whole walk; hitting it is a
+  `failed` verdict with no row. `CatalogSearcher.List` replaces
+  `oci.ListCatalogContext` in tests. Walks per search: one per checked
+  entry, so several entries on one host walk its catalog several times (IS-07).
+  A catalog may be disabled or filtered to the account's rights (Harbor,
+  Artifactory, GitLab): the answer is then `refused` or a shortened list.
 - **Verdicts (DEVDESK-303, IS-12, `verdict.go`).** `Classify(err, n, partial)`
   is a pure function that turns one registry's answer into an `Outcome{Verdict,
   Partial, Skipped}`. `Verdict` is one of `VerdictOK` (`ok`), `VerdictNoResult`
   (`no result`), `VerdictRefused` (`unsupported or refused`) and
   `VerdictFailed` (`failed`); the zero value is not a verdict (`pending`) and
   `Classify` never returns it. `Partial` and `Skipped` are marks, not verdicts:
-  `Partial` only with `ok`, `Skipped` only with `no result`. Rules, first match
-  wins:
-  1. no error: `n > 0` is `ok` (with `Partial` as given), `n == 0` is `no result`;
+  `Partial` with `ok` or `no result` (invariant Q1: a walk cut short that found
+  nothing is still `no result`, marked `Partial`), never with `refused` or
+  `failed`, never with `Skipped`; `Skipped` only with `no result`. Rules, first
+  match wins:
+  1. no error: `n > 0` is `ok`, `n == 0` is `no result`; `Partial` is kept as
+     given in both cases;
   2. `ErrQueryTooShort` is `no result` with `Skipped`;
   3. `ErrUnsupported` or `ErrPrefixNotInCatalog` is `refused`;
   4. a `*oci.StatusError` is `refused` when `refusedStatus` holds: 401 and 403
@@ -135,8 +196,8 @@ Pure Go, no UI. Types and one interface; one adapter so far, `HubSearcher`
   5. anything else is `failed`: deadline, cancel, network, unreadable or
      oversized body, invalid request.
 
-  `ErrQueryTooShort` and `ErrPrefixNotInCatalog` are declared now and returned
-  by the catalogue searcher of IS-03; no adapter returns them yet.
+  `ErrQueryTooShort` and `ErrPrefixNotInCatalog` are returned by
+  `CatalogSearcher` (DEVDESK-306).
 
 ## Image updates — `internal/imageupdate` (§3.88)
 
@@ -332,8 +393,9 @@ on a button, and greyed on a checkbox.
 mode (Rule 114): without a `Searcher` it names Browse Tags only; with one it
 describes Search, Open Tags and the shared selection, and the level 1 sentence.
 
-**`defaultImageSearcher` is `ByRegistry(HubSearcher{}, nil)` in production
-(DEVDESK-301, IS-02), so level 1 and Open Tags are active.** `newRegistryBrowser`
+**`defaultImageSearcher` is `ByRegistry(HubSearcher{}, CatalogSearcher{})` in
+production (DEVDESK-301, IS-02; catalog since DEVDESK-306, IS-03), so level 1
+and Open Tags are active.** `newRegistryBrowser`
 copies it into `b.searcher`. Tests do not use it: `TestMain`
 (`ociresources_test.go`) saves it in `productionImageSearcher` and sets
 `defaultImageSearcher` to `nil` for the whole suite (no test may reach the real
@@ -364,8 +426,9 @@ Logging, by verdict, through `logSearchOutcome` (the alias falls back to the
 entry key):
 - `failed`: `ERROR [oci_resources] image search on <alias>: <cause>`;
 - `refused`: `INFO [oci_resources] image search on <alias>: unsupported or
-  refused: <cause>` (a refusal is expected for any private registry until IS-03
-  and for dhi.io, so it does not fill the error log);
+  refused: <cause>` (a refusal is expected for dhi.io and for a registry whose catalog
+  is disabled, forbidden or not under the entry's prefix, so it does not fill
+  the error log);
 - `ok` and `no result`: nothing.
 
 The cause is `searchErrorCause(err)`: a `*url.Error` keeps only its Op and Err
@@ -385,7 +448,7 @@ Name and Registry remain, and the line spans width-2 at every width (Rule 116). 
 ordered by `sortSearchRows` (`browser_images_order.go`), a pure function of the
 rows and the typed name (`RegistryBrowser.searchQuery`, set by
 `startImageSearch`), so the order never depends on which registry answered
-first. Ranks (`matchTier`, case-insensitive): 0 name equals the query, 1 last
+first. Ranks (`imagesearch.MatchTier`, case-insensitive): 0 name equals the query, 1 last
 path segment equals it, 2 last segment starts with it, 3 name contains it, 4 no
 match; then name, registry alias, `EntryKey` and `Repo`. Stars play no part. The
 cursor follows the selected row by `EntryKey` + `Repo`, never by index:
@@ -430,8 +493,9 @@ records where the table came from: `tagsFromSearch` (true for `→`) and
   unchanged and silent on screen (it logs `registry tags <repo> from <url>`).
 - **Search in flight.** `→` while the level 1 search still runs cancels it
   (the browser has one lot at a time, `beginRequests`): the rows already shown
-  stay, the late ones are dropped. Accepted; the user reopens the search before
-  IS-03 (private registries) makes searches slower.
+  stay, the late ones are dropped. Unchanged by IS-03, although catalog walks
+  make searches slower and `→` will cut them more often: the user reopens the
+  search. Keeping the lot alive behind the tags would be a separate story.
 
 **Back to level 1 (DEVDESK-307).** `←` and `esc` on the tag table call
 `leaveTags`, which returns no Cmd (so no new request). Typing in the tag filter

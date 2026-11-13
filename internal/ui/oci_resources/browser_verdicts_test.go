@@ -443,3 +443,25 @@ func TestANewSearchClearsTheVerdicts(t *testing.T) {
 	}
 	wantVerdict(t, m, "third", imagesearch.VerdictNoResult)
 }
+
+// A walk cut short that found nothing is "no result" with the Partial mark,
+// and adds no row.
+func TestAPartialNoResultAddsNoRow(t *testing.T) {
+	withImageSearcher(t, &fakeSearcher{})
+	m := searchLot(t, threeRegistryModel(t))
+	if !m.registryBrowser.AddImageResults(ImageSearchResultMsg{
+		Gen: m.registryBrowser.gen, EntryKey: "prod", Partial: true,
+	}) {
+		t.Fatal("the answer of the open lot was refused")
+	}
+	if got := rowsOf(m); len(got) != 0 {
+		t.Errorf("rows = %v, want none for {no result, Partial}", got)
+	}
+	want := imagesearch.Outcome{Verdict: imagesearch.VerdictNoResult, Partial: true}
+	if o, _ := verdictOf(t, m, "prod"); o != want {
+		t.Errorf("prod outcome = %+v, want %+v", o, want)
+	}
+	if got := m.registryBrowser.pendingSearches; got != 2 {
+		t.Errorf("pendingSearches = %d, want 2", got)
+	}
+}

@@ -99,7 +99,8 @@ func TestByRegistryWithANilHubAnswersErrUnsupported(t *testing.T) {
 
 // dhi.io has no documented catalog API: refused without any request.
 func TestDHIIsRefusedWithoutARequest(t *testing.T) {
-	for _, url := range []string{"dhi.io", "https://dhi.io", "https://DHI.io/", "dhi.io:443", "http://dhi.io/library"} {
+	for _, url := range []string{"dhi.io", "https://dhi.io", "https://DHI.io/", "dhi.io:443", "http://dhi.io/library",
+		"https://user:pw@dhi.io", "user@dhi.io/x", "dhi.io.", "https://DHI.IO.:443/", "https://user:pw@dhi.io:443/x", "ftp://dhi.io"} {
 		t.Run(url, func(t *testing.T) {
 			hub, other := &recorder{name: "hub"}, &recorder{name: "other"}
 			imgs, partial, err := ByRegistry(hub, other).Search(context.Background(), Target{RegistryURL: url}, Query{Text: "nginx"})
@@ -120,7 +121,8 @@ func TestDHIIsRefusedWithoutARequest(t *testing.T) {
 }
 
 func TestDHILookalikesAreNotRefused(t *testing.T) {
-	for _, url := range []string{"notdhi.io", "registry.dhi.io", "dhi.io.example.com"} {
+	for _, url := range []string{"notdhi.io", "registry.dhi.io", "dhi.io.example.com",
+		"[2001:db8::1]:5000", "https://[::1]/", "https://dhi.io@example.com", "https://example.com/dhi.io"} {
 		t.Run(url, func(t *testing.T) {
 			hub, other := &recorder{name: "hub"}, &recorder{name: "other"}
 			_, _, err := ByRegistry(hub, other).Search(context.Background(), Target{RegistryURL: url}, Query{Text: "nginx"})
@@ -129,6 +131,22 @@ func TestDHILookalikesAreNotRefused(t *testing.T) {
 			}
 			if hub.count() != 0 || other.count() != 1 {
 				t.Errorf("hub calls = %d, other calls = %d, want 0 and 1", hub.count(), other.count())
+			}
+		})
+	}
+}
+
+// An empty or unreadable URL is never dhi.io: no panic, no refusal.
+func TestDHIEmptyOrUnreadableIsNotRefused(t *testing.T) {
+	for _, url := range []string{"", "http://[::1", "%zz"} {
+		t.Run(url, func(t *testing.T) {
+			hub, other := &recorder{name: "hub"}, &recorder{name: "other"}
+			_, _, err := ByRegistry(hub, other).Search(context.Background(), Target{RegistryURL: url}, Query{Text: "nginx"})
+			if errors.Is(err, ErrUnsupported) {
+				t.Fatalf("err = %v, must not be refused", err)
+			}
+			if hub.count()+other.count() != 1 {
+				t.Errorf("calls = %d, want exactly 1", hub.count()+other.count())
 			}
 		})
 	}
