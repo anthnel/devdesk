@@ -1,0 +1,15 @@
+{
+  "tool_use_id": "toolu_01TogUoZ6sfUJ8HzbYMjhvxQ",
+  "agent_id": "a2435abde632a827f",
+  "subagent_type": "dev-team:security-reviewer",
+  "task_description": "Security review DEVDESK-311",
+  "token_usage": {
+    "input_tokens": 10,
+    "cache_creation_tokens": 40078,
+    "cache_read_tokens": 137607,
+    "output_tokens": 4832,
+    "api_call_count": 5
+  },
+  "started_at": "2026-11-13T20:37:39.479498701+01:00",
+  "completed_at": "2026-11-13T20:38:30.696391436+01:00"
+}

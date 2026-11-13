@@ -1,0 +1,15 @@
+{
+  "tool_use_id": "toolu_01NoX6S4H1UQpyCLkVRaiXQC",
+  "agent_id": "aec78410306e393b2",
+  "subagent_type": "dev-team:debugger",
+  "task_description": "Debug flaky hub test DEVDESK-311",
+  "token_usage": {
+    "input_tokens": 16,
+    "cache_creation_tokens": 40284,
+    "cache_read_tokens": 253866,
+    "output_tokens": 6935,
+    "api_call_count": 8
+  },
+  "started_at": "2026-11-13T20:40:53.110807116+01:00",
+  "completed_at": "2026-11-13T20:42:53.963833938+01:00"
+}

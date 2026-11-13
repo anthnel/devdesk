@@ -1,0 +1,15 @@
+{
+  "tool_use_id": "toolu_01QLYvKthDMEwq43BaaRe569",
+  "agent_id": "a5fa3c8ceb7142898",
+  "subagent_type": "team-core:archivist",
+  "task_description": "Backlog D140 DEVDESK-311",
+  "token_usage": {
+    "input_tokens": 10,
+    "cache_creation_tokens": 53038,
+    "cache_read_tokens": 116088,
+    "output_tokens": 3657,
+    "api_call_count": 4
+  },
+  "started_at": "2026-11-13T20:48:17.091303735+01:00",
+  "completed_at": "2026-11-13T20:48:35.022040901+01:00"
+}

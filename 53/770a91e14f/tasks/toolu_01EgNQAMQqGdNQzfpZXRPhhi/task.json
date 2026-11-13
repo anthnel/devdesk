@@ -1,0 +1,15 @@
+{
+  "tool_use_id": "toolu_01EgNQAMQqGdNQzfpZXRPhhi",
+  "agent_id": "ae66c46d33f03bac5",
+  "subagent_type": "project-tester",
+  "task_description": "Fix test data DEVDESK-311",
+  "token_usage": {
+    "input_tokens": 10,
+    "cache_creation_tokens": 40281,
+    "cache_read_tokens": 151560,
+    "output_tokens": 2146,
+    "api_call_count": 5
+  },
+  "started_at": "2026-11-13T20:37:04.445697004+01:00",
+  "completed_at": "2026-11-13T20:37:24.788761249+01:00"
+}
