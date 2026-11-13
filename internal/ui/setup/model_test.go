@@ -401,6 +401,9 @@ func TestSaveContextCmdWritesTheFileAndSetCurrentContextCmdPointsAtIt(t *testing
 	if err != nil || !exists {
 		t.Fatalf("ContextExists(integration-test) = %v, %v; want true, nil", exists, err)
 	}
+	if got := strings.Count(readContextFile(t, "integration-test"), config.ExamplePricesBlock); got != 1 {
+		t.Errorf("the saved file holds the price example block %d times, want once", got)
+	}
 
 	if msg, ok := testutil.MsgOf[CurrentContextSetMsg](setCurrentContextCmd("integration-test")); !ok || msg.Err != nil {
 		t.Fatalf("setCurrentContextCmd: ok=%v err=%v", ok, msg.Err)
@@ -618,5 +621,39 @@ func TestSubmitContextNameRefusesReservedNamesAndAcceptsOrdinaryOnes(t *testing.
 				t.Errorf("files written while submitting the name: %v", written)
 			}
 		})
+	}
+}
+
+// readContextFile returns the text of a context file under the isolated HOME.
+func readContextFile(t *testing.T, name string) string {
+	t.Helper()
+	path, err := config.GetContextPath(name)
+	if err != nil {
+		t.Fatal(err)
+	}
+	data, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return string(data)
+}
+
+// A context that setup replaces is rewritten with the block, even when the
+// file it replaces had none.
+func TestSaveContextCmdReplacingAFileWithoutTheBlockWritesTheBlock(t *testing.T) {
+	isolateHome(t)
+	if err := config.SaveContext(config.Default(), "old"); err != nil {
+		t.Fatal(err)
+	}
+	if strings.Contains(readContextFile(t, "old"), config.ExamplePricesBlock) {
+		t.Fatal("precondition: SaveContext must not add the block to a new file")
+	}
+
+	m := New()
+	if msg, ok := testutil.MsgOf[ContextSavedMsg](saveContextCmd(buildConfig(m), "old")); !ok || msg.Err != nil {
+		t.Fatalf("saveContextCmd: ok=%v err=%v", ok, msg.Err)
+	}
+	if got := strings.Count(readContextFile(t, "old"), config.ExamplePricesBlock); got != 1 {
+		t.Errorf("the replaced file holds the price example block %d times, want once", got)
 	}
 }

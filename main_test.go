@@ -1,6 +1,10 @@
 package main
 
 import (
+	"bytes"
+	"log"
+	"os"
+	"path/filepath"
 	"strings"
 	"sync"
 	"testing"
@@ -8,6 +12,8 @@ import (
 
 	tea "charm.land/bubbletea/v2"
 	"charm.land/lipgloss/v2"
+
+	"github.com/anthnel/devdesk/internal/config"
 )
 
 type safeBuf struct {
@@ -88,5 +94,42 @@ func TestForcedColorProfile(t *testing.T) {
 				t.Errorf("the forced profile did not give TrueColor output: %q", got)
 			}
 		})
+	}
+}
+
+// DEVDESK-314: ensureDefaultContext creates config.yaml with the price example
+// on a first launch, and reports a failure in the log instead of stopping.
+func TestEnsureDefaultContextCreatesTheFileWithTheBlock(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+	t.Setenv("USERPROFILE", home)
+	ensureDefaultContext()
+	path, err := config.GetContextPath("default")
+	if err != nil {
+		t.Fatal(err)
+	}
+	data, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatalf("config.yaml was not created: %v", err)
+	}
+	if !strings.Contains(string(data), config.ExamplePricesBlock) {
+		t.Errorf("config.yaml lacks the price example block:\n%s", data)
+	}
+}
+
+func TestEnsureDefaultContextLogsAWarnWhenItCannotWrite(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+	t.Setenv("USERPROFILE", home)
+	// A file where the config directory should be makes the creation fail.
+	if err := os.WriteFile(filepath.Join(home, ".devdesk"), []byte("x"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	var buf bytes.Buffer
+	log.SetOutput(&buf)
+	t.Cleanup(func() { log.SetOutput(os.Stderr) })
+	ensureDefaultContext()
+	if !strings.Contains(buf.String(), "WARN [config] could not create the default context file") {
+		t.Errorf("log = %q, want the WARN line", buf.String())
 	}
 }

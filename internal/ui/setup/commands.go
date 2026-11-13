@@ -104,7 +104,7 @@ type ContextSavedMsg struct {
 
 func saveContextCmd(cfg *config.Config, name string) tea.Cmd {
 	return func() tea.Msg {
-		return ContextSavedMsg{Err: config.SaveContext(cfg, name)}
+		return ContextSavedMsg{Err: config.WriteNewContext(cfg, name)}
 	}
 }
 

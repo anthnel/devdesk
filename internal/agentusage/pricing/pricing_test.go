@@ -232,3 +232,28 @@ func TestLookupZeroTable(t *testing.T) {
 		t.Error("the zero Table must be a valid empty table")
 	}
 }
+
+// DEVDESK-314: a context file created with the commented example block loads
+// to an empty price table and no problem.
+func TestFreshContextFileWithTheExampleBlockYieldsNoPrices(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+	t.Setenv("USERPROFILE", home)
+	if err := config.CreateContext("fresh"); err != nil {
+		t.Fatal(err)
+	}
+	cfg, err := config.LoadContext("fresh")
+	if err != nil {
+		t.Fatal(err)
+	}
+	table, problems := FromConfig(cfg.AgentUsage.Prices)
+	if len(problems) != 0 {
+		t.Errorf("problems = %+v, want none", problems)
+	}
+	if len(cfg.AgentUsage.Prices) != 0 {
+		t.Errorf("prices = %+v, want none", cfg.AgentUsage.Prices)
+	}
+	if _, ok := table.Lookup("claude-example-model"); ok {
+		t.Error("the commented example must not price any model")
+	}
+}

@@ -196,10 +196,41 @@ which stops a forgotten `cache_read` from under-pricing silently.
   save. `.nan`, `.inf` and negative numbers decode as values; rejecting them is
   `pricing.FromConfig`'s job, which logs `WARN [agentusageview]
   agent_usage.prices "<key>": <reason>` for each entry it leaves out.
-- **No default, no migration, nothing written when empty.** `applyDefaults` and
-  `Default()` do not touch the section, and a context with no prices saves
-  without an `agent_usage` key. The format is user-written: renaming a key
-  later needs a migration like `gitlab:` → `forge:`.
+- **No default value, no migration.** `applyDefaults` and `Default()` do not
+  touch the section, and a context with no prices saves without an
+  `agent_usage` key. What a new file does carry is a **commented example**
+  (next bullet); no price is ever written. The format is user-written:
+  renaming a key later needs a migration like `gitlab:` → `forge:`.
+- **The commented example block (DEVDESK-314).** `internal/config/example_prices.go`.
+  `ExamplePricesBlock` is the YAML above, every line a comment, appended after
+  the marshalled config. Its first line, `examplePricesMarker`
+  (`# Optional: price table for the :agent-usage cost estimate.`), is frozen:
+  files on disk are recognized by a line equal to it (trailing spaces, tabs
+  and `\r` ignored, leading ones not), so changing it would orphan every
+  existing block.
+  - *Who gets it.* A context file created by `CreateContext` (`:context new`),
+    by `WriteNewContext` (`dk setup`, `internal/ui/setup/commands.go`), and
+    `config.yaml` written on a first launch by `CreateDefaultContextIfMissing`
+    (called from `ensureDefaultContext` in `main.go`). `CreateContext` and
+    `CreateDefaultContextIfMissing` create the file exclusively (`O_EXCL`):
+    an existing file is never overwritten, and of several concurrent first
+    launches only one writes it. A failure on a first launch is logged
+    (`WARN [config] could not create the default context file`) and does not
+    stop the launch.
+  - *Who never gets it.* A context that existed before this change, a file
+    whose block was deleted by hand, and any context whose `prices` is not
+    empty. `SaveContext` never adds a block to a file that lacks it.
+  - *How a save treats it.* `SaveContext` reads the file again **only when
+    `prices` is empty**: if it still holds the marker, the block is written
+    back, otherwise not. A missing file gets no block. An unreadable file is
+    saved without the block and logs `WARN [config] cannot read <path> to look
+    for the price example, saving without it`. Once `prices` is non-empty the
+    block is dropped, since the table itself is the example.
+  - *Accepted race.* The read and the write are not atomic: a hand edit that
+    removes the block between them can see it written back by that save. The
+    window is small and the consequence is a comment, so it is accepted.
+  - `default` therefore exists on disk from the first launch and appears in
+    `:context list` at once.
 - **One block per context.** The section lives in the context file, so each
   context needs its own prices.
 - **Not editable in `:cfg`.** There is no tab for it.
@@ -208,7 +239,8 @@ which stops a forgotten `cache_read` from under-pricing silently.
   re-read it. **A save from `:cfg` rewrites the whole context file from the
   router's in-memory `Config`, so a hand edit made while DevDesk runs is
   overwritten by the next save** (comments in the file are lost on the first
-  save too). Edit the prices while DevDesk is closed, or restart afterwards.
+  save too, except the example block above, which a save keeps while `prices`
+  is empty). Edit the prices while DevDesk is closed, or restart afterwards.
 
 Config is injected into views at creation. Use `config.Save()` to persist changes.
 
