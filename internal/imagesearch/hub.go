@@ -7,7 +7,6 @@ import (
 	"io"
 	"net/http"
 	"net/url"
-	"regexp"
 	"strconv"
 	"strings"
 	"time"
@@ -27,10 +26,6 @@ const HubLimit = 50
 
 // hubMaxBody caps what is read from the response.
 const hubMaxBody = 1 << 20
-
-// hubComponent is one path component of a repository name: lowercase
-// alphanumerics joined by '.', '_', '__' or runs of '-' (OCI distribution spec).
-var hubComponent = regexp.MustCompile(`^[a-z0-9]+(?:(?:[._]|__|-+)[a-z0-9]+)*$`)
 
 // HubSearcher searches Docker Hub anonymously: one GET, no credentials, no
 // pagination. Whatever Target carries for authentication is ignored.
@@ -134,16 +129,10 @@ func (h HubSearcher) Search(ctx context.Context, t Target, q Query) ([]Image, bo
 // a bare name lives under library/ (D39). The name ends up in a docker
 // command, so anything that is not a valid repository name is dropped.
 func hubRepo(name string) (string, bool) {
-	if name == "" {
+	if !validRepoPath(name) {
 		return "", false
 	}
-	parts := strings.Split(name, "/")
-	for _, p := range parts {
-		if !hubComponent.MatchString(p) {
-			return "", false
-		}
-	}
-	if len(parts) == 1 {
+	if !strings.Contains(name, "/") {
 		return "library/" + name, true
 	}
 	return name, true

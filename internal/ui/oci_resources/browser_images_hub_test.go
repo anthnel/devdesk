@@ -2,6 +2,7 @@ package ociresources
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"net/http"
 	"net/http/httptest"
@@ -18,17 +19,56 @@ import (
 // DEVDESK-301 (IS-02): level 1 shows what Docker Hub returns (Stars, Official,
 // Description) and the Searcher is wired in production.
 
-// TestProductionWiresTheHubSearcher: the production variable is set (TestMain
-// saved it before clearing it for the rest of the suite), and a registry other
-// than Hub is unsupported, without any request.
-func TestProductionWiresTheHubSearcher(t *testing.T) {
+// catalogServer serves /v2/_catalog with names and counts every request it gets.
+func catalogServer(t *testing.T, names ...string) (*httptest.Server, *atomic.Int32) {
+	t.Helper()
+	var n atomic.Int32
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		n.Add(1)
+		if r.URL.Path != "/v2/_catalog" {
+			http.NotFound(w, r)
+			return
+		}
+		w.Header().Set("Content-Type", "application/json")
+		_ = json.NewEncoder(w).Encode(map[string][]string{"repositories": names})
+	}))
+	t.Cleanup(srv.Close)
+	return srv, &n
+}
+
+// TestProductionWiresHubAndCatalogSearchers (DEVDESK-306): the production
+// variable is set (TestMain saved it before clearing it for the rest of the
+// suite); a private registry is searched through its catalog, no longer
+// ErrUnsupported, and dhi.io stays unsupported.
+func TestProductionWiresHubAndCatalogSearchers(t *testing.T) {
 	if productionImageSearcher == nil {
 		t.Fatal("defaultImageSearcher is nil in production: level 1 stays off")
 	}
-	_, _, err := productionImageSearcher.Search(context.Background(),
-		imagesearch.Target{RegistryURL: "registry.example.com"}, imagesearch.Query{Text: "nginx"})
+	srv, requests := catalogServer(t, "api", "web")
+	imgs, _, err := productionImageSearcher.Search(context.Background(),
+		imagesearch.Target{EntryKey: "prod", RegistryURL: "registry.example.com", APIURL: srv.URL},
+		imagesearch.Query{Text: "api"})
+	if errors.Is(err, imagesearch.ErrUnsupported) {
+		t.Fatal("a private registry answered ErrUnsupported: the catalog searcher is not wired")
+	}
+	if err != nil {
+		t.Fatalf("private registry search: %v", err)
+	}
+	if len(imgs) != 1 || imgs[0].Repo != "api" {
+		t.Fatalf("rows = %+v, want the single catalog name api", imgs)
+	}
+	if requests.Load() == 0 {
+		t.Error("the catalog was never asked")
+	}
+
+	before := requests.Load()
+	_, _, err = productionImageSearcher.Search(context.Background(),
+		imagesearch.Target{RegistryURL: "dhi.io", APIURL: srv.URL}, imagesearch.Query{Text: "nginx"})
 	if !errors.Is(err, imagesearch.ErrUnsupported) {
-		t.Fatalf("a non-Hub registry answered %v, want imagesearch.ErrUnsupported", err)
+		t.Fatalf("dhi.io answered %v, want imagesearch.ErrUnsupported", err)
+	}
+	if requests.Load() != before {
+		t.Error("dhi.io was asked")
 	}
 }
 
