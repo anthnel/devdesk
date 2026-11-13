@@ -1,0 +1,15 @@
+{
+  "tool_use_id": "toolu_01EiNqBk8d5jKhAW1K3G4SqQ",
+  "agent_id": "a13855aea6d2f12ef",
+  "subagent_type": "project-tester",
+  "task_description": "Tests rouges étape 3 DEVDESK-314",
+  "token_usage": {
+    "input_tokens": 14,
+    "cache_creation_tokens": 29931,
+    "cache_read_tokens": 166119,
+    "output_tokens": 6864,
+    "api_call_count": 7
+  },
+  "started_at": "2026-11-13T21:58:31.539473611+01:00",
+  "completed_at": "2026-11-13T21:59:19.182194922+01:00"
+}

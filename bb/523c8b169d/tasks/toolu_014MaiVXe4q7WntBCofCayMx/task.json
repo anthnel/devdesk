@@ -1,0 +1,15 @@
+{
+  "tool_use_id": "toolu_014MaiVXe4q7WntBCofCayMx",
+  "agent_id": "ac432fa73d25af741",
+  "subagent_type": "team-core:archivist",
+  "task_description": "Entrée D141 backlog DEVDESK-314",
+  "token_usage": {
+    "input_tokens": 12,
+    "cache_creation_tokens": 60838,
+    "cache_read_tokens": 181752,
+    "output_tokens": 3596,
+    "api_call_count": 5
+  },
+  "started_at": "2026-11-13T22:30:25.682493025+01:00",
+  "completed_at": "2026-11-13T22:30:44.484966306+01:00"
+}

@@ -1,0 +1,15 @@
+{
+  "tool_use_id": "toolu_01Tek1oTJyR2YLKaTJnsUP78",
+  "agent_id": "a9283cd6c227c39d8",
+  "subagent_type": "team-core:tech-writer",
+  "task_description": "Doc configuration.md DEVDESK-314",
+  "token_usage": {
+    "input_tokens": 8,
+    "cache_creation_tokens": 28068,
+    "cache_read_tokens": 67738,
+    "output_tokens": 2920,
+    "api_call_count": 4
+  },
+  "started_at": "2026-11-13T22:19:38.469864652+01:00",
+  "completed_at": "2026-11-13T22:20:02.384484274+01:00"
+}
