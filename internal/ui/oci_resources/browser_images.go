@@ -13,6 +13,7 @@ import (
 	"github.com/anthnel/devdesk/internal/imagesearch"
 	"github.com/anthnel/devdesk/internal/jobs"
 	"github.com/anthnel/devdesk/internal/oci"
+	"github.com/anthnel/devdesk/internal/ui/components"
 	"github.com/anthnel/devdesk/internal/ui/datatable"
 	"github.com/anthnel/devdesk/internal/ui/indicator"
 	"github.com/anthnel/devdesk/internal/ui/shortcut"
@@ -110,28 +111,66 @@ func newSearchTable() *datatable.Model[searchRow] {
 
 // rebuildSearchTable hands the collected images to the table.
 func (b *RegistryBrowser) rebuildSearchTable() {
-	rows := make([]searchRow, len(b.images))
-	for i, img := range b.images {
+	rows := make([]searchRow, 0, len(b.images))
+	for _, img := range b.images {
+		if !b.searchFilter.matches(img.EntryKey, b.entryFor(img.EntryKey)) {
+			continue
+		}
 		label, ref := "", img.Repo
 		if e := b.entryFor(img.EntryKey); e != nil {
 			label = b.entryLabel(img.EntryKey)
 			ref = searchRowReference(e.URL, img)
 		}
-		rows[i] = searchRow{img: img, label: label, ref: ref}
+		rows = append(rows, searchRow{img: img, label: label, ref: ref})
 	}
 	sortSearchRows(b.searchQuery, rows)
 	// Nothing selected (an empty table, so also a new search) goes to the
 	// first row, because an empty table keeps its old cursor index.
 	prev, hadSel := b.searchTable.Selected()
+	b.syncSearchFilterToken()
 	b.searchTable.SetItems(rows)
 	b.reselect(prev, hadSel)
 	b.resizeTables()
 }
 
+// syncSearchFilterToken shows the `r` filter as an active token in the bar, and
+// removes it when the filter is off. The table has no configured tokens, so the
+// token only makes the bar visible and labels it; rows are prefiltered above.
+func (b *RegistryBrowser) syncSearchFilterToken() {
+	if b.searchFilter.isEmpty() {
+		b.searchTable.FilterBar().SetTokens(nil)
+		return
+	}
+	b.searchTable.FilterBar().SetTokens([]components.FilterToken{{Label: b.filterLabel(b.searchFilter), Active: true}})
+}
+
+// searchFilterStops returns the stops `r` cycles through on level 1: the
+// lot's registries, in form order, that have at least one image row.
+func (b *RegistryBrowser) searchFilterStops() []resultFilter {
+	has := make(map[string]bool, len(b.images))
+	for _, img := range b.images {
+		has[img.EntryKey] = true
+	}
+	var keys []string
+	for _, k := range b.searchKeys {
+		if has[k] {
+			keys = append(keys, k)
+		}
+	}
+	return b.filterStopsFor(keys)
+}
+
+// cycleSearchRegistryFilter advances `r` on level 1; the cursor follows its
+// row through rebuildSearchTable.
+func (b *RegistryBrowser) cycleSearchRegistryFilter() {
+	b.searchFilter = nextFilter(b.searchFilterStops(), b.searchFilter)
+	b.rebuildSearchTable()
+}
+
 // reselect puts the cursor back on the row prev, by (EntryKey, Repo) and not by
 // index: rows of another registry land before or after it, and a sort moves it.
-// Without a previous selection the cursor goes to the first row; a vanished row
-// leaves the cursor where it is.
+// Without a previous selection, or when its row is no longer listed (hidden by
+// the `r` filter), the cursor goes to the first row.
 func (b *RegistryBrowser) reselect(prev searchRow, had bool) {
 	if !had {
 		b.searchTable.GotoTop()
@@ -143,6 +182,7 @@ func (b *RegistryBrowser) reselect(prev searchRow, had bool) {
 			return
 		}
 	}
+	b.searchTable.GotoTop()
 }
 
 // cycleSearchSort advances the level 1 sort (`.`); the cursor follows the row
@@ -192,6 +232,9 @@ func (b *RegistryBrowser) handleImagesKeyMsg(msg tea.KeyPressMsg) (*RegistryBrow
 	switch msg.String() {
 	case ".":
 		b.cycleSearchSort()
+		return b, nil
+	case "r":
+		b.cycleSearchRegistryFilter()
 		return b, nil
 	case "right":
 		return b.openSelectedImageTags()

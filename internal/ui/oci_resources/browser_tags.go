@@ -9,30 +9,50 @@ import (
 	"github.com/anthnel/devdesk/internal/oci"
 )
 
-// filterStops returns the values `r` cycles through: every group that produced
-// results, then every individual registry, then off. The group level is what
-// makes "everything from this Nexus" one keystroke rather than eight.
+// filterStops returns the values `r` cycles through for the tags tab.
 func (b *RegistryBrowser) filterStops() []resultFilter {
+	keys := make([]string, len(b.tags))
+	for i, t := range b.tags {
+		keys[i] = t.EntryKey
+	}
+	return b.filterStopsFor(keys)
+}
+
+// filterStopsFor returns the values `r` cycles through for results coming from
+// the given entry keys, in order of first appearance: every group that
+// produced results, then every individual registry, then off. The group level
+// is what makes "everything from this Nexus" one keystroke rather than eight.
+// Repeated keys collapse.
+func (b *RegistryBrowser) filterStopsFor(keys []string) []resultFilter {
 	seenGroup, seenEntry := map[string]bool{}, map[string]bool{}
 	var groups, singles []resultFilter
-	for _, t := range b.tags {
-		entry := b.entryFor(t.EntryKey)
+	for _, key := range keys {
+		entry := b.entryFor(key)
 		if entry != nil && entry.ParentSlug != "" && !seenGroup[entry.ParentSlug] {
 			seenGroup[entry.ParentSlug] = true
 			groups = append(groups, resultFilter{groupSlug: entry.ParentSlug})
 		}
-		if !seenEntry[t.EntryKey] {
-			seenEntry[t.EntryKey] = true
-			singles = append(singles, resultFilter{entryKey: t.EntryKey})
+		if !seenEntry[key] {
+			seenEntry[key] = true
+			singles = append(singles, resultFilter{entryKey: key})
 		}
 	}
 	// A single source has nothing to filter down to.
 	if len(singles) <= 1 {
 		return nil
 	}
-	// A group with every result under it says the same thing as "off".
-	if len(groups) == 1 && len(groups) == len(seenGroup) && len(singles) == countMembers(b.entries, groups[0].groupSlug) {
-		groups = nil
+	// A group holding every result and every member says the same as "off".
+	if len(groups) == 1 {
+		n := countMembers(b.entries, groups[0].groupSlug)
+		inGroup := 0
+		for _, f := range singles {
+			if e := b.entryFor(f.entryKey); e != nil && e.ParentSlug == groups[0].groupSlug {
+				inGroup++
+			}
+		}
+		if inGroup == len(singles) && len(singles) == n {
+			groups = nil
+		}
 	}
 	return append(groups, singles...)
 }
@@ -49,30 +69,28 @@ func countMembers(entries []browserRegistryEntry, slug string) int {
 }
 
 func (b *RegistryBrowser) cycleRegistryFilter() {
-	stops := b.filterStops()
+	b.registryFilter = nextFilter(b.filterStops(), b.registryFilter)
+	b.rebuildTagTable()
+}
+
+// nextFilter returns the stop after cur: off goes to the first stop, the last
+// stop and any unknown filter go back to off.
+func nextFilter(stops []resultFilter, cur resultFilter) resultFilter {
 	if len(stops) == 0 {
-		b.registryFilter = resultFilter{}
-		b.rebuildTagTable()
-		return
+		return resultFilter{}
 	}
-	if b.registryFilter.isEmpty() {
-		b.registryFilter = stops[0]
-		b.rebuildTagTable()
-		return
+	if cur.isEmpty() {
+		return stops[0]
 	}
 	for i, s := range stops {
-		if s == b.registryFilter {
+		if s == cur {
 			if i+1 < len(stops) {
-				b.registryFilter = stops[i+1]
-			} else {
-				b.registryFilter = resultFilter{} // back to everything
+				return stops[i+1]
 			}
-			b.rebuildTagTable()
-			return
+			return resultFilter{}
 		}
 	}
-	b.registryFilter = resultFilter{}
-	b.rebuildTagTable()
+	return resultFilter{}
 }
 
 // entryFor returns the browser entry a result came from, or nil.
@@ -96,15 +114,20 @@ func (b *RegistryBrowser) entryFor(key string) *browserRegistryEntry {
 // view showing a URL where every other showed an alias. Members are entries now,
 // so they resolve like anything else.
 func (b *RegistryBrowser) registryFilterLabel() string {
-	if b.registryFilter.groupSlug != "" {
+	return b.filterLabel(b.registryFilter)
+}
+
+// filterLabel returns the display label of any filter value.
+func (b *RegistryBrowser) filterLabel(f resultFilter) string {
+	if f.groupSlug != "" {
 		for _, reg := range b.registries {
-			if reg.Slug == b.registryFilter.groupSlug {
+			if reg.Slug == f.groupSlug {
 				return browserAlias(reg)
 			}
 		}
-		return b.registryFilter.groupSlug
+		return f.groupSlug
 	}
-	if entry := b.entryFor(b.registryFilter.entryKey); entry != nil {
+	if entry := b.entryFor(f.entryKey); entry != nil {
 		if entry.ParentAlias != "" {
 			return entry.ParentAlias + "/" + entry.Alias
 		}
@@ -113,7 +136,7 @@ func (b *RegistryBrowser) registryFilterLabel() string {
 		}
 		return registryRef(entry.URL, entry.repoPrefix)
 	}
-	return b.registryFilter.entryKey
+	return f.entryKey
 }
 
 // pullSelectedTag asks the parent to admit the pull as a job, mirroring

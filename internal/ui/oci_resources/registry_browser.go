@@ -248,8 +248,11 @@ type RegistryBrowser struct {
 	gen            uint64
 	cancel         context.CancelFunc
 	registryFilter resultFilter
-	tagTable       datatable.Model[tagRow]
-	scanCache      map[string]cache.ImageScanEntry
+	// searchFilter is `r` on level 1: it narrows the image rows to one group or
+	// registry, apart from registryFilter (tags). A new search clears it.
+	searchFilter resultFilter
+	tagTable     datatable.Model[tagRow]
+	scanCache    map[string]cache.ImageScanEntry
 
 	// Level 1 (image search): the Searcher read at open (nil: the tag flow
 	// only), what came back, and the table showing it.

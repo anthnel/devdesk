@@ -375,6 +375,7 @@ func (m Model) GetShortcuts() shortcut.Shortcuts {
 			}
 			return []shortcut.Shortcut{
 				{Key: "→", Description: "Open tags", Disabled: !m.registryBrowser.imageDrillIn().Enabled()},
+				{Key: "r", Description: "Filter registry", Disabled: len(m.registryBrowser.searchFilterStops()) == 0 && m.registryBrowser.searchFilter.isEmpty()},
 				{Key: "/", Description: "Filter"},
 				{Key: ".", Description: "Sort"},
 				{Key: "esc", Description: escLabel},
@@ -611,7 +612,8 @@ func (m Model) GetHelpContent() help.Content {
 			{Key: "← (Registries)", Description: "Go back to the registry list"},
 			{Key: "/", Description: "Filter images by repository or tag (Images tab only)"},
 			{Key: "→ (Browser images)", Description: "Open the tags of the selected image, on its registry only"},
-			{Key: "/ (Browser images)", Description: "Filter the images a registry search found, by name"},
+			{Key: "r (Browser images)", Description: "Filter the results by registry or group, cycling through them, then off"},
+			{Key: "/ (Browser images)", Description: "Filter the images a registry search found, by name or description"},
 			{Key: "Header (Browser images)", Description: "Below the image count, one line per kind of registry that has something to report: Pending (still searching), Interrupted (search stopped before it answered), Failed (error), Refused (does not support image search), Partial (answer cut at a cap), Cached only (Nexus group or group member: the list is limited to cached content; \"(no result)\" means nothing in the cache), No result (answered with nothing), Skipped (catalog not browsed for a one-character query). A long list ends with +N"},
 			{Key: ". (Browser images)", Description: "Cycle the sort: Name, Registry, Stars (most first), each way, then the default order"},
 			{Key: "esc (Browser images)", Description: "Close the filter bar, then clear the confirmed filter, then go back to the search form"},

@@ -515,7 +515,7 @@ read (`network.md`); the help text follows the mode (`registryBrowserHelpBody`).
 
 The browser's **level 1** (image search results, `searchTable`) is the
 opposite case: it uses the `datatable` filter bar as is (Rule 136). `/` opens it
-and filters on Name and Description; the bar is drawn in the OCI view's footer
+and filters on Name and Description (case-insensitive, local); the bar is drawn in the OCI view's footer
 through `FilterBarView`, and its height counts through `FilterIsVisible`. `esc`
 acts in order: it closes the bar while it is being typed in (the bar takes the
 key), then clears a confirmed query (`ClearSearch`, level 1 stays), then
@@ -532,9 +532,9 @@ no row it warns `No image selected` in the footer and its shortcut is greyed
 (`imageDrillIn`, the same computation for the header and the handler). `enter`
 does nothing at level 1 (a row has no action yet) and is not in the shortcuts.
 The set of keys does not depend on the rows (Rule 130): `→ Open tags` (greyed
-without a row), `. Sort` (cycles Name, Registry, Stars, then the default order; `network.md`, DEVDESK-309), `/ Filter` and `esc Go back` (no `←` entry: it does the same
+without a row), `. Sort` (cycles Name, Registry, Stars, then the default order; `network.md`, DEVDESK-309), `r Filter registry` (groups, registries, off; greyed with fewer than two registries that have rows; DEVDESK-310), `/ Filter` and `esc Go back` (no `←` entry: it does the same
 as `esc`; `←` is named only in the `?` help), or `enter/esc Close filter` while
-typing. The `?` help lists `. (Browser images)`. A new search resets the sort and the confirmed filter. The title carries the typed name, or the opened row's name once `→` has
+typing. The `?` help lists `. (Browser images)` and `r (Browser images)`; the help of `/` says "by name or description". The `r` filter shows as a token in the filter bar, which is drawn while a filter exists and while `/` is being typed (footer +2 lines); the token is display only, the rows are prefiltered before the table (`datatable` unchanged). `esc` does not clear it (`r` does), and a new search does. A new search resets the sort and the confirmed filter. The title carries the typed name, or the opened row's name once `→` has
 opened its tags.
 
 `status` is the two-table case: two `datatable.Model` plus a focus helper.

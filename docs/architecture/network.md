@@ -498,7 +498,7 @@ cursor follows the selected row by `EntryKey` + `Repo`, never by index:
 cursor back with `SetCursor` (all in `Update()`, `datatable` untouched). With
 nothing selected (empty table, so also a new search, which starts from
 `SetItems(nil)`) the cursor goes to the first row received; a row that
-disappears leaves the cursor where it is. **Sort (DEVDESK-309, IS-05).** `.` calls `cycleSearchSort`, which advances
+disappears (the cursor's row is no longer listed) sends the cursor to the first row (`GotoTop`). **Sort (DEVDESK-309, IS-05).** `.` calls `cycleSearchSort`, which advances
 `datatable.CycleSort`: Name ▲, Name ▼, Registry ▲, Registry ▼, Stars ▼ (Stars
 opens descending, `DescFirst`), Stars ▲, then back to the default order above.
 Name compares lower-cased, Registry on its lower-cased label (`Less` on each
@@ -508,6 +508,25 @@ in ▲, apart from an image with zero stars. The cursor follows the selected row
 by `EntryKey` + `Repo` (`reselect`, shared with `rebuildSearchTable`). A new
 search (`startImageSearch`) resets the sort and clears a confirmed `/` filter.
 `.` typed in the open filter bar stays a character of the field.
+**Registry filter (DEVDESK-310, IS-06).** `r` calls `cycleSearchRegistryFilter`,
+which advances `searchFilter` (a `resultFilter`, apart from the tags' `registryFilter`)
+with `nextFilter`: groups, then individual registries, then off. The stops come
+from `searchFilterStops` -> `filterStopsFor` (shared with the tags table through
+`filterStops`): they follow the form order (`b.searchKeys`) and keep only the
+registries that have at least one row. With one registry that produced results
+there is no stop, `r` does nothing and its shortcut is greyed. `filterLabel`
+(shared with `registryFilterLabel`) names the active stop: the group label; for a registry outside a group, `parent/alias` when it has a parent, else its alias, else `registryRef`. `syncSearchFilterToken` shows it as one active
+`components.FilterToken` in the bar, which appears while a filter exists and while `/` is being typed
+(the footer grows by 2 lines). The token is display only: `rebuildSearchTable`
+prefilters the rows (`searchFilter.matches`) before `SetItems`, and `datatable`
+is unchanged. Order of computation: `r` filter, then the `/` query (name or
+description, case-insensitive, no network request), then the `.` sort. `r`, `.`
+and `:` typed in the open bar are characters of the field. `esc` closes the bar,
+then clears the query, then goes back to the form; it does not clear the `r`
+filter (cycle to off with `r`). The `r` filter survives `→`/`←` (tags). A new
+search clears it, with the sort and the `/` filter. When the row under the
+cursor is hidden by `r`, the cursor goes to the top. A filter that leaves no row
+leaves a header-only table (Rule 139); `Images` counts the visible rows.
 Rule 139: an empty table keeps its
 header. The header reads `Images: <visible rows>`, the title carries the typed
 name (`... > Registry Browser > <name>`) at level 1 (once `→` opens a row, the
@@ -519,6 +538,10 @@ full reference (`searchRow.ref`, built by `searchRowReference`: host, then
 <label>`, no ` on` when the label is empty); `Searching registries...` keeps
 priority. The keys are in
 `ui-components.md`.
+
+**Fix at level 2:** `filterStopsFor` dropped the group stop wrongly when a
+foreign registry had as many keys as the group had members; it now counts only
+the results inside the group.
 
 **`→` at level 1: open the tags of a row (DEVDESK-304).** `→` opens the usual
 tag table for the row under the cursor (`openSelectedImageTags`). It sends one

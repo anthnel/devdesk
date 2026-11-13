@@ -97,6 +97,8 @@ func (b *RegistryBrowser) startImageSearch(query string, entries []browserRegist
 	// A new search starts from the default order and without the previous
 	// confirmed `/` filter (DEVDESK-309).
 	b.searchTable.FilterBar().ClearSearch()
+	b.searchFilter = resultFilter{}
+	b.syncSearchFilterToken()
 	b.searchTable.SetSort(-1, false)
 	b.searchTable.SetItems(nil)
 

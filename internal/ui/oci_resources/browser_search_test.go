@@ -1156,3 +1156,34 @@ func TestThePullActsOnTheRowUnderTheCursorAfterASort(t *testing.T) {
 		t.Errorf("selectedImageName() = %q, want the highlighted row %q", got, want)
 	}
 }
+
+// A group with three members of which only two answered, next to a foreign
+// registry, keeps its group stop: the first `r` narrows to the group's two rows.
+func TestTheGroupStopSurvivesAForeignKeyWithPartialMembers(t *testing.T) {
+	cache := groupCacheFixture()
+	g := cache["prod"]
+	g.Members = append(g.Members, cacheMember("registry.example.com", "third", "third-proxy"))
+	cache["prod"] = g
+	m := feed(t, loadedModel(t), RegistryGroupCacheLoadedMsg{Entries: cache})
+	m = feed(t, m, testutil.Key(keymap.Browser))
+	m = typeInto(t, m, "api")
+	m = feed(t, m, testutil.Key("enter"))
+	m = feed(t, m, stampGen(m,
+		MultiRegistryTagsLoadedMsg{EntryKey: memberKey("prod", "registry.example.com", "docker-hosted"), RegistryURL: "registry.example.com", Alias: "prod/docker-hosted", Repo: "docker-hosted/api", Tags: []string{"v1"}},
+		MultiRegistryTagsLoadedMsg{EntryKey: memberKey("prod", "registry.example.com", "dhi-proxy"), RegistryURL: "registry.example.com", Alias: "prod/dhi", Repo: "dhi-proxy/api", Tags: []string{"v2"}},
+		MultiRegistryTagsLoadedMsg{EntryKey: "hub", RegistryURL: "docker.io", Alias: "hub", Repo: "api", Tags: []string{"latest"}},
+	)...)
+	b := m.registryBrowser
+
+	feed(t, m, testutil.Key("r"))
+	if b.registryFilter.groupSlug != "prod" {
+		t.Fatalf("the first stop is %+v, want the group", b.registryFilter)
+	}
+	if got := len(b.tagTable.Visible()); got != 2 {
+		t.Errorf("%d rows under the group filter, want 2", got)
+	}
+}
+
+func cacheMember(url, alias, prefix string) cache.RegistryGroupMember {
+	return cache.RegistryGroupMember{Alias: alias, URL: url, RepoPrefix: prefix}
+}
