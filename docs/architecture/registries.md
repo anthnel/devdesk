@@ -44,8 +44,9 @@ The image search (`network.md`, `CatalogSearcher`, DEVDESK-306) reads the same
 pair: it walks the catalog of the entry's host (`/v2/_catalog`, with the entry's
 `auth_mode` through `credsFor`), keeps the names under `<repo_prefix>/` and
 matches the typed text on the part after it. A catalog with no name under the
-prefix is refused, not "no result". Each entry is walked on its own, so several
-members of one host cost several walks.
+prefix is refused, not "no result". Entries that share an API URL and an
+identity share one walk per search (DEVDESK-311, `network.md`); an entry with
+other credentials, another port or another subdomain is walked on its own.
 
 Three things follow, each with a test:
 
