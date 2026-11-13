@@ -598,3 +598,25 @@ func TestAConfigWithNoRepoPrefixStillLoads(t *testing.T) {
 		t.Errorf("repo prefix = %q, want nothing invented", items[0].RepoPrefix)
 	}
 }
+
+// DEVDESK-308: only a Nexus group lists from cached content.
+func TestIsNexusGroup(t *testing.T) {
+	tests := []struct {
+		name string
+		item RegistryItem
+		want bool
+	}{
+		{"nexus group", RegistryItem{Kind: KindGroup, Provider: ProviderNexus}, true},
+		{"harbor group", RegistryItem{Kind: KindGroup, Provider: ProviderHarbor}, false},
+		{"generic group", RegistryItem{Kind: KindGroup, Provider: ProviderGeneric}, false},
+		{"nexus plain registry", RegistryItem{Kind: KindRegistry, Provider: ProviderNexus}, false},
+		{"zero value", RegistryItem{}, false},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := IsNexusGroup(tt.item); got != tt.want {
+				t.Fatalf("IsNexusGroup(%+v) = %v, want %v", tt.item, got, tt.want)
+			}
+		})
+	}
+}

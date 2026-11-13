@@ -49,7 +49,11 @@ type browserRegistryEntry struct {
 	// for a member. It is what the result filter resolves labels through, and
 	// what replaced matching on URL — two registries configured with the same
 	// URL used to collide.
-	Slug        string
+	Slug string
+	// cachedOnly marks an entry whose content can only be listed from the
+	// discovered-members cache: a Nexus group, its members, or an entry that
+	// declares a Nexus group as its parent (DEVDESK-308).
+	cachedOnly  bool
 	ParentAlias string // non-empty = member of a group
 	ParentSlug  string
 	parentURL   string // URL of the parent RegistryItem (for credential lookup)
@@ -328,6 +332,10 @@ func newRegistryBrowser(
 func (b *RegistryBrowser) buildEntries(groups map[string]cache.RegistryGroupEntry, deselected map[string]bool) {
 	b.entries = nil
 	b.rows = nil
+	bySlug := make(map[string]config.RegistryItem, len(b.registries))
+	for _, reg := range b.registries {
+		bySlug[reg.Slug] = reg
+	}
 	for _, reg := range b.registries {
 		alias := browserAlias(reg)
 		// Members share their group's host and therefore its single credential
@@ -344,6 +352,7 @@ func (b *RegistryBrowser) buildEntries(groups map[string]cache.RegistryGroupEntr
 				URL: reg.URL, Alias: alias, Slug: reg.Slug, authMode: mode,
 				repoPrefix: reg.RepoPrefix,
 				key:        reg.Slug,
+				cachedOnly: listsCacheOnly(reg, bySlug),
 			})
 			continue
 		}
@@ -360,6 +369,7 @@ func (b *RegistryBrowser) buildEntries(groups map[string]cache.RegistryGroupEntr
 				ParentSlug:  reg.Slug,
 				parentURL:   reg.URL,
 				authMode:    mode,
+				cachedOnly:  config.IsNexusGroup(reg),
 				key:         memberKey(reg.Slug, m.URL, m.RepoPrefix),
 			})
 		}
@@ -369,6 +379,15 @@ func (b *RegistryBrowser) buildEntries(groups map[string]cache.RegistryGroupEntr
 	for _, e := range b.entries {
 		b.selectedRegs[e.key] = !deselected[e.key]
 	}
+}
+
+// listsCacheOnly reports whether reg can only be listed from the cache: it is a
+// Nexus group, or it declares a Nexus group as its parent (Q-B ii).
+func listsCacheOnly(reg config.RegistryItem, bySlug map[string]config.RegistryItem) bool {
+	if config.IsNexusGroup(reg) {
+		return true
+	}
+	return reg.Parent != "" && config.IsNexusGroup(bySlug[reg.Parent])
 }
 
 // memberKey names one member of a group. Scoping it by the group's slug is what

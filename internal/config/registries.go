@@ -77,6 +77,12 @@ func UsesCredentials(mode string) bool {
 	return mode != AuthAnonymous && mode != AuthInherit
 }
 
+// IsNexusGroup reports whether item is a group served by Nexus, the one kind of
+// group whose content can only be listed from the discovered-members cache.
+func IsNexusGroup(item RegistryItem) bool {
+	return item.Kind == KindGroup && item.Provider == ProviderNexus
+}
+
 // Providers returns the declared providers in the order a form cycles them,
 // generic first because it is the default for a group that says nothing.
 func Providers() []string {
