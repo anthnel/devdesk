@@ -45,7 +45,7 @@ type FrameTrailView interface {
 }
 
 // headerMinHeight is the fixed header height (without the blank line under it).
-const headerMinHeight = 7
+const headerMinHeight = shortcut.HeaderRows
 
 // ASCII logo for the header
 var logoLines = []string{
@@ -91,7 +91,7 @@ func renderHeaderContent(info []shortcut.HeaderInfo, shortcuts shortcut.Shortcut
 	innerWidth := width - 2 // 1 padding each side
 
 	// Column widths
-	col1Width := innerWidth / 4
+	col1Width := shortcut.HeaderInfoWidth(width)
 	col3Width := logoWidth
 	// The logo column is fixed-width: drop it when it cannot sit next to the
 	// info column, rather than pushing every row past the window (Rule 108).
@@ -184,7 +184,7 @@ func buildInfoLines(info []shortcut.HeaderInfo, col1Width int) []string {
 		if i < len(info) {
 			// Pad key to maxKeyLen so all ": " align
 			paddedKey := info[i].Key + strings.Repeat(" ", maxKeyLen-len(info[i].Key))
-			label := theme.HeaderKeyStyle.Render(paddedKey + ": ")
+			label := theme.HeaderKeyStyle.Render(paddedKey + shortcut.HeaderInfoSeparator)
 
 			value := info[i].Value
 			if info[i].Style.GetForeground() != lipgloss.Color("") {

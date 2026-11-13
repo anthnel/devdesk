@@ -285,9 +285,12 @@ func (m Model) GetHeaderInfo(_ string) []shortcut.HeaderInfo {
 		}
 	}
 	if m.registryBrowser != nil && m.registryBrowser.state == browserStateImages {
-		return []shortcut.HeaderInfo{
-			{Key: "Images", Value: fmt.Sprintf("%d", len(m.registryBrowser.searchTable.Visible())), Style: theme.HeaderValueStyle},
+		b := m.registryBrowser
+		termWidth := 0
+		if m.width > 0 {
+			termWidth = m.width // the terminal width: resize records it before handing the browser width-2
 		}
+		return searchHeaderInfo(len(b.searchTable.Visible()), b.searchSummary(), termWidth)
 	}
 	if m.networkInspectForm != nil {
 		return []shortcut.HeaderInfo{
@@ -608,6 +611,7 @@ func (m Model) GetHelpContent() help.Content {
 			{Key: "/", Description: "Filter images by repository or tag (Images tab only)"},
 			{Key: "→ (Browser images)", Description: "Open the tags of the selected image, on its registry only"},
 			{Key: "/ (Browser images)", Description: "Filter the images a registry search found, by name"},
+			{Key: "Header (Browser images)", Description: "Below the image count, one line per kind of registry that has something to report: Pending (still searching), Interrupted (search stopped before it answered), Failed (error), Refused (does not support image search), Partial (answer cut at a cap), No result (answered with nothing), Skipped (catalog not browsed for a one-character query). A long list ends with +N"},
 			{Key: "esc (Browser images)", Description: "Close the filter bar, then clear the confirmed filter, then go back to the search form"},
 			{Key: "↑/k", Description: "Move selection up"},
 			{Key: "↓/j", Description: "Move selection down"},

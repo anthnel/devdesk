@@ -104,10 +104,7 @@ func (b *RegistryBrowser) rebuildSearchTable() {
 	for i, img := range b.images {
 		label, ref := "", img.Repo
 		if e := b.entryFor(img.EntryKey); e != nil {
-			label = entryAlias(*e)
-			if label == "" {
-				label = e.URL
-			}
+			label = b.entryLabel(img.EntryKey)
 			ref = searchRowReference(e.URL, img)
 		}
 		rows[i] = searchRow{img: img, label: label, ref: ref}
