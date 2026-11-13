@@ -436,8 +436,8 @@ func fetchDockerHubTagsMeta(namespace, repo string) (map[string]time.Time, error
 func loadMultiRegistryTagsMetaCmd(gen uint64, entryKey, registryURL, repo string) tea.Cmd {
 	return func() tea.Msg {
 		empty := MultiRegistryTagsMetaMsg{Gen: gen, EntryKey: entryKey, RegistryURL: registryURL, Repo: repo}
-		// isDockerHub accepts a scheme, a trailing slash and either Hub host.
-		if !isDockerHub(registryURL) {
+		// oci.IsDockerHub accepts a scheme, a trailing slash and either Hub host.
+		if !oci.IsDockerHub(registryURL) {
 			return empty
 		}
 		parts := strings.SplitN(repo, "/", 2)
