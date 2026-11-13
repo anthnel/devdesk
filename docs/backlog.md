@@ -98,13 +98,23 @@ decided together and fixed in one pass; see [§1.2](#12-the-five-parked-defects)
 
 ### 1.1 Fixed
 
+**D133 — DEVDESK-307 (IS-09): `←` or `esc` on tags opened with `→` returns to level 1 of the registry browser, untouched and with no new request; leaving the tags always cancels the tag lot. Decided (H1 to H5, validated by the user).** **Plane:** DEVDESK-307 (IS-09), dated 2026-11-13. Sources: `.claude/plans/DEVDESK-307-plan.md`, `docs/product/image-search/stories.md`, D129, D132, `docs/architecture/network.md` ("Back to level 1"), Rules 130 and 138.
+
+1. **H1: leaving tags cancels the lot, from either origin.** One helper, `abandonLot`, serves the return to level 1, the return to the form from tags opened by full name, and `esc` at level 1. A late answer is dropped by generation. Closes open point 5 of D132.
+2. **H2: leaving tags resets the tag filters and `tagsImage`.** Otherwise `GetTitle` would show a stale `[alias]` above level 1 or the form.
+3. **H3: `←` at level 1 goes straight back to the form**, even with a confirmed filter query; `esc` still clears the query first. While the filter bar is typed in, `esc` closes the bar and `←` stays in the text field.
+4. **H4: no `←` entry in the shortcuts header.** `esc Go back` is shown in both states and `←` does the same (Rule 130, Rule 138). `←` is documented in the `?` help.
+5. **H5: no `keymap.Left` constant.** Arrows are compared through `String()` (`"left"`, `"right"`), as `→` already is.
+
+Local, reversible decision: no ADR.
+
 **D132 — DEVDESK-304 (draft, to confirm): `→` at level 1 of the registry browser opens the usual tag table for the row under the cursor, on that row's registry only, with the row's final repository (no renormalization).** **Plane:** DEVDESK-304, dated 2026-11-13. Sources: `.claude/plans/DEVDESK-304-plan.md`, `docs/product/image-search/stories.md`, D129, D130, D131, `docs/architecture/network.md` ("`→` at level 1").
 
 1. **One request, to the row's registry.** The request goes through `newTagRequest` and `startTagRequests`, shared with the full-name flow, so credentials (`credsFor`, D12), pull and scan references are identical. The row's `Repo` is already final: `normalizeRepoForRegistry` and `joinRepoPrefix` stay in `startTagLookup` only.
 2. **Title and keys.** The title carries the opened row's name. Without a row, `→` warns `No image selected` (footer Warn) and its shortcut is greyed (Rule 130). `esc` goes back to the search form; going back to level 1 is IS-09.
 3. **Failure.** A failed tag listing opened by `→` leaves a header-only table (Rule 139) and a 3 s footer Error `Could not load tags`; the log carries the alias and `searchErrorCause`, no credentials. The full-name flow is unchanged and silent.
 4. **`→` during a search cancels it.** The browser has one lot at a time. Accepted: the user reopens the search; to revisit before IS-03.
-5. **Open point.** An `esc` from tags opened by `→` does not cancel the lot, so a late failure can show `Could not load tags` over the form. To handle with IS-09.
+5. **Open point (handled by D133).** An `esc` from tags opened by `→` does not cancel the lot, so a late failure can show `Could not load tags` over the form. Handled by DEVDESK-307 (IS-09): leaving the tags cancels the lot.
 
 Local, reversible decision: no ADR.
 

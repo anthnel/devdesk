@@ -389,9 +389,31 @@ records where the table came from: `tagsFromSearch` (true for `→`) and
   (the browser has one lot at a time, `beginRequests`): the rows already shown
   stay, the late ones are dropped. Accepted; the user reopens the search before
   IS-03 (private registries) makes searches slower.
-- **`esc`** on the opened tags goes back to the search form, not to level 1.
-  Going back to level 1 is IS-09. Open point: that `esc` does not cancel the lot,
-  so a late failure can show `Could not load tags` over the form (D132).
+
+**Back to level 1 (DEVDESK-307).** `←` and `esc` on the tag table call
+`leaveTags`, which returns no Cmd (so no new request). Typing in the tag filter
+comes first: `esc` closes the bar and `←` stays in the text field. `leaveTags`
+reads the origin from `tagsFromSearch`:
+
+- **Opened with `→`:** back to level 1 (`browserStateImages`), untouched. The
+  rows, the sort order, the cursor and the filter are the ones the user left;
+  `searchTable` is neither emptied nor rebuilt (`rebuildSearchTable` would move
+  the cursor).
+- **Opened by full name:** back to the form (`browserStateInput`), focus on the
+  Open Tags button as before.
+
+On both origins `leaveTags` calls `abandonLot`: it cancels the tag lot, takes a
+new generation and zeroes `pendingSearches`, so a late tag answer or failure is
+dropped by the generation test and cannot show `Could not load tags` over the
+form or level 1 (this closes open point 5 of D132). It also resets the tag
+filters (`registryFilter`, `filterInput`, `filterActive`) and `tagsImage`, so
+the title does not keep a stale `[alias]` or image name. Level 1 itself:
+`←` goes back to the form (`backToForm`, which also calls `abandonLot`) and
+keeps the typed name and the selected registries, even with a confirmed filter
+query. `esc` still clears a confirmed query first. While the filter bar is being
+typed in, `esc` closes the bar and `←` stays in the text field. There is no `←`
+entry in the shortcuts header: `esc Go back` already shows in both states
+(Rule 130, D133).
 
 **Networks, Volumes and Registries (DEVDESK-153, A-09b).** Each takes
 `datatable.IndicatorColumn` as column 0. Rows carry no `components.RowActivity`:

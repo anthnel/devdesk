@@ -152,10 +152,11 @@ func (b *RegistryBrowser) AddImageResults(msg ImageSearchResultMsg) bool {
 	return true
 }
 
-// handleImagesKeyMsg handles the keys of the level 1 table. esc acts in
-// order: the filter bar while it is open, then a confirmed query, then it
-// cancels the lot and goes back to the form (which keeps the typed name and
-// the selection). The lot's late answers are no longer wanted and are dropped
+// handleImagesKeyMsg handles the keys of the level 1 table. left goes straight
+// back to the form; esc acts in order: the filter bar while it is open, then a
+// confirmed query, then it cancels the lot and goes back to the form (which
+// keeps the typed name and the selection). The lot's late answers are no
+// longer wanted and are dropped
 // (TestEscAtLevelOneCancelsTheLotAndIgnoresItsLateAnswers). enter does
 // nothing: a row has no action yet; → opens the row's tags.
 func (b *RegistryBrowser) handleImagesKeyMsg(msg tea.KeyPressMsg) (*RegistryBrowser, tea.Cmd) {
@@ -171,17 +172,23 @@ func (b *RegistryBrowser) handleImagesKeyMsg(msg tea.KeyPressMsg) (*RegistryBrow
 			b.searchTable.SetItems(b.searchTable.Items())
 			return b, nil
 		}
-		b.cancelInFlight()
-		b.gen = nextBrowserGen()
-		b.pendingSearches = 0
-		b.state = browserStateInput
-		b.searchTable.Blur()
-		b.updateFocus()
-		return b, nil
+		return b.backToForm()
+	case "left":
+		return b.backToForm()
 	case "enter":
 		return b, nil
 	}
 	return b, b.searchTable.Update(msg)
+}
+
+// backToForm cancels the lot and returns to the form, which keeps the typed
+// name and the selection. Late answers of the lot are dropped.
+func (b *RegistryBrowser) backToForm() (*RegistryBrowser, tea.Cmd) {
+	b.abandonLot()
+	b.state = browserStateInput
+	b.searchTable.Blur()
+	b.updateFocus()
+	return b, nil
 }
 
 // handleImageSearchResult records one registry's answer; a stale one is ignored.

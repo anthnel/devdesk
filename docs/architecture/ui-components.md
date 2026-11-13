@@ -522,12 +522,18 @@ key), then clears a confirmed query (`ClearSearch`, level 1 stays), then
 cancels the lot in flight (late answers are ignored) and goes back to the
 search form, which keeps the typed name and the selection. The plan had `esc`
 go back without cancelling; cancelling was chosen and recorded in D129.
+`←` goes back to the form at once, even with a confirmed query (it is not
+cleared), and keeps the typed name and the selection; while the bar is typed in,
+`←` stays in the text field. On tags opened by `→`, `←` and `esc` return to
+level 1 with the same cursor, sort and filter and no new request; on tags opened
+by full name they return to the form (`network.md`, DEVDESK-307).
 `→` opens the tags of the row under the cursor (`network.md`, DEVDESK-304); with
 no row it warns `No image selected` in the footer and its shortcut is greyed
 (`imageDrillIn`, the same computation for the header and the handler). `enter`
 does nothing at level 1 (a row has no action yet) and is not in the shortcuts.
 The set of keys does not depend on the rows (Rule 130): `→ Open tags` (greyed
-without a row), `/ Filter` and `esc Go back`, or `enter/esc Close filter` while
+without a row), `/ Filter` and `esc Go back` (no `←` entry: it does the same
+as `esc`; `←` is named only in the `?` help), or `enter/esc Close filter` while
 typing. The title carries the typed name, or the opened row's name once `→` has
 opened its tags.
 

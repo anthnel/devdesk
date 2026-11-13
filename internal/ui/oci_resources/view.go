@@ -692,9 +692,9 @@ func registryBrowserHelpBody(searchEnabled bool) string {
 		"Press 'r' to cycle the registry filter (one registry at a time), '/' to filter by tag name, '.' to sort. " +
 		"Press G to pull the selected tag, S to scan it directly via Trivy (no pull), or Enter to view cached CVE details. " +
 		"The first column is the activity dot: a scan or a pull of the tag running, queued or failed; the Critical, High, Medium and Low counts show an ellipsis while its scan runs. The footer says what the selected tag is doing. " +
-		"Press Esc to go back to the search form.")
+		"Press Esc or the left arrow to go back: from tags opened from an image list to that list, otherwise to the search form.")
 	if searchEnabled {
-		b.WriteString(" An image search (level 1) lists one row per registry and image: the first column is the image icon, '/' filters by name, → opens the tags of the selected image on its registry only (same table, scans and pull; Esc on them goes back to the form), Esc closes the filter, then goes back to the form, and Enter does nothing yet.")
+		b.WriteString(" An image search (level 1) lists one row per registry and image: the first column is the image icon, '/' filters by name, → opens the tags of the selected image on its registry only (same table, scans and pull); Esc or the left arrow on those tags goes back to the image list, and from the image list back to the form (Esc first closes the filter); Enter does nothing yet.")
 	}
 	return b.String()
 }

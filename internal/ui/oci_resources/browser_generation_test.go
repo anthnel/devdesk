@@ -312,7 +312,12 @@ func TestAnEmptyOrRefusedValidationLeavesTheLotInFlight(t *testing.T) {
 
 	m, _ := submit(t, browsingModel(t), "api")
 	m = feed(t, m, testutil.Key("esc"))
+	// esc from the tags abandons their lot (DEVDESK-307), so open a lot by hand
+	// here: the refused validations below must leave it running.
+	lotCtx := m.registryBrowser.beginRequests()
 	gen := m.registryBrowser.gen
+	pending := m.registryBrowser.pendingSearches
+	before := len(rec.all())
 
 	// Empty repository.
 	for range 4 {
@@ -334,10 +339,17 @@ func TestAnEmptyOrRefusedValidationLeavesTheLotInFlight(t *testing.T) {
 		t.Errorf("a refused validation changed gen %d -> %d", gen, m.registryBrowser.gen)
 	}
 
-	for i, ctx := range rec.all() {
-		if ctx.Err() != nil {
-			t.Errorf("call %d: a validation that searched nothing cancelled it (%v)", i, ctx.Err())
-		}
+	if n := len(rec.all()); n != before {
+		t.Errorf("a validation that searched nothing made %d request(s)", n-before)
+	}
+	if err := lotCtx.Err(); err != nil {
+		t.Errorf("a validation that searched nothing cancelled the lot (%v)", err)
+	}
+	if m.registryBrowser.cancel == nil {
+		t.Error("a validation that searched nothing dropped the lot's cancel func")
+	}
+	if got := m.registryBrowser.pendingSearches; got != pending {
+		t.Errorf("pendingSearches %d -> %d", pending, got)
 	}
 }
 
