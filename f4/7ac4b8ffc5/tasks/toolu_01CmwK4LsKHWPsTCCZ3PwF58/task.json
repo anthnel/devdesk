@@ -1,0 +1,15 @@
+{
+  "tool_use_id": "toolu_01CmwK4LsKHWPsTCCZ3PwF58",
+  "agent_id": "aab447632ee4c2e75",
+  "subagent_type": "product-team:pm",
+  "task_description": "Stories de suivi des spinners",
+  "token_usage": {
+    "input_tokens": 20,
+    "cache_creation_tokens": 118066,
+    "cache_read_tokens": 775444,
+    "output_tokens": 24979,
+    "api_call_count": 10
+  },
+  "started_at": "2026-11-12T08:50:50.125776042+01:00",
+  "completed_at": "2026-11-12T08:53:50.790813357+01:00"
+}
