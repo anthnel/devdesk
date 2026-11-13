@@ -89,6 +89,11 @@ func (b *RegistryBrowser) startImageSearch(query string, entries []browserRegist
 	b.images = nil
 	b.outcomes = map[string]imagesearch.Outcome{}
 	b.searchQuery = query
+	b.searchGen = b.gen
+	b.searchKeys = make([]string, len(entries))
+	for i, entry := range entries {
+		b.searchKeys[i] = entry.key
+	}
 	b.searchTable.SetItems(nil)
 
 	cmds := make([]tea.Cmd, 0, len(entries))

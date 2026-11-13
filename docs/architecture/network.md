@@ -419,8 +419,32 @@ result in `RegistryBrowser.outcomes`, keyed by `EntryKey`. The map is reset by
 pending. Only an `ok` verdict appends rows. `Outcome(entryKey)` reads one
 verdict (false while pending). `Model.RegistryBrowserOutcomes()` returns a copy
 of the map, or nil when the browser is closed; it is for the tests and for IS-13.
-**Nothing is shown for the verdicts yet**: the header and the footer are
-unchanged until IS-13 (`+N`, `Failed`, `Refused`, `Pending`).
+
+**Level 1 header summary (DEVDESK-305, IS-13).** `searchHeaderInfo`
+(`browser_summary.go`, called from `GetHeaderInfo`) says what the lot did, one
+header line per class, in this order: `Images` (the row count, always), then
+`Pending` (a count, live lot) or `Interrupted` (names, the lot was abandoned
+with the left arrow before they answered), `Failed` (red), `Refused`, `Partial`
+(orange), `No result` (dim) and `Skipped` (dim, catalog not walked because the
+query is shorter than `imagesearch.CatalogMinQueryRunes`). A class with nothing
+to say has no line, so a lot where every registry answered shows only `Images`.
+`summarizeSearch` (pure) sorts the lot's keys into the classes. A name is the
+Registry column's label (`entryLabel`: alias, else URL, else key), in form order.
+`Partial` lists registries cut at a cap, `No result` those that answered with
+nothing (Skipped excluded). A registry that is both partial and empty appears
+on both lines, on purpose.
+
+Each name list is fitted by `fitNames` to the room a value has
+(`shortcut.HeaderValueWidth`), so the `+N` is never lost: all the names, else
+the first k names then `+N`, else `+N` alone. `Skipped` carries the hint
+` (type N+ characters)`, which is the first thing dropped when the header is
+narrow. The summary has a budget of `shortcut.HeaderRows` (7) lines, `Images`
+included; classes after the sixth are left out. Before the first
+`WindowSizeMsg` nothing is abbreviated. At level 2 (tags) the header is the
+usual tag count.
+
+Limit, accepted (R2): below about 50 columns `HeaderValueWidth` is 0 or 1,
+nothing fits, `fitNames` returns `+N` anyway and the router clips it.
 
 Logging, by verdict, through `logSearchOutcome` (the alias falls back to the
 entry key):

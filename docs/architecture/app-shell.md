@@ -646,6 +646,19 @@ renders an empty viewport title — with nothing to say so.
 `command.AllViewNames()` and `TestEveryViewSuppliesItsHeaderAndHelp` turn that
 into a contract every view is checked against.
 
+**Header geometry (`internal/ui/shortcut/header_layout.go`, DEVDESK-305).** The
+header's measures live in one place, read by the router and by views that size
+their info values: `HeaderRows` (7, the fixed height without the blank line,
+Rule 124; `headerMinHeight` in `app_header.go` is this constant),
+`HeaderInfoSeparator` (`": "`, between the key padded to the longest and its
+value), `HeaderInfoWidth(termWidth)` (the info column: `(termWidth-2)/4`, 0
+below 2 cells; `renderHeaderContent` uses it as `col1Width`) and
+`HeaderValueWidth(termWidth, keys)` (room left for a value: info width minus the
+longest key (byte length) minus the separator, floored at 0). The router reads
+them instead of literals: the rendering did not change. The registry browser's
+level 1 summary is the one view that calls `HeaderValueWidth`, to abbreviate
+names (see `network.md`).
+
 **`FrameTrailView` is optional.** A view that implements
 `FrameTrail(maxWidth int) string` (`internal/app/app_header.go`) puts a trail on
 the viewport's top border, in parentheses right after the title.

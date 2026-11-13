@@ -255,6 +255,10 @@ type RegistryBrowser struct {
 	// outcomes is each registry's verdict in the current lot, by entry key;
 	// absent while pending.
 	outcomes map[string]imagesearch.Outcome
+	// searchKeys is the current lot's entry keys in form order, and searchGen
+	// its generation; written only by startImageSearch (DEVDESK-305).
+	searchKeys []string
+	searchGen  uint64
 
 	// The router's snapshot, for the activity column and the footer: the
 	// registry's runs and remembered failures, and the context they are read in.
