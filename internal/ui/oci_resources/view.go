@@ -162,6 +162,15 @@ func (m Model) formStatus() sharedcomponents.Status {
 		if row, ok := m.registryBrowser.tagTable.Selected(); ok && m.registryBrowser.state == browserStateTags {
 			return sharedcomponents.Status{Detail: row.Activity.Detail}
 		}
+		// Level 1, search done: the footer describes the selected row.
+		if row, ok := m.registryBrowser.searchTable.Selected(); ok && m.registryBrowser.state == browserStateImages {
+			detail := sharedcomponents.RowDetail{Lead: "Image ", Target: row.ref}
+			// A registry the list no longer knows leaves no label: no dangling " on".
+			if row.label != "" {
+				detail.Tail = " on " + row.label
+			}
+			return sharedcomponents.Status{Detail: detail}
+		}
 	}
 	if m.networkInspectForm != nil && m.networkInspectForm.loading {
 		return sharedcomponents.Status{Text: "Loading containers...", Activity: true}

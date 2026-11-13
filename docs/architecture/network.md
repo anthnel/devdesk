@@ -338,13 +338,28 @@ the `IconRoleImage` role), Name (flex, searchable), Registry, Stars (empty when
 (searchable). All cells are plain text (Rule 122). When the terminal narrows,
 Description, then Stars, then Official leave whole (`Optional`, with
 `DropFirst` on Description and Stars); at 60 columns only the activity column,
-Name and Registry remain, and the line spans width-2 at every width (Rule 116).
-Results show
-in arrival order (no sort until IS-04/IS-05). Rule 139: an empty table keeps its
+Name and Registry remain, and the line spans width-2 at every width (Rule 116). Results are
+ordered by `sortSearchRows` (`browser_images_order.go`), a pure function of the
+rows and the typed name (`RegistryBrowser.searchQuery`, set by
+`startImageSearch`), so the order never depends on which registry answered
+first. Ranks (`matchTier`, case-insensitive): 0 name equals the query, 1 last
+path segment equals it, 2 last segment starts with it, 3 name contains it, 4 no
+match; then name, registry alias, `EntryKey` and `Repo`. Stars play no part. The
+cursor follows the selected row by `EntryKey` + `Repo`, never by index:
+`rebuildSearchTable` remembers the selection before `SetItems` and puts the
+cursor back with `SetCursor` (all in `Update()`, `datatable` untouched). With
+nothing selected (empty table, so also a new search, which starts from
+`SetItems(nil)`) the cursor goes to the first row received; a row that
+disappears leaves the cursor where it is. Rule 139: an empty table keeps its
 header. The header reads `Images: <visible rows>`, the title carries the typed
 name (`... > Registry Browser > <name>`), and the footer shows the shared
-activity dot with `Searching registries...` while `pendingSearches > 0`. The
-keys are in `ui-components.md`.
+activity dot with `Searching registries...` while `pendingSearches > 0`. Once
+the search is done, the footer describes the selected row (`Status.Detail`): its
+full reference (`searchRow.ref`, built by `searchRowReference`: host, then
+`Repo`; Docker Hub always `docker.io`) and the registry label (`Image <ref> on
+<label>`, no ` on` when the label is empty); `Searching registries...` keeps
+priority. The keys are in
+`ui-components.md`.
 
 **Networks, Volumes and Registries (DEVDESK-153, A-09b).** Each takes
 `datatable.IndicatorColumn` as column 0. Rows carry no `components.RowActivity`:

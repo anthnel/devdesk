@@ -232,6 +232,8 @@ type RegistryBrowser struct {
 	// Results state
 	tags            []MultiRegistryTag
 	pendingSearches int
+	// searchQuery is the name typed for the level 1 search; it fixes the order.
+	searchQuery string
 	// gen names the lot of requests whose answers the browser takes, and cancel
 	// stops that lot (browser_flow.go).
 	gen            uint64
