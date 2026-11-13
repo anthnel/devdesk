@@ -42,7 +42,7 @@ func (c CatalogSearcher) Search(ctx context.Context, t Target, q Query) ([]Image
 	if list == nil {
 		list = oci.ListCatalogContext
 	}
-	names, truncated, err := list(ctx, t.APIURL, t.Username, t.Password, CatalogMaxPages, CatalogPageSize)
+	names, truncated, err := walkCatalog(ctx, t, list)
 	if err != nil {
 		return nil, false, err
 	}

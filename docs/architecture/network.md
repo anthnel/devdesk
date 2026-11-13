@@ -171,8 +171,33 @@ and `CatalogSearcher` (IS-03); dhi.io is IS-17:
   `oci_resources.matchTier` delegates to it. The 15 s per-registry deadline
   (`imageSearchDeadline`, below) covers the whole walk; hitting it is a
   `failed` verdict with no row. `CatalogSearcher.List` replaces
-  `oci.ListCatalogContext` in tests. Walks per search: one per checked
-  entry, so several entries on one host walk its catalog several times (IS-07).
+  `oci.ListCatalogContext` in tests. Walks per search
+  (DEVDESK-311, IS-07, `walks.go`): `WithSharedWalks(ctx)` puts a memo on the
+  batch context and `CatalogSearcher` goes through `walkCatalog`, so a search
+  queries `/v2/_catalog` once per API URL and identity. Without the memo
+  (any other caller) every call walks on its own.
+  - Key: the exact API URL (trailing slash ignored) and the identity, an
+    HMAC-SHA256 of username and password under a random per-batch key: no
+    secret is held in clear and the key prints no userinfo. Two identities
+    never share a walk, because Harbor, Artifactory and GitLab filter the
+    catalog per account. A `credentials` entry with no effective secret shares
+    the walk of an anonymous entry. A member on another port or subdomain has
+    another API URL and is not grouped.
+  - Leader and followers: the first call for a key walks, the others wait (or
+    return on their own context). It is a memo, not a singleflight: the key is
+    kept after the walk, so a member arriving later reuses the result, and it
+    dies with the batch (no cache between two searches).
+  - A shared failure (a 503, say) is the same error for every member, so the
+    same verdict (`failed` or `refused`), one message per entry. A result
+    caused by the leader's own context ending is not memoized: followers
+    already waiting on that flight receive the leader's context error (verdict
+    `failed`), and only members arriving afterwards walk again. A
+    panic in the leader gives followers a sentinel error (`errWalkAborted`),
+    never an empty catalog.
+  - `repo_prefix` filtering, `partial`, `ErrPrefixNotInCatalog` and
+    `Cached only` stay computed per member.
+  - Unverified assumption: members of one host answer on the same
+    `/v2/_catalog` (IS-16).
   A catalog may be disabled or filtered to the account's rights (Harbor,
   Artifactory, GitLab): the answer is then `refused` or a shortened list.
 - **Verdicts (DEVDESK-303, IS-12, `verdict.go`).** `Classify(err, n, partial)`

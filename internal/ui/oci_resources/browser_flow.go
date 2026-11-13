@@ -85,7 +85,9 @@ func (b *RegistryBrowser) targetFor(entry browserRegistryEntry) imagesearch.Targ
 
 // startImageSearch opens a lot and asks the Searcher once per entry.
 func (b *RegistryBrowser) startImageSearch(query string, entries []browserRegistryEntry) (*RegistryBrowser, tea.Cmd) {
-	ctx := b.beginRequests()
+	// The walk memo belongs to this lot: it dies with it, and nothing is
+	// cached between two searches.
+	ctx := imagesearch.WithSharedWalks(b.beginRequests())
 	b.images = nil
 	b.outcomes = map[string]imagesearch.Outcome{}
 	b.searchQuery = query
