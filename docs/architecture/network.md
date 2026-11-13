@@ -425,7 +425,7 @@ of the map, or nil when the browser is closed; it is for the tests and for IS-13
 header line per class, in this order: `Images` (the row count, always), then
 `Pending` (a count, live lot) or `Interrupted` (names, the lot was abandoned
 with the left arrow before they answered), `Failed` (red), `Refused`, `Partial`
-(orange), `No result` (dim) and `Skipped` (dim, catalog not walked because the
+(orange), `Cached only` (orange, DEVDESK-308, IS-14), `No result` (dim) and `Skipped` (dim, catalog not walked because the
 query is shorter than `imagesearch.CatalogMinQueryRunes`). A class with nothing
 to say has no line, so a lot where every registry answered shows only `Images`.
 `summarizeSearch` (pure) sorts the lot's keys into the classes. A name is the
@@ -434,12 +434,29 @@ Registry column's label (`entryLabel`: alias, else URL, else key), in form order
 nothing (Skipped excluded). A registry that is both partial and empty appears
 on both lines, on purpose.
 
+`Cached only` lists the registries whose list is limited to cached content: a
+`provider: nexus` + `kind: group` entry, or a member of such a group (a
+discovered member, or a declared entry whose `parent` is the slug of one).
+`config.IsNexusGroup` and `listsCacheOnly` decide, once, into
+`browserRegistryEntry.cachedOnly`; `summarizeSearch` reads it by entry key
+(`entryCachedOnly`, not by slug: members share their group's slug). A concerned
+registry that answered with no result is marked ` (no result)` on that line and
+is not on `No result`, so `No result: quay` means absent from the registry and
+`Cached only: nexus (no result)` means absent from the cache. A concerned
+partial registry appears on `Partial` and on `Cached only`. Failed, Refused and
+Skipped win: no mention. Docker Hub, generic registries and a Nexus outside a
+group never get the line. `Cached only` and `Skipped` exclude each other, which
+keeps the budget below. Nexus's cache-only behavior comes from secondary
+sources and is not verified on a real Nexus (to confirm in IS-16).
+
 Each name list is fitted by `fitNames` to the room a value has
 (`shortcut.HeaderValueWidth`), so the `+N` is never lost: all the names, else
 the first k names then `+N`, else `+N` alone. `Skipped` carries the hint
 ` (type N+ characters)`, which is the first thing dropped when the header is
 narrow. The summary has a budget of `shortcut.HeaderRows` (7) lines, `Images`
-included; classes after the sixth are left out. Before the first
+included; classes after the sixth are left out (with `Cached only` the seven
+classes fit only because `Pending`/`Interrupted` and `Skipped`/`Cached only`
+exclude each other). Before the first
 `WindowSizeMsg` nothing is abbreviated. At level 2 (tags) the header is the
 usual tag count.
 

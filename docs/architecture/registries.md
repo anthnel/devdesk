@@ -33,6 +33,13 @@ carrying it answers 403 to an ordinary pull account — the same endpoint that
 would say what a group's members are. An instance that refuses one refuses both,
 so guessing is not a fallback, it is the defect.
 
+The same declaration drives the image search header (DEVDESK-308): a
+`provider: nexus` + `kind: group` entry, its discovered members, and a declared
+entry with `parent: <slug>` pointing at such a group are listed from cached
+content only, so the browser's level 1 header shows them on a `Cached only`
+line. The provider is read from the config (`config.IsNexusGroup`), never
+guessed from the URL. See `network.md`, "Level 1 header summary".
+
 The image search (`network.md`, `CatalogSearcher`, DEVDESK-306) reads the same
 pair: it walks the catalog of the entry's host (`/v2/_catalog`, with the entry's
 `auth_mode` through `credsFor`), keeps the names under `<repo_prefix>/` and

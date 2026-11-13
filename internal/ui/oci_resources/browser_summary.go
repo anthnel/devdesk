@@ -67,14 +67,21 @@ type searchSummary struct {
 	Failed      []string
 	Refused     []string
 	Partial     []string // ok or no result, cut at a cap
+	CachedOnly  []string // Nexus group or member: listed from cached content only (DEVDESK-308)
 	NoResult    []string // answered, nothing matches (Skipped excluded)
 	Skipped     []string // catalog not walked: query too short
 }
 
+// cachedNoResultMark follows a name in the Cached only line when that registry
+// answered with no result: with a cache-only list, it means nothing is cached.
+const cachedNoResultMark = " (no result)"
+
 // summarizeSearch sorts the lot's keys into classes. Pure; names are label(key),
-// in the order of keys.
+// in the order of keys. cachedOnly says which keys list cached content only; a
+// concerned key that answered ok or with no result goes to CachedOnly (the
+// no-result one marked, and not in NoResult), a partial one also to Partial.
 func summarizeSearch(keys []string, outcomes map[string]imagesearch.Outcome, live bool,
-	label func(key string) string) searchSummary {
+	label func(key string) string, cachedOnly func(key string) bool) searchSummary {
 	var s searchSummary
 	for _, k := range keys {
 		oc, ok := outcomes[k]
@@ -96,13 +103,20 @@ func summarizeSearch(keys []string, outcomes map[string]imagesearch.Outcome, liv
 				s.Skipped = append(s.Skipped, label(k))
 				continue
 			}
-			s.NoResult = append(s.NoResult, label(k))
 			if oc.Partial {
 				s.Partial = append(s.Partial, label(k))
 			}
+			if cachedOnly(k) {
+				s.CachedOnly = append(s.CachedOnly, label(k)+cachedNoResultMark)
+				continue
+			}
+			s.NoResult = append(s.NoResult, label(k))
 		case imagesearch.VerdictOK:
 			if oc.Partial {
 				s.Partial = append(s.Partial, label(k))
+			}
+			if cachedOnly(k) {
+				s.CachedOnly = append(s.CachedOnly, label(k))
 			}
 		}
 	}
@@ -111,7 +125,13 @@ func summarizeSearch(keys []string, outcomes map[string]imagesearch.Outcome, liv
 
 // searchSummary summarizes the current level 1 lot (live: b.gen == b.searchGen).
 func (b *RegistryBrowser) searchSummary() searchSummary {
-	return summarizeSearch(b.searchKeys, b.outcomes, b.gen == b.searchGen, b.entryLabel)
+	return summarizeSearch(b.searchKeys, b.outcomes, b.gen == b.searchGen, b.entryLabel, b.entryCachedOnly)
+}
+
+// entryCachedOnly reports whether the entry behind key lists cached content only.
+func (b *RegistryBrowser) entryCachedOnly(key string) bool {
+	e := b.entryFor(key)
+	return e != nil && e.cachedOnly
 }
 
 // entryLabel is the Registry column's label for key: entryAlias, else the URL,
@@ -132,7 +152,7 @@ func (b *RegistryBrowser) entryLabel(key string) string {
 
 // searchHeaderInfo is the level 1 header: the image count, then one line per class
 // that has something to say (nothing when every registry answered: only the count).
-// Order: Pending or Interrupted, Failed (red), Refused, Partial (orange), No result,
+// Order: Pending or Interrupted, Failed (red), Refused, Partial (orange), Cached only (orange), No result,
 // Skipped (grey). Each name list is abbreviated by fitNames to the room the header
 // gives a value, so a +N is never lost; Skipped drops its hint first. termWidth 0
 // or less means the width is not known yet. At most shortcut.HeaderRows lines.
@@ -154,6 +174,7 @@ func searchHeaderInfo(images int, s searchSummary, termWidth int) []shortcut.Hea
 		line{key: "Failed", names: s.Failed, style: theme.SeverityTextStyle("CRITICAL")},
 		line{key: "Refused", names: s.Refused, style: warn},
 		line{key: "Partial", names: s.Partial, style: warn},
+		line{key: "Cached only", names: s.CachedOnly, style: warn},
 		line{key: "No result", names: s.NoResult, style: theme.DimStyle},
 		line{key: "Skipped", names: s.Skipped, suffix: skippedHint, style: theme.DimStyle},
 	)
@@ -163,9 +184,16 @@ func searchHeaderInfo(images int, s searchSummary, termWidth int) []shortcut.Hea
 		if l.count == "" && len(l.names) == 0 {
 			continue
 		}
-		// Unreachable today: Pending and Interrupted exclude each other, so at most
-		// six classes plus Images fit the budget. A new line (IS-14) must revisit
-		// this bound rather than be cut silently here.
+		// The budget is HeaderRows lines: Images plus six classes. Pending and
+		// Interrupted exclude each other, which leaves seven classes, and
+		// Skipped (last) is the one cut if all the others are present at once.
+		// That cannot happen today: Skipped only comes from CatalogSearcher
+		// (ErrQueryTooShort), and with defaultImageSearcher = ByRegistry(Hub,
+		// Catalog) every non-Hub entry goes through it. So when Skipped is
+		// present every Nexus entry is Skipped and Cached only is empty: the
+		// two exclude each other, at most seven lines. A dedicated Nexus
+		// searcher would break that assumption. A new line (IS-14) must
+		// revisit this bound rather than be cut silently.
 		if len(kept)+1 >= shortcut.HeaderRows {
 			break
 		}
