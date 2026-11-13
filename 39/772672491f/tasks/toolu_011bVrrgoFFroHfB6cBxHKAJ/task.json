@@ -1,0 +1,18 @@
+{
+  "tool_use_id": "toolu_011bVrrgoFFroHfB6cBxHKAJ",
+  "agent_id": "aba618879685b847d",
+  "subagent_type": "project-tester",
+  "task_description": "DEVDESK-304 étapes 2-4 rouge",
+  "files": [
+    "internal/ui/oci_resources/browser_drill_test.go"
+  ],
+  "token_usage": {
+    "input_tokens": 34,
+    "cache_creation_tokens": 104687,
+    "cache_read_tokens": 1131086,
+    "output_tokens": 26008,
+    "api_call_count": 17
+  },
+  "started_at": "2026-11-13T12:08:49.771117748+01:00",
+  "completed_at": "2026-11-13T12:12:33.764390363+01:00"
+}

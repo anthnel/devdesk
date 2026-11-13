@@ -1,0 +1,15 @@
+{
+  "tool_use_id": "toolu_0119KWSypt31io6KD2ArJUU1",
+  "agent_id": "aa409db0849191a1e",
+  "subagent_type": "project-tester",
+  "task_description": "Corriger TestRightUsesTheEntryCredentials",
+  "token_usage": {
+    "input_tokens": 8,
+    "cache_creation_tokens": 78490,
+    "cache_read_tokens": 173335,
+    "output_tokens": 1446,
+    "api_call_count": 4
+  },
+  "started_at": "2026-11-13T12:19:19.762707053+01:00",
+  "completed_at": "2026-11-13T12:20:04.661086251+01:00"
+}

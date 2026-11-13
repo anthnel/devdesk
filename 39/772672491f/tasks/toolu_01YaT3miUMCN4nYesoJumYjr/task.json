@@ -1,0 +1,15 @@
+{
+  "tool_use_id": "toolu_01YaT3miUMCN4nYesoJumYjr",
+  "agent_id": "a850769f5ebb227f8",
+  "subagent_type": "project-coder",
+  "task_description": "DEVDESK-304 étapes 2-4 vert",
+  "token_usage": {
+    "input_tokens": 20,
+    "cache_creation_tokens": 45868,
+    "cache_read_tokens": 392199,
+    "output_tokens": 5924,
+    "api_call_count": 10
+  },
+  "started_at": "2026-11-13T12:12:56.567480504+01:00",
+  "completed_at": "2026-11-13T12:19:14.928259349+01:00"
+}
