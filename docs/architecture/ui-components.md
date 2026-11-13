@@ -522,10 +522,14 @@ key), then clears a confirmed query (`ClearSearch`, level 1 stays), then
 cancels the lot in flight (late answers are ignored) and goes back to the
 search form, which keeps the typed name and the selection. The plan had `esc`
 go back without cancelling; cancelling was chosen and recorded in D129.
-`enter` does nothing at level 1 (a row has no action yet) and is not in the
-shortcuts, which do not depend on the rows (Rule 130): `/ Filter` and
-`esc Go back`, or `enter/esc Close filter` while typing. The title carries the
-typed name.
+`→` opens the tags of the row under the cursor (`network.md`, DEVDESK-304); with
+no row it warns `No image selected` in the footer and its shortcut is greyed
+(`imageDrillIn`, the same computation for the header and the handler). `enter`
+does nothing at level 1 (a row has no action yet) and is not in the shortcuts.
+The set of keys does not depend on the rows (Rule 130): `→ Open tags` (greyed
+without a row), `/ Filter` and `esc Go back`, or `enter/esc Close filter` while
+typing. The title carries the typed name, or the opened row's name once `→` has
+opened its tags.
 
 `status` is the two-table case: two `datatable.Model` plus a focus helper.
 `Focus` and `Blur` carry the styles with them (Rule 118), so a tab switch does

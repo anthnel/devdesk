@@ -247,7 +247,9 @@ func (m Model) GetTitle() string {
 	base := theme.ContainerEngineIcon(engine.Current().Name) + " OCI Resources"
 	if m.registryBrowser != nil {
 		title := base + " " + theme.IconChevronRight + " Registry Browser"
-		if m.registryBrowser.state != browserStateInput && m.registryBrowser.repoInput.Value() != "" {
+		if name := m.registryBrowser.tagsImage; name != "" && m.registryBrowser.state == browserStateTags {
+			title += " " + theme.IconChevronRight + " " + name
+		} else if m.registryBrowser.state != browserStateInput && m.registryBrowser.repoInput.Value() != "" {
 			title += " " + theme.IconChevronRight + " " + m.registryBrowser.repoInput.Value()
 		}
 		if !m.registryBrowser.registryFilter.isEmpty() {
@@ -355,8 +357,8 @@ func (m Model) GetShortcuts() shortcut.Shortcuts {
 				{Key: "esc", Description: "Go back"},
 			}
 		case browserStateImages:
-			// No enter (a row has no action yet), no sort, no drill-down: the
-			// set of keys never depends on the rows (Rule 130).
+			// No enter (a row has no action yet), no sort: the set of keys never
+			// depends on the rows, → is greyed without one (Rule 130).
 			if m.registryBrowser.searchTable.InEditMode() {
 				return []shortcut.Shortcut{
 					{Key: "enter/esc", Description: "Close filter"},
@@ -369,6 +371,7 @@ func (m Model) GetShortcuts() shortcut.Shortcuts {
 				escLabel = "Clear filter"
 			}
 			return []shortcut.Shortcut{
+				{Key: "→", Description: "Open tags", Disabled: !m.registryBrowser.imageDrillIn().Enabled()},
 				{Key: "/", Description: "Filter"},
 				{Key: "esc", Description: escLabel},
 			}
@@ -603,6 +606,7 @@ func (m Model) GetHelpContent() help.Content {
 			{Key: "→ (Registries)", Description: "Show a group's discovered members"},
 			{Key: "← (Registries)", Description: "Go back to the registry list"},
 			{Key: "/", Description: "Filter images by repository or tag (Images tab only)"},
+			{Key: "→ (Browser images)", Description: "Open the tags of the selected image, on its registry only"},
 			{Key: "/ (Browser images)", Description: "Filter the images a registry search found, by name"},
 			{Key: "esc (Browser images)", Description: "Close the filter bar, then clear the confirmed filter, then go back to the search form"},
 			{Key: "↑/k", Description: "Move selection up"},
@@ -690,7 +694,7 @@ func registryBrowserHelpBody(searchEnabled bool) string {
 		"The first column is the activity dot: a scan or a pull of the tag running, queued or failed; the Critical, High, Medium and Low counts show an ellipsis while its scan runs. The footer says what the selected tag is doing. " +
 		"Press Esc to go back to the search form.")
 	if searchEnabled {
-		b.WriteString(" An image search (level 1) lists one row per registry and image: the first column is the image icon, '/' filters by name, Esc closes the filter, then goes back to the form, and Enter does nothing yet.")
+		b.WriteString(" An image search (level 1) lists one row per registry and image: the first column is the image icon, '/' filters by name, → opens the tags of the selected image on its registry only (same table, scans and pull; Esc on them goes back to the form), Esc closes the filter, then goes back to the form, and Enter does nothing yet.")
 	}
 	return b.String()
 }

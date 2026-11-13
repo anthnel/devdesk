@@ -140,26 +140,46 @@ func entryAlias(entry browserRegistryEntry) string {
 	return entry.Alias
 }
 
+// tagRequest is one tag listing to send: the entry it goes to, and what the
+// request carries. repo is final: nothing downstream normalizes it again.
+type tagRequest struct {
+	entry      browserRegistryEntry
+	alias      string
+	apiURL     string
+	repo       string
+	user, pass string
+}
+
+// newTagRequest describes entry for a tag listing of repo, with the same alias,
+// API address and credentials (credsFor, D12) as every tag request.
+func (b *RegistryBrowser) newTagRequest(entry browserRegistryEntry, repo string) tagRequest {
+	username, storedPass := b.credsFor(entry)
+	return tagRequest{entry, entryAlias(entry), registryAPIURL(entry.URL), repo, username, storedPass}
+}
+
 // startTagLookup lists the tags of repo on every entry.
 func (b *RegistryBrowser) startTagLookup(repo string, entries []browserRegistryEntry) (*RegistryBrowser, tea.Cmd) {
 	// Gather the requests first, then begin the lot: nothing is cancelled
 	// unless a request really starts.
-	type request struct {
-		entry                         browserRegistryEntry
-		alias, apiURL, repo, user, pw string
-	}
-	reqs := make([]request, 0, len(entries))
+	reqs := make([]tagRequest, 0, len(entries))
 	for _, entry := range entries {
-		username, storedPass := b.credsFor(entry)
 		// The prefix is applied here and nowhere else: it is then already part
 		// of MultiRegistryTag.Repo, so multiImageName and registryAPIURL need to
 		// know nothing about it. Teaching both would be two places free to
 		// drift, which is the disagreement D39 already is (§3.18).
 		normalizedRepo := joinRepoPrefix(entry.repoPrefix, normalizeRepoForRegistry(entry.URL, repo))
-		reqs = append(reqs, request{entry, entryAlias(entry), registryAPIURL(entry.URL), normalizedRepo, username, storedPass})
+		reqs = append(reqs, b.newTagRequest(entry, normalizedRepo))
 	}
+	return b.startTagRequests(reqs, false)
+}
 
+// startTagRequests opens a lot, resets the tag table (tags, registry filter,
+// text filter, default sort), records whether the lot comes from level 1, and
+// sends one searchRegistryTagsCmd per request.
+func (b *RegistryBrowser) startTagRequests(reqs []tagRequest, fromSearch bool) (*RegistryBrowser, tea.Cmd) {
 	ctx := b.beginRequests()
+	b.tagsFromSearch = fromSearch
+	b.tagsImage = ""
 	b.tags = nil
 	b.registryFilter = resultFilter{}
 	b.filterInput.SetValue("")
@@ -171,10 +191,11 @@ func (b *RegistryBrowser) startTagLookup(repo string, entries []browserRegistryE
 	cmds := make([]tea.Cmd, 0, len(reqs))
 	for _, r := range reqs {
 		b.pendingSearches++
-		cmds = append(cmds, searchRegistryTagsCmd(ctx, b.gen, r.entry.key, r.entry.URL, r.alias, r.apiURL, r.repo, r.user, r.pw))
+		cmds = append(cmds, searchRegistryTagsCmd(ctx, b.gen, r.entry.key, r.entry.URL, r.alias, r.apiURL, r.repo, r.user, r.pass))
 	}
 
 	b.state = browserStateTags
+	b.searchTable.Blur()
 	b.tagTable.Focus()
 	b.rebuildTagTable()
 	return b, tea.Batch(cmds...)

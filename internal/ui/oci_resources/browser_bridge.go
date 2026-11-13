@@ -50,8 +50,12 @@ func (m Model) handleMultiRegistryTagsLoaded(msg MultiRegistryTagsLoadedMsg) (te
 		return m, nil
 	}
 	if msg.Err != nil {
-		log.Printf("ERROR [oci_resources] registry tags %s from %s: %v", msg.Repo, msg.RegistryURL, msg.Err)
 		m.registryBrowser.AddRegistryTags(msg.EntryKey, msg.RegistryURL, msg.Alias, msg.Repo, nil)
+		if m.registryBrowser.tagsFromSearch {
+			log.Printf("ERROR [oci_resources] registry tags on %s: %s", msg.Alias, searchErrorCause(msg.Err))
+			return m, m.footer.Error(tagsLoadFailedText)
+		}
+		log.Printf("ERROR [oci_resources] registry tags %s from %s: %v", msg.Repo, msg.RegistryURL, msg.Err)
 		return m, nil
 	}
 	m.registryBrowser.SetScanCache(m.scanCache)

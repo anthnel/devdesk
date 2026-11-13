@@ -240,7 +240,7 @@ func TestLevelOneEnterDoesNothing(t *testing.T) {
 func TestLevelOneShortcuts(t *testing.T) {
 	m := lvl1ImagesModel(t)
 	sc := m.GetShortcuts()
-	for _, key := range []string{"/", "esc"} {
+	for _, key := range []string{"→", "/", "esc"} {
 		if !testutil.HasShortcut(sc, key) {
 			t.Errorf("level 1 lacks the %q shortcut", key)
 		}
@@ -248,7 +248,7 @@ func TestLevelOneShortcuts(t *testing.T) {
 			t.Errorf("%q is greyed at level 1", key)
 		}
 	}
-	for _, key := range []string{"enter", ".", "→", "r"} {
+	for _, key := range []string{"enter", ".", "r"} {
 		if testutil.HasShortcut(sc, key) {
 			t.Errorf("level 1 advertises %q", key)
 		}
@@ -293,7 +293,7 @@ func TestLevelOneHelpListsItsKeysAndTheLegend(t *testing.T) {
 	for _, kb := range c.KeyBindings {
 		keys[kb.Key] = true
 	}
-	for _, want := range []string{"/ (Browser images)", "esc (Browser images)"} {
+	for _, want := range []string{"→ (Browser images)", "/ (Browser images)", "esc (Browser images)"} {
 		if !keys[want] {
 			t.Errorf("help lacks the %q binding", want)
 		}

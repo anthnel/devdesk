@@ -352,7 +352,8 @@ nothing selected (empty table, so also a new search, which starts from
 `SetItems(nil)`) the cursor goes to the first row received; a row that
 disappears leaves the cursor where it is. Rule 139: an empty table keeps its
 header. The header reads `Images: <visible rows>`, the title carries the typed
-name (`... > Registry Browser > <name>`), and the footer shows the shared
+name (`... > Registry Browser > <name>`) at level 1 (once `→` opens a row, the
+title carries that row's name, see below), and the footer shows the shared
 activity dot with `Searching registries...` while `pendingSearches > 0`. Once
 the search is done, the footer describes the selected row (`Status.Detail`): its
 full reference (`searchRow.ref`, built by `searchRowReference`: host, then
@@ -360,6 +361,37 @@ full reference (`searchRow.ref`, built by `searchRowReference`: host, then
 <label>`, no ` on` when the label is empty); `Searching registries...` keeps
 priority. The keys are in
 `ui-components.md`.
+
+**`→` at level 1: open the tags of a row (DEVDESK-304).** `→` opens the usual
+tag table for the row under the cursor (`openSelectedImageTags`). It sends one
+request, to the row's own registry (`selectedImage` finds the entry by
+`EntryKey`), for the row's final repository: `searchRow.img.Repo` is passed as
+is, with no prefix and no `library/` added again (`normalizeRepoForRegistry` and
+`joinRepoPrefix` run only in `startTagLookup`, the typed-name flow). Both flows
+build the request through `newTagRequest` (alias, API address, `credsFor`) and
+open the lot through `startTagRequests`, so the tag table, the pull and the scan
+references are the same as in the full-name flow. `startTagRequests` also
+records where the table came from: `tagsFromSearch` (true for `→`) and
+`tagsImage` (the row's `Name`, empty for the full-name flow). `GetTitle` shows
+`tagsImage` in the tags state instead of the typed name.
+
+- **No row.** `imageDrillIn` (one computation for the header and the handler,
+  Rule 130) reports `reasonNoImage`. `→` changes nothing and warns through
+  `RegistryBrowserWarnMsg`: footer Warn `No image selected`. The `→ Open tags`
+  shortcut is greyed.
+- **Failed listing.** `handleMultiRegistryTagsLoaded`, when `tagsFromSearch` is
+  set, leaves the table with its header only (Rule 139), shows `tagsLoadFailedText`
+  (`Could not load tags`) as a 3 s footer Error, and logs
+  `ERROR [oci_resources] registry tags on <alias>: <cause>` where the cause comes
+  from `searchErrorCause`: no credentials, no URL. The full-name flow is
+  unchanged and silent on screen (it logs `registry tags <repo> from <url>`).
+- **Search in flight.** `→` while the level 1 search still runs cancels it
+  (the browser has one lot at a time, `beginRequests`): the rows already shown
+  stay, the late ones are dropped. Accepted; the user reopens the search before
+  IS-03 (private registries) makes searches slower.
+- **`esc`** on the opened tags goes back to the search form, not to level 1.
+  Going back to level 1 is IS-09. Open point: that `esc` does not cancel the lot,
+  so a late failure can show `Could not load tags` over the form (D132).
 
 **Networks, Volumes and Registries (DEVDESK-153, A-09b).** Each takes
 `datatable.IndicatorColumn` as column 0. Rows carry no `components.RowActivity`:
