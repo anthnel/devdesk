@@ -1,0 +1,15 @@
+{
+  "tool_use_id": "toolu_01Asxp9acVR42uhTKA4Gn17y",
+  "agent_id": "ab333ef759b7f9b00",
+  "subagent_type": "dev-team:reviewer",
+  "task_description": "Review DEVDESK-305 steps 1-4",
+  "token_usage": {
+    "input_tokens": 36,
+    "cache_creation_tokens": 89176,
+    "cache_read_tokens": 1220362,
+    "output_tokens": 11601,
+    "api_call_count": 18
+  },
+  "started_at": "2026-11-13T16:31:02.655733221+01:00",
+  "completed_at": "2026-11-13T16:38:29.09439926+01:00"
+}

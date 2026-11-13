@@ -1,0 +1,15 @@
+{
+  "tool_use_id": "toolu_01UfRi9ixGkTjPKDjPxoivZ4",
+  "agent_id": "ad1b71270ae1dcef5",
+  "subagent_type": "project-coder",
+  "task_description": "Review fixes + help DEVDESK-305",
+  "token_usage": {
+    "input_tokens": 14,
+    "cache_creation_tokens": 35590,
+    "cache_read_tokens": 175771,
+    "output_tokens": 3372,
+    "api_call_count": 7
+  },
+  "started_at": "2026-11-13T16:38:47.129731127+01:00",
+  "completed_at": "2026-11-13T16:39:33.738256921+01:00"
+}
