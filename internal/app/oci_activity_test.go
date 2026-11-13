@@ -237,7 +237,9 @@ func seedOCITagSearch(t *testing.T, a *App) {
 		{ID: "bbb2222", Repository: "redis", Tag: "7"},
 	}})
 	a.Update(testutil.Key(keymap.Browser))
-	for _, msg := range testutil.Type("nginx") {
+	// A name with a "/" goes straight to the tags flow: a short name would
+	// start the level 1 image search instead of the tags flow this tests.
+	for _, msg := range testutil.Type("library/nginx") {
 		a.Update(msg)
 	}
 	a.Update(testutil.Key("enter"))

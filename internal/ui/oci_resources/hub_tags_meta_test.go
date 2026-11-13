@@ -36,7 +36,7 @@ func (rt *recordingTransport) calls() []string {
 }
 
 // DEVDESK-297: the tag dates are asked of the Hub API for every spelling of
-// the Hub that isDockerHub recognises, not only the two bare hostnames.
+// the Hub that oci.IsDockerHub recognises, not only the two bare hostnames.
 func TestHubTagsMetaFollowsIsDockerHub(t *testing.T) {
 	tests := []struct {
 		name     string

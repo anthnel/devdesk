@@ -6,6 +6,7 @@ import (
 	tea "charm.land/bubbletea/v2"
 
 	"github.com/anthnel/devdesk/internal/engine"
+	"github.com/anthnel/devdesk/internal/oci"
 )
 
 // filterStops returns the values `r` cycles through: every group that produced
@@ -169,40 +170,10 @@ func normalizeRepoForRegistry(registryURL, repo string) string {
 	if strings.Contains(repo, "/") {
 		return repo
 	}
-	if isDockerHub(registryURL) {
+	if oci.IsDockerHub(registryURL) {
 		return "library/" + repo
 	}
 	return repo
-}
-
-// registryHost strips the scheme from a configured registry URL, leaving what
-// Docker itself is keyed on: `host[:port]`, plus whatever path a repository
-// manager serves the registry under.
-//
-// A registry URL is written either way in practice — the form does not
-// normalize it, `registryAPIURL` explicitly accepts both, and this package's own
-// examples write `https://nexus.example.com/repository/docker-group`. Every
-// Docker-facing use has to strip it, and none of the three that needed to did
-// (D39): a `docker pull` reference carrying `https://` is not a reference at
-// all, and a hub alias compared against a scheme-bearing string never matched,
-// so images from a Hub configured as `https://docker.io` lost their `library/`
-// prefix.
-func registryHost(registryURL string) string {
-	base := strings.TrimSuffix(strings.TrimSpace(registryURL), "/")
-	for _, scheme := range []string{"https://", "http://"} {
-		if len(base) >= len(scheme) && strings.EqualFold(base[:len(scheme)], scheme) {
-			return base[len(scheme):]
-		}
-	}
-	return base
-}
-
-// isDockerHub reports whether a registry URL names Docker Hub, under either of
-// the two spellings and with or without a scheme. Hub is the one registry whose
-// references carry no host, so every caller has to recognise it.
-func isDockerHub(registryURL string) bool {
-	host := registryHost(registryURL)
-	return strings.EqualFold(host, "docker.io") || strings.EqualFold(host, "registry-1.docker.io")
 }
 
 // multiImageName constructs the full image reference for pull/scan.
@@ -220,13 +191,13 @@ func isDockerHub(registryURL string) bool {
 // also the form its own `images` list already uses (§3.67), so nothing about
 // this makes a podman-pulled image look different from one already there.
 func multiImageName(registryURL, repo, tag string) string {
-	if isDockerHub(registryURL) {
+	if oci.IsDockerHub(registryURL) {
 		if engine.Current().Name == engine.Podman {
 			return "docker.io/" + repo + ":" + tag
 		}
 		return repo + ":" + tag
 	}
-	return registryHost(registryURL) + "/" + repo + ":" + tag
+	return oci.RegistryHost(registryURL) + "/" + repo + ":" + tag
 }
 
 func (b *RegistryBrowser) updateFocus() {

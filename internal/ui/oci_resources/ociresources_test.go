@@ -14,6 +14,7 @@ import (
 	"github.com/anthnel/devdesk/internal/config"
 	"github.com/anthnel/devdesk/internal/docker"
 	"github.com/anthnel/devdesk/internal/imagepull"
+	"github.com/anthnel/devdesk/internal/imagesearch"
 	"github.com/anthnel/devdesk/internal/imageupdate"
 	"github.com/anthnel/devdesk/internal/scan"
 	"github.com/anthnel/devdesk/internal/trust"
@@ -34,6 +35,10 @@ import (
 // HOME is redirected for the whole package: the launch form and the registry
 // list persist through config.Save, and the scan cache writes to ~/.devdesk.
 
+// productionImageSearcher is what defaultImageSearcher holds in production,
+// saved by TestMain before it clears the variable.
+var productionImageSearcher imagesearch.Searcher
+
 func TestMain(m *testing.M) {
 	// The fake docker is a copy of this binary, so helper mode has to be
 	// answered before anything else — including the temporary HOME, which a
@@ -43,6 +48,11 @@ func TestMain(m *testing.M) {
 	}
 
 	log.SetOutput(io.Discard)
+	// The production Searcher is kept for TestProductionWiresTheHubSearcher; no
+	// other test may reach the real Docker Hub, so the suite runs without one
+	// (the "no Searcher" mode) unless a test injects its own.
+	productionImageSearcher = defaultImageSearcher
+	defaultImageSearcher = nil
 	// No registry is reached from a test (§3.88).
 	checkImageUpdates = func([]string) map[string]imageupdate.Facts { return nil }
 	// Nor a registry or cosign through a pull's signature check (§3.82): the

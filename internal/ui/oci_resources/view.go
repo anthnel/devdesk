@@ -671,7 +671,7 @@ func registryBrowserHelpBody(searchEnabled bool) string {
 		b.WriteString("press Enter in the Repository field, which runs Search. Press down to reach the buttons. " +
 			"Search looks an image up by its short name (level 1) and lists one row per registry and image; " +
 			"Open Tags opens the tags of the name exactly as typed, without searching. " +
-			"The selected registries apply to both. ")
+			"The selected registries apply to both. When a Docker Hub entry is selected, the text you type is sent to Docker Hub. ")
 	} else {
 		b.WriteString("press Browse Tags. ")
 	}
