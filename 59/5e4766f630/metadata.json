@@ -1,0 +1,63 @@
+{
+  "cli_version": "0.13.2",
+  "checkpoint_id": "595e4766f630",
+  "strategy": "manual-commit",
+  "branch": "main",
+  "checkpoints_count": 1,
+  "files_touched": [
+    "docs/product/agent-usage-prices/stories.md",
+    "docs/product/dagger-ci-release/brief.md",
+    "docs/product/dagger-ci-release/research.md",
+    "docs/product/dagger-ci-release/stories.md",
+    "docs/product/image-search/brief.md",
+    "docs/product/image-search/feasibility.md",
+    "docs/product/image-search/research.md",
+    "docs/product/image-search/stories.md",
+    "docs/product/network-map/brief.md",
+    "docs/product/network-map/feasibility.md",
+    "docs/product/network-map/research.md",
+    "docs/product/network-map/stories.md",
+    "docs/ux/bubbletea-v2-improvements.md",
+    "docs/ux/command-suggestions.md",
+    "docs/ux/context-switch.md",
+    "docs/ux/footer-activity-indicator.md",
+    "internal/ui/oci_resources/load_activity_test.go"
+  ],
+  "sessions": [
+    {
+      "metadata": "/59/5e4766f630/0/metadata.json",
+      "transcript": "/59/5e4766f630/0/full.jsonl",
+      "compact_transcript": "/59/5e4766f630/0/transcript.jsonl",
+      "content_hash": "/59/5e4766f630/0/content_hash.txt",
+      "prompt": "/59/5e4766f630/0/prompt.txt"
+    }
+  ],
+  "token_usage": {
+    "input_tokens": 8,
+    "cache_creation_tokens": 6607,
+    "cache_read_tokens": 430914,
+    "output_tokens": 1573,
+    "api_call_count": 3,
+    "subagent_tokens": {
+      "input_tokens": 20,
+      "cache_creation_tokens": 85692,
+      "cache_read_tokens": 332180,
+      "output_tokens": 3572,
+      "api_call_count": 10
+    }
+  },
+  "redaction": {
+    "replacements": 0,
+    "layers": {
+      "betterleaks": 0,
+      "connection_string": 0,
+      "credential_key": 0,
+      "credential_value": 0,
+      "credentialed_uri": 0,
+      "entropy": 0,
+      "key_context": 0,
+      "provider_token": 0,
+      "shell_stdin": 0
+    }
+  }
+}
