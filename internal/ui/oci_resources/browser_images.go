@@ -11,6 +11,7 @@ import (
 	"charm.land/lipgloss/v2"
 
 	"github.com/anthnel/devdesk/internal/imagesearch"
+	"github.com/anthnel/devdesk/internal/oci"
 	"github.com/anthnel/devdesk/internal/jobs"
 	"github.com/anthnel/devdesk/internal/ui/datatable"
 	"github.com/anthnel/devdesk/internal/ui/indicator"
@@ -30,11 +31,11 @@ type searchRow struct {
 // registry at registryURL: the host, then the final repository path. Docker
 // Hub is always written docker.io, whichever spelling it is configured under.
 func searchRowReference(registryURL string, img imagesearch.Image) string {
-	host := registryHost(registryURL)
+	host := oci.RegistryHost(registryURL)
 	if host == "" {
 		return img.Repo
 	}
-	if isDockerHub(registryURL) {
+	if oci.IsDockerHub(registryURL) {
 		host = "docker.io"
 	}
 	return host + "/" + img.Repo
