@@ -240,7 +240,7 @@ func TestLevelOneEnterDoesNothing(t *testing.T) {
 func TestLevelOneShortcuts(t *testing.T) {
 	m := lvl1ImagesModel(t)
 	sc := m.GetShortcuts()
-	for _, key := range []string{"→", "/", ".", "esc"} {
+	for _, key := range []string{"→", "r", "/", ".", "esc"} {
 		if !testutil.HasShortcut(sc, key) {
 			t.Errorf("level 1 lacks the %q shortcut", key)
 		}
@@ -248,14 +248,15 @@ func TestLevelOneShortcuts(t *testing.T) {
 			t.Errorf("%q is greyed at level 1", key)
 		}
 	}
-	for _, key := range []string{"enter", "r"} {
-		if testutil.HasShortcut(sc, key) {
-			t.Errorf("level 1 advertises %q", key)
-		}
+	if testutil.HasShortcut(sc, "enter") {
+		t.Error("level 1 advertises enter")
 	}
 
-	if got, want := testutil.ShortcutKeys(sc), []string{"→", "/", ".", "esc"}; !slices.Equal(got, want) {
-		t.Errorf("level 1 keys = %v, want %v (Sort between / and esc)", got, want)
+	if got, want := testutil.ShortcutKeys(sc), []string{"→", "r", "/", ".", "esc"}; !slices.Equal(got, want) {
+		t.Errorf("level 1 keys = %v, want %v (r before /, as on level 2)", got, want)
+	}
+	if !slices.ContainsFunc(sc, func(s shortcut.Shortcut) bool { return s.Key == "r" && s.Description == "Filter registry" }) {
+		t.Error(`level 1 lacks {Key: "r", Description: "Filter registry"}`)
 	}
 	if !slices.ContainsFunc(sc, func(s shortcut.Shortcut) bool { return s.Key == "." && s.Description == "Sort" }) {
 		t.Error(`level 1 lacks {Key: ".", Description: "Sort"}`)
@@ -300,7 +301,7 @@ func TestLevelOneHelpListsItsKeysAndTheLegend(t *testing.T) {
 	for _, kb := range c.KeyBindings {
 		keys[kb.Key] = true
 	}
-	for _, want := range []string{"→ (Browser images)", "/ (Browser images)", "esc (Browser images)"} {
+	for _, want := range []string{"→ (Browser images)", "/ (Browser images)", "r (Browser images)", "esc (Browser images)"} {
 		if !keys[want] {
 			t.Errorf("help lacks the %q binding", want)
 		}
@@ -316,6 +317,24 @@ func TestLevelOneHelpListsItsKeysAndTheLegend(t *testing.T) {
 		for _, w := range []string{"cycle", "sort", "name", "registry", "stars", "most first", "each way", "default order"} {
 			if !strings.Contains(d, w) {
 				t.Errorf("help text for . lacks %q: %q", w, kb.Description)
+			}
+		}
+	}
+	for _, kb := range c.KeyBindings {
+		d := strings.ToLower(kb.Description)
+		switch kb.Key {
+		case "/ (Browser images)":
+			if !strings.Contains(d, "by name or description") {
+				t.Errorf("help text for / lacks %q: %q", "by name or description", kb.Description)
+			}
+		case "r (Browser images)":
+			for _, w := range []string{"filter", "registry", "group", "cycl", "then off"} {
+				if !strings.Contains(d, w) {
+					t.Errorf("help text for r lacks %q: %q", w, kb.Description)
+				}
+			}
+			if strings.Contains(d, "esc") {
+				t.Errorf("help text for r mentions esc: %q", kb.Description)
 			}
 		}
 	}
