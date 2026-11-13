@@ -1,0 +1,15 @@
+{
+  "tool_use_id": "toolu_01NMSLcA7EYUASTtH7tCxSeq",
+  "agent_id": "ada1e9686871df5d6",
+  "subagent_type": "product-team:pm",
+  "task_description": "Rédiger proposition de release",
+  "token_usage": {
+    "input_tokens": 8,
+    "cache_creation_tokens": 62680,
+    "cache_read_tokens": 127909,
+    "output_tokens": 4256,
+    "api_call_count": 4
+  },
+  "started_at": "2026-11-12T15:05:40.654538297+01:00",
+  "completed_at": "2026-11-12T15:06:20.124822557+01:00"
+}
