@@ -1,0 +1,18 @@
+{
+  "tool_use_id": "toolu_011YxVgbxozTPd5iN6Fvreja",
+  "agent_id": "af057b1694575eb39",
+  "subagent_type": "project-tester",
+  "task_description": "Regression + red tests DEVDESK-310",
+  "files": [
+    "internal/ui/oci_resources/browser_images_registry_filter_test.go"
+  ],
+  "token_usage": {
+    "input_tokens": 24,
+    "cache_creation_tokens": 63119,
+    "cache_read_tokens": 437480,
+    "output_tokens": 15085,
+    "api_call_count": 12
+  },
+  "started_at": "2026-11-13T19:39:02.666410267+01:00",
+  "completed_at": "2026-11-13T19:40:54.260834378+01:00"
+}

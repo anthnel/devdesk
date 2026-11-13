@@ -1,0 +1,15 @@
+{
+  "tool_use_id": "toolu_01TmDV9aLETpm8WthfntgqEF",
+  "agent_id": "a23f9c7f2a9bdc251",
+  "subagent_type": "team-core:tech-writer",
+  "task_description": "Fix DEVDESK-310 docs",
+  "token_usage": {
+    "input_tokens": 12,
+    "cache_creation_tokens": 23024,
+    "cache_read_tokens": 119554,
+    "output_tokens": 2119,
+    "api_call_count": 6
+  },
+  "started_at": "2026-11-13T19:50:28.591190882+01:00",
+  "completed_at": "2026-11-13T19:50:48.363082675+01:00"
+}
