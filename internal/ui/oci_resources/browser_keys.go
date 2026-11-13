@@ -201,6 +201,29 @@ func (b *RegistryBrowser) startTagRequests(reqs []tagRequest, fromSearch bool) (
 	return b, tea.Batch(cmds...)
 }
 
+// leaveTags leaves the tag table: it abandons the tag lot, clears the tag
+// filters and goes back where the table was opened from, level 1 untouched
+// (same rows, order, cursor and filter, no new search) when right opened it,
+// the search form otherwise. It returns no Cmd.
+func (b *RegistryBrowser) leaveTags() (*RegistryBrowser, tea.Cmd) {
+	b.abandonLot()
+	b.tagsImage = ""
+	b.registryFilter = resultFilter{}
+	b.filterInput.SetValue("")
+	b.filterActive = false
+	b.tagTable.Blur()
+	if b.tagsFromSearch {
+		b.state = browserStateImages
+		b.searchTable.Focus()
+	} else {
+		b.state = browserStateInput
+		b.updateFocus()
+	}
+	b.tagsFromSearch = false
+	b.resizeTables()
+	return b, nil
+}
+
 func (b *RegistryBrowser) handleTagsKeyMsg(msg tea.KeyPressMsg) (*RegistryBrowser, tea.Cmd) {
 	if b.filterActive {
 		switch msg.String() {
@@ -215,11 +238,8 @@ func (b *RegistryBrowser) handleTagsKeyMsg(msg tea.KeyPressMsg) (*RegistryBrowse
 	}
 
 	switch msg.String() {
-	case "esc":
-		b.state = browserStateInput
-		b.tagTable.Blur()
-		b.updateFocus()
-		return b, nil
+	case "esc", "left":
+		return b.leaveTags()
 	case "/":
 		b.filterActive = true
 		b.filterInput.Focus()

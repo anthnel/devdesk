@@ -589,8 +589,12 @@ func TestAStaleFailureAfterRightShowsNothing(t *testing.T) {
 	m := afterRight(t)
 	stale := failedTags(m, errors.New("boom"))
 	m = feed(t, m, testutil.Key("esc"))
+	if m.registryBrowser.state != browserStateImages {
+		t.Fatalf("state = %d, want level 1 after the first esc", m.registryBrowser.state)
+	}
+	m = feed(t, m, testutil.Key("esc"))
 	if m.registryBrowser.state != browserStateInput {
-		t.Fatalf("state = %d, want the form after esc", m.registryBrowser.state)
+		t.Fatalf("state = %d, want the form after the second esc", m.registryBrowser.state)
 	}
 	m.registryBrowser.submit(actionOpenTags)
 

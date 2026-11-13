@@ -63,3 +63,13 @@ func TestRegistryBrowserHelpWithoutBrowserFollowsDefaultSearcher(t *testing.T) {
 		t.Error("default Searcher: help does not describe the search mode")
 	}
 }
+
+// The help names the left arrow and where it goes back to (DEVDESK-307).
+func TestRegistryBrowserHelpMentionsGoingBack(t *testing.T) {
+	body := registryBrowserHelp(t, lvl1ImagesModel(t))
+	for _, want := range []string{"left arrow", "image list", "search form"} {
+		if !strings.Contains(body, want) {
+			t.Errorf("help lacks %q", want)
+		}
+	}
+}

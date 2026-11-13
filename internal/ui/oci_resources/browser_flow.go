@@ -35,6 +35,15 @@ func (b *RegistryBrowser) beginRequests() context.Context {
 	return ctx
 }
 
+// abandonLot cancels the lot in flight and moves to a fresh generation with no
+// pending search, so every late answer of that lot is dropped. Called from
+// Update only (Rule 110).
+func (b *RegistryBrowser) abandonLot() {
+	b.cancelInFlight()
+	b.gen = nextBrowserGen()
+	b.pendingSearches = 0
+}
+
 // cancelInFlight cancels the lot's context, if any. Nil-safe.
 func (b *RegistryBrowser) cancelInFlight() {
 	if b == nil || b.cancel == nil {
