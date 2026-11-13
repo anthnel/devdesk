@@ -130,7 +130,8 @@ as their source of truth, and `config.yaml` is what the user declares.
   (anonymous stays anonymous, D12) and the entry's repository prefix (D39). It
   writes nothing: the remembered selection is unchanged (`network.md`).
   `→` on a level 1 row goes to that row's registry only, whatever the
-  selection (DEVDESK-304, `network.md`).
+  selection (DEVDESK-304, `network.md`). Each checked entry gets one verdict per
+  search (DEVDESK-303), and `dhi.io` is refused without a request (`network.md`).
 - `internal/cache/browser_selection.go` remembers what the browser had
   **un**checked, per context. Storing the exceptions is what makes a
   newly-discovered member arrive checked rather than silently excluded.

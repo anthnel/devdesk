@@ -1,6 +1,6 @@
 # DevDesk Backlog
 
-**Last Updated:** 2026-10-31
+**Last Updated:** 2026-11-13
 
 Open work for DevDesk: known defects, technical debt, and planned features.
 Replaces the former `todo.md` at the repository root. Items completed there
@@ -97,6 +97,20 @@ so they needed a deliberate call rather than a drive-by fix. All five were then
 decided together and fixed in one pass; see [§1.2](#12-the-five-parked-defects).
 
 ### 1.1 Fixed
+
+**D134 — DEVDESK-303 (IS-12): each registry of an image search gets one verdict (ok, no result, unsupported or refused, failed), computed by a pure `imagesearch.Classify` in `Update`; `partial` and `skipped` are marks, not verdicts; `dhi.io` is refused without a request; refusals are logged at INFO, failures at ERROR, without secrets; nothing is shown before IS-13. Decided (Q1 = A and Q2 = A of the plan).** **Plane:** DEVDESK-303 (IS-12), dated 2026-11-13. Sources: `.claude/plans/DEVDESK-303-plan.md`, `docs/product/image-search/` (IS-12, IS-03, IS-13, IS-17), D129, D131, D132, `docs/architecture/network.md` ("Image search", "Level 1"), Rules 110, 128 and 139.
+
+1. **H1: the verdict is a function of the answer, in `Update`.** `Classify(err, n, partial)` (`verdict.go`) is pure and runs in `AddImageResults`, never in the `Cmd`. The zero `Verdict` means pending and is never returned. `Partial` is only set with `ok`, `Skipped` only with `no result`. A `partial` answer with no rows is `no result` (no mark), so a catalogue cut at its limit with no match can read as `no result`; this must be revisited in IS-03.
+2. **H2: the table of statuses.** 401 and 403 are `refused` from either source. 404 and 405 are `refused` from the registry only; a 404 or 405 from the token endpoint is `failed`. Every other status is `failed`, 429 and 5xx included (a rate limit is a failure to retry, not a refusal). Deadlines, cancels, network errors and unreadable bodies are `failed`.
+3. **H3: the two sentinels are declared now, for IS-03.** `ErrQueryTooShort` (a one-character query, not walked, `no result` with `Skipped`) and `ErrPrefixNotInCatalog` (a catalogue that answered without any name carrying the entry's prefix, `refused`). No adapter returns them yet.
+4. **H4: `dhi.io` is refused in `ByRegistry`, before routing.** `isDHI` matches the host exactly, case-insensitively, ignoring scheme, port and path. `registry.dhi.io` and `notdhi.io` are not matched. Neither searcher is called, which a counter test checks. Until IS-17 this is the only way dhi.io is searched, so its tags stay open.
+5. **H5: logs by verdict.** `failed` is `ERROR`, `refused` is `INFO` with the cause (`unsupported or refused: …`), and `ok` and `no result` log nothing. The cause goes through `searchErrorCause`: a `*url.Error` keeps only Op and Err, so no URL, credential, token or typed text is logged.
+6. **H6: the verdicts live in the browser for one lot.** `RegistryBrowser.outcomes` is reset by `startImageSearch`, read by `Outcome` and copied out by `RegistryBrowserOutcomes()`. Only `ok` appends rows. Nothing is shown: the header and the footer are unchanged, and IS-13 shows the verdicts (`+N`, `Failed`, `Refused`, `Pending`, `Partial`, `Skipped`).
+7. **Deviation from the story, criterion 7 (accepted).** The `httptest` cases on `/v2/_catalog` (404/405 on the catalogue, the result cap, a prefix absent from the catalogue) need the catalogue walker, which is IS-03, planned after IS-12. Here, the cases are covered by the table of `Classify`, by the sentinels, and by `httptest` on the Hub endpoint (same `*oci.StatusError` path). The cap is tested end to end with a fake `Searcher` that returns `partial = true`. The `_catalog` tests move to IS-03 (criteria 3, 5, 7 and 8). To confirm in the PR.
+8. **Risks handed to IS-13.** (a) A lot cut short by a new search or a closed browser leaves registries with no verdict; IS-13 must read a checked registry with no verdict and `pendingSearches == 0` as interrupted, not as pending. (b) Until IS-03, every private registry is `refused` in every search (D131); if IS-13 ships before IS-03, the header must not show `Refused: <each private registry>` on every search.
+9. **Hardening due with IS-03.** `isDHI` works on strings (`strings.Cut` on `/` and `:`). It does not handle a userinfo prefix, an IPv6 literal, or a trailing dot (`dhi.io.`). Neither the refusal nor the ordinary Hub route can be bypassed through these in production today, since a non-Hub target gets `ErrUnsupported` anyway. Harden it when the catalogue route is wired.
+
+Local, reversible decision: no ADR.
 
 **D133 — DEVDESK-307 (IS-09): `←` or `esc` on tags opened with `→` returns to level 1 of the registry browser, untouched and with no new request; leaving the tags always cancels the tag lot. Decided (H1 to H5, validated by the user).** **Plane:** DEVDESK-307 (IS-09), dated 2026-11-13. Sources: `.claude/plans/DEVDESK-307-plan.md`, `docs/product/image-search/stories.md`, D129, D132, `docs/architecture/network.md` ("Back to level 1"), Rules 130 and 138.
 

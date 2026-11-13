@@ -142,7 +142,12 @@ func (b *RegistryBrowser) AddImageResults(msg ImageSearchResultMsg) bool {
 	if b.pendingSearches > 0 {
 		b.pendingSearches--
 	}
-	if msg.Err == nil {
+	oc := imagesearch.Classify(msg.Err, len(msg.Images), msg.Partial)
+	if b.outcomes == nil {
+		b.outcomes = map[string]imagesearch.Outcome{}
+	}
+	b.outcomes[msg.EntryKey] = oc
+	if oc.Verdict == imagesearch.VerdictOK {
 		for _, img := range msg.Images {
 			img.EntryKey = msg.EntryKey
 			b.images = append(b.images, img)
@@ -196,18 +201,25 @@ func (m Model) handleImageSearchResult(msg ImageSearchResultMsg) (tea.Model, tea
 	if m.registryBrowser == nil || !m.registryBrowser.AddImageResults(msg) {
 		return m, nil
 	}
-	if msg.Err != nil {
-		alias := msg.EntryKey
-		if e := m.registryBrowser.entryFor(msg.EntryKey); e != nil {
-			alias = entryAlias(*e)
-		}
-		if errors.Is(msg.Err, imagesearch.ErrUnsupported) {
-			log.Printf("INFO [oci_resources] image search on %s: %s", alias, msg.Err)
-			return m, nil
-		}
-		log.Printf("ERROR [oci_resources] image search on %s: %s", alias, searchErrorCause(msg.Err))
+	oc, _ := m.registryBrowser.Outcome(msg.EntryKey)
+	alias := msg.EntryKey
+	if e := m.registryBrowser.entryFor(msg.EntryKey); e != nil {
+		alias = entryAlias(*e)
 	}
+	logSearchOutcome(alias, oc, msg.Err)
 	return m, nil
+}
+
+// logSearchOutcome logs a registry's verdict: failed as an error, refused as
+// info, nothing for ok or no result. The cause goes through searchErrorCause,
+// so no secret or typed text reaches the log.
+func logSearchOutcome(alias string, oc imagesearch.Outcome, err error) {
+	switch oc.Verdict {
+	case imagesearch.VerdictFailed:
+		log.Printf("ERROR [oci_resources] image search on %s: %s", alias, searchErrorCause(err))
+	case imagesearch.VerdictRefused:
+		log.Printf("INFO [oci_resources] image search on %s: unsupported or refused: %s", alias, searchErrorCause(err))
+	}
 }
 
 // searchErrorCause is the loggable text of a search error. A *url.Error holds
@@ -263,4 +275,11 @@ func (b *RegistryBrowser) openSelectedImageTags() (*RegistryBrowser, tea.Cmd) {
 	b, cmd := b.startTagRequests([]tagRequest{b.newTagRequest(*entry, row.img.Repo)}, true)
 	b.tagsImage = row.img.Name
 	return b, cmd
+}
+
+// Outcome returns the verdict of entryKey in the current lot; false while
+// pending.
+func (b *RegistryBrowser) Outcome(entryKey string) (imagesearch.Outcome, bool) {
+	oc, ok := b.outcomes[entryKey]
+	return oc, ok
 }

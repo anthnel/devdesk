@@ -2,6 +2,7 @@ package ociresources
 
 import (
 	"context"
+	"maps"
 	"sync/atomic"
 	"time"
 
@@ -85,6 +86,7 @@ func (b *RegistryBrowser) targetFor(entry browserRegistryEntry) imagesearch.Targ
 func (b *RegistryBrowser) startImageSearch(query string, entries []browserRegistryEntry) (*RegistryBrowser, tea.Cmd) {
 	ctx := b.beginRequests()
 	b.images = nil
+	b.outcomes = map[string]imagesearch.Outcome{}
 	b.searchQuery = query
 	b.searchTable.SetItems(nil)
 
@@ -108,4 +110,13 @@ func searchImagesCmd(parent context.Context, gen uint64, t imagesearch.Target, q
 		images, partial, err := s.Search(ctx, t, q)
 		return ImageSearchResultMsg{Gen: gen, EntryKey: t.EntryKey, Images: images, Partial: partial, Err: err}
 	}
+}
+
+// RegistryBrowserOutcomes returns a copy of the verdicts of the open browser's
+// current search, nil when the browser is closed. For tests and IS-13.
+func (m Model) RegistryBrowserOutcomes() map[string]imagesearch.Outcome {
+	if m.registryBrowser == nil {
+		return nil
+	}
+	return maps.Clone(m.registryBrowser.outcomes)
 }
