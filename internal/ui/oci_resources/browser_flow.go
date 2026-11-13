@@ -76,6 +76,7 @@ func (b *RegistryBrowser) targetFor(entry browserRegistryEntry) imagesearch.Targ
 func (b *RegistryBrowser) startImageSearch(query string, entries []browserRegistryEntry) (*RegistryBrowser, tea.Cmd) {
 	ctx := b.beginRequests()
 	b.images = nil
+	b.searchQuery = query
 	b.searchTable.SetItems(nil)
 
 	cmds := make([]tea.Cmd, 0, len(entries))

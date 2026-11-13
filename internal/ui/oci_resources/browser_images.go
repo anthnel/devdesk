@@ -19,6 +19,22 @@ import (
 type searchRow struct {
 	img   imagesearch.Image
 	label string
+	// ref is the full reference (host/repo), what the footer describes.
+	ref string
+}
+
+// searchRowReference returns the full reference of an image found in the
+// registry at registryURL: the host, then the final repository path. Docker
+// Hub is always written docker.io, whichever spelling it is configured under.
+func searchRowReference(registryURL string, img imagesearch.Image) string {
+	host := registryHost(registryURL)
+	if host == "" {
+		return img.Repo
+	}
+	if isDockerHub(registryURL) {
+		host = "docker.io"
+	}
+	return host + "/" + img.Repo
 }
 
 // searchColumns describes the level 1 table. Minimal for now: the full screen
@@ -42,7 +58,7 @@ func searchColumns() []datatable.Column[searchRow] {
 	}
 }
 
-// newSearchTable builds the level 1 table, in arrival order (no sort).
+// newSearchTable builds the level 1 table; rebuildSearchTable orders its rows.
 func newSearchTable() *datatable.Model[searchRow] {
 	t := datatable.New(datatable.Config[searchRow]{
 		Columns:    searchColumns(),
@@ -55,16 +71,33 @@ func newSearchTable() *datatable.Model[searchRow] {
 func (b *RegistryBrowser) rebuildSearchTable() {
 	rows := make([]searchRow, len(b.images))
 	for i, img := range b.images {
-		label := ""
+		label, ref := "", img.Repo
 		if e := b.entryFor(img.EntryKey); e != nil {
 			label = entryAlias(*e)
 			if label == "" {
 				label = e.URL
 			}
+			ref = searchRowReference(e.URL, img)
 		}
-		rows[i] = searchRow{img: img, label: label}
+		rows[i] = searchRow{img: img, label: label, ref: ref}
 	}
+	sortSearchRows(b.searchQuery, rows)
+	// The cursor follows the selected row by (EntryKey, Repo), not by index:
+	// rows of another registry land before or after it. Nothing selected (an
+	// empty table, so also a new search) goes to the first row, because an
+	// empty table keeps its old cursor index; a vanished row stays put.
+	prev, hadSel := b.searchTable.Selected()
 	b.searchTable.SetItems(rows)
+	if !hadSel {
+		b.searchTable.GotoTop()
+	} else {
+		for i, r := range b.searchTable.Visible() {
+			if r.img.EntryKey == prev.img.EntryKey && r.img.Repo == prev.img.Repo {
+				b.searchTable.SetCursor(i)
+				break
+			}
+		}
+	}
 	b.resizeTables()
 }
 
