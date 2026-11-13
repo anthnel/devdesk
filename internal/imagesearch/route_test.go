@@ -96,3 +96,40 @@ func TestByRegistryWithANilHubAnswersErrUnsupported(t *testing.T) {
 		t.Fatalf("err = %v, want ErrUnsupported", err)
 	}
 }
+
+// dhi.io has no documented catalog API: refused without any request.
+func TestDHIIsRefusedWithoutARequest(t *testing.T) {
+	for _, url := range []string{"dhi.io", "https://dhi.io", "https://DHI.io/", "dhi.io:443", "http://dhi.io/library"} {
+		t.Run(url, func(t *testing.T) {
+			hub, other := &recorder{name: "hub"}, &recorder{name: "other"}
+			imgs, partial, err := ByRegistry(hub, other).Search(context.Background(), Target{RegistryURL: url}, Query{Text: "nginx"})
+			if !errors.Is(err, ErrUnsupported) {
+				t.Fatalf("err = %v, want ErrUnsupported", err)
+			}
+			if len(imgs) != 0 || partial {
+				t.Errorf("images = %v, partial = %v, want nothing", imgs, partial)
+			}
+			if hub.count() != 0 || other.count() != 0 {
+				t.Errorf("hub calls = %d, other calls = %d, want 0 and 0", hub.count(), other.count())
+			}
+			if v := Classify(err, 0, false).Verdict; v != VerdictRefused {
+				t.Errorf("verdict = %v, want refused", v)
+			}
+		})
+	}
+}
+
+func TestDHILookalikesAreNotRefused(t *testing.T) {
+	for _, url := range []string{"notdhi.io", "registry.dhi.io", "dhi.io.example.com"} {
+		t.Run(url, func(t *testing.T) {
+			hub, other := &recorder{name: "hub"}, &recorder{name: "other"}
+			_, _, err := ByRegistry(hub, other).Search(context.Background(), Target{RegistryURL: url}, Query{Text: "nginx"})
+			if err != nil {
+				t.Fatalf("err = %v", err)
+			}
+			if hub.count() != 0 || other.count() != 1 {
+				t.Errorf("hub calls = %d, other calls = %d, want 0 and 1", hub.count(), other.count())
+			}
+		})
+	}
+}

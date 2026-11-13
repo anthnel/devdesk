@@ -79,7 +79,8 @@ satisfies `errors.Is(err, context.DeadlineExceeded)` or `context.Canceled`,
 and never as a `StatusError`. **Limit:** `registryHTTPClient` keeps its own
 `Timeout: 15s` per request, and the client wraps `context.DeadlineExceeded`
 for that timeout too. A caller cannot tell the client timeout from the
-context's deadline, so IS-12 (verdicts) will classify both as the same failure.
+context's deadline, so `imagesearch.Classify` (DEVDESK-303, IS-12) puts both in
+the `failed` verdict.
 
 ## Image search — `internal/imagesearch` (DEVDESK-298, IS-18)
 
@@ -108,11 +109,34 @@ Pure Go, no UI. Types and one interface; one adapter so far, `HubSearcher`
   characters and Unicode format characters (category Cf: bidi overrides,
   zero-width, BOM) are removed. Privacy: the text the user typed is sent to
   Docker Hub as soon as a Hub entry is checked.
-- `ByRegistry(hub, other)` (`route.go`): a target for which
-  `oci.IsDockerHub(RegistryURL)` is true goes to `hub`, any other to `other`. A
-  nil searcher answers `ErrUnsupported` with no request at all. Production uses
-  `ByRegistry(HubSearcher{}, nil)`, so every non-Hub registry is unsupported
-  until IS-03.
+- `ByRegistry(hub, other)` (`route.go`): a target whose host is exactly `dhi.io`
+  (DEVDESK-303, `isDHI`: case, scheme, port and path ignored; `registry.dhi.io`
+  and `notdhi.io` are not dhi.io) is refused first, with `ErrUnsupported` and no
+  request to either searcher, since dhi.io has no documented catalogue API
+  (IS-17). Otherwise a target for which `oci.IsDockerHub(RegistryURL)` is true
+  goes to `hub`, any other to `other`. A nil searcher answers `ErrUnsupported`
+  with no request at all. Production uses `ByRegistry(HubSearcher{}, nil)`, so
+  every non-Hub registry is unsupported until IS-03.
+- **Verdicts (DEVDESK-303, IS-12, `verdict.go`).** `Classify(err, n, partial)`
+  is a pure function that turns one registry's answer into an `Outcome{Verdict,
+  Partial, Skipped}`. `Verdict` is one of `VerdictOK` (`ok`), `VerdictNoResult`
+  (`no result`), `VerdictRefused` (`unsupported or refused`) and
+  `VerdictFailed` (`failed`); the zero value is not a verdict (`pending`) and
+  `Classify` never returns it. `Partial` and `Skipped` are marks, not verdicts:
+  `Partial` only with `ok`, `Skipped` only with `no result`. Rules, first match
+  wins:
+  1. no error: `n > 0` is `ok` (with `Partial` as given), `n == 0` is `no result`;
+  2. `ErrQueryTooShort` is `no result` with `Skipped`;
+  3. `ErrUnsupported` or `ErrPrefixNotInCatalog` is `refused`;
+  4. a `*oci.StatusError` is `refused` when `refusedStatus` holds: 401 and 403
+     from either source, 404 and 405 from `SourceRegistry` only (a 404 from the
+     token endpoint is a failure); any other status, 429 and 5xx included, is
+     `failed`;
+  5. anything else is `failed`: deadline, cancel, network, unreadable or
+     oversized body, invalid request.
+
+  `ErrQueryTooShort` and `ErrPrefixNotInCatalog` are declared now and returned
+  by the catalogue searcher of IS-03; no adapter returns them yet.
 
 ## Image updates — `internal/imageupdate` (§3.88)
 
@@ -323,12 +347,31 @@ wraps the lot's context in `context.WithTimeout(ctx, imageSearchDeadline)`:
 `imageSearchDeadline` is 15 s **per registry**, the whole walk included, on top
 of the 15 s client timeout per request (see the limit above). A registry's
 answer arrives as `ImageSearchResultMsg{Gen, EntryKey, Images, Partial, Err}`
-and `AddImageResults` appends it (false when stale; `pendingSearches` never goes
-under 0). A search error is only logged,
-`ERROR [oci_resources] image search on <alias>: <jobs.SafeCause(err)>`, with no
-message on screen and nothing in `:jobs`, until IS-12 adds the verdicts.
-`imagesearch.ErrUnsupported` (a non-Hub registry) is logged at INFO instead and
-is not an error.
+and `AddImageResults` takes it (false when stale; `pendingSearches` never goes
+under 0).
+
+**Verdicts per registry (DEVDESK-303, IS-12).** `AddImageResults` calls
+`imagesearch.Classify` in `Update`, never in the `Cmd` (Rule 110), and stores the
+result in `RegistryBrowser.outcomes`, keyed by `EntryKey`. The map is reset by
+`startImageSearch`, so it holds one lot only; a registry with no entry is still
+pending. Only an `ok` verdict appends rows. `Outcome(entryKey)` reads one
+verdict (false while pending). `Model.RegistryBrowserOutcomes()` returns a copy
+of the map, or nil when the browser is closed; it is for the tests and for IS-13.
+**Nothing is shown for the verdicts yet**: the header and the footer are
+unchanged until IS-13 (`+N`, `Failed`, `Refused`, `Pending`).
+
+Logging, by verdict, through `logSearchOutcome` (the alias falls back to the
+entry key):
+- `failed`: `ERROR [oci_resources] image search on <alias>: <cause>`;
+- `refused`: `INFO [oci_resources] image search on <alias>: unsupported or
+  refused: <cause>` (a refusal is expected for any private registry until IS-03
+  and for dhi.io, so it does not fill the error log);
+- `ok` and `no result`: nothing.
+
+The cause is `searchErrorCause(err)`: a `*url.Error` keeps only its Op and Err
+(the URL carries the typed text and can carry credentials), then
+`jobs.SafeCause`. Nothing else reaches the log. Nothing reaches the screen
+either, and no error text reaches `:jobs` (Rule 128).
 
 Level 1 shows `searchTable` (`datatable.Model[searchRow]`, built by
 `newSearchTable`, also used by `ActivityTables` as `oci/registry-search`).

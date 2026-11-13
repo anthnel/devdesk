@@ -252,6 +252,9 @@ type RegistryBrowser struct {
 	searcher    imagesearch.Searcher
 	images      []imagesearch.Image
 	searchTable datatable.Model[searchRow]
+	// outcomes is each registry's verdict in the current lot, by entry key;
+	// absent while pending.
+	outcomes map[string]imagesearch.Outcome
 
 	// The router's snapshot, for the activity column and the footer: the
 	// registry's runs and remembered failures, and the context they are read in.
