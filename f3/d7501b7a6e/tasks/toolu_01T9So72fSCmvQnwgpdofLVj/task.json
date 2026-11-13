@@ -1,0 +1,15 @@
+{
+  "tool_use_id": "toolu_01T9So72fSCmvQnwgpdofLVj",
+  "agent_id": "ab15130f599d53940",
+  "subagent_type": "dev-team:architect",
+  "task_description": "Plan DEVDESK-308 design",
+  "token_usage": {
+    "input_tokens": 26,
+    "cache_creation_tokens": 119133,
+    "cache_read_tokens": 817003,
+    "output_tokens": 16820,
+    "api_call_count": 12
+  },
+  "started_at": "2026-11-13T16:58:52.115142411+01:00",
+  "completed_at": "2026-11-13T17:01:53.382356438+01:00"
+}

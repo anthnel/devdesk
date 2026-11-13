@@ -1,0 +1,15 @@
+{
+  "tool_use_id": "toolu_015btFqcMtWgjTe6wvLSnCBh",
+  "agent_id": "a349273b662f02b82",
+  "subagent_type": "project-coder",
+  "task_description": "Green step 1 DEVDESK-308",
+  "token_usage": {
+    "input_tokens": 12,
+    "cache_creation_tokens": 87327,
+    "cache_read_tokens": 218202,
+    "output_tokens": 3217,
+    "api_call_count": 5
+  },
+  "started_at": "2026-11-13T17:11:21.795028204+01:00",
+  "completed_at": "2026-11-13T17:12:01.718297443+01:00"
+}

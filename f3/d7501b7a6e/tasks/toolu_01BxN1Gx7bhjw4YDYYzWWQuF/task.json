@@ -1,0 +1,15 @@
+{
+  "tool_use_id": "toolu_01BxN1Gx7bhjw4YDYYzWWQuF",
+  "agent_id": "ad116562efe6ebc2b",
+  "subagent_type": "project-coder",
+  "task_description": "Review fixes DEVDESK-308",
+  "token_usage": {
+    "input_tokens": 18,
+    "cache_creation_tokens": 33437,
+    "cache_read_tokens": 262067,
+    "output_tokens": 4909,
+    "api_call_count": 9
+  },
+  "started_at": "2026-11-13T17:18:17.009395355+01:00",
+  "completed_at": "2026-11-13T17:19:13.393683094+01:00"
+}
