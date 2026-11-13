@@ -22,7 +22,10 @@ type Config struct {
 	Network  NetworkConfig  `yaml:"network"`
 	MCP      MCPConfig      `yaml:"mcp"`
 
-	// AgentUsage prices the :agent-usage view. No default, no migration.
+	// AgentUsage prices the :agent-usage view. No default, no migration. While
+	// it holds no price, a save keeps the commented example block
+	// (ExamplePricesBlock) if the file already carries it; other comments are
+	// still lost on save.
 	AgentUsage AgentUsageConfig `yaml:"agent_usage,omitempty"`
 
 	// GitLab is what `forge:` replaced. Same treatment as Docker above, and for
@@ -1016,8 +1019,23 @@ func SaveContext(cfg *Config, contextName string) error {
 		return err
 	}
 
+	// Keep the commented price example only when the file already carries it
+	// and no price is set; a missing file never gets the block.
+	withExample := false
+	if len(cfg.AgentUsage.Prices) == 0 {
+		existing, readErr := os.ReadFile(configPath)
+		switch {
+		case readErr == nil:
+			withExample = carriesExampleBlock(existing)
+		case errors.Is(readErr, os.ErrNotExist):
+			// absent file: no block
+		default:
+			log.Printf("WARN [config] cannot read %s to look for the price example, saving without it: %v", configPath, readErr)
+		}
+	}
+
 	// Marshal to YAML
-	data, err := yaml.Marshal(cfg)
+	data, err := marshalContext(cfg, withExample)
 	if err != nil {
 		return err
 	}
@@ -1115,31 +1133,4 @@ func ValidateNewContextName(name string) error {
 		}
 	}
 	return nil
-}
-
-// CreateContext creates a new context with a default configuration
-// Empty monitors, empty GitLab URL, other values default
-func CreateContext(contextName string) error {
-	if err := ValidateNewContextName(contextName); err != nil {
-		return err
-	}
-
-	// Check whether it already exists
-	exists, err := ContextExists(contextName)
-	if err != nil {
-		return err
-	}
-	if exists {
-		return fmt.Errorf("context '%s' already exists: %w", contextName, ErrContextExists)
-	}
-
-	// Create config with defaults
-	cfg := Default()
-
-	// Clear monitors and forge for the new context
-	cfg.Status.Components = []ComponentConfig{}
-	cfg.Forge.URL = ""
-
-	// Save
-	return SaveContext(cfg, contextName)
 }

@@ -59,6 +59,15 @@ func forcedColorProfile(getenv func(string) string) (colorprofile.Profile, bool)
 	return colorprofile.NoTTY, false
 }
 
+// ensureDefaultContext writes config.yaml, with the commented price example, on
+// a first launch. A failure is logged and does not stop the launch: the
+// application runs on the in-memory defaults, as it did before the file existed.
+func ensureDefaultContext() {
+	if _, err := config.CreateDefaultContextIfMissing(); err != nil {
+		log.Printf("WARN [config] could not create the default context file: %v", err)
+	}
+}
+
 func runTUI() {
 	// Load the configuration
 	cfg, err := config.Load()
@@ -84,6 +93,9 @@ func runTUI() {
 		log.Printf("Log file: %s", cfg.App.LogFile)
 		log.Printf("DEBUG mode: %v", len(os.Getenv("DEBUG")) > 0)
 	}
+
+	// The log is open (or unavailable): a failure below is reported, never fatal.
+	ensureDefaultContext()
 
 	// app.theme is applied by the router (app.New).
 	theme.SetGaugeGlyph(cfg.App.GaugeGlyph)

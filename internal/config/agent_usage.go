@@ -3,7 +3,10 @@ package config
 import "gopkg.in/yaml.v3"
 
 // AgentUsageConfig holds the settings of the :agent-usage view. It has no
-// default and no migration: an empty section is never written to the file.
+// default and no migration: an empty section is never written to the file. The
+// one exception is the commented price example (ExamplePricesBlock): written
+// into a new context file, and kept by a save only while the file already
+// carries it and holds no price.
 type AgentUsageConfig struct {
 	// Prices maps a model name, kept exactly as written, to its price per
 	// million tokens. Validation (negative, NaN, Inf) belongs to the pricing

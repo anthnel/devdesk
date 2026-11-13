@@ -157,6 +157,25 @@ func TestCreateContextCreatesThenSwitches(t *testing.T) {
 	}
 }
 
+// DEVDESK-314: `:context new` writes the commented price example once.
+func TestCreateContextWritesThePriceExampleBlock(t *testing.T) {
+	a := argRouter(t)
+	if _, ok := testutil.MsgOf[ContextSwitchCompleteMsg](a.createContext("staging")); !ok {
+		t.Fatal("no ContextSwitchCompleteMsg")
+	}
+	path, err := config.GetContextPath("staging")
+	if err != nil {
+		t.Fatal(err)
+	}
+	data, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := strings.Count(string(data), config.ExamplePricesBlock); got != 1 {
+		t.Errorf("the created file holds the price example block %d times, want once:\n%s", got, data)
+	}
+}
+
 func TestCreateContextThatExistsKeepsItsFile(t *testing.T) {
 	a := argRouter(t)
 	p, _ := config.GetContextPath("work")

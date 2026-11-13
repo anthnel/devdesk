@@ -394,6 +394,32 @@ func TestAnIncompleteEntryIsLoggedOnceAndShowsADash(t *testing.T) {
 	}
 }
 
+// DEVDESK-314: a context created with the commented example block has no price
+// table, so no WARN line about it, and every Est. cost stays a dash.
+func TestAFreshContextWithTheExampleBlockLogsNoPriceWarning(t *testing.T) {
+	var buf bytes.Buffer
+	log.SetOutput(&buf)
+	t.Cleanup(func() { log.SetOutput(&bytes.Buffer{}) })
+
+	isolate(t)
+	if err := config.CreateContext("fresh"); err != nil {
+		t.Fatal(err)
+	}
+	cfg, err := config.LoadContext("fresh")
+	if err != nil {
+		t.Fatal(err)
+	}
+	m := atPricedAgents(t, cfg, 160, costUsage())
+	for _, l := range strings.Split(buf.String(), "\n") {
+		if strings.Contains(l, "WARN") && strings.Contains(l, pricesKey) {
+			t.Errorf("unexpected price WARN line: %q", l)
+		}
+	}
+	if got := costOf(t, m, "orchestrator"); got != "-" {
+		t.Errorf("Est. cost = %q, want -", got)
+	}
+}
+
 // ── Layout ───────────────────────────────────────────────────────────────────
 
 // Measured column by column from 50 to 230 with Est. cost DropFirst. It is

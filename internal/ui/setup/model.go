@@ -2,7 +2,7 @@
 // that walks a user through creating (or overwriting) a DevDesk context, one
 // question at a time. It is not part of the app router — it runs before any
 // context is loaded, so it builds a *config.Config from scratch and writes
-// it with config.SaveContext, the same call the configuration view uses.
+// it with config.WriteNewContext, which adds the commented price example.
 package setup
 
 import (
