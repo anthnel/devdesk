@@ -1,0 +1,18 @@
+{
+  "tool_use_id": "toolu_01EoLRqvFY3fGqoQBiRFpJVE",
+  "agent_id": "a2e2d02a87cba865f",
+  "subagent_type": "team-core:archivist",
+  "task_description": "Archive D135 decision DEVDESK-306",
+  "files": [
+    "docs/backlog.md"
+  ],
+  "token_usage": {
+    "input_tokens": 10,
+    "cache_creation_tokens": 68844,
+    "cache_read_tokens": 219730,
+    "output_tokens": 6611,
+    "api_call_count": 5
+  },
+  "started_at": "2026-11-13T15:23:14.484263389+01:00",
+  "completed_at": "2026-11-13T15:23:45.963213021+01:00"
+}

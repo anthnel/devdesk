@@ -1,0 +1,15 @@
+{
+  "tool_use_id": "toolu_011i537DerMZ1Jv2Lgkq3Ezn",
+  "agent_id": "a94a9b6ede97f4b7d",
+  "subagent_type": "project-tester",
+  "task_description": "Red tests step 1 DEVDESK-306",
+  "token_usage": {
+    "input_tokens": 8,
+    "cache_creation_tokens": 26393,
+    "cache_read_tokens": 67667,
+    "output_tokens": 1733,
+    "api_call_count": 4
+  },
+  "started_at": "2026-11-13T15:10:19.794689012+01:00",
+  "completed_at": "2026-11-13T15:10:34.881682076+01:00"
+}
