@@ -83,8 +83,8 @@ context's deadline, so IS-12 (verdicts) will classify both as the same failure.
 
 ## Image search — `internal/imagesearch` (DEVDESK-298, IS-18)
 
-Pure Go, no UI. Types and one interface, no adapter yet (Docker Hub is IS-02,
-catalogue walking IS-03):
+Pure Go, no UI. Types and one interface; one adapter so far, `HubSearcher`
+(IS-02); catalogue walking is IS-03, dhi.io IS-17:
 
 - `Target`: one registry to search (`EntryKey`, `Alias`, `RegistryURL`,
   `APIURL`, `RepoPrefix`, `Username`, `Password`; the credentials are empty for
@@ -95,6 +95,24 @@ catalogue walking IS-03):
   `library/` applied once (D39).
 - `Searcher.Search(ctx, Target, Query) (images, partial, err)`, and
   `SearcherFunc`, the function adapter.
+- `HubSearcher` (DEVDESK-301, IS-02, `hub.go`): anonymous, one GET on
+  `https://index.docker.io/v1/search` (the endpoint `docker search` uses, not a
+  public Hub contract), one page of at most `HubLimit` (50) results, no
+  credentials (Target's are ignored), no redirects, 15 s client timeout, body
+  capped at 1 MiB. A non-200 answer is an `*oci.StatusError`. A result without
+  `star_count` keeps `HasStars` false (the Stars cell stays empty, never 0).
+  Names are validated against a regex (`hubComponent`: lowercase alphanumerics
+  joined by `.`, `_`, `__` or runs of `-`, as in the OCI distribution spec); a
+  name that fails is dropped (`-rm`, `--help`, uppercase, `a//b`, a leading or
+  trailing separator). A description is sanitised: escape sequences, control
+  characters and Unicode format characters (category Cf: bidi overrides,
+  zero-width, BOM) are removed. Privacy: the text the user typed is sent to
+  Docker Hub as soon as a Hub entry is checked.
+- `ByRegistry(hub, other)` (`route.go`): a target for which
+  `oci.IsDockerHub(RegistryURL)` is true goes to `hub`, any other to `other`. A
+  nil searcher answers `ErrUnsupported` with no request at all. Production uses
+  `ByRegistry(HubSearcher{}, nil)`, so every non-Hub registry is unsupported
+  until IS-03.
 
 ## Image updates — `internal/imageupdate` (§3.88)
 
@@ -290,13 +308,14 @@ on a button, and greyed on a checkbox.
 mode (Rule 114): without a `Searcher` it names Browse Tags only; with one it
 describes Search, Open Tags and the shared selection, and the level 1 sentence.
 
-**`defaultImageSearcher` is `nil` in production, so level 1 and Open Tags are
-inactive until IS-02 ships.** `newRegistryBrowser` copies it into `b.searcher`;
-with `nil`, the form keeps its one Browse Tags button and a short name such as
-`nginx` still lists tags as before. Tests inject a fake with
-`withImageSearcher`. IS-02 assigns the real searcher; until then the visible
-changes are the "No registry selected" warning and `enter` lit on Repository in
-the header.
+**`defaultImageSearcher` is `ByRegistry(HubSearcher{}, nil)` in production
+(DEVDESK-301, IS-02), so level 1 and Open Tags are active.** `newRegistryBrowser`
+copies it into `b.searcher`. Tests do not use it: `TestMain`
+(`ociresources_test.go`) saves it in `productionImageSearcher` and sets
+`defaultImageSearcher` to `nil` for the whole suite (no test may reach the real
+Hub), and tests inject a fake with `withImageSearcher`.
+`TestProductionWiresTheHubSearcher` reads the saved value. `internal/app`
+injects nothing: its tests avoid level 1 by typing a name with a `/`.
 
 `startImageSearch` runs one `searchImagesCmd` per checked registry, with
 `targetFor(entry)` (same credentials as the tag flow, `credsFor`). Each command
@@ -308,11 +327,18 @@ and `AddImageResults` appends it (false when stale; `pendingSearches` never goes
 under 0). A search error is only logged,
 `ERROR [oci_resources] image search on <alias>: <jobs.SafeCause(err)>`, with no
 message on screen and nothing in `:jobs`, until IS-12 adds the verdicts.
+`imagesearch.ErrUnsupported` (a non-Hub registry) is logged at INFO instead and
+is not an error.
 
 Level 1 shows `searchTable` (`datatable.Model[searchRow]`, built by
 `newSearchTable`, also used by `ActivityTables` as `oci/registry-search`).
 Columns: the activity column (`IndicatorColumn`, always `Idle`, `IconDocker` in
-the `IconRoleImage` role), Name (flex, searchable) and Registry. Results are
+the `IconRoleImage` role), Name (flex, searchable), Registry, Stars (empty when
+`HasStars` is false), Official (`official` or empty) and Description
+(searchable). All cells are plain text (Rule 122). When the terminal narrows,
+Description, then Stars, then Official leave whole (`Optional`, with
+`DropFirst` on Description and Stars); at 60 columns only the activity column,
+Name and Registry remain, and the line spans width-2 at every width (Rule 116). Results are
 ordered by `sortSearchRows` (`browser_images_order.go`), a pure function of the
 rows and the typed name (`RegistryBrowser.searchQuery`, set by
 `startImageSearch`), so the order never depends on which registry answered

@@ -1,7 +1,10 @@
 package ociresources
 
 import (
+	"errors"
 	"log"
+	"net/url"
+	"strconv"
 	"strings"
 
 	tea "charm.land/bubbletea/v2"
@@ -37,8 +40,10 @@ func searchRowReference(registryURL string, img imagesearch.Image) string {
 	return host + "/" + img.Repo
 }
 
-// searchColumns describes the level 1 table. Minimal for now: the full screen
-// (Stars, Official, Description) comes later.
+// searchColumns describes the level 1 table. Stars, Official and Description
+// leave whole when the terminal narrows, in that reverse order (Description,
+// Stars, Official), through Optional and DropFirst: drop() takes the rightmost
+// DropFirst column first, then the rightmost Optional one.
 func searchColumns() []datatable.Column[searchRow] {
 	return []datatable.Column[searchRow]{
 		datatable.IndicatorColumn(
@@ -54,6 +59,30 @@ func searchColumns() []datatable.Column[searchRow] {
 		{
 			Title: "Registry", Sizing: datatable.SizingContent, MinWidth: 16,
 			Cell: func(r searchRow) string { return r.label },
+		},
+		{
+			Title: "Stars", Sizing: datatable.SizingFixed, Optional: true, DropFirst: true, MinWidth: 6,
+			Cell: func(r searchRow) string {
+				if !r.img.HasStars {
+					return ""
+				}
+				return strconv.Itoa(r.img.Stars)
+			},
+		},
+		{
+			Title: "Official", Sizing: datatable.SizingFixed, Optional: true, MinWidth: 10,
+			Cell: func(r searchRow) string {
+				if r.img.Official {
+					return "official"
+				}
+				return ""
+			},
+		},
+		{
+			Title: "Description", Sizing: datatable.SizingContent, Optional: true, DropFirst: true,
+			MinWidth: 20, Flex: 2,
+			Cell:   func(r searchRow) string { return r.img.Description },
+			Search: func(r searchRow) string { return r.img.Description },
 		},
 	}
 }
@@ -161,9 +190,24 @@ func (m Model) handleImageSearchResult(msg ImageSearchResultMsg) (tea.Model, tea
 		if e := m.registryBrowser.entryFor(msg.EntryKey); e != nil {
 			alias = entryAlias(*e)
 		}
-		log.Printf("ERROR [oci_resources] image search on %s: %s", alias, jobs.SafeCause(msg.Err))
+		if errors.Is(msg.Err, imagesearch.ErrUnsupported) {
+			log.Printf("INFO [oci_resources] image search on %s: %s", alias, msg.Err)
+			return m, nil
+		}
+		log.Printf("ERROR [oci_resources] image search on %s: %s", alias, searchErrorCause(msg.Err))
 	}
 	return m, nil
+}
+
+// searchErrorCause is the loggable text of a search error. A *url.Error holds
+// the full request URL, which carries the text the user typed, so only its Op
+// and Err are kept.
+func searchErrorCause(err error) string {
+	var ue *url.Error
+	if errors.As(err, &ue) {
+		return jobs.SafeCause(errors.New(ue.Op + ": " + jobs.SafeCause(ue.Err)))
+	}
+	return jobs.SafeCause(err)
 }
 
 // handleRegistryBrowserWarn shows the browser's warning in the footer.

@@ -53,10 +53,10 @@ func (m Model) RegistryBrowserGen() uint64 {
 	return m.registryBrowser.gen
 }
 
-// defaultImageSearcher is what a browser opens with. It is nil in production:
-// level 1 stays off until an adapter exists, and a short name keeps listing
-// tags. Tests inject one before opening the browser.
-var defaultImageSearcher imagesearch.Searcher
+// defaultImageSearcher is what a browser opens with: Docker Hub anonymously,
+// any other registry answers imagesearch.ErrUnsupported without a request
+// (IS-03 adds the others). Tests replace it before opening the browser.
+var defaultImageSearcher imagesearch.Searcher = imagesearch.ByRegistry(imagesearch.HubSearcher{}, nil)
 
 // imageSearchDeadline bounds one registry's whole search.
 var imageSearchDeadline = 15 * time.Second
