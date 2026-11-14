@@ -1,0 +1,15 @@
+{
+  "tool_use_id": "toolu_01Tr1iTNtj4ZdSeLiE8wT5co",
+  "agent_id": "ad9e662aef48e941c",
+  "subagent_type": "team-core:tech-writer",
+  "task_description": "Docs network.md bridge",
+  "token_usage": {
+    "input_tokens": 15,
+    "cache_creation_tokens": 60993,
+    "cache_read_tokens": 299353,
+    "output_tokens": 4068,
+    "api_call_count": 7
+  },
+  "started_at": "2026-11-14T20:37:06.3880426+01:00",
+  "completed_at": "2026-11-14T20:37:40.7880695+01:00"
+}

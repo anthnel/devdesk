@@ -1,0 +1,18 @@
+{
+  "tool_use_id": "toolu_01YLGHMTTmTENEENiHT8LTRL",
+  "agent_id": "a8bf54f887bef9e0d",
+  "subagent_type": "project-tester",
+  "task_description": "Red tests step 3 bridge row",
+  "files": [
+    "internal/ui/netdiag/path_bridge_steps_test.go"
+  ],
+  "token_usage": {
+    "input_tokens": 11,
+    "cache_creation_tokens": 108897,
+    "cache_read_tokens": 452689,
+    "output_tokens": 7274,
+    "api_call_count": 6
+  },
+  "started_at": "2026-11-14T20:29:43.9584668+01:00",
+  "completed_at": "2026-11-14T20:30:31.8822855+01:00"
+}

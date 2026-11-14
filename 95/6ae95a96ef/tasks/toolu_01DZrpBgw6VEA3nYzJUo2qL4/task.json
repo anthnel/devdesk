@@ -1,0 +1,15 @@
+{
+  "tool_use_id": "toolu_01DZrpBgw6VEA3nYzJUo2qL4",
+  "agent_id": "a342e533524446a93",
+  "subagent_type": "project-coder",
+  "task_description": "Green step 2 hostBridge",
+  "token_usage": {
+    "input_tokens": 5,
+    "cache_creation_tokens": 93266,
+    "cache_read_tokens": 122599,
+    "output_tokens": 1416,
+    "api_call_count": 3
+  },
+  "started_at": "2026-11-14T20:27:46.358916+01:00",
+  "completed_at": "2026-11-14T20:27:59.2378448+01:00"
+}

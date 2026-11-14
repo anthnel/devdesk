@@ -1,0 +1,15 @@
+{
+  "tool_use_id": "toolu_01MVdCw5E6MZiDnN4CytxrXs",
+  "agent_id": "a6cf2008c2c4d153a",
+  "subagent_type": "dev-team:reviewer",
+  "task_description": "Review steps 4-5",
+  "token_usage": {
+    "input_tokens": 21,
+    "cache_creation_tokens": 96734,
+    "cache_read_tokens": 600796,
+    "output_tokens": 6747,
+    "api_call_count": 10
+  },
+  "started_at": "2026-11-14T20:38:27.1169144+01:00",
+  "completed_at": "2026-11-14T20:40:21.1860897+01:00"
+}

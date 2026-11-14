@@ -1,0 +1,15 @@
+{
+  "tool_use_id": "toolu_012jfsNgxzhmugYSMm8q22hp",
+  "agent_id": "ae70881c48a8c6aec",
+  "subagent_type": "project-tester",
+  "task_description": "Red tests step 1 docker",
+  "token_usage": {
+    "input_tokens": 17,
+    "cache_creation_tokens": 75986,
+    "cache_read_tokens": 487382,
+    "output_tokens": 13559,
+    "api_call_count": 9
+  },
+  "started_at": "2026-11-14T20:27:12.2979713+01:00",
+  "completed_at": "2026-11-14T20:28:32.8456525+01:00"
+}
