@@ -1,5 +1,58 @@
 # Changelog
 
+## [2.1.0](https://github.com/anthnel/devdesk/compare/v2.0.0...v2.1.0) (2026-11-14)
+
+
+### Features
+
+* add app.theme auto with embedded dark and light themes (DEVDESK-258) ([#367](https://github.com/anthnel/devdesk/issues/367)) ([f26012d](https://github.com/anthnel/devdesk/commit/f26012deee0da9774633375b72ba76ce0c5f9c3e))
+* add mise run ci chaining the six CI checks (DEVDESK-342) ([#373](https://github.com/anthnel/devdesk/issues/373)) ([d5e7e85](https://github.com/anthnel/devdesk/commit/d5e7e85d641e2b24badf31e7d49796f3aa59cd49))
+* add the native path trace engine internal/nettrace (DEVDESK-327) ([#400](https://github.com/anthnel/devdesk/issues/400)) ([9d9a868](https://github.com/anthnel/devdesk/commit/9d9a86886f6aeb35692d4386ae1b79a0eae2886d))
+* add the Path tab with streaming hops and an H shortcut from Diagnostics (DEVDESK-328) ([#401](https://github.com/anthnel/devdesk/issues/401)) ([e096ef7](https://github.com/anthnel/devdesk/commit/e096ef7c6b098a6ca1d5e371926fb4c4ca1fb4a0))
+* classify each registry's image search answer into three verdicts (DEVDESK-303) ([#391](https://github.com/anthnel/devdesk/issues/391)) ([abe1f67](https://github.com/anthnel/devdesk/commit/abe1f6763991c64d93d054d5fcb0f2f6f6e8f68a))
+* come back to image search level 1 with the left arrow key or esc (DEVDESK-307) ([#390](https://github.com/anthnel/devdesk/issues/390)) ([bd074e6](https://github.com/anthnel/devdesk/commit/bd074e6d6f91b11c7d2a47f22a37dd14b773317e))
+* default image search order, key-tracked cursor and selected-row footer (DEVDESK-302) ([#388](https://github.com/anthnel/devdesk/issues/388)) ([c23b07a](https://github.com/anthnel/devdesk/commit/c23b07a84d74805222f994f2e729d93972333ea9))
+* filter the level 1 image table by registry with the r key (DEVDESK-310) ([#396](https://github.com/anthnel/devdesk/issues/396)) ([9f593fb](https://github.com/anthnel/devdesk/commit/9f593fbf94e414bf5321d2583414bb63be1d8668))
+* image search level 1 in the OCI registry browser, inactive until a searcher is wired (DEVDESK-299) ([#384](https://github.com/anthnel/devdesk/issues/384)) ([a65b54d](https://github.com/anthnel/devdesk/commit/a65b54d5e998ae81975ffbee203b58dc1a08fc4b))
+* image search level 1 on Docker Hub (DEVDESK-301) ([#387](https://github.com/anthnel/devdesk/issues/387)) ([d6b7529](https://github.com/anthnel/devdesk/commit/d6b7529050d8e5c6508778b7b061c268dff1461f))
+* keep each registry's outcome visible in the level 1 header (DEVDESK-305) ([#393](https://github.com/anthnel/devdesk/issues/393)) ([93396b7](https://github.com/anthnel/devdesk/commit/93396b763974e70ab505b756c5f93713706d6f7c))
+* migrate to Charm v2 (DEVDESK-201, DEVDESK-208) ([c0f9ee1](https://github.com/anthnel/devdesk/commit/c0f9ee1baab6072ff9e16a78fbba65d0902d98e7))
+* open an image's tags with the right arrow key from image search level 1 (DEVDESK-304) ([#389](https://github.com/anthnel/devdesk/issues/389)) ([af28bf3](https://github.com/anthnel/devdesk/commit/af28bf3341773369cacac3212cc4605d0e08a569))
+* open the tags of the typed name explicitly with a second Open Tags button in the registry browser (DEVDESK-300) ([#385](https://github.com/anthnel/devdesk/issues/385)) ([5ff4e6e](https://github.com/anthnel/devdesk/commit/5ff4e6e0b95f42ef20764ce3021b78a838d3d874))
+* pause view reads while the terminal is unfocused, add app.when_unfocused (DEVDESK-210) ([#364](https://github.com/anthnel/devdesk/issues/364)) ([1df1d7b](https://github.com/anthnel/devdesk/commit/1df1d7b9a64b9c470ddf59ad178365027c154aa7))
+* route the terminal focus level to the view on screen (DEVDESK-210) ([#363](https://github.com/anthnel/devdesk/issues/363)) ([eb13ee9](https://github.com/anthnel/devdesk/commit/eb13ee9e33f328cfc07abe34b3c50d8a2f3a529f))
+* say when a Nexus listing is limited to cached content (DEVDESK-308) ([#394](https://github.com/anthnel/devdesk/issues/394)) ([f74f306](https://github.com/anthnel/devdesk/commit/f74f306dd99428d4e6ee2df7aa722d002b894261))
+* search a private registry through its catalog (DEVDESK-306) ([#392](https://github.com/anthnel/devdesk/issues/392)) ([75be683](https://github.com/anthnel/devdesk/commit/75be68354f508694a57e5d135d8bf976044ba87c))
+* set the terminal background from the theme (DEVDESK-209) ([#356](https://github.com/anthnel/devdesk/issues/356)) ([5813532](https://github.com/anthnel/devdesk/commit/5813532127fdc1d30a33d3754a8ae9c7e8ca1caf))
+* set the terminal window title to "dk · view · context" and restore it on exit (DEVDESK-257) ([#366](https://github.com/anthnel/devdesk/issues/366)) ([4042d2b](https://github.com/anthnel/devdesk/commit/4042d2b8c3279ea2fe340ea479c936c4a15f8761))
+* shared activity dot for :containers, :agent-usage, :sec, :net, forge auth and dk setup (DEVDESK-371, DEVDESK-372, DEVDESK-373, DEVDESK-375, DEVDESK-376) ([#376](https://github.com/anthnel/devdesk/issues/376)) ([cbeda2e](https://github.com/anthnel/devdesk/commit/cbeda2ef6c30af5f739869abc7d9908eb69b32d9))
+* shared activity dot for the viewer and :oci loads (DEVDESK-370, DEVDESK-374) ([#375](https://github.com/anthnel/devdesk/issues/375)) ([e4cc688](https://github.com/anthnel/devdesk/commit/e4cc688eaba43bc1ab1920fd90888111f65e192a))
+* show job progress in the terminal tab via View.ProgressBar (DEVDESK-211) ([#365](https://github.com/anthnel/devdesk/issues/365)) ([a596538](https://github.com/anthnel/devdesk/commit/a596538ebd1336f8b41a4dc3b5fdf124cd67d6ee))
+* show the shared activity dot in :status and add the loading test bench (DEVDESK-369) ([#372](https://github.com/anthnel/devdesk/issues/372)) ([9c6c782](https://github.com/anthnel/devdesk/commit/9c6c782582f4c232e91a3bd4515126009fbb50c1))
+* show the shared activity dot in the footer instead of the braille spinner (DEVDESK-341) ([#370](https://github.com/anthnel/devdesk/issues/370)) ([5f76cc1](https://github.com/anthnel/devdesk/commit/5f76cc162fe83642a169c2cff876ca039e0162f7))
+* sort the level 1 image table with the dot key (DEVDESK-309) ([#395](https://github.com/anthnel/devdesk/issues/395)) ([5db95ce](https://github.com/anthnel/devdesk/commit/5db95ce6daca9f20bca5338d3e1c325814e3a317))
+* suspend the animation while the terminal is blurred (DEVDESK-210) ([#362](https://github.com/anthnel/devdesk/issues/362)) ([2cf7ea2](https://github.com/anthnel/devdesk/commit/2cf7ea2c8b721d6b0d0107af80fc6216f420c594))
+* typed registry errors, context-aware tag lookups and generation-stamped tag results (DEVDESK-298) ([#383](https://github.com/anthnel/devdesk/issues/383)) ([e7a8a22](https://github.com/anthnel/devdesk/commit/e7a8a22ce9750535603fe08b53ba4b4f00a15a23))
+* underline invalid form fields with a curly red line and a footer message (DEVDESK-292) ([#368](https://github.com/anthnel/devdesk/issues/368)) ([56166bf](https://github.com/anthnel/devdesk/commit/56166bf87b30d7459a515b1a4ec8dfd6626d1972))
+* walk a host's catalog only once per search and identity (DEVDESK-311) ([#397](https://github.com/anthnel/devdesk/issues/397)) ([5285034](https://github.com/anthnel/devdesk/commit/5285034310645e5cad91d7f64b37ed4d75ec32a5))
+* write a commented agent_usage.prices example into new context files (DEVDESK-314) ([#398](https://github.com/anthnel/devdesk/issues/398)) ([f5c0bc5](https://github.com/anthnel/devdesk/commit/f5c0bc5e3b02a384be141b32690de2e70862ffa1))
+
+
+### Bug Fixes
+
+* **deps:** bump golang.org/x/net to v0.62.0 (DEVDESK-278) ([#357](https://github.com/anthnel/devdesk/issues/357)) ([463d53a](https://github.com/anthnel/devdesk/commit/463d53aeca15919f44ea200725752abf2ad56e39))
+* keep registry credentials on the registry's origin and bound the token response (DEVDESK-410) ([#399](https://github.com/anthnel/devdesk/issues/399)) ([f2617de](https://github.com/anthnel/devdesk/commit/f2617de9b327f48814821a943ebdd9181cc5a8c8))
+* let the space key reach text fields in configuration and the OCI launch form (DEVDESK-266) ([#359](https://github.com/anthnel/devdesk/issues/359)) ([5393279](https://github.com/anthnel/devdesk/commit/5393279f0222f48c117bec9d9194e71e4d7040d1))
+* measure datatable cells by grapheme cluster so VS16 emoji match x/ansi (DEVDESK-280) ([#371](https://github.com/anthnel/devdesk/issues/371)) ([2f383de](https://github.com/anthnel/devdesk/commit/2f383dec091ece5755c16ae6057f4f8018245253))
+* recognise Docker Hub through isDockerHub when loading tag dates (DEVDESK-297) ([#386](https://github.com/anthnel/devdesk/issues/386)) ([4beb086](https://github.com/anthnel/devdesk/commit/4beb0865fd9b0c22f4a0d7326142eb434daa7055))
+* work around the bubbletea renderer ticker race after a fast exec (DEVDESK-290) ([#361](https://github.com/anthnel/devdesk/issues/361)) ([cd83400](https://github.com/anthnel/devdesk/commit/cd83400815e95e13027b2a9348c6286282fec9d6))
+
+
+### Refactoring
+
+* centralize the space key in keymap and guard legacy key fields (DEVDESK-200) ([#352](https://github.com/anthnel/devdesk/issues/352)) ([63ebd72](https://github.com/anthnel/devdesk/commit/63ebd72b3d0f834b5dfd584e055bbbe8e35a7ef6))
+* remove the footer spinner API and guard against its return (DEVDESK-377) ([#378](https://github.com/anthnel/devdesk/issues/378)) ([37ab5a8](https://github.com/anthnel/devdesk/commit/37ab5a82a81ab5e3f758c35b1be16f0bacef729c))
+
 ## [2.0.0](https://github.com/anthnel/devdesk/compare/v1.7.0...v2.0.0) (2026-11-09)
 
 
