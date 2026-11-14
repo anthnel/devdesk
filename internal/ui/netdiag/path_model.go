@@ -161,7 +161,7 @@ func (pm *PathModel) handleResolved(msg pathResolvedMsg) (*PathModel, tea.Cmd) {
 	route := newPathRoute(msg.route, msg.routeErr)
 	pm.route = &route
 	if !msg.source.isHost() {
-		c := newPathContainer(msg.source, msg.ctr, msg.ctrErr)
+		c := newPathContainer(msg.source, msg.ctr, msg.ctrErr).withBridge(msg.bridge)
 		pm.container = &c
 	}
 	pm.refreshSteps()

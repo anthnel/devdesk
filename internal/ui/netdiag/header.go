@@ -452,7 +452,10 @@ func (m *Model) GetHelpContent() help.Content {
 					"Docker Desktop and podman are not offered. With no running container, only this " +
 					"machine is offered. Reading the engine (ps, info, inspect) starts nothing. An " +
 					"engine reached through DOCKER_HOST or a remote context is not detected as remote: " +
-					"it can show another machine's network, and the trace still leaves from this machine.",
+					"it can show another machine's network, and the trace still leaves from this machine.\n\n" +
+					"The bridge row appears only when this machine has the interface of the container's " +
+					"network bridge, read on this machine; otherwise no bridge is shown. A remote engine " +
+					"whose network is also called docker0 can match this machine's interface by name.",
 			},
 			{
 				Title: "Interfaces Tab — How it works",

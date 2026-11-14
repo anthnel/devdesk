@@ -30,6 +30,16 @@ type pathContainer struct {
 	Networks int        // number of endpoints, for "undetermined (N networks)"
 	Addr     netip.Addr // the container's IPv4 on Network
 	Gateway  netip.Addr // Network's gateway
+	Bridge   string     // attachNetwork only: the host interface read for Network; "" when none
+}
+
+// withBridge returns a copy of c carrying the bridge interface name. The name
+// is kept only for a container attached to a network, and only when not empty.
+func (c pathContainer) withBridge(name string) pathContainer {
+	if c.Attach == attachNetwork && name != "" {
+		c.Bridge = name
+	}
+	return c
 }
 
 const (
@@ -69,7 +79,7 @@ func newPathContainer(src pathSource, n docker.ContainerNetworking, err error) p
 		c.Attach = attachShared
 	default:
 		c.Networks = len(n.Networks)
-		if picked, ok := defaultRouteNetwork(n.Networks); ok {
+		if picked, ok := routeEndpoint(n); ok {
 			c.Attach = attachNetwork
 			c.Network = engineText(picked.Name)
 			c.Addr = picked.IPv4
@@ -77,6 +87,16 @@ func newPathContainer(src pathSource, n docker.ContainerNetworking, err error) p
 		}
 	}
 	return c
+}
+
+// routeEndpoint returns the endpoint holding the container's default route.
+// It reports false for host, none and shared-namespace modes, and when the
+// route cannot be told (see defaultRouteNetwork).
+func routeEndpoint(n docker.ContainerNetworking) (docker.EndpointNetwork, bool) {
+	if n.Mode == modeHost || n.Mode == modeNone || strings.HasPrefix(n.Mode, modeSharedPrefix) {
+		return docker.EndpointNetwork{}, false
+	}
+	return defaultRouteNetwork(n.Networks)
 }
 
 // defaultRouteNetwork picks the network that holds the container's default

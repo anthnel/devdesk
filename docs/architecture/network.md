@@ -44,15 +44,16 @@ Two things about the engine are worth knowing before changing this code:
   offsets taken from its header line, and there is no `--format` that exposes
   per-image unique size.
 
-- **Three typed, read-only reads for the Path tab** (`container_network.go`,
-  DEVDESK-330), each with a `context.Context` that kills the invocation:
-  `InspectContainerNetworking(ctx, id)`, `ListContainersContext(ctx, all)`
-  (`ListContainers(all)` is unchanged and does not use it) and
-  `EngineOperatingSystem(ctx)`. They run `container inspect`, `ps` and `info`
-  and nothing else. `InspectContainerNetworking` runs
+- **Four typed, read-only reads for the Path tab** (`container_network.go`,
+  DEVDESK-330, DEVDESK-331), each with a `context.Context` that kills the
+  invocation: `InspectContainerNetworking(ctx, id)`, `ListContainersContext(ctx,
+  all)` (`ListContainers(all)` is unchanged and does not use it),
+  `EngineOperatingSystem(ctx)` and `InspectNetworkBridge(ctx, networkID)`. They
+  run `container inspect`, `ps`, `info` and `network inspect` and nothing else. `InspectContainerNetworking` runs
   `container inspect --format <containerNetworkingFormat> <id>`: the format
   selects `Name`, `HostConfig.NetworkMode`, `State.Running` and, per network,
-  `IPAddress`, `Gateway` and `GwPriority`, so `Config.Env`, labels and mounts are
+  `NetworkID` (`EndpointNetwork.NetworkID`, kept only when it passes
+  `IsContainerID`, else empty), `IPAddress`, `Gateway` and `GwPriority`, so `Config.Env`, labels and mounts are
   never read into memory. It reads stdout only, and its error carries the
   command label, never the output. The ID must pass `IsContainerID` and is one
   argv element, never a name. The inspect and `info` reads refuse a non-Docker
@@ -1310,7 +1311,7 @@ container of a Docker Engine instead of on this machine. Files: `path_source.go`
   error is logged (`ERROR [netdiag/path] inspect <id>: …`) and never shown.
   Reading at launch, not at selection, means "trace again" reads it again and a
   container that stopped in between is shown as not running.
-- **Three more row kinds**, ordered by `pathSteps` only (it takes the container
+- **Three more row kinds** (a fourth, `bridge`, since DEVDESK-331, below), ordered by `pathSteps` only (it takes the container
   as a first argument; `nil` gives the DEVDESK-329 column unchanged): `container`
   and `network` before `source`, `trace` after `gateway` and before the hops.
   Hop and RTT are empty for all three; `trace`, and `network` when it reads
@@ -1345,15 +1346,15 @@ container of a Docker Engine instead of on this machine. Files: `path_source.go`
   sanitizer; a shared helper is a later refactor.
 - **Criterion 7: the engine reads start nothing.** Three guards pin it.
   `TestPathSourceReadsStartNothing` (`internal/docker`) records the arguments of
-  the three reads on a stub runner: the first is `ps`, `info` or `container`
-  (then `inspect`), and no argument is a state-changing verb.
+  the four reads on a stub runner: the first is `ps`, `info`, `container` or
+  `network` (then `inspect`), and no argument is a state-changing verb.
   `TestPathEngineReadsStartNothing` (`internal/ui/netdiag`) records the real
   wiring (`systemPathEngine`) through `listPathSources` and the producer and
   asserts the same. `TestPathTabCallsOnlyReadOnlyEngineFunctions` parses every
   non-test file of the package and fails on any `docker.<X>` outside
   `Container`, `ContainerNetworking`, `EndpointNetwork`,
-  `ListContainersContext`, `EngineOperatingSystem`, `InspectContainerNetworking`
-  and `IsContainerID`, on any `engine.<X>` other than `Current`, and on a string
+  `ListContainersContext`, `EngineOperatingSystem`, `InspectContainerNetworking`,
+  `InspectNetworkBridge`, `NetworkBridge` and `IsContainerID`, on any `engine.<X>` other than `Current`, and on a string
   literal equal to a verb such as `start` or `exec`.
 - **Limits.** A remote engine (`DOCKER_HOST=tcp://…`, an ssh context) or an
   engine in a VM other than Docker Desktop is **not detected**: its containers
@@ -1362,6 +1363,43 @@ container of a Docker Engine instead of on this machine. Files: `path_source.go`
   distinguished, because the container inspection does not carry them. The
   container ID is the short one `docker ps` prints, validated by
   `IsContainerID`. Kubernetes, overlay and named VMs are out of scope.
+
+**The bridge row (DEVDESK-331).** Between `network` and `source`, the column
+shows the host bridge the container's network is attached to, **only when that
+bridge exists on this machine**. Files: `path_bridge.go` (`readPathBridge`,
+`hostBridge`), `path_run.go` (the reads), `path_steps.go` (`stepBridge`).
+
+- **`InspectNetworkBridge(ctx, networkID)`** runs `network inspect --format
+  <networkBridgeFormat> <id>`: only the driver, the
+  `com.docker.network.bridge.name` option and the ID are read. The ID must be 64
+  hex digits, one argv element, never a name. The result is a `NetworkBridge`
+  (`Driver`, `Name`). `Name` is empty unless the driver is `bridge`; it is the
+  option when set, else `br-` + the first 12 digits of the ID. The error carries
+  no command output.
+- **`pathEngine`** gets two more fields, `network` (`docker.InspectNetworkBridge`)
+  and `interfaces` (`netiface.List`), so tests inject both.
+- **`readPathBridge`** runs in the producer, after `inspectPathSource`, under the
+  resolve timeout, and its result rides on `pathResolvedMsg.bridge`: no new
+  message, capacity still 32. It makes **no call** for a trace from this machine,
+  host, `none`, `container:<x>`, a container stopped at launch, an ambiguous
+  default-route network (`routeEndpoint`, shared with `newPathContainer`), a
+  failed inspection or an endpoint with no network ID.
+- **`hostBridge`** accepts the interface only if its name equals the expected one
+  exactly (case sensitive) **and** it carries the network's gateway among its
+  IPv4 addresses. The OS is never consulted. Malformed CIDR entries are ignored.
+  The name goes through `engineText`.
+- **Failures are logged, never shown** (`ERROR [netdiag/path] bridge network|
+  interfaces: …`, not logged when the run was canceled): the row is simply
+  absent. `pathSteps` adds `stepBridge` only when `pathContainer.Bridge` is set
+  (`withBridge`, for a container attached to a network). Address text is the
+  interface name; Hop and RTT are empty.
+- **Limits.** Absence of the row means "not found", not "no bridge":
+  `inhibit_ipv4` networks and rootless Docker give no row (no matching host
+  interface). User-defined networks (`br-<id>`) are protected by their unique
+  name. A **false positive** remains for the default `docker0` on a remote
+  engine: if the remote engine and a local Docker both use `docker0` with
+  `172.17.0.1/16`, the row appears though the container is not behind this
+  machine's bridge. This extends the remote-engine limit above.
 
 **Errors become fixed labels.** `pathErrorLabel` maps the sentinels (matched
 with `errors.Is`, wrapped errors included) to US English sentences:

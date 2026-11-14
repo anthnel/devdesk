@@ -14,6 +14,7 @@ import (
 
 	"github.com/anthnel/devdesk/internal/docker"
 	"github.com/anthnel/devdesk/internal/netcheck"
+	"github.com/anthnel/devdesk/internal/netiface"
 	"github.com/anthnel/devdesk/internal/nettrace"
 )
 
@@ -45,6 +46,16 @@ type fakeEngine struct {
 	inspectNet    docker.ContainerNetworking
 	inspectErr    error
 	inspectCtx    context.Context
+
+	// Bridge seam (DEVDESK-331): the network read and this machine's interfaces.
+	networkCalls int
+	networkIDs   []string
+	networkVal   docker.NetworkBridge
+	networkErr   error
+	networkCtx   context.Context
+	ifacesCalls  int
+	ifacesVal    []netiface.Interface
+	ifacesErr    error
 
 	routeFn   func(ctx context.Context, a netip.Addr) (netcheck.RouteHop, error)
 	resolveFn func(ctx context.Context, host string) ([]netip.Addr, error)
@@ -104,6 +115,16 @@ func (f *fakeEngine) engine() pathEngine {
 			f.inspectIDs = append(f.inspectIDs, id)
 			f.inspectCtx = ctx
 			return f.inspectNet, f.inspectErr
+		},
+		network: func(ctx context.Context, id string) (docker.NetworkBridge, error) {
+			f.networkCalls++
+			f.networkIDs = append(f.networkIDs, id)
+			f.networkCtx = ctx
+			return f.networkVal, f.networkErr
+		},
+		interfaces: func(context.Context) ([]netiface.Interface, error) {
+			f.ifacesCalls++
+			return f.ifacesVal, f.ifacesErr
 		},
 	}
 }

@@ -43,7 +43,7 @@ const (
 var allowedDockerUses = []string{
 	"Container", "ContainerNetworking", "EndpointNetwork",
 	"ListContainersContext", "EngineOperatingSystem", "InspectContainerNetworking",
-	"IsContainerID",
+	"IsContainerID", "NetworkBridge", "InspectNetworkBridge",
 }
 
 // allowedEngineUses is every engine.<X> the Path tab may name.
