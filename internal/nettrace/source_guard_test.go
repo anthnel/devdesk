@@ -17,13 +17,34 @@ import (
 // build constraints (go/parser does not evaluate them), so a file that only
 // builds on another OS is covered too.
 
-const bannedImport = "os/exec"
+// bannedImports are packages that must not be imported at all.
+var bannedImports = map[string]bool{
+	"os/exec":                  true,
+	"golang.org/x/sys/execabs": true,
+}
 
-// bannedCalls maps an import path to the functions it must not be called for.
-var bannedCalls = map[string]map[string]bool{
-	"os":                    {"StartProcess": true},
-	"syscall":               {"ForkExec": true, "Exec": true},
-	"golang.org/x/sys/unix": {"Exec": true},
+// dotWatched are packages that must not be dot-imported: a dot-import hides
+// the package name the selector check relies on.
+var dotWatched = map[string]bool{
+	"os":                    true,
+	"syscall":               true,
+	"os/exec":               true,
+	"golang.org/x/sys/unix": true,
+}
+
+// bannedSymbols maps an import path to the process-launching symbols it must
+// not expose here, called or not (`f := os.StartProcess` is caught too). The
+// socket symbols the engine needs (Recvmsg, Setsockopt...) stay allowed.
+var bannedSymbols = map[string]map[string]bool{
+	"os": {"StartProcess": true},
+	"syscall": {
+		"StartProcess": true, "ForkExec": true, "Exec": true,
+		"Syscall": true, "Syscall6": true, "RawSyscall": true, "RawSyscall6": true,
+	},
+	"golang.org/x/sys/unix": {
+		"Exec":    true,
+		"Syscall": true, "Syscall6": true, "RawSyscall": true, "RawSyscall6": true,
+	},
 }
 
 // guardSource returns one message per offence in src ("name:line: ...").
@@ -36,10 +57,13 @@ func guardSource(fset *token.FileSet, name string, src any) ([]string, error) {
 	local := map[string]string{} // local package name -> import path
 	for _, imp := range file.Imports {
 		path, _ := strconv.Unquote(imp.Path.Value)
-		if path == bannedImport {
+		if bannedImports[path] {
 			out = append(out, fmt.Sprintf("%s: import of %s", fset.Position(imp.Pos()), path))
 		}
-		if _, watched := bannedCalls[path]; !watched {
+		if imp.Name != nil && imp.Name.Name == "." && dotWatched[path] {
+			out = append(out, fmt.Sprintf("%s: dot-import of %s", fset.Position(imp.Pos()), path))
+		}
+		if _, watched := bannedSymbols[path]; !watched {
 			continue
 		}
 		n := path[strings.LastIndex(path, "/")+1:]
@@ -49,11 +73,7 @@ func guardSource(fset *token.FileSet, name string, src any) ([]string, error) {
 		local[n] = path
 	}
 	ast.Inspect(file, func(n ast.Node) bool {
-		call, ok := n.(*ast.CallExpr)
-		if !ok {
-			return true
-		}
-		sel, ok := call.Fun.(*ast.SelectorExpr)
+		sel, ok := n.(*ast.SelectorExpr)
 		if !ok {
 			return true
 		}
@@ -61,8 +81,8 @@ func guardSource(fset *token.FileSet, name string, src any) ([]string, error) {
 		if !ok {
 			return true
 		}
-		if path, ok := local[id.Name]; ok && bannedCalls[path][sel.Sel.Name] {
-			out = append(out, fmt.Sprintf("%s: call to %s.%s", fset.Position(call.Pos()), id.Name, sel.Sel.Name))
+		if path, ok := local[id.Name]; ok && bannedSymbols[path][sel.Sel.Name] {
+			out = append(out, fmt.Sprintf("%s: use of %s.%s", fset.Position(sel.Pos()), id.Name, sel.Sel.Name))
 		}
 		return true
 	})
@@ -81,6 +101,16 @@ func TestGuardSourceFlagsOffences(t *testing.T) {
 		{"unix.go", "package x\nimport \"golang.org/x/sys/unix\"\nfunc f() { _ = unix.Exec(\"a\", nil, nil) }\n", 1},
 		{"aliased_unix.go", "package x\nimport u \"golang.org/x/sys/unix\"\nfunc f() { _ = u.Exec(\"a\", nil, nil) }\n", 1},
 		{"tagged.go", "//go:build windows\n\npackage x\nimport \"os/exec\"\nvar _ = exec.Command\n", 1},
+		{"execabs.go", "package x\nimport \"golang.org/x/sys/execabs\"\nvar _ = execabs.Command\n", 1},
+		{"syscall_startprocess.go", "package x\nimport \"syscall\"\nfunc f() { _, _ = syscall.StartProcess(\"a\", nil, nil) }\n", 1},
+		{"raw_syscall.go", "package x\nimport \"syscall\"\nfunc f() { syscall.RawSyscall(59, 0, 0); syscall.Syscall(59, 0, 0, 0); syscall.Syscall6(59, 0, 0, 0, 0, 0, 0); syscall.RawSyscall6(59, 0, 0, 0, 0, 0, 0) }\n", 4},
+		{"unix_syscall.go", "package x\nimport \"golang.org/x/sys/unix\"\nfunc f() { unix.Syscall(59, 0, 0, 0); unix.RawSyscall6(59, 0, 0, 0, 0, 0, 0) }\n", 2},
+		{"func_value.go", "package x\nimport \"os\"\nvar f = os.StartProcess\n", 1},
+		{"dot_os.go", "package x\nimport . \"os\"\nvar _ = Getpid\n", 1},
+		{"dot_syscall.go", "package x\nimport . \"syscall\"\nvar _ = Getpid\n", 1},
+		{"dot_exec.go", "package x\nimport . \"os/exec\"\nvar _ = Command\n", 2},
+		{"dot_unix.go", "package x\nimport . \"golang.org/x/sys/unix\"\nvar _ = Getpid\n", 1},
+		{"allowed_unix.go", "package x\nimport \"golang.org/x/sys/unix\"\nfunc f() { _ = unix.Setsockopt; _ = unix.Recvmsg }\n", 0},
 		{"clean.go", "package x\nimport (\"os\"; \"syscall\")\n// os.StartProcess in a comment is not a call\nfunc f() { _ = os.Getpid(); _ = syscall.Getpid(); var s struct{ Exec func() }; s.Exec() }\n", 0},
 	} {
 		got, err := guardSource(token.NewFileSet(), c.name, c.src)

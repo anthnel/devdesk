@@ -105,7 +105,8 @@ type Hop struct {
 // Outcome says why a trace ended.
 type Outcome int
 
-// The ways a trace ends.
+// The ways a trace ends. The zero value is OutcomeReached, so read an Outcome
+// only when Trace returned no error.
 const (
 	// OutcomeReached: the target answered.
 	OutcomeReached Outcome = iota
@@ -136,7 +137,9 @@ func (o Outcome) String() string {
 	return "unknown"
 }
 
-// Result is a finished trace.
+// Result is a finished trace. Always check the error Trace returned before
+// reading it: the zero Result (and so the zero Outcome, OutcomeReached) means
+// "no trace", never "reached".
 type Result struct {
 	Target   netip.Addr
 	Outcome  Outcome
