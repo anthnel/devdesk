@@ -410,7 +410,8 @@ browsers on Windows and macOS haven't been measured yet.
 ## The Path tab — `internal/nettrace`
 
 The Path tab shows the hops between this machine and a target, in this
-process: no container, no `traceroute` binary, no privilege. It replaces the
+process: nothing runs in a container, there is no `traceroute` binary and no
+privilege. It replaces the
 container trace that was removed because it answered for the Docker VM and not
 for this machine.
 
@@ -433,6 +434,38 @@ for this machine.
   full-tunnel VPN the interface row names the tunnel. If the routing table
   can't answer, both rows read `undetermined` and the trace goes on. The
   footer counts only the hops that answered, not these three rows.
+- **Start from a container.** Press `ctrl+o` to open **Trace from**, a list of
+  `this machine` and the running containers of a Docker Engine on this machine.
+  Use `↑` `↓` (and `pgup`, `pgdown`, `home`, `end`) to move, `enter` to choose
+  and `esc` to close. While the list is open, `tab` and pasting do nothing. The
+  key works while you type the target and once a trace is done. During a
+  trace it only warns, and where the trace is not supported it is greyed
+  out. Choosing another
+  source empties the list and puts you back on the target field, with what you
+  typed kept. The header then shows a `Source` field.
+- **What the container rows say.** Before `source`, the list gains a
+  `container` row (its name and address, for example `web-1 (172.18.0.5)`) and
+  a `network` row (for example `app_net via 172.18.0.1`, the network and its
+  gateway). After `gateway`, a `trace` row reads
+  `from this machine, not from the container`.
+- **The hops still come from this machine.** DevDesk sends nothing from inside
+  the container: it only reads what the engine says about it. The hops after the
+  `trace` row are the path from your machine, not the container's.
+- **Which network.** A container on several networks has one default route,
+  and DevDesk does not guess it. It names the network when only one has a
+  gateway, or when the engine gives one network the strictly highest gateway
+  priority. Otherwise the row reads `undetermined (3 networks)`. A container in
+  host mode shares this machine's network stack, so the row says
+  `host (shares this machine's stack)` and no bridge is added.
+- **When only this machine is offered.** The footer says why: no running
+  container, no Docker Engine reachable, Docker Desktop (not supported yet) or
+  podman (not supported). DevDesk only reads the engine (`ps`, `info` and
+  `inspect`); it starts, stops and enters nothing, and it never reads the
+  container's environment variables.
+- **Limit: a remote engine is not detected.** If `DOCKER_HOST` or a Docker
+  context points at another machine or a VM, its containers are listed anyway
+  and drawn before `this machine`, which their traffic never crosses. The
+  `trace` row still says where the hops start.
 - **A silent hop is not a failure.** Many routers do not answer these probes.
   The row reads `silent` (dim, never red) and the trace goes on. The number of
   hops that answer can vary from one run to the next.

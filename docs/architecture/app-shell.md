@@ -581,6 +581,23 @@ them off the screen anyway. And the granularity is the **package**, not the
 view's state: a key bound in one tab and announced in another passes. What these
 catch is the key bound *nowhere*, which is what both instances were.
 
+**`ctrl+o` on `netdiag/path` (DEVDESK-330).** A declared Ctrl exception
+(`keymap.DeclaredExceptions()`, key `ctrl+o`, surface `netdiag/path`; the
+`security/results/remediation-tab` entry for the same key is a separate one, so
+the pair is keyed by key and surface). It opens the "Trace from" selector (this
+machine or a running Docker Engine container) and changes nothing by itself,
+unlike the remediation tab's `ctrl+o`, which writes files. The target field has
+the keyboard in `pathEditing`, so no bare letter is free there; `textinput` does
+not bind `ctrl+o`. It is live in `pathEditing` and `pathDone`, warns while a
+trace runs and is greyed where the trace is unsupported.
+`path_source_exception_test.go` (`internal/ui/keymap`) fails if the entry or its
+reason disappears, and `TestOnlyThreeCtrlCombinationsSurvive` accepts the key
+only because it is declared. **While the selector is open it is a mode and
+holds every key, `tab` included:** `netdiag.Model.Update` hands keys to the Path
+model *before* the `tab`/`shift+tab` tab switch, and `PathModel.InEditMode()` is
+true so the router does not quit on `q` or open the palette on `:`. A paste is
+dropped (Rule 111). Details: `network.md`, "The container source".
+
 **The space key is `keymap.Space`** (DEVDESK-200). Bubble Tea v1 reported it as
 `" "` in `KeyMsg.String()`, v2 reports `"space"` in `KeyPressMsg.String()`, and nothing flags the change: a
 `case " "` just stops matching and every checkbox stops toggling. Production

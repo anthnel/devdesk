@@ -1,6 +1,7 @@
 package netdiag
 
 import (
+	"errors"
 	"net"
 	"net/netip"
 	"slices"
@@ -9,6 +10,7 @@ import (
 
 	"github.com/charmbracelet/x/ansi"
 
+	"github.com/anthnel/devdesk/internal/docker"
 	"github.com/anthnel/devdesk/internal/netcheck"
 	"github.com/anthnel/devdesk/internal/nettrace"
 )
@@ -148,7 +150,7 @@ func TestPathStepsOrder(t *testing.T) {
 				routeBefore = *tt.route
 			}
 
-			got := pathSteps(tt.route, tt.hops)
+			got := pathSteps(nil, tt.route, tt.hops)
 
 			if kinds := stepKinds(got); !slices.Equal(kinds, tt.want) {
 				t.Fatalf("kinds = %v, want %v", kinds, tt.want)
@@ -257,7 +259,7 @@ func TestPathStepsCells(t *testing.T) {
 func TestPathStepsSourceIsAlwaysFirstAndAlone(t *testing.T) {
 	routes := []*pathRoute{nil, {Known: false}, stepsRoute}
 	for _, r := range routes {
-		steps := pathSteps(r, []nettrace.Hop{stepsHop1, stepsHop3})
+		steps := pathSteps(nil, r, []nettrace.Hop{stepsHop1, stepsHop3})
 		if len(steps) == 0 || steps[0].Kind != stepSource || steps[0].addressCell() != "this machine" {
 			t.Fatalf("route %+v: first row = %+v, want the source", r, steps)
 		}
@@ -266,5 +268,126 @@ func TestPathStepsSourceIsAlwaysFirstAndAlone(t *testing.T) {
 				t.Errorf("route %+v: row kind %d also says this machine", r, s.Kind)
 			}
 		}
+	}
+}
+
+func stepsContainer(t *testing.T, mode string) *pathContainer {
+	t.Helper()
+	n := docker.ContainerNetworking{
+		Name: "web-1", Running: true, Mode: mode,
+		Networks: []docker.EndpointNetwork{ep("app_net", "172.18.0.5", "172.18.0.1", prioOf(0))},
+	}
+	if mode == "host" {
+		n.Networks = []docker.EndpointNetwork{ep("host", "", "", nil)}
+	}
+	c := newPathContainer(pathSource{ID: "abc123", Name: "web-1"}, n, nil)
+	return &c
+}
+
+// Criteria 2, 4 and 6: the container rows, their order and the host-mode case.
+func TestPathStepsContainerOrder(t *testing.T) {
+	bridge := stepsContainer(t, "app_net")
+	host := stepsContainer(t, "host")
+	failed := func() *pathContainer {
+		c := newPathContainer(pathSource{ID: "abc123", Name: "web-1"}, docker.ContainerNetworking{}, errors.New("boom"))
+		return &c
+	}()
+	full := []pathStepKind{stepContainer, stepNetwork, stepSource, stepInterface, stepGateway, stepTrace, stepHop}
+	tests := []struct {
+		name  string
+		ctr   *pathContainer
+		route *pathRoute
+		hops  []nettrace.Hop
+		want  []pathStepKind
+	}{
+		{"criteria 2 and 6: container, network, source, interface, gateway, trace, hop", bridge, stepsRoute,
+			[]nettrace.Hop{stepsHop1}, full},
+		{"criterion 4: host mode keeps the same rows, no bridge row", host, stepsRoute,
+			[]nettrace.Hop{stepsHop1}, full},
+		{"a failed inspection keeps the rows and the trace continues", failed, stepsRoute,
+			[]nettrace.Hop{stepsHop1}, full},
+		{"container, no route, no hop", bridge, nil, nil,
+			[]pathStepKind{stepContainer, stepNetwork, stepSource, stepTrace}},
+		{"container, hop before route", bridge, nil, []nettrace.Hop{stepsHop1},
+			[]pathStepKind{stepContainer, stepNetwork, stepSource, stepTrace, stepHop}},
+		{"container, route, no hop yet", bridge, stepsRoute, nil,
+			[]pathStepKind{stepContainer, stepNetwork, stepSource, stepInterface, stepGateway, stepTrace}},
+		{"this machine, nothing known", nil, nil, nil, nil},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			hopsBefore := slices.Clone(tt.hops)
+			var ctrBefore pathContainer
+			if tt.ctr != nil {
+				ctrBefore = *tt.ctr
+			}
+			got := pathSteps(tt.ctr, tt.route, tt.hops)
+			if kinds := stepKinds(got); !slices.Equal(kinds, tt.want) {
+				t.Fatalf("kinds = %v, want %v", kinds, tt.want)
+			}
+			for i, s := range got {
+				switch s.Kind {
+				case stepContainer, stepNetwork, stepTrace:
+					if s.Container != *tt.ctr {
+						t.Errorf("row %d (kind %v) Container = %+v, want %+v", i, s.Kind, s.Container, *tt.ctr)
+					}
+				}
+			}
+			if !slices.EqualFunc(tt.hops, hopsBefore, func(a, b nettrace.Hop) bool { return a == b }) {
+				t.Errorf("pathSteps modified its hops input")
+			}
+			if tt.ctr != nil && *tt.ctr != ctrBefore {
+				t.Errorf("pathSteps modified its container input")
+			}
+		})
+	}
+}
+
+func TestPathStepsContainerCells(t *testing.T) {
+	bridge := stepsContainer(t, "app_net")
+	host := stepsContainer(t, "host")
+	tests := []struct {
+		name string
+		step pathStep
+		want cells
+	}{
+		{"container", pathStep{Kind: stepContainer, Container: *bridge},
+			cells{"", "container", "web-1 (172.18.0.5)", ""}},
+		{"network", pathStep{Kind: stepNetwork, Container: *bridge},
+			cells{"", "network", "app_net via 172.18.0.1", ""}},
+		{"trace", pathStep{Kind: stepTrace, Container: *bridge},
+			cells{"", "trace", "from this machine, not from the container", ""}},
+		{"host network", pathStep{Kind: stepNetwork, Container: *host},
+			cells{"", "network", "host (shares this machine's stack)", ""}},
+		{"host trace", pathStep{Kind: stepTrace, Container: *host},
+			cells{"", "trace", "from this machine (shared with the container)", ""}},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := cellsOf(tt.step)
+			if got != tt.want {
+				t.Errorf("cells = %+v, want %+v", got, tt.want)
+			}
+			for _, c := range []string{got.hop, got.step, got.address, got.rtt} {
+				if ansi.Strip(c) != c {
+					t.Errorf("cell %q carries an escape sequence", c)
+				}
+			}
+		})
+	}
+}
+
+// The host source stays labelled "this machine", whatever the container, and no
+// container row repeats it.
+func TestPathStepsContainerSourceStaysThisMachine(t *testing.T) {
+	steps := pathSteps(stepsContainer(t, "app_net"), stepsRoute, []nettrace.Hop{stepsHop1, stepsHop3})
+	var sources []pathStep
+	for _, s := range steps {
+		if s.addressCell() == "this machine" {
+			sources = append(sources, s)
+		}
+	}
+	if len(sources) != 1 || sources[0].Kind != stepSource {
+		t.Fatalf("rows saying this machine = %+v, want only the source row", sources)
 	}
 }

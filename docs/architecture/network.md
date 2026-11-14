@@ -44,6 +44,24 @@ Two things about the engine are worth knowing before changing this code:
   offsets taken from its header line, and there is no `--format` that exposes
   per-image unique size.
 
+- **Three typed, read-only reads for the Path tab** (`container_network.go`,
+  DEVDESK-330), each with a `context.Context` that kills the invocation:
+  `InspectContainerNetworking(ctx, id)`, `ListContainersContext(ctx, all)`
+  (`ListContainers(all)` is unchanged and does not use it) and
+  `EngineOperatingSystem(ctx)`. They run `container inspect`, `ps` and `info`
+  and nothing else. `InspectContainerNetworking` runs
+  `container inspect --format <containerNetworkingFormat> <id>`: the format
+  selects `Name`, `HostConfig.NetworkMode`, `State.Running` and, per network,
+  `IPAddress`, `Gateway` and `GwPriority`, so `Config.Env`, labels and mounts are
+  never read into memory. It reads stdout only, and its error carries the
+  command label, never the output. The ID must pass `IsContainerID` and is one
+  argv element, never a name. The inspect and `info` reads refuse a non-Docker
+  engine with `ErrDockerOnly` before any invocation; output over 256 KiB
+  (`maxInspectBytes`) is refused. `InspectContainer`, which returns the whole
+  `docker inspect` JSON (secrets included) with stdout and stderr merged and no
+  context, was not reused for that reason. The `info` format
+  (`{{.OperatingSystem}}`) is a docker-only literal and is not in
+  `engine.Templates`.
 - `internal/docker/netdiag.go` — **gone**. §3.33 took the five probes that did not need a container, §3.43 the ports table, §3.44 the topology (and with it `docker/topology.go` and the last `--privileged`), §3.47 the route trace and the file itself (the trace came back in the process as `internal/nettrace`, DEVDESK-327). §3.61 removed the OCI connectivity test, and with it the last container this application runs for a diagnostic: `networks.go` now holds only `ListNetworks`, `CreateNetwork`, `RemoveNetwork`, `PruneNetworks` and `InspectNetwork`.
 
 ## OCI registries — `internal/oci`
@@ -841,7 +859,9 @@ verified: a declared exception.
   `path_target.go`, `path_from_route.go`, `path_steps.go`; DEVDESK-328,
   DEVDESK-329): the hop-by-hop path to
   a target, from `internal/nettrace` (below). It is the fifth and last tab
-  (`tabPath = 4`, `tabCount = 5`). It runs **no container**. Three states:
+  (`tabPath = 4`, `tabCount = 5`). It runs **no container**; since DEVDESK-330 it
+  can name a running Docker Engine container as the source of the column (below),
+  but the probes still leave from this machine. Three states:
   `pathEditing` (the target field has the keyboard), `pathRunning` (field
   blurred, hops arriving) and `pathDone` (hops kept on screen). The **body is
   always the hop table** (`PathModel.view()` returns `table.View()`, Rule 139),
@@ -852,7 +872,8 @@ verified: a declared exception.
   rows have an empty Hop and RTT (they asked nobody; `-` means "no answer") and
   the default text colour. `pathSteps` (`path_steps.go`) is the only place that
   orders the rows; the table item is a `pathStep` (kind source, interface,
-  gateway or hop). Nothing is shown before the route is known, so a resolution
+  gateway or hop; DEVDESK-330 adds container, network and trace, below).
+  Nothing is shown before the route is known, so a resolution
   error leaves 0 rows. The **target field is not in the body**: it sits in the footer's
   bar slot, framed by `components.BarFrame` (`Target › ` + the field,
   placeholder `hostname or IPv4 address[:port]`). That slot is shown on this
@@ -868,6 +889,15 @@ verified: a declared exception.
   `end` move in the table in every state. While editing, `esc`, `tab` and
   `shift+tab` do nothing in the field. A paste reaches the field only while
   editing (Rule 111). A changed field value clears the persistent error.
+  `ctrl+o` opens the "Trace from" selector in `pathEditing` and `pathDone`; while
+  a trace runs it warns `A path trace is running — esc cancels it`, and where the
+  trace is unsupported it warns with the platform reason (`sourceChoosable`, the
+  one answer the header and the handler both read). While the selector is open it
+  holds every key: `up`, `down`, `pgup`, `pgdown`, `home` and `end` move, `enter`
+  chooses, `esc` closes, and every other key is swallowed, `tab` and `shift+tab`
+  included (`netdiag.Model.Update` hands the key to the Path model before the tab
+  switch). A paste is dropped. `PathModel.InEditMode()` is true while it is open,
+  so `q` and `:` reach the view and do not quit or open the palette.
 
 **Ports tab, terminal blurred (DEVDESK-210).** `PortsModel.unfocused` is set by
 `shared.TerminalFocusMsg`, which `netdiag.Model.Update` forwards to the ports
@@ -915,7 +945,9 @@ always `Idle` and an idle row shows an empty cell (a socket has no rest icon).
   have no `Indicator`; neither does the Path tab's hop table (DEVDESK-328): a
   trace is one run, not a per-row operation, and its running state is the
   footer's shared dot. The Path files `path_model.go`, `path_target.go` and
-  `path_view.go` (and, since DEVDESK-329, `path_steps.go`) are in the activity guard's scanned sources for
+  `path_view.go` (and, since DEVDESK-329, `path_steps.go`; since DEVDESK-330,
+  `path_source.go`, `path_container.go`, `path_source_picker.go` and
+  `path_source_flow.go`) are in the activity guard's scanned sources for
   `command.ViewNetdiag`; `path_run.go`, which holds the I/O, is not.
 - **Files.** `ports_activity.go` (`ActivityTables()` reports `netdiag/ports`,
   `WantsBlink()`); `ports_commands.go` holds the I/O commands (`fetchPortsCmd`,
@@ -1228,6 +1260,108 @@ the default route shows as the interface row, and the probes take that route.
 - **Counter.** The footer's `Tracing <host> — N hops answered` counts hop rows
   only (`hopCount`), not the local rows. An error done (`ErrNoRoute`, …) still
   clears every row.
+
+**The container source (DEVDESK-330).** The column can start in a running
+container of a Docker Engine instead of on this machine. Files: `path_source.go`
+(the source and its list, pure), `path_container.go` (the rows' content, pure),
+`path_source_picker.go` (the selector, a value type with no I/O),
+`path_source_flow.go` (opening, choosing, drawing), `path_run.go` (the reads).
+
+- **The source is a value of the tab**, `pathSource` (`ID`, `Name`, `Image`;
+  the zero value is `this machine`). It is read by the launch, not by the trace
+  engine: **the probes always leave from this machine**. Nothing runs inside the
+  container.
+- **The selector** is a framed list drawn over the table with `overlay.Compose`
+  (palette variant of Rule 112; the body stays the table, Rule 139), titled
+  `Trace from` in the top border, box width `clamp(width-4, 20, 60)`, centred,
+  starting on the table's second line. It opens at once with `this machine` and
+  the footer's loading dot (`Reading running containers...`, Rule 128), then
+  fills from a `pathSourcesMsg` tagged with `sourcesGen`; an answer for an older
+  request, or one that arrives after the selector closed, is dropped. The list
+  is read again at every opening (no cache). The cursor starts on the source in
+  use, marked `(current)`. Entries are `this machine`, then the containers whose
+  state is `running` (paused and restarting are left out), sorted by name, shown
+  as `<name> · <image>`. A row whose ID fails `IsContainerID` or whose name is
+  empty after `engineText` is skipped.
+- **Listing** (`listPathSources`, in a Cmd under the resolve timeout) goes in
+  this order: engine name (`engine.Current().Name`, no invocation), then
+  `info` for the OS name, then `ps`. The result is `this machine` alone, with a
+  neutral footer note, when: the engine is podman (`podman is not supported as a
+  container source`, nothing invoked); `info` or `ps` fails, or no engine is
+  present (`No Docker Engine reachable — only this machine is offered`; the raw
+  error goes to the log as `ERROR [netdiag/path] sources: …`); the OS name
+  starts with `Docker Desktop` (`Docker Desktop is not supported as a container
+  source yet`, `ps` is not called); or no container runs (`No running container
+  — only this machine is offered`). Docker Desktop is refused because its
+  containers live in a VM: drawing their network before `this machine` would
+  be false.
+- **Choosing.** `enter` on the source already in use only closes the selector.
+  Any other choice clears the column (rows, route, container, address, outcome,
+  error), returns the tab to `pathEditing` with the field focused and its value
+  kept, and shows a `Source` header field with the container name (absent for
+  this machine). The column never mixes two sources. `H` from Diagnostics
+  (`prefill`) resets the source to this machine: the route row it comes from is
+  this machine's.
+- **The container is read in the producer**, after the route lookup and before
+  the trace (`inspectPathSource`, under the resolve timeout, killed by the run's
+  context), and rides on `pathResolvedMsg` (`source`, `ctr`, `ctrErr`): no new
+  message, capacity still 32. A trace from this machine never calls it. A
+  failure is not fatal: the rows read `undetermined`, the trace runs, the raw
+  error is logged (`ERROR [netdiag/path] inspect <id>: …`) and never shown.
+  Reading at launch, not at selection, means "trace again" reads it again and a
+  container that stopped in between is shown as not running.
+- **Three more row kinds**, ordered by `pathSteps` only (it takes the container
+  as a first argument; `nil` gives the DEVDESK-329 column unchanged): `container`
+  and `network` before `source`, `trace` after `gateway` and before the hops.
+  Hop and RTT are empty for all three; `trace`, and `network` when it reads
+  `undetermined…` or `none…`, are dim.
+
+  | Row | Address text |
+  |---|---|
+  | `container` | `web-1 (172.18.0.5)`; no address known: `web-1`; stopped at launch: `web-1 (not running)` |
+  | `network` | `app_net via 172.18.0.1`; host mode: `host (shares this machine's stack)`; `none`: `none (no network)`; `container:<x>`: `shares another container's network`; undecidable: `undetermined` or `undetermined (N networks)`; inspection failed or container not running: `undetermined` |
+  | `trace` | `from this machine, not from the container`; host mode: `from this machine (shared with the container)` |
+
+- **The default-route network is never guessed** (`defaultRouteNetwork`). The
+  candidates are the endpoints with an IPv4 gateway (an internal network has
+  none, so it cannot hold the default route). One candidate: it. Several: the
+  one whose `GwPriority` is strictly the highest, provided the engine reported a
+  priority on every candidate. A tie, or a missing priority (API before 1.48,
+  Docker 28), gives `undetermined (N networks)`, with N the number of endpoints.
+  moby documents a tie-break by network name, but its direction was not
+  measured, and docs.docker.com says the default gateway "may change whenever a
+  container's network connections change". The address on the row is the
+  container's IPv4 on that network, and `via` is that network's gateway.
+- **Host mode** (`HostConfig.NetworkMode == host`) draws no bridge: the network
+  row says the container shares this machine's stack, and the trace row says
+  the probes leave from this machine, shared with the container. `none` and
+  `container:<id>` get their own texts and are never resolved further.
+- **`engineText`.** Every string an engine returned (names, images, network
+  names) passes once through `engineText` at conversion: invalid UTF-8 dropped,
+  escape sequences stripped (`ansi.Strip`), control (Cc) and format (Cf, so
+  bidi overrides and zero-width) runes dropped, whitespace collapsed, at most
+  128 runes. The cells are therefore display-safe, and Rule 122 holds (plain
+  text in `Cell`, colour in `Style`). It duplicates `imagesearch`'s
+  sanitizer; a shared helper is a later refactor.
+- **Criterion 7: the engine reads start nothing.** Three guards pin it.
+  `TestPathSourceReadsStartNothing` (`internal/docker`) records the arguments of
+  the three reads on a stub runner: the first is `ps`, `info` or `container`
+  (then `inspect`), and no argument is a state-changing verb.
+  `TestPathEngineReadsStartNothing` (`internal/ui/netdiag`) records the real
+  wiring (`systemPathEngine`) through `listPathSources` and the producer and
+  asserts the same. `TestPathTabCallsOnlyReadOnlyEngineFunctions` parses every
+  non-test file of the package and fails on any `docker.<X>` outside
+  `Container`, `ContainerNetworking`, `EndpointNetwork`,
+  `ListContainersContext`, `EngineOperatingSystem`, `InspectContainerNetworking`
+  and `IsContainerID`, on any `engine.<X>` other than `Current`, and on a string
+  literal equal to a verb such as `start` or `exec`.
+- **Limits.** A remote engine (`DOCKER_HOST=tcp://…`, an ssh context) or an
+  engine in a VM other than Docker Desktop is **not detected**: its containers
+  are listed and drawn before `this machine`, which they never pass through. The
+  `trace` row limits the damage. Network drivers (macvlan, ipvlan) are not
+  distinguished, because the container inspection does not carry them. The
+  container ID is the short one `docker ps` prints, validated by
+  `IsContainerID`. Kubernetes, overlay and named VMs are out of scope.
 
 **Errors become fixed labels.** `pathErrorLabel` maps the sentinels (matched
 with `errors.Is`, wrapped errors included) to US English sentences:

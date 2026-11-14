@@ -12,7 +12,13 @@ import (
 // holds the I/O and stays out, like ports_commands.go.
 func TestActivityGuardScansThePathTabSources(t *testing.T) {
 	got := migratedSources[command.ViewNetdiag]
-	for _, want := range []string{"ui/netdiag/path_model.go", "ui/netdiag/path_target.go", "ui/netdiag/path_steps.go"} {
+	for _, want := range []string{
+		"ui/netdiag/path_model.go", "ui/netdiag/path_target.go", "ui/netdiag/path_steps.go",
+		// DEVDESK-330: the container source (pure files and the selector).
+		"ui/netdiag/path_source.go", "ui/netdiag/path_container.go", "ui/netdiag/path_source_picker.go",
+		// The selector's flow: Activity:true, no I/O.
+		"ui/netdiag/path_source_flow.go",
+	} {
 		if !slices.Contains(got, want) {
 			t.Errorf("migratedSources[%q] lacks %q", command.ViewNetdiag, want)
 		}

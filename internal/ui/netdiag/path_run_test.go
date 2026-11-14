@@ -5,11 +5,14 @@ import (
 	"errors"
 	"fmt"
 	"net/netip"
+	"reflect"
+	"strings"
 	"testing"
 	"time"
 
 	tea "charm.land/bubbletea/v2"
 
+	"github.com/anthnel/devdesk/internal/docker"
 	"github.com/anthnel/devdesk/internal/netcheck"
 	"github.com/anthnel/devdesk/internal/nettrace"
 )
@@ -27,6 +30,21 @@ type fakeEngine struct {
 	traceCtxErr  error
 	routeCalls   int
 	routeAddr    netip.Addr
+
+	// Container source seam (DEVDESK-330): counters and recorded arguments.
+	engineNameVal string // "" means "docker"
+	osName        string // "" means a Linux engine
+	osErr         error
+	osCtx         context.Context
+	psRows        []docker.Container
+	psErr         error
+	osCalls       int
+	psCalls       int
+	inspectCalls  int
+	inspectIDs    []string
+	inspectNet    docker.ContainerNetworking
+	inspectErr    error
+	inspectCtx    context.Context
 
 	routeFn   func(ctx context.Context, a netip.Addr) (netcheck.RouteHop, error)
 	resolveFn func(ctx context.Context, host string) ([]netip.Addr, error)
@@ -63,6 +81,30 @@ func (f *fakeEngine) engine() pathEngine {
 			}
 			return f.traceFn(ctx, a, o, onHop)
 		},
+		engineName: func() string {
+			if f.engineNameVal == "" {
+				return "docker"
+			}
+			return f.engineNameVal
+		},
+		engineOS: func(ctx context.Context) (string, error) {
+			f.osCalls++
+			f.osCtx = ctx
+			if f.osName == "" && f.osErr == nil {
+				return "Debian GNU/Linux 13 (trixie)", nil
+			}
+			return f.osName, f.osErr
+		},
+		running: func(context.Context) ([]docker.Container, error) {
+			f.psCalls++
+			return f.psRows, f.psErr
+		},
+		inspect: func(ctx context.Context, id string) (docker.ContainerNetworking, error) {
+			f.inspectCalls++
+			f.inspectIDs = append(f.inspectIDs, id)
+			f.inspectCtx = ctx
+			return f.inspectNet, f.inspectErr
+		},
 	}
 }
 
@@ -74,11 +116,17 @@ func hopAt(ttl int) nettrace.Hop {
 // channel, failing if it does not return (the channel capacity must hold).
 func runProducer(t *testing.T, ctx context.Context, gen int, tg pathTarget, rt time.Duration, e pathEngine) []tea.Msg {
 	t.Helper()
+	return runProducerFrom(t, ctx, gen, tg, hostSource(), rt, e)
+}
+
+// runProducerFrom is runProducer for a given source.
+func runProducerFrom(t *testing.T, ctx context.Context, gen int, tg pathTarget, src pathSource, rt time.Duration, e pathEngine) []tea.Msg {
+	t.Helper()
 	out := make(chan tea.Msg, pathChanCap)
 	done := make(chan struct{})
 	go func() {
 		defer close(done)
-		producePath(ctx, gen, tg, rt, e, out)
+		producePath(ctx, gen, tg, src, rt, e, out)
 	}()
 	select {
 	case <-done:
@@ -288,7 +336,7 @@ func TestProducePathCancelMidTraceReturnsWithoutAReader(t *testing.T) {
 	done := make(chan struct{})
 	go func() {
 		defer close(done)
-		producePath(ctx, 1, pathTarget{Host: "10.0.0.6"}, time.Second, f.engine(), out)
+		producePath(ctx, 1, pathTarget{Host: "10.0.0.6"}, hostSource(), time.Second, f.engine(), out)
 	}()
 
 	select {
@@ -385,5 +433,187 @@ func TestWaitForPathMsgBlocksUntilAMessageArrives(t *testing.T) {
 		}
 	case <-time.After(producerWait):
 		t.Fatal("wait did not return after a message was sent")
+	}
+}
+
+const testCtrID = "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"
+
+func testCtrSource() pathSource {
+	return pathSource{ID: testCtrID, Name: "web-1", Image: "nginx"}
+}
+
+func testCtrNetworking() docker.ContainerNetworking {
+	return docker.ContainerNetworking{
+		Name: "web-1", Running: true, Mode: "bridge",
+		Networks: []docker.EndpointNetwork{{
+			Name:    "app_net",
+			IPv4:    netip.MustParseAddr("172.18.0.5"),
+			Gateway: netip.MustParseAddr("172.18.0.1"),
+		}},
+	}
+}
+
+func TestProducePathContainerSource(t *testing.T) {
+	rawErr := errors.New("inspect boom: permission denied")
+	tests := []struct {
+		name       string
+		src        pathSource
+		inspectErr error
+		wantInsp   int
+		wantNet    bool
+		wantLogged bool
+	}{
+		{"host source never reads a container", hostSource(), nil, 0, false, false},
+		{"container source reads its network", testCtrSource(), nil, 1, true, false},
+		{"inspect failure does not stop the trace", testCtrSource(), rawErr, 1, false, true},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			f := &fakeEngine{traceFn: oneHopTrace, inspectNet: testCtrNetworking(), inspectErr: tc.inspectErr}
+			if tc.inspectErr != nil {
+				f.inspectNet = docker.ContainerNetworking{}
+			}
+			logs := captureLog(t)
+			msgs := runProducerFrom(t, context.Background(), 9, pathTarget{Host: "1.1.1.1"}, tc.src, time.Second, f.engine())
+
+			if got := msgKinds(t, msgs); got != "RHD" {
+				t.Fatalf("message order = %q, want RHD", got)
+			}
+			if f.inspectCalls != tc.wantInsp {
+				t.Fatalf("inspect calls = %d, want %d", f.inspectCalls, tc.wantInsp)
+			}
+			if f.traceCalls != 1 {
+				t.Fatalf("trace calls = %d, want 1", f.traceCalls)
+			}
+			res := msgs[0].(pathResolvedMsg)
+			if res.source != tc.src {
+				t.Fatalf("resolved source = %+v, want %+v", res.source, tc.src)
+			}
+			if tc.src.isHost() != res.source.isHost() {
+				t.Fatal("source.isHost() disagrees with the launch source")
+			}
+			if tc.wantInsp == 1 {
+				if len(f.inspectIDs) != 1 || f.inspectIDs[0] != tc.src.ID {
+					t.Fatalf("inspect ids = %v, want [%s]", f.inspectIDs, tc.src.ID)
+				}
+				if _, ok := f.inspectCtx.Deadline(); !ok {
+					t.Fatal("inspect context carries no deadline")
+				}
+			}
+			if tc.wantNet && !reflect.DeepEqual(res.ctr, testCtrNetworking()) {
+				t.Fatalf("resolved ctr = %+v, want the fake's networking", res.ctr)
+			}
+			if !errors.Is(res.ctrErr, tc.inspectErr) {
+				t.Fatalf("resolved ctrErr = %v, want %v", res.ctrErr, tc.inspectErr)
+			}
+			if got := strings.Contains(logs.String(), "inspect boom"); got != tc.wantLogged {
+				t.Fatalf("raw error logged = %v, want %v (log %q)", got, tc.wantLogged, logs.String())
+			}
+			if tc.wantLogged && !strings.Contains(logs.String(), "ERROR [netdiag/path] inspect "+tc.src.ID) {
+				t.Fatalf("log %q lacks the ERROR [netdiag/path] inspect <id> prefix", logs.String())
+			}
+		})
+	}
+}
+
+func TestProducePathContainerResolveErrorReadsNothing(t *testing.T) {
+	f := &fakeEngine{resolveFn: func(context.Context, string) ([]netip.Addr, error) { return nil, errors.New("nxdomain") }}
+	msgs := runProducerFrom(t, context.Background(), 1, pathTarget{Host: "nope.invalid"}, testCtrSource(), time.Second, f.engine())
+
+	if f.routeCalls != 0 || f.inspectCalls != 0 || f.traceCalls != 0 {
+		t.Fatalf("route=%d inspect=%d trace=%d, want none after a resolution error", f.routeCalls, f.inspectCalls, f.traceCalls)
+	}
+	if got := msgKinds(t, msgs); got != "D" {
+		t.Fatalf("message order = %q, want D", got)
+	}
+}
+
+func TestProducePathInspectCanceledIsNotLogged(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	f := &fakeEngine{traceFn: func(_ context.Context, a netip.Addr, _ nettrace.Options, _ func(nettrace.Hop)) (nettrace.Result, error) {
+		return nettrace.Result{Target: a, Outcome: nettrace.OutcomeCancelled}, nil
+	}}
+	e := f.engine()
+	e.inspect = func(ctx context.Context, _ string) (docker.ContainerNetworking, error) {
+		cancel() // esc during the read
+		return docker.ContainerNetworking{}, fmt.Errorf("inspect canceled sentinel: %w", ctx.Err())
+	}
+	logs := captureLog(t)
+	msgs := runProducerFrom(t, ctx, 1, pathTarget{Host: "10.0.0.8"}, testCtrSource(), time.Second, e)
+
+	if strings.Contains(logs.String(), "sentinel") {
+		t.Fatalf("a canceled inspect was logged: %q", logs.String())
+	}
+	if _, ok := msgs[len(msgs)-1].(pathDoneMsg); !ok {
+		t.Fatalf("last = %#v, want a done message", msgs[len(msgs)-1])
+	}
+}
+
+func TestProducePathContainerFullTraceKeepsDoneLast(t *testing.T) {
+	f := &fakeEngine{inspectNet: testCtrNetworking(), traceFn: func(_ context.Context, a netip.Addr, _ nettrace.Options, onHop func(nettrace.Hop)) (nettrace.Result, error) {
+		for i := 0; i < pathChanCap+5; i++ {
+			onHop(hopAt(i + 1))
+		}
+		return nettrace.Result{Target: a}, nil
+	}}
+	msgs := runProducerFrom(t, context.Background(), 1, pathTarget{Host: "10.9.9.9"}, testCtrSource(), time.Second, f.engine())
+
+	if _, ok := msgs[len(msgs)-1].(pathDoneMsg); !ok {
+		t.Fatalf("last = %#v, want the done message even with the channel full", msgs[len(msgs)-1])
+	}
+	if pathChanCap != 32 {
+		t.Fatalf("pathChanCap = %d, want 32 (unchanged)", pathChanCap)
+	}
+}
+
+func TestListPathSources(t *testing.T) {
+	running := []docker.Container{
+		{ID: "bbbbbbbbbbbb", Name: "web-1", Image: "nginx", State: "running"},
+		{ID: "aaaaaaaaaaaa", Name: "api", Image: "app", State: "running"},
+	}
+	tests := []struct {
+		name      string
+		fake      fakeEngine
+		wantNote  string
+		wantNames []string
+		wantOS    int
+		wantPS    int
+	}{
+		{"podman short-circuits before any exec", fakeEngine{engineNameVal: "podman", psRows: running}, notePodman, nil, 0, 0},
+		{"engine absent", fakeEngine{osErr: errors.New("exec: docker: not found")}, noteNoEngine, nil, 1, 0},
+		{"docker desktop refused after info", fakeEngine{osName: "Docker Desktop", psRows: running}, noteDesktop, nil, 1, 0},
+		{"running containers feed the list", fakeEngine{psRows: running}, "", []string{"api", "web-1"}, 1, 1},
+		{"no running container", fakeEngine{}, noteNoContainer, nil, 1, 1},
+		{"ps failure", fakeEngine{psErr: errors.New("daemon down")}, noteNoEngine, nil, 1, 1},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			f := tc.fake
+			logs := captureLog(t)
+			got := listPathSources(context.Background(), f.engine())
+
+			if got.Note != tc.wantNote {
+				t.Fatalf("note = %q, want %q", got.Note, tc.wantNote)
+			}
+			var names []string
+			for _, c := range got.Containers {
+				names = append(names, c.Name)
+			}
+			if !reflect.DeepEqual(names, tc.wantNames) {
+				t.Fatalf("containers = %v, want %v", names, tc.wantNames)
+			}
+			if f.osCalls != tc.wantOS || f.psCalls != tc.wantPS {
+				t.Fatalf("engineOS calls = %d, running calls = %d, want %d and %d", f.osCalls, f.psCalls, tc.wantOS, tc.wantPS)
+			}
+			for _, raw := range []string{"not found", "daemon down"} {
+				if strings.Contains(got.Note, raw) {
+					t.Fatalf("note %q leaks the raw error", got.Note)
+				}
+			}
+			if (tc.fake.osErr != nil || tc.fake.psErr != nil) && !strings.Contains(logs.String(), "ERROR [netdiag/path] sources:") {
+				t.Fatalf("raw error not logged: %q", logs.String())
+			}
+		})
 	}
 }

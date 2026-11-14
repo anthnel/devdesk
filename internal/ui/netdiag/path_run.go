@@ -10,13 +10,17 @@ import (
 
 	tea "charm.land/bubbletea/v2"
 
+	"github.com/anthnel/devdesk/internal/docker"
+	"github.com/anthnel/devdesk/internal/engine"
 	"github.com/anthnel/devdesk/internal/netcheck"
 	"github.com/anthnel/devdesk/internal/nettrace"
 )
 
 // pathChanCap holds a whole trace: every hop (at most MaxHopsLimit), the
 // resolved message and the done message. The producer therefore never waits
-// for a reader.
+// for a reader. Contract: resolved now carries source and ctr but is still one
+// message, so 1 resolved + MaxHopsLimit (30) hops + 1 done = 32 = pathChanCap,
+// and sendDone never evicts resolved with the real engine.
 const pathChanCap = nettrace.MaxHopsLimit + 2
 
 // pathEngine is the seam between the path tab and the network: tests replace
@@ -26,6 +30,11 @@ type pathEngine struct {
 	resolve   func(ctx context.Context, host string) ([]netip.Addr, error)
 	route     func(ctx context.Context, a netip.Addr) (netcheck.RouteHop, error)
 	trace     func(ctx context.Context, a netip.Addr, o nettrace.Options, onHop func(nettrace.Hop)) (nettrace.Result, error)
+
+	engineName func() string                                                            // engine.Current().Name
+	engineOS   func(ctx context.Context) (string, error)                                // docker.EngineOperatingSystem
+	running    func(ctx context.Context) ([]docker.Container, error)                    // running containers only
+	inspect    func(ctx context.Context, id string) (docker.ContainerNetworking, error) // read-only
 }
 
 // systemPathEngine returns the engine backed by the real resolver and sockets.
@@ -39,7 +48,13 @@ func systemPathEngine() pathEngine {
 		route: func(ctx context.Context, a netip.Addr) (netcheck.RouteHop, error) {
 			return env.Route(ctx, net.IP(a.AsSlice()))
 		},
-		trace: nettrace.TraceEach,
+		trace:      nettrace.TraceEach,
+		engineName: func() string { return engine.Current().Name },
+		engineOS:   docker.EngineOperatingSystem,
+		running: func(ctx context.Context) ([]docker.Container, error) {
+			return docker.ListContainersContext(ctx, false)
+		},
+		inspect: docker.InspectContainerNetworking,
 	}
 }
 
@@ -49,6 +64,72 @@ type pathResolvedMsg struct {
 	addr     netip.Addr
 	route    netcheck.RouteHop
 	routeErr error
+	source   pathSource                 // the source at launch
+	ctr      docker.ContainerNetworking // zero for this machine
+	ctrErr   error                      // logged by the producer, never shown
+}
+
+// pathSourcesMsg carries what the selector offers once the engine answered.
+type pathSourcesMsg struct {
+	gen  int // the request it answers, so a stale answer can be dropped
+	list pathSourceList
+}
+
+// loadPathSourcesCmd reads the selector's list off the Update goroutine, under
+// its own timeout so a hung engine cannot keep the selector loading. It
+// touches no model (Rule 110): the answer comes back as a message.
+func loadPathSourcesCmd(gen int, timeout time.Duration, e pathEngine) tea.Cmd {
+	return func() tea.Msg {
+		return pathSourcesMsg{gen: gen, list: listPathSourcesUnder(context.Background(), timeout, e)}
+	}
+}
+
+// listPathSourcesUnder reads the list under a timeout derived from parent.
+// Only parent decides whether an error is logged: a deadline exceeded on its
+// own is a real failure, a canceled parent is not.
+func listPathSourcesUnder(parent context.Context, timeout time.Duration, e pathEngine) pathSourceList {
+	ctx, cancel := context.WithTimeout(parent, timeout)
+	defer cancel()
+	return readPathSources(parent, ctx, e)
+}
+
+// listPathSources reads what the selector offers with a single context.
+func listPathSources(ctx context.Context, e pathEngine) pathSourceList {
+	return readPathSources(ctx, ctx, e)
+}
+
+// readPathSources reads what the selector offers. Only read-only engine calls
+// are made (info, ps): nothing starts or enters a container. A raw error goes
+// to the log, never to the note, unless parent was canceled.
+func readPathSources(parent, ctx context.Context, e pathEngine) pathSourceList {
+	name := ""
+	if e.engineName != nil {
+		name = e.engineName()
+	}
+	if name != "docker" { // podman: no exec at all
+		return sourceListFrom(name, "", nil, nil, nil)
+	}
+	osName, osErr := e.engineOS(ctx)
+	if osErr != nil {
+		logSourcesError(parent, osErr)
+		return sourceListFrom(name, "", osErr, nil, nil)
+	}
+	if isDockerDesktop(osName) {
+		return sourceListFrom(name, osName, nil, nil, nil)
+	}
+	cs, psErr := e.running(ctx)
+	if psErr != nil {
+		logSourcesError(parent, psErr)
+	}
+	return sourceListFrom(name, osName, nil, cs, psErr)
+}
+
+// logSourcesError logs a read failure unless the caller gave up (parent is
+// the context received, not the one bounded by the timeout).
+func logSourcesError(parent context.Context, err error) {
+	if parent.Err() == nil {
+		log.Printf("ERROR [netdiag/path] sources: %v", err)
+	}
 }
 
 // pathHopMsg carries one hop as the engine reports it.
@@ -68,7 +149,7 @@ type pathDoneMsg struct {
 // then closes out. It runs inside a Cmd and touches no model (Rule 110).
 // out must have room for pathChanCap messages: sends never block, so a view
 // that stops reading after canceling leaks nothing.
-func producePath(ctx context.Context, gen int, tg pathTarget, resolveTimeout time.Duration, e pathEngine, out chan tea.Msg) {
+func producePath(ctx context.Context, gen int, tg pathTarget, src pathSource, resolveTimeout time.Duration, e pathEngine, out chan tea.Msg) {
 	defer close(out)
 	send := func(m tea.Msg) {
 		select {
@@ -107,7 +188,8 @@ func producePath(ctx context.Context, gen int, tg pathTarget, resolveTimeout tim
 	if routeErr != nil && ctx.Err() == nil {
 		log.Printf("ERROR [netdiag/path] route %s: %v", tg.Host, routeErr)
 	}
-	send(pathResolvedMsg{gen: gen, addr: addr, route: route, routeErr: routeErr})
+	ctr, ctrErr := inspectPathSource(ctx, src, resolveTimeout, e)
+	send(pathResolvedMsg{gen: gen, addr: addr, route: route, routeErr: routeErr, source: src, ctr: ctr, ctrErr: ctrErr})
 
 	res, err := e.trace(ctx, addr, nettrace.Options{}, func(h nettrace.Hop) {
 		send(pathHopMsg{gen: gen, hop: h})
@@ -116,6 +198,22 @@ func producePath(ctx context.Context, gen int, tg pathTarget, resolveTimeout tim
 		log.Printf("ERROR [netdiag/path] trace %s: %v", tg.Host, err)
 	}
 	sendDone(pathDoneMsg{gen: gen, result: res, err: err})
+}
+
+// inspectPathSource reads the chosen container's network under its own
+// timeout. This machine reads nothing. A failure is not fatal and is never
+// shown: the raw error goes to the log unless the run was canceled.
+func inspectPathSource(ctx context.Context, src pathSource, timeout time.Duration, e pathEngine) (docker.ContainerNetworking, error) {
+	if src.isHost() {
+		return docker.ContainerNetworking{}, nil
+	}
+	ictx, cancel := context.WithTimeout(ctx, timeout)
+	defer cancel()
+	ctr, err := e.inspect(ictx, src.ID)
+	if err != nil && ctx.Err() == nil {
+		log.Printf("ERROR [netdiag/path] inspect %s: %v", src.ID, err)
+	}
+	return ctr, err
 }
 
 // resolvePathTarget returns the IPv4 address to trace: a literal is used as

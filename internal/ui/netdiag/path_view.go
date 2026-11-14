@@ -55,6 +55,12 @@ func pathStepStyle(s pathStep) lipgloss.Style {
 
 func pathAddressStyle(s pathStep) lipgloss.Style {
 	switch s.Kind {
+	case stepTrace:
+		return theme.DimStyle
+	case stepNetwork:
+		if s.Container.dimNetwork() {
+			return theme.DimStyle
+		}
 	case stepHop:
 		if !s.Hop.Addr.IsValid() {
 			return theme.DimStyle
@@ -74,8 +80,14 @@ func pathRTTStyle(s pathStep) lipgloss.Style {
 	return lipgloss.Style{}
 }
 
-// view renders the table; the body is never replaced (Rule 139).
-func (pm *PathModel) view() string { return pm.table.View() }
+// view renders the table; the body is never replaced (Rule 139). The open
+// selector is drawn over it.
+func (pm *PathModel) view() string {
+	if pm.pickerOpen() {
+		return pm.viewWithPicker(pm.table.View())
+	}
+	return pm.table.View()
+}
 
 // barView is the target field in its frame, two lines in every state.
 func (pm *PathModel) barView(width int) string {
@@ -86,6 +98,9 @@ func (pm *PathModel) barView(width int) string {
 func (pm *PathModel) statusLine() components.Status {
 	if pm.errText != "" {
 		return components.Status{Text: pm.errText, Level: components.LevelError}
+	}
+	if pm.pickerOpen() {
+		return pm.pickerStatus()
 	}
 	if pm.state != pathRunning {
 		return components.Status{}
@@ -112,6 +127,9 @@ func (pm *PathModel) statusLine() components.Status {
 // headerInfo lists the target and, once a run ended, how it ended.
 func (pm *PathModel) headerInfo() []shortcut.HeaderInfo {
 	var out []shortcut.HeaderInfo
+	if !pm.source.isHost() {
+		out = append(out, shortcut.HeaderInfo{Key: "Source", Value: pm.source.Name, Style: theme.HeaderValueStyle})
+	}
 	if pm.target.Host != "" {
 		value := pm.target.String()
 		if pm.addr.IsValid() && pm.addr.String() != pm.target.Host {
@@ -128,7 +146,14 @@ func (pm *PathModel) headerInfo() []shortcut.HeaderInfo {
 // shortcuts: the running mode replaces the list, the other states grey out
 // (Rule 130).
 func (pm *PathModel) shortcuts() shortcut.Shortcuts {
+	if pm.pickerOpen() { // a mode: the list is replaced
+		return shortcut.Shortcuts{
+			{Key: "enter", Description: "Trace from it"},
+			{Key: "esc", Description: "Close"},
+		}
+	}
 	off := !pm.launchable().Enabled()
+	source := shortcut.Shortcut{Key: pathSourceKey, Description: "Trace from…", Disabled: !pm.sourceChoosable().Enabled()}
 	switch pm.state {
 	case pathRunning:
 		return shortcut.Shortcuts{{Key: "esc", Description: "Cancel the trace"}}
@@ -136,6 +161,7 @@ func (pm *PathModel) shortcuts() shortcut.Shortcuts {
 		return shortcut.Shortcuts{
 			{Key: "tab", Description: "Switch tab"},
 			{Key: "enter", Description: "Trace again", Disabled: off},
+			source,
 			{Key: "esc", Description: "Edit the target"},
 			{Key: "?", Description: "Help"},
 		}
@@ -143,5 +169,6 @@ func (pm *PathModel) shortcuts() shortcut.Shortcuts {
 	return shortcut.Shortcuts{
 		{Key: "tab", Description: "Switch tab"},
 		{Key: "enter", Description: "Trace the path", Disabled: off},
+		source,
 	}
 }

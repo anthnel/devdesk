@@ -28,7 +28,7 @@ func TestPathFlowProducerToModel(t *testing.T) {
 	pm, _ = pmFeed(t, pm, testutil.Key("enter")) // the launch Cmd is not run here
 
 	out := make(chan tea.Msg, pathChanCap)
-	producePath(context.Background(), pm.gen, pm.target, pm.resolveTimeout, pm.engine, out)
+	producePath(context.Background(), pm.gen, pm.target, hostSource(), pm.resolveTimeout, pm.engine, out)
 	for msg := range out {
 		pm, _ = pmFeed(t, pm, msg)
 	}
@@ -53,7 +53,7 @@ func TestProducePathDoneSurvivesAFullChannel(t *testing.T) {
 		return nettrace.Result{Target: a}, nil
 	}}
 	out := make(chan tea.Msg, pathChanCap)
-	producePath(context.Background(), 1, pathTarget{Host: "1.1.1.1"}, 0, f.engine(), out)
+	producePath(context.Background(), 1, pathTarget{Host: "1.1.1.1"}, hostSource(), 0, f.engine(), out)
 	var last tea.Msg
 	for m := range out {
 		last = m

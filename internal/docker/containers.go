@@ -1,6 +1,7 @@
 package docker
 
 import (
+	"context"
 	"fmt"
 	"log"
 	"strconv"
@@ -39,21 +40,13 @@ type Container struct {
 
 // ListContainers returns a list of containers. If all is true, includes stopped containers.
 func ListContainers(all bool) ([]Container, error) {
-	if err := requireEngine(); err != nil {
-		return nil, err
-	}
+	// A nil context builds the command exactly as before (see dockerCmd.Ctx).
+	var noCtx context.Context
+	return ListContainersContext(noCtx, all)
+}
 
-	args := []string{"ps"}
-	if all {
-		args = append(args, "--all")
-	}
-	args = append(args, "--format", templates().PS)
-
-	output, err := dockerOutput(args...)
-	if err != nil {
-		return nil, wrapErr(cmdLabel("ps"), err)
-	}
-
+// parseContainers reads `ps` output built with templates().PS.
+func parseContainers(output []byte) []Container {
 	var containers []Container
 	for _, line := range splitLines(output) {
 		parts := strings.SplitN(line, "\t", 7)
@@ -79,7 +72,7 @@ func ListContainers(all bool) ([]Container, error) {
 		containers = append(containers, c)
 	}
 
-	return containers, nil
+	return containers
 }
 
 // GetContainerMetrics returns CPU/Memory/Net metrics for running containers
