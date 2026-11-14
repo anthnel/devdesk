@@ -1,0 +1,15 @@
+{
+  "tool_use_id": "toolu_015X7yS3RqkfAKuGLpLHaQu7",
+  "agent_id": "aacc6ea00ad4836c6",
+  "subagent_type": "dev-team:reviewer",
+  "task_description": "Revue étape 2 moteur",
+  "token_usage": {
+    "input_tokens": 13,
+    "cache_creation_tokens": 101941,
+    "cache_read_tokens": 353380,
+    "output_tokens": 10694,
+    "api_call_count": 6
+  },
+  "started_at": "2026-11-14T10:19:50.1388627+01:00",
+  "completed_at": "2026-11-14T10:22:13.147889+01:00"
+}

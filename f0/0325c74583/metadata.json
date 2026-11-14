@@ -1,0 +1,48 @@
+{
+  "cli_version": "0.13.2",
+  "checkpoint_id": "f00325c74583",
+  "strategy": "manual-commit",
+  "branch": "feat/devdesk-327-nettrace",
+  "checkpoints_count": 2,
+  "files_touched": [
+    "internal/nettrace/engine_test.go"
+  ],
+  "sessions": [
+    {
+      "metadata": "/f0/0325c74583/0/metadata.json",
+      "transcript": "/f0/0325c74583/0/full.jsonl",
+      "compact_transcript": "/f0/0325c74583/0/transcript.jsonl",
+      "content_hash": "/f0/0325c74583/0/content_hash.txt",
+      "prompt": "/f0/0325c74583/0/prompt.txt"
+    }
+  ],
+  "token_usage": {
+    "input_tokens": 12,
+    "cache_creation_tokens": 8128,
+    "cache_read_tokens": 640562,
+    "output_tokens": 2430,
+    "api_call_count": 4,
+    "subagent_tokens": {
+      "input_tokens": 27,
+      "cache_creation_tokens": 111777,
+      "cache_read_tokens": 1023976,
+      "output_tokens": 17437,
+      "api_call_count": 12
+    },
+    "subagent_tokens_complete": true
+  },
+  "redaction": {
+    "replacements": 0,
+    "layers": {
+      "betterleaks": 0,
+      "connection_string": 0,
+      "credential_key": 0,
+      "credential_value": 0,
+      "credentialed_uri": 0,
+      "entropy": 0,
+      "key_context": 0,
+      "provider_token": 0,
+      "shell_stdin": 0
+    }
+  }
+}
