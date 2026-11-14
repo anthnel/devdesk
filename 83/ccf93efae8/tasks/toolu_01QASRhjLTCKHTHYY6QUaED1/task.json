@@ -1,0 +1,15 @@
+{
+  "tool_use_id": "toolu_01QASRhjLTCKHTHYY6QUaED1",
+  "agent_id": "a75bc51cd9bb5378d",
+  "subagent_type": "product-team:pm",
+  "task_description": "Proposition de release 2.1.0",
+  "token_usage": {
+    "input_tokens": 6,
+    "cache_creation_tokens": 46481,
+    "cache_read_tokens": 77804,
+    "output_tokens": 2159,
+    "api_call_count": 3
+  },
+  "started_at": "2026-11-13T23:05:16.897359874+01:00",
+  "completed_at": "2026-11-13T23:05:38.740353073+01:00"
+}

@@ -1,0 +1,15 @@
+{
+  "tool_use_id": "toolu_01NQcdwoEzfpQixZeC3gDATS",
+  "agent_id": "a477495f9659388b6",
+  "subagent_type": "project-coder",
+  "task_description": "Lint et commentaire DEVDESK-410",
+  "token_usage": {
+    "input_tokens": 10,
+    "cache_creation_tokens": 35589,
+    "cache_read_tokens": 88888,
+    "output_tokens": 1475,
+    "api_call_count": 4
+  },
+  "started_at": "2026-11-14T08:49:45.237548285+01:00",
+  "completed_at": "2026-11-14T08:50:01.468130841+01:00"
+}

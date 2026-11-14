@@ -1,0 +1,15 @@
+{
+  "tool_use_id": "toolu_01AxhAYHcWEUdeE6uXqAf3hq",
+  "agent_id": "a2fb22341749ab7f0",
+  "subagent_type": "team-core:tech-writer",
+  "task_description": "Aligner doc et D142 sur le code 410",
+  "token_usage": {
+    "input_tokens": 6,
+    "cache_creation_tokens": 23141,
+    "cache_read_tokens": 47441,
+    "output_tokens": 2368,
+    "api_call_count": 3
+  },
+  "started_at": "2026-11-14T08:54:24.18618164+01:00",
+  "completed_at": "2026-11-14T08:54:40.627823008+01:00"
+}

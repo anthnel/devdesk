@@ -1,0 +1,15 @@
+{
+  "tool_use_id": "toolu_017LZ7EFdsuQEvTUecPXKjv8",
+  "agent_id": "a0a92f6f4c64878b8",
+  "subagent_type": "dev-team:security-reviewer",
+  "task_description": "Contrôle sécurité correctifs 410",
+  "token_usage": {
+    "input_tokens": 8,
+    "cache_creation_tokens": 54028,
+    "cache_read_tokens": 145563,
+    "output_tokens": 4018,
+    "api_call_count": 4
+  },
+  "started_at": "2026-11-14T08:54:52.506787969+01:00",
+  "completed_at": "2026-11-14T08:55:32.65634263+01:00"
+}

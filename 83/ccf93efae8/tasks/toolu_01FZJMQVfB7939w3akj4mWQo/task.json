@@ -1,0 +1,15 @@
+{
+  "tool_use_id": "toolu_01FZJMQVfB7939w3akj4mWQo",
+  "agent_id": "a9b150393d20c4684",
+  "subagent_type": "dev-team:security-reviewer",
+  "task_description": "Revue sécurité DEVDESK-410",
+  "token_usage": {
+    "input_tokens": 16,
+    "cache_creation_tokens": 48061,
+    "cache_read_tokens": 282253,
+    "output_tokens": 8124,
+    "api_call_count": 8
+  },
+  "started_at": "2026-11-14T08:50:25.574917871+01:00",
+  "completed_at": "2026-11-14T08:51:51.138794628+01:00"
+}

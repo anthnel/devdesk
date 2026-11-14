@@ -1,0 +1,15 @@
+{
+  "tool_use_id": "toolu_01WbtCX74nXJEJCyhyQEEBBU",
+  "agent_id": "ab4ce8f52cbfe5a65",
+  "subagent_type": "project-coder",
+  "task_description": "Vert correctifs revue 410",
+  "token_usage": {
+    "input_tokens": 22,
+    "cache_creation_tokens": 52477,
+    "cache_read_tokens": 376094,
+    "output_tokens": 5749,
+    "api_call_count": 9
+  },
+  "started_at": "2026-11-14T08:53:20.300562402+01:00",
+  "completed_at": "2026-11-14T08:54:01.483371898+01:00"
+}

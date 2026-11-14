@@ -1,0 +1,15 @@
+{
+  "tool_use_id": "toolu_01FTDPcGG2wMxhw3kn31dDf3",
+  "agent_id": "a3561f0a0db9d52c9",
+  "subagent_type": "project-tester",
+  "task_description": "Tests rouges correctifs revue 410",
+  "token_usage": {
+    "input_tokens": 12,
+    "cache_creation_tokens": 39638,
+    "cache_read_tokens": 151013,
+    "output_tokens": 8066,
+    "api_call_count": 6
+  },
+  "started_at": "2026-11-14T08:52:11.7471225+01:00",
+  "completed_at": "2026-11-14T08:53:06.357377159+01:00"
+}

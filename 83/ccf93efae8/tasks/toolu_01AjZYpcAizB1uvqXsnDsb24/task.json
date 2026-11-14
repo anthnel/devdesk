@@ -1,0 +1,15 @@
+{
+  "tool_use_id": "toolu_01AjZYpcAizB1uvqXsnDsb24",
+  "agent_id": "ac9826f2474641dd5",
+  "subagent_type": "team-core:archivist",
+  "task_description": "Entrée backlog DEVDESK-410",
+  "token_usage": {
+    "input_tokens": 16,
+    "cache_creation_tokens": 56273,
+    "cache_read_tokens": 237691,
+    "output_tokens": 4999,
+    "api_call_count": 7
+  },
+  "started_at": "2026-11-14T08:50:25.630693685+01:00",
+  "completed_at": "2026-11-14T08:50:51.38352749+01:00"
+}

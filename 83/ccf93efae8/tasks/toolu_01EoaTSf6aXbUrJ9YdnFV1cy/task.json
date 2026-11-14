@@ -1,0 +1,15 @@
+{
+  "tool_use_id": "toolu_01EoaTSf6aXbUrJ9YdnFV1cy",
+  "agent_id": "ae04bb8c051590849",
+  "subagent_type": "dev-team:devops",
+  "task_description": "Clôture après merge DEVDESK-314",
+  "token_usage": {
+    "input_tokens": 8,
+    "cache_creation_tokens": 45118,
+    "cache_read_tokens": 114588,
+    "output_tokens": 1461,
+    "api_call_count": 4
+  },
+  "started_at": "2026-11-13T23:05:02.228404201+01:00",
+  "completed_at": "2026-11-13T23:05:19.815575758+01:00"
+}

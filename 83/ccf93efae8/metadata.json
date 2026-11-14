@@ -1,0 +1,54 @@
+{
+  "cli_version": "0.13.2",
+  "checkpoint_id": "83ccf93efae8",
+  "strategy": "manual-commit",
+  "branch": "fix/devdesk-410-registry-credential-origin",
+  "checkpoints_count": 18,
+  "files_touched": [
+    "docs/architecture/network.md",
+    "docs/backlog.md",
+    "internal/oci/catalog.go",
+    "internal/oci/registry.go",
+    "internal/oci/registry_origin_next_test.go",
+    "internal/oci/registry_origin_redirect_test.go",
+    "internal/oci/registry_origin_test.go"
+  ],
+  "sessions": [
+    {
+      "metadata": "/83/ccf93efae8/0/metadata.json",
+      "transcript": "/83/ccf93efae8/0/full.jsonl",
+      "compact_transcript": "/83/ccf93efae8/0/transcript.jsonl",
+      "content_hash": "/83/ccf93efae8/0/content_hash.txt",
+      "prompt": "/83/ccf93efae8/0/prompt.txt"
+    }
+  ],
+  "token_usage": {
+    "input_tokens": 134,
+    "cache_creation_tokens": 317690,
+    "cache_read_tokens": 11350081,
+    "output_tokens": 36029,
+    "api_call_count": 46,
+    "subagent_tokens": {
+      "input_tokens": 206,
+      "cache_creation_tokens": 748623,
+      "cache_read_tokens": 2934916,
+      "output_tokens": 76984,
+      "api_call_count": 97
+    },
+    "subagent_tokens_complete": true
+  },
+  "redaction": {
+    "replacements": 16,
+    "layers": {
+      "betterleaks": 0,
+      "connection_string": 0,
+      "credential_key": 0,
+      "credential_value": 0,
+      "credentialed_uri": 0,
+      "entropy": 16,
+      "key_context": 0,
+      "provider_token": 0,
+      "shell_stdin": 0
+    }
+  }
+}

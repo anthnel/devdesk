@@ -1,0 +1,15 @@
+{
+  "tool_use_id": "toolu_016ZidQLpNjocHo2HuHwD5sM",
+  "agent_id": "af2ce28374e046377",
+  "subagent_type": "project-tester",
+  "task_description": "Renforcer test de masquage 410",
+  "token_usage": {
+    "input_tokens": 10,
+    "cache_creation_tokens": 38412,
+    "cache_read_tokens": 147082,
+    "output_tokens": 1875,
+    "api_call_count": 5
+  },
+  "started_at": "2026-11-14T09:05:54.951746689+01:00",
+  "completed_at": "2026-11-14T09:06:14.579289107+01:00"
+}
