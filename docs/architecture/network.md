@@ -1311,7 +1311,7 @@ container of a Docker Engine instead of on this machine. Files: `path_source.go`
   error is logged (`ERROR [netdiag/path] inspect <id>: …`) and never shown.
   Reading at launch, not at selection, means "trace again" reads it again and a
   container that stopped in between is shown as not running.
-- **Three more row kinds** (a fourth, `bridge`, since DEVDESK-331, below), ordered by `pathSteps` only (it takes the container
+- **Three more row kinds** (`bridge`, since DEVDESK-331, and `engine`, since DEVDESK-332, below), ordered by `pathSteps` only (it takes the container
   as a first argument; `nil` gives the DEVDESK-329 column unchanged): `container`
   and `network` before `source`, `trace` after `gateway` and before the hops.
   Hop and RTT are empty for all three; `trace`, and `network` when it reads
@@ -1321,7 +1321,8 @@ container of a Docker Engine instead of on this machine. Files: `path_source.go`
   |---|---|
   | `container` | `web-1 (172.18.0.5)`; no address known: `web-1`; stopped at launch: `web-1 (not running)` |
   | `network` | `app_net via 172.18.0.1`; host mode: `host (shares this machine's stack)`; `none`: `none (no network)`; `container:<x>`: `shares another container's network`; undecidable: `undetermined` or `undetermined (N networks)`; inspection failed or container not running: `undetermined` |
-  | `trace` | `from this machine, not from the container`; host mode: `from this machine (shared with the container)` |
+  | `trace` | `from this machine, not from the container`; host mode: `from this machine (shared with the container)`; with an `engine` row: `from this machine (host or WSL VM)` |
+  | `engine` | `internal path not visible (location unknown)` or `undetermined (bridge not verified)`; see below |
 
 - **The default-route network is never guessed** (`defaultRouteNetwork`). The
   candidates are the endpoints with an IPv4 gateway (an internal network has
@@ -1357,8 +1358,10 @@ container of a Docker Engine instead of on this machine. Files: `path_source.go`
   `InspectNetworkBridge`, `NetworkBridge` and `IsContainerID`, on any `engine.<X>` other than `Current`, and on a string
   literal equal to a verb such as `start` or `exec`.
 - **Limits.** A remote engine (`DOCKER_HOST=tcp://…`, an ssh context) or an
-  engine in a VM other than Docker Desktop is **not detected**: its containers
-  are listed and drawn before `this machine`, which they never pass through. The
+  engine in a VM other than Docker Desktop is **not detected** as such: its
+  containers are listed and drawn before `this machine`, which they never pass
+  through. Since DEVDESK-332 the missing bridge is signalled by the `engine`
+  row (below); the false positive on `docker0` of a remote engine remains. The
   `trace` row limits the damage. Network drivers (macvlan, ipvlan) are not
   distinguished, because the container inspection does not carry them. The
   container ID is the short one `docker ps` prints, validated by
@@ -1393,13 +1396,61 @@ bridge exists on this machine**. Files: `path_bridge.go` (`readPathBridge`,
   absent. `pathSteps` adds `stepBridge` only when `pathContainer.Bridge` is set
   (`withBridge`, for a container attached to a network). Address text is the
   interface name; Hop and RTT are empty.
-- **Limits.** Absence of the row means "not found", not "no bridge":
-  `inhibit_ipv4` networks and rootless Docker give no row (no matching host
-  interface). User-defined networks (`br-<id>`) are protected by their unique
+- **Limits.** Absence of the row no longer means "not found": since
+  DEVDESK-332 a missing or unverified bridge is told by the `engine` row below,
+  and no row at all is left for host, `none`, `container:<x>`, a stopped
+  container, an ambiguous network, a failed inspection or a network with no
+  IPv4 gateway (for example `inhibit_ipv4`: `defaultRouteNetwork` keeps no
+  candidate, so nothing is read). Rootless Docker gives an `engine` row only
+  when the endpoint has an IPv4 gateway and no host interface has the
+  bridge's name (`bridgeAbsent`, "not visible"). User-defined networks (`br-<id>`) are protected by their unique
   name. A **false positive** remains for the default `docker0` on a remote
   engine: if the remote engine and a local Docker both use `docker0` with
   `172.17.0.1/16`, the row appears though the container is not behind this
   machine's bridge. This extends the remote-engine limit above.
+
+**The engine row (DEVDESK-332).** When the bridge of the container's network is
+not verified on this machine, the column shows an `engine` row between `network`
+and `source`, instead of a `bridge` row. It says the internal path is not seen
+from here; it never says where the engine runs. Files: `path_bridge.go`
+(`classifyBridge`, `readPathBridge`), `path_container.go` (`withBridgeRead`,
+`engineView`), `path_steps.go` (`stepEngine`), `path_view.go`.
+
+- **`pathBridge`** replaces the bridge name on `pathResolvedMsg.bridge`: a
+  `State` and, when found, a display-safe `Name`. Four states:
+
+  | State | Produced when |
+  |---|---|
+  | `bridgeNotRead` (zero value) | no read was made: this machine, host, `none`, `container:<x>`, stopped at launch, ambiguous default-route network, failed container inspection |
+  | `bridgeFound` | an interface named exactly as the network's bridge exists **and** carries its gateway (`hostBridge`); the name passes `engineText` |
+  | `bridgeAbsent` | the expected name is known, the gateway is valid and **no** interface has that name |
+  | `bridgeUnverified` | anything else: no network ID on the endpoint, `network inspect` failed, the driver is not `bridge` (empty name), `netiface.List` failed, empty name or invalid gateway, an interface of that name exists but does not carry the gateway, or the name is empty after `engineText` |
+
+- **`classifyBridge(want, gw, ifaces)`** gives the last three states from the
+  engine's answer and this machine's interfaces. `readPathBridge` calls it and
+  maps every failure to `bridgeUnverified` (logged as before, never shown).
+- **`withBridgeRead`** (`pathContainer`, replaces `withBridge` in
+  `handleResolved`) copies the outcome into the container: `found` sets
+  `Bridge`, `absent` sets `Engine = engineHidden`, `unverified` sets
+  `Engine = engineUnverified`. Only a container attached to a network
+  (`attachNetwork`) is touched.
+- **`pathSteps`** adds `stepBridge` when `Bridge` is set, else `stepEngine` when
+  `Engine` is set: **never both**. Step cell `engine`; Hop and RTT are empty.
+  The Address (`engineText()`) is dim, like `trace`, and carries **no bridge name
+  and no IP**:
+
+  | `Engine` | Address text |
+  |---|---|
+  | `engineHidden` | `internal path not visible (location unknown)` |
+  | `engineUnverified` | `undetermined (bridge not verified)` |
+
+  With an engine row the `trace` row reads `from this machine (host or WSL VM)`.
+- **Decision: the engine's nature is never inferred.** Whether the engine runs
+  in a VM, on another host or rootless is not read from the OS name, the
+  `DOCKER_HOST` or an address range: the column says what this machine can and
+  cannot see, nothing more. `engine VM` is to be written only when the engine
+  itself declares it is a VM. That is not done: Docker Desktop stays excluded
+  from `ctrl+o` (DEVDESK-330) and S-07 (WSL2) is not a prerequisite.
 
 **Errors become fixed labels.** `pathErrorLabel` maps the sentinels (matched
 with `errors.Is`, wrapped errors included) to US English sentences:

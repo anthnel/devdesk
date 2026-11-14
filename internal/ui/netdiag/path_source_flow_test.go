@@ -423,6 +423,8 @@ func TestPathEscKeepsTheSourceAndTheRows(t *testing.T) {
 // hops are traced from this machine.
 func TestPathLaunchWithAContainerShowsItBeforeThisMachine(t *testing.T) {
 	f := runningFake()
+	// The appNetworking() fixture has no NetworkID, so the bridge read ends
+	// bridgeUnverified and the column shows the engine row as "undetermined".
 	f.inspectNet = appNetworking()
 	f.traceFn = func(_ context.Context, a netip.Addr, _ nettrace.Options, onHop func(nettrace.Hop)) (nettrace.Result, error) {
 		hops := []nettrace.Hop{hopAt(1), hopAt(2)}
@@ -450,16 +452,16 @@ func TestPathLaunchWithAContainerShowsItBeforeThisMachine(t *testing.T) {
 		t.Errorf("traced %v, want 1.1.1.1 (the probes leave from this machine)", f.traceAddr)
 	}
 	kinds := rowKinds(pm)
-	if want := []string{"container", "network", "source", "interface", "gateway", "trace"}; len(kinds) != 8 || !slices.Equal(kinds[:6], want) {
+	if want := []string{"container", "network", "engine", "source", "interface", "gateway", "trace"}; len(kinds) != 9 || !slices.Equal(kinds[:7], want) {
 		t.Fatalf("rows = %v, want %v then two hops", kinds, want)
 	}
-	for i, want := range []string{"web-1 (172.18.0.5)", "app_net via 172.18.0.1", "this machine"} {
+	for i, want := range []string{"web-1 (172.18.0.5)", "app_net via 172.18.0.1", textEngineUnverified, "this machine"} {
 		if got := rowAddress(pm, i); got != want {
 			t.Errorf("row %d address = %q, want %q", i, got, want)
 		}
 	}
-	if got := rowAddress(pm, 5); got != textTraceFromHost {
-		t.Errorf("trace row = %q, want %q", got, textTraceFromHost)
+	if got := rowAddress(pm, 6); got != textTraceFromEngineHost {
+		t.Errorf("trace row = %q, want %q", got, textTraceFromEngineHost)
 	}
 }
 

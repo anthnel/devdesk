@@ -455,7 +455,13 @@ func (m *Model) GetHelpContent() help.Content {
 					"it can show another machine's network, and the trace still leaves from this machine.\n\n" +
 					"The bridge row appears only when this machine has the interface of the container's " +
 					"network bridge, read on this machine; otherwise no bridge is shown. A remote engine " +
-					"whose network is also called docker0 can match this machine's interface by name.",
+					"whose network is also called docker0 can match this machine's interface by name.\n\n" +
+					"When the container's bridge is not on this machine, the engine row reads " +
+					"internal path not visible (location unknown): the engine may run in a VM, remote " +
+					"or rootless, and DevDesk does not guess. When it cannot check, the row reads " +
+					"undetermined (bridge not verified). The hops are traced from this machine (the " +
+					"host, or the WSL VM when DevDesk runs under WSL); DevDesk cannot see inside the " +
+					"engine's VM.",
 			},
 			{
 				Title: "Interfaces Tab — How it works",

@@ -60,7 +60,7 @@ Deux epics, dans cet ordre.
 | S-04 | DEVDESK-329 | Colonne : source, interface + adresse source, passerelle, sauts | S-03a, S-03b |
 | S-05a | DEVDESK-330 | Conteneur comme source (Docker Engine) | S-04 |
 | S-05b | DEVDESK-331 | Bridge affiché seulement s'il existe dans les interfaces lues sur cette machine | S-05a |
-| S-06 | DEVDESK-332 | Docker Desktop : étape « VM de l'engine », boîte noire | S-05a, S-05b, S-07 |
+| S-06 | DEVDESK-332 | Ligne « engine » : bridge absent de cette machine (moteur distant, VM, rootless), chemin interne non visible ; Docker Desktop reste non proposé comme source | S-05a, S-05b, S-07 |
 | S-07 | DEVDESK-333 | Reconnaître WSL2, étiqueter source et premier saut | S-04, résultat de S-02 |
 | S-08 | DEVDESK-334 | Plateformes ou modes non supportés : onglet grisé, message clair, rien émis | S-03a |
 | S-09 | DEVDESK-335 | Montrer jusqu'où l'appel va quand il échoue (sans déduire de cause) | S-03a |
@@ -86,7 +86,7 @@ Contraintes de produit portées par les stories : sans privilège, sans binaire 
 | macOS | Grisé | Message plateforme + raison, rien émis (S-08) |
 | Windows natif | Grisé | Idem |
 | WSL1 | Grisé | Idem. La détection de WSL1 est vérifiée à l'implémentation de S-08, pas par le spike (décidé) |
-| Docker Desktop | Boîte noire | Étape « VM de l'engine », chemin interne non visible (S-06) |
+| Docker Desktop | Non proposé comme source (ctrl+o, DEVDESK-330) | Pas d'étape « VM de l'engine » : la nature de l'engine n'est jamais déduite. La ligne « engine » (S-06) couvre un bridge absent de cette machine (moteur distant, VM, rootless) : chemin interne non visible |
 
 ## Règle go / no-go
 
@@ -123,7 +123,8 @@ Les stories décrivent les textes en français. La Rule 129 impose l'anglais US 
 | « WSL2 (VM), pas l'hôte Windows » (S-07) | `WSL2 (VM), not the Windows host` |
 | « hôte Windows (switch virtuel) » (S-07) | `Windows host (virtual switch)` |
 | « mode WSL2 indéterminé » (S-07) | `WSL2 mode undetermined` |
-| « VM de l'engine » / « chemin interne non visible » (S-06) | `Engine VM` / `internal path not visible` |
+| ligne « engine », bridge absent de cette machine (S-06) | `internal path not visible (location unknown)` ; en cas de doute : `undetermined (bridge not verified)` |
+| « VM » (S-06) | `Engine VM`, affiché seulement si l'engine se déclare VM (non fait) |
 | « pas de réponse au-delà » (S-09) | `no response beyond` |
 | muet (S-03a, S-09) | `silent` (le mot « muet » ne désigne pas une panne) |
 | « indéterminé » (S-05a) | `undetermined` |

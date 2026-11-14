@@ -155,20 +155,22 @@ func TestReadPathBridgeReadsNothingWhenThereIsNoBridgeToFind(t *testing.T) {
 	tests := []struct {
 		name string
 		ctr  docker.ContainerNetworking
+		want pathBridge
 	}{
-		{"stopped", stopped},
-		{"host mode", netCtr("host", testNetID)},
-		{"none mode", netCtr("none", testNetID)},
-		{"shared namespace", netCtr("container:abc", testNetID)},
-		{"undetermined (network equality)", ambiguous},
-		{"empty network id", netCtr("app_net", "")},
-		{"zero value", docker.ContainerNetworking{}},
+		{"stopped", stopped, pathBridge{}},
+		{"host mode", netCtr("host", testNetID), pathBridge{}},
+		{"none mode", netCtr("none", testNetID), pathBridge{}},
+		{"shared namespace", netCtr("container:abc", testNetID), pathBridge{}},
+		{"undetermined (network equality)", ambiguous, pathBridge{}},
+		// A route exists but the network cannot be read without an ID.
+		{"empty network id", netCtr("app_net", ""), pathBridge{State: bridgeUnverified}},
+		{"zero value", docker.ContainerNetworking{}, pathBridge{}},
 	}
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			f := bridgeFake("docker0", ifaceWith("docker0", testGateway+"/16"))
-			if got := readPathBridge(context.Background(), tc.ctr, bridgeTimout, f.engine()); got != "" {
-				t.Fatalf("bridge = %q, want empty", got)
+			if got := readPathBridge(context.Background(), tc.ctr, bridgeTimout, f.engine()); got != tc.want {
+				t.Fatalf("bridge = %+v, want %+v", got, tc.want)
 			}
 			if f.networkCalls != 0 || f.ifacesCalls != 0 {
 				t.Fatalf("network calls %d, interfaces calls %d, want 0 and 0", f.networkCalls, f.ifacesCalls)
@@ -290,8 +292,8 @@ func TestPathBridgeCanceledReadIsNotLogged(t *testing.T) {
 			return docker.NetworkBridge{}, fmt.Errorf("canceled sentinel: %w", ctx.Err())
 		}
 		logs := captureLog(t)
-		if got := readPathBridge(ctx, netCtr("app_net", testNetID), bridgeTimout, e); got != "" {
-			t.Fatalf("bridge = %q, want empty", got)
+		if got := readPathBridge(ctx, netCtr("app_net", testNetID), bridgeTimout, e); got != (pathBridge{State: bridgeUnverified}) {
+			t.Fatalf("bridge = %+v, want Unverified", got)
 		}
 		if strings.Contains(logs.String(), "sentinel") {
 			t.Fatalf("a canceled read was logged: %q", logs.String())
@@ -324,8 +326,8 @@ func TestPathBridgeReadsByIDUnderATimeout(t *testing.T) {
 	f := bridgeFake("docker0", ifaceWith("docker0", testGateway+"/16"))
 	got := readPathBridge(context.Background(), netCtr("app_net", testNetID), bridgeTimout, f.engine())
 
-	if got != "docker0" {
-		t.Fatalf("bridge = %q, want docker0", got)
+	if want := (pathBridge{State: bridgeFound, Name: "docker0"}); got != want {
+		t.Fatalf("bridge = %+v, want %+v", got, want)
 	}
 	if !slices.Equal(f.networkIDs, []string{testNetID}) {
 		t.Fatalf("network ids = %v, want [%s]", f.networkIDs, testNetID)
@@ -351,8 +353,8 @@ func TestReadPathBridgeUsesTheDefaultRouteEndpoint(t *testing.T) {
 	f := bridgeFake("br-b", ifaceWith("br-a", "172.18.0.1/16"), ifaceWith("br-b", "172.19.0.1/16"))
 	got := readPathBridge(context.Background(), n, bridgeTimout, f.engine())
 
-	if got != "br-b" || !slices.Equal(f.networkIDs, []string{"id-b"}) {
-		t.Fatalf("bridge = %q, ids = %v, want br-b read by id-b", got, f.networkIDs)
+	if got != (pathBridge{State: bridgeFound, Name: "br-b"}) || !slices.Equal(f.networkIDs, []string{"id-b"}) {
+		t.Fatalf("bridge = %+v, ids = %v, want br-b read by id-b", got, f.networkIDs)
 	}
 }
 
@@ -393,8 +395,8 @@ func TestPathBridgeNameIsDisplaySafe(t *testing.T) {
 	const raw = "dock\x1b[31mer0\n\x07"
 	f := bridgeFake(raw, ifaceWith(raw, testGateway+"/16"))
 
-	if got := readPathBridge(context.Background(), netCtr("app_net", testNetID), bridgeTimout, f.engine()); got != "docker0" {
-		t.Fatalf("bridge = %q, want %q", got, "docker0")
+	if got := readPathBridge(context.Background(), netCtr("app_net", testNetID), bridgeTimout, f.engine()); got.State != bridgeFound || got.Name != "docker0" {
+		t.Fatalf("bridge = %+v, want Found docker0", got)
 	}
 
 	pm := bridgeRun(t, bridgeFake(raw, ifaceWith(raw, testGateway+"/16")))
@@ -412,16 +414,100 @@ func TestPathResolvedCarriesTheBridge(t *testing.T) {
 	msgs := runProducerFrom(t, context.Background(), 1, pathTarget{Host: "1.1.1.1"}, webSource, time.Second, f.engine())
 
 	res, ok := msgs[0].(pathResolvedMsg)
-	if !ok || res.bridge != "docker0" {
-		t.Fatalf("msgs[0] = %#v, want a resolved message with bridge docker0", msgs[0])
+	if !ok || res.bridge != (pathBridge{State: bridgeFound, Name: "docker0"}) {
+		t.Fatalf("msgs[0] = %#v, want a resolved message with bridge Found docker0", msgs[0])
 	}
 
 	pm := pmWith(t, f)
 	pm.source = webSource
 	pm, _ = launched(t, pm, "1.1.1.1")
 	pm, _ = pmFeed(t, pm,
-		pathResolvedMsg{gen: pm.gen, addr: netip.MustParseAddr("1.1.1.1"), route: defaultRouteHop(), source: webSource, ctr: f.inspectNet, bridge: "docker0"},
+		pathResolvedMsg{gen: pm.gen, addr: netip.MustParseAddr("1.1.1.1"), route: defaultRouteHop(), source: webSource, ctr: f.inspectNet, bridge: pathBridge{State: bridgeFound, Name: "docker0"}},
 		pathHopMsg{gen: pm.gen, hop: hopAt(1)},
 	)
 	requireBridge(t, pm, "docker0")
+}
+
+// DEVDESK-332 step 1: readPathBridge reports a state, not only a name.
+func TestReadPathBridgeStates(t *testing.T) {
+	tests := []struct {
+		name      string
+		fake      func() *fakeEngine
+		want      pathBridge
+		wantIface int
+		wantLog   string
+	}{
+		{"interface carries the gateway", func() *fakeEngine {
+			return bridgeFake("docker0", ifaceWith("docker0", testGateway+"/16"))
+		}, pathBridge{State: bridgeFound, Name: "docker0"}, 1, ""},
+		{"no interface of that name", func() *fakeEngine {
+			return bridgeFake("docker0", ifaceWith("eth0", "192.168.1.21/24"))
+		}, pathBridge{State: bridgeAbsent}, 1, ""},
+		{"interface without the gateway", func() *fakeEngine {
+			return bridgeFake("docker0", ifaceWith("docker0", "10.9.0.1/16"))
+		}, pathBridge{State: bridgeUnverified}, 1, ""},
+		{"empty name (macvlan)", func() *fakeEngine {
+			return bridgeFake("", ifaceWith("docker0", testGateway+"/16"))
+		}, pathBridge{State: bridgeUnverified}, 0, ""},
+		{"network read fails", func() *fakeEngine {
+			f := bridgeFake("docker0", ifaceWith("docker0", testGateway+"/16"))
+			f.networkErr = errors.New("net-boom-raw")
+			return f
+		}, pathBridge{State: bridgeUnverified}, 0, "net-boom-raw"},
+		{"interface list fails", func() *fakeEngine {
+			f := bridgeFake("docker0")
+			f.ifacesErr = errors.New("if-boom-raw")
+			return f
+		}, pathBridge{State: bridgeUnverified}, 1, "if-boom-raw"},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			f := tc.fake()
+			logs := captureLog(t)
+			got := readPathBridge(context.Background(), netCtr("app_net", testNetID), bridgeTimout, f.engine())
+			if got != tc.want {
+				t.Fatalf("bridge = %+v, want %+v", got, tc.want)
+			}
+			if f.ifacesCalls != tc.wantIface {
+				t.Fatalf("interfaces calls = %d, want %d", f.ifacesCalls, tc.wantIface)
+			}
+			if tc.wantLog == "" {
+				if strings.Contains(logs.String(), "ERROR [netdiag/path]") {
+					t.Fatalf("unexpected error log %q", logs.String())
+				}
+				return
+			}
+			if !strings.Contains(logs.String(), "ERROR [netdiag/path] ") || !strings.Contains(logs.String(), tc.wantLog) {
+				t.Fatalf("log %q lacks an ERROR [netdiag/path] line with %q", logs.String(), tc.wantLog)
+			}
+		})
+	}
+}
+
+// An empty network ID is Unverified without any engine or interface call.
+func TestReadPathBridgeEmptyIDMakesNoCall(t *testing.T) {
+	f := bridgeFake("docker0", ifaceWith("docker0", testGateway+"/16"))
+	got := readPathBridge(context.Background(), netCtr("app_net", ""), bridgeTimout, f.engine())
+	if got.State != bridgeUnverified || f.networkCalls != 0 || f.ifacesCalls != 0 {
+		t.Fatalf("got %+v, network calls %d, interfaces calls %d, want Unverified and 0 and 0", got, f.networkCalls, f.ifacesCalls)
+	}
+}
+
+// A canceled run logs nothing, whichever read was interrupted.
+func TestReadPathBridgeCanceledInterfacesIsUnverifiedAndSilent(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	f := bridgeFake("docker0", ifaceWith("docker0", testGateway+"/16"))
+	e := f.engine()
+	e.interfaces = func(ctx context.Context) ([]netiface.Interface, error) {
+		cancel()
+		return nil, fmt.Errorf("canceled sentinel: %w", ctx.Err())
+	}
+	logs := captureLog(t)
+	if got := readPathBridge(ctx, netCtr("app_net", testNetID), bridgeTimout, e); got.State != bridgeUnverified {
+		t.Fatalf("bridge = %+v, want Unverified", got)
+	}
+	if strings.Contains(logs.String(), "sentinel") {
+		t.Fatalf("a canceled read was logged: %q", logs.String())
+	}
 }
