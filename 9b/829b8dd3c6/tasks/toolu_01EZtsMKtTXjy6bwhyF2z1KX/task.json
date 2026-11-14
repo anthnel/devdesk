@@ -1,0 +1,15 @@
+{
+  "tool_use_id": "toolu_01EZtsMKtTXjy6bwhyF2z1KX",
+  "agent_id": "ab9597cc9c96c183f",
+  "subagent_type": "project-tester",
+  "task_description": "Vérification complète 328",
+  "token_usage": {
+    "input_tokens": 27,
+    "cache_creation_tokens": 54469,
+    "cache_read_tokens": 532489,
+    "output_tokens": 6208,
+    "api_call_count": 14
+  },
+  "started_at": "2026-11-14T15:45:27.5798841+01:00",
+  "completed_at": "2026-11-14T16:06:38.4372664+01:00"
+}

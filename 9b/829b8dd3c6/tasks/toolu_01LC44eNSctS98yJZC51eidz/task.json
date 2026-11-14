@@ -1,0 +1,18 @@
+{
+  "tool_use_id": "toolu_01LC44eNSctS98yJZC51eidz",
+  "agent_id": "aa706a21489693be8",
+  "subagent_type": "team-core:archivist",
+  "task_description": "Archive décision 328",
+  "files": [
+    "docs/backlog.md"
+  ],
+  "token_usage": {
+    "input_tokens": 11,
+    "cache_creation_tokens": 82949,
+    "cache_read_tokens": 259307,
+    "output_tokens": 4493,
+    "api_call_count": 5
+  },
+  "started_at": "2026-11-14T15:42:36.8667462+01:00",
+  "completed_at": "2026-11-14T15:43:00.8524627+01:00"
+}

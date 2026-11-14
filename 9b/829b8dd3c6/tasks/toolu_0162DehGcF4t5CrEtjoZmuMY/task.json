@@ -1,0 +1,15 @@
+{
+  "tool_use_id": "toolu_0162DehGcF4t5CrEtjoZmuMY",
+  "agent_id": "a693c8fcdf064ea64",
+  "subagent_type": "dev-team:devops",
+  "task_description": "Create worktree for 328",
+  "token_usage": {
+    "input_tokens": 5,
+    "cache_creation_tokens": 47521,
+    "cache_read_tokens": 87658,
+    "output_tokens": 438,
+    "api_call_count": 3
+  },
+  "started_at": "2026-11-14T14:58:08.6156755+01:00",
+  "completed_at": "2026-11-14T14:58:16.0705722+01:00"
+}

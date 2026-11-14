@@ -1,0 +1,15 @@
+{
+  "tool_use_id": "toolu_01XJ5uVyG7feENTezDn7LevA",
+  "agent_id": "ab3b5130cecbc05e4",
+  "subagent_type": "project-coder",
+  "task_description": "Vert étape 1 (TraceEach)",
+  "token_usage": {
+    "input_tokens": 25,
+    "cache_creation_tokens": 70845,
+    "cache_read_tokens": 661310,
+    "output_tokens": 6613,
+    "api_call_count": 12
+  },
+  "started_at": "2026-11-14T15:00:18.5036913+01:00",
+  "completed_at": "2026-11-14T15:01:05.4308531+01:00"
+}

@@ -1,0 +1,51 @@
+{
+  "cli_version": "0.13.2",
+  "checkpoint_id": "9b829b8dd3c6",
+  "strategy": "manual-commit",
+  "branch": "feat/devdesk-328-path-tab",
+  "checkpoints_count": 29,
+  "files_touched": [
+    "internal/nettrace/engine.go",
+    "internal/nettrace/engine_test.go",
+    "internal/nettrace/nettrace.go",
+    "internal/nettrace/trace_each_test.go"
+  ],
+  "sessions": [
+    {
+      "metadata": "/9b/829b8dd3c6/0/metadata.json",
+      "transcript": "/9b/829b8dd3c6/0/full.jsonl",
+      "compact_transcript": "/9b/829b8dd3c6/0/transcript.jsonl",
+      "content_hash": "/9b/829b8dd3c6/0/content_hash.txt",
+      "prompt": "/9b/829b8dd3c6/0/prompt.txt"
+    }
+  ],
+  "token_usage": {
+    "input_tokens": 182,
+    "cache_creation_tokens": 323307,
+    "cache_read_tokens": 9387236,
+    "output_tokens": 37896,
+    "api_call_count": 65,
+    "subagent_tokens": {
+      "input_tokens": 557,
+      "cache_creation_tokens": 2807675,
+      "cache_read_tokens": 26280847,
+      "output_tokens": 277039,
+      "api_call_count": 265
+    },
+    "subagent_tokens_complete": true
+  },
+  "redaction": {
+    "replacements": 0,
+    "layers": {
+      "betterleaks": 0,
+      "connection_string": 0,
+      "credential_key": 0,
+      "credential_value": 0,
+      "credentialed_uri": 0,
+      "entropy": 0,
+      "key_context": 0,
+      "provider_token": 0,
+      "shell_stdin": 0
+    }
+  }
+}
