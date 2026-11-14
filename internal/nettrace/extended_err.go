@@ -62,7 +62,14 @@ func decodeExtendedErr(data []byte) (reply, error) {
 }
 
 // classify maps a reply to the kind of hop it reveals.
+//
+// Known limit: a Port Unreachable from an address other than target is
+// reported as HopUnreachable, so a multi-homed target that answers from
+// another of its addresses is not recognized as reached.
 func classify(r reply, target netip.Addr) HopKind {
+	if r.Origin == originLocal {
+		return HopError // the local stack refused the probe (e.g. EMSGSIZE)
+	}
 	if r.Origin != originICMP {
 		return HopError
 	}

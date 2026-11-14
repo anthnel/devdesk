@@ -68,7 +68,8 @@ const (
 	HopUnreachable
 	// HopUnresolved: an answer arrived but its sender could not be read.
 	HopUnresolved
-	// HopError: the probe could not be sent.
+	// HopError: the probe could not be sent, or the answer was unexpected
+	// (an error from the local stack, or a reply that is not ICMP).
 	HopError
 )
 
@@ -162,5 +163,5 @@ func Trace(ctx context.Context, target netip.Addr, opts Options) (Result, error)
 	if !target.Is4() {
 		return Result{}, ErrNotIPv4
 	}
-	return systemProber(ctx, target, opts.Normalized())
+	return run(ctx, target, opts, systemProber())
 }

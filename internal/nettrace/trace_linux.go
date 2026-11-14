@@ -9,8 +9,13 @@ import (
 
 func supported() error { return nil }
 
-// systemProber runs the trace with the system's sockets.
-// TODO(step 4): the engine does not exist yet.
-func systemProber(_ context.Context, _ netip.Addr, _ Options) (Result, error) {
-	return Result{}, ErrUnsupported
+// unsupportedProber is the provisional system prober: it opens nothing.
+// TODO(step 4): replace it with the UDP/IP_RECVERR prober.
+type unsupportedProber struct{}
+
+func (unsupportedProber) open(context.Context, netip.Addr, int) (probeConn, error) {
+	return nil, ErrUnsupported
 }
+
+// systemProber returns the prober that uses the system's sockets.
+func systemProber() prober { return unsupportedProber{} }

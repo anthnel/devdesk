@@ -9,7 +9,12 @@ import (
 
 func supported() error { return ErrUnsupported }
 
-// systemProber is never reached: Trace stops at supported() first.
-func systemProber(_ context.Context, _ netip.Addr, _ Options) (Result, error) {
-	return Result{}, ErrUnsupported
+// unsupportedProber opens nothing: Trace stops at supported() first.
+type unsupportedProber struct{}
+
+func (unsupportedProber) open(context.Context, netip.Addr, int) (probeConn, error) {
+	return nil, ErrUnsupported
 }
+
+// systemProber returns a prober that never opens a connection.
+func systemProber() prober { return unsupportedProber{} }
