@@ -1,0 +1,15 @@
+{
+  "tool_use_id": "toolu_017bcocTeiQwTqXbG3UKZTup",
+  "agent_id": "a47686497d1c06c4f",
+  "subagent_type": "dev-team:reviewer",
+  "task_description": "Revue étape 1 nettrace",
+  "token_usage": {
+    "input_tokens": 15,
+    "cache_creation_tokens": 68248,
+    "cache_read_tokens": 383117,
+    "output_tokens": 7091,
+    "api_call_count": 8
+  },
+  "started_at": "2026-11-14T10:09:47.3391653+01:00",
+  "completed_at": "2026-11-14T10:10:54.3543021+01:00"
+}
