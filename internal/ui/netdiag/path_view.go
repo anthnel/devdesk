@@ -2,8 +2,6 @@ package netdiag
 
 import (
 	"fmt"
-	"strconv"
-	"time"
 
 	"charm.land/lipgloss/v2"
 
@@ -17,57 +15,61 @@ import (
 // pathBarLabel prefixes the target field in the bar.
 const pathBarLabel = "Target › "
 
-// pathColumns describes the hops table. Plain text in Cell, colour in Style
+// pathColumns describes the Path column. Plain text in Cell, colour in Style
 // (Rule 122). A silent hop is dim, never red: it is not a failure.
-func pathColumns() []datatable.Column[nettrace.Hop] {
-	hop := datatable.Column[nettrace.Hop]{
+func pathColumns() []datatable.Column[pathStep] {
+	hop := datatable.Column[pathStep]{
 		Title: "Hop", Sizing: datatable.SizingFixed, MinWidth: 3,
-		Cell: func(h nettrace.Hop) string { return strconv.Itoa(h.TTL) },
+		Cell: pathStep.hopCell,
 	}
-	answer := datatable.Column[nettrace.Hop]{
-		Title: "Answer", Sizing: datatable.SizingFixed, MinWidth: 11,
-		Cell:  func(h nettrace.Hop) string { return h.Kind.String() },
-		Style: pathAnswerStyle,
+	step := datatable.Column[pathStep]{
+		Title: "Step", Sizing: datatable.SizingFixed, MinWidth: 11,
+		Cell:  pathStep.stepCell,
+		Style: pathStepStyle,
 	}
-	address := datatable.Column[nettrace.Hop]{
+	address := datatable.Column[pathStep]{
 		Title: "Address", Sizing: datatable.SizingContent, MinWidth: 15, Flex: 1,
-		Cell: func(h nettrace.Hop) string {
-			if !h.Addr.IsValid() {
-				return "-"
-			}
-			return h.Addr.String()
-		},
-		Style: func(h nettrace.Hop) lipgloss.Style {
-			if !h.Addr.IsValid() {
-				return theme.DimStyle
-			}
-			return lipgloss.Style{}
-		},
+		Cell:  pathStep.addressCell,
+		Style: pathAddressStyle,
 	}
-	rtt := datatable.Column[nettrace.Hop]{
+	rtt := datatable.Column[pathStep]{
 		Title: "RTT", Sizing: datatable.SizingFixed, MinWidth: 9,
-		Cell: func(h nettrace.Hop) string {
-			if h.RTT <= 0 {
-				return "-"
-			}
-			return fmt.Sprintf("%.1f ms", float64(h.RTT)/float64(time.Millisecond))
-		},
-		Style: func(h nettrace.Hop) lipgloss.Style {
-			if h.RTT <= 0 {
-				return theme.DimStyle
-			}
-			return lipgloss.Style{}
-		},
+		Cell:  pathStep.rttCell,
+		Style: pathRTTStyle,
 	}
-	return []datatable.Column[nettrace.Hop]{hop, answer, address, rtt}
+	return []datatable.Column[pathStep]{hop, step, address, rtt}
 }
 
-func pathAnswerStyle(h nettrace.Hop) lipgloss.Style {
-	switch h.Kind {
+func pathStepStyle(s pathStep) lipgloss.Style {
+	if s.Kind != stepHop {
+		return lipgloss.Style{}
+	}
+	switch s.Hop.Kind {
 	case nettrace.HopSilent, nettrace.HopUnresolved:
 		return theme.DimStyle
 	case nettrace.HopError:
 		return theme.SeverityTextStyle("MEDIUM")
+	}
+	return lipgloss.Style{}
+}
+
+func pathAddressStyle(s pathStep) lipgloss.Style {
+	switch s.Kind {
+	case stepHop:
+		if !s.Hop.Addr.IsValid() {
+			return theme.DimStyle
+		}
+	case stepInterface, stepGateway:
+		if c := s.addressCell(); c == routeUndetermined || c == gatewayDirect {
+			return theme.DimStyle
+		}
+	}
+	return lipgloss.Style{}
+}
+
+func pathRTTStyle(s pathStep) lipgloss.Style {
+	if s.Kind == stepHop && s.Hop.RTT <= 0 {
+		return theme.DimStyle
 	}
 	return lipgloss.Style{}
 }
@@ -89,7 +91,7 @@ func (pm *PathModel) statusLine() components.Status {
 		return components.Status{}
 	}
 	host := pm.target.Host
-	n := len(pm.table.Items())
+	n := pm.hopCount()
 	if !pm.addr.IsValid() && n == 0 {
 		return components.Status{Text: "Resolving " + host + "...", Activity: true}
 	}

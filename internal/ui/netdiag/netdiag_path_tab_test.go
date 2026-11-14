@@ -217,8 +217,8 @@ func TestPathMessagesAreRoutedWhateverTabIsOnScreen(t *testing.T) {
 		t.Fatal("precondition: Path must be off screen")
 	}
 	m = feed(t, m, pathHopMsg{gen: gen, hop: hopOf(1, nettrace.HopRouter)})
-	if got := len(m.pathModel.table.Items()); got != 1 {
-		t.Errorf("a hop delivered off screen left %d rows on Path, want 1", got)
+	if got := m.pathModel.hopCount(); got != 1 {
+		t.Errorf("a hop delivered off screen left %d hop rows on Path, want 1", got)
 	}
 }
 

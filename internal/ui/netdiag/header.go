@@ -432,7 +432,10 @@ func (m *Model) GetHelpContent() help.Content {
 				Title: "Path Tab — How it works",
 				Body: "Traces the hops between this machine and a target, in this process — no " +
 					"container, no traceroute binary. Linux only, for now: elsewhere the tab says so " +
-					"and enter is greyed out. IPv4 only: a host name is resolved to its IPv4 address.\n\n" +
+					"and enter is greyed out. IPv4 only: a host name is resolved to its IPv4 address. " +
+					"The column starts on this machine: the interface the target's traffic leaves by, " +
+					"with its source address, and the gateway, read from this machine's routing table, " +
+					"then the hops.\n\n" +
 					"Type a host name or an IPv4 address, optionally followed by :port, and press " +
 					"enter. Each hop is a UDP datagram sent to UDP port 33435 with a " +
 					"growing time-to-live; the router that drops it answers, and the table fills in as " +

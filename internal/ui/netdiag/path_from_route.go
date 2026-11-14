@@ -54,6 +54,7 @@ func (pm *PathModel) prefill(host string) tea.Cmd {
 	pm.target = pathTarget{}
 	pm.addr = netip.Addr{}
 	pm.hops = nil
+	pm.route = nil
 	pm.result = nil
 	pm.errText = ""
 	pm.table.SetItems(nil)
