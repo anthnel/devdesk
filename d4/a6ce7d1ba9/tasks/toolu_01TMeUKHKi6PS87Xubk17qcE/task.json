@@ -1,0 +1,15 @@
+{
+  "tool_use_id": "toolu_01TMeUKHKi6PS87Xubk17qcE",
+  "agent_id": "a0c2ca138694afc04",
+  "subagent_type": "product-team:pm",
+  "task_description": "Rédiger la proposition de release 2.1.0",
+  "token_usage": {
+    "input_tokens": 7,
+    "cache_creation_tokens": 88418,
+    "cache_read_tokens": 194276,
+    "output_tokens": 3870,
+    "api_call_count": 4
+  },
+  "started_at": "2026-11-12T16:50:40.337422+01:00",
+  "completed_at": "2026-11-12T16:51:23.9942168+01:00"
+}

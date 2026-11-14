@@ -1,0 +1,15 @@
+{
+  "tool_use_id": "toolu_01NdkcFri3hutQwWZnQiCdzT",
+  "agent_id": "a433647a51a1c5e9d",
+  "subagent_type": "dev-team:devops",
+  "task_description": "Fusionner PR 374 puis 377",
+  "token_usage": {
+    "input_tokens": 33,
+    "cache_creation_tokens": 127616,
+    "cache_read_tokens": 822851,
+    "output_tokens": 5181,
+    "api_call_count": 17
+  },
+  "started_at": "2026-11-12T16:43:21.7159301+01:00",
+  "completed_at": "2026-11-12T16:50:07.5472713+01:00"
+}

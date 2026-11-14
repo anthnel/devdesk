@@ -1,0 +1,15 @@
+{
+  "tool_use_id": "toolu_01KJ6UdkgvxV1WMRFdDpSsxc",
+  "agent_id": "a280d1172ed7121ae",
+  "subagent_type": "dev-team:devops",
+  "task_description": "Recréer les branches PR 374/377 propres",
+  "token_usage": {
+    "input_tokens": 19,
+    "cache_creation_tokens": 62991,
+    "cache_read_tokens": 481667,
+    "output_tokens": 4476,
+    "api_call_count": 10
+  },
+  "started_at": "2026-11-12T16:21:39.7291046+01:00",
+  "completed_at": "2026-11-12T16:22:54.2338088+01:00"
+}

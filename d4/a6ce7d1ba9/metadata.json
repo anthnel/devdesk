@@ -1,0 +1,48 @@
+{
+  "cli_version": "0.13.2",
+  "checkpoint_id": "d4a6ce7d1ba9",
+  "strategy": "manual-commit",
+  "branch": "feat/devdesk-332-engine-row",
+  "checkpoints_count": 12,
+  "files_touched": [
+    "docs/product/network-map/brief.md"
+  ],
+  "sessions": [
+    {
+      "metadata": "/d4/a6ce7d1ba9/0/metadata.json",
+      "transcript": "/d4/a6ce7d1ba9/0/full.jsonl",
+      "compact_transcript": "/d4/a6ce7d1ba9/0/transcript.jsonl",
+      "content_hash": "/d4/a6ce7d1ba9/0/content_hash.txt",
+      "prompt": "/d4/a6ce7d1ba9/0/prompt.txt"
+    }
+  ],
+  "token_usage": {
+    "input_tokens": 62,
+    "cache_creation_tokens": 415142,
+    "cache_read_tokens": 5116716,
+    "output_tokens": 16472,
+    "api_call_count": 25,
+    "subagent_tokens": {
+      "input_tokens": 54,
+      "cache_creation_tokens": 226872,
+      "cache_read_tokens": 1406048,
+      "output_tokens": 12489,
+      "api_call_count": 28
+    },
+    "subagent_tokens_complete": true
+  },
+  "redaction": {
+    "replacements": 0,
+    "layers": {
+      "betterleaks": 0,
+      "connection_string": 0,
+      "credential_key": 0,
+      "credential_value": 0,
+      "credentialed_uri": 0,
+      "entropy": 0,
+      "key_context": 0,
+      "provider_token": 0,
+      "shell_stdin": 0
+    }
+  }
+}
