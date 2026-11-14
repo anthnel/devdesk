@@ -41,7 +41,13 @@ type probeResult struct {
 // run traces the path with p. Every connection is opened first, in the
 // caller's goroutine, so that a failing open stops everything before any
 // probe is sent; then one goroutine per TTL sends and awaits in parallel.
-func run(ctx context.Context, target netip.Addr, opts Options, p prober) (Result, error) {
+//
+// onHop, when not nil, is called once per resolved hop, one call at a time and
+// always from the goroutine that called run, so it needs no lock. It is never
+// called for an unresolved hop nor after run has returned. A hop above the
+// terminal TTL may be reported while the terminal is still unknown; Result is
+// cut at the terminal hop, so the caller reconciles with the final Result.
+func run(ctx context.Context, target netip.Addr, opts Options, p prober, onHop func(Hop)) (Result, error) {
 	opts = opts.Normalized()
 	start := time.Now()
 	runCtx, cancel := context.WithTimeout(ctx, opts.Deadline)
@@ -54,7 +60,7 @@ func run(ctx context.Context, target netip.Addr, opts Options, p prober) (Result
 		}
 		return Result{}, openError(err)
 	}
-	return probeAll(runCtx, target, opts, conns, start), nil
+	return probeAll(runCtx, target, opts, conns, start, onHop), nil
 }
 
 // openAll opens one connection per TTL, 1 to n. On failure it closes the ones
@@ -96,7 +102,7 @@ func openError(err error) error {
 }
 
 // probeAll runs phase 2: one goroutine per connection.
-func probeAll(ctx context.Context, target netip.Addr, opts Options, conns []probeConn, start time.Time) Result {
+func probeAll(ctx context.Context, target netip.Addr, opts Options, conns []probeConn, start time.Time, onHop func(Hop)) Result {
 	n := len(conns)
 	results := make(chan probeResult, n)
 	cancels := make([]context.CancelFunc, n+1) // indexed by TTL
@@ -114,6 +120,18 @@ func probeAll(ctx context.Context, target netip.Addr, opts Options, conns []prob
 	}
 
 	t := newTally(n)
+	// collectOne records an answer and streams it when it is a hop worth
+	// showing: resolved, and not above the terminal TTL.
+	collectOne := func(r probeResult) {
+		t.add(r)
+		if onHop == nil || !r.resolved {
+			return
+		}
+		if term := t.terminal(); term > 0 && r.ttl > term {
+			return
+		}
+		onHop(r.hop)
+	}
 	cutAbove := func() {
 		if term := t.terminal(); term > 0 {
 			for ttl := term + 1; ttl <= n; ttl++ {
@@ -125,7 +143,7 @@ collect:
 	for !t.complete() {
 		select {
 		case r := <-results:
-			t.add(r)
+			collectOne(r)
 			cutAbove()
 		case <-ctx.Done():
 			break collect
@@ -137,7 +155,7 @@ collect:
 	wg.Wait()
 	close(results)
 	for r := range results { // answers that landed while stopping
-		t.add(r)
+		collectOne(r)
 	}
 
 	if t.complete() {
