@@ -1,0 +1,15 @@
+{
+  "tool_use_id": "toolu_013yDD4swHYeb3Fj77KqsEu9",
+  "agent_id": "a27fc8187b6e733e0",
+  "subagent_type": "team-core:tech-writer",
+  "task_description": "Docs étape 6 nettrace",
+  "token_usage": {
+    "input_tokens": 33,
+    "cache_creation_tokens": 78831,
+    "cache_read_tokens": 927312,
+    "output_tokens": 14749,
+    "api_call_count": 16
+  },
+  "started_at": "2026-11-14T10:38:55.0154075+01:00",
+  "completed_at": "2026-11-14T10:40:42.7135369+01:00"
+}
