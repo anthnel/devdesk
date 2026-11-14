@@ -31,6 +31,42 @@ type pathContainer struct {
 	Addr     netip.Addr // the container's IPv4 on Network
 	Gateway  netip.Addr // Network's gateway
 	Bridge   string     // attachNetwork only: the host interface read for Network; "" when none
+	Engine   engineView // attachNetwork only: why there is no bridge row, when this machine cannot see it
+}
+
+// engineView says why the column shows an engine row instead of a bridge row.
+// The zero value means no engine row.
+type engineView int
+
+const (
+	engineNone       engineView = iota // no engine row
+	engineHidden                       // this machine has no interface for the network: the bridge is elsewhere
+	engineUnverified                   // the bridge could not be verified
+)
+
+// withBridgeRead returns a copy of c updated with the outcome of the bridge
+// read. Only a container attached to a network is affected.
+func (c pathContainer) withBridgeRead(b pathBridge) pathContainer {
+	if c.Attach != attachNetwork {
+		return c
+	}
+	switch b.State {
+	case bridgeFound:
+		return c.withBridge(b.Name)
+	case bridgeAbsent:
+		c.Engine = engineHidden
+	case bridgeUnverified:
+		c.Engine = engineUnverified
+	}
+	return c
+}
+
+// engineText is the Address cell of the engine row.
+func (c pathContainer) engineText() string {
+	if c.Engine == engineUnverified {
+		return textEngineUnverified
+	}
+	return textEngineHidden
 }
 
 // withBridge returns a copy of c carrying the bridge interface name. The name
@@ -53,6 +89,10 @@ const (
 	textNotRunning      = "not running"
 	textTraceFromHost   = "from this machine, not from the container"
 	textTraceSharedHost = "from this machine (shared with the container)"
+
+	textTraceFromEngineHost = "from this machine (host or WSL VM)"
+	textEngineHidden        = "internal path not visible (location unknown)"
+	textEngineUnverified    = "undetermined (bridge not verified)"
 )
 
 // newPathContainer converts an inspection into a pathContainer. Every text the
@@ -169,6 +209,9 @@ func (c pathContainer) networkText() string {
 func (c pathContainer) traceText() string {
 	if c.Attach == attachHost {
 		return textTraceSharedHost
+	}
+	if c.Engine != engineNone {
+		return textTraceFromEngineHost
 	}
 	return textTraceFromHost
 }

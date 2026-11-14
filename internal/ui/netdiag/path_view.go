@@ -55,7 +55,7 @@ func pathStepStyle(s pathStep) lipgloss.Style {
 
 func pathAddressStyle(s pathStep) lipgloss.Style {
 	switch s.Kind {
-	case stepTrace:
+	case stepTrace, stepEngine:
 		return theme.DimStyle
 	case stepNetwork:
 		if s.Container.dimNetwork() {

@@ -72,7 +72,7 @@ type pathResolvedMsg struct {
 	source   pathSource                 // the source at launch
 	ctr      docker.ContainerNetworking // zero for this machine
 	ctrErr   error                      // logged by the producer, never shown
-	bridge   string                     // host interface of the container's network; "" when none
+	bridge   pathBridge                 // what is known of the container network's host interface
 }
 
 // pathSourcesMsg carries what the selector offers once the engine answered.
@@ -195,7 +195,7 @@ func producePath(ctx context.Context, gen int, tg pathTarget, src pathSource, re
 		log.Printf("ERROR [netdiag/path] route %s: %v", tg.Host, routeErr)
 	}
 	ctr, ctrErr := inspectPathSource(ctx, src, resolveTimeout, e)
-	bridge := ""
+	var bridge pathBridge
 	if ctrErr == nil && !src.isHost() {
 		bridge = readPathBridge(ctx, ctr, resolveTimeout, e)
 	}
