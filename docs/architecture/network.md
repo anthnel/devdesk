@@ -838,14 +838,22 @@ verified: a declared exception.
   redirections, `N` to open one, `space` to pause or resume it and `K` to delete
   it. It holds **no listener** — see `internal/forward` below.
 - **Path tab** (`path_model.go`, `path_view.go`, `path_run.go`,
-  `path_target.go`, `path_from_route.go`; DEVDESK-328): the hop-by-hop path to
+  `path_target.go`, `path_from_route.go`, `path_steps.go`; DEVDESK-328,
+  DEVDESK-329): the hop-by-hop path to
   a target, from `internal/nettrace` (below). It is the fifth and last tab
   (`tabPath = 4`, `tabCount = 5`). It runs **no container**. Three states:
   `pathEditing` (the target field has the keyboard), `pathRunning` (field
   blurred, hops arriving) and `pathDone` (hops kept on screen). The **body is
   always the hop table** (`PathModel.view()` returns `table.View()`, Rule 139),
-  in every state: columns Hop, Answer, Address, RTT, with a silent hop dim and
-  never red. The **target field is not in the body**: it sits in the footer's
+  in every state: columns Hop, Step, Address, RTT, with a silent hop dim and
+  never red. **The column starts on this machine** (DEVDESK-329): three local
+  rows, then the hops. `source` reads `this machine`; `interface` reads
+  `<name> (<source address>)`; `gateway` reads the gateway address. The local
+  rows have an empty Hop and RTT (they asked nobody; `-` means "no answer") and
+  the default text colour. `pathSteps` (`path_steps.go`) is the only place that
+  orders the rows; the table item is a `pathStep` (kind source, interface,
+  gateway or hop). Nothing is shown before the route is known, so a resolution
+  error leaves 0 rows. The **target field is not in the body**: it sits in the footer's
   bar slot, framed by `components.BarFrame` (`Target › ` + the field,
   placeholder `hostname or IPv4 address[:port]`). That slot is shown on this
   tab in every state, so `GetFooterHeight()` is 5 (bar 2, tab row 1, blank
@@ -907,7 +915,7 @@ always `Idle` and an idle row shows an empty cell (a socket has no rest icon).
   have no `Indicator`; neither does the Path tab's hop table (DEVDESK-328): a
   trace is one run, not a per-row operation, and its running state is the
   footer's shared dot. The Path files `path_model.go`, `path_target.go` and
-  `path_view.go` are in the activity guard's scanned sources for
+  `path_view.go` (and, since DEVDESK-329, `path_steps.go`) are in the activity guard's scanned sources for
   `command.ViewNetdiag`; `path_run.go`, which holds the I/O, is not.
 - **Files.** `ports_activity.go` (`ActivityTables()` reports `netdiag/ports`,
   `WantsBlink()`); `ports_commands.go` holds the I/O commands (`fetchPortsCmd`,
@@ -1166,7 +1174,8 @@ with the run's generation: `pathResolvedMsg` (the address), `pathHopMsg` (one
 per `onHop` call) and `pathDoneMsg` (the `Result` or an error), then closes the
 channel. `Update` re-arms `waitForPathMsg` after every resolved or hop message;
 the done message is the last and is not re-armed. The three messages reach the
-Path sub-model whichever tab is on screen.
+Path sub-model whichever tab is on screen. The resolved message also carries the
+route (below).
 
 - **Capacity 32** (`pathChanCap = nettrace.MaxHopsLimit + 2`): the resolved
   message, at most one hop per TTL (30) and the done message. The producer
@@ -1193,6 +1202,32 @@ read when the view is built; the tab falls back to 5 s
 and the header's `Target` field shows it after the name. A literal IPv6 target
 (brackets or several colons) is refused before launch with the footer error
 `Only IPv4 targets are supported by the path trace`.
+
+**The route rows (DEVDESK-329).** After resolution and before the trace,
+`producePath` asks `pathEngine.route` for the traced address. The system
+engine uses `netcheck.SystemEnv(netcheck.DefaultSettings()).Route`, which sends
+nothing and needs no privilege. The answer (`RouteHop`: interface, source,
+gateway) rides on `pathResolvedMsg` (`route`, `routeErr`), so there is no extra
+message and the capacity stays 32. `newPathRoute` turns it into a `pathRoute`
+(addresses unmapped to IPv4). The lookup asks the kernel the same question as
+`ip route get <addr>` (go-netroute, `RTM_GETROUTE`, policy rules applied), and
+the probe socket is unmarked and not bound to a device, so a VPN that captures
+the default route shows as the interface row, and the probes take that route.
+
+- **Interface row**: `eth0 (192.168.1.21)`; without a source address `eth0`;
+  without a name `unnamed (192.168.1.21)`; `undetermined` when the lookup failed.
+- **Gateway row**: the address; `directly connected` when the route has none
+  (or an unspecified one); `undetermined` when the lookup failed. Both texts are
+  dim. The row stays even when the gateway is also hop 1.
+- **A failed lookup is not fatal.** The trace still runs; the rows read
+  `undetermined`. The raw error is logged (`ERROR [netdiag/path] route <host>:
+  …`) and never shown.
+- **The source is never a host name.** It is the fixed text `this machine`, not
+  `os.Hostname()`: under WSL2 the distro's host name defaults to the Windows
+  computer name, which would label the source as another machine.
+- **Counter.** The footer's `Tracing <host> — N hops answered` counts hop rows
+  only (`hopCount`), not the local rows. An error done (`ErrNoRoute`, …) still
+  clears every row.
 
 **Errors become fixed labels.** `pathErrorLabel` maps the sentinels (matched
 with `errors.Is`, wrapped errors included) to US English sentences:

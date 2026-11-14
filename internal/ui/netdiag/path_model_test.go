@@ -49,8 +49,10 @@ func launched(t *testing.T, pm *PathModel, target string) (*PathModel, tea.Cmd) 
 
 func pmHopTTLs(pm *PathModel) []int {
 	var out []int
-	for _, h := range pm.table.Items() {
-		out = append(out, h.TTL)
+	for _, s := range pm.table.Items() {
+		if s.Kind == stepHop {
+			out = append(out, s.Hop.TTL)
+		}
 	}
 	return out
 }
@@ -88,7 +90,7 @@ func TestPathNewModelIsAnEditableEmptyTable(t *testing.T) {
 		t.Errorf("%d rows before any run, want 0", n)
 	}
 	body := ansi.Strip(pm.view())
-	for _, col := range []string{"Hop", "Answer", "Address", "RTT"} {
+	for _, col := range []string{"Hop", "Step", "Address", "RTT"} {
 		if !strings.Contains(body, col) {
 			t.Errorf("empty table body lacks the %q header:\n%s", col, body)
 		}
@@ -436,8 +438,8 @@ func TestPathDoneEnterRelaunchesAndEscEdits(t *testing.T) {
 	if !edit.InEditMode() || edit.input.Value() != "1.1.1.1:443" {
 		t.Errorf("esc from done: edit=%v value=%q, want editing with the value kept", edit.InEditMode(), edit.input.Value())
 	}
-	if len(edit.table.Items()) != 1 {
-		t.Errorf("rows after esc from done = %d, want hops kept until the next launch", len(edit.table.Items()))
+	if edit.hopCount() != 1 {
+		t.Errorf("hop rows after esc from done = %d, want hops kept until the next launch", edit.hopCount())
 	}
 }
 

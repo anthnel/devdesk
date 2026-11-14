@@ -49,11 +49,13 @@ type PathModel struct {
 	resolveTimeout time.Duration
 
 	input textinput.Model
-	table datatable.Model[nettrace.Hop]
+	table datatable.Model[pathStep]
 
 	state  pathState
 	target pathTarget
 	addr   netip.Addr
+	// route is the way out of this machine; nil until the resolved message.
+	route *pathRoute
 	// hops is what the engine reported so far; the table shows
 	// visiblePathHops(hops). At done it is replaced by Result.Hops.
 	hops   []nettrace.Hop
@@ -82,7 +84,7 @@ func newPathModel(e pathEngine) *PathModel {
 		engine:         e,
 		resolveTimeout: defaultPathResolveTimeout,
 		input:          in,
-		table: datatable.New(datatable.Config[nettrace.Hop]{
+		table: datatable.New(datatable.Config[pathStep]{
 			Columns:    pathColumns(),
 			SortColumn: -1, // the path order is the content
 		}),
@@ -135,6 +137,9 @@ func (pm *PathModel) handleResolved(msg pathResolvedMsg) (*PathModel, tea.Cmd) {
 		return pm, nil
 	}
 	pm.addr = msg.addr
+	route := newPathRoute(msg.route, msg.routeErr)
+	pm.route = &route
+	pm.refreshSteps()
 	return pm, waitForPathMsg(pm.msgs)
 }
 
@@ -143,7 +148,7 @@ func (pm *PathModel) handleHop(msg pathHopMsg) (*PathModel, tea.Cmd) {
 		return pm, nil
 	}
 	pm.hops = append(pm.hops, msg.hop)
-	pm.table.SetItems(visiblePathHops(pm.hops))
+	pm.refreshSteps()
 	return pm, waitForPathMsg(pm.msgs)
 }
 
@@ -154,6 +159,7 @@ func (pm *PathModel) handleDone(msg pathDoneMsg) (*PathModel, tea.Cmd) {
 	pm.releaseRun()
 	if msg.err != nil {
 		pm.hops = nil
+		pm.route = nil
 		pm.table.SetItems(nil)
 		pm.errText = pathErrorLabel(pm.target.Host, msg.err)
 		pm.state = pathEditing
@@ -162,9 +168,23 @@ func (pm *PathModel) handleDone(msg pathDoneMsg) (*PathModel, tea.Cmd) {
 	res := msg.result
 	pm.result = &res
 	pm.hops = res.Hops
-	pm.table.SetItems(visiblePathHops(res.Hops))
+	pm.refreshSteps()
 	pm.state = pathDone
 	return pm, nil
+}
+
+// refreshSteps rebuilds the table rows from the route and the hops.
+func (pm *PathModel) refreshSteps() { pm.table.SetItems(pathSteps(pm.route, pm.hops)) }
+
+// hopCount is the number of hop rows (the local rows are not counted).
+func (pm *PathModel) hopCount() int {
+	n := 0
+	for _, s := range pm.table.Items() {
+		if s.Kind == stepHop {
+			n++
+		}
+	}
+	return n
 }
 
 // releaseRun cancels the run's context (releasing it) and forgets its channel.
@@ -254,6 +274,7 @@ func (pm *PathModel) launch(tg pathTarget) (*PathModel, tea.Cmd) {
 	pm.target = tg
 	pm.addr = netip.Addr{}
 	pm.hops = nil
+	pm.route = nil
 	pm.result = nil
 	pm.errText = ""
 	pm.footer.Clear()

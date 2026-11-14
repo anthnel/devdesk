@@ -10,6 +10,7 @@ import (
 
 	tea "charm.land/bubbletea/v2"
 
+	"github.com/anthnel/devdesk/internal/netcheck"
 	"github.com/anthnel/devdesk/internal/nettrace"
 )
 
@@ -23,15 +24,20 @@ const pathChanCap = nettrace.MaxHopsLimit + 2
 type pathEngine struct {
 	supported func() error
 	resolve   func(ctx context.Context, host string) ([]netip.Addr, error)
+	route     func(ctx context.Context, a netip.Addr) (netcheck.RouteHop, error)
 	trace     func(ctx context.Context, a netip.Addr, o nettrace.Options, onHop func(nettrace.Hop)) (nettrace.Result, error)
 }
 
 // systemPathEngine returns the engine backed by the real resolver and sockets.
 func systemPathEngine() pathEngine {
+	env := netcheck.SystemEnv(netcheck.DefaultSettings())
 	return pathEngine{
 		supported: nettrace.Supported,
 		resolve: func(ctx context.Context, host string) ([]netip.Addr, error) {
 			return net.DefaultResolver.LookupNetIP(ctx, "ip4", host)
+		},
+		route: func(ctx context.Context, a netip.Addr) (netcheck.RouteHop, error) {
+			return env.Route(ctx, net.IP(a.AsSlice()))
 		},
 		trace: nettrace.TraceEach,
 	}
@@ -39,8 +45,10 @@ func systemPathEngine() pathEngine {
 
 // pathResolvedMsg reports the address the target resolved to.
 type pathResolvedMsg struct {
-	gen  int
-	addr netip.Addr
+	gen      int
+	addr     netip.Addr
+	route    netcheck.RouteHop
+	routeErr error
 }
 
 // pathHopMsg carries one hop as the engine reports it.
@@ -93,7 +101,13 @@ func producePath(ctx context.Context, gen int, tg pathTarget, resolveTimeout tim
 		sendDone(pathDoneMsg{gen: gen, err: err})
 		return
 	}
-	send(pathResolvedMsg{gen: gen, addr: addr})
+	// The route is asked for the address actually traced. A failure is not
+	// fatal and is never shown: the trace goes on without the route column.
+	route, routeErr := e.route(ctx, addr)
+	if routeErr != nil && ctx.Err() == nil {
+		log.Printf("ERROR [netdiag/path] route %s: %v", tg.Host, routeErr)
+	}
+	send(pathResolvedMsg{gen: gen, addr: addr, route: route, routeErr: routeErr})
 
 	res, err := e.trace(ctx, addr, nettrace.Options{}, func(h nettrace.Hop) {
 		send(pathHopMsg{gen: gen, hop: h})

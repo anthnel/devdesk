@@ -425,6 +425,14 @@ for this machine.
   answers come.
 - **The port is not probed.** You may type `host:port`; the port is shown in
   the header but the probes always go to UDP port 33435.
+- **The list starts on this machine.** Before the hops, three rows say how
+  your traffic leaves: `source` (`this machine`), `interface` (the interface
+  the target's traffic uses, with its source address, for example
+  `eth0 (192.168.1.21)`) and `gateway` (the next router, or `directly connected`
+  when there is none). They come from this machine's routing table, so with a
+  full-tunnel VPN the interface row names the tunnel. If the routing table
+  can't answer, both rows read `undetermined` and the trace goes on. The
+  footer counts only the hops that answered, not these three rows.
 - **A silent hop is not a failure.** Many routers do not answer these probes.
   The row reads `silent` (dim, never red) and the trace goes on. The number of
   hops that answer can vary from one run to the next.

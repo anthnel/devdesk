@@ -12,7 +12,7 @@ import (
 // holds the I/O and stays out, like ports_commands.go.
 func TestActivityGuardScansThePathTabSources(t *testing.T) {
 	got := migratedSources[command.ViewNetdiag]
-	for _, want := range []string{"ui/netdiag/path_model.go", "ui/netdiag/path_target.go"} {
+	for _, want := range []string{"ui/netdiag/path_model.go", "ui/netdiag/path_target.go", "ui/netdiag/path_steps.go"} {
 		if !slices.Contains(got, want) {
 			t.Errorf("migratedSources[%q] lacks %q", command.ViewNetdiag, want)
 		}

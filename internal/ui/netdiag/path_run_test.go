@@ -10,6 +10,7 @@ import (
 
 	tea "charm.land/bubbletea/v2"
 
+	"github.com/anthnel/devdesk/internal/netcheck"
 	"github.com/anthnel/devdesk/internal/nettrace"
 )
 
@@ -24,7 +25,10 @@ type fakeEngine struct {
 	traceAddr    netip.Addr
 	traceOpts    nettrace.Options
 	traceCtxErr  error
+	routeCalls   int
+	routeAddr    netip.Addr
 
+	routeFn   func(ctx context.Context, a netip.Addr) (netcheck.RouteHop, error)
 	resolveFn func(ctx context.Context, host string) ([]netip.Addr, error)
 	traceFn   func(ctx context.Context, a netip.Addr, o nettrace.Options, onHop func(nettrace.Hop)) (nettrace.Result, error)
 }
@@ -40,6 +44,14 @@ func (f *fakeEngine) engine() pathEngine {
 				return nil, errors.New("unexpected resolve")
 			}
 			return f.resolveFn(ctx, host)
+		},
+		route: func(ctx context.Context, a netip.Addr) (netcheck.RouteHop, error) {
+			f.routeCalls++
+			f.routeAddr = a
+			if f.routeFn == nil {
+				return defaultRouteHop(), nil
+			}
+			return f.routeFn(ctx, a)
 		},
 		trace: func(ctx context.Context, a netip.Addr, o nettrace.Options, onHop func(nettrace.Hop)) (nettrace.Result, error) {
 			f.traceCalls++
