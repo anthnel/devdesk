@@ -225,7 +225,7 @@ type runOut struct {
 func runBG(ctx context.Context, opts Options, p prober) <-chan runOut {
 	ch := make(chan runOut, 1)
 	go func() {
-		res, err := run(ctx, engineTarget, opts, p)
+		res, err := run(ctx, engineTarget, opts, p, nil)
 		ch <- runOut{res, err}
 	}()
 	return ch
@@ -244,7 +244,7 @@ func waitRun(t *testing.T, ch <-chan runOut) runOut {
 
 func mustRun(t *testing.T, ctx context.Context, opts Options, p prober) Result {
 	t.Helper()
-	res, err := run(ctx, engineTarget, opts, p)
+	res, err := run(ctx, engineTarget, opts, p, nil)
 	if err != nil {
 		t.Fatalf("run: unexpected error %v", err)
 	}
@@ -655,7 +655,7 @@ func TestRunOpenFailure(t *testing.T) {
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			fp := newFake(10, table(probeSpec{}, map[int]probeSpec{tc.failAt: {openErr: tc.err}}))
-			res, err := run(context.Background(), engineTarget, Options{MaxHops: 10, ProbeTimeout: time.Second}, fp)
+			res, err := run(context.Background(), engineTarget, Options{MaxHops: 10, ProbeTimeout: time.Second}, fp, nil)
 			if err == nil {
 				t.Fatalf("run returned no error, result %+v", res)
 			}

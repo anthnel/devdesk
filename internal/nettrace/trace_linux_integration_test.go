@@ -94,7 +94,7 @@ func TestLinuxProberReachesLoopbackAtTTL1(t *testing.T) {
 }
 
 func TestLinuxProberUsesTheConfiguredPort(t *testing.T) {
-	res, err := run(context.Background(), loopback, Options{MaxHops: 2, ProbeTimeout: time.Second}, linuxProber{port: freePort(t)})
+	res, err := run(context.Background(), loopback, Options{MaxHops: 2, ProbeTimeout: time.Second}, linuxProber{port: freePort(t)}, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -106,7 +106,7 @@ func TestLinuxProberUsesTheConfiguredPort(t *testing.T) {
 func TestLinuxProberPayloadIsNeutral(t *testing.T) {
 	l, port := silentListener(t)
 	opts := Options{MaxHops: 1, ProbeTimeout: 100 * time.Millisecond}
-	if _, err := run(context.Background(), loopback, opts, linuxProber{port: port}); err != nil {
+	if _, err := run(context.Background(), loopback, opts, linuxProber{port: port}, nil); err != nil {
 		t.Fatal(err)
 	}
 	buf := make([]byte, 2048)
@@ -125,7 +125,7 @@ func TestLinuxProberPayloadIsNeutral(t *testing.T) {
 
 func TestLinuxProberSilentTargetEndsAtMaxHops(t *testing.T) {
 	_, port := silentListener(t)
-	res, err := run(context.Background(), loopback, Options{MaxHops: 3, ProbeTimeout: 200 * time.Millisecond}, linuxProber{port: port})
+	res, err := run(context.Background(), loopback, Options{MaxHops: 3, ProbeTimeout: 200 * time.Millisecond}, linuxProber{port: port}, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -146,7 +146,7 @@ func TestLinuxProberDeadlineShorterThanProbeTimeout(t *testing.T) {
 	_, port := silentListener(t)
 	opts := Options{MaxHops: 3, ProbeTimeout: 5 * time.Second, Deadline: 100 * time.Millisecond}
 	start := time.Now()
-	res, err := run(context.Background(), loopback, opts, linuxProber{port: port})
+	res, err := run(context.Background(), loopback, opts, linuxProber{port: port}, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -171,7 +171,7 @@ func TestLinuxProberCancellation(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	time.AfterFunc(50*time.Millisecond, cancel)
 	start := time.Now()
-	res, err := run(ctx, loopback, Options{MaxHops: 3, ProbeTimeout: 5 * time.Second}, linuxProber{port: port})
+	res, err := run(ctx, loopback, Options{MaxHops: 3, ProbeTimeout: 5 * time.Second}, linuxProber{port: port}, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -289,7 +289,7 @@ func TestLinuxProberCancellationLeaksNothing(t *testing.T) {
 		} else {
 			time.AfterFunc(5*time.Millisecond, cancel)
 		}
-		if _, err := run(ctx, loopback, Options{MaxHops: 5, ProbeTimeout: 5 * time.Second}, linuxProber{port: port}); err != nil {
+		if _, err := run(ctx, loopback, Options{MaxHops: 5, ProbeTimeout: 5 * time.Second}, linuxProber{port: port}, nil); err != nil {
 			t.Fatalf("cycle %d: %v", i, err)
 		}
 		cancel()

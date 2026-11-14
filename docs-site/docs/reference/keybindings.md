@@ -33,7 +33,7 @@ resource action, and there are no vim-style `hjkl` aliases.
 | `G` | Pull (*get*) | `U` | Login / logout |
 | `X` | Exclude | `R` | MR · PR |
 | `I` | Issues | `Y` | Copy (path, content, MCP connect command) |
-| `H` | Open network diagnostics on this target | `J` | Jump to the related resource — a container's image, in the OCI view |
+| `H` | Open network diagnostics on this target; in Network Diagnostics, trace the path to it | `J` | Jump to the related resource — a container's image, in the OCI view |
 
 `Q` and `Z` are the only free letters left.
 
@@ -69,6 +69,24 @@ See [Remediation](../explanation/scanning.md#remediation).
 
 `space` is Pause/Resume — a control, not a new capital — and `K` greys out
 when there is nothing selected to delete.
+
+## Network Diagnostics — Path tab
+
+| Key | Action |
+|---|---|
+| `enter` | Trace the path to the host typed in the target field, or trace again once a trace is done |
+| `esc` | While a trace runs: cancel it and keep the hops already seen. Once it is done: edit the target again (the value is kept) |
+| `↑` `↓` `PageUp` `PageDown` `Home` `End` | Move in the hop table |
+| `Tab` | Switch tab |
+
+The field takes `host` or `host:port`. Nothing is sent until you press `enter`.
+`enter` is greyed out on a platform that cannot trace (the trace runs on Linux
+only, for now).
+
+From the Diagnostics tab, `H` on the **Local route** row of the results opens
+the Path tab with that target's host already in the field. It does not start a
+trace; press `enter` there. On any other row `H` is greyed out. If a trace is
+already running, `H` only switches to the Path tab.
 
 ## Lowercase — local filters and toggles, view by view
 

@@ -407,17 +407,33 @@ its own resolver isn't covered. The proxy adds no CORS header: it makes nothing
 reachable that wasn't already on the loopback. The proxy binds IPv4 only, and
 browsers on Windows and macOS haven't been measured yet.
 
-## What's deliberately still out of scope
+## The Path tab — `internal/nettrace`
 
-A full traceroute-style hop-by-hop trace was considered and deliberately
-not rebuilt after being removed. Beyond having previously answered for the
-wrong machine (the same VM-namespace problem as everything else on this
-page), reimplementing it properly would have meant solving three genuinely
-unmeasured problems at once: reading ICMP `TIME_EXCEEDED` responses without
-a raw socket across three different operating systems, working around the
-lack of per-packet TTL control in the ICMP library already in use, and
-handling a TCP-based trace mode that needs to observe the ICMP error
-triggered by an outgoing connection attempt. The route stage's "which
-interface, which gateway" answer covers the practical case — diagnosing a
-split-tunnel VPN — that people actually reached for a trace to answer, at a
-tiny fraction of the implementation cost.
+The Path tab shows the hops between this machine and a target, in this
+process: no container, no `traceroute` binary, no privilege. It replaces the
+container trace that was removed because it answered for the Docker VM and not
+for this machine.
+
+- **Linux only, for now.** Elsewhere the tab opens, `enter` is greyed out and
+  refused with `The path trace is not supported on this platform`; nothing is
+  sent.
+- **IPv4 only.** A host name is resolved to its IPv4 address (within
+  `check_timeout`); the first one is traced and shown next to the name in the
+  header. An IPv6 literal is refused.
+- **How it probes.** One UDP datagram per hop, to port 33435, with a growing
+  time-to-live. The router that drops it answers, and the table fills in as the
+  answers come.
+- **The port is not probed.** You may type `host:port`; the port is shown in
+  the header but the probes always go to UDP port 33435.
+- **A silent hop is not a failure.** Many routers do not answer these probes.
+  The row reads `silent` (dim, never red) and the trace goes on. The number of
+  hops that answer can vary from one run to the next.
+- **Nothing is sent before `enter`.** `esc` cancels a running trace and keeps
+  the hops already seen. The header says how a trace ended: `Reached at hop N`,
+  `Reported unreachable at hop N`, `No answer from the target within N hops`,
+  `Stopped after 30 s` or `Canceled`.
+- **From Diagnostics.** On the results, `H` on the **Local route** row opens the
+  Path tab with the host filled in, without starting the trace.
+
+There is no setting for the maximum number of hops (`traceroute_max_hops`
+stays removed): the trace uses the engine's defaults.

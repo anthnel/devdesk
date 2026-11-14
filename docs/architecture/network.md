@@ -819,7 +819,7 @@ verified: a declared exception.
 
 ## Network Diagnostics View
 
-`internal/ui/netdiag/` — four tabs:
+`internal/ui/netdiag/` — five tabs:
 - **Diagnostics tab** (`model.go`): target, port and resolver, then
   `internal/netcheck`'s pipeline — resolve, route, reach, connect, TLS, HTTP —
   chained one stage per message so the footer can name the question being asked.
@@ -837,6 +837,29 @@ verified: a declared exception.
 - **Forward tab** (`forward_model.go`, `forward_form.go`): the port
   redirections, `N` to open one, `space` to pause or resume it and `K` to delete
   it. It holds **no listener** — see `internal/forward` below.
+- **Path tab** (`path_model.go`, `path_view.go`, `path_run.go`,
+  `path_target.go`, `path_from_route.go`; DEVDESK-328): the hop-by-hop path to
+  a target, from `internal/nettrace` (below). It is the fifth and last tab
+  (`tabPath = 4`, `tabCount = 5`). It runs **no container**. Three states:
+  `pathEditing` (the target field has the keyboard), `pathRunning` (field
+  blurred, hops arriving) and `pathDone` (hops kept on screen). The **body is
+  always the hop table** (`PathModel.view()` returns `table.View()`, Rule 139),
+  in every state: columns Hop, Answer, Address, RTT, with a silent hop dim and
+  never red. The **target field is not in the body**: it sits in the footer's
+  bar slot, framed by `components.BarFrame` (`Target › ` + the field,
+  placeholder `hostname or IPv4 address[:port]`). That slot is shown on this
+  tab in every state, so `GetFooterHeight()` is 5 (bar 2, tab row 1, blank
+  line 1, info line 1) and the layout does not move between editing, running
+  and done. The tab keeps its own `FooterMessage`, returned by `activeFooter`,
+  so `WantsBlink()` follows a running trace. `Model.Running()` is true while a
+  trace runs, so the router does not rebuild the view mid-trace.
+
+  Keys: `enter` launches (while editing) or traces again (when done); `esc`
+  cancels a running trace, and returns a finished one to editing with the
+  value kept; `tab` switches tab; `up`, `down`, `pgup`, `pgdown`, `home` and
+  `end` move in the table in every state. While editing, `esc`, `tab` and
+  `shift+tab` do nothing in the field. A paste reaches the field only while
+  editing (Rule 111). A changed field value clears the persistent error.
 
 **Ports tab, terminal blurred (DEVDESK-210).** `PortsModel.unfocused` is set by
 `shared.TerminalFocusMsg`, which `netdiag.Model.Update` forwards to the ports
@@ -881,7 +904,11 @@ always `Idle` and an idle row shows an empty cell (a socket has no rest icon).
 - **A failed network test is not a row operation.** The Diagnostics table keeps
   its result in the Verdict column; no `⊗` was added (open question 4 of the
   activity-indicator stories, option A). The Diagnostics and Interfaces tables
-  have no `Indicator`.
+  have no `Indicator`; neither does the Path tab's hop table (DEVDESK-328): a
+  trace is one run, not a per-row operation, and its running state is the
+  footer's shared dot. The Path files `path_model.go`, `path_target.go` and
+  `path_view.go` are in the activity guard's scanned sources for
+  `command.ViewNetdiag`; `path_run.go`, which holds the I/O, is not.
 - **Files.** `ports_activity.go` (`ActivityTables()` reports `netdiag/ports`,
   `WantsBlink()`); `ports_commands.go` holds the I/O commands (`fetchPortsCmd`,
   `portsTickCmd`, `killProcessCmd`) and `NewPortsDataMsg`, which the activity
@@ -926,9 +953,23 @@ what a producer elsewhere sends to ask the router for one (mirroring
 back out, via `Model.OriginView` — empty when netdiag was opened directly
 from the command line, in which case `esc` behaves exactly as it always has.
 `status`'s `H` (`keymap.Diagnose`, `internal/ui/status/diagnostics.go`) is
-the first and only producer: it resolves the selected monitor's target and
+the first producer: it resolves the selected monitor's target and
 auto-runs the pipeline when the port is certain (http/https/ssl), or lands on
 the prefilled form when it is a guess (icmp/dns).
+
+`H` has a **second producer, inside netdiag** (DEVDESK-328,
+`path_from_route.go`): on the Diagnostics results, with the **Local route** row
+(`netcheck.CheckRoute`) selected, it switches to the Path tab and fills the
+target field with the results' host. It **prefills and never launches**:
+nothing is resolved or sent until `enter` on the Path tab. Only the host is
+carried over, not the port (the route check does not depend on one).
+`pathFromRoute()` is the one availability read by the header (the entry
+`H Trace the path` is greyed off the route row, Rule 130) and by the handler,
+which otherwise warns `Select the Local route row to trace its path`. If a
+trace is already running, `H` switches to the Path tab, leaves the field
+alone and warns `A path trace is already running — esc cancels it` on the Path
+footer. `PathModel.prefill` puts the tab back in editing with the hops, the
+outcome and the error cleared.
 
 **What is configurable, and what is not.** `internal/netcheck` held its timeouts
 as constants with a comment saying they would become settings when somebody
@@ -950,7 +991,8 @@ instead of 5, which the staged progress line makes legible rather than a hang.
 `traceroute_max_hops` was a sixth setting and went with the trace it bounded
 (§3.47). It stays removed: the trace is back in the process (DEVDESK-327, see
 [The path trace](#the-path-trace--internalnettrace)), but `nettrace.Options.MaxHops`
-is not wired to any setting.
+is not wired to any setting, and the Path tab (DEVDESK-328) still traces with
+the engine's defaults (`nettrace.Options{}`).
 
 Two things stay hardcoded, each for a reason:
 
@@ -1036,6 +1078,25 @@ prober) maps to `ErrUnsupported`, a `connect` failure with `ENETUNREACH` or
 `EHOSTUNREACH` to `ErrNoRoute`, and nothing is emitted. All probes then leave at
 once, not spread out (D143).
 
+**Streaming: `TraceEach`** (DEVDESK-328).
+`TraceEach(ctx, target, opts, onHop func(Hop)) (Result, error)` is `Trace` that
+also hands each hop to `onHop` as it resolves; `Trace` is `TraceEach` with a
+nil callback, and the `Result` is the same. The callback is an argument rather
+than an `Options` field. Contract:
+
+- It is called from the goroutine that called `TraceEach`, **one call at a
+  time**, so a plain slice needs no lock.
+- Hops arrive **in answer order, not TTL order**.
+- **Never for an unresolved hop** (`HopUnresolved`), **never after `TraceEach`
+  has returned**, and never for a target refused before any probe (a
+  validation or open error returns with no call).
+- It must not block.
+- **A hop above the terminal one may be reported** while the terminal is still
+  unknown. `Result.Hops` is cut at the terminal hop as before, so the caller
+  reconciles: the Path tab shows `visiblePathHops` while streaming (sorted by
+  TTL, unresolved dropped, everything after the first target or unreachable
+  hop cut) and replaces its hops with `Result.Hops` at the end.
+
 **The result.** `Trace(ctx, target, Options) (Result, error)`. The target is
 unmapped first (`::ffff:a.b.c.d` becomes IPv4); any other IPv6 address gets
 `ErrNotIPv4`, and `0.0.0.0`, multicast and `255.255.255.255` get
@@ -1082,9 +1143,78 @@ label, never that text, in a summary.
 - **The duration is about `ProbeTimeout` (3 s by default)** as soon as one hop
   before the target is silent, because the trace completes only when every TTL
   up to the terminal one is resolved.
-- **`Supported()` is not wired to the UI yet**: no view calls `nettrace` so far,
-  and `Options.MaxHops` is not tied to the configuration (`traceroute_max_hops`
+- **`Options.MaxHops` is not tied to the configuration** (`traceroute_max_hops`
   stays removed).
+- **The optional port has no effect on the probes.** The probes are UDP to the
+  fixed port 33435 (`defaultProbePort`, not exposed). See "The Path tab" below.
+
+**`Supported()` and the Path tab.** The Path tab calls `Supported()` as a launch
+guard (`PathModel.launchable()`): where it returns an error, `enter` is greyed
+out in the header and refused with a footer warning
+`The path trace is not supported on this platform`; nothing is resolved or sent.
+The tab is still reachable on those platforms.
+
+## The Path tab — streaming, cancellation, resolution
+
+How `internal/ui/netdiag` drives `nettrace` (DEVDESK-328).
+
+**Streaming.** `launch` (called from `Update`) creates the run's context, a
+buffered `chan tea.Msg` and the launch Cmd: a batch of the producer
+(`producePath`, which does the I/O and touches no model, Rule 110) and
+`waitForPathMsg(ch)`. The producer sends three kinds of message, each tagged
+with the run's generation: `pathResolvedMsg` (the address), `pathHopMsg` (one
+per `onHop` call) and `pathDoneMsg` (the `Result` or an error), then closes the
+channel. `Update` re-arms `waitForPathMsg` after every resolved or hop message;
+the done message is the last and is not re-armed. The three messages reach the
+Path sub-model whichever tab is on screen.
+
+- **Capacity 32** (`pathChanCap = nettrace.MaxHopsLimit + 2`): the resolved
+  message, at most one hop per TTL (30) and the done message. The producer
+  therefore never blocks on a reader. Sends of the resolved and hop messages
+  are non-blocking. **The done message is never lost**: if the channel is
+  full, `sendDone` drops the oldest queued message to make room.
+- **Generation.** `PathModel.gen` is bumped on each launch and on a cancel. A
+  message whose `gen` differs is dropped and not re-armed, so the late messages
+  of a canceled run change nothing.
+- **Cancellation.** The model holds the run's `context.CancelFunc`; it is called
+  **from `Update` only** (`releaseRun`, on `esc` while running, on the next
+  launch, and when the done message arrives, which releases the context). `esc`
+  answers at once: the state becomes `pathDone`, the outcome `Canceled`, the
+  hops already seen stay on screen. The engine stops on its context; the view
+  stops reading and nothing is drained, so no goroutine is left blocked on the
+  channel.
+
+**Resolution is the view's job, not `nettrace`'s**, which stays address-only. A
+literal IPv4 is used as is. A name is resolved with
+`net.DefaultResolver.LookupNetIP(ctx, "ip4", host)` under its own timeout, the
+context's `network.check_timeout` (`netcheck.Settings.Normalized().CheckTimeout`,
+read when the view is built; the tab falls back to 5 s
+(`defaultPathResolveTimeout`) otherwise). The **first IPv4 address** is traced,
+and the header's `Target` field shows it after the name. A literal IPv6 target
+(brackets or several colons) is refused before launch with the footer error
+`Only IPv4 targets are supported by the path trace`.
+
+**Errors become fixed labels.** `pathErrorLabel` maps the sentinels (matched
+with `errors.Is`, wrapped errors included) to US English sentences:
+a resolution failure to `Could not resolve <host> — no probe was sent`, no
+IPv4 answer to `<host> has no IPv4 address — the path trace is IPv4 only`,
+`ErrNotIPv4`, `ErrNotUnicast`, `ErrNoRoute` (`No route to <host> from this
+machine — no probe was sent`) and `ErrUnsupported` to their own sentence, and
+anything else to `The path trace failed — check logs`. The raw error text
+(errno, resolver message, in the machine's language) goes to the log only
+(`ERROR [netdiag/path] resolve|trace <host>: …`). An error returns the tab to
+`pathEditing` with the field focused, the hops cleared and the label shown as a
+persistent error (level Error) until the field changes or the next launch. How
+a successful trace ended is the header's `Path` field (`pathOutcomeLabel`:
+`Reached at hop N`, `Reported unreachable at hop N`,
+`No answer from the target within N hops`, `Stopped after 30 s`, `Canceled`).
+
+**The port is accepted and shown, not probed.** The field takes `host` or
+`host:port` (1 to 65535). The port is kept in `pathTarget.Port` and shown in
+the header's `Target` field, but the probes are UDP to port 33435 whatever it
+says; the `?` help's "How it works" section says the same.
+`traceroute_max_hops` is still not a
+setting: the trace uses `nettrace.Options{}`.
 
 **Testing.** The engine is tested against a fake `prober`; the Linux prober has
 loopback integration tests. A real trace to `1.1.1.1` is opt-in and never runs in

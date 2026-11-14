@@ -176,6 +176,18 @@ func Supported() error {
 // messages): match the sentinels with errors.Is and show fixed labels, never
 // that text in a summary.
 func Trace(ctx context.Context, target netip.Addr, opts Options) (Result, error) {
+	return TraceEach(ctx, target, opts, nil)
+}
+
+// TraceEach is Trace that also streams each hop as it resolves. onHop may be
+// nil. It is called once per resolved hop (never for an unresolved one), one
+// call at a time, from the goroutine that called TraceEach, and never after
+// TraceEach has returned or for a target refused before any probe. Hops
+// arrive in answer order, not TTL order. A hop above the terminal TTL may be
+// reported while the terminal is still unknown; the Result is cut at the
+// terminal hop, so the caller reconciles with it. The Result is the same as
+// Trace's.
+func TraceEach(ctx context.Context, target netip.Addr, opts Options, onHop func(Hop)) (Result, error) {
 	if err := supported(); err != nil {
 		return Result{}, err
 	}
@@ -186,5 +198,5 @@ func Trace(ctx context.Context, target netip.Addr, opts Options) (Result, error)
 	if target.IsUnspecified() || target.IsMulticast() || target == netip.AddrFrom4([4]byte{255, 255, 255, 255}) {
 		return Result{}, ErrNotUnicast
 	}
-	return run(ctx, target, opts, systemProber())
+	return run(ctx, target, opts, systemProber(), onHop)
 }

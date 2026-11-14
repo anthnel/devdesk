@@ -719,6 +719,24 @@ used as progress titles, and `Failed to <verb>`, which explorer, templates and
 `app/context.go` still write themselves. Their migration stories move them to
 `FailureEvent`, and the ban can be added then.
 
+## The footer's bar slot — `components.BarFrame`
+
+`components.BarFrame(width, inner)` draws one line of already-styled content
+inside the two-line rectangle that closes the viewport's bottom border, and
+pads it to the width between the sides, so a caller measures nothing. It is the
+only implementation of that frame (Rule 136). Its callers:
+
+- `FilterBar.View()` — the table filter bar;
+- the viewer's go-to-line prompt (`g`, `internal/ui/viewer/goto.go`);
+- the workspaces fuzzy finder (`internal/ui/fuzzy/finder.go`);
+- the Path tab's target field in `netdiag` (DEVDESK-328): `Target › ` plus a
+  `textinput`, from `PathModel.barView`. This is the newest occupant.
+
+Only one occupant uses the slot at a time on a given screen. The others
+appear on demand; the Path bar is shown on that tab in every state, so the
+tab's footer height is constant (5, `pathFooterHeight`) and nothing moves
+whichever state the tab is in.
+
 ## Invalid form fields (DEVDESK-292, Rule 140)
 
 A form field that fails validation is underlined in wavy red, and the error
