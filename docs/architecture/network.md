@@ -44,7 +44,7 @@ Two things about the engine are worth knowing before changing this code:
   offsets taken from its header line, and there is no `--format` that exposes
   per-image unique size.
 
-- `internal/docker/netdiag.go` — **gone**. §3.33 took the five probes that did not need a container, §3.43 the ports table, §3.44 the topology (and with it `docker/topology.go` and the last `--privileged`), §3.47 the route trace and the file itself. §3.61 removed the OCI connectivity test, and with it the last container this application runs for a diagnostic: `networks.go` now holds only `ListNetworks`, `CreateNetwork`, `RemoveNetwork`, `PruneNetworks` and `InspectNetwork`.
+- `internal/docker/netdiag.go` — **gone**. §3.33 took the five probes that did not need a container, §3.43 the ports table, §3.44 the topology (and with it `docker/topology.go` and the last `--privileged`), §3.47 the route trace and the file itself (the trace came back in the process as `internal/nettrace`, DEVDESK-327). §3.61 removed the OCI connectivity test, and with it the last container this application runs for a diagnostic: `networks.go` now holds only `ListNetworks`, `CreateNetwork`, `RemoveNetwork`, `PruneNetworks` and `InspectNetwork`.
 
 ## OCI registries — `internal/oci`
 
@@ -948,7 +948,9 @@ cost is stated rather than discovered: an unreachable host now spends 8 s on DNS
 instead of 5, which the staged progress line makes legible rather than a hang.
 
 `traceroute_max_hops` was a sixth setting and went with the trace it bounded
-(§3.47).
+(§3.47). It stays removed: the trace is back in the process (DEVDESK-327, see
+[The path trace](#the-path-trace--internalnettrace)), but `nettrace.Options.MaxHops`
+is not wired to any setting.
 
 Two things stay hardcoded, each for a reason:
 
@@ -970,7 +972,8 @@ halfway down the pipeline.
 
 Every probe here answers from the DevDesk process. The route trace was the one
 exception and §3.47 removed it: `--network host` on Docker Desktop is the VM's
-namespace, so it traced a path from somewhere else. Nothing shells out.
+namespace, so it traced a path from somewhere else. It is back, in the process,
+since DEVDESK-327 (`internal/nettrace`, below). Nothing shells out.
 
 **The `route` stage answers the question no other check can** (§3.44): when a
 VPN captures the default route, a host that is plainly reachable elsewhere is
@@ -1002,6 +1005,91 @@ Four decisions, each with a test:
   two could diverge and the route would describe an address no other check in the
   run ever touched. `TestTheRouteStageReadsWhatTheResolveStageWrote` pins the
   coupling, which is otherwise the kind that breaks in silence.
+
+## The path trace — `internal/nettrace`
+
+The hop-by-hop path to an IPv4 target (DEVDESK-327, S-03a). It came back after
+§3.47 deleted the container trace, and it fixes what failed there: it runs **in
+the DevDesk process**, so the hops are this machine's. No container, no external
+binary (the package never starts a child process; a source guard test enforces
+it), no privilege. The spikes measured it unprivileged (uid 1000, no capability)
+on native Linux and on WSL2 in NAT and mirrored modes
+(`docs/product/network-map/{feasibility,spike-linux,spike-wsl}.md`).
+
+**Linux only.** `Supported()` returns `nil` on Linux and `ErrUnsupported`
+elsewhere (`trace_other.go`); `Trace` returns `ErrUnsupported` there and sends
+nothing. `golang.org/x/sys` is a direct dependency for the socket calls.
+
+**One connected UDP socket per TTL.** Each socket is connected to the target
+(port 33435), gets `IP_TTL` set to its hop number and `IP_RECVERR` enabled, and
+sends one datagram. The kernel queues the ICMP answer on the socket's error
+queue; `await` reads it with `recvmsg(MSG_ERRQUEUE)` through `RawConn.Read`
+(the netpoller, no sleep loop) and `decodeExtendedErr` decodes it. A connected
+socket with an ephemeral source port means an ICMP message forged off the path
+can skew what is shown, not make the trace read something else.
+
+**Two phases** (`engine.go`). `run` first opens all N sockets, in the caller's
+goroutine; only then does one goroutine per TTL send and wait, in parallel. So
+"not supported" or "no route" is found before any packet leaves: a refused
+socket option (`ENOPROTOOPT`, `EOPNOTSUPP`, and `EPERM`/`EACCES` from the system
+prober) maps to `ErrUnsupported`, a `connect` failure with `ENETUNREACH` or
+`EHOSTUNREACH` to `ErrNoRoute`, and nothing is emitted. All probes then leave at
+once, not spread out (D143).
+
+**The result.** `Trace(ctx, target, Options) (Result, error)`. The target is
+unmapped first (`::ffff:a.b.c.d` becomes IPv4); any other IPv6 address gets
+`ErrNotIPv4`, and `0.0.0.0`, multicast and `255.255.255.255` get
+`ErrNotUnicast`. Loopback and private targets are allowed: the caller decides at
+its own boundary. Read `Result` only when the error is nil, because the zero
+`Result` and the zero `Outcome` (`OutcomeReached`) mean "no trace".
+
+| `Outcome` | Meaning |
+|---|---|
+| `OutcomeReached` | The target answered (Port Unreachable from the target itself, `HopTarget`). |
+| `OutcomeUnreachable` | A router reported the target unreachable (`HopUnreachable`). It ends the trace, like a reached target. |
+| `OutcomeMaxHops` | `MaxHops` (at most 30) exhausted without an answer from the target. |
+| `OutcomeDeadline` | The whole-trace deadline (at most 30 s) expired. |
+| `OutcomeCancelled` | The caller's context was canceled. |
+
+`Hops` has a **stable shape**: entries in TTL order, `Hops[i].TTL == i+1`. It is
+cut at the terminal hop (target reached or refused), or holds one entry per TTL
+up to `MaxHops`. When the deadline or a cancellation ends the trace first it
+holds exactly `MaxHops` entries, and every probe that did not resolve is a
+`HopUnresolved`, even above a terminal hop already known. `HopKind` is
+`silent`, `router`, `target`, `unreachable`, `unresolved` or `error`.
+
+**A silent hop is not a failure.** Many routers do not answer expired probes; a
+`HopSilent` in the middle of the path says nothing about the hops after it, and
+a later TTL can still answer or reach the target. The probes are independent, so
+the trace never stops at a silent hop.
+
+**Errors.** Match the sentinels `ErrUnsupported`, `ErrNotIPv4`, `ErrNotUnicast`
+and `ErrNoRoute` with `errors.Is`. The errors `Trace` returns and `Hop.Err` carry
+the raw platform text (errno messages, in the machine's language): show a fixed
+label, never that text, in a summary.
+
+**Known limits**, measured and not fixed:
+
+- **The number of hops that answer varies from one run to the next**, and so
+  does the TTL at which the target answers (6 to 10 hops with an address to
+  `1.1.1.1` in the native Linux spike; also observed on WSL2 NAT and on native
+  Linux, sometimes with silent TTLs before the target). The cause is an
+  **unverified hypothesis**: ICMP rate limiting by routers. A timing defect of
+  the prober is not ruled out. The lowest TTL that reached the target is not the
+  real hop count.
+- **A multi-homed target** that answers Port Unreachable from another of its
+  addresses is classified `HopUnreachable`, not reached (`classify`).
+- **The duration is about `ProbeTimeout` (3 s by default)** as soon as one hop
+  before the target is silent, because the trace completes only when every TTL
+  up to the terminal one is resolved.
+- **`Supported()` is not wired to the UI yet**: no view calls `nettrace` so far,
+  and `Options.MaxHops` is not tied to the configuration (`traceroute_max_hops`
+  stays removed).
+
+**Testing.** The engine is tested against a fake `prober`; the Linux prober has
+loopback integration tests. A real trace to `1.1.1.1` is opt-in and never runs in
+CI: `DEVDESK_NETTRACE_LIVE=1 go test -run TestLiveTraceToCloudflare -v ./internal/nettrace`
+(Linux, needs the internet).
 
 ## The socket table — `internal/ports`
 
@@ -1090,7 +1178,9 @@ brought DNS, ICMP, TCP, TLS and HTTP into the process, §3.43 the socket table,
 the checkable form of "DevDesk never claims to answer for a machine that is not
 yours", and it closes **D57**.
 
-**The route trace was deleted rather than rewritten**, and the reasons are worth
+**The route trace was deleted rather than rewritten** (it came back in the
+process with DEVDESK-327, see [The path trace](#the-path-trace--internalnettrace);
+what follows is the history of §3.47), and the reasons are worth
 keeping because they are the shape of the decision, not of this feature:
 
 - it answered for the **wrong machine** — `--network host` traced from the Docker

@@ -448,8 +448,8 @@ that touches the network, and a listing that quietly asked reverse DNS for every
 peer it found would be a second.
 
 **`net_check` and `monitors_status` are the two tools that touch the network, and neither runs a
-container** — the pipeline is pure Go, and the route trace, DevDesk's one probe
-that shells out, is not part of it. Its dials come from `network:` rather than
+container** — the pipeline is pure Go, and the route trace (removed in §3.47, back
+in the process as `internal/nettrace` with DEVDESK-327) is not part of it. Its dials come from `network:` rather than
 from a tool argument: a caller that could override them could make the server
 hammer a host or hang on one. The context passed to the probes is the client's,
 so cancelling the call stops them.

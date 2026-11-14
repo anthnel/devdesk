@@ -91,7 +91,7 @@ touching, and update it in the same commit as the code.
 | [`viewer.md`](../docs/architecture/viewer.md) | `internal/viewer` + `internal/ui/viewer` — kinds, displays, colouring, search, follow |
 | [`scanning.md`](../docs/architecture/scanning.md) | Trivy, Gitleaks, plumber, `scan.Categorize`, the `:sec` inventory, the two scan caches, image signatures (`internal/trust`, the cosign verifier) |
 | [`registries.md`](../docs/architecture/registries.md) | the registry/group model and the discovered-members cache |
-| [`network.md`](../docs/architecture/network.md) | `internal/docker` and `internal/oci` (typed `StatusError`, `...Context` variants), `internal/imagesearch` and the registry browser's image search level, image updates (`internal/imageupdate`, the Update column), verified pulls (`internal/imagepull`), the netdiag view, `internal/ports`, `internal/netiface` |
+| [`network.md`](../docs/architecture/network.md) | `internal/docker` and `internal/oci` (typed `StatusError`, `...Context` variants), `internal/imagesearch` and the registry browser's image search level, image updates (`internal/imageupdate`, the Update column), verified pulls (`internal/imagepull`), the netdiag view, `internal/ports`, `internal/netiface`, `internal/nettrace` (the path trace: unprivileged UDP + `IP_RECVERR`, Linux only) |
 | [`mcp.md`](../docs/architecture/mcp.md) | the MCP server the TUI serves over HTTP |
 | [`templates.md`](../docs/architecture/templates.md) | `internal/template` + `internal/ui/templates` — the repository-template catalog, its three sources, how files are fetched, and the `:templates` view |
 | [`ui-components.md`](../docs/architecture/ui-components.md) | `components.FooterMessage`, `internal/ui/datatable`, and the activity indicator column (`internal/ui/indicator`, `datatable.IndicatorColumn`, the row sentences `components.DescribeRow`) |
@@ -229,6 +229,7 @@ Go 1.27 (`go 1.27.3` in `go.mod`). Key libraries (versions as in `go.mod`):
 - `github.com/prometheus-community/pro-bing` - ICMP ping functionality (maintained fork of go-ping/ping)
 - `github.com/google/go-github/v68` - GitHub API client (§3.6)
 - `github.com/libp2p/go-netroute` - which interface a destination leaves by, on all three platforms (§3.44)
+- `golang.org/x/sys` - direct (Rule 303): the socket calls of `internal/nettrace` (`IP_TTL`, `IP_RECVERR`, `recvmsg` on the error queue)
 - `github.com/zalando/go-keyring` - host secret manager (wincred / Keychain / Secret Service), no cgo
 - `gopkg.in/yaml.v3` - YAML configuration
 
