@@ -21,8 +21,8 @@ const maxCatalogPage = 1 << 20
 // pages. truncated is true when the walk stopped with names left: page cap
 // reached with a next link, more than maxPages*pageSize names, or a next link
 // to another origin (never followed: the Basic credentials and the token are
-// not sent to it). That guard covers the next link only: HTTP 3xx redirects
-// follow registryHTTPClient's behavior, not hardened, as for tags.
+// not sent to it). HTTP 3xx redirects follow registryHTTPClient, which refuses
+// off-origin ones (refuseOffOriginRedirect, DEVDESK-410).
 // Authentication is the tag flow's (Basic, then Bearer on a challenge, token
 // kept across pages); a non-200 answer is a *StatusError.
 func ListCatalogContext(ctx context.Context, apiURL, username, password string, maxPages, pageSize int) (names []string, truncated bool, err error) {

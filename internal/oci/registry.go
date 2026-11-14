@@ -3,6 +3,7 @@ package oci
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -13,7 +14,49 @@ import (
 
 // registryHTTPClient is swapped by tests that must reach a stand-in for a
 // registry by another address.
-var registryHTTPClient = &http.Client{Timeout: 15 * time.Second}
+var registryHTTPClient = &http.Client{
+	Timeout:       15 * time.Second,
+	CheckRedirect: refuseOffOriginRedirect,
+}
+
+// maxRedirects is net/http's default limit, kept now that CheckRedirect is set.
+const maxRedirects = 10
+
+// refuseOffOriginRedirect keeps credentials on the origin they were meant for.
+// It compares with the initial request (via[0]), not only the previous hop, so
+// a chain that leaves the origin and comes back is refused too. The redirect is
+// refused rather than followed without Authorization: a registry that moves
+// content to another host is misconfigured for this client, and an explicit
+// error is safer than a silent anonymous retry.
+func refuseOffOriginRedirect(req *http.Request, via []*http.Request) error {
+	if len(via) >= maxRedirects {
+		return fmt.Errorf("stopped after %d redirects", maxRedirects)
+	}
+	if !sameOrigin(via[0].URL.String(), req.URL.String()) {
+		return fmt.Errorf("%w (%s)", errOffOriginRedirect, req.URL.Host)
+	}
+	return nil
+}
+
+// errOffOriginRedirect is the refusal refuseOffOriginRedirect returns.
+var errOffOriginRedirect = errors.New("refusing redirect to another origin")
+
+// ErrTagsNextOffOrigin is returned by ListRegistryTagsContext when a page's
+// Link rel="next" points to another origin. The list is not returned partial:
+// a short list would pass for the whole one.
+var ErrTagsNextOffOrigin = errors.New("tag list continues on another origin")
+
+// redirectRefusal strips the target URL from a refused redirect. net/http wraps
+// the refusal in a *url.Error carrying the full target URL, which may hold a
+// signed query; only the meaning and the host (kept by the refusal itself)
+// remain. Other errors pass through unchanged.
+func redirectRefusal(err error) error {
+	var ue *url.Error
+	if errors.As(err, &ue) && errors.Is(ue.Err, errOffOriginRedirect) {
+		return ue.Err
+	}
+	return err
+}
 
 const (
 	// maxTagPages bounds how many pages of a tag list are followed. A registry
@@ -24,6 +67,9 @@ const (
 	// response when no page size is given — measured at 9 125 tags for
 	// library/node (§3.2) — so the bound is generous, but it is a bound.
 	maxTagResponse = 32 << 20
+	// maxTokenResponse bounds a Bearer token endpoint's answer; a token is a
+	// few KiB, so a larger body is an error, not a silent cut.
+	maxTokenResponse = 1 << 20
 )
 
 // StatusSource says which endpoint answered with a non-success status.
@@ -105,7 +151,12 @@ func ListRegistryTagsContext(ctx context.Context, apiURL, repo, username, passwo
 			return nil, fmt.Errorf("decode tags response: %w", err)
 		}
 		tags = append(tags, result.Tags...)
-		next = resolveNext(next, link)
+		current := next
+		if next = resolveNext(current, link); next != "" && !sameOrigin(current, next) {
+			// Never send credentials to another origin, and never pass a
+			// partial list off as the whole one. Only the host is named.
+			return nil, fmt.Errorf("%w (%s)", ErrTagsNextOffOrigin, hostOf(next))
+		}
 	}
 	return tags, nil
 }
@@ -184,7 +235,7 @@ func doRequestContext(ctx context.Context, method, rawURL, accept, username, pas
 	}
 	resp, err := registryHTTPClient.Do(req)
 	if err != nil {
-		return nil, fmt.Errorf("%s %s: %w", method, rawURL, err)
+		return nil, fmt.Errorf("%s %s: %w", method, rawURL, redirectRefusal(err))
 	}
 	return resp, nil
 }
@@ -233,6 +284,15 @@ func RegistryAPIBase(registry string) string {
 		return "http://" + registry
 	}
 	return "https://" + registry
+}
+
+// hostOf is the host of rawURL, or "" when it does not parse.
+func hostOf(rawURL string) string {
+	u, err := url.Parse(rawURL)
+	if err != nil {
+		return ""
+	}
+	return u.Host
 }
 
 // resolveNext is the URL a Link header's rel="next" points to, resolved against
@@ -295,15 +355,18 @@ func exchangeBearerTokenContext(ctx context.Context, challenge, username, passwo
 	}
 	resp, err := registryHTTPClient.Do(req)
 	if err != nil {
-		return "", fmt.Errorf("fetch token: %w", err)
+		return "", fmt.Errorf("fetch token: %w", redirectRefusal(err))
 	}
 	defer func() { _ = resp.Body.Close() }()
 	if resp.StatusCode != http.StatusOK {
 		return "", &StatusError{Code: resp.StatusCode, Source: SourceToken}
 	}
-	body, err := io.ReadAll(resp.Body)
+	body, err := io.ReadAll(io.LimitReader(resp.Body, maxTokenResponse+1))
 	if err != nil {
 		return "", fmt.Errorf("read token response: %w", err)
+	}
+	if len(body) > maxTokenResponse {
+		return "", fmt.Errorf("token response over %d bytes", maxTokenResponse)
 	}
 	var result struct {
 		Token       string `json:"token"`
