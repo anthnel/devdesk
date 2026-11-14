@@ -36,6 +36,8 @@ func (m *Model) Render() string {
 		return m.portsModel.view()
 	case tabInterfaces:
 		return m.interfacesModel.view()
+	case tabPath:
+		return m.pathModel.view()
 	case tabForward:
 		// The stop confirmation is centred over the tab, like every other
 		// modal (Rule 112).

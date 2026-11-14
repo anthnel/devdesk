@@ -30,7 +30,9 @@ func (m *Model) Init() tea.Cmd {
 // Running reports whether a diagnostic is walking its stages now, which is what
 // the router asks before it would rebuild the view: dropping it mid-run would
 // discard the run without a word.
-func (m *Model) Running() bool { return m.state == StateRunning }
+//
+// A path trace counts too, even from another tab: it goes on there.
+func (m *Model) Running() bool { return m.state == StateRunning || m.pathModel.running() }
 
 // InEditMode implements FormView — true when a text input is active, so the
 // router hands the key to the field rather than opening the command line.
@@ -45,6 +47,8 @@ func (m *Model) InEditMode() bool {
 		return m.interfacesModel.InEditMode()
 	case tabForward:
 		return m.forwardModel.InEditMode()
+	case tabPath:
+		return m.pathModel.InEditMode()
 	}
 	if m.filterBar.InEditMode() {
 		return true
@@ -79,6 +83,7 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.portsModel.resize(msg.Width, msg.Height)
 		m.interfacesModel.resize(msg.Width, msg.Height)
 		m.forwardModel.resize(msg.Width, msg.Height)
+		m.pathModel.resize(msg.Width, msg.Height)
 		return m, nil
 
 	// The router's animation frame: the blink phase of the Ports dot and of the
@@ -88,6 +93,7 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.portsModel.table.SetBlinkPhase(msg.Blink)
 		m.footer.SetBlinkPhase(msg.Blink)
 		m.interfacesModel.footer.SetBlinkPhase(msg.Blink)
+		m.pathModel.footer.SetBlinkPhase(msg.Blink)
 		return m, nil
 
 	case stageDoneMsg:
@@ -120,6 +126,13 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.forwardModel, cmd = m.forwardModel.update(msg)
 		return m, cmd
 
+	// Path sub-model messages: a trace goes on, and its hops keep arriving,
+	// whichever tab is on screen.
+	case pathResolvedMsg, pathHopMsg, pathDoneMsg:
+		var cmd tea.Cmd
+		m.pathModel, cmd = m.pathModel.update(msg)
+		return m, cmd
+
 	// Topology sub-model messages
 	case ifaceDataMsg:
 		var cmd tea.Cmd
@@ -134,12 +147,15 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	}
 
 	// Each tab holds its own footer, so an expiry has to be offered to all
-	// four: the timer fires wherever the user has since navigated.
+	// five: the timer fires wherever the user has since navigated. The Path tab
+	// also takes the cursor blink of its field.
 	m.footer.Handle(msg)
 	m.portsModel.footer.Handle(msg)
 	m.interfacesModel.footer.Handle(msg)
 	m.forwardModel.footer.Handle(msg)
-	return m, nil
+	var cmd tea.Cmd
+	m.pathModel, cmd = m.pathModel.update(msg)
+	return m, cmd
 }
 
 // routeConfirm hands a confirmation answer to the tab that put the modal up.
@@ -196,6 +212,8 @@ func (m *Model) handlePaste(msg tea.PasteMsg) (*Model, tea.Cmd) {
 		m.interfacesModel, cmd = m.interfacesModel.update(msg)
 	case tabForward:
 		m.forwardModel, cmd = m.forwardModel.update(msg)
+	case tabPath:
+		m.pathModel, cmd = m.pathModel.update(msg)
 	default:
 		switch {
 		case m.filterBar.InEditMode():
@@ -218,7 +236,7 @@ func (m *Model) handleKey(msg tea.KeyPressMsg) (*Model, tea.Cmd) {
 		return m, cmd
 	}
 
-	// Tab / Shift+Tab cycles between the three tabs (Rule 135)
+	// Tab / Shift+Tab cycles between the tabs (Rule 135)
 	switch msg.String() {
 	case "tab":
 		m.activeTab = (m.activeTab + 1) % tabCount
@@ -242,6 +260,11 @@ func (m *Model) handleKey(msg tea.KeyPressMsg) (*Model, tea.Cmd) {
 	if m.activeTab == tabForward {
 		var cmd tea.Cmd
 		m.forwardModel, cmd = m.forwardModel.update(msg)
+		return m, cmd
+	}
+	if m.activeTab == tabPath {
+		var cmd tea.Cmd
+		m.pathModel, cmd = m.pathModel.update(msg)
 		return m, cmd
 	}
 
@@ -348,6 +371,8 @@ func (m *Model) handleKeyResults(msg tea.KeyPressMsg) (*Model, tea.Cmd) {
 		m.filterBar.SetTokenActive(problemsToken, !m.filterBar.IsTokenActive(problemsToken))
 		m.rebuildChecksTable()
 		return m, nil
+	case keymap.Diagnose:
+		return m.tracePathFromRoute()
 	case keymap.New:
 		// Always resets to the form, regardless of OriginView — the one way
 		// to run a wholly new diagnostic without first leaving to wherever

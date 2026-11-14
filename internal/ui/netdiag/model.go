@@ -35,8 +35,9 @@ const (
 	tabPorts       = 1
 	tabInterfaces  = 2
 	tabForward     = 3
+	tabPath        = 4
 
-	tabCount = 4
+	tabCount = 5
 )
 
 // Form field indices.
@@ -79,11 +80,12 @@ type Model struct {
 	width  int
 	height int
 
-	// Active tab (tabDiagnostics, tabPorts, tabInterfaces or tabForward)
+	// Active tab (tabDiagnostics, tabPorts, tabInterfaces, tabForward or tabPath)
 	activeTab       int
 	portsModel      *PortsModel
 	interfacesModel *InterfacesModel
 	forwardModel    *ForwardModel
+	pathModel       *PathModel
 
 	state ViewState
 
@@ -139,7 +141,7 @@ func New(cfg *config.Config) *Model {
 	dnsIn.Placeholder = "system resolver"
 	dnsIn.CharLimit = 64
 
-	return &Model{
+	m := &Model{
 		config:          cfg,
 		state:           StateInput,
 		activeTab:       tabDiagnostics,
@@ -159,6 +161,9 @@ func New(cfg *config.Config) *Model {
 			SortColumn: -1,
 		}),
 	}
+	m.pathModel = newPathModel(systemPathEngine())
+	m.pathModel.resolveTimeout = m.checkSettings().Normalized().CheckTimeout
+	return m
 }
 
 // NewWithTarget builds a view prefilled from an already-known target, for a
