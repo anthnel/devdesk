@@ -1,0 +1,15 @@
+{
+  "tool_use_id": "toolu_01M28byxFvFV5FpvV1Y4LpVK",
+  "agent_id": "a8243b336b2e307ff",
+  "subagent_type": "dev-team:reviewer",
+  "task_description": "Revue étape 4 prober Linux",
+  "token_usage": {
+    "input_tokens": 17,
+    "cache_creation_tokens": 101384,
+    "cache_read_tokens": 541707,
+    "output_tokens": 14222,
+    "api_call_count": 8
+  },
+  "started_at": "2026-11-14T10:28:46.2183283+01:00",
+  "completed_at": "2026-11-14T10:31:57.8590903+01:00"
+}

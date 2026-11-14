@@ -1,0 +1,15 @@
+{
+  "tool_use_id": "toolu_019DYBsjjX3dCPWbyGGLo6Z7",
+  "agent_id": "a9dbde5d8a6f9f1b2",
+  "subagent_type": "dev-team:security-reviewer",
+  "task_description": "Audit sécurité nettrace",
+  "token_usage": {
+    "input_tokens": 13,
+    "cache_creation_tokens": 80713,
+    "cache_read_tokens": 319218,
+    "output_tokens": 6874,
+    "api_call_count": 6
+  },
+  "started_at": "2026-11-14T10:28:46.1951409+01:00",
+  "completed_at": "2026-11-14T10:29:59.8894648+01:00"
+}
