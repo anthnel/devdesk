@@ -16,9 +16,12 @@ type pathStepKind int
 
 // The kinds of row, in the order the column shows them.
 const (
-	stepSource pathStepKind = iota
+	stepContainer pathStepKind = iota
+	stepNetwork
+	stepSource
 	stepInterface
 	stepGateway
+	stepTrace
 	stepHop
 )
 
@@ -32,9 +35,10 @@ type pathRoute struct {
 
 // pathStep is one row of the Path column.
 type pathStep struct {
-	Kind  pathStepKind
-	Route pathRoute    // stepInterface, stepGateway
-	Hop   nettrace.Hop // stepHop
+	Kind      pathStepKind
+	Container pathContainer // stepContainer, stepNetwork, stepTrace
+	Route     pathRoute     // stepInterface, stepGateway
+	Hop       nettrace.Hop  // stepHop
 }
 
 const (
@@ -70,16 +74,26 @@ func addrFromIP(ip net.IP) netip.Addr {
 // interface and gateway when route is not nil, then the hops as selected by
 // visiblePathHops. It returns nil while neither a route nor a hop exists.
 // Neither input is modified.
-func pathSteps(route *pathRoute, hops []nettrace.Hop) []pathStep {
-	if route == nil && len(hops) == 0 {
+func pathSteps(ctr *pathContainer, route *pathRoute, hops []nettrace.Hop) []pathStep {
+	if ctr == nil && route == nil && len(hops) == 0 {
 		return nil
 	}
-	steps := []pathStep{{Kind: stepSource}}
+	var steps []pathStep
+	if ctr != nil {
+		steps = append(steps,
+			pathStep{Kind: stepContainer, Container: *ctr},
+			pathStep{Kind: stepNetwork, Container: *ctr},
+		)
+	}
+	steps = append(steps, pathStep{Kind: stepSource})
 	if route != nil {
 		steps = append(steps,
 			pathStep{Kind: stepInterface, Route: *route},
 			pathStep{Kind: stepGateway, Route: *route},
 		)
+	}
+	if ctr != nil {
+		steps = append(steps, pathStep{Kind: stepTrace, Container: *ctr})
 	}
 	for _, h := range visiblePathHops(hops) {
 		steps = append(steps, pathStep{Kind: stepHop, Hop: h})
@@ -98,6 +112,12 @@ func (s pathStep) hopCell() string {
 // stepCell names the kind of row.
 func (s pathStep) stepCell() string {
 	switch s.Kind {
+	case stepContainer:
+		return "container"
+	case stepNetwork:
+		return "network"
+	case stepTrace:
+		return "trace"
 	case stepSource:
 		return "source"
 	case stepInterface:
@@ -111,6 +131,12 @@ func (s pathStep) stepCell() string {
 // addressCell is the main text of the row.
 func (s pathStep) addressCell() string {
 	switch s.Kind {
+	case stepContainer:
+		return s.Container.containerText()
+	case stepNetwork:
+		return s.Container.networkText()
+	case stepTrace:
+		return s.Container.traceText()
 	case stepSource:
 		return sourceLabel
 	case stepInterface:

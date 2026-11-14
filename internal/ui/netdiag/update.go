@@ -16,6 +16,10 @@ import (
 
 // Init implements tea.Model
 func (m *Model) Init() tea.Cmd {
+	// The router runs Init on every entry. A source listing that came back while
+	// another view was on screen went to that view, so a selector left open
+	// would wait for it for good; it closes here instead.
+	m.pathModel.closePicker()
 	return tea.Batch(
 		textinput.Blink,
 		m.portsModel.initPorts(),
@@ -128,7 +132,7 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	// Path sub-model messages: a trace goes on, and its hops keep arriving,
 	// whichever tab is on screen.
-	case pathResolvedMsg, pathHopMsg, pathDoneMsg:
+	case pathResolvedMsg, pathHopMsg, pathDoneMsg, pathSourcesMsg:
 		var cmd tea.Cmd
 		m.pathModel, cmd = m.pathModel.update(msg)
 		return m, cmd
@@ -233,6 +237,13 @@ func (m *Model) handleKey(msg tea.KeyPressMsg) (*Model, tea.Cmd) {
 		var cmd tea.Cmd
 		m.filterBar, cmd = m.filterBar.Update(msg)
 		m.rebuildChecksTable()
+		return m, cmd
+	}
+
+	// An open selector holds every key, tab included: it is a mode.
+	if m.activeTab == tabPath && m.pathModel.pickerOpen() {
+		var cmd tea.Cmd
+		m.pathModel, cmd = m.pathModel.update(msg)
 		return m, cmd
 	}
 

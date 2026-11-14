@@ -251,7 +251,8 @@ var migratedSources = map[command.ViewType][]string{
 		"ui/netdiag/model.go", "ui/netdiag/update.go", "ui/netdiag/run.go", "ui/netdiag/header.go",
 		"ui/netdiag/interfaces_model.go", "ui/netdiag/ports_model.go", "ui/netdiag/ports_activity.go",
 		"ui/netdiag/path_model.go", "ui/netdiag/path_target.go", "ui/netdiag/path_view.go",
-		"ui/netdiag/path_steps.go",
+		"ui/netdiag/path_steps.go", "ui/netdiag/path_source.go", "ui/netdiag/path_container.go",
+		"ui/netdiag/path_source_picker.go", "ui/netdiag/path_source_flow.go",
 	},
 	// The agent-usage view is fully migrated (A-13, DEVDESK-151): the whole package.
 	command.ViewAgentUsage: {"ui/agentusageview/"},

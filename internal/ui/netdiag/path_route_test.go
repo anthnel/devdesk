@@ -192,7 +192,7 @@ func TestProducePathCancelDuringTheRouteLookup(t *testing.T) {
 	done := make(chan struct{})
 	go func() {
 		defer close(done)
-		producePath(ctx, 1, pathTarget{Host: "10.0.0.7"}, time.Second, f.engine(), out)
+		producePath(ctx, 1, pathTarget{Host: "10.0.0.7"}, hostSource(), time.Second, f.engine(), out)
 	}()
 
 	select {

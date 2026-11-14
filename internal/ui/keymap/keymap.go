@@ -287,6 +287,16 @@ var exceptions = []Exception{
 			"end-of-file.",
 	},
 	{
+		Key:     "ctrl+o",
+		Surface: "netdiag/path",
+		Why: "Open the \"Trace from\" selector (this machine or a running container). " +
+			"The action exists on one tab, so a global capital would cost more than it " +
+			"returns. It opens a chooser and changes nothing by itself, unlike the " +
+			"remediation tab's ctrl+o, which writes files. The field has the keyboard " +
+			"there, so a bare letter would be typed into it; ctrl+o is the one chord " +
+			"left that no terminal claims.",
+	},
+	{
 		Key:     "tab",
 		Surface: "app/command-line",
 		Why: "Complete the highlighted suggestion. The command palette has no tabs " +

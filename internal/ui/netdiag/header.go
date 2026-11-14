@@ -348,6 +348,7 @@ func (m *Model) GetHelpContent() help.Content {
 			{Key: "enter (Path)", Description: "Trace the path to the target typed in the field, or trace again once a trace is done (Path tab)"},
 			{Key: "esc (Path, running)", Description: "Cancel the trace and keep the hops already seen (Path tab)"},
 			{Key: "esc (Path, done)", Description: "Edit the target again, keeping its value (Path tab)"},
+			{Key: "ctrl+o (Path)", Description: "Choose where the trace starts: this machine or a running container; ↑↓ to move, enter to choose, esc to close (Path tab)"},
 		},
 		Sections: []help.Section{
 			{
@@ -443,7 +444,15 @@ func (m *Model) GetHelpContent() help.Content {
 					"probes, which always use port 33435; no connection is made. Nothing is sent before you " +
 					"press enter.\n\n" +
 					"A silent hop is not a failure: many routers do not answer these probes, so the row " +
-					"reads silent and the trace goes on. The header says how a trace ended.",
+					"reads silent and the trace goes on. The header says how a trace ended.\n\n" +
+					"ctrl+o opens Trace from: this machine, or a running container (Docker Engine on " +
+					"Linux only). The column then starts with the container, its network and the " +
+					"gateway it uses, and a row says the probes still leave from this machine: " +
+					"nothing runs inside the container.\n\n" +
+					"Docker Desktop and podman are not offered. With no running container, only this " +
+					"machine is offered. Reading the engine (ps, info, inspect) starts nothing. An " +
+					"engine reached through DOCKER_HOST or a remote context is not detected as remote: " +
+					"it can show another machine's network, and the trace still leaves from this machine.",
 			},
 			{
 				Title: "Interfaces Tab — How it works",

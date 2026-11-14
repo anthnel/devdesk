@@ -43,7 +43,8 @@ const (
 // PathModel is the Path tab: a target field above a table of hops that fills
 // in while the trace runs.
 type PathModel struct {
-	width int
+	width  int
+	height int
 
 	engine         pathEngine
 	resolveTimeout time.Duration
@@ -71,7 +72,23 @@ type PathModel struct {
 	msgs   <-chan tea.Msg
 
 	footer components.FooterMessage
+
+	// source is where the trace starts: this machine, or a running container
+	// (DEVDESK-330). picker is the open selector, nil when closed; sourcesGen
+	// identifies the listing whose answer it accepts; container is what the
+	// column says about the source of the current run.
+	source     pathSource
+	picker     *pathSourcePicker
+	sourcesGen int
+	container  *pathContainer
 }
+
+// pathSourceKey opens the "Trace from" selector (declared exception, surface
+// netdiag/path).
+const pathSourceKey = "ctrl+o"
+
+// pickerOpen reports whether the selector holds the keyboard.
+func (pm *PathModel) pickerOpen() bool { return pm.picker != nil }
 
 func newPathModel(e pathEngine) *PathModel {
 	in := textinput.New()
@@ -92,14 +109,16 @@ func newPathModel(e pathEngine) *PathModel {
 }
 
 // InEditMode reports whether the target field has the keyboard.
-func (pm *PathModel) InEditMode() bool { return pm.state == pathEditing }
+// The open selector holds the keyboard too, from any state.
+func (pm *PathModel) InEditMode() bool { return pm.state == pathEditing || pm.pickerOpen() }
 
 func (pm *PathModel) running() bool { return pm.state == pathRunning }
 
 func (pm *PathModel) resize(width, height int) {
 	pm.width = width
+	pm.height = max(height, 3)
 	pm.input.SetWidth(max(width-ansi.StringWidth(pathBarLabel)-4, 10))
-	pm.table.Resize(width, max(height, 3))
+	pm.table.Resize(width, pm.height)
 }
 
 // launchable is the one answer to "can a trace start here", read by the header
@@ -119,6 +138,8 @@ func (pm *PathModel) update(msg tea.Msg) (*PathModel, tea.Cmd) {
 		return pm.handleHop(msg)
 	case pathDoneMsg:
 		return pm.handleDone(msg)
+	case pathSourcesMsg:
+		return pm.handleSources(msg)
 	case tea.KeyPressMsg:
 		return pm.handleKey(msg)
 	case tea.PasteMsg:
@@ -139,6 +160,10 @@ func (pm *PathModel) handleResolved(msg pathResolvedMsg) (*PathModel, tea.Cmd) {
 	pm.addr = msg.addr
 	route := newPathRoute(msg.route, msg.routeErr)
 	pm.route = &route
+	if !msg.source.isHost() {
+		c := newPathContainer(msg.source, msg.ctr, msg.ctrErr)
+		pm.container = &c
+	}
 	pm.refreshSteps()
 	return pm, waitForPathMsg(pm.msgs)
 }
@@ -160,6 +185,7 @@ func (pm *PathModel) handleDone(msg pathDoneMsg) (*PathModel, tea.Cmd) {
 	if msg.err != nil {
 		pm.hops = nil
 		pm.route = nil
+		pm.container = nil
 		pm.table.SetItems(nil)
 		pm.errText = pathErrorLabel(pm.target.Host, msg.err)
 		pm.state = pathEditing
@@ -174,7 +200,19 @@ func (pm *PathModel) handleDone(msg pathDoneMsg) (*PathModel, tea.Cmd) {
 }
 
 // refreshSteps rebuilds the table rows from the route and the hops.
-func (pm *PathModel) refreshSteps() { pm.table.SetItems(pathSteps(pm.route, pm.hops)) }
+func (pm *PathModel) refreshSteps() { pm.table.SetItems(pathSteps(pm.container, pm.route, pm.hops)) }
+
+// clearRun forgets what the last run put on screen: the resolved address, the
+// route, the container, the hops, the outcome and the error.
+func (pm *PathModel) clearRun() {
+	pm.addr = netip.Addr{}
+	pm.hops = nil
+	pm.route = nil
+	pm.container = nil
+	pm.result = nil
+	pm.errText = ""
+	pm.table.SetItems(nil)
+}
 
 // hopCount is the number of hop rows (the local rows are not counted).
 func (pm *PathModel) hopCount() int {
@@ -206,6 +244,12 @@ func isPathNavKey(key string) bool {
 
 func (pm *PathModel) handleKey(msg tea.KeyPressMsg) (*PathModel, tea.Cmd) {
 	key := msg.String()
+	if pm.pickerOpen() {
+		return pm.handlePickerKey(key)
+	}
+	if key == pathSourceKey {
+		return pm.openPicker()
+	}
 	if isPathNavKey(key) {
 		return pm, pm.table.Update(msg)
 	}
@@ -239,7 +283,7 @@ func (pm *PathModel) handleEditKey(msg tea.KeyPressMsg) (*PathModel, tea.Cmd) {
 }
 
 func (pm *PathModel) handlePaste(msg tea.PasteMsg) (*PathModel, tea.Cmd) {
-	if pm.state != pathEditing {
+	if pm.state != pathEditing || pm.pickerOpen() {
 		return pm, nil // a paste reaches the focused field only (Rule 111)
 	}
 	return pm.updateInput(msg)
@@ -272,20 +316,15 @@ func (pm *PathModel) launch(tg pathTarget) (*PathModel, tea.Cmd) {
 	pm.releaseRun()
 	pm.gen++
 	pm.target = tg
-	pm.addr = netip.Addr{}
-	pm.hops = nil
-	pm.route = nil
-	pm.result = nil
-	pm.errText = ""
+	pm.clearRun()
 	pm.footer.Clear()
-	pm.table.SetItems(nil)
 
 	ctx, cancel := context.WithCancel(context.Background())
 	ch := make(chan tea.Msg, pathChanCap)
 	pm.cancel, pm.msgs = cancel, ch
 	pm.input.Blur()
 	pm.state = pathRunning
-	return pm, startPathRun(ctx, pm.gen, tg, pm.resolveTimeout, pm.engine, ch)
+	return pm, startPathRun(ctx, pm.gen, tg, pm.source, pm.resolveTimeout, pm.engine, ch)
 }
 
 // cancelRun answers esc at once: the run's late messages are dropped by the
@@ -300,10 +339,10 @@ func (pm *PathModel) cancelRun() (*PathModel, tea.Cmd) {
 
 // startPathRun builds the launch Cmd from values only, so that no closure
 // reads the model (Rule 110).
-func startPathRun(ctx context.Context, gen int, tg pathTarget, timeout time.Duration, e pathEngine, ch chan tea.Msg) tea.Cmd {
+func startPathRun(ctx context.Context, gen int, tg pathTarget, src pathSource, timeout time.Duration, e pathEngine, ch chan tea.Msg) tea.Cmd {
 	return tea.Batch(
 		func() tea.Msg {
-			producePath(ctx, gen, tg, timeout, e, ch)
+			producePath(ctx, gen, tg, src, timeout, e, ch)
 			return nil
 		},
 		waitForPathMsg(ch),

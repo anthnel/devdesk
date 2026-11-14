@@ -2,7 +2,6 @@ package netdiag
 
 import (
 	"log"
-	"net/netip"
 
 	tea "charm.land/bubbletea/v2"
 
@@ -52,12 +51,9 @@ func (m *Model) tracePathFromRoute() (*Model, tea.Cmd) {
 func (pm *PathModel) prefill(host string) tea.Cmd {
 	pm.state = pathEditing
 	pm.target = pathTarget{}
-	pm.addr = netip.Addr{}
-	pm.hops = nil
-	pm.route = nil
-	pm.result = nil
-	pm.errText = ""
-	pm.table.SetItems(nil)
+	pm.source = hostSource()
+	pm.picker = nil
+	pm.clearRun()
 	pm.input.SetValue(host)
 	pm.input.CursorEnd()
 	return pm.input.Focus()
