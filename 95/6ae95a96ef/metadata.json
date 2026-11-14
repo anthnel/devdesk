@@ -3,7 +3,7 @@
   "checkpoint_id": "956ae95a96ef",
   "strategy": "manual-commit",
   "branch": "feat/devdesk-331-host-verified-bridge",
-  "checkpoints_count": 18,
+  "checkpoints_count": 24,
   "files_touched": [
     "docs/architecture/network.md",
     "internal/docker/container_network.go",
@@ -29,20 +29,27 @@
       "compact_transcript": "/95/6ae95a96ef/0/transcript.jsonl",
       "content_hash": "/95/6ae95a96ef/0/content_hash.txt",
       "prompt": "/95/6ae95a96ef/0/prompt.txt"
+    },
+    {
+      "metadata": "/95/6ae95a96ef/1/metadata.json",
+      "transcript": "/95/6ae95a96ef/1/full.jsonl",
+      "compact_transcript": "/95/6ae95a96ef/1/transcript.jsonl",
+      "content_hash": "/95/6ae95a96ef/1/content_hash.txt",
+      "prompt": "/95/6ae95a96ef/1/prompt.txt"
     }
   ],
   "token_usage": {
-    "input_tokens": 122,
-    "cache_creation_tokens": 146478,
-    "cache_read_tokens": 5960866,
-    "output_tokens": 24485,
-    "api_call_count": 44,
+    "input_tokens": 170,
+    "cache_creation_tokens": 161417,
+    "cache_read_tokens": 14235648,
+    "output_tokens": 30400,
+    "api_call_count": 63,
     "subagent_tokens": {
-      "input_tokens": 277,
-      "cache_creation_tokens": 1652636,
-      "cache_read_tokens": 9913568,
-      "output_tokens": 118872,
-      "api_call_count": 135
+      "input_tokens": 299,
+      "cache_creation_tokens": 1746717,
+      "cache_read_tokens": 10429888,
+      "output_tokens": 123455,
+      "api_call_count": 147
     },
     "subagent_tokens_complete": true
   },

@@ -1,0 +1,15 @@
+{
+  "tool_use_id": "toolu_01Vjhe2NVcaWEfNFWkpAFfvN",
+  "agent_id": "a2396978da25fa460",
+  "subagent_type": "dev-team:devops",
+  "task_description": "Story Done and cleanup after 403",
+  "token_usage": {
+    "input_tokens": 11,
+    "cache_creation_tokens": 54692,
+    "cache_read_tokens": 254249,
+    "output_tokens": 1817,
+    "api_call_count": 6
+  },
+  "started_at": "2026-11-14T20:10:42.1299722+01:00",
+  "completed_at": "2026-11-14T20:11:06.3520394+01:00"
+}
