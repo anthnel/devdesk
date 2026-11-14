@@ -1,0 +1,15 @@
+{
+  "tool_use_id": "toolu_018VDVwR5phfLN4FZs7AqGRD",
+  "agent_id": "a0ca6248a51d3819b",
+  "subagent_type": "team-core:archivist",
+  "task_description": "Backlog entry for DEVDESK-329",
+  "token_usage": {
+    "input_tokens": 13,
+    "cache_creation_tokens": 73612,
+    "cache_read_tokens": 280351,
+    "output_tokens": 5379,
+    "api_call_count": 6
+  },
+  "started_at": "2026-11-14T17:04:29.9069085+01:00",
+  "completed_at": "2026-11-14T17:04:58.8677846+01:00"
+}

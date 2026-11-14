@@ -3,7 +3,7 @@
   "checkpoint_id": "09393f01fbcf",
   "strategy": "manual-commit",
   "branch": "feat/devdesk-329-path-column",
-  "checkpoints_count": 3,
+  "checkpoints_count": 24,
   "files_touched": [
     "docs-site/docs/explanation/network.md",
     "docs/architecture/network.md",
@@ -11,11 +11,15 @@
     "internal/app/netdiag_path_guard_test.go",
     "internal/ui/netdiag/header.go",
     "internal/ui/netdiag/netdiag_path_tab_test.go",
+    "internal/ui/netdiag/path_column_test.go",
     "internal/ui/netdiag/path_from_route.go",
     "internal/ui/netdiag/path_model.go",
     "internal/ui/netdiag/path_model_test.go",
+    "internal/ui/netdiag/path_route_test.go",
     "internal/ui/netdiag/path_run.go",
     "internal/ui/netdiag/path_run_test.go",
+    "internal/ui/netdiag/path_steps.go",
+    "internal/ui/netdiag/path_steps_test.go",
     "internal/ui/netdiag/path_view.go"
   ],
   "sessions": [
@@ -25,8 +29,30 @@
       "compact_transcript": "/09/393f01fbcf/0/transcript.jsonl",
       "content_hash": "/09/393f01fbcf/0/content_hash.txt",
       "prompt": "/09/393f01fbcf/0/prompt.txt"
+    },
+    {
+      "metadata": "/09/393f01fbcf/1/metadata.json",
+      "transcript": "/09/393f01fbcf/1/full.jsonl",
+      "compact_transcript": "/09/393f01fbcf/1/transcript.jsonl",
+      "content_hash": "/09/393f01fbcf/1/content_hash.txt",
+      "prompt": "/09/393f01fbcf/1/prompt.txt"
     }
   ],
+  "token_usage": {
+    "input_tokens": 164,
+    "cache_creation_tokens": 173373,
+    "cache_read_tokens": 8709636,
+    "output_tokens": 37214,
+    "api_call_count": 63,
+    "subagent_tokens": {
+      "input_tokens": 394,
+      "cache_creation_tokens": 1921207,
+      "cache_read_tokens": 16816321,
+      "output_tokens": 148802,
+      "api_call_count": 193
+    },
+    "subagent_tokens_complete": true
+  },
   "redaction": {
     "replacements": 0,
     "layers": {

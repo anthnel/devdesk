@@ -1,0 +1,19 @@
+{
+  "tool_use_id": "toolu_01FhvaTnPEoytnYQsmZmHBUj",
+  "agent_id": "a4c6a2bf15feaec82",
+  "subagent_type": "project-coder",
+  "task_description": "Green step 4 (help, guard)",
+  "files": [
+    "internal/app/activity_guard_test.go",
+    "internal/ui/netdiag/header.go"
+  ],
+  "token_usage": {
+    "input_tokens": 43,
+    "cache_creation_tokens": 98833,
+    "cache_read_tokens": 1847283,
+    "output_tokens": 5863,
+    "api_call_count": 21
+  },
+  "started_at": "2026-11-14T16:48:22.598355+01:00",
+  "completed_at": "2026-11-14T17:03:23.539173+01:00"
+}
