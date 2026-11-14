@@ -1,0 +1,15 @@
+{
+  "tool_use_id": "toolu_01DnvSDLxoa6M27PN6DgokM3",
+  "agent_id": "a1c313c588705d95d",
+  "subagent_type": "project-tester",
+  "task_description": "Test réel Linux natif datomir",
+  "token_usage": {
+    "input_tokens": 9,
+    "cache_creation_tokens": 29630,
+    "cache_read_tokens": 138071,
+    "output_tokens": 3379,
+    "api_call_count": 5
+  },
+  "started_at": "2026-11-14T10:37:39.0346133+01:00",
+  "completed_at": "2026-11-14T10:38:36.7969838+01:00"
+}
