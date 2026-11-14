@@ -1,0 +1,15 @@
+{
+  "tool_use_id": "toolu_01Uhd8vgf4sFkU3hHXv6rxTN",
+  "agent_id": "a92e3fe892c733122",
+  "subagent_type": "project-coder",
+  "task_description": "Fix Linux-only test build",
+  "token_usage": {
+    "input_tokens": 5,
+    "cache_creation_tokens": 34763,
+    "cache_read_tokens": 64120,
+    "output_tokens": 878,
+    "api_call_count": 3
+  },
+  "started_at": "2026-11-14T16:10:46.7636459+01:00",
+  "completed_at": "2026-11-14T16:11:11.0202195+01:00"
+}
