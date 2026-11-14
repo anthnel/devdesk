@@ -1,0 +1,50 @@
+{
+  "cli_version": "0.13.2",
+  "checkpoint_id": "9de5ebcba33e",
+  "strategy": "manual-commit",
+  "branch": "feat/devdesk-328-path-tab",
+  "checkpoints_count": 29,
+  "files_touched": [
+    "internal/app/activity_guard_test.go",
+    "internal/app/netdiag_path_guard_test.go",
+    "internal/ui/netdiag/header.go",
+    "internal/ui/netdiag/model.go",
+    "internal/ui/netdiag/model_test.go",
+    "internal/ui/netdiag/netdiag_path_tab_test.go",
+    "internal/ui/netdiag/path_from_route.go",
+    "internal/ui/netdiag/path_from_route_extra_test.go",
+    "internal/ui/netdiag/path_from_route_test.go",
+    "internal/ui/netdiag/path_model.go",
+    "internal/ui/netdiag/path_model_test.go",
+    "internal/ui/netdiag/path_run.go",
+    "internal/ui/netdiag/path_run_test.go",
+    "internal/ui/netdiag/path_target.go",
+    "internal/ui/netdiag/path_target_test.go",
+    "internal/ui/netdiag/path_view.go",
+    "internal/ui/netdiag/update.go",
+    "internal/ui/netdiag/view.go"
+  ],
+  "sessions": [
+    {
+      "metadata": "/9d/e5ebcba33e/0/metadata.json",
+      "transcript": "/9d/e5ebcba33e/0/full.jsonl",
+      "compact_transcript": "/9d/e5ebcba33e/0/transcript.jsonl",
+      "content_hash": "/9d/e5ebcba33e/0/content_hash.txt",
+      "prompt": "/9d/e5ebcba33e/0/prompt.txt"
+    }
+  ],
+  "redaction": {
+    "replacements": 0,
+    "layers": {
+      "betterleaks": 0,
+      "connection_string": 0,
+      "credential_key": 0,
+      "credential_value": 0,
+      "credentialed_uri": 0,
+      "entropy": 0,
+      "key_context": 0,
+      "provider_token": 0,
+      "shell_stdin": 0
+    }
+  }
+}
