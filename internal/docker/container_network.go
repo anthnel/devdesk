@@ -25,6 +25,7 @@ type ContainerNetworking struct {
 // EndpointNetwork is one network a container is attached to.
 type EndpointNetwork struct {
 	Name       string
+	NetworkID  string // lowercase hex as the engine reports it, or "" when absent or not hex
 	IPv4       netip.Addr
 	Gateway    netip.Addr
 	GwPriority *int
@@ -77,6 +78,7 @@ func parseContainerNetworking(out []byte) (ContainerNetworking, error) {
 		Mode     string
 		Running  bool
 		Networks map[string]struct {
+			NetworkID  string
 			IPAddress  string
 			Gateway    string
 			GwPriority *int
@@ -94,12 +96,22 @@ func parseContainerNetworking(out []byte) (ContainerNetworking, error) {
 		e := raw.Networks[name]
 		n.Networks = append(n.Networks, EndpointNetwork{
 			Name:       name,
+			NetworkID:  hexOrEmpty(e.NetworkID),
 			IPv4:       parseIPv4(e.IPAddress),
 			Gateway:    parseIPv4(e.Gateway),
 			GwPriority: e.GwPriority,
 		})
 	}
 	return n, nil
+}
+
+// hexOrEmpty returns s when it is a full 64-hex engine ID, else "".
+// InspectNetworkBridge accepts nothing shorter.
+func hexOrEmpty(s string) string {
+	if len(s) != maxIDLen || !IsContainerID(s) {
+		return ""
+	}
+	return s
 }
 
 // parseIPv4 returns the address when s is a valid IPv4 one, else the zero Addr.
@@ -109,6 +121,68 @@ func parseIPv4(s string) netip.Addr {
 		return netip.Addr{}
 	}
 	return a
+}
+
+// NetworkBridge is the host-side bridge of a Docker network.
+type NetworkBridge struct {
+	Driver string
+	Name   string // host interface name; "" when it cannot be derived
+}
+
+// networkBridgeFormat selects only the driver, the bridge name option and the
+// ID. A missing option prints an empty string ("").
+const networkBridgeFormat = `{"Driver":{{json .Driver}},"Name":{{json (index .Options "com.docker.network.bridge.name")}},"Id":{{json .Id}}}`
+
+// InspectNetworkBridge reads the host bridge of one network, by ID only: a
+// name could be taken for an option by the CLI. Its error carries no command
+// output.
+func InspectNetworkBridge(ctx context.Context, networkID string) (NetworkBridge, error) {
+	if err := requireDockerEngine(); err != nil {
+		return NetworkBridge{}, err
+	}
+	if len(networkID) != maxIDLen || !IsContainerID(networkID) {
+		return NetworkBridge{}, fmt.Errorf("invalid network id %q", networkID)
+	}
+	out, err := runner.Run(dockerCmd{
+		Args: []string{"network", "inspect", "--format", networkBridgeFormat, networkID},
+		Ctx:  ctx,
+	})
+	if err != nil {
+		return NetworkBridge{}, wrapErr(cmdLabel("network inspect"), err)
+	}
+	return parseNetworkBridge(out)
+}
+
+// parseNetworkBridge decodes the output of networkBridgeFormat.
+func parseNetworkBridge(out []byte) (NetworkBridge, error) {
+	if len(out) > maxInspectBytes {
+		return NetworkBridge{}, fmt.Errorf("network inspect output exceeds %d bytes", maxInspectBytes)
+	}
+	var raw struct {
+		Driver string
+		Name   string
+		ID     string `json:"Id"`
+	}
+	if err := json.Unmarshal(out, &raw); err != nil {
+		return NetworkBridge{}, fmt.Errorf("parse network inspect output: %w", err)
+	}
+	return NetworkBridge{Driver: raw.Driver, Name: bridgeNameFor(raw.Driver, raw.Name, raw.ID)}, nil
+}
+
+// bridgeNameFor returns the host interface of a bridge network: the explicit
+// option, else the engine's "br-" + first 12 hex digits of a full 64-hex ID.
+// Any other driver has no bridge of its own.
+func bridgeNameFor(driver, option, id string) string {
+	if driver != "bridge" {
+		return ""
+	}
+	if option != "" {
+		return option
+	}
+	if len(id) != maxIDLen || !IsContainerID(id) {
+		return ""
+	}
+	return "br-" + id[:12]
 }
 
 // ListContainersContext is ListContainers with a context that kills the

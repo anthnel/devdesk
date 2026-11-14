@@ -18,6 +18,7 @@ type pathStepKind int
 const (
 	stepContainer pathStepKind = iota
 	stepNetwork
+	stepBridge
 	stepSource
 	stepInterface
 	stepGateway
@@ -36,7 +37,7 @@ type pathRoute struct {
 // pathStep is one row of the Path column.
 type pathStep struct {
 	Kind      pathStepKind
-	Container pathContainer // stepContainer, stepNetwork, stepTrace
+	Container pathContainer // stepContainer, stepNetwork, stepBridge, stepTrace
 	Route     pathRoute     // stepInterface, stepGateway
 	Hop       nettrace.Hop  // stepHop
 }
@@ -84,6 +85,9 @@ func pathSteps(ctr *pathContainer, route *pathRoute, hops []nettrace.Hop) []path
 			pathStep{Kind: stepContainer, Container: *ctr},
 			pathStep{Kind: stepNetwork, Container: *ctr},
 		)
+		if ctr.Bridge != "" {
+			steps = append(steps, pathStep{Kind: stepBridge, Container: *ctr})
+		}
 	}
 	steps = append(steps, pathStep{Kind: stepSource})
 	if route != nil {
@@ -116,6 +120,8 @@ func (s pathStep) stepCell() string {
 		return "container"
 	case stepNetwork:
 		return "network"
+	case stepBridge:
+		return "bridge"
 	case stepTrace:
 		return "trace"
 	case stepSource:
@@ -135,6 +141,8 @@ func (s pathStep) addressCell() string {
 		return s.Container.containerText()
 	case stepNetwork:
 		return s.Container.networkText()
+	case stepBridge:
+		return s.Container.Bridge
 	case stepTrace:
 		return s.Container.traceText()
 	case stepSource:

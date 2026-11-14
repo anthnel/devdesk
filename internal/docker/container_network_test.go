@@ -167,9 +167,23 @@ func TestEngineReadsRefuseBeforeRunning(t *testing.T) {
 			}
 		})
 	}
+	t.Run("network id invalid", func(t *testing.T) {
+		s := stubOutput(t, "network", testBridgeJSON("bridge", "", testNetID))
+		for _, bad := range []string{"bridge", "-f", "my-net", "", "../x", testNetID[:12]} {
+			if _, err := InspectNetworkBridge(ctx, bad); err == nil {
+				t.Errorf("id %q: want error", bad)
+			}
+		}
+		if len(s.calls) != 0 {
+			t.Errorf("calls = %v, want none", allArgs(s))
+		}
+	})
 	t.Run("podman", func(t *testing.T) {
 		s := stub(t, &stubRunner{})
 		useEngine(t, engine.Podman)
+		if _, err := InspectNetworkBridge(ctx, testNetID); !errors.Is(err, ErrDockerOnly) {
+			t.Errorf("network err = %v, want ErrDockerOnly", err)
+		}
 		if _, err := InspectContainerNetworking(ctx, testCtrID); !errors.Is(err, ErrDockerOnly) {
 			t.Errorf("inspect err = %v, want ErrDockerOnly", err)
 		}
@@ -182,6 +196,9 @@ func TestEngineReadsRefuseBeforeRunning(t *testing.T) {
 	})
 	t.Run("engine absent", func(t *testing.T) {
 		s := stub(t, &stubRunner{missing: true})
+		if _, err := InspectNetworkBridge(ctx, testNetID); err == nil {
+			t.Error("network: want error")
+		}
 		if _, err := InspectContainerNetworking(ctx, testCtrID); err == nil {
 			t.Error("inspect: want error")
 		}
@@ -256,14 +273,16 @@ func TestEngineReadsHonourCancellation(t *testing.T) {
 		"container": []byte(`{"Name":"/a","Mode":"bridge","Running":true,"Networks":{}}`),
 		"info":      []byte("x"),
 		"ps":        []byte(""),
+		"network":   []byte(testBridgeJSON("bridge", "", testNetID)),
 	}})
 
 	_, _ = InspectContainerNetworking(ctx, testCtrID)
 	_, _ = EngineOperatingSystem(ctx)
 	_, _ = ListContainersContext(ctx, false)
+	_, _ = InspectNetworkBridge(ctx, testNetID)
 
-	if len(s.calls) != 3 {
-		t.Fatalf("calls = %v, want 3", allArgs(s))
+	if len(s.calls) != 4 {
+		t.Fatalf("calls = %v, want 4", allArgs(s))
 	}
 	for _, c := range s.calls {
 		if c.Ctx == nil || c.Ctx.Value(ctxKey{}) != "mine" {
@@ -279,15 +298,17 @@ func TestPathSourceReadsStartNothing(t *testing.T) {
 		"container": []byte(`{"Name":"/a","Mode":"bridge","Running":true,"Networks":{}}`),
 		"info":      []byte("Docker Desktop"),
 		"ps":        []byte(""),
+		"network":   []byte(testBridgeJSON("bridge", "", testNetID)),
 	}})
 	ctx := context.Background()
 
 	_, _ = InspectContainerNetworking(ctx, testCtrID)
 	_, _ = EngineOperatingSystem(ctx)
 	_, _ = ListContainersContext(ctx, false)
+	_, _ = InspectNetworkBridge(ctx, testNetID)
 
-	if len(s.calls) != 3 {
-		t.Fatalf("calls = %v, want the three reads", allArgs(s))
+	if len(s.calls) != 4 {
+		t.Fatalf("calls = %v, want the four reads", allArgs(s))
 	}
 	forbidden := []string{"start", "run", "exec", "create", "restart", "unpause", "attach", "kill", "stop"}
 	for _, c := range s.calls {
@@ -297,6 +318,10 @@ func TestPathSourceReadsStartNothing(t *testing.T) {
 			if len(c.Args) < 2 || c.Args[1] != "inspect" {
 				t.Errorf("container call %v is not inspect", c.Args)
 			}
+		case "network":
+			if len(c.Args) < 2 || c.Args[1] != "inspect" {
+				t.Errorf("network call %v is not inspect", c.Args)
+			}
 		default:
 			t.Errorf("unexpected subcommand %v", c.Args)
 		}
@@ -305,5 +330,194 @@ func TestPathSourceReadsStartNothing(t *testing.T) {
 				t.Errorf("forbidden arg %q in %v", a, c.Args)
 			}
 		}
+	}
+}
+
+// testNetID is a full 64-hex network ID, as the engine reports it.
+const testNetID = "9f3c1a7be2d44c5f8a6b0e1d2c3b4a5968778695a4b3c2d1e0f9a8b7c6d5e4f3"
+
+// testBridgeJSON builds the output InspectNetworkBridge expects from the
+// engine. If the format changes, only this helper changes.
+func testBridgeJSON(driver, option, id string) string {
+	return `{"Driver":"` + driver + `","Name":"` + option + `","Id":"` + id + `"}`
+}
+
+func TestParseContainerNetworkingReadsNetworkID(t *testing.T) {
+	tests := []struct{ name, id, want string }{
+		{"hex id kept", testNetID, testNetID},
+		{"short hex becomes empty", testNetID[:12], ""},
+		{"not hex becomes empty", "NOT-HEX; rm -rf", ""},
+		{"absent becomes empty", "", ""},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			in := `{"Name":"/a","Mode":"bridge","Running":true,"Networks":{"bridge":{"NetworkID":"` + tc.id + `","IPAddress":"172.17.0.2","Gateway":"172.17.0.1"}}}`
+			n, err := parseContainerNetworking([]byte(in))
+			if err != nil || len(n.Networks) != 1 {
+				t.Fatalf("got %+v, %v", n, err)
+			}
+			if got := n.Networks[0].NetworkID; got != tc.want {
+				t.Errorf("NetworkID = %q, want %q", got, tc.want)
+			}
+		})
+	}
+}
+
+func TestBridgeNameFor(t *testing.T) {
+	tests := []struct {
+		name, driver, option, id, want string
+	}{
+		{"default bridge option", "bridge", "docker0", testNetID, "docker0"},
+		{"custom option", "bridge", "mybr0", testNetID, "mybr0"},
+		{"no option derives from id", "bridge", "", testNetID, "br-9f3c1a7be2d4"},
+		{"no option and short id", "bridge", "", "9f3c1a7be2d", ""},
+		{"no option and non-hex id", "bridge", "", strings.Repeat("zz", 32), ""},
+		{"no option and empty id", "bridge", "", "", ""},
+		{"macvlan", "macvlan", "eth0", testNetID, ""},
+		{"ipvlan", "ipvlan", "", testNetID, ""},
+		{"overlay", "overlay", "", testNetID, ""},
+		{"null", "null", "", testNetID, ""},
+		{"host", "host", "", testNetID, ""},
+		{"empty driver", "", "docker0", testNetID, ""},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			if got := bridgeNameFor(tc.driver, tc.option, tc.id); got != tc.want {
+				t.Errorf("bridgeNameFor(%q, %q, %q) = %q, want %q", tc.driver, tc.option, tc.id, got, tc.want)
+			}
+		})
+	}
+}
+
+func TestParseNetworkBridge(t *testing.T) {
+	tests := []struct {
+		name    string
+		in      string
+		want    NetworkBridge
+		wantErr bool
+	}{
+		{"option docker0", testBridgeJSON("bridge", "docker0", testNetID), NetworkBridge{Driver: "bridge", Name: "docker0"}, false},
+		{"option mybr0", testBridgeJSON("bridge", "mybr0", testNetID), NetworkBridge{Driver: "bridge", Name: "mybr0"}, false},
+		{"derived from id", testBridgeJSON("bridge", "", testNetID), NetworkBridge{Driver: "bridge", Name: "br-9f3c1a7be2d4"}, false},
+		{"bridge with bad id and no option", testBridgeJSON("bridge", "", "xyz"), NetworkBridge{Driver: "bridge"}, false},
+		{"macvlan has no name", testBridgeJSON("macvlan", "", testNetID), NetworkBridge{Driver: "macvlan"}, false},
+		{"overlay has no name", testBridgeJSON("overlay", "", testNetID), NetworkBridge{Driver: "overlay"}, false},
+		{"host has no name", testBridgeJSON("host", "", testNetID), NetworkBridge{Driver: "host"}, false},
+		{"null has no name", testBridgeJSON("null", "", testNetID), NetworkBridge{Driver: "null"}, false},
+		{"not JSON", "Error: no such network", NetworkBridge{}, true},
+		{"truncated JSON", `{"Driver":`, NetworkBridge{}, true},
+		{"empty output", "", NetworkBridge{}, true},
+		{"oversize output", testBridgeJSON("bridge", strings.Repeat("a", 257<<10), testNetID), NetworkBridge{}, true},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			got, err := parseNetworkBridge([]byte(tc.in))
+			if tc.wantErr {
+				if err == nil {
+					t.Fatalf("want error, got %+v", got)
+				}
+				return
+			}
+			if err != nil {
+				t.Fatalf("unexpected error: %v", err)
+			}
+			if got != tc.want {
+				t.Errorf("got %+v, want %+v", got, tc.want)
+			}
+		})
+	}
+}
+
+func TestInspectNetworkBridgeArgs(t *testing.T) {
+	s := stubOutput(t, "network", testBridgeJSON("bridge", "docker0", testNetID))
+
+	got, err := InspectNetworkBridge(context.Background(), testNetID)
+
+	if err != nil {
+		t.Fatalf("error: %v", err)
+	}
+	if got != (NetworkBridge{Driver: "bridge", Name: "docker0"}) {
+		t.Errorf("got %+v", got)
+	}
+	if len(s.calls) != 1 {
+		t.Fatalf("calls = %v, want one", allArgs(s))
+	}
+	c := s.calls[0]
+	// The ID is the last, single argv element (never a name).
+	if len(c.Args) != 5 || c.Args[0] != "network" || c.Args[1] != "inspect" ||
+		c.Args[2] != "--format" || c.Args[4] != testNetID {
+		t.Errorf("args = %v, want network inspect --format <fmt> %s", c.Args, testNetID)
+	} else if !strings.Contains(c.Args[3], "com.docker.network.bridge.name") {
+		t.Errorf("format %q does not read com.docker.network.bridge.name", c.Args[3])
+	}
+	if c.Ctx == nil {
+		t.Error("Ctx is nil")
+	}
+	if c.Combined {
+		t.Error("Combined = true: stderr would be mixed into the JSON")
+	}
+}
+
+func TestInspectNetworkBridgeRefusesBadIDsBeforeRunning(t *testing.T) {
+	for _, id := range []string{"bridge", "-f", "--help", "my-net", "ZZ", ""} {
+		t.Run("id "+id, func(t *testing.T) {
+			s := stubOutput(t, "network", testBridgeJSON("bridge", "docker0", testNetID))
+			if _, err := InspectNetworkBridge(context.Background(), id); err == nil {
+				t.Error("want error")
+			}
+			if len(s.calls) != 0 {
+				t.Errorf("calls = %v, want none", allArgs(s))
+			}
+		})
+	}
+}
+
+func TestInspectNetworkBridgeErrorsCarryNoOutput(t *testing.T) {
+	stub(t, &stubRunner{
+		output: map[string][]byte{"network": []byte("SECRET-OUTPUT")},
+		err:    map[string]error{"network": errExit},
+	})
+
+	_, err := InspectNetworkBridge(context.Background(), testNetID)
+
+	if err == nil {
+		t.Fatal("want error")
+	}
+	if strings.Contains(err.Error(), "SECRET-OUTPUT") {
+		t.Errorf("error leaks output: %v", err)
+	}
+	if !errors.Is(err, errExit) {
+		t.Errorf("error does not wrap the cause: %v", err)
+	}
+}
+
+func TestInspectNetworkBridgeBadOutputIsAnError(t *testing.T) {
+	tests := []struct{ name, out string }{
+		{"not JSON", "SECRET-OUTPUT not json"},
+		{"oversize", testBridgeJSON("bridge", strings.Repeat("a", 257<<10), testNetID)},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			stubOutput(t, "network", tc.out)
+			_, err := InspectNetworkBridge(context.Background(), testNetID)
+			if err == nil {
+				t.Fatal("want error")
+			}
+			if strings.Contains(err.Error(), "SECRET-OUTPUT") {
+				t.Errorf("error leaks output: %v", err)
+			}
+		})
+	}
+}
+
+func TestInspectNetworkBridgeHonoursCancellation(t *testing.T) {
+	type ctxKey struct{}
+	ctx := context.WithValue(context.Background(), ctxKey{}, "mine")
+	s := stubOutput(t, "network", testBridgeJSON("bridge", "docker0", testNetID))
+
+	_, _ = InspectNetworkBridge(ctx, testNetID)
+
+	if len(s.calls) != 1 || s.calls[0].Ctx == nil || s.calls[0].Ctx.Value(ctxKey{}) != "mine" {
+		t.Errorf("the caller's context did not reach the runner: %v", allArgs(s))
 	}
 }

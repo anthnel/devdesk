@@ -13,6 +13,7 @@ import (
 	"github.com/anthnel/devdesk/internal/docker"
 	"github.com/anthnel/devdesk/internal/engine"
 	"github.com/anthnel/devdesk/internal/netcheck"
+	"github.com/anthnel/devdesk/internal/netiface"
 	"github.com/anthnel/devdesk/internal/nettrace"
 )
 
@@ -35,6 +36,8 @@ type pathEngine struct {
 	engineOS   func(ctx context.Context) (string, error)                                // docker.EngineOperatingSystem
 	running    func(ctx context.Context) ([]docker.Container, error)                    // running containers only
 	inspect    func(ctx context.Context, id string) (docker.ContainerNetworking, error) // read-only
+	network    func(ctx context.Context, id string) (docker.NetworkBridge, error)       // docker.InspectNetworkBridge
+	interfaces func(ctx context.Context) ([]netiface.Interface, error)                  // netiface.List
 }
 
 // systemPathEngine returns the engine backed by the real resolver and sockets.
@@ -54,7 +57,9 @@ func systemPathEngine() pathEngine {
 		running: func(ctx context.Context) ([]docker.Container, error) {
 			return docker.ListContainersContext(ctx, false)
 		},
-		inspect: docker.InspectContainerNetworking,
+		inspect:    docker.InspectContainerNetworking,
+		network:    docker.InspectNetworkBridge,
+		interfaces: netiface.List,
 	}
 }
 
@@ -67,6 +72,7 @@ type pathResolvedMsg struct {
 	source   pathSource                 // the source at launch
 	ctr      docker.ContainerNetworking // zero for this machine
 	ctrErr   error                      // logged by the producer, never shown
+	bridge   string                     // host interface of the container's network; "" when none
 }
 
 // pathSourcesMsg carries what the selector offers once the engine answered.
@@ -189,7 +195,11 @@ func producePath(ctx context.Context, gen int, tg pathTarget, src pathSource, re
 		log.Printf("ERROR [netdiag/path] route %s: %v", tg.Host, routeErr)
 	}
 	ctr, ctrErr := inspectPathSource(ctx, src, resolveTimeout, e)
-	send(pathResolvedMsg{gen: gen, addr: addr, route: route, routeErr: routeErr, source: src, ctr: ctr, ctrErr: ctrErr})
+	bridge := ""
+	if ctrErr == nil && !src.isHost() {
+		bridge = readPathBridge(ctx, ctr, resolveTimeout, e)
+	}
+	send(pathResolvedMsg{gen: gen, addr: addr, route: route, routeErr: routeErr, source: src, ctr: ctr, ctrErr: ctrErr, bridge: bridge})
 
 	res, err := e.trace(ctx, addr, nettrace.Options{}, func(h nettrace.Hop) {
 		send(pathHopMsg{gen: gen, hop: h})
