@@ -1,0 +1,18 @@
+{
+  "tool_use_id": "toolu_013YMTaA1S9XqcCSxpkqyeMv",
+  "agent_id": "a5eec1feec74a4d19",
+  "subagent_type": "project-tester",
+  "task_description": "Rouge étape 2 moteur",
+  "files": [
+    "internal/nettrace/engine_test.go"
+  ],
+  "token_usage": {
+    "input_tokens": 9,
+    "cache_creation_tokens": 74045,
+    "cache_read_tokens": 112664,
+    "output_tokens": 24556,
+    "api_call_count": 4
+  },
+  "started_at": "2026-11-14T10:14:46.2736718+01:00",
+  "completed_at": "2026-11-14T10:17:25.3005068+01:00"
+}
