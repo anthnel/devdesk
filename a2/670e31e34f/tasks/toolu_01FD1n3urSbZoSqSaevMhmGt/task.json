@@ -1,0 +1,15 @@
+{
+  "tool_use_id": "toolu_01FD1n3urSbZoSqSaevMhmGt",
+  "agent_id": "aa74a659a007423e3",
+  "subagent_type": "dev-team:reviewer",
+  "task_description": "Review step 3 (container rows)",
+  "token_usage": {
+    "input_tokens": 25,
+    "cache_creation_tokens": 128964,
+    "cache_read_tokens": 1230370,
+    "output_tokens": 12716,
+    "api_call_count": 12
+  },
+  "started_at": "2026-11-14T18:24:38.5686476+01:00",
+  "completed_at": "2026-11-14T18:27:08.438746+01:00"
+}
