@@ -1,0 +1,15 @@
+{
+  "tool_use_id": "toolu_015foyEuoRva2XSHVSep2H6W",
+  "agent_id": "a5e6fdafc1f6a7849",
+  "subagent_type": "team-core:tech-writer",
+  "task_description": "Docs for engine row",
+  "token_usage": {
+    "input_tokens": 13,
+    "cache_creation_tokens": 65472,
+    "cache_read_tokens": 239813,
+    "output_tokens": 5725,
+    "api_call_count": 6
+  },
+  "started_at": "2026-11-14T21:25:12.6013079+01:00",
+  "completed_at": "2026-11-14T21:25:55.3465706+01:00"
+}

@@ -3,9 +3,24 @@
   "checkpoint_id": "d4a6ce7d1ba9",
   "strategy": "manual-commit",
   "branch": "feat/devdesk-332-engine-row",
-  "checkpoints_count": 12,
+  "checkpoints_count": 32,
   "files_touched": [
-    "docs/product/network-map/brief.md"
+    "docs/architecture/network.md",
+    "docs/backlog.md",
+    "docs/product/network-map/brief.md",
+    "internal/ui/netdiag/header.go",
+    "internal/ui/netdiag/path_bridge.go",
+    "internal/ui/netdiag/path_bridge_run_test.go",
+    "internal/ui/netdiag/path_bridge_test.go",
+    "internal/ui/netdiag/path_container.go",
+    "internal/ui/netdiag/path_engine_help_test.go",
+    "internal/ui/netdiag/path_engine_run_test.go",
+    "internal/ui/netdiag/path_engine_steps_test.go",
+    "internal/ui/netdiag/path_model.go",
+    "internal/ui/netdiag/path_run.go",
+    "internal/ui/netdiag/path_source_flow_test.go",
+    "internal/ui/netdiag/path_steps.go",
+    "internal/ui/netdiag/path_view.go"
   ],
   "sessions": [
     {
@@ -14,20 +29,27 @@
       "compact_transcript": "/d4/a6ce7d1ba9/0/transcript.jsonl",
       "content_hash": "/d4/a6ce7d1ba9/0/content_hash.txt",
       "prompt": "/d4/a6ce7d1ba9/0/prompt.txt"
+    },
+    {
+      "metadata": "/d4/a6ce7d1ba9/1/metadata.json",
+      "transcript": "/d4/a6ce7d1ba9/1/full.jsonl",
+      "compact_transcript": "/d4/a6ce7d1ba9/1/transcript.jsonl",
+      "content_hash": "/d4/a6ce7d1ba9/1/content_hash.txt",
+      "prompt": "/d4/a6ce7d1ba9/1/prompt.txt"
     }
   ],
   "token_usage": {
-    "input_tokens": 62,
-    "cache_creation_tokens": 415142,
-    "cache_read_tokens": 5116716,
-    "output_tokens": 16472,
-    "api_call_count": 25,
+    "input_tokens": 190,
+    "cache_creation_tokens": 497662,
+    "cache_read_tokens": 15476542,
+    "output_tokens": 42500,
+    "api_call_count": 72,
     "subagent_tokens": {
-      "input_tokens": 54,
-      "cache_creation_tokens": 226872,
-      "cache_read_tokens": 1406048,
-      "output_tokens": 12489,
-      "api_call_count": 28
+      "input_tokens": 286,
+      "cache_creation_tokens": 1538862,
+      "cache_read_tokens": 10715376,
+      "output_tokens": 110809,
+      "api_call_count": 143
     },
     "subagent_tokens_complete": true
   },

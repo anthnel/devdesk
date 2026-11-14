@@ -1,0 +1,15 @@
+{
+  "tool_use_id": "toolu_01EPgtmwy9b3XcG3pcYqdicR",
+  "agent_id": "affd4c42c02bfe36e",
+  "subagent_type": "project-coder",
+  "task_description": "Green step 1 classifyBridge",
+  "token_usage": {
+    "input_tokens": 7,
+    "cache_creation_tokens": 103047,
+    "cache_read_tokens": 223650,
+    "output_tokens": 3611,
+    "api_call_count": 4
+  },
+  "started_at": "2026-11-14T21:21:28.9686832+01:00",
+  "completed_at": "2026-11-14T21:22:05.0420157+01:00"
+}

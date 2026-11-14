@@ -1,0 +1,15 @@
+{
+  "tool_use_id": "toolu_01A78Jehs8Z5nvibdxfwLrNN",
+  "agent_id": "a63d23ea3d254c387",
+  "subagent_type": "project-tester",
+  "task_description": "Red tests step 1 classifyBridge",
+  "token_usage": {
+    "input_tokens": 13,
+    "cache_creation_tokens": 50026,
+    "cache_read_tokens": 258510,
+    "output_tokens": 7164,
+    "api_call_count": 7
+  },
+  "started_at": "2026-11-14T21:20:34.7979179+01:00",
+  "completed_at": "2026-11-14T21:21:22.5844025+01:00"
+}
