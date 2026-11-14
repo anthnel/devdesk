@@ -82,11 +82,12 @@ func closeAll(conns []probeConn) {
 	}
 }
 
-// openError turns "the kernel refuses this socket option or socket" into
+// openError turns a refused socket option (ENOPROTOOPT, EOPNOTSUPP) into
 // ErrUnsupported, keeping the raw error for the message. Anything else is
-// returned as is.
+// returned as is: a refused connect() is not "unsupported", and the system
+// prober wraps its own socket and setsockopt permission errors itself.
 func openError(err error) error {
-	for _, errno := range []error{syscall.ENOPROTOOPT, syscall.EOPNOTSUPP, syscall.EPERM, syscall.EACCES} {
+	for _, errno := range []error{syscall.ENOPROTOOPT, syscall.EOPNOTSUPP} {
 		if errors.Is(err, errno) {
 			return fmt.Errorf("%w: %w", ErrUnsupported, err)
 		}
@@ -227,23 +228,18 @@ func (t *tally) result(target netip.Addr, start time.Time) Result {
 	return Result{Target: target, Outcome: outcome, Hops: hops, Duration: time.Since(start)}
 }
 
-// endedEarly builds the Result of a run that ctx cut short. A deadline lists
-// every TTL, the unanswered ones as HopUnresolved; a cancellation keeps only
-// the hops that were resolved. t is nil when nothing was probed yet.
+// endedEarly builds the Result of a run that ctx cut short: one entry per TTL
+// (n entries, index TTL-1), the resolved hops as they are and every other one
+// as HopUnresolved with its TTL. t is nil when nothing was probed yet.
 func endedEarly(ctx context.Context, target netip.Addr, t *tally, n int, start time.Time) Result {
-	res := Result{Target: target, Outcome: OutcomeCancelled, Duration: time.Since(start)}
-	deadline := errors.Is(ctx.Err(), context.DeadlineExceeded)
-	if deadline {
+	res := Result{Target: target, Outcome: OutcomeCancelled, Hops: make([]Hop, 0, n), Duration: time.Since(start)}
+	if errors.Is(ctx.Err(), context.DeadlineExceeded) {
 		res.Outcome = OutcomeDeadline
 	}
-	if t == nil {
-		return res
-	}
 	for ttl := 1; ttl <= n; ttl++ {
-		switch r := t.hops[ttl]; {
-		case r.resolved:
-			res.Hops = append(res.Hops, r.hop)
-		case deadline:
+		if t != nil && t.hops[ttl].resolved {
+			res.Hops = append(res.Hops, t.hops[ttl].hop)
+		} else {
 			res.Hops = append(res.Hops, Hop{TTL: ttl, Kind: HopUnresolved})
 		}
 	}

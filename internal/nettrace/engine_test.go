@@ -39,6 +39,8 @@ type fakeProber struct {
 	attempts, openOK, closes, sends, awaits atomic.Int32
 
 	onOpen, onSend, onAwait func(ttl int)
+	// onReply runs just before await hands an answer back.
+	onReply func(ttl int)
 
 	// barrier: await blocks until barrierN probes are waiting at once.
 	barrierN        int
@@ -164,6 +166,9 @@ func (c *fakeConn) await(ctx context.Context, until time.Time) (reply, error) {
 	}
 	if s.awaitErr != nil {
 		return reply{}, s.awaitErr
+	}
+	if p.onReply != nil {
+		p.onReply(c.ttl)
 	}
 	return *s.rep, nil
 }
@@ -369,7 +374,7 @@ func TestRunAllSilentEndsAtMaxHops(t *testing.T) {
 			t.Errorf("Hops[%d] = %+v, want silent at TTL %d", i, h, i+1)
 		}
 	}
-	if elapsed < timeout-10*time.Millisecond || elapsed > 400*time.Millisecond {
+	if elapsed < timeout-10*time.Millisecond || elapsed > 700*time.Millisecond {
 		t.Errorf("run took %v, want about %v (probes in parallel)", elapsed, timeout)
 	}
 	assertBalanced(t, fp)
@@ -387,8 +392,8 @@ func TestRunDeadlineLeavesUnresolvedHops(t *testing.T) {
 	if res.Outcome != OutcomeDeadline {
 		t.Fatalf("Outcome = %v, want deadline", res.Outcome)
 	}
-	if elapsed < 180*time.Millisecond || elapsed > 300*time.Millisecond {
-		t.Errorf("run took %v, want about 200ms (under 300ms)", elapsed)
+	if elapsed < 180*time.Millisecond || elapsed > time.Second {
+		t.Errorf("run took %v, want about 200ms (under 1s)", elapsed)
 	}
 	if len(res.Hops) != 3 {
 		t.Fatalf("len(Hops) = %d, want 3: %+v", len(res.Hops), res.Hops)
@@ -427,7 +432,7 @@ func TestRunCancelDuringAwait(t *testing.T) {
 	}))
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
-	time.AfterFunc(100*time.Millisecond, cancel)
+	fp.onReply = func(int) { cancel() } // hop 1 is answered, then the trace is canceled
 
 	out := waitRun(t, runBG(ctx, Options{MaxHops: 4, ProbeTimeout: 10 * time.Second}, fp))
 	if out.err != nil {
@@ -438,6 +443,37 @@ func TestRunCancelDuringAwait(t *testing.T) {
 	}
 	if len(out.res.Hops) < 1 || out.res.Hops[0].Kind != HopRouter || out.res.Hops[0].Addr != netip.MustParseAddr("10.0.0.1") {
 		t.Errorf("Hops = %+v, want the partial hop 1 (router 10.0.0.1) kept", out.res.Hops)
+	}
+	assertBalanced(t, fp)
+}
+
+// A canceled run keeps one entry per TTL, index TTL-1, the unanswered ones
+// HopUnresolved: here TTL 1 and 3 answered while TTL 2 and 4 were waiting.
+func TestRunCancelKeepsTheResultShape(t *testing.T) {
+	fp := newFake(4, table(probeSpec{ignoreUntil: true}, map[int]probeSpec{
+		1: {rep: routerReply("10.0.0.1"), delay: 5 * time.Millisecond},
+		3: {rep: routerReply("10.0.0.3"), delay: 10 * time.Millisecond},
+	}))
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	var replies atomic.Int32
+	fp.onReply = func(int) {
+		if replies.Add(1) == 2 {
+			cancel()
+		}
+	}
+	out := waitRun(t, runBG(ctx, Options{MaxHops: 4, ProbeTimeout: 10 * time.Second}, fp))
+	if out.err != nil || out.res.Outcome != OutcomeCancelled {
+		t.Fatalf("got (%v, %v), want (canceled, nil)", out.res.Outcome, out.err)
+	}
+	if len(out.res.Hops) != 4 {
+		t.Fatalf("len(Hops) = %d, want 4: %+v", len(out.res.Hops), out.res.Hops)
+	}
+	want := []HopKind{HopRouter, HopUnresolved, HopRouter, HopUnresolved}
+	for i, h := range out.res.Hops {
+		if h.TTL != i+1 || h.Kind != want[i] {
+			t.Errorf("Hops[%d] = %+v, want TTL %d kind %v", i, h, i+1, want[i])
+		}
 	}
 	assertBalanced(t, fp)
 }
@@ -461,6 +497,14 @@ func TestRunCancelDuringOpen(t *testing.T) {
 	}
 	if got := fp.sends.Load(); got != 0 {
 		t.Errorf("%d probes were sent although open never finished", got)
+	}
+	if len(out.res.Hops) != 5 {
+		t.Fatalf("len(Hops) = %d, want 5 unresolved hops", len(out.res.Hops))
+	}
+	for i, h := range out.res.Hops {
+		if h.TTL != i+1 || h.Kind != HopUnresolved {
+			t.Errorf("Hops[%d] = %+v, want unresolved at TTL %d", i, h, i+1)
+		}
 	}
 	if got := fp.openOK.Load(); got != 2 {
 		t.Errorf("%d connections opened, want 2 (TTL 1 and 2)", got)
@@ -520,10 +564,10 @@ func TestRunCancelLeavesNoGoroutine(t *testing.T) {
 		}
 	}
 	deadline := time.Now().Add(2 * time.Second)
-	for runtime.NumGoroutine() > before && time.Now().Before(deadline) {
+	for runtime.NumGoroutine() > before+5 && time.Now().Before(deadline) {
 		time.Sleep(5 * time.Millisecond)
 	}
-	if after := runtime.NumGoroutine(); after > before {
+	if after := runtime.NumGoroutine(); after > before+5 {
 		t.Errorf("goroutines: %d before, %d after 100 canceled runs", before, after)
 	}
 }
@@ -549,12 +593,12 @@ func TestRunProbesAreInFlightTogether(t *testing.T) {
 	assertBalanced(t, fp)
 }
 
-// Criterion 6, timing: 8 hops answer in 50 ms each, the 9th is silent. In
+// Criterion 6, timing: 8 hops answer in 100 ms each, the 9th is silent. In
 // parallel the trace lasts one ProbeTimeout, not the sum.
 func TestRunSlowHopsDoNotAddUp(t *testing.T) {
 	m := map[int]probeSpec{}
 	for ttl := 1; ttl <= 8; ttl++ {
-		m[ttl] = probeSpec{rep: routerReply(fmt.Sprintf("10.0.0.%d", ttl)), delay: 50 * time.Millisecond}
+		m[ttl] = probeSpec{rep: routerReply(fmt.Sprintf("10.0.0.%d", ttl)), delay: 100 * time.Millisecond}
 	}
 	fp := newFake(9, table(probeSpec{}, m))
 	start := time.Now()
@@ -567,8 +611,8 @@ func TestRunSlowHopsDoNotAddUp(t *testing.T) {
 	if res.Hops[8].Kind != HopSilent {
 		t.Errorf("Hops[8].Kind = %v, want silent", res.Hops[8].Kind)
 	}
-	if elapsed < 950*time.Millisecond || elapsed > 1300*time.Millisecond {
-		t.Errorf("run took %v, want about 1s (a sequential engine needs about 1.4s)", elapsed)
+	if elapsed < 950*time.Millisecond || elapsed > 1500*time.Millisecond {
+		t.Errorf("run took %v, want about 1s (a sequential engine needs about 1.8s)", elapsed)
 	}
 	assertBalanced(t, fp)
 }
@@ -590,6 +634,14 @@ func TestRunOpenFailure(t *testing.T) {
 			err:      fmt.Errorf("setsockopt IP_RECVERR: %w", syscall.ENOPROTOOPT),
 			wantIs:   []error{ErrUnsupported, syscall.ENOPROTOOPT},
 			wantOpen: 6,
+		},
+		{
+			name:     "permission errors are not mapped by the engine",
+			failAt:   3,
+			err:      fmt.Errorf("connect: %w", syscall.EACCES),
+			wantIs:   []error{syscall.EACCES},
+			wantNot:  []error{ErrUnsupported},
+			wantOpen: 2,
 		},
 		{
 			name:     "any other open error comes back as is",

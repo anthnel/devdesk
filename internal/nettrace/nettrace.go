@@ -138,7 +138,16 @@ func (o Outcome) String() string {
 	return "unknown"
 }
 
-// Result is a finished trace. Always check the error Trace returned before
+// Result is a finished trace.
+//
+// Hops is cut at the terminal hop (target reached or refused) or, when the
+// trace ends at MaxHops, holds one hop per TTL. When a cancellation or the
+// deadline ends it first, Hops holds exactly MaxHops entries, Hops[i].TTL ==
+// i+1, and every probe that did not resolve is a HopUnresolved; so even with a
+// terminal hop already known, the TTLs above it can show up as HopUnresolved.
+// The probes above the target are all sent: only their wait is cut short.
+//
+// Always check the error Trace returned before
 // reading it: the zero Result (and so the zero Outcome, OutcomeReached) means
 // "no trace", never "reached".
 type Result struct {
