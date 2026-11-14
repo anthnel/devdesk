@@ -1,0 +1,15 @@
+{
+  "tool_use_id": "toolu_014Hob62totGSg7UJwMhPYMD",
+  "agent_id": "a805d10b68e7a7616",
+  "subagent_type": "dev-team:devops",
+  "task_description": "Worktree et branche",
+  "token_usage": {
+    "input_tokens": 5,
+    "cache_creation_tokens": 47677,
+    "cache_read_tokens": 87810,
+    "output_tokens": 794,
+    "api_call_count": 3
+  },
+  "started_at": "2026-11-14T10:06:27.6782943+01:00",
+  "completed_at": "2026-11-14T10:06:38.8811292+01:00"
+}

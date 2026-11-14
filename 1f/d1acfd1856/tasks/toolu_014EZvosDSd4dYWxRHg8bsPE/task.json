@@ -1,0 +1,15 @@
+{
+  "tool_use_id": "toolu_014EZvosDSd4dYWxRHg8bsPE",
+  "agent_id": "ad4a97bb1be1d7bc0",
+  "subagent_type": "project-tester",
+  "task_description": "Rouge étape 1 nettrace",
+  "token_usage": {
+    "input_tokens": 11,
+    "cache_creation_tokens": 104718,
+    "cache_read_tokens": 419286,
+    "output_tokens": 15472,
+    "api_call_count": 6
+  },
+  "started_at": "2026-11-14T10:06:49.146146+01:00",
+  "completed_at": "2026-11-14T10:08:22.5757396+01:00"
+}
