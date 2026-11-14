@@ -82,6 +82,36 @@ for that timeout too. A caller cannot tell the client timeout from the
 context's deadline, so `imagesearch.Classify` (DEVDESK-303, IS-12) puts both in
 the `failed` verdict.
 
+**Credentials stay on their origin (DEVDESK-410).** Three guards keep the Basic
+credentials and the Bearer token from leaving the registry they were meant for:
+
+- **The tag list never follows a `Link: rel="next"` to another origin.**
+  `ListRegistryTagsContext` checks each `next` with `sameOrigin` (the catalog
+  walker's guard) before the next request. A foreign `next` is an error that
+  wraps `ErrTagsNextOffOrigin` (test it with `errors.Is`) and names the
+  destination host only. No partial list is returned: a short list could pass
+  for the whole one, and `imageupdate` and the security remediation would read
+  a false "up to date". The catalog walker behaves otherwise: it returns
+  `truncated=true` with the names already read, and no error.
+- **`registryHTTPClient` has a `CheckRedirect`, `refuseOffOriginRedirect`.** A
+  redirect is refused when its scheme, host or port differ from the first
+  request of the chain (`via[0]`, not only the previous hop), so a chain that
+  leaves the origin and comes back is refused too. The error reads
+  `refusing redirect to another origin (<host>)` and wraps
+  `errOffOriginRedirect` (`errors.Is`). It holds neither the target URL, nor
+  its path or query: `redirectRefusal` strips the `*url.Error` that carries
+  them, so a signed URL reaches neither the footer nor the logs. The limit of 10 redirects (`maxRedirects`, the `net/http` default) is
+  kept. It applies to everything that uses the client: tags, catalog and the
+  token endpoint.
+- **The token endpoint's answer is capped at 1 MiB** (`maxTokenResponse`). A
+  larger body is an error (`token response over 1048576 bytes`), not a silent
+  cut.
+
+**Behavior change.** Some redirects that were followed are now refused: `http`
+to `https` on the same host, `host` to `host:443`, and a host written with a
+different case. The comparison is on the exact scheme and `host:port`, and the
+guard refuses when in doubt.
+
 **Catalog walk (DEVDESK-306, IS-03).** `ListCatalogContext(ctx, apiURL,
 username, password, maxPages, pageSize)` returns `(names, truncated, err)`. It
 asks `<apiURL>/v2/_catalog?n=<pageSize>` and follows `Link: rel="next"` for at
@@ -97,9 +127,9 @@ kept across pages.
   and host strictly (`host` and `host:443` differ), so a registry cannot make
   the walk send the Basic credentials or the token elsewhere. A foreign or
   differently written `next` ends the walk as `truncated`, with no error.
-- **HTTP 3xx redirects are not hardened**: they follow `registryHTTPClient`,
-  as the tags do. The origin guard covers the `next` link only. A separate
-  ticket is proposed.
+- **HTTP 3xx redirects are hardened too** (DEVDESK-410): the walk goes through
+  `registryHTTPClient`, whose `CheckRedirect` refuses a redirect to another
+  origin (see "Credentials stay on their origin" above).
 
 ## Image search — `internal/imagesearch` (DEVDESK-298, IS-18)
 
