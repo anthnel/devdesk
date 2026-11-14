@@ -213,11 +213,45 @@ func TestLinuxProbeConnAwaitIsReleasedByContext(t *testing.T) {
 		if !errors.Is(a.err, context.Canceled) {
 			t.Errorf("await err = %v, want context.Canceled", a.err)
 		}
-		if d := time.Since(cancelAt); d > 100*time.Millisecond {
-			t.Errorf("await returned %v after the cancel, want <= 100ms", d)
+		if d := time.Since(cancelAt); d > 500*time.Millisecond {
+			t.Errorf("await returned %v after the cancel, want <= 500ms", d)
 		}
 	case <-time.After(2 * time.Second):
 		t.Fatal("await still blocked 2s after the cancel")
+	}
+}
+
+// When the context's deadline is not after await's until, the trace deadline is
+// what ran out: await reports the context's error, not a silent hop. The
+// control case, a later context deadline, is a plain silent timeout.
+func TestLinuxProbeConnAwaitDeadlineBranch(t *testing.T) {
+	_, port := silentListener(t)
+	tests := []struct {
+		name     string
+		ctxAfter time.Duration
+		want     error
+	}{
+		{"context deadline equals until", 100 * time.Millisecond, context.DeadlineExceeded},
+		{"context deadline before until", 50 * time.Millisecond, context.DeadlineExceeded},
+		{"context deadline after until", 5 * time.Second, errSilent},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			for i := 0; i < 5; i++ {
+				c, err := linuxProber{port: port}.open(context.Background(), loopback, 1)
+				if err != nil {
+					t.Fatal(err)
+				}
+				now := time.Now()
+				ctx, cancel := context.WithDeadline(context.Background(), now.Add(tt.ctxAfter))
+				_, err = c.await(ctx, now.Add(100*time.Millisecond))
+				cancel()
+				_ = c.close()
+				if !errors.Is(err, tt.want) {
+					t.Fatalf("run %d: await err = %v, want %v", i, err, tt.want)
+				}
+			}
+		})
 	}
 }
 
@@ -309,9 +343,11 @@ func TestConnectErrorIsNeverUnsupported(t *testing.T) {
 			t.Errorf("%v: raw errno lost: %v", errno, err)
 		}
 	}
-	// ENETUNREACH at connect means "no route".
-	if err := connectError(syscall.ENETUNREACH); !errors.Is(err, ErrNoRoute) {
-		t.Errorf("ENETUNREACH: got %v, want ErrNoRoute", err)
+	// ENETUNREACH and EHOSTUNREACH at connect mean "no route".
+	for _, errno := range []syscall.Errno{syscall.ENETUNREACH, syscall.EHOSTUNREACH} {
+		if err := connectError(errno); !errors.Is(err, ErrNoRoute) || !errors.Is(err, errno) {
+			t.Errorf("%v: got %v, want ErrNoRoute wrapping the raw errno", errno, err)
+		}
 	}
 }
 

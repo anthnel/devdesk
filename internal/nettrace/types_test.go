@@ -6,7 +6,7 @@ import (
 )
 
 func TestSentinelErrors(t *testing.T) {
-	errs := map[string]error{"ErrUnsupported": ErrUnsupported, "ErrNotIPv4": ErrNotIPv4, "ErrNoRoute": ErrNoRoute}
+	errs := map[string]error{"ErrUnsupported": ErrUnsupported, "ErrNotIPv4": ErrNotIPv4, "ErrNoRoute": ErrNoRoute, "ErrNotUnicast": ErrNotUnicast}
 	for name, err := range errs {
 		if err == nil || err.Error() == "" {
 			t.Errorf("%s must be a non-empty error", name)

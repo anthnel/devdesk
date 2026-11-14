@@ -9,6 +9,10 @@
 // nothing is started and no container is needed. The package never starts a
 // child process (see the source guard test).
 //
+// The probes use connected sockets with an ephemeral source port, so an ICMP
+// message forged off the path can at worst skew what is displayed; it cannot
+// make the trace read anything else.
+//
 // Only Linux is supported: elsewhere Supported and Trace return ErrUnsupported
 // and the caller is expected to grey the feature out.
 package nettrace

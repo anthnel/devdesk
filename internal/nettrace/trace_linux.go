@@ -91,15 +91,16 @@ func unsupportedSocketError(err error) error {
 	return err
 }
 
-// connectError maps a connect failure. "Network unreachable" is ErrNoRoute; a
-// refused connect is never ErrUnsupported.
+// connectError maps a connect failure. "Network" or "host unreachable" is
+// ErrNoRoute; a refused connect is never ErrUnsupported.
 func connectError(err error) error {
-	if errors.Is(err, syscall.ENETUNREACH) {
+	if errors.Is(err, syscall.ENETUNREACH) || errors.Is(err, syscall.EHOSTUNREACH) {
 		return fmt.Errorf("%w: %w", ErrNoRoute, err)
 	}
 	return err
 }
 
+// linuxConn is single-use: one send, then one await.
 type linuxConn struct {
 	conn *net.UDPConn
 	raw  syscall.RawConn

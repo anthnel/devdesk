@@ -21,6 +21,9 @@ var (
 	ErrUnsupported = errors.New("path trace not supported on this platform")
 	// ErrNotIPv4 is returned for a target that is not an IPv4 address.
 	ErrNotIPv4 = errors.New("path trace supports IPv4 targets only")
+	// ErrNotUnicast is returned for an unspecified, multicast or limited
+	// broadcast target.
+	ErrNotUnicast = errors.New("path trace needs a unicast target")
 	// ErrNoRoute is returned when the system has no route to the target.
 	ErrNoRoute = errors.New("no route to the target")
 )
@@ -163,7 +166,15 @@ func Supported() error {
 }
 
 // Trace probes the path to target. An IPv4-mapped IPv6 target is converted to
-// IPv4; any other non-IPv4 target gets ErrNotIPv4 and nothing is sent.
+// IPv4; any other non-IPv4 target gets ErrNotIPv4 and nothing is sent. An
+// unspecified (0.0.0.0), multicast or limited broadcast (255.255.255.255)
+// target gets ErrNotUnicast. Subnet broadcasts cannot be told apart and are not
+// checked. Loopback and private addresses are allowed: whether tracing them is
+// acceptable is the caller's decision, at its own boundary.
+//
+// The errors Trace returns and Hop.Err carry raw platform text (errno
+// messages): match the sentinels with errors.Is and show fixed labels, never
+// that text in a summary.
 func Trace(ctx context.Context, target netip.Addr, opts Options) (Result, error) {
 	if err := supported(); err != nil {
 		return Result{}, err
@@ -171,6 +182,9 @@ func Trace(ctx context.Context, target netip.Addr, opts Options) (Result, error)
 	target = target.Unmap()
 	if !target.Is4() {
 		return Result{}, ErrNotIPv4
+	}
+	if target.IsUnspecified() || target.IsMulticast() || target == netip.AddrFrom4([4]byte{255, 255, 255, 255}) {
+		return Result{}, ErrNotUnicast
 	}
 	return run(ctx, target, opts, systemProber())
 }
