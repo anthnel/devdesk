@@ -1,0 +1,15 @@
+{
+  "tool_use_id": "toolu_013P7yUWGntX4eZ4SFUMHbRx",
+  "agent_id": "aa45ec192f21de300",
+  "subagent_type": "dev-team:devops",
+  "task_description": "Fusionner PR 406",
+  "token_usage": {
+    "input_tokens": 13,
+    "cache_creation_tokens": 55726,
+    "cache_read_tokens": 340714,
+    "output_tokens": 2486,
+    "api_call_count": 7
+  },
+  "started_at": "2026-11-15T10:43:12.2657886+01:00",
+  "completed_at": "2026-11-15T10:43:52.9441699+01:00"
+}
