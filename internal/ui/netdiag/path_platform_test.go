@@ -38,8 +38,9 @@ func TestPathSupport(t *testing.T) {
 		wantUnsupp bool   // errors.Is(err, nettrace.ErrUnsupported)
 	}{
 		{"macOS", "darwin", wslenv.KindNone, nettrace.ErrUnsupported, reasonPathMacOS, true},
-		{"Windows", "windows", wslenv.KindNone, nettrace.ErrUnsupported, reasonPathWindows, true},
-		{"other OS", "freebsd", wslenv.KindNone, nettrace.ErrUnsupported, "The path trace needs Linux — not available on freebsd", true},
+		{"Windows, engine available", "windows", wslenv.KindNone, nil, "", false},
+		{"Windows, generic trace error", "windows", wslenv.KindNone, generic, reasonPathUnsupported, false},
+		{"other OS", "freebsd", wslenv.KindNone, nettrace.ErrUnsupported, "The path trace is not available on freebsd", true},
 		{"WSL1", "linux", wslenv.KindWSL1, nil, reasonPathWSL1, true},
 		{"WSL2", "linux", wslenv.KindWSL2, nil, "", false},
 		{"native Linux", "linux", wslenv.KindNone, nil, "", false},
@@ -79,7 +80,7 @@ func TestPathPlatformErrorShape(t *testing.T) {
 }
 
 func TestPathUnsupportedReason(t *testing.T) {
-	wrapped := errors.Join(errors.New("ctx"), &pathPlatformError{reason: reasonPathWindows})
+	wrapped := errors.Join(errors.New("ctx"), &pathPlatformError{reason: reasonPathWSL1})
 	tests := []struct {
 		name string
 		err  error
@@ -88,7 +89,7 @@ func TestPathUnsupportedReason(t *testing.T) {
 		{"bare ErrUnsupported", nettrace.ErrUnsupported, reasonPathUnsupported},
 		{"generic error", errors.New("boom"), reasonPathUnsupported},
 		{"platform error", &pathPlatformError{reason: reasonPathMacOS}, reasonPathMacOS},
-		{"wrapped platform error", wrapped, reasonPathWindows},
+		{"wrapped platform error", wrapped, reasonPathWSL1},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -103,7 +104,7 @@ func TestPathReasonsAreShortAndKeepTheGenericWording(t *testing.T) {
 	if reasonPathUnsupported != "The path trace is not supported on this platform" {
 		t.Errorf("reasonPathUnsupported = %q, want the existing generic sentence", reasonPathUnsupported)
 	}
-	for _, r := range []string{reasonPathMacOS, reasonPathWindows, reasonPathWSL1, reasonPathUnsupported} {
+	for _, r := range []string{reasonPathMacOS, reasonPathWSL1, reasonPathUnsupported} {
 		if n := len([]rune(r)); n == 0 || n > 75 {
 			t.Errorf("reason %q is %d characters, want 1 to 75", r, n)
 		}
