@@ -1,0 +1,70 @@
+{
+  "cli_version": "0.13.2",
+  "checkpoint_id": "45cb45a51962",
+  "strategy": "manual-commit",
+  "branch": "feat/devdesk-333-wsl2-path-labels",
+  "checkpoints_count": 25,
+  "files_touched": [
+    ".github/workflows/ci.yml",
+    "docs-site/docs/explanation/network.md",
+    "docs/architecture/network.md",
+    "docs/backlog.md",
+    "docs/product/network-map/brief.md",
+    "internal/ui/netdiag/header.go",
+    "internal/ui/netdiag/path_engine_source_guard_test.go",
+    "internal/ui/netdiag/path_model.go",
+    "internal/ui/netdiag/path_run.go",
+    "internal/ui/netdiag/path_run_test.go",
+    "internal/ui/netdiag/path_steps.go",
+    "internal/ui/netdiag/path_wsl.go",
+    "internal/ui/netdiag/path_wsl_run_test.go",
+    "internal/ui/netdiag/path_wsl_test.go",
+    "internal/wslenv/classify.go",
+    "internal/wslenv/classify_test.go",
+    "internal/wslenv/detect.go",
+    "internal/wslenv/detect_test.go",
+    "internal/wslenv/live_linux_test.go",
+    "internal/wslenv/procroute.go",
+    "internal/wslenv/source_guard_test.go",
+    "internal/wslenv/wslenv.go",
+    "internal/wslenv/wslinfo.go"
+  ],
+  "sessions": [
+    {
+      "metadata": "/45/cb45a51962/0/metadata.json",
+      "transcript": "/45/cb45a51962/0/full.jsonl",
+      "compact_transcript": "/45/cb45a51962/0/transcript.jsonl",
+      "content_hash": "/45/cb45a51962/0/content_hash.txt",
+      "prompt": "/45/cb45a51962/0/prompt.txt"
+    }
+  ],
+  "token_usage": {
+    "input_tokens": 172,
+    "cache_creation_tokens": 353271,
+    "cache_read_tokens": 9800175,
+    "output_tokens": 37111,
+    "api_call_count": 65,
+    "subagent_tokens": {
+      "input_tokens": 371,
+      "cache_creation_tokens": 1847309,
+      "cache_read_tokens": 12447104,
+      "output_tokens": 183818,
+      "api_call_count": 179
+    },
+    "subagent_tokens_complete": true
+  },
+  "redaction": {
+    "replacements": 0,
+    "layers": {
+      "betterleaks": 0,
+      "connection_string": 0,
+      "credential_key": 0,
+      "credential_value": 0,
+      "credentialed_uri": 0,
+      "entropy": 0,
+      "key_context": 0,
+      "provider_token": 0,
+      "shell_stdin": 0
+    }
+  }
+}

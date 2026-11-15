@@ -1,0 +1,18 @@
+{
+  "tool_use_id": "toolu_01BYCAxwcxhEVceSJTi2P1bP",
+  "agent_id": "a60d59f5b37996eab",
+  "subagent_type": "team-core:archivist",
+  "task_description": "Archiver décision WSL2 wslenv",
+  "files": [
+    "docs/backlog.md"
+  ],
+  "token_usage": {
+    "input_tokens": 11,
+    "cache_creation_tokens": 76566,
+    "cache_read_tokens": 233575,
+    "output_tokens": 4184,
+    "api_call_count": 5
+  },
+  "started_at": "2026-11-15T10:30:13.1024227+01:00",
+  "completed_at": "2026-11-15T10:30:37.8915171+01:00"
+}

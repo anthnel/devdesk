@@ -1,0 +1,15 @@
+{
+  "tool_use_id": "toolu_01Sm9jSjoZv1dCbW3dKHCEwG",
+  "agent_id": "a23792b5e6f4bf447",
+  "subagent_type": "dev-team:reviewer",
+  "task_description": "Revue étape 4 branchement",
+  "token_usage": {
+    "input_tokens": 13,
+    "cache_creation_tokens": 67805,
+    "cache_read_tokens": 343159,
+    "output_tokens": 5395,
+    "api_call_count": 7
+  },
+  "started_at": "2026-11-15T10:27:32.6915159+01:00",
+  "completed_at": "2026-11-15T10:28:15.3817293+01:00"
+}

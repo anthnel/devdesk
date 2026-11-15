@@ -1,0 +1,15 @@
+{
+  "tool_use_id": "toolu_01CnC2Fhx3Q2vZz5xsKf2hfe",
+  "agent_id": "a68f48cd2c27e69cd",
+  "subagent_type": "dev-team:security-reviewer",
+  "task_description": "Sécurité exec wslinfo",
+  "token_usage": {
+    "input_tokens": 17,
+    "cache_creation_tokens": 115750,
+    "cache_read_tokens": 467372,
+    "output_tokens": 7594,
+    "api_call_count": 8
+  },
+  "started_at": "2026-11-14T22:12:23.4889387+01:00",
+  "completed_at": "2026-11-14T22:13:45.1989728+01:00"
+}
