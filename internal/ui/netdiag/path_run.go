@@ -46,7 +46,7 @@ type pathEngine struct {
 func systemPathEngine() pathEngine {
 	env := netcheck.SystemEnv(netcheck.DefaultSettings())
 	return pathEngine{
-		supported: nettrace.Supported,
+		supported: systemPathSupport,
 		resolve: func(ctx context.Context, host string) ([]netip.Addr, error) {
 			return net.DefaultResolver.LookupNetIP(ctx, "ip4", host)
 		},

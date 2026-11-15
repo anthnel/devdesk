@@ -432,8 +432,8 @@ func (m *Model) GetHelpContent() help.Content {
 			{
 				Title: "Path Tab — How it works",
 				Body: "Traces the hops between this machine and a target, in this process — no " +
-					"container, no traceroute binary. Linux only, for now: elsewhere the tab says so " +
-					"and enter is greyed out. IPv4 only: a host name is resolved to its IPv4 address. " +
+					"container, no traceroute binary. Native Linux and WSL2 only: on macOS, Windows and WSL1 the tab says so " +
+					"and enter and ctrl+o are greyed out. IPv4 only: a host name is resolved to its IPv4 address. " +
 					"The column starts on this machine: the interface the target's traffic leaves by, " +
 					"with its source address, and the gateway, read from this machine's routing table, " +
 					"then the hops. Under WSL2 the source row names the WSL2 VM, and in NAT mode the " +

@@ -103,6 +103,10 @@ func (pm *PathModel) statusLine() components.Status {
 		return pm.pickerStatus()
 	}
 	if pm.state != pathRunning {
+		if a := pm.launchable(); !a.Enabled() {
+			// The platform cannot trace: say so up front, derived every frame.
+			return components.Status{Text: a.Reason, Level: components.LevelWarning}
+		}
 		return components.Status{}
 	}
 	host := pm.target.Host
