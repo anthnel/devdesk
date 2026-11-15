@@ -71,7 +71,7 @@ func testConfig() *config.Config {
 }
 
 // fakeView stands in for a real view. It implements every optional interface
-// the router probes for — FormView, FooterView, HeaderView, FilterBarView and
+// the router probes for — FormView, FooterView, HeaderView and
 // help.Provider — with each answer settable, so a test can build the exact
 // shape it needs. It records every message forwarded to it, which is how the
 // tests tell "the view received the key" from "the router consumed it".
@@ -79,7 +79,6 @@ type fakeView struct {
 	title        string
 	body         string
 	editing      bool
-	filterBar    bool
 	footerHeight int
 	footer       string
 	shortcuts    shortcut.Shortcuts
@@ -108,7 +107,6 @@ func (v *fakeView) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 func (v *fakeView) Render() string                   { return v.body }
 func (v *fakeView) View() tea.View                   { return tea.NewView(v.Render()) }
 func (v *fakeView) InEditMode() bool                 { return v.editing }
-func (v *fakeView) FilterBarVisible() bool           { return v.filterBar }
 func (v *fakeView) GetFooterHeight() int             { return v.footerHeight }
 func (v *fakeView) RenderFooter(int) string          { return v.footer }
 func (v *fakeView) GetShortcuts() shortcut.Shortcuts { return v.shortcuts }

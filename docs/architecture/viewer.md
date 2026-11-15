@@ -313,7 +313,9 @@ can lift the filter, or not.
 `components.BarFrame` — extracted from `FilterBar.View()`, so the rectangle that
 closes the viewport has one implementation — and `GetFooterHeight` answers 2
 either way. That is what stops the pane resizing under the reader when the prompt
-opens over an active search. `InEditMode` and `FilterBarVisible` both count it.
+opens over an active search. `InEditMode` counts it, and the router joins the
+viewport border to it because the footer opens with a `BarFrame`
+(`components.OpensWithBarFrame`).
 
 **`g` was a retired vim alias, and it came back with a different meaning.**
 §3.26 removed `g`/`G` as aliases of `home`/`end`; here the letter opens a prompt

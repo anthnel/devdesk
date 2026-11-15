@@ -737,6 +737,14 @@ appear on demand; the Path bar is shown on that tab in every state, so the
 tab's footer height is constant (5, `pathFooterHeight`) and nothing moves
 whichever state the tab is in.
 
+**The router reads the footer, not the view** (DEVDESK-457). `App.Render()`
+renders the footer first; when `components.OpensWithBarFrame(footer)` holds
+(ANSI-stripped line 1 framed by `│…│`, line 2 closed by `└…┘`), it turns the
+viewport's bottom `└┘` into `├┤` so the two form one rectangle. Views no longer
+declare a bar (`FilterBarVisible` is gone): whatever `RenderFooter` draws is
+what the viewport joins. `fitHeight` trims a too-tall body just above its last
+line, so that border survives a short terminal.
+
 ## Invalid form fields (DEVDESK-292, Rule 140)
 
 A form field that fails validation is underlined in wavy red, and the error

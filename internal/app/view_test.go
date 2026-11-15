@@ -5,8 +5,10 @@ import (
 	"testing"
 
 	"charm.land/lipgloss/v2"
+	"github.com/charmbracelet/x/ansi"
 
 	"github.com/anthnel/devdesk/internal/command"
+	"github.com/anthnel/devdesk/internal/ui/components"
 	"github.com/anthnel/devdesk/internal/ui/help"
 	"github.com/anthnel/devdesk/internal/ui/testutil"
 )
@@ -147,16 +149,27 @@ func TestHelpIsRenderedBeforeTheLists(t *testing.T) {
 // boxes.
 func TestTheFilterBarClosesTheRectangle(t *testing.T) {
 	plain := router(t, &fakeView{footerHeight: 2, footer: "info"}).Render()
-	filtering := router(t, &fakeView{footerHeight: 3, footer: "filter", filterBar: true}).Render()
+	filtering := router(t, &fakeView{footerHeight: 3, footer: components.BarFrame(80, "filter") + "\ninfo"}).Render()
 
 	if !strings.Contains(plain, "└") {
 		t.Error("the plain viewport has no bottom-left corner")
 	}
-	if strings.Contains(filtering, "└") {
+	lines := strings.Split(ansi.Strip(filtering), "\n")
+	i := -1
+	for j, l := range lines {
+		if strings.HasPrefix(l, "│") && strings.Contains(l, "filter") {
+			i = j
+		}
+	}
+	if i < 1 {
+		t.Fatalf("no filter bar line on screen:\n%s", strings.Join(lines, "\n"))
+	}
+	above := lines[i-1]
+	if isBox(above, "└", "┘") {
 		t.Error("the corner was not turned into a T-junction for the filter bar")
 	}
-	if !strings.Contains(filtering, "├") || !strings.Contains(filtering, "┤") {
-		t.Error("the filter bar does not join the viewport border")
+	if !isBox(above, "├", "┤") {
+		t.Errorf("the line above the filter bar is %q, want ├…┤", above)
 	}
 }
 

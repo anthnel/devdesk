@@ -76,13 +76,6 @@ type LeavingView interface {
 	Leave() (tea.Model, tea.Cmd, bool)
 }
 
-// FilterBarView is implemented by views that have a visible filter bar.
-// When the filter bar is visible, the viewport bottom border corners are
-// replaced with T-junction chars (├/┤) to form a closed rectangle.
-type FilterBarView interface {
-	FilterBarVisible() bool
-}
-
 // App is the main model, with a multi-view router
 type App struct {
 	config         *config.Config
