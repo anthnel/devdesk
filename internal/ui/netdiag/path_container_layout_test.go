@@ -67,11 +67,10 @@ func layoutCases() []layoutCase {
 func containerRun(t *testing.T, width, height int, state string, lc layoutCase, picker bool) *Model {
 	t.Helper()
 	captureLog(t)
-	m := onPathTab(t)
+	m := traceReady(t, longHost)
 	m = feed(t, m, tea.WindowSizeMsg{Width: width, Height: height})
 	src := pathSource{ID: idWeb, Name: lc.ctr.Name}
 	m.pathModel.source = src
-	m = feed(t, m, testutil.Type(longHost)...)
 	m = feed(t, m, testutil.Key("enter"))
 	gen := m.pathModel.gen
 
@@ -210,12 +209,11 @@ func TestPathAddressColumnIs47CellsAt80(t *testing.T) {
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
 			// An inspection that failed leaves the bare name in the container row.
-			m := onPathTab(t)
+			m := traceReady(t, "example.org")
 			m = feed(t, m, tea.WindowSizeMsg{Width: 80, Height: 24})
 			captureLog(t)
 			src := pathSource{ID: idWeb, Name: tc.cells}
 			m.pathModel.source = src
-			m = feed(t, m, testutil.Type("example.org")...)
 			m = feed(t, m, testutil.Key("enter"))
 			m = feed(t, m, pathResolvedMsg{gen: m.pathModel.gen, addr: netip.MustParseAddr("1.1.1.1"), route: defaultRouteHop(), source: src, ctrErr: errors.New("x")})
 

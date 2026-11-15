@@ -11,11 +11,6 @@ import (
 )
 
 const (
-	// reasonTraceBusy is the footer refusal of Trace Path while the Path tab is
-	// already tracing. The button stays lit: a running trace is not a greyed-out
-	// cause (Rule 130).
-	reasonTraceBusy = "A path trace is already running — esc cancels it on the Path tab"
-
 	// traceTitleMargin is what the frame takes from the title line: corners,
 	// rules and the spaces around the title.
 	traceTitleMargin = 8
@@ -25,42 +20,70 @@ const (
 )
 
 // startFromForm starts a trace on tg from the Diagnostics form. It reuses this
-// model rather than a second instance: the field and the previous run are
-// replaced, then the run is launched. It returns nil, and starts nothing, when
-// the platform cannot trace. The Cmd does the I/O only (Rule 110).
+// model rather than a second instance: the previous run is replaced, then the
+// run is launched. It returns nil, and starts nothing, when the platform cannot
+// trace. The Cmd does the I/O only (Rule 110).
 func (pm *PathModel) startFromForm(tg pathTarget) tea.Cmd {
 	if !pm.launchable().Enabled() {
 		return nil
 	}
-	_ = pm.prefill(tg.Host) // the run blurs the field again, so its focus Cmd is moot
+	pm.ready(tg)
 	_, cmd := pm.launch(tg)
 	return cmd
 }
 
-// handleKeyTrace is the keyboard of the sub-level. Only esc and the table's
-// navigation act: every other key is dropped here and never reaches the Path
-// model, whose key handler would turn its hidden field live again after a failed
-// run.
-func (m *Model) handleKeyTrace(msg tea.KeyPressMsg) (*Model, tea.Cmd) {
-	key := msg.String()
-	switch {
-	case key == "esc":
-		return m.escFromTrace()
-	case isPathNavKey(key):
-		return m, m.pathModel.table.Update(msg)
-	}
-	return m, nil
+// ready puts the model in its ready state on tg: nothing is sent, the source is
+// this machine and the previous run is forgotten.
+func (pm *PathModel) ready(tg pathTarget) {
+	pm.state = pathReady
+	pm.target = tg
+	pm.source = hostSource()
+	pm.picker = nil
+	pm.clearRun()
+	pm.footer.Clear()
 }
 
-// escFromTrace cancels a running trace; once it has ended, it goes back to the
-// form with its fields, its focus and the Diagnostics results untouched.
+// openTrace enters the sub-level on tg, remembering where esc leads back to.
+func (m *Model) openTrace(origin ViewState, tg pathTarget) {
+	m.traceOrigin = origin
+	m.state = StateTrace
+	m.activeTab = tabDiagnostics
+	m.pathModel.ready(tg)
+}
+
+// inTrace reports whether the trace sub-level is on screen.
+func (m *Model) inTrace() bool {
+	return m.activeTab == tabDiagnostics && m.state == StateTrace
+}
+
+// handleKeyTrace is the keyboard of the sub-level: esc goes back (or cancels a
+// run), everything else is the path model's, which ignores letters. While a
+// trace runs only the table's navigation passes: the running mode lists esc
+// alone.
+func (m *Model) handleKeyTrace(msg tea.KeyPressMsg) (*Model, tea.Cmd) {
+	key := msg.String()
+	if key == "esc" {
+		return m.escFromTrace()
+	}
+	if m.pathModel.running() && !isPathNavKey(key) {
+		return m, nil
+	}
+	var cmd tea.Cmd
+	m.pathModel, cmd = m.pathModel.handleKey(msg)
+	return m, cmd
+}
+
+// escFromTrace cancels a running trace; otherwise it goes back to where the
+// sub-level was opened from, with its fields, focus, filter and results kept.
 func (m *Model) escFromTrace() (*Model, tea.Cmd) {
 	if m.pathModel.running() {
 		_, cmd := m.pathModel.cancelRun()
 		return m, cmd
 	}
-	m.state = StateInput
-	m.restoreFormFocus()
+	m.state = m.traceOrigin
+	if m.traceOrigin == StateInput {
+		m.restoreFormFocus()
+	}
 	return m, nil
 }
 
@@ -91,15 +114,33 @@ func (m *Model) traceTitle(base string) string {
 	return base + titleTrailStyle().Render(traceTitleTrail+host)
 }
 
-// traceShortcuts: the running trace replaces the list, an ended one keeps it
-// short. Nothing here relaunches or picks a source (Rule 138).
+// traceShortcuts is the only constructor of the sub-level's shortcuts. The
+// selector and a running trace are modes and replace the list; ready and done
+// share one key set, with greyed entries (Rule 130).
 func (m *Model) traceShortcuts() shortcut.Shortcuts {
-	if m.pathModel.running() {
+	pm := m.pathModel
+	if pm.pickerOpen() {
+		return shortcut.Shortcuts{
+			{Key: "enter", Description: "Trace from it"},
+			{Key: "esc", Description: "Close"},
+		}
+	}
+	if pm.running() {
 		return shortcut.Shortcuts{{Key: "esc", Description: "Cancel the trace"}}
+	}
+	enter := "Trace the path"
+	if pm.state == pathDone {
+		enter = "Trace again"
+	}
+	esc := "Back to the results"
+	if m.traceOrigin == StateInput {
+		esc = "Back to the form"
 	}
 	return shortcut.Shortcuts{
 		{Key: "tab", Description: "Switch tab"},
-		{Key: "esc", Description: "Back to the form"},
+		{Key: "enter", Description: enter, Disabled: !pm.launchable().Enabled()},
+		{Key: pathSourceKey, Description: "Trace from…", Disabled: !pm.sourceChoosable().Enabled()},
+		{Key: "esc", Description: esc},
 		{Key: "?", Description: "Help"},
 	}
 }

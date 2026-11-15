@@ -304,7 +304,7 @@ func TestPathFlowSilentEndIsGroupedOnDone(t *testing.T) {
 	}}
 	pm := newPathModel(f.engine())
 	pm.resize(120, 40)
-	pm, _ = pmFeed(t, pm, testutil.Type("1.1.1.1")...)
+	pm.ready(pathTarget{Host: "1.1.1.1"})
 	pm, _ = pmFeed(t, pm, testutil.Key("enter"))
 
 	ch := make(chan tea.Msg, pathChanCap)

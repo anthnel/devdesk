@@ -78,40 +78,24 @@ when there is nothing selected to delete.
 | `enter` | A text field or Run Diagnostics | Run the checks |
 | `enter` | Trace Path button | Trace the path to the target, in the `Network › Path › <target>` level |
 | `esc` | Trace level, while it runs | Cancel the trace and keep the hops already seen |
-| `esc` | Trace level, once it is done | Back to the form, with Target, Port and DNS Server kept |
+| `enter` | Trace level, ready or done | Start the trace, or trace again |
+| `ctrl+o` | Trace level | Choose where the trace starts (this machine or a running container); choosing starts nothing |
+| `H` | Diagnostics results, Local route row | Open the trace level on the target, ready to start; nothing is sent until `enter` |
+| `esc` | Trace level, once it is done or before it started | Back to the form or the results it was opened from, with everything kept |
 | `↑` `↓` `PageUp` `PageDown` `Home` `End` | Trace level | Move in the hop table |
-| `Tab` | Anywhere in net, except while the filter bar is being edited or the Path tab's source selector is open | Switch tab |
+| `Tab` | Anywhere in net, except while the filter bar is being edited or the trace level's source selector is open | Switch tab |
 
 `enter` on a text field always runs the diagnostics; only the Trace Path
-button traces. In the trace level, every other key is ignored: there is no
-`enter`, `ctrl+r` or `ctrl+o` there. To trace again, press `esc` to return to
-the form, then use the button.
+button traces. In the trace level, every other key is ignored. `H` is greyed out, with the
+reason in the footer, on a platform that cannot trace or a target the trace
+refuses.
 
 The Target must be a host name or an IPv4 address, with no port. An empty,
 invalid, `host:port` or IPv6 target is refused: the field is underlined and the
-footer gives the reason, the same wording as the Path tab. Port and DNS Server
+footer gives the reason. Port and DNS Server
 do not apply to a trace: if either is filled, the footer says it is ignored.
 The button is greyed out on a platform that cannot trace (macOS, Windows,
 WSL1), and the footer gives the reason.
-
-## Network Diagnostics — Path tab
-
-| Key | Action |
-|---|---|
-| `enter` | Trace the path to the host typed in the target field, or trace again once a trace is done |
-| `esc` | While a trace runs: cancel it and keep the hops already seen. Once it is done: edit the target again (the value is kept) |
-| `↑` `↓` `PageUp` `PageDown` `Home` `End` | Move in the hop table |
-| `Tab` | Switch tab |
-
-The field takes a host name or an IPv4 address, with no port: `host:80` is
-refused (`Path ignores ports: enter a host or IP address only`). Nothing is
-sent until you press `enter`. `enter` is greyed out on a platform that cannot trace (the trace runs on Linux
-only, for now).
-
-From the Diagnostics tab, `H` on the **Local route** row of the results opens
-the Path tab with that target's host already in the field. It does not start a
-trace; press `enter` there. On any other row `H` is greyed out. If a trace is
-already running, `H` only switches to the Path tab.
 
 ## Lowercase — local filters and toggles, view by view
 

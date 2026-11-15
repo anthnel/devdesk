@@ -22,13 +22,12 @@ const (
 	manyHops  = 30
 )
 
-// longRun returns a full netdiag.Model on the Path tab, sized width x height,
+// longRun returns a full netdiag.Model on the trace sub-level, sized width x height,
 // with the 30-hop trace of longHost in the given state: running, done, canceled.
 func longRun(t *testing.T, width, height int, state string) *Model {
 	t.Helper()
-	m := onPathTab(t)
+	m := traceReady(t, longHost)
 	m = feed(t, m, tea.WindowSizeMsg{Width: width, Height: height})
-	m = feed(t, m, testutil.Type(longHost)...)
 	m = feed(t, m, testutil.Key("enter"))
 	gen := m.pathModel.gen
 
@@ -123,16 +122,17 @@ func TestPathColumnScrollsWithTheNavigationKeys(t *testing.T) {
 	}
 }
 
-// esc from done goes back to editing and keeps the route and the local rows.
-func TestPathEscFromDoneKeepsTheRouteAndTheLocalRows(t *testing.T) {
+// At the path model level esc is not its key (the Model owns it): from done the
+// model is untouched, so the route and the local rows stay.
+func TestPathModelIgnoresEscInDone(t *testing.T) {
 	pm := resolvedWith(t, lanRoute(), nil)
 	pm, _ = pmFeed(t, pm, pathDoneMsg{gen: pm.gen, result: nettrace.Result{
 		Outcome: nettrace.OutcomeReached, Hops: []nettrace.Hop{targetHop(1)},
 	}})
 	pm, _ = pmFeed(t, pm, testutil.Key("esc"))
 
-	if !pm.InEditMode() {
-		t.Error("esc from done should go back to editing")
+	if pm.state != pathDone {
+		t.Error("esc from done should leave the model in pathDone")
 	}
 	if pm.route == nil {
 		t.Error("route dropped by esc from done")
@@ -143,10 +143,41 @@ func TestPathEscFromDoneKeepsTheRouteAndTheLocalRows(t *testing.T) {
 	}
 }
 
+// At the Model level, esc from a finished trace goes back to the origin screen
+// and the finished run (route, local rows) is still what the sub-level holds
+// until the next openTrace replaces it.
+func TestTraceEscFromDoneGoesBackAndKeepsTheRouteAndTheLocalRows(t *testing.T) {
+	m := traceReady(t, "1.1.1.1")
+	m = feed(t, m, testutil.Key("enter"))
+	gen := m.pathModel.gen
+	m = feed(t, m,
+		pathResolvedMsg{gen: gen, addr: netip.MustParseAddr("1.1.1.1"), route: lanRoute()},
+		pathDoneMsg{gen: gen, result: nettrace.Result{
+			Outcome: nettrace.OutcomeReached, Hops: []nettrace.Hop{targetHop(1)},
+		}},
+	)
+	if m.pathModel.state != pathDone || !m.inTrace() {
+		t.Fatalf("precondition: want a finished trace on the sub-level, got state %v inTrace %v", m.pathModel.state, m.inTrace())
+	}
+
+	m = feed(t, m, testutil.Key("esc"))
+
+	if m.state != StateInput || m.inTrace() {
+		t.Errorf("state = %v after esc from done, want the origin (form)", m.state)
+	}
+	if m.pathModel.route == nil {
+		t.Error("route dropped by esc from done")
+	}
+	steps := pmSteps(m.pathModel)
+	if len(steps) < 3 || steps[0] != "source" || steps[1] != "interface" || steps[2] != "gateway" {
+		t.Errorf("rows after esc = %v, want source, interface, gateway kept first", steps)
+	}
+}
+
 // The help says the column starts on this machine.
 func TestPathHelpExplainsTheLocalRows(t *testing.T) {
 	for _, s := range New(testConfig()).GetHelpContent().Sections {
-		if s.Title != "Path Tab — How it works" {
+		if s.Title != "Diagnostics Tab — Tracing the path" {
 			continue
 		}
 		body := strings.Join(strings.Fields(s.Body), " ")
@@ -157,5 +188,5 @@ func TestPathHelpExplainsTheLocalRows(t *testing.T) {
 		}
 		return
 	}
-	t.Fatal(`no section "Path Tab — How it works"`)
+	t.Fatal(`no section "Diagnostics Tab — Tracing the path"`)
 }

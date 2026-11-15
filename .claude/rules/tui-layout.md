@@ -107,8 +107,8 @@ once.
   the pipeline the forge resolves, security/results/ci-tab), `ctrl+y` (copy
   the `docker run` command), `ctrl+o` (write the chosen base images into
   the Dockerfiles, security/results/remediation-tab) and `ctrl+o` again on
-  netdiag/path (open the "Trace from" selector: this machine or a running
-  container; it changes nothing by itself). Burning a global
+  netdiag/trace (open the "Trace from" selector: this
+  machine or a running container; it changes nothing by itself). Burning a global
   uppercase letter for an action present in a single sub-screen would cost
   more than it gains. They are written up as exceptions so the next survey
   does not mistake them for drift. `ctrl+o` is nano's Write Out, and the

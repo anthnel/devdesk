@@ -163,12 +163,12 @@ func TestFailedRunResetsThePlatform(t *testing.T) {
 func TestPathHelpMentionsTheWSL2Labels(t *testing.T) {
 	var body string
 	for _, s := range New(testConfig()).GetHelpContent().Sections {
-		if s.Title == "Path Tab — How it works" {
+		if s.Title == "Diagnostics Tab — Tracing the path" {
 			body = strings.Join(strings.Fields(s.Body), " ")
 		}
 	}
 	if body == "" {
-		t.Fatal(`no section "Path Tab — How it works"`)
+		t.Fatal(`no section "Diagnostics Tab — Tracing the path"`)
 	}
 	for _, want := range []string{"WSL2", "Windows host"} {
 		if !strings.Contains(body, want) {

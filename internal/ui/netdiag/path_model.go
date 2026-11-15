@@ -5,40 +5,35 @@ import (
 	"net/netip"
 	"time"
 
-	"charm.land/bubbles/v2/textinput"
 	tea "charm.land/bubbletea/v2"
-	"github.com/charmbracelet/x/ansi"
 
 	"github.com/anthnel/devdesk/internal/nettrace"
 	"github.com/anthnel/devdesk/internal/ui/components"
 	"github.com/anthnel/devdesk/internal/ui/datatable"
 	"github.com/anthnel/devdesk/internal/ui/shortcut"
-	"github.com/anthnel/devdesk/internal/ui/theme"
 	"github.com/anthnel/devdesk/internal/wslenv"
 )
 
 const (
 	// defaultPathResolveTimeout bounds the name resolution of a target.
 	defaultPathResolveTimeout = 5 * time.Second
-
-	// pathInputCharLimit holds a 253-character host name, a colon and a port.
-	pathInputCharLimit = 262
 )
 
-// pathState is where the Path tab is in its life cycle.
+// pathState is where the path trace is in its life cycle.
 type pathState int
 
 const (
-	// pathEditing: the target field has the keyboard.
-	pathEditing pathState = iota
-	// pathRunning: a trace is in flight; the field is blurred.
+	// pathReady is the zero value: the target is known (or empty) and nothing
+	// was sent; enter launches.
+	pathReady pathState = iota
+	// pathRunning: a trace is in flight.
 	pathRunning
 	// pathDone: a trace ended (or was canceled); the hops stay on screen.
 	pathDone
 )
 
-// PathModel is the Path tab: a target field above a table of hops that fills
-// in while the trace runs.
+// PathModel is the path trace model: a table of hops that fills in while the
+// trace runs. The target comes from the Diagnostics form, never from here.
 type PathModel struct {
 	width  int
 	height int
@@ -46,7 +41,6 @@ type PathModel struct {
 	engine         pathEngine
 	resolveTimeout time.Duration
 
-	input textinput.Model
 	table datatable.Model[pathStep]
 
 	state  pathState
@@ -59,7 +53,7 @@ type PathModel struct {
 	hops   []nettrace.Hop
 	result *nettrace.Result
 	// errText is the persistent footer error of a run that never traced. It is
-	// cleared by a change of the field or by the next launch, not by a timer.
+	// cleared by the next launch or by ready, not by a timer.
 	errText string
 
 	// gen identifies the run whose messages are accepted; cancel and msgs
@@ -85,23 +79,16 @@ type PathModel struct {
 }
 
 // pathSourceKey opens the "Trace from" selector (declared exception, surface
-// netdiag/path).
+// netdiag/trace).
 const pathSourceKey = "ctrl+o"
 
 // pickerOpen reports whether the selector holds the keyboard.
 func (pm *PathModel) pickerOpen() bool { return pm.picker != nil }
 
 func newPathModel(e pathEngine) *PathModel {
-	in := textinput.New()
-	theme.StyleTextInput(&in)
-	in.Placeholder = "hostname or IPv4 address"
-	in.CharLimit = pathInputCharLimit
-	in.Focus()
-
 	return &PathModel{
 		engine:         e,
 		resolveTimeout: defaultPathResolveTimeout,
-		input:          in,
 		table: datatable.New(datatable.Config[pathStep]{
 			Columns:    pathColumns(),
 			SortColumn: -1, // the path order is the content
@@ -109,16 +96,11 @@ func newPathModel(e pathEngine) *PathModel {
 	}
 }
 
-// InEditMode reports whether the target field has the keyboard.
-// The open selector holds the keyboard too, from any state.
-func (pm *PathModel) InEditMode() bool { return pm.state == pathEditing || pm.pickerOpen() }
-
 func (pm *PathModel) running() bool { return pm.state == pathRunning }
 
 func (pm *PathModel) resize(width, height int) {
 	pm.width = width
 	pm.height = max(height, 3)
-	pm.input.SetWidth(max(width-ansi.StringWidth(pathBarLabel)-4, 10))
 	pm.table.Resize(width, pm.height)
 }
 
@@ -143,15 +125,10 @@ func (pm *PathModel) update(msg tea.Msg) (*PathModel, tea.Cmd) {
 		return pm.handleSources(msg)
 	case tea.KeyPressMsg:
 		return pm.handleKey(msg)
-	case tea.PasteMsg:
-		return pm.handlePaste(msg)
 	}
-	// Anything else is a footer expiry or the cursor blink of the field: the
-	// field needs the blink itself, or its cursor freezes.
+	// Anything else (a paste included, Rule 111) is a footer expiry or dropped.
 	pm.footer.Handle(msg)
-	var cmd tea.Cmd
-	pm.input, cmd = pm.input.Update(msg)
-	return pm, cmd
+	return pm, nil
 }
 
 func (pm *PathModel) handleResolved(msg pathResolvedMsg) (*PathModel, tea.Cmd) {
@@ -210,8 +187,8 @@ func (pm *PathModel) handleDoneError(err error) (*PathModel, tea.Cmd) {
 		pm.table.SetItems(nil)
 	}
 	pm.errText = pathErrorLabel(pm.target.Host, err)
-	pm.state = pathEditing
-	return pm, pm.input.Focus()
+	pm.state = pathDone
+	return pm, nil
 }
 
 // refreshSteps rebuilds the table rows from the route and the hops.
@@ -272,63 +249,23 @@ func (pm *PathModel) handleKey(msg tea.KeyPressMsg) (*PathModel, tea.Cmd) {
 	if isPathNavKey(key) {
 		return pm, pm.table.Update(msg)
 	}
-	switch pm.state {
-	case pathEditing:
-		return pm.handleEditKey(msg)
-	case pathRunning:
+	if pm.state == pathRunning {
 		if key == "esc" {
 			return pm.cancelRun()
 		}
-	case pathDone:
-		switch key {
-		case "enter":
-			return pm.launch(pm.target)
-		case "esc":
-			pm.state = pathEditing
-			return pm, pm.input.Focus()
-		}
+		return pm, nil
+	}
+	if key == "enter" {
+		return pm.launch(pm.target)
 	}
 	return pm, nil
 }
 
-func (pm *PathModel) handleEditKey(msg tea.KeyPressMsg) (*PathModel, tea.Cmd) {
-	switch msg.String() {
-	case "enter":
-		return pm.launchFromInput()
-	case "esc", "tab", "shift+tab":
-		return pm, nil
-	}
-	return pm.updateInput(msg)
-}
-
-func (pm *PathModel) handlePaste(msg tea.PasteMsg) (*PathModel, tea.Cmd) {
-	if pm.state != pathEditing || pm.pickerOpen() {
-		return pm, nil // a paste reaches the focused field only (Rule 111)
-	}
-	return pm.updateInput(msg)
-}
-
-// updateInput hands msg to the field; a changed value drops the stale error.
-func (pm *PathModel) updateInput(msg tea.Msg) (*PathModel, tea.Cmd) {
-	before := pm.input.Value()
-	var cmd tea.Cmd
-	pm.input, cmd = pm.input.Update(msg)
-	if pm.input.Value() != before {
-		pm.errText = ""
-	}
-	return pm, cmd
-}
-
-func (pm *PathModel) launchFromInput() (*PathModel, tea.Cmd) {
-	tg, err := parsePathTarget(pm.input.Value())
-	if err != nil {
-		return pm, pm.footer.Error(capitalize(err.Error()))
-	}
-	return pm.launch(tg)
-}
-
 // launch starts a run: the model changes here, in Update; the Cmd only does I/O.
 func (pm *PathModel) launch(tg pathTarget) (*PathModel, tea.Cmd) {
+	if tg.Host == "" {
+		return pm, nil // nothing to trace
+	}
 	if a := pm.launchable(); !a.Enabled() {
 		return pm, pm.footer.Warn(a.Reason)
 	}
@@ -341,7 +278,6 @@ func (pm *PathModel) launch(tg pathTarget) (*PathModel, tea.Cmd) {
 	ctx, cancel := context.WithCancel(context.Background())
 	ch := make(chan tea.Msg, pathChanCap)
 	pm.cancel, pm.msgs = cancel, ch
-	pm.input.Blur()
 	pm.state = pathRunning
 	return pm, startPathRun(ctx, pm.gen, tg, pm.source, pm.resolveTimeout, pm.engine, ch)
 }

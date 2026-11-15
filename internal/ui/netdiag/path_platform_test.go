@@ -6,15 +6,13 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/anthnel/devdesk/internal/netcheck"
 	"github.com/anthnel/devdesk/internal/nettrace"
 	"github.com/anthnel/devdesk/internal/ui/components"
-	"github.com/anthnel/devdesk/internal/ui/keymap"
 	"github.com/anthnel/devdesk/internal/ui/testutil"
 	"github.com/anthnel/devdesk/internal/wslenv"
 )
 
-// DEVDESK-454 (DEVDESK-334): the Path tab says up front why it cannot trace,
+// DEVDESK-454 (DEVDESK-334): the path trace says up front why it cannot trace,
 // with a reason that names the platform.
 
 // platformOff is a pathEngine.supported answering with the macOS reason.
@@ -122,9 +120,9 @@ func TestSystemPathSupportIsStable(t *testing.T) {
 	}
 }
 
-// The reason is on screen as soon as the tab opens, derived on every frame.
+// The reason is on screen as soon as the sub-level opens, derived on every frame.
 func TestPathOpensWithTheReasonAtWarning(t *testing.T) {
-	for _, state := range []pathState{pathEditing, pathDone} {
+	for _, state := range []pathState{pathReady, pathDone} {
 		pm, _ := offFake(t)
 		pm.state = state
 
@@ -146,7 +144,7 @@ func TestPathOpensWithTheReasonAtWarning(t *testing.T) {
 	}
 }
 
-func TestPathSupportedPlatformHasNoStatusWhenEditing(t *testing.T) {
+func TestPathSupportedPlatformHasNoStatusWhenReady(t *testing.T) {
 	pm, _ := newPM(t)
 	if st := pm.statusLine(); st != (components.Status{}) {
 		t.Errorf("status = %+v on a supported platform, want empty", st)
@@ -159,8 +157,8 @@ func TestPathEnterIsRefusedWithThePlatformReason(t *testing.T) {
 
 	pm, _ = launched(t, pm, "1.1.1.1")
 
-	if pm.running() || pm.gen != gen || !pm.InEditMode() {
-		t.Errorf("running=%v gen=%d (was %d) edit=%v, want a refusal that stays editing", pm.running(), pm.gen, gen, pm.InEditMode())
+	if pm.running() || pm.gen != gen || pm.state != pathReady {
+		t.Errorf("running=%v gen=%d (was %d) state=%v, want a refusal that stays ready", pm.running(), pm.gen, gen, pm.state)
 	}
 	if pm.footer.Level() != components.LevelWarning || pm.footer.Text() != reasonPathMacOS {
 		t.Errorf("footer = {%v %q}, want Warning %q", pm.footer.Level(), pm.footer.Text(), reasonPathMacOS)
@@ -168,7 +166,7 @@ func TestPathEnterIsRefusedWithThePlatformReason(t *testing.T) {
 	if f.resolveCalls != 0 || f.traceCalls != 0 {
 		t.Errorf("engine reached (resolve %d, trace %d)", f.resolveCalls, f.traceCalls)
 	}
-	if !testutil.ShortcutDisabled(pm.shortcuts(), "enter") {
+	if !testutil.ShortcutDisabled(pmShortcuts(pm), "enter") {
 		t.Error("enter is not greyed")
 	}
 	if got := pm.launchable().Reason; got != reasonPathMacOS {
@@ -178,7 +176,7 @@ func TestPathEnterIsRefusedWithThePlatformReason(t *testing.T) {
 
 func TestPathSourceKeyIsGreyedWithThePlatformReason(t *testing.T) {
 	pm, f := offFake(t)
-	if sc := pm.shortcuts(); !testutil.HasShortcut(sc, "ctrl+o") || !testutil.ShortcutDisabled(sc, "ctrl+o") {
+	if sc := pmShortcuts(pm); !testutil.HasShortcut(sc, "ctrl+o") || !testutil.ShortcutDisabled(sc, "ctrl+o") {
 		t.Error("ctrl+o must stay listed and be greyed")
 	}
 
@@ -195,37 +193,13 @@ func TestPathSourceKeyIsGreyedWithThePlatformReason(t *testing.T) {
 	}
 }
 
-func TestPathHPrefillsTheHostAndEnterStaysGreyed(t *testing.T) {
-	m, fe := routeResults(t, "example.com")
-	m.pathModel.engine.supported = platformOff
-	m = selectCheck(t, m, netcheck.CheckRoute)
-
-	m = feed(t, m, testutil.Key(keymap.Diagnose))
-
-	pm := m.pathModel
-	if m.activeTab != tabPath || pm.input.Value() != "example.com" {
-		t.Fatalf("tab=%d field=%q, want the Path tab prefilled", m.activeTab, pm.input.Value())
-	}
-	if !testutil.ShortcutDisabled(pm.shortcuts(), "enter") {
-		t.Error("enter is not greyed after H")
-	}
-	if st := pm.statusLine(); st.Text != reasonPathMacOS || st.Level != components.LevelWarning {
-		t.Errorf("status = {%q %v}, want Warning %q", st.Text, st.Level, reasonPathMacOS)
-	}
-	gen := pm.gen
-	pm, _ = pmFeed(t, pm, testutil.Key("enter"))
-	if pm.running() || pm.gen != gen || fe.traceCalls != 0 {
-		t.Errorf("enter after H started a trace (running=%v gen=%d, was %d, traces %d)", pm.running(), pm.gen, gen, fe.traceCalls)
-	}
-}
-
 // Rule 130: the platform changes the availability, never the key set.
 func TestPathShortcutKeysDoNotDependOnThePlatform(t *testing.T) {
 	ok, _ := newPM(t)
 	off, _ := offFake(t)
-	for _, state := range []pathState{pathEditing, pathDone} {
+	for _, state := range []pathState{pathReady, pathDone} {
 		ok.state, off.state = state, state
-		if got, want := testutil.ShortcutKeys(off.shortcuts()), testutil.ShortcutKeys(ok.shortcuts()); !reflect.DeepEqual(got, want) {
+		if got, want := testutil.ShortcutKeys(pmShortcuts(off)), testutil.ShortcutKeys(pmShortcuts(ok)); !reflect.DeepEqual(got, want) {
 			t.Errorf("state %v: keys %v unsupported, %v supported", state, got, want)
 		}
 	}

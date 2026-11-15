@@ -202,23 +202,20 @@ move from the fields to the buttons. `enter` on a text field still runs the
 diagnostics, so nobody has to walk to a button first.
 
 Trace Path opens a level of the Diagnostics tab, `Network › Path › <target>`,
-with the same table as the [Path tab](#the-path-tab--internalnettrace)
+with the table described under [The path trace](#the-path-trace--internalnettrace)
 (Hop, Step, Address, RTT). The trace starts when you press the button, from
 this machine, and nothing is sent before. `esc` cancels a running trace; `esc`
 again returns to the form, with Target, Port and DNS Server as you left them.
-The level has no `enter` and no `ctrl+o`: to trace again, go back to the form.
-Every key except the table's navigation (and `Tab`, which switches tab) is
+In the level, `enter` traces again and `ctrl+o` opens **Trace from**. Every
+other key except the table's navigation (and `Tab`, which switches tab) is
 ignored there.
 
 The trace probes the path to a host, not a service, so Port and DNS Server
 play no part in it. If either is filled, the footer says so and the trace goes
-ahead. The Target follows the Path tab's rules: a host name or an IPv4
+ahead. The Target follows the trace's rules: a host name or an IPv4
 address, no port, no IPv6. A refused target is underlined and the footer
 gives the reason. Where the trace cannot run (macOS, Windows, WSL1) the button
 is greyed out and the footer says why.
-
-The level shares its trace with the Path tab, which stays in place for now: a
-trace started from the form also appears there.
 
 ## The Ports tab — `internal/ports`
 
@@ -432,16 +429,16 @@ its own resolver isn't covered. The proxy adds no CORS header: it makes nothing
 reachable that wasn't already on the loopback. The proxy binds IPv4 only, and
 browsers on Windows and macOS haven't been measured yet.
 
-## The Path tab — `internal/nettrace`
+## The path trace — `internal/nettrace`
 
-The Path tab shows the hops between this machine and a target, in this
+The trace shows the hops between this machine and a target, in this
 process: nothing runs in a container, there is no `traceroute` binary and no
 privilege. It replaces the
 container trace that was removed because it answered for the Docker VM and not
 for this machine.
 
-- **Native Linux and WSL2 only.** On macOS, native Windows and WSL1 the tab
-  opens, `enter` and `ctrl+o` are greyed out, and the footer says why, for
+- **Native Linux and WSL2 only.** On macOS, native Windows and WSL1 the
+  Trace Path button, `H`, `enter` and `ctrl+o` are greyed out, and the footer says why, for
   example `The path trace needs Linux — not available on macOS`. On Windows and
   WSL1 it adds `use WSL2`. Nothing is sent.
 - **IPv4 only.** A host name is resolved to its IPv4 address (within
@@ -450,7 +447,7 @@ for this machine.
 - **How it probes.** One UDP datagram per hop, to port 33435, with a growing
   time-to-live. The router that drops it answers, and the table fills in as the
   answers come.
-- **No port.** The field takes a host name or an IPv4 address only. A target
+- **No port.** The target takes a host name or an IPv4 address only. A target
   with a port (`host:80`) is refused with `Path ignores ports: enter a host or
   IP address only`, and nothing is sent. The trace reaches a host, not a
   service: the probes always go to UDP port 33435.
@@ -479,11 +476,10 @@ for this machine.
   `this machine` and the running containers of a Docker Engine on this machine.
   Use `↑` `↓` (and `pgup`, `pgdown`, `home`, `end`) to move, `enter` to choose
   and `esc` to close. While the list is open, `tab` and pasting do nothing. The
-  key works while you type the target and once a trace is done. During a
-  trace it only warns, and where the trace is not supported it is greyed
-  out. Choosing another
-  source empties the list and puts you back on the target field, with what you
-  typed kept. The header then shows a `Source` field.
+  key works before the trace starts and once it is done. During a trace it is
+  ignored, and where the trace is not supported it is greyed out. Choosing
+  another source empties the list and puts you back to the ready level, with
+  the target kept and nothing sent. The header then shows a `Source` field.
 - **What the container rows say.** Before `source`, the list gains a
   `container` row (its name and address, for example `web-1 (172.18.0.5)`) and
   a `network` row (for example `app_net via 172.18.0.1`, the network and its
@@ -518,12 +514,12 @@ for this machine.
   observed, not why. Silent hops are most often a router or firewall that does
   not answer these probes; that is a likely explanation, not something the trace
   checks.
-- **Nothing is sent before `enter`.** `esc` cancels a running trace and keeps
+- **Nothing is sent before `enter`.** (`enter` in the trace level, or the Trace Path button.) `esc` cancels a running trace and keeps
   the hops already seen. The header says how a trace ended: `Reached at hop N`,
   `Reported unreachable at hop N`, `No answer from the target within N hops`,
   `Stopped after 30 s` or `Canceled`.
 - **From Diagnostics.** On the results, `H` on the **Local route** row opens the
-  Path tab with the host filled in, without starting the trace.
+  trace level with the host filled in, without starting the trace.
 
 There is no setting for the maximum number of hops (`traceroute_max_hops`
 stays removed): the trace uses the engine's defaults.

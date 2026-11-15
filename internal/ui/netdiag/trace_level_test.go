@@ -17,7 +17,7 @@ import (
 )
 
 // DEVDESK-470 task 470.4: Trace Path opens a sub-level of the Diagnostics tab
-// (StateTrace) that reuses the Path tab's model (m.pathModel). No test runs a
+// (StateTrace) that reuses the path trace's model (m.pathModel). No test runs a
 // real trace: the engine is a fakeEngine and the messages are fed by hand.
 
 const traceLevelHost = "example.com"
@@ -86,7 +86,7 @@ func TestTraceLevelStateIsAppended(t *testing.T) {
 	}
 }
 
-func TestPathModelStartFromFormPrefillsThenLaunches(t *testing.T) {
+func TestPathModelStartFromFormReadiesThenLaunches(t *testing.T) {
 	pm, fe := newPM(t)
 	fe.resolveFn = func(context.Context, string) ([]netip.Addr, error) {
 		return []netip.Addr{netip.MustParseAddr("1.1.1.1")}, nil
@@ -98,9 +98,6 @@ func TestPathModelStartFromFormPrefillsThenLaunches(t *testing.T) {
 
 	if !pm.running() || pm.gen != gen+1 {
 		t.Fatalf("running=%v gen %d->%d, want a launched run", pm.running(), gen, pm.gen)
-	}
-	if got := pm.input.Value(); got != "one.one.one.one" {
-		t.Errorf("field = %q, want the host prefilled", got)
 	}
 	if pm.target.Host != "one.one.one.one" || pm.errText != "" {
 		t.Errorf("target=%q errText=%q, want the new target and no stale error", pm.target.Host, pm.errText)
@@ -243,9 +240,9 @@ func TestTraceLevelFooterShowsTheTraceProgress(t *testing.T) {
 	m = traceHops(t, m, 2)
 	footer := ansi.Strip(m.RenderFooter(120))
 	if !strings.Contains(footer, "Tracing "+traceLevelHost) {
-		t.Errorf("footer = %q, want the Path tab's progress line", footer)
+		t.Errorf("footer = %q, want the trace progress line", footer)
 	}
-	if !strings.Contains(footer, "Diagnostics") || !strings.Contains(footer, "Path") {
+	if !strings.Contains(footer, "Diagnostics") || !strings.Contains(footer, "Forward") {
 		t.Errorf("footer = %q, want the tab row", footer)
 	}
 }
@@ -339,7 +336,8 @@ func assertFormKept(t *testing.T, m *Model) {
 	}
 }
 
-// Done and canceled are the same screen for the keys.
+// Done and canceled are the same screen for the keys: esc goes back, enter
+// traces again, ctrl+o opens the source selector.
 func TestTraceLevelKeysAreTheSameWhenDoneAndWhenCanceled(t *testing.T) {
 	ends := map[string]func(*testing.T, *Model) *Model{
 		"done":     func(t *testing.T, m *Model) *Model { return traceEnded(t, traceHops(t, m, 2)) },
@@ -358,28 +356,46 @@ func TestTraceLevelKeysAreTheSameWhenDoneAndWhenCanceled(t *testing.T) {
 			assertFormKept(t, m)
 		})
 
-		for _, key := range []string{"enter", "ctrl+r", "ctrl+o"} {
-			t.Run(name+"/"+key+" does nothing", func(t *testing.T) {
-				m, fe, _ := traceLevelModel(t, traceLevelHost)
-				m = end(t, m)
-				gen, calls := m.pathModel.gen, fe.traceCalls
+		t.Run(name+"/ctrl+r does nothing", func(t *testing.T) {
+			m, fe, _ := traceLevelModel(t, traceLevelHost)
+			m = end(t, m)
+			gen, calls := m.pathModel.gen, fe.traceCalls
 
-				m, cmd := step(t, m, testutil.Key(key))
+			m, cmd := step(t, m, testutil.Key("ctrl+r"))
 
-				if m.state != StateTrace || m.pathModel.running() || m.pathModel.gen != gen {
-					t.Errorf("state=%v running=%v gen %d->%d, want the finished trace untouched", m.state, m.pathModel.running(), gen, m.pathModel.gen)
-				}
-				if m.pathModel.pickerOpen() {
-					t.Error("ctrl+o opened the source selector: the sub-level has no relaunch or source choice")
-				}
-				if msgs := testutil.Msgs(cmd); len(msgs) != 0 || fe.traceCalls != calls {
-					t.Errorf("msgs=%v trace calls %d->%d, want none", msgs, calls, fe.traceCalls)
-				}
-				if got := pmHopTTLs(m.pathModel); !slices.Equal(got, []int{1, 2}) {
-					t.Errorf("hops = %v, want [1 2] kept", got)
-				}
-			})
-		}
+			if m.state != StateTrace || m.pathModel.running() || m.pathModel.gen != gen {
+				t.Errorf("state=%v running=%v gen %d->%d, want the finished trace untouched", m.state, m.pathModel.running(), gen, m.pathModel.gen)
+			}
+			if msgs := testutil.Msgs(cmd); len(msgs) != 0 || fe.traceCalls != calls {
+				t.Errorf("msgs=%v trace calls %d->%d, want none", msgs, calls, fe.traceCalls)
+			}
+			if got := pmHopTTLs(m.pathModel); !slices.Equal(got, []int{1, 2}) {
+				t.Errorf("hops = %v, want [1 2] kept", got)
+			}
+		})
+
+		t.Run(name+"/enter traces again", func(t *testing.T) {
+			m, _, _ := traceLevelModel(t, traceLevelHost)
+			m = end(t, m)
+			gen := m.pathModel.gen
+
+			m, cmd := step(t, m, testutil.Key("enter"))
+
+			if m.state != StateTrace || !m.pathModel.running() || m.pathModel.gen != gen+1 || cmd == nil {
+				t.Errorf("state=%v running=%v gen %d->%d, want a new run", m.state, m.pathModel.running(), gen, m.pathModel.gen)
+			}
+		})
+
+		t.Run(name+"/ctrl+o opens the selector", func(t *testing.T) {
+			m, _, _ := traceLevelModel(t, traceLevelHost)
+			m = end(t, m)
+
+			m = feed(t, m, testutil.Key("ctrl+o"))
+
+			if !m.pathModel.pickerOpen() || m.state != StateTrace {
+				t.Errorf("picker=%v state=%v, want the selector open on the sub-level", m.pathModel.pickerOpen(), m.state)
+			}
+		})
 	}
 }
 
@@ -397,13 +413,13 @@ func TestTraceLevelNoRelaunchOrSourceKeyWhileRunning(t *testing.T) {
 	}
 }
 
-// A trace already running (started from the Path tab) refuses a second one.
+// A trace already running (started earlier) refuses a second one.
 func TestTraceLevelRefusedWhileATraceRuns(t *testing.T) {
 	m, fe := traceFormModel(t, true)
 	_, _ = m.pathModel.launch(pathTarget{Host: "1.1.1.1"})
 	gen := m.pathModel.gen
 	if !m.pathModel.running() {
-		t.Fatal("precondition: the Path tab must be tracing")
+		t.Fatal("precondition: a trace must be running")
 	}
 	m.targetInput.SetValue(traceLevelHost)
 
@@ -413,8 +429,8 @@ func TestTraceLevelRefusedWhileATraceRuns(t *testing.T) {
 	if m.state != StateInput {
 		t.Errorf("state = %v, want StateInput", m.state)
 	}
-	if m.footer.Level() != components.LevelWarning || m.footer.Text() != reasonTraceBusy {
-		t.Errorf("footer = {%v %q}, want Warn %q", m.footer.Level(), m.footer.Text(), reasonTraceBusy)
+	if m.footer.Level() != components.LevelWarning || m.footer.Text() != reasonPathBusy {
+		t.Errorf("footer = {%v %q}, want Warn %q", m.footer.Level(), m.footer.Text(), reasonPathBusy)
 	}
 	if m.pathModel.gen != gen || m.pathModel.target.Host != "1.1.1.1" || fe.traceCalls != 0 {
 		t.Errorf("gen %d->%d target=%q trace=%d, want the running trace untouched", gen, m.pathModel.gen, m.pathModel.target.Host, fe.traceCalls)
@@ -437,17 +453,15 @@ func TestTraceLevelShortcuts(t *testing.T) {
 			continue
 		}
 		sc := mm.GetShortcuts()
-		if got := testutil.ShortcutKeys(sc); !slices.Equal(got, []string{"tab", "esc", "?"}) {
-			t.Errorf("%s: shortcuts = %v, want [tab esc ?]", name, got)
+		if got := testutil.ShortcutKeys(sc); !slices.Equal(got, []string{"tab", "enter", "ctrl+o", "esc", "?"}) {
+			t.Errorf("%s: shortcuts = %v, want [tab enter ctrl+o esc ?]", name, got)
 			continue
 		}
-		if sc[1].Description != "Back to the form" {
-			t.Errorf("%s: esc says %q, want %q", name, sc[1].Description, "Back to the form")
+		if sc[3].Description != "Back to the form" {
+			t.Errorf("%s: esc says %q, want %q", name, sc[3].Description, "Back to the form")
 		}
-		for _, k := range []string{"enter", "ctrl+r", "ctrl+o"} {
-			if testutil.HasShortcut(sc, k) {
-				t.Errorf("%s: %s is advertised but does nothing here", name, k)
-			}
+		if testutil.HasShortcut(sc, "ctrl+r") {
+			t.Errorf("%s: ctrl+r is advertised but does nothing here", name)
 		}
 		if !testutil.ShortcutEnabled(sc, "esc") || !testutil.ShortcutEnabled(sc, "tab") {
 			t.Errorf("%s: tab and esc must be enabled", name)
@@ -458,6 +472,27 @@ func TestTraceLevelShortcuts(t *testing.T) {
 	done, cancel := phases["done"].GetShortcuts(), phases["canceled"].GetShortcuts()
 	if !slices.Equal(testutil.ShortcutKeys(done), testutil.ShortcutKeys(cancel)) {
 		t.Errorf("done %v and canceled %v advertise different keys", testutil.ShortcutKeys(done), testutil.ShortcutKeys(cancel))
+	}
+}
+
+// The enter entry says what it does: it starts in the ready state, restarts
+// once a trace ended.
+func TestTraceLevelEnterLabelFollowsTheState(t *testing.T) {
+	ready, _ := routeLevel(t, "example.com")
+	done := tracePhases(t)["done"]
+	for name, tc := range map[string]struct {
+		m    *Model
+		want string
+	}{"ready": {ready, "Trace the path"}, "done": {done, "Trace again"}} {
+		var got string
+		for _, s := range tc.m.GetShortcuts() {
+			if s.Key == "enter" {
+				got = s.Description
+			}
+		}
+		if got != tc.want {
+			t.Errorf("%s: enter says %q, want %q", name, got, tc.want)
+		}
 	}
 }
 
@@ -499,9 +534,9 @@ func TestTraceLevelNavigationKeysMoveTheTable(t *testing.T) {
 	}
 }
 
-// The Path model's target field is hidden in the sub-level. Letters, pastes and
-// the keys of a form must not reach it, in any state of the run.
-func TestTraceLevelLettersDoNotReachTheHiddenField(t *testing.T) {
+// The Path model has no target field: letters, pastes and backspace do nothing
+// in the sub-level, in any state of the run.
+func TestTraceLevelLettersAreInert(t *testing.T) {
 	typed := append(testutil.Type("abcXYZ:"), testutil.Key("backspace"), testutil.Paste("pasted"))
 	ends := map[string]func(*testing.T, *Model) *Model{
 		"running":  func(_ *testing.T, m *Model) *Model { return m },
@@ -513,11 +548,13 @@ func TestTraceLevelLettersDoNotReachTheHiddenField(t *testing.T) {
 			m, _, _ := traceLevelModel(t, traceLevelHost)
 			m = end(t, traceHops(t, m, 1))
 			footer := m.footer.Text()
+			pm := m.pathModel
+			state, gen := pm.state, pm.gen
 
 			m = feed(t, m, typed...)
 
-			if got := m.pathModel.input.Value(); got != traceLevelHost {
-				t.Errorf("hidden field = %q, want %q untouched", got, traceLevelHost)
+			if pm.state != state || pm.gen != gen || pm.target.Host != traceLevelHost {
+				t.Errorf("state %v->%v gen %d->%d target=%q, want all unchanged", state, pm.state, gen, pm.gen, pm.target.Host)
 			}
 			if got := m.targetInput.Value(); got != traceLevelHost {
 				t.Errorf("form target = %q, want %q untouched", got, traceLevelHost)
@@ -532,15 +569,15 @@ func TestTraceLevelLettersDoNotReachTheHiddenField(t *testing.T) {
 	}
 }
 
-// handleDoneError puts the Path model back to editing; in the sub-level that
-// must not turn its hidden field into a live one.
-func TestTraceLevelAFailedRunDoesNotLeakTheKeyboardToTheHiddenField(t *testing.T) {
+// A failed run ends in pathDone; the sub-level keeps the keyboard out of any
+// field, and esc still leads back.
+func TestTraceLevelAFailedRunKeepsTheKeyboardInert(t *testing.T) {
 	m, _, _ := traceLevelModel(t, traceLevelHost)
 	m = feed(t, m, pathDoneMsg{gen: m.pathModel.gen, err: context.DeadlineExceeded})
 
 	m = feed(t, m, testutil.Type("abcXYZ")...)
-	if got := m.pathModel.input.Value(); got != traceLevelHost {
-		t.Errorf("hidden field = %q after a failed run, want %q untouched", got, traceLevelHost)
+	if m.pathModel.state != pathDone || m.pathModel.target.Host != traceLevelHost {
+		t.Errorf("state=%v target=%q after a failed run and letters, want pathDone on %q", m.pathModel.state, m.pathModel.target.Host, traceLevelHost)
 	}
 	if m.InEditMode() {
 		t.Error("InEditMode() = true after a failed run: the router would swallow ':' and the keys")
@@ -627,7 +664,7 @@ func TestTraceLevelCanTraceAgainAfterGoingBack(t *testing.T) {
 
 // Rule 116 for the sub-level: the table fills the viewport at any width, and its
 // height follows the router's, which hands the view 2 lines more than on the
-// Path tab (footer of 3 lines instead of 5).
+// old Path tab (footer of 3 lines instead of 5).
 func TestTraceLevelTableFillsTheViewport(t *testing.T) {
 	const window = 40
 	for _, w := range []int{120, 60} {
@@ -649,7 +686,7 @@ func TestTraceLevelTableFillsTheViewport(t *testing.T) {
 	}
 }
 
-// The sub-level and the Path tab size their table the same way for the same
+// The sub-level and the path trace size their table the same way for the same
 // viewport.
 func TestTraceLevelTableSizeMatchesThePathTab(t *testing.T) {
 	m, _, _ := traceLevelModel(t, traceLevelHost)
@@ -657,6 +694,6 @@ func TestTraceLevelTableSizeMatchesThePathTab(t *testing.T) {
 	pm, _ := newPM(t)
 	pm.resize(100, 30)
 	if got, want := strings.Count(m.Render(), "\n"), strings.Count(pm.view(), "\n"); got != want {
-		t.Errorf("sub-level table has %d line breaks, the Path tab's has %d at the same size", got, want)
+		t.Errorf("sub-level table has %d line breaks, the path trace's has %d at the same size", got, want)
 	}
 }

@@ -13,7 +13,7 @@ import (
 	"testing"
 )
 
-// DEVDESK-330 criterion 7, view level: the Path tab reaches the container
+// DEVDESK-330 criterion 7, view level: the path trace reaches the container
 // engine only through a fixed list of read functions, and no source file of the
 // package names a verb that starts, creates or enters a container. The runtime
 // half is TestPathEngineReadsStartNothing.
@@ -38,7 +38,7 @@ const (
 	internalImportBase = "github.com/anthnel/devdesk/internal/"
 )
 
-// allowedDockerUses is every docker.<X> the Path tab may name: the read
+// allowedDockerUses is every docker.<X> the path trace may name: the read
 // functions and the types they return.
 var allowedDockerUses = []string{
 	"Container", "ContainerNetworking", "EndpointNetwork",
@@ -46,7 +46,7 @@ var allowedDockerUses = []string{
 	"IsContainerID", "NetworkBridge", "InspectNetworkBridge",
 }
 
-// allowedEngineUses is every engine.<X> the Path tab may name.
+// allowedEngineUses is every engine.<X> the path trace may name.
 var allowedEngineUses = []string{"Current"}
 
 // allowedInternalImports is every internal package the netdiag sources import.
@@ -63,7 +63,7 @@ var allowedInternalImports = []string{
 	"ui/overlay", "ui/shortcut", "ui/theme",
 }
 
-// forbiddenImports start processes: the Path tab has no business with them.
+// forbiddenImports start processes: the path trace has no business with them.
 var forbiddenImports = []string{"os/exec", "golang.org/x/sys/execabs", "syscall"}
 
 // forbiddenVerbs are engine arguments that change a container or open a shell

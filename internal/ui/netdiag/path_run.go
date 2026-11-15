@@ -25,7 +25,7 @@ import (
 // and sendDone never evicts resolved with the real engine.
 const pathChanCap = nettrace.MaxHopsLimit + 2
 
-// pathEngine is the seam between the path tab and the network: tests replace
+// pathEngine is the seam between the path trace and the network: tests replace
 // it with a fake.
 type pathEngine struct {
 	supported func() error

@@ -288,13 +288,13 @@ var exceptions = []Exception{
 	},
 	{
 		Key:     "ctrl+o",
-		Surface: "netdiag/path",
-		Why: "Open the \"Trace from\" selector (this machine or a running container). " +
-			"The action exists on one tab, so a global capital would cost more than it " +
-			"returns. It opens a chooser and changes nothing by itself, unlike the " +
-			"remediation tab's ctrl+o, which writes files. The field has the keyboard " +
-			"there, so a bare letter would be typed into it; ctrl+o is the one chord " +
-			"left that no terminal claims.",
+		Surface: "netdiag/trace",
+		Why: "Open the \"Trace from\" selector (this machine or a running container) on " +
+			"the Diagnostics trace sub-level. The action exists on one screen, so a " +
+			"global capital would cost more than it returns. It opens a chooser and " +
+			"changes nothing by itself, unlike the remediation tab's ctrl+o, which " +
+			"writes files. No letter of the vocabulary fits, and ctrl+o is the one " +
+			"chord left that no terminal claims.",
 	},
 	{
 		Key:     "tab",

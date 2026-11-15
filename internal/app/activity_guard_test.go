@@ -246,7 +246,8 @@ var migratedSources = map[command.ViewType][]string{
 	// Netdiag is migrated except forward_model.go, whose ticker is a data
 	// refresh, and ports_commands.go (portsTickCmd is the data refresh tick, not
 	// a row animation). Diagnostics and Interfaces loads are the shared dot
-	// (DEVDESK-373).
+	// (DEVDESK-373). The path trace files are the Diagnostics trace sub-level's
+	// (DEVDESK-471: no Path tab any more).
 	command.ViewNetdiag: {
 		"ui/netdiag/model.go", "ui/netdiag/update.go", "ui/netdiag/run.go", "ui/netdiag/header.go",
 		"ui/netdiag/interfaces_model.go", "ui/netdiag/ports_model.go", "ui/netdiag/ports_activity.go",

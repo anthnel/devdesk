@@ -54,7 +54,7 @@ func (pm *PathModel) handleSources(msg pathSourcesMsg) (*PathModel, tea.Cmd) {
 	return pm, nil
 }
 
-// handlePickerKey gives the open selector every key: nothing reaches the field
+// handlePickerKey gives the open selector every key: nothing reaches the table
 // or the tab row.
 func (pm *PathModel) handlePickerKey(key string) (*PathModel, tea.Cmd) {
 	switch key {
@@ -70,8 +70,8 @@ func (pm *PathModel) handlePickerKey(key string) (*PathModel, tea.Cmd) {
 }
 
 // chooseSource closes the selector on the entry under the cursor. Choosing the
-// source in use changes nothing; another one empties the column and returns to
-// editing, the target value kept.
+// source in use changes nothing; another one empties the column and keeps the
+// target; the model goes back to ready and sends nothing.
 func (pm *PathModel) chooseSource() (*PathModel, tea.Cmd) {
 	chosen := pm.picker.selected()
 	pm.picker = nil
@@ -79,10 +79,9 @@ func (pm *PathModel) chooseSource() (*PathModel, tea.Cmd) {
 		return pm, nil
 	}
 	pm.source = chosen
-	pm.target = pathTarget{}
 	pm.clearRun()
-	pm.state = pathEditing
-	return pm, pm.input.Focus()
+	pm.state = pathReady
+	return pm, nil
 }
 
 // pickerHeight is the room the selector has: the body below the header row.

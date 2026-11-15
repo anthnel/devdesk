@@ -44,7 +44,7 @@ Two things about the engine are worth knowing before changing this code:
   offsets taken from its header line, and there is no `--format` that exposes
   per-image unique size.
 
-- **Four typed, read-only reads for the Path tab** (`container_network.go`,
+- **Four typed, read-only reads for the path trace** (`container_network.go`,
   DEVDESK-330, DEVDESK-331), each with a `context.Context` that kills the
   invocation: `InspectContainerNetworking(ctx, id)`, `ListContainersContext(ctx,
   all)` (`ListContainers(all)` is unchanged and does not use it),
@@ -838,7 +838,7 @@ verified: a declared exception.
 
 ## Network Diagnostics View
 
-`internal/ui/netdiag/` — five tabs:
+`internal/ui/netdiag/` — four tabs (Diagnostics, Ports, Interfaces, Forward; the Path tab went in DEVDESK-471, the trace lives under Diagnostics):
 - **Diagnostics tab** (`model.go`): target, port and resolver, then
   `internal/netcheck`'s pipeline — resolve, route, reach, connect, TLS, HTTP —
   chained one stage per message so the footer can name the question being asked.
@@ -880,48 +880,44 @@ verified: a declared exception.
 - **Forward tab** (`forward_model.go`, `forward_form.go`): the port
   redirections, `N` to open one, `space` to pause or resume it and `K` to delete
   it. It holds **no listener** — see `internal/forward` below.
-- **Path tab** (`path_model.go`, `path_view.go`, `path_run.go`,
-  `path_target.go`, `path_from_route.go`, `path_steps.go`; DEVDESK-328,
-  DEVDESK-329): the hop-by-hop path to
-  a target, from `internal/nettrace` (below). It is the fifth and last tab
-  (`tabPath = 4`, `tabCount = 5`). It runs **no container**; since DEVDESK-330 it
-  can name a running Docker Engine container as the source of the column (below),
-  but the probes still leave from this machine. Three states:
-  `pathEditing` (the target field has the keyboard), `pathRunning` (field
-  blurred, hops arriving) and `pathDone` (hops kept on screen). The **body is
-  always the hop table** (`PathModel.view()` returns `table.View()`, Rule 139),
-  in every state: columns Hop, Step, Address, RTT, with a silent hop dim and
-  never red. **The column starts on this machine** (DEVDESK-329): three local
-  rows, then the hops. `source` reads `this machine`; `interface` reads
-  `<name> (<source address>)`; `gateway` reads the gateway address. The local
-  rows have an empty Hop and RTT (they asked nobody; `-` means "no answer") and
-  the default text colour. `pathSteps` (`path_steps.go`) is the only place that
-  orders the rows; the table item is a `pathStep` (kind source, interface,
-  gateway or hop; DEVDESK-330 adds container, network and trace, below).
-  Nothing is shown before the route is known, so a resolution
-  error leaves 0 rows. The **target field is not in the body**: it sits in the footer's
-  bar slot, framed by `components.BarFrame` (`Target › ` + the field,
-  placeholder `hostname or IPv4 address`). That slot is shown on this
-  tab in every state, so `GetFooterHeight()` is 5 (bar 2, tab row 1, blank
-  line 1, info line 1) and the layout does not move between editing, running
-  and done. The tab keeps its own `FooterMessage`, returned by `activeFooter`,
-  so `WantsBlink()` follows a running trace. `Model.Running()` is true while a
-  trace runs, so the router does not rebuild the view mid-trace.
+- **Trace sub-level of Diagnostics** (`path_model.go`, `path_view.go`,
+  `path_run.go`, `path_target.go`, `path_from_route.go`, `path_steps.go`,
+  `trace_form.go`, `trace_level.go`; DEVDESK-328, DEVDESK-329, DEVDESK-470,
+  DEVDESK-471): the hop-by-hop path to a target, from `internal/nettrace`
+  (below). It was the fifth tab; it is now `StateTrace` of the Diagnostics tab
+  (`tabCount = 4`), described under "The Trace Path button, `H` and the trace
+  sub-level". It runs **no container**; since DEVDESK-330 it can name a running
+  Docker Engine container as the source of the column (below), but the probes
+  still leave from this machine. Three states: `pathReady` (target known,
+  nothing sent), `pathRunning` (hops arriving) and `pathDone` (hops kept on
+  screen). The **body is always the hop table** (`PathModel.view()` returns
+  `table.View()`, Rule 139), in every state: columns Hop, Step, Address, RTT,
+  with a silent hop dim and never red. **The column starts on this machine**
+  (DEVDESK-329): three local rows, then the hops. `source` reads `this machine`;
+  `interface` reads `<name> (<source address>)`; `gateway` reads the gateway
+  address. The local rows have an empty Hop and RTT (they asked nobody; `-`
+  means "no answer") and the default text colour. `pathSteps` (`path_steps.go`)
+  is the only place that orders the rows; the table item is a `pathStep` (kind
+  source, interface, gateway or hop; DEVDESK-330 adds container, network and
+  trace, below).
+  Nothing is shown before the route is known, so a resolution error leaves 0
+  rows. There is **no target field**: the target is the Diagnostics form's (or
+  the results' host for `H`), typed once. The sub-level's footer is 3 lines in
+  every state (tab row, blank line, info line) and keeps its own
+  `FooterMessage`, returned by `activeFooter`, so `WantsBlink()` follows a
+  running trace. `Model.Running()` is true while a trace runs, so the router
+  does not rebuild the view mid-trace.
 
-  Keys: `enter` launches (while editing) or traces again (when done); `esc`
-  cancels a running trace, and returns a finished one to editing with the
-  value kept; `tab` switches tab; `up`, `down`, `pgup`, `pgdown`, `home` and
-  `end` move in the table in every state. While editing, `esc`, `tab` and
-  `shift+tab` do nothing in the field. A paste reaches the field only while
-  editing (Rule 111). A changed field value clears the persistent error.
-  `ctrl+o` opens the "Trace from" selector in `pathEditing` and `pathDone`; while
-  a trace runs it warns `A path trace is running — esc cancels it`, and where the
-  trace is unsupported it warns with the platform reason (`sourceChoosable`, the
-  one answer the header and the handler both read). While the selector is open it
-  holds every key: `up`, `down`, `pgup`, `pgdown`, `home` and `end` move, `enter`
-  chooses, `esc` closes, and every other key is swallowed, `tab` and `shift+tab`
-  included (`netdiag.Model.Update` hands the key to the Path model before the tab
-  switch). A paste is dropped. `PathModel.InEditMode()` is true while it is open,
+  Keys: see "The Trace Path button, `H` and the trace sub-level" below (`enter`
+  starts or traces again, `esc` cancels then goes back, `ctrl+o` opens *Trace
+  from*, `tab` switches tab, the navigation keys move in the table). `ctrl+o`
+  while a trace runs is ignored; where the trace is unsupported it is greyed and
+  warns with the platform reason (`sourceChoosable`, the one answer the header
+  and the handler both read). While the selector is open it holds every key:
+  `up`, `down`, `pgup`, `pgdown`, `home` and `end` move, `enter` chooses, `esc`
+  closes, and every other key is swallowed, `tab` and `shift+tab` included
+  (`netdiag.Model.Update` hands the key to the Path model before the tab
+  switch). A paste is dropped. `Model.InEditMode()` is true while it is open,
   so `q` and `:` reach the view and do not quit or open the palette.
 
 **Ports tab, terminal blurred (DEVDESK-210).** `PortsModel.unfocused` is set by
@@ -967,7 +963,7 @@ always `Idle` and an idle row shows an empty cell (a socket has no rest icon).
 - **A failed network test is not a row operation.** The Diagnostics table keeps
   its result in the Verdict column; no `⊗` was added (open question 4 of the
   activity-indicator stories, option A). The Diagnostics and Interfaces tables
-  have no `Indicator`; neither does the Path tab's hop table (DEVDESK-328): a
+  have no `Indicator`; neither does the trace's hop table (DEVDESK-328): a
   trace is one run, not a per-row operation, and its running state is the
   footer's shared dot. The Path files `path_model.go`, `path_target.go` and
   `path_view.go` (and, since DEVDESK-329, `path_steps.go`; since DEVDESK-330,
@@ -1022,54 +1018,75 @@ the first producer: it resolves the selected monitor's target and
 auto-runs the pipeline when the port is certain (http/https/ssl), or lands on
 the prefilled form when it is a guess (icmp/dns).
 
-`H` has a **second producer, inside netdiag** (DEVDESK-328,
+`H` has a **second producer, inside netdiag** (DEVDESK-328, DEVDESK-471,
 `path_from_route.go`): on the Diagnostics results, with the **Local route** row
-(`netcheck.CheckRoute`) selected, it switches to the Path tab and fills the
-target field with the results' host. It **prefills and never launches**:
-nothing is resolved or sent until `enter` on the Path tab. Only the host is
-carried over, not the port (the route check does not depend on one).
-`pathFromRoute()` is the one availability read by the header (the entry
-`H Trace the path` is greyed off the route row, Rule 130) and by the handler,
-which otherwise warns `Select the Local route row to trace its path`. If a
-trace is already running, `H` switches to the Path tab, leaves the field
-alone and warns `A path trace is already running — esc cancels it` on the Path
-footer. `PathModel.prefill` puts the tab back in editing with the hops, the
-outcome and the error cleared.
+(`netcheck.CheckRoute`) selected, it opens the trace sub-level (`StateTrace`) on
+the results' host, in its **ready** state (`pathReady`: target known, nothing
+sent). It **never launches**: nothing is resolved or sent until `enter` in the
+sub-level. Only the host is carried over, not the port (the route check does not
+depend on one). `pathFromRoute()` is the one availability read by the header
+(the entry `H Trace the path` is greyed, Rule 130) and by the handler, which
+refuses with the same reason at the footer. The reasons come in this order: the
+platform cannot trace (`traceable()`), the selected row is not the route row
+(`Select the Local route row to trace its path`), the target is one the trace
+refuses (`parsePathTarget`, for example an IPv6 literal). If a trace is already
+running, `H` changes nothing and warns `reasonPathBusy`.
 
-**The Trace Path button and the trace sub-level (DEVDESK-470, `trace_form.go`,
-`trace_level.go`).** `enter` on the form's Trace Path button validates the
-target, then opens `StateTrace` on the Diagnostics tab and launches the trace
-on the **same `m.pathModel`** the Path tab uses (`PathModel.startFromForm`:
-`prefill`, then `launch`; the Cmd does the I/O, `Update` mutates, Rule 110). A
-trace already running is refused with `reasonTraceBusy` at the footer, and the
+**The Trace Path button, `H` and the trace sub-level (DEVDESK-470,
+DEVDESK-471; `trace_form.go`, `trace_level.go`).** Both entry points call
+`Model.openTrace(origin, target)`: `traceOrigin` records where `esc` leads back
+to (`StateInput` for the button, `StateResults` for `H`), the state becomes
+`StateTrace` on the Diagnostics tab, and `PathModel.ready(target)` puts the
+shared `m.pathModel` in `pathReady` (source reset to this machine, previous run
+forgotten). The button then launches at once (`PathModel.startFromForm`: `ready`,
+then `launch`; the Cmd does the I/O, `Update` mutates, Rule 110); `H` does not. A
+trace already running is refused with `reasonPathBusy` at the footer, and the
 button stays lit (Rule 130). The body is `pathModel.view()`, the table alone
 (Rule 139); the title reads `Network › Path › <host>` (host cut with an
-ellipsis), the header is `pathModel.headerInfo()`, and the 3-line footer shows
-the Path model's footer and `statusLine()` (`activeFooter`). Hops keep landing
-while another tab is on screen, and coming back finds the sub-level. Keys:
-`esc` cancels a running trace, then goes back to the form (fields, focus and
-Diagnostics results untouched, no `resetToForm`); navigation moves the table;
-every other key is dropped by `handleKeyTrace` and never reaches
-`PathModel.handleKey`, whose `handleDoneError` would make its hidden field
-live again. No `enter`, `ctrl+r` or `ctrl+o` here: to trace again, go back to
-the form. `tab` and `shift+tab` still switch tabs (the view's handler,
-`Model.handleKey`, takes them before its `switch` on the state), so the sub-level survives a visit to another tab.
+ellipsis), the header is `pathModel.headerInfo()`, and the footer is 3 lines in
+every state: the Diagnostics filter bar is not drawn in the sub-level
+(`GetFooterHeight`, `RenderFooter`, Rule 124). The footer message is the Path
+model's (`activeFooter`). Hops keep landing while another tab is on screen, and
+coming back finds the sub-level.
+
+`PathModel` has **no target field** (DEVDESK-471): `pathReady` is its zero value,
+a fresh model is ready and inert, and `ready(target)` is the only way a target
+gets in. Letters, a paste and `esc` do nothing in it; `enter` with no target
+launches nothing.
+
+Keys (`handleKeyTrace`: `esc` is the sub-level's, the rest goes to
+`PathModel.handleKey`, which ignores letters; while a trace runs only the
+table's navigation passes): `enter` launches from the ready state and launches
+again after a finished or canceled trace (*Trace again*, replacing D152 point
+2); `ctrl+o` opens *Trace from* (declared exception, surface `netdiag/trace`);
+choosing a source goes back to `pathReady` with the target kept and sends
+nothing; `esc` cancels a running trace, then goes back to `traceOrigin` with
+fields, focus, filter and results untouched (no `resetToForm`); navigation moves
+the table. An open selector holds every key, `tab` included. `tab` and
+`shift+tab` otherwise still switch tabs, so the sub-level survives a visit to
+another tab. `traceShortcuts()` is the one constructor of the sub-level's
+shortcuts: ready and done share one key set (Rule 130), the selector and a
+running trace replace the list. `InEditMode()` is true in the sub-level only
+while the selector is open.
+
+The Path tab is gone (DEVDESK-471, P2-02): `tabPath` no longer exists and the
+tab bar has four labels.
 
 **Files.** `trace_form.go` holds what the form does: `traceable()` (the one
 availability, read by the button, the header and the handler, Rule 130),
 `traceFromForm()` (the `enter` handler), the target validation and
 `traceUnusedNotice`. `trace_level.go` holds the sub-level: `startFromForm`,
-`handleKeyTrace`, `escFromTrace` (with `restoreFormFocus`), `traceTitle` and
-`traceShortcuts`.
+`ready`, `openTrace`, `inTrace`, `handleKeyTrace`, `escFromTrace` (with
+`restoreFormFocus`), `traceTitle` and `traceShortcuts`.
 
 **Order of refusals in `traceFromForm`.** An unsupported platform
 (`launchable()`, macOS, Windows, WSL1) comes first: the button is greyed and
-the reason is in the footer. Then a trace already running (`reasonTraceBusy`).
+the reason is in the footer. Then a trace already running (`reasonPathBusy`).
 Then the target.
 
 **Target validation (Rule 140).** The target goes through `parsePathTarget`,
-the parser of the Path tab, so an empty, invalid, `host:port` or IPv6 value
-gets the same sentence as on the Path tab (first letter capitalized). The
+the trace's own parser, so an empty, invalid, `host:port` or IPv6 value gets
+the trace's sentence (first letter capitalized). The
 failure is carried twice: the Target field is underlined
 (`traceMarks`, `InvalidMarks.Sync`, from `Update()` only) and the error sits
 in the footer at level Error, derived from `traceValidation.Status()` in
@@ -1085,12 +1102,10 @@ Info notice on the Path model's footer (`Port is not used by the path trace`,
 `startFromForm`, because launching clears that footer. The values stay in the
 form.
 
-**Coupling with the Path tab.** The sub-level has no model of its own: it
-drives `m.pathModel`. Starting from the form therefore overwrites the Path
-tab's field (`prefill`) and its previous run, and the trace shows on both: the
-Path tab sees the same hops, and `esc` there cancels the same run. Going back
-to the form does not clear the Path model. This coupling disappears when the
-Path tab is removed (P2-02).
+**One model, one place.** The sub-level has no model of its own: it drives
+`m.pathModel`, the only trace model now that the Path tab is gone. Starting from
+the form or from `H` overwrites its target (`ready`) and forgets its previous
+run; going back to the form or the results does not clear it.
 
 **What is configurable, and what is not.** `internal/netcheck` held its timeouts
 as constants with a comment saying they would become settings when somebody
@@ -1112,7 +1127,7 @@ instead of 5, which the staged progress line makes legible rather than a hang.
 `traceroute_max_hops` was a sixth setting and went with the trace it bounded
 (§3.47). It stays removed: the trace is back in the process (DEVDESK-327, see
 [The path trace](#the-path-trace--internalnettrace)), but `nettrace.Options.MaxHops`
-is not wired to any setting, and the Path tab (DEVDESK-328) still traces with
+is not wired to any setting, and the trace (DEVDESK-328) still runs with
 the engine's defaults (`nettrace.Options{}`).
 
 Two things stay hardcoded, each for a reason:
@@ -1214,7 +1229,7 @@ than an `Options` field. Contract:
 - It must not block.
 - **A hop above the terminal one may be reported** while the terminal is still
   unknown. `Result.Hops` is cut at the terminal hop as before, so the caller
-  reconciles: the Path tab shows `visiblePathHops` while streaming (sorted by
+  reconciles: the trace shows `visiblePathHops` while streaming (sorted by
   TTL, unresolved dropped, everything after the first target or unreachable
   hop cut) and replaces its hops with `Result.Hops` at the end.
 
@@ -1267,17 +1282,16 @@ label, never that text, in a summary.
 - **`Options.MaxHops` is not tied to the configuration** (`traceroute_max_hops`
   stays removed).
 - **The probes are UDP to the fixed port 33435** (`defaultProbePort`, not
-  exposed). The Path tab refuses a target that carries a port. See "The Path
-  tab" below.
+  exposed). The trace refuses a target that carries a port. See "The trace
+  sub-level" below.
 
-**`Supported()` and the Path tab.** The Path tab calls `Supported()` as a launch
-guard (`PathModel.launchable()`): where it returns an error, `enter` is greyed
-out in the header and refused with a footer warning; nothing is resolved or
-sent. The tab is still reachable on those platforms (its label is not greyed,
-Rule 130), so the reader can see why. `ctrl+o` is greyed the same way.
+**`Supported()` and the trace.** The trace calls `Supported()` as a launch
+guard (`PathModel.launchable()`): where it returns an error, the Trace Path button, `H`, `enter` and `ctrl+o`
+are greyed out in the header and refused with a footer warning; nothing is
+resolved or sent (Rule 130).
 
 The guard is `pathSupport(goos, kind, traceErr)` in
-`internal/ui/netdiag/path_platform.go` (DEVDESK-334). The Path tab is available
+`internal/ui/netdiag/path_platform.go` (DEVDESK-334). The trace is available
 on native Linux and WSL2 only. It names the reason, as a `pathPlatformError`
 that unwraps to `nettrace.ErrUnsupported`:
 
@@ -1289,15 +1303,15 @@ that unwraps to `nettrace.ErrUnsupported`:
 | WSL1 | `The path trace needs a Linux kernel — WSL1 has none (use WSL2)` |
 | Anything else unsupported | `The path trace is not supported on this platform` |
 
-The footer shows the reason as a permanent Warning from the moment the tab
-opens, not only after `enter`. The decision is made once per process
+The footer shows the reason as a permanent Warning on the form (the Trace Path
+button), not only after `enter`. The decision is made once per process
 (`systemPathSupport`, a `sync.OnceValue`), so `launchable()` does no I/O per
 frame, and nothing is sent on the network. A WSL2 whose networking mode is
 unknown never greys the tab out. No WSL2 mode is switched off: the spike
 verdict (`docs/product/network-map/spike-wsl.md`) is that WSL2 is supported, so
 no switch is coded (YAGNI).
 
-## The Path tab — streaming, cancellation, resolution
+## The trace sub-level — streaming, cancellation, resolution
 
 How `internal/ui/netdiag` drives `nettrace` (DEVDESK-328).
 
@@ -1412,10 +1426,10 @@ container of a Docker Engine instead of on this machine. Files: `path_source.go`
   be false.
 - **Choosing.** `enter` on the source already in use only closes the selector.
   Any other choice clears the column (rows, route, container, address, outcome,
-  error), returns the tab to `pathEditing` with the field focused and its value
-  kept, and shows a `Source` header field with the container name (absent for
+  error), returns the model to `pathReady` with the target kept and nothing
+  sent, and shows a `Source` header field with the container name (absent for
   this machine). The column never mixes two sources. `H` from Diagnostics
-  (`prefill`) resets the source to this machine: the route row it comes from is
+  (`PathModel.ready`) resets the source to this machine: the route row it comes from is
   this machine's.
 - **The container is read in the producer**, after the route lookup and before
   the trace (`inspectPathSource`, under the resolve timeout, killed by the run's
@@ -1582,8 +1596,8 @@ column says so only on proof. Files: `internal/wslenv` (detection),
   returns `KindNone`, `KindWSL1` or `KindWSL2`, reading only `WSL_DISTRO_NAME`
   and the osrelease (`GatherKernel`: no process, no interface listing, nothing
   off Linux). WSL1 is an osrelease containing `Microsoft`, case-sensitive; it is
-  checked before the case-insensitive WSL test. The Path tab uses it to refuse
-  WSL1 (see "`Supported()` and the Path tab"). `ClassifyKind` can say WSL2 for an
+  checked before the case-insensitive WSL test. The trace uses it to refuse
+  WSL1 (see "`Supported()` and the trace"). `ClassifyKind` can say WSL2 for an
   old 4.19 kernel where `Classify().WSL2` is false; known, minor.
 - **Mode.** `wslinfo --networking-mode`, run only under WSL, from
   `/usr/bin/wslinfo` then `/usr/sbin/wslinfo` (absolute paths, never the search
@@ -1621,9 +1635,9 @@ machine — no probe was sent`; matched with `nettrace.IsNoRoute`, which also
 accepts a raw `ENETUNREACH` / `EHOSTUNREACH` in the error chain) and `ErrUnsupported` to their own sentence, and
 anything else to `The path trace failed — check logs`. The raw error text
 (errno, resolver message, in the machine's language) goes to the log only
-(`ERROR [netdiag/path] resolve|trace <host>: …`). An error returns the tab to
-`pathEditing` with the field focused, the hops cleared and the label shown as a
-persistent error (level Error) until the field changes or the next launch.
+(`ERROR [netdiag/path] resolve|trace <host>: …`). An error leaves the sub-level in
+`pathDone` with the hops cleared and the label shown as a persistent error
+(level Error) until the next launch (`enter` traces again).
 `handleDoneError` decides what stays on screen: when `nettrace.IsNoRoute(err)`
 is true, the column **keeps the local rows** (container rows, source, interface
 and gateway, platform labels), with the route set to `pathRoute{NoRoute: true}`
@@ -1655,7 +1669,7 @@ on `OutcomeMaxHops` or `OutcomeDeadline`, `refreshSteps` passes the rows through
   answer these probes (ICMP filtering), which is a hypothesis; the rows do not
   state it.
 
-**The target field takes no port (DEVDESK-335).** `parsePathTarget` accepts a
+**The target takes no port (DEVDESK-335).** `parsePathTarget` accepts a
 bare host name or IPv4 address. `host:80`, `[::1]:443` and `host:` are refused
 with `Path ignores ports: enter a host or IP address only` (`errPathPort`,
 footer level Error, nothing resolved, no trace). A literal IPv6 target stays

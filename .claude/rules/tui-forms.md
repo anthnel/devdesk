@@ -365,6 +365,6 @@ f.nameInput.SetStyles(lipgloss.NewStyle().Underline(true)...)
 theme.SetTextInputInvalid(&f.nameInput, true) // in every Update
 ```
 
-Forms covered, and where the rules live: `docs/architecture/ui-components.md` ("Invalid form fields"). Netdiag is covered for the Diagnostics form's Target field when the Trace Path button is pressed (DEVDESK-470). Out of scope: `templates/form.go`, the rest of netdiag (Path tab field, Port, DNS Server), the `ctrl+p` palette, `FilterBar`.
+Forms covered, and where the rules live: `docs/architecture/ui-components.md` ("Invalid form fields"). Netdiag is covered for the Diagnostics form's Target field when the Trace Path button is pressed (DEVDESK-470). Out of scope: `templates/form.go`, the rest of netdiag (Port, DNS Server), the `ctrl+p` palette, `FilterBar`.
 
 Guards: `internal/ui/theme/source_guard_test.go` (`TestGuardNoHexColorOutsideColorsGo`, `TestGuardInvalidFieldUnderlineHasOneEntryPoint`, `TestGuardDetectors`).

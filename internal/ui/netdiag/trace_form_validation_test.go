@@ -9,12 +9,12 @@ import (
 )
 
 // DEVDESK-470 task 470.3: Trace Path validates the target with parsePathTarget,
-// the way the Path tab does. A refusal emits nothing, underlines the target
+// the way the path trace does. A refusal emits nothing, underlines the target
 // (Rule 140) and names the error in the footer, derived on every render.
 
 const curlyUnderline = "4:3"
 
-// pathIPv6Text is the Path tab's own wording for an IPv6 literal.
+// pathIPv6Text is the path trace's own wording for an IPv6 literal.
 var pathIPv6Text = capitalize(errPathIPv6.Error())
 
 // traceFormWithTarget returns a supported model whose target field holds value.
@@ -45,6 +45,8 @@ func TestTraceFormValidationRefusesAnInvalidTarget(t *testing.T) {
 		{"empty", "", "Target is required"},
 		{"ipv6 literal", "::1", pathIPv6Text},
 		{"host with port", "host:8080", errPathPortText},
+		{"port zero", "h:0", errPathPortText},
+		{"ipv4 with port", "1.2.3.4:80", errPathPortText},
 		{"bracketed ipv6 with port", "[::1]:443", errPathPortText},
 		{"malformed host", "bad host!", "Target must be a hostname or IP address"},
 	}
@@ -60,6 +62,10 @@ func TestTraceFormValidationRefusesAnInvalidTarget(t *testing.T) {
 			if m.pathModel.gen != gen || fe.traceCalls != 0 || fe.resolveCalls != 0 {
 				t.Errorf("gen %d->%d trace=%d resolve=%d, nothing may be emitted",
 					gen, m.pathModel.gen, fe.traceCalls, fe.resolveCalls)
+			}
+			if pm := m.pathModel; pm.state != pathReady || pm.result != nil || pm.errText != "" || pm.hopCount() != 0 {
+				t.Errorf("path model state=%v result=%v errText=%q hops=%d, want a clean ready model: a refusal is no trace state",
+					pm.state, pm.result, pm.errText, pm.hopCount())
 			}
 			if !m.traceValidation.Invalid(traceKeyTarget) {
 				t.Error("the target is not marked invalid")
@@ -78,8 +84,8 @@ func TestTraceFormValidationRefusesAnInvalidTarget(t *testing.T) {
 	}
 }
 
-// Same sentence as the Path tab gives for the same input.
-func TestTraceFormValidationTextMatchesThePathTab(t *testing.T) {
+// Same sentence as the path trace gives for the same input.
+func TestTraceFormValidationTextMatchesTheTraceParser(t *testing.T) {
 	for _, target := range []string{"", "::1", "host:8080", "[::1]:443", "bad host!"} {
 		_, err := parsePathTarget(target)
 		if err == nil {
@@ -89,6 +95,26 @@ func TestTraceFormValidationTextMatchesThePathTab(t *testing.T) {
 		m = pressTrace(t, m)
 		if text, _ := footerError(m); text != capitalize(err.Error()) {
 			t.Errorf("target %q: footer %q, want %q", target, text, capitalize(err.Error()))
+		}
+	}
+}
+
+// Bare hosts and IPv6 literals are never read as host:port.
+func TestTraceFormBareTargetsAreNotPortErrors(t *testing.T) {
+	for _, in := range []string{"host", "1.2.3.4", "::1", "[::1]"} {
+		_, err := parsePathTarget(in)
+		if err != nil && err.Error() == errPathPortText {
+			t.Errorf("parsePathTarget(%q) = port error, want none", in)
+		}
+		m, _ := traceFormWithTarget(t, in)
+		m = pressTrace(t, m)
+		if text, _ := footerError(m); text == errPathPortText {
+			t.Errorf("target %q: the form says %q", in, text)
+		}
+	}
+	for _, in := range []string{"host", "1.2.3.4"} {
+		if _, err := parsePathTarget(in); err != nil {
+			t.Errorf("parsePathTarget(%q) error = %v, want accepted", in, err)
 		}
 	}
 }

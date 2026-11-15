@@ -19,7 +19,7 @@ import (
 )
 
 // DEVDESK-330 step 6: the selector and the container source wired into the
-// Path tab. The engine is always the fake: nothing here reads a real engine.
+// path trace. The engine is always the fake: nothing here reads a real engine.
 
 const (
 	loadingText = "Reading running containers..."
@@ -132,7 +132,6 @@ func TestPathSourceKeyOpensTheSelector(t *testing.T) {
 			pm := pmWith(t, f)
 			if state == "done" {
 				pm.state = pathDone
-				pm.input.Blur()
 			}
 			baseLines := len(strings.Split(pm.view(), "\n"))
 			before := pm.sourcesGen
@@ -310,7 +309,7 @@ func TestPathSourcesMessageStaleIsDropped(t *testing.T) {
 func TestPathSelectorIsClosedWhenTheViewIsEnteredAgain(t *testing.T) {
 	m := New(testConfig())
 	m.pathModel = pmWith(t, runningFake())
-	m.activeTab = tabPath
+	m.openTrace(StateInput, pathTarget{Host: "1.1.1.1"})
 	m = feed(t, m, testutil.Key("ctrl+o"))
 	if !m.pathModel.pickerOpen() {
 		t.Fatal("setup: the selector did not open")
@@ -332,15 +331,15 @@ func TestPathSelectorIsClosedWhenTheViewIsEnteredAgain(t *testing.T) {
 func TestPathSelectorEnterChoosesAndEscCloses(t *testing.T) {
 	t.Run("enter", func(t *testing.T) {
 		pm := pmWith(t, runningFake())
-		pm, _ = pmFeed(t, pm, testutil.Type("1.1.1.1")...)
+		pm.ready(pathTarget{Host: "1.1.1.1"})
 
 		pm = chosen(t, pm, 2)
 
 		if pm.pickerOpen() || pm.source.ID != idWeb || pm.source.Name != "web-1" {
 			t.Errorf("pickerOpen = %v, source = %+v, want it closed on web-1", pm.pickerOpen(), pm.source)
 		}
-		if pm.state != pathEditing || pm.input.Value() != "1.1.1.1" {
-			t.Errorf("state = %v, field = %q, want editing with the value kept", pm.state, pm.input.Value())
+		if pm.state != pathReady || pm.target.Host != "1.1.1.1" {
+			t.Errorf("state = %v, target = %q, want ready with the target kept", pm.state, pm.target.Host)
 		}
 		if v, ok := headerValue(pm, "Source"); !ok || v != "web-1" {
 			t.Errorf("header Source = %q (present %v), want web-1", v, ok)
@@ -358,16 +357,14 @@ func TestPathSelectorEnterChoosesAndEscCloses(t *testing.T) {
 }
 
 // The selector keeps the keyboard: tab, a paste, letters and the palette key
-// reach neither the tab row nor the field (Rules 111, 135).
+// reach neither the tab row nor the target (Rules 111, 135).
 func TestPathSelectorHoldsTheKeyboard(t *testing.T) {
-	for _, state := range []string{"editing", "done"} {
+	for _, state := range []string{"ready", "done"} {
 		t.Run(state, func(t *testing.T) {
-			m := onPathTab(t)
+			m := traceReady(t, "abc")
 			m.pathModel.engine = runningFake().engine()
-			m.pathModel.input.SetValue("abc")
 			if state == "done" {
 				m.pathModel.state = pathDone
-				m.pathModel.input.Blur()
 			}
 			m, cmd := step(t, m, testutil.Key("ctrl+o"))
 			m = feed(t, m, testutil.Msg(cmd))
@@ -384,22 +381,22 @@ func TestPathSelectorHoldsTheKeyboard(t *testing.T) {
 			}
 			for _, msg := range held {
 				m = feed(t, m, msg)
-				if m.activeTab != tabPath {
+				if m.activeTab != tabDiagnostics || m.state != StateTrace {
 					t.Fatalf("%v switched the tab to %d", msg, m.activeTab)
 				}
 				if !m.pathModel.pickerOpen() {
 					t.Fatalf("%v closed the selector", msg)
 				}
-				if got := m.pathModel.input.Value(); got != "abc" {
-					t.Fatalf("%v reached the field: value = %q", msg, got)
+				if got := m.pathModel.target.Host; got != "abc" {
+					t.Fatalf("%v reached the target: host = %q", msg, got)
 				}
 			}
 		})
 	}
 }
 
-// esc from done closes the selector and keeps the rows; esc with it closed
-// returns to editing and keeps the source.
+// esc from done closes the selector and keeps the rows; esc with it closed is
+// the sub-level's (Model), so the path model keeps its state and its source.
 func TestPathEscKeepsTheSourceAndTheRows(t *testing.T) {
 	f := runningFake()
 	f.inspectNet = appNetworking()
@@ -413,8 +410,8 @@ func TestPathEscKeepsTheSourceAndTheRows(t *testing.T) {
 	}
 
 	pm, _ = pmFeed(t, pm, testutil.Key("esc"))
-	if pm.state != pathEditing || pm.source.ID != idWeb {
-		t.Errorf("after esc from done: state %v, source %+v, want editing on web-1", pm.state, pm.source)
+	if pm.state != pathDone || pm.source.ID != idWeb {
+		t.Errorf("after esc from done: state %v, source %+v, want done on web-1", pm.state, pm.source)
 	}
 }
 
@@ -574,7 +571,7 @@ func TestPathTraceRowSitsBetweenTheGatewayAndTheHops(t *testing.T) {
 	}
 }
 
-// A source change returns a done tab to editing with an empty column; choosing
+// A source change returns a done trace to ready with an empty column; choosing
 // the source in use only closes the selector.
 func TestPathSourceChangeClearsTheColumn(t *testing.T) {
 	f := runningFake()
@@ -587,8 +584,8 @@ func TestPathSourceChangeClearsTheColumn(t *testing.T) {
 		if n := len(pm.table.Items()); n != 0 {
 			t.Errorf("rows = %d after a source change, want the column cleared", n)
 		}
-		if pm.state != pathEditing || !pm.input.Focused() || pm.input.Value() != "1.1.1.1" {
-			t.Errorf("state %v, focused %v, value %q: want editing, focused, value kept", pm.state, pm.input.Focused(), pm.input.Value())
+		if pm.state != pathReady || pm.target.Host != "1.1.1.1" {
+			t.Errorf("state %v, target %q: want ready and the target kept", pm.state, pm.target.Host)
 		}
 		if pm.result != nil || pm.route != nil || pm.container != nil || len(pm.hops) != 0 {
 			t.Errorf("stale run state kept: result %v route %v container %v hops %d", pm.result, pm.route, pm.container, len(pm.hops))
@@ -610,8 +607,8 @@ func TestPathSourceChangeClearsTheColumn(t *testing.T) {
 	})
 }
 
-// Trace again and the Diagnostics hand-off reset what the column showed.
-func TestPathRelaunchAndPrefillResetTheContainer(t *testing.T) {
+// Trace again and ready (the hand-off) reset what the column showed.
+func TestPathRelaunchAndReadyResetTheContainer(t *testing.T) {
 	f := runningFake()
 	f.inspectNet = appNetworking()
 
@@ -625,9 +622,9 @@ func TestPathRelaunchAndPrefillResetTheContainer(t *testing.T) {
 	}
 
 	pm = donePM(t, f, webSource)
-	pm.prefill("example.org")
+	pm.ready(pathTarget{Host: "example.org"})
 	if !pm.source.isHost() || pm.container != nil {
-		t.Errorf("prefill left source %+v, container %v, want this machine and none", pm.source, pm.container)
+		t.Errorf("ready left source %+v, container %v, want this machine and none", pm.source, pm.container)
 	}
 }
 
@@ -678,13 +675,13 @@ func TestPathSelectorComposesAtTheTableWidth(t *testing.T) {
 	}
 }
 
-// Rule 130: the key is advertised in editing and done, greyed where the trace
+// Rule 130: the key is advertised in ready and done, greyed where the trace
 // is unsupported; the open selector replaces the list (a mode).
 func TestPathSourceShortcuts(t *testing.T) {
 	pm := pmWith(t, runningFake())
-	for _, state := range []pathState{pathEditing, pathDone} {
+	for _, state := range []pathState{pathReady, pathDone} {
 		pm.state = state
-		sc := pm.shortcuts()
+		sc := pmShortcuts(pm)
 		if !testutil.ShortcutEnabled(sc, "ctrl+o") {
 			t.Errorf("state %v: ctrl+o is not advertised and enabled", state)
 		}
@@ -697,14 +694,14 @@ func TestPathSourceShortcuts(t *testing.T) {
 
 	off := pmWith(t, &fakeEngine{})
 	off.engine.supported = func() error { return errors.New("not linux") }
-	if sc := off.shortcuts(); !testutil.HasShortcut(sc, "ctrl+o") || !testutil.ShortcutDisabled(sc, "ctrl+o") {
+	if sc := pmShortcuts(off); !testutil.HasShortcut(sc, "ctrl+o") || !testutil.ShortcutDisabled(sc, "ctrl+o") {
 		t.Error("ctrl+o must stay listed and greyed where the trace is unsupported")
 	}
 
-	pm.state = pathEditing
+	pm.state = pathReady
 	pm = openedPicker(t, pm)
 	// Rule 138: the arrows are obvious in a list, so only enter and esc are listed.
-	if got, want := testutil.ShortcutKeys(pm.shortcuts()), []string{"enter", "esc"}; !slices.Equal(got, want) {
+	if got, want := testutil.ShortcutKeys(pmShortcuts(pm)), []string{"enter", "esc"}; !slices.Equal(got, want) {
 		t.Errorf("selector shortcuts = %v, want %v", got, want)
 	}
 }
@@ -722,9 +719,9 @@ func TestPathSourceKeyIsInTheHelp(t *testing.T) {
 		t.Error("no KeyBinding starts with ctrl+o")
 	}
 	for _, s := range c.Sections {
-		if strings.HasPrefix(s.Title, "Path Tab") && strings.Contains(s.Body, "ctrl+o") {
+		if strings.HasPrefix(s.Title, "Diagnostics Tab — Tracing") && strings.Contains(s.Body, "ctrl+o") {
 			return
 		}
 	}
-	t.Error("the Path Tab help section does not mention ctrl+o")
+	t.Error("the trace help section does not mention ctrl+o")
 }
