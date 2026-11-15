@@ -1,0 +1,15 @@
+{
+  "tool_use_id": "toolu_019wDy4A1DjevCHY6YotXj7o",
+  "agent_id": "a345f58ee679a3269",
+  "subagent_type": "project-coder",
+  "task_description": "Vert étape 1",
+  "token_usage": {
+    "input_tokens": 79,
+    "cache_creation_tokens": 202896,
+    "cache_read_tokens": 6196666,
+    "output_tokens": 31915,
+    "api_call_count": 39
+  },
+  "started_at": "2026-11-15T19:05:32.3999026+01:00",
+  "completed_at": "2026-11-15T19:20:37.6034523+01:00"
+}

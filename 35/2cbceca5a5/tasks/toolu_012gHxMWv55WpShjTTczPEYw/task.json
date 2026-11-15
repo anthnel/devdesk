@@ -1,0 +1,18 @@
+{
+  "tool_use_id": "toolu_012gHxMWv55WpShjTTczPEYw",
+  "agent_id": "a325221cc58ba729d",
+  "subagent_type": "team-core:archivist",
+  "task_description": "Archiver D153",
+  "files": [
+    "docs/backlog.md"
+  ],
+  "token_usage": {
+    "input_tokens": 29,
+    "cache_creation_tokens": 88121,
+    "cache_read_tokens": 752501,
+    "output_tokens": 11067,
+    "api_call_count": 12
+  },
+  "started_at": "2026-11-15T20:07:56.9293322+01:00",
+  "completed_at": "2026-11-15T20:08:51.3767207+01:00"
+}
