@@ -1257,7 +1257,9 @@ the default route shows as the interface row, and the probes take that route.
   …`) and never shown.
 - **The source is never a host name.** It is the fixed text `this machine`, not
   `os.Hostname()`: under WSL2 the distro's host name defaults to the Windows
-  computer name, which would label the source as another machine.
+  computer name, which would label the source as another machine. Under WSL2
+  the row says so instead (see "The WSL2 labels" below), still without a host
+  name.
 - **Counter.** The footer's `Tracing <host> — N hops answered` counts hop rows
   only (`hopCount`), not the local rows. An error done (`ErrNoRoute`, …) still
   clears every row.
@@ -1451,6 +1453,45 @@ from here; it never says where the engine runs. Files: `path_bridge.go`
   cannot see, nothing more. `engine VM` is to be written only when the engine
   itself declares it is a VM. That is not done: Docker Desktop stays excluded
   from `ctrl+o` (DEVDESK-330) and S-07 (WSL2) is not a prerequisite.
+
+**The WSL2 labels (DEVDESK-333).** Under WSL2 the machine DevDesk runs on is a
+VM, and its first hop is the Windows host's virtual switch, not a router. The
+column says so only on proof. Files: `internal/wslenv` (detection),
+`internal/ui/netdiag/path_wsl.go` (`withWSL`, `windowsHostGateway`,
+`wslSourceText`), `path_run.go` (the read), `path_steps.go`.
+
+- **Detection (`wslenv.Detect`).** `Gather` collects `Facts`, `Classify` turns
+  them into `Info` (`WSL2`, `Mode`, `NATInterface`, `NATGateway`); a zero `Info`
+  means not WSL2. Off Linux nothing is read. WSL2 is proven when
+  `/proc/sys/kernel/osrelease` contains `WSL2` (case-insensitive) and the
+  facts look like WSL (`WSL_DISTRO_NAME` set, or `microsoft` in osrelease).
+  Native Linux gets no mention at all.
+- **Mode.** `wslinfo --networking-mode`, run only under WSL, from
+  `/usr/bin/wslinfo` then `/usr/sbin/wslinfo` (absolute paths, never the search
+  path), with the constant argument, an empty environment, a 2 s deadline and
+  the output bounded to 64 bytes. The answer is cross-checked with the
+  `loopback0` interface, which exists under mirrored networking only: `nat`
+  with `loopback0`, `mirrored` without it, any other answer, a failed run or a
+  missing `wslinfo` (WSL before 2.0.4) gives `unknown`.
+- **Source row.** `WSL2 (VM), not the Windows host · NAT mode`, `· mirrored
+  mode` or `· mode unknown`. The `trace` rows still say `from this machine`.
+- **Windows host label.** The gateway row and the TTL 1 hop get ` — Windows
+  host (virtual switch)` only when all hold: WSL2 proven, mode NAT, the default
+  route of `/proc/net/route` (`defaultGateway`) has the same gateway and the same
+  interface as the traced route, and the hop is TTL 1 at that gateway. Never in
+  mirrored or unknown mode.
+- **Read in the producer** (`detectPathPlatform`, once per launch, under the
+  resolve timeout; `pathEngine.platform`, injectable). The result rides on
+  `pathResolvedMsg`: no new message, capacity still 32. `withWSL` labels the
+  steps without modifying them. With no answer the column reads as on native
+  Linux.
+- **Import guard.** `wslenv` starts a process, so it is the declared exception
+  on `allowedInternalImports` in `path_engine_source_guard_test.go`. What it may
+  run is pinned by its own `internal/wslenv/source_guard_test.go`, which is the
+  contract.
+- **Limits.** A VPN inside the distro that replaces the default route gets no
+  Windows host label (the routes differ). Measured on WSL 2.7.13.0 only. The
+  label says what the virtual switch is, not what the Windows host reaches.
 
 **Errors become fixed labels.** `pathErrorLabel` maps the sentinels (matched
 with `errors.Is`, wrapped errors included) to US English sentences:

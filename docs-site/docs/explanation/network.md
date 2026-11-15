@@ -434,6 +434,14 @@ for this machine.
   full-tunnel VPN the interface row names the tunnel. If the routing table
   can't answer, both rows read `undetermined` and the trace goes on. The
   footer counts only the hops that answered, not these three rows.
+- **Under WSL2.** The distro is a VM, so the `source` row reads
+  `WSL2 (VM), not the Windows host · NAT mode` (or `· mirrored mode`, or
+  `· mode unknown` when DevDesk can't tell; it asks `wslinfo`, which needs
+  WSL 2.0.4 or later). In NAT mode, when the default route of the distro is the
+  one being traced, the `gateway` row and hop 1 add `— Windows host (virtual
+  switch)`. Never in mirrored or unknown mode, and not when a VPN inside the
+  distro replaces the default route. The `trace` rows still say `from this
+  machine`. Checked on WSL 2.7.13.0 only. On native Linux nothing is added.
 - **Start from a container.** Press `ctrl+o` to open **Trace from**, a list of
   `this machine` and the running containers of a Docker Engine on this machine.
   Use `↑` `↓` (and `pgup`, `pgdown`, `home`, `end`) to move, `enter` to choose

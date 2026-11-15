@@ -14,6 +14,7 @@ import (
 	"github.com/anthnel/devdesk/internal/ui/datatable"
 	"github.com/anthnel/devdesk/internal/ui/shortcut"
 	"github.com/anthnel/devdesk/internal/ui/theme"
+	"github.com/anthnel/devdesk/internal/wslenv"
 )
 
 const (
@@ -81,6 +82,10 @@ type PathModel struct {
 	picker     *pathSourcePicker
 	sourcesGen int
 	container  *pathContainer
+
+	// platform is the WSL2 detection of the current run, set by handleResolved
+	// and cleared with the run.
+	platform wslenv.Info
 }
 
 // pathSourceKey opens the "Trace from" selector (declared exception, surface
@@ -158,6 +163,7 @@ func (pm *PathModel) handleResolved(msg pathResolvedMsg) (*PathModel, tea.Cmd) {
 		return pm, nil
 	}
 	pm.addr = msg.addr
+	pm.platform = msg.platform
 	route := newPathRoute(msg.route, msg.routeErr)
 	pm.route = &route
 	if !msg.source.isHost() {
@@ -186,6 +192,7 @@ func (pm *PathModel) handleDone(msg pathDoneMsg) (*PathModel, tea.Cmd) {
 		pm.hops = nil
 		pm.route = nil
 		pm.container = nil
+		pm.platform = wslenv.Info{}
 		pm.table.SetItems(nil)
 		pm.errText = pathErrorLabel(pm.target.Host, msg.err)
 		pm.state = pathEditing
@@ -200,7 +207,9 @@ func (pm *PathModel) handleDone(msg pathDoneMsg) (*PathModel, tea.Cmd) {
 }
 
 // refreshSteps rebuilds the table rows from the route and the hops.
-func (pm *PathModel) refreshSteps() { pm.table.SetItems(pathSteps(pm.container, pm.route, pm.hops)) }
+func (pm *PathModel) refreshSteps() {
+	pm.table.SetItems(withWSL(pathSteps(pm.container, pm.route, pm.hops), pm.platform))
+}
 
 // clearRun forgets what the last run put on screen: the resolved address, the
 // route, the container, the hops, the outcome and the error.
@@ -209,6 +218,7 @@ func (pm *PathModel) clearRun() {
 	pm.hops = nil
 	pm.route = nil
 	pm.container = nil
+	pm.platform = wslenv.Info{}
 	pm.result = nil
 	pm.errText = ""
 	pm.table.SetItems(nil)

@@ -16,6 +16,7 @@ import (
 	"github.com/anthnel/devdesk/internal/netcheck"
 	"github.com/anthnel/devdesk/internal/netiface"
 	"github.com/anthnel/devdesk/internal/nettrace"
+	"github.com/anthnel/devdesk/internal/wslenv"
 )
 
 const producerWait = 2 * time.Second
@@ -57,12 +58,29 @@ type fakeEngine struct {
 	ifacesVal    []netiface.Interface
 	ifacesErr    error
 
+	// Platform seam (DEVDESK-333): a nil platformFn leaves pathEngine.platform nil.
+	platformFn    func(ctx context.Context) wslenv.Info
+	platformCalls int
+	platformCtx   context.Context
+
 	routeFn   func(ctx context.Context, a netip.Addr) (netcheck.RouteHop, error)
 	resolveFn func(ctx context.Context, host string) ([]netip.Addr, error)
 	traceFn   func(ctx context.Context, a netip.Addr, o nettrace.Options, onHop func(nettrace.Hop)) (nettrace.Result, error)
 }
 
 func (f *fakeEngine) engine() pathEngine {
+	e := f.baseEngine()
+	if f.platformFn != nil {
+		e.platform = func(ctx context.Context) wslenv.Info {
+			f.platformCalls++
+			f.platformCtx = ctx
+			return f.platformFn(ctx)
+		}
+	}
+	return e
+}
+
+func (f *fakeEngine) baseEngine() pathEngine {
 	return pathEngine{
 		supported: func() error { return nil },
 		resolve: func(ctx context.Context, host string) ([]netip.Addr, error) {

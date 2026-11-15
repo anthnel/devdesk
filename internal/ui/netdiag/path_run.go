@@ -15,6 +15,7 @@ import (
 	"github.com/anthnel/devdesk/internal/netcheck"
 	"github.com/anthnel/devdesk/internal/netiface"
 	"github.com/anthnel/devdesk/internal/nettrace"
+	"github.com/anthnel/devdesk/internal/wslenv"
 )
 
 // pathChanCap holds a whole trace: every hop (at most MaxHopsLimit), the
@@ -38,6 +39,7 @@ type pathEngine struct {
 	inspect    func(ctx context.Context, id string) (docker.ContainerNetworking, error) // read-only
 	network    func(ctx context.Context, id string) (docker.NetworkBridge, error)       // docker.InspectNetworkBridge
 	interfaces func(ctx context.Context) ([]netiface.Interface, error)                  // netiface.List
+	platform   func(ctx context.Context) wslenv.Info                                    // wslenv.Detect; nil means not WSL2
 }
 
 // systemPathEngine returns the engine backed by the real resolver and sockets.
@@ -60,6 +62,7 @@ func systemPathEngine() pathEngine {
 		inspect:    docker.InspectContainerNetworking,
 		network:    docker.InspectNetworkBridge,
 		interfaces: netiface.List,
+		platform:   wslenv.Detect,
 	}
 }
 
@@ -73,6 +76,7 @@ type pathResolvedMsg struct {
 	ctr      docker.ContainerNetworking // zero for this machine
 	ctrErr   error                      // logged by the producer, never shown
 	bridge   pathBridge                 // what is known of the container network's host interface
+	platform wslenv.Info                // WSL2 detection for this launch; zero when not WSL2
 }
 
 // pathSourcesMsg carries what the selector offers once the engine answered.
@@ -199,7 +203,8 @@ func producePath(ctx context.Context, gen int, tg pathTarget, src pathSource, re
 	if ctrErr == nil && !src.isHost() {
 		bridge = readPathBridge(ctx, ctr, resolveTimeout, e)
 	}
-	send(pathResolvedMsg{gen: gen, addr: addr, route: route, routeErr: routeErr, source: src, ctr: ctr, ctrErr: ctrErr, bridge: bridge})
+	platform := detectPathPlatform(ctx, resolveTimeout, e)
+	send(pathResolvedMsg{gen: gen, addr: addr, route: route, routeErr: routeErr, source: src, ctr: ctr, ctrErr: ctrErr, bridge: bridge, platform: platform})
 
 	res, err := e.trace(ctx, addr, nettrace.Options{}, func(h nettrace.Hop) {
 		send(pathHopMsg{gen: gen, hop: h})
@@ -224,6 +229,17 @@ func inspectPathSource(ctx context.Context, src pathSource, timeout time.Duratio
 		log.Printf("ERROR [netdiag/path] inspect %s: %v", src.ID, err)
 	}
 	return ctr, err
+}
+
+// detectPathPlatform asks the engine once whether this machine is WSL2, under
+// its own timeout. No engine function means not WSL2.
+func detectPathPlatform(ctx context.Context, timeout time.Duration, e pathEngine) wslenv.Info {
+	if e.platform == nil {
+		return wslenv.Info{}
+	}
+	pctx, cancel := context.WithTimeout(ctx, timeout)
+	defer cancel()
+	return e.platform(pctx)
 }
 
 // resolvePathTarget returns the IPv4 address to trace: a literal is used as

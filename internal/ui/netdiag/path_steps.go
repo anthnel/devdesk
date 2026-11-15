@@ -9,6 +9,7 @@ import (
 
 	"github.com/anthnel/devdesk/internal/netcheck"
 	"github.com/anthnel/devdesk/internal/nettrace"
+	"github.com/anthnel/devdesk/internal/wslenv"
 )
 
 // pathStepKind says which kind of row a pathStep is.
@@ -41,6 +42,10 @@ type pathStep struct {
 	Container pathContainer // stepContainer, stepNetwork, stepBridge, stepEngine, stepTrace
 	Route     pathRoute     // stepInterface, stepGateway
 	Hop       nettrace.Hop  // stepHop
+	WSL       wslenv.Info   // stepSource: set by withWSL
+	// WindowsHost marks the gateway row and the TTL 1 hop as the Windows
+	// virtual switch (WSL2 NAT mode only): set by withWSL.
+	WindowsHost bool
 }
 
 const (
@@ -154,13 +159,24 @@ func (s pathStep) addressCell() string {
 	case stepTrace:
 		return s.Container.traceText()
 	case stepSource:
+		if s.WSL.WSL2 {
+			return wslSourceText(s.WSL)
+		}
 		return sourceLabel
 	case stepInterface:
 		return s.Route.interfaceText()
 	case stepGateway:
-		return s.Route.gatewayText()
+		return s.Route.gatewayText() + s.hostTag()
 	}
-	return addrOrDash(s.Hop.Addr)
+	return addrOrDash(s.Hop.Addr) + s.hostTag()
+}
+
+// hostTag is the Windows host label of a row marked by withWSL.
+func (s pathStep) hostTag() string {
+	if s.WindowsHost {
+		return windowsHostTag
+	}
+	return ""
 }
 
 // rttCell is the round-trip time of a hop that answered; "-" otherwise.
@@ -179,7 +195,7 @@ func (r pathRoute) interfaceText() string {
 	if !r.Known || (r.Interface == "" && !r.Source.IsValid()) {
 		return routeUndetermined
 	}
-	name := r.Interface
+	name := printable(r.Interface)
 	if name == "" {
 		name = "unnamed"
 	}

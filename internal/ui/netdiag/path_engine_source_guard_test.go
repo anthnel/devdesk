@@ -52,9 +52,13 @@ var allowedEngineUses = []string{"Current"}
 // allowedInternalImports is every internal package the netdiag sources import.
 // A new one fails the guard so that it is looked at once: a package that can
 // reach the engine or a process must not slip in through a helper.
+//
+// wslenv is the declared exception: it runs wslinfo to detect WSL2, which is
+// a process start. Its own guard, internal/wslenv/source_guard_test.go, is the
+// contract for what it may run.
 var allowedInternalImports = []string{
 	"command", "config", "docker", "engine", "forward", "jobs", "netcheck",
-	"netiface", "nettrace", "ports", "shared",
+	"netiface", "nettrace", "ports", "shared", "wslenv",
 	"ui/components", "ui/datatable", "ui/help", "ui/indicator", "ui/keymap",
 	"ui/overlay", "ui/shortcut", "ui/theme",
 }
@@ -355,5 +359,16 @@ func TestEngineViolationsDetectsForbiddenUses(t *testing.T) {
 				t.Errorf("violations = %v, want %d", got, tc.want)
 			}
 		})
+	}
+}
+
+// DEVDESK-333: wslenv is on the import list.
+func TestWslenvIsADeclaredInternalImport(t *testing.T) {
+	got, err := engineViolations("synthetic.go", "package netdiag\nimport \"github.com/anthnel/devdesk/internal/wslenv\"\nvar _ = wslenv.Detect\n")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(got) != 0 {
+		t.Errorf("violations = %v, want none", got)
 	}
 }

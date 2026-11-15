@@ -120,9 +120,9 @@ Les stories décrivent les textes en français. La Rule 129 impose l'anglais US 
 | Story | Libellé proposé |
 |---|---|
 | « cette machine » (S-04) | `this machine` |
-| « WSL2 (VM), pas l'hôte Windows » (S-07) | `WSL2 (VM), not the Windows host` |
-| « hôte Windows (switch virtuel) » (S-07) | `Windows host (virtual switch)` |
-| « mode WSL2 indéterminé » (S-07) | `WSL2 mode undetermined` |
+| « WSL2 (VM), pas l'hôte Windows » (S-07) | **Décidé (DEVDESK-333)** : ligne source `WSL2 (VM), not the Windows host · NAT mode`, `· mirrored mode` ou `· mode unknown` |
+| « hôte Windows (switch virtuel) » (S-07) | **Décidé** : suffixe ` — Windows host (virtual switch)` sur la passerelle et le saut TTL 1, seulement si WSL2 prouvé, mode NAT, et passerelle/interface de la route par défaut (`/proc/net/route`) identiques à celles de la route tracée ; jamais en mirrored ni en mode inconnu |
+| « mode WSL2 indéterminé » (S-07) | **Décidé** : `mode unknown` (remplace `WSL2 mode undetermined`) ; aussi quand `wslinfo` est absent (WSL < 2.0.4). Limites : un VPN dans la distro qui remplace la route par défaut ne reçoit pas d'étiquette ; mesuré sur WSL 2.7.13.0 seulement |
 | ligne « engine », bridge absent de cette machine (S-06) | `internal path not visible (location unknown)` ; en cas de doute : `undetermined (bridge not verified)` |
 | « VM » (S-06) | `Engine VM`, affiché seulement si l'engine se déclare VM (non fait) |
 | « pas de réponse au-delà » (S-09) | `no response beyond` |
