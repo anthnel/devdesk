@@ -1,0 +1,18 @@
+{
+  "tool_use_id": "toolu_01AUcde9puDYRGNqXerKGc2b",
+  "agent_id": "ae8825e3b2492a44d",
+  "subagent_type": "project-coder",
+  "task_description": "Test route Fail ne bloque rien",
+  "files": [
+    "internal/netcheck/run_test.go"
+  ],
+  "token_usage": {
+    "input_tokens": 13,
+    "cache_creation_tokens": 65125,
+    "cache_read_tokens": 346219,
+    "output_tokens": 2623,
+    "api_call_count": 7
+  },
+  "started_at": "2026-11-15T17:10:32.1095853+01:00",
+  "completed_at": "2026-11-15T17:10:54.8477611+01:00"
+}

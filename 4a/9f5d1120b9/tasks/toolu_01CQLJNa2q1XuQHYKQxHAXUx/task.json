@@ -1,0 +1,15 @@
+{
+  "tool_use_id": "toolu_01CQLJNa2q1XuQHYKQxHAXUx",
+  "agent_id": "a025a2f4bd71df9fb",
+  "subagent_type": "project-coder",
+  "task_description": "Vert étape 1 DEVDESK-474",
+  "token_usage": {
+    "input_tokens": 15,
+    "cache_creation_tokens": 76359,
+    "cache_read_tokens": 458285,
+    "output_tokens": 6772,
+    "api_call_count": 8
+  },
+  "started_at": "2026-11-15T16:44:51.6330866+01:00",
+  "completed_at": "2026-11-15T16:45:51.3119519+01:00"
+}
