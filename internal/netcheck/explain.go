@@ -169,9 +169,18 @@ var explanations = []guidance{
 			"client that prefers IPv6 hang before it falls back.",
 		do: "Check whether this machine is meant to have IPv6. If it is not, the addresses " +
 			"without a route are harmless; if it is, the missing route is the fault."},
+	{check: CheckRoute, verdict: OK, reason: ReasonRouteUndetermined,
+		means: "At least one address has a route out of this machine, but the routing table " +
+			"could not answer for the others. That is not a claim that they have none."},
+	{check: CheckRoute, verdict: Fail,
+		means: "None of the addresses checked has a route out of this machine, " +
+			"so the TCP connection will fail for the same reason.",
+		do: "Check the default route and any VPN split tunnel: a tunnel that captured or " +
+			"dropped the default route leaves nothing to send this traffic through."},
 	{check: CheckRoute, verdict: Unknown,
-		means: "The routing table could not answer, so this says nothing about the target. " +
-			"It is not a claim that no route exists.",
+		means: "The routing table could not answer for at least one address, and none has a " +
+			"route. This is not a claim that no route exists: only an address listed under " +
+			"No route is proven to have none.",
 		do: "Read the TCP connect below — it answers whether the target responds without " +
 			"needing this."},
 

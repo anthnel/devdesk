@@ -195,7 +195,8 @@ const (
 	ReasonNotTLS Reason = "not-tls"
 
 	// Local route
-	ReasonPartialRoute Reason = "partial-route"
+	ReasonPartialRoute      Reason = "partial-route"
+	ReasonRouteUndetermined Reason = "route-undetermined"
 )
 
 // fact appends an observed value, skipping empty ones so a detail pane never

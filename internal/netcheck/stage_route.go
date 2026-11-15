@@ -5,6 +5,8 @@ import (
 	"fmt"
 	"net"
 	"strings"
+
+	"github.com/anthnel/devdesk/internal/nettrace"
 )
 
 // maxRoutedAddresses bounds how many of the resolved addresses are looked up.
@@ -22,6 +24,9 @@ const maxRoutedAddresses = 8
 // pipeline reports the symptom — no ICMP reply, no TCP connect — while none of
 // them reports the cause.
 //
+// A failed lookup is Unknown until the kernel proves the absence of a route
+// (nettrace.IsNoRoute): only then is it a finding (D20).
+//
 // It gates nothing, for the same reason reach does not: a machine whose routing
 // table cannot be read still has a perfectly answerable question about whether
 // the port responds.
@@ -37,42 +42,80 @@ func runRoute(ctx context.Context, t Target, env Env, _ Settings, prior *Results
 		return []Check{c}
 	}
 
-	var routed []routedAddress
-	var unreachable []net.IP
+	o := lookupRoutes(ctx, env, addrs)
+	c.Verdict, c.Reason, c.Summary = routeVerdict(o, t.Host)
+	// The raw error is a fact value and never the summary: Windows returns
+	// ERROR_NETWORK_UNREACHABLE as a message in the machine's own language, and
+	// the UI is English US (Rule 129).
+	for _, f := range o.noRoute {
+		c.fact("No route", fmt.Sprintf("%s — %v", f.ip, f.err))
+	}
+	for _, f := range o.undetermined {
+		c.fact("Route undetermined", fmt.Sprintf("%s — %v", f.ip, f.err))
+	}
+
+	describeRoutes(&c, o.routed)
+	return []Check{c}
+}
+
+// routeFailure is an address whose lookup returned an error, with that error.
+type routeFailure struct {
+	ip  net.IP
+	err error
+}
+
+// routeOutcome sorts the lookups of one run. noRoute holds the addresses for
+// which the kernel proved there is no route (nettrace.IsNoRoute); undetermined
+// holds every other failure, which proves nothing.
+type routeOutcome struct {
+	routed       []routedAddress
+	noRoute      []routeFailure
+	undetermined []routeFailure
+}
+
+// lookupRoutes asks env for the way out of each address and classifies errors.
+func lookupRoutes(ctx context.Context, env Env, addrs []net.IP) routeOutcome {
+	var o routeOutcome
 	for _, ip := range addrs {
 		hop, err := env.Route(ctx, ip)
-		if err != nil {
-			// The error is not shown: Windows returns ERROR_NETWORK_UNREACHABLE
-			// as a message in the machine's own language, and the UI is English
-			// US (Rule 129). It is a fact under a key of ours, so the raw text
-			// is available in the detail pane without being the summary.
-			c.fact("No route", fmt.Sprintf("%s — %v", ip, err))
-			unreachable = append(unreachable, ip)
-			continue
+		switch {
+		case err == nil:
+			o.routed = append(o.routed, routedAddress{ip: ip, hop: hop})
+		case nettrace.IsNoRoute(err):
+			o.noRoute = append(o.noRoute, routeFailure{ip: ip, err: err})
+		default:
+			o.undetermined = append(o.undetermined, routeFailure{ip: ip, err: err})
 		}
-		routed = append(routed, routedAddress{ip: ip, hop: hop})
 	}
+	return o
+}
+
+// routeVerdict turns an outcome into the stage's verdict, reason and summary.
+//
+// Fail needs proof for every address. A lookup that could not answer is not a
+// machine with no route, and rendering the first as the second is the defect
+// this codebase keeps finding (D20): without proof the verdict stays Unknown.
+func routeVerdict(o routeOutcome, host string) (Verdict, Reason, string) {
+	proven, undet := len(o.noRoute), len(o.undetermined)
+	total := len(o.routed) + proven + undet
 
 	switch {
-	case len(routed) == 0:
-		// Every lookup failed. This is Unknown and not Fail on purpose: a
-		// lookup that could not answer is not the same as a machine with no
-		// route, and rendering the first as the second is the defect this
-		// codebase keeps finding (D20).
-		c.Summary = fmt.Sprintf("The local route to %s could not be determined", t.Host)
-		return []Check{c}
-	case len(unreachable) > 0:
-		c.Verdict = Warn
-		c.Reason = ReasonPartialRoute
-		c.Summary = fmt.Sprintf("%d of %d addresses have no local route",
-			len(unreachable), len(routed)+len(unreachable))
+	case len(o.routed) == 0 && undet == 0:
+		return Fail, "", fmt.Sprintf("%s has no local route", host)
+	case len(o.routed) == 0:
+		return Unknown, "", fmt.Sprintf("The local route to %s could not be determined", host)
+	case proven > 0:
+		summary := fmt.Sprintf("%d of %d addresses have no local route", proven, total)
+		if undet > 0 {
+			summary += fmt.Sprintf("; route undetermined for %d", undet)
+		}
+		return Warn, ReasonPartialRoute, summary
+	case undet > 0:
+		return OK, ReasonRouteUndetermined, fmt.Sprintf("%s; route undetermined for %d of %d addresses",
+			routeSummary(o.routed), undet, total)
 	default:
-		c.Verdict = OK
-		c.Summary = routeSummary(routed)
+		return OK, "", routeSummary(o.routed)
 	}
-
-	describeRoutes(&c, routed)
-	return []Check{c}
 }
 
 // routedAddress pairs an address with the way out it was given.

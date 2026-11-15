@@ -9,6 +9,8 @@ import (
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/anthnel/devdesk/internal/nettrace"
 )
 
 // scenario is one situation the battery drives through Run. Between them they
@@ -98,6 +100,22 @@ func batteries(t *testing.T) []scenario {
 			}}, target()},
 
 		{"one of two addresses has no route", fakeEnv{
+			roots: goodRoots, handshake: handshakeReturning(good),
+			resolve: func(context.Context, string, string) ([]net.IP, error) {
+				return []net.IP{net.ParseIP("93.184.216.34"), net.ParseIP("2606:2800:220:1::1")}, nil
+			},
+			route: func(_ context.Context, ip net.IP) (RouteHop, error) {
+				if ip.To4() == nil {
+					return RouteHop{}, nettrace.ErrNoRoute
+				}
+				return RouteHop{Interface: "eth0", Source: net.ParseIP("192.168.1.21")}, nil
+			}}, target()},
+		{"the target has no local route", fakeEnv{
+			roots: goodRoots, handshake: handshakeReturning(good),
+			route: func(context.Context, net.IP) (RouteHop, error) {
+				return RouteHop{}, nettrace.ErrNoRoute
+			}}, target()},
+		{"one address's route is undetermined", fakeEnv{
 			roots: goodRoots, handshake: handshakeReturning(good),
 			resolve: func(context.Context, string, string) ([]net.IP, error) {
 				return []net.IP{net.ParseIP("93.184.216.34"), net.ParseIP("2606:2800:220:1::1")}, nil
