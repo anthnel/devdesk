@@ -70,6 +70,30 @@ See [Remediation](../explanation/scanning.md#remediation).
 `space` is Pause/Resume — a control, not a new capital — and `K` greys out
 when there is nothing selected to delete.
 
+## Network Diagnostics — Diagnostics tab
+
+| Key | Where | Action |
+|---|---|---|
+| `↑` `↓` | Form | Move between the fields (Target, Port, DNS Server) and the two buttons, **Run Diagnostics** and **Trace Path** |
+| `enter` | A text field or Run Diagnostics | Run the checks |
+| `enter` | Trace Path button | Trace the path to the target, in the `Network › Path › <target>` level |
+| `esc` | Trace level, while it runs | Cancel the trace and keep the hops already seen |
+| `esc` | Trace level, once it is done | Back to the form, with Target, Port and DNS Server kept |
+| `↑` `↓` `PageUp` `PageDown` `Home` `End` | Trace level | Move in the hop table |
+| `Tab` | Anywhere in net, except while the filter bar is being edited or the Path tab's source selector is open | Switch tab |
+
+`enter` on a text field always runs the diagnostics; only the Trace Path
+button traces. In the trace level, every other key is ignored: there is no
+`enter`, `ctrl+r` or `ctrl+o` there. To trace again, press `esc` to return to
+the form, then use the button.
+
+The Target must be a host name or an IPv4 address, with no port. An empty,
+invalid, `host:port` or IPv6 target is refused: the field is underlined and the
+footer gives the reason, the same wording as the Path tab. Port and DNS Server
+do not apply to a trace: if either is filled, the footer says it is ignored.
+The button is greyed out on a platform that cannot trace (macOS, Windows,
+WSL1), and the footer gives the reason.
+
 ## Network Diagnostics — Path tab
 
 | Key | Action |

@@ -277,6 +277,8 @@ func (m *Model) handleKey(msg tea.KeyPressMsg) (*Model, tea.Cmd) {
 		return m.handleKeyResults(msg)
 	case StateDetails:
 		return m.handleKeyDetails(msg)
+	case StateTrace:
+		return m.handleKeyTrace(msg)
 	}
 	return m, nil
 }
@@ -304,9 +306,12 @@ func (m *Model) handleKeyInput(msg tea.KeyPressMsg) (*Model, tea.Cmd) {
 		m.moveFocus(-1)
 		return m, nil
 	case "enter":
-		// enter runs from anywhere in the form: with three fields and one
-		// button there is nothing else it could mean, and making the user walk
-		// to the button first is a step that buys nothing.
+		// enter runs the checks from anywhere in the form, so the user need
+		// not walk to the button first; only the Trace Path button means
+		// something else.
+		if m.focusedField == fieldTraceButton {
+			return m.traceFromForm()
+		}
 		return m.StartRun()
 	case "esc":
 		return m, nil
@@ -341,6 +346,7 @@ func (m *Model) updateActiveInput(msg tea.Msg) (*Model, tea.Cmd) {
 	switch m.focusedField {
 	case fieldTarget:
 		m.targetInput, cmd = m.targetInput.Update(msg)
+		m.revalidateTrace()
 	case fieldPort:
 		m.portInput, cmd = m.portInput.Update(msg)
 	case fieldDNSServer:

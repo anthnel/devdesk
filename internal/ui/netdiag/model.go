@@ -24,6 +24,7 @@ const (
 	StateRunning                  // The pipeline is walking its stages
 	StateResults                  // The checks and their verdicts
 	StateDetails                  // One check explained
+	StateTrace                    // The Path tab's trace, opened from the form's Trace Path button
 )
 
 // Tab indices. tabCount is what Tab cycles through, and it is a constant
@@ -47,11 +48,12 @@ const (
 // follow from the target and from what has already failed, so a question that
 // was never worth asking is no longer asked.
 const (
-	fieldTarget    = 0
-	fieldPort      = 1
-	fieldDNSServer = 2
-	fieldButton    = 3
-	fieldCount     = 4
+	fieldTarget      = 0
+	fieldPort        = 1
+	fieldDNSServer   = 2
+	fieldRunButton   = 3
+	fieldTraceButton = 4
+	fieldCount       = 5
 )
 
 // problemsToken filters the table down to what is not settled.
@@ -94,6 +96,11 @@ type Model struct {
 	portInput      textinput.Model
 	dnsServerInput textinput.Model
 	focusedField   int
+
+	// traceValidation and traceMarks carry the Trace Path target's refusal:
+	// the footer line and the underline (Rule 140, DEVDESK-470).
+	traceValidation components.Validation
+	traceMarks      components.InvalidMarks
 
 	// Running state
 	runGen     int // incremented each run; results from a superseded run are dropped

@@ -17,10 +17,12 @@ import (
 // GetTitle implements HeaderView
 func (m *Model) GetTitle() string {
 	base := theme.IconNetwork + " Network"
+	if m.activeTab == tabDiagnostics && m.state == StateTrace {
+		return m.traceTitle(base)
+	}
 	if m.state == StateDetails {
 		if label := m.selected.Title; label != "" {
-			detailStyle := lipgloss.NewStyle().Foreground(theme.ColorPrimary).Background(theme.ColorBackground)
-			return base + detailStyle.Render(" "+theme.IconChevronRight+" "+label)
+			return base + titleTrailStyle().Render(" "+theme.IconChevronRight+" "+label)
 		}
 	}
 	return base
@@ -107,9 +109,15 @@ func (m *Model) GetShortcuts() shortcut.Shortcuts {
 	}
 
 	switch m.state {
+	case StateTrace:
+		return m.traceShortcuts()
 	case StateInput:
+		enter := shortcut.Shortcut{Key: "enter", Description: "Run the checks"}
+		if m.focusedField == fieldTraceButton {
+			enter = shortcut.Shortcut{Key: "enter", Description: "Trace the path", Disabled: !m.traceable().Enabled()}
+		}
 		return append(tabShortcuts, shortcut.Shortcuts{
-			{Key: "enter", Description: "Run the checks"},
+			enter,
 			{Key: "?", Description: "Help"},
 		}...)
 	case StateRunning:
@@ -189,6 +197,9 @@ func (m *Model) GetHeaderInfo(context string) []shortcut.HeaderInfo {
 			Value: m.forwardModel.summaryLine(),
 			Style: theme.HeaderValueStyle,
 		})
+	}
+	if m.state == StateTrace {
+		return append(info, m.pathModel.headerInfo()...)
 	}
 	if m.activeTab != tabDiagnostics || m.state == StateInput {
 		return info
@@ -289,6 +300,9 @@ func (m *Model) activeFooter() (*components.FooterMessage, components.Status) {
 	case tabPath:
 		return &m.pathModel.footer, m.pathModel.statusLine()
 	}
+	if m.state == StateTrace {
+		return &m.pathModel.footer, m.pathModel.statusLine()
+	}
 	return &m.footer, m.statusLine()
 }
 
@@ -299,6 +313,16 @@ func (m *Model) activeFooter() (*components.FooterMessage, components.Status) {
 func (m *Model) statusLine() components.Status {
 	if m.state == StateRunning {
 		return components.Status{Text: m.progressLabel(), Activity: true}
+	}
+	if m.state == StateInput {
+		if st := m.traceValidation.Status(); st.Text != "" {
+			return st
+		}
+	}
+	if m.state == StateInput {
+		if a := m.traceable(); !a.Enabled() {
+			return components.Status{Text: a.Reason, Level: components.LevelWarning}
+		}
 	}
 	return components.Status{}
 }
@@ -312,8 +336,8 @@ func (m *Model) GetHelpContent() help.Content {
 			// Tab navigation
 			{Key: "tab / shift+tab", Description: "Cycle between the Diagnostics, Ports, Interfaces, Forward and Path tabs"},
 			// Diagnostics
-			{Key: "↑ / ↓", Description: "Navigate between fields (Diagnostics tab)"},
-			{Key: "enter (form)", Description: "Run the checks against the target"},
+			{Key: "↑ / ↓", Description: "Navigate between the fields and the Run Diagnostics and Trace Path buttons (Diagnostics tab)"},
+			{Key: "enter (form)", Description: "Run the checks against the target, from any field or the Run Diagnostics button"},
 			{Key: "esc (running)", Description: "Cancel the run and keep what completed"},
 			{Key: "enter (results)", Description: "Explain the selected check"},
 			{Key: "p", Description: "Show problems only / show every check (Diagnostics tab)"},
@@ -348,6 +372,10 @@ func (m *Model) GetHelpContent() help.Content {
 			{Key: "enter (Path)", Description: "Trace the path to the target typed in the field, or trace again once a trace is done (Path tab)"},
 			{Key: "esc (Path, running)", Description: "Cancel the trace and keep the hops already seen (Path tab)"},
 			{Key: "esc (Path, done)", Description: "Edit the target again, keeping its value (Path tab)"},
+			{Key: "enter (Trace Path button)", Description: "Trace the path to the form's target in a sub-level of the Diagnostics tab, Network › Path › target; Port and DNS Server are ignored by the trace (an info line says so); greyed out on a platform that cannot trace, with the reason in the footer (Diagnostics tab)"},
+			{Key: "esc (trace)", Description: "Cancel a running trace; once it ended, go back to the form with Target, Port and DNS Server kept (Diagnostics tab)"},
+			{Key: "↑ / ↓ / pgup / pgdown / home / end (trace)", Description: "Move in the hop table; every other key is ignored there except tab, which switches tab (Diagnostics tab)"},
+			{Key: "enter / ctrl+r / ctrl+o (trace)", Description: "Do nothing in the trace sub-level: to trace again, go back to the form with esc and press the Trace Path button; the trace always starts from this machine (Diagnostics tab)"},
 			{Key: "ctrl+o (Path)", Description: "Choose where the trace starts: this machine or a running container; ↑↓ to move, enter to choose, esc to close (Path tab)"},
 		},
 		Sections: []help.Section{

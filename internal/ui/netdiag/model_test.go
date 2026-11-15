@@ -24,8 +24,8 @@ func TestTheFormAsksThreeQuestions(t *testing.T) {
 	if m.state != StateInput {
 		t.Errorf("state = %v, want StateInput", m.state)
 	}
-	if fieldCount != 4 {
-		t.Errorf("the form has %d fields, want 4 — target, port, resolver, button", fieldCount)
+	if fieldCount != 5 {
+		t.Errorf("the form has %d fields, want 5 — target, port, resolver, Run Diagnostics, Trace Path", fieldCount)
 	}
 	if m.focusedField != fieldTarget {
 		t.Errorf("focus starts on %d, want the target field", m.focusedField)
@@ -172,7 +172,7 @@ func TestTypingReachesTheFocusedInput(t *testing.T) {
 // TestEnterRunsFromAnywhereInTheForm: with three fields and one button there is
 // nothing else enter could mean, and walking to the button first buys nothing.
 func TestEnterRunsFromAnywhereInTheForm(t *testing.T) {
-	for _, field := range []int{fieldTarget, fieldPort, fieldDNSServer, fieldButton} {
+	for _, field := range []int{fieldTarget, fieldPort, fieldDNSServer, fieldRunButton} {
 		m := typeInto(t, newTestModel(t), "example.com")
 		m.focusedField = field
 		m = feed(t, m, testutil.Key("enter"))
@@ -200,7 +200,7 @@ func TestRunRejectsInvalidInput(t *testing.T) {
 				m.portInput.Focus()
 				m = feed(t, m, testutil.Type(tc.port)...)
 			}
-			m.focusedField = fieldButton
+			m.focusedField = fieldRunButton
 			m = feed(t, m, testutil.Key("enter"))
 
 			if m.state == StateRunning {
@@ -574,7 +574,7 @@ func TestInEditModeIsTrueOnlyWhereAFieldHasTheKeyboard(t *testing.T) {
 	if !form.InEditMode() {
 		t.Error("the target field does not claim the keyboard")
 	}
-	form.focusedField = fieldButton
+	form.focusedField = fieldRunButton
 	if form.InEditMode() {
 		t.Error("the button claims the keyboard")
 	}

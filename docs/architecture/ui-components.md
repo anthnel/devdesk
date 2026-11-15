@@ -802,8 +802,16 @@ is set, for the token and for the missing URL, and a refused submit starts
 nothing (the in-flight mark is now the footer dot, DEVDESK-375). A stored token made only of blanks no longer triggers the auto-login
 (`handleCredentialsLoaded`) either.
 
-**Out of scope.** `internal/ui/templates/form.go`, netdiag, the `ctrl+p` palette
-and `FilterBar` do not use the underline yet.
+**Netdiag (DEVDESK-470).** The Diagnostics form's **Target** field is covered,
+for the Trace Path button only: `traceTargetErrors()` (`internal/ui/netdiag/trace_form.go`)
+reuses the Path tab's parser, `components.Validation` and `InvalidMarks` carry
+the underline and the footer error (`statusLine()` in `header.go`). Port and
+DNS Server are not validated, and `enter` on a text field (Run Diagnostics)
+does not validate the target. Details in `network.md`.
+
+**Out of scope.** `internal/ui/templates/form.go`, the rest of netdiag (the Path
+tab's own field, Port and DNS Server), the `ctrl+p` palette and `FilterBar` do
+not use the underline yet.
 
 **Guards.** `internal/ui/theme/source_guard_test.go`:
 `TestGuardNoHexColorOutsideColorsGo` (Rule 119, `DefaultTheme` in `manager.go`
