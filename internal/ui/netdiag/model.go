@@ -24,7 +24,7 @@ const (
 	StateRunning                  // The pipeline is walking its stages
 	StateResults                  // The checks and their verdicts
 	StateDetails                  // One check explained
-	StateTrace                    // The Path tab's trace, opened from the form's Trace Path button
+	StateTrace                    // The path trace sub-level, opened by the Trace Path button or H
 )
 
 // Tab indices. tabCount is what Tab cycles through, and it is a constant
@@ -36,9 +36,8 @@ const (
 	tabPorts       = 1
 	tabInterfaces  = 2
 	tabForward     = 3
-	tabPath        = 4
 
-	tabCount = 5
+	tabCount = 4
 )
 
 // Form field indices.
@@ -82,7 +81,7 @@ type Model struct {
 	width  int
 	height int
 
-	// Active tab (tabDiagnostics, tabPorts, tabInterfaces, tabForward or tabPath)
+	// Active tab (tabDiagnostics, tabPorts, tabInterfaces, or tabForward)
 	activeTab       int
 	portsModel      *PortsModel
 	interfacesModel *InterfacesModel
@@ -90,6 +89,9 @@ type Model struct {
 	pathModel       *PathModel
 
 	state ViewState
+	// traceOrigin is the state the trace sub-level was opened from (StateInput
+	// or StateResults); esc goes back there with nothing reset.
+	traceOrigin ViewState
 
 	// Form inputs
 	targetInput    textinput.Model

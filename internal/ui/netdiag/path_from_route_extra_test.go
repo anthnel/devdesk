@@ -14,9 +14,11 @@ import (
 func TestHWithAnInvalidTargetReportsAnErrorWithoutSystemText(t *testing.T) {
 	m, _ := routeResults(t, "example.com")
 	m = selectCheck(t, m, netcheck.CheckRoute)
-	m.targetInput.SetValue("")
+	// The target parses for the trace, but the form's port does not: H is
+	// offered, then buildTarget refuses.
+	m.portInput.SetValue("abc")
 	if _, err := m.buildTarget(); err == nil {
-		t.Skip("an empty target is valid here; no way to make buildTarget fail")
+		t.Skip("an invalid port is accepted here; no way to make buildTarget fail")
 	}
 
 	m = feed(t, m, testutil.Key(keymap.Diagnose))
@@ -30,7 +32,7 @@ func TestHWithAnInvalidTargetReportsAnErrorWithoutSystemText(t *testing.T) {
 	}
 }
 
-func TestHPrefillForgetsThePreviousPathTarget(t *testing.T) {
+func TestHReadyForgetsThePreviousPathTarget(t *testing.T) {
 	m, _ := routeResults(t, "example.com")
 	m = selectCheck(t, m, netcheck.CheckRoute)
 	m.pathModel.target = pathTarget{Host: "old.example"}
@@ -38,8 +40,8 @@ func TestHPrefillForgetsThePreviousPathTarget(t *testing.T) {
 
 	m = feed(t, m, testutil.Key(keymap.Diagnose))
 
-	if m.pathModel.target != (pathTarget{}) || m.pathModel.addr.IsValid() {
-		t.Errorf("target=%v addr=%v, want both cleared", m.pathModel.target, m.pathModel.addr)
+	if m.pathModel.target.Host != "example.com" || m.pathModel.addr.IsValid() {
+		t.Errorf("target=%v addr=%v, want the results' host and no address", m.pathModel.target, m.pathModel.addr)
 	}
 	for _, h := range m.pathModel.headerInfo() {
 		if strings.Contains(h.Value, "old.example") || strings.Contains(h.Value, "192.0.2.1") {

@@ -77,13 +77,13 @@ func TestInitLoadsBothSubTabs(t *testing.T) {
 
 func TestTabCyclesThroughEveryTab(t *testing.T) {
 	m := newTestModel(t)
-	for _, want := range []int{tabPorts, tabInterfaces, tabForward, tabPath, tabDiagnostics} {
+	for _, want := range []int{tabPorts, tabInterfaces, tabForward, tabDiagnostics} {
 		m = feed(t, m, testutil.Key("tab"))
 		if m.activeTab != want {
 			t.Fatalf("activeTab = %d, want %d", m.activeTab, want)
 		}
 	}
-	for _, want := range []int{tabPath, tabForward, tabInterfaces, tabPorts, tabDiagnostics} {
+	for _, want := range []int{tabForward, tabInterfaces, tabPorts, tabDiagnostics} {
 		m = feed(t, m, testutil.Key("shift+tab"))
 		if m.activeTab != want {
 			t.Fatalf("activeTab = %d, want %d", m.activeTab, want)
@@ -92,7 +92,7 @@ func TestTabCyclesThroughEveryTab(t *testing.T) {
 }
 
 // The cycle is stated over tabCount rather than over a list written out twice,
-// so a fifth tab cannot be added to the bar and forgotten in the arithmetic.
+// so another tab cannot be added to the bar and forgotten in the arithmetic.
 func TestEveryTabIsReachableByTabAlone(t *testing.T) {
 	m := newTestModel(t)
 	seen := map[int]bool{m.activeTab: true}

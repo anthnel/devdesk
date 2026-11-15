@@ -12,9 +12,6 @@ import (
 	"github.com/anthnel/devdesk/internal/ui/theme"
 )
 
-// pathBarLabel prefixes the target field in the bar.
-const pathBarLabel = "Target › "
-
 // pathColumns describes the Path column. Plain text in Cell, colour in Style
 // (Rule 122). A silent hop is dim, never red: it is not a failure.
 func pathColumns() []datatable.Column[pathStep] {
@@ -92,11 +89,6 @@ func (pm *PathModel) view() string {
 	return pm.table.View()
 }
 
-// barView is the target field in its frame, two lines in every state.
-func (pm *PathModel) barView(width int) string {
-	return components.BarFrame(width, theme.KeyStyle.Render(pathBarLabel)+pm.input.View())
-}
-
 // statusLine is derived on every frame (Rule 128).
 func (pm *PathModel) statusLine() components.Status {
 	if pm.errText != "" {
@@ -148,34 +140,4 @@ func (pm *PathModel) headerInfo() []shortcut.HeaderInfo {
 		out = append(out, shortcut.HeaderInfo{Key: "Path", Value: pathOutcomeLabel(*pm.result), Style: theme.HeaderValueStyle})
 	}
 	return out
-}
-
-// shortcuts: the running mode replaces the list, the other states grey out
-// (Rule 130).
-func (pm *PathModel) shortcuts() shortcut.Shortcuts {
-	if pm.pickerOpen() { // a mode: the list is replaced
-		return shortcut.Shortcuts{
-			{Key: "enter", Description: "Trace from it"},
-			{Key: "esc", Description: "Close"},
-		}
-	}
-	off := !pm.launchable().Enabled()
-	source := shortcut.Shortcut{Key: pathSourceKey, Description: "Trace from…", Disabled: !pm.sourceChoosable().Enabled()}
-	switch pm.state {
-	case pathRunning:
-		return shortcut.Shortcuts{{Key: "esc", Description: "Cancel the trace"}}
-	case pathDone:
-		return shortcut.Shortcuts{
-			{Key: "tab", Description: "Switch tab"},
-			{Key: "enter", Description: "Trace again", Disabled: off},
-			source,
-			{Key: "esc", Description: "Edit the target"},
-			{Key: "?", Description: "Help"},
-		}
-	}
-	return shortcut.Shortcuts{
-		{Key: "tab", Description: "Switch tab"},
-		{Key: "enter", Description: "Trace the path", Disabled: off},
-		source,
-	}
 }

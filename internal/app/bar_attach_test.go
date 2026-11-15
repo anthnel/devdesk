@@ -85,17 +85,6 @@ func feedView(a *App, msgs ...tea.Msg) {
 	a.resize(a.width, a.height)
 }
 
-func TestPathTabBarIsAttachedToTheFrame(t *testing.T) {
-	for _, size := range []struct{ w, h int }{{200, 50}, {80, 16}} {
-		a := netdiagApp(t, size.w, size.h)
-		feedView(a, testutil.Keys("tab", "tab", "tab", "tab")...)
-
-		lines := screen(a)
-		assertJoined(t, lines, "│Target ›")
-		assertBarAttached(t, lines, size.h)
-	}
-}
-
 func TestInterfacesTabFilterBarIsAttachedToTheFrame(t *testing.T) {
 	a := netdiagApp(t, 160, 40)
 	feedView(a, testutil.Keys("tab", "tab")...)
@@ -169,18 +158,35 @@ type framelessBarFake struct{ fakeView }
 
 func (*framelessBarFake) Frameless() bool { return true }
 
-// fitHeight trims the body from just above its last line, so the junction the
-// bar attaches to survives at every height where the body is cut but the
-// footer still fits.
-func TestPathTabBarStaysJoinedWhileTheBodyIsTrimmed(t *testing.T) {
+// DEVDESK-471: the Path tab and its bar are gone, so the DEVDESK-457 join guard
+// rides on other bars. Ports: the search bar a "/" opens (Diagnostics' own bar
+// needs results, whose messages are unexported; netdiag's tests cover it).
+func TestPortsFilterBarIsAttachedToTheFrame(t *testing.T) {
+	for _, size := range []struct{ w, h int }{{200, 50}, {80, 16}} {
+		a := netdiagApp(t, size.w, size.h)
+		feedView(a, testutil.Key("tab"))
+		feedView(a, testutil.Key("/"))
+
+		lines := screen(a)
+		assertJoined(t, lines, "│ /")
+		assertBarAttached(t, lines, size.h)
+	}
+}
+
+// Interfaces: the search bar stays joined while the body is trimmed. fitHeight
+// trims the body from just above its last line, so the junction the bar
+// attaches to survives at every height where the body is cut but the footer
+// still fits.
+func TestInterfacesSearchBarStaysJoinedWhileTheBodyIsTrimmed(t *testing.T) {
 	seen := 0
 	for h := 12; h <= 24; h++ {
 		a := netdiagApp(t, 120, h)
-		feedView(a, testutil.Keys("tab", "tab", "tab", "tab")...)
+		feedView(a, testutil.Keys("tab", "tab")...)
+		feedView(a, testutil.Key("/"))
 
 		lines := screen(a)
 		assertBarAttached(t, lines, h)
-		i := lineIndex(lines, "│Target ›")
+		i := lineIndex(lines, "│ /")
 		if i < 0 {
 			continue
 		}
@@ -193,6 +199,6 @@ func TestPathTabBarStaysJoinedWhileTheBodyIsTrimmed(t *testing.T) {
 		}
 	}
 	if seen == 0 {
-		t.Fatal("the Path bar was never on screen in the heights tried")
+		t.Fatal("the Interfaces bar was never on screen in the heights tried")
 	}
 }

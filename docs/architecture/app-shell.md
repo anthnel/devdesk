@@ -581,21 +581,22 @@ them off the screen anyway. And the granularity is the **package**, not the
 view's state: a key bound in one tab and announced in another passes. What these
 catch is the key bound *nowhere*, which is what both instances were.
 
-**`ctrl+o` on `netdiag/path` (DEVDESK-330).** A declared Ctrl exception
-(`keymap.DeclaredExceptions()`, key `ctrl+o`, surface `netdiag/path`; the
+**`ctrl+o` on `netdiag/trace` (DEVDESK-330, DEVDESK-471).** A declared Ctrl exception
+(`keymap.DeclaredExceptions()`, key `ctrl+o`, surface `netdiag/trace`; the
 `security/results/remediation-tab` entry for the same key is a separate one, so
 the pair is keyed by key and surface). It opens the "Trace from" selector (this
 machine or a running Docker Engine container) and changes nothing by itself,
-unlike the remediation tab's `ctrl+o`, which writes files. The target field has
-the keyboard in `pathEditing`, so no bare letter is free there; `textinput` does
-not bind `ctrl+o`. It is live in `pathEditing` and `pathDone`, warns while a
-trace runs and is greyed where the trace is unsupported.
-`path_source_exception_test.go` (`internal/ui/keymap`) fails if the entry or its
-reason disappears, and `TestOnlyThreeCtrlCombinationsSurvive` accepts the key
+unlike the remediation tab's `ctrl+o`, which writes files. No letter of the
+vocabulary fits on the sub-level, and no terminal claims `ctrl+o`. It is live
+while the trace is ready or done, is ignored while a trace runs and is greyed
+where the trace is unsupported. The `netdiag/path` surface went with the Path
+tab (DEVDESK-471). `trace_source_exception_test.go` (`internal/ui/keymap`)
+fails if the `netdiag/trace` entry or its reason disappears, or if a
+`netdiag/path` entry comes back, and `TestOnlyThreeCtrlCombinationsSurvive` accepts the key
 only because it is declared. **While the selector is open it is a mode and
 holds every key, `tab` included:** `netdiag.Model.Update` hands keys to the Path
-model *before* the `tab`/`shift+tab` tab switch, and `PathModel.InEditMode()` is
-true so the router does not quit on `q` or open the palette on `:`. A paste is
+model *before* the `tab`/`shift+tab` tab switch while the sub-level is on screen,
+and `Model.InEditMode()` is true so the router does not quit on `q` or open the palette on `:`. A paste is
 dropped (Rule 111). Details: `network.md`, "The container source".
 
 **The space key is `keymap.Space`** (DEVDESK-200). Bubble Tea v1 reported it as

@@ -216,11 +216,11 @@ func TestPathRelaunchDropsTheRouteUntilTheNewOneArrives(t *testing.T) {
 }
 
 // H hands a target over: the previous rows and route are dropped.
-func TestPathPrefillDropsTheRoute(t *testing.T) {
+func TestPathReadyDropsTheRoute(t *testing.T) {
 	pm := resolvedWith(t, lanRoute(), nil)
-	pm.prefill("example.com")
+	pm.ready(pathTarget{Host: "example.com"})
 	if pm.route != nil || len(pm.table.Items()) != 0 {
-		t.Errorf("after prefill: route=%v rows=%d, want nil and 0", pm.route, len(pm.table.Items()))
+		t.Errorf("after ready: route=%v rows=%d, want nil and 0", pm.route, len(pm.table.Items()))
 	}
 }
 
@@ -245,8 +245,8 @@ func TestPathNoRouteKeepsTheLocalRows(t *testing.T) {
 	if pm.route == nil || !pm.route.NoRoute {
 		t.Errorf("route = %+v, want NoRoute", pm.route)
 	}
-	if !pm.InEditMode() {
-		t.Errorf("editing = false, want the tab back in edit mode")
+	if pm.state != pathDone {
+		t.Errorf("state = %v, want pathDone", pm.state)
 	}
 	st := pm.statusLine()
 	if st.Level != components.LevelError || !strings.Contains(st.Text, "No route to 1.1.1.1 from this machine") {
@@ -314,8 +314,8 @@ func TestPathOtherTraceErrorClearsEveryRow(t *testing.T) {
 			if pm.route != nil {
 				t.Errorf("route = %v after an error done, want nil", pm.route)
 			}
-			if !pm.InEditMode() || pm.statusLine().Level != components.LevelError {
-				t.Errorf("editing=%v status=%+v, want editing with a persistent error", pm.InEditMode(), pm.statusLine())
+			if pm.state != pathDone || pm.statusLine().Level != components.LevelError {
+				t.Errorf("state=%v status=%+v, want pathDone with a persistent error", pm.state, pm.statusLine())
 			}
 		})
 	}

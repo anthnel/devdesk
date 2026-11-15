@@ -14,47 +14,40 @@ const (
 	// greys the key out and the handler says the same thing at the footer.
 	reasonNotARouteRow = "Select the Local route row to trace its path"
 
-	// reasonPathBusy is shown on the Path footer when H lands on a running trace.
+	// reasonPathBusy is the refusal when a trace is already running.
 	reasonPathBusy = "A path trace is already running — esc cancels it"
 )
 
-// pathFromRoute is the one answer to "can H hand this row to the Path tab",
-// read by the header and by the handler (Rule 130).
+// pathFromRoute is the one answer to "can H open the trace for this row", read
+// by the header and by the handler (Rule 130). The reasons come in this order:
+// the platform, the row, then the target the trace would be asked about.
 func (m *Model) pathFromRoute() shortcut.Availability {
-	if c, ok := m.checksTable.Selected(); ok && c.ID == netcheck.CheckRoute {
-		return shortcut.Availability{}
+	if a := m.traceable(); !a.Enabled() {
+		return a
 	}
-	return shortcut.Unavailable(reasonNotARouteRow)
+	if c, ok := m.checksTable.Selected(); !ok || c.ID != netcheck.CheckRoute {
+		return shortcut.Unavailable(reasonNotARouteRow)
+	}
+	if _, err := parsePathTarget(m.targetInput.Value()); err != nil {
+		return shortcut.Unavailable(capitalize(err.Error()))
+	}
+	return shortcut.Availability{}
 }
 
-// tracePathFromRoute moves the results' target to the Path tab and leaves it
-// editing: nothing is resolved or sent until the user presses enter there.
+// tracePathFromRoute opens the trace sub-level on the results' target, in its
+// ready state: nothing is resolved or sent until the user presses enter there.
 func (m *Model) tracePathFromRoute() (*Model, tea.Cmd) {
 	if a := m.pathFromRoute(); !a.Enabled() {
 		return m, m.footer.Warn(a.Reason)
 	}
 	if m.pathModel.running() {
-		m.activeTab = tabPath
-		return m, m.pathModel.footer.Warn(reasonPathBusy)
+		return m, m.footer.Warn(reasonPathBusy)
 	}
 	tg, err := m.buildTarget()
 	if err != nil {
 		log.Printf("ERROR [netdiag] target invalid on path hand-off: %v", err)
 		return m, m.footer.Error("Cannot trace — the target is no longer valid")
 	}
-	m.activeTab = tabPath
-	return m, m.pathModel.prefill(tg.Host)
-}
-
-// prefill puts host in the field and returns the tab to editing, dropping the
-// outcome of an earlier trace.
-func (pm *PathModel) prefill(host string) tea.Cmd {
-	pm.state = pathEditing
-	pm.target = pathTarget{}
-	pm.source = hostSource()
-	pm.picker = nil
-	pm.clearRun()
-	pm.input.SetValue(host)
-	pm.input.CursorEnd()
-	return pm.input.Focus()
+	m.openTrace(StateResults, pathTarget{Host: tg.Host})
+	return m, nil
 }

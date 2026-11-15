@@ -7,10 +7,10 @@ import (
 	"github.com/anthnel/devdesk/internal/command"
 )
 
-// DEVDESK-328 step 5: the Path tab's model and target parsing sit under the
-// activity-column guard (no spinner, glyph literal or Frame field). path_run.go
-// holds the I/O and stays out, like ports_commands.go.
-func TestActivityGuardScansThePathTabSources(t *testing.T) {
+// DEVDESK-328 step 5, DEVDESK-471: the trace sub-level's model and target
+// parsing sit under the activity-column guard (no spinner, glyph literal or
+// Frame field). path_run.go holds the I/O and stays out, like ports_commands.go.
+func TestActivityGuardScansTheTraceSources(t *testing.T) {
 	got := migratedSources[command.ViewNetdiag]
 	for _, want := range []string{
 		"ui/netdiag/path_model.go", "ui/netdiag/path_target.go", "ui/netdiag/path_steps.go",

@@ -728,14 +728,12 @@ only implementation of that frame (Rule 136). Its callers:
 
 - `FilterBar.View()` — the table filter bar;
 - the viewer's go-to-line prompt (`g`, `internal/ui/viewer/goto.go`);
-- the workspaces fuzzy finder (`internal/ui/fuzzy/finder.go`);
-- the Path tab's target field in `netdiag` (DEVDESK-328): `Target › ` plus a
-  `textinput`, from `PathModel.barView`. This is the newest occupant.
+- the workspaces fuzzy finder (`internal/ui/fuzzy/finder.go`).
 
-Only one occupant uses the slot at a time on a given screen. The others
-appear on demand; the Path bar is shown on that tab in every state, so the
-tab's footer height is constant (5, `pathFooterHeight`) and nothing moves
-whichever state the tab is in.
+Only one occupant uses the slot at a time on a given screen, and each appears
+on demand. (The Path tab's target bar was the one that stayed in every state;
+it went with the tab, DEVDESK-471, and the trace sub-level of Diagnostics has
+no bar at all, a 3-line footer in every state.)
 
 **The router reads the footer, not the view** (DEVDESK-457). `App.Render()`
 renders the footer first; when `components.OpensWithBarFrame(footer)` holds
@@ -804,7 +802,7 @@ nothing (the in-flight mark is now the footer dot, DEVDESK-375). A stored token 
 
 **Netdiag (DEVDESK-470).** The Diagnostics form's **Target** field is covered,
 for the Trace Path button only: `traceTargetErrors()` (`internal/ui/netdiag/trace_form.go`)
-reuses the Path tab's parser, `components.Validation` and `InvalidMarks` carry
+reuses the path trace's parser, `components.Validation` and `InvalidMarks` carry
 the underline and the footer error (`statusLine()` in `header.go`). Port and
 DNS Server are not validated, and `enter` on a text field (Run Diagnostics)
 does not validate the target. Details in `network.md`.

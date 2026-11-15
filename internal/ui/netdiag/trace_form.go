@@ -18,7 +18,7 @@ func (m *Model) traceable() shortcut.Availability {
 	return m.pathModel.launchable()
 }
 
-// traceTargetErrors is the validation of the target, with the Path tab's own
+// traceTargetErrors is the validation of the target, with the path trace's own
 // wording.
 func (m *Model) traceTargetErrors() []components.FieldError {
 	if _, err := parsePathTarget(m.targetInput.Value()); err != nil {
@@ -43,13 +43,13 @@ func (m *Model) revalidateTrace() {
 // traceFromForm handles enter on the Trace Path button. An unsupported
 // platform is refused with its reason, a trace already running with a warning,
 // an invalid target with an underline and a footer error; otherwise the trace
-// sub-level opens on the Path tab's model and the returned Cmd starts the run.
+// sub-level opens on the Path model and the returned Cmd starts the run.
 func (m *Model) traceFromForm() (*Model, tea.Cmd) {
 	if a := m.traceable(); !a.Enabled() {
 		return m, m.footer.Warn(a.Reason)
 	}
 	if m.pathModel.running() {
-		return m, m.footer.Warn(reasonTraceBusy)
+		return m, m.footer.Warn(reasonPathBusy)
 	}
 	errs := m.traceTargetErrors()
 	m.traceValidation.Submit(errs)
@@ -58,7 +58,7 @@ func (m *Model) traceFromForm() (*Model, tea.Cmd) {
 		return m, nil
 	}
 	tg, _ := parsePathTarget(m.targetInput.Value()) // accepted by traceTargetErrors
-	m.state = StateTrace
+	m.openTrace(StateInput, tg)
 	cmd := m.pathModel.startFromForm(tg)
 	// Posted after startFromForm: launching clears the sub-level's footer.
 	if n := traceUnusedNotice(m.portInput.Value(), m.dnsServerInput.Value()); n != "" {

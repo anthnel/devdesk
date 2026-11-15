@@ -13,10 +13,11 @@ import (
 
 	"github.com/anthnel/devdesk/internal/nettrace"
 	"github.com/anthnel/devdesk/internal/ui/components"
+	"github.com/anthnel/devdesk/internal/ui/shortcut"
 	"github.com/anthnel/devdesk/internal/ui/testutil"
 )
 
-// DEVDESK-328 step 4: the Path tab's own model. No test runs the launch Cmd
+// DEVDESK-328 step 4: the path model. No test runs the launch Cmd
 // (it would start the producer); step 3 covers the producer.
 
 func newPM(t *testing.T) (*PathModel, *fakeEngine) {
@@ -40,11 +41,20 @@ func pmFeed(t *testing.T, pm *PathModel, msgs ...tea.Msg) (*PathModel, tea.Cmd) 
 	return pm, cmd
 }
 
-// launched types target and presses enter.
+// launched puts the model in the ready state on target, keeping the source a
+// test chose, and presses enter.
 func launched(t *testing.T, pm *PathModel, target string) (*PathModel, tea.Cmd) {
 	t.Helper()
-	pm, _ = pmFeed(t, pm, testutil.Type(target)...)
+	src := pm.source
+	pm.ready(pathTarget{Host: target})
+	pm.source = src
 	return pmFeed(t, pm, testutil.Key("enter"))
+}
+
+// pmShortcuts is what the sub-level lists for pm: Model.traceShortcuts is the
+// only constructor, and it reads only the path model and the origin.
+func pmShortcuts(pm *PathModel) shortcut.Shortcuts {
+	return (&Model{pathModel: pm}).traceShortcuts()
 }
 
 func pmHopTTLs(pm *PathModel) []int {
@@ -74,11 +84,11 @@ func hopOf(ttl int, kind nettrace.HopKind) nettrace.Hop {
 	return nettrace.Hop{TTL: ttl, Kind: kind, Addr: netip.MustParseAddr("10.0.0.1")}
 }
 
-// Criterion 1 and 6: field and launch key visible, the body is a table even empty.
-func TestPathNewModelIsAnEditableEmptyTable(t *testing.T) {
+// Criterion 6: the body is a table even empty, and a new model is ready.
+func TestPathNewModelIsAReadyEmptyTable(t *testing.T) {
 	pm, _ := newPM(t)
-	if !pm.InEditMode() {
-		t.Error("InEditMode() = false on a new Path tab, the target field has the focus")
+	if pm.state != pathReady {
+		t.Errorf("state = %v on a new path model, want pathReady", pm.state)
 	}
 	if pm.running() {
 		t.Error("running() = true before any launch")
@@ -97,25 +107,6 @@ func TestPathNewModelIsAnEditableEmptyTable(t *testing.T) {
 	}
 }
 
-func TestPathBarShowsTheTargetFieldAndTheLaunchKeyIsListed(t *testing.T) {
-	pm, _ := newPM(t)
-	bar := ansi.Strip(pm.barView(100))
-	if !strings.Contains(bar, "Target ›") {
-		t.Errorf("bar = %q, want the Target label", bar)
-	}
-	if !strings.Contains(bar, "hostname or IPv4 address") {
-		t.Errorf("bar = %q, want the placeholder", bar)
-	}
-	if !testutil.ShortcutEnabled(pm.shortcuts(), "enter") {
-		t.Error("the enter shortcut is missing or greyed on a supported platform")
-	}
-	for _, s := range pm.shortcuts() {
-		if s.Key == "enter" && s.Description != "Trace the path" {
-			t.Errorf("enter description = %q, want %q", s.Description, "Trace the path")
-		}
-	}
-}
-
 // Criterion 2.
 func TestPathEnterLaunchesAndTheFooterSaysSo(t *testing.T) {
 	pm, _ := newPM(t)
@@ -127,9 +118,6 @@ func TestPathEnterLaunchesAndTheFooterSaysSo(t *testing.T) {
 	}
 	if !pm.running() {
 		t.Error("running() = false after enter")
-	}
-	if pm.InEditMode() {
-		t.Error("InEditMode() = true while running: the field is blurred")
 	}
 	if pm.gen != gen+1 {
 		t.Errorf("gen = %d, want %d", pm.gen, gen+1)
@@ -213,8 +201,8 @@ func TestPathReconciliation(t *testing.T) {
 			t.Error("done re-armed the wait Cmd")
 		}
 	}
-	if pm.running() || pm.InEditMode() {
-		t.Errorf("after done: running=%v InEditMode=%v, want a done state with the field blurred", pm.running(), pm.InEditMode())
+	if pm.state != pathDone {
+		t.Errorf("after done: state=%v, want pathDone", pm.state)
 	}
 	if v, ok := headerValue(pm, "Path"); !ok || v != "Reached at hop 4" {
 		t.Errorf("Path header = %q (%v), want %q", v, ok, "Reached at hop 4")
@@ -234,8 +222,8 @@ func TestPathUnresolvedNameIsAPersistentFooterError(t *testing.T) {
 	g := pm.gen
 	pm, _ = pmFeed(t, pm, pathDoneMsg{gen: g, err: fmt.Errorf("%w: %w", errPathResolve, errors.New("no such host"))})
 
-	if pm.running() || !pm.InEditMode() {
-		t.Errorf("running=%v InEditMode=%v, want editing with the field focused", pm.running(), pm.InEditMode())
+	if pm.running() || pm.state != pathDone {
+		t.Errorf("running=%v state=%v, want pathDone", pm.running(), pm.state)
 	}
 	if n := len(pm.table.Items()); n != 0 {
 		t.Errorf("%d rows after a resolve failure, want none", n)
@@ -253,79 +241,15 @@ func TestPathUnresolvedNameIsAPersistentFooterError(t *testing.T) {
 	if pm.statusLine().Text != want {
 		t.Errorf("the error vanished with the footer timer: %+v", pm.statusLine())
 	}
-	// A change of the field clears it.
-	pm, _ = pmFeed(t, pm, testutil.Key("x"))
+	// The next launch clears it.
+	pm, _ = pmFeed(t, pm, testutil.Key("enter"))
 	if pm.statusLine().Level == components.LevelError {
-		t.Errorf("typing did not clear the error: %+v", pm.statusLine())
-	}
-}
-
-// A refused port is an input error, not a trace state: no run, no row, no
-// persistent run error, and the field keeps what was typed.
-func TestPathRefusedPortIsNotATraceState(t *testing.T) {
-	pm, f := newPM(t)
-	pm, _ = launched(t, pm, "host:8080")
-	if pm.state != pathEditing || pm.result != nil || pm.errText != "" || pm.hopCount() != 0 {
-		t.Errorf("state=%v result=%v errText=%q hops=%d, want a clean editing state", pm.state, pm.result, pm.errText, pm.hopCount())
-	}
-	if pm.input.Value() != "host:8080" {
-		t.Errorf("field = %q, want the typed value kept", pm.input.Value())
-	}
-	if pm.footer.Level() != components.LevelError || pm.footer.Text() != errPathPortText {
-		t.Errorf("footer = {%v %q}, want Error %q", pm.footer.Level(), pm.footer.Text(), errPathPortText)
-	}
-	if f.resolveCalls != 0 || f.traceCalls != 0 {
-		t.Errorf("engine called (%d resolve, %d trace)", f.resolveCalls, f.traceCalls)
-	}
-}
-
-// Bare hosts and IPv6 literals are never read as host:port.
-func TestPathBareTargetsAreNotPortErrors(t *testing.T) {
-	for _, in := range []string{"host", "1.2.3.4", "::1", "[::1]"} {
-		_, err := parsePathTarget(in)
-		if err != nil && err.Error() == errPathPortText {
-			t.Errorf("parsePathTarget(%q) = port error, want none", in)
-		}
-	}
-	for _, in := range []string{"host", "1.2.3.4"} {
-		if _, err := parsePathTarget(in); err != nil {
-			t.Errorf("parsePathTarget(%q) error = %v, want accepted", in, err)
-		}
+		t.Errorf("trying again did not clear the error: %+v", pm.statusLine())
 	}
 }
 
 // errPathPortText is the footer text of a target that carries a port.
 const errPathPortText = "Path ignores ports: enter a host or IP address only"
-
-func TestPathLaunchRefusals(t *testing.T) {
-	tests := []struct {
-		name, input, want string
-	}{
-		{"empty", "", "Target is required"},
-		{"ipv6", "::1", "Only IPv4 targets are supported by the path trace"},
-		{"port zero", "h:0", errPathPortText},
-		{"host with port", "host:8080", errPathPortText},
-		{"ipv4 with port", "1.2.3.4:80", errPathPortText},
-		{"bracketed ipv6 with port", "[::1]:443", errPathPortText},
-	}
-	for _, tc := range tests {
-		t.Run(tc.name, func(t *testing.T) {
-			pm, f := newPM(t)
-			gen := pm.gen
-			pm, _ = pmFeed(t, pm, testutil.Type(tc.input)...)
-			pm, _ = pmFeed(t, pm, testutil.Key("enter"))
-			if pm.gen != gen || pm.running() || !pm.InEditMode() {
-				t.Errorf("gen=%d running=%v edit=%v, want unchanged editing", pm.gen, pm.running(), pm.InEditMode())
-			}
-			if pm.footer.Level() != components.LevelError || pm.footer.Text() != tc.want {
-				t.Errorf("footer = {%v %q}, want Error %q", pm.footer.Level(), pm.footer.Text(), tc.want)
-			}
-			if f.resolveCalls != 0 || f.traceCalls != 0 {
-				t.Errorf("engine called (%d resolve, %d trace) on an invalid target", f.resolveCalls, f.traceCalls)
-			}
-		})
-	}
-}
 
 // H2: unsupported platform, enter greyed and refused with the reason.
 func TestPathUnsupportedPlatformRefusesEnter(t *testing.T) {
@@ -335,7 +259,7 @@ func TestPathUnsupportedPlatformRefusesEnter(t *testing.T) {
 	pm := newPathModel(e)
 	pm.resize(120, 30)
 
-	if !testutil.ShortcutDisabled(pm.shortcuts(), "enter") {
+	if !testutil.ShortcutDisabled(pmShortcuts(pm), "enter") {
 		t.Error("enter is not greyed on an unsupported platform")
 	}
 	gen := pm.gen
@@ -343,8 +267,8 @@ func TestPathUnsupportedPlatformRefusesEnter(t *testing.T) {
 	if cmd != nil && pm.running() {
 		t.Error("a trace was launched on an unsupported platform")
 	}
-	if pm.running() || pm.gen != gen || !pm.InEditMode() {
-		t.Errorf("running=%v gen=%d edit=%v, want a refusal that stays editing", pm.running(), pm.gen, pm.InEditMode())
+	if pm.running() || pm.gen != gen || pm.state != pathReady {
+		t.Errorf("running=%v gen=%d state=%v, want a refusal that stays ready", pm.running(), pm.gen, pm.state)
 	}
 	if pm.footer.Level() != components.LevelWarning || pm.footer.Text() != reasonPathUnsupported {
 		t.Errorf("footer = {%v %q}, want Warn %q", pm.footer.Level(), pm.footer.Text(), reasonPathUnsupported)
@@ -355,7 +279,7 @@ func TestPathUnsupportedPlatformRefusesEnter(t *testing.T) {
 
 	// Rule 130: the key set does not change with the availability.
 	ok, _ := newPM(t)
-	if got, want := testutil.ShortcutKeys(pm.shortcuts()), testutil.ShortcutKeys(ok.shortcuts()); !reflect.DeepEqual(got, want) {
+	if got, want := testutil.ShortcutKeys(pmShortcuts(pm)), testutil.ShortcutKeys(pmShortcuts(ok)); !reflect.DeepEqual(got, want) {
 		t.Errorf("shortcut keys %v unsupported, %v supported", got, want)
 	}
 	if reason := pm.launchable().Reason; reason != reasonPathUnsupported {
@@ -428,94 +352,75 @@ func TestPathStaleGenerationHopIsDropped(t *testing.T) {
 	}
 }
 
-func TestPathRunningIgnoresTypingAndPaste(t *testing.T) {
+// Letters and pastes do nothing in any state: the target comes from the form.
+func TestPathIgnoresLettersAndPasteInEveryState(t *testing.T) {
+	states := map[string]func(*testing.T) *PathModel{
+		"ready": func(t *testing.T) *PathModel {
+			pm, _ := newPM(t)
+			pm.ready(pathTarget{Host: "1.1.1.1"})
+			return pm
+		},
+		"running": func(t *testing.T) *PathModel {
+			pm, _ := launched(t, mustPM(t), "1.1.1.1")
+			return pm
+		},
+		"done": func(t *testing.T) *PathModel {
+			pm, _ := launched(t, mustPM(t), "1.1.1.1")
+			pm, _ = pmFeed(t, pm, pathDoneMsg{gen: pm.gen, result: nettrace.Result{Outcome: nettrace.OutcomeReached}})
+			return pm
+		},
+	}
+	for name, setup := range states {
+		t.Run(name, func(t *testing.T) {
+			pm := setup(t)
+			state, gen := pm.state, pm.gen
+			msgs := append(testutil.Type("evil.org"), testutil.Key("backspace"), testutil.Paste("evil"))
+			for i, msg := range msgs {
+				var cmd tea.Cmd
+				pm, cmd = pm.update(msg)
+				if cmd != nil {
+					t.Errorf("message %d (%v) returned a Cmd, want none", i, msg)
+				}
+			}
+			if pm.state != state || pm.gen != gen || pm.target.Host != "1.1.1.1" {
+				t.Errorf("state %v->%v gen %d->%d target=%q, want nothing to react",
+					state, pm.state, gen, pm.gen, pm.target.Host)
+			}
+		})
+	}
+}
+
+func TestPathDoneEnterRelaunches(t *testing.T) {
 	pm, _ := newPM(t)
 	pm, _ = launched(t, pm, "1.1.1.1")
-	before := pm.input.Value()
-	pm, _ = pmFeed(t, pm, testutil.Key("x"), testutil.Paste("evil"))
-	if got := pm.input.Value(); got != before {
-		t.Errorf("field = %q while running, want %q", got, before)
-	}
-}
-
-func TestPathPasteReachesTheFieldWhileEditing(t *testing.T) {
-	pm, _ := newPM(t)
-	pm, _ = pmFeed(t, pm, testutil.Paste("example.com"))
-	if got := pm.input.Value(); got != "example.com" {
-		t.Errorf("field = %q after a paste, want example.com", got)
-	}
-	if pm.running() {
-		t.Error("a paste launched a trace")
-	}
-}
-
-func TestPathDoneEnterRelaunchesAndEscEdits(t *testing.T) {
-	// update mutates and returns the same model, so each branch gets its own.
-	newDone := func() *PathModel {
-		pm, _ := newPM(t)
-		pm, _ = launched(t, pm, "1.1.1.1")
-		pm, _ = pmFeed(t, pm, pathDoneMsg{gen: pm.gen, result: nettrace.Result{
-			Outcome: nettrace.OutcomeReached, Hops: []nettrace.Hop{hopOf(1, nettrace.HopTarget)},
-		}})
-		return pm
-	}
-	pm := newDone()
+	pm, _ = pmFeed(t, pm, pathDoneMsg{gen: pm.gen, result: nettrace.Result{
+		Outcome: nettrace.OutcomeReached, Hops: []nettrace.Hop{hopOf(1, nettrace.HopTarget)},
+	}})
 	g := pm.gen
 
 	if v, _ := headerValue(pm, "Target"); !strings.Contains(v, "1.1.1.1") {
 		t.Errorf("Target header = %q, want the host", v)
 	}
-	if !testutil.ShortcutEnabled(pm.shortcuts(), "enter") || !testutil.HasShortcut(pm.shortcuts(), "esc") {
-		t.Errorf("done shortcuts = %v, want enter and esc", testutil.ShortcutKeys(pm.shortcuts()))
+	if !testutil.ShortcutEnabled(pmShortcuts(pm), "enter") || !testutil.HasShortcut(pmShortcuts(pm), "esc") {
+		t.Errorf("done shortcuts = %v, want enter and esc", testutil.ShortcutKeys(pmShortcuts(pm)))
 	}
 
 	again, cmd := pmFeed(t, pm, testutil.Key("enter"))
 	if cmd == nil || !again.running() || again.gen != g+1 || again.target != (pathTarget{Host: "1.1.1.1"}) {
 		t.Errorf("relaunch: cmd=%v running=%v gen=%d target=%v", cmd != nil, again.running(), again.gen, again.target)
 	}
-
-	edit, _ := pmFeed(t, newDone(), testutil.Key("esc"))
-	if !edit.InEditMode() || edit.input.Value() != "1.1.1.1" {
-		t.Errorf("esc from done: edit=%v value=%q, want editing with the value kept", edit.InEditMode(), edit.input.Value())
-	}
-	if edit.hopCount() != 1 {
-		t.Errorf("hop rows after esc from done = %d, want hops kept until the next launch", edit.hopCount())
-	}
-}
-
-// Rule 130: the key set is the same in every state of one screen, except the
-// running mode that replaces the list.
-func TestPathShortcutsPerState(t *testing.T) {
-	pm, _ := newPM(t)
-	if !testutil.HasShortcut(pm.shortcuts(), "tab") {
-		t.Error("editing lacks tab")
-	}
-	run, _ := launched(t, pm, "1.1.1.1")
-	if !testutil.ShortcutEnabled(run.shortcuts(), "esc") {
-		t.Errorf("running shortcuts = %v, want esc", testutil.ShortcutKeys(run.shortcuts()))
-	}
-	for _, s := range run.shortcuts() {
-		if s.Key == "esc" && s.Description != "Cancel the trace" {
-			t.Errorf("running esc = %q, want Cancel the trace", s.Description)
-		}
-	}
 }
 
 // Criterion 6, Rules 128/139: the body is the table in every state and the
-// footer slot has a fixed height.
+// message line stays a single line.
 func TestPathBodyIsTheTableAndFooterHeightIsFixed(t *testing.T) {
 	idle, _ := newPM(t)
 	run, _ := launched(t, mustPM(t), "1.1.1.1")
 	done, _ := pmFeed(t, run, pathDoneMsg{gen: run.gen, result: nettrace.Result{Outcome: nettrace.OutcomeReached}})
-	failed, _ := pmFeed(t, mustPM(t), testutil.Key("enter"))
 
-	wantBar := strings.Count(idle.barView(100), "\n")
-	for name, pm := range map[string]*PathModel{"idle": idle, "running": run, "done": done, "refused": failed} {
+	for name, pm := range map[string]*PathModel{"idle": idle, "running": run, "done": done} {
 		if got, want := pm.view(), pm.table.View(); got != want {
 			t.Errorf("%s: view() is not the table view", name)
-		}
-		if got := strings.Count(pm.barView(100), "\n"); got != wantBar {
-			t.Errorf("%s: bar has %d line breaks, want %d (constant footer height)", name, got, wantBar)
 		}
 		if got := strings.Count(pmFooter(pm, 100), "\n"); got != 0 {
 			t.Errorf("%s: message line has %d line breaks, want a single line", name, got)

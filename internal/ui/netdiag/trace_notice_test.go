@@ -147,7 +147,7 @@ func TestTraceNoticeAbsentWhenTheTargetIsRefused(t *testing.T) {
 }
 
 // The notice must still be what the user reads once the sub-level renders and
-// the trace progresses: neither the Path tab's derived status nor the hops may
+// the trace progresses: neither the path trace's derived status nor the hops may
 // push it out before its own timer expires (Rule 128: info wins over status).
 func TestTraceNoticeStaysVisibleWhileTheTraceRuns(t *testing.T) {
 	phases := map[string]func(*Model) *Model{

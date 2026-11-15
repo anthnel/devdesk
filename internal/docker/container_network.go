@@ -14,7 +14,7 @@ import (
 )
 
 // ContainerNetworking is the narrow, read-only view of a container's network
-// attachment that the Path tab needs.
+// attachment that the path trace needs.
 type ContainerNetworking struct {
 	Name     string // engine's name without the leading "/"; untrusted text
 	Running  bool

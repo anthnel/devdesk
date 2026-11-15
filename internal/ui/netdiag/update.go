@@ -41,6 +41,9 @@ func (m *Model) Running() bool { return m.state == StateRunning || m.pathModel.r
 // InEditMode implements FormView — true when a text input is active, so the
 // router hands the key to the field rather than opening the command line.
 func (m *Model) InEditMode() bool {
+	if m.inTrace() {
+		return m.pathModel.pickerOpen()
+	}
 	switch m.activeTab {
 	case tabPorts:
 		return m.portsModel.InEditMode()
@@ -51,8 +54,6 @@ func (m *Model) InEditMode() bool {
 		return m.interfacesModel.InEditMode()
 	case tabForward:
 		return m.forwardModel.InEditMode()
-	case tabPath:
-		return m.pathModel.InEditMode()
 	}
 	if m.filterBar.InEditMode() {
 		return true
@@ -140,15 +141,18 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	}
 
 	// Each tab holds its own footer, so an expiry has to be offered to all
-	// five: the timer fires wherever the user has since navigated. The Path tab
-	// also takes the cursor blink of its field.
+	// four, and the trace sub-level: the timer fires wherever the user has since
+	// navigated.
 	m.footer.Handle(msg)
 	m.portsModel.footer.Handle(msg)
 	m.interfacesModel.footer.Handle(msg)
 	m.forwardModel.footer.Handle(msg)
-	var cmd tea.Cmd
-	m.pathModel, cmd = m.pathModel.update(msg)
-	return m, cmd
+	m.pathModel.footer.Handle(msg)
+	if m.activeTab == tabDiagnostics && m.state == StateInput {
+		// The form's focused field owns the cursor blink.
+		return m.updateActiveInput(msg)
+	}
+	return m, nil
 }
 
 // routeConfirm hands a confirmation answer to the tab that put the modal up.
@@ -205,8 +209,6 @@ func (m *Model) handlePaste(msg tea.PasteMsg) (*Model, tea.Cmd) {
 		m.interfacesModel, cmd = m.interfacesModel.update(msg)
 	case tabForward:
 		m.forwardModel, cmd = m.forwardModel.update(msg)
-	case tabPath:
-		m.pathModel, cmd = m.pathModel.update(msg)
 	default:
 		switch {
 		case m.filterBar.InEditMode():
@@ -230,7 +232,7 @@ func (m *Model) handleKey(msg tea.KeyPressMsg) (*Model, tea.Cmd) {
 	}
 
 	// An open selector holds every key, tab included: it is a mode.
-	if m.activeTab == tabPath && m.pathModel.pickerOpen() {
+	if m.inTrace() && m.pathModel.pickerOpen() {
 		var cmd tea.Cmd
 		m.pathModel, cmd = m.pathModel.update(msg)
 		return m, cmd
@@ -260,11 +262,6 @@ func (m *Model) handleKey(msg tea.KeyPressMsg) (*Model, tea.Cmd) {
 	if m.activeTab == tabForward {
 		var cmd tea.Cmd
 		m.forwardModel, cmd = m.forwardModel.update(msg)
-		return m, cmd
-	}
-	if m.activeTab == tabPath {
-		var cmd tea.Cmd
-		m.pathModel, cmd = m.pathModel.update(msg)
 		return m, cmd
 	}
 

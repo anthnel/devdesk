@@ -39,10 +39,6 @@ func (m *Model) GetShortcuts() shortcut.Shortcuts {
 		{Key: "tab", Description: "Switch tab"},
 	}
 
-	if m.activeTab == tabPath {
-		return m.pathModel.shortcuts()
-	}
-
 	if m.activeTab == tabInterfaces {
 		// A read in flight greys the table's keys rather than removing them:
 		// the tab is the same screen either side of a refresh, and a column
@@ -174,9 +170,6 @@ func (m *Model) GetHeaderInfo(context string) []shortcut.HeaderInfo {
 	info := []shortcut.HeaderInfo{
 		{Key: "Context", Value: context, Style: theme.HeaderValueStyle},
 	}
-	if m.activeTab == tabPath {
-		return append(info, m.pathModel.headerInfo()...)
-	}
 	if m.activeTab == tabInterfaces {
 		return append(info, shortcut.HeaderInfo{
 			Key:   "Interfaces",
@@ -228,17 +221,13 @@ func verdictHeaderStyle(v netcheck.Verdict) lipgloss.Style {
 	}
 }
 
-// pathFooterHeight is the Path footer in every state: the target bar (2), the
-// tab row, a blank line and the info line (Rule 124).
-const pathFooterHeight = 5
-
 // GetFooterHeight implements FooterView — tab bar + empty + info + ports filter bar when visible (Rule 124)
 func (m *Model) GetFooterHeight() int {
-	if m.activeTab == tabPath {
-		return pathFooterHeight
-	}
 	if m.activeTab == tabPorts {
 		return 3 + m.portsModel.table.FilterBar().ExtraHeight()
+	}
+	if m.inTrace() {
+		return 3 // no filter bar on the sub-level (Rule 124)
 	}
 	if m.activeTab == tabDiagnostics {
 		return 3 + m.filterBar.ExtraHeight()
@@ -256,14 +245,11 @@ func (m *Model) GetFooterHeight() int {
 func (m *Model) RenderFooter(width int) string {
 	var parts []string
 
-	// The active tab's filter bar renders above the tab bar when visible; on
-	// Path the target field takes that slot in every state.
+	// The active tab's filter bar renders above the tab bar when visible.
 	switch {
-	case m.activeTab == tabPath:
-		parts = append(parts, m.pathModel.barView(width))
 	case m.activeTab == tabPorts && m.portsModel.table.FilterBar().IsVisible():
 		parts = append(parts, m.portsModel.table.FilterBar().View())
-	case m.activeTab == tabDiagnostics && m.filterBar.IsVisible():
+	case m.activeTab == tabDiagnostics && !m.inTrace() && m.filterBar.IsVisible():
 		parts = append(parts, m.filterBar.View())
 	case m.activeTab == tabInterfaces && m.interfacesModel.table.FilterBar().IsVisible():
 		parts = append(parts, m.interfacesModel.table.FilterBar().View())
@@ -276,7 +262,6 @@ func (m *Model) RenderFooter(width int) string {
 		{Label: "Ports"},
 		{Label: "Interfaces"},
 		{Label: "Forward"},
-		{Label: "Path"},
 	}, m.activeTab)
 	tabBar := theme.PadWithBg(theme.Bg(" ")+tabs, width)
 
@@ -297,8 +282,6 @@ func (m *Model) activeFooter() (*components.FooterMessage, components.Status) {
 		return &m.interfacesModel.footer, m.interfacesModel.statusLine()
 	case tabForward:
 		return &m.forwardModel.footer, m.forwardModel.status()
-	case tabPath:
-		return &m.pathModel.footer, m.pathModel.statusLine()
 	}
 	if m.state == StateTrace {
 		return &m.pathModel.footer, m.pathModel.statusLine()
@@ -331,10 +314,10 @@ func (m *Model) statusLine() components.Status {
 func (m *Model) GetHelpContent() help.Content {
 	return help.Content{
 		Title:       "Network",
-		Description: "Five-tab view: check whether a host is reachable and its certificate chain sound (Diagnostics), monitor live ports (Ports), inspect this machine's network interfaces (Interfaces), or redirect a local port to a host:port, or give a service a name (Forward), or trace the hops a packet takes to a host (Path).",
+		Description: "Four-tab view: check whether a host is reachable and its certificate chain sound (Diagnostics), monitor live ports (Ports), inspect this machine's network interfaces (Interfaces), or redirect a local port to a host:port, or give a service a name (Forward). Diagnostics also traces the hops a packet takes to the target (the Trace Path button, or H on the Local route row).",
 		KeyBindings: []help.KeyBinding{
 			// Tab navigation
-			{Key: "tab / shift+tab", Description: "Cycle between the Diagnostics, Ports, Interfaces, Forward and Path tabs"},
+			{Key: "tab / shift+tab", Description: "Cycle between the Diagnostics, Ports, Interfaces and Forward tabs"},
 			// Diagnostics
 			{Key: "↑ / ↓", Description: "Navigate between the fields and the Run Diagnostics and Trace Path buttons (Diagnostics tab)"},
 			{Key: "enter (form)", Description: "Run the checks against the target, from any field or the Run Diagnostics button"},
@@ -342,7 +325,7 @@ func (m *Model) GetHelpContent() help.Content {
 			{Key: "enter (results)", Description: "Explain the selected check"},
 			{Key: "p", Description: "Show problems only / show every check (Diagnostics tab)"},
 			{Key: "/", Description: "Search checks by name or observation (Diagnostics tab)"},
-			{Key: keymap.Diagnose + " (results)", Description: "Trace the path to the target: on the Local route row, opens the Path tab with the host filled in (Diagnostics tab)"},
+			{Key: keymap.Diagnose + " (results)", Description: "Trace the path to the target: on the Local route row, opens the trace sub-level on the host, ready to start; nothing is sent until enter; greyed out on a platform that cannot trace or a target the trace refuses, with the reason in the footer (Diagnostics tab)"},
 			{Key: "ctrl+r", Description: "Run the checks again"},
 			{Key: "esc (results)", Description: "Back to the target form, or back to wherever this run was opened from (e.g. status's H) when it was opened prefilled"},
 			{Key: keymap.New + " (results)", Description: "Start a new diagnostic — always resets to the form, even when esc there means \"go back\""},
@@ -368,15 +351,11 @@ func (m *Model) GetHelpContent() help.Content {
 			{Key: keymap.Kill, Description: "Delete the selected forward, after confirmation (Forward tab)"},
 			{Key: "/", Description: "Search forwards by port or target (Forward tab)"},
 			{Key: ".", Description: "Cycle the sort column (Forward tab)"},
-			// Path tab
-			{Key: "enter (Path)", Description: "Trace the path to the target typed in the field, or trace again once a trace is done (Path tab)"},
-			{Key: "esc (Path, running)", Description: "Cancel the trace and keep the hops already seen (Path tab)"},
-			{Key: "esc (Path, done)", Description: "Edit the target again, keeping its value (Path tab)"},
 			{Key: "enter (Trace Path button)", Description: "Trace the path to the form's target in a sub-level of the Diagnostics tab, Network › Path › target; Port and DNS Server are ignored by the trace (an info line says so); greyed out on a platform that cannot trace, with the reason in the footer (Diagnostics tab)"},
-			{Key: "esc (trace)", Description: "Cancel a running trace; once it ended, go back to the form with Target, Port and DNS Server kept (Diagnostics tab)"},
+			{Key: "esc (trace)", Description: "Cancel a running trace; once it ended or before it started, go back to the form or the results it was opened from, with everything kept (Diagnostics tab)"},
 			{Key: "↑ / ↓ / pgup / pgdown / home / end (trace)", Description: "Move in the hop table; every other key is ignored there except tab, which switches tab (Diagnostics tab)"},
-			{Key: "enter / ctrl+r / ctrl+o (trace)", Description: "Do nothing in the trace sub-level: to trace again, go back to the form with esc and press the Trace Path button; the trace always starts from this machine (Diagnostics tab)"},
-			{Key: "ctrl+o (Path)", Description: "Choose where the trace starts: this machine or a running container; ↑↓ to move, enter to choose, esc to close (Path tab)"},
+			{Key: "enter (trace)", Description: "Start the trace, or trace again once it ended (Diagnostics tab)"},
+			{Key: "ctrl+o (trace)", Description: "Choose where the trace starts: this machine or a running container; ↑↓ to move, enter to choose (it starts nothing), esc to close (Diagnostics tab)"},
 		},
 		Sections: []help.Section{
 			{
@@ -458,16 +437,16 @@ func (m *Model) GetHelpContent() help.Content {
 					"first.",
 			},
 			{
-				Title: "Path Tab — How it works",
+				Title: "Diagnostics Tab — Tracing the path",
 				Body: "Traces the hops between this machine and a target, in this process — no " +
-					"container, no traceroute binary. Native Linux and WSL2 only: on macOS, Windows and WSL1 the tab says so " +
-					"and enter and ctrl+o are greyed out. IPv4 only: a host name is resolved to its IPv4 address. " +
+					"container, no traceroute binary. Native Linux and WSL2 only: on macOS, Windows and WSL1 the Trace Path button, H, " +
+					"enter and ctrl+o are greyed out, and the footer says why. IPv4 only: a host name is resolved to its IPv4 address. " +
 					"The column starts on this machine: the interface the target's traffic leaves by, " +
 					"with its source address, and the gateway, read from this machine's routing table, " +
 					"then the hops. Under WSL2 the source row names the WSL2 VM, and in NAT mode the " +
 					"first hop through the virtual switch is labelled Windows host.\n\n" +
-					"Type a host name or an IPv4 address, and press enter; a port is refused because " +
-					"the trace probes a host, not a service. Each hop is a UDP datagram sent to UDP " +
+					"The target is the one typed in the Diagnostics form, or the host of the results; a " +
+					"port is ignored because the trace probes a host, not a service. Press enter in the trace to start it, or to trace again. Each hop is a UDP datagram sent to UDP " +
 					"port 33435 with a growing time-to-live; the router that drops it answers, and the " +
 					"table fills in as the answers come. No connection is made. Nothing is sent before you " +
 					"press enter.\n\n" +
@@ -523,7 +502,7 @@ func (m *Model) GetHelpContent() help.Content {
 					"started with --network host, which on Docker Desktop is the Linux VM's " +
 					"namespace — so it traced the path from the VM and not from here, and the two " +
 					"are not the same network. It was removed rather than kept with a caveat.\n\n" +
-					"The trace is back, in this process: the Path tab sends its own probes from this " +
+					"The trace is back, in this process: the path trace sends its own probes from this " +
 					"machine's network stack, so it answers for the network you are actually on. The " +
 					"Local route check still names the interface and source address your traffic to a " +
 					"target leaves by — the split-tunnel answer, read from this machine.",

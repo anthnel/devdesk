@@ -12,7 +12,7 @@ import (
 func pathHelpContainerParagraphs(t *testing.T) string {
 	t.Helper()
 	for _, s := range New(testConfig()).GetHelpContent().Sections {
-		if s.Title != "Path Tab — How it works" {
+		if s.Title != "Diagnostics Tab — Tracing the path" {
 			continue
 		}
 		paras := strings.Split(s.Body, "\n\n")
@@ -23,7 +23,7 @@ func pathHelpContainerParagraphs(t *testing.T) string {
 		}
 		t.Fatal(`no paragraph starting with "ctrl+o opens Trace from"`)
 	}
-	t.Fatal(`no section "Path Tab — How it works"`)
+	t.Fatal(`no section "Diagnostics Tab — Tracing the path"`)
 	return ""
 }
 
