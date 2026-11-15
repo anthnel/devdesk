@@ -121,14 +121,6 @@ func (m Model) modalView() string {
 	return ""
 }
 
-// FilterBarVisible reports whether the filter bar is on screen, which is what
-// closes the viewport's bottom border around it (implements app.FilterBarView,
-// Rule 136). Both tables have one now: the findings table gained the four
-// severity tokens that used to be a cycle on `.`.
-func (m Model) FilterBarVisible() bool {
-	return m.activeFilterBar() != nil
-}
-
 // activeFilterBar is the bar of whichever table is on screen, or nil when the
 // state has no table. One resolution rather than three, so GetFooterHeight and
 // RenderFooter cannot disagree about whether the bar is there — which is the

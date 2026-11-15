@@ -7,6 +7,7 @@ import (
 
 	"github.com/anthnel/devdesk/internal/agentusage"
 	"github.com/anthnel/devdesk/internal/agentusage/pricing"
+	"github.com/anthnel/devdesk/internal/ui/components"
 	"github.com/anthnel/devdesk/internal/ui/testutil"
 )
 
@@ -206,7 +207,7 @@ func TestTheFilterAndItsBarSurviveAnUpdate(t *testing.T) {
 	if q := m.agentTable.FilterBar().SearchQuery(); q != "test" {
 		t.Errorf("query = %q, want test", q)
 	}
-	if !m.FilterBarVisible() {
+	if !components.OpensWithBarFrame(m.RenderFooter(80)) {
 		t.Error("the filter bar must stay visible")
 	}
 }

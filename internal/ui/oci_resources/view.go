@@ -19,16 +19,6 @@ import (
 	"github.com/anthnel/devdesk/internal/ui/theme"
 )
 
-// FilterBarVisible returns true when the filter bar is visible (implements app.FilterBarView).
-func (m Model) FilterBarVisible() bool {
-	if m.registryBrowser != nil {
-		return m.registryBrowser.FilterIsVisible()
-	}
-	return m.activeTab == tabImages && m.imageTable.FilterBar().IsVisible() &&
-		m.launchForm == nil && m.resourceForm == nil && m.registryForm == nil &&
-		m.networkInspectForm == nil
-}
-
 // modalView renders whichever modal is open, or "" when none is.
 func (m Model) modalView() string {
 	switch {

@@ -6,6 +6,7 @@ import (
 	tea "charm.land/bubbletea/v2"
 	"charm.land/lipgloss/v2"
 
+	"github.com/anthnel/devdesk/internal/ui/components"
 	"github.com/anthnel/devdesk/internal/ui/overlay"
 	"github.com/anthnel/devdesk/internal/ui/theme"
 )
@@ -33,8 +34,11 @@ func (a *App) Render() string {
 	}
 
 	header := a.renderHeader() + "\n" + a.renderTitleLine()
-	body := a.renderBody()
+	// The footer is rendered first: whether a bar opens it decides how the
+	// viewport closes its bottom edge.
 	footer := a.renderViewFooter()
+	barBelow := !a.frameless() && components.OpensWithBarFrame(footer)
+	body := a.renderBody(barBelow)
 	inner := fitHeight(header, body, footer, a.height)
 
 	placed := lipgloss.Place(a.width, a.height, lipgloss.Left, lipgloss.Top, inner,
@@ -59,8 +63,10 @@ func (a *App) withPalette(screen string) string {
 // lipgloss.Place pads a short block but never crops a tall one, so on a very
 // small terminal (header 8 + title 1 + the viewport's minimum + footer) the
 // frame would be taller than the screen. The surplus is taken from the body
-// first, bottom lines first: the footer carries the messages, so it outranks
-// viewport rows. If header and footer alone are taller than the terminal, the
+// first: the footer carries the messages, so it outranks viewport rows. The
+// lines taken sit just above the body's last line, so the viewport's bottom
+// border (or the junction a bar attaches to) survives the cut; a body cut
+// entirely is simply gone. If header and footer alone are taller than the terminal, the
 // stack is cut to its first height lines, the simplest floor. At normal
 // heights nothing is cut.
 func fitHeight(header, body, footer string, height int) string {
@@ -85,6 +91,9 @@ func fitHeight(header, body, footer string, height int) string {
 	cut := min(excess, bodyLen)
 	if cut > 0 {
 		end := headerLen + bodyLen
+		if cut < bodyLen {
+			end-- // keep the body's last line
+		}
 		lines = append(lines[:end-cut], lines[end:]...)
 	}
 	if len(lines) > height {
@@ -110,7 +119,9 @@ func (a *App) activeOverlay() string {
 
 // renderBody fills the viewport with the active view's content, padded to the
 // full inner width so no line shows the terminal's own background (Rule 115).
-func (a *App) renderBody() string {
+// barBelow is true when the footer opens with a components.BarFrame: the
+// viewport's bottom corners then become T-junctions (Rule 136).
+func (a *App) renderBody(barBelow bool) string {
 	content := "View not found: " + string(a.currentView)
 	if view, ok := a.views[a.currentView]; ok {
 		content = view.Render()
@@ -128,12 +139,8 @@ func (a *App) renderBody() string {
 
 	body := a.viewport.View()
 
-	// Rule 136: with a filter bar below it, the viewport's bottom corners become
-	// T-junctions so the two form one closed rectangle.
-	if view, ok := a.views[a.currentView]; ok {
-		if fbv, ok := view.(FilterBarView); ok && fbv.FilterBarVisible() {
-			body = replaceViewportBottomCorners(body)
-		}
+	if barBelow {
+		body = replaceViewportBottomCorners(body)
 	}
 	return body
 }

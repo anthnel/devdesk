@@ -128,8 +128,8 @@ func TestPathEditModeFollowsTheField(t *testing.T) {
 	if !m.InEditMode() {
 		t.Error("editing: InEditMode() = false, a ':' typed must land in the field")
 	}
-	if m.FilterBarVisible() {
-		t.Error("Path has no filter bar")
+	if !components.OpensWithBarFrame(m.RenderFooter(80)) {
+		t.Error("Path draws its Target bar at the top of the footer, so the viewport border must join it")
 	}
 	m = feed(t, m, testutil.Type("example.com")...)
 	m = feed(t, m, testutil.Key("enter"))

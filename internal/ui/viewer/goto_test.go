@@ -51,8 +51,8 @@ func TestThePromptOwnsTheKeyboard(t *testing.T) {
 	if !m.InEditMode() {
 		t.Error("InEditMode() is false with the prompt open, so ctrl+p's `:` would reach the router")
 	}
-	if !m.FilterBarVisible() {
-		t.Error("FilterBarVisible() is false with the prompt open, so the viewport border stays open under it")
+	if !components.OpensWithBarFrame(m.RenderFooter(80)) {
+		t.Error("the footer has no bar with the prompt open, so the viewport border stays open under it")
 	}
 
 	m = feed(t, m, testutil.Type("12")...)

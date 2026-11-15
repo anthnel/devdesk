@@ -122,11 +122,6 @@ func (m Model) InEditMode() bool {
 	return m.mode != modeNormal || m.table.InEditMode() || m.pick != nil
 }
 
-// FilterBarVisible implements app.FilterBarView.
-func (m Model) FilterBarVisible() bool {
-	return m.mode == modeNormal && m.table.FilterBar().IsVisible()
-}
-
 // Picking reports whether this instance is lent as a picker — what the router
 // asks before dropping it on `:files`.
 func (m Model) Picking() bool { return m.pick != nil }

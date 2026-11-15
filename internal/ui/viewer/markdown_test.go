@@ -6,6 +6,7 @@ import (
 
 	"github.com/charmbracelet/x/ansi"
 
+	"github.com/anthnel/devdesk/internal/ui/components"
 	"github.com/anthnel/devdesk/internal/ui/testutil"
 	"github.com/anthnel/devdesk/internal/ui/theme"
 	viewerpkg "github.com/anthnel/devdesk/internal/viewer"
@@ -113,7 +114,7 @@ func TestSearchWorksInRenderedMarkdown(t *testing.T) {
 	m = feed(t, m, testutil.Type("bold")...)
 	m = feed(t, m, testutil.Key("enter"))
 
-	if !m.FilterBarVisible() {
+	if !components.OpensWithBarFrame(m.RenderFooter(80)) {
 		t.Error("the filter bar is not offered in a rendered document")
 	}
 	view := ansi.Strip(m.Render())

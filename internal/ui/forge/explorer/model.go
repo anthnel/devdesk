@@ -155,17 +155,6 @@ func (m Model) InEditMode() bool {
 	return m.creationForm != nil || m.mode != ModeNormal || m.table.InEditMode()
 }
 
-// FilterBarVisible returns true when the filter bar is visible (implements app.FilterBarView).
-func (m Model) FilterBarVisible() bool {
-	if m.mode == ModeFuzzyFinding {
-		return m.finder != nil
-	}
-	if m.mode == ModeCloning && m.clone != nil {
-		return m.clone.table.FilterBar().IsVisible()
-	}
-	return m.showsTree() && m.table.FilterBar().IsVisible()
-}
-
 // tabCount returns the total number of tabs (home + navigation stack + current group)
 func (m Model) tabCount() int {
 	count := 1 // home tab

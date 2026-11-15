@@ -10,6 +10,7 @@ import (
 	"github.com/charmbracelet/x/ansi"
 
 	"github.com/anthnel/devdesk/internal/command"
+	"github.com/anthnel/devdesk/internal/ui/components"
 	"github.com/anthnel/devdesk/internal/ui/testutil"
 	"github.com/anthnel/devdesk/internal/ui/theme"
 )
@@ -214,7 +215,7 @@ func TestThePaletteAlwaysClosesWithCornersWhateverTheView(t *testing.T) {
 		"framed":    func() Screen { return &fakeView{body: "body"} },
 		"frameless": func() Screen { return &framelessFake{fakeView{body: "body"}} },
 		"filterbar": func() Screen {
-			return &fakeView{body: "body", filterBar: true, footerHeight: 2, footer: "bar\nbar"}
+			return &fakeView{body: "body", footerHeight: 2, footer: components.BarFrame(80, "bar")}
 		},
 	}
 	for name, mk := range views {
@@ -242,7 +243,7 @@ func TestThePaletteAlwaysClosesWithCornersWhateverTheView(t *testing.T) {
 	}
 
 	t.Run("filter bar junctions survive", func(t *testing.T) {
-		a := routerAt(t, &fakeView{body: "body", filterBar: true, footerHeight: 2, footer: "bar\nbar"}, 80, 30)
+		a := routerAt(t, &fakeView{body: "body", footerHeight: 2, footer: components.BarFrame(80, "bar")}, 80, 30)
 		hasJunction := func() bool {
 			for _, l := range screen(a) {
 				if strings.HasPrefix(l, "├") && strings.HasSuffix(l, "┤") {
@@ -388,14 +389,22 @@ func TestFitHeightLeavesAFittingStackAlone(t *testing.T) {
 	}
 }
 
-func TestFitHeightCutsTheBodyBottomFirstThenKeepsHeaderAndFooter(t *testing.T) {
+func TestFitHeightCutsTheBodyAboveItsLastLineThenKeepsHeaderAndFooter(t *testing.T) {
+	// The body's last line is the viewport's bottom border: it is kept.
 	got := fitHeight(numbered("h", 2), numbered("b", 4), numbered("f", 2), 6)
-	if want := "h0\nh1\nb0\nb1\nf0\nf1"; got != want {
+	if want := "h0\nh1\nb0\nb3\nf0\nf1"; got != want {
 		t.Errorf("got %q, want %q", got, want)
 	}
 	// The body is gone entirely before the footer loses a line.
 	got = fitHeight(numbered("h", 2), numbered("b", 4), numbered("f", 2), 4)
 	if want := "h0\nh1\nf0\nf1"; got != want {
+		t.Errorf("got %q, want %q", got, want)
+	}
+}
+
+func TestFitHeightKeepsTheBodyBottomBorder(t *testing.T) {
+	got := fitHeight(numbered("h", 2), "a\nb\n└┘", "f0", 5)
+	if want := "h0\nh1\na\n└┘\nf0"; got != want {
 		t.Errorf("got %q, want %q", got, want)
 	}
 }

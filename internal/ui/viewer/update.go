@@ -58,19 +58,6 @@ const defaultFollowInterval = 2 * time.Second
 // box, or the go-to-line prompt.
 func (m Model) InEditMode() bool { return m.bar.InEditMode() || m.gotoActive }
 
-// FilterBarVisible tells the router to close the viewport border into the bar
-// (Rule 136).
-func (m Model) FilterBarVisible() bool {
-	// Every display but the tree is text, and the search belongs to all of
-	// them: a rendered Markdown is searched on what it shows, which is the only
-	// answer that agrees with the screen.
-	//
-	// The go-to-line prompt takes the same slot, so it closes the border the
-	// same way — and the footer stands at the same height whether the prompt
-	// opened over an active search or over nothing.
-	return (m.bar.IsVisible() || m.gotoActive) && m.display != displayTree
-}
-
 func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
 	case tea.WindowSizeMsg:

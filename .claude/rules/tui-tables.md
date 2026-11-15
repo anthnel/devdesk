@@ -553,12 +553,19 @@ The filter bar forms a **closed rectangle** that visually connects with the view
 ```
 ┌─────────────────────────────────────────┐   ← viewport top border
 │  table rows...                          │
-└─────────────────────────────────────────┘   ← viewport bottom border (= rectangle top)
+├─────────────────────────────────────────┤   ← viewport last line, joined (= rectangle top)
 │  / cursor...         [tcp]  ·  [LISTEN] │   ← content line with │ sides
 └─────────────────────────────────────────┘   ← rectangle bottom border
 ```
 
 Both lines use `theme.ColorViewportBorder` for `│`, `└`, `┘`, `─` characters.
+The viewport's last line is `└───┘` when no bar is shown and becomes `├───┤`
+when one is.
+
+**The router detects the bar from the shape of the footer's first line
+(`components.OpensWithBarFrame`); no view declares it.** A footer only starts
+with a `│…│` line through `components.BarFrame`: a view that draws its own
+`│…│` first line would make the router join the viewport to it, so never do.
 
 #### Placement — Footer, not viewport
 

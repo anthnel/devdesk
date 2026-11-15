@@ -502,13 +502,13 @@ func TestTheCursorMovesThroughTheRemediationRows(t *testing.T) {
 func TestNoFilterBarIsShownOnTheRemediationTab(t *testing.T) {
 	m := scannedModel(t)
 	m = feed(t, m, testutil.Key("c")) // a severity token: the bar is visible on a findings tab
-	if !m.FilterBarVisible() {
+	if !sharedcomponents.OpensWithBarFrame(m.RenderFooter(80)) {
 		t.Fatal("setup: the findings bar should be visible")
 	}
 	for range TabRemediation {
 		m = feed(t, m, testutil.Key("tab"))
 	}
-	if m.FilterBarVisible() {
+	if sharedcomponents.OpensWithBarFrame(m.RenderFooter(80)) {
 		t.Error("the findings filter bar is drawn under the Remediation table")
 	}
 }

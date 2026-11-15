@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	"github.com/anthnel/devdesk/internal/scan"
+	"github.com/anthnel/devdesk/internal/ui/components"
 	"github.com/anthnel/devdesk/internal/ui/keymap"
 	"github.com/anthnel/devdesk/internal/ui/testutil"
 )
@@ -159,18 +160,18 @@ func TestTheResultsFilterBarIsRendered(t *testing.T) {
 	}
 }
 
-// FilterBarVisible is what closes the viewport's bottom corners around the bar
-// (Rule 136). It answered only for the inventory, so the results bar — once
+// A bar opening the footer is what closes the viewport's bottom corners around
+// it (Rule 136). It once held only for the inventory, so the results bar — once
 // drawn — would have hung off an unclosed rectangle.
 func TestTheResultsBarClosesTheViewport(t *testing.T) {
 	m := scannedModel(t)
-	if m.FilterBarVisible() {
-		t.Fatal("a results view with no filter reports a visible bar")
+	if components.OpensWithBarFrame(m.RenderFooter(80)) {
+		t.Fatal("a results view with no filter opens its footer with a bar")
 	}
 
 	m = feed(t, m, testutil.Key("c"))
 
-	if !m.FilterBarVisible() {
+	if !components.OpensWithBarFrame(m.RenderFooter(80)) {
 		t.Error("an active severity token left the viewport border unclosed")
 	}
 }

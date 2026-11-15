@@ -5,6 +5,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/anthnel/devdesk/internal/ui/components"
 	"github.com/anthnel/devdesk/internal/ui/keymap"
 	"github.com/anthnel/devdesk/internal/ui/shortcut"
 	"github.com/anthnel/devdesk/internal/ui/testutil"
@@ -282,11 +283,11 @@ func TestFilterBarVisibilityFollowsTheSearch(t *testing.T) {
 	// Not loadedModel: it lights the four state tokens, which is a filter of its
 	// own and would put the bar up before the search ever ran.
 	m := feed(t, newTestModel(t), ContainersListMsg{Containers: containerFixtures()})
-	if m.FilterBarVisible() {
+	if components.OpensWithBarFrame(m.RenderFooter(80)) {
 		t.Error("the filter bar is visible before any search")
 	}
 
-	if !feed(t, m, testutil.Key("/")).FilterBarVisible() {
+	if !components.OpensWithBarFrame(feed(t, m, testutil.Key("/")).RenderFooter(80)) {
 		t.Error("the filter bar is hidden while searching")
 	}
 }

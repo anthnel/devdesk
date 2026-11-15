@@ -72,7 +72,7 @@ func refusedWith(t *testing.T, before Model, key, reason string) {
 	if after.tab != tabBreakdown || after.level != levelAgents {
 		t.Errorf("%s: tab/level changed (%v, %v)", key, after.tab, after.level)
 	}
-	if after.InEditMode() || after.FilterBarVisible() {
+	if after.InEditMode() || sharedcomponents.OpensWithBarFrame(after.RenderFooter(80)) {
 		t.Errorf("%s: the filter must not open on the Breakdown tab", key)
 	}
 	bc, bd := before.agentTable.SortState()
@@ -328,8 +328,8 @@ func TestBreakdownTabRoundTripKeepsTheFilter(t *testing.T) {
 	if q := m.agentTable.FilterBar().SearchQuery(); q != "coder" {
 		t.Errorf("filter query = %q, want it kept", q)
 	}
-	if len(m.agentTable.Visible()) != 1 || !m.FilterBarVisible() {
-		t.Errorf("back on Agents the filter shows again (rows %d, bar %v)", len(m.agentTable.Visible()), m.FilterBarVisible())
+	if len(m.agentTable.Visible()) != 1 || !sharedcomponents.OpensWithBarFrame(m.RenderFooter(80)) {
+		t.Errorf("back on Agents the filter shows again (rows %d, bar %v)", len(m.agentTable.Visible()), sharedcomponents.OpensWithBarFrame(m.RenderFooter(80)))
 	}
 }
 
@@ -661,12 +661,12 @@ func TestBreakdownTabRowIsPaddedAndMarksTheActiveTab(t *testing.T) {
 
 func TestBreakdownTabFilterBarIsHiddenAndNeverInEditMode(t *testing.T) {
 	m := typed(t, atAgents(t, threeSubs()), "coder")
-	if !m.FilterBarVisible() {
+	if !sharedcomponents.OpensWithBarFrame(m.RenderFooter(80)) {
 		t.Fatal("precondition: the confirmed query shows the bar on Agents")
 	}
 	m = feed(t, m, testutil.Key("tab"))
-	if m.FilterBarVisible() || m.InEditMode() {
-		t.Errorf("Breakdown: bar visible %v, edit mode %v, want neither", m.FilterBarVisible(), m.InEditMode())
+	if sharedcomponents.OpensWithBarFrame(m.RenderFooter(80)) || m.InEditMode() {
+		t.Errorf("Breakdown: bar visible %v, edit mode %v, want neither", sharedcomponents.OpensWithBarFrame(m.RenderFooter(80)), m.InEditMode())
 	}
 	if out := footerText(m); strings.Contains(out, "coder") {
 		t.Errorf("the bar is not drawn on Breakdown:\n%s", out)

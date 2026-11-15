@@ -11,6 +11,7 @@ import (
 
 	"github.com/anthnel/devdesk/internal/cache"
 	"github.com/anthnel/devdesk/internal/jobs"
+	"github.com/anthnel/devdesk/internal/ui/components"
 	"github.com/anthnel/devdesk/internal/ui/keymap"
 	"github.com/anthnel/devdesk/internal/ui/shortcut"
 	"github.com/anthnel/devdesk/internal/ui/testutil"
@@ -356,18 +357,18 @@ func TestFooterCarriesScanMessages(t *testing.T) {
 
 func TestFilterBarVisibilityFollowsTheState(t *testing.T) {
 	m := loadedModel(t)
-	if m.FilterBarVisible() {
+	if components.OpensWithBarFrame(m.RenderFooter(80)) {
 		t.Error("the filter bar is visible before any search")
 	}
 
 	searching := feed(t, m, testutil.Key("/"))
-	if !searching.FilterBarVisible() {
+	if !components.OpensWithBarFrame(searching.RenderFooter(80)) {
 		t.Error("the filter bar is hidden while searching")
 	}
 
 	// An overlay covers the table, so its filter bar has nothing to filter.
 	overlay := feed(t, searching, testutil.Key("esc"), testutil.Key(keymap.New))
-	if overlay.FilterBarVisible() {
+	if components.OpensWithBarFrame(overlay.RenderFooter(80)) {
 		t.Error("the filter bar stayed visible under the create overlay")
 	}
 }

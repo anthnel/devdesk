@@ -3,8 +3,6 @@ package ociresources
 import (
 	"strings"
 
-	"charm.land/lipgloss/v2"
-
 	"github.com/anthnel/devdesk/internal/jobs"
 	"github.com/anthnel/devdesk/internal/ui/components"
 	"github.com/anthnel/devdesk/internal/ui/theme"
@@ -146,8 +144,6 @@ func (b *RegistryBrowser) FilterBarView(width int) string {
 	if b.state == browserStateImages {
 		return b.searchTable.FilterBar().View()
 	}
-	borderStyle := lipgloss.NewStyle().Foreground(theme.ColorViewportBorder).Background(theme.ColorBackground)
-
 	var left string
 	if b.filterActive {
 		left = theme.KeyStyle.Render("/") + theme.Bg(" ") + b.filterInput.View()
@@ -161,11 +157,7 @@ func (b *RegistryBrowser) FilterBarView(width int) string {
 		left += theme.Bg("  ") + theme.KeyStyle.Render("["+b.registryFilterLabel()+"]")
 	}
 
-	inner := theme.Bg(" ") + left
-	paddedInner := theme.PadWithBg(inner, width-2)
-	contentLine := borderStyle.Render("│") + paddedInner + borderStyle.Render("│")
-	bottomBorder := borderStyle.Render("└" + strings.Repeat("─", width-2) + "┘")
-	return contentLine + "\n" + bottomBorder
+	return components.BarFrame(width, theme.Bg(" ")+left)
 }
 
 // viewStatus is gone with browserStateStatus (§3.60). It was a

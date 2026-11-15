@@ -428,12 +428,6 @@ func (m Model) InEditMode() bool {
 	return bar != nil && bar.InEditMode()
 }
 
-// FilterBarVisible closes the viewport rectangle around the bar.
-func (m Model) FilterBarVisible() bool {
-	bar := m.activeFilterBar()
-	return bar != nil && bar.IsVisible()
-}
-
 // activeFilterBar is the bar of the level on screen; each level has its own.
 // It is nil on the Breakdown tab, which has nothing to filter: callers check.
 func (m Model) activeFilterBar() *sharedcomponents.FilterBar {
