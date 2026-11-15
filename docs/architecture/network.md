@@ -1191,9 +1191,30 @@ label, never that text, in a summary.
 
 **`Supported()` and the Path tab.** The Path tab calls `Supported()` as a launch
 guard (`PathModel.launchable()`): where it returns an error, `enter` is greyed
-out in the header and refused with a footer warning
-`The path trace is not supported on this platform`; nothing is resolved or sent.
-The tab is still reachable on those platforms.
+out in the header and refused with a footer warning; nothing is resolved or
+sent. The tab is still reachable on those platforms (its label is not greyed,
+Rule 130), so the reader can see why. `ctrl+o` is greyed the same way.
+
+The guard is `pathSupport(goos, kind, traceErr)` in
+`internal/ui/netdiag/path_platform.go` (DEVDESK-334). The Path tab is available
+on native Linux and WSL2 only. It names the reason, as a `pathPlatformError`
+that unwraps to `nettrace.ErrUnsupported`:
+
+| Platform | Reason |
+|---|---|
+| macOS | `The path trace needs Linux — not available on macOS` |
+| Windows (native) | `The path trace needs Linux — not available on Windows (use WSL2)` |
+| Other non-Linux OS | `The path trace needs Linux — not available on <goos>` |
+| WSL1 | `The path trace needs a Linux kernel — WSL1 has none (use WSL2)` |
+| Anything else unsupported | `The path trace is not supported on this platform` |
+
+The footer shows the reason as a permanent Warning from the moment the tab
+opens, not only after `enter`. The decision is made once per process
+(`systemPathSupport`, a `sync.OnceValue`), so `launchable()` does no I/O per
+frame, and nothing is sent on the network. A WSL2 whose networking mode is
+unknown never greys the tab out. No WSL2 mode is switched off: the spike
+verdict (`docs/product/network-map/spike-wsl.md`) is that WSL2 is supported, so
+no switch is coded (YAGNI).
 
 ## The Path tab — streaming, cancellation, resolution
 
@@ -1466,6 +1487,13 @@ column says so only on proof. Files: `internal/wslenv` (detection),
   `/proc/sys/kernel/osrelease` contains `WSL2` (case-insensitive) and the
   facts look like WSL (`WSL_DISTRO_NAME` set, or `microsoft` in osrelease).
   Native Linux gets no mention at all.
+- **Generation (`wslenv.DetectKind`, DEVDESK-334).** `ClassifyKind(Facts)`
+  returns `KindNone`, `KindWSL1` or `KindWSL2`, reading only `WSL_DISTRO_NAME`
+  and the osrelease (`GatherKernel`: no process, no interface listing, nothing
+  off Linux). WSL1 is an osrelease containing `Microsoft`, case-sensitive; it is
+  checked before the case-insensitive WSL test. The Path tab uses it to refuse
+  WSL1 (see "`Supported()` and the Path tab"). `ClassifyKind` can say WSL2 for an
+  old 4.19 kernel where `Classify().WSL2` is false; known, minor.
 - **Mode.** `wslinfo --networking-mode`, run only under WSL, from
   `/usr/bin/wslinfo` then `/usr/sbin/wslinfo` (absolute paths, never the search
   path), with the constant argument, an empty environment, a 2 s deadline and

@@ -18,10 +18,6 @@ import (
 )
 
 const (
-	// reasonPathUnsupported is shown when the platform cannot trace a path. The
-	// header greys enter out and the handler refuses with the same text.
-	reasonPathUnsupported = "The path trace is not supported on this platform"
-
 	// defaultPathResolveTimeout bounds the name resolution of a target.
 	defaultPathResolveTimeout = 5 * time.Second
 
@@ -129,8 +125,8 @@ func (pm *PathModel) resize(width, height int) {
 // launchable is the one answer to "can a trace start here", read by the header
 // and by the handler (Rule 130).
 func (pm *PathModel) launchable() shortcut.Availability {
-	if pm.engine.supported() != nil {
-		return shortcut.Unavailable(reasonPathUnsupported)
+	if err := pm.engine.supported(); err != nil {
+		return shortcut.Unavailable(pathUnsupportedReason(err))
 	}
 	return shortcut.Availability{}
 }

@@ -94,7 +94,7 @@ func pathErrorLabel(host string, err error) string {
 	case errors.Is(err, nettrace.ErrNoRoute):
 		return "No route to " + host + " from this machine — no probe was sent"
 	case errors.Is(err, nettrace.ErrUnsupported):
-		return "The path trace is not supported on this platform"
+		return reasonPathUnsupported
 	}
 	return "The path trace failed — check logs"
 }

@@ -415,9 +415,10 @@ privilege. It replaces the
 container trace that was removed because it answered for the Docker VM and not
 for this machine.
 
-- **Linux only, for now.** Elsewhere the tab opens, `enter` is greyed out and
-  refused with `The path trace is not supported on this platform`; nothing is
-  sent.
+- **Native Linux and WSL2 only.** On macOS, native Windows and WSL1 the tab
+  opens, `enter` and `ctrl+o` are greyed out, and the footer says why, for
+  example `The path trace needs Linux — not available on macOS`. On Windows and
+  WSL1 it adds `use WSL2`. Nothing is sent.
 - **IPv4 only.** A host name is resolved to its IPv4 address (within
   `check_timeout`); the first one is traced and shown next to the name in the
   header. An IPv6 literal is refused.
