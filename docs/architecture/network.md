@@ -1194,11 +1194,14 @@ it), no privilege. The spikes measured it unprivileged (uid 1000, no capability)
 on native Linux and on WSL2 in NAT and mirrored modes
 (`docs/product/network-map/{feasibility,spike-linux,spike-wsl}.md`).
 
-**Linux only.** `Supported()` returns `nil` on Linux and `ErrUnsupported`
-elsewhere (`trace_other.go`); `Trace` returns `ErrUnsupported` there and sends
-nothing. `golang.org/x/sys` is a direct dependency for the socket calls.
+**Linux and native Windows.** `Supported()` returns `nil` on Linux and, on
+Windows, when the `iphlpapi.dll` echo entry points resolve (`trace_windows.go`);
+it returns `ErrUnsupported` elsewhere (`trace_other.go`, build tag
+`!linux && !windows`), and `Trace` then returns `ErrUnsupported` and sends
+nothing. `golang.org/x/sys` is a direct dependency: `x/sys/unix` for the Linux
+socket calls, `x/sys/windows` for `iphlpapi.dll` (Windows engine).
 
-**One connected UDP socket per TTL.** Each socket is connected to the target
+**One connected UDP socket per TTL (Linux).** Each socket is connected to the target
 (port 33435), gets `IP_TTL` set to its hop number and `IP_RECVERR` enabled, and
 sends one datagram. The kernel queues the ICMP answer on the socket's error
 queue; `await` reads it with `recvmsg(MSG_ERRQUEUE)` through `RawConn.Read`
@@ -1213,6 +1216,46 @@ socket option (`ENOPROTOOPT`, `EOPNOTSUPP`, and `EPERM`/`EACCES` from the system
 prober) maps to `ErrUnsupported`, a `connect` failure with `ENETUNREACH` or
 `EHOSTUNREACH` to `ErrNoRoute`, and nothing is emitted. All probes then leave at
 once, not spread out (D143).
+
+**The Windows engine** (DEVDESK-486, IPv4 only; IPv6 is a separate story). It
+plugs into the same two-phase engine through `echoProber` (`echo_conn.go`) and
+needs no administrator right.
+
+- **`IcmpSendEcho2`, synchronous, through `iphlpapi.dll`.** `trace_windows.go`
+  loads `iphlpapi.dll` and calls `IcmpCreateFile`, `IcmpSendEcho2` and
+  `IcmpCloseHandle`. Each TTL gets its own echo handle (`echoConn`, single-use:
+  one send, one await). The call is synchronous and cannot be interrupted, so
+  `await` runs it in a goroutine, one per TTL, and abandons it when the context
+  ends; the goroutine closes the handle itself when it returns, never under the
+  running call.
+- **Preflight.** Before any handle is created, `udpPreflight` connects (without
+  sending) a UDP socket to the target. A missing route fails there with the raw
+  Winsock error and becomes `ErrNoRoute`, instead of looking like silence.
+- **Classification is by code, never by text** (`echo_status.go`). The reply
+  carries an `IP_STATUS` (`GetLastError` when there is no reply): `IP_SUCCESS`
+  is `HopTarget`, `IP_TTL_EXPIRED_TRANSIT` is `HopRouter`, the destination
+  net/host/protocol/port unreachable statuses are `HopUnreachable`,
+  `IP_REQ_TIMED_OUT` is a silent hop, and everything else is `HopError` or an
+  `*EchoStatusError` (`ICMP status <n>`, ASCII only, never a localized system
+  message). A zero code with no reply is a failure, never a reached target.
+- **Source guard extended to `x/sys/windows`** (`source_guard_test.go`). A
+  file may import it only to load the one DLL: `NewLazySystemDLL` takes the
+  literal `"iphlpapi.dll"`, and `NewProc` takes a literal from the allowlist
+  `{IcmpCreateFile, Icmp6CreateFile, IcmpSendEcho2, Icmp6SendEcho2,
+  IcmpCloseHandle}` (case-sensitive). Both must be called directly, never used
+  as a value; writing the `Name`, `System` or `Dll` field of a DLL handle, naming
+  `LazyDLL`/`DLL`/`LazyProc`/`Proc`, and the process, service and
+  `LoadLibrary`/`GetProcAddress` symbols are refused.
+- **`IsNoRoute` knows the Windows errnos.** Besides `ErrNoRoute`,
+  `syscall.ENETUNREACH` and `syscall.EHOSTUNREACH`, it recognizes
+  `WSAENETUNREACH`, `WSAEHOSTUNREACH`, `ERROR_NETWORK_UNREACHABLE` and
+  `ERROR_HOST_UNREACHABLE` (`noroute_windows.go`, the Winsock codes and the IP
+  Helper ones go-netroute can return). The error text never counts.
+- **Known limit: the probes are ICMP echoes.** A target (or a firewall in front
+  of it) that filters echo requests stays silent: the trace ends on the hop
+  limit or the deadline with no `HopTarget`, where the Linux UDP probe would
+  have been answered with Port Unreachable. A UDP or TCP fallback is tracked in
+  D154 (`docs/backlog.md`).
 
 **Streaming: `TraceEach`** (DEVDESK-328).
 `TraceEach(ctx, target, opts, onHop func(Hop)) (Result, error)` is `Trace` that
@@ -1292,16 +1335,17 @@ resolved or sent (Rule 130).
 
 The guard is `pathSupport(goos, kind, traceErr)` in
 `internal/ui/netdiag/path_platform.go` (DEVDESK-334). The trace is available
-on native Linux and WSL2 only. It names the reason, as a `pathPlatformError`
-that unwraps to `nettrace.ErrUnsupported`:
+on native Linux, native Windows and WSL2. macOS, WSL1 and any other OS are
+greyed out. It names the reason, as a `pathPlatformError` that unwraps to
+`nettrace.ErrUnsupported`:
 
 | Platform | Reason |
 |---|---|
+| Native Windows | none, the trace is available (since DEVDESK-486) |
 | macOS | `The path trace needs Linux — not available on macOS` |
-| Windows (native) | `The path trace needs Linux — not available on Windows (use WSL2)` |
-| Other non-Linux OS | `The path trace needs Linux — not available on <goos>` |
+| Other OS (not linux, windows or darwin) | `The path trace is not available on <goos>` |
 | WSL1 | `The path trace needs a Linux kernel — WSL1 has none (use WSL2)` |
-| Anything else unsupported | `The path trace is not supported on this platform` |
+| Anything else unsupported (`nettrace.Supported()` fails) | `The path trace is not supported on this platform` |
 
 The footer shows the reason as a permanent Warning on the form (the Trace Path
 button), not only after `enter`. The decision is made once per process
