@@ -1,0 +1,36 @@
+{
+  "cli_version": "0.13.2",
+  "checkpoint_id": "71a51efa6173",
+  "strategy": "manual-commit",
+  "branch": "main",
+  "checkpoints_count": 12,
+  "files_touched": [
+    "dhi.pub",
+    "docs/product/network-map/brief.md",
+    "docs/product/network-map/feasibility.md",
+    "err.txt"
+  ],
+  "sessions": [
+    {
+      "metadata": "/71/a51efa6173/0/metadata.json",
+      "transcript": "/71/a51efa6173/0/full.jsonl",
+      "compact_transcript": "/71/a51efa6173/0/transcript.jsonl",
+      "content_hash": "/71/a51efa6173/0/content_hash.txt",
+      "prompt": "/71/a51efa6173/0/prompt.txt"
+    }
+  ],
+  "redaction": {
+    "replacements": 0,
+    "layers": {
+      "betterleaks": 0,
+      "connection_string": 0,
+      "credential_key": 0,
+      "credential_value": 0,
+      "credentialed_uri": 0,
+      "entropy": 0,
+      "key_context": 0,
+      "provider_token": 0,
+      "shell_stdin": 0
+    }
+  }
+}
