@@ -1,0 +1,60 @@
+{
+  "cli_version": "0.13.2",
+  "checkpoint_id": "d2e1cf981d0a",
+  "strategy": "manual-commit",
+  "branch": "fix/devdesk-457-bar-frame-join",
+  "checkpoints_count": 13,
+  "files_touched": [
+    "internal/ui/agentusageview/agentusageview_test.go",
+    "internal/ui/agentusageview/breakdown_tab_test.go",
+    "internal/ui/agentusageview/selection_test.go",
+    "internal/ui/agentusageview/update.go",
+    "internal/ui/containers/view.go",
+    "internal/ui/containers/view_test.go",
+    "internal/ui/filebrowser/model.go",
+    "internal/ui/forge/explorer/index_test.go",
+    "internal/ui/forge/explorer/model.go",
+    "internal/ui/forge/explorer/view_test.go",
+    "internal/ui/jobsview/update.go",
+    "internal/ui/netdiag/netdiag_path_tab_test.go",
+    "internal/ui/netdiag/ports_model_test.go",
+    "internal/ui/netdiag/update.go",
+    "internal/ui/oci_resources/view.go",
+    "internal/ui/security/inventory_test.go",
+    "internal/ui/security/remediation_test.go",
+    "internal/ui/security/view.go",
+    "internal/ui/security/view_test.go",
+    "internal/ui/status/view.go",
+    "internal/ui/status/view_test.go",
+    "internal/ui/templates/view.go",
+    "internal/ui/viewer/goto_test.go",
+    "internal/ui/viewer/markdown_test.go",
+    "internal/ui/viewer/update.go",
+    "internal/ui/workspaces/fuzzyfind_test.go",
+    "internal/ui/workspaces/update.go",
+    "internal/ui/workspaces/view_test.go"
+  ],
+  "sessions": [
+    {
+      "metadata": "/d2/e1cf981d0a/0/metadata.json",
+      "transcript": "/d2/e1cf981d0a/0/full.jsonl",
+      "compact_transcript": "/d2/e1cf981d0a/0/transcript.jsonl",
+      "content_hash": "/d2/e1cf981d0a/0/content_hash.txt",
+      "prompt": "/d2/e1cf981d0a/0/prompt.txt"
+    }
+  ],
+  "redaction": {
+    "replacements": 0,
+    "layers": {
+      "betterleaks": 0,
+      "connection_string": 0,
+      "credential_key": 0,
+      "credential_value": 0,
+      "credentialed_uri": 0,
+      "entropy": 0,
+      "key_context": 0,
+      "provider_token": 0,
+      "shell_stdin": 0
+    }
+  }
+}
