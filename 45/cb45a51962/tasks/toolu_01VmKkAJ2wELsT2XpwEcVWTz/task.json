@@ -1,0 +1,15 @@
+{
+  "tool_use_id": "toolu_01VmKkAJ2wELsT2XpwEcVWTz",
+  "agent_id": "a01bf58096a0a5e96",
+  "subagent_type": "dev-team:devops",
+  "task_description": "Story Done and worktree cleanup 332",
+  "token_usage": {
+    "input_tokens": 7,
+    "cache_creation_tokens": 52919,
+    "cache_read_tokens": 143541,
+    "output_tokens": 1067,
+    "api_call_count": 4
+  },
+  "started_at": "2026-11-14T21:57:08.7122972+01:00",
+  "completed_at": "2026-11-14T21:57:22.5753412+01:00"
+}
