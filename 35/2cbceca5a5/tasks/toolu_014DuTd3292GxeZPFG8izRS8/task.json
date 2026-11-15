@@ -1,0 +1,15 @@
+{
+  "tool_use_id": "toolu_014DuTd3292GxeZPFG8izRS8",
+  "agent_id": "a455e126c90142c42",
+  "subagent_type": "dev-team:devops",
+  "task_description": "Retirer le worktree 470",
+  "token_usage": {
+    "input_tokens": 11,
+    "cache_creation_tokens": 42400,
+    "cache_read_tokens": 244257,
+    "output_tokens": 1323,
+    "api_call_count": 6
+  },
+  "started_at": "2026-11-15T18:40:29.2479833+01:00",
+  "completed_at": "2026-11-15T18:40:57.8749021+01:00"
+}
