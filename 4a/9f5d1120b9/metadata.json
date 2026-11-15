@@ -3,7 +3,7 @@
   "checkpoint_id": "4a9f5d1120b9",
   "strategy": "manual-commit",
   "branch": "feat/devdesk-474-route-stage-no-route",
-  "checkpoints_count": 10,
+  "checkpoints_count": 15,
   "files_touched": [
     "docs/architecture/network.md",
     "docs/backlog.md",
@@ -21,20 +21,27 @@
       "compact_transcript": "/4a/9f5d1120b9/0/transcript.jsonl",
       "content_hash": "/4a/9f5d1120b9/0/content_hash.txt",
       "prompt": "/4a/9f5d1120b9/0/prompt.txt"
+    },
+    {
+      "metadata": "/4a/9f5d1120b9/1/metadata.json",
+      "transcript": "/4a/9f5d1120b9/1/full.jsonl",
+      "compact_transcript": "/4a/9f5d1120b9/1/transcript.jsonl",
+      "content_hash": "/4a/9f5d1120b9/1/content_hash.txt",
+      "prompt": "/4a/9f5d1120b9/1/prompt.txt"
     }
   ],
   "token_usage": {
-    "input_tokens": 74,
-    "cache_creation_tokens": 223060,
-    "cache_read_tokens": 3252958,
-    "output_tokens": 17450,
-    "api_call_count": 28,
+    "input_tokens": 104,
+    "cache_creation_tokens": 235681,
+    "cache_read_tokens": 6642135,
+    "output_tokens": 22313,
+    "api_call_count": 40,
     "subagent_tokens": {
-      "input_tokens": 186,
-      "cache_creation_tokens": 635291,
-      "cache_read_tokens": 4891782,
-      "output_tokens": 56783,
-      "api_call_count": 95
+      "input_tokens": 210,
+      "cache_creation_tokens": 756776,
+      "cache_read_tokens": 5515638,
+      "output_tokens": 65150,
+      "api_call_count": 108
     },
     "subagent_tokens_complete": true
   },
