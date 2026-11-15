@@ -10,6 +10,7 @@ import (
 
 	"github.com/anthnel/devdesk/internal/forgeindex"
 	"github.com/anthnel/devdesk/internal/shared"
+	"github.com/anthnel/devdesk/internal/ui/components"
 	"github.com/anthnel/devdesk/internal/ui/fuzzy"
 	"github.com/anthnel/devdesk/internal/ui/testutil"
 )
@@ -161,7 +162,7 @@ func TestGOpensTheFinderOverTheIndex(t *testing.T) {
 	if got := m.GetFooterHeight(); got != fuzzy.FooterHeight {
 		t.Errorf("footer height = %d, want %d", got, fuzzy.FooterHeight)
 	}
-	if !m.FilterBarVisible() || !m.InEditMode() {
+	if !components.OpensWithBarFrame(m.RenderFooter(80)) || !m.InEditMode() {
 		t.Error("the prompt's bar does not close the viewport, or keys leak to the router")
 	}
 	if !strings.Contains(m.RenderFooter(120), "Find") {

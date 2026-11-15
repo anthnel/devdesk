@@ -63,17 +63,6 @@ func (m *Model) InEditMode() bool {
 	return false
 }
 
-// FilterBarVisible implements app.FilterBarView.
-func (m *Model) FilterBarVisible() bool {
-	switch m.activeTab {
-	case tabPorts:
-		return m.portsModel.table.FilterBar().IsVisible()
-	case tabForward:
-		return m.forwardModel.table.FilterBar().IsVisible()
-	}
-	return m.activeTab == tabDiagnostics && m.filterBar.IsVisible()
-}
-
 // Update implements tea.Model
 func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {

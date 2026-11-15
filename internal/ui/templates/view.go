@@ -90,9 +90,9 @@ func (m Model) InEditMode() bool {
 	return m.form != nil || m.confirmModal != nil || m.table.InEditMode()
 }
 
-// FilterBarVisible closes the viewport rectangle around the bar
-// (app.FilterBarView). It is not shown under a form or a modal.
-func (m Model) FilterBarVisible() bool {
+// showsFilterBar reports whether the filter bar opens the footer. It is not shown
+// under a form or a modal.
+func (m Model) showsFilterBar() bool {
 	return m.form == nil && m.confirmModal == nil && m.table.FilterBar().IsVisible()
 }
 
@@ -107,7 +107,7 @@ func (m Model) GetFooterHeight() int {
 // RenderFooter renders the lines below the viewport: filter bar, blank, message.
 func (m Model) RenderFooter(width int) string {
 	var parts []string
-	if m.FilterBarVisible() {
+	if m.showsFilterBar() {
 		parts = append(parts, m.table.FilterBar().View())
 	}
 	parts = append(parts, theme.EmptyLineBg(width), m.footer.View(width, m.status()))

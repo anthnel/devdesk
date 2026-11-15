@@ -10,6 +10,7 @@ import (
 	tea "charm.land/bubbletea/v2"
 
 	"github.com/anthnel/devdesk/internal/status"
+	"github.com/anthnel/devdesk/internal/ui/components"
 	"github.com/anthnel/devdesk/internal/ui/keymap"
 	"github.com/anthnel/devdesk/internal/ui/shortcut"
 	"github.com/anthnel/devdesk/internal/ui/testutil"
@@ -229,25 +230,25 @@ func TestFooterTabsCountRows(t *testing.T) {
 
 func TestFilterBarVisibilityFollowsTheViewState(t *testing.T) {
 	m := loadedModel(t)
-	if m.FilterBarVisible() {
+	if components.OpensWithBarFrame(m.RenderFooter(80)) {
 		t.Error("the filter bar is visible before any search")
 	}
 
 	searching := feed(t, m, testutil.Key("/"))
-	if !searching.FilterBarVisible() {
+	if !components.OpensWithBarFrame(searching.RenderFooter(80)) {
 		t.Error("the filter bar is hidden while searching")
 	}
 
 	// An overlay covers the table, so its filter bar has nothing to filter.
 	withForm := feed(t, m, testutil.Key(keymap.New))
 	withForm.filterBar = searching.filterBar
-	if withForm.FilterBarVisible() {
+	if components.OpensWithBarFrame(withForm.RenderFooter(80)) {
 		t.Error("the filter bar stayed visible under the form")
 	}
 
 	empty := newTestModel(t)
 	empty.filterBar = searching.filterBar
-	if empty.FilterBarVisible() {
+	if components.OpensWithBarFrame(empty.RenderFooter(80)) {
 		t.Error("the filter bar is visible with nothing to filter")
 	}
 }

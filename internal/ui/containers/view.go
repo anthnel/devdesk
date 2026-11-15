@@ -39,11 +39,6 @@ func (m Model) anyModal() interface{ View() string } {
 	return nil
 }
 
-// FilterBarVisible returns true when the filter bar is visible (implements app.FilterBarView).
-func (m Model) FilterBarVisible() bool {
-	return m.containerTable.FilterBar().IsVisible()
-}
-
 // GetFooterHeight returns the footer height for this view (Rule 124).
 func (m Model) GetFooterHeight() int {
 	// filter bar (when visible) + empty line + info line

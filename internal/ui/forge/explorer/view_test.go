@@ -257,27 +257,27 @@ func TestFooterShowsTheErrorMessage(t *testing.T) {
 }
 
 // The bar is hidden until a filter exists, and the router keys the viewport
-// corners off FilterBarVisible() (Rule 136).
+// corners off the footer opening with a bar (Rule 136).
 func TestFilterBarVisibility(t *testing.T) {
-	if loadedModel(t).FilterBarVisible() {
-		t.Error("FilterBarVisible() is true with no filter")
+	if components.OpensWithBarFrame(loadedModel(t).RenderFooter(80)) {
+		t.Error("the footer opens with a bar with no filter")
 	}
 
 	searching := feed(t, loadedModel(t), testutil.Key("/"))
-	if !searching.FilterBarVisible() {
-		t.Error("FilterBarVisible() is false while the search box has focus")
+	if !components.OpensWithBarFrame(searching.RenderFooter(80)) {
+		t.Error("the footer has no bar while the search box has focus")
 	}
 
 	// Nothing to filter, so the bar has nothing to sit under.
 	empty := feed(t, newTestModel(t), RootGroupsLoadedMsg{}, testutil.Key("/"))
-	if empty.FilterBarVisible() {
-		t.Error("FilterBarVisible() is true with no rows")
+	if components.OpensWithBarFrame(empty.RenderFooter(80)) {
+		t.Error("the footer opens with a bar with no rows")
 	}
 
 	modal := feed(t, drilledModel(t), testutil.Key("/"))
 	modal.mode = ModeConfirmingDelete
-	if modal.FilterBarVisible() {
-		t.Error("FilterBarVisible() is true behind a modal")
+	if components.OpensWithBarFrame(modal.RenderFooter(80)) {
+		t.Error("the footer opens with a bar behind a modal")
 	}
 }
 

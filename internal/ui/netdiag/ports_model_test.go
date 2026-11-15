@@ -583,7 +583,7 @@ func TestPortsInEditModePropagatesToTheParent(t *testing.T) {
 	if m.InEditMode() {
 		t.Error("InEditMode() is true on the ports tab before any search")
 	}
-	if m.FilterBarVisible() {
+	if components.OpensWithBarFrame(m.RenderFooter(80)) {
 		t.Error("the filter bar is visible before any search")
 	}
 
@@ -591,7 +591,7 @@ func TestPortsInEditModePropagatesToTheParent(t *testing.T) {
 	if !m.InEditMode() {
 		t.Error("InEditMode() is false while the ports search has focus; ':' would be stolen")
 	}
-	if !m.FilterBarVisible() {
+	if !components.OpensWithBarFrame(m.RenderFooter(80)) {
 		t.Error("the filter bar is hidden while searching")
 	}
 }

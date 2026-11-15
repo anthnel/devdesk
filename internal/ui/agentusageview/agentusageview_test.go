@@ -445,7 +445,7 @@ func TestTheFilterNarrowsRowsAndHoldsTheKeyboard(t *testing.T) {
 	if !strings.Contains(view, "alpha") || strings.Contains(view, "beta") {
 		t.Errorf("only the alpha row should remain:\n%s", view)
 	}
-	if !m.FilterBarVisible() {
+	if !sharedcomponents.OpensWithBarFrame(m.RenderFooter(80)) {
 		t.Error("the filter bar is visible while filtering")
 	}
 }

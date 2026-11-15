@@ -4,6 +4,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/anthnel/devdesk/internal/ui/components"
 	"github.com/anthnel/devdesk/internal/ui/fuzzy"
 	"github.com/anthnel/devdesk/internal/ui/testutil"
 )
@@ -24,24 +25,24 @@ func TestGOpensTheFuzzyFindPrompt(t *testing.T) {
 	}
 }
 
-// FilterBarVisible is what tells the router to turn the viewport's bottom
+// A footer that opens with a bar is what tells the router to turn the viewport's bottom
 // corners into T-junctions so the bar below joins into one closed rectangle
 // (Rule 136) — without it, the query bar renders as a second, disconnected
 // box under an otherwise fully closed viewport.
-func TestFuzzyFindReportsFilterBarVisibleForTheClosedBorder(t *testing.T) {
+func TestFuzzyFindOpensTheFooterWithABarForTheClosedBorder(t *testing.T) {
 	m := newTestModel(t)
-	if m.FilterBarVisible() {
-		t.Error("FilterBarVisible = true before g was pressed")
+	if components.OpensWithBarFrame(m.RenderFooter(80)) {
+		t.Error("the footer opens with a bar before g was pressed")
 	}
 
 	m, _ = step(t, m, testutil.Key("g"))
-	if !m.FilterBarVisible() {
-		t.Error("FilterBarVisible = false while the fuzzy-find bar is on screen, border will not close")
+	if !components.OpensWithBarFrame(m.RenderFooter(80)) {
+		t.Error("the footer has no bar while the fuzzy-find bar is on screen, border will not close")
 	}
 
 	m = feed(t, m, fuzzy.CancelMsg{})
-	if m.FilterBarVisible() {
-		t.Error("FilterBarVisible = true after the prompt was cancelled")
+	if components.OpensWithBarFrame(m.RenderFooter(80)) {
+		t.Error("the footer opens with a bar after the prompt was cancelled")
 	}
 }
 

@@ -20,11 +20,6 @@ func (m Model) InEditMode() bool {
 	return m.componentForm != nil || m.filterBar.InEditMode()
 }
 
-// FilterBarVisible returns true when the filter bar is visible (implements app.FilterBarView).
-func (m Model) FilterBarVisible() bool {
-	return m.filterBar.IsVisible() && m.componentForm == nil && m.confirmModal == nil && m.error == "" && len(m.components) > 0
-}
-
 func (m Model) GetShortcuts() shortcut.Shortcuts {
 	// component edit/add view
 	if m.componentForm != nil {

@@ -537,16 +537,16 @@ func has(shortcuts shortcut.Shortcuts, key string) bool {
 func TestTheReportedFilterBarFollowsTheTableOnScreen(t *testing.T) {
 	m := inventoryModel(t, inventoryFixtures()...)
 
-	if m.FilterBarVisible() {
+	if sharedcomponents.OpensWithBarFrame(m.RenderFooter(80)) {
 		t.Error("the bar is reported visible before any filter was opened")
 	}
 	m = feed(t, m, testutil.Key("/"))
-	if !m.FilterBarVisible() {
+	if !sharedcomponents.OpensWithBarFrame(m.RenderFooter(80)) {
 		t.Error("the bar is open but not reported, so the viewport border stays broken")
 	}
 
 	m = feed(t, m, InventoryResultLoadedMsg{Name: "nexus/api:1.4", Result: resultFixture()})
-	if m.FilterBarVisible() {
+	if sharedcomponents.OpensWithBarFrame(m.RenderFooter(80)) {
 		t.Error("the results report the inventory's filter bar")
 	}
 }

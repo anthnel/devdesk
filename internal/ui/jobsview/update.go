@@ -211,10 +211,6 @@ func (m Model) inFilter() bool { return m.filterBar().InEditMode() }
 // InEditMode tells the router the filter has the keyboard (app.FormView).
 func (m Model) InEditMode() bool { return m.inFilter() }
 
-// FilterBarVisible closes the viewport rectangle around the bar
-// (app.FilterBarView).
-func (m Model) FilterBarVisible() bool { return m.filterBar().IsVisible() }
-
 // openSelected drills into the run under the cursor (Rule 111: → descends).
 func (m Model) openSelected() (tea.Model, tea.Cmd) {
 	if open := m.availability().Open; !open.Enabled() {
