@@ -1,0 +1,18 @@
+{
+  "tool_use_id": "toolu_01LME5qE4o7B6WMbvoZebPfD",
+  "agent_id": "aa029176cb8fd1e49",
+  "subagent_type": "project-tester",
+  "task_description": "Test rouge : saut terminal avant fin muette",
+  "files": [
+    "internal/ui/netdiag/path_noresponse_test.go"
+  ],
+  "token_usage": {
+    "input_tokens": 11,
+    "cache_creation_tokens": 97867,
+    "cache_read_tokens": 437676,
+    "output_tokens": 5010,
+    "api_call_count": 6
+  },
+  "started_at": "2026-11-15T13:17:47.6257334+01:00",
+  "completed_at": "2026-11-15T13:18:27.8620952+01:00"
+}

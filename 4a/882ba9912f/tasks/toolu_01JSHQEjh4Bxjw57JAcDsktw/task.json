@@ -1,0 +1,15 @@
+{
+  "tool_use_id": "toolu_01JSHQEjh4Bxjw57JAcDsktw",
+  "agent_id": "aab3a1e2e64009274",
+  "subagent_type": "product-team:pm",
+  "task_description": "Stories Plane refonte P2 vue net",
+  "token_usage": {
+    "input_tokens": 21,
+    "cache_creation_tokens": 146334,
+    "cache_read_tokens": 922378,
+    "output_tokens": 22357,
+    "api_call_count": 10
+  },
+  "started_at": "2026-11-15T13:46:29.0607873+01:00",
+  "completed_at": "2026-11-15T13:49:17.0664195+01:00"
+}

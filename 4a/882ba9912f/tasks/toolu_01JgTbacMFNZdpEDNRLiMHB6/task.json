@@ -1,0 +1,15 @@
+{
+  "tool_use_id": "toolu_01JgTbacMFNZdpEDNRLiMHB6",
+  "agent_id": "a1d8e8a32dc80ca65",
+  "subagent_type": "project-tester",
+  "task_description": "Vérification complète DEVDESK-335",
+  "token_usage": {
+    "input_tokens": 45,
+    "cache_creation_tokens": 47387,
+    "cache_read_tokens": 989478,
+    "output_tokens": 7573,
+    "api_call_count": 23
+  },
+  "started_at": "2026-11-15T13:25:50.5236686+01:00",
+  "completed_at": "2026-11-15T13:40:28.3002363+01:00"
+}

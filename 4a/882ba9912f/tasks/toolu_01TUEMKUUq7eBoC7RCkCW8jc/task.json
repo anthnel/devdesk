@@ -1,0 +1,15 @@
+{
+  "tool_use_id": "toolu_01TUEMKUUq7eBoC7RCkCW8jc",
+  "agent_id": "acada0601ff3b8193",
+  "subagent_type": "project-coder",
+  "task_description": "Vert étape 2 (NoRoute)",
+  "token_usage": {
+    "input_tokens": 7,
+    "cache_creation_tokens": 33772,
+    "cache_read_tokens": 115962,
+    "output_tokens": 2033,
+    "api_call_count": 4
+  },
+  "started_at": "2026-11-15T13:07:43.3080621+01:00",
+  "completed_at": "2026-11-15T13:08:15.6748258+01:00"
+}

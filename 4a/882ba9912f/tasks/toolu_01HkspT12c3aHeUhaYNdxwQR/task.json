@@ -1,0 +1,15 @@
+{
+  "tool_use_id": "toolu_01HkspT12c3aHeUhaYNdxwQR",
+  "agent_id": "ae6f8a07c2cc0133a",
+  "subagent_type": "project-tester",
+  "task_description": "Tests rouges étape 1 (IsNoRoute)",
+  "token_usage": {
+    "input_tokens": 9,
+    "cache_creation_tokens": 54447,
+    "cache_read_tokens": 97538,
+    "output_tokens": 2405,
+    "api_call_count": 4
+  },
+  "started_at": "2026-11-15T13:04:41.2506563+01:00",
+  "completed_at": "2026-11-15T13:04:59.3725682+01:00"
+}
