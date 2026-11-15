@@ -844,6 +844,30 @@ verified: a declared exception.
   chained one stage per message so the footer can name the question being asked.
   The seven tool checkboxes are gone (§3.33): the checks follow from the target
   and from what has already failed.
+  **The route stage** (`netcheck/stage_route.go`, DEVDESK-474, D151) sorts each
+  lookup error with `nettrace.IsNoRoute`: a proven absence of route is a finding,
+  any other failure proves nothing (D20). Only the first 8 resolved addresses
+  (`maxRoutedAddresses`) are looked up. The verdict:
+  - every address proven without a route: **Fail** (`<host> has no local route`);
+  - none routed and at least one undetermined: **Unknown**;
+  - some routed and at least one proven without a route: **Warn**,
+    `partial-route`; only the proven addresses are counted, and undetermined ones
+    are added as `route undetermined for N`;
+  - some routed, none proven, at least one undetermined: **OK**,
+    `route-undetermined`.
+
+  The system's error text (in the machine's language) appears only in the facts
+  `No route` and `Route undetermined`, never in the summary (Rule 129). In the
+  Fail case the results header and the MCP verdict read FAIL, where they read
+  UNKNOWN before.
+
+  Real coverage is Linux and WSL2 only. `go-netroute` returns a
+  `windows.Errno` that `IsNoRoute` does not recognize on Windows, and an error
+  with no errno on macOS: both end as `undetermined`, which is the safe side.
+  Two limits to know: if `go-netroute` stopped wrapping the netlink errno with
+  `%w`, Linux would fall back to `undetermined` silently, with no failing
+  build; and `prohibit` routes (`EACCES`) stay `undetermined`. Windows and macOS
+  support is a follow-up story, to be created (see D151 in `docs/backlog.md`).
 - **Ports tab** (`ports_model.go`): the machine's own socket table, re-read
   every `ports_refresh_interval`, filtered by protocol, state and text. `K`
   terminates a process, after a confirmation. It runs **no container** — see

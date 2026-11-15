@@ -3,9 +3,13 @@ package netcheck
 import (
 	"context"
 	"errors"
+	"fmt"
 	"net"
 	"strings"
+	"syscall"
 	"testing"
+
+	"github.com/anthnel/devdesk/internal/nettrace"
 )
 
 // routeCheck runs the route stage against prior and returns its one check.
@@ -92,6 +96,9 @@ func TestADirectlyConnectedTargetSaysSoRatherThanNothing(t *testing.T) {
 // TestARouteLookupThatFailsIsUnknownAndNeverFail is D20 in this stage. A
 // lookup that could not answer is not a machine with no route, and reporting
 // the first as the second is precisely the defect this codebase keeps finding.
+// "Could not answer" means an error that does not prove the absence: a bare
+// text error here. An error that nettrace.IsNoRoute recognizes is a proof, and
+// is covered by TestRouteErrorsAreClassifiedProvenVersusUndetermined.
 func TestARouteLookupThatFailsIsUnknownAndNeverFail(t *testing.T) {
 	env := fakeEnv{route: func(context.Context, net.IP) (RouteHop, error) {
 		return RouteHop{}, errors.New("network is unreachable")
@@ -112,7 +119,7 @@ func TestARouteLookupThatFailsIsUnknownAndNeverFail(t *testing.T) {
 func TestOneFamilyWithoutARouteWarnsRatherThanHidingIt(t *testing.T) {
 	env := fakeEnv{route: func(_ context.Context, ip net.IP) (RouteHop, error) {
 		if ip.To4() == nil {
-			return RouteHop{}, errors.New("network is unreachable")
+			return RouteHop{}, nettrace.ErrNoRoute
 		}
 		return RouteHop{Interface: "Ethernet 2", Source: net.ParseIP("192.168.1.21")}, nil
 	}}
@@ -128,6 +135,157 @@ func TestOneFamilyWithoutARouteWarnsRatherThanHidingIt(t *testing.T) {
 	}
 	if factValue(c, "No route") == "" {
 		t.Fatalf("the address without a route is not named in the facts")
+	}
+}
+
+// factValues returns every value recorded under key, in order.
+func factValues(c Check, key string) []string {
+	var out []string
+	for _, f := range c.Facts {
+		if f.Key == key {
+			out = append(out, f.Value)
+		}
+	}
+	return out
+}
+
+// TestRouteErrorsAreClassifiedProvenVersusUndetermined pins DEVDESK-474: the
+// stage separates an absence of route that the kernel proved
+// (nettrace.IsNoRoute) from a lookup that merely failed. The first is a
+// finding; the second stays Unknown (D20). The raw system text, which is in the
+// machine's language, lives only in fact values, never in the Summary (Rule 129).
+func TestRouteErrorsAreClassifiedProvenVersusUndetermined(t *testing.T) {
+	const (
+		v4  = "93.184.216.34"
+		v6  = "2606:2800:220:1::1"
+		v4b = "93.184.216.35"
+	)
+	routed := RouteHop{Interface: "Ethernet 2", Source: net.ParseIP("192.168.1.21")}
+	textErr := errors.New("network is unreachable")
+	frErr := errors.New("Réseau inaccessible")
+
+	tests := []struct {
+		name          string
+		ips           []string
+		errs          map[string]error // per address; absent means routed
+		verdict       Verdict
+		reason        Reason // "" means not asserted
+		wantSummary   []string
+		denySummary   []string
+		wantNoRoute   int
+		wantUndeterm  int
+		noRouteFactIn string // substring expected in a No route fact value
+		undetFactIn   string // substring expected in a Route undetermined fact value
+	}{
+		{
+			name: "all addresses proven by ErrNoRoute", ips: []string{v4, v6},
+			errs:    map[string]error{v4: nettrace.ErrNoRoute, v6: nettrace.ErrNoRoute},
+			verdict: Fail, wantSummary: []string{"no local route"}, wantNoRoute: 2,
+		},
+		{
+			name: "wrapped ENETUNREACH is a proof", ips: []string{v4},
+			errs:    map[string]error{v4: fmt.Errorf("x: %w", syscall.ENETUNREACH)},
+			verdict: Fail, wantSummary: []string{"no local route"}, wantNoRoute: 1,
+		},
+		{
+			name: "wrapped EHOSTUNREACH is a proof", ips: []string{v4},
+			errs:    map[string]error{v4: fmt.Errorf("x: %w", syscall.EHOSTUNREACH)},
+			verdict: Fail, wantSummary: []string{"no local route"}, wantNoRoute: 1,
+		},
+		{
+			name: "text error alone is undetermined", ips: []string{v4},
+			errs:    map[string]error{v4: textErr},
+			verdict: Unknown, wantSummary: []string{"could not be determined"},
+			denySummary: []string{"no route"}, wantUndeterm: 1,
+		},
+		{
+			name: "routed v4 plus proven v6", ips: []string{v4, v6},
+			errs:    map[string]error{v6: nettrace.ErrNoRoute},
+			verdict: Warn, reason: ReasonPartialRoute,
+			wantSummary: []string{"1 of 2 addresses have no local route"}, wantNoRoute: 1,
+		},
+		{
+			name: "routed v4 plus undetermined v6 stays OK", ips: []string{v4, v6},
+			errs:    map[string]error{v6: textErr},
+			verdict: OK, reason: ReasonRouteUndetermined,
+			wantSummary: []string{"undetermined for 1 of 2"},
+			denySummary: []string{"no local route"}, wantUndeterm: 1,
+		},
+		{
+			name: "one routed, one proven, one undetermined", ips: []string{v4, v6, v4b},
+			errs:    map[string]error{v6: nettrace.ErrNoRoute, v4b: textErr},
+			verdict: Warn, reason: ReasonPartialRoute,
+			wantSummary: []string{"1 of 3", "no local route", "undetermined"},
+			wantNoRoute: 1, wantUndeterm: 1,
+		},
+		{
+			name: "none routed, one proven, one undetermined", ips: []string{v4, v6},
+			errs:    map[string]error{v4: nettrace.ErrNoRoute, v6: textErr},
+			verdict: Unknown, wantNoRoute: 1, wantUndeterm: 1,
+		},
+		{
+			name: "non-English text stays out of the summary", ips: []string{v4},
+			errs:    map[string]error{v4: frErr},
+			verdict: Unknown, denySummary: []string{"Réseau", "inaccessible"},
+			wantUndeterm: 1, undetFactIn: "Réseau inaccessible",
+		},
+		{
+			name: "non-English text in a proven error stays out of the summary", ips: []string{v4},
+			errs:    map[string]error{v4: fmt.Errorf("%w: %w", nettrace.ErrNoRoute, frErr)},
+			verdict: Fail, denySummary: []string{"Réseau", "inaccessible"},
+			wantNoRoute: 1, noRouteFactIn: "Réseau inaccessible",
+		},
+		{
+			name: "context canceled is undetermined", ips: []string{v4},
+			errs:    map[string]error{v4: context.Canceled},
+			verdict: Unknown, denySummary: []string{"no local route"}, wantUndeterm: 1,
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			env := fakeEnv{route: func(_ context.Context, ip net.IP) (RouteHop, error) {
+				if err, bad := tc.errs[ip.String()]; bad {
+					return RouteHop{}, err
+				}
+				return routed, nil
+			}}
+			var ips []net.IP
+			for _, s := range tc.ips {
+				ips = append(ips, net.ParseIP(s))
+			}
+			c := routeCheck(t, env, target(), resolvedTo(t, ips...))
+
+			if c.Verdict != tc.verdict {
+				t.Fatalf("verdict = %v, want %v (%s)", c.Verdict, tc.verdict, c.Summary)
+			}
+			if tc.reason != "" && c.Reason != tc.reason {
+				t.Fatalf("reason = %q, want %q", c.Reason, tc.reason)
+			}
+			for _, w := range tc.wantSummary {
+				if !strings.Contains(c.Summary, w) {
+					t.Errorf("summary = %q, want it to contain %q", c.Summary, w)
+				}
+			}
+			for _, d := range tc.denySummary {
+				if strings.Contains(strings.ToLower(c.Summary), strings.ToLower(d)) {
+					t.Errorf("summary = %q, must not contain %q", c.Summary, d)
+				}
+			}
+			noRoute, undet := factValues(c, "No route"), factValues(c, "Route undetermined")
+			if len(noRoute) != tc.wantNoRoute {
+				t.Errorf("%d No route facts %v, want %d", len(noRoute), noRoute, tc.wantNoRoute)
+			}
+			if len(undet) != tc.wantUndeterm {
+				t.Errorf("%d Route undetermined facts %v, want %d", len(undet), undet, tc.wantUndeterm)
+			}
+			if tc.noRouteFactIn != "" && !strings.Contains(strings.Join(noRoute, "|"), tc.noRouteFactIn) {
+				t.Errorf("No route facts %v, want the raw text %q", noRoute, tc.noRouteFactIn)
+			}
+			if tc.undetFactIn != "" && !strings.Contains(strings.Join(undet, "|"), tc.undetFactIn) {
+				t.Errorf("Route undetermined facts %v, want the raw text %q", undet, tc.undetFactIn)
+			}
+		})
 	}
 }
 

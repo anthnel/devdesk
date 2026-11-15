@@ -6,6 +6,8 @@ import (
 	"net"
 	"testing"
 	"time"
+
+	"github.com/anthnel/devdesk/internal/nettrace"
 )
 
 func target() Target { return Target{Host: "example.com", Port: 443} }
@@ -187,6 +189,38 @@ func TestARefusedPortBlocksTlsAndHttpButNotIcmp(t *testing.T) {
 		if c.Verdict != NotApplicable || c.Because != CheckTCP {
 			t.Errorf("%s = %v because %q, want NotApplicable because %q", id, c.Verdict, c.Because, CheckTCP)
 		}
+	}
+}
+
+// TestAProvenNoRouteBlocksNothingBelowIt: the route stage gates nothing, so a
+// kernel-proven absence of route must leave ICMP, TCP, TLS and HTTP exactly as
+// they are with a working route on the same fake environment.
+func TestAProvenNoRouteBlocksNothingBelowIt(t *testing.T) {
+	state, roots := buildChain(t, chainOpts{dnsNames: []string{"example.com"}, withIntermediate: true})
+	withRoute := func(route func(context.Context, net.IP) (RouteHop, error)) []Check {
+		return runWith(t, fakeEnv{roots: roots, handshake: handshakeReturning(state), route: route}, target())
+	}
+	noRoute := withRoute(func(context.Context, net.IP) (RouteHop, error) {
+		return RouteHop{}, nettrace.ErrNoRoute
+	})
+	okRoute := withRoute(func(context.Context, net.IP) (RouteHop, error) {
+		return RouteHop{}, nil
+	})
+
+	if got := verdictOf(t, noRoute, CheckRoute); got != Fail {
+		t.Fatalf("route verdict = %v, want Fail", got)
+	}
+	for _, id := range []CheckID{CheckICMP, CheckTCP, CheckTLSHandshake, CheckHTTP} {
+		c := checkNamed(t, noRoute, id)
+		if c.Verdict == NotApplicable || c.Because != "" {
+			t.Errorf("%s = %v because %q, want it probed, not blocked", id, c.Verdict, c.Because)
+		}
+		if want := verdictOf(t, okRoute, id); c.Verdict != want {
+			t.Errorf("%s = %v with no route, %v with a route; want the same", id, c.Verdict, want)
+		}
+	}
+	if got := Summarize(noRoute); got != Fail {
+		t.Fatalf("Summarize = %v, want Fail", got)
 	}
 }
 
