@@ -62,6 +62,8 @@ func (m *Model) Render() string {
 		return m.renderChecks()
 	case StateDetails:
 		return m.detailsViewport.View()
+	case StateTrace:
+		return m.pathModel.view()
 	}
 	return ""
 }
@@ -75,7 +77,12 @@ func (m *Model) renderInputForm() string {
 	b.WriteString("\n")
 	b.WriteString(m.renderTextInputField("DNS Server", m.dnsServerInput, fieldDNSServer))
 	b.WriteString("\n\n")
-	b.WriteString("  " + theme.RenderButton("Run Diagnostics", m.focusedField == fieldButton, "primary"))
+	traceVariant := "primary"
+	if !m.traceable().Enabled() {
+		traceVariant = "disabled"
+	}
+	b.WriteString("  " + theme.RenderButton("Run Diagnostics", m.focusedField == fieldRunButton, "primary") +
+		"  " + theme.RenderButton("Trace Path", m.focusedField == fieldTraceButton, traceVariant))
 
 	return lipgloss.NewStyle().
 		Padding(1).

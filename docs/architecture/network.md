@@ -1036,6 +1036,62 @@ alone and warns `A path trace is already running — esc cancels it` on the Path
 footer. `PathModel.prefill` puts the tab back in editing with the hops, the
 outcome and the error cleared.
 
+**The Trace Path button and the trace sub-level (DEVDESK-470, `trace_form.go`,
+`trace_level.go`).** `enter` on the form's Trace Path button validates the
+target, then opens `StateTrace` on the Diagnostics tab and launches the trace
+on the **same `m.pathModel`** the Path tab uses (`PathModel.startFromForm`:
+`prefill`, then `launch`; the Cmd does the I/O, `Update` mutates, Rule 110). A
+trace already running is refused with `reasonTraceBusy` at the footer, and the
+button stays lit (Rule 130). The body is `pathModel.view()`, the table alone
+(Rule 139); the title reads `Network › Path › <host>` (host cut with an
+ellipsis), the header is `pathModel.headerInfo()`, and the 3-line footer shows
+the Path model's footer and `statusLine()` (`activeFooter`). Hops keep landing
+while another tab is on screen, and coming back finds the sub-level. Keys:
+`esc` cancels a running trace, then goes back to the form (fields, focus and
+Diagnostics results untouched, no `resetToForm`); navigation moves the table;
+every other key is dropped by `handleKeyTrace` and never reaches
+`PathModel.handleKey`, whose `handleDoneError` would make its hidden field
+live again. No `enter`, `ctrl+r` or `ctrl+o` here: to trace again, go back to
+the form. `tab` and `shift+tab` still switch tabs (the view's handler,
+`Model.handleKey`, takes them before its `switch` on the state), so the sub-level survives a visit to another tab.
+
+**Files.** `trace_form.go` holds what the form does: `traceable()` (the one
+availability, read by the button, the header and the handler, Rule 130),
+`traceFromForm()` (the `enter` handler), the target validation and
+`traceUnusedNotice`. `trace_level.go` holds the sub-level: `startFromForm`,
+`handleKeyTrace`, `escFromTrace` (with `restoreFormFocus`), `traceTitle` and
+`traceShortcuts`.
+
+**Order of refusals in `traceFromForm`.** An unsupported platform
+(`launchable()`, macOS, Windows, WSL1) comes first: the button is greyed and
+the reason is in the footer. Then a trace already running (`reasonTraceBusy`).
+Then the target.
+
+**Target validation (Rule 140).** The target goes through `parsePathTarget`,
+the parser of the Path tab, so an empty, invalid, `host:port` or IPv6 value
+gets the same sentence as on the Path tab (first letter capitalized). The
+failure is carried twice: the Target field is underlined
+(`traceMarks`, `InvalidMarks.Sync`, from `Update()` only) and the error sits
+in the footer at level Error, derived from `traceValidation.Status()` in
+`statusLine()`. Nothing is invalid before the first refused `enter` on the
+button; after that, every edit of the Target revalidates (`revalidateTrace`).
+`enter` on a text field still runs the diagnostics and does not validate
+the trace target.
+
+**Port and DNS Server.** The trace probes the path to a host, so both fields
+are ignored. When either holds a non-blank value, `traceUnusedNotice` posts an
+Info notice on the Path model's footer (`Port is not used by the path trace`,
+`DNS Server is not used by the path trace`, or both). It is posted after
+`startFromForm`, because launching clears that footer. The values stay in the
+form.
+
+**Coupling with the Path tab.** The sub-level has no model of its own: it
+drives `m.pathModel`. Starting from the form therefore overwrites the Path
+tab's field (`prefill`) and its previous run, and the trace shows on both: the
+Path tab sees the same hops, and `esc` there cancels the same run. Going back
+to the form does not clear the Path model. This coupling disappears when the
+Path tab is removed (P2-02).
+
 **What is configurable, and what is not.** `internal/netcheck` held its timeouts
 as constants with a comment saying they would become settings when somebody
 asked; `network:` is what they became.

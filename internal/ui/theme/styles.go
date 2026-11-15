@@ -443,6 +443,16 @@ func ButtonStyle(focused bool, variant string) lipgloss.Style {
 	style := lipgloss.NewStyle().
 		Padding(0, 2)
 
+	// A disabled button is advertised but cannot act (Rule 130): dim text on
+	// the inactive background; under focus the background switches to the
+	// focused one (text stays dim) so the cursor is visible at the same width.
+	if variant == "disabled" {
+		if focused {
+			return style.Background(ColorButtonBg).Foreground(ColorDim)
+		}
+		return style.Background(ColorButtonInactiveBg).Foreground(ColorDim)
+	}
+
 	if focused {
 		switch variant {
 		case "primary":

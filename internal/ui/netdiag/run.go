@@ -18,6 +18,9 @@ func (m *Model) StartRun() (*Model, tea.Cmd) {
 		return m, m.footer.Error(capitalize(err.Error()))
 	}
 
+	m.traceValidation.Submit(nil)
+	m.syncTraceMarks()
+
 	m.runGen++
 	m.state = StateRunning
 	m.results = netcheck.Results{}

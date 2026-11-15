@@ -195,6 +195,31 @@ A few points shape how the route stage behaves:
   (important for round-robin DNS names, where two independent lookups can
   return different addresses).
 
+### The Trace Path button
+
+The form has two buttons, **Run Diagnostics** and **Trace Path**. `↑` and `↓`
+move from the fields to the buttons. `enter` on a text field still runs the
+diagnostics, so nobody has to walk to a button first.
+
+Trace Path opens a level of the Diagnostics tab, `Network › Path › <target>`,
+with the same table as the [Path tab](#the-path-tab--internalnettrace)
+(Hop, Step, Address, RTT). The trace starts when you press the button, from
+this machine, and nothing is sent before. `esc` cancels a running trace; `esc`
+again returns to the form, with Target, Port and DNS Server as you left them.
+The level has no `enter` and no `ctrl+o`: to trace again, go back to the form.
+Every key except the table's navigation (and `Tab`, which switches tab) is
+ignored there.
+
+The trace probes the path to a host, not a service, so Port and DNS Server
+play no part in it. If either is filled, the footer says so and the trace goes
+ahead. The Target follows the Path tab's rules: a host name or an IPv4
+address, no port, no IPv6. A refused target is underlined and the footer
+gives the reason. Where the trace cannot run (macOS, Windows, WSL1) the button
+is greyed out and the footer says why.
+
+The level shares its trace with the Path tab, which stays in place for now: a
+trace started from the form also appears there.
+
 ## The Ports tab — `internal/ports`
 
 The socket table lists this machine's TCP and UDP sockets and the process
