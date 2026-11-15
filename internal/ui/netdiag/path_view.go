@@ -41,6 +41,9 @@ func pathColumns() []datatable.Column[pathStep] {
 }
 
 func pathStepStyle(s pathStep) lipgloss.Style {
+	if s.Kind == stepNoResponse {
+		return theme.DimStyle
+	}
 	if s.Kind != stepHop {
 		return lipgloss.Style{}
 	}
@@ -66,7 +69,7 @@ func pathAddressStyle(s pathStep) lipgloss.Style {
 			return theme.DimStyle
 		}
 	case stepInterface, stepGateway:
-		if c := s.addressCell(); c == routeUndetermined || c == gatewayDirect {
+		if c := s.addressCell(); c == routeUndetermined || c == gatewayDirect || c == gatewayNone {
 			return theme.DimStyle
 		}
 	}
@@ -74,7 +77,7 @@ func pathAddressStyle(s pathStep) lipgloss.Style {
 }
 
 func pathRTTStyle(s pathStep) lipgloss.Style {
-	if s.Kind == stepHop && s.Hop.RTT <= 0 {
+	if s.Kind == stepNoResponse || (s.Kind == stepHop && s.Hop.RTT <= 0) {
 		return theme.DimStyle
 	}
 	return lipgloss.Style{}

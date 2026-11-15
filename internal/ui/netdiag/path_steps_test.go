@@ -2,17 +2,21 @@ package netdiag
 
 import (
 	"errors"
+	"fmt"
 	"net"
 	"net/netip"
 	"slices"
+	"syscall"
 	"testing"
 	"time"
 
+	"charm.land/lipgloss/v2"
 	"github.com/charmbracelet/x/ansi"
 
 	"github.com/anthnel/devdesk/internal/docker"
 	"github.com/anthnel/devdesk/internal/netcheck"
 	"github.com/anthnel/devdesk/internal/nettrace"
+	"github.com/anthnel/devdesk/internal/ui/theme"
 )
 
 var (
@@ -84,6 +88,22 @@ func TestPathStepsNewPathRoute(t *testing.T) {
 			name: "an error discards whatever the hop holds",
 			hop:  netcheck.RouteHop{Interface: "eth0", Source: net.ParseIP("10.0.0.2")},
 			err:  net.ErrClosed,
+			want: pathRoute{},
+		},
+		{
+			name: "no route is its own state, not undetermined",
+			hop:  netcheck.RouteHop{Interface: "eth0", Source: net.ParseIP("10.0.0.2")},
+			err:  fmt.Errorf("lookup: %w", nettrace.ErrNoRoute),
+			want: pathRoute{NoRoute: true},
+		},
+		{
+			name: "a raw unreachable errno is no route",
+			err:  fmt.Errorf("netlink: %w", syscall.ENETUNREACH),
+			want: pathRoute{NoRoute: true},
+		},
+		{
+			name: "any other error stays undetermined",
+			err:  fmt.Errorf("lookup: %w", syscall.ECONNREFUSED),
 			want: pathRoute{},
 		},
 	}
@@ -231,6 +251,10 @@ func TestPathStepsCells(t *testing.T) {
 			cells{"", "interface", "eth0 (fd00::2)", ""}},
 		{"gateway of a failed lookup", pathStep{Kind: stepGateway},
 			cells{"", "gateway", "undetermined", ""}},
+		{"interface with no route", pathStep{Kind: stepInterface, Route: pathRoute{NoRoute: true}},
+			cells{"", "interface", "no route", ""}},
+		{"gateway with no route", pathStep{Kind: stepGateway, Route: pathRoute{NoRoute: true}},
+			cells{"", "gateway", "-", ""}},
 		{"router hop", pathStep{Kind: stepHop, Hop: stepsHop1},
 			cells{"1", "router", "192.168.1.1", "2.0 ms"}},
 		{"silent hop", pathStep{Kind: stepHop, Hop: stepsHop2},
@@ -389,5 +413,50 @@ func TestPathStepsContainerSourceStaysThisMachine(t *testing.T) {
 	}
 	if len(sources) != 1 || sources[0].Kind != stepSource {
 		t.Fatalf("rows saying this machine = %+v, want only the source row", sources)
+	}
+}
+
+// A no-route result and an undetermined one must never read the same.
+func TestPathStepsNoRouteIsDistinctFromUndetermined(t *testing.T) {
+	for _, kind := range []pathStepKind{stepInterface, stepGateway} {
+		none := pathStep{Kind: kind, Route: pathRoute{NoRoute: true}}.addressCell()
+		unknown := pathStep{Kind: kind}.addressCell()
+		if none == unknown {
+			t.Errorf("kind %d: no route and undetermined both read %q", kind, none)
+		}
+		if unknown != routeUndetermined {
+			t.Errorf("kind %d: undetermined reads %q, want %q", kind, unknown, routeUndetermined)
+		}
+	}
+}
+
+// Style: "-" and "undetermined" are dim, "no route" is ordinary text, never red.
+func TestPathAddressStyleNoRoute(t *testing.T) {
+	plain := lipgloss.Style{}.Render("x")
+	tests := []struct {
+		name string
+		step pathStep
+		dim  bool
+	}{
+		{"interface no route", pathStep{Kind: stepInterface, Route: pathRoute{NoRoute: true}}, false},
+		{"gateway dash", pathStep{Kind: stepGateway, Route: pathRoute{NoRoute: true}}, true},
+		{"interface undetermined", pathStep{Kind: stepInterface}, true},
+		{"gateway undetermined", pathStep{Kind: stepGateway}, true},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := pathAddressStyle(tt.step).Render("x")
+			if isDim := got == theme.DimStyle.Render("x"); isDim != tt.dim {
+				t.Errorf("dim = %v, want %v (rendered %q)", isDim, tt.dim, got)
+			}
+			if !tt.dim && got != plain {
+				t.Errorf("rendered %q, want ordinary text %q", got, plain)
+			}
+			for _, sev := range []string{"CRITICAL", "HIGH"} {
+				if got == theme.SeverityTextStyle(sev).Render("x") {
+					t.Errorf("rendered in the %s colour", sev)
+				}
+			}
+		})
 	}
 }

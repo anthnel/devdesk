@@ -438,14 +438,19 @@ func (m *Model) GetHelpContent() help.Content {
 					"with its source address, and the gateway, read from this machine's routing table, " +
 					"then the hops. Under WSL2 the source row names the WSL2 VM, and in NAT mode the " +
 					"first hop through the virtual switch is labelled Windows host.\n\n" +
-					"Type a host name or an IPv4 address, optionally followed by :port, and press " +
-					"enter. Each hop is a UDP datagram sent to UDP port 33435 with a " +
-					"growing time-to-live; the router that drops it answers, and the table fills in as " +
-					"the answers come. A port you type is shown in the header but does not affect the " +
-					"probes, which always use port 33435; no connection is made. Nothing is sent before you " +
+					"Type a host name or an IPv4 address, and press enter; a port is refused because " +
+					"the trace probes a host, not a service. Each hop is a UDP datagram sent to UDP " +
+					"port 33435 with a growing time-to-live; the router that drops it answers, and the " +
+					"table fills in as the answers come. No connection is made. Nothing is sent before you " +
 					"press enter.\n\n" +
 					"A silent hop is not a failure: many routers do not answer these probes, so the row " +
 					"reads silent and the trace goes on. The header says how a trace ended.\n\n" +
+					"When the target never answers, the silent hops at the end fold into one row, " +
+					"no response beyond hop N, and the last hop that answered reads last to answer. " +
+					"When this machine has no route to the target, the interface row reads no route " +
+					"and nothing is sent; undetermined means the routing table could not be read, " +
+					"which says nothing either way. DevDesk shows only what came back: it does not " +
+					"say why the rest stayed silent.\n\n" +
 					"ctrl+o opens Trace from: this machine, or a running container (Docker Engine on " +
 					"Linux only). The column then starts with the container, its network and the " +
 					"gateway it uses, and a row says the probes still leave from this machine: " +

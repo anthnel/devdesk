@@ -2,9 +2,11 @@ package netdiag
 
 import (
 	"errors"
+	"fmt"
 	"net"
 	"net/netip"
 	"reflect"
+	"slices"
 	"strings"
 	"testing"
 
@@ -222,20 +224,108 @@ func TestPathPrefillDropsTheRoute(t *testing.T) {
 	}
 }
 
-// H4: an error done clears every row, the local ones included.
-func TestPathTraceErrorClearsEveryRow(t *testing.T) {
-	pm := resolvedWith(t, lanRoute(), nil)
-	if len(pm.table.Items()) != 3 {
-		t.Fatalf("precondition: %d rows, want 3", len(pm.table.Items()))
+// DEVDESK-335 step 3: a kernel "no route" keeps the local rows; any other
+// trace error still clears every row (H4).
+
+func pmAfterNoRoute(t *testing.T, pm *PathModel) *PathModel {
+	t.Helper()
+	pm, _ = pmFeed(t, pm, pathDoneMsg{gen: pm.gen, err: fmt.Errorf("%w: %w", nettrace.ErrNoRoute, errors.New("network is unreachable"))})
+	return pm
+}
+
+func TestPathNoRouteKeepsTheLocalRows(t *testing.T) {
+	pm := pmAfterNoRoute(t, resolvedWith(t, lanRoute(), nil))
+
+	if got, want := pmSteps(pm), []string{"source", "interface", "gateway"}; !reflect.DeepEqual(got, want) {
+		t.Fatalf("Step column = %v, want %v", got, want)
 	}
-	pm, _ = pmFeed(t, pm, pathDoneMsg{gen: pm.gen, err: nettrace.ErrNoRoute})
-	if n := len(pm.table.Items()); n != 0 {
-		t.Errorf("%d rows after an error done, want 0", n)
+	if got, want := pmAddrs(pm), []string{"this machine", "no route", "-"}; !reflect.DeepEqual(got, want) {
+		t.Errorf("Address column = %q, want %q", got, want)
 	}
-	if pm.route != nil {
-		t.Errorf("route = %v after an error done, want nil", pm.route)
+	if pm.route == nil || !pm.route.NoRoute {
+		t.Errorf("route = %+v, want NoRoute", pm.route)
 	}
-	if !pm.InEditMode() || pm.statusLine().Level != components.LevelError {
-		t.Errorf("editing=%v status=%+v, want editing with a persistent error", pm.InEditMode(), pm.statusLine())
+	if !pm.InEditMode() {
+		t.Errorf("editing = false, want the tab back in edit mode")
+	}
+	st := pm.statusLine()
+	if st.Level != components.LevelError || !strings.Contains(st.Text, "No route to 1.1.1.1 from this machine") {
+		t.Errorf("status = %+v, want the persistent no-route error", st)
+	}
+}
+
+// The kernel's finding wins over a lookup that could not tell.
+func TestPathNoRouteOverridesAnUndeterminedLookup(t *testing.T) {
+	pm := resolvedWith(t, netcheck.RouteHop{}, errors.New("netroute: no source IP found"))
+	if got := pmAddrs(pm); len(got) != 3 || got[1] != "undetermined" {
+		t.Fatalf("precondition: Address column = %q, want undetermined local rows", got)
+	}
+	pm = pmAfterNoRoute(t, pm)
+	if got, want := pmAddrs(pm), []string{"this machine", "no route", "-"}; !reflect.DeepEqual(got, want) {
+		t.Errorf("Address column = %q, want %q", got, want)
+	}
+}
+
+// A container source keeps its own rows too.
+func TestPathNoRouteKeepsTheContainerRows(t *testing.T) {
+	f := runningFake()
+	pm := pmWith(t, f)
+	pm.source = webSource
+	pm, _ = launched(t, pm, "1.1.1.1")
+	pm, _ = pmFeed(t, pm, pathResolvedMsg{
+		gen: pm.gen, addr: netip.MustParseAddr("1.1.1.1"), route: defaultRouteHop(), source: webSource, ctr: f.inspectNet,
+	})
+	before := pmSteps(pm)
+	if len(before) == 0 || before[0] != "container" {
+		t.Fatalf("precondition: Step column = %v, want it to start with container", before)
+	}
+	pm = pmAfterNoRoute(t, pm)
+
+	got := pmSteps(pm)
+	if len(got) == 0 || got[0] != "container" || !slices.Contains(got, "source") {
+		t.Errorf("Step column = %v, want the container rows and source kept", got)
+	}
+	if pm.container == nil {
+		t.Errorf("container = nil, want it kept")
+	}
+	if pm.hopCount() != 0 {
+		t.Errorf("hop rows = %d, want 0", pm.hopCount())
+	}
+	if !slices.Contains(pmAddrs(pm), "no route") {
+		t.Errorf("Address column = %q, want a no route cell", pmAddrs(pm))
+	}
+}
+
+// Any other trace error clears every row, the local ones included.
+func TestPathOtherTraceErrorClearsEveryRow(t *testing.T) {
+	for name, err := range map[string]error{
+		"unsupported": nettrace.ErrUnsupported,
+		"plain error": errors.New("boom"),
+	} {
+		t.Run(name, func(t *testing.T) {
+			pm := resolvedWith(t, lanRoute(), nil)
+			if len(pm.table.Items()) != 3 {
+				t.Fatalf("precondition: %d rows, want 3", len(pm.table.Items()))
+			}
+			pm, _ = pmFeed(t, pm, pathDoneMsg{gen: pm.gen, err: err})
+			if n := len(pm.table.Items()); n != 0 {
+				t.Errorf("%d rows after an error done, want 0", n)
+			}
+			if pm.route != nil {
+				t.Errorf("route = %v after an error done, want nil", pm.route)
+			}
+			if !pm.InEditMode() || pm.statusLine().Level != components.LevelError {
+				t.Errorf("editing=%v status=%+v, want editing with a persistent error", pm.InEditMode(), pm.statusLine())
+			}
+		})
+	}
+}
+
+// A new launch after a no-route finding starts from nothing.
+func TestPathRelaunchAfterNoRouteClearsEverything(t *testing.T) {
+	pm := pmAfterNoRoute(t, resolvedWith(t, lanRoute(), nil))
+	pm, _ = pmFeed(t, pm, testutil.Key("enter"))
+	if pm.route != nil || len(pm.table.Items()) != 0 || pm.container != nil {
+		t.Errorf("after relaunch: route=%v rows=%d container=%v, want nil, 0, nil", pm.route, len(pm.table.Items()), pm.container)
 	}
 }

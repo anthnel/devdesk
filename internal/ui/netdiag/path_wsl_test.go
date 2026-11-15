@@ -266,3 +266,18 @@ func TestWithWSLSourceCellIsPlainAndSingleLine(t *testing.T) {
 		t.Errorf("source cell width = %d, want 1..47", w)
 	}
 }
+
+// A no-route lookup proves nothing about the gateway: no Windows host label.
+func TestWithWSLNoRouteHasNoWindowsHostLabel(t *testing.T) {
+	route := &pathRoute{NoRoute: true}
+	steps := withWSL(pathSteps(nil, route, []nettrace.Hop{wslHop1}), wslInfoNAT)
+	if wslLabelled(steps) {
+		t.Errorf("a cell names the Windows host: %q", wslCells(steps))
+	}
+	if got := wslStep(steps, stepGateway).addressCell(); got != "-" {
+		t.Errorf("gateway cell = %q, want %q", got, "-")
+	}
+	if got := wslStep(steps, stepInterface).addressCell(); got != "no route" {
+		t.Errorf("interface cell = %q, want %q", got, "no route")
+	}
+}

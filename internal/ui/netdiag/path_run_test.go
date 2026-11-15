@@ -234,7 +234,7 @@ func TestProducePathNameResolvesFirstAddress(t *testing.T) {
 	f := &fakeEngine{resolveFn: func(context.Context, string) ([]netip.Addr, error) {
 		return []netip.Addr{first, netip.MustParseAddr("1.2.3.4")}, nil
 	}}
-	msgs := runProducer(t, context.Background(), 1, pathTarget{Host: "example.com", Port: 443}, time.Second, f.engine())
+	msgs := runProducer(t, context.Background(), 1, pathTarget{Host: "example.com"}, time.Second, f.engine())
 
 	if f.resolveCalls != 1 || f.resolveHost != "example.com" {
 		t.Fatalf("resolve calls=%d host=%q, want 1 call for the bare host", f.resolveCalls, f.resolveHost)

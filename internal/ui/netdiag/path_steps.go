@@ -26,11 +26,13 @@ const (
 	stepGateway
 	stepTrace
 	stepHop
+	stepNoResponse
 )
 
 // pathRoute is the way out of this machine for the traced address.
 type pathRoute struct {
 	Known     bool // false: the lookup failed; interface and gateway are undetermined
+	NoRoute   bool // the lookup proved this machine has no route (Known stays false)
 	Interface string
 	Source    netip.Addr // invalid: the stack did not say
 	Gateway   netip.Addr // invalid: directly connected
@@ -46,19 +48,26 @@ type pathStep struct {
 	// WindowsHost marks the gateway row and the TTL 1 hop as the Windows
 	// virtual switch (WSL2 NAT mode only): set by withWSL.
 	WindowsHost bool
+	Tail        pathTail // stepNoResponse
+	// LastAnswer marks the last hop that answered before a silent end: set by
+	// withNoResponse.
+	LastAnswer bool
 }
 
 const (
 	sourceLabel       = "this machine"
 	routeUndetermined = "undetermined"
+	routeNone         = "no route"
+	gatewayNone       = "-"
 	gatewayDirect     = "directly connected"
 )
 
 // newPathRoute converts a route lookup into a pathRoute. A failed lookup
-// discards whatever the hop holds. Addresses are unmapped to IPv4 when they can be.
+// discards whatever the hop holds; a no-route failure is told apart from any
+// other, which stays undetermined. Addresses are unmapped to IPv4 when they can be.
 func newPathRoute(hop netcheck.RouteHop, err error) pathRoute {
 	if err != nil {
-		return pathRoute{}
+		return pathRoute{NoRoute: nettrace.IsNoRoute(err)}
 	}
 	return pathRoute{
 		Known:     true,
@@ -116,10 +125,13 @@ func pathSteps(ctr *pathContainer, route *pathRoute, hops []nettrace.Hop) []path
 
 // hopCell is the TTL of a hop row; empty for the local rows.
 func (s pathStep) hopCell() string {
-	if s.Kind != stepHop {
-		return ""
+	switch s.Kind {
+	case stepHop:
+		return strconv.Itoa(s.Hop.TTL)
+	case stepNoResponse:
+		return s.Tail.hopCell()
 	}
-	return strconv.Itoa(s.Hop.TTL)
+	return ""
 }
 
 // stepCell names the kind of row.
@@ -141,6 +153,8 @@ func (s pathStep) stepCell() string {
 		return "interface"
 	case stepGateway:
 		return "gateway"
+	case stepNoResponse:
+		return "silent"
 	}
 	return s.Hop.Kind.String()
 }
@@ -167,8 +181,14 @@ func (s pathStep) addressCell() string {
 		return s.Route.interfaceText()
 	case stepGateway:
 		return s.Route.gatewayText() + s.hostTag()
+	case stepNoResponse:
+		return s.Tail.addressCell()
 	}
-	return addrOrDash(s.Hop.Addr) + s.hostTag()
+	text := addrOrDash(s.Hop.Addr) + s.hostTag()
+	if s.LastAnswer {
+		text += lastAnswerSuffix
+	}
+	return text
 }
 
 // hostTag is the Windows host label of a row marked by withWSL.
@@ -181,6 +201,9 @@ func (s pathStep) hostTag() string {
 
 // rttCell is the round-trip time of a hop that answered; "-" otherwise.
 func (s pathStep) rttCell() string {
+	if s.Kind == stepNoResponse {
+		return "-"
+	}
 	if s.Kind != stepHop {
 		return ""
 	}
@@ -192,6 +215,9 @@ func (s pathStep) rttCell() string {
 
 // interfaceText is the interface name, followed by the source address when known.
 func (r pathRoute) interfaceText() string {
+	if r.NoRoute {
+		return routeNone
+	}
 	if !r.Known || (r.Interface == "" && !r.Source.IsValid()) {
 		return routeUndetermined
 	}
@@ -208,6 +234,8 @@ func (r pathRoute) interfaceText() string {
 // gatewayText is the gateway address, or says the destination is directly connected.
 func (r pathRoute) gatewayText() string {
 	switch {
+	case r.NoRoute:
+		return gatewayNone
 	case !r.Known:
 		return routeUndetermined
 	case !r.Gateway.IsValid() || r.Gateway.IsUnspecified():
