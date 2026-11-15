@@ -1,0 +1,48 @@
+{
+  "cli_version": "0.13.2",
+  "checkpoint_id": "b1b5097f5fa0",
+  "strategy": "manual-commit",
+  "branch": "feat/486-windows-path-trace",
+  "checkpoints_count": 2,
+  "files_touched": [
+    "docs/backlog.md"
+  ],
+  "sessions": [
+    {
+      "metadata": "/b1/b5097f5fa0/0/metadata.json",
+      "transcript": "/b1/b5097f5fa0/0/full.jsonl",
+      "compact_transcript": "/b1/b5097f5fa0/0/transcript.jsonl",
+      "content_hash": "/b1/b5097f5fa0/0/content_hash.txt",
+      "prompt": "/b1/b5097f5fa0/0/prompt.txt"
+    }
+  ],
+  "token_usage": {
+    "input_tokens": 20,
+    "cache_creation_tokens": 8445,
+    "cache_read_tokens": 1531748,
+    "output_tokens": 3217,
+    "api_call_count": 8,
+    "subagent_tokens": {
+      "input_tokens": 19,
+      "cache_creation_tokens": 57731,
+      "cache_read_tokens": 525563,
+      "output_tokens": 3614,
+      "api_call_count": 10
+    },
+    "subagent_tokens_complete": true
+  },
+  "redaction": {
+    "replacements": 0,
+    "layers": {
+      "betterleaks": 0,
+      "connection_string": 0,
+      "credential_key": 0,
+      "credential_value": 0,
+      "credentialed_uri": 0,
+      "entropy": 0,
+      "key_context": 0,
+      "provider_token": 0,
+      "shell_stdin": 0
+    }
+  }
+}
