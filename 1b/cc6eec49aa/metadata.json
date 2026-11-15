@@ -1,0 +1,50 @@
+{
+  "cli_version": "0.13.2",
+  "checkpoint_id": "1bcc6eec49aa",
+  "strategy": "manual-commit",
+  "branch": "main",
+  "checkpoints_count": 3,
+  "files_touched": [
+    "docs-site/docs/explanation/network.md",
+    "docs-site/docs/reference/keybindings.md",
+    "docs/architecture/network.md",
+    "docs/architecture/ui-components.md",
+    "docs/backlog.md",
+    "internal/app/netdiag_path_guard_test.go",
+    "internal/ui/netdiag/header.go",
+    "internal/ui/netdiag/model_test.go",
+    "internal/ui/netdiag/netdiag_path_tab_test.go",
+    "internal/ui/netdiag/path_flow_test.go",
+    "internal/ui/netdiag/path_from_route.go",
+    "internal/ui/netdiag/path_from_route_test.go",
+    "internal/ui/netdiag/path_model.go",
+    "internal/ui/netdiag/path_model_test.go",
+    "internal/ui/netdiag/path_run.go",
+    "internal/ui/netdiag/path_run_test.go",
+    "internal/ui/netdiag/path_view.go",
+    "internal/ui/netdiag/update.go"
+  ],
+  "sessions": [
+    {
+      "metadata": "/1b/cc6eec49aa/0/metadata.json",
+      "transcript": "/1b/cc6eec49aa/0/full.jsonl",
+      "compact_transcript": "/1b/cc6eec49aa/0/transcript.jsonl",
+      "content_hash": "/1b/cc6eec49aa/0/content_hash.txt",
+      "prompt": "/1b/cc6eec49aa/0/prompt.txt"
+    }
+  ],
+  "redaction": {
+    "replacements": 0,
+    "layers": {
+      "betterleaks": 0,
+      "connection_string": 0,
+      "credential_key": 0,
+      "credential_value": 0,
+      "credentialed_uri": 0,
+      "entropy": 0,
+      "key_context": 0,
+      "provider_token": 0,
+      "shell_stdin": 0
+    }
+  }
+}
