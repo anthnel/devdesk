@@ -1,0 +1,18 @@
+{
+  "tool_use_id": "toolu_014vnpWoZ7adCnHVRDfa8oBP",
+  "agent_id": "a36722b80de0643c2",
+  "subagent_type": "team-core:archivist",
+  "task_description": "ADR/backlog D152",
+  "files": [
+    "docs/backlog.md"
+  ],
+  "token_usage": {
+    "input_tokens": 11,
+    "cache_creation_tokens": 69883,
+    "cache_read_tokens": 206657,
+    "output_tokens": 3662,
+    "api_call_count": 5
+  },
+  "started_at": "2026-11-15T18:11:00.0840452+01:00",
+  "completed_at": "2026-11-15T18:11:22.4401128+01:00"
+}

@@ -1,0 +1,15 @@
+{
+  "tool_use_id": "toolu_01Pd7Eabu26d2Jj6fbc3Daq7",
+  "agent_id": "a2c2334b1fe096482",
+  "subagent_type": "dev-team:reviewer",
+  "task_description": "Revue étape 4",
+  "token_usage": {
+    "input_tokens": 43,
+    "cache_creation_tokens": 193459,
+    "cache_read_tokens": 2971302,
+    "output_tokens": 20987,
+    "api_call_count": 20
+  },
+  "started_at": "2026-11-15T18:03:40.5023604+01:00",
+  "completed_at": "2026-11-15T18:09:31.4171349+01:00"
+}

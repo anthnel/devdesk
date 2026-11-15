@@ -1,0 +1,15 @@
+{
+  "tool_use_id": "toolu_01GEfK8t2nWYknS5eZY88CSu",
+  "agent_id": "aec52a831e6910791",
+  "subagent_type": "team-core:tech-writer",
+  "task_description": "Mineurs doc revue finale",
+  "token_usage": {
+    "input_tokens": 11,
+    "cache_creation_tokens": 94327,
+    "cache_read_tokens": 399320,
+    "output_tokens": 2715,
+    "api_call_count": 6
+  },
+  "started_at": "2026-11-15T18:34:15.0740441+01:00",
+  "completed_at": "2026-11-15T18:34:40.9129326+01:00"
+}

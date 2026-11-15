@@ -1,0 +1,67 @@
+{
+  "cli_version": "0.13.2",
+  "checkpoint_id": "39a3599f754d",
+  "strategy": "manual-commit",
+  "branch": "feat/devdesk-470-trace-path-button",
+  "checkpoints_count": 21,
+  "files_touched": [
+    "docs-site/docs/explanation/network.md",
+    "docs-site/docs/reference/keybindings.md",
+    "docs/architecture/network.md",
+    "docs/architecture/ui-components.md",
+    "docs/backlog.md",
+    "internal/app/activity_guard_test.go",
+    "internal/ui/netdiag/header.go",
+    "internal/ui/netdiag/model.go",
+    "internal/ui/netdiag/model_test.go",
+    "internal/ui/netdiag/run.go",
+    "internal/ui/netdiag/trace_form.go",
+    "internal/ui/netdiag/trace_form_test.go",
+    "internal/ui/netdiag/trace_form_validation_test.go",
+    "internal/ui/netdiag/trace_level.go",
+    "internal/ui/netdiag/trace_level_test.go",
+    "internal/ui/netdiag/trace_notice_test.go",
+    "internal/ui/netdiag/update.go",
+    "internal/ui/netdiag/view.go",
+    "internal/ui/theme/button_test.go",
+    "internal/ui/theme/styles.go"
+  ],
+  "sessions": [
+    {
+      "metadata": "/39/a3599f754d/0/metadata.json",
+      "transcript": "/39/a3599f754d/0/full.jsonl",
+      "compact_transcript": "/39/a3599f754d/0/transcript.jsonl",
+      "content_hash": "/39/a3599f754d/0/content_hash.txt",
+      "prompt": "/39/a3599f754d/0/prompt.txt"
+    }
+  ],
+  "token_usage": {
+    "input_tokens": 134,
+    "cache_creation_tokens": 155873,
+    "cache_read_tokens": 6456689,
+    "output_tokens": 29120,
+    "api_call_count": 47,
+    "subagent_tokens": {
+      "input_tokens": 435,
+      "cache_creation_tokens": 2116222,
+      "cache_read_tokens": 21252190,
+      "output_tokens": 187708,
+      "api_call_count": 216
+    },
+    "subagent_tokens_complete": true
+  },
+  "redaction": {
+    "replacements": 0,
+    "layers": {
+      "betterleaks": 0,
+      "connection_string": 0,
+      "credential_key": 0,
+      "credential_value": 0,
+      "credentialed_uri": 0,
+      "entropy": 0,
+      "key_context": 0,
+      "provider_token": 0,
+      "shell_stdin": 0
+    }
+  }
+}

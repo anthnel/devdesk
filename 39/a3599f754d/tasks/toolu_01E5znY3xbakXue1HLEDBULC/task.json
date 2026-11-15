@@ -1,0 +1,15 @@
+{
+  "tool_use_id": "toolu_01E5znY3xbakXue1HLEDBULC",
+  "agent_id": "ab2d3f969094dc1f5",
+  "subagent_type": "dev-team:reviewer",
+  "task_description": "Revue finale 470",
+  "token_usage": {
+    "input_tokens": 19,
+    "cache_creation_tokens": 144364,
+    "cache_read_tokens": 903438,
+    "output_tokens": 9800,
+    "api_call_count": 9
+  },
+  "started_at": "2026-11-15T18:12:39.7719483+01:00",
+  "completed_at": "2026-11-15T18:14:18.6301876+01:00"
+}
