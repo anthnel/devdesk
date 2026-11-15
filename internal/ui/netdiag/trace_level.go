@@ -82,25 +82,27 @@ func (m *Model) escFromTrace() (*Model, tea.Cmd) {
 	}
 	m.state = m.traceOrigin
 	if m.traceOrigin == StateInput {
-		m.restoreFormFocus()
+		return m, m.restoreFormFocus()
 	}
 	return m, nil
 }
 
 // restoreFormFocus puts the cursor back where focusedField says it is, so only
-// that field blinks.
-func (m *Model) restoreFormFocus() {
+// that field blinks. It returns the Focus command of that field (nil on a
+// button), which restarts the cursor blink.
+func (m *Model) restoreFormFocus() tea.Cmd {
 	for _, in := range []*textinput.Model{&m.targetInput, &m.portInput, &m.dnsServerInput} {
 		in.Blur()
 	}
 	switch m.focusedField {
 	case fieldTarget:
-		m.targetInput.Focus()
+		return m.targetInput.Focus()
 	case fieldPort:
-		m.portInput.Focus()
+		return m.portInput.Focus()
 	case fieldDNSServer:
-		m.dnsServerInput.Focus()
+		return m.dnsServerInput.Focus()
 	}
+	return nil
 }
 
 // traceTitle is "Network › Path › host", the host cut with an ellipsis so the

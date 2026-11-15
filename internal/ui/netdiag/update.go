@@ -297,11 +297,9 @@ func (m *Model) handleKeyRunning(msg tea.KeyPressMsg) (*Model, tea.Cmd) {
 func (m *Model) handleKeyInput(msg tea.KeyPressMsg) (*Model, tea.Cmd) {
 	switch msg.String() {
 	case "down":
-		m.moveFocus(1)
-		return m, nil
+		return m, m.moveFocus(1)
 	case "up":
-		m.moveFocus(-1)
-		return m, nil
+		return m, m.moveFocus(-1)
 	case "enter":
 		// enter runs the checks from anywhere in the form, so the user need
 		// not walk to the button first; only the Trace Path button means
@@ -316,7 +314,9 @@ func (m *Model) handleKeyInput(msg tea.KeyPressMsg) (*Model, tea.Cmd) {
 	return m.updateActiveInput(msg)
 }
 
-func (m *Model) moveFocus(delta int) {
+// moveFocus moves the focus by delta fields and returns the Focus command of
+// the field that takes it (nil on a button), which restarts the cursor blink.
+func (m *Model) moveFocus(delta int) tea.Cmd {
 	switch m.focusedField {
 	case fieldTarget:
 		m.targetInput.Blur()
@@ -330,12 +330,13 @@ func (m *Model) moveFocus(delta int) {
 
 	switch m.focusedField {
 	case fieldTarget:
-		m.targetInput.Focus()
+		return m.targetInput.Focus()
 	case fieldPort:
-		m.portInput.Focus()
+		return m.portInput.Focus()
 	case fieldDNSServer:
-		m.dnsServerInput.Focus()
+		return m.dnsServerInput.Focus()
 	}
+	return nil
 }
 
 func (m *Model) updateActiveInput(msg tea.Msg) (*Model, tea.Cmd) {
@@ -426,7 +427,8 @@ func (m *Model) openDetails() (*Model, tea.Cmd) {
 func (m *Model) resetToForm() (*Model, tea.Cmd) {
 	m.state = StateInput
 	m.focusedField = fieldTarget
-	m.targetInput.Focus()
+	// Focus returns the cursor blink Cmd; dropping it freezes the cursor.
+	focusCmd := m.targetInput.Focus()
 	m.results = netcheck.Results{}
 	m.verdict = netcheck.Unknown
 	m.filterBar.ClearSearch()
@@ -437,5 +439,5 @@ func (m *Model) resetToForm() (*Model, tea.Cmd) {
 	// results should not try to leave for a view this new target has nothing
 	// to do with.
 	m.OriginView = ""
-	return m, nil
+	return m, focusCmd
 }
