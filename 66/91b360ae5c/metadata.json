@@ -1,0 +1,50 @@
+{
+  "cli_version": "0.13.2",
+  "checkpoint_id": "6691b360ae5c",
+  "strategy": "manual-commit",
+  "branch": "feat/486-windows-path-trace",
+  "checkpoints_count": 30,
+  "files_touched": [
+    "internal/netcheck/stage_route_windows_test.go",
+    "internal/nettrace/echo_conn.go",
+    "internal/nettrace/echo_conn_test.go",
+    "internal/nettrace/echo_status.go",
+    "internal/nettrace/echo_status_test.go",
+    "internal/nettrace/extended_err.go",
+    "internal/nettrace/noroute.go",
+    "internal/nettrace/noroute_windows_test.go",
+    "internal/nettrace/source_guard_test.go",
+    "internal/nettrace/trace_linux.go",
+    "internal/nettrace/trace_other.go",
+    "internal/nettrace/trace_other_test.go",
+    "internal/nettrace/trace_windows.go",
+    "internal/ui/netdiag/header.go",
+    "internal/ui/netdiag/path_platform.go",
+    "internal/ui/netdiag/path_platform_test.go",
+    "internal/ui/netdiag/path_route_windows_test.go",
+    "internal/ui/netdiag/path_windows_support_test.go"
+  ],
+  "sessions": [
+    {
+      "metadata": "/66/91b360ae5c/0/metadata.json",
+      "transcript": "/66/91b360ae5c/0/full.jsonl",
+      "compact_transcript": "/66/91b360ae5c/0/transcript.jsonl",
+      "content_hash": "/66/91b360ae5c/0/content_hash.txt",
+      "prompt": "/66/91b360ae5c/0/prompt.txt"
+    }
+  ],
+  "redaction": {
+    "replacements": 0,
+    "layers": {
+      "betterleaks": 0,
+      "connection_string": 0,
+      "credential_key": 0,
+      "credential_value": 0,
+      "credentialed_uri": 0,
+      "entropy": 0,
+      "key_context": 0,
+      "provider_token": 0,
+      "shell_stdin": 0
+    }
+  }
+}

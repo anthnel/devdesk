@@ -1,0 +1,153 @@
+{
+  "cli_version": "0.13.2",
+  "checkpoint_id": "6691b360ae5c",
+  "session_id": "d38eec9c-487f-4d2b-8207-2a8f44a617f4",
+  "strategy": "manual-commit",
+  "created_at": "2026-11-15T21:36:47.0455534Z",
+  "branch": "feat/486-windows-path-trace",
+  "checkpoints_count": 30,
+  "save_step_count": 1,
+  "files_touched": [
+    "internal/netcheck/stage_route_windows_test.go",
+    "internal/nettrace/echo_conn.go",
+    "internal/nettrace/echo_conn_test.go",
+    "internal/nettrace/echo_status.go",
+    "internal/nettrace/echo_status_test.go",
+    "internal/nettrace/extended_err.go",
+    "internal/nettrace/noroute.go",
+    "internal/nettrace/noroute_windows_test.go",
+    "internal/nettrace/source_guard_test.go",
+    "internal/nettrace/trace_linux.go",
+    "internal/nettrace/trace_other.go",
+    "internal/nettrace/trace_other_test.go",
+    "internal/nettrace/trace_windows.go",
+    "internal/ui/netdiag/header.go",
+    "internal/ui/netdiag/path_platform.go",
+    "internal/ui/netdiag/path_platform_test.go",
+    "internal/ui/netdiag/path_route_windows_test.go",
+    "internal/ui/netdiag/path_windows_support_test.go"
+  ],
+  "agent": "Claude Code",
+  "model": "claude-sonnet-5-5",
+  "turn_id": "f675d61d900e",
+  "compact_transcript_start": 0,
+  "session_token_usage": {
+    "input_tokens": 188,
+    "cache_creation_tokens": 204820,
+    "cache_read_tokens": 11006933,
+    "output_tokens": 47661,
+    "api_call_count": 66,
+    "subagent_tokens": {
+      "input_tokens": 432,
+      "cache_creation_tokens": 2145617,
+      "cache_read_tokens": 13751480,
+      "output_tokens": 222543,
+      "api_call_count": 219
+    },
+    "subagent_tokens_complete": true
+  },
+  "redaction": {
+    "replacements": 0,
+    "layers": {
+      "betterleaks": 0,
+      "connection_string": 0,
+      "credential_key": 0,
+      "credential_value": 0,
+      "credentialed_uri": 0,
+      "entropy": 0,
+      "key_context": 0,
+      "provider_token": 0,
+      "shell_stdin": 0
+    }
+  },
+  "skill_events_version": 1,
+  "skill_events": [
+    {
+      "id": "prompt-skill-claude-code-team-core:feature-2026-11-15T20:28:56.356855Z",
+      "event_type": "prompt_invocation",
+      "skill": {
+        "name": "team-core:feature"
+      },
+      "source": {
+        "agent": "claude-code",
+        "signal": "prompt_slash_command",
+        "confidence": "explicit"
+      },
+      "turn_id": "8bccb023a6ca",
+      "timestamp": "2026-11-15T20:28:56.356855Z",
+      "native": {
+        "command": "/team-core:feature"
+      },
+      "collapse": {
+        "target": "user_message",
+        "label": "/team-core:feature",
+        "default_collapsed": true
+      }
+    },
+    {
+      "id": "claude-skill-toolu_019wMDEBK83fMAWmRH4aNpJe",
+      "event_type": "tool_invocation",
+      "skill": {
+        "name": "team-core:resume-work"
+      },
+      "source": {
+        "agent": "claude-code",
+        "signal": "skill_tool_use",
+        "confidence": "explicit"
+      },
+      "turn_id": "f675d61d900e",
+      "transcript_anchor": {
+        "unit": "line",
+        "start": 48,
+        "end": 49,
+        "entry_ids": [
+          "10beb62b-e74d-4bcc-ba1c-7cde36edf66a"
+        ],
+        "tool_use_id": "toolu_019wMDEBK83fMAWmRH4aNpJe"
+      },
+      "native": {
+        "tool_name": "Skill",
+        "tool_use_id": "toolu_019wMDEBK83fMAWmRH4aNpJe"
+      },
+      "collapse": {
+        "target": "tool_pair",
+        "label": "Skill: team-core:resume-work",
+        "default_collapsed": true
+      }
+    },
+    {
+      "id": "claude-skill-toolu_011iHjMuKfVA2r9M7rsSG64f",
+      "event_type": "tool_invocation",
+      "skill": {
+        "name": "plane-integration:plane-conventions"
+      },
+      "source": {
+        "agent": "claude-code",
+        "signal": "skill_tool_use",
+        "confidence": "explicit"
+      },
+      "turn_id": "f675d61d900e",
+      "transcript_anchor": {
+        "unit": "line",
+        "start": 53,
+        "end": 54,
+        "entry_ids": [
+          "e5c3f741-ad1f-43ed-8046-e3c59252eb79"
+        ],
+        "tool_use_id": "toolu_011iHjMuKfVA2r9M7rsSG64f"
+      },
+      "native": {
+        "tool_name": "Skill",
+        "tool_use_id": "toolu_011iHjMuKfVA2r9M7rsSG64f"
+      },
+      "collapse": {
+        "target": "tool_pair",
+        "label": "Skill: plane-integration:plane-conventions",
+        "default_collapsed": true
+      }
+    }
+  ],
+  "session_metrics": {
+    "turn_count": 30
+  }
+}
