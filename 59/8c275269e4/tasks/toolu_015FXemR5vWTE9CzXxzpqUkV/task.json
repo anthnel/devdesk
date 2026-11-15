@@ -1,0 +1,15 @@
+{
+  "tool_use_id": "toolu_015FXemR5vWTE9CzXxzpqUkV",
+  "agent_id": "a6568525f74280fc6",
+  "subagent_type": "project-tester",
+  "task_description": "Vérification complète DEVDESK-485",
+  "token_usage": {
+    "input_tokens": 35,
+    "cache_creation_tokens": 45931,
+    "cache_read_tokens": 713882,
+    "output_tokens": 5167,
+    "api_call_count": 18
+  },
+  "started_at": "2026-11-15T20:25:57.0514666+01:00",
+  "completed_at": "2026-11-15T20:47:28.0226052+01:00"
+}

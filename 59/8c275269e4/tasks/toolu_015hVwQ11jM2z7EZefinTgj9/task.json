@@ -1,0 +1,15 @@
+{
+  "tool_use_id": "toolu_015hVwQ11jM2z7EZefinTgj9",
+  "agent_id": "af41a0213f8acea2a",
+  "subagent_type": "project-tester",
+  "task_description": "Test rouge resetToForm",
+  "token_usage": {
+    "input_tokens": 7,
+    "cache_creation_tokens": 89369,
+    "cache_read_tokens": 221900,
+    "output_tokens": 2571,
+    "api_call_count": 4
+  },
+  "started_at": "2026-11-15T20:24:40.7357614+01:00",
+  "completed_at": "2026-11-15T20:25:13.7817266+01:00"
+}

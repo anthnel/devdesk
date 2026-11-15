@@ -1,0 +1,15 @@
+{
+  "tool_use_id": "toolu_01SNi1CAWFNXRZaMZSWy5eo3",
+  "agent_id": "a9597f9623a803a5f",
+  "subagent_type": "project-coder",
+  "task_description": "Vert resetToForm",
+  "token_usage": {
+    "input_tokens": 11,
+    "cache_creation_tokens": 85741,
+    "cache_read_tokens": 258066,
+    "output_tokens": 1559,
+    "api_call_count": 5
+  },
+  "started_at": "2026-11-15T20:25:18.8358211+01:00",
+  "completed_at": "2026-11-15T20:25:48.5371197+01:00"
+}
