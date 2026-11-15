@@ -35,6 +35,8 @@ type reply struct {
 	ICMPCode uint8
 	Origin   uint8
 	Errno    uint32
+	// Status is the ICMP echo status, set only when Origin is originEcho.
+	Status uint32
 	// RTT is left zero by decodeExtendedErr; the caller measures it.
 	RTT time.Duration
 }
@@ -67,6 +69,9 @@ func decodeExtendedErr(data []byte) (reply, error) {
 // reported as HopUnreachable, so a multi-homed target that answers from
 // another of its addresses is not recognized as reached.
 func classify(r reply, target netip.Addr) HopKind {
+	if r.Origin == originEcho {
+		return classifyEcho(r, target)
+	}
 	if r.Origin == originLocal {
 		return HopError // the local stack refused the probe (e.g. EMSGSIZE)
 	}

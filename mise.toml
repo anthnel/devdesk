@@ -88,12 +88,42 @@ if [ -n "$unformatted" ]; then
 fi
 """
 
+# vet and lint run twice: for the host platform, then cross-compiled for Windows
+# (DEVDESK-486). internal/nettrace and internal/ui/netdiag carry *_windows.go
+# files that a Linux or macOS run never type-checks, so a break there would only
+# show up on a Windows machine. `env` on a sub-task sets GOOS without any shell
+# syntax, which keeps it identical under bash on CI and cmd on Windows. The ci
+# task and ci.yml keep calling `vet` and `lint`, so their step lists are unchanged.
 [tasks.vet]
-description = "Run go vet"
+description = "Run go vet for the host platform and for Windows (cross-compiled)"
+run = [
+  { task = "vet-host" },
+  { task = "vet-windows" },
+]
+
+[tasks.vet-host]
+description = "Run go vet for the host platform"
+run = "go vet ./..."
+
+[tasks.vet-windows]
+description = "Run go vet cross-compiled for Windows"
+env = { GOOS = "windows" }
 run = "go vet ./..."
 
 [tasks.lint]
-description = "Run golangci-lint"
+description = "Run golangci-lint for the host platform and for Windows (cross-compiled)"
+run = [
+  { task = "lint-host" },
+  { task = "lint-windows" },
+]
+
+[tasks.lint-host]
+description = "Run golangci-lint for the host platform"
+run = "golangci-lint run"
+
+[tasks.lint-windows]
+description = "Run golangci-lint cross-compiled for Windows"
+env = { GOOS = "windows" }
 run = "golangci-lint run"
 
 [tasks.tidy]

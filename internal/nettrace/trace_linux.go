@@ -21,9 +21,6 @@ import (
 // answers with Port Unreachable.
 const defaultProbePort = 33435
 
-// probePayload is the neutral content of a probe.
-var probePayload = []byte("abcdefghijklmnopqrstuvwabcdefghi")
-
 // errQueueBufLen sizes the control buffer for one IP_RECVERR message
 // (cmsghdr, sock_extended_err and the offender's sockaddr).
 const errQueueBufLen = 256
@@ -87,18 +84,6 @@ func unsupportedSocketError(err error) error {
 		if errors.Is(err, errno) {
 			return fmt.Errorf("%w: %w", ErrUnsupported, err)
 		}
-	}
-	return err
-}
-
-// connectError maps a connect failure. "Network" or "host unreachable" is
-// ErrNoRoute; a refused connect is never ErrUnsupported.
-func connectError(err error) error {
-	if IsNoRoute(err) {
-		if errors.Is(err, ErrNoRoute) {
-			return err
-		}
-		return fmt.Errorf("%w: %w", ErrNoRoute, err)
 	}
 	return err
 }

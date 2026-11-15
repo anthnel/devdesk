@@ -439,7 +439,7 @@ func (m *Model) GetHelpContent() help.Content {
 			{
 				Title: "Diagnostics Tab — Tracing the path",
 				Body: "Traces the hops between this machine and a target, in this process — no " +
-					"container, no traceroute binary. Native Linux and WSL2 only: on macOS, Windows and WSL1 the Trace Path button, H, " +
+					"container, no traceroute binary. Works on native Linux, native Windows and WSL2: on macOS and WSL1 the Trace Path button, H, " +
 					"enter and ctrl+o are greyed out, and the footer says why. IPv4 only: a host name is resolved to its IPv4 address. " +
 					"The column starts on this machine: the interface the target's traffic leaves by, " +
 					"with its source address, and the gateway, read from this machine's routing table, " +

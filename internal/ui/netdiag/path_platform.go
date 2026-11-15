@@ -17,9 +17,8 @@ const (
 
 	// The platform-specific reasons name what is missing and, where one exists,
 	// the way out.
-	reasonPathMacOS   = "The path trace needs Linux — not available on macOS"
-	reasonPathWindows = "The path trace needs Linux — not available on Windows (use WSL2)"
-	reasonPathWSL1    = "The path trace needs a Linux kernel — WSL1 has none (use WSL2)"
+	reasonPathMacOS = "The path trace needs Linux — not available on macOS"
+	reasonPathWSL1  = "The path trace needs a Linux kernel — WSL1 has none (use WSL2)"
 )
 
 // pathPlatformError is a refusal that names the platform. It unwraps to
@@ -36,10 +35,8 @@ func pathSupport(goos string, kind wslenv.Kind, traceErr error) error {
 	switch {
 	case goos == "darwin":
 		return &pathPlatformError{reason: reasonPathMacOS}
-	case goos == "windows":
-		return &pathPlatformError{reason: reasonPathWindows}
-	case goos != "linux":
-		return &pathPlatformError{reason: "The path trace needs Linux — not available on " + goos}
+	case goos != "linux" && goos != "windows":
+		return &pathPlatformError{reason: "The path trace is not available on " + goos}
 	case kind == wslenv.KindWSL1:
 		return &pathPlatformError{reason: reasonPathWSL1}
 	}
