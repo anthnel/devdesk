@@ -6,6 +6,7 @@ import (
 	"context"
 	"encoding/binary"
 	"errors"
+	"fmt"
 	"net"
 	"net/netip"
 	"os"
@@ -348,6 +349,14 @@ func TestConnectErrorIsNeverUnsupported(t *testing.T) {
 		if err := connectError(errno); !errors.Is(err, ErrNoRoute) || !errors.Is(err, errno) {
 			t.Errorf("%v: got %v, want ErrNoRoute wrapping the raw errno", errno, err)
 		}
+	}
+	// An error that already carries ErrNoRoute is returned as is: no double wrap.
+	already := fmt.Errorf("%w: %w", ErrNoRoute, syscall.ENETUNREACH)
+	if got := connectError(already); got != already {
+		t.Errorf("already wrapped: got %v, want the same error", got)
+	}
+	if got := connectError(ErrNoRoute); got != ErrNoRoute {
+		t.Errorf("ErrNoRoute: got %v, want ErrNoRoute", got)
 	}
 }
 

@@ -13,7 +13,7 @@ import (
 
 func TestParsePathTarget(t *testing.T) {
 	const (
-		errPort = "port must be a number between 1 and 65535"
+		errPort = "Path ignores ports: enter a host or IP address only"
 		errV6   = "Only IPv4 targets are supported by the path trace"
 	)
 	tests := []struct {
@@ -23,9 +23,14 @@ func TestParsePathTarget(t *testing.T) {
 		wantErr string
 	}{
 		{"ipv4", "1.1.1.1", pathTarget{Host: "1.1.1.1"}, ""},
-		{"host with port", "example.com:443", pathTarget{Host: "example.com", Port: 443}, ""},
+		{"host with port", "example.com:443", pathTarget{}, errPort},
+		{"host with port 8080", "host:8080", pathTarget{}, errPort},
+		{"ipv4 with port 80", "1.2.3.4:80", pathTarget{}, errPort},
+		{"bare host", "host", pathTarget{Host: "host"}, ""},
+		{"ipv6 bracketed", "[::1]", pathTarget{}, errV6},
+		{"empty port", "host:", pathTarget{}, errPort},
 		{"trimmed", " host ", pathTarget{Host: "host"}, ""},
-		{"ipv4 with port", "10.0.0.1:65535", pathTarget{Host: "10.0.0.1", Port: 65535}, ""},
+		{"ipv4 with port", "10.0.0.1:65535", pathTarget{}, errPort},
 		{"empty", "", pathTarget{}, "target is required"},
 		{"blank", "   ", pathTarget{}, "target is required"},
 		{"space inside", "a b", pathTarget{}, "target must be a hostname or IP address"},
@@ -33,7 +38,7 @@ func TestParsePathTarget(t *testing.T) {
 		{"port too large", "host:70000", pathTarget{}, errPort},
 		{"port not a number", "host:x", pathTarget{}, errPort},
 		{"ipv6 loopback", "::1", pathTarget{}, errV6},
-		{"ipv6 bracketed with port", "[::1]:443", pathTarget{}, errV6},
+		{"ipv6 bracketed with port", "[::1]:443", pathTarget{}, errPort},
 		{"ipv6 global", "2001:db8::1", pathTarget{}, errV6},
 	}
 	for _, tt := range tests {
@@ -61,7 +66,6 @@ func TestPathTargetString(t *testing.T) {
 		want string
 	}{
 		{pathTarget{Host: "1.1.1.1"}, "1.1.1.1"},
-		{pathTarget{Host: "example.com", Port: 443}, "example.com:443"},
 	}
 	for _, tt := range tests {
 		if got := tt.tg.String(); got != tt.want {
@@ -121,6 +125,8 @@ func TestPathErrorLabel(t *testing.T) {
 		{"not unicast", nettrace.ErrNotUnicast, "The path trace needs a unicast address"},
 		{"no route", nettrace.ErrNoRoute, "No route to example.com from this machine — no probe was sent"},
 		{"no route wrapped", raw, "No route to example.com from this machine — no probe was sent"},
+		{"raw ENETUNREACH", syscall.ENETUNREACH, "No route to example.com from this machine — no probe was sent"},
+		{"raw EHOSTUNREACH wrapped", fmt.Errorf("sendto: %w", syscall.EHOSTUNREACH), "No route to example.com from this machine — no probe was sent"},
 		{"unsupported", nettrace.ErrUnsupported, "The path trace is not supported on this platform"},
 		{"other", errors.New("sendto: operation not permitted"), "The path trace failed — check logs"},
 	}

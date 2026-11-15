@@ -94,7 +94,10 @@ func unsupportedSocketError(err error) error {
 // connectError maps a connect failure. "Network" or "host unreachable" is
 // ErrNoRoute; a refused connect is never ErrUnsupported.
 func connectError(err error) error {
-	if errors.Is(err, syscall.ENETUNREACH) || errors.Is(err, syscall.EHOSTUNREACH) {
+	if IsNoRoute(err) {
+		if errors.Is(err, ErrNoRoute) {
+			return err
+		}
 		return fmt.Errorf("%w: %w", ErrNoRoute, err)
 	}
 	return err

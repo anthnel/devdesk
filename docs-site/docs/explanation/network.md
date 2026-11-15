@@ -425,16 +425,23 @@ for this machine.
 - **How it probes.** One UDP datagram per hop, to port 33435, with a growing
   time-to-live. The router that drops it answers, and the table fills in as the
   answers come.
-- **The port is not probed.** You may type `host:port`; the port is shown in
-  the header but the probes always go to UDP port 33435.
+- **No port.** The field takes a host name or an IPv4 address only. A target
+  with a port (`host:80`) is refused with `Path ignores ports: enter a host or
+  IP address only`, and nothing is sent. The trace reaches a host, not a
+  service: the probes always go to UDP port 33435.
 - **The list starts on this machine.** Before the hops, three rows say how
   your traffic leaves: `source` (`this machine`), `interface` (the interface
   the target's traffic uses, with its source address, for example
   `eth0 (192.168.1.21)`) and `gateway` (the next router, or `directly connected`
   when there is none). They come from this machine's routing table, so with a
   full-tunnel VPN the interface row names the tunnel. If the routing table
-  can't answer, both rows read `undetermined` and the trace goes on. The
-  footer counts only the hops that answered, not these three rows.
+  can't answer, both rows read `undetermined` and the trace goes on. If it says
+  there is no route to the target, the interface row reads `no route` and the
+  gateway row `-`. `undetermined` says nothing either way; `no route` says this
+  machine has none. In that case the footer says `No route to <host> from this
+  machine — no probe was sent`, and the rows that describe this machine stay on
+  screen. Any other error empties the list. The footer counts only the hops that
+  answered, not these three rows.
 - **Under WSL2.** The distro is a VM, so the `source` row reads
   `WSL2 (VM), not the Windows host · NAT mode` (or `· mirrored mode`, or
   `· mode unknown` when DevDesk can't tell; it asks `wslinfo`, which needs
@@ -478,6 +485,14 @@ for this machine.
 - **A silent hop is not a failure.** Many routers do not answer these probes.
   The row reads `silent` (dim, never red) and the trace goes on. The number of
   hops that answer can vary from one run to the next.
+- **When the trace ends without an answer.** If it stops on the hop limit or
+  the time limit, the silent hops at the end are folded into one row: `Hop`
+  `7+`, step `silent`, for example `no response beyond hop 6 (hops 7 to 30)`
+  (`no response from any hop (hops 1 to 30)` when no hop answered). The last hop
+  that answered ends with `· last to answer`. The rows only say what was
+  observed, not why. Silent hops are most often a router or firewall that does
+  not answer these probes; that is a likely explanation, not something the trace
+  checks.
 - **Nothing is sent before `enter`.** `esc` cancels a running trace and keeps
   the hops already seen. The header says how a trace ended: `Reached at hop N`,
   `Reported unreachable at hop N`, `No answer from the target within N hops`,

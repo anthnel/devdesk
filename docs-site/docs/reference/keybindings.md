@@ -79,8 +79,9 @@ when there is nothing selected to delete.
 | `↑` `↓` `PageUp` `PageDown` `Home` `End` | Move in the hop table |
 | `Tab` | Switch tab |
 
-The field takes `host` or `host:port`. Nothing is sent until you press `enter`.
-`enter` is greyed out on a platform that cannot trace (the trace runs on Linux
+The field takes a host name or an IPv4 address, with no port: `host:80` is
+refused (`Path ignores ports: enter a host or IP address only`). Nothing is
+sent until you press `enter`. `enter` is greyed out on a platform that cannot trace (the trace runs on Linux
 only, for now).
 
 From the Diagnostics tab, `H` on the **Local route** row of the results opens

@@ -301,6 +301,34 @@ func TestHelpDescribesFiveTabsAndPathKeys(t *testing.T) {
 	}
 }
 
+// TestPathHelpDescribesFailureReadingAndRefusedPort pins the failure wording of
+// the Path help (DEVDESK-335): the three ways a trace can stop, and the port
+// being refused instead of ignored.
+func TestPathHelpDescribesFailureReadingAndRefusedPort(t *testing.T) {
+	var body string
+	for _, s := range New(testConfig()).GetHelpContent().Sections {
+		if s.Title == "Path Tab — How it works" {
+			body = s.Body
+		}
+	}
+	if body == "" {
+		t.Fatal(`no section "Path Tab — How it works"`)
+	}
+	for _, want := range []string{
+		"no response beyond", "last to answer", "no route", "undetermined",
+		"33435", "IPv4", "port is refused",
+	} {
+		if !strings.Contains(body, want) {
+			t.Errorf("Path help lacks %q", want)
+		}
+	}
+	for _, gone := range []string{"optionally followed by :port", "does not affect the probes"} {
+		if strings.Contains(body, gone) {
+			t.Errorf("Path help still contains %q (the port is now refused)", gone)
+		}
+	}
+}
+
 func TestPathShortcutsAndHeaderComeFromThePathModel(t *testing.T) {
 	m := onPathTab(t)
 	got := m.GetShortcuts()

@@ -103,7 +103,7 @@ func TestPathBarShowsTheTargetFieldAndTheLaunchKeyIsListed(t *testing.T) {
 	if !strings.Contains(bar, "Target ›") {
 		t.Errorf("bar = %q, want the Target label", bar)
 	}
-	if !strings.Contains(bar, "hostname or IPv4 address[:port]") {
+	if !strings.Contains(bar, "hostname or IPv4 address") {
 		t.Errorf("bar = %q, want the placeholder", bar)
 	}
 	if !testutil.ShortcutEnabled(pm.shortcuts(), "enter") {
@@ -260,13 +260,53 @@ func TestPathUnresolvedNameIsAPersistentFooterError(t *testing.T) {
 	}
 }
 
+// A refused port is an input error, not a trace state: no run, no row, no
+// persistent run error, and the field keeps what was typed.
+func TestPathRefusedPortIsNotATraceState(t *testing.T) {
+	pm, f := newPM(t)
+	pm, _ = launched(t, pm, "host:8080")
+	if pm.state != pathEditing || pm.result != nil || pm.errText != "" || pm.hopCount() != 0 {
+		t.Errorf("state=%v result=%v errText=%q hops=%d, want a clean editing state", pm.state, pm.result, pm.errText, pm.hopCount())
+	}
+	if pm.input.Value() != "host:8080" {
+		t.Errorf("field = %q, want the typed value kept", pm.input.Value())
+	}
+	if pm.footer.Level() != components.LevelError || pm.footer.Text() != errPathPortText {
+		t.Errorf("footer = {%v %q}, want Error %q", pm.footer.Level(), pm.footer.Text(), errPathPortText)
+	}
+	if f.resolveCalls != 0 || f.traceCalls != 0 {
+		t.Errorf("engine called (%d resolve, %d trace)", f.resolveCalls, f.traceCalls)
+	}
+}
+
+// Bare hosts and IPv6 literals are never read as host:port.
+func TestPathBareTargetsAreNotPortErrors(t *testing.T) {
+	for _, in := range []string{"host", "1.2.3.4", "::1", "[::1]"} {
+		_, err := parsePathTarget(in)
+		if err != nil && err.Error() == errPathPortText {
+			t.Errorf("parsePathTarget(%q) = port error, want none", in)
+		}
+	}
+	for _, in := range []string{"host", "1.2.3.4"} {
+		if _, err := parsePathTarget(in); err != nil {
+			t.Errorf("parsePathTarget(%q) error = %v, want accepted", in, err)
+		}
+	}
+}
+
+// errPathPortText is the footer text of a target that carries a port.
+const errPathPortText = "Path ignores ports: enter a host or IP address only"
+
 func TestPathLaunchRefusals(t *testing.T) {
 	tests := []struct {
 		name, input, want string
 	}{
 		{"empty", "", "Target is required"},
 		{"ipv6", "::1", "Only IPv4 targets are supported by the path trace"},
-		{"port zero", "h:0", "Port must be a number between 1 and 65535"},
+		{"port zero", "h:0", errPathPortText},
+		{"host with port", "host:8080", errPathPortText},
+		{"ipv4 with port", "1.2.3.4:80", errPathPortText},
+		{"bracketed ipv6 with port", "[::1]:443", errPathPortText},
 	}
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
@@ -413,7 +453,7 @@ func TestPathDoneEnterRelaunchesAndEscEdits(t *testing.T) {
 	// update mutates and returns the same model, so each branch gets its own.
 	newDone := func() *PathModel {
 		pm, _ := newPM(t)
-		pm, _ = launched(t, pm, "1.1.1.1:443")
+		pm, _ = launched(t, pm, "1.1.1.1")
 		pm, _ = pmFeed(t, pm, pathDoneMsg{gen: pm.gen, result: nettrace.Result{
 			Outcome: nettrace.OutcomeReached, Hops: []nettrace.Hop{hopOf(1, nettrace.HopTarget)},
 		}})
@@ -422,20 +462,20 @@ func TestPathDoneEnterRelaunchesAndEscEdits(t *testing.T) {
 	pm := newDone()
 	g := pm.gen
 
-	if v, _ := headerValue(pm, "Target"); !strings.Contains(v, "1.1.1.1:443") {
-		t.Errorf("Target header = %q, want the host:port", v)
+	if v, _ := headerValue(pm, "Target"); !strings.Contains(v, "1.1.1.1") {
+		t.Errorf("Target header = %q, want the host", v)
 	}
 	if !testutil.ShortcutEnabled(pm.shortcuts(), "enter") || !testutil.HasShortcut(pm.shortcuts(), "esc") {
 		t.Errorf("done shortcuts = %v, want enter and esc", testutil.ShortcutKeys(pm.shortcuts()))
 	}
 
 	again, cmd := pmFeed(t, pm, testutil.Key("enter"))
-	if cmd == nil || !again.running() || again.gen != g+1 || again.target != (pathTarget{Host: "1.1.1.1", Port: 443}) {
+	if cmd == nil || !again.running() || again.gen != g+1 || again.target != (pathTarget{Host: "1.1.1.1"}) {
 		t.Errorf("relaunch: cmd=%v running=%v gen=%d target=%v", cmd != nil, again.running(), again.gen, again.target)
 	}
 
 	edit, _ := pmFeed(t, newDone(), testutil.Key("esc"))
-	if !edit.InEditMode() || edit.input.Value() != "1.1.1.1:443" {
+	if !edit.InEditMode() || edit.input.Value() != "1.1.1.1" {
 		t.Errorf("esc from done: edit=%v value=%q, want editing with the value kept", edit.InEditMode(), edit.input.Value())
 	}
 	if edit.hopCount() != 1 {

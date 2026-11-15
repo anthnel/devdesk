@@ -4,7 +4,6 @@ import (
 	"errors"
 	"fmt"
 	"slices"
-	"strconv"
 	"strings"
 
 	"github.com/anthnel/devdesk/internal/nettrace"
@@ -19,45 +18,46 @@ var (
 	// shown as is in the footer, hence the capital letter.
 	errPathIPv6 = errors.New( //nolint:staticcheck // ST1005: user-facing text, same wording as pathErrorLabel
 		"Only IPv4 targets are supported by the path trace")
+	// errPathPort is the validation message for a target carrying a port. It
+	// is shown as is in the footer, hence the capital letter.
+	errPathPort = errors.New( //nolint:staticcheck // ST1005: user-facing text
+		"Path ignores ports: enter a host or IP address only")
 )
 
-// pathTarget is the validated input of the path trace. Port is optional (0 =
-// none); it is shown but does not change the probes.
+// pathTarget is the validated input of the path trace: a host name or an IPv4
+// address. The trace probes the path to a host, not to a service, so a port is
+// refused at parse time (errPathPort).
 type pathTarget struct {
 	Host string
-	Port int
 }
 
-// String renders the target as typed: "host" or "host:port".
-func (t pathTarget) String() string {
-	if t.Port == 0 {
-		return t.Host
-	}
-	return t.Host + ":" + strconv.Itoa(t.Port)
-}
+// String renders the target as typed.
+func (t pathTarget) String() string { return t.Host }
 
-// parsePathTarget validates "host" or "host:port". IPv6 literals are refused.
+// parsePathTarget validates a bare host name or IPv4 address. A port ("host:80",
+// "[::1]:443", "host:") is refused with errPathPort; IPv6 literals ("::1",
+// "[::1]") are refused with errPathIPv6.
 func parsePathTarget(input string) (pathTarget, error) {
 	s := strings.TrimSpace(input)
 	if s == "" {
 		return pathTarget{}, errors.New("target is required")
 	}
+	// "[addr]:xxx" is a bracketed literal followed by a port.
+	if strings.HasPrefix(s, "[") && strings.Contains(s, "]:") {
+		return pathTarget{}, errPathPort
+	}
 	// Brackets or several colons can only be an IPv6 literal.
 	if strings.Contains(s, "[") || strings.Count(s, ":") > 1 {
 		return pathTarget{}, errPathIPv6
 	}
-	host, portText, hasPort := strings.Cut(s, ":")
-	if err := validateTarget(host); err != nil {
+	// Exactly one colon: whatever follows it is a port, valid or not.
+	if strings.Contains(s, ":") {
+		return pathTarget{}, errPathPort
+	}
+	if err := validateTarget(s); err != nil {
 		return pathTarget{}, err
 	}
-	if !hasPort {
-		return pathTarget{Host: host}, nil
-	}
-	if err := validatePort(portText); err != nil {
-		return pathTarget{}, err
-	}
-	port, _ := strconv.Atoi(portText) // validatePort accepted it
-	return pathTarget{Host: host, Port: port}, nil
+	return pathTarget{Host: s}, nil
 }
 
 // visiblePathHops returns a new slice of the hops to display: sorted by TTL,
@@ -91,7 +91,7 @@ func pathErrorLabel(host string, err error) string {
 		return "Only IPv4 targets are supported by the path trace"
 	case errors.Is(err, nettrace.ErrNotUnicast):
 		return "The path trace needs a unicast address"
-	case errors.Is(err, nettrace.ErrNoRoute):
+	case nettrace.IsNoRoute(err):
 		return "No route to " + host + " from this machine — no probe was sent"
 	case errors.Is(err, nettrace.ErrUnsupported):
 		return reasonPathUnsupported

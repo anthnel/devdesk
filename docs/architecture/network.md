@@ -877,7 +877,7 @@ verified: a declared exception.
   Nothing is shown before the route is known, so a resolution
   error leaves 0 rows. The **target field is not in the body**: it sits in the footer's
   bar slot, framed by `components.BarFrame` (`Target › ` + the field,
-  placeholder `hostname or IPv4 address[:port]`). That slot is shown on this
+  placeholder `hostname or IPv4 address`). That slot is shown on this
   tab in every state, so `GetFooterHeight()` is 5 (bar 2, tab row 1, blank
   line 1, info line 1) and the layout does not move between editing, running
   and done. The tab keeps its own `FooterMessage`, returned by `activeFooter`,
@@ -1186,8 +1186,9 @@ label, never that text, in a summary.
   up to the terminal one is resolved.
 - **`Options.MaxHops` is not tied to the configuration** (`traceroute_max_hops`
   stays removed).
-- **The optional port has no effect on the probes.** The probes are UDP to the
-  fixed port 33435 (`defaultProbePort`, not exposed). See "The Path tab" below.
+- **The probes are UDP to the fixed port 33435** (`defaultProbePort`, not
+  exposed). The Path tab refuses a target that carries a port. See "The Path
+  tab" below.
 
 **`Supported()` and the Path tab.** The Path tab calls `Supported()` as a launch
 guard (`PathModel.launchable()`): where it returns an error, `enter` is greyed
@@ -1269,21 +1270,31 @@ the probe socket is unmarked and not bound to a device, so a VPN that captures
 the default route shows as the interface row, and the probes take that route.
 
 - **Interface row**: `eth0 (192.168.1.21)`; without a source address `eth0`;
-  without a name `unnamed (192.168.1.21)`; `undetermined` when the lookup failed.
+  without a name `unnamed (192.168.1.21)`; `no route` when the lookup proved
+  there is none; `undetermined` when the lookup failed for another reason.
 - **Gateway row**: the address; `directly connected` when the route has none
-  (or an unspecified one); `undetermined` when the lookup failed. Both texts are
-  dim. The row stays even when the gateway is also hop 1.
+  (or an unspecified one); `-` after `no route`; `undetermined` when the lookup
+  failed. The texts `undetermined`, `directly connected` and `-` are dim. The
+  row stays even when the gateway is also hop 1.
+- **`no route` is not `undetermined`.** `newPathRoute` sets `pathRoute.NoRoute`
+  only when `nettrace.IsNoRoute(err)` is true: `ErrNoRoute`, or `ENETUNREACH` /
+  `EHOSTUNREACH` anywhere in the error chain (`errors.Is`; the error text never
+  counts). `IsNoRoute` (`internal/nettrace/noroute.go`) is the single place that
+  classifies a no-route failure. Any other failure, including a routing table
+  that could not be read, leaves `NoRoute` false and the rows read
+  `undetermined`: that says nothing either way.
 - **A failed lookup is not fatal.** The trace still runs; the rows read
-  `undetermined`. The raw error is logged (`ERROR [netdiag/path] route <host>:
-  …`) and never shown.
+  `no route` or `undetermined`. The raw error is logged (`ERROR [netdiag/path]
+  route <host>: …`) and never shown.
 - **The source is never a host name.** It is the fixed text `this machine`, not
   `os.Hostname()`: under WSL2 the distro's host name defaults to the Windows
   computer name, which would label the source as another machine. Under WSL2
   the row says so instead (see "The WSL2 labels" below), still without a host
   name.
 - **Counter.** The footer's `Tracing <host> — N hops answered` counts hop rows
-  only (`hopCount`), not the local rows. An error done (`ErrNoRoute`, …) still
-  clears every row.
+  only (`hopCount`), not the local rows. A run that ends on a no-route error
+  keeps the local rows; any other error done clears every row (see "Errors
+  become fixed labels" below).
 
 **The container source (DEVDESK-330).** The column can start in a running
 container of a Docker Engine instead of on this machine. Files: `path_source.go`
@@ -1526,21 +1537,52 @@ with `errors.Is`, wrapped errors included) to US English sentences:
 a resolution failure to `Could not resolve <host> — no probe was sent`, no
 IPv4 answer to `<host> has no IPv4 address — the path trace is IPv4 only`,
 `ErrNotIPv4`, `ErrNotUnicast`, `ErrNoRoute` (`No route to <host> from this
-machine — no probe was sent`) and `ErrUnsupported` to their own sentence, and
+machine — no probe was sent`; matched with `nettrace.IsNoRoute`, which also
+accepts a raw `ENETUNREACH` / `EHOSTUNREACH` in the error chain) and `ErrUnsupported` to their own sentence, and
 anything else to `The path trace failed — check logs`. The raw error text
 (errno, resolver message, in the machine's language) goes to the log only
 (`ERROR [netdiag/path] resolve|trace <host>: …`). An error returns the tab to
 `pathEditing` with the field focused, the hops cleared and the label shown as a
-persistent error (level Error) until the field changes or the next launch. How
+persistent error (level Error) until the field changes or the next launch.
+`handleDoneError` decides what stays on screen: when `nettrace.IsNoRoute(err)`
+is true, the column **keeps the local rows** (container rows, source, interface
+and gateway, platform labels), with the route set to `pathRoute{NoRoute: true}`
+(`no route`, gateway `-`); the hops are cleared. Any other error clears the
+route, the container, the platform info and every row, as before. How
 a successful trace ended is the header's `Path` field (`pathOutcomeLabel`:
 `Reached at hop N`, `Reported unreachable at hop N`,
 `No answer from the target within N hops`, `Stopped after 30 s`, `Canceled`).
 
-**The port is accepted and shown, not probed.** The field takes `host` or
-`host:port` (1 to 65535). The port is kept in `pathTarget.Port` and shown in
-the header's `Target` field, but the probes are UDP to port 33435 whatever it
-says; the `?` help's "How it works" section says the same.
-`traceroute_max_hops` is still not a
+**When the call fails (DEVDESK-335).** `path_noresponse.go`. When a trace ends
+on `OutcomeMaxHops` or `OutcomeDeadline`, `refreshSteps` passes the rows through
+`withNoResponse(steps, res)`; it returns a copy and modifies neither input.
+
+- **The tail.** `silentTail` takes the longest final run of hops whose kind is
+  `HopSilent` or `HopUnresolved`. `withNoResponse` replaces it with one
+  `stepNoResponse` row: Hop `N+` (the first TTL of the run; the TTL alone when
+  one hop is silent), Step `silent`, RTT `-`. Address text: `no response beyond
+  hop N (hops A to B)` or `(hop B)`, with N the TTL of the last router that
+  answered (`Anchor`); `no response from any hop (hops 1 to B)` when none did.
+- **The anchor.** The last hop that answered (kind `HopRouter` with a valid
+  address) gets `· last to answer` after its address, after the Windows host
+  label when there is one.
+- **No grouping** for `OutcomeReached`, `OutcomeUnreachable` or
+  `OutcomeCancelled`, nor when a `HopTarget` or `HopUnreachable` hop precedes the
+  tail: that hop contradicts "no response beyond", so the rows stay as they are.
+  A nil result changes nothing.
+- **Nothing is concluded.** The rows say what was observed, never why: no cause
+  and no "down". A silent hop most often means a router or firewall that does not
+  answer these probes (ICMP filtering), which is a hypothesis; the rows do not
+  state it.
+
+**The target field takes no port (DEVDESK-335).** `parsePathTarget` accepts a
+bare host name or IPv4 address. `host:80`, `[::1]:443` and `host:` are refused
+with `Path ignores ports: enter a host or IP address only` (`errPathPort`,
+footer level Error, nothing resolved, no trace). A literal IPv6 target stays
+refused with the IPv6 error. `pathTarget` has no `Port` field. The probes are
+UDP to port 33435 (`defaultProbePort`); the trace reaches a host, not a service.
+This partly replaces point 3 of D144 (the port accepted and shown, not probed);
+see D150 in `docs/backlog.md`. `traceroute_max_hops` is still not a
 setting: the trace uses `nettrace.Options{}`.
 
 **Testing.** The engine is tested against a fake `prober`; the Linux prober has

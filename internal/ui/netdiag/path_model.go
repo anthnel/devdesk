@@ -94,7 +94,7 @@ func (pm *PathModel) pickerOpen() bool { return pm.picker != nil }
 func newPathModel(e pathEngine) *PathModel {
 	in := textinput.New()
 	theme.StyleTextInput(&in)
-	in.Placeholder = "hostname or IPv4 address[:port]"
+	in.Placeholder = "hostname or IPv4 address"
 	in.CharLimit = pathInputCharLimit
 	in.Focus()
 
@@ -185,14 +185,7 @@ func (pm *PathModel) handleDone(msg pathDoneMsg) (*PathModel, tea.Cmd) {
 	}
 	pm.releaseRun()
 	if msg.err != nil {
-		pm.hops = nil
-		pm.route = nil
-		pm.container = nil
-		pm.platform = wslenv.Info{}
-		pm.table.SetItems(nil)
-		pm.errText = pathErrorLabel(pm.target.Host, msg.err)
-		pm.state = pathEditing
-		return pm, pm.input.Focus()
+		return pm.handleDoneError(msg.err)
 	}
 	res := msg.result
 	pm.result = &res
@@ -202,9 +195,29 @@ func (pm *PathModel) handleDone(msg pathDoneMsg) (*PathModel, tea.Cmd) {
 	return pm, nil
 }
 
+// handleDoneError ends a failed run. A kernel "no route" keeps the local rows
+// (source, container, interface, gateway) with the route marked NoRoute; any
+// other error clears every row.
+func (pm *PathModel) handleDoneError(err error) (*PathModel, tea.Cmd) {
+	pm.hops = nil
+	if nettrace.IsNoRoute(err) {
+		pm.route = &pathRoute{NoRoute: true}
+		pm.refreshSteps()
+	} else {
+		pm.route = nil
+		pm.container = nil
+		pm.platform = wslenv.Info{}
+		pm.table.SetItems(nil)
+	}
+	pm.errText = pathErrorLabel(pm.target.Host, err)
+	pm.state = pathEditing
+	return pm, pm.input.Focus()
+}
+
 // refreshSteps rebuilds the table rows from the route and the hops.
 func (pm *PathModel) refreshSteps() {
-	pm.table.SetItems(withWSL(pathSteps(pm.container, pm.route, pm.hops), pm.platform))
+	steps := withNoResponse(pathSteps(pm.container, pm.route, pm.hops), pm.result)
+	pm.table.SetItems(withWSL(steps, pm.platform))
 }
 
 // clearRun forgets what the last run put on screen: the resolved address, the
