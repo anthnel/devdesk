@@ -436,7 +436,8 @@ func (m *Model) GetHelpContent() help.Content {
 					"and enter is greyed out. IPv4 only: a host name is resolved to its IPv4 address. " +
 					"The column starts on this machine: the interface the target's traffic leaves by, " +
 					"with its source address, and the gateway, read from this machine's routing table, " +
-					"then the hops.\n\n" +
+					"then the hops. Under WSL2 the source row names the WSL2 VM, and in NAT mode the " +
+					"first hop through the virtual switch is labelled Windows host.\n\n" +
 					"Type a host name or an IPv4 address, optionally followed by :port, and press " +
 					"enter. Each hop is a UDP datagram sent to UDP port 33435 with a " +
 					"growing time-to-live; the router that drops it answers, and the table fills in as " +
