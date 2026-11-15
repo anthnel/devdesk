@@ -1,0 +1,15 @@
+{
+  "tool_use_id": "toolu_01QFjQuoW2yF5tf2Xe93JZhT",
+  "agent_id": "a06083433ca811bcb",
+  "subagent_type": "project-tester",
+  "task_description": "Rouge étape 2 garde de source",
+  "token_usage": {
+    "input_tokens": 11,
+    "cache_creation_tokens": 58636,
+    "cache_read_tokens": 257026,
+    "output_tokens": 4666,
+    "api_call_count": 6
+  },
+  "started_at": "2026-11-15T21:51:15.8379897+01:00",
+  "completed_at": "2026-11-15T21:51:51.9599954+01:00"
+}

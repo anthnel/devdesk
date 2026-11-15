@@ -1,0 +1,18 @@
+{
+  "tool_use_id": "toolu_018yFTMwFw6739LboFK8SP5V",
+  "agent_id": "a60f8c387196c7694",
+  "subagent_type": "project-coder",
+  "task_description": "Garde 3e correctif",
+  "files": [
+    "internal/nettrace/source_guard_test.go"
+  ],
+  "token_usage": {
+    "input_tokens": 21,
+    "cache_creation_tokens": 60704,
+    "cache_read_tokens": 557327,
+    "output_tokens": 6948,
+    "api_call_count": 10
+  },
+  "started_at": "2026-11-15T22:04:04.0974317+01:00",
+  "completed_at": "2026-11-15T22:05:03.4557689+01:00"
+}

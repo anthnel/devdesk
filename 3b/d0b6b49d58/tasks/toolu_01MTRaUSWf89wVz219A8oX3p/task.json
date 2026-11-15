@@ -1,0 +1,15 @@
+{
+  "tool_use_id": "toolu_01MTRaUSWf89wVz219A8oX3p",
+  "agent_id": "a506225df58fe6bb0",
+  "subagent_type": "project-tester",
+  "task_description": "Rouge étape 1 IsNoRoute Windows",
+  "token_usage": {
+    "input_tokens": 9,
+    "cache_creation_tokens": 44108,
+    "cache_read_tokens": 143736,
+    "output_tokens": 3366,
+    "api_call_count": 5
+  },
+  "started_at": "2026-11-15T21:51:15.5262043+01:00",
+  "completed_at": "2026-11-15T21:51:42.0651061+01:00"
+}

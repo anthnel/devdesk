@@ -1,0 +1,18 @@
+{
+  "tool_use_id": "toolu_015Uo4mdVWjcqKyFDFAH2tHi",
+  "agent_id": "a3fc781a2a27d5a9c",
+  "subagent_type": "project-coder",
+  "task_description": "mise vet/lint GOOS=windows",
+  "files": [
+    "mise.toml"
+  ],
+  "token_usage": {
+    "input_tokens": 13,
+    "cache_creation_tokens": 94799,
+    "cache_read_tokens": 397080,
+    "output_tokens": 3846,
+    "api_call_count": 6
+  },
+  "started_at": "2026-11-15T22:15:01.6049737+01:00",
+  "completed_at": "2026-11-15T22:16:03.9980737+01:00"
+}

@@ -1,0 +1,15 @@
+{
+  "tool_use_id": "toolu_0166csYrv3wnDV2s5HDzhVmW",
+  "agent_id": "a412feb8ba2b99186",
+  "subagent_type": "dev-team:reviewer",
+  "task_description": "Revue garde durcie + étape 4",
+  "token_usage": {
+    "input_tokens": 15,
+    "cache_creation_tokens": 94107,
+    "cache_read_tokens": 471527,
+    "output_tokens": 13167,
+    "api_call_count": 7
+  },
+  "started_at": "2026-11-15T21:56:36.5828463+01:00",
+  "completed_at": "2026-11-15T21:58:21.5536781+01:00"
+}

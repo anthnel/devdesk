@@ -1,0 +1,15 @@
+{
+  "tool_use_id": "toolu_013t1WiBmrgASU75Vi1Uo6BF",
+  "agent_id": "af40f2e1b7d032354",
+  "subagent_type": "dev-team:architect",
+  "task_description": "Plan DEVDESK-486 Windows trace",
+  "token_usage": {
+    "input_tokens": 47,
+    "cache_creation_tokens": 121848,
+    "cache_read_tokens": 1868228,
+    "output_tokens": 37792,
+    "api_call_count": 23
+  },
+  "started_at": "2026-11-15T21:29:13.0975853+01:00",
+  "completed_at": "2026-11-15T21:35:41.0644051+01:00"
+}

@@ -1,0 +1,15 @@
+{
+  "tool_use_id": "toolu_01UKGkqUTzfiJJXALA1zvmoM",
+  "agent_id": "a3d52f88aaa354c9b",
+  "subagent_type": "dev-team:reviewer",
+  "task_description": "Revue garde finale + étape 5",
+  "token_usage": {
+    "input_tokens": 21,
+    "cache_creation_tokens": 96567,
+    "cache_read_tokens": 745497,
+    "output_tokens": 13669,
+    "api_call_count": 10
+  },
+  "started_at": "2026-11-15T22:01:01.7710336+01:00",
+  "completed_at": "2026-11-15T22:03:20.5019228+01:00"
+}

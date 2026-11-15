@@ -1,0 +1,15 @@
+{
+  "tool_use_id": "toolu_01Y9jxVznTLxAJ9dLeQSerhp",
+  "agent_id": "a0da7641ebac19a7b",
+  "subagent_type": "dev-team:security-reviewer",
+  "task_description": "Sécurité moteur Windows ICMP",
+  "token_usage": {
+    "input_tokens": 19,
+    "cache_creation_tokens": 90690,
+    "cache_read_tokens": 567057,
+    "output_tokens": 11420,
+    "api_call_count": 9
+  },
+  "started_at": "2026-11-15T22:06:30.4252017+01:00",
+  "completed_at": "2026-11-15T22:08:31.3513252+01:00"
+}
