@@ -1,0 +1,15 @@
+{
+  "tool_use_id": "toolu_01SuBJE6sPNvYifcKECWvBf4",
+  "agent_id": "afcb012725b9b9800",
+  "subagent_type": "dev-team:architect",
+  "task_description": "Plan DEVDESK-457 bar frame",
+  "token_usage": {
+    "input_tokens": 41,
+    "cache_creation_tokens": 130776,
+    "cache_read_tokens": 2201392,
+    "output_tokens": 17272,
+    "api_call_count": 21
+  },
+  "started_at": "2026-11-15T11:37:22.9576008+01:00",
+  "completed_at": "2026-11-15T11:40:37.1387884+01:00"
+}

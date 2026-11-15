@@ -1,0 +1,15 @@
+{
+  "tool_use_id": "toolu_014PD1y8Tm5aWjVza9WgRmoj",
+  "agent_id": "a7923eff4c8f5f484",
+  "subagent_type": "dev-team:reviewer",
+  "task_description": "Review DEVDESK-457 diff",
+  "token_usage": {
+    "input_tokens": 23,
+    "cache_creation_tokens": 84876,
+    "cache_read_tokens": 747507,
+    "output_tokens": 8267,
+    "api_call_count": 12
+  },
+  "started_at": "2026-11-15T12:25:15.8346851+01:00",
+  "completed_at": "2026-11-15T12:33:03.8877654+01:00"
+}

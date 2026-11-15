@@ -1,0 +1,20 @@
+{
+  "tool_use_id": "toolu_013kfD7Pr59AJ937DFxn6PNQ",
+  "agent_id": "a814e4300d89fe701",
+  "subagent_type": "team-core:tech-writer",
+  "task_description": "Docs Rule 136 DEVDESK-457",
+  "files": [
+    "docs/architecture/viewer.md",
+    "internal/app/bar_attach_test.go",
+    "internal/ui/components/bar_frame.go"
+  ],
+  "token_usage": {
+    "input_tokens": 13,
+    "cache_creation_tokens": 98779,
+    "cache_read_tokens": 507870,
+    "output_tokens": 4536,
+    "api_call_count": 7
+  },
+  "started_at": "2026-11-15T12:33:17.1640218+01:00",
+  "completed_at": "2026-11-15T12:34:05.3239815+01:00"
+}
