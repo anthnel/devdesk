@@ -1,0 +1,15 @@
+{
+  "tool_use_id": "toolu_011M2KXAr57m4RAfzQBHFriC",
+  "agent_id": "a8443f4c28e675086",
+  "subagent_type": "product-team:pm",
+  "task_description": "Draft release proposal after DEVDESK-306",
+  "token_usage": {
+    "input_tokens": 2,
+    "cache_creation_tokens": 31854,
+    "cache_read_tokens": 0,
+    "output_tokens": 229,
+    "api_call_count": 1
+  },
+  "started_at": "2026-11-13T16:03:09.496360128+01:00",
+  "completed_at": "2026-11-13T16:05:00.666237693+01:00"
+}
