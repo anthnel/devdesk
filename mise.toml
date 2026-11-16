@@ -252,3 +252,51 @@ done | jq -s '{sessions: map({
   cacheWrite: ([.entries[].cacheCreationTokens] | add // 0)
 })}'
 '''
+
+# The nexus-bench:* tasks (DEVDESK-504, docs/architecture/nexus-bench.md) drive a
+# disposable Nexus on a real k0s cluster through kubectl: up, provision, down and
+# status read or change that cluster, and the bench has to be reachable from this
+# machine. They are NOT part of ci, check, test or test-race and nothing depends
+# on them (mise_tasks_test.go checks it). Only render contacts nothing.
+#
+# kubectl is declared on each task that reaches the cluster rather than in
+# [tools], so the CI does not install it; render contacts nothing and has none.
+# The cluster (datomir) runs k0s v1.36.x and kubectl is supported within one
+# minor version of the API server, so 1.35 is the oldest accepted here.
+# Arguments go after `--`: mise appends them to the command, so
+# `mise run nexus-bench:up -- --namespace nexus-bench-2` reaches the command.
+# Every flag has a NEXUS_BENCH_* variable; see `nexus-bench <subcommand> -h`.
+
+[tasks."nexus-bench:up"]
+description = "Deploy the disposable Nexus bench on the cluster, wait for it, provision it and write the descriptor (acts on the cluster; --accept-eula needed once)"
+tools = { kubectl = "1.35" }
+run = "go run ./internal/nexusbench/cmd/nexus-bench up"
+
+[tasks."nexus-bench:provision"]
+description = "Provision the running Nexus bench again (idempotent) and write the descriptor (acts on the cluster)"
+tools = { kubectl = "1.35" }
+run = "go run ./internal/nexusbench/cmd/nexus-bench provision"
+
+[tasks."nexus-bench:down"]
+description = "Delete the Nexus bench namespace and wait until it is gone (acts on the cluster)"
+tools = { kubectl = "1.35" }
+run = "go run ./internal/nexusbench/cmd/nexus-bench down"
+
+[tasks."nexus-bench:status"]
+description = "Report on the Nexus bench: pod, REST answer, descriptor drift (reads the cluster, changes nothing)"
+tools = { kubectl = "1.35" }
+run = "go run ./internal/nexusbench/cmd/nexus-bench status"
+
+[tasks."nexus-bench:render"]
+description = "Print the Nexus bench manifests for the current parameters (contacts nothing)"
+run = "go run ./internal/nexusbench/cmd/nexus-bench render"
+
+[tasks."nexus-bench:test"]
+description = "Run the integration tests against a running Nexus bench (acts on the cluster; skipped when CI is set)"
+tools = { kubectl = "1.35" }
+# env as a table, not `env DEVDESK_NEXUS_BENCH=1 go test`: the same line then
+# works under bash and under the cmd shell mise uses on Windows.
+env = { DEVDESK_NEXUS_BENCH = "1" }
+# -timeout 60m: go test stops at 10 minutes by default and the lifecycle test
+# (DEVDESK_NEXUS_BENCH_LIFECYCLE=1) refuses to start with less than 45 left.
+run = "go test -timeout 60m -count=1 -run Integration ./internal/nexusbench/..."
