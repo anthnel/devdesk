@@ -430,6 +430,7 @@ func (m *Model) resetToForm() (*Model, tea.Cmd) {
 	// Focus returns the cursor blink Cmd; dropping it freezes the cursor.
 	focusCmd := m.targetInput.Focus()
 	m.results = netcheck.Results{}
+	m.resultsHost = ""
 	m.verdict = netcheck.Unknown
 	m.filterBar.ClearSearch()
 	m.filterBar.SetTokenActive(problemsToken, false)

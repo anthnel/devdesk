@@ -519,7 +519,11 @@ for this machine.
   `Reported unreachable at hop N`, `No answer from the target within N hops`,
   `Stopped after 30 s` or `Canceled`.
 - **From Diagnostics.** On the results, `H` on the **Local route** row opens the
-  trace level with the host filled in, without starting the trace.
+  trace level with the host filled in, without starting the trace. The interface
+  and gateway rows then reuse the reading the **Local route** check already made
+  for the same address, so both show the same answer and the routing table is
+  asked once. `ctrl+r` on the results reads it again; so does a trace started
+  from the form, or from a container.
 
 There is no setting for the maximum number of hops (`traceroute_max_hops`
 stays removed): the trace uses the engine's defaults.

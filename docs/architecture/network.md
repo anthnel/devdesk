@@ -869,7 +869,8 @@ verified: a declared exception.
   data for a later reader, so the path trace can reuse the reading instead of
   asking the routing table again; it is never shown and never serialized (the
   MCP tool maps a `Check` to its own DTO). Verdict, summary, reason and facts
-  are unchanged.
+  are unchanged. The path trace reuses these readings; see "The route is read
+  once" under the trace sub-level.
 
   Real coverage is Linux and WSL2 only. `go-netroute` returns a
   `windows.Errno` that `IsNoRoute` does not recognize on Windows, and an error
@@ -1058,6 +1059,28 @@ every state: the Diagnostics filter bar is not drawn in the sub-level
 (`GetFooterHeight`, `RenderFooter`, Rule 124). The footer message is the Path
 model's (`activeFooter`). Hops keep landing while another tab is on screen, and
 coming back finds the sub-level.
+
+**The route is read once (DEVDESK-473, D155; `path_known_route.go`).**
+Diagnostics keeps its route lookups on the `Local route` check (`Check.Routes`);
+the trace's interface and gateway rows answer from them instead of asking the
+routing table a second time. `Model.openTrace` is the only writer of
+`PathModel.known`: it assigns `knownRoutesOf(m.resultsHost, m.results)`, a copy
+of the lookups (never shared with `m.results`), on every opening, empty when
+the form opens the trace (no results). `Model.resultsHost` is the host of the
+run behind the results: `StartRun` sets it (so `ctrl+r` too), `resetToForm`
+clears it with the results. `PathModel.launch` builds the run from
+`pm.runEngine(tg)`, the engine whose `route` function is the
+`pathKnownRoutes.routeFirst` wrapper; the `Cmd` receives only values and never
+reads `pm` (Rule 110). A reading is reused only when the snapshot's host equals
+the target's host, the traced address (compared after `Unmap`) is one the route
+stage looked up, the lookup did not end on `context.Canceled` or
+`context.DeadlineExceeded` (it says nothing about the table), and the source is
+this machine (a container source reads its own route on every launch). The
+lookup's own error is returned untouched, so `no route` and `undetermined`
+come from the same `nettrace.IsNoRoute` on both sides. *Trace again* and a
+return to the results then `H` reuse the same reading; `ctrl+r`, a new run,
+and a trip back to the form (`esc`, `N`) read again, because the results the
+reading belonged to are gone. The `Local route` row itself is unchanged.
 
 `PathModel` has **no target field** (DEVDESK-471): `pathReady` is its zero value,
 a fresh model is ready and inert, and `ready(target)` is the only way a target

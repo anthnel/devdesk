@@ -24,6 +24,7 @@ func (m *Model) StartRun() (*Model, tea.Cmd) {
 	m.runGen++
 	m.state = StateRunning
 	m.results = netcheck.Results{}
+	m.resultsHost = tg.Host
 	m.verdict = netcheck.Unknown
 	m.runStep = 0
 	m.totalSteps = len(netcheck.Steps())

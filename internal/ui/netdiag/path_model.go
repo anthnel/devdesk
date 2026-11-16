@@ -295,7 +295,7 @@ func (pm *PathModel) launch(tg pathTarget) (*PathModel, tea.Cmd) {
 	ch := make(chan tea.Msg, pathChanCap)
 	pm.cancel, pm.msgs = cancel, ch
 	pm.state = pathRunning
-	return pm, startPathRun(ctx, pm.gen, tg, pm.source, pm.resolveTimeout, pm.engine, ch)
+	return pm, startPathRun(ctx, pm.gen, tg, pm.source, pm.resolveTimeout, pm.runEngine(tg), ch)
 }
 
 // cancelRun answers esc at once: the run's late messages are dropped by the
