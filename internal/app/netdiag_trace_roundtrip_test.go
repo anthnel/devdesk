@@ -10,6 +10,7 @@ import (
 	"github.com/charmbracelet/x/ansi"
 
 	"github.com/anthnel/devdesk/internal/command"
+	"github.com/anthnel/devdesk/internal/nettrace"
 	"github.com/anthnel/devdesk/internal/ui/keymap"
 	"github.com/anthnel/devdesk/internal/ui/netdiag"
 	"github.com/anthnel/devdesk/internal/ui/testutil"
@@ -147,11 +148,29 @@ func escapeTraceLevel(t *testing.T, a *App, label string) {
 	t.Fatalf("%s: esc did not leave the trace sub-level", label)
 }
 
+// traceGreyedOnForm reports whether the form's Trace Path button is greyed, by
+// asking the view itself: its answer folds in every platform rule (macOS, WSL1)
+// that nettrace.Supported alone does not know, and the test must not carry a
+// second copy of it (Rule 130). The focus is put back on the target after.
+func traceGreyedOnForm(t *testing.T, a *App) bool {
+	t.Helper()
+	pressKeys(t, a, "down", "down", "down", "down")
+	greyed := testutil.ShortcutDisabled(netdiagView(t, a).GetShortcuts(), "enter")
+	pressKeys(t, a, "up", "up", "up", "up")
+	return greyed
+}
+
 func TestTraceRoundTripKeepsTheScreenHeight(t *testing.T) {
+	if err := nettrace.Supported(); err != nil {
+		t.Skipf("the path trace is greyed on this platform (DEVDESK-334): %v", err)
+	}
 	for _, size := range [][2]int{{120, 40}, {80, 24}} {
 		t.Run(fmt.Sprintf("%dx%d", size[0], size[1]), func(t *testing.T) {
 			a := routerAt(t, &fakeView{}, size[0], size[1])
 			enterNetdiagByCommand(t, a)
+			if traceGreyedOnForm(t, a) {
+				t.Skip("the Trace Path button is greyed on this platform (DEVDESK-334)")
+			}
 			for _, msg := range testutil.Type("127.0.0.1") {
 				a.Update(msg)
 			}
@@ -173,11 +192,10 @@ func TestTraceRoundTripKeepsTheScreenHeight(t *testing.T) {
 					pressKeys(t, a, "enter")
 				}
 				t.Run(label, func(t *testing.T) {
+					// The platform supports the trace (checked above), so a
+					// greyed H means the row is missing, which is a failure.
 					if !selectLocalRoute(t, a) {
-						if !bar {
-							t.Skip("H stays greyed on the results: the path trace is unsupported here or the loopback has no Local route row")
-						}
-						t.Fatal("H is greyed with the bar visible: the search lost the Local route row")
+						t.Fatalf("no Local route row to put H on (bar visible = %v): the results have no row for it", bar)
 					}
 					before := checkFrame(t, a, label)
 					if bar != (before.footer > 3) {
