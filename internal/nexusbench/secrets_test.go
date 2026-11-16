@@ -2,6 +2,7 @@ package nexusbench
 
 import (
 	"bytes"
+	"errors"
 	"fmt"
 	"log/slog"
 	"os"
@@ -357,6 +358,71 @@ func TestNewFileStoreRejectsAnEmptyPath(t *testing.T) {
 	}
 }
 
+// The store deletes its file on Remove: a path that does not name secrets.json
+// (a typo of NEXUS_BENCH_SECRETS pointing at a key file, say) is refused.
+func TestNewFileStoreRefusesAnotherFileName(t *testing.T) {
+	dir := t.TempDir()
+	for _, name := range []string{"id_ed25519", "secrets.json.bak", "Secrets.json", "config.yaml", "secrets"} {
+		store, err := NewFileStore(filepath.Join(dir, name))
+		if err == nil {
+			t.Errorf("NewFileStore(%q) = %v, want a refusal", name, store)
+			continue
+		}
+		var be *BenchError
+		if !errors.As(err, &be) || !strings.Contains(err.Error(), "secrets.json") {
+			t.Errorf("NewFileStore(%q) error = %v, want a BenchError that names secrets.json", name, err)
+		}
+	}
+}
+
+// A file the other accounts can read is not trusted: Load refuses it without
+// showing its content, and says how to fix it.
+func TestFileStoreLoadRefusesAWideMode(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("POSIX permission bits are not meaningful on Windows")
+	}
+	for _, mode := range []os.FileMode{0o640, 0o604, 0o644, 0o660, 0o666, 0o601} {
+		path := secretsPathIn(t)
+		if err := os.MkdirAll(filepath.Dir(path), 0o700); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(path, []byte(`{"adminPassword":"`+secretMarker+`"}`), 0o600); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.Chmod(path, mode); err != nil {
+			t.Fatal(err)
+		}
+		got, found, err := newTestStore(t, path).Load()
+		if err == nil {
+			t.Errorf("mode %o: Load = (%+v, %v, nil), want a refusal", mode, got, found)
+			continue
+		}
+		if got != (Secrets{}) || found {
+			t.Errorf("mode %o: Load returned %+v, %v with an error", mode, got, found)
+		}
+		if strings.Contains(err.Error(), secretMarker) {
+			t.Errorf("mode %o: the error shows the file content: %v", mode, err)
+		}
+		if !strings.Contains(err.Error(), "chmod 600 "+path) {
+			t.Errorf("mode %o: error = %v, want the advice %q", mode, err, "chmod 600 "+path)
+		}
+	}
+	// 0400 and 0600 are fine.
+	for _, mode := range []os.FileMode{0o400, 0o600} {
+		path := secretsPathIn(t)
+		store := newTestStore(t, path)
+		if err := store.Save(Secrets{AdminPassword: "x"}); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.Chmod(path, mode); err != nil {
+			t.Fatal(err)
+		}
+		if _, found, err := store.Load(); err != nil || !found {
+			t.Errorf("mode %o: Load = found %v, %v, want it read", mode, found, err)
+		}
+	}
+}
+
 // gitRepo makes a repository in a temp dir, isolated from the user's git
 // configuration (a global excludes file could ignore anything).
 func gitRepo(t *testing.T) string {
@@ -518,11 +584,61 @@ func TestNewFileStoreGitGuardIgnoresInheritedGitEnvironment(t *testing.T) {
 	}
 }
 
+// A caller's GIT_CONFIG_* variables can inject core.excludesFile and make git
+// ignore the secrets file: the guard must not honor them.
+func TestNewFileStoreGitGuardIgnoresInjectedConfiguration(t *testing.T) {
+	repo := gitRepo(t)
+	excludes := filepath.Join(t.TempDir(), "excludes")
+	if err := os.WriteFile(excludes, []byte("secrets.json\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	t.Setenv("GIT_CONFIG_COUNT", "1")
+	t.Setenv("GIT_CONFIG_KEY_0", "core.excludesFile")
+	t.Setenv("GIT_CONFIG_VALUE_0", excludes)
+	t.Setenv("GIT_CONFIG_PARAMETERS", "'core.excludesFile="+excludes+"'")
+
+	if store, err := NewFileStore(filepath.Join(repo, "secrets.json")); err == nil {
+		t.Fatalf("NewFileStore = %v, want a refusal: only the repository's own ignore rules count", store)
+	}
+}
+
+func TestGitEnvironmentDropsTheConfigurationVariables(t *testing.T) {
+	for _, name := range []string{"GIT_CONFIG_PARAMETERS", "GIT_CONFIG_COUNT", "GIT_CONFIG_KEY_0", "GIT_CONFIG_KEY_17", "GIT_CONFIG_VALUE_0", "GIT_CONFIG_VALUE_17", "GIT_CONFIG_SYSTEM", "GIT_CEILING_DIRECTORIES"} {
+		t.Setenv(name, "/elsewhere")
+	}
+	t.Setenv("GIT_CONFIG_GLOBAL", "/elsewhere/gitconfig")
+	t.Setenv("GIT_CONFIG_NOSYSTEM", "0")
+	t.Setenv("DEVDESK_KEEP", "1")
+
+	env := gitEnvironment()
+	counts := map[string]int{}
+	for _, kv := range env {
+		name, _, _ := strings.Cut(kv, "=")
+		upper := strings.ToUpper(name)
+		counts[upper]++
+		switch {
+		case upper == "GIT_CONFIG_PARAMETERS", upper == "GIT_CONFIG_COUNT", upper == "GIT_CONFIG_SYSTEM", upper == "GIT_CEILING_DIRECTORIES",
+			strings.HasPrefix(upper, "GIT_CONFIG_KEY_"), strings.HasPrefix(upper, "GIT_CONFIG_VALUE_"):
+			t.Errorf("gitEnvironment keeps %s", kv)
+		}
+	}
+	// No user configuration at all, whatever the caller had.
+	if !slices.Contains(env, "GIT_CONFIG_GLOBAL="+os.DevNull) || counts["GIT_CONFIG_GLOBAL"] != 1 {
+		t.Errorf("GIT_CONFIG_GLOBAL is not pinned to %s exactly once (seen %d)", os.DevNull, counts["GIT_CONFIG_GLOBAL"])
+	}
+	if !slices.Contains(env, "GIT_CONFIG_NOSYSTEM=1") || counts["GIT_CONFIG_NOSYSTEM"] != 1 {
+		t.Errorf("GIT_CONFIG_NOSYSTEM is not pinned to 1 exactly once (seen %d)", counts["GIT_CONFIG_NOSYSTEM"])
+	}
+	if !slices.Contains(env, "DEVDESK_KEEP=1") {
+		t.Error("gitEnvironment dropped a variable that is not about git")
+	}
+}
+
 func TestGitEnvironmentDropsTheRepositoryVariables(t *testing.T) {
 	for _, name := range []string{"GIT_DIR", "GIT_WORK_TREE", "GIT_INDEX_FILE", "GIT_COMMON_DIR", "GIT_OBJECT_DIRECTORY", "GIT_NAMESPACE"} {
 		t.Setenv(name, "/elsewhere")
 	}
-	t.Setenv("GIT_CONFIG_NOSYSTEM", "1")
+	t.Setenv("DEVDESK_KEEP", "1")
 	env := gitEnvironment()
 	for _, kv := range env {
 		name, _, _ := strings.Cut(kv, "=")
@@ -531,7 +647,7 @@ func TestGitEnvironmentDropsTheRepositoryVariables(t *testing.T) {
 			t.Errorf("gitEnvironment keeps %s", kv)
 		}
 	}
-	if !slices.Contains(env, "GIT_CONFIG_NOSYSTEM=1") {
+	if !slices.Contains(env, "DEVDESK_KEEP=1") {
 		t.Error("gitEnvironment dropped a variable that is not about the repository")
 	}
 }

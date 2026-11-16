@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io/fs"
 	"net"
+	"net/url"
 	"os"
 	"path/filepath"
 	"runtime"
@@ -103,11 +104,15 @@ type DescriptorAccount struct {
 }
 
 // BuildDescriptor returns the descriptor of the bench that p, the deployment
-// and the provisioning describe. Hosts are p.Hosts when set, else the loopback
-// address followed by the node's IP when there is one; the slices of p are
+// and the provisioning describe. Hosts are p.Hosts when set, else the hosts the
+// deployment reached (d.ReachableHosts) when there are any, else the loopback
+// address followed by the node's IP when there is one; the slices of p and d are
 // copied, not shared.
 func BuildDescriptor(p Params, d DeployResult, r ProvisionResult) Descriptor {
 	hosts := append([]string(nil), p.Hosts...)
+	if len(hosts) == 0 {
+		hosts = append(hosts, d.ReachableHosts...)
+	}
 	if len(hosts) == 0 {
 		hosts = []string{loopbackHost}
 		if d.NodeIP != "" {
@@ -149,12 +154,29 @@ func BuildDescriptor(p Params, d DeployResult, r ProvisionResult) Descriptor {
 	}
 }
 
-// hostURLs returns the http URL of a port on each host; an IPv6 address gets
-// its brackets.
+// RESTBaseURL returns the REST origin of the bench on host: "http://" followed
+// by host and p.HTTPNodePort, with no path. An IPv6 address gets its brackets
+// (host may already carry them) and a zone is escaped ("%eth0" becomes
+// "%25eth0"). Nexus answers in plain HTTP: Basic credentials sent to this URL
+// cross the network in clear text unless host is the loopback.
+func RESTBaseURL(host string, p Params) string {
+	return hostURL(host, p.HTTPNodePort)
+}
+
+// hostURL returns the http URL of a port on a host.
+func hostURL(host string, port int) string {
+	if len(host) > 1 && host[0] == '[' && host[len(host)-1] == ']' {
+		host = host[1 : len(host)-1]
+	}
+	u := url.URL{Scheme: "http", Host: net.JoinHostPort(host, strconv.Itoa(port))}
+	return u.String()
+}
+
+// hostURLs returns the http URL of a port on each host.
 func hostURLs(hosts []string, port int) []string {
 	urls := make([]string, 0, len(hosts))
 	for _, h := range hosts {
-		urls = append(urls, "http://"+net.JoinHostPort(h, strconv.Itoa(port)))
+		urls = append(urls, hostURL(h, port))
 	}
 	return urls
 }

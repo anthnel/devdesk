@@ -12,6 +12,9 @@
 // the only file that starts a process but for the git check of secrets.go, and
 // RunPreflight only reads the cluster. secrets.go keeps the passwords in a file
 // outside the repository; descriptor.go writes the versioned description of the
-// bench, which holds no secret. The deployment and the REST client arrive in later steps; see
+// bench, which holds no secret. nexusapi.go is the REST client and provision.go the
+// idempotent provisioning built on it; initialpassword.go reads the initial admin
+// password of the pod through the Runner. deploy.go applies the manifests and
+// waits for Nexus, and probe.go is the HTTP readiness probe it asks; see
 // docs/architecture/nexus-bench.md.
 package nexusbench

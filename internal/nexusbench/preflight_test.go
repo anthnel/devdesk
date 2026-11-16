@@ -385,12 +385,26 @@ var requiredChecks = map[Op][]requiredCheck{
 		{"create", "persistentvolumeclaims", "namespace"},
 		{"create", "services", "namespace"},
 		{"create", "deployments", "namespace"},
-		{"create", "secrets", "namespace"},
 		{"create", "pods/exec", "namespace"},
 		{"list", "services", "all"},
+		// The namespace is labeled by server-side apply, also on a second run.
+		{"patch", "namespaces", "cluster"},
+		// Server-side apply is a PATCH, also on a second run; Deploy reads the
+		// pods and the claims of the namespace while it waits.
+		{"patch", "deployments", "namespace"},
+		{"patch", "services", "namespace"},
+		{"patch", "persistentvolumeclaims", "namespace"},
+		{"get", "pods", "namespace"},
+		{"list", "pods", "namespace"},
+		{"get", "persistentvolumeclaims", "namespace"},
+		{"list", "persistentvolumeclaims", "namespace"},
 	},
-	OpProvision: {{"create", "pods/exec", "namespace"}},
-	OpDown:      {{"delete", "namespaces", "cluster"}},
+	OpProvision: {
+		{"create", "pods/exec", "namespace"},
+		{"get", "deployments", "namespace"},
+		{"list", "pods", "namespace"},
+	},
+	OpDown: {{"delete", "namespaces", "cluster"}},
 }
 
 func (c requiredCheck) matches(q canIQuery, p Params) bool {
@@ -562,6 +576,12 @@ func TestRunPreflightAsksTheRequiredChecks(t *testing.T) {
 			for _, c := range checks {
 				if !slices.ContainsFunc(f.asked, func(q canIQuery) bool { return c.matches(q, p) }) {
 					t.Errorf("never asked: auth can-i %s %s (scope %s); asked %v", c.verb, c.resource, c.scope, f.asked)
+				}
+			}
+			// No manifest creates a Secret, so no one asks to.
+			for _, q := range f.asked {
+				if q.resource == "secrets" {
+					t.Errorf("asked about secrets (%v), no manifest creates one", q)
 				}
 			}
 			requireReadOnly(t, f)

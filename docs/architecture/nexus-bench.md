@@ -13,8 +13,12 @@ check` or `mise run ci` touches a cluster, and integration tests skip unless
 `DEVDESK_NEXUS_BENCH=1` is set (and always when `CI` is set).
 
 Status: the parameters (step 1), the manifest rendering (step 2), the `kubectl`
-runner, errors and preflight (step 3), and the secrets store and the descriptor
-(step 5) exist. The preflight only reads the cluster; nothing writes to it yet.
+runner, errors and preflight (step 3), the deployment and its wait (step 4), the
+secrets store and the descriptor (step 5), the REST client and provisioning
+(step 6) and the destruction (step 7) exist. The preflight only reads the
+cluster; the writes that exist are the two applies of `Deploy` and the namespace
+delete of `Destroy`, which have only ever run against a fake `Runner`, and
+`Provision` has only ever run against an in-memory fake (see H-REST below).
 
 ## Decisions (plan `.claude/plans/DEVDESK-504-plan.md`)
 
@@ -167,9 +171,14 @@ the first failure:
    a refusal (stderr `forbidden`: expired token, 403) is `Forbidden` instead, through
    the same `classifyKubectl` as every other call.
 4. `kubectl auth can-i <verb> <resource>` (`-n <ns>`, `-A` or nothing):
-   `up` needs create `namespaces` (cluster), `persistentvolumeclaims`, `services`,
-   `deployments`, `secrets` and `pods/exec` (namespace) and list `services` (`-A`);
-   `provision` needs create `pods/exec`; `down` needs delete `namespaces`; `status`
+   `up` needs create and patch `namespaces` (cluster; a server-side apply is a
+   PATCH, also on a second run), create `persistentvolumeclaims`, `services`,
+   `deployments` and `pods/exec` (namespace), list `services` (`-A`),
+   patch `deployments`, `services` and `persistentvolumeclaims`, and get and list
+   `pods` and `persistentvolumeclaims` (the wait of `Deploy`), all in the
+   namespace (no manifest creates a Secret, so none is asked);
+   `provision` needs create `pods/exec`, get `deployments` and list `pods`
+   (namespace); `down` needs delete `namespaces`; `status`
    asks nothing. A `no` arrives on stdout with a non-zero exit, so stdout is read
    first: `Forbidden`, naming the verb and the resource.
 5. `kubectl get namespace <ns> -o json`: absent is fine for `up` and `down` (nothing
@@ -219,6 +228,12 @@ before it is sent to Nexus, so an interrupted change loses nothing.
   temporary file is removed when anything fails, so a failed `Save`
   leaves no partial file and a file left by someone else with a wider mode is
   replaced, not kept. POSIX modes are not meaningful on Windows (the test skips).
+- File name: `NewFileStore` refuses a path whose file name is not `secrets.json`
+  (`Remove` deletes that file, and a mistyped `NEXUS_BENCH_SECRETS` must not point
+  it at `~/.ssh/id_ed25519`).
+- Mode on read: `Load` refuses a file with a group or other bit (`mode & 0o077`),
+  outside Windows, with a `BenchError` that never shows the content and says
+  `chmod 600 <path>`.
 - Display: `Secrets` has `String`, `GoString` and `LogValue` methods that all give
   `Secrets{redacted}`, so no fmt verb (`%v`, `%+v`, `%#v`, `%s`, `%q`) and no slog
   handler prints a password (`TestSecretsAreRedactedWhenFormatted`). The JSON of
@@ -236,8 +251,14 @@ before it is sent to Nexus, so an interrupted change loses nothing.
   accepted; not ignored, or git unavailable, is a `BenchError` that says to set
   `NEXUS_BENCH_SECRETS` outside the repository. The process runs with the caller's
   environment minus `GIT_DIR`, `GIT_WORK_TREE`, `GIT_INDEX_FILE`, `GIT_COMMON_DIR`,
-  `GIT_OBJECT_DIRECTORY` and `GIT_NAMESPACE` (`gitEnvironment`), so the verdict is
-  about the repository of the path, not one the caller's variables point at. That call is the only process
+  `GIT_OBJECT_DIRECTORY`, `GIT_NAMESPACE`, `GIT_CEILING_DIRECTORIES`,
+  `GIT_CONFIG_PARAMETERS`, `GIT_CONFIG_COUNT`, `GIT_CONFIG_KEY_*`,
+  `GIT_CONFIG_VALUE_*`, `GIT_CONFIG_GLOBAL`, `GIT_CONFIG_SYSTEM` and
+  `GIT_CONFIG_NOSYSTEM` (`gitEnvironment`), then `GIT_CONFIG_GLOBAL=<devnull>` and
+  `GIT_CONFIG_NOSYSTEM=1`, so the verdict is about the repository of the path and
+  its own ignore rules, not about a repository or a `core.excludesFile` the
+  caller's variables or configuration point at (a path ignored only by a global
+  excludes file is therefore refused). That call is the only process
   outside `kubectl.go`; it lives in the package variable `gitIgnores`, so it can
   be replaced and found by a source guard.
 
@@ -247,7 +268,9 @@ before it is sent to Nexus, so an interrupted change loses nothing.
 `dockerConnectors`, `repositories`, `realms`, `accounts`, in that order, which is the
 order of the struct fields. `hosts` is `Params.Hosts` when set, else `127.0.0.1`
 then `DeployResult.NodeIP` when it is not empty; the URLs are `http://<host>:<nodePort>`
-for each host. `DeployResult{ReachableHosts, NodeIP}` (step 4) and
+for each host (`RESTBaseURL(host, p)` is the exported REST origin: brackets for
+IPv6, `%25` for a zone; the deployment, the descriptor and the command of step 8
+all build it there). `DeployResult{ReachableHosts, NodeIP}` (step 4) and
 `ProvisionResult{NexusVersion, Edition, EULAAccepted}` (step 6) are defined in
 `descriptor.go` and reused by those steps. The account `anonymous` always
 appears; its `enabled` is a `*bool`, so `false` is written when
@@ -274,10 +297,266 @@ schema, regenerate it with
 `go test ./internal/nexusbench -run TestDescriptorGolden -update` and review the
 diff by hand (bump `schemaVersion` when a field changes meaning).
 
+## REST client and provisioning (`nexusapi.go`, `provision.go`, `initialpassword.go`)
+
+`Provision(ctx, baseURL, ip, store, p, out) (ProvisionResult, error)` brings a
+running Nexus to the state the bench needs (D-E). `baseURL` is the REST origin
+(no path); `ip` is an `InitialPassword` (`Read(ctx) (pw, ok, err)`); `out` gets
+progress lines (`provision: ...`) and never a password.
+
+**Idempotence.** Every object is read, then created when absent or replaced when
+present; there is no "create and ignore the error". A second run sends no `POST`
+and changes neither the state nor any password. Order of the calls:
+
+1. `GET /v1/status` (no account): version and edition from the `Server` header
+   (`Nexus/3.98.1-01 (COMMUNITY)`), else `info.version` of
+   `/service/rest/swagger.json`, else empty (a note on `out`). The version is
+   optional: a swagger answer that is a refusal or not JSON (a proxy page) leaves
+   it empty; only a transport failure stops the run.
+2. Admin credentials (below).
+3. EULA: `GET /v1/system/eula`; 404 means an edition without one (noted,
+   `EULAAccepted` false); `accepted: true` changes nothing; otherwise it is
+   accepted only when `Params.AcceptEULA` (`NEXUS_BENCH_ACCEPT_EULA=yes`), with
+   `POST {"accepted":true,"disclaimer":<as received>}`; the disclaimer is kept as
+   a `json.RawMessage`, never rebuilt. Without consent `Provision` stops with a
+   `ProvisionFailed` that names `NEXUS_BENCH_ACCEPT_EULA` and says that no
+   repository, role or account was created, before any creation (the
+   only write before it is the admin password change, which the EULA read needs).
+4. Blob store: `GET /v1/blobstores` must list `default`, else `ProvisionFailed`
+   before any role, user or repository is created.
+5. Realms: `GET /v1/security/realms/active`; the missing ones of
+   `NexusAuthenticatingRealm`, `DockerToken` are appended and the list is
+   `PUT` back (a list that is already complete is not written). The plan said
+   "set these two"; appending keeps a realm the instance already needs.
+6. Anonymous access: `GET`, then always `PUT {"enabled": Params.Anonymous,
+   "userId": "anonymous", "realmName": <current, default NexusAuthorizingRealm>}`.
+7. Role `bench-docker-pull` (`nx-repository-view-docker-*-browse` and `-read`):
+   `GET` 404 then `POST`, found then `PUT`.
+8. User `bench-pull` (role above, status `active`): `GET /users?userId=bench-pull`,
+   then `POST` with the password, or `PUT` plus `PUT .../change-password` with the
+   stored password. The list filter matches by substring, so the element whose
+   `userId` is exactly `bench-pull` is the one used.
+9. `docker-hosted`, `docker-proxy` (`remoteUrl` = `Params.UpstreamURL`,
+   `indexType: REGISTRY`) and `docker-group` (members hosted then proxy,
+   `docker.httpPort: 8082`), all on blob store `default`, `forceBasicAuth: false`
+   (anonymous pulls): `GET .../{name}` 404 then `POST`, found then `PUT`.
+
+**Admin credentials, a state machine with the write first.** `Load` the store;
+the candidates are `adminPassword`, then `pendingAdminPassword`; an empty value
+is never tried (a `{}` file means "not provided", and no request carries an empty
+password). A candidate is accepted when `GET /v1/security/users?userId=admin`
+answers 2xx; a 401 is a refusal and goes to the next candidate, any other status
+is an error (a redirect or a 500 is not "wrong password"). A pending password
+that the instance accepts is promoted to `adminPassword` with no new change.
+When no candidate works, `InitialPassword.Read` supplies the password of the pod:
+absent or refused gives the error `the bench admin password is unknown ...`, with
+the check `mise run nexus-bench:down`, then `up`. Otherwise a password is
+generated (or the stored pending one is reused), **`Save` stores it as
+`pendingAdminPassword` first**, then `PUT /users/admin/change-password`
+(`text/plain`) runs with the initial password, then `Save` promotes it to
+`adminPassword`. A failed `Save` stops the run before the instance is touched
+(`TestProvisionStopsWhenSaveFails`); a crash between the steps is resumed from the
+pending password on the next run. The pull password follows the same rule: stored
+before the user is created or its password set.
+
+**Generated passwords** are 32 characters of `[A-Za-z0-9]` from `crypto/rand`
+(rejection sampling, no modulo bias), never a fixed or predictable value.
+
+**`kubectlInitialPassword`** (`NewKubectlInitialPassword(runner, namespace)`) runs
+`-n <ns> exec deploy/nexus -- cat /nexus-data/admin.password` through the
+`Runner`, so `kubectl.go` stays the only file that starts a process. A "No such
+file or directory" on stderr is (empty, false, nil); another failure is a
+`BenchError` (kind from `classifyKubectl`, else `ProvisionFailed`) whose message
+holds neither stdout nor stderr. Unit-tested on a fake `Runner`; no integration
+test.
+
+**Client** (`client`, `newClient(baseURL, user, password)`): a dedicated
+`http.Client` with `Timeout` 15 s, no proxy (the environment's proxy would receive
+the credentials), and a `CheckRedirect` that returns `http.ErrUseLastResponse`:
+no redirection is followed, so the 3xx is the answer and the target is never
+contacted or named. A 2xx answer is read through `io.LimitReader` at 1 MiB + 1;
+more is a `tooLargeError` and the content is never decoded (exactly 1 MiB is
+read). Basic auth is set per request, only when there is a user; no header is
+logged.
+
+**Errors.** `*APIError{Op, Status}` prints `<Op>: HTTP <status> <text>`: no URL,
+no request or answer body. `Provision` returns `*BenchError` only:
+`RESTUnreachable` when a call got no answer, `ProvisionFailed` otherwise, with
+the `*APIError` (or the store or pod error) in `Err` so `errors.As` and
+`errors.Is` reach it. A 401 or 403 adds the hint that the stored admin password
+may not match. No error and no line on `out` holds a password
+(`TestProvisionNeverPrintsAPassword`, and `requireQuiet` after every scenario,
+which knows every password the fake saw).
+
+**H-REST: unverified hypotheses.** The in-memory Nexus of `fakenexus_test.go`
+(`httptest`, loopback) is the one place that knows the JSON shapes, and it was
+written from the Sonatype documentation, not from an instance. To check against
+`/service/rest/swagger.json` at step 10, and to fix in the fake and the client
+together:
+
+- the `Server` header on `/v1/status`, and the swagger fallback;
+- the EULA payload and the `404` of an edition without one;
+- `change-password` as `text/plain`, and whether `admin.password` is deleted once
+  the password is changed through the API;
+- the realm ids (`DockerToken`) and that the active list can be read and `PUT`;
+- the anonymous payload (`enabled`, `userId`, `realmName`);
+- the role and user payloads (`source` only on `PUT`, `externalRoles`), and a
+  `userId` filter that matches by substring;
+- the repository payloads (`storage`, `docker`, `proxy`, `dockerProxy`,
+  `negativeCache`, `httpClient`, `group.memberNames`, `docker.httpPort`), the
+  statuses of `POST` (201) and `PUT` (204), the path-routing field added in 3.83
+  (left to the default of Nexus), and a proxy created before its upstream exists.
+
+**Security guarantees.** No redirect followed; answers bounded; no proxy; no
+`Authorization` header, URL with credentials, body or password in any error or
+output; passwords written to the store before use; an empty password never sent;
+no process started outside `kubectl.go`.
+
+## Destruction and the clock (`destroy.go`, `clock.go`)
+
+`Destroy(ctx, runner, clock, store, params, out)` is the one irreversible
+operation of the bench (risk R1), so its order is fixed:
+
+1. `RunPreflight(OpDown)`: `Validate` first (no call at all), then context,
+   `/readyz`, `auth can-i delete namespaces`, and the namespace. A namespace
+   without the label `app.kubernetes.io/managed-by=devdesk-nexus-bench` is
+   refused here with `NamespaceForeign`, before any write.
+2. A namespace that is absent prints `nothing to delete` and succeeds. The
+   stored secrets are removed anyway, so a stale `secrets.json` does not
+   outlive its bench and a second `down` is idempotent.
+3. **One write**: `delete namespace <ns> --wait=false`, issued once, never
+   retried (a `Forbidden` is returned as is). Nothing else is ever written: no
+   finalizer patch, no force delete, no delete of another object. The tests
+   journal every call and fail on a second write.
+4. The namespace is read (`get namespace <ns> -o json`) until `NotFound` or
+   `NEXUS_BENCH_DELETE_TIMEOUT` (default 3 min). The first read is immediate; the
+   interval between reads doubles from 1 s to 10 s, always through `Clock.Sleep`
+   and clipped to what remains of the timeout. A namespace stuck in `Terminating`
+   ends in a `Deadline` error that cites the namespace, `spec.finalizers` and
+   each `status.conditions` entry (type, status, message); the bench does not
+   remove them.
+5. One read of `get pv -o json`. A PersistentVolume whose `claimRef.namespace` is
+   the bench namespace prints a line starting with `warning:` that names it and
+   its phase and says it still exists: the run still succeeds, because the
+   reclaim policy decides (`Delete` may remove it seconds later, `Retain` keeps
+   the data on the node) and the bench does not delete a volume itself. No such volume, no
+   warning. A PV list that cannot be read is also a warning, not a failure.
+6. `store.Remove()`, last, and only when the namespace is gone. Its failure is
+   returned as a `BenchError` (the namespace is already deleted; running `down`
+   again retries the removal). A failed or cancelled run never touches the
+   secrets.
+
+A cancelled context ends the wait with an error that wraps `context.Canceled`
+(`errors.Is` holds); the namespace keeps terminating on the cluster. Lines on
+`out` start with `down:` and, like every error, hold no password.
+
+`Clock` (`Now`, `Sleep(ctx, d) error`) is how the waits spend time. `NewClock()`
+is the wall clock: `Sleep` returns `ctx.Err()` when the context is done (before
+sleeping, even for a zero duration), returns at once for `d <= 0`, and otherwise
+waits on a timer or the context. `fakeClock` of `clock_test.go` moves its time
+forward instead of waiting, so no test sleeps for real.
+
+## Deployment and the wait (`deploy.go`, `probe.go`)
+
+`Deploy(ctx, runner, prober, clock, params, out) (DeployResult, error)` applies
+the manifests and waits until Nexus answers. Order, fixed:
+
+1. `RunPreflight(OpUp)`, whole; no write before it succeeds.
+2. `ctx` is looked at (a runner may ignore it), then
+   `kubectl apply --server-side --field-manager=devdesk-nexus-bench -f -` with
+   `RenderNamespace(p)` on stdin: the Namespace alone, so a failure later leaves
+   at worst our labeled namespace and never anything outside it.
+3. The same apply with `Render(p)`: the whole stream, the Namespace again
+   included. A second `up` sends the same two applies and gets the same result;
+   `--prune` is never used.
+4. The wait, one round per `pollInterval` (5 s) through `Clock.Sleep`: read
+   `get pods -n <ns> -l app.kubernetes.io/name=nexus -o json` and
+   `get pvc -n <ns> -o json`, diagnose them, then probe every host. The deadline
+   is `NEXUS_BENCH_TIMEOUT` (10 min); it is checked after a round, so the cluster
+   is read once more at the very end.
+
+**Failure of an apply** is classified from its stderr by `classifyKubectl`:
+`NodePortTaken` (names `NEXUS_BENCH_HTTP_NODEPORT` and `..._DOCKER_NODEPORT`),
+`AdmissionDenied` (a webhook refusal wins over the `Forbidden` the API server
+also reports), `Forbidden`, `ClusterUnreachable`, else `Unclassified`. The
+runner's error is the `Err` of the `BenchError` (for `errors.Is`); neither the
+stderr nor the error of the prober is ever in a message. After a failed apply
+nothing else is called: no read, no probe, no sleep.
+
+**Diagnosis**, each round, on the pods that are not being deleted:
+
+| Reading | Kind | When |
+|---|---|---|
+| container waiting on `ErrImagePull` or `ImagePullBackOff` | `ImagePull` (names the image and `NEXUS_BENCH_IMAGE`, `_IMAGE_TAG`) | at once |
+| `CrashLoopBackOff`, or `OOMKilled` as last or current termination | `Crash` (names the memory limit and `NEXUS_BENCH_MEMORY_LIMIT`) | at once |
+| `PodScheduled=False`, reason `Unschedulable`, message with `Insufficient memory` or `Insufficient cpu` | `PodPending` (the request and `NEXUS_BENCH_MEMORY_REQUEST` or `_CPU_REQUEST`) | after `pendingGrace` (30 s) |
+| claim `Pending` while a pod is scheduled | `PodPending` (the size and `NEXUS_BENCH_STORAGE_SIZE`) | after `pendingGrace` |
+| no host answers by the deadline | `Deadline` (last state of the pod and the claim, the hosts tried, `NEXUS_BENCH_TIMEOUT`) | at `Params.Timeout` |
+
+The unschedulable pod is read before the claim: while the pod is not scheduled, a
+claim of a `WaitForFirstConsumer` class is `Pending` for that reason alone and is
+not blamed. A reading that changes or disappears restarts the grace count (the
+volume binds when the pod is scheduled; the Deployment may have made no pod yet).
+When the deadline arrives with such a reading still active, it is returned as
+`PodPending` rather than `Deadline`. A cancelled context is returned as is
+(`errors.Is(err, context.Canceled)`), never as a `Deadline`.
+
+**Reached hosts.** The hosts are `Params.Hosts` when set, else `127.0.0.1` and
+the node `InternalIP` (when there is one). Each round probes them in parallel at
+`http://<host>:<HTTPNodePort>` (`net.JoinHostPort`, so IPv6 gets brackets) and
+returns after the first round in which at least one answered, with
+`DeployResult.ReachableHosts` = the hosts that answered in that round, in host
+order. A host that did not answer then gets a line on `out` that starts with
+`deploy: warning:` and names it; no warning when all answered. `BuildDescriptor`
+lists in `hosts` (and in every URL) `Params.Hosts` when set, else
+`ReachableHosts` when not empty, else the earlier fallback (`127.0.0.1` and
+`NodeIP`), so the descriptor never promises a host that did not answer
+(`descriptor_hosts_test.go`).
+
+**Prober** (`probe.go`): `NewProber()` is one unauthenticated `GET
+<baseURL>/service/rest/v1/status` on a dedicated client (5 s timeout, no proxy,
+no keep-alive, `CheckRedirect` returning `http.ErrUseLastResponse`): nil on 200
+and only then, otherwise a `*APIError` (status only) or a `*transportError`
+(wrapping the cause for `errors.Is`). The body is neither read for its content
+nor reported, and a redirect target is never contacted.
+
+**Rights the deployment needs** (all asked by the preflight, namespace-scoped
+except the first two): create and patch `namespaces` (cluster); create and patch
+`persistentvolumeclaims`, `services`, `deployments`; get and list `pods` and
+`persistentvolumeclaims`; create `pods/exec` (used by `Provision`); list `services` in all namespaces (NodePort check).
+
+**Not covered by the fakes.** `Deploy` has only run against a scripted `Runner`,
+a fake `Prober` and a fake `Clock`; the real kubectl output shape of
+`get pods -o json` (container status fields), the real duration of the pull and
+the start, and whether `kubectl apply --server-side` of a Namespace that carries
+no field of its own conflicts on a second run are for step 10.
+
+## Residual risks (security audit of the steps 4, 6, 7)
+
+Known and accepted for a throw-away bench; none is fixed by this change.
+
+- **Basic credentials in clear HTTP.** Nexus is reached on `http://`, so the admin
+  and `bench-pull` credentials of `Provision` travel unencrypted. The command of
+  step 8 must prefer `127.0.0.1` (`RESTBaseURL("127.0.0.1", p)`) and send
+  credentials to the node IP only on an explicit option of the operator. This is
+  a commitment for step 8, not something the package enforces.
+- **`local-path` volume in `0777`.** The data folder of the local-path
+  provisioner is world-writable, so `admin.password` is readable by every local
+  account of the node between the start of Nexus and the provisioning (which
+  changes it).
+- **NodePorts on the LAN, anonymous access on purpose.** The two NodePorts listen
+  on every interface of the node, and anonymous access is enabled by default so
+  that pulls need no login (`NEXUS_BENCH_ANONYMOUS`). Anyone on the LAN can read
+  the bench; do not put anything private in it.
+- **Mutable image tag.** The image is `docker.io/sonatype/nexus3:<tag>` with no
+  digest: the same tag can resolve to another image later.
+- **Partial result on error.** `Provision` returns the `ProvisionResult` it had
+  gathered together with the error. The command must not write the descriptor
+  when `err != nil`, or it would describe a bench that is half provisioned.
+
 ## Still to come
 
-Deploy and wait (4), the REST client and provisioning (6),
-destroy (7), the `nexus-bench` command and mise tasks (8), guarded integration
+The `nexus-bench` command and mise tasks (8), guarded integration
 tests and source guards (9), and the first real run on `datomir` (10, blocked on
 the EULA and cluster-access decisions Q1 and Q2 of the plan). This file grows
 with each step.

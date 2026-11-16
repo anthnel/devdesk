@@ -5,16 +5,21 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"io/fs"
 	"log/slog"
 	"os"
 	"os/exec"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"time"
 )
 
 const (
+	// secretsFileName is the only file name a store accepts: Remove deletes the
+	// file, and a mistyped NEXUS_BENCH_SECRETS must not point it at a key file.
+	secretsFileName = "secrets.json"
 	secretsFileMode = 0o600
 	secretsDirMode  = 0o700
 	// gitCheckTimeout bounds the one git process the store may start.
@@ -77,7 +82,7 @@ func DefaultSecretsPath(kubeContext, namespace string, getenv func(string) strin
 		}
 		state = filepath.Join(home, ".local", "state")
 	}
-	return filepath.Join(state, "devdesk", "nexus-bench", kubeContext, namespace, "secrets.json"), nil
+	return filepath.Join(state, "devdesk", "nexus-bench", kubeContext, namespace, secretsFileName), nil
 }
 
 // fileStore is the SecretStore backed by one JSON file.
@@ -86,7 +91,8 @@ type fileStore struct{ path string }
 // NewFileStore returns the store of the file at path. It touches nothing on
 // disk. A path inside a git working tree is refused unless git ignores it, so
 // that a secret cannot be committed by accident; a path outside every
-// repository is accepted without asking git.
+// repository is accepted without asking git. The file must be named
+// secrets.json: the store deletes it on Remove.
 func NewFileStore(path string) (SecretStore, error) {
 	if path == "" {
 		return nil, errors.New("the secrets path is empty")
@@ -94,6 +100,12 @@ func NewFileStore(path string) (SecretStore, error) {
 	abs, err := filepath.Abs(path)
 	if err != nil {
 		return nil, fmt.Errorf("resolve the secrets path: %w", err)
+	}
+	if filepath.Base(abs) != secretsFileName {
+		return nil, &BenchError{
+			Cause: fmt.Sprintf("the secrets path %s does not name a file called %s, and the bench deletes that file on down", abs, secretsFileName),
+			Check: "set NEXUS_BENCH_SECRETS to <folder>/" + secretsFileName + ", in a folder of its own",
+		}
 	}
 	if root, inRepo := findGitRoot(filepath.Dir(abs)); inRepo {
 		ignored, err := gitIgnores(root, abs)
@@ -149,30 +161,56 @@ var gitIgnores = func(root, path string) (bool, error) {
 }
 
 // gitEnvironment is the environment of the git process: the caller's, without
-// the variables that point git at a repository. Inherited, GIT_DIR and its
-// siblings would make git judge another repository than the one holding the
-// path, and the guard would answer for the wrong one. Names are compared in
-// upper case because Windows environment names are case-insensitive.
+// the variables that point git at a repository or inject a configuration.
+// Inherited, GIT_DIR and its siblings would make git judge another repository
+// than the one holding the path; GIT_CONFIG_COUNT/KEY/VALUE and
+// GIT_CONFIG_PARAMETERS could add a core.excludesFile that ignores the secrets
+// file; GIT_CEILING_DIRECTORIES could hide the repository. The user and system
+// configuration are switched off, so only the rules of the repository itself
+// (.gitignore, .git/info/exclude) can say a path is ignored. Names are compared
+// in upper case because Windows environment names are case-insensitive.
 func gitEnvironment() []string {
 	var env []string
 	for _, kv := range os.Environ() {
 		name, _, _ := strings.Cut(kv, "=")
-		switch strings.ToUpper(name) {
-		case "GIT_DIR", "GIT_WORK_TREE", "GIT_INDEX_FILE", "GIT_COMMON_DIR", "GIT_OBJECT_DIRECTORY", "GIT_NAMESPACE":
+		upper := strings.ToUpper(name)
+		switch upper {
+		case "GIT_DIR", "GIT_WORK_TREE", "GIT_INDEX_FILE", "GIT_COMMON_DIR", "GIT_OBJECT_DIRECTORY", "GIT_NAMESPACE",
+			"GIT_CONFIG_PARAMETERS", "GIT_CONFIG_COUNT", "GIT_CONFIG_GLOBAL", "GIT_CONFIG_SYSTEM", "GIT_CONFIG_NOSYSTEM",
+			"GIT_CEILING_DIRECTORIES":
+			continue
+		}
+		if strings.HasPrefix(upper, "GIT_CONFIG_KEY_") || strings.HasPrefix(upper, "GIT_CONFIG_VALUE_") {
 			continue
 		}
 		env = append(env, kv)
 	}
-	return env
+	return append(env, "GIT_CONFIG_GLOBAL="+os.DevNull, "GIT_CONFIG_NOSYSTEM=1")
 }
 
 // Load implements SecretStore. The error never carries the content of the
 // file: a corrupt file may hold a password.
 func (s *fileStore) Load() (Secrets, bool, error) {
-	data, err := os.ReadFile(s.path)
+	f, err := os.Open(s.path)
 	if errors.Is(err, fs.ErrNotExist) {
 		return Secrets{}, false, nil
 	}
+	if err != nil {
+		return Secrets{}, false, fmt.Errorf("read the secrets file: %w", err)
+	}
+	defer func() { _ = f.Close() }()
+	info, err := f.Stat()
+	if err != nil {
+		return Secrets{}, false, fmt.Errorf("read the secrets file: %w", err)
+	}
+	// Windows has no group or other bits to read.
+	if runtime.GOOS != "windows" && info.Mode().Perm()&0o077 != 0 {
+		return Secrets{}, false, &BenchError{
+			Cause: fmt.Sprintf("the secrets file %s can be read by other accounts (mode %04o)", s.path, info.Mode().Perm()),
+			Check: "chmod 600 " + s.path,
+		}
+	}
+	data, err := io.ReadAll(f)
 	if err != nil {
 		return Secrets{}, false, fmt.Errorf("read the secrets file: %w", err)
 	}

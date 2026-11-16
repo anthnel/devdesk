@@ -67,12 +67,27 @@ var permissionsByOp = map[Op][]permission{
 		{"create", "persistentvolumeclaims", scopeNamespace},
 		{"create", "services", scopeNamespace},
 		{"create", "deployments", scopeNamespace},
-		{"create", "secrets", scopeNamespace},
 		{"create", "pods/exec", scopeNamespace},
 		{"list", "services", scopeAll},
+		// Server-side apply is a PATCH, also on a second run (the namespace
+		// included), and Deploy reads the pods and the claims of the namespace
+		// while it waits.
+		{"patch", "namespaces", scopeCluster},
+		{"patch", "deployments", scopeNamespace},
+		{"patch", "services", scopeNamespace},
+		{"patch", "persistentvolumeclaims", scopeNamespace},
+		{"get", "pods", scopeNamespace},
+		{"list", "pods", scopeNamespace},
+		{"get", "persistentvolumeclaims", scopeNamespace},
+		{"list", "persistentvolumeclaims", scopeNamespace},
 	},
-	OpProvision: {{"create", "pods/exec", scopeNamespace}},
-	OpDown:      {{"delete", "namespaces", scopeCluster}},
+	// Provision waits for the Deployment and reads the pods before it execs.
+	OpProvision: {
+		{"create", "pods/exec", scopeNamespace},
+		{"get", "deployments", scopeNamespace},
+		{"list", "pods", scopeNamespace},
+	},
+	OpDown: {{"delete", "namespaces", scopeCluster}},
 }
 
 // RunPreflight checks, with read-only kubectl calls, that op can go ahead, and
