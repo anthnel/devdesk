@@ -1,0 +1,15 @@
+{
+  "tool_use_id": "toolu_01V1C93YqCPptuPckqDg2gZK",
+  "agent_id": "a6affaea80a79ed52",
+  "subagent_type": "dev-team:devops",
+  "task_description": "DEVDESK-304 Done après merge",
+  "token_usage": {
+    "input_tokens": 10,
+    "cache_creation_tokens": 39249,
+    "cache_read_tokens": 138435,
+    "output_tokens": 1008,
+    "api_call_count": 5
+  },
+  "started_at": "2026-11-13T12:53:14.217504238+01:00",
+  "completed_at": "2026-11-13T12:53:26.966237115+01:00"
+}
