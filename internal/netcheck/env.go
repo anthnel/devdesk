@@ -122,6 +122,15 @@ type RouteHop struct {
 	Gateway   net.IP
 }
 
+// RouteLookup is one route lookup of the route stage, kept so a later reader
+// (the path trace) can reuse it instead of asking the routing table again.
+// Err is the lookup's own error, untouched: nettrace.IsNoRoute still applies.
+type RouteLookup struct {
+	IP  net.IP
+	Hop RouteHop // zero when Err != nil
+	Err error
+}
+
 // Env is the seam every stage reaches the network through.
 //
 // internal/docker's dockerRunner is the precedent, with one difference: that

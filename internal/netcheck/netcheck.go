@@ -159,6 +159,10 @@ type Check struct {
 	//
 	// Empty is the common case: most verdicts have exactly one cause.
 	Reason Reason
+	// Routes is set on CheckRoute only: one lookup per address asked, in the
+	// order asked. Nil on a placeholder (skipped or cancelled stage). It holds
+	// raw errors and is never shown nor serialized.
+	Routes []RouteLookup
 }
 
 // Reason discriminates the causes of a verdict that has several. It is stable:
@@ -297,6 +301,10 @@ func (r Results) Get(id CheckID) (Check, bool) {
 	}
 	return r.checks[i], true
 }
+
+// RouteLookups returns a copy of the route stage's lookups, nil when the stage
+// did not run. Declaration only for now (DEVDESK-473 step 1, red).
+func (r Results) RouteLookups() []RouteLookup { return nil }
 
 // VerdictOf returns a check's verdict, or Unknown when it was never produced —
 // which is the honest answer for a question nobody asked.
