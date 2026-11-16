@@ -16,47 +16,18 @@ import (
 // registry by another address.
 var registryHTTPClient = &http.Client{
 	Timeout:       15 * time.Second,
-	CheckRedirect: refuseOffOriginRedirect,
+	CheckRedirect: RefuseOffOriginRedirect,
 }
-
-// maxRedirects is net/http's default limit, kept now that CheckRedirect is set.
-const maxRedirects = 10
-
-// refuseOffOriginRedirect keeps credentials on the origin they were meant for.
-// It compares with the initial request (via[0]), not only the previous hop, so
-// a chain that leaves the origin and comes back is refused too. The redirect is
-// refused rather than followed without Authorization: a registry that moves
-// content to another host is misconfigured for this client, and an explicit
-// error is safer than a silent anonymous retry.
-func refuseOffOriginRedirect(req *http.Request, via []*http.Request) error {
-	if len(via) >= maxRedirects {
-		return fmt.Errorf("stopped after %d redirects", maxRedirects)
-	}
-	if !sameOrigin(via[0].URL.String(), req.URL.String()) {
-		return fmt.Errorf("%w (%s)", errOffOriginRedirect, req.URL.Host)
-	}
-	return nil
-}
-
-// errOffOriginRedirect is the refusal refuseOffOriginRedirect returns.
-var errOffOriginRedirect = errors.New("refusing redirect to another origin")
 
 // ErrTagsNextOffOrigin is returned by ListRegistryTagsContext when a page's
 // Link rel="next" points to another origin. The list is not returned partial:
 // a short list would pass for the whole one.
 var ErrTagsNextOffOrigin = errors.New("tag list continues on another origin")
 
-// redirectRefusal strips the target URL from a refused redirect. net/http wraps
-// the refusal in a *url.Error carrying the full target URL, which may hold a
-// signed query; only the meaning and the host (kept by the refusal itself)
-// remain. Other errors pass through unchanged.
-func redirectRefusal(err error) error {
-	var ue *url.Error
-	if errors.As(err, &ue) && errors.Is(ue.Err, errOffOriginRedirect) {
-		return ue.Err
-	}
-	return err
-}
+// errInsecureTokenRealm is returned when a Bearer challenge names a token realm
+// that is not a safe http(s) URL for the registry: a scheme other than http or
+// https (or none), or http behind an https registry.
+var errInsecureTokenRealm = errors.New("refusing a token realm that is not a safe http(s) URL for this registry")
 
 const (
 	// maxTagPages bounds how many pages of a tag list are followed. A registry
@@ -201,12 +172,13 @@ func registryDoContext(ctx context.Context, method, rawURL, accept, username, pa
 	if !strings.HasPrefix(challenge, "Bearer ") {
 		return nil, token, &StatusError{Code: http.StatusUnauthorized, Source: SourceRegistry, Challenge: challenge, unexpectedChallenge: true}
 	}
-	token, err = exchangeBearerTokenContext(ctx, challenge[7:], username, password)
+	// exchangeBearerTokenContext refuses an insecure realm itself, before any request.
+	token, err = exchangeBearerTokenContext(ctx, rawURL, challenge[7:], username, password)
 	if err != nil {
 		return nil, "", err
 	}
 	if resp, err = doRequestContext(ctx, method, rawURL, accept, "", "", token); err != nil {
-		return nil, token, fmt.Errorf("%s (retry) %s: %w", method, rawURL, err)
+		return nil, token, fmt.Errorf("%s (retry) %s: %w", method, RedactURL(rawURL), err)
 	}
 	return resp, token, nil
 }
@@ -222,7 +194,7 @@ func doRequest(method, rawURL, accept, username, password, token string) (*http.
 func doRequestContext(ctx context.Context, method, rawURL, accept, username, password, token string) (*http.Response, error) {
 	req, err := http.NewRequestWithContext(ctx, method, rawURL, nil)
 	if err != nil {
-		return nil, fmt.Errorf("build request: %w", err)
+		return nil, buildRequestError("build request", rawURL, err)
 	}
 	if accept != "" {
 		req.Header.Set("Accept", accept)
@@ -235,9 +207,20 @@ func doRequestContext(ctx context.Context, method, rawURL, accept, username, pas
 	}
 	resp, err := registryHTTPClient.Do(req)
 	if err != nil {
-		return nil, fmt.Errorf("%s %s: %w", method, rawURL, redirectRefusal(err))
+		return nil, fmt.Errorf("%s %s: %w", method, RedactURL(rawURL), StripRedirectTarget(err))
 	}
 	return resp, nil
+}
+
+// buildRequestError is the error of a request that could not be built. The
+// *url.Error net/http returns holds the raw URL, password included, so only the
+// cause and the redacted URL are kept.
+func buildRequestError(what, rawURL string, err error) error {
+	var ue *url.Error
+	if errors.As(err, &ue) {
+		err = ue.Err
+	}
+	return fmt.Errorf("%s for %s: %w", what, RedactURL(rawURL), err)
 }
 
 // manifestAccept lists every manifest kind a tag can point to. A multi-platform
@@ -322,12 +305,70 @@ func resolveNext(current, link string) string {
 }
 
 // exchangeBearerToken fetches a bearer token from the registry's token endpoint.
-func exchangeBearerToken(challenge, username, password string) (string, error) {
-	return exchangeBearerTokenContext(context.Background(), challenge, username, password)
+func exchangeBearerToken(registryURL, challenge, username, password string) (string, error) {
+	return exchangeBearerTokenContext(context.Background(), registryURL, challenge, username, password)
 }
 
-// exchangeBearerTokenContext is exchangeBearerToken bound to ctx.
-func exchangeBearerTokenContext(ctx context.Context, challenge, username, password string) (string, error) {
+// checkTokenRealm refuses, before any request to it, a Bearer realm that is
+// neither http nor https (a relative realm included). It also refuses an http
+// realm when the registry is https or cannot be parsed, whatever the
+// credentials: the realm would otherwise receive them (or a token request) in
+// clear. A missing or unparsable realm passes: exchangeBearerTokenContext
+// reports those. The error names the realm's host only, never its userinfo,
+// path or query.
+func checkTokenRealm(registryURL, challenge string) error {
+	realm, ok := parseBearerChallenge(challenge)["realm"]
+	if !ok {
+		return nil
+	}
+	u, err := url.Parse(realm)
+	if err != nil {
+		return nil
+	}
+	reg, _ := url.Parse(registryURL)
+	switch {
+	case u.Scheme == "https":
+		return nil
+	case u.Scheme == "http" && reg != nil && reg.Scheme != "https":
+		return nil
+	case u.Hostname() == "":
+		return errInsecureTokenRealm
+	}
+	return fmt.Errorf("%w (%s)", errInsecureTokenRealm, u.Host)
+}
+
+// exchangeBearerTokenContext is exchangeBearerToken bound to ctx. It applies
+// checkTokenRealm itself, so no caller reaches an insecure realm by skipping
+// registryDoContext; registryURL is the registry that sent the challenge.
+func exchangeBearerTokenContext(ctx context.Context, registryURL, challenge, username, password string) (string, error) {
+	if err := checkTokenRealm(registryURL, challenge); err != nil {
+		return "", err
+	}
+	u, err := tokenEndpoint(challenge)
+	if err != nil {
+		return "", err
+	}
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, u, nil)
+	if err != nil {
+		return "", buildRequestError("build token request", u, err)
+	}
+	if username != "" && password != "" {
+		req.SetBasicAuth(username, password)
+	}
+	resp, err := registryHTTPClient.Do(req)
+	if err != nil {
+		return "", fmt.Errorf("fetch token: %w", StripRedirectTarget(err))
+	}
+	defer func() { _ = resp.Body.Close() }()
+	if resp.StatusCode != http.StatusOK {
+		return "", &StatusError{Code: resp.StatusCode, Source: SourceToken}
+	}
+	return readToken(resp.Body)
+}
+
+// tokenEndpoint is the URL of the token request a Bearer challenge asks for: its
+// realm, with the service and scope it names as the query.
+func tokenEndpoint(challenge string) (string, error) {
 	params := parseBearerChallenge(challenge)
 	realm, ok := params["realm"]
 	if !ok {
@@ -335,7 +376,12 @@ func exchangeBearerTokenContext(ctx context.Context, challenge, username, passwo
 	}
 	u, err := url.Parse(realm)
 	if err != nil {
-		return "", fmt.Errorf("parse realm %q: %w", realm, err)
+		// The raw realm may hold a userinfo or a signed query: only the cause stays.
+		var ue *url.Error
+		if errors.As(err, &ue) {
+			err = ue.Err
+		}
+		return "", fmt.Errorf("parse realm: %w", err)
 	}
 	q := u.Query()
 	if s, ok := params["service"]; ok {
@@ -345,34 +391,24 @@ func exchangeBearerTokenContext(ctx context.Context, challenge, username, passwo
 		q.Set("scope", s)
 	}
 	u.RawQuery = q.Encode()
+	return u.String(), nil
+}
 
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, u.String(), nil)
-	if err != nil {
-		return "", fmt.Errorf("build token request: %w", err)
-	}
-	if username != "" && password != "" {
-		req.SetBasicAuth(username, password)
-	}
-	resp, err := registryHTTPClient.Do(req)
-	if err != nil {
-		return "", fmt.Errorf("fetch token: %w", redirectRefusal(err))
-	}
-	defer func() { _ = resp.Body.Close() }()
-	if resp.StatusCode != http.StatusOK {
-		return "", &StatusError{Code: resp.StatusCode, Source: SourceToken}
-	}
-	body, err := io.ReadAll(io.LimitReader(resp.Body, maxTokenResponse+1))
+// readToken reads a token endpoint's answer, at most maxTokenResponse bytes, and
+// returns the token it holds.
+func readToken(body io.Reader) (string, error) {
+	data, err := io.ReadAll(io.LimitReader(body, maxTokenResponse+1))
 	if err != nil {
 		return "", fmt.Errorf("read token response: %w", err)
 	}
-	if len(body) > maxTokenResponse {
+	if len(data) > maxTokenResponse {
 		return "", fmt.Errorf("token response over %d bytes", maxTokenResponse)
 	}
 	var result struct {
 		Token       string `json:"token"`
 		AccessToken string `json:"access_token"`
 	}
-	if err := json.Unmarshal(body, &result); err != nil {
+	if err := json.Unmarshal(data, &result); err != nil {
 		return "", fmt.Errorf("decode token response: %w", err)
 	}
 	if result.Token != "" {

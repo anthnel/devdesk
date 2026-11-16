@@ -13,6 +13,9 @@ Templates live in a catalog you manage in the **Templates** view (`:templates`, 
 
 `E` edits the selected entry, `D` deletes it (the confirmation defaults to **No**).
 
+!!! note "OCI sources"
+    DevDesk checks the downloaded layer against the `sha256` digest in the manifest. A registry whose layers use another digest, such as `sha512`, is refused. If the registry serves the layer from another host (a CDN or object storage), DevDesk follows it without your registry credentials, but never from `https` to `http`. A registry on this machine is recognised by `localhost`, a name under `.localhost`, or a literal IP address: an alias in `/etc/hosts` is not, so use one of those. Error messages never show a password or a signed query.
+
 !!! note "Private repositories"
     Your forge token is sent only to the forge's own host. For a private repository elsewhere, use an SSH URL.
 

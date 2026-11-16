@@ -22,7 +22,7 @@ const maxCatalogPage = 1 << 20
 // reached with a next link, more than maxPages*pageSize names, or a next link
 // to another origin (never followed: the Basic credentials and the token are
 // not sent to it). HTTP 3xx redirects follow registryHTTPClient, which refuses
-// off-origin ones (refuseOffOriginRedirect, DEVDESK-410).
+// off-origin ones (RefuseOffOriginRedirect, DEVDESK-410).
 // Authentication is the tag flow's (Basic, then Bearer on a challenge, token
 // kept across pages); a non-200 answer is a *StatusError.
 func ListCatalogContext(ctx context.Context, apiURL, username, password string, maxPages, pageSize int) (names []string, truncated bool, err error) {

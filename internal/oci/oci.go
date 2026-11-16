@@ -3,6 +3,7 @@ package oci
 import (
 	"archive/tar"
 	"compress/gzip"
+	"crypto/sha256"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -10,7 +11,11 @@ import (
 	"net/http"
 	"path"
 	"strings"
+	"time"
 )
+
+// templateClientTimeout bounds one whole request of Client, body included.
+const templateClientTimeout = time.Minute
 
 // Client handles OCI registry operations
 type Client struct {
@@ -18,6 +23,11 @@ type Client struct {
 	username    string
 	password    string
 	httpClient  *http.Client
+
+	// blobClient fetches the layer blob only. Unlike httpClient it follows a
+	// redirect to another origin (a registry that hands blobs to a CDN or an
+	// object store), but never with credentials: see followBlobRedirect.
+	blobClient *http.Client
 
 	// Limits bounds a template download; the zero value is unbounded.
 	Limits Limits
@@ -43,31 +53,58 @@ func NewClient(registryURL, username, password string) *Client {
 		registryURL: strings.TrimSuffix(registryURL, "/"),
 		username:    username,
 		password:    password,
-		httpClient:  &http.Client{},
+		httpClient:  &http.Client{Timeout: templateClientTimeout, CheckRedirect: RefuseOffOriginRedirect},
+		blobClient: &http.Client{
+			Timeout:       templateClientTimeout,
+			CheckRedirect: followBlobRedirect,
+			Transport:     blobTransport(isLocalURL(registryURL)),
+		},
 	}
+}
+
+// statusText is the code of resp and the standard text of that code. The status
+// line a server wrote is never repeated: it comes from a host the user may not
+// have chosen and can hold control characters.
+func statusText(resp *http.Response) string {
+	return strings.TrimSpace(fmt.Sprintf("%d %s", resp.StatusCode, http.StatusText(resp.StatusCode)))
+}
+
+// get sends a GET to rawURL through client, with Basic auth when both the
+// username and the password are set and an Accept header when accept is not
+// empty. The caller closes the body. A refused redirect comes back through
+// StripRedirectTarget, so no target URL (possibly signed) reaches an error.
+func (c *Client) get(client *http.Client, rawURL, accept string) (*http.Response, error) {
+	req, err := http.NewRequest("GET", rawURL, nil)
+	if err != nil {
+		return nil, buildRequestError("build request", rawURL, err)
+	}
+
+	if accept != "" {
+		req.Header.Set("Accept", accept)
+	}
+	if c.username != "" && c.password != "" {
+		req.SetBasicAuth(c.username, c.password)
+	}
+
+	resp, err := client.Do(req)
+	if err != nil {
+		return nil, StripRedirectTarget(err)
+	}
+	return resp, nil
 }
 
 // ListTags lists available tags for a repository (templates)
 func (c *Client) ListTags(repository string) ([]string, error) {
 	url := fmt.Sprintf("%s/v2/%s/tags/list", c.registryURL, repository)
 
-	req, err := http.NewRequest("GET", url, nil)
-	if err != nil {
-		return nil, err
-	}
-
-	if c.username != "" && c.password != "" {
-		req.SetBasicAuth(c.username, c.password)
-	}
-
-	resp, err := c.httpClient.Do(req)
+	resp, err := c.get(c.httpClient, url, "")
 	if err != nil {
 		return nil, err
 	}
 	defer func() { _ = resp.Body.Close() }()
 
 	if resp.StatusCode != http.StatusOK {
-		return nil, fmt.Errorf("failed to list tags: %s (GET %s)", resp.Status, url)
+		return nil, fmt.Errorf("failed to list tags: %s (GET %s)", statusText(resp), RedactURL(url))
 	}
 
 	var result struct {
@@ -86,24 +123,14 @@ func (c *Client) DownloadTemplate(repository, tag string) (*Template, error) {
 	// Get manifest
 	manifestURL := fmt.Sprintf("%s/v2/%s/manifests/%s", c.registryURL, repository, tag)
 
-	req, err := http.NewRequest("GET", manifestURL, nil)
-	if err != nil {
-		return nil, err
-	}
-
-	req.Header.Set("Accept", "application/vnd.oci.image.manifest.v1+json")
-	if c.username != "" && c.password != "" {
-		req.SetBasicAuth(c.username, c.password)
-	}
-
-	resp, err := c.httpClient.Do(req)
+	resp, err := c.get(c.httpClient, manifestURL, "application/vnd.oci.image.manifest.v1+json")
 	if err != nil {
 		return nil, err
 	}
 	defer func() { _ = resp.Body.Close() }()
 
 	if resp.StatusCode != http.StatusOK {
-		return nil, fmt.Errorf("failed to get manifest: %s", resp.Status)
+		return nil, fmt.Errorf("failed to get manifest: %s", statusText(resp))
 	}
 
 	var manifest struct {
@@ -137,28 +164,38 @@ func (c *Client) DownloadTemplate(repository, tag string) (*Template, error) {
 
 // downloadAndExtractLayer downloads a layer and extracts its contents
 func (c *Client) downloadAndExtractLayer(repository, digest string) ([]ArchiveFile, error) {
-	url := fmt.Sprintf("%s/v2/%s/blobs/%s", c.registryURL, repository, digest)
-
-	req, err := http.NewRequest("GET", url, nil)
+	wantHex, err := parseLayerDigest(digest)
 	if err != nil {
 		return nil, err
 	}
+	url := fmt.Sprintf("%s/v2/%s/blobs/sha256:%s", c.registryURL, repository, wantHex)
 
-	if c.username != "" && c.password != "" {
-		req.SetBasicAuth(c.username, c.password)
-	}
-
-	resp, err := c.httpClient.Do(req)
+	resp, err := c.get(c.blobClient, url, "")
 	if err != nil {
-		return nil, err
+		return nil, blobFetchError(err)
 	}
 	defer func() { _ = resp.Body.Close() }()
 
 	if resp.StatusCode != http.StatusOK {
-		return nil, fmt.Errorf("failed to download layer: %s", resp.Status)
+		return nil, fmt.Errorf("failed to download layer: %s", statusText(resp))
 	}
 
-	return ReadTarGzLimited(resp.Body, c.Limits)
+	var body io.Reader = resp.Body
+	if limit := blobCap(c.Limits); limit > 0 {
+		body = &cappedReader{r: resp.Body, left: limit}
+	}
+	// The digest is checked whether or not the blob was redirected: what a CDN
+	// serves is only as good as the digest the registry named.
+	sum := sha256.New()
+	body = io.TeeReader(body, sum)
+	entries, err := ReadTarGzLimited(body, c.Limits)
+	if err != nil {
+		return nil, err
+	}
+	if err := checkBlobDigest(body, sum, wantHex); err != nil {
+		return nil, err
+	}
+	return entries, nil
 }
 
 // Limits bounds what reading an archive may hold in memory. A zero field is no

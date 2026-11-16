@@ -204,7 +204,7 @@ func TestContextVariantsRefuseACancelledContext(t *testing.T) {
 			return err
 		},
 		"exchangeBearerTokenContext": func() error {
-			_, err := exchangeBearerTokenContext(ctx, `realm="`+srv.URL+`/token"`, "", "")
+			_, err := exchangeBearerTokenContext(ctx, srv.URL, `realm="`+srv.URL+`/token"`, "", "")
 			return err
 		},
 	}
@@ -244,7 +244,7 @@ func TestContextFreeFunctionsKeepTheirBehavior(t *testing.T) {
 		t.Fatalf("doRequest = %v, %v", resp, err)
 	}
 	_ = resp.Body.Close()
-	if tok, err := exchangeBearerToken(`realm="`+srv.URL+`/token"`, "", ""); err != nil || tok != "tok" {
+	if tok, err := exchangeBearerToken(srv.URL, `realm="`+srv.URL+`/token"`, "", ""); err != nil || tok != "tok" {
 		t.Errorf("exchangeBearerToken = %q, %v", tok, err)
 	}
 }

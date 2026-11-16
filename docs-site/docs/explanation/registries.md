@@ -67,6 +67,11 @@ precisely the thing the detector cannot know from the outside — an empty
 prefix against a bare host fails visibly, where a guessed path used to fail
 in a way that looked like it might be working.
 
+The Nexus detector does not follow a redirect to another host, so your account
+is never sent to a server you did not configure. That includes a redirect from
+`http` to `https` on the same host: enter the registry URL with `https`. When a
+redirect is refused, discovery finds no members and says so in the log.
+
 ## Authentication follows the address, not a flag
 
 `auth_mode` is read before any credential lookup, on every code path that

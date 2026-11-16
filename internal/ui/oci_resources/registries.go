@@ -8,6 +8,7 @@ import (
 
 	"github.com/anthnel/devdesk/internal/config"
 	"github.com/anthnel/devdesk/internal/docker"
+	"github.com/anthnel/devdesk/internal/oci"
 	sharedcomponents "github.com/anthnel/devdesk/internal/ui/components"
 )
 
@@ -185,12 +186,12 @@ func (m Model) registryLoginStatusCmd() tea.Cmd {
 func (m Model) handleRegistryLoginComplete(msg RegistryLoginCompleteMsg) (tea.Model, tea.Cmd) {
 	m.registryTable.ClearBusy(msg.RegistryURL)
 	if msg.Err != nil {
-		log.Printf("ERROR [oci_resources] login %s: %v", msg.RegistryURL, msg.Err)
+		log.Printf("ERROR [oci_resources] login %s: %v", oci.RedactRegistryURL(msg.RegistryURL), msg.Err)
 		m.registryLoginStatus[msg.RegistryURL] = docker.LoginNone
 		m.updateRegistryTable()
 		return m, m.footer.Error("Login failed — check logs")
 	}
-	log.Printf("INFO [oci_resources] login successful: %s", msg.RegistryURL)
+	log.Printf("INFO [oci_resources] login successful: %s", oci.RedactRegistryURL(msg.RegistryURL))
 	m.footer.Clear()
 	// Optimistic update + re-check from disk to confirm credential helper cases.
 	// The optimistic value claims a helper until the re-check says where the
@@ -217,10 +218,10 @@ func (m Model) logoutSelectedRegistry() (tea.Model, tea.Cmd) {
 func (m Model) handleRegistryLogoutComplete(msg RegistryLogoutCompleteMsg) (tea.Model, tea.Cmd) {
 	m.registryTable.ClearBusy(msg.RegistryURL)
 	if msg.Err != nil {
-		log.Printf("ERROR [oci_resources] logout %s: %v", msg.RegistryURL, msg.Err)
+		log.Printf("ERROR [oci_resources] logout %s: %v", oci.RedactRegistryURL(msg.RegistryURL), msg.Err)
 		return m, m.footer.Error("Logout failed — check logs")
 	}
-	log.Printf("INFO [oci_resources] logout successful: %s", msg.RegistryURL)
+	log.Printf("INFO [oci_resources] logout successful: %s", oci.RedactRegistryURL(msg.RegistryURL))
 	m.footer.Clear()
 	// Do NOT call registryLoginStatusCmd here: docker logout docker.io may not remove
 	// the https://index.docker.io/v1/ key from config.json, causing the file-check to

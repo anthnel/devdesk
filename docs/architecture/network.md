@@ -112,16 +112,19 @@ credentials and the Bearer token from leaving the registry they were meant for:
   for the whole one, and `imageupdate` and the security remediation would read
   a false "up to date". The catalog walker behaves otherwise: it returns
   `truncated=true` with the names already read, and no error.
-- **`registryHTTPClient` has a `CheckRedirect`, `refuseOffOriginRedirect`.** A
+- **`registryHTTPClient` has a `CheckRedirect`, `RefuseOffOriginRedirect`**
+  (`internal/oci/guard.go`, exported since DEVDESK-412). A
   redirect is refused when its scheme, host or port differ from the first
   request of the chain (`via[0]`, not only the previous hop), so a chain that
   leaves the origin and comes back is refused too. The error reads
   `refusing redirect to another origin (<host>)` and wraps
-  `errOffOriginRedirect` (`errors.Is`). It holds neither the target URL, nor
-  its path or query: `redirectRefusal` strips the `*url.Error` that carries
-  them, so a signed URL reaches neither the footer nor the logs. The limit of 10 redirects (`maxRedirects`, the `net/http` default) is
-  kept. It applies to everything that uses the client: tags, catalog and the
-  token endpoint.
+  `ErrOffOriginRedirect` (`errors.Is`). It holds neither the target URL, nor
+  its path or query: `StripRedirectTarget` strips the `*url.Error` that carries
+  them, so a signed URL reaches neither the footer nor the logs. The limit of
+  10 redirects (`MaxRedirects`, the `net/http` default) is kept; past it the
+  error wraps `ErrTooManyRedirects` (`stopped after 10 redirects`) and no
+  longer carries the last target URL either. It applies to everything that uses
+  the client: tags, catalog and the token endpoint.
 - **The token endpoint's answer is capped at 1 MiB** (`maxTokenResponse`). A
   larger body is an error (`token response over 1048576 bytes`), not a silent
   cut.
@@ -130,6 +133,109 @@ credentials and the Bearer token from leaving the registry they were meant for:
 to `https` on the same host, `host` to `host:443`, and a host written with a
 different case. The comparison is on the exact scheme and `host:port`, and the
 guard refuses when in doubt.
+
+**The other registry clients (DEVDESK-412).** The same two guards, plus a few
+more, cover the clients DEVDESK-410 left out. The shared code is
+`internal/oci/guard.go`, which `internal/registrymgr` imports (`internal/oci`
+imports nothing from `internal/`).
+
+- **`guard.go`** exports `MaxRedirects`, `ErrOffOriginRedirect`,
+  `ErrTooManyRedirects`, `RefuseOffOriginRedirect` and `StripRedirectTarget`
+  (which also unwraps the unexported `errInsecureRedirect` and the blob's local
+  refusal), and two helpers. `ReadAllLimited(r, limit)` accepts `limit` bytes
+  and fails with an error wrapping `ErrBodyTooLarge` (`response body over
+  <limit> bytes`) on the next one: never a silent cut. `RedactURL(raw)` masks
+  the password of a URL's userinfo (`xxxxx`) and returns `<invalid URL>` for
+  anything that does not parse or has no host, so it never echoes it.
+- **`oci.Client` (templates, `oci.go`) has two `http.Client`, both with a 1
+  minute timeout for the whole request, redirects and body included**
+  (`templateClientTimeout`). `httpClient` (tag list, manifest) uses
+  `RefuseOffOriginRedirect`. `blobClient` (the layer blob) follows a redirect to
+  another origin on purpose (decision of the user, D156): a registry hands blobs
+  to a CDN or an object store. The credentials never go with it
+  (`oci_blob.go`, `followBlobRedirect`):
+  - at most 10 hops, to `http` or `https` only;
+  - never from `https` to `http`, compared with the previous hop
+    (`refusing redirect from https to http (<host>)`);
+  - once a hop left the origin of the first request, `Authorization` and
+    `Referer` are deleted from every following request, one that comes back to
+    the origin included. `net/http` alone would copy `Authorization` to the same
+    host on another port, across a scheme change and to a subdomain, and it does
+    so before `CheckRedirect` runs, hence the explicit deletion;
+  - when the registry is not local, a redirect to `localhost`, `*.localhost` or
+    a literal loopback, link-local or unspecified (`0.0.0.0`) address is refused
+    (`isLocalHost`). A name that resolves to such an address (DNS rebinding) is
+    caught at the dial by `Dialer.Control` (`blobDialControl`), which sees the
+    address about to be dialed. The `ip:port` of a configured proxy
+    (`HTTP_PROXY`, resolved when the proxy is chosen for a request) is allowed
+    at the dial, so a local proxy keeps working. A name in `/etc/hosts` or in
+    the DNS that points to `127.0.0.1` is not "local" for the literal check:
+    only the dial control looks at what it resolves to. A registry is local by
+    the same rule (`localhost`, `*.localhost`, a literal address), which turns
+    the two checks off.
+  - **The digest is always checked, redirected or not.** `parseLayerDigest`
+    accepts `sha256:` and 64 lowercase hex digits only, before the URL is
+    built (the digest goes into it); anything else, `sha512` included, fails
+    with `unsupported layer digest: only sha256 is supported`. The compressed
+    stream is hashed while read, the bytes after the gzip stream included
+    (`checkBlobDigest`); a mismatch is `ErrBlobDigestMismatch` and no entry is
+    returned.
+  - **The compressed bytes are capped** at `blobCap(Limits)`:
+    `Limits.Bytes + Limits.Files*2048 + 1 MiB`, no cap when `Limits.Bytes` is
+    zero. Over it is `ErrArchiveTooLarge`. The decompressed `Limits` do not see
+    what the network carries (a directory entry with a large size, PAX headers).
+  - Errors name the host of the failing hop, never its path or query
+    (`download layer from <host>: <cause>`, `blobFetchError`). The status line
+    a server wrote is not repeated, only the code and its standard text.
+- **A Bearer `realm` is checked before any request** (`checkTokenRealm`, applied
+  by `exchangeBearerTokenContext` itself). A realm that is neither `http` nor
+  `https` (a relative one included) is refused. An `http` realm behind an
+  `https` registry is refused too, **with or without credentials**: otherwise
+  the Basic credentials, or a token request, would go in clear. The error is
+  `refusing a token realm that is not a safe http(s) URL for this registry
+  (<host>)`: the realm's host only, never its userinfo, path or query
+  (`errInsecureTokenRealm`). A missing or unparsable realm passes this check
+  and keeps its own errors, which no longer repeat the realm.
+- **URLs are redacted in errors and logs.** The error prefix of
+  `doRequestContext` and of the `(retry)` request use `RedactURL`; a request
+  that cannot be built reports the cause and the redacted URL
+  (`buildRequestError`). A registry address in a log goes through
+  `oci.RedactRegistryURL` (`guard.go`), which takes an address with or without a
+  scheme: without `://` it prefixes `https://`, redacts, then removes the prefix
+  so the host name stays readable; an unreadable address gives `<invalid URL>`.
+  `browser_bridge.go` (tags and tag-meta logs) and the login and logout logs of
+  `registries.go` and `commands.go` use it. In `internal/template/fetch.go`,
+  `redactGitURL` masks the source URL in `fetching ...` for `http(s)` URLs (the
+  scp form `git@host:path` is kept as written); it is being extended to mask a
+  token written as the user name of an `http(s)` URL as well. A password written
+  in a registry URL (`https://alice:...@host`) reaches neither the footer nor
+  `log.Printf`.
+- **The Nexus detector** (`internal/registrymgr/nexus.go`) has the same origin
+  guard (`nexusHTTPClient.CheckRedirect = oci.RefuseOffOriginRedirect`, 8 s
+  timeout unchanged) and reads each reply through
+  `oci.ReadAllLimited(..., maxNexusResponse)`, 1 MiB. The cap is a hypothesis,
+  not measured. The anonymous retry of the group members still happens on any
+  error but a refused off-origin redirect (see `registries.md`).
+- **Docker Hub tag dates** (`fetchDockerHubTagsMeta`, `commands.go`) read the
+  page through `oci.ReadAllLimited(..., maxHubTagsMetaResponse)`, 4 MiB.
+  Measured on 2026-11-16 with `page_size=100`: 530,629 bytes for
+  `library/postgres` (the largest), 443,387 for `library/python`, 259,560 for
+  `library/node`; the cap is about 7.9 times the largest. A page over it is an
+  error wrapping `ErrBodyTooLarge` and no dates are returned (no partial map).
+  `ociHTTPClient` is unchanged (15 s timeout, anonymous call, no credentials).
+
+**Behavior change (DEVDESK-412).** A Bearer realm in `http://` behind an
+`https` registry is refused, and so is a realm with another scheme. A template
+blob redirected from `https` to `http`, or to a loopback or link-local address
+from a registry that is not local, is refused. A registry that serves its
+layers with a digest other than `sha256` can no longer be used as an OCI
+template source. A Nexus URL that redirects to another origin gives no members
+(the `http` to `https` redirect of the same host included: enter the URL in
+`https`).
+
+**Residual risks.** The accepted ones (private networks not filtered, local
+registry named by an alias, proxy behavior, CPU before the digest check, sha256
+only, Nexus limits, and the rest) are listed in D156 in `docs/backlog.md`.
 
 **Catalog walk (DEVDESK-306, IS-03).** `ListCatalogContext(ctx, apiURL,
 username, password, maxPages, pageSize)` returns `(names, truncated, err)`. It
