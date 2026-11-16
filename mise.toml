@@ -192,7 +192,7 @@ description = "Run fmt, vet, lint and tests (pre-commit checklist)"
 depends = ["fmt", "vet", "lint", "test"]
 
 [tasks.ci]
-description = "Reproduce the CI locally: the six checks of ci.yml in order, stopping at the first failure; unlike check it rewrites no file (fmt-check, not fmt) and also runs build and test-race"
+description = "Reproduce the CI locally: the four checks of ci.yml (fmt-check, vet, lint, build) then test and test-race, in order, stopping at the first failure; unlike check it rewrites no file (fmt-check, not fmt)"
 # Sequential on purpose: `depends` would run the steps in parallel. test-race
 # fails plainly when no C compiler is installed; nothing is skipped or masked.
 run = [
