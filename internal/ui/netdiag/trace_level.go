@@ -43,12 +43,16 @@ func (pm *PathModel) ready(tg pathTarget) {
 	pm.footer.Clear()
 }
 
-// openTrace enters the sub-level on tg, remembering where esc leads back to.
+// openTrace enters the sub-level on tg, remembering where esc leads back to. It
+// is the only writer of the path model's known route reading: a copy of the
+// route stage's lookups of the results on screen, empty when there are none
+// (DEVDESK-473).
 func (m *Model) openTrace(origin ViewState, tg pathTarget) {
 	m.traceOrigin = origin
 	m.state = StateTrace
 	m.activeTab = tabDiagnostics
 	m.pathModel.ready(tg)
+	m.pathModel.known = knownRoutesOf(m.resultsHost, m.results)
 }
 
 // inTrace reports whether the trace sub-level is on screen.

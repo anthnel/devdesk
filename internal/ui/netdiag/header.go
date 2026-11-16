@@ -444,7 +444,10 @@ func (m *Model) GetHelpContent() help.Content {
 					"The column starts on this machine: the interface the target's traffic leaves by, " +
 					"with its source address, and the gateway, read from this machine's routing table, " +
 					"then the hops. Under WSL2 the source row names the WSL2 VM, and in NAT mode the " +
-					"first hop through the virtual switch is labelled Windows host.\n\n" +
+					"first hop through the virtual switch is labelled Windows host. Opened with H from the results, " +
+					"the trace reuses the Local route check's reading for the same address instead of asking the " +
+					"routing table again, so both show the same answer; ctrl+r on the results reads it again. When a name " +
+					"resolves to several addresses and the results already read some of them successfully, the trace takes the first of those.\n\n" +
 					"The target is the one typed in the Diagnostics form, or the host of the results; a " +
 					"port is ignored because the trace probes a host, not a service. Press enter in the trace to start it, or to trace again. Each hop is a UDP datagram sent to UDP " +
 					"port 33435 with a growing time-to-live; the router that drops it answers, and the " +

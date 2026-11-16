@@ -861,6 +861,17 @@ verified: a declared exception.
   Fail case the results header and the MCP verdict read FAIL, where they read
   UNKNOWN before.
 
+  The stage also keeps its readings on the check (DEVDESK-473): `Check.Routes`
+  holds one `RouteLookup{IP, Hop, Err}` per address looked up, in the order
+  asked, with the lookup's own error untouched (so `nettrace.IsNoRoute` still
+  applies to it), and `Results.RouteLookups()` returns a copy of them, nil when
+  the stage did not run (skipped or cancelled placeholders carry none). It is
+  data for a later reader, so the path trace can reuse the reading instead of
+  asking the routing table again; it is never shown and never serialized (the
+  MCP tool maps a `Check` to its own DTO). Verdict, summary, reason and facts
+  are unchanged. The path trace reuses these readings; see "The route is read
+  once" under the trace sub-level.
+
   Real coverage is Linux and WSL2 only. `go-netroute` returns a
   `windows.Errno` that `IsNoRoute` does not recognize on Windows, and an error
   with no errno on macOS: both end as `undetermined`, which is the safe side.
@@ -1048,6 +1059,46 @@ every state: the Diagnostics filter bar is not drawn in the sub-level
 (`GetFooterHeight`, `RenderFooter`, Rule 124). The footer message is the Path
 model's (`activeFooter`). Hops keep landing while another tab is on screen, and
 coming back finds the sub-level.
+
+**The route is read once (DEVDESK-473, D155; `path_known_route.go`).**
+Diagnostics keeps its route lookups on the `Local route` check (`Check.Routes`);
+the trace's interface and gateway rows answer from them instead of asking the
+routing table a second time. `Model.openTrace` is the only writer of
+`PathModel.known`: it assigns `knownRoutesOf(m.resultsHost, m.results)`, a copy
+of the lookups (never shared with `m.results`), on every opening, empty when
+the form opens the trace (no results). `Model.resultsHost` is the host of the
+run behind the results: `StartRun` sets it (so `ctrl+r` too), `resetToForm`
+clears it with the results. `PathModel.launch` builds the run from
+`pm.runEngine(tg)`, the engine whose `route` function is the
+`pathKnownRoutes.routeFirst` wrapper; the `Cmd` receives only values and never
+reads `pm` (Rule 110). A reading is reused only when the snapshot's host equals
+the target's host, the traced address (compared after `Unmap`) is one the route
+stage looked up, the lookup did not end on `context.Canceled` or
+`context.DeadlineExceeded` (it says nothing about the table), and the source is
+this machine (a container source reads its own route on every launch). The
+lookup's own error is returned untouched, so `no route` and `undetermined`
+come from the same `nettrace.IsNoRoute` on both sides. *Trace again* and a
+return to the results then `H` reuse the same reading; `ctrl+r`, a new run,
+and a trip back to the form (`esc`, `N`) read again, because the results the
+reading belonged to are gone. The `Local route` row itself is unchanged.
+
+*Which address (D155 point 5, refining D144).* The trace still resolves the name
+itself (`LookupNetIP(ctx, "ip4", host)`) and traces an address that resolution
+returned now, never the Diagnostics one and never one from the DNS Server field.
+When the source is this machine, `runEngine` also wraps `resolve`:
+`pathKnownRoutes.prefer` moves the first IPv4 address of that answer which the
+snapshot holds a *successful* reading of (same host test, `Unmap`, and a lookup
+with `Err == nil`) to the front, the other addresses keeping their order, and
+`resolvePathTarget` takes `addrs[0]` as before. A lookup that ended in an error
+(`no route`, `undetermined`, a cancellation, a deadline, any other) is never
+preferred (user decision, confirmed 2026-11-16). So on a round-robin name the
+trace takes an address Diagnostics already read with success, whatever order the
+resolver gave this time. With no results, for another host, from a container, or
+with no preferable address in common, the answer is untouched and the first IPv4
+address is traced (that one costs one more reading, unless it is the only
+address: its failed reading is then reused as it is). IPv6 addresses are never
+preferred. The reordering runs inside the `Cmd` on a copy of the snapshot taken
+at launch (Rule 110).
 
 `PathModel` has **no target field** (DEVDESK-471): `pathReady` is its zero value,
 a fresh model is ready and inert, and `ready(target)` is the only way a target
@@ -1391,8 +1442,9 @@ literal IPv4 is used as is. A name is resolved with
 `net.DefaultResolver.LookupNetIP(ctx, "ip4", host)` under its own timeout, the
 context's `network.check_timeout` (`netcheck.Settings.Normalized().CheckTimeout`,
 read when the view is built; the tab falls back to 5 s
-(`defaultPathResolveTimeout`) otherwise). The **first IPv4 address** is traced,
-and the header's `Target` field shows it after the name. A literal IPv6 target
+(`defaultPathResolveTimeout`) otherwise). The **first IPv4 address** is traced (unless Diagnostics already read one of the
+addresses returned: "Which address", below), and the header's `Target` field shows it after
+the name. A literal IPv6 target
 (brackets or several colons) is refused before launch with the footer error
 `Only IPv4 targets are supported by the path trace`.
 

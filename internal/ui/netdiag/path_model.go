@@ -76,6 +76,10 @@ type PathModel struct {
 	// platform is the WSL2 detection of the current run, set by handleResolved
 	// and cleared with the run.
 	platform wslenv.Info
+
+	// known is the route stage's reading handed over by Model.openTrace, the
+	// only writer (DEVDESK-473). The zero value knows nothing.
+	known pathKnownRoutes
 }
 
 // pathSourceKey opens the "Trace from" selector (declared exception, surface
@@ -261,6 +265,27 @@ func (pm *PathModel) handleKey(msg tea.KeyPressMsg) (*PathModel, tea.Cmd) {
 	return pm, nil
 }
 
+// runEngine returns the engine one run uses: pm.engine, when the trace starts on
+// this machine with the route read answered from pm.known first, and the
+// resolution ordered so that an address Diagnostics already read comes first
+// (DEVDESK-473, D155). A container source reads its own route and keeps the
+// resolution as it is. It only reads pm, so a Cmd can capture the result.
+func (pm *PathModel) runEngine(tg pathTarget) pathEngine {
+	e := pm.engine
+	if pm.source.isHost() {
+		known, resolve := pm.known, pm.engine.resolve
+		e.route = known.routeFirst(tg.Host, pm.engine.route)
+		e.resolve = func(ctx context.Context, host string) ([]netip.Addr, error) {
+			addrs, err := resolve(ctx, host)
+			if err != nil {
+				return addrs, err
+			}
+			return known.prefer(tg.Host, addrs), nil
+		}
+	}
+	return e
+}
+
 // launch starts a run: the model changes here, in Update; the Cmd only does I/O.
 func (pm *PathModel) launch(tg pathTarget) (*PathModel, tea.Cmd) {
 	if tg.Host == "" {
@@ -279,7 +304,7 @@ func (pm *PathModel) launch(tg pathTarget) (*PathModel, tea.Cmd) {
 	ch := make(chan tea.Msg, pathChanCap)
 	pm.cancel, pm.msgs = cancel, ch
 	pm.state = pathRunning
-	return pm, startPathRun(ctx, pm.gen, tg, pm.source, pm.resolveTimeout, pm.engine, ch)
+	return pm, startPathRun(ctx, pm.gen, tg, pm.source, pm.resolveTimeout, pm.runEngine(tg), ch)
 }
 
 // cancelRun answers esc at once: the run's late messages are dropped by the

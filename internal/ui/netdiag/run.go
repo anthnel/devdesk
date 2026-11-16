@@ -24,12 +24,13 @@ func (m *Model) StartRun() (*Model, tea.Cmd) {
 	m.runGen++
 	m.state = StateRunning
 	m.results = netcheck.Results{}
+	m.resultsHost = tg.Host
 	m.verdict = netcheck.Unknown
 	m.runStep = 0
 	m.totalSteps = len(netcheck.Steps())
 	m.runStage = netcheck.Steps()[0]
 
-	return m, runStageCmd(m.runGen, tg, m.checkSettings(), 0, netcheck.Results{})
+	return m, runStageCmd(m.runGen, tg, m.checkSettings(), m.checkEnv, 0, netcheck.Results{})
 }
 
 // runStageCmd runs one stage of the pipeline and reports the accumulated
@@ -43,15 +44,16 @@ func (m *Model) StartRun() (*Model, tea.Cmd) {
 //
 // Nothing the model holds is touched here. The accumulated results are passed
 // in by value and returned in the message, which is what netcheck.RunStep
-// copies for (Rule 110).
-func runStageCmd(gen int, tg netcheck.Target, set netcheck.Settings, step int, prior netcheck.Results) tea.Cmd {
+// copies for (Rule 110). env is the model's Env constructor, read when the
+// command is built: the command holds the function, never the model.
+func runStageCmd(gen int, tg netcheck.Target, set netcheck.Settings, env func(netcheck.Settings) netcheck.Env, step int, prior netcheck.Results) tea.Cmd {
 	steps := netcheck.Steps()
 	if step >= len(steps) {
 		return nil
 	}
 	id := steps[step]
 	return func() tea.Msg {
-		res := netcheck.RunStep(context.Background(), tg, netcheck.SystemEnv(set), set, id, prior)
+		res := netcheck.RunStep(context.Background(), tg, env(set), set, id, prior)
 		return stageDoneMsg{gen: gen, stage: id, next: step + 1, results: res}
 	}
 }
