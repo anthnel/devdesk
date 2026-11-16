@@ -1,0 +1,66 @@
+{
+  "cli_version": "0.13.2",
+  "checkpoint_id": "ea209b5b29b3",
+  "strategy": "manual-commit",
+  "branch": "feat/nexus-bench-504",
+  "checkpoints_count": 1,
+  "files_touched": [
+    "docs/architecture/nexus-bench.md",
+    "internal/nexusbench/descriptor.go",
+    "internal/nexusbench/descriptor_test.go",
+    "internal/nexusbench/errors.go",
+    "internal/nexusbench/errors_test.go",
+    "internal/nexusbench/kubectl.go",
+    "internal/nexusbench/kubectl_test.go",
+    "internal/nexusbench/manifests/00-namespace.yaml.tmpl",
+    "internal/nexusbench/manifests/10-pvc.yaml.tmpl",
+    "internal/nexusbench/manifests/20-deployment.yaml.tmpl",
+    "internal/nexusbench/manifests/30-service.yaml.tmpl",
+    "internal/nexusbench/preflight.go",
+    "internal/nexusbench/preflight_test.go",
+    "internal/nexusbench/render.go",
+    "internal/nexusbench/render_test.go",
+    "internal/nexusbench/secrets.go",
+    "internal/nexusbench/secrets_test.go",
+    "internal/nexusbench/testdata/descriptor.example.json",
+    "internal/nexusbench/testdata/render-default.golden.yaml"
+  ],
+  "sessions": [
+    {
+      "metadata": "/ea/209b5b29b3/0/metadata.json",
+      "transcript": "/ea/209b5b29b3/0/full.jsonl",
+      "compact_transcript": "/ea/209b5b29b3/0/transcript.jsonl",
+      "content_hash": "/ea/209b5b29b3/0/content_hash.txt",
+      "prompt": "/ea/209b5b29b3/0/prompt.txt"
+    }
+  ],
+  "token_usage": {
+    "input_tokens": 82,
+    "cache_creation_tokens": 173340,
+    "cache_read_tokens": 3752356,
+    "output_tokens": 37731,
+    "api_call_count": 28,
+    "subagent_tokens": {
+      "input_tokens": 316,
+      "cache_creation_tokens": 1228887,
+      "cache_read_tokens": 10314687,
+      "output_tokens": 301836,
+      "api_call_count": 150
+    },
+    "subagent_tokens_complete": true
+  },
+  "redaction": {
+    "replacements": 1,
+    "layers": {
+      "betterleaks": 0,
+      "connection_string": 0,
+      "credential_key": 0,
+      "credential_value": 0,
+      "credentialed_uri": 0,
+      "entropy": 0,
+      "key_context": 1,
+      "provider_token": 0,
+      "shell_stdin": 0
+    }
+  }
+}
