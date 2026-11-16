@@ -1,0 +1,19 @@
+{
+  "tool_use_id": "toolu_01UW1fXtUhjoaGcmqEht2wue",
+  "agent_id": "a287ec7615a3172ab",
+  "subagent_type": "dev-team:tester",
+  "task_description": "Final verification DEVDESK-502",
+  "files": [
+    "internal/ui/testutil/mise_ci_guard_test.go",
+    "mise.toml"
+  ],
+  "token_usage": {
+    "input_tokens": 14,
+    "cache_creation_tokens": 115148,
+    "cache_read_tokens": 156896,
+    "output_tokens": 3131,
+    "api_call_count": 7
+  },
+  "started_at": "2026-11-16T16:33:24.000072109+01:00",
+  "completed_at": "2026-11-16T16:33:24.00023498+01:00"
+}

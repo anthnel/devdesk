@@ -1,0 +1,18 @@
+{
+  "tool_use_id": "toolu_0184zP3mwUjMoAV2RoiUWzYs",
+  "agent_id": "a8e0503f0aadd04e2",
+  "subagent_type": "dev-team:reviewer",
+  "task_description": "Review guard fix DEVDESK-502",
+  "files": [
+    "internal/ui/testutil/mise_ci_guard_test.go"
+  ],
+  "token_usage": {
+    "input_tokens": 14,
+    "cache_creation_tokens": 108982,
+    "cache_read_tokens": 384672,
+    "output_tokens": 4299,
+    "api_call_count": 6
+  },
+  "started_at": "2026-11-16T16:13:03.460113171+01:00",
+  "completed_at": "2026-11-16T16:13:03.460620067+01:00"
+}
