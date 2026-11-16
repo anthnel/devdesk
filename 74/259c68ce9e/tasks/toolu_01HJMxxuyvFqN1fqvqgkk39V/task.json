@@ -1,0 +1,18 @@
+{
+  "tool_use_id": "toolu_01HJMxxuyvFqN1fqvqgkk39V",
+  "agent_id": "a25f6cf39143946e9",
+  "subagent_type": "project-tester",
+  "task_description": "Red tests for 412-1 realm",
+  "files": [
+    "internal/oci/registry_realm_test.go"
+  ],
+  "token_usage": {
+    "input_tokens": 28,
+    "cache_creation_tokens": 82823,
+    "cache_read_tokens": 716935,
+    "output_tokens": 14277,
+    "api_call_count": 13
+  },
+  "started_at": "2026-11-16T17:13:39.582398348+01:00",
+  "completed_at": "2026-11-16T17:13:39.582621139+01:00"
+}

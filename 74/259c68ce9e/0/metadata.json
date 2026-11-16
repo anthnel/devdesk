@@ -1,0 +1,153 @@
+{
+  "cli_version": "0.13.2",
+  "checkpoint_id": "74259c68ce9e",
+  "session_id": "0c4ba15e-aa11-4358-9e3c-29a43c657952",
+  "strategy": "manual-commit",
+  "created_at": "2026-11-16T17:40:05.465021462Z",
+  "branch": "fix/devdesk-412-registry-clients-hardening",
+  "checkpoints_count": 26,
+  "save_step_count": 24,
+  "files_touched": [
+    "docs-site/docs/explanation/registries.md",
+    "docs-site/docs/how-to/create-a-repo-from-a-template.md",
+    "docs/architecture/network.md",
+    "docs/architecture/registries.md",
+    "docs/architecture/templates.md",
+    "docs/backlog.md",
+    "internal/oci/catalog.go",
+    "internal/oci/guard_test.go",
+    "internal/oci/oci.go",
+    "internal/oci/oci_blob.go",
+    "internal/oci/oci_blob_digest_fixture_test.go",
+    "internal/oci/oci_blob_digest_test.go",
+    "internal/oci/oci_blob_hardening_test.go",
+    "internal/oci/oci_blob_redirect_test.go",
+    "internal/oci/oci_client_origin_test.go",
+    "internal/oci/registry.go",
+    "internal/oci/registry_context_test.go",
+    "internal/oci/registry_origin_redirect_test.go",
+    "internal/oci/registry_realm_test.go",
+    "internal/registrymgr/nexus.go",
+    "internal/template/fetch.go",
+    "internal/template/fetch_test.go",
+    "internal/ui/oci_resources/browser_bridge.go",
+    "internal/ui/oci_resources/commands.go",
+    "internal/ui/oci_resources/registries.go"
+  ],
+  "agent": "Claude Code",
+  "model": "claude-sonnet-5-5",
+  "turn_id": "a31013cedf55",
+  "compact_transcript_start": 0,
+  "token_usage": {
+    "input_tokens": 288,
+    "cache_creation_tokens": 418407,
+    "cache_read_tokens": 30338726,
+    "output_tokens": 101584,
+    "api_call_count": 104,
+    "subagent_tokens": {
+      "input_tokens": 742,
+      "cache_creation_tokens": 3046369,
+      "cache_read_tokens": 37145674,
+      "output_tokens": 449610,
+      "api_call_count": 338
+    },
+    "subagent_tokens_complete": true
+  },
+  "session_token_usage": {
+    "input_tokens": 288,
+    "cache_creation_tokens": 418407,
+    "cache_read_tokens": 30338726,
+    "output_tokens": 101584,
+    "api_call_count": 104,
+    "subagent_tokens": {
+      "input_tokens": 742,
+      "cache_creation_tokens": 3046369,
+      "cache_read_tokens": 37145674,
+      "output_tokens": 449610,
+      "api_call_count": 338
+    },
+    "subagent_tokens_complete": true
+  },
+  "redaction": {
+    "replacements": 102,
+    "layers": {
+      "betterleaks": 76,
+      "connection_string": 0,
+      "credential_key": 0,
+      "credential_value": 0,
+      "credentialed_uri": 87,
+      "entropy": 0,
+      "key_context": 3,
+      "provider_token": 0,
+      "shell_stdin": 0
+    }
+  },
+  "skill_events_version": 1,
+  "skill_events": [
+    {
+      "id": "claude-skill-toolu_01Cnc8NAKfPaJoKsiudRU6xZ",
+      "event_type": "tool_invocation",
+      "skill": {
+        "name": "plane-integration:plane-conventions"
+      },
+      "source": {
+        "agent": "claude-code",
+        "signal": "skill_tool_use",
+        "confidence": "explicit"
+      },
+      "turn_id": "a31013cedf55",
+      "transcript_anchor": {
+        "unit": "line",
+        "start": 32,
+        "end": 33,
+        "entry_ids": [
+          "5e07d77e-3ee2-4cc1-ac97-749120698f13"
+        ],
+        "tool_use_id": "toolu_01Cnc8NAKfPaJoKsiudRU6xZ"
+      },
+      "native": {
+        "tool_name": "Skill",
+        "tool_use_id": "toolu_01Cnc8NAKfPaJoKsiudRU6xZ"
+      },
+      "collapse": {
+        "target": "tool_pair",
+        "label": "Skill: plane-integration:plane-conventions",
+        "default_collapsed": true
+      }
+    },
+    {
+      "id": "claude-skill-toolu_01GZApX2RJ759QUiqU2664SW",
+      "event_type": "tool_invocation",
+      "skill": {
+        "name": "team-core:resume-work"
+      },
+      "source": {
+        "agent": "claude-code",
+        "signal": "skill_tool_use",
+        "confidence": "explicit"
+      },
+      "turn_id": "a31013cedf55",
+      "transcript_anchor": {
+        "unit": "line",
+        "start": 132,
+        "end": 133,
+        "entry_ids": [
+          "cfd280e7-af15-4b72-8214-5f9f388c9337"
+        ],
+        "tool_use_id": "toolu_01GZApX2RJ759QUiqU2664SW"
+      },
+      "native": {
+        "tool_name": "Skill",
+        "tool_use_id": "toolu_01GZApX2RJ759QUiqU2664SW"
+      },
+      "collapse": {
+        "target": "tool_pair",
+        "label": "Skill: team-core:resume-work",
+        "default_collapsed": true
+      }
+    }
+  ],
+  "session_metrics": {
+    "turn_count": 26
+  }
+}

@@ -1,0 +1,18 @@
+{
+  "tool_use_id": "toolu_01AVJF1Dikubf7rETqW9h4ii",
+  "agent_id": "a530b2674f7b2faf4",
+  "subagent_type": "dev-team:reviewer",
+  "task_description": "Review 412-1 realm check",
+  "files": [
+    "internal/oci/registry.go"
+  ],
+  "token_usage": {
+    "input_tokens": 16,
+    "cache_creation_tokens": 75262,
+    "cache_read_tokens": 346216,
+    "output_tokens": 6556,
+    "api_call_count": 7
+  },
+  "started_at": "2026-11-16T17:15:44.281161729+01:00",
+  "completed_at": "2026-11-16T17:15:44.281342007+01:00"
+}

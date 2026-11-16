@@ -1,0 +1,21 @@
+{
+  "tool_use_id": "toolu_01TDG6Dt4nAKA1STjbHBLsCY",
+  "agent_id": "ab20f07601685988d",
+  "subagent_type": "project-coder",
+  "task_description": "Green for 412-3 oci.Client",
+  "files": [
+    "internal/oci/catalog.go",
+    "internal/oci/oci.go",
+    "internal/oci/registry.go",
+    "internal/oci/registry_origin_redirect_test.go"
+  ],
+  "token_usage": {
+    "input_tokens": 8,
+    "cache_creation_tokens": 29311,
+    "cache_read_tokens": 88504,
+    "output_tokens": 3007,
+    "api_call_count": 4
+  },
+  "started_at": "2026-11-16T17:34:54.481857599+01:00",
+  "completed_at": "2026-11-16T17:34:54.482231849+01:00"
+}

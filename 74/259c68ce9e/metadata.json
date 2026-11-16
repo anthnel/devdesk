@@ -1,0 +1,72 @@
+{
+  "cli_version": "0.13.2",
+  "checkpoint_id": "74259c68ce9e",
+  "strategy": "manual-commit",
+  "branch": "fix/devdesk-412-registry-clients-hardening",
+  "checkpoints_count": 26,
+  "files_touched": [
+    "docs-site/docs/explanation/registries.md",
+    "docs-site/docs/how-to/create-a-repo-from-a-template.md",
+    "docs/architecture/network.md",
+    "docs/architecture/registries.md",
+    "docs/architecture/templates.md",
+    "docs/backlog.md",
+    "internal/oci/catalog.go",
+    "internal/oci/guard_test.go",
+    "internal/oci/oci.go",
+    "internal/oci/oci_blob.go",
+    "internal/oci/oci_blob_digest_fixture_test.go",
+    "internal/oci/oci_blob_digest_test.go",
+    "internal/oci/oci_blob_hardening_test.go",
+    "internal/oci/oci_blob_redirect_test.go",
+    "internal/oci/oci_client_origin_test.go",
+    "internal/oci/registry.go",
+    "internal/oci/registry_context_test.go",
+    "internal/oci/registry_origin_redirect_test.go",
+    "internal/oci/registry_realm_test.go",
+    "internal/registrymgr/nexus.go",
+    "internal/template/fetch.go",
+    "internal/template/fetch_test.go",
+    "internal/ui/oci_resources/browser_bridge.go",
+    "internal/ui/oci_resources/commands.go",
+    "internal/ui/oci_resources/registries.go"
+  ],
+  "sessions": [
+    {
+      "metadata": "/74/259c68ce9e/0/metadata.json",
+      "transcript": "/74/259c68ce9e/0/full.jsonl",
+      "compact_transcript": "/74/259c68ce9e/0/transcript.jsonl",
+      "content_hash": "/74/259c68ce9e/0/content_hash.txt",
+      "prompt": "/74/259c68ce9e/0/prompt.txt"
+    }
+  ],
+  "token_usage": {
+    "input_tokens": 288,
+    "cache_creation_tokens": 418407,
+    "cache_read_tokens": 30338726,
+    "output_tokens": 101584,
+    "api_call_count": 104,
+    "subagent_tokens": {
+      "input_tokens": 742,
+      "cache_creation_tokens": 3046369,
+      "cache_read_tokens": 37145674,
+      "output_tokens": 449610,
+      "api_call_count": 338
+    },
+    "subagent_tokens_complete": true
+  },
+  "redaction": {
+    "replacements": 102,
+    "layers": {
+      "betterleaks": 76,
+      "connection_string": 0,
+      "credential_key": 0,
+      "credential_value": 0,
+      "credentialed_uri": 87,
+      "entropy": 0,
+      "key_context": 3,
+      "provider_token": 0,
+      "shell_stdin": 0
+    }
+  }
+}

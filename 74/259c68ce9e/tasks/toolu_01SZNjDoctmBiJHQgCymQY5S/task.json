@@ -1,0 +1,21 @@
+{
+  "tool_use_id": "toolu_01SZNjDoctmBiJHQgCymQY5S",
+  "agent_id": "a16eebcb0c8d6cb9e",
+  "subagent_type": "project-coder",
+  "task_description": "Green for 412-4 blob redirect",
+  "files": [
+    "internal/oci/catalog.go",
+    "internal/oci/oci.go",
+    "internal/oci/registry.go",
+    "internal/oci/registry_origin_redirect_test.go"
+  ],
+  "token_usage": {
+    "input_tokens": 164,
+    "cache_creation_tokens": 535791,
+    "cache_read_tokens": 10900362,
+    "output_tokens": 86290,
+    "api_call_count": 75
+  },
+  "started_at": "2026-11-16T17:39:42.519776388+01:00",
+  "completed_at": "2026-11-16T17:39:42.520131856+01:00"
+}

@@ -1,0 +1,18 @@
+{
+  "tool_use_id": "toolu_016xwrEFqU84euPg85UEBzFy",
+  "agent_id": "a8a0e10116594b2c1",
+  "subagent_type": "project-coder",
+  "task_description": "Green for 412-1 realm check",
+  "files": [
+    "internal/oci/registry.go"
+  ],
+  "token_usage": {
+    "input_tokens": 26,
+    "cache_creation_tokens": 60998,
+    "cache_read_tokens": 441841,
+    "output_tokens": 5736,
+    "api_call_count": 10
+  },
+  "started_at": "2026-11-16T17:14:12.897125973+01:00",
+  "completed_at": "2026-11-16T17:14:12.897413942+01:00"
+}

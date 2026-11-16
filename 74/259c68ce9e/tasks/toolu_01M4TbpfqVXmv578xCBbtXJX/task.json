@@ -1,0 +1,22 @@
+{
+  "tool_use_id": "toolu_01M4TbpfqVXmv578xCBbtXJX",
+  "agent_id": "afa6f329dc621872d",
+  "subagent_type": "project-tester",
+  "task_description": "Red tests for 412-4 blob redirect",
+  "files": [
+    "internal/oci/catalog.go",
+    "internal/oci/oci.go",
+    "internal/oci/oci_blob_redirect_test.go",
+    "internal/oci/registry.go",
+    "internal/oci/registry_origin_redirect_test.go"
+  ],
+  "token_usage": {
+    "input_tokens": 134,
+    "cache_creation_tokens": 447658,
+    "cache_read_tokens": 9341932,
+    "output_tokens": 122155,
+    "api_call_count": 61
+  },
+  "started_at": "2026-11-16T17:37:51.139618761+01:00",
+  "completed_at": "2026-11-16T17:37:51.139826221+01:00"
+}

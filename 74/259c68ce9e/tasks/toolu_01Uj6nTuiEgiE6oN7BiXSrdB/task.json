@@ -1,0 +1,21 @@
+{
+  "tool_use_id": "toolu_01Uj6nTuiEgiE6oN7BiXSrdB",
+  "agent_id": "adfe52ad18ed8ee25",
+  "subagent_type": "dev-team:security-reviewer",
+  "task_description": "Security review 412-3/412-4 blob",
+  "files": [
+    "internal/oci/catalog.go",
+    "internal/oci/oci.go",
+    "internal/oci/registry.go",
+    "internal/oci/registry_origin_redirect_test.go"
+  ],
+  "token_usage": {
+    "input_tokens": 48,
+    "cache_creation_tokens": 270180,
+    "cache_read_tokens": 1692664,
+    "output_tokens": 32612,
+    "api_call_count": 21
+  },
+  "started_at": "2026-11-16T17:43:44.060941382+01:00",
+  "completed_at": "2026-11-16T17:43:44.061342014+01:00"
+}

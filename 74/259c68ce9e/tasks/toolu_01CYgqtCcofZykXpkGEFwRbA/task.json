@@ -1,0 +1,20 @@
+{
+  "tool_use_id": "toolu_01CYgqtCcofZykXpkGEFwRbA",
+  "agent_id": "a4e81433728e41e8c",
+  "subagent_type": "dev-team:reviewer",
+  "task_description": "Review 412-2 guards export",
+  "files": [
+    "internal/oci/catalog.go",
+    "internal/oci/registry.go",
+    "internal/oci/registry_origin_redirect_test.go"
+  ],
+  "token_usage": {
+    "input_tokens": 16,
+    "cache_creation_tokens": 58247,
+    "cache_read_tokens": 329036,
+    "output_tokens": 7661,
+    "api_call_count": 8
+  },
+  "started_at": "2026-11-16T17:31:52.787049371+01:00",
+  "completed_at": "2026-11-16T17:31:52.787345361+01:00"
+}
