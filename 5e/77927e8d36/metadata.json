@@ -1,0 +1,55 @@
+{
+  "cli_version": "0.13.2",
+  "checkpoint_id": "5e77927e8d36",
+  "strategy": "manual-commit",
+  "branch": "feat/nexus-bench-504",
+  "checkpoints_count": 1,
+  "files_touched": [
+    "docs/architecture/nexus-bench.md",
+    "internal/nexusbench/bench_integration_test.go",
+    "internal/nexusbench/descriptor.go",
+    "internal/nexusbench/descriptor.json",
+    "internal/nexusbench/fakenexus_test.go",
+    "internal/nexusbench/nexusapi.go",
+    "internal/nexusbench/provision.go",
+    "internal/nexusbench/provision_upstream_test.go"
+  ],
+  "sessions": [
+    {
+      "metadata": "/5e/77927e8d36/0/metadata.json",
+      "transcript": "/5e/77927e8d36/0/full.jsonl",
+      "compact_transcript": "/5e/77927e8d36/0/transcript.jsonl",
+      "content_hash": "/5e/77927e8d36/0/content_hash.txt",
+      "prompt": "/5e/77927e8d36/0/prompt.txt"
+    }
+  ],
+  "token_usage": {
+    "input_tokens": 22,
+    "cache_creation_tokens": 29697,
+    "cache_read_tokens": 2100212,
+    "output_tokens": 13325,
+    "api_call_count": 7,
+    "subagent_tokens": {
+      "input_tokens": 176,
+      "cache_creation_tokens": 378195,
+      "cache_read_tokens": 6389835,
+      "output_tokens": 73473,
+      "api_call_count": 87
+    },
+    "subagent_tokens_complete": true
+  },
+  "redaction": {
+    "replacements": 9,
+    "layers": {
+      "betterleaks": 8,
+      "connection_string": 0,
+      "credential_key": 0,
+      "credential_value": 0,
+      "credentialed_uri": 0,
+      "entropy": 0,
+      "key_context": 1,
+      "provider_token": 0,
+      "shell_stdin": 0
+    }
+  }
+}
