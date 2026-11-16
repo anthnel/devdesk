@@ -265,12 +265,17 @@ func (pm *PathModel) handleKey(msg tea.KeyPressMsg) (*PathModel, tea.Cmd) {
 	return pm, nil
 }
 
-// runEngine returns the engine one run uses.
-//
-// TODO(DEVDESK-473): declaration only, written for the red tests of step 2. It
-// returns the engine as is for now; the coder makes it answer the route from
-// pm.known when the source is this machine.
-func (pm *PathModel) runEngine(tg pathTarget) pathEngine { return pm.engine }
+// runEngine returns the engine one run uses: pm.engine, with the route read
+// answered from pm.known first when the trace starts on this machine. A
+// container source reads its own route. It only reads pm, so a Cmd can capture
+// the result.
+func (pm *PathModel) runEngine(tg pathTarget) pathEngine {
+	e := pm.engine
+	if pm.source.isHost() {
+		e.route = pm.known.routeFirst(tg.Host, pm.engine.route)
+	}
+	return e
+}
 
 // launch starts a run: the model changes here, in Update; the Cmd only does I/O.
 func (pm *PathModel) launch(tg pathTarget) (*PathModel, tea.Cmd) {

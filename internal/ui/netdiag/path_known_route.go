@@ -2,6 +2,7 @@ package netdiag
 
 import (
 	"context"
+	"errors"
 	"net/netip"
 
 	"github.com/anthnel/devdesk/internal/netcheck"
@@ -19,26 +20,43 @@ type pathKnownRoutes struct {
 }
 
 // knownRoutesOf builds the snapshot for host from r; empty when host is empty.
-//
-// TODO(DEVDESK-473): declaration only, written for the red tests of step 2.
-// The coder replaces this body.
+// RouteLookups already returns a new slice, so the snapshot never shares it
+// with Model.results.
 func knownRoutesOf(host string, r netcheck.Results) pathKnownRoutes {
-	return pathKnownRoutes{}
+	if host == "" {
+		return pathKnownRoutes{}
+	}
+	return pathKnownRoutes{host: host, lookups: r.RouteLookups()}
 }
 
-// find returns the lookup for a, when the snapshot is for host.
-//
-// TODO(DEVDESK-473): declaration only, written for the red tests of step 2.
-// The coder replaces this body.
+// find returns the lookup for a, when the snapshot is for host. Addresses are
+// compared after Unmap: the route stage holds 16-byte IPv4 forms, the trace
+// 4-byte ones. A lookup that ended on a cancellation or a deadline is not a
+// reading of the routing table (systemEnv.Route returns ctx.Err()), so it is
+// never found.
 func (k pathKnownRoutes) find(host string, a netip.Addr) (netcheck.RouteLookup, bool) {
+	if k.host == "" || k.host != host {
+		return netcheck.RouteLookup{}, false
+	}
+	a = a.Unmap()
+	for _, l := range k.lookups {
+		if ip, ok := netip.AddrFromSlice(l.IP); ok && ip.Unmap() == a {
+			if errors.Is(l.Err, context.Canceled) || errors.Is(l.Err, context.DeadlineExceeded) {
+				return netcheck.RouteLookup{}, false
+			}
+			return l, true
+		}
+	}
 	return netcheck.RouteLookup{}, false
 }
 
 // routeFirst returns a route function that answers from the snapshot for host
 // and falls back to read, which it calls at most once per call.
-//
-// TODO(DEVDESK-473): declaration only, written for the red tests of step 2.
-// It always reads for now. The coder replaces this body.
 func (k pathKnownRoutes) routeFirst(host string, read pathRouteFunc) pathRouteFunc {
-	return read
+	return func(ctx context.Context, a netip.Addr) (netcheck.RouteHop, error) {
+		if l, ok := k.find(host, a); ok {
+			return l.Hop, l.Err
+		}
+		return read(ctx, a)
+	}
 }
