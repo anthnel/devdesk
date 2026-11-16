@@ -303,8 +303,14 @@ func (r Results) Get(id CheckID) (Check, bool) {
 }
 
 // RouteLookups returns a copy of the route stage's lookups, nil when the stage
-// did not run. Declaration only for now (DEVDESK-473 step 1, red).
-func (r Results) RouteLookups() []RouteLookup { return nil }
+// did not run.
+func (r Results) RouteLookups() []RouteLookup {
+	c, ok := r.Get(CheckRoute)
+	if !ok || len(c.Routes) == 0 {
+		return nil
+	}
+	return append([]RouteLookup(nil), c.Routes...)
+}
 
 // VerdictOf returns a check's verdict, or Unknown when it was never produced —
 // which is the honest answer for a question nobody asked.

@@ -861,6 +861,16 @@ verified: a declared exception.
   Fail case the results header and the MCP verdict read FAIL, where they read
   UNKNOWN before.
 
+  The stage also keeps its readings on the check (DEVDESK-473): `Check.Routes`
+  holds one `RouteLookup{IP, Hop, Err}` per address looked up, in the order
+  asked, with the lookup's own error untouched (so `nettrace.IsNoRoute` still
+  applies to it), and `Results.RouteLookups()` returns a copy of them, nil when
+  the stage did not run (skipped or cancelled placeholders carry none). It is
+  data for a later reader, so the path trace can reuse the reading instead of
+  asking the routing table again; it is never shown and never serialized (the
+  MCP tool maps a `Check` to its own DTO). Verdict, summary, reason and facts
+  are unchanged.
+
   Real coverage is Linux and WSL2 only. `go-netroute` returns a
   `windows.Errno` that `IsNoRoute` does not recognize on Windows, and an error
   with no errno on macOS: both end as `undetermined`, which is the safe side.
