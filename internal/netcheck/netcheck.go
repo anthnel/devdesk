@@ -303,7 +303,9 @@ func (r Results) Get(id CheckID) (Check, bool) {
 }
 
 // RouteLookups returns a copy of the route stage's lookups, nil when the stage
-// did not run.
+// did not run. The copy is shallow: the slice is new, but each lookup's IP,
+// Hop.Source and Hop.Gateway share their backing arrays with the results, so a
+// caller must not write into them.
 func (r Results) RouteLookups() []RouteLookup {
 	c, ok := r.Get(CheckRoute)
 	if !ok || len(c.Routes) == 0 {

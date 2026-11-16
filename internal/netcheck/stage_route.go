@@ -81,7 +81,11 @@ func lookupRoutes(ctx context.Context, env Env, addrs []net.IP) routeOutcome {
 	var o routeOutcome
 	for _, ip := range addrs {
 		hop, err := env.Route(ctx, ip)
-		o.lookups = append(o.lookups, RouteLookup{IP: ip, Hop: hop, Err: err})
+		kept := hop
+		if err != nil {
+			kept = RouteHop{} // an Env may return a partial hop with an error
+		}
+		o.lookups = append(o.lookups, RouteLookup{IP: ip, Hop: kept, Err: err})
 		switch {
 		case err == nil:
 			o.routed = append(o.routed, routedAddress{ip: ip, hop: hop})
