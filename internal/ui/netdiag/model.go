@@ -115,6 +115,10 @@ type Model struct {
 	checkEnv func(netcheck.Settings) netcheck.Env
 
 	// Results
+	// resultsHost is the host the run behind results was started with. It is
+	// declared here without behaviour; StartRun and resetToForm do not touch it
+	// yet (DEVDESK-473, red phase).
+	resultsHost string
 	results     netcheck.Results
 	verdict     netcheck.Verdict
 	checksTable datatable.Model[netcheck.Check]
