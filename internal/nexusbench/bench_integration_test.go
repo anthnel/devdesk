@@ -407,14 +407,16 @@ func TestIntegrationLifecycle(t *testing.T) {
 			t.Fatalf("up: %v", err)
 		}
 	}
-	provision := func() {
+	provision := func() ProvisionResult {
 		t.Helper()
 		if _, err := RunPreflight(ctx, runner, p, OpProvision); err != nil {
 			t.Fatalf("provision preflight: %v", err)
 		}
-		if _, err := Provision(ctx, RESTBaseURL(loopbackHost, p), initial, store, p, out); err != nil {
+		res, err := Provision(ctx, RESTBaseURL(loopbackHost, p), initial, store, p, out)
+		if err != nil {
 			t.Fatalf("provision: %v", err)
 		}
+		return res
 	}
 	down := func() {
 		t.Helper()
@@ -439,10 +441,12 @@ func TestIntegrationLifecycle(t *testing.T) {
 
 	t.Log("first up and provision")
 	up()
-	provision()
+	desc := BuildDescriptor(p, DeployResult{}, provision())
 	first := snapshot()
-	if len(first.Repositories) < 3 {
-		t.Fatalf("after provision the instance lists %v, want at least the three bench repositories", first.Repositories)
+	for _, want := range desc.Repositories {
+		if !slices.Contains(first.Repositories, want.Name) {
+			t.Fatalf("after provision the instance lists %v, want the repository %s of the descriptor", first.Repositories, want.Name)
+		}
 	}
 
 	t.Log("second up and provision: nothing changes")

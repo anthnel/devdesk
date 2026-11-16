@@ -47,6 +47,10 @@ type ProvisionResult struct {
 	NexusVersion string
 	Edition      string
 	EULAAccepted bool
+	// ProxyPending is true when the instance refused docker-proxy because it
+	// cannot resolve the upstream host (NX-02 deploys it) and the repository does
+	// not exist: the descriptor then lists neither it nor a group member for it.
+	ProxyPending bool
 }
 
 // Descriptor describes the bench to whoever measures against it. It holds no
@@ -119,6 +123,14 @@ func BuildDescriptor(p Params, d DeployResult, r ProvisionResult) Descriptor {
 			hosts = append(hosts, d.NodeIP)
 		}
 	}
+	repositories := []DescriptorRepository{
+		{Name: "docker-hosted", Type: "hosted"},
+		{Name: "docker-proxy", Type: "proxy", RemoteURL: p.UpstreamURL},
+		{Name: dockerGroupRepository, Type: "group", Members: []string{"docker-hosted", "docker-proxy"}},
+	}
+	if r.ProxyPending {
+		repositories = []DescriptorRepository{repositories[0], {Name: dockerGroupRepository, Type: "group", Members: []string{"docker-hosted"}}}
+	}
 	return Descriptor{
 		SchemaVersion: descriptorSchemaVersion,
 		KubeContext:   p.Context,
@@ -136,12 +148,8 @@ func BuildDescriptor(p Params, d DeployResult, r ProvisionResult) Descriptor {
 			Repository: dockerGroupRepository, NodePort: p.DockerNodePort, ContainerPort: dockerContainerPort,
 			URLs: hostURLs(hosts, p.DockerNodePort),
 		}},
-		Repositories: []DescriptorRepository{
-			{Name: "docker-hosted", Type: "hosted"},
-			{Name: "docker-proxy", Type: "proxy", RemoteURL: p.UpstreamURL},
-			{Name: dockerGroupRepository, Type: "group", Members: []string{"docker-hosted", "docker-proxy"}},
-		},
-		Realms: []string{"NexusAuthenticatingRealm", "DockerToken"},
+		Repositories: repositories,
+		Realms:       []string{"NexusAuthenticatingRealm", "DockerToken"},
 		Accounts: []DescriptorAccount{
 			{UserID: "admin", Roles: []string{"nx-admin"}, Purpose: "bench administrator"},
 			{

@@ -38,6 +38,7 @@ import (
 //	PUT  /service/rest/v1/security/users/{id}/change-password   text/plain, the new password        -> 204
 //	GET  /service/rest/v1/repositories/docker/{hosted,proxy,group}/{name}   the configuration or 404
 //	POST /service/rest/v1/repositories/docker/{kind}  the configuration                            -> 201
+//	                                                  a proxy whose host does not resolve           -> 400, see BlockUpstream
 //	PUT  /service/rest/v1/repositories/docker/{kind}/{name}  the configuration                      -> 204
 //
 // Repository configuration, as the fake demands it (a missing key is a 400):
@@ -138,6 +139,7 @@ type fakeFault struct {
 	method, prefix string
 	status         int    // answer this status (with Location when location is set)
 	location       string // redirect target
+	body           string // answer this raw body, as the validation errors of Nexus do
 	size           int    // pad the body of a 200 GET to this many bytes with trailing spaces
 }
 
@@ -157,22 +159,23 @@ type fakeNexus struct {
 	srv *httptest.Server
 	log *orderLog
 
-	mu             sync.Mutex
-	serverHeader   string
-	swaggerVersion string
-	swaggerRaw     string // a 200 answer that is not JSON; wins over swaggerVersion
-	eulaPresent    bool
-	eulaAccepted   bool
-	blobStores     []string
-	realms         []string
-	anonymous      map[string]any
-	users          map[string]*fakeUser
-	roles          map[string]map[string]any
-	repos          map[string]map[string]map[string]any // kind -> name -> configuration
-	faults         []fakeFault
-	dropAll        bool
-	reqs           []fakeReq
-	secretsSeen    map[string]bool
+	mu              sync.Mutex
+	serverHeader    string
+	swaggerVersion  string
+	swaggerRaw      string // a 200 answer that is not JSON; wins over swaggerVersion
+	eulaPresent     bool
+	eulaAccepted    bool
+	blobStores      []string
+	realms          []string
+	anonymous       map[string]any
+	users           map[string]*fakeUser
+	roles           map[string]map[string]any
+	repos           map[string]map[string]map[string]any // kind -> name -> configuration
+	faults          []fakeFault
+	upstreamBlocked bool
+	dropAll         bool
+	reqs            []fakeReq
+	secretsSeen     map[string]bool
 }
 
 // newFakeNexus starts a fresh instance: the admin account with the initial
@@ -216,6 +219,14 @@ func (f *fakeNexus) Forbid(method, prefix string, status int) {
 	f.faults = append(f.faults, fakeFault{method: method, prefix: prefix, status: status})
 }
 
+// ForbidWithBody is Forbid with a raw answer body, in the content type of the
+// validation errors of Nexus.
+func (f *fakeNexus) ForbidWithBody(method, prefix string, status int, body string) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.faults = append(f.faults, fakeFault{method: method, prefix: prefix, status: status, body: body})
+}
+
 // RedirectTo answers status (a 3xx) with a Location header to the matching requests.
 func (f *fakeNexus) RedirectTo(method, prefix string, status int, location string) {
 	f.mu.Lock()
@@ -230,6 +241,38 @@ func (f *fakeNexus) Oversize(prefix string, size int) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	f.faults = append(f.faults, fakeFault{method: http.MethodGet, prefix: prefix, size: size})
+}
+
+// BlockUpstream makes the instance refuse a proxy repository the way the real
+// one does when it cannot resolve the host of the remote URL: a 400 whose body
+// is a validation error list on proxy.remoteUrl (observed on 3.98.1-01, see
+// "First real run" in docs/architecture/nexus-bench.md). ResolveUpstream undoes it.
+func (f *fakeNexus) BlockUpstream() {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.upstreamBlocked = true
+}
+
+// ResolveUpstream makes the host of the remote URL resolvable again.
+func (f *fakeNexus) ResolveUpstream() {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.upstreamBlocked = false
+}
+
+// refuseUnresolvedUpstream answers the 400 of an unresolvable proxy remote URL
+// and reports whether it did. The content type is the one Nexus sends.
+func (f *fakeNexus) refuseUnresolvedUpstream(w http.ResponseWriter, kind string, cfg map[string]any) bool {
+	if kind != "proxy" || !f.upstreamBlocked {
+		return false
+	}
+	host, _ := jsonAt(cfg, "proxy", "remoteUrl").(string)
+	body := []map[string]any{{"id": "HelperBean.proxy.remoteUrl", "message": "Proxy URL blocked: Failed to resolve host: " + host}}
+	data, _ := json.Marshal(body)
+	w.Header().Set("Content-Type", "application/vnd.siesta-validation-errors-v1+json")
+	w.WriteHeader(http.StatusBadRequest)
+	_, _ = w.Write(data)
+	return true
 }
 
 // DropConnections makes the instance close every connection without an answer.
@@ -512,6 +555,12 @@ func (f *fakeNexus) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		if ft.size == 0 && ft.matches(r) {
 			if ft.location != "" {
 				w.Header().Set("Location", ft.location)
+			}
+			if ft.body != "" {
+				w.Header().Set("Content-Type", "application/vnd.siesta-validation-errors-v1+json")
+				w.WriteHeader(ft.status)
+				_, _ = w.Write([]byte(ft.body))
+				return
 			}
 			f.reply(w, r, ft.status, map[string]any{"message": "injected fault"})
 			return
@@ -914,6 +963,9 @@ func (f *fakeNexus) serveRepos(w http.ResponseWriter, r *http.Request, body []by
 			f.badRequest(w, r, "a repository of that name already exists")
 			return
 		}
+		if f.refuseUnresolvedUpstream(w, kind, cfg) {
+			return
+		}
 		byName[name] = cfg
 		f.reply(w, r, http.StatusCreated, nil)
 	case len(parts) == 2 && r.Method == http.MethodGet:
@@ -935,6 +987,9 @@ func (f *fakeNexus) serveRepos(w http.ResponseWriter, r *http.Request, body []by
 		}
 		if cfg["name"] != parts[1] {
 			f.badRequest(w, r, "the name of the body is not the name of the path")
+			return
+		}
+		if f.refuseUnresolvedUpstream(w, kind, cfg) {
 			return
 		}
 		byName[parts[1]] = cfg

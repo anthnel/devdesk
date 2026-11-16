@@ -8,6 +8,7 @@ import (
 	"io"
 	"net/http"
 	"net/url"
+	"slices"
 	"strings"
 	"time"
 )
@@ -30,6 +31,11 @@ type APIError struct {
 	// Op says what the call was for, e.g. "create user bench-pull".
 	Op     string
 	Status int
+	// RemoteURLBlocked is true for a 400 whose validation errors name
+	// proxy.remoteUrl: Nexus 3.98.1 resolves the host of a proxy's remote URL
+	// when it saves the repository and refuses one that does not resolve. Only
+	// this verdict is kept, never the text of the answer.
+	RemoteURLBlocked bool
 }
 
 // Error returns "<Op>: HTTP <status> <text>".
@@ -110,6 +116,9 @@ type response struct {
 	status int
 	header http.Header
 	body   []byte
+	// remoteURLBlocked is the verdict of remoteURLRefused on a 400; the body of
+	// an answer outside 2xx is read for it and dropped.
+	remoteURLBlocked bool
 }
 
 // do sends r and returns the answer whatever its status. The error is a
@@ -140,8 +149,11 @@ func (c *client) do(ctx context.Context, r request) (response, error) {
 	}
 	defer func() { _ = resp.Body.Close() }()
 	if resp.StatusCode < 200 || resp.StatusCode > 299 {
-		_, _ = io.Copy(io.Discard, io.LimitReader(resp.Body, drainBytes))
-		return response{status: resp.StatusCode, header: resp.Header}, nil
+		refused, _ := io.ReadAll(io.LimitReader(resp.Body, drainBytes))
+		return response{
+			status: resp.StatusCode, header: resp.Header,
+			remoteURLBlocked: resp.StatusCode == http.StatusBadRequest && remoteURLRefused(refused),
+		}, nil
 	}
 	data, err := io.ReadAll(io.LimitReader(resp.Body, maxResponseBytes+1))
 	if err != nil {
@@ -160,9 +172,36 @@ func (c *client) expect(ctx context.Context, r request) (response, error) {
 		return resp, err
 	}
 	if resp.status < 200 || resp.status > 299 {
-		return resp, &APIError{Op: r.op, Status: resp.status}
+		return resp, &APIError{Op: r.op, Status: resp.status, RemoteURLBlocked: resp.remoteURLBlocked}
 	}
 	return resp, nil
+}
+
+// remoteURLRefused reports whether body is a Nexus validation error list with
+// an entry on proxy.remoteUrl whose message says the host did not resolve:
+// [{"id":"HelperBean.proxy.remoteUrl","message":"... Failed to resolve host: ..."}].
+// Only that verdict leaves the function: no text of the answer is kept. The
+// content type of the answer is vendor specific, so only the JSON is read; a
+// body past drainBytes was cut and is not trusted.
+func remoteURLRefused(body []byte) bool {
+	if len(body) > drainBytes {
+		return false
+	}
+	var errs []validationError
+	if err := json.Unmarshal(body, &errs); err != nil {
+		return false
+	}
+	return slices.ContainsFunc(errs, func(e validationError) bool {
+		return strings.HasSuffix(e.ID, "proxy.remoteUrl") &&
+			strings.Contains(strings.ToLower(e.Message), "resolve host")
+	})
+}
+
+// validationError is one entry of a Nexus validation error list. The message is
+// only matched by remoteURLRefused, never stored or shown.
+type validationError struct {
+	ID      string `json:"id"`
+	Message string `json:"message"`
 }
 
 // get reads path and decodes the JSON answer into out (nil: not decoded). A 404

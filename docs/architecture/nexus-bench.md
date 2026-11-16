@@ -17,11 +17,14 @@ runner, errors and preflight (step 3), the deployment and its wait (step 4), the
 secrets store and the descriptor (step 5), the REST client and provisioning
 (step 6), the destruction (step 7), the command with its mise tasks (step 8) and
 the guarded integration tests with the source guards (step 9) exist. The
-preflight only reads the cluster; the writes that exist are the two applies of
-`Deploy` and the namespace delete of `Destroy`, which have only ever run against
-a fake `Runner`, and `Provision` has only ever run against an in-memory fake (see
-H-REST below). The integration tests of step 9 are written but have never run:
-nothing has run against a real cluster yet (step 10).
+preflight only reads the cluster; the writes are the two applies of `Deploy`,
+the REST calls of `Provision` and the namespace delete of `Destroy`.
+
+Validated on `datomir` on 2026-11-16 (step 10, see "First real run" below): `up`,
+a second `up`, the three read-only integration tests and the destructive
+lifecycle all ran against a real Nexus 3.98.1-01 Community on k0s. One
+hypothesis was wrong (a proxy whose upstream does not resolve is refused), and
+`Provision` now copes with it.
 
 ## Decisions (plan `.claude/plans/DEVDESK-504-plan.md`)
 
@@ -309,7 +312,9 @@ progress lines (`provision: ...`) and never a password.
 
 **Idempotence.** Every object is read, then created when absent or replaced when
 present; there is no "create and ignore the error". A second run sends no `POST`
-and changes neither the state nor any password. Order of the calls:
+(except the one `POST` of a proxy whose upstream does not resolve yet, see
+"Unresolvable upstream" under call 9 below) and changes neither the state nor
+any password. Order of the calls:
 
 1. `GET /v1/status` (no account): version and edition from the `Server` header
    (`Nexus/3.98.1-01 (COMMUNITY)`), else `info.version` of
@@ -343,6 +348,25 @@ and changes neither the state nor any password. Order of the calls:
    `indexType: REGISTRY`) and `docker-group` (members hosted then proxy,
    `docker.httpPort: 8082`), all on blob store `default`, `forceBasicAuth: false`
    (anonymous pulls): `GET .../{name}` 404 then `POST`, found then `PUT`.
+   **Unresolvable upstream.** Nexus resolves the host of the proxy's remote URL
+   when it saves the repository and answers `400` (validation error on
+   `proxy.remoteUrl`) when it does not. The client keeps one verdict from that
+   answer, `APIError.RemoteURLBlocked` (a boolean, true only for a `400` with an
+   entry whose id ends in `proxy.remoteUrl` and whose message contains `resolve
+   host`, case-insensitive, in a body of at most 4 KiB; the body is parsed and
+   dropped, no text of it is kept or printed; a malformed URL or any other
+   refusal of that field is an ordinary failure). On that verdict `Provision`
+   writes `provision: warning: Nexus refused the remote URL of docker-proxy: it
+   cannot resolve the upstream host yet, so it was left out; run up again once
+   the upstream exists`, goes on, creates the group with `docker-hosted` as its only
+   member, and returns `ProvisionResult.ProxyPending` (true only when the proxy
+   does not exist; an existing proxy stays, stays a member, and the warning says
+   `left as it was`). Any other `400`, or a `400` on another repository, still
+   fails. `BuildDescriptor` then lists neither `docker-proxy` nor it as a group
+   member. A run after NX-02 deployed the upstream creates the proxy and updates
+   the group, and the descriptor changes (commit it). So a second `up` is not
+   POST-free while the proxy is pending: it sends the one refused `POST` of the
+   proxy.
 
 **Admin credentials, a state machine with the write first.** `Load` the store;
 the candidates are `adminPassword`, then `pendingAdminPassword`; an empty value
@@ -409,6 +433,13 @@ together:
   `negativeCache`, `httpClient`, `group.memberNames`, `docker.httpPort`), the
   statuses of `POST` (201) and `PUT` (204), the path-routing field added in 3.83
   (left to the default of Nexus), and a proxy created before its upstream exists.
+
+Verdict of the first real run (details in "First real run"): every item above
+held except the last one. The `Server` header, the EULA payload, `text/plain`
+change-password, the realm ids, the anonymous, role, user and repository
+payloads and all the statuses matched the swagger and the fake. A proxy created
+before its upstream resolves is refused with `400`; the fake does the same since
+(`BlockUpstream`, `ResolveUpstream`).
 
 **Security guarantees.** No redirect followed; answers bounded; no proxy; no
 `Authorization` header, URL with credentials, body or password in any error or
@@ -532,7 +563,9 @@ except the first two): create and patch `namespaces` (cluster); create and patch
 a fake `Prober` and a fake `Clock`; the real kubectl output shape of
 `get pods -o json` (container status fields), the real duration of the pull and
 the start, and whether `kubectl apply --server-side` of a Namespace that carries
-no field of its own conflicts on a second run are for step 10.
+no field of its own conflicts on a second run were left for step 10: the real
+output was read, a second `up` applied the same two documents with no conflict,
+and the start took 48 s (see "First real run").
 
 ## Residual risks (security audit of the steps 4, 6, 7)
 
@@ -678,6 +711,9 @@ default bench prints nothing on stderr.
 
 ## Integration tests and source guards (`bench_integration_test.go`, `guard_test.go`, step 9)
 
+Read-only state of the run on 2026-11-16: the three read tests pass (8 subtests)
+and the lifecycle passes (151 s for two downs and three deployments).
+
 **Gates.** Every test of `bench_integration_test.go` starts with
 `requireBench(t)`: it skips unless `DEVDESK_NEXUS_BENCH=1` and `CI` is empty, so
 `mise run test`, `check`, `ci` and the CI never reach the cluster. The mise task
@@ -757,10 +793,75 @@ and absent from the global `[tools]`; `nexus-bench:test` sets
 `DEVDESK_NEXUS_BENCH=1`, runs `-run Integration` and carries a `-timeout` of at
 least 45 minutes. Limit: it reads the file, it does not ask mise to resolve it.
 
+## First real run (datomir, 2026-11-16)
+
+Step 10, on k0s v1.36 (`datomir`), image `docker.io/sonatype/nexus3:3.98.1`
+(pulled in 10.6 s), `Server: Nexus/3.98.1-01 (COMMUNITY)`. The operator accepted
+the Community EULA before the run; the REST client never accepts it on its own.
+
+**Deployment (H-RES).** First `up` on an empty cluster namespace: 48 s from the
+apply to a Ready pod and a changed admin password (pull included); the pod went
+Pending, ContainerCreating, running not ready, ready, and the claim bound with
+the pod (`local-path`). Idle after provisioning: 55m CPU and 1257Mi memory
+(`kubectl top pod`), against the 3Gi request and 4Gi limit of D-C: the request
+could be lowered, but it was kept (the JVM grows with the first pulls, to be
+measured with NX-02). `/nexus-data` held 3.7 MB. `admin.password` is gone once
+the password is changed through the API (H-REST confirmed). An `up` on an
+already provisioned namespace takes 1 to 2 s.
+
+**REST statuses seen** (Nexus `request.log`): `PUT .../users/admin/change-password`
+204, `POST /system/eula` 204, `PUT /security/realms/active` 204, `PUT
+/security/anonymous` 200, `POST /security/roles` 200, `POST /security/users`
+200, `POST /repositories/docker/hosted` 201, `POST .../group` 201, `PUT
+/security/roles/{id}` 204, `PUT /security/users/{id}` 204, `PUT
+.../users/{id}/change-password` 204, `PUT .../hosted/{name}` and `PUT
+.../group/{name}` 204. The swagger lists the same codes (`GET /v1/system/eula`
+answers 200 whatever the state, `POST` 204/500). The client accepts any 2xx; the
+fake answers 200 for `POST` roles and users and 201 for repositories, as the
+swagger and the instance do.
+
+**The proxy.** `POST /repositories/docker/proxy` with
+`http://bench-upstream.nexus-bench.svc.cluster.local:5000`, a host that does not
+exist yet (NX-02): `400`, content type `application/vnd.siesta-validation-errors-v1+json`,
+body `[{"id":"HelperBean.proxy.remoteUrl","message":"Proxy URL blocked: Failed to
+resolve host: ..."}]`. The proxy is not created, the instance keeps working. The
+answer to this is in "REST client and provisioning", step 9: the proxy is
+pending, the group holds `docker-hosted` alone, the descriptor says so. The
+committed `descriptor.json` therefore describes the bench as it is before NX-02:
+`docker-hosted` and `docker-group` (with `docker-hosted` as its only member), no
+proxy. It is not the descriptor of the bench after NX-02, which has the proxy and
+lists it in the group, so the versioned file differs before and after NX-02. It
+also embeds the node IP `192.168.1.31`, which is specific to this machine.
+
+**CA2 (REST provisioning) is met for `docker-hosted` and `docker-group`; the
+proxy is deferred to NX-02.** Nexus 3.98.1-01 refuses a proxy whose upstream host
+does not resolve, and the upstream only exists once NX-02 deploys it. The
+criterion to carry into NX-02: run `mise run nexus-bench:up` again, check that
+`docker-proxy` exists and is a member of `docker-group`, and commit the new
+`descriptor.json`.
+
+**Idempotence (CA3).** A second and third `up` sent no `POST` but the refused
+proxy one (the pending proxy of "The proxy" above), `PUT` everything else (including a `change-password` of `bench-pull`
+with the stored password, the same value), left every password unchanged and
+wrote byte for byte the same `descriptor.json`. The lifecycle test compares the
+snapshots of repositories, roles and users after a second up and provision and
+finds them equal.
+
+**Read-only tests.** `TestIntegrationBenchDescribed`,
+`TestIntegrationAnonymousAsDescribed` and `TestIntegrationPullAccountIsReadOnly`
+pass: status 200 without credentials, the anonymous settings and the anonymous
+`GET /repositories` as described, and the control `POST` of `bench-pull` is
+refused with 403 (nothing was created).
+
+**Lifecycle (CA3, CA4).** `TestIntegrationLifecycle` passes in 151 s: up,
+provision, up and provision again with no change, `down`, `up` on a fresh
+instance (a new pod with a new `admin.password`), `down`. Afterwards the namespace
+is `NotFound`, no PersistentVolume of the bench remains (`local-path` reclaims
+with `Delete`), `secrets.json` is removed (the empty `datomir` folder above it
+stays) and `descriptor.json` is unchanged.
+
 ## Still to come
 
-The first real run on `datomir` (step 10, blocked on the EULA and cluster-access
-decisions Q1 and Q2 of the plan): `up`, then `nexus-bench:test`, then the
-lifecycle. It is also the first time the H-REST hypotheses, the 403 of the
-pull-account control `POST` and the 401 of an anonymous request meet a real
-Nexus. This file grows with each step.
+NX-02 deploys the upstream (`bench-upstream` in the bench namespace); after it,
+`mise run nexus-bench:up` creates the proxy, puts it into the group, and the
+descriptor gets the proxy back (CA2 for the proxy; commit the new `descriptor.json`). This file grows with each step.

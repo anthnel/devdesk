@@ -1,0 +1,77 @@
+{
+  "schemaVersion": 1,
+  "kubeContext": "datomir",
+  "namespace": "nexus-bench",
+  "image": "docker.io/sonatype/nexus3:3.98.1",
+  "nexusVersion": "3.98.1-01",
+  "edition": "COMMUNITY",
+  "eulaAccepted": true,
+  "hosts": [
+    "127.0.0.1",
+    "192.168.1.31"
+  ],
+  "rest": {
+    "nodePort": 30481,
+    "containerPort": 8081,
+    "urls": [
+      "http://127.0.0.1:30481",
+      "http://192.168.1.31:30481"
+    ]
+  },
+  "dockerConnectors": [
+    {
+      "repository": "docker-group",
+      "nodePort": 30482,
+      "containerPort": 8082,
+      "urls": [
+        "http://127.0.0.1:30482",
+        "http://192.168.1.31:30482"
+      ]
+    }
+  ],
+  "repositories": [
+    {
+      "name": "docker-hosted",
+      "type": "hosted"
+    },
+    {
+      "name": "docker-group",
+      "type": "group",
+      "members": [
+        "docker-hosted"
+      ]
+    }
+  ],
+  "realms": [
+    "NexusAuthenticatingRealm",
+    "DockerToken"
+  ],
+  "accounts": [
+    {
+      "userId": "admin",
+      "roles": [
+        "nx-admin"
+      ],
+      "purpose": "bench administrator"
+    },
+    {
+      "userId": "bench-pull",
+      "roles": [
+        "bench-docker-pull"
+      ],
+      "privileges": [
+        "nx-repository-view-docker-*-browse",
+        "nx-repository-view-docker-*-read"
+      ],
+      "purpose": "read-only pull"
+    },
+    {
+      "userId": "anonymous",
+      "enabled": true,
+      "roles": [
+        "nx-anonymous"
+      ],
+      "purpose": "anonymous access"
+    }
+  ]
+}

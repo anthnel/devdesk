@@ -107,6 +107,9 @@ type provisioner struct {
 	secrets Secrets
 	// api is the client authenticated as admin, once the credentials are settled.
 	api *client
+	// proxyPending is set when the instance refused docker-proxy for an
+	// unresolvable upstream host and the repository does not exist.
+	proxyPending bool
 }
 
 func (pv *provisioner) run(ctx context.Context) (ProvisionResult, error) {
@@ -130,6 +133,7 @@ func (pv *provisioner) run(ctx context.Context) (ProvisionResult, error) {
 			return res, err
 		}
 	}
+	res.ProxyPending = pv.proxyPending
 	return res, nil
 }
 
@@ -577,19 +581,30 @@ func (pv *provisioner) ensureRepositories(ctx context.Context) error {
 		if err != nil {
 			return err
 		}
-		if !found {
-			op := fmt.Sprintf("create the %s repository %s", repo.kind, repo.name)
-			if err := pv.api.write(ctx, op, http.MethodPost, collection, repo.config); err != nil {
+		verb, method, path, done := "create", http.MethodPost, collection, "created"
+		if found {
+			verb, method, path, done = "update", http.MethodPut, collection+"/"+repo.name, "updated"
+		}
+		op := fmt.Sprintf("%s the %s repository %s", verb, repo.kind, repo.name)
+		if repo.name == dockerGroupRepository && pv.proxyPending {
+			repo.config["group"] = map[string]any{"memberNames": []string{dockerHostedRepository}}
+		}
+		if err := pv.api.write(ctx, op, method, path, repo.config); err != nil {
+			var api *APIError
+			if repo.name != dockerProxyRepository || !errors.As(err, &api) || !api.RemoteURLBlocked {
 				return err
 			}
-			pv.say("%s repository %s created", repo.kind, repo.name)
+			// The upstream is deployed by NX-02: until its host resolves, Nexus
+			// refuses the proxy. Say so and carry on without it; a later run adds it.
+			pv.proxyPending = !found
+			state := "left as it was"
+			if !found {
+				state = "left out"
+			}
+			pv.say("warning: Nexus refused the remote URL of %s: it cannot resolve the upstream host yet, so it was %s; run up again once the upstream exists", repo.name, state)
 			continue
 		}
-		op := fmt.Sprintf("update the %s repository %s", repo.kind, repo.name)
-		if err := pv.api.write(ctx, op, http.MethodPut, collection+"/"+repo.name, repo.config); err != nil {
-			return err
-		}
-		pv.say("%s repository %s updated", repo.kind, repo.name)
+		pv.say("%s repository %s %s", repo.kind, repo.name, done)
 	}
 	return nil
 }
