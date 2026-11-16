@@ -76,6 +76,10 @@ type PathModel struct {
 	// platform is the WSL2 detection of the current run, set by handleResolved
 	// and cleared with the run.
 	platform wslenv.Info
+
+	// known is the route stage's reading handed over by Model.openTrace, the
+	// only writer (DEVDESK-473). The zero value knows nothing.
+	known pathKnownRoutes
 }
 
 // pathSourceKey opens the "Trace from" selector (declared exception, surface
@@ -260,6 +264,13 @@ func (pm *PathModel) handleKey(msg tea.KeyPressMsg) (*PathModel, tea.Cmd) {
 	}
 	return pm, nil
 }
+
+// runEngine returns the engine one run uses.
+//
+// TODO(DEVDESK-473): declaration only, written for the red tests of step 2. It
+// returns the engine as is for now; the coder makes it answer the route from
+// pm.known when the source is this machine.
+func (pm *PathModel) runEngine(tg pathTarget) pathEngine { return pm.engine }
 
 // launch starts a run: the model changes here, in Update; the Cmd only does I/O.
 func (pm *PathModel) launch(tg pathTarget) (*PathModel, tea.Cmd) {
