@@ -1,0 +1,50 @@
+{
+  "cli_version": "0.13.2",
+  "checkpoint_id": "7daa8cee7ea7",
+  "strategy": "manual-commit",
+  "branch": "main",
+  "checkpoints_count": 20,
+  "files_touched": [
+    "docs/architecture/network.md",
+    "docs/backlog.md",
+    "internal/ui/oci_resources/browser_summary_header_test.go"
+  ],
+  "sessions": [
+    {
+      "metadata": "/7d/aa8cee7ea7/0/metadata.json",
+      "transcript": "/7d/aa8cee7ea7/0/full.jsonl",
+      "compact_transcript": "/7d/aa8cee7ea7/0/transcript.jsonl",
+      "content_hash": "/7d/aa8cee7ea7/0/content_hash.txt",
+      "prompt": "/7d/aa8cee7ea7/0/prompt.txt"
+    }
+  ],
+  "token_usage": {
+    "input_tokens": 0,
+    "cache_creation_tokens": 0,
+    "cache_read_tokens": 0,
+    "output_tokens": 0,
+    "api_call_count": 0,
+    "subagent_tokens": {
+      "input_tokens": 8,
+      "cache_creation_tokens": 1482,
+      "cache_read_tokens": 153713,
+      "output_tokens": 947,
+      "api_call_count": 4
+    },
+    "subagent_tokens_complete": true
+  },
+  "redaction": {
+    "replacements": 0,
+    "layers": {
+      "betterleaks": 0,
+      "connection_string": 0,
+      "credential_key": 0,
+      "credential_value": 0,
+      "credentialed_uri": 0,
+      "entropy": 0,
+      "key_context": 0,
+      "provider_token": 0,
+      "shell_stdin": 0
+    }
+  }
+}
