@@ -279,16 +279,18 @@ func TestHubBodyIsLimitedToOneMiB(t *testing.T) {
 
 func TestHubBodyIsNotReadPastTheCap(t *testing.T) {
 	var written atomic.Int64
+	var completed atomic.Bool
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		_, _ = w.Write([]byte(`{"results":[{"name":"nginx","description":"`))
 		chunk := []byte(strings.Repeat("a", 64<<10))
-		for i := 0; i < 400; i++ { // up to 25 MiB offered
+		for i := 0; i < 1024; i++ { // 64 MiB offered
 			n, err := w.Write(chunk)
 			written.Add(int64(n))
 			if err != nil {
 				return
 			}
 		}
+		completed.Store(true)
 	}))
 	t.Cleanup(srv.Close)
 	old := hubSearchURL
@@ -297,7 +299,14 @@ func TestHubBodyIsNotReadPastTheCap(t *testing.T) {
 	if _, _, err := search(t, Target{}, Query{Text: "nginx"}); err == nil {
 		t.Fatal("want an error")
 	}
-	if got := written.Load(); got > 8<<20 {
+	// The client reads at most 1 MiB, but the kernel buffers absorb more
+	// writes before the server notices the close: on Linux up to about 6 MiB
+	// of client receive buffer plus 4 MiB of server send buffer. 16 MiB leaves
+	// a margin over that ~11 MiB and stays far below the 64 MiB offered.
+	if completed.Load() {
+		t.Error("server wrote the whole body, the client never stopped reading")
+	}
+	if got := written.Load(); got > 16<<20 {
 		t.Errorf("server wrote %d bytes before the client gave up, want the read stopped near 1 MiB", got)
 	}
 }
