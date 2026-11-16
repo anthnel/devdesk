@@ -4,7 +4,6 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"io"
 	"log"
 	"net/http"
 	"net/url"
@@ -270,7 +269,7 @@ func launchContainerCmd(opts docker.ContainerLaunchOptions) tea.Cmd {
 // If password is empty, attempts login without a password (uses stored credentials).
 func registryLoginCmd(registryURL, username, password string) tea.Cmd {
 	return func() tea.Msg {
-		log.Printf("INFO [oci_resources] docker login %s (user: %s)", registryURL, username)
+		log.Printf("INFO [oci_resources] docker login %s (user: %s)", oci.RedactRegistryURL(registryURL), username)
 		err := docker.RegistryLogin(registryURL, username, password)
 		return RegistryLoginCompleteMsg{RegistryURL: registryURL, Err: err}
 	}
@@ -291,7 +290,7 @@ func checkRegistryLoginStatusCmd(urls []string) tea.Cmd {
 // registryLogoutCmd runs `docker logout` for the given registry URL.
 func registryLogoutCmd(registryURL string) tea.Cmd {
 	return func() tea.Msg {
-		log.Printf("INFO [oci_resources] docker logout %s", registryURL)
+		log.Printf("INFO [oci_resources] docker logout %s", oci.RedactRegistryURL(registryURL))
 		err := docker.RegistryLogout(registryURL)
 		return RegistryLogoutCompleteMsg{RegistryURL: registryURL, Err: err}
 	}
@@ -361,6 +360,12 @@ func verifyEntrypointCmd(seq int, image, entrypoint string) tea.Cmd {
 
 var ociHTTPClient = &http.Client{Timeout: 15 * time.Second}
 
+// maxHubTagsMetaResponse bounds one Docker Hub tags page in memory. Measured on
+// 2026-11-16 with the request fetchDockerHubTagsMeta builds (page_size=100): the
+// largest page was 530629 bytes (library/postgres; library/node 259560,
+// library/python 443387), so 4 MiB is about 7.9 times the largest one seen.
+const maxHubTagsMetaResponse = 4 << 20
+
 // registryAPIURL converts a user-specified registry URL into a v2 API base URL.
 //
 // This is the one place that *keeps* a scheme rather than stripping it: an
@@ -393,7 +398,9 @@ func searchRegistryTagsCmd(ctx context.Context, gen uint64, entryKey, registryUR
 }
 
 // fetchDockerHubTagsMeta fetches last_updated times from the Docker Hub public API.
-// Works for public repos (no auth needed). Returns partial results on error.
+// Works for public repos (no auth needed). Returns nil and an error when the page
+// cannot be read in full (a page over maxHubTagsMetaResponse wraps
+// oci.ErrBodyTooLarge) or parsed; there is no partial result.
 func fetchDockerHubTagsMeta(namespace, repo string) (map[string]time.Time, error) {
 	endpoint := fmt.Sprintf("https://hub.docker.com/v2/repositories/%s/%s/tags?page_size=100&ordering=last_updated", namespace, repo)
 	req, err := http.NewRequest("GET", endpoint, nil)
@@ -409,9 +416,9 @@ func fetchDockerHubTagsMeta(namespace, repo string) (map[string]time.Time, error
 	if resp.StatusCode != http.StatusOK {
 		return nil, fmt.Errorf("hub API returned %d", resp.StatusCode)
 	}
-	body, err := io.ReadAll(resp.Body)
+	body, err := oci.ReadAllLimited(resp.Body, maxHubTagsMetaResponse)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("hub API: %w", err)
 	}
 	var result struct {
 		Results []struct {

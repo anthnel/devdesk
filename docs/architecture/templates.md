@@ -42,6 +42,20 @@ still load.
   (below).
 - **oci** reuses `oci.Client.DownloadTemplate`, which returns `Entries`
   (bytes + execute bit).
+  The manifest is read from the registry's own origin (a redirect to another
+  origin is refused). The layer blob may be served from another host, the usual
+  CDN or S3 redirect: it is followed **without** `Authorization` or `Referer`,
+  at most 10 hops, never from `https` to `http`, and never to `localhost`,
+  `*.localhost` or a loopback or link-local address unless the registry itself
+  is local (DEVDESK-412, `network.md`). An alias in `/etc/hosts` that points
+  to `127.0.0.1` is not seen as local: for a local registry, write `localhost`,
+  a name under `.localhost`, or a literal IP address, otherwise the blob is
+  refused. The layer is checked against the digest of the manifest, redirected
+  or not: only `sha256` is accepted (a registry whose layers are `sha512` is
+  refused with `unsupported layer digest: only sha256 is supported`), and a
+  mismatch returns no file. The whole download has a 1 minute timeout and its
+  compressed size is capped (`Limits` plus a margin, `oci.ErrArchiveTooLarge`).
+  Errors name a host, never a path or query (a signed URL).
 - A symlink in a template is **refused**, naming it and saying to replace it
   with a regular file. It used to be read as an empty file — a template silently
   missing what it says it holds. A **submodule** is refused the same way

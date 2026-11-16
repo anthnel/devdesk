@@ -3,13 +3,15 @@ package registrymgr
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
-	"io"
 	"log"
 	"net/http"
 	"net/url"
 	"strings"
 	"time"
+
+	"github.com/anthnel/devdesk/internal/oci"
 )
 
 func init() {
@@ -25,7 +27,14 @@ func init() {
 // not: that is the declared provider's decision (§3.8, decision F).
 type NexusDetector struct{}
 
-var nexusHTTPClient = &http.Client{Timeout: 8 * time.Second}
+// maxNexusResponse bounds what one Nexus reply may take in memory. The replies
+// are small JSON documents (a repository and the names of its members); the
+// figure follows the reasoning of the catalog page cap and is not measured.
+const maxNexusResponse = 1 << 20
+
+// nexusHTTPClient refuses a redirect to another origin, so the account of the
+// registry is never sent to a host it was not given for.
+var nexusHTTPClient = &http.Client{Timeout: 8 * time.Second, CheckRedirect: oci.RefuseOffOriginRedirect}
 
 // Provider returns the provider this detector serves.
 func (n *NexusDetector) Provider() string { return ProviderNexus }
@@ -48,7 +57,13 @@ func (n *NexusDetector) DetectGroup(ctx context.Context, info RegistryInfo) ([]G
 	if err != nil {
 		// Not an error: a URL that is not a Nexus repository path is a settled
 		// answer, not a failure to reach one.
-		log.Printf("INFO [registrymgr/nexus] cannot parse Nexus URL %q: %v", apiBase, err)
+		// The cause only: a URL that does not parse may hold a password, and
+		// url.Error repeats it whole.
+		var ue *url.Error
+		if errors.As(err, &ue) {
+			err = ue.Err
+		}
+		log.Printf("INFO [registrymgr/nexus] cannot parse Nexus URL: %v", err)
 		return nil, nil
 	}
 
@@ -127,10 +142,17 @@ func (n *NexusDetector) fetchGroupMembers(ctx context.Context, host, repoName, f
 	if err != nil {
 		// When auth is present but the request fails, retry anonymously.
 		// Some Nexus instances allow anonymous read of the group admin endpoint.
-		if info.Username != "" && info.Password != "" {
+		// A refused redirect to another origin is not such a failure: the
+		// detection stops there (DEVDESK-412), no silent anonymous retry.
+		if info.Username != "" && info.Password != "" && !errors.Is(err, oci.ErrOffOriginRedirect) {
 			anonInfo := RegistryInfo{URL: info.URL, ManagementURL: info.ManagementURL}
 			body, err = n.nexusGET(ctx, endpoint, anonInfo)
 		}
+	}
+	if errors.Is(err, oci.ErrOffOriginRedirect) {
+		// The advice below is for an account Nexus refused, not for this.
+		log.Printf("INFO [registrymgr/nexus] members unreachable %q: %v — redirect to another origin refused (the registry URL may need to be the one Nexus serves)", endpoint, err)
+		return nil
 	}
 	if err != nil {
 		log.Printf("INFO [registrymgr/nexus] members unreachable %q: %v — account may lack nx-repository-admin privilege; run 'docker login %s' with an admin account", endpoint, err, host)
@@ -202,15 +224,19 @@ func (n *NexusDetector) nexusGET(ctx context.Context, endpoint string, info Regi
 	}
 	resp, err := nexusHTTPClient.Do(req)
 	if err != nil {
-		return nil, err
+		// A refused redirect comes back without the URL it pointed to, which
+		// may be signed.
+		return nil, oci.StripRedirectTarget(err)
 	}
 	defer func() { _ = resp.Body.Close() }()
 	if resp.StatusCode != http.StatusOK {
 		return nil, fmt.Errorf("HTTP %d", resp.StatusCode)
 	}
-	var buf []byte
-	buf, err = io.ReadAll(resp.Body)
-	return buf, err
+	body, err := oci.ReadAllLimited(resp.Body, maxNexusResponse)
+	if err != nil {
+		return nil, fmt.Errorf("read Nexus response: %w", err)
+	}
+	return body, nil
 }
 
 // parseNexusURL extracts the scheme+host and repository name from a Nexus URL.

@@ -8,6 +8,7 @@ import (
 
 	"github.com/anthnel/devdesk/internal/cache"
 	"github.com/anthnel/devdesk/internal/jobs"
+	"github.com/anthnel/devdesk/internal/oci"
 	"github.com/anthnel/devdesk/internal/registrymgr"
 	"github.com/anthnel/devdesk/internal/trust"
 )
@@ -55,7 +56,7 @@ func (m Model) handleMultiRegistryTagsLoaded(msg MultiRegistryTagsLoadedMsg) (te
 			log.Printf("ERROR [oci_resources] registry tags on %s: %s", msg.Alias, searchErrorCause(msg.Err))
 			return m, m.footer.Error(tagsLoadFailedText)
 		}
-		log.Printf("ERROR [oci_resources] registry tags %s from %s: %v", msg.Repo, msg.RegistryURL, msg.Err)
+		log.Printf("ERROR [oci_resources] registry tags %s from %s: %v", msg.Repo, oci.RedactRegistryURL(msg.RegistryURL), msg.Err)
 		return m, nil
 	}
 	m.registryBrowser.SetScanCache(m.scanCache)
@@ -69,7 +70,7 @@ func (m Model) handleMultiRegistryTagsMeta(msg MultiRegistryTagsMetaMsg) (tea.Mo
 		return m, nil
 	}
 	if msg.Err != nil {
-		log.Printf("INFO [oci_resources] tag meta unavailable for %s at %s: %v", msg.Repo, msg.RegistryURL, msg.Err)
+		log.Printf("INFO [oci_resources] tag meta unavailable for %s at %s: %v", msg.Repo, oci.RedactRegistryURL(msg.RegistryURL), msg.Err)
 		return m, nil
 	}
 	if msg.Meta != nil {
@@ -161,7 +162,7 @@ func (m Model) handleRegistryGroupDetected(msg RegistryGroupDetectedMsg) (tea.Mo
 	delete(m.refreshingGroups, msg.Slug)
 
 	if msg.Err != nil {
-		log.Printf("INFO [oci_resources] group detection failed for %s: %v", msg.RegistryURL, msg.Err)
+		log.Printf("INFO [oci_resources] group detection failed for %s: %v", oci.RedactRegistryURL(msg.RegistryURL), msg.Err)
 		// The cache keeps what was last known rather than being emptied by an
 		// unreachable manager, so the column keeps showing it — stale, and
 		// visibly so.

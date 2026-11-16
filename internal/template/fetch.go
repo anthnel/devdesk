@@ -5,6 +5,8 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"net/url"
+	"strings"
 
 	"github.com/anthnel/devdesk/internal/fsbrowse"
 	"github.com/anthnel/devdesk/internal/git"
@@ -91,6 +93,26 @@ func FormatSize(n int) string {
 	}
 }
 
+// redactGitURL masks the secrets of a git URL for an error message: a password,
+// and on http(s) a user name alone, which is a token. A public user name on ssh
+// and the scp form (git@host:path), which has no scheme and no password, are kept
+// as written.
+func redactGitURL(raw string) string {
+	if !strings.Contains(raw, "://") {
+		return raw
+	}
+	u, err := url.Parse(raw)
+	if err != nil || u.Host == "" {
+		return oci.RedactURL(raw)
+	}
+	// On http(s) a user name with no password is how a token is written
+	// (https://TOKEN@host/...). url.Redacted only masks a password.
+	if _, hasPassword := u.User.Password(); u.User != nil && !hasPassword && (u.Scheme == "http" || u.Scheme == "https") {
+		u.User = url.User("xxxxx")
+	}
+	return u.Redacted()
+}
+
 func fetch(ctx context.Context, src Source, creds Credentials) ([]File, error) {
 	if err := src.Validate(); err != nil {
 		return nil, err
@@ -100,7 +122,7 @@ func fetch(ctx context.Context, src Source, creds Credentials) ([]File, error) {
 	case KindGit:
 		raw, err := git.ArchiveRemote(ctx, src.URL, src.Ref, src.Path, creds.Token, archiveCap)
 		if err != nil {
-			return nil, tooLargeOr(fmt.Errorf("fetching %s: %w", src.URL, err), err)
+			return nil, tooLargeOr(fmt.Errorf("fetching %s: %w", redactGitURL(src.URL), err), err)
 		}
 		return readArchive(raw)
 

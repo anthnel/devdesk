@@ -134,6 +134,19 @@ as their source of truth, and `config.yaml` is what the user declares.
 - An empty result **is** stored — "asked, and it is not a group" is an answer.
   A *failed* one is not: an unreachable manager must not erase what was last
   known, which is why `registrymgr` distinguishes the two (D23).
+- **The Nexus detector does not follow a redirect to another origin
+  (DEVDESK-412).** Its client refuses it (`oci.RefuseOffOriginRedirect`), so
+  the account is never sent to a host it was not given for. That includes the
+  redirect from `http` to `https` of the same host: the origin differs, so enter
+  the registry URL in `https`. A refused redirect is a failed discovery (D23): no
+  members, the cached ones stay, and the log says the redirect was refused. The
+  anonymous retry of the members endpoint starts on any error except this
+  refusal. Each Nexus reply is read up to 1 MiB (`maxNexusResponse`, not
+  measured); a larger one is an error, not a silent cut. A format endpoint that
+  is too large or fails (other than the origin refusal) is logged with the
+  advice `account may lack nx-repository-admin privilege`; the origin refusal
+  has its own log message, without that advice. Either way no members come
+  back.
 - The `Members` column shows `count · TimeAgo(discovered_at)`, or `never`. It is
   not decoration: a cache with no visible age looks current whatever it holds.
 - The **registry browser reads this cache**, never the network: it opens on the

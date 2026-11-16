@@ -54,8 +54,8 @@ func TestRegistryRedirectRefusalDoesNotLeakTarget(t *testing.T) {
 		api, target := setup(t)
 		_, err := ListRegistryTagsContext(context.Background(), api, "x", "user", "pass")
 		assertNoTargetLeak(t, err)
-		if !errors.Is(err, errOffOriginRedirect) {
-			t.Errorf("err = %v, want errOffOriginRedirect", err)
+		if !errors.Is(err, ErrOffOriginRedirect) {
+			t.Errorf("err = %v, want ErrOffOriginRedirect", err)
 		}
 		if target.count() != 0 {
 			t.Errorf("target hit %d times, want 0", target.count())
@@ -65,8 +65,8 @@ func TestRegistryRedirectRefusalDoesNotLeakTarget(t *testing.T) {
 		api, target := setup(t)
 		_, _, err := ListCatalogContext(context.Background(), api, "user", "pass", 10, 1000)
 		assertNoTargetLeak(t, err)
-		if !errors.Is(err, errOffOriginRedirect) {
-			t.Errorf("err = %v, want errOffOriginRedirect", err)
+		if !errors.Is(err, ErrOffOriginRedirect) {
+			t.Errorf("err = %v, want ErrOffOriginRedirect", err)
 		}
 		if target.count() != 0 {
 			t.Errorf("target hit %d times, want 0", target.count())
@@ -81,8 +81,8 @@ func TestRegistryRedirectRefusalDoesNotLeakTarget(t *testing.T) {
 		defer reg.Close()
 		_, err := ListRegistryTagsContext(context.Background(), reg.URL, "x", "user", "pass")
 		assertNoTargetLeak(t, err)
-		if !errors.Is(err, errOffOriginRedirect) {
-			t.Errorf("err = %v, want errOffOriginRedirect", err)
+		if !errors.Is(err, ErrOffOriginRedirect) {
+			t.Errorf("err = %v, want ErrOffOriginRedirect", err)
 		}
 		if target.count() != 0 {
 			t.Errorf("target hit %d times, want 0", target.count())

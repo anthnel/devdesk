@@ -5,6 +5,8 @@ import (
 	"bytes"
 	"compress/gzip"
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -93,6 +95,10 @@ func fakeRegistry(t *testing.T, wantUser string) *httptest.Server {
 	}
 	_ = tw.Close()
 	_ = gz.Close()
+	// The registry names the digest of the layer it serves: the client checks
+	// the blob against it.
+	sum := sha256.Sum256(layer.Bytes())
+	digest := "sha256:" + hex.EncodeToString(sum[:])
 
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if user, _, _ := r.BasicAuth(); user != wantUser {
@@ -102,7 +108,7 @@ func fakeRegistry(t *testing.T, wantUser string) *httptest.Server {
 		switch {
 		case strings.Contains(r.URL.Path, "/manifests/"):
 			_ = json.NewEncoder(w).Encode(map[string]any{
-				"layers": []map[string]string{{"mediaType": "application/vnd.oci.image.layer.v1.tar+gzip", "digest": "sha256:abc"}},
+				"layers": []map[string]string{{"mediaType": "application/vnd.oci.image.layer.v1.tar+gzip", "digest": digest}},
 			})
 		case strings.Contains(r.URL.Path, "/blobs/"):
 			_, _ = w.Write(layer.Bytes())
@@ -220,4 +226,42 @@ func archiveOf(t *testing.T, files, size int) []byte {
 	}
 	_ = tw.Close()
 	return buf.Bytes()
+}
+
+// DEVDESK-412 final audit: the error of a git fetch names the source without the
+// password of its URL.
+func TestFetchGitErrorNamesTheSourceWithoutItsPassword(t *testing.T) {
+	src := Source{Kind: KindGit, URL: "https://alice:S3CRETPW@127.0.0.1:1/x.git", Ref: "main"}
+
+	_, err := fetch(context.Background(), src, Credentials{})
+
+	if err == nil {
+		t.Fatal("err = nil, want a failure")
+	}
+	if want := "fetching https://alice:xxxxx@127.0.0.1:1/x.git: "; !strings.HasPrefix(err.Error(), want) {
+		t.Errorf("error %q does not start with %q", err, want)
+	}
+}
+
+// A git URL in an error: a password is masked, and so is a user name alone on
+// http(s), where it is a token (https://TOKEN@github.com/...). A public user
+// name on ssh and the scp form are kept: they say which account, not a secret.
+func TestRedactGitURL(t *testing.T) {
+	for _, tc := range []struct{ name, in, want string }{
+		{"https user and password", "https://user:pw@host/x.git", "https://user:xxxxx@host/x.git"},
+		{"https token as user name", "https://TOKEN@host/x.git", "https://xxxxx@host/x.git"},
+		{"http token as user name", "http://TOKEN@host:8080/x.git", "http://xxxxx@host:8080/x.git"},
+		{"https without userinfo", "https://host/org/x.git", "https://host/org/x.git"},
+		{"ssh user and password", "ssh://git:pw@host/x", "ssh://git:xxxxx@host/x"},
+		{"ssh public user", "ssh://git@host/x", "ssh://git@host/x"},
+		{"git protocol user", "git://git@host/x.git", "git://git@host/x.git"},
+		{"scp form", "git@host:org/x.git", "git@host:org/x.git"},
+		{"unreadable", "https://TOKEN@host/%zz", "<invalid URL>"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			if got := redactGitURL(tc.in); got != tc.want {
+				t.Errorf("redactGitURL(%q) = %q, want %q", tc.in, got, tc.want)
+			}
+		})
+	}
 }
