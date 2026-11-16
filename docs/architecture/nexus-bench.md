@@ -15,10 +15,13 @@ check` or `mise run ci` touches a cluster, and integration tests skip unless
 Status: the parameters (step 1), the manifest rendering (step 2), the `kubectl`
 runner, errors and preflight (step 3), the deployment and its wait (step 4), the
 secrets store and the descriptor (step 5), the REST client and provisioning
-(step 6) and the destruction (step 7) exist. The preflight only reads the
-cluster; the writes that exist are the two applies of `Deploy` and the namespace
-delete of `Destroy`, which have only ever run against a fake `Runner`, and
-`Provision` has only ever run against an in-memory fake (see H-REST below).
+(step 6), the destruction (step 7), the command with its mise tasks (step 8) and
+the guarded integration tests with the source guards (step 9) exist. The
+preflight only reads the cluster; the writes that exist are the two applies of
+`Deploy` and the namespace delete of `Destroy`, which have only ever run against
+a fake `Runner`, and `Provision` has only ever run against an in-memory fake (see
+H-REST below). The integration tests of step 9 are written but have never run:
+nothing has run against a real cluster yet (step 10).
 
 ## Decisions (plan `.claude/plans/DEVDESK-504-plan.md`)
 
@@ -536,10 +539,10 @@ no field of its own conflicts on a second run are for step 10.
 Known and accepted for a throw-away bench; none is fixed by this change.
 
 - **Basic credentials in clear HTTP.** Nexus is reached on `http://`, so the admin
-  and `bench-pull` credentials of `Provision` travel unencrypted. The command of
-  step 8 must prefer `127.0.0.1` (`RESTBaseURL("127.0.0.1", p)`) and send
-  credentials to the node IP only on an explicit option of the operator. This is
-  a commitment for step 8, not something the package enforces.
+  and `bench-pull` credentials of `Provision` travel unencrypted. The command
+  honours the commitment made for it: it sends them to
+  `RESTBaseURL("127.0.0.1", p)` and to another host only on `--rest-host`, with a
+  warning (see "The command"). The package itself does not enforce it.
 - **`local-path` volume in `0777`.** The data folder of the local-path
   provisioner is world-writable, so `admin.password` is readable by every local
   account of the node between the start of Nexus and the provisioning (which
@@ -551,12 +554,213 @@ Known and accepted for a throw-away bench; none is fixed by this change.
 - **Mutable image tag.** The image is `docker.io/sonatype/nexus3:<tag>` with no
   digest: the same tag can resolve to another image later.
 - **Partial result on error.** `Provision` returns the `ProvisionResult` it had
-  gathered together with the error. The command must not write the descriptor
-  when `err != nil`, or it would describe a bench that is half provisioned.
+  gathered together with the error. The command does not write the descriptor
+  when `err != nil` (`TestDescriptorIsNotWrittenUnlessProvisionSucceeded`), or it
+  would describe a bench that is half provisioned.
+
+## The command and the mise tasks (`cmd/nexus-bench`, `mise.toml`)
+
+`internal/nexusbench/cmd/nexus-bench` is a `package main` of five files:
+`main.go` (`deps`, `defaultDeps`, `run`), `flags.go` (flags and parameter
+resolution), `commands.go` (`up`, `provision`, `down`, `render`), `status.go` and
+`usage.go` (the help). `main()` only builds a context cancelled by SIGINT and
+SIGTERM, calls `run(ctx, args, os.Getenv, os.Stdout, os.Stderr, defaultDeps())`
+and exits with its code. `deps` holds every constructor and library call that
+reaches a cluster (`newRunner`, `newProber`, `clock`, `newStore`, `newInitial`,
+`preflight`, `deploy`, `provision`, `destroy`); `defaultDeps` wires
+`NewExecRunner`, `NewProber`, `NewClock`, `NewFileStore`,
+`NewKubectlInitialPassword`, `RunPreflight`, `Deploy`, `Provision` and `Destroy`,
+and the tests wire fakes, so no test needs kubectl or a network.
+
+**Tasks.** Six, in `mise.toml`, none reachable from `ci`, `check`, `test` or
+`test-race` (`mise_tasks_test.go` reads the file and checks it, and checks that
+`kubectl` is declared on each of them, not in the global `[tools]`, so the CI does
+not install it; kubectl `1.35`, because `datomir` runs k0s v1.36.x and kubectl is
+supported within one minor version of the API server, so 1.35 is the oldest
+accepted; `render` contacts no cluster and declares no kubectl, and the test
+requires its absence there). Arguments follow `--`: mise appends them to the
+command line.
+
+| Task | Runs | Acts on the cluster |
+|---|---|---|
+| `nexus-bench:up` | `go run ./internal/nexusbench/cmd/nexus-bench up` | yes |
+| `nexus-bench:provision` | `... provision` | yes (REST and `exec`) |
+| `nexus-bench:down` | `... down` | yes (deletes the namespace) |
+| `nexus-bench:status` | `... status` | reads only |
+| `nexus-bench:render` | `... render` | no, contacts nothing |
+| `nexus-bench:test` | `go test -timeout 60m -count=1 -run Integration ./internal/nexusbench/...` with `DEVDESK_NEXUS_BENCH=1` set by the task's `env` table (portable, no `env` command) | yes; the tests skip when `CI` is set |
+
+**Subcommands and flags.** Every subcommand takes the same parameter flags, one
+per `NEXUS_BENCH_*` variable: `--context`, `--namespace`, `--http-nodeport`,
+`--docker-nodeport`, `--cpu-request`, `--cpu-limit`, `--memory-request`,
+`--memory-limit`, `--storage-size`, `--jvm-opts`, `--image`, `--image-tag`,
+`--upstream-url`, `--anonymous`, `--hosts`, `--timeout`, `--delete-timeout`,
+`--secrets`, `--descriptor`. `up` and `provision` add `--accept-eula` and
+`--rest-host`. Each subcommand has its own `flag.FlagSet` (`ContinueOnError`,
+output discarded: the command prints parse errors itself on stderr and `-h` on
+stdout). A flag is laid over its variable and the result goes through
+`FromEnv(Defaults(), ...)` once, so "flag, then `NEXUS_BENCH_*`, then default",
+the parsing and the rule that `--namespace` moves the upstream URL (unless an
+upstream is given, by flag or variable) are the library's own. `--accept-eula`
+becomes `yes` (and `--accept-eula=false` `no`, which beats a variable set to
+`yes`). `Validate` runs before anything else, `render` included.
+
+**Exit codes.** `0` success; `1` failure (invalid parameter, kubectl missing, a
+step failed, a run cancelled); `2` mistake in the command line (no or unknown
+subcommand, unknown flag, a value of the wrong type, a missing value, an extra
+argument), with the help on stderr when the subcommand is missing or unknown.
+`help`, `-h` and `--help` print on stdout and exit `0`. `go run` (so every
+`mise run nexus-bench:*`) does not propagate the code: it prints `exit status 2`
+and exits `1`. Code `2` is only visible when the compiled binary is run directly;
+the general help says so (`TestHelpSaysGoRunDoesNotKeepExitCodeTwo`).
+
+**Interruption.** `main()` cancels the run's context on SIGINT or SIGTERM and
+then hands the signals back to the default behavior (`context.AfterFunc(ctx,
+stop)`), so a second Ctrl-C kills a run that is slow to wind down. This is not
+unit-tested: it lives in `main()`, which the tests do not call.
+
+**Output.** The progress of the library steps goes to stdout, then one line
+`nexus-bench: descriptor written to <path>`. Every failure is one line on stderr:
+a `BenchError` (also when wrapped by `%w` or joined) prints exactly its
+`Error()`, and nothing around it or inside it (no wrapper text, no `Err`, no
+trace); a cancelled run says `cancelled` and that `status` shows where things
+stand; another error prints its message. No output holds a password
+(`requireClean` of the tests plants markers in the fakes).
+
+**`up`.** Resolve the parameters, then the secrets path
+(`--secrets`/`NEXUS_BENCH_SECRETS`, else `DefaultSecretsPath`; with no place for
+it the run stops before any cluster call and says to set
+`NEXUS_BENCH_SECRETS`), `newRunner`, `newStore` (the git guard), `Deploy` (which
+runs `RunPreflight(OpUp)` itself, so the command does not run a second one), then
+`Provision`, then the descriptor. **The descriptor is written only after a
+successful `Provision`**, never on a failure at any step, and a descriptor from
+an earlier run is left as it was. It is built with `BuildDescriptor(p,
+DeployResult, ProvisionResult)`.
+
+**`provision`.** `RunPreflight(OpProvision)`, `Provision`, then the descriptor,
+built with `DeployResult{NodeIP: <node address of the preflight>}`.
+
+**`down`.** `Destroy` (its own `RunPreflight(OpDown)` first). The descriptor is
+not touched or created.
+
+**`status`.** Read-only: `RunPreflight(OpStatus)` (a missing namespace is its
+`NamespaceMissing` error, exit `1`), one `kubectl get pods -l
+app.kubernetes.io/name=nexus -o json`, one probe of the REST origin, one read of
+the descriptor. Four lines, each a finding, exit `0`:
+
+    bench: namespace nexus-bench, context datomir
+    pod: running (nexus-xxx, 1/1 ready, 0 restarts)     | not found | pending ...
+    rest: ready (http://127.0.0.1:30481)                 | not ready (the cause is not shown)
+    descriptor: matches (<path>) | not found (<path>) | differs from the current parameters (<path>) + one line per field
+
+The comparison covers context, namespace, image, both NodePorts, the upstream URL
+and the anonymous flag; hosts and versions come from the cluster and are left out.
+It creates no store, builds no `InitialPassword` and sends no credential.
+
+**`render`.** Prints `Render(p)` and nothing else; it builds no dependency (the
+test runs it with an empty `deps`).
+
+**Where the credentials go.** `Provision` is given
+`RESTBaseURL("127.0.0.1", p)`, whatever hosts `Deploy` reached, so the admin and
+`bench-pull` passwords stay on the loopback by default. `--rest-host <host>`
+(a host name, an IPv4 or IPv6 address, brackets and a zone allowed; no port,
+scheme, path, credentials or space, refused before any cluster call with exit
+`1`) sends them to that host instead, and unless it is a loopback address or
+`localhost` the command prints on stderr a warning that the credentials travel in
+clear text. `status` and the deployment wait probe without credentials.
+
+**Non-default bench.** After writing the descriptor, if the parameters differ
+from `Defaults()` (any field but the two timeouts, the two paths, the EULA
+consent and an empty host list), stderr gets `warning: descriptor.json now
+describes a non-default bench; do not commit it`. The file is written all the
+same, at `--descriptor`/`NEXUS_BENCH_DESCRIPTOR`, else the versioned one. A
+default bench prints nothing on stderr.
+
+## Integration tests and source guards (`bench_integration_test.go`, `guard_test.go`, step 9)
+
+**Gates.** Every test of `bench_integration_test.go` starts with
+`requireBench(t)`: it skips unless `DEVDESK_NEXUS_BENCH=1` and `CI` is empty, so
+`mise run test`, `check`, `ci` and the CI never reach the cluster. The mise task
+`nexus-bench:test` sets the variable (`env` table). The destructive test needs
+two more things: `DEVDESK_NEXUS_BENCH_LIFECYCLE=1` and `NEXUS_BENCH_ACCEPT_EULA=yes`
+(the lifecycle provisions Nexus, so the EULA has to be accepted by the operator).
+None of the tests writes the versioned `descriptor.json`.
+
+**The four tests.** The first three need a bench that is up and provisioned
+(`mise run nexus-bench:up`): they read the versioned descriptor and the secrets
+file (`openLiveBench`; the REST URL is the descriptor's one on the loopback) and
+fail with the command to run when either is missing.
+
+| Test | Reads | Writes |
+|---|---|---|
+| `TestIntegrationBenchDescribed` | `GET /service/rest/v1/status` without credentials (200), then as admin the repository list and, per repository of the descriptor, its type, format, group members or proxy remote URL | nothing |
+| `TestIntegrationAnonymousAsDescribed` | the anonymous-access setting as admin, and `GET /repositories` without credentials: 200 when the descriptor says anonymous is enabled, 401 when not | nothing |
+| `TestIntegrationPullAccountIsReadOnly` | `GET /repositories` as `bench-pull` (200) | one control `POST` of a hosted repository `bench-readonly-probe` as `bench-pull`, which has to be refused with **403**. If Nexus accepts it (any 2xx), the test deletes that repository as admin and fails |
+| `TestIntegrationLifecycle` | admin listings of repositories, roles and users | destructive, see below |
+
+`TestIntegrationLifecycle` runs `Deploy` and `Provision` (first up), compares a
+snapshot of repositories, roles and users, runs up and provision a second time
+and requires the same snapshot (idempotence), then `Destroy` and checks that
+`get namespace` answers NotFound, `Deploy` on a fresh instance (the pod must hold
+an `admin.password` again), and a final `Destroy`. It uses the parameters of
+`FromEnv` and the secrets path of the bench (`NEXUS_BENCH_SECRETS`, else the
+default), refuses to start without the EULA, and refuses when `go test` has less
+than 45 minutes left (`lifecycleMinTimeout`: three deployments of up to ten
+minutes plus the deletions; the default of `go test` is 10 minutes). The
+namespace is whatever the parameters say; the preflight already refuses a
+namespace this tool did not create.
+
+**Running it.** The task passes `-timeout 60m` for that reason
+(`TestMiseBenchTestTaskRunsTheIntegrationTestsGuarded` requires a `-timeout` of
+at least 45 minutes):
+
+    mise run nexus-bench:test                         # the three read tests, lifecycle skipped
+    DEVDESK_NEXUS_BENCH_LIFECYCLE=1 NEXUS_BENCH_ACCEPT_EULA=yes mise run nexus-bench:test
+
+**A failure leaves the bench deployed.** The lifecycle uses `t.Fatalf` and no
+cleanup: when a step fails halfway, the namespace stays as it is so that the
+cause can be diagnosed (`nexus-bench status`, `kubectl logs`). Clean up with
+`mise run nexus-bench:down`.
+
+**Source guards (`guard_test.go`).** Three tests read the package with
+`go/parser`, name file and line, and each detector has a self-test fed with a
+faulty and a correct source held in memory. A failure points at code that breaks
+the rule, not at a test to relax.
+
+1. *Every test that reaches the bench calls `requireBench(t)` first.* A call of
+   `NewExecRunner`, `DescriptorPath`, `DefaultSecretsPath` or `newClient` (unless
+   `newClient` is given the address of an `httptest` server) before the guard, or
+   in a function without it, fails. Exceptions are named in
+   `requireBenchExceptions`, with a `check` that verifies the reason in the
+   source (the PATH is isolated, the environment is a map); an exception that
+   matches nothing fails too (`TestGuardExceptionsStillMatch`). Limit: calls are
+   read by name in the test files of this folder; a call hidden behind a function
+   value, or made by the tests of `cmd/nexus-bench` (which run on fakes), is not
+   seen.
+2. *Only `kubectl.go` and `secrets.go` start a process* (`exec.Command` or
+   `CommandContext`, any import name, dot import refused): one door to the
+   cluster, one to `git check-ignore`. A listed file that no longer starts one
+   must be dropped from the list. Limit: `syscall.Exec`, `os.StartProcess` and a
+   process started by another package are not seen.
+3. *No Authorization header outside the client.* The word `authorization` (in an
+   identifier or a string) may appear only in `nexusapi.go` and `probe.go`,
+   `SetBasicAuth` only in `nexusapi.go`, and `net/http/httputil` is imported
+   nowhere. Comments are not read. Limit: a header name built by concatenation,
+   or a whole `http.Header` printed with `%v`, is not seen.
+
+**The mise guard** (`mise_tasks_test.go`) reads `mise.toml` with a small
+line-based reader (no TOML library in `go.mod`) and checks: the six tasks exist
+and call the command; none of `ci`, `check`, `test`, `test-race` reaches a
+`nexus-bench` task, directly or through `depends` and `run` references; `kubectl`
+is declared on `up`, `provision`, `down`, `status` and `test`, absent on `render`
+and absent from the global `[tools]`; `nexus-bench:test` sets
+`DEVDESK_NEXUS_BENCH=1`, runs `-run Integration` and carries a `-timeout` of at
+least 45 minutes. Limit: it reads the file, it does not ask mise to resolve it.
 
 ## Still to come
 
-The `nexus-bench` command and mise tasks (8), guarded integration
-tests and source guards (9), and the first real run on `datomir` (10, blocked on
-the EULA and cluster-access decisions Q1 and Q2 of the plan). This file grows
-with each step.
+The first real run on `datomir` (step 10, blocked on the EULA and cluster-access
+decisions Q1 and Q2 of the plan): `up`, then `nexus-bench:test`, then the
+lifecycle. It is also the first time the H-REST hypotheses, the 403 of the
+pull-account control `POST` and the 401 of an anonymous request meet a real
+Nexus. This file grows with each step.
