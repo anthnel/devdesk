@@ -1082,6 +1082,20 @@ return to the results then `H` reuse the same reading; `ctrl+r`, a new run,
 and a trip back to the form (`esc`, `N`) read again, because the results the
 reading belonged to are gone. The `Local route` row itself is unchanged.
 
+*Which address (D155 point 5, refining D144).* The trace still resolves the name
+itself (`LookupNetIP(ctx, "ip4", host)`) and traces an address that resolution
+returned now, never the Diagnostics one and never one from the DNS Server field.
+When the source is this machine, `runEngine` also wraps `resolve`:
+`pathKnownRoutes.prefer` moves the first IPv4 address of that answer which the
+snapshot holds a reading of (same host test, `Unmap`, and not a cancelled or
+expired lookup) to the front, the other addresses keeping their order, and
+`resolvePathTarget` takes `addrs[0]` as before. So on a round-robin name the trace
+takes an address Diagnostics already read, whatever order the resolver gave this
+time. With no results, for another host, from a container, or with no address in
+common, the answer is untouched and the first IPv4 address is traced (that one
+costs one more reading). IPv6 addresses are never preferred. The reordering runs
+inside the `Cmd` on a copy of the snapshot taken at launch (Rule 110).
+
 `PathModel` has **no target field** (DEVDESK-471): `pathReady` is its zero value,
 a fresh model is ready and inert, and `ready(target)` is the only way a target
 gets in. Letters, a paste and `esc` do nothing in it; `enter` with no target
@@ -1424,8 +1438,10 @@ literal IPv4 is used as is. A name is resolved with
 `net.DefaultResolver.LookupNetIP(ctx, "ip4", host)` under its own timeout, the
 context's `network.check_timeout` (`netcheck.Settings.Normalized().CheckTimeout`,
 read when the view is built; the tab falls back to 5 s
-(`defaultPathResolveTimeout`) otherwise). The **first IPv4 address** is traced,
-and the header's `Target` field shows it after the name. A literal IPv6 target
+(`defaultPathResolveTimeout`) otherwise). The **first IPv4 address** is traced (or, when Diagnostics results for the same
+host already read the route of one of the addresses returned, the first of those:
+"The route is read once", below), and the header's `Target` field shows it after
+the name. A literal IPv6 target
 (brackets or several colons) is refused before launch with the footer error
 `Only IPv4 targets are supported by the path trace`.
 

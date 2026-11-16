@@ -265,14 +265,23 @@ func (pm *PathModel) handleKey(msg tea.KeyPressMsg) (*PathModel, tea.Cmd) {
 	return pm, nil
 }
 
-// runEngine returns the engine one run uses: pm.engine, with the route read
-// answered from pm.known first when the trace starts on this machine. A
-// container source reads its own route. It only reads pm, so a Cmd can capture
-// the result.
+// runEngine returns the engine one run uses: pm.engine, when the trace starts on
+// this machine with the route read answered from pm.known first, and the
+// resolution ordered so that an address Diagnostics already read comes first
+// (DEVDESK-473, D155). A container source reads its own route and keeps the
+// resolution as it is. It only reads pm, so a Cmd can capture the result.
 func (pm *PathModel) runEngine(tg pathTarget) pathEngine {
 	e := pm.engine
 	if pm.source.isHost() {
-		e.route = pm.known.routeFirst(tg.Host, pm.engine.route)
+		known, resolve := pm.known, pm.engine.resolve
+		e.route = known.routeFirst(tg.Host, pm.engine.route)
+		e.resolve = func(ctx context.Context, host string) ([]netip.Addr, error) {
+			addrs, err := resolve(ctx, host)
+			if err != nil {
+				return addrs, err
+			}
+			return known.prefer(tg.Host, addrs), nil
+		}
 	}
 	return e
 }
