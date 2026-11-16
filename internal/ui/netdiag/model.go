@@ -109,6 +109,10 @@ type Model struct {
 	runStage   netcheck.StageID
 	runStep    int
 	totalSteps int
+	// checkEnv builds the Env the Diagnostics pipeline reaches the network
+	// through. New sets netcheck.SystemEnv; a test swaps it to count what the
+	// pipeline asks (DEVDESK-473).
+	checkEnv func(netcheck.Settings) netcheck.Env
 
 	// Results
 	results     netcheck.Results
@@ -161,6 +165,7 @@ func New(cfg *config.Config) *Model {
 		portInput:       portIn,
 		dnsServerInput:  dnsIn,
 		focusedField:    fieldTarget,
+		checkEnv:        netcheck.SystemEnv,
 		filterBar:       components.NewFilterBarWithTokens([]components.FilterToken{{Label: problemsToken}}),
 		checksTable: datatable.New(datatable.Config[netcheck.Check]{
 			Columns: checkColumns(),

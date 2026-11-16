@@ -195,7 +195,7 @@ func (m *Model) handleStageDone(msg stageDoneMsg) (*Model, tea.Cmd) {
 		m.state = StateResults
 		return m, m.footer.Error("Run stopped — the target is no longer valid")
 	}
-	return m, runStageCmd(m.runGen, tg, m.checkSettings(), msg.next, m.results)
+	return m, runStageCmd(m.runGen, tg, m.checkSettings(), m.checkEnv, msg.next, m.results)
 }
 
 // handlePaste gives pasted text to the field that has the keyboard on the tab on
