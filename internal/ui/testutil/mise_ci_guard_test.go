@@ -4,6 +4,7 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
+	"slices"
 	"strings"
 	"testing"
 
@@ -11,12 +12,36 @@ import (
 )
 
 // DEVDESK-342: `mise run ci` replays the CI workflow locally. It must chain,
-// sequentially and in order, exactly the `mise run <task>` steps of ci.yml, so
-// the two cannot drift apart. mise.toml is read without a TOML library (none is
-// in go.mod): the guard only needs the task headers, the description and the
-// `run = [{ task = "..." }, ...]` array of [tasks.ci].
+// sequentially and in order, the `mise run <task>` steps of ci.yml plus the
+// local-only steps below (D149), so the two cannot drift apart: ci.yml is the
+// steps of `mise run ci` minus localOnlySteps. mise.toml is read without a
+// TOML library (none is in go.mod): the guard only needs the task headers,
+// the description and the `run = [{ task = "..." }, ...]` array of [tasks.ci].
+//
+// DEVDESK-502 (D149 in docs/backlog.md): the CI no longer runs the tests, so
+// ci.yml is `mise run ci` minus an explicit local-only set. The relation is
+// checked in both directions: a step missing from ci.yml fails, and so does a
+// local-only task that comes back into ci.yml, so tests return to the CI only
+// by a decision that edits this file.
 
 var ciSteps = []string{"fmt-check", "vet", "lint", "build", "test", "test-race"}
+
+// localOnlySteps are the steps of `mise run ci` that ci.yml must NOT run.
+// D149: the `Test` job of ci.yml only writes a summary line (the main-protection
+// ruleset requires a check named `Test`), and the tests run on the maintainer's
+// machine through `mise run ci`.
+var localOnlySteps = []string{"test", "test-race"}
+
+// workflowSteps returns steps without the local-only ones, order preserved.
+func workflowSteps(steps []string) []string {
+	var out []string
+	for _, s := range steps {
+		if !slices.Contains(localOnlySteps, s) {
+			out = append(out, s)
+		}
+	}
+	return out
+}
 
 var (
 	taskHeaderRe = regexp.MustCompile(`(?m)^\[tasks\.([A-Za-z0-9_.-]+)\]\s*$`)
@@ -129,12 +154,23 @@ func TestMiseCIMatchesWorkflowSteps(t *testing.T) {
 			}
 		}
 	}
-	if strings.Join(fromCI, ",") != strings.Join(ciSteps, ",") {
-		t.Fatalf("ci.yml `mise run` steps = %v, want %v", fromCI, ciSteps)
-	}
 	body, _ := ciTaskBody(t)
-	if got := ciRunSteps(t, body); strings.Join(got, ",") != strings.Join(fromCI, ",") {
-		t.Errorf("[tasks.ci] steps %v differ from ci.yml steps %v", got, fromCI)
+	miseSteps := ciRunSteps(t, body)
+	for _, s := range fromCI {
+		if slices.Contains(localOnlySteps, s) {
+			t.Errorf("ci.yml runs `mise run %s`, which is local-only (D149: tests are not run in CI; "+
+				"bringing them back needs an explicit decision and an edit of localOnlySteps)", s)
+		}
+	}
+	for _, s := range localOnlySteps {
+		if !slices.Contains(miseSteps, s) {
+			t.Errorf("localOnlySteps lists %q, which [tasks.ci] does not run: drop it from the set", s)
+		}
+	}
+	want := workflowSteps(miseSteps)
+	if strings.Join(fromCI, ",") != strings.Join(want, ",") {
+		t.Errorf("ci.yml `mise run` steps = %v, want %v: the steps of [tasks.ci] (%v) minus the local-only %v, in the same order",
+			fromCI, want, miseSteps, localOnlySteps)
 	}
 }
 
