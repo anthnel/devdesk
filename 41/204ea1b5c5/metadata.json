@@ -1,0 +1,58 @@
+{
+  "cli_version": "0.13.2",
+  "checkpoint_id": "41204ea1b5c5",
+  "strategy": "manual-commit",
+  "branch": "feat/nexus-bench-504",
+  "checkpoints_count": 1,
+  "files_touched": [
+    "docs/architecture/nexus-bench.md",
+    "internal/nexusbench/bench_integration_test.go",
+    "internal/nexusbench/cmd/nexus-bench/commands.go",
+    "internal/nexusbench/cmd/nexus-bench/flags.go",
+    "internal/nexusbench/cmd/nexus-bench/main.go",
+    "internal/nexusbench/cmd/nexus-bench/main_test.go",
+    "internal/nexusbench/cmd/nexus-bench/status.go",
+    "internal/nexusbench/cmd/nexus-bench/usage.go",
+    "internal/nexusbench/guard_test.go",
+    "internal/nexusbench/mise_tasks_test.go",
+    "mise.toml"
+  ],
+  "sessions": [
+    {
+      "metadata": "/41/204ea1b5c5/0/metadata.json",
+      "transcript": "/41/204ea1b5c5/0/full.jsonl",
+      "compact_transcript": "/41/204ea1b5c5/0/transcript.jsonl",
+      "content_hash": "/41/204ea1b5c5/0/content_hash.txt",
+      "prompt": "/41/204ea1b5c5/0/prompt.txt"
+    }
+  ],
+  "token_usage": {
+    "input_tokens": 26,
+    "cache_creation_tokens": 34073,
+    "cache_read_tokens": 2157986,
+    "output_tokens": 14202,
+    "api_call_count": 8,
+    "subagent_tokens": {
+      "input_tokens": 204,
+      "cache_creation_tokens": 736172,
+      "cache_read_tokens": 8494196,
+      "output_tokens": 184776,
+      "api_call_count": 95
+    },
+    "subagent_tokens_complete": true
+  },
+  "redaction": {
+    "replacements": 1,
+    "layers": {
+      "betterleaks": 0,
+      "connection_string": 0,
+      "credential_key": 0,
+      "credential_value": 0,
+      "credentialed_uri": 0,
+      "entropy": 0,
+      "key_context": 1,
+      "provider_token": 0,
+      "shell_stdin": 0
+    }
+  }
+}
