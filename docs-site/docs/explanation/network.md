@@ -443,7 +443,7 @@ for this machine.
   WSL1 it adds `use WSL2`. Nothing is sent.
 - **IPv4 only.** A host name is resolved to its IPv4 address (within
   `check_timeout`); the first one is traced (unless the Diagnostics results already read
-  another address of the name, see **From Diagnostics**) and shown next to the
+  another address of the name successfully, see **From Diagnostics**) and shown next to the
   name in the header. An IPv6 literal is refused.
 - **How it probes.** One UDP datagram per hop, to port 33435, with a growing
   time-to-live. The router that drops it answers, and the table fills in as the
@@ -524,8 +524,9 @@ for this machine.
   and gateway rows then reuse the reading the **Local route** check already made
   for the same address, so both show the same answer and the routing table is
   asked once. When the name resolves to several addresses (a round-robin or CDN
-  name) and the results already read the route of some of them, the trace takes
-  the first of those, so the reading is shared; otherwise it takes the first IPv4
+  name) and the results already read the route of some of them successfully, the trace takes
+  the first of those, so the reading is shared; an address whose reading failed
+  (no route, undetermined) is not preferred. Otherwise it takes the first IPv4
   address, as always. `ctrl+r` on the results reads it again; so does a trace
   started from the form, or from a container.
 

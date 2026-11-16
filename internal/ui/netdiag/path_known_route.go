@@ -62,20 +62,21 @@ func (k pathKnownRoutes) routeFirst(host string, read pathRouteFunc) pathRouteFu
 	}
 }
 
-// prefer returns addrs with the first IPv4 address the snapshot holds a reading
-// of moved to the front, the others in their order, so that the trace takes an
-// address Diagnostics already read when its own resolution returns one. Only
-// addresses of addrs are ever chosen: the snapshot orders a resolution, it adds
-// nothing to it. With nothing read, for another host, or with no IPv4 address in
-// common, addrs is returned as it is (the first address is traced, D144). The
-// result never shares memory with addrs.
+// prefer returns addrs with the first IPv4 address the snapshot holds a
+// successful reading of moved to the front, the others in their order, so that
+// the trace takes an address Diagnostics already read when its own resolution
+// returns one. A reading that ended in an error (no route, undetermined, any
+// other) is not preferred (D155). Only addresses of addrs are ever chosen: the
+// snapshot orders a resolution, it adds nothing to it. With nothing read, for
+// another host, or with no IPv4 address in common, addrs is returned as it is
+// (the first address is traced, D144). The result never shares memory with addrs.
 func (k pathKnownRoutes) prefer(host string, addrs []netip.Addr) []netip.Addr {
 	out := slices.Clone(addrs)
 	for i, a := range out {
 		if !a.Unmap().Is4() {
 			continue
 		}
-		if _, ok := k.find(host, a); !ok {
+		if l, ok := k.find(host, a); !ok || l.Err != nil {
 			continue
 		}
 		return slices.Insert(slices.Delete(out, i, i+1), 0, a)

@@ -2,6 +2,7 @@ package netdiag
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"net"
 	"net/netip"
@@ -9,14 +10,15 @@ import (
 	"testing"
 
 	"github.com/anthnel/devdesk/internal/netcheck"
+	"github.com/anthnel/devdesk/internal/nettrace"
 	"github.com/anthnel/devdesk/internal/ui/testutil"
 )
 
 // DEVDESK-473 step 6 (D155, decision of the user, 2026-11-16, option b): when
 // the trace resolves a name to several addresses and Diagnostics already read
 // the route of some of them, the trace takes the first of ITS OWN resolution
-// that Diagnostics read. Without such results it keeps the first IPv4 address
-// (D144). The traced address is always one the trace's own resolution returned
+// that Diagnostics read with success. Without such results it keeps the first
+// IPv4 address (D144). The traced address is always one the trace's own resolution returned
 // now: the Diagnostics addresses only choose among them.
 
 const onceHostC = "203.0.113.9"
@@ -173,6 +175,69 @@ func TestTraceDoesNotPreferAnExpiredRead(t *testing.T) {
 	requireTraced(t, fe, onceHostA)
 }
 
+// Only a successful reading is preferred (D155, decision of the user confirmed on
+// 2026-11-16): an address whose Diagnostics read ended in an error, whatever the
+// error, does not take the lead; the trace keeps the order of its own resolution.
+func failRoute(ip string, err error) func(net.IP, int) (netcheck.RouteHop, error) {
+	return func(got net.IP, n int) (netcheck.RouteHop, error) {
+		if got.String() == ip {
+			return netcheck.RouteHop{}, err
+		}
+		return seqHop(n), nil
+	}
+}
+
+func TestTraceDoesNotPreferAReadThatFoundNoRoute(t *testing.T) {
+	m, env, fe := preferModel(t, []string{onceHostA, onceHostB}, []string{onceHostB})
+	env.answer = failRoute(onceHostB, fmt.Errorf("%w: unreachable", nettrace.ErrNoRoute))
+	m = runDiagnostics(t, m, "rr.example")
+
+	_ = traceFromResults(t, m)
+
+	requireTraced(t, fe, onceHostA)
+	requireRouteCalls(t, env, onceHostA, 1)
+	requireRouteCalls(t, env, onceHostB, 1) // only Diagnostics' read
+}
+
+func TestTraceDoesNotPreferAnUndeterminedRead(t *testing.T) {
+	m, env, fe := preferModel(t, []string{onceHostA, onceHostB}, []string{onceHostB})
+	env.answer = failRoute(onceHostB, errors.New("routing table unreadable"))
+	m = runDiagnostics(t, m, "rr.example")
+
+	_ = traceFromResults(t, m)
+
+	requireTraced(t, fe, onceHostA)
+	requireRouteCalls(t, env, onceHostA, 1)
+	requireRouteCalls(t, env, onceHostB, 1)
+}
+
+// The first address was read in error, the second successfully: the first
+// successful reading is the one preferred.
+func TestTracePrefersTheFirstSuccessfulReadOverAFailedOne(t *testing.T) {
+	m, env, fe := preferModel(t, []string{onceHostA, onceHostB}, []string{onceHostA, onceHostB})
+	env.answer = failRoute(onceHostA, errors.New("routing table unreadable"))
+	m = runDiagnostics(t, m, "rr.example")
+
+	_ = traceFromResults(t, m)
+
+	requireTraced(t, fe, onceHostB)
+	requireRouteCalls(t, env, onceHostA, 1)
+	requireRouteCalls(t, env, onceHostB, 1)
+}
+
+// Nothing else to choose: the only address is traced as before, and its failed
+// reading is reused as it is (one Route call, criterion 4).
+func TestTraceKeepsTheOnlyAddressWhenItsReadFailed(t *testing.T) {
+	m, env, fe := preferModel(t, []string{onceHostA}, []string{onceHostA})
+	env.answer = failRoute(onceHostA, errors.New("routing table unreadable"))
+	m = runDiagnostics(t, m, "rr.example")
+
+	_ = traceFromResults(t, m)
+
+	requireTraced(t, fe, onceHostA)
+	requireRouteCalls(t, env, onceHostA, 1)
+}
+
 // Trace again keeps the address: the same results, the same resolution order.
 func TestTraceAgainKeepsThePreferredAddress(t *testing.T) {
 	m, env, fe := preferModel(t, []string{onceHostA, onceHostB}, []string{onceHostB})
@@ -214,9 +279,16 @@ func TestPreferredResolutionOrder(t *testing.T) {
 		{"a canceled read is not a reading", pathKnownRoutes{host: "h", lookups: []netcheck.RouteLookup{
 			{IP: net.ParseIP(onceHostB), Err: context.Canceled},
 		}}, "h", []netip.Addr{a, b}, []netip.Addr{a, b}},
-		{"a read that failed for another reason is a reading", pathKnownRoutes{host: "h", lookups: []netcheck.RouteLookup{
+		{"a read that failed for another reason is not preferred", pathKnownRoutes{host: "h", lookups: []netcheck.RouteLookup{
 			{IP: net.ParseIP(onceHostB), Err: fmt.Errorf("unreadable")},
-		}}, "h", []netip.Addr{a, b}, []netip.Addr{b, a}},
+		}}, "h", []netip.Addr{a, b}, []netip.Addr{a, b}},
+		{"a no route read is not preferred", pathKnownRoutes{host: "h", lookups: []netcheck.RouteLookup{
+			{IP: net.ParseIP(onceHostB), Err: nettrace.ErrNoRoute},
+		}}, "h", []netip.Addr{a, b}, []netip.Addr{a, b}},
+		{"the first successful read wins over a failed one", pathKnownRoutes{host: "h", lookups: []netcheck.RouteLookup{
+			{IP: net.ParseIP(onceHostA), Err: fmt.Errorf("unreadable")},
+			{IP: net.ParseIP(onceHostB), Hop: seqHop(1)},
+		}}, "h", []netip.Addr{a, b, c}, []netip.Addr{b, a, c}},
 		{"nothing resolved", read("h", onceHostA), "h", nil, nil},
 	}
 	for _, tc := range tests {
