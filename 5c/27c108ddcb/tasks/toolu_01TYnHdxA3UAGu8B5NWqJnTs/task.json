@@ -1,0 +1,18 @@
+{
+  "tool_use_id": "toolu_01TYnHdxA3UAGu8B5NWqJnTs",
+  "agent_id": "a5873e8b8f2fb9c00",
+  "subagent_type": "team-core:archivist",
+  "task_description": "Archiver D157 décision banc Nexus",
+  "files": [
+    "docs/backlog.md"
+  ],
+  "token_usage": {
+    "input_tokens": 28,
+    "cache_creation_tokens": 150405,
+    "cache_read_tokens": 570801,
+    "output_tokens": 9228,
+    "api_call_count": 12
+  },
+  "started_at": "2026-11-16T21:32:48.822405103+01:00",
+  "completed_at": "2026-11-16T21:32:48.822884053+01:00"
+}
