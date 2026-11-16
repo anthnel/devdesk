@@ -1,0 +1,49 @@
+{
+  "cli_version": "0.13.2",
+  "checkpoint_id": "cf518d24d9b0",
+  "strategy": "manual-commit",
+  "branch": "feat/devdesk-473-route-read-once",
+  "checkpoints_count": 3,
+  "files_touched": [
+    "internal/ui/netdiag/path_known_route.go",
+    "internal/ui/netdiag/path_model.go"
+  ],
+  "sessions": [
+    {
+      "metadata": "/cf/518d24d9b0/0/metadata.json",
+      "transcript": "/cf/518d24d9b0/0/full.jsonl",
+      "compact_transcript": "/cf/518d24d9b0/0/transcript.jsonl",
+      "content_hash": "/cf/518d24d9b0/0/content_hash.txt",
+      "prompt": "/cf/518d24d9b0/0/prompt.txt"
+    }
+  ],
+  "token_usage": {
+    "input_tokens": 6,
+    "cache_creation_tokens": 4592,
+    "cache_read_tokens": 401787,
+    "output_tokens": 3712,
+    "api_call_count": 2,
+    "subagent_tokens": {
+      "input_tokens": 42,
+      "cache_creation_tokens": 159287,
+      "cache_read_tokens": 1064307,
+      "output_tokens": 14261,
+      "api_call_count": 20
+    },
+    "subagent_tokens_complete": true
+  },
+  "redaction": {
+    "replacements": 6,
+    "layers": {
+      "betterleaks": 0,
+      "connection_string": 0,
+      "credential_key": 0,
+      "credential_value": 0,
+      "credentialed_uri": 0,
+      "entropy": 0,
+      "key_context": 6,
+      "provider_token": 0,
+      "shell_stdin": 0
+    }
+  }
+}
