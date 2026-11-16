@@ -1,0 +1,71 @@
+{
+  "cli_version": "0.13.2",
+  "checkpoint_id": "b587b1026d94",
+  "strategy": "manual-commit",
+  "branch": "feat/nexus-bench-504",
+  "checkpoints_count": 1,
+  "files_touched": [
+    "docs/architecture/nexus-bench.md",
+    "internal/nexusbench/clock.go",
+    "internal/nexusbench/clock_real_test.go",
+    "internal/nexusbench/clock_test.go",
+    "internal/nexusbench/deploy.go",
+    "internal/nexusbench/deploy_test.go",
+    "internal/nexusbench/descriptor.go",
+    "internal/nexusbench/descriptor_hosts_test.go",
+    "internal/nexusbench/destroy.go",
+    "internal/nexusbench/destroy_test.go",
+    "internal/nexusbench/doc.go",
+    "internal/nexusbench/fakenexus_test.go",
+    "internal/nexusbench/initialpassword.go",
+    "internal/nexusbench/initialpassword_test.go",
+    "internal/nexusbench/nexusapi.go",
+    "internal/nexusbench/preflight.go",
+    "internal/nexusbench/preflight_test.go",
+    "internal/nexusbench/probe.go",
+    "internal/nexusbench/probe_test.go",
+    "internal/nexusbench/provision.go",
+    "internal/nexusbench/provision_test.go",
+    "internal/nexusbench/rest_url_test.go",
+    "internal/nexusbench/secrets.go",
+    "internal/nexusbench/secrets_test.go"
+  ],
+  "sessions": [
+    {
+      "metadata": "/b5/87b1026d94/0/metadata.json",
+      "transcript": "/b5/87b1026d94/0/full.jsonl",
+      "compact_transcript": "/b5/87b1026d94/0/transcript.jsonl",
+      "content_hash": "/b5/87b1026d94/0/content_hash.txt",
+      "prompt": "/b5/87b1026d94/0/prompt.txt"
+    }
+  ],
+  "token_usage": {
+    "input_tokens": 38,
+    "cache_creation_tokens": 51573,
+    "cache_read_tokens": 2489374,
+    "output_tokens": 19158,
+    "api_call_count": 11,
+    "subagent_tokens": {
+      "input_tokens": 370,
+      "cache_creation_tokens": 1184824,
+      "cache_read_tokens": 15419351,
+      "output_tokens": 309949,
+      "api_call_count": 176
+    },
+    "subagent_tokens_complete": true
+  },
+  "redaction": {
+    "replacements": 1,
+    "layers": {
+      "betterleaks": 0,
+      "connection_string": 0,
+      "credential_key": 0,
+      "credential_value": 0,
+      "credentialed_uri": 0,
+      "entropy": 0,
+      "key_context": 1,
+      "provider_token": 0,
+      "shell_stdin": 0
+    }
+  }
+}
