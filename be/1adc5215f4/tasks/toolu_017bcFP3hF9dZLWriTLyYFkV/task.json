@@ -1,0 +1,15 @@
+{
+  "tool_use_id": "toolu_017bcFP3hF9dZLWriTLyYFkV",
+  "agent_id": "a7de64b8be4acd776",
+  "subagent_type": "product-team:pm",
+  "task_description": "Proposition de release après DEVDESK-303",
+  "token_usage": {
+    "input_tokens": 8,
+    "cache_creation_tokens": 48242,
+    "cache_read_tokens": 122154,
+    "output_tokens": 2392,
+    "api_call_count": 4
+  },
+  "started_at": "2026-11-13T15:01:35.283999133+01:00",
+  "completed_at": "2026-11-13T15:01:57.560808149+01:00"
+}
