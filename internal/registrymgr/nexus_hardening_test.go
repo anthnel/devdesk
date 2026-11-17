@@ -3,6 +3,8 @@ package registrymgr
 import (
 	"bytes"
 	"context"
+	"crypto/tls"
+	"crypto/x509"
 	"errors"
 	"fmt"
 	"io"
@@ -139,8 +141,13 @@ func (e *nexusEnv) info() RegistryInfo {
 	return RegistryInfo{Provider: ProviderNexus, URL: e.infoURL, Username: nexusTestUser, Password: nexusTestPass}
 }
 
-// otherOrigins are the two ways a redirect leaves the origin.
-var otherOrigins = []string{"other port", "sub-domain"}
+// otherOrigins are the three ways a redirect leaves the origin: another port,
+// another host name, another scheme (same host and port, https instead of http).
+var otherOrigins = []string{"other port", "sub-domain", "other scheme"}
+
+// redirectStatuses are the redirect statuses every off-origin test runs under:
+// 302 and 307 differ in how net/http rebuilds the request, not in the origin rule.
+var redirectStatuses = []int{http.StatusFound, http.StatusTemporaryRedirect}
 
 // startNexus starts Nexus (handler gets the base URL of the other origin) and the
 // other origin, which answers every request with nexusLeakedMembers.
@@ -180,6 +187,35 @@ func startNexus(t *testing.T, kind string, handler func(w http.ResponseWriter, r
 		_, port, _ := net.SplitHostPort(s.Listener.Addr().String())
 		useNexusTransport(t, dialTo(s.Listener.Addr().String()))
 		env.infoURL, env.other = "http://nexus.test:"+port+"/repository/docker-group", "http://cdn.nexus.test:"+port
+	case "other scheme":
+		// Nexus speaks plain http on port P; the redirect points to https on the
+		// same host and port. Dials are split by scheme: http goes to Nexus, https
+		// goes to a TLS server B whose certificate the client trusts, so a redirect
+		// that was followed would reach B and show in its log. The refusal has to
+		// come from the origin check, before any dial.
+		b := httptest.NewTLSServer(http.HandlerFunc(serveOther))
+		t.Cleanup(b.Close)
+		var a *httptest.Server
+		a = httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			env.a.record(r)
+			_, port, _ := net.SplitHostPort(a.Listener.Addr().String())
+			handler(w, r, "https://nexus.test:"+port)
+		}))
+		t.Cleanup(a.Close)
+		_, port, _ := net.SplitHostPort(a.Listener.Addr().String())
+		pool := x509.NewCertPool()
+		pool.AddCert(b.Certificate())
+		useNexusTransport(t, &http.Transport{
+			DialContext: func(ctx context.Context, network, _ string) (net.Conn, error) {
+				var d net.Dialer
+				return d.DialContext(ctx, network, a.Listener.Addr().String())
+			},
+			DialTLSContext: func(ctx context.Context, network, _ string) (net.Conn, error) {
+				d := tls.Dialer{Config: &tls.Config{RootCAs: pool, ServerName: "example.com", MinVersion: tls.VersionTLS12}}
+				return d.DialContext(ctx, network, b.Listener.Addr().String())
+			},
+		})
+		env.infoURL, env.other = "http://nexus.test:"+port+"/repository/docker-group", "https://nexus.test:"+port
 	default:
 		t.Fatalf("unknown origin kind %q", kind)
 	}
@@ -197,37 +233,46 @@ func wantNoSecret(t *testing.T, what, s string) {
 	}
 }
 
+// forEachOffOriginRedirect runs fn as a subtest for every other origin under
+// every redirect status.
+func forEachOffOriginRedirect(t *testing.T, fn func(t *testing.T, kind string, status int)) {
+	t.Helper()
+	for _, kind := range otherOrigins {
+		for _, status := range redirectStatuses {
+			t.Run(fmt.Sprintf("%s/%d", kind, status), func(t *testing.T) { fn(t, kind, status) })
+		}
+	}
+}
+
 // 1. The generic endpoint redirected to another origin: refused, with the shared
 // error of the other registry clients, and the credentials go nowhere.
 func TestNexusMetaRedirectOffOriginIsRefused(t *testing.T) {
-	for _, kind := range otherOrigins {
-		t.Run(kind, func(t *testing.T) {
-			logs := nexusLog(t)
-			env := startNexus(t, kind, func(w http.ResponseWriter, r *http.Request, other string) {
-				http.Redirect(w, r, other+nexusLeakPath+"?"+nexusSigned, http.StatusTemporaryRedirect)
-			})
-
-			members, err := (&NexusDetector{}).DetectGroup(context.Background(), env.info())
-
-			if !errors.Is(err, oci.ErrOffOriginRedirect) {
-				t.Fatalf("err = %v, want errors.Is oci.ErrOffOriginRedirect (the manager could not be asked)", err)
-			}
-			if len(members) != 0 {
-				t.Errorf("members = %v, want none", members)
-			}
-			if n := env.b.count(); n != 0 {
-				t.Errorf("the other origin received %d requests, want 0", n)
-			}
-			if got := env.b.anyAuth(); got != "" {
-				t.Errorf("the other origin saw Authorization %q", got)
-			}
-			if got := env.a.authsFor(nexusMetaPath); len(got) != 1 || got[0] != nexusBasic(t) {
-				t.Errorf("Nexus Authorization headers = %q, want one Basic header", got)
-			}
-			wantNoSecret(t, "error", err.Error())
-			wantNoSecret(t, "log", logs.String())
+	forEachOffOriginRedirect(t, func(t *testing.T, kind string, status int) {
+		logs := nexusLog(t)
+		env := startNexus(t, kind, func(w http.ResponseWriter, r *http.Request, other string) {
+			http.Redirect(w, r, other+nexusLeakPath+"?"+nexusSigned, status)
 		})
-	}
+
+		members, err := (&NexusDetector{}).DetectGroup(context.Background(), env.info())
+
+		if !errors.Is(err, oci.ErrOffOriginRedirect) {
+			t.Fatalf("err = %v, want errors.Is oci.ErrOffOriginRedirect (the manager could not be asked)", err)
+		}
+		if len(members) != 0 {
+			t.Errorf("members = %v, want none", members)
+		}
+		if n := env.b.count(); n != 0 {
+			t.Errorf("the other origin received %d requests, want 0", n)
+		}
+		if got := env.b.anyAuth(); got != "" {
+			t.Errorf("the other origin saw Authorization %q", got)
+		}
+		if got := env.a.authsFor(nexusMetaPath); len(got) != 1 || got[0] != nexusBasic(t) {
+			t.Errorf("Nexus Authorization headers = %q, want one Basic header", got)
+		}
+		wantNoSecret(t, "error", err.Error())
+		wantNoSecret(t, "log", logs.String())
+	})
 }
 
 // 2. The format endpoint redirected to another origin: the refusal ends the
@@ -236,40 +281,38 @@ func TestNexusMetaRedirectOffOriginIsRefused(t *testing.T) {
 // credentials, the other origin none, and the log names the refusal without any
 // signed path.
 func TestNexusFormatEndpointRedirectOffOriginIsRefused(t *testing.T) {
-	for _, kind := range otherOrigins {
-		t.Run(kind, func(t *testing.T) {
-			logs := nexusLog(t)
-			env := startNexus(t, kind, func(w http.ResponseWriter, r *http.Request, other string) {
-				if !strings.Contains(r.URL.Path, "/group/") {
-					_, _ = io.WriteString(w, nexusGroupNoMembers)
-					return
-				}
-				http.Redirect(w, r, other+nexusLeakPath+"?"+nexusSigned, http.StatusTemporaryRedirect)
-			})
-
-			members, err := (&NexusDetector{}).DetectGroup(context.Background(), env.info())
-
-			if len(members) != 0 {
-				t.Errorf("members = %v, want none", members)
+	forEachOffOriginRedirect(t, func(t *testing.T, kind string, status int) {
+		logs := nexusLog(t)
+		env := startNexus(t, kind, func(w http.ResponseWriter, r *http.Request, other string) {
+			if !strings.Contains(r.URL.Path, "/group/") {
+				_, _ = io.WriteString(w, nexusGroupNoMembers)
+				return
 			}
-			if err != nil && !errors.Is(err, oci.ErrOffOriginRedirect) {
-				t.Errorf("err = %v, want nil or errors.Is oci.ErrOffOriginRedirect", err)
-			}
-			if n := env.b.count(); n != 0 {
-				t.Errorf("the other origin received %d requests, want 0", n)
-			}
-			if got := env.a.authsFor("/group/"); len(got) != 1 || got[0] != nexusBasic(t) {
-				t.Errorf("Nexus saw Authorization %q on the format endpoint, want [Basic] only (no anonymous retry)", got)
-			}
-			if !strings.Contains(logs.String(), oci.ErrOffOriginRedirect.Error()) {
-				t.Errorf("the log does not mention the origin refusal: %s", logs.String())
-			}
-			wantNoSecret(t, "log", logs.String())
-			if err != nil {
-				wantNoSecret(t, "error", err.Error())
-			}
+			http.Redirect(w, r, other+nexusLeakPath+"?"+nexusSigned, status)
 		})
-	}
+
+		members, err := (&NexusDetector{}).DetectGroup(context.Background(), env.info())
+
+		if len(members) != 0 {
+			t.Errorf("members = %v, want none", members)
+		}
+		if err != nil && !errors.Is(err, oci.ErrOffOriginRedirect) {
+			t.Errorf("err = %v, want nil or errors.Is oci.ErrOffOriginRedirect", err)
+		}
+		if n := env.b.count(); n != 0 {
+			t.Errorf("the other origin received %d requests, want 0", n)
+		}
+		if got := env.a.authsFor("/group/"); len(got) != 1 || got[0] != nexusBasic(t) {
+			t.Errorf("Nexus saw Authorization %q on the format endpoint, want [Basic] only (no anonymous retry)", got)
+		}
+		if !strings.Contains(logs.String(), oci.ErrOffOriginRedirect.Error()) {
+			t.Errorf("the log does not mention the origin refusal: %s", logs.String())
+		}
+		wantNoSecret(t, "log", logs.String())
+		if err != nil {
+			wantNoSecret(t, "error", err.Error())
+		}
+	})
 }
 
 // 2b. The anonymous retry stays for its own case: Nexus itself refuses the
@@ -316,41 +359,43 @@ func TestNexusSameOriginRedirectIsFollowedWithCredentials(t *testing.T) {
 		{"format endpoint", nexusGroupNoMembers, "/moved-format"},
 	}
 	for _, tc := range cases {
-		t.Run(tc.name, func(t *testing.T) {
-			var s *httptest.Server
-			a := &nexusHits{}
-			s = httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-				a.record(r)
-				switch {
-				case strings.HasPrefix(r.URL.Path, "/moved-meta"):
-					_, _ = io.WriteString(w, nexusGroupMembers)
-				case strings.HasPrefix(r.URL.Path, "/moved-format"):
-					_, _ = io.WriteString(w, nexusGroupMembers)
-				case strings.Contains(r.URL.Path, "/group/"):
-					http.Redirect(w, r, "/moved-format", http.StatusFound)
-				default:
-					if tc.generic == nexusGroupMembers {
-						http.Redirect(w, r, "/moved-meta", http.StatusFound)
-						return
+		for _, status := range redirectStatuses {
+			t.Run(fmt.Sprintf("%s/%d", tc.name, status), func(t *testing.T) {
+				var s *httptest.Server
+				a := &nexusHits{}
+				s = httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+					a.record(r)
+					switch {
+					case strings.HasPrefix(r.URL.Path, "/moved-meta"):
+						_, _ = io.WriteString(w, nexusGroupMembers)
+					case strings.HasPrefix(r.URL.Path, "/moved-format"):
+						_, _ = io.WriteString(w, nexusGroupMembers)
+					case strings.Contains(r.URL.Path, "/group/"):
+						http.Redirect(w, r, "/moved-format", status)
+					default:
+						if tc.generic == nexusGroupMembers {
+							http.Redirect(w, r, "/moved-meta", status)
+							return
+						}
+						_, _ = io.WriteString(w, tc.generic)
 					}
-					_, _ = io.WriteString(w, tc.generic)
+				}))
+				defer s.Close()
+				info := RegistryInfo{Provider: ProviderNexus, URL: s.URL + "/repository/docker-group", Username: nexusTestUser, Password: nexusTestPass}
+
+				members, err := (&NexusDetector{}).DetectGroup(context.Background(), info)
+
+				if err != nil {
+					t.Fatalf("DetectGroup: %v", err)
 				}
-			}))
-			defer s.Close()
-			info := RegistryInfo{Provider: ProviderNexus, URL: s.URL + "/repository/docker-group", Username: nexusTestUser, Password: nexusTestPass}
-
-			members, err := (&NexusDetector{}).DetectGroup(context.Background(), info)
-
-			if err != nil {
-				t.Fatalf("DetectGroup: %v", err)
-			}
-			if len(members) != 2 {
-				t.Fatalf("members = %v, want the 2 of the redirected answer", members)
-			}
-			if got := a.authsFor(tc.moved); len(got) != 1 || got[0] != nexusBasic(t) {
-				t.Errorf("Authorization on %s = %q, want one Basic header", tc.moved, got)
-			}
-		})
+				if len(members) != 2 {
+					t.Fatalf("members = %v, want the 2 of the redirected answer", members)
+				}
+				if got := a.authsFor(tc.moved); len(got) != 1 || got[0] != nexusBasic(t) {
+					t.Errorf("Authorization on %s = %q, want one Basic header", tc.moved, got)
+				}
+			})
+		}
 	}
 }
 
@@ -358,39 +403,37 @@ func TestNexusSameOriginRedirectIsFollowedWithCredentials(t *testing.T) {
 // redirected to another origin: that is refused too, and the retry itself carries
 // no credential.
 func TestNexusAnonymousRetryDoesNotFollowAnOffOriginRedirect(t *testing.T) {
-	for _, kind := range otherOrigins {
-		t.Run(kind, func(t *testing.T) {
-			logs := nexusLog(t)
-			env := startNexus(t, kind, func(w http.ResponseWriter, r *http.Request, other string) {
-				switch {
-				case !strings.Contains(r.URL.Path, "/group/"):
-					_, _ = io.WriteString(w, nexusGroupNoMembers)
-				case r.Header.Get("Authorization") != "":
-					// The account lacks the privilege: the retry starts.
-					w.WriteHeader(http.StatusForbidden)
-				default:
-					http.Redirect(w, r, other+nexusLeakPath+"?"+nexusSigned, http.StatusTemporaryRedirect)
-				}
-			})
-
-			members, err := (&NexusDetector{}).DetectGroup(context.Background(), env.info())
-
-			if err != nil {
-				t.Fatalf("err = %v, want nil", err)
+	forEachOffOriginRedirect(t, func(t *testing.T, kind string, status int) {
+		logs := nexusLog(t)
+		env := startNexus(t, kind, func(w http.ResponseWriter, r *http.Request, other string) {
+			switch {
+			case !strings.Contains(r.URL.Path, "/group/"):
+				_, _ = io.WriteString(w, nexusGroupNoMembers)
+			case r.Header.Get("Authorization") != "":
+				// The account lacks the privilege: the retry starts.
+				w.WriteHeader(http.StatusForbidden)
+			default:
+				http.Redirect(w, r, other+nexusLeakPath+"?"+nexusSigned, status)
 			}
-			if len(members) != 0 {
-				t.Errorf("members = %v, want none (the anonymous redirect was followed)", members)
-			}
-			if n := env.b.count(); n != 0 {
-				t.Errorf("the other origin received %d requests, want 0", n)
-			}
-			got := env.a.authsFor("/group/")
-			if len(got) != 2 || got[0] != nexusBasic(t) || got[1] != "" {
-				t.Errorf("Nexus saw Authorization %q on the format endpoint, want [Basic, none]", got)
-			}
-			wantNoSecret(t, "log", logs.String())
 		})
-	}
+
+		members, err := (&NexusDetector{}).DetectGroup(context.Background(), env.info())
+
+		if err != nil {
+			t.Fatalf("err = %v, want nil", err)
+		}
+		if len(members) != 0 {
+			t.Errorf("members = %v, want none (the anonymous redirect was followed)", members)
+		}
+		if n := env.b.count(); n != 0 {
+			t.Errorf("the other origin received %d requests, want 0", n)
+		}
+		got := env.a.authsFor("/group/")
+		if len(got) != 2 || got[0] != nexusBasic(t) || got[1] != "" {
+			t.Errorf("Nexus saw Authorization %q on the format endpoint, want [Basic, none]", got)
+		}
+		wantNoSecret(t, "log", logs.String())
+	})
 }
 
 // padded returns body followed by spaces up to exactly size bytes (valid JSON).

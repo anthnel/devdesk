@@ -1,6 +1,7 @@
 package registrymgr
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
@@ -31,6 +32,14 @@ type NexusDetector struct{}
 // are small JSON documents (a repository and the names of its members); the
 // figure follows the reasoning of the catalog page cap and is not measured.
 const maxNexusResponse = 1 << 20
+
+// errEmptyReply and errNoRepositoryType mark a 200 reply that is not a
+// repository document. Both fail the discovery: reading either as "not a group"
+// would be cached (D23) and erase the members last known.
+var (
+	errEmptyReply       = errors.New("empty reply")
+	errNoRepositoryType = errors.New("reply names no repository type")
+)
 
 // nexusHTTPClient refuses a redirect to another origin, so the account of the
 // registry is never sent to a host it was not given for.
@@ -103,6 +112,10 @@ func (n *NexusDetector) fetchRepoMeta(ctx context.Context, host, repoName string
 		log.Printf("INFO [registrymgr/nexus] meta unreachable %q: %v", endpoint, err)
 		return "", "", nil, fmt.Errorf("reading %s: %w", endpoint, err)
 	}
+	if len(bytes.TrimSpace(body)) == 0 {
+		log.Printf("INFO [registrymgr/nexus] meta %q: empty reply", repoName)
+		return "", "", nil, fmt.Errorf("parsing the reply from %s: %w", endpoint, errEmptyReply)
+	}
 	var result struct {
 		Type   string `json:"type"`
 		Format string `json:"format"`
@@ -118,6 +131,11 @@ func (n *NexusDetector) fetchRepoMeta(ctx context.Context, host, repoName string
 	if err := json.Unmarshal(body, &result); err != nil {
 		log.Printf("INFO [registrymgr/nexus] meta parse error for %q: %v", repoName, err)
 		return "", "", nil, fmt.Errorf("parsing the reply from %s: %w", endpoint, err)
+	}
+	if result.Type == "" {
+		// Valid JSON that is not a repository document: `{}`, `null`.
+		log.Printf("INFO [registrymgr/nexus] meta %q: reply names no repository type", repoName)
+		return "", "", nil, fmt.Errorf("parsing the reply from %s: %w", endpoint, errNoRepositoryType)
 	}
 	log.Printf("INFO [registrymgr/nexus] meta %q: type=%s format=%s", repoName, result.Type, result.Format)
 
@@ -213,7 +231,9 @@ func memberAddress(dockerURL, memberName string) (url, prefix string) {
 	return host, memberName
 }
 
-// nexusGET performs an authenticated GET and returns the response body.
+// nexusGET performs an authenticated GET and returns the response body. A status
+// other than 200 is a *oci.StatusError from the management API: the code only, no
+// status line, body or header. A context error stays a context error.
 func (n *NexusDetector) nexusGET(ctx context.Context, endpoint string, info RegistryInfo) ([]byte, error) {
 	req, err := http.NewRequestWithContext(ctx, "GET", endpoint, nil)
 	if err != nil {
@@ -230,10 +250,15 @@ func (n *NexusDetector) nexusGET(ctx context.Context, endpoint string, info Regi
 	}
 	defer func() { _ = resp.Body.Close() }()
 	if resp.StatusCode != http.StatusOK {
-		return nil, fmt.Errorf("HTTP %d", resp.StatusCode)
+		return nil, &oci.StatusError{Code: resp.StatusCode, Source: oci.SourceManagementAPI}
 	}
 	body, err := oci.ReadAllLimited(resp.Body, maxNexusResponse)
 	if err != nil {
+		// Which error net/http gives a body cut by a cancel varies: report the
+		// context's own.
+		if ctxErr := ctx.Err(); ctxErr != nil {
+			return nil, fmt.Errorf("read Nexus response: %w", ctxErr)
+		}
 		return nil, fmt.Errorf("read Nexus response: %w", err)
 	}
 	return body, nil
