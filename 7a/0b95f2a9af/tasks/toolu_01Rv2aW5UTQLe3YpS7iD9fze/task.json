@@ -1,0 +1,15 @@
+{
+  "tool_use_id": "toolu_01Rv2aW5UTQLe3YpS7iD9fze",
+  "agent_id": "a379f767cb9e26db0",
+  "subagent_type": "project-coder",
+  "task_description": "Fix integration tests and rerun",
+  "token_usage": {
+    "input_tokens": 30,
+    "cache_creation_tokens": 68315,
+    "cache_read_tokens": 890518,
+    "output_tokens": 9374,
+    "api_call_count": 15
+  },
+  "started_at": "2026-11-17T19:08:35.369426659+01:00",
+  "completed_at": "2026-11-17T19:10:43.087432366+01:00"
+}

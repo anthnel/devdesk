@@ -1,0 +1,15 @@
+{
+  "tool_use_id": "toolu_01SgeeqUwxVfZDypTwZSURcc",
+  "agent_id": "a86f36bd77ddb949c",
+  "subagent_type": "team-core:archivist",
+  "task_description": "Archive NX-02b decisions",
+  "token_usage": {
+    "input_tokens": 28,
+    "cache_creation_tokens": 86184,
+    "cache_read_tokens": 567161,
+    "output_tokens": 9009,
+    "api_call_count": 13
+  },
+  "started_at": "2026-11-17T19:11:03.661054739+01:00",
+  "completed_at": "2026-11-17T19:11:55.020829539+01:00"
+}

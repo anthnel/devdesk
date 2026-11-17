@@ -1,0 +1,54 @@
+{
+  "cli_version": "0.13.2",
+  "checkpoint_id": "7a0b95f2a9af",
+  "strategy": "manual-commit",
+  "branch": "feat/devdesk-534-nexus-bench-cut-reset",
+  "checkpoints_count": 30,
+  "files_touched": [
+    "internal/nexusbench/bench_scenarios_integration_test.go",
+    "internal/nexusbench/cmd/nexus-bench/upstream_cmd_test.go",
+    "internal/nexusbench/repoapi_test.go",
+    "internal/nexusbench/reset_test.go",
+    "internal/nexusbench/upstream_cut_test.go",
+    "internal/nexusbench/upstream_recycle_test.go",
+    "internal/nexusbench/upstream_restore_test.go"
+  ],
+  "sessions": [
+    {
+      "metadata": "/7a/0b95f2a9af/0/metadata.json",
+      "transcript": "/7a/0b95f2a9af/0/full.jsonl",
+      "compact_transcript": "/7a/0b95f2a9af/0/transcript.jsonl",
+      "content_hash": "/7a/0b95f2a9af/0/content_hash.txt",
+      "prompt": "/7a/0b95f2a9af/0/prompt.txt"
+    }
+  ],
+  "token_usage": {
+    "input_tokens": 241,
+    "cache_creation_tokens": 314973,
+    "cache_read_tokens": 18038757,
+    "output_tokens": 77717,
+    "api_call_count": 92,
+    "subagent_tokens": {
+      "input_tokens": 1212,
+      "cache_creation_tokens": 3406448,
+      "cache_read_tokens": 53084985,
+      "output_tokens": 678375,
+      "api_call_count": 577
+    },
+    "subagent_tokens_complete": true
+  },
+  "redaction": {
+    "replacements": 32,
+    "layers": {
+      "betterleaks": 0,
+      "connection_string": 0,
+      "credential_key": 0,
+      "credential_value": 0,
+      "credentialed_uri": 8,
+      "entropy": 23,
+      "key_context": 1,
+      "provider_token": 0,
+      "shell_stdin": 0
+    }
+  }
+}

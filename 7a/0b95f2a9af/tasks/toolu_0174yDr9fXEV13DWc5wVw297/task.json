@@ -1,0 +1,15 @@
+{
+  "tool_use_id": "toolu_0174yDr9fXEV13DWc5wVw297",
+  "agent_id": "aa8e32e1b549e96ba",
+  "subagent_type": "team-core:tech-writer",
+  "task_description": "Docs NX-02b nexus-bench",
+  "token_usage": {
+    "input_tokens": 24,
+    "cache_creation_tokens": 89579,
+    "cache_read_tokens": 447021,
+    "output_tokens": 8791,
+    "api_call_count": 10
+  },
+  "started_at": "2026-11-17T19:11:03.663179625+01:00",
+  "completed_at": "2026-11-17T19:12:03.993290438+01:00"
+}

@@ -1,0 +1,15 @@
+{
+  "tool_use_id": "toolu_01QnJ8HcrgmsfZBYC1ugGN52",
+  "agent_id": "a96da41a95c4775ad",
+  "subagent_type": "dev-team:security-reviewer",
+  "task_description": "Security review Reset",
+  "token_usage": {
+    "input_tokens": 26,
+    "cache_creation_tokens": 91915,
+    "cache_read_tokens": 782589,
+    "output_tokens": 10417,
+    "api_call_count": 12
+  },
+  "started_at": "2026-11-17T18:47:47.045991667+01:00",
+  "completed_at": "2026-11-17T18:49:37.941037616+01:00"
+}
