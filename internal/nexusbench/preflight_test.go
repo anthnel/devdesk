@@ -22,10 +22,15 @@ import (
 //
 //	config get-contexts -o name
 //	get --raw /readyz
-//	auth can-i <verb> <resource> [-n <ns> | -A]
+//	auth can-i <verb> <resource> [--subresource=<sub>] [-n <ns> | -A]
 //	get namespace <ns> -o json
 //	get services -A -o json
 //	get nodes -o json
+//
+// A subresource goes in --subresource=<sub> (or "--subresource <sub>"), never in
+// the resource: kubectl reads "pods/exec" as the object "exec" of the pods
+// resource, not as a subresource, so the fake fails the test on any resource that
+// holds a "/" (DEVDESK-505 review, step 5a).
 //
 // "auth can-i" answers like kubectl: "yes" with exit 0, "no" on stdout with exit
 // 1 (so the Runner returns a non-nil error that is NOT a failure of the call:
@@ -55,11 +60,20 @@ type fakeCall struct {
 
 // canIQuery is one "auth can-i" call as the fake parsed it.
 type canIQuery struct {
-	verb, resource, namespace string
-	allNamespaces             bool
+	verb, resource, subresource, namespace string
+	allNamespaces                          bool
 }
 
-func (q canIQuery) String() string { return q.verb + " " + q.resource }
+// fullResource is the resource as the tests write it, "pods/exec": the key of
+// deny and of the required checks. It is never what kubectl is given.
+func (q canIQuery) fullResource() string {
+	if q.subresource == "" {
+		return q.resource
+	}
+	return q.resource + "/" + q.subresource
+}
+
+func (q canIQuery) String() string { return q.verb + " " + q.fullResource() }
 
 type fakeService struct {
 	namespace, name string
@@ -174,16 +188,23 @@ func (f *fakeKubectl) answerCanI(args []string) ([]byte, []byte, error) {
 	var q canIQuery
 	var positional []string
 	for i := 0; i < len(args); i++ {
-		switch args[i] {
-		case "-n":
+		switch a := args[i]; {
+		case a == "-n":
 			if i+1 < len(args) {
 				i++
 				q.namespace = args[i]
 			}
-		case "-A":
+		case a == "-A":
 			q.allNamespaces = true
+		case a == "--subresource":
+			if i+1 < len(args) {
+				i++
+				q.subresource = args[i]
+			}
+		case strings.HasPrefix(a, "--subresource="):
+			q.subresource = strings.TrimPrefix(a, "--subresource=")
 		default:
-			positional = append(positional, args[i])
+			positional = append(positional, a)
 		}
 	}
 	if len(positional) != 2 {
@@ -191,6 +212,11 @@ func (f *fakeKubectl) answerCanI(args []string) ([]byte, []byte, error) {
 		return nil, []byte("bad can-i"), errFakeExit1
 	}
 	q.verb, q.resource = positional[0], positional[1]
+	if strings.Contains(q.resource, "/") {
+		// kubectl would read "pods/exec" as the object "exec" of the pods.
+		f.t.Errorf("auth can-i %q puts a subresource in the resource: use --subresource=<sub>", args)
+		return nil, []byte("error: resource names do not take a subresource, use --subresource"), errFakeExit1
+	}
 	if q.namespace != "" && q.namespace != f.p.Namespace {
 		f.t.Errorf("auth can-i %q asks about namespace %q, the run is about %q", args, q.namespace, f.p.Namespace)
 	}
@@ -369,7 +395,7 @@ func requireCleanError(t *testing.T, err error) *BenchError {
 }
 
 // testOpName names the operations in sub-test titles and messages.
-var testOpName = map[Op]string{OpUp: "up", OpProvision: "provision", OpDown: "down", OpStatus: "status"}
+var testOpName = map[Op]string{OpUp: "up", OpProvision: "provision", OpDown: "down", OpStatus: "status", OpSeed: "seed"}
 
 // requiredCheck is a can-i the preflight must ask for an operation.
 type requiredCheck struct {
@@ -407,8 +433,10 @@ var requiredChecks = map[Op][]requiredCheck{
 	OpDown: {{"delete", "namespaces", "cluster"}},
 }
 
+// matches compares the resource as the tests write it ("pods/exec") with what
+// the fake parsed from the resource and the --subresource flag.
 func (c requiredCheck) matches(q canIQuery, p Params) bool {
-	if q.verb != c.verb || q.resource != c.resource {
+	if q.verb != c.verb || q.fullResource() != c.resource {
 		return false
 	}
 	switch c.scope {
@@ -814,7 +842,7 @@ func failCases() []failCase {
 					f.deny(c.verb, c.resource)
 				},
 				kind:    Forbidden,
-				mention: []string{c.verb, c.resource},
+				mention: append([]string{c.verb}, strings.Split(c.resource, "/")...),
 			})
 		}
 	}

@@ -72,6 +72,7 @@ writes every value quoted: the validation is the first guard, not the only one.
 | `StorageSize` | `NEXUS_BENCH_STORAGE_SIZE` | `5Gi` |
 | `JVMOpts` | `NEXUS_BENCH_JVM_OPTS` | `-Xms1g -Xmx1g -XX:MaxDirectMemorySize=1g -Djava.util.prefs.userRoot=/nexus-data/javaprefs` |
 | `Image`, `ImageTag` | `NEXUS_BENCH_IMAGE`, `_IMAGE_TAG` | `docker.io/sonatype/nexus3`, `3.98.1` |
+| `UpstreamImage`, `UpstreamImageTag` | `NEXUS_BENCH_UPSTREAM_IMAGE`, `_UPSTREAM_IMAGE_TAG` | `docker.io/library/registry`, `3.0.0` |
 | `UpstreamURL` | `NEXUS_BENCH_UPSTREAM_URL` | `http://bench-upstream.<namespace>.svc.cluster.local:5000` |
 | `Anonymous` | `NEXUS_BENCH_ANONYMOUS` | `true` |
 | `AcceptEULA` | `NEXUS_BENCH_ACCEPT_EULA` | `false`; true only for the exact value `yes` |
@@ -95,6 +96,22 @@ Rules beyond the shape of each value:
 - `UpstreamURL` is `http://` or `https://` plus a host, without credentials, made
   of URL characters only (no `@`, no whitespace) and with a port, when present,
   between 1 and 65535.
+- `Image`/`ImageTag` and `UpstreamImage`/`UpstreamImageTag` go through one
+  `validateImage(imageEnv, tagEnv, image, tag)`: each error names the variable of
+  its own pair. Both refuse the `tvp-zot.incus:5000` prefix (Kyverno
+  `verify-tvp-images`, unsigned bench images).
+- `UpstreamImageRef()` is `UpstreamImage:UpstreamImageTag`. `UpstreamIsBench()` is
+  true when `UpstreamURL` is the in-cluster URL of `Namespace`, i.e. the bench
+  deploys its own upstream rather than pointing the proxy at a custom one.
+- With a custom `NEXUS_BENCH_UPSTREAM_URL` (`UpstreamIsBench()` false), `up` still
+  applies the manifests of the bench upstream: `Render` ignores the URL, so the
+  `bench-upstream` Deployment, claim and Service are created and run although the
+  proxy does not read them (decision of the user, 2026-11-17: keep it). What a custom
+  URL does change: `up` does not scale, seed or wait for that upstream, and
+  `Provision` does not allow its host through the SSRF protection.
+- The CLI flags `--upstream-image` and `--upstream-image-tag` are common flags; a
+  non-default value makes `describesDefaultBench` false (descriptor not to be
+  committed).
 - Paths hold no control character and are 4096 bytes at most.
 
 `NEXUS_BENCH_NAMESPACE` alone moves `UpstreamURL` to the new namespace, unless
@@ -107,7 +124,8 @@ it names a directory of the secrets path.
 `Render(p Params) ([]byte, error)` calls `p.Validate()` first (an invalid value
 returns Validate's error, naming its variable, and no bytes) and writes a
 multi-document YAML stream separated by `---`, in this order: Namespace, PVC,
-Deployment, Service. `RenderNamespace(p)` returns the first document alone, so
+Deployment, Service (Nexus), then PVC, Deployment, Service (the upstream
+registry): seven documents. `RenderNamespace(p)` returns the first document alone, so
 that `up` can apply the Namespace before the rest. The output is deterministic
 (no map iteration, no timestamp); the golden of the defaults is
 `testdata/render-default.golden.yaml`, rewritten with
@@ -120,13 +138,17 @@ diff.
 | `10-pvc.yaml.tmpl` | PVC `nexus-data`, `ReadWriteOnce`, `StorageSize`, no `storageClassName` (the cluster default class, `local-path`) |
 | `20-deployment.yaml.tmpl` | Deployment `nexus`: 1 replica, `Recreate`, one container (`ImageRef`), ports `http` 8081 and `docker-group` 8082, requests and limits, env `INSTALL4J_ADD_VM_PARAMS`, PVC on `/nexus-data`, `startupProbe` on `/service/rest/v1/status` (10 s x 60 = 10 min), `readinessProbe` (same path), no `livenessProbe`, UID and GID 200, `runAsNonRoot`, no privilege escalation, `drop: [ALL]`, `RuntimeDefault` seccomp, no service account token, no service links |
 | `30-service.yaml.tmpl` | Service `nexus`, `NodePort`: `http` 8081 to `HTTPNodePort`, `docker-group` 8082 to `DockerNodePort` |
+| `40-upstream-pvc.yaml.tmpl` | PVC `bench-upstream-data`, `ReadWriteOnce`, a fixed `1Gi` (`StorageSize` sizes Nexus only), no `storageClassName`; label `app.kubernetes.io/name: bench-upstream` on the three upstream objects |
+| `50-upstream-deployment.yaml.tmpl` | Deployment `bench-upstream`: **no `replicas` field** (`kubectl scale` owns it, so a server-side apply of the whole stream neither conflicts with it nor puts the upstream back after it was cut), `Recreate`, one container (`UpstreamImageRef`), port `registry` 5000, env `OTEL_TRACES_EXPORTER=none` (distribution v3 traces by default), fixed requests 50m / 64Mi and limits 500m / 256Mi, PVC on `/var/lib/registry`, `readinessProbe` `GET /v2/`, UID and GID 1000, `runAsNonRoot`, no privilege escalation, `drop: [ALL]`, `RuntimeDefault` seccomp, no service account token, no service links |
+| `60-upstream-service.yaml.tmpl` | Service `bench-upstream`, `ClusterIP` only: `registry` 5000 to the container port `registry`; reached by `UpstreamURL` inside the cluster and by a port-forward from the host, never by a node port |
 
 Quoting: the templates see only a `manifestData` built from validated values,
 and every string goes through the `q` template function (`strconv.Quote`, a
 valid YAML double-quoted scalar), so `true`, `null`, `123`, `0x1F`, `12:30:45` or
 `2001-01-23` in `NEXUS_BENCH_JVM_OPTS` decode as strings (`TestRenderRoundTripsTrickyJVMOpts`,
-`TestRenderQuotesEveryValue`). Quoted: namespace, image reference, JVM options,
-CPU and memory quantities, storage size. Not quoted: the two NodePorts (integers),
+`TestRenderQuotesEveryValue`). Quoted: namespace, image references (Nexus and upstream), JVM options,
+CPU and memory quantities, storage size, and the fixed values of the upstream
+documents. Not quoted: the two NodePorts (integers),
 and the literals of the template (names, labels, container ports).
 
 What the render does not carry: the context, the upstream URL, `Anonymous`,
@@ -149,7 +171,9 @@ message. `ErrKind` holds the kinds of D-F in the order the bench meets them:
 `NamespaceForeign`, `NamespaceMissing`, `NodePortTaken`, `AdmissionDenied`,
 `PodPending`, `ImagePull`, `Crash`, `Deadline`, `RESTUnreachable`,
 `ProvisionFailed`. The zero value is `Unclassified`, so an error nobody classified
-never passes for a named kind. The last six are for the steps to come.
+never passes for a named kind. `SkopeoMissing`, `RegistryUnreachable`,
+`RegistryRefused` and `SeedFailed` (DEVDESK-505) were appended after
+`ProvisionFailed`, so no earlier value moved (`TestSkopeoErrKindsAreAppendedAtTheEnd`).
 
 `classifyKubectl(stderr)` is the fallback for what the exit status and the JSON
 cannot tell apart; kubectl's wording changes between versions, so it matches
@@ -164,10 +188,10 @@ server`, `connection refused`, `i/o timeout`, `TLS handshake timeout` are
 failure. `NewExecRunner(context)` finds `kubectl` with `exec.LookPath` (a
 `KubectlMissing` error otherwise, which names `kubectl` and `mise install`) and
 puts `--context <context>` before every call, so callers never pass it.
-`kubectl.go` is the only non-test file of the package that starts `kubectl`; the one other process is the `git check-ignore` of the secrets store (see below).
+`kubectl.go` is the only non-test file of the package that starts `kubectl` (the commands of `Runner` and the port-forward, see "The two process doors" below); the other two processes are the `git check-ignore` of the secrets store (see below) and `skopeo` (`skopeo.go`).
 
 **Preflight.** `RunPreflight(ctx, r, p, op) (PreflightResult, error)` with `op` one
-of `OpUp`, `OpProvision`, `OpDown`, `OpStatus`. Checks, in this order, stopping at
+of `OpUp`, `OpProvision`, `OpDown`, `OpStatus`, `OpSeed` (appended, no earlier value moves). Checks, in this order, stopping at
 the first failure:
 
 1. `p.Validate()`: invalid parameters are refused before any call.
@@ -176,28 +200,44 @@ the first failure:
 3. `kubectl get --raw /readyz`: the API server answers, else `ClusterUnreachable`;
    a refusal (stderr `forbidden`: expired token, 403) is `Forbidden` instead, through
    the same `classifyKubectl` as every other call.
-4. `kubectl auth can-i <verb> <resource>` (`-n <ns>`, `-A` or nothing):
+4. `kubectl auth can-i <verb> <resource> [--subresource=<sub>]` (`-n <ns>`, `-A` or
+   nothing). A subresource is a flag, never `pods/exec` in the resource: kubectl
+   reads that as the object `exec` of the pods and answers about the wrong thing
+   (the NX-01 question `create pods/exec` had this defect and is corrected here:
+   it is now `create pods --subresource=exec`). A refusal still names
+   `pods/exec` in its cause, and its `Check` carries the flag:
    `up` needs create and patch `namespaces` (cluster; a server-side apply is a
    PATCH, also on a second run), create `persistentvolumeclaims`, `services`,
-   `deployments` and `pods/exec` (namespace), list `services` (`-A`),
+   `deployments` and `pods` `exec` (namespace), list `services` (`-A`),
    patch `deployments`, `services` and `persistentvolumeclaims`, and get and list
    `pods` and `persistentvolumeclaims` (the wait of `Deploy`), all in the
-   namespace (no manifest creates a Secret, so none is asked);
-   `provision` needs create `pods/exec`, get `deployments` and list `pods`
-   (namespace); `down` needs delete `namespaces`; `status`
-   asks nothing. A `no` arrives on stdout with a non-zero exit, so stdout is read
+   namespace (no manifest creates a Secret, so none is asked), then, asked last
+   so the fourteen before stay where they were, patch `deployments`
+   `--subresource=scale` (the upstream is scaled), create `pods`
+   `--subresource=portforward` and get `services` (the seed
+   that follows reaches the upstream through a port-forward, which reads the
+   Service first);
+   `provision` needs create `pods` `exec`, get `deployments` and list `pods`
+   (namespace); `down` needs delete `namespaces`; `seed` needs, in this order, get
+   `deployments`, list `pods`, get `pods`, get `services`, get and list
+   `persistentvolumeclaims` (EnsureUpstream reads the claim on every turn of its
+   wait, so a refusal comes before the scale write), create `pods`
+   `--subresource=portforward` and patch `deployments` `--subresource=scale`
+   (namespace); `status` asks nothing. A `no` arrives on stdout with a non-zero exit, so stdout is read
    first: `Forbidden`, naming the verb and the resource.
 5. `kubectl get namespace <ns> -o json`: absent is fine for `up` and `down` (nothing
-   to delete) and `NamespaceMissing` for `provision` and `status`; present
+   to delete) and `NamespaceMissing` for `provision`, `status` and `seed`; present
    without the label `app.kubernetes.io/managed-by=devdesk-nexus-bench` is
    `NamespaceForeign` for every operation (the plan lists `up` and `down`;
    `provision` and `status` refuse too, so the bench never runs `exec` in a
    namespace it did not create).
-6. `up` only, `kubectl get services -A -o json`: a Service other than `nexus` of
+6. `up` only (`seed` does not read the Services of the cluster), `kubectl get services -A -o json`: a Service other than `nexus` of
    our namespace that holds `HTTPNodePort` or `DockerNodePort` is `NodePortTaken`,
    naming `<namespace>/<name>` and the port. Our own Service is accepted, which is
    what makes a second `up` possible.
-7. Everything but `down`, `kubectl get nodes -o json`: `NodeIP` is the first
+7. Everything but `down` and `seed`, `kubectl get nodes -o json` (the seed reaches
+   the registries through a loopback port-forward and no can-i covers `get nodes`,
+   so its `NodeIP` is empty): `NodeIP` is the first
    `InternalIP`; none is not an error (`NodeIP` stays empty).
 
 A call that fails in a way the checks above did not expect goes through
@@ -265,14 +305,32 @@ before it is sent to Nexus, so an interrupted change loses nothing.
   its own ignore rules, not about a repository or a `core.excludesFile` the
   caller's variables or configuration point at (a path ignored only by a global
   excludes file is therefore refused). That call is the only process
-  outside `kubectl.go`; it lives in the package variable `gitIgnores`, so it can
+  outside `kubectl.go` and `skopeo.go`; it lives in the package variable `gitIgnores`, so it can
   be replaced and found by a source guard.
 
-**Descriptor.** `BuildDescriptor(p, DeployResult, ProvisionResult)` returns the
-`Descriptor` of schema 1 (D-D): `schemaVersion`, `kubeContext`, `namespace`,
+**Descriptor.** `BuildDescriptor(p, DeployResult, ProvisionResult, SeedResult)`
+returns the `Descriptor` of schema 2 (D-D, D-M; schema 1 was NX-01's):
+`schemaVersion`, `kubeContext`, `namespace`,
 `image`, `nexusVersion`, `edition`, `eulaAccepted`, `hosts`, `rest`,
-`dockerConnectors`, `repositories`, `realms`, `accounts`, in that order, which is the
-order of the struct fields. `hosts` is `Params.Hosts` when set, else `127.0.0.1`
+`dockerConnectors`, `repositories`, `realms`, `accounts`, `registryAccess`,
+`upstream`, `dataset`, in that order, which is the
+order of the struct fields. The three sections of schema 2 (DEVDESK-543):
+
+- `registryAccess`: `scheme` `http`, `tlsVerify` `false`, `routing` `path` (a
+  client reaches the Docker repositories by path on the HTTP NodePort, plain
+  HTTP; true on the real bench since `docker.pathEnabled` is set, H-PATH).
+- `upstream`: `service` `bench-upstream`, `image` `Params.UpstreamImageRef()`,
+  `url` `Params.UpstreamURL` (the one `docker-proxy` mirrors), `persistent`
+  `true`, `exposure` `port-forward` (the upstream has no NodePort; a client
+  reaches it through `kubectl port-forward`).
+- `dataset`: one entry per image of the `SeedResult`, in its order and copied
+  (never shared): `name`, `tag`, `digest`, `location` (`docker-hosted` or
+  `upstream`), `cachedInProxy` (= `DatasetImage.PullThrough`: Seed pulled it
+  through `docker-proxy`). It comes from the `SeedResult`, not from `Dataset()`:
+  an empty result writes `"dataset": []`, never `null`.
+
+`ProxyPending` false, the nominal case of NX-02, lists `docker-proxy` and makes
+it a member of `docker-group`. `hosts` is `Params.Hosts` when set, else `127.0.0.1`
 then `DeployResult.NodeIP` when it is not empty; the URLs are `http://<host>:<nodePort>`
 for each host (`RESTBaseURL(host, p)` is the exported REST origin: brackets for
 IPv6, `%25` for a zone; the deployment, the descriptor and the command of step 8
@@ -285,8 +343,11 @@ appears; its `enabled` is a `*bool`, so `false` is written when
 - `WriteDescriptor(path, d)`: JSON indented by two spaces, one final newline, `0644`
   file, atomic through the same helper; the bytes depend on `d` alone.
 - `LoadDescriptor(path)`: a missing file is `ErrNoDescriptor` (wrapped, use
-  `errors.Is`); invalid JSON or a `schemaVersion` other than 1 (missing counts as 0)
-  is an error that names the file and never shows its content.
+  `errors.Is`); invalid JSON or a `schemaVersion` other than 2 (missing counts as 0)
+  is an error that names the file and never shows its content. A schema 1 file
+  is a `*BenchError` (kind `Unclassified`) whose `Check` says to run `mise run
+  nexus-bench:up` to write it again; `status` reports it as `descriptor:
+  unreadable (...)` and still prints the pod and REST lines.
 - `DescriptorPath()`: `NEXUS_BENCH_DESCRIPTOR` when set and not empty, else
   `internal/nexusbench/descriptor.json`, found with `runtime.Caller`, so it does
   not depend on the working directory (and does not survive `-trimpath`).
@@ -301,7 +362,9 @@ checked both ways: `WriteDescriptor` must write exactly these bytes
 value (`TestLoadDescriptorGoldenMatchesBuild`). After a deliberate change of the
 schema, regenerate it with
 `go test ./internal/nexusbench -run TestDescriptorGolden -update` and review the
-diff by hand (bump `schemaVersion` when a field changes meaning).
+diff by hand (bump `schemaVersion` when a field changes meaning). The golden holds
+the whole `Dataset()` (`SeedResult{Images: Dataset()}`), with `mirror/cached` as the
+only image cached in the proxy.
 
 ## REST client and provisioning (`nexusapi.go`, `provision.go`, `initialpassword.go`)
 
@@ -344,10 +407,39 @@ any password. Order of the calls:
    then `POST` with the password, or `PUT` plus `PUT .../change-password` with the
    stored password. The list filter matches by substring, so the element whose
    `userId` is exactly `bench-pull` is the one used.
+8a. SSRF allowance (`ensureUpstreamAllowed`, DEVDESK-505, H-SSRF): Nexus 3.98 turns
+   its SSRF protection on for a new installation and refuses a proxy whose remote
+   URL host resolves to a private address, a ClusterIP included (see "Observed on
+   the real bench (NX-02a)"). Only when `Params.UpstreamIsBench()`: `GET
+   /v1/security/ssrf-protection` (`{"enabled","allowedIPs","allowedDomains"}`); a
+   404 (a version without it) or `enabled: false` changes nothing, and the
+   protection is never switched on or off; a host already in `allowedDomains`
+   (case-insensitive) changes nothing; otherwise the lists are `PUT` back with the
+   host of the bench upstream (`bench-upstream.<namespace>.svc.cluster.local`)
+   appended to `allowedDomains`, the entries the instance already had kept and
+   `allowedIPs` sent as an array, never `null`. The settings travel as a raw JSON
+   object (`map[string]json.RawMessage`): only `allowedDomains` (and a null
+   `allowedIPs`) changes, any other field a version of Nexus adds goes back as it
+   was. `allowableUpstreamHost` is the one place that names the host, and it
+   checks it again whatever `UpstreamIsBench` said: `validateNamespace` of the
+   namespace first, then the URL must have no credentials and exactly that host
+   (an error that repeats no part of the URL). It runs before the proxy is created,
+   so the proxy is never refused for it. An upstream URL the bench did not deploy
+   is not allowed (the operator chose that address): if Nexus refuses it for a
+   private address the failure is `APIError.RemoteURLPrivate`, a `ProvisionFailed`
+   whose cause says the SSRF protection is on and whose check names
+   `NEXUS_BENCH_UPSTREAM_URL`, the advice to leave it unset and the endpoint to
+   edit. The same refusal for the bench's own upstream (the allowance did not take,
+   or the instance has no such setting) has its own wording: it says the upstream
+   is meant to be allowed and sends to `/service/rest/v1/security/ssrf-protection`
+   and `allowedDomains`, with no advice to unset a variable the operator never set.
 9. `docker-hosted`, `docker-proxy` (`remoteUrl` = `Params.UpstreamURL`,
    `indexType: REGISTRY`) and `docker-group` (members hosted then proxy,
    `docker.httpPort: 8082`), all on blob store `default`, `forceBasicAuth: false`
-   (anonymous pulls): `GET .../{name}` 404 then `POST`, found then `PUT`.
+   (anonymous pulls), the hosted and the proxy with `docker.pathEnabled: true`
+   (H-PATH: a docker client reaches them by path on the HTTP port only then; the
+   default is `null` and `/v2/` answers 404 on that port): `GET .../{name}` 404
+   then `POST`, found then `PUT`.
    **Unresolvable upstream.** Nexus resolves the host of the proxy's remote URL
    when it saves the repository and answers `400` (validation error on
    `proxy.remoteUrl`) when it does not. The client keeps one verdict from that
@@ -431,8 +523,9 @@ together:
   `userId` filter that matches by substring;
 - the repository payloads (`storage`, `docker`, `proxy`, `dockerProxy`,
   `negativeCache`, `httpClient`, `group.memberNames`, `docker.httpPort`), the
-  statuses of `POST` (201) and `PUT` (204), the path-routing field added in 3.83
-  (left to the default of Nexus), and a proxy created before its upstream exists.
+  statuses of `POST` (201) and `PUT` (204), the path-routing field `docker.pathEnabled` (null by default, which makes `/v2/`
+  answer 404 on the HTTP port: `Provision` now sets it, H-PATH), and a proxy created
+  before its upstream exists.
 
 Verdict of the first real run (details in "First real run"): every item above
 held except the last one. The `Server` header, the EULA payload, `text/plain`
@@ -440,6 +533,39 @@ change-password, the realm ids, the anonymous, role, user and repository
 payloads and all the statuses matched the swagger and the fake. A proxy created
 before its upstream resolves is refused with `400`; the fake does the same since
 (`BlockUpstream`, `ResolveUpstream`).
+
+**Reading a stored bench: `adminFromStore`, `listComponents` (`components.go`,
+DEVDESK-541, NX-02a).** For the commands that run after `up` (seed, restore,
+reset).
+
+- `adminFromStore(ctx, baseURL, store)` returns a `*client` that authenticates as
+  `admin` with the stored `AdminPassword`, and the stored `Secrets` (so the caller
+  has the `bench-pull` password too). It sends no request: a stored password the
+  instance refuses shows on the first call as an `*APIError` 401. It never reads
+  the initial password of the pod and never falls back to it. No stored admin
+  password (no file, `{}`, only a pending or a pull password: a pending password
+  is not a current one) is a `*BenchError` of kind `ProvisionFailed` whose `Check`
+  says to run `mise run nexus-bench:up`; so is a store that cannot be read, with
+  the cause in `Err` and not in the message.
+- `(*client).listComponents(ctx, repo)` calls `GET /v1/components?repository=<repo>`
+  and follows `continuationToken` (sent through `url.Values`, so escaped) until it
+  is `null`. A `404` (a repository that does not exist, was just deleted, or is a
+  proxy still pending) is an empty list, not an error; a `404` on a later page is
+  an `*APIError`. Failures are those of the rest of the client: `*APIError`
+  (`list the components of <repo>`), `*transportError`, `*tooLargeError`,
+  `*decodeError`; an error on any page returns no component at all, never the
+  first pages. A token equal to the previous one fails at once with a
+  `*decodeError` (no `APIError`, no `BenchError`); a listing whose tokens keep
+  changing stops after 1000 calls with the same error. A `component` is `{Name, Version, Digest}`; `Digest` is
+  `sha256:` + the checksum of the asset whose path holds `/manifests/` (the one
+  ending in the tag first), and is empty, without an error, when the instance
+  lists no such asset. No delete and no unblock here (NX-02b).
+- **H-COMPONENTS: held on the real bench (2026-11-17).** A Docker component is one
+  image tag (`name` the image name, nested names such as `team/api` included,
+  `version` the tag), the manifest asset is `v2/<name>/manifests/<tag>` and its
+  `sha256` checksum is the digest of the manifest (the seed compares it with the
+  data set and `status` reports `dataset: matches`); the component is listed as
+  soon as the push or the pull-through ends (the seed's 30 s wait was not needed).
 
 **Security guarantees.** No redirect followed; answers bounded; no proxy; no
 `Authorization` header, URL with credentials, body or password in any error or
@@ -505,7 +631,8 @@ the manifests and waits until Nexus answers. Order, fixed:
    `--prune` is never used.
 4. The wait, one round per `pollInterval` (5 s) through `Clock.Sleep`: read
    `get pods -n <ns> -l app.kubernetes.io/name=nexus -o json` and
-   `get pvc -n <ns> -o json`, diagnose them, then probe every host. The deadline
+   `get pvc -n <ns> -o json` (the list; the claim of Nexus, `nexus-data`, is
+   picked by name), diagnose them, then probe every host. The deadline
    is `NEXUS_BENCH_TIMEOUT` (10 min); it is checked after a round, so the cluster
    is read once more at the very end.
 
@@ -526,6 +653,21 @@ nothing else is called: no read, no probe, no sleep.
 | `PodScheduled=False`, reason `Unschedulable`, message with `Insufficient memory` or `Insufficient cpu` | `PodPending` (the request and `NEXUS_BENCH_MEMORY_REQUEST` or `_CPU_REQUEST`) | after `pendingGrace` (30 s) |
 | claim `Pending` while a pod is scheduled | `PodPending` (the size and `NEXUS_BENCH_STORAGE_SIZE`) | after `pendingGrace` |
 | no host answers by the deadline | `Deadline` (last state of the pod and the claim, the hosts tried, `NEXUS_BENCH_TIMEOUT`) | at `Params.Timeout` |
+
+**One diagnosis, two workloads (DEVDESK-540).** The wait and the table above take a
+`workload` (`deploy.go`): the pod selector, the variables that set the image and
+the memory, the name of the claim and of the Deployment, and how to name them in a
+message. `nexusWorkload()` is Nexus; `upstreamWorkload()` is the pod of the bench
+upstream, whose memory is fixed by its manifest (no memory variable, so `Crash`
+says `the bench-upstream container keeps crashing` without a limit nor a variable
+to raise, `PodPending` for a lack of memory or cpu names no request, the pending
+claim names no `NEXUS_BENCH_STORAGE_SIZE`, and `ImagePull` names
+`NEXUS_BENCH_UPSTREAM_IMAGE` and `_IMAGE_TAG` and the upstream reference). The claim
+is selected by name in the list `get pvc -n <ns> -o json`: the namespace holds the
+claims of Nexus and of the upstream, kubectl lists them by name, and reading
+`Items[0]` read the claim of the upstream (`bench-upstream-data`) instead of
+`nexus-data` once the upstream manifests were applied, so a Pending claim of the
+upstream was blamed on Nexus (`TestDeployReadsTheClaimOfNexusOnly`).
 
 The unschedulable pod is read before the claim: while the pod is not scheduled, a
 claim of a `WaitForFirstConsumer` class is `Pending` for that reason alone and is
@@ -586,6 +728,14 @@ Known and accepted for a throw-away bench; none is fixed by this change.
   the bench; do not put anything private in it.
 - **Mutable image tag.** The image is `docker.io/sonatype/nexus3:<tag>` with no
   digest: the same tag can resolve to another image later.
+- **NX-02a exposure (DEVDESK-505).** `docker.pathEnabled` makes `docker-hosted`
+  and `docker-proxy` reachable by path on the HTTP NodePort, anonymous pulls
+  included, so anyone on the LAN can ask the proxy to fetch from `bench-upstream`
+  (a pull of a name the proxy does not hold makes Nexus read the upstream). The
+  host of the bench upstream stays in `allowedDomains` of the SSRF protection
+  until the instance is reset; the protection itself stays on and no other host is
+  allowed. Both are consequences of the design, not changes to it (D158 (3), (4),
+  (13) in `docs/backlog.md`).
 - **Partial result on error.** `Provision` returns the `ProvisionResult` it had
   gathered together with the error. The command does not write the descriptor
   when `err != nil` (`TestDescriptorIsNotWrittenUnlessProvisionSucceeded`), or it
@@ -595,30 +745,37 @@ Known and accepted for a throw-away bench; none is fixed by this change.
 
 `internal/nexusbench/cmd/nexus-bench` is a `package main` of five files:
 `main.go` (`deps`, `defaultDeps`, `run`), `flags.go` (flags and parameter
-resolution), `commands.go` (`up`, `provision`, `down`, `render`), `status.go` and
+resolution), `commands.go` (`up`, `provision`, `down`, `seed`, `render`), `status.go` and
 `usage.go` (the help). `main()` only builds a context cancelled by SIGINT and
 SIGTERM, calls `run(ctx, args, os.Getenv, os.Stdout, os.Stderr, defaultDeps())`
 and exits with its code. `deps` holds every constructor and library call that
 reaches a cluster (`newRunner`, `newProber`, `clock`, `newStore`, `newInitial`,
-`preflight`, `deploy`, `provision`, `destroy`); `defaultDeps` wires
+`preflight`, `deploy`, `provision`, `destroy`) and, since NX-02a (DEVDESK-544),
+the doors of the seed and the reads of `status` (`newForwarder`, `newCopier`,
+`ensureUpstream`, `seed`, `readUpstream`, `readImages`); `defaultDeps` wires
 `NewExecRunner`, `NewProber`, `NewClock`, `NewFileStore`,
-`NewKubectlInitialPassword`, `RunPreflight`, `Deploy`, `Provision` and `Destroy`,
-and the tests wire fakes, so no test needs kubectl or a network.
+`NewKubectlInitialPassword`, `RunPreflight`, `Deploy`, `Provision`, `Destroy`,
+`NewExecPortForwarder`, `NewSkopeoCopier`, `EnsureUpstream`, `Seed`,
+`ReadUpstream` and `readImagesAnonymously` (which calls `ListImagesAnonymously`),
+and the tests wire fakes, so no test needs kubectl, skopeo or a network.
 
-**Tasks.** Six, in `mise.toml`, none reachable from `ci`, `check`, `test` or
+**Tasks.** Seven, in `mise.toml`, none reachable from `ci`, `check`, `test` or
 `test-race` (`mise_tasks_test.go` reads the file and checks it, and checks that
 `kubectl` is declared on each of them, not in the global `[tools]`, so the CI does
 not install it; kubectl `1.35`, because `datomir` runs k0s v1.36.x and kubectl is
 supported within one minor version of the API server, so 1.35 is the oldest
 accepted; `render` contacts no cluster and declares no kubectl, and the test
-requires its absence there). Arguments follow `--`: mise appends them to the
-command line.
+requires its absence there). `nexus-bench:seed` needs `skopeo` too, which is a
+tool of the host: mise does not install it, the task does not declare it, and its
+description says so (`TestMiseSeedTaskNamesSkopeoAsAPrerequisiteOfTheHost`).
+Arguments follow `--`: mise appends them to the command line.
 
 | Task | Runs | Acts on the cluster |
 |---|---|---|
 | `nexus-bench:up` | `go run ./internal/nexusbench/cmd/nexus-bench up` | yes |
 | `nexus-bench:provision` | `... provision` | yes (REST and `exec`) |
 | `nexus-bench:down` | `... down` | yes (deletes the namespace) |
+| `nexus-bench:seed` | `... seed` | yes (port-forward, REST reads, skopeo pushes); needs skopeo on the host |
 | `nexus-bench:status` | `... status` | reads only |
 | `nexus-bench:render` | `... render` | no, contacts nothing |
 | `nexus-bench:test` | `go test -timeout 60m -count=1 -run Integration ./internal/nexusbench/...` with `DEVDESK_NEXUS_BENCH=1` set by the task's `env` table (portable, no `env` command) | yes; the tests skip when `CI` is set |
@@ -627,9 +784,10 @@ command line.
 per `NEXUS_BENCH_*` variable: `--context`, `--namespace`, `--http-nodeport`,
 `--docker-nodeport`, `--cpu-request`, `--cpu-limit`, `--memory-request`,
 `--memory-limit`, `--storage-size`, `--jvm-opts`, `--image`, `--image-tag`,
-`--upstream-url`, `--anonymous`, `--hosts`, `--timeout`, `--delete-timeout`,
-`--secrets`, `--descriptor`. `up` and `provision` add `--accept-eula` and
-`--rest-host`. Each subcommand has its own `flag.FlagSet` (`ContinueOnError`,
+`--upstream-image`, `--upstream-image-tag`, `--upstream-url`, `--anonymous`,
+`--hosts`, `--timeout`, `--delete-timeout`, `--secrets`, `--descriptor`. `up`
+and `provision` add `--accept-eula` and `--rest-host`; `seed` adds `--rest-host`
+only (it provisions nothing, so there is no EULA to accept). Each subcommand has its own `flag.FlagSet` (`ContinueOnError`,
 output discarded: the command prints parse errors itself on stderr and `-h` on
 stdout). A flag is laid over its variable and the result goes through
 `FromEnv(Defaults(), ...)` once, so "flag, then `NEXUS_BENCH_*`, then default",
@@ -663,44 +821,138 @@ stand; another error prints its message. No output holds a password
 **`up`.** Resolve the parameters, then the secrets path
 (`--secrets`/`NEXUS_BENCH_SECRETS`, else `DefaultSecretsPath`; with no place for
 it the run stops before any cluster call and says to set
-`NEXUS_BENCH_SECRETS`), `newRunner`, `newStore` (the git guard), `Deploy` (which
-runs `RunPreflight(OpUp)` itself, so the command does not run a second one), then
-`Provision`, then the descriptor. **The descriptor is written only after a
-successful `Provision`**, never on a failure at any step, and a descriptor from
-an earlier run is left as it was. It is built with `BuildDescriptor(p,
-DeployResult, ProvisionResult)`.
+`NEXUS_BENCH_SECRETS`), `newRunner`, `newStore` (the git guard), then, when the
+bench deploys the upstream (`Params.UpstreamIsBench`), `newForwarder` and
+`newCopier`: everything that can refuse comes before the first write to the
+cluster, so a host without skopeo stops `up` before it deploys. Then, as D-J says,
+`Deploy` (which runs `RunPreflight(OpUp)` itself, so the command does not run a
+second one), `EnsureUpstream`, `Provision` (the proxy is created and joins the
+group), `Seed`, and the descriptor. **The descriptor is written only after all of
+them succeeded**, never on a failure at any step, and a descriptor from an earlier
+run is left as it was. It is built with `BuildDescriptor(p, DeployResult,
+ProvisionResult, SeedResult)`, the `SeedResult` being what `Seed` returned: the
+whole data set. With an upstream URL the bench did not deploy (a flag or
+`NEXUS_BENCH_UPSTREAM_URL`) there is nothing to scale and nothing to push to:
+`up` builds no door, calls neither `EnsureUpstream` nor `Seed`, prints `seed:
+skipped, NEXUS_BENCH_UPSTREAM_URL points at ...` on stdout, needs no skopeo, and
+describes an empty data set (the behavior of NX-01).
+
+**`seed`.** `newRunner`, `newStore`, `newForwarder`, `newCopier` (all before the
+cluster is touched), then the descriptor of the previous run is read, then
+`RunPreflight(OpSeed)`, `Seed`, and the descriptor again. `Seed` has no data of its
+own about Nexus: the version, the edition and the EULA consent are carried over
+from the descriptor of the previous run, and so are its **hosts**
+(`DeployResult{ReachableHosts: prev.Hosts}`), hence its `rest` and
+`dockerConnectors` URLs: the preflight of a seed does not read the node, so it
+has no address to give, and rebuilding the hosts from it would drop the node
+address `up` found. The file is not trusted for them: they go through the rule of
+`NEXUS_BENCH_HOSTS` (`ValidateDescriptorHosts`: an IP address or a host name of at
+most 253 characters) and a bound of 16 hosts, and a bad host stops the seed before
+any copy with a message that says to run `up` and does not repeat the host. Known
+limit: a syntactically valid host name passes, whether it is the node or not is not
+checked. `provision` never reads the hosts of the previous descriptor. Without a readable descriptor of schema 2 (missing, schema 1,
+not JSON), or with the descriptor of another bench (another namespace or another
+context), `seed` stops before any copy with a message that says to run `mise run
+nexus-bench:up`; the file is not touched. As for `up`, the descriptor is written
+only after a `Seed` that succeeded. `--rest-host` is accepted for a loopback
+address only (`127.0.0.1`, `::1`, `localhost`): any other host is refused before
+any dependency is built, with a message that says seed always goes through
+127.0.0.1 (the images and the credentials never leave the machine from `seed`).
+There is no `--accept-eula`. `seed` against an upstream URL
+the bench did not deploy is refused by `Seed` itself (`SeedFailed`); the command
+does not second-guess it.
+
+**Bounds on what Nexus returns (F3, F6).** The names of the components a message
+prints are quoted (`%q`, an escape sequence shows as text) and at most
+`maxSeedNamesShown` (5) are shown, the rest summed up as `and K more`
+(`shownNames`). `listComponents` reads at most `maxListedComponents` (5000)
+components in all; past it the listing is an error naming the bound and the
+number of components (`tooManyError`, a `ProvisionFailed` asking for a reset),
+with no partial result.
+
+**Accepted risks (single-user machines).** F4: the port-forward listens on a
+loopback port, which another local user could take between the choice of the port
+and the bind; F5: the skopeo authfile of the seed stays on disk if the process is
+killed with SIGKILL (it is removed on every other exit). Both assume a development
+machine with one user.
+
+**The seed deadline.** `Seed` gets a context that ends after `Params.Timeout`,
+counted from the start of the seed (not of `up`), so a copy over a port-forward
+that hangs cannot hang the command and the library does not have to remember it.
+A seed that outlasts it fails with exit `1`, a `Deadline` message naming the
+timeout (`--timeout`/`NEXUS_BENCH_TIMEOUT`) and no descriptor; the copies already
+made are kept and a second `seed` copies only what differs. A cancelled run keeps
+the plain `cancelled` message.
 
 **`provision`.** `RunPreflight(OpProvision)`, `Provision`, then the descriptor,
-built with `DeployResult{NodeIP: <node address of the preflight>}`.
+built with `DeployResult{NodeIP: <node address of the preflight>}`. It seeds
+nothing, but the data set is fixed in the code and `provision` touches neither the
+images nor the upstream, so it keeps the data set, **re-emitted from the code**
+(`Dataset()`), never copied from the file: the file's data set is compared to the
+code's, and counts only when it is the same bench (namespace, context and upstream
+URL unchanged) and it lists exactly that data set. For another bench, or a file
+that disagrees (another digest, an image added, removed or moved), the data set is empty and stdout says `provision: the descriptor now
+lists no data set; run mise run nexus-bench:seed` (without the hint when the
+upstream is not the bench's, since `seed` refuses it). A descriptor that is
+missing or of schema 1 has no data set to keep: the file is written with an empty
+one, with no line.
 
 **`down`.** `Destroy` (its own `RunPreflight(OpDown)` first). The descriptor is
 not touched or created.
 
 **`status`.** Read-only: `RunPreflight(OpStatus)` (a missing namespace is its
 `NamespaceMissing` error, exit `1`), one `kubectl get pods -l
-app.kubernetes.io/name=nexus -o json`, one probe of the REST origin, one read of
-the descriptor. Four lines, each a finding, exit `0`:
+app.kubernetes.io/name=nexus -o json`, one probe of the REST origin, the state of
+the upstream, one read of the descriptor and, when it can, two anonymous REST
+listings. Six lines, each a finding, exit `0`:
 
     bench: namespace nexus-bench, context datomir
     pod: running (nexus-xxx, 1/1 ready, 0 restarts)     | not found | pending ...
     rest: ready (http://127.0.0.1:30481)                 | not ready (the cause is not shown)
-    descriptor: matches (<path>) | not found (<path>) | differs from the current parameters (<path>) + one line per field
+    upstream: ready | cut (0 replicas) | starting (...) | missing (...) | not managed by the bench (...) | unknown (...)
+    descriptor: matches (<path>) | not found (<path>) | unreadable (<cause>) | differs from the current parameters (<path>) + one line per field
+    dataset: matches (<n> images) | differs (<n> image(s)) | unknown (<why>)
 
-The comparison covers context, namespace, image, both NodePorts, the upstream URL
-and the anonymous flag; hosts and versions come from the cluster and are left out.
+`upstream:` is `ReadUpstream` (deployment missing, cut, starting, ready); an
+upstream URL the bench did not deploy is `not managed by the bench` and nothing is
+read; a deployment that cannot be read is `unknown`, without the text of the
+failure. `dataset:` compares the data set the descriptor lists with the listings
+of `docker-hosted` (the hosted images) and `docker-proxy` (the images cached in the
+proxy): one difference per image that is missing, has another digest, or is in
+the listing and not in the data set (so `mirror/uncached` in the proxy counts). `matches (<n> images compared)` counts the images
+actually compared (the hosted ones and the ones cached in the proxy, not the whole
+data set).
+It is `unknown` when it cannot compare: no readable descriptor, a descriptor with
+no data set (the line sends to `seed` only when the upstream is the bench's),
+Nexus not answering, anonymous access off (`--anonymous=false`), a
+listing that fails or gives no digest. The listings come from
+`ListImagesAnonymously` (`GET /service/rest/v1/components?repository=<repo>`, the
+`continuationToken` followed, no `Authorization` header at all, on the loopback
+REST origin). `docker-group` is never listed (a read through it can cache an
+image, F9), skopeo is never started, no port is forwarded, nothing is written.
+
+The descriptor comparison covers context, namespace, image, both NodePorts, the
+upstream URL, the upstream image (`upstream image: descriptor ..., current ...`)
+and the anonymous flag; hosts and versions come from the cluster and are left out,
+and so is the dataset (the parameters know nothing of it; the `dataset:` line
+covers it). A schema 1 descriptor is `unreadable` with the message of
+`LoadDescriptor` (run `mise run nexus-bench:up`).
 It creates no store, builds no `InitialPassword` and sends no credential.
 
 **`render`.** Prints `Render(p)` and nothing else; it builds no dependency (the
 test runs it with an empty `deps`).
 
-**Where the credentials go.** `Provision` is given
-`RESTBaseURL("127.0.0.1", p)`, whatever hosts `Deploy` reached, so the admin and
-`bench-pull` passwords stay on the loopback by default. `--rest-host <host>`
+**Where the credentials go.** `Provision` and `Seed`
+are given `RESTBaseURL("127.0.0.1", p)`, whatever hosts `Deploy` reached, so the
+admin and `bench-pull` passwords stay on the loopback by default. `--rest-host <host>`
 (a host name, an IPv4 or IPv6 address, brackets and a zone allowed; no port,
 scheme, path, credentials or space, refused before any cluster call with exit
 `1`) sends them to that host instead, and unless it is a loopback address or
 `localhost` the command prints on stderr a warning that the credentials travel in
-clear text. `status` and the deployment wait probe without credentials.
+clear text. The flag moves the REST origin only: the images of the seed always go
+through `127.0.0.1` (the port-forward and the NodePort path), and the help of
+`--rest-host` says so (`up`, `provision`, `seed`). `status` and the deployment
+wait probe without credentials.
 
 **Non-default bench.** After writing the descriptor, if the parameters differ
 from `Defaults()` (any field but the two timeouts, the two paths, the EULA
@@ -764,18 +1016,23 @@ faulty and a correct source held in memory. A failure points at code that breaks
 the rule, not at a test to relax.
 
 1. *Every test that reaches the bench calls `requireBench(t)` first.* A call of
-   `NewExecRunner`, `DescriptorPath`, `DefaultSecretsPath` or `newClient` (unless
+   `NewExecRunner`, `NewExecPortForwarder`, `NewSkopeoCopier`, `DescriptorPath`,
+   `DefaultSecretsPath` or `newClient` (unless
    `newClient` is given the address of an `httptest` server) before the guard, or
    in a function without it, fails. Exceptions are named in
    `requireBenchExceptions`, with a `check` that verifies the reason in the
-   source (the PATH is isolated, the environment is a map); an exception that
+   source (the PATH is isolated by `installFakeKubectl` or `installHelperTool`, the
+   environment is a map, or, for the one test that runs the real skopeo, it starts
+   its own loopback `newFakeRegistry` and moves `HOME`); an exception that
    matches nothing fails too (`TestGuardExceptionsStillMatch`). Limit: calls are
    read by name in the test files of this folder; a call hidden behind a function
    value, or made by the tests of `cmd/nexus-bench` (which run on fakes), is not
    seen.
-2. *Only `kubectl.go` and `secrets.go` start a process* (`exec.Command` or
-   `CommandContext`, any import name, dot import refused): one door to the
-   cluster, one to `git check-ignore`. A listed file that no longer starts one
+2. *Only `kubectl.go`, `secrets.go` and `skopeo.go` start a process*
+   (`execAllowed`; `exec.Command` or `CommandContext`, any import name, dot
+   import refused): one door to the cluster (`kubectl.go`: the commands and the
+   port-forward), one to `git check-ignore`, one to the image registries
+   (`skopeo.go`). A listed file that no longer starts one
    must be dropped from the list. Limit: `syscall.Exec`, `os.StartProcess` and a
    process started by another package are not seen.
 3. *No Authorization header outside the client.* The word `authorization` (in an
@@ -860,8 +1117,351 @@ is `NotFound`, no PersistentVolume of the bench remains (`local-path` reclaims
 with `Delete`), `secrets.json` is removed (the empty `datomir` folder above it
 stays) and `descriptor.json` is unchanged.
 
+## Data set and OCI layout (`dataset.go`, `ocilayout.go`, DEVDESK-538)
+
+The images the bench holds are fixed in code (decision D-I of DEVDESK-505), in
+this order. `Dataset()` returns a copy of the table with `Digest` filled by the
+generator; the digests are never written by hand.
+
+| Image | `Location` | Role |
+|---|---|---|
+| `api:1.0.0`, `api:1.1.0` | `docker-hosted` | one-component name, two tags |
+| `team/api:1.0.0` | `docker-hosted` | two-component name |
+| `tools/cli:0.1.0` | `docker-hosted` | third hosted image |
+| `shared/base:1.0` | `docker-hosted` and `upstream` | same name and tag in both places, different contents and digests, so a read through the group says which member answered |
+| `mirror/cached:1.0` | `upstream`, `PullThrough` | pulled once through `docker-proxy`, so only in the proxy |
+| `mirror/uncached:1.0` | `upstream` | never pulled |
+
+`WriteLayout(dir, images)` writes an OCI image layout into an existing, empty
+directory (anything else is an error and nothing is written: the images are built in
+memory first) and returns the reference of each image, `img-01`, `img-02`, ...
+(a `:` would break skopeo's `oci:<dir>:<ref>` syntax). `imageDigest(img)` gives the
+manifest digest without writing. The bytes depend on `Name`, `Tag` and `Location`
+only (not on `Digest` or `PullThrough`), with the standard library alone:
+
+- one layer per image, an uncompressed tar (`application/vnd.oci.image.layer.v1.tar`),
+  entries in sorted order (`bench/`, `bench/<source>/`, `bench/<source>/<name>-<tag>.txt`,
+  `/` of the name replaced by `-`), USTAR, `ModTime` at the Unix epoch, uid/gid 0,
+  no owner names, modes 0755 (folders) and 0644 (file);
+- config `linux/amd64`, no `created`, label `org.devdesk.nexus-bench.source`
+  (`hosted` or `upstream`) under the key `config.Labels`, spelled as the image spec
+  does (`TestWriteLayoutConfigKeyIsLabelsAsTheImageSpecSpellsIt`), `rootfs.diff_ids` holding the layer digest;
+- OCI v1 manifest, `index.json` with `org.opencontainers.image.ref.name`, and the
+  `oci-layout` file (`1.0.0`); JSON written by `encoding/json` from structs, so the
+  key order is fixed.
+
+`testdata/dataset-digests.golden` holds one line per image
+(`name:tag<TAB>location<TAB>digest`), rewritten with
+`go test ./internal/nexusbench -run TestDatasetDigestsGolden -update`; a change of
+the generator moves every digest and shows in its diff.
+
+**H-LAYER fallback.** The constant `layerGzip` (`ocilayout.go`) is `false`. Setting
+it to `true` writes the layer with `compress/gzip` (no name, no date,
+`application/vnd.oci.image.layer.v1.tar+gzip`); the diff id stays the digest of the
+tar. The tests that pin the uncompressed layer (`TestWriteLayoutLayerIsAn...`,
+`TestWriteLayoutConfig`) and the golden then have to follow, and the digests depend on
+the `compress/gzip` output of the Go version.
+
+**Confirmed on the bench.** Nexus 3.98.1 accepts the uncompressed layer under
+`strictContentTypeValidation` (H-LAYER), skopeo with `--preserve-digests` pushes the
+layout to the upstream and to `docker-hosted` without changing a digest (H-PUSH), and
+`docker-proxy` keeps the upstream digest of `mirror/cached:1.0` on pull-through
+("Observed on the real bench (NX-02a)").
+
+## The two process doors: port-forward and skopeo (`kubectl.go`, `skopeo.go`, DEVDESK-539)
+
+NX-02 needs two more processes: a `kubectl port-forward` to reach the upstream
+registry Service from this machine, and `skopeo` to push the data set into it and
+into the bench Nexus. Both are started from one file each, and both are written so
+that a failure leaves no process and no secret behind.
+
+**Port-forward.** `PortForwarder.Forward(ctx, namespace, service, port)` runs
+`kubectl --context <c> -n <ns> port-forward svc/<service> :<port> --address
+127.0.0.1` (`NewExecPortForwarder`, `KubectlMissing` like `NewExecRunner`; the
+namespace and the Service name are checked against a DNS-like pattern first) and
+returns `127.0.0.1:<port>`, the port kubectl chose, with a `stop` function.
+
+- The address comes from `parseForwardingLine`, which accepts only
+  `Forwarding from 127.0.0.1:<port> -> ...` with a port from 1 to 65535; the IPv6
+  line kubectl prints as well, another address, and `127.0.0.1.evil.com` are
+  ignored. The wait is `portForwardTimeout` (15 s, a variable so a test can shorten
+  it); a `Deadline` `BenchError` after it.
+- One goroutine calls `cmd.Wait`, so kubectl is always reaped, whoever ended it.
+  `stop` kills the process and waits for that goroutine, any number of times
+  (`sync.Once`), and always returns nil. The cancellation of `ctx` kills kubectl
+  too (`exec.CommandContext`), whether `Forward` is still waiting (it kills, waits
+  and returns an error) or has returned. After every error path the process is
+  gone.
+- kubectl exiting before the line is a `BenchError` whose kind comes from
+  `classifyKubectl(stderr)`; the stderr (capped at 16 KiB) picks the kind and is
+  never put in a message.
+
+**skopeo.** `ImageCopier` has two methods, `Copy(ctx, src, dst, CopyOptions)` and
+`ManifestDigest(ctx, ref, creds)`; `ImageRef{Transport, Location}` is `oci`, `dir` or
+`docker` (the location of a docker reference has no `//`). `NewSkopeoCopier` finds
+skopeo on PATH (`SkopeoMissing`).
+
+- *Loopback only.* TLS verification is switched off (`--src-tls-verify=false`,
+  `--dest-tls-verify=false`, `--tls-verify=false`) for every docker reference and
+  for no other, so the host is the only protection: `checkSide` refuses, **before
+  anything is created or started**, a docker reference whose host is not one of
+  the two literals `127.0.0.1` and `[::1]` (an optional port), or that has no `/`
+  followed by a repository name: without one skopeo reads `localhost:5000` as an
+  image of docker.io, with TLS off. `localhost` is not accepted, it resolves
+  through the host's configuration. The host is the text before the first `/`,
+  parsed with `net.SplitHostPort` (never a prefix test), so `127.0.0.1@evil.com`,
+  `127.0.0.1.evil.com`, `127.0.0.1:5000@evil.com`, `localhost`, `localhost.evil.com`
+  and `evil.com/127.0.0.1:5000/x` are refused, as are a LAN address (the node
+  itself), an empty host and `127.0.0.1:5000/`. An unknown transport, and
+  credentials given for an `oci` or `dir` side, are refused the same way. The
+  `oci` and `dir` locations are paths and are not read as hosts.
+- *Credentials.* A side with no credentials gets `--src-no-creds` /
+  `--dest-no-creds` / `--no-creds`; a side with credentials gets `--*authfile
+  <file>`, a container auth file `{"auths":{"<host[:port]>":{"auth":"<base64
+  user:password>"}}}`. There is one file per side, so the credentials of one are
+  never offered to the other. No password is ever an argument (visible through
+  `/proc`) or an environment variable. `Credentials` implements `fmt.Formatter`
+  (every verb, `%d` and `%x` included, prints `Credentials{User: <redacted>,
+  Password: [REDACTED]}`), `String`, `GoString` and `slog.LogValuer`, and the
+  password has `json:"-"`.
+- *Working folder.* Each call makes `os.MkdirTemp` (`0700`), writes in it
+  `policy.json` (`{"default":[{"type":"insecureAcceptAnything"}]}`, given with
+  `--policy` before the subcommand; `--insecure-policy` is never used), an empty
+  `registries.conf` and the authentication files (`0600`), and `defer`s
+  `os.RemoveAll`. The folder is gone after a success, a skopeo failure and a
+  cancellation (the tests point `TMPDIR` at a folder and require it empty).
+- *Environment* (`skopeoEnvironment(registriesConf)`, modelled on
+  `gitEnvironment`): the caller's, without `HTTP_PROXY`, `HTTPS_PROXY`,
+  `ALL_PROXY`, `NO_PROXY` (any case), `REGISTRY_AUTH_FILE` and every `CONTAINERS_*`
+  variable, then `CONTAINERS_REGISTRIES_CONF=<the empty file>`, so no proxy,
+  mirror, login or policy of the host applies. Names are compared in upper case
+  (Windows). `HOME` and `PATH` are kept.
+- *Digest.* `ManifestDigest` runs `skopeo inspect --raw` (stdout capped at 4 MiB)
+  and computes the sha256 in Go, so the answer does not depend on anything skopeo
+  says about the manifest. `Copy` takes `--preserve-digests` from the options.
+- *Errors.* Always a `*BenchError`. The stderr of skopeo (capped at 64 KiB) only
+  picks the kind through `classifySkopeo` and is never in a message, nor is its
+  stdout; `Err` is the exit status of the process. A cancelled or expired context
+  is `Unclassified` or `Deadline`. `classifySkopeo` matches lower-cased fragments:
+  `connection refused`, `no such host`, `i/o timeout` give `RegistryUnreachable`;
+  `unauthorized`, `denied:` and `requested access to the resource is denied`
+  (a bare `permission denied` of a local folder is `Unclassified`),
+  `authentication required` (what skopeo 1.18.0 says to
+  a push without a login, found by the real-skopeo test) and a whole-word `403`
+  (a port like 40399 does not count) give `RegistryRefused`; `manifest unknown`
+  gives `SeedFailed`; anything else `Unclassified`.
+
+**Accepted risks of the two doors** (audit of DEVDESK-539, single-user development
+machine):
+
+- The loopback guard checks the host of the registry reference only. It does not
+  check the `realm` of a Bearer challenge a registry sends back, so a registry
+  could point skopeo at another host to fetch a token; the registries the bench
+  talks to are the bench's own (the upstream through the port-forward, the bench
+  Nexus), which do not do it.
+- A SIGKILL of the Go process skips the `defer`s and the context kill: a
+  `kubectl port-forward` can outlive it, and the temporary folder
+  (`/tmp/devdesk-skopeo-*`, `0700`, with an authentication file `0600` holding the
+  admin password while a call ran) can stay on disk. Nothing sweeps them; remove
+  them by hand.
+- While a port-forward lives, its `127.0.0.1:<port>` is reachable by every local
+  account, without credentials of the upstream (which is anonymous by design).
+- `policy.json` is `insecureAcceptAnything`: no signature is checked. It is
+  bounded by the loopback guard (only the bench's own registries are reached),
+  not by the policy.
+
+**Tests.** The two doors are tested with the "helper process" pattern
+(`helper_process_test.go`): a one-line shell shim named `kubectl` or `skopeo` is the
+only thing on PATH and re-runs the test binary, which records its arguments,
+environment and the files it was pointed at (authentication file, policy,
+`registries.conf`, read while they exist), answers as the test asked and exits or
+hangs. `TestSkopeoAgainstFakeRegistry` runs the real skopeo against
+`fakeregistry_test.go`, an in-process OCI registry on the loopback with an
+optional Basic challenge (skipped without skopeo): HTTP fallback, credentials from
+the authentication file, `--preserve-digests` byte for byte, and the error kinds.
+None of it needs the cluster or `requireBench`; the source guards (below) list why
+each such test is exempt.
+
+## The upstream lifecycle (`upstream.go`, DEVDESK-540)
+
+`UpstreamState` is `UpstreamMissing` < `UpstreamCut` < `UpstreamStarting` <
+`UpstreamReady`. Neither function runs a preflight: the callers do (`Deploy`,
+then the seed, `RunPreflight(OpSeed)`).
+
+`ReadUpstream(ctx, runner, p)` reads only: `get deployment bench-upstream -n <ns>
+-o json` (the object by name, never the list), then, when one replica is wanted,
+`get pods -n <ns> -l app.kubernetes.io/name=bench-upstream -o json`. A Deployment
+that is not there (`NotFound`) is Missing; zero replicas is Cut, even while an old
+pod is still terminating; otherwise a pod that is not terminating and whose `Ready`
+condition is `True` is Ready, else Starting (a pod that fails to pull is Starting,
+not an error: diagnosing is the wait's job). A failed read is a `*BenchError`
+classified like every other call.
+
+`EnsureUpstream(ctx, runner, clock, p, out)` reads first and writes at most once:
+
+| State read | Does |
+|---|---|
+| Missing | an error naming `bench-upstream` and `mise run nexus-bench:up` (`Deploy` applies the Deployment); no write |
+| Ready | nothing: no write, no wait |
+| Starting | no write; the wait |
+| Cut | `kubectl scale deployment/bench-upstream --replicas=1 -n <ns>` once (a failed scale is classified and not retried), then the wait |
+
+A custom upstream (`!p.UpstreamIsBench()`) is refused before any call, with an
+error that names `NEXUS_BENCH_UPSTREAM_URL`: the bench scales the upstream it
+deploys and nothing else. The wait is the one of `Deploy` without the hosts: a
+round (`round()`, shared) reads the pods of the upstream and the claim
+`bench-upstream-data`, diagnoses them with `upstreamWorkload()`, then ends on a
+ready pod, on the deadline (`Params.Timeout`, within one interval; a `Deadline`
+that cites the pod and names `NEXUS_BENCH_TIMEOUT`, or the pending reading that
+was still there) or sleeps `upstreamPollInterval` (2 s: a registry starts in
+seconds, and nothing is probed). A cancelled context is returned as is.
+`CutUpstream`, the recycling of the storage and the `OpCut`, `OpRestore` and
+`OpReset` preflights come with NX-02b.
+
+**Rights.** `up` gained, after its fourteen, patch `deployments/scale`, create
+`pods/portforward` and get `services` (namespace); `seed` asks get `deployments`,
+list `pods`, get `pods`, get `services`, create `pods/portforward` and patch
+`deployments/scale`. `kubectl port-forward svc/bench-upstream` fetches the Service,
+lists the pods of its selector, gets the pod it picks, then posts to
+`pods/portforward`: that is why `get services` and `get pods` are asked, on top of
+`list pods`.
+
+## The seed (`seed.go`, DEVDESK-542, NX-02a)
+
+`Seed(ctx, SeedDeps{Runner, Forwarder, Copier, Clock, Store}, baseURL, p, out)`
+puts the data set (D-I, `Dataset()`) in place and returns it as a `SeedResult`
+(digests filled, `PullThrough` true exactly for the images cached by
+`docker-proxy`). It never scales, applies or writes to Nexus (every request it
+sends is a `GET` as `admin`), and it runs no preflight: the caller does.
+
+**Order.**
+
+1. The stored credentials (`adminFromStore`, then the `bench-pull` password): a
+   missing one is `ProvisionFailed` that says to run `mise run nexus-bench:up`,
+   before any kubectl call or request.
+2. The upstream: a custom `NEXUS_BENCH_UPSTREAM_URL` is `SeedFailed` (the proxy
+   would not read what the seed pushes); then `ReadUpstream`: cut (`the upstream
+   is cut`, run `nexus-bench:restore-upstream`), missing (run `up`) and starting are
+   `SeedFailed` with no write and no copy. Bringing a cut upstream back is NX-02b.
+3. The OCI layout of the whole data set in a folder made under `TMPDIR`
+   (`os.MkdirTemp`), removed when Seed returns; the layout reference of an image is
+   its index in `Dataset()`, so the two `shared/base` images do not mix.
+4. One port-forward to `svc/bench-upstream:5000`, stopped by a `defer` on every
+   path. Seed checks itself that its address is `127.0.0.1:<port>` before any call
+   to the copier. The upstream images are pushed, in the order of `Dataset()`, with
+   no credentials; the forward is stopped before the next phase.
+5. The `docker-hosted` images, in order, with `admin` (`nexusImageRef`).
+6. The pull-through: the `PullThrough` images are copied from `docker-proxy` to a
+   throwaway `dir:` folder with `bench-pull`. `docker-proxy` is listed first by
+   REST; an image it lists is not pulled again unless the listed digest differs
+   from the data set's.
+7. The listings, by REST as `admin`: `docker-proxy` must hold exactly the
+   `PullThrough` images and `docker-hosted` exactly the hosted ones (name and tag
+   are enough: a component listed without a digest counts as present; a digest it
+   does list must be the one of the data set, else it is a failure). A missing one is
+   waited for, by `Clock`, 30 s at most (2 s polls, the same bound for both
+   repositories, H-COMPONENTS), then `SeedFailed`. A component outside the data set
+   fails at once, without waiting, with `<repo> holds images outside the dataset`
+   and `run mise run nexus-bench:reset`.
+
+**Idempotence.** An image is copied only when `ManifestDigest` at its destination
+differs from the digest of the data set. Absent means `errors.Is(err,
+errImageAbsent)`: `ManifestDigest` (through `inspectFailure`) puts that sentinel in
+the chain of its error only when `isImageAbsent(stderr)` proves the absence
+(`manifest unknown`, `name unknown`, `NAME_UNKNOWN`, `not found` or a whole-word
+`404`, any case) and the output is not one `classifySkopeo` reads as an unreachable
+or refusing registry (a refusal that quotes a 404 proves nothing). No manifest
+printed, a manifest above 4 MiB, an unreachable or refusing registry, an
+interrupted call and any unclassified output carry no sentinel: every other read
+error stops the seed. Every `Copy` carries
+`--preserve-digests`. A second run copies nothing (CA6).
+
+**F9.** `mirror/uncached` is never read through `docker-proxy` or `docker-group`:
+a read caches it, and only `reset` removes it. Seed pulls through the proxy only
+the `PullThrough` images and never reads the group.
+
+**Credentials.** None for the upstream, `admin` for `docker-hosted`, `bench-pull`
+for `docker-proxy`. No password reaches `out`, an error or an argv. Every failure
+is a `*BenchError`; a `*BenchError` of a door keeps its kind and gains the step
+(`copying api:1.0.0 to docker-hosted: ...`), any other error becomes an
+`Unclassified` one that keeps the cause for `errors.Is` and prints none of it. A
+cancelled context is returned as is (`errors.Is(err, context.Canceled)`). Output
+lines start with `seed: `; a nil writer is accepted.
+
+**References.** `nexusImageRef(p, repository, img)` is the one place that builds
+`127.0.0.1:<HTTPNodePort>/<repository>/<name>:<tag>`; `upstreamImageRef(local,
+img)` builds `<local>/<name>:<tag>`.
+
+**Settled on the bench (step 12).** H-PATH, H-PUSH and H-COMPONENTS were checked on
+2026-11-17: see "Observed on the real bench (NX-02a)".
+
+## Observed on the real bench (NX-02a, datomir, 2026-11-17)
+
+Nexus `3.98.1-01` COMMUNITY (EULA accepted by the user beforehand), `registry:3.0.0`
+upstream, skopeo 1.18.0, `datomir` (k0s). The first two runs of `up` stopped, on the SSRF protection and on the path
+routing (below); once both were fixed `up` ran to the end, and a further run copied
+nothing and left `descriptor.json` unchanged byte for byte (CA6); `nexus-bench:status` is clean (`descriptor: matches`, `dataset:
+matches (6 images compared)`); the three read-only integration tests and
+`TestIntegrationDatasetAsDescribed` pass against the bench.
+
+| Hypothesis | Verdict | Evidence |
+|---|---|---|
+| H-PATH docker-hosted and docker-proxy answer by path on 8081 | **false by default, true with `docker.pathEnabled: true`** | `GET /repositories/docker/hosted/docker-hosted` shows `docker.pathEnabled: null`; `GET /v2/`, `/v2/docker-hosted/` answer 404 on 30481 and skopeo stops on `pinging container registry ... StatusCode: 404`. After a `PUT` with `pathEnabled: true` on the hosted and the proxy: `/v2/` 401, `/v2/docker-hosted/` 401, `/v2/docker-hosted/api/tags/list` 404 (unknown image) and the push works. The swagger documents the field (`DockerAttributes.pathEnabled`: "Allows to use repository name in Docker image paths"). Not a case for port connectors: `Provision` now sends the field (the fallback the plan foresaw) |
+| H-PUSH skopeo pushes to the hosted over HTTP with Basic | verified | `skopeo copy --preserve-digests --dest-tls-verify=false --dest-authfile` from the layout to `127.0.0.1:30481/docker-hosted/api:1.0.0` exits 0; `skopeo inspect --raw` back hashes to the digest of the data set |
+| H-LAYER uncompressed layer, deterministic digests | verified | the uncompressed `application/vnd.oci.image.layer.v1.tar` is accepted under `strictContentTypeValidation: true`; the eight manifest digests the registries serve are the ones of the golden (`status`: `dataset: matches`); `layerGzip` stays `false`, so the digests do not depend on the `compress/gzip` output (one Go version was used, the tar writer is the standard library's) |
+| H-PROXYHTTP the proxy accepts an `http://` upstream | verified | `docker-proxy` created with `http://bench-upstream.nexus-bench.svc.cluster.local:5000`; the pull-through of `mirror/cached:1.0` through it succeeds |
+| H-DNS the Nexus pod resolves the Service name | verified | same pull-through; the SSRF refusal itself said `Host resolves to ... 10.110.133.156`, so Nexus resolved the name |
+| H-UPRUN `registry:3.0.0` runs as UID 1000 on `local-path` | verified | pod Ready with `uid=1000 gid=1000`, pushes persist; idle 1m CPU, 19 Mi memory (requests 50m / 64Mi, limit 256Mi) |
+| H-SCALE `kubectl scale` needs `patch deployments/scale` | verified | `kubectl scale ... --dry-run=server -v=6` does `GET deployments/bench-upstream` then `PATCH deployments/bench-upstream/scale` |
+| H-COMPONENTS the listing shows the image once pushed or pulled | verified | see the bullet under "REST client and provisioning": nested names, manifest checksum = digest, no wait needed |
+| H-UNBLOCK, H-STALE, H-CUTDELAY, H-REPODEL | **not tested** | they need the cut, restore and reset of NX-02b, which this change does not implement; the upstream was never scaled |
+| H-SSRF (new) a proxy to a ClusterIP upstream is accepted | **false**, fixed | see below |
+
+**H-SSRF (not anticipated).** The first `up` stopped at the proxy: `400` on
+`proxy.remoteUrl`, and the Nexus log said `Proxy URL blocked: Host resolves to
+private/local IP address(es): 10.110.133.156 (private network address). To allow
+connections, update the SSRF protection settings via the API at
+/v1/security/ssrf-protection.` Nexus 3.98 logs `SsrfProtectionDefaultMigrationStep_2_120
+- New installation detected, enabling SSRF protection by default`. The endpoint is
+`GET`/`PUT /service/rest/v1/security/ssrf-protection` with
+`SsrfProtectionConfigurationXO {enabled (required), allowedIPs[], allowedDomains[]}`,
+both lists "allowed to bypass SSRF protection"; the instance starts with
+`enabled: true` and both lists empty. The narrowest setting is the domain of the
+bench upstream in `allowedDomains` (a Service name is stable, a ClusterIP is not):
+the protection stays on, no other host is allowed, and it was enough: the proxy was
+created at once. A domain match does not depend on the resolved address, so the
+Service can be recreated without touching the setting. Not tried: `allowedIPs`, the
+protection off. The decision is in D158 (13).
+
+**Measures.**
+
+- Time: a run of `up` on the seeded bench takes 1.7 s (`go run` included); the first
+  seed (four images to the hosted, one pull-through, three to the upstream) fits in
+  the 2.6 s of that run.
+- Nexus after the seed: 113m CPU and 1328 Mi memory (`kubectl top`), against 55m and
+  1257 Mi idle before NX-02.
+- What `maxNexusResponse` (`1 << 20`, `internal/registrymgr/nexus.go`) bounds is
+  `GET /service/rest/v1/repositories/<name>` (generic metadata) and the group
+  endpoint, not the catalog or the tags: on the bench the metadata of `docker-group`
+  is 173 bytes and of `docker-proxy` 276 bytes (the group endpoint answers 403
+  without an administrator account); the catalog (`maxCatalogPage`, `1 << 20`, in
+  `internal/oci`) through the group connector is 95 bytes for six names, a tag list
+  36 to 39 bytes; the REST component listings (not read by DevDesk) are 7516 bytes for
+  the five hosted images and 1452 bytes for the one cached image, that is about 1.5
+  KB per image, so `1 << 20` would hold roughly 700 images in a listing. The constant
+  is unchanged.
+- A catalog read through the group (or the proxy) lists `mirror/uncached` although
+  the proxy holds no component for it: Nexus forwards `_catalog` of a proxy to its
+  upstream. The components of `docker-proxy` stayed at `mirror/cached` alone after
+  that read, so it does not cache. What a name in the catalog means for NX-03 to
+  NX-05 is not "cached"; only the REST components say what the proxy holds.
+- `registry:3.0.0` logs at debug level by default (the readiness probe and the
+  traces fill the log); `REGISTRY_LOG_LEVEL` is not set by the manifest.
+
 ## Still to come
 
-NX-02 deploys the upstream (`bench-upstream` in the bench namespace); after it,
-`mise run nexus-bench:up` creates the proxy, puts it into the group, and the
-descriptor gets the proxy back (CA2 for the proxy; commit the new `descriptor.json`). This file grows with each step.
+The integration tests that cut the upstream and reset the bench, `cut-upstream`,
+`restore-upstream` and `reset` with their mise tasks, the preflights `OpCut`,
+`OpRestore` and `OpReset`, the proxy unblock and the repository deletion are NX-02b
+(DEVDESK-534); H-UNBLOCK, H-STALE, H-CUTDELAY and H-REPODEL are settled there. This
+file grows with each step.

@@ -2,6 +2,7 @@ package nexusbench
 
 import (
 	"reflect"
+	"strconv"
 	"strings"
 	"testing"
 	"time"
@@ -42,6 +43,8 @@ func TestDefaults(t *testing.T) {
 		{"StorageSize", p.StorageSize, "5Gi"},
 		{"Image", p.Image, "docker.io/sonatype/nexus3"},
 		{"ImageTag", p.ImageTag, "3.98.1"},
+		{"UpstreamImage", p.UpstreamImage, "docker.io/library/registry"},
+		{"UpstreamImageTag", p.UpstreamImageTag, "3.0.0"},
 		{
 			"JVMOpts", p.JVMOpts,
 			"-Xms1g -Xmx1g -XX:MaxDirectMemorySize=1g -Djava.util.prefs.userRoot=/nexus-data/javaprefs",
@@ -87,6 +90,43 @@ func TestImageRef(t *testing.T) {
 	}
 }
 
+func TestUpstreamImageRef(t *testing.T) {
+	tests := []struct {
+		name  string
+		image string
+		tag   string
+		want  string
+	}{
+		{"defaults", "", "", "docker.io/library/registry:3.0.0"},
+		{"other tag", "docker.io/library/registry", "3.0.1", "docker.io/library/registry:3.0.1"},
+		{"other image", "registry.example.org/team/registry", "1.2.3", "registry.example.org/team/registry:1.2.3"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			p := Defaults()
+			if tt.image != "" {
+				p.UpstreamImage = tt.image
+			}
+			if tt.tag != "" {
+				p.UpstreamImageTag = tt.tag
+			}
+			if got := p.UpstreamImageRef(); got != tt.want {
+				t.Errorf("UpstreamImageRef() = %q, want %q", got, tt.want)
+			}
+		})
+	}
+
+	// The upstream image is its own parameter: it never reads the Nexus image.
+	p := Defaults()
+	p.Image, p.ImageTag = "docker.io/sonatype/nexus3-custom", "9.9.9"
+	if got, want := p.UpstreamImageRef(), "docker.io/library/registry:3.0.0"; got != want {
+		t.Errorf("UpstreamImageRef() after changing the Nexus image = %q, want %q", got, want)
+	}
+	if got, want := p.ImageRef(), "docker.io/sonatype/nexus3-custom:9.9.9"; got != want {
+		t.Errorf("ImageRef() = %q, want %q", got, want)
+	}
+}
+
 func TestFromEnvNothingSetKeepsBase(t *testing.T) {
 	got, err := FromEnv(Defaults(), envFrom(nil))
 	if err != nil {
@@ -103,6 +143,26 @@ func TestFromEnvNothingSetKeepsBase(t *testing.T) {
 	}))
 	if err != nil {
 		t.Fatalf("FromEnv(empty values) error = %v", err)
+	}
+	if want := Defaults(); !reflect.DeepEqual(got, want) {
+		t.Errorf("FromEnv(empty values) = %#v, want the base %#v", got, want)
+	}
+}
+
+// An empty value reads as unset: it never blanks the upstream image of the base.
+func TestFromEnvEmptyUpstreamImageKeepsTheDefault(t *testing.T) {
+	got, err := FromEnv(Defaults(), envFrom(map[string]string{
+		"NEXUS_BENCH_UPSTREAM_IMAGE":     "",
+		"NEXUS_BENCH_UPSTREAM_IMAGE_TAG": "",
+	}))
+	if err != nil {
+		t.Fatalf("FromEnv(empty values) error = %v", err)
+	}
+	if want := "docker.io/library/registry"; got.UpstreamImage != want {
+		t.Errorf("UpstreamImage = %q, want the default %q", got.UpstreamImage, want)
+	}
+	if want := "3.0.0"; got.UpstreamImageTag != want {
+		t.Errorf("UpstreamImageTag = %q, want the default %q", got.UpstreamImageTag, want)
 	}
 	if want := Defaults(); !reflect.DeepEqual(got, want) {
 		t.Errorf("FromEnv(empty values) = %#v, want the base %#v", got, want)
@@ -150,6 +210,8 @@ func TestFromEnvOverrides(t *testing.T) {
 		{"NEXUS_BENCH_JVM_OPTS", "-Xms2g -Xmx2g", func(w *Params) { w.JVMOpts = "-Xms2g -Xmx2g" }},
 		{"NEXUS_BENCH_IMAGE", "docker.io/sonatype/nexus3-custom", func(w *Params) { w.Image = "docker.io/sonatype/nexus3-custom" }},
 		{"NEXUS_BENCH_IMAGE_TAG", "3.99.0", func(w *Params) { w.ImageTag = "3.99.0" }},
+		{"NEXUS_BENCH_UPSTREAM_IMAGE", "registry.example.org/team/registry", func(w *Params) { w.UpstreamImage = "registry.example.org/team/registry" }},
+		{"NEXUS_BENCH_UPSTREAM_IMAGE_TAG", "3.0.1", func(w *Params) { w.UpstreamImageTag = "3.0.1" }},
 		{"NEXUS_BENCH_UPSTREAM_URL", "http://upstream.example.org:5000", func(w *Params) { w.UpstreamURL = "http://upstream.example.org:5000" }},
 		{"NEXUS_BENCH_ANONYMOUS", "false", func(w *Params) { w.Anonymous = false }},
 		{"NEXUS_BENCH_ACCEPT_EULA", "yes", func(w *Params) { w.AcceptEULA = true }},
@@ -258,6 +320,8 @@ func TestValidateRefuses(t *testing.T) {
 		jvm     = "NEXUS_BENCH_JVM_OPTS"
 		image   = "NEXUS_BENCH_IMAGE"
 		tag     = "NEXUS_BENCH_IMAGE_TAG"
+		upImage = "NEXUS_BENCH_UPSTREAM_IMAGE"
+		upTag   = "NEXUS_BENCH_UPSTREAM_IMAGE_TAG"
 		upURL   = "NEXUS_BENCH_UPSTREAM_URL"
 		hosts   = "NEXUS_BENCH_HOSTS"
 		secrets = "NEXUS_BENCH_SECRETS"
@@ -344,6 +408,16 @@ func TestValidateRefuses(t *testing.T) {
 		{"image tag empty", tag, func(p *Params) { p.ImageTag = "" }},
 		{"image with a newline", image, func(p *Params) { p.Image = "docker.io/x\nfoo" }},
 		{"image in the zot registry", image, func(p *Params) { p.Image = "tvp-zot.incus:5000/x" }},
+		// Upstream image.
+		{"upstream image tag with a newline", upTag, func(p *Params) { p.UpstreamImageTag = "1\nfoo" }},
+		{"upstream image tag empty", upTag, func(p *Params) { p.UpstreamImageTag = "" }},
+		{"upstream image tag with a space", upTag, func(p *Params) { p.UpstreamImageTag = "3 0" }},
+		{"upstream image with a newline", upImage, func(p *Params) { p.UpstreamImage = "docker.io/x\nfoo" }},
+		{"upstream image empty", upImage, func(p *Params) { p.UpstreamImage = "" }},
+		{"upstream image with a space", upImage, func(p *Params) { p.UpstreamImage = "docker.io/library/reg istry" }},
+		{"upstream image in the zot registry", upImage, func(p *Params) { p.UpstreamImage = "tvp-zot.incus:5000/x" }},
+		{"upstream image in the zot registry, mixed case", upImage, func(p *Params) { p.UpstreamImage = "TVP-ZOT.incus:5000/x" }},
+		{"upstream image of 256 characters", upImage, func(p *Params) { p.UpstreamImage = "a" + strings.Repeat("b", 255) }},
 		// Upstream URL.
 		{"upstream ftp scheme", upURL, func(p *Params) { p.UpstreamURL = "ftp://x" }},
 		{"upstream without scheme", upURL, func(p *Params) { p.UpstreamURL = "bench-upstream:5000" }},
@@ -438,6 +512,8 @@ func TestEnvRefusals(t *testing.T) {
 		}},
 		{"memory limit 4G!", map[string]string{"NEXUS_BENCH_MEMORY_LIMIT": "4G!"}},
 		{"upstream ftp", map[string]string{"NEXUS_BENCH_UPSTREAM_URL": "ftp://x"}},
+		{"upstream image in the zot registry", map[string]string{"NEXUS_BENCH_UPSTREAM_IMAGE": "tvp-zot.incus:5000/x"}},
+		{"upstream image tag with a space", map[string]string{"NEXUS_BENCH_UPSTREAM_IMAGE_TAG": "3 0"}},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -457,6 +533,123 @@ func TestEnvImageInZotMentionsKyverno(t *testing.T) {
 	}
 	if !strings.Contains(strings.ToLower(err.Error()), "kyverno") {
 		t.Errorf("error %q does not mention the Kyverno policy", err)
+	}
+}
+
+// The same zot refusal applies to the upstream image, under the upstream
+// variable name, and with the reason.
+func TestEnvUpstreamImageInZotMentionsKyverno(t *testing.T) {
+	_, err := resolve(map[string]string{"NEXUS_BENCH_UPSTREAM_IMAGE": "tvp-zot.incus:5000/x"})
+	if err == nil {
+		t.Fatal("resolve(NEXUS_BENCH_UPSTREAM_IMAGE=tvp-zot.incus:5000/x) error = nil, want an error")
+	}
+	if !strings.Contains(err.Error(), "NEXUS_BENCH_UPSTREAM_IMAGE") {
+		t.Errorf("error %q does not name NEXUS_BENCH_UPSTREAM_IMAGE", err)
+	}
+	if !strings.Contains(strings.ToLower(err.Error()), "kyverno") {
+		t.Errorf("error %q does not mention the Kyverno policy", err)
+	}
+}
+
+// Sharing validateImage between the two images must not swap their variable
+// names: each error names its own variable and never the other one.
+func TestImageErrorsNameTheirOwnVariableOnly(t *testing.T) {
+	tests := []struct {
+		name    string
+		env     map[string]string
+		want    string
+		notWant string
+	}{
+		{"nexus image", map[string]string{"NEXUS_BENCH_IMAGE": "tvp-zot.incus:5000/x"}, "NEXUS_BENCH_IMAGE", "NEXUS_BENCH_UPSTREAM_IMAGE"},
+		{"nexus image tag", map[string]string{"NEXUS_BENCH_IMAGE_TAG": "bad tag"}, "NEXUS_BENCH_IMAGE_TAG", "NEXUS_BENCH_UPSTREAM_IMAGE"},
+		{"upstream image", map[string]string{"NEXUS_BENCH_UPSTREAM_IMAGE": "tvp-zot.incus:5000/x"}, "NEXUS_BENCH_UPSTREAM_IMAGE", "NEXUS_BENCH_IMAGE"},
+		{"upstream image tag", map[string]string{"NEXUS_BENCH_UPSTREAM_IMAGE_TAG": "bad tag"}, "NEXUS_BENCH_UPSTREAM_IMAGE_TAG", "NEXUS_BENCH_IMAGE"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			_, err := resolve(tt.env)
+			if err == nil {
+				t.Fatalf("resolve(%v) error = nil, want an error", tt.env)
+			}
+			if !strings.Contains(err.Error(), tt.want) {
+				t.Errorf("error %q does not name %s", err, tt.want)
+			}
+			if strings.Contains(err.Error(), tt.notWant) {
+				t.Errorf("error %q names %s, which is not the variable at fault", err, tt.notWant)
+			}
+		})
+	}
+}
+
+// UpstreamIsBench is true when the upstream URL is the one NX-02 deploys in the
+// namespace, and false once the user points the proxy somewhere else.
+func TestUpstreamIsBench(t *testing.T) {
+	tests := []struct {
+		name string
+		env  map[string]string
+		want bool
+	}{
+		{"defaults", nil, true},
+		{"namespace alone moves the URL with it", map[string]string{"NEXUS_BENCH_NAMESPACE": "nexus-bench-2"}, true},
+		{"custom URL", map[string]string{"NEXUS_BENCH_UPSTREAM_URL": "http://upstream.example.org:5000"}, false},
+		{"custom URL and another namespace", map[string]string{
+			"NEXUS_BENCH_NAMESPACE":    "nexus-bench-2",
+			"NEXUS_BENCH_UPSTREAM_URL": "http://upstream.example.org:5000",
+		}, false},
+		{"explicit URL that is the in-cluster one of the default namespace", map[string]string{
+			"NEXUS_BENCH_UPSTREAM_URL": "http://bench-upstream.nexus-bench.svc.cluster.local:5000",
+		}, true},
+		{"explicit in-cluster URL of another namespace", map[string]string{
+			"NEXUS_BENCH_UPSTREAM_URL": "http://bench-upstream.nexus-bench-2.svc.cluster.local:5000",
+		}, false},
+		{"another upstream image does not change it", map[string]string{"NEXUS_BENCH_UPSTREAM_IMAGE": "registry.example.org/team/registry"}, true},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			p, err := resolve(tt.env)
+			if err != nil {
+				t.Fatalf("resolve(%v) error = %v", tt.env, err)
+			}
+			if got := p.UpstreamIsBench(); got != tt.want {
+				t.Errorf("UpstreamIsBench() = %v for URL %q in namespace %q, want %v", got, p.UpstreamURL, p.Namespace, tt.want)
+			}
+		})
+	}
+
+	t.Run("a custom URL set on the Params directly", func(t *testing.T) {
+		p := Defaults()
+		p.UpstreamURL = "http://a:5000"
+		if p.UpstreamIsBench() {
+			t.Error("UpstreamIsBench() = true for a custom URL, want false")
+		}
+	})
+	t.Run("a namespace changed on the Params without the URL", func(t *testing.T) {
+		p := Defaults()
+		p.Namespace = "nexus-bench-2"
+		if p.UpstreamIsBench() {
+			t.Error("UpstreamIsBench() = true while the URL still points at the default namespace, want false")
+		}
+	})
+}
+
+// F1: the upstream URL fixes the Service name and port the manifests must
+// create, whatever the namespace.
+func TestUpstreamURLNamesTheBenchService(t *testing.T) {
+	for _, ns := range []string{defaultNamespace, "nexus-bench-2"} {
+		p := Defaults()
+		p.Namespace = ns
+		p.UpstreamURL = upstreamFor(ns)
+		// upstreamName and upstreamPort are what the rendered manifests create.
+		want := "http://" + upstreamName + "." + ns + ".svc.cluster.local:" + strconv.Itoa(upstreamPort)
+		if p.UpstreamURL != want {
+			t.Errorf("UpstreamURL for namespace %q = %q, want %q", ns, p.UpstreamURL, want)
+		}
+		if !p.UpstreamIsBench() {
+			t.Errorf("UpstreamIsBench() = false for %q", p.UpstreamURL)
+		}
+	}
+	if got := Defaults().UpstreamURL; got != "http://bench-upstream."+defaultNamespace+".svc.cluster.local:5000" {
+		t.Errorf("Defaults().UpstreamURL = %q", got)
 	}
 }
 
@@ -487,6 +680,8 @@ func TestValidateAccepts(t *testing.T) {
 		{"hosts, IPv4, IPv6 and a name", func(p *Params) { p.Hosts = []string{"127.0.0.1", "::1", "node-1.example.org"} }},
 		{"https upstream", func(p *Params) { p.UpstreamURL = "https://upstream.example.org:5000" }},
 		{"other image on Docker Hub", func(p *Params) { p.Image = "docker.io/sonatype/nexus3-custom" }},
+		{"other upstream image", func(p *Params) { p.UpstreamImage = "registry.example.org/team/registry" }},
+		{"other upstream image tag", func(p *Params) { p.UpstreamImageTag = "3.0.1" }},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {

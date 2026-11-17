@@ -10,11 +10,15 @@ const usageText = `nexus-bench: a disposable Nexus Community bench on a k0s clus
 Usage: nexus-bench <subcommand> [flags]
 
 Subcommands:
-  up         check the cluster, deploy the bench, wait for Nexus, provision it
-             and write the descriptor
+  up         check the cluster, deploy the bench and its upstream registry, wait
+             for Nexus, provision it, seed the data set with skopeo and write
+             the descriptor
   provision  provision a running Nexus again (idempotent) and write the descriptor
   down       delete the bench namespace and wait until it is gone
-  status     read the cluster and say how the bench is doing (changes nothing)
+  seed       put the data set in a bench that up provisioned (needs skopeo on
+             this machine, which mise does not install) and write the descriptor
+  status     read the cluster and say how the bench is doing: pod, REST, upstream,
+             descriptor, data set (changes nothing)
   render     print the manifests (contacts nothing)
   help       print this text
 
@@ -39,10 +43,11 @@ func printUsage(w io.Writer) {
 
 // subcommandSummary is the line each subcommand help starts with.
 var subcommandSummary = map[string]string{
-	"up":        "Check the cluster, deploy the bench, wait for Nexus, provision it and write the descriptor.",
+	"up":        "Check the cluster, deploy the bench and its upstream, wait for Nexus, provision it, seed the data set and write the descriptor. Seeding needs skopeo on this machine (mise does not install it) unless NEXUS_BENCH_UPSTREAM_URL points at an upstream of your own.",
 	"provision": "Provision a running Nexus again (idempotent) and write the descriptor.",
 	"down":      "Delete the bench namespace, wait until it is gone, then remove its stored passwords.",
-	"status":    "Read the cluster and the descriptor and report; nothing is changed.",
+	"seed":      "Put the data set in a bench that up provisioned (images in docker-hosted and in the upstream, one pulled through docker-proxy) and write the descriptor. Needs skopeo on this machine; mise does not install it.",
+	"status":    "Read the cluster and the descriptor and report the pod, REST, upstream and data set; nothing is changed.",
 	"render":    "Print the manifests for these parameters; the cluster is not contacted.",
 }
 

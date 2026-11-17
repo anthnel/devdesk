@@ -31,8 +31,23 @@ func sampleProvision() ProvisionResult {
 	return ProvisionResult{NexusVersion: sampleNexusVersion, Edition: "COMMUNITY", EULAAccepted: true}
 }
 
+// sampleSeed is the result of a complete seed: the whole data set, in order.
+func sampleSeed() SeedResult { return SeedResult{Images: Dataset()} }
+
 func sampleDescriptor() Descriptor {
-	return BuildDescriptor(Defaults(), sampleDeploy(), sampleProvision())
+	return BuildDescriptor(Defaults(), sampleDeploy(), sampleProvision(), sampleSeed())
+}
+
+// wantDescriptorDataset is the dataset section of a descriptor for images: the same
+// order, cachedInProxy is PullThrough.
+func wantDescriptorDataset(images []DatasetImage) []DescriptorImage {
+	out := make([]DescriptorImage, 0, len(images))
+	for _, img := range images {
+		out = append(out, DescriptorImage{
+			Name: img.Name, Tag: img.Tag, Digest: img.Digest, Location: string(img.Location), CachedInProxy: img.PullThrough,
+		})
+	}
+	return out
 }
 
 func boolPtr(b bool) *bool { return &b }
@@ -53,7 +68,7 @@ func TestBuildDescriptorDefaults(t *testing.T) {
 	d := sampleDescriptor()
 
 	want := Descriptor{
-		SchemaVersion: 1,
+		SchemaVersion: 2,
 		KubeContext:   "datomir",
 		Namespace:     "nexus-bench",
 		Image:         "docker.io/sonatype/nexus3:3.98.1",
@@ -84,6 +99,12 @@ func TestBuildDescriptorDefaults(t *testing.T) {
 			},
 			{UserID: "anonymous", Enabled: boolPtr(true), Roles: []string{"nx-anonymous"}, Purpose: "anonymous access"},
 		},
+		RegistryAccess: RegistryAccess{Scheme: "http", TLSVerify: false, Routing: "path"},
+		Upstream: DescriptorUpstream{
+			Service: "bench-upstream", Image: "docker.io/library/registry:3.0.0",
+			URL: "http://bench-upstream.nexus-bench.svc.cluster.local:5000", Persistent: true, Exposure: "port-forward",
+		},
+		Dataset: wantDescriptorDataset(Dataset()),
 	}
 	if !reflect.DeepEqual(d, want) {
 		t.Errorf("BuildDescriptor(Defaults(), ...) =\n%+v\nwant\n%+v", d, want)
@@ -134,6 +155,8 @@ func TestBuildDescriptorFollowsParams(t *testing.T) {
 				p.DockerNodePort = 31001
 				p.Image = "registry.example/nexus"
 				p.ImageTag = "3.99.0"
+				p.UpstreamImage = "registry.example/registry"
+				p.UpstreamImageTag = "3.1.0"
 				p.Anonymous = false
 			},
 			deploy:    sampleDeploy(),
@@ -163,6 +186,9 @@ func TestBuildDescriptorFollowsParams(t *testing.T) {
 						t.Errorf("proxy remoteUrl = %q, want the custom upstream", r.RemoteURL)
 					}
 				}
+				if got := d.Upstream; got.Image != "registry.example/registry:3.1.0" || got.URL != "http://upstream.example:5000" {
+					t.Errorf("upstream = %+v, want the image and the URL of the parameters", got)
+				}
 				anon := findAccount(t, d, "anonymous")
 				if anon.Enabled == nil || *anon.Enabled {
 					t.Errorf("anonymous enabled = %v, want a present false", anon.Enabled)
@@ -174,9 +200,9 @@ func TestBuildDescriptorFollowsParams(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			p := Defaults()
 			tt.mutate(&p)
-			d := BuildDescriptor(p, tt.deploy, tt.provision)
-			if d.SchemaVersion != 1 {
-				t.Errorf("schemaVersion = %d, want 1", d.SchemaVersion)
+			d := BuildDescriptor(p, tt.deploy, tt.provision, sampleSeed())
+			if d.SchemaVersion != 2 {
+				t.Errorf("schemaVersion = %d, want 2", d.SchemaVersion)
 			}
 			if !reflect.DeepEqual(d.Hosts, tt.wantHosts) {
 				t.Errorf("hosts = %v, want %v", d.Hosts, tt.wantHosts)
@@ -189,7 +215,7 @@ func TestBuildDescriptorFollowsParams(t *testing.T) {
 func TestBuildDescriptorDoesNotAliasParams(t *testing.T) {
 	p := Defaults()
 	p.Hosts = []string{"10.0.0.5"}
-	d := BuildDescriptor(p, sampleDeploy(), sampleProvision())
+	d := BuildDescriptor(p, sampleDeploy(), sampleProvision(), sampleSeed())
 	p.Hosts[0] = "changed"
 	if d.Hosts[0] != "10.0.0.5" {
 		t.Errorf("the descriptor shares its Hosts slice with Params: hosts = %v", d.Hosts)
@@ -245,7 +271,7 @@ func TestDescriptorFormat(t *testing.T) {
 	text := string(data)
 
 	t.Run("indented by two spaces, one final newline", func(t *testing.T) {
-		if !strings.HasPrefix(text, "{\n  \"schemaVersion\": 1,\n") {
+		if !strings.HasPrefix(text, "{\n  \"schemaVersion\": 2,\n") {
 			t.Errorf("the file does not start with a two-space indented schemaVersion:\n%.80s", text)
 		}
 		if !strings.HasSuffix(text, "}\n") || strings.HasSuffix(text, "}\n\n") {
@@ -260,6 +286,7 @@ func TestDescriptorFormat(t *testing.T) {
 		want := []string{
 			"schemaVersion", "kubeContext", "namespace", "image", "nexusVersion", "edition",
 			"eulaAccepted", "hosts", "rest", "dockerConnectors", "repositories", "realms", "accounts",
+			"registryAccess", "upstream", "dataset",
 		}
 		if got := topLevelKeys(t, data); !reflect.DeepEqual(got, want) {
 			t.Errorf("top-level keys = %v, want %v", got, want)
@@ -333,7 +360,8 @@ func TestDescriptorRoundTrip(t *testing.T) {
 		d    Descriptor
 	}{
 		{"defaults", sampleDescriptor()},
-		{"custom", BuildDescriptor(custom, sampleDeploy(), ProvisionResult{NexusVersion: "3.99.0-02", Edition: "PRO"})},
+		{"custom", BuildDescriptor(custom, sampleDeploy(), ProvisionResult{NexusVersion: "3.99.0-02", Edition: "PRO"}, sampleSeed())},
+		{"no seed result", BuildDescriptor(Defaults(), sampleDeploy(), sampleProvision(), SeedResult{})},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -371,7 +399,7 @@ func TestDescriptorHoldsNoSecret(t *testing.T) {
 		t.Fatalf("Save: %v", err)
 	}
 
-	d := BuildDescriptor(p, sampleDeploy(), sampleProvision())
+	d := BuildDescriptor(p, sampleDeploy(), sampleProvision(), sampleSeed())
 	if err := WriteDescriptor(p.DescriptorPath, d); err != nil {
 		t.Fatalf("WriteDescriptor: %v", err)
 	}
@@ -404,9 +432,9 @@ func TestLoadDescriptorErrors(t *testing.T) {
 		content []byte
 		want    string // lower-case fragment the error must hold
 	}{
-		{"schemaVersion 2", bytes.Replace(good, []byte(`"schemaVersion": 1`), []byte(`"schemaVersion": 2`), 1), "schema"},
-		{"schemaVersion 0", bytes.Replace(good, []byte(`"schemaVersion": 1`), []byte(`"schemaVersion": 0`), 1), "schema"},
-		{"schemaVersion missing", bytes.Replace(good, []byte("  \"schemaVersion\": 1,\n"), nil, 1), "schema"},
+		{"schemaVersion 3", bytes.Replace(good, []byte(`"schemaVersion": 2`), []byte(`"schemaVersion": 3`), 1), "schema"},
+		{"schemaVersion 0", bytes.Replace(good, []byte(`"schemaVersion": 2`), []byte(`"schemaVersion": 0`), 1), "schema"},
+		{"schemaVersion missing", bytes.Replace(good, []byte("  \"schemaVersion\": 2,\n"), nil, 1), "schema"},
 		{"not JSON", []byte("{" + secretMarker + " nope"), ""},
 		{"empty file", nil, ""},
 	}

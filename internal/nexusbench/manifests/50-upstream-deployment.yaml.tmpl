@@ -1,0 +1,68 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: bench-upstream
+  namespace: {{ q .Namespace }}
+  labels:
+    app.kubernetes.io/name: bench-upstream
+    app.kubernetes.io/managed-by: devdesk-nexus-bench
+    app.kubernetes.io/part-of: devdesk-nexus-bench
+spec:
+  # The replica count is left out on purpose: kubectl scale owns it, so that
+  # cutting the upstream and putting it back is not undone by the next apply.
+  # One ReadWriteOnce volume: the old pod must release it before the new one starts.
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: bench-upstream
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: bench-upstream
+        app.kubernetes.io/managed-by: devdesk-nexus-bench
+        app.kubernetes.io/part-of: devdesk-nexus-bench
+    spec:
+      automountServiceAccountToken: false
+      enableServiceLinks: false
+      containers:
+        - name: registry
+          image: {{ q .UpstreamImage }}
+          env:
+            # Distribution v3 exports traces by default; the bench has no collector.
+            - name: OTEL_TRACES_EXPORTER
+              value: "none"
+          ports:
+            - name: registry
+              containerPort: 5000
+          resources:
+            requests:
+              cpu: "50m"
+              memory: "64Mi"
+            limits:
+              cpu: "500m"
+              memory: "256Mi"
+          securityContext:
+            runAsUser: 1000
+            runAsGroup: 1000
+            runAsNonRoot: true
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop:
+                - ALL
+            seccompProfile:
+              type: RuntimeDefault
+          volumeMounts:
+            - name: upstream-data
+              mountPath: /var/lib/registry
+          readinessProbe:
+            httpGet:
+              path: /v2/
+              port: registry
+            periodSeconds: 5
+            timeoutSeconds: 3
+            failureThreshold: 3
+      volumes:
+        - name: upstream-data
+          persistentVolumeClaim:
+            claimName: bench-upstream-data

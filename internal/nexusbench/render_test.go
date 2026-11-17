@@ -164,6 +164,7 @@ type rendered struct {
 	raw   []byte
 	nodes []*yaml.Node // the content of each document, in stream order
 	kinds []string
+	names []string // metadata.name of each document, in stream order
 }
 
 // decodeStream splits a multi-document stream and decodes each document. A
@@ -190,55 +191,83 @@ func decodeStream(t *testing.T, raw []byte) rendered {
 		}
 		r.nodes = append(r.nodes, doc.Content[0])
 		r.kinds = append(r.kinds, o.Kind)
+		r.names = append(r.names, o.Metadata.Name)
 	}
 	return r
 }
 
-// of decodes the only document of the given kind into out and returns its index.
-func (r rendered) of(t *testing.T, kind string, out any) {
+// index returns the position of the document of the given kind and name. An
+// empty name asks for the only document of that kind. The bench renders two
+// PersistentVolumeClaims, two Deployments and two Services (Nexus and its
+// upstream), so a helper that does not say which one it wants is a mistake.
+func (r rendered) index(t *testing.T, kind, name string) int {
 	t.Helper()
 	found := -1
 	for i, k := range r.kinds {
-		if k == kind {
-			if found >= 0 {
-				t.Fatalf("two documents of kind %s", kind)
-			}
-			found = i
+		if k != kind || (name != "" && r.names[i] != name) {
+			continue
 		}
+		if found >= 0 {
+			t.Fatalf("two documents of kind %s named %q", kind, name)
+		}
+		found = i
 	}
 	if found < 0 {
-		t.Fatalf("no document of kind %s in %v", kind, r.kinds)
+		t.Fatalf("no document of kind %s named %q in %v %v", kind, name, r.kinds, r.names)
 	}
-	if err := r.nodes[found].Decode(out); err != nil {
-		t.Fatalf("decode %s: %v", kind, err)
+	return found
+}
+
+// of decodes the document of the given kind and name into out.
+func (r rendered) of(t *testing.T, kind, name string, out any) {
+	t.Helper()
+	if err := r.nodes[r.index(t, kind, name)].Decode(out); err != nil {
+		t.Fatalf("decode %s %s: %v", kind, name, err)
 	}
 }
 
-func (r rendered) pvc(t *testing.T) pvcObject {
+// text is one document written back as YAML without its comments, so a test can
+// look for a word in the object and not in what the template says around it.
+func (r rendered) text(t *testing.T, kind, name string) string {
+	t.Helper()
+	out, err := yaml.Marshal(r.nodes[r.index(t, kind, name)])
+	if err != nil {
+		t.Fatalf("encode %s %s: %v", kind, name, err)
+	}
+	return string(out)
+}
+
+func (r rendered) pvc(t *testing.T) pvcObject { return r.pvcNamed(t, "nexus-data") }
+
+func (r rendered) pvcNamed(t *testing.T, name string) pvcObject {
 	t.Helper()
 	var o pvcObject
-	r.of(t, "PersistentVolumeClaim", &o)
+	r.of(t, "PersistentVolumeClaim", name, &o)
 	return o
 }
 
-func (r rendered) deployment(t *testing.T) deploymentObject {
+func (r rendered) deployment(t *testing.T) deploymentObject { return r.deploymentNamed(t, "nexus") }
+
+func (r rendered) deploymentNamed(t *testing.T, name string) deploymentObject {
 	t.Helper()
 	var o deploymentObject
-	r.of(t, "Deployment", &o)
+	r.of(t, "Deployment", name, &o)
 	return o
 }
 
-func (r rendered) service(t *testing.T) serviceObject {
+func (r rendered) service(t *testing.T) serviceObject { return r.serviceNamed(t, "nexus") }
+
+func (r rendered) serviceNamed(t *testing.T, name string) serviceObject {
 	t.Helper()
 	var o serviceObject
-	r.of(t, "Service", &o)
+	r.of(t, "Service", name, &o)
 	return o
 }
 
 func (r rendered) namespace(t *testing.T) object {
 	t.Helper()
 	var o object
-	r.of(t, "Namespace", &o)
+	r.of(t, "Namespace", "", &o)
 	return o
 }
 
@@ -268,11 +297,30 @@ func customParams() Params {
 	p.MemoryLimit = "5Gi"
 	p.StorageSize = "7Gi"
 	p.JVMOpts = "-Xms512m -Xmx512m -XX:MaxDirectMemorySize=768m"
+	p.UpstreamImage = "registry.example.com/team/registry"
+	p.UpstreamImageTag = "3.0.1"
 	return p
 }
 
-// Every object this package renders, in the order Render writes them.
-var wantKinds = []string{"Namespace", "PersistentVolumeClaim", "Deployment", "Service"}
+// Every object this package renders, in the order Render writes them: the
+// Namespace, the Nexus objects, then the upstream registry's.
+var (
+	wantKinds = []string{
+		"Namespace",
+		"PersistentVolumeClaim", "Deployment", "Service",
+		"PersistentVolumeClaim", "Deployment", "Service",
+	}
+	wantNames = []string{
+		"", // the Namespace carries the parameter, not a fixed name
+		"nexus-data", "nexus", "nexus",
+		upstreamName + "-data", upstreamName, upstreamName,
+	}
+)
+
+const (
+	upstreamName = "bench-upstream"
+	upstreamPort = 5000
+)
 
 func TestRenderGolden(t *testing.T) {
 	got, err := Render(Defaults())
@@ -324,7 +372,7 @@ func TestRenderIgnoresParamsTheManifestsDoNotCarry(t *testing.T) {
 	}
 	p := Defaults()
 	p.Context = "other-context"
-	p.UpstreamURL = "https://upstream.example.com:5000"
+	p.UpstreamURL = "https://upstream.example.com:5000" // a URL changes no manifest, even with the upstream deployed
 	p.Anonymous = false
 	p.AcceptEULA = true
 	p.Hosts = []string{"10.0.0.1", "node.example.com"}
@@ -347,6 +395,14 @@ func TestRenderStream(t *testing.T) {
 			r := mustRender(t, p)
 			if !reflect.DeepEqual(r.kinds, wantKinds) {
 				t.Fatalf("kinds = %v, want %v (Namespace first)", r.kinds, wantKinds)
+			}
+			for i, want := range wantNames {
+				if want == "" {
+					want = p.Namespace
+				}
+				if r.names[i] != want {
+					t.Errorf("document %d (%s) is named %q, want %q", i, r.kinds[i], r.names[i], want)
+				}
 			}
 			for i, n := range r.nodes {
 				var o object
@@ -450,19 +506,20 @@ func TestRenderNothingSensitive(t *testing.T) {
 					t.Errorf("the render holds a %s", kind)
 				}
 			}
-			d := r.deployment(t)
-			for _, v := range d.Spec.Template.Spec.Volumes {
-				if v.Secret != nil || v.ConfigMap != nil || v.HostPath != nil {
-					t.Errorf("volume %s is a secret, a ConfigMap or a hostPath", v.Name)
+			for _, d := range []deploymentObject{r.deployment(t), r.deploymentNamed(t, upstreamName)} {
+				for _, v := range d.Spec.Template.Spec.Volumes {
+					if v.Secret != nil || v.ConfigMap != nil || v.HostPath != nil {
+						t.Errorf("%s: volume %s is a secret, a ConfigMap or a hostPath", d.Metadata.Name, v.Name)
+					}
 				}
-			}
-			for _, c := range allContainers(d) {
-				if len(c.EnvFrom) != 0 {
-					t.Errorf("container %s reads its environment from a source (envFrom)", c.Name)
-				}
-				for _, e := range c.Env {
-					if e.ValueFrom.Kind != 0 {
-						t.Errorf("container %s: env %s comes from valueFrom", c.Name, e.Name)
+				for _, c := range allContainers(d) {
+					if len(c.EnvFrom) != 0 {
+						t.Errorf("%s: container %s reads its environment from a source (envFrom)", d.Metadata.Name, c.Name)
+					}
+					for _, e := range c.Env {
+						if e.ValueFrom.Kind != 0 {
+							t.Errorf("%s: container %s: env %s comes from valueFrom", d.Metadata.Name, c.Name, e.Name)
+						}
 					}
 				}
 			}
@@ -783,7 +840,7 @@ func TestRenderCarriesNonDefaultValues(t *testing.T) {
 	r := mustRender(t, p)
 	text := string(r.raw)
 
-	for _, leftover := range []string{"30481", "30482", "docker.io/sonatype", "3.98.1", "-Xms1g", "javaprefs", "3Gi", "4Gi"} {
+	for _, leftover := range []string{"30481", "30482", "docker.io/sonatype", "3.98.1", "-Xms1g", "javaprefs", "3Gi", "4Gi", "docker.io/library/registry", "3.0.0"} {
 		if strings.Contains(text, leftover) {
 			t.Errorf("the render still holds the default %q", leftover)
 		}
@@ -814,6 +871,7 @@ func TestRenderQuotesEveryValue(t *testing.T) {
 	values := []string{
 		p.Namespace, p.ImageRef(), p.JVMOpts,
 		p.CPURequest, p.CPULimit, p.MemoryRequest, p.MemoryLimit, p.StorageSize,
+		p.UpstreamImageRef(),
 	}
 	for _, v := range values {
 		occurrences := 0
@@ -908,6 +966,8 @@ func TestRenderRefusesInvalidParams(t *testing.T) {
 		{"same NodePort twice", func(p *Params) { p.DockerNodePort = p.HTTPNodePort }, "NEXUS_BENCH_HTTP_NODEPORT"},
 		{"NodePort out of range", func(p *Params) { p.HTTPNodePort = 8081 }, "NEXUS_BENCH_HTTP_NODEPORT"},
 		{"image from the zot registry", func(p *Params) { p.Image = "tvp-zot.incus:5000/nexus3" }, "NEXUS_BENCH_IMAGE"},
+		{"upstream image from the zot registry", func(p *Params) { p.UpstreamImage = "tvp-zot.incus:5000/library/registry" }, "NEXUS_BENCH_UPSTREAM_IMAGE"},
+		{"upstream image tag with a space", func(p *Params) { p.UpstreamImageTag = "3.0 0" }, "NEXUS_BENCH_UPSTREAM_IMAGE_TAG"},
 		{"image tag with a space", func(p *Params) { p.ImageTag = "3.98 1" }, "NEXUS_BENCH_IMAGE_TAG"},
 		{"empty JVM options", func(p *Params) { p.JVMOpts = "" }, "NEXUS_BENCH_JVM_OPTS"},
 		{"JVM options with a newline", func(p *Params) { p.JVMOpts = "-Xmx1g\n  - name: x" }, "NEXUS_BENCH_JVM_OPTS"},
@@ -947,5 +1007,359 @@ func TestRenderRefusesInvalidParams(t *testing.T) {
 				t.Errorf("RenderNamespace returned %d bytes next to an error, want none", len(raw))
 			}
 		})
+	}
+}
+
+// The tests below pin the upstream registry the bench deploys next to Nexus
+// (DEVDESK-505, step 2): a PVC, a Deployment and a ClusterIP Service, all named
+// bench-upstream.
+
+// upstreamObjectName is the name of the upstream object of the given kind.
+func upstreamObjectName(kind string) string {
+	if kind == "PersistentVolumeClaim" {
+		return upstreamName + "-data"
+	}
+	return upstreamName
+}
+
+func TestRenderUpstreamLabels(t *testing.T) {
+	for name, p := range map[string]Params{"defaults": Defaults(), "custom": customParams()} {
+		t.Run(name, func(t *testing.T) {
+			r := mustRender(t, p)
+			if len(r.nodes) != len(wantKinds) {
+				t.Fatalf("%d documents, want %d: %v", len(r.nodes), len(wantKinds), r.kinds)
+			}
+			for i, n := range r.nodes {
+				var o object
+				if err := n.Decode(&o); err != nil {
+					t.Fatal(err)
+				}
+				for _, key := range []string{labelManagedBy, labelPartOf} {
+					if got := o.Metadata.Labels[key]; got != benchLabel {
+						t.Errorf("document %d (%s %s): label %s = %q, want %q", i, o.Kind, o.Metadata.Name, key, got, benchLabel)
+					}
+				}
+			}
+			for _, kind := range []string{"PersistentVolumeClaim", "Deployment", "Service"} {
+				var o object
+				r.of(t, kind, upstreamObjectName(kind), &o)
+				if got := o.Metadata.Labels[labelName]; got != upstreamName {
+					t.Errorf("%s: label %s = %q, want %s", kind, labelName, got, upstreamName)
+				}
+			}
+			d := r.deploymentNamed(t, upstreamName)
+			for _, key := range []string{labelManagedBy, labelPartOf} {
+				if got := d.Spec.Template.Metadata.Labels[key]; got != benchLabel {
+					t.Errorf("pod template label %s = %q, want %q", key, got, benchLabel)
+				}
+			}
+		})
+	}
+}
+
+func TestRenderUpstreamPVC(t *testing.T) {
+	for name, p := range map[string]Params{"defaults": Defaults(), "custom": customParams()} {
+		t.Run(name, func(t *testing.T) {
+			pvc := mustRender(t, p).pvcNamed(t, upstreamName+"-data")
+			if !reflect.DeepEqual(pvc.Spec.AccessModes, []string{"ReadWriteOnce"}) {
+				t.Errorf("accessModes = %v, want [ReadWriteOnce]", pvc.Spec.AccessModes)
+			}
+			// 1Gi whatever NEXUS_BENCH_STORAGE_SIZE says: that one sizes Nexus.
+			if got := pvc.Spec.Resources.Requests["storage"]; got != "1Gi" {
+				t.Errorf("storage request = %q, want 1Gi (not the Nexus size %q)", got, p.StorageSize)
+			}
+			if pvc.Spec.StorageClassName != nil {
+				t.Errorf("storageClassName = %q, want it absent", *pvc.Spec.StorageClassName)
+			}
+			if pvc.Spec.VolumeName != "" {
+				t.Errorf("volumeName = %q, want it absent", pvc.Spec.VolumeName)
+			}
+		})
+	}
+}
+
+// TestRenderUpstreamDeploymentDoesNotWriteReplicas pins F5: the Deployment of the
+// upstream leaves spec.replicas out, so that kubectl scale (cut and restore) owns
+// the field and a server-side apply of the whole stream neither conflicts with it
+// nor puts the upstream back by itself. Nexus keeps its replicas: 1.
+func TestRenderUpstreamDeploymentDoesNotWriteReplicas(t *testing.T) {
+	for name, p := range map[string]Params{"defaults": Defaults(), "custom": customParams()} {
+		t.Run(name, func(t *testing.T) {
+			r := mustRender(t, p)
+			up := r.deploymentNamed(t, upstreamName)
+			if up.Spec.Replicas != nil {
+				t.Errorf("the upstream Deployment writes replicas = %d, want the field absent", *up.Spec.Replicas)
+			}
+			if text := r.text(t, "Deployment", upstreamName); strings.Contains(text, "replicas") {
+				t.Errorf("the upstream Deployment mentions replicas:\n%s", text)
+			}
+			nexus := r.deployment(t)
+			if nexus.Spec.Replicas == nil || *nexus.Spec.Replicas != 1 {
+				t.Errorf("the nexus Deployment writes replicas = %v, want 1", nexus.Spec.Replicas)
+			}
+		})
+	}
+}
+
+func TestRenderUpstreamDeploymentShape(t *testing.T) {
+	for name, p := range map[string]Params{"defaults": Defaults(), "custom": customParams()} {
+		t.Run(name, func(t *testing.T) {
+			r := mustRender(t, p)
+			d := r.deploymentNamed(t, upstreamName)
+			spec := d.Spec
+			pod := spec.Template.Spec
+
+			if spec.Strategy.Type != "Recreate" {
+				t.Errorf("strategy.type = %q, want Recreate (one ReadWriteOnce volume)", spec.Strategy.Type)
+			}
+			if spec.Strategy.RollingUpdate.Kind != 0 {
+				t.Error("strategy.rollingUpdate is set next to Recreate: Kubernetes refuses it")
+			}
+			if got := spec.Selector.MatchLabels[labelName]; got != upstreamName {
+				t.Errorf("selector %s = %q, want %s", labelName, got, upstreamName)
+			}
+			for k, v := range spec.Selector.MatchLabels {
+				if got := spec.Template.Metadata.Labels[k]; got != v {
+					t.Errorf("the selector asks %s=%s but the pods carry %q", k, v, got)
+				}
+			}
+			if pod.AutomountServiceAccountToken == nil || *pod.AutomountServiceAccountToken {
+				t.Errorf("automountServiceAccountToken = %v, want false", pod.AutomountServiceAccountToken)
+			}
+			if pod.EnableServiceLinks == nil || *pod.EnableServiceLinks {
+				t.Errorf("enableServiceLinks = %v, want false", pod.EnableServiceLinks)
+			}
+			if len(pod.InitContainers) != 0 || len(pod.Containers) != 1 {
+				t.Fatalf("%d init containers and %d containers, want 0 and 1", len(pod.InitContainers), len(pod.Containers))
+			}
+			c := pod.Containers[0]
+
+			if c.Image != p.UpstreamImageRef() {
+				t.Errorf("image = %q, want %q", c.Image, p.UpstreamImageRef())
+			}
+			if strings.HasPrefix(strings.ToLower(c.Image), zotRegistry) {
+				t.Errorf("image %q is in %s, where unsigned images are refused", c.Image, zotRegistry)
+			}
+			if len(c.Ports) != 1 || c.Ports[0].ContainerPort != upstreamPort {
+				t.Errorf("container ports = %+v, want the single port %d", c.Ports, upstreamPort)
+			}
+
+			// Distribution v3 traces by default; the bench turns it off.
+			traces := 0
+			for _, e := range c.Env {
+				if e.Name == "OTEL_TRACES_EXPORTER" {
+					traces++
+					if e.Value.Value != "none" || e.Value.Tag != "!!str" {
+						t.Errorf("OTEL_TRACES_EXPORTER = %q (%s), want the string none", e.Value.Value, e.Value.Tag)
+					}
+				}
+			}
+			if traces != 1 {
+				t.Errorf("OTEL_TRACES_EXPORTER is set %d times, want once", traces)
+			}
+
+			// The data volume is the upstream's own claim, not the one of Nexus.
+			mounted := false
+			for _, m := range c.VolumeMounts {
+				for _, v := range pod.Volumes {
+					if v.Name == m.Name && v.PersistentVolumeClaim != nil && v.PersistentVolumeClaim.ClaimName == upstreamName+"-data" {
+						mounted = true
+					}
+				}
+			}
+			if !mounted {
+				t.Errorf("the container does not mount the claim %s-data", upstreamName)
+			}
+			for _, v := range pod.Volumes {
+				if v.PersistentVolumeClaim != nil && v.PersistentVolumeClaim.ClaimName != upstreamName+"-data" {
+					t.Errorf("volume %s claims %q: the upstream never touches another claim", v.Name, v.PersistentVolumeClaim.ClaimName)
+				}
+			}
+		})
+	}
+}
+
+// TestRenderUpstreamResources: the upstream is small and fixed; the Nexus
+// resource parameters do not size it.
+func TestRenderUpstreamResources(t *testing.T) {
+	for name, p := range map[string]Params{"defaults": Defaults(), "custom": customParams()} {
+		t.Run(name, func(t *testing.T) {
+			c := mustRender(t, p).deploymentNamed(t, upstreamName).Spec.Template.Spec.Containers[0]
+			want := map[string]map[string]string{
+				"requests": {"cpu": "50m", "memory": "64Mi"},
+				"limits":   {"cpu": "500m", "memory": "256Mi"},
+			}
+			if !reflect.DeepEqual(c.Resources.Requests, want["requests"]) {
+				t.Errorf("requests = %v, want %v", c.Resources.Requests, want["requests"])
+			}
+			if !reflect.DeepEqual(c.Resources.Limits, want["limits"]) {
+				t.Errorf("limits = %v, want %v", c.Resources.Limits, want["limits"])
+			}
+		})
+	}
+}
+
+func TestRenderUpstreamContainerIsHardened(t *testing.T) {
+	for name, p := range map[string]Params{"defaults": Defaults(), "custom": customParams()} {
+		t.Run(name, func(t *testing.T) {
+			d := mustRender(t, p).deploymentNamed(t, upstreamName)
+			pod := d.Spec.Template.Spec
+			c := pod.Containers[0]
+			sc := c.SecurityContext
+			if sc == nil {
+				t.Fatal("the container has no securityContext")
+			}
+			user := firstInt64(sc.RunAsUser, podSC(pod).RunAsUser)
+			group := firstInt64(sc.RunAsGroup, podSC(pod).RunAsGroup)
+			nonRoot := firstBool(sc.RunAsNonRoot, podSC(pod).RunAsNonRoot)
+			if user == nil || *user != 1000 {
+				t.Errorf("runAsUser = %v, want 1000", user)
+			}
+			if group == nil || *group != 1000 {
+				t.Errorf("runAsGroup = %v, want 1000", group)
+			}
+			if nonRoot == nil || !*nonRoot {
+				t.Errorf("runAsNonRoot = %v, want true", nonRoot)
+			}
+			if sc.AllowPrivilegeEscalation == nil || *sc.AllowPrivilegeEscalation {
+				t.Errorf("allowPrivilegeEscalation = %v, want false", sc.AllowPrivilegeEscalation)
+			}
+			if sc.Capabilities == nil || !reflect.DeepEqual(sc.Capabilities.Drop, []string{"ALL"}) || len(sc.Capabilities.Add) != 0 {
+				t.Errorf("capabilities = %+v, want drop [ALL] and no add", sc.Capabilities)
+			}
+			seccomp := sc.SeccompProfile
+			if seccomp == nil {
+				seccomp = podSC(pod).SeccompProfile
+			}
+			if seccomp == nil || seccomp.Type != "RuntimeDefault" {
+				t.Errorf("seccompProfile = %+v, want RuntimeDefault", seccomp)
+			}
+		})
+	}
+}
+
+func TestRenderUpstreamReadinessProbe(t *testing.T) {
+	for name, p := range map[string]Params{"defaults": Defaults(), "custom": customParams()} {
+		t.Run(name, func(t *testing.T) {
+			c := mustRender(t, p).deploymentNamed(t, upstreamName).Spec.Template.Spec.Containers[0]
+			pr := c.ReadinessProbe
+			if pr == nil || pr.HTTPGet == nil {
+				t.Fatal("readinessProbe is missing or is not an httpGet")
+			}
+			if pr.HTTPGet.Path != "/v2/" {
+				t.Errorf("readinessProbe path = %q, want /v2/", pr.HTTPGet.Path)
+			}
+			if port := resolvePort(pr.HTTPGet.Port, c); port != upstreamPort {
+				t.Errorf("readinessProbe port = %q resolves to %d, want %d", pr.HTTPGet.Port.Value, port, upstreamPort)
+			}
+		})
+	}
+}
+
+// TestRenderUpstreamServiceIsClusterInternal: the upstream is reached by the
+// Service DNS name inside the cluster and by a port-forward from the host, never
+// through a node port.
+func TestRenderUpstreamServiceIsClusterInternal(t *testing.T) {
+	for name, p := range map[string]Params{"defaults": Defaults(), "custom": customParams()} {
+		t.Run(name, func(t *testing.T) {
+			r := mustRender(t, p)
+			svc := r.serviceNamed(t, upstreamName)
+			d := r.deploymentNamed(t, upstreamName)
+			c := d.Spec.Template.Spec.Containers[0]
+
+			if svc.Spec.Type != "ClusterIP" {
+				t.Errorf("Service type = %q, want ClusterIP", svc.Spec.Type)
+			}
+			if len(svc.Spec.Ports) != 1 {
+				t.Fatalf("%d Service ports, want 1", len(svc.Spec.Ports))
+			}
+			sp := svc.Spec.Ports[0]
+			if sp.Name != "registry" || sp.Port != upstreamPort {
+				t.Errorf("Service port = %s %d, want registry %d", sp.Name, sp.Port, upstreamPort)
+			}
+			if target := resolvePort(sp.TargetPort, c); target != upstreamPort {
+				t.Errorf("targetPort %q resolves to %d on the container, want %d", sp.TargetPort.Value, target, upstreamPort)
+			}
+			if sp.NodePort != 0 {
+				t.Errorf("nodePort = %d, want none", sp.NodePort)
+			}
+			for k, v := range svc.Spec.Selector {
+				if got := d.Spec.Template.Metadata.Labels[k]; got != v {
+					t.Errorf("the Service selects %s=%s but the pods carry %q", k, v, got)
+				}
+			}
+			if got := svc.Spec.Selector[labelName]; got != upstreamName {
+				t.Errorf("Service selector %s = %q, want %s", labelName, got, upstreamName)
+			}
+
+			// The word, not only the decoded field: no nodePort key and no NodePort type.
+			for _, kind := range []string{"Service", "Deployment", "PersistentVolumeClaim"} {
+				if text := strings.ToLower(r.text(t, kind, upstreamObjectName(kind))); strings.Contains(text, "nodeport") {
+					t.Errorf("the upstream %s mentions a node port:\n%s", kind, text)
+				}
+			}
+		})
+	}
+}
+
+// changedDocuments renders both parameter sets and returns, per document, whether
+// its decoded content differs between the two renders.
+func changedDocuments(t *testing.T, before, after Params) (r rendered, changed []bool) {
+	t.Helper()
+	a, b := mustRender(t, before), mustRender(t, after)
+	if len(a.nodes) != len(wantKinds) || len(b.nodes) != len(wantKinds) {
+		t.Fatalf("%d and %d documents, want %d each", len(a.nodes), len(b.nodes), len(wantKinds))
+	}
+	for i := range a.nodes {
+		var x, y any
+		if err := a.nodes[i].Decode(&x); err != nil {
+			t.Fatal(err)
+		}
+		if err := b.nodes[i].Decode(&y); err != nil {
+			t.Fatal(err)
+		}
+		changed = append(changed, !reflect.DeepEqual(x, y))
+	}
+	return a, changed
+}
+
+// TestRenderUpstreamImageOnlyMovesTheUpstream: the upstream image changes the
+// upstream Deployment and no other document.
+func TestRenderUpstreamImageOnlyMovesTheUpstream(t *testing.T) {
+	p := Defaults()
+	p.UpstreamImage = "registry.example.com/team/registry"
+	p.UpstreamImageTag = "3.0.1"
+	base, changed := changedDocuments(t, Defaults(), p)
+	for i, got := range changed {
+		want := base.kinds[i] == "Deployment" && base.names[i] == upstreamName
+		if got != want {
+			t.Errorf("document %d (%s %s): changed = %v after moving the upstream image, want %v", i, base.kinds[i], base.names[i], got, want)
+		}
+	}
+}
+
+// TestRenderNexusParamsDoNotReachTheUpstream: every parameter that only shapes
+// Nexus (image, node ports, resources, storage, JVM options) leaves the three
+// bench-upstream documents byte-for-byte the same.
+func TestRenderNexusParamsDoNotReachTheUpstream(t *testing.T) {
+	p := customParams()
+	// Keep what the upstream legitimately follows: the namespace and its own image.
+	p.Namespace = Defaults().Namespace
+	p.UpstreamImage = Defaults().UpstreamImage
+	p.UpstreamImageTag = Defaults().UpstreamImageTag
+	base, changed := changedDocuments(t, Defaults(), p)
+
+	nexusMoved := false
+	for i, got := range changed {
+		if base.names[i] == upstreamName || base.names[i] == upstreamName+"-data" {
+			if got {
+				t.Errorf("document %d (%s %s) changed when only Nexus parameters changed", i, base.kinds[i], base.names[i])
+			}
+			continue
+		}
+		nexusMoved = nexusMoved || got
+	}
+	if !nexusMoved {
+		t.Error("no Nexus document changed: the test moves nothing")
 	}
 }

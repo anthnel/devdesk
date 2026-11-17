@@ -1,12 +1,15 @@
 package nexusbench
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
 	"net/http"
 	"net/url"
 	"os"
+	"os/exec"
+	"path/filepath"
 	"reflect"
 	"slices"
 	"strings"
@@ -28,8 +31,14 @@ import (
 //   - TestIntegrationPullAccountIsReadOnly: GET requests, plus one POST as
 //     bench-pull that Nexus has to refuse. Should the account be allowed to
 //     create it, the repository is deleted again (as admin) and the test fails.
-//   - TestIntegrationLifecycle: destructive (up, provision, down, up, down), run
-//     only with DEVDESK_NEXUS_BENCH_LIFECYCLE=1 and NEXUS_BENCH_ACCEPT_EULA=yes.
+//   - TestIntegrationDatasetAsDescribed (DEVDESK-505): read only, REST listings
+//     of docker-hosted and docker-proxy (and, only when the listing gives no
+//     digest, skopeo inspect of an image the descriptor says is hosted or cached).
+//     It never reads mirror/uncached through docker-proxy or docker-group: a read
+//     through them caches the image (F9) and only a reset undoes that.
+//   - TestIntegrationLifecycle: destructive (up, provision, seed, up again, down,
+//     up, down), run only with DEVDESK_NEXUS_BENCH_LIFECYCLE=1 and
+//     NEXUS_BENCH_ACCEPT_EULA=yes. It needs skopeo on the host.
 //
 // None of them writes the versioned descriptor.json.
 
@@ -322,6 +331,141 @@ func TestIntegrationAnonymousAsDescribed(t *testing.T) {
 	})
 }
 
+// ---- the data set --------------------------------------------------------------
+
+// datasetKey is how a listing and the descriptor name an image tag.
+func datasetKey(name, tag string) string { return name + ":" + tag }
+
+// indexComponents maps "name:tag" to the component a listing holds.
+func indexComponents(list []component) map[string]component {
+	out := make(map[string]component, len(list))
+	for _, c := range list {
+		out[datasetKey(c.Name, c.Version)] = c
+	}
+	return out
+}
+
+// inspectThroughNexus reads the manifest digest of an image with skopeo, by the
+// path of its repository, as the pull account. It is the fallback of a listing
+// that gives no digest, and it refuses to ask for what the bench keeps out of
+// the proxy: reading mirror/uncached through docker-proxy would cache it (F9).
+func inspectThroughNexus(ctx context.Context, t *testing.T, b liveBench, repository string, img DescriptorImage) string {
+	t.Helper()
+	requireBench(t)
+	if img.Location != string(LocationHosted) && !img.CachedInProxy {
+		t.Fatalf("refusing to read %s through %s: it would cache it", datasetKey(img.Name, img.Tag), repository)
+	}
+	if b.secrets.PullPassword == "" {
+		t.Fatalf("no %s password in the secrets file: provision the bench with `mise run nexus-bench:provision`", pullUserID)
+	}
+	copier, err := NewSkopeoCopier()
+	if err != nil {
+		t.Fatalf("the REST listing gives no digest for %s and skopeo is not usable: %v", datasetKey(img.Name, img.Tag), err)
+	}
+	ref := nexusImageRef(Params{HTTPNodePort: b.desc.REST.NodePort}, repository, DatasetImage{Name: img.Name, Tag: img.Tag})
+	digest, err := copier.ManifestDigest(ctx, ref, &Credentials{User: pullUserID, Password: b.secrets.PullPassword})
+	if err != nil {
+		t.Fatalf("read the manifest of %s in %s: %v", datasetKey(img.Name, img.Tag), repository, err)
+	}
+	return digest
+}
+
+// TestIntegrationDatasetAsDescribed checks, read only, that the bench holds the
+// data set its descriptor lists: every hosted image and every image the proxy
+// has cached carries the digest of the descriptor, the image the proxy has never
+// been asked for is not in docker-proxy, and docker-proxy points at the upstream
+// of the descriptor and is a member of docker-group (the report of NX-01).
+func TestIntegrationDatasetAsDescribed(t *testing.T) {
+	requireBench(t)
+	b := openLiveBench(t)
+	if len(b.desc.Dataset) == 0 {
+		t.Fatal("the descriptor lists no data set: run `mise run nexus-bench:up` or `mise run nexus-bench:seed` first")
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), liveCallTimeout)
+	defer cancel()
+	admin := b.admin(t)
+
+	hosted, err := admin.listComponents(ctx, dockerHostedRepository)
+	if err != nil {
+		t.Fatalf("list the components of %s: %v", dockerHostedRepository, err)
+	}
+	proxied, err := admin.listComponents(ctx, dockerProxyRepository)
+	if err != nil {
+		t.Fatalf("list the components of %s: %v", dockerProxyRepository, err)
+	}
+	inHosted, inProxy := indexComponents(hosted), indexComponents(proxied)
+
+	for _, img := range b.desc.Dataset {
+		key := datasetKey(img.Name, img.Tag)
+		switch {
+		case img.Location == string(LocationHosted):
+			t.Run("hosted "+key, func(t *testing.T) {
+				c, ok := inHosted[key]
+				if !ok {
+					t.Fatalf("%s is not in %s", key, dockerHostedRepository)
+				}
+				got := c.Digest
+				if got == "" {
+					got = inspectThroughNexus(ctx, t, b, dockerHostedRepository, img)
+				}
+				if got != img.Digest {
+					t.Errorf("digest of %s in %s = %s, the descriptor says %s", key, dockerHostedRepository, got, img.Digest)
+				}
+			})
+		case img.CachedInProxy:
+			t.Run("cached "+key, func(t *testing.T) {
+				c, ok := inProxy[key]
+				if !ok {
+					t.Fatalf("%s is not in %s: the seed pulls it through the proxy once", key, dockerProxyRepository)
+				}
+				got := c.Digest
+				if got == "" {
+					got = inspectThroughNexus(ctx, t, b, dockerProxyRepository, img)
+				}
+				if got != img.Digest {
+					t.Errorf("digest of %s in %s = %s, the descriptor says %s", key, dockerProxyRepository, got, img.Digest)
+				}
+			})
+		default:
+			// Read by the REST listing only: a pull through the proxy or the group
+			// would cache it (F9).
+			t.Run("uncached "+key, func(t *testing.T) {
+				if _, ok := inProxy[key]; ok {
+					t.Errorf("%s is in %s although no one asked the proxy for it: run `mise run nexus-bench:reset`", key, dockerProxyRepository)
+				}
+			})
+		}
+	}
+
+	t.Run("the proxy and the group", func(t *testing.T) {
+		var wantProxy *DescriptorRepository
+		for i, r := range b.desc.Repositories {
+			if r.Name == dockerProxyRepository {
+				wantProxy = &b.desc.Repositories[i]
+			}
+		}
+		if wantProxy == nil {
+			t.Fatalf("the descriptor lists no %s: the proxy is created since NX-02, run `mise run nexus-bench:up`", dockerProxyRepository)
+		}
+		var proxy liveProxy
+		if err := admin.read(ctx, "read the proxy "+dockerProxyRepository, dockerReposPath+"/proxy/"+dockerProxyRepository, nil, &proxy); err != nil {
+			t.Fatalf("%s does not exist on the instance: %v", dockerProxyRepository, err)
+		}
+		if proxy.Proxy.RemoteURL != wantProxy.RemoteURL {
+			t.Errorf("remote URL of %s = %q, the descriptor says %q", dockerProxyRepository, proxy.Proxy.RemoteURL, wantProxy.RemoteURL)
+		}
+		var group liveGroup
+		if err := admin.read(ctx, "read the group "+dockerGroupRepository, dockerReposPath+"/group/"+dockerGroupRepository, nil, &group); err != nil {
+			t.Fatal(err)
+		}
+		for _, member := range []string{dockerHostedRepository, dockerProxyRepository} {
+			if !slices.Contains(group.Group.MemberNames, member) {
+				t.Errorf("%s is not a member of %s (members: %v)", member, dockerGroupRepository, group.Group.MemberNames)
+			}
+		}
+	})
+}
+
 // ---- lifecycle --------------------------------------------------------------
 
 // logWriter sends what the bench prints to the test log, line by line.
@@ -340,6 +484,10 @@ type benchSnapshot struct {
 	Repositories []string
 	Roles        []string
 	Users        []string
+	// Hosted and Proxy are the components of docker-hosted and docker-proxy,
+	// "name:tag@digest", sorted (DEVDESK-505: a second up leaves them alone).
+	Hosted []string
+	Proxy  []string
 }
 
 // snapshotBench lists repositories, roles and users as admin, sorted.
@@ -358,10 +506,24 @@ func snapshotBench(ctx context.Context, t *testing.T, c *client) benchSnapshot {
 		slices.Sort(out)
 		return out
 	}
+	images := func(repo string) []string {
+		list, err := c.listComponents(ctx, repo)
+		if err != nil {
+			t.Fatalf("list the components of %s: %v", repo, err)
+		}
+		out := make([]string, 0, len(list))
+		for _, comp := range list {
+			out = append(out, datasetKey(comp.Name, comp.Version)+"@"+comp.Digest)
+		}
+		slices.Sort(out)
+		return out
+	}
 	return benchSnapshot{
 		Repositories: names("list the repositories", restAPI+"/repositories", "name"),
 		Roles:        names("list the roles", rolesPath, "id"),
 		Users:        names("list the users", usersPath, "userId"),
+		Hosted:       images(dockerHostedRepository),
+		Proxy:        images(dockerProxyRepository),
 	}
 }
 
@@ -397,6 +559,21 @@ func TestIntegrationLifecycle(t *testing.T) {
 	if err != nil {
 		t.Fatalf("NewFileStore: %v", err)
 	}
+	if !p.UpstreamIsBench() {
+		t.Fatalf("the lifecycle seeds the bench upstream: unset %s", envUpstreamURL)
+	}
+	if _, err := exec.LookPath("skopeo"); err != nil {
+		t.Fatalf("the lifecycle seeds the bench with skopeo, which is a prerequisite of the host: %v", err)
+	}
+	// The command that `mise run nexus-bench:up` runs, built once: the lifecycle
+	// compares the descriptor.json it really writes, not one built in memory.
+	root := miseRepoRoot(t)
+	binary := filepath.Join(t.TempDir(), "nexus-bench")
+	build := exec.Command("go", "build", "-o", binary, "./internal/nexusbench/cmd/nexus-bench")
+	build.Dir = root
+	if built, err := build.CombinedOutput(); err != nil {
+		t.Fatalf("build the nexus-bench command: %v\n%s", err, built)
+	}
 	clock, prober, out := NewClock(), NewProber(), logWriter{t}
 	ctx := context.Background()
 	initial := NewKubectlInitialPassword(runner, p.Namespace)
@@ -406,17 +583,26 @@ func TestIntegrationLifecycle(t *testing.T) {
 		if _, err := Deploy(ctx, runner, prober, clock, p, out); err != nil {
 			t.Fatalf("up: %v", err)
 		}
+		if err := EnsureUpstream(ctx, runner, clock, p, out); err != nil {
+			t.Fatalf("up, the upstream: %v", err)
+		}
 	}
-	provision := func() ProvisionResult {
+	// commandUp runs `nexus-bench up` with the descriptor written to path, and
+	// returns the bytes of that file: Deploy, the upstream, Provision, Seed.
+	commandUp := func(path string) []byte {
 		t.Helper()
-		if _, err := RunPreflight(ctx, runner, p, OpProvision); err != nil {
-			t.Fatalf("provision preflight: %v", err)
+		cmd := exec.CommandContext(ctx, binary, "up")
+		cmd.Dir = root
+		cmd.Env = append(os.Environ(), envDescriptor+"="+path, envSecrets+"="+secretsPath, envAcceptEULA+"=yes")
+		cmd.Stdout, cmd.Stderr = out, out
+		if err := cmd.Run(); err != nil {
+			t.Fatalf("nexus-bench up: %v", err)
 		}
-		res, err := Provision(ctx, RESTBaseURL(loopbackHost, p), initial, store, p, out)
+		data, err := os.ReadFile(path)
 		if err != nil {
-			t.Fatalf("provision: %v", err)
+			t.Fatalf("nexus-bench up wrote no descriptor: %v", err)
 		}
-		return res
+		return data
 	}
 	down := func() {
 		t.Helper()
@@ -439,21 +625,31 @@ func TestIntegrationLifecycle(t *testing.T) {
 		return snapshotBench(ctx, t, c)
 	}
 
-	t.Log("first up and provision")
-	up()
-	desc := BuildDescriptor(p, DeployResult{}, provision())
+	t.Log("first nexus-bench up: deploy, provision and seed")
+	descriptorPath := filepath.Join(t.TempDir(), "descriptor.json")
+	firstDescriptor := commandUp(descriptorPath)
+	desc, err := LoadDescriptor(descriptorPath)
+	if err != nil {
+		t.Fatalf("the descriptor written by up: %v", err)
+	}
 	first := snapshot()
 	for _, want := range desc.Repositories {
 		if !slices.Contains(first.Repositories, want.Name) {
-			t.Fatalf("after provision the instance lists %v, want the repository %s of the descriptor", first.Repositories, want.Name)
+			t.Fatalf("after up the instance lists %v, want the repository %s of the descriptor", first.Repositories, want.Name)
 		}
 	}
+	// up populates: the data set is in the repositories and in the descriptor.
+	if len(desc.Dataset) != len(Dataset()) || len(first.Hosted) == 0 || len(first.Proxy) == 0 {
+		t.Fatalf("after up: %d images described, %d hosted components, %d proxy components, want the whole data set (%d images)",
+			len(desc.Dataset), len(first.Hosted), len(first.Proxy), len(Dataset()))
+	}
 
-	t.Log("second up and provision: nothing changes")
-	up()
-	provision()
+	t.Log("second nexus-bench up: the same descriptor.json, byte for byte, and the same components")
+	if second := commandUp(descriptorPath); !bytes.Equal(firstDescriptor, second) {
+		t.Errorf("a second up wrote another descriptor.json:\nfirst  %s\nsecond %s", firstDescriptor, second)
+	}
 	if second := snapshot(); !reflect.DeepEqual(first, second) {
-		t.Errorf("a second up and provision changed the instance:\nfirst  %+v\nsecond %+v", first, second)
+		t.Errorf("a second up changed the instance:\nfirst  %+v\nsecond %+v", first, second)
 	}
 
 	t.Log("down")

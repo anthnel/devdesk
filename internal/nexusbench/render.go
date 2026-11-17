@@ -22,6 +22,9 @@ var manifestTemplates = []string{
 	"10-pvc.yaml.tmpl",
 	"20-deployment.yaml.tmpl",
 	"30-service.yaml.tmpl",
+	"40-upstream-pvc.yaml.tmpl",
+	"50-upstream-deployment.yaml.tmpl",
+	"60-upstream-service.yaml.tmpl",
 }
 
 // templates parses the embedded manifests. quote is the only function they can
@@ -41,7 +44,7 @@ func quote(s string) string { return strconv.Quote(s) }
 // carry, and nothing else.
 type manifestData struct {
 	Namespace                                        string
-	Image                                            string
+	Image, UpstreamImage                             string
 	CPURequest, CPULimit, MemoryRequest, MemoryLimit string
 	StorageSize, JVMOpts                             string
 	HTTPNodePort, DockerNodePort                     int
@@ -51,6 +54,7 @@ func newManifestData(p Params) manifestData {
 	return manifestData{
 		Namespace:      p.Namespace,
 		Image:          p.ImageRef(),
+		UpstreamImage:  p.UpstreamImageRef(),
 		CPURequest:     p.CPURequest,
 		CPULimit:       p.CPULimit,
 		MemoryRequest:  p.MemoryRequest,
@@ -63,10 +67,11 @@ func newManifestData(p Params) manifestData {
 }
 
 // Render returns the manifests of the bench as a multi-document YAML stream: the
-// Namespace, the PersistentVolumeClaim, the Deployment and the Service, in that
-// order. The parameters are validated first, and the same parameters always
-// give the same bytes. Parameters the manifests do not carry (context, upstream
-// URL, EULA, hosts, timeouts, paths) do not change the output.
+// Namespace, the PersistentVolumeClaim, the Deployment and the Service of Nexus,
+// then the PersistentVolumeClaim, the Deployment and the Service of the upstream
+// registry, in that order. The parameters are validated first, and the same
+// parameters always give the same bytes. Parameters the manifests do not carry
+// (context, upstream URL, EULA, hosts, timeouts, paths) do not change the output.
 func Render(p Params) ([]byte, error) {
 	return render(p, manifestTemplates)
 }

@@ -36,6 +36,11 @@ type APIError struct {
 	// when it saves the repository and refuses one that does not resolve. Only
 	// this verdict is kept, never the text of the answer.
 	RemoteURLBlocked bool
+	// RemoteURLPrivate is true for a 400 whose validation errors name
+	// proxy.remoteUrl and say its host resolves to a private address: the SSRF
+	// protection of Nexus 3.98 refuses it unless the host is allowed (H-SSRF).
+	// Like RemoteURLBlocked, only the verdict is kept.
+	RemoteURLPrivate bool
 }
 
 // Error returns "<Op>: HTTP <status> <text>".
@@ -58,6 +63,13 @@ type tooLargeError struct{ Op string }
 
 func (e *tooLargeError) Error() string {
 	return fmt.Sprintf("the answer to %s is larger than %d bytes", e.Op, maxResponseBytes)
+}
+
+// tooManyError is a listing past maxListedComponents.
+type tooManyError struct{ Op string }
+
+func (e *tooManyError) Error() string {
+	return fmt.Sprintf("the answer to %s lists more than %d components", e.Op, maxListedComponents)
 }
 
 // decodeError is an answer that is not the JSON the client expects.
@@ -119,6 +131,8 @@ type response struct {
 	// remoteURLBlocked is the verdict of remoteURLRefused on a 400; the body of
 	// an answer outside 2xx is read for it and dropped.
 	remoteURLBlocked bool
+	// remoteURLPrivate is the verdict of remoteURLPrivate on the same 400.
+	remoteURLPrivate bool
 }
 
 // do sends r and returns the answer whatever its status. The error is a
@@ -150,9 +164,11 @@ func (c *client) do(ctx context.Context, r request) (response, error) {
 	defer func() { _ = resp.Body.Close() }()
 	if resp.StatusCode < 200 || resp.StatusCode > 299 {
 		refused, _ := io.ReadAll(io.LimitReader(resp.Body, drainBytes))
+		badRequest := resp.StatusCode == http.StatusBadRequest
 		return response{
 			status: resp.StatusCode, header: resp.Header,
-			remoteURLBlocked: resp.StatusCode == http.StatusBadRequest && remoteURLRefused(refused),
+			remoteURLBlocked: badRequest && remoteURLRefused(refused),
+			remoteURLPrivate: badRequest && remoteURLPrivate(refused),
 		}, nil
 	}
 	data, err := io.ReadAll(io.LimitReader(resp.Body, maxResponseBytes+1))
@@ -172,7 +188,7 @@ func (c *client) expect(ctx context.Context, r request) (response, error) {
 		return resp, err
 	}
 	if resp.status < 200 || resp.status > 299 {
-		return resp, &APIError{Op: r.op, Status: resp.status, RemoteURLBlocked: resp.remoteURLBlocked}
+		return resp, &APIError{Op: r.op, Status: resp.status, RemoteURLBlocked: resp.remoteURLBlocked, RemoteURLPrivate: resp.remoteURLPrivate}
 	}
 	return resp, nil
 }
@@ -184,6 +200,21 @@ func (c *client) expect(ctx context.Context, r request) (response, error) {
 // content type of the answer is vendor specific, so only the JSON is read; a
 // body past drainBytes was cut and is not trusted.
 func remoteURLRefused(body []byte) bool {
+	return remoteURLMessageHas(body, "resolve host")
+}
+
+// remoteURLPrivate reports whether body is a validation error list with an entry
+// on proxy.remoteUrl that says the host resolves to a private address, which is
+// what the SSRF protection of Nexus 3.98 answers (observed on 3.98.1-01:
+// "Proxy URL blocked: Host resolves to private/local IP address(es): ..."). Same
+// rules as remoteURLRefused: only the verdict leaves the function.
+func remoteURLPrivate(body []byte) bool {
+	return remoteURLMessageHas(body, "resolves to private")
+}
+
+// remoteURLMessageHas reports whether body is a validation error list with an
+// entry on proxy.remoteUrl whose message contains fragment, case-insensitive.
+func remoteURLMessageHas(body []byte, fragment string) bool {
 	if len(body) > drainBytes {
 		return false
 	}
@@ -193,7 +224,7 @@ func remoteURLRefused(body []byte) bool {
 	}
 	return slices.ContainsFunc(errs, func(e validationError) bool {
 		return strings.HasSuffix(e.ID, "proxy.remoteUrl") &&
-			strings.Contains(strings.ToLower(e.Message), "resolve host")
+			strings.Contains(strings.ToLower(e.Message), fragment)
 	})
 }
 

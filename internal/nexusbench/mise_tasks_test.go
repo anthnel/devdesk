@@ -1,8 +1,8 @@
 package nexusbench
 
 // Guard of the mise tasks of the bench (DEVDESK-504, step 8, CA1 and CA7). It
-// reads mise.toml at the repository root and runs nothing: the six
-// nexus-bench:* tasks must exist, call the command, stay out of every task the
+// reads mise.toml at the repository root and runs nothing: the seven
+// nexus-bench:* tasks of NX-02a (DEVDESK-505) must exist, call the command, stay out of every task the
 // standard checks run (ci, check, test, test-race), and kubectl must be
 // declared where it does not slow the CI down.
 //
@@ -24,7 +24,9 @@ import (
 
 const miseBenchPrefix = "nexus-bench"
 
-var miseBenchSubcommands = []string{"up", "provision", "down", "status", "render"}
+// seed is the one task NX-02a adds (DEVDESK-544); cut-upstream, restore-upstream
+// and reset are NX-02b and are not listed here.
+var miseBenchSubcommands = []string{"up", "provision", "down", "seed", "status", "render"}
 
 // miseFile maps a table path ("tasks|build", "tools") to its keys, each with
 // the raw text of its value.
@@ -281,13 +283,16 @@ run = [
 	}
 }
 
-func TestMiseDeclaresTheSixBenchTasks(t *testing.T) {
+func TestMiseDeclaresTheSevenBenchTasks(t *testing.T) {
 	f := loadMise(t)
 	names := []string{}
 	for _, sub := range miseBenchSubcommands {
 		names = append(names, miseBenchPrefix+":"+sub)
 	}
 	names = append(names, miseBenchPrefix+":test")
+	if len(names) != 7 {
+		t.Fatalf("the guard expects 7 bench tasks (up, provision, down, seed, status, render, test), it lists %d: %v", len(names), names)
+	}
 	for _, name := range names {
 		if _, ok := f.task(name); !ok {
 			t.Errorf("mise.toml has no task %q", name)
@@ -385,7 +390,7 @@ func TestMiseKubectlIsDeclaredOnTheBenchTasks(t *testing.T) {
 	if _, globally := f["tools"]["kubectl"]; globally {
 		t.Error("kubectl is declared in the global [tools]: it would be installed for every CI run; declare it on the cluster tasks")
 	}
-	for _, sub := range []string{"up", "provision", "down", "status", "test", "render"} {
+	for _, sub := range []string{"up", "provision", "down", "seed", "status", "test", "render"} {
 		name := miseBenchPrefix + ":" + sub
 		task, ok := f.task(name)
 		if !ok {
@@ -399,5 +404,28 @@ func TestMiseKubectlIsDeclaredOnTheBenchTasks(t *testing.T) {
 		case sub != "render" && !has:
 			t.Errorf("%s reaches the cluster but does not declare kubectl in its tools", name)
 		}
+	}
+}
+
+// The seed pushes images with skopeo, which is a prerequisite of the host (the
+// version is the host's, not pinned: D158 of the plan, Q1 a): mise does not
+// install it, so the description of the task says it needs it.
+func TestMiseSeedTaskNamesSkopeoAsAPrerequisiteOfTheHost(t *testing.T) {
+	name := miseBenchPrefix + ":seed"
+	task, ok := loadMise(t).task(name)
+	if !ok {
+		t.Fatalf("mise.toml has no task %q", name)
+	}
+	if !strings.Contains(strings.ToLower(task["description"]), "skopeo") {
+		t.Errorf("the description of %s does not cite skopeo as a prerequisite of the host:\n%s", name, task["description"])
+	}
+	if strings.Contains(task["tools"], "skopeo") {
+		t.Errorf("%s declares skopeo in its tools: it is a tool of the host, not installed by mise:\n%s", name, task["tools"])
+	}
+	if !strings.Contains(task["tools"], "kubectl") {
+		t.Errorf("%s reaches the cluster but does not declare kubectl in its tools", name)
+	}
+	if !strings.Contains(strings.ToLower(task["description"]), "acts on the cluster") {
+		t.Errorf("the description of %s does not say it acts on the cluster, as the other tasks do:\n%s", name, task["description"])
 	}
 }

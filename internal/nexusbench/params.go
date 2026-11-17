@@ -27,6 +27,8 @@ const (
 	envImage          = "NEXUS_BENCH_IMAGE"
 	envImageTag       = "NEXUS_BENCH_IMAGE_TAG"
 	envUpstreamURL    = "NEXUS_BENCH_UPSTREAM_URL"
+	envUpstreamImage  = "NEXUS_BENCH_UPSTREAM_IMAGE"
+	envUpstreamTag    = "NEXUS_BENCH_UPSTREAM_IMAGE_TAG"
 	envAnonymous      = "NEXUS_BENCH_ANONYMOUS"
 	envAcceptEULA     = "NEXUS_BENCH_ACCEPT_EULA"
 	envHosts          = "NEXUS_BENCH_HOSTS"
@@ -45,7 +47,10 @@ const (
 	defaultDockerNodePort = 30482
 	defaultImage          = "docker.io/sonatype/nexus3"
 	defaultImageTag       = "3.98.1"
-	defaultJVMOpts        = "-Xms1g -Xmx1g -XX:MaxDirectMemorySize=1g -Djava.util.prefs.userRoot=/nexus-data/javaprefs"
+	// The upstream registry the bench deploys for the proxy repository (D-G).
+	defaultUpstreamImage    = "docker.io/library/registry"
+	defaultUpstreamImageTag = "3.0.0"
+	defaultJVMOpts          = "-Xms1g -Xmx1g -XX:MaxDirectMemorySize=1g -Djava.util.prefs.userRoot=/nexus-data/javaprefs"
 
 	nodePortMin = 30000
 	nodePortMax = 32767
@@ -112,7 +117,10 @@ type Params struct {
 	MemoryRequest, MemoryLimit          string
 	StorageSize, JVMOpts                string
 	UpstreamURL                         string
-	Anonymous, AcceptEULA               bool
+	// UpstreamImage and UpstreamImageTag are the image of the registry the bench
+	// deploys as the upstream of the proxy repository.
+	UpstreamImage, UpstreamImageTag string
+	Anonymous, AcceptEULA           bool
 	// Hosts are the addresses the NodePorts are tried on; nil means the tool
 	// works them out (127.0.0.1 and the node's InternalIP).
 	Hosts                       []string
@@ -124,22 +132,24 @@ type Params struct {
 // Hosts, SecretsPath and DescriptorPath stay empty: the tool derives them.
 func Defaults() Params {
 	return Params{
-		Context:        defaultContext,
-		Namespace:      defaultNamespace,
-		Image:          defaultImage,
-		ImageTag:       defaultImageTag,
-		HTTPNodePort:   defaultHTTPNodePort,
-		DockerNodePort: defaultDockerNodePort,
-		CPURequest:     "500m",
-		CPULimit:       "2",
-		MemoryRequest:  "3Gi",
-		MemoryLimit:    "4Gi",
-		StorageSize:    "5Gi",
-		JVMOpts:        defaultJVMOpts,
-		UpstreamURL:    upstreamFor(defaultNamespace),
-		Anonymous:      true,
-		Timeout:        10 * time.Minute,
-		DeleteTimeout:  3 * time.Minute,
+		Context:          defaultContext,
+		Namespace:        defaultNamespace,
+		Image:            defaultImage,
+		ImageTag:         defaultImageTag,
+		HTTPNodePort:     defaultHTTPNodePort,
+		DockerNodePort:   defaultDockerNodePort,
+		CPURequest:       "500m",
+		CPULimit:         "2",
+		MemoryRequest:    "3Gi",
+		MemoryLimit:      "4Gi",
+		StorageSize:      "5Gi",
+		JVMOpts:          defaultJVMOpts,
+		UpstreamURL:      upstreamFor(defaultNamespace),
+		UpstreamImage:    defaultUpstreamImage,
+		UpstreamImageTag: defaultUpstreamImageTag,
+		Anonymous:        true,
+		Timeout:          10 * time.Minute,
+		DeleteTimeout:    3 * time.Minute,
 	}
 }
 
@@ -151,6 +161,18 @@ func upstreamFor(namespace string) string {
 // ImageRef returns the image reference of the Nexus container, "image:tag".
 func (p Params) ImageRef() string {
 	return p.Image + ":" + p.ImageTag
+}
+
+// UpstreamImageRef returns the image reference of the bench upstream registry, "image:tag".
+func (p Params) UpstreamImageRef() string {
+	return p.UpstreamImage + ":" + p.UpstreamImageTag
+}
+
+// UpstreamIsBench tells whether the upstream URL is the one the bench deploys
+// in its own namespace, as opposed to a custom upstream the user points the
+// proxy at.
+func (p Params) UpstreamIsBench() bool {
+	return p.UpstreamURL == upstreamFor(p.Namespace)
 }
 
 // envSetter applies the value of one non-empty variable to p.
@@ -213,6 +235,8 @@ var envSetters = []envSetter{
 	stringSetter(envJVMOpts, func(p *Params) *string { return &p.JVMOpts }),
 	stringSetter(envImage, func(p *Params) *string { return &p.Image }),
 	stringSetter(envImageTag, func(p *Params) *string { return &p.ImageTag }),
+	stringSetter(envUpstreamImage, func(p *Params) *string { return &p.UpstreamImage }),
+	stringSetter(envUpstreamTag, func(p *Params) *string { return &p.UpstreamImageTag }),
 	stringSetter(envUpstreamURL, func(p *Params) *string { return &p.UpstreamURL }),
 	boolSetter(envAnonymous, func(p *Params) *bool { return &p.Anonymous }),
 	// Accepting a license is the user's decision: only the exact word "yes" counts.
@@ -242,7 +266,7 @@ func FromEnv(base Params, getenv func(string) string) (Params, error) {
 		p.Hosts = append([]string(nil), base.Hosts...)
 	}
 
-	followsNamespace := base.UpstreamURL == upstreamFor(base.Namespace)
+	followsNamespace := base.UpstreamIsBench()
 	if v := getenv(envNamespace); v != "" {
 		p.Namespace = v
 	}
@@ -298,7 +322,8 @@ func (p Params) Validate() error {
 	add(validateRequestLimit(envCPURequest, p.CPURequest, envCPULimit, p.CPULimit, parseCPU))
 	add(validateRequestLimit(envMemoryRequest, p.MemoryRequest, envMemoryLimit, p.MemoryLimit, parseBytes))
 	add(validateJVMOpts(p.JVMOpts))
-	add(validateImage(p.Image, p.ImageTag))
+	add(validateImage(envImage, envImageTag, p.Image, p.ImageTag))
+	add(validateImage(envUpstreamImage, envUpstreamTag, p.UpstreamImage, p.UpstreamImageTag))
 	add(validateUpstreamURL(p.UpstreamURL))
 	add(validateHosts(p.Hosts))
 	add(validateTimeout(envTimeout, p.Timeout))
@@ -427,15 +452,17 @@ func validateJVMOpts(v string) error {
 	return nil
 }
 
-func validateImage(image, tag string) error {
+// validateImage checks an image name and its tag; imageEnv and tagEnv are the
+// variables that carry them, so an error names the one at fault.
+func validateImage(imageEnv, tagEnv, image, tag string) error {
 	if strings.HasPrefix(strings.ToLower(image), zotRegistry) {
-		return fmt.Errorf("%s: %q is in %s, where the Kyverno policy verify-tvp-images only admits signed images and the bench image is not signed; use an image from another registry", envImage, image, zotRegistry)
+		return fmt.Errorf("%s: %q is in %s, where the Kyverno policy verify-tvp-images only admits signed images and the bench image is not signed; use an image from another registry", imageEnv, image, zotRegistry)
 	}
 	if len(image) > maxImageLen || !imageChars.MatchString(image) {
-		return fmt.Errorf("%s: %q is not an image name without tag or digest", envImage, image)
+		return fmt.Errorf("%s: %q is not an image name without tag or digest", imageEnv, image)
 	}
 	if !imageTag.MatchString(tag) {
-		return fmt.Errorf("%s: %q is not an image tag", envImageTag, tag)
+		return fmt.Errorf("%s: %q is not an image tag", tagEnv, tag)
 	}
 	return nil
 }

@@ -14,8 +14,9 @@ import (
 )
 
 const (
-	// descriptorSchemaVersion is the only schema LoadDescriptor accepts.
-	descriptorSchemaVersion = 1
+	// descriptorSchemaVersion is the only schema LoadDescriptor accepts. Schema 2
+	// (NX-02a) adds registryAccess, upstream and dataset to schema 1.
+	descriptorSchemaVersion = 2
 	descriptorFileName      = "descriptor.json"
 
 	// Container ports of the Nexus pod; the manifests carry the same two.
@@ -23,6 +24,11 @@ const (
 	dockerContainerPort = 8082
 
 	dockerGroupRepository = "docker-group"
+
+	// What a client of the bench is told about its registry access and its upstream.
+	registryScheme   = "http"
+	registryRouting  = "path"
+	upstreamExposure = "port-forward"
 
 	loopbackHost = "127.0.0.1"
 
@@ -70,6 +76,34 @@ type Descriptor struct {
 	Repositories     []DescriptorRepository `json:"repositories"`
 	Realms           []string               `json:"realms"`
 	Accounts         []DescriptorAccount    `json:"accounts"`
+	RegistryAccess   RegistryAccess         `json:"registryAccess"`
+	Upstream         DescriptorUpstream     `json:"upstream"`
+	Dataset          []DescriptorImage      `json:"dataset"`
+}
+
+// RegistryAccess says how a client reaches the Docker repositories of the bench.
+type RegistryAccess struct {
+	Scheme    string `json:"scheme"`
+	TLSVerify bool   `json:"tlsVerify"`
+	Routing   string `json:"routing"`
+}
+
+// DescriptorUpstream describes the registry docker-proxy mirrors.
+type DescriptorUpstream struct {
+	Service    string `json:"service"`
+	Image      string `json:"image"`
+	URL        string `json:"url"`
+	Persistent bool   `json:"persistent"`
+	Exposure   string `json:"exposure"`
+}
+
+// DescriptorImage is one image of the data set.
+type DescriptorImage struct {
+	Name          string `json:"name"`
+	Tag           string `json:"tag"`
+	Digest        string `json:"digest"`
+	Location      string `json:"location"`
+	CachedInProxy bool   `json:"cachedInProxy"`
 }
 
 // Endpoint is a port of the pod published as a NodePort, with the URLs it
@@ -107,12 +141,14 @@ type DescriptorAccount struct {
 	Purpose    string   `json:"purpose"`
 }
 
-// BuildDescriptor returns the descriptor of the bench that p, the deployment
-// and the provisioning describe. Hosts are p.Hosts when set, else the hosts the
-// deployment reached (d.ReachableHosts) when there are any, else the loopback
-// address followed by the node's IP when there is one; the slices of p and d are
-// copied, not shared.
-func BuildDescriptor(p Params, d DeployResult, r ProvisionResult) Descriptor {
+// BuildDescriptor returns the descriptor of the bench that p, the deployment,
+// the provisioning and the seed describe. The dataset section lists the images
+// of s in their order, so an empty result lists none ("[]", never null). Hosts
+// are p.Hosts when set, else the hosts the deployment reached (d.ReachableHosts)
+// when there are any, else the loopback address followed by the node's IP when
+// there is one; the slices of p and d are copied, not shared, and so are the
+// images of s.
+func BuildDescriptor(p Params, d DeployResult, r ProvisionResult, s SeedResult) Descriptor {
 	hosts := append([]string(nil), p.Hosts...)
 	if len(hosts) == 0 {
 		hosts = append(hosts, d.ReachableHosts...)
@@ -130,6 +166,13 @@ func BuildDescriptor(p Params, d DeployResult, r ProvisionResult) Descriptor {
 	}
 	if r.ProxyPending {
 		repositories = []DescriptorRepository{repositories[0], {Name: dockerGroupRepository, Type: "group", Members: []string{"docker-hosted"}}}
+	}
+	dataset := make([]DescriptorImage, 0, len(s.Images))
+	for _, img := range s.Images {
+		dataset = append(dataset, DescriptorImage{
+			Name: img.Name, Tag: img.Tag, Digest: img.Digest,
+			Location: string(img.Location), CachedInProxy: img.PullThrough,
+		})
 	}
 	return Descriptor{
 		SchemaVersion: descriptorSchemaVersion,
@@ -159,7 +202,32 @@ func BuildDescriptor(p Params, d DeployResult, r ProvisionResult) Descriptor {
 			},
 			{UserID: "anonymous", Enabled: &p.Anonymous, Roles: []string{"nx-anonymous"}, Purpose: "anonymous access"},
 		},
+		RegistryAccess: RegistryAccess{Scheme: registryScheme, TLSVerify: false, Routing: registryRouting},
+		Upstream: DescriptorUpstream{
+			Service: upstreamDeployment, Image: p.UpstreamImageRef(), URL: p.UpstreamURL,
+			Persistent: true, Exposure: upstreamExposure,
+		},
+		Dataset: dataset,
 	}
+}
+
+// maxDescriptorHosts bounds the hosts a descriptor may list: one run reaches the
+// loopback and a node, a handful at most.
+const maxDescriptorHosts = 16
+
+// ValidateDescriptorHosts holds the hosts of a descriptor read from disk to the
+// rule of NEXUS_BENCH_HOSTS (an IP address or a host name) and to a bound on
+// their number, because they end up in the URLs of the descriptor that replaces
+// it. The error never repeats a host: what the file holds is not trusted. A host
+// name that is syntactically valid passes: whether it is the node is not checked.
+func ValidateDescriptorHosts(hosts []string) error {
+	if len(hosts) > maxDescriptorHosts {
+		return fmt.Errorf("the descriptor lists %d hosts, more than %d", len(hosts), maxDescriptorHosts)
+	}
+	if validateHosts(hosts) != nil {
+		return errors.New("the descriptor lists a host that is neither an IP address nor a host name")
+	}
+	return nil
 }
 
 // RESTBaseURL returns the REST origin of the bench on host: "http://" followed
@@ -200,7 +268,7 @@ func WriteDescriptor(path string, d Descriptor) error {
 }
 
 // LoadDescriptor reads the descriptor at path. A missing file is ErrNoDescriptor
-// (wrapped); a file that is not JSON, or whose schemaVersion is not 1, is an
+// (wrapped); a file that is not JSON, or whose schemaVersion is not 2, is an
 // error that does not show the content of the file.
 func LoadDescriptor(path string) (Descriptor, error) {
 	data, err := os.ReadFile(path)
@@ -217,6 +285,13 @@ func LoadDescriptor(path string) (Descriptor, error) {
 	}
 	if err := json.Unmarshal(data, &probe); err != nil {
 		return Descriptor{}, fmt.Errorf("the descriptor %s is not valid JSON", path)
+	}
+	if probe.SchemaVersion == 1 {
+		return Descriptor{}, &BenchError{
+			Kind:  Unclassified,
+			Cause: fmt.Sprintf("the descriptor %s is a schema 1 file (NX-01); this build reads schema %d only", path, descriptorSchemaVersion),
+			Check: "run mise run nexus-bench:up to write it again",
+		}
 	}
 	if probe.SchemaVersion != descriptorSchemaVersion {
 		return Descriptor{}, fmt.Errorf("the descriptor %s has schemaVersion %d; this build reads schemaVersion %d only", path, probe.SchemaVersion, descriptorSchemaVersion)

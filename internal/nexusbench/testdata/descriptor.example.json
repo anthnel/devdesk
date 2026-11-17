@@ -1,5 +1,5 @@
 {
-  "schemaVersion": 1,
+  "schemaVersion": 2,
   "kubeContext": "datomir",
   "namespace": "nexus-bench",
   "image": "docker.io/sonatype/nexus3:3.98.1",
@@ -78,6 +78,76 @@
         "nx-anonymous"
       ],
       "purpose": "anonymous access"
+    }
+  ],
+  "registryAccess": {
+    "scheme": "http",
+    "tlsVerify": false,
+    "routing": "path"
+  },
+  "upstream": {
+    "service": "bench-upstream",
+    "image": "docker.io/library/registry:3.0.0",
+    "url": "http://bench-upstream.nexus-bench.svc.cluster.local:5000",
+    "persistent": true,
+    "exposure": "port-forward"
+  },
+  "dataset": [
+    {
+      "name": "api",
+      "tag": "1.0.0",
+      "digest": "sha256:241d539e25e7715ee530207ef552fe850bab8a59bc0b328359b8cffcfed49cb8",
+      "location": "docker-hosted",
+      "cachedInProxy": false
+    },
+    {
+      "name": "api",
+      "tag": "1.1.0",
+      "digest": "sha256:12775717eb40a76aeb4d080954f984461a32c559279e57456cd21756ceb1b046",
+      "location": "docker-hosted",
+      "cachedInProxy": false
+    },
+    {
+      "name": "team/api",
+      "tag": "1.0.0",
+      "digest": "sha256:00d6546fff2d53b45adae281701834519aed37d3c21038d46983abe8805871bf",
+      "location": "docker-hosted",
+      "cachedInProxy": false
+    },
+    {
+      "name": "tools/cli",
+      "tag": "0.1.0",
+      "digest": "sha256:18bb5f269eac8f9a8206307940162ea1e5fe40cdce25fce763511ea7ec7c5940",
+      "location": "docker-hosted",
+      "cachedInProxy": false
+    },
+    {
+      "name": "shared/base",
+      "tag": "1.0",
+      "digest": "sha256:d9a19506e2b5453b72096bce52903b6e635aad3cea690b8c83784b50cd17c33a",
+      "location": "docker-hosted",
+      "cachedInProxy": false
+    },
+    {
+      "name": "shared/base",
+      "tag": "1.0",
+      "digest": "sha256:8486bd6d24f63834383a34215214daa3a293936b9e39dac58cb4eaa1746eae14",
+      "location": "upstream",
+      "cachedInProxy": false
+    },
+    {
+      "name": "mirror/cached",
+      "tag": "1.0",
+      "digest": "sha256:fc522a364e2cb0c1283fe5c96412f8bd19f2d31b3b0f42c229e6d5a7b28138d3",
+      "location": "upstream",
+      "cachedInProxy": true
+    },
+    {
+      "name": "mirror/uncached",
+      "tag": "1.0",
+      "digest": "sha256:b1968983e0ea0cbb8e811f9f5011dae1012da16f3880bb5d90e2a90a736d4368",
+      "location": "upstream",
+      "cachedInProxy": false
     }
   ]
 }

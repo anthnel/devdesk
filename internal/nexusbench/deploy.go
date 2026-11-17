@@ -19,6 +19,14 @@ const (
 	// podSelector selects the Nexus pod, the label 20-deployment.yaml.tmpl sets.
 	podSelector = "app.kubernetes.io/name=nexus"
 
+	// The names the manifests give; a claim is read by name because the
+	// namespace holds the claim of the upstream too.
+	nexusDeployName     = "nexus"
+	nexusClaimName      = "nexus-data"
+	upstreamDeployment  = "bench-upstream"
+	upstreamClaimName   = "bench-upstream-data"
+	upstreamPodSelector = "app.kubernetes.io/name=bench-upstream"
+
 	// pollInterval separates two rounds of the wait.
 	pollInterval = 5 * time.Second
 
@@ -36,6 +44,57 @@ const (
 	reasonCrashLoop        = "CrashLoopBackOff"
 	reasonOOMKilled        = "OOMKilled"
 )
+
+// workload says which pods a wait watches and what a diagnosis names: Nexus for
+// Deploy, the bench upstream for EnsureUpstream. A message about one never
+// names a variable, a claim or a pod of the other.
+type workload struct {
+	// name is how a message calls the workload: "the <name> pod".
+	name string
+	// deployment is the Deployment whose logs a crash points to.
+	deployment string
+	// selector is the label selector of the pods ("key=value").
+	selector string
+	// claim is the name of its volume claim; the namespace holds others, so the
+	// claim is picked by name.
+	claim string
+	// imageRef returns the image reference a pull failure names.
+	imageRef func(Params) string
+	// imageVars are the variables that set the image and its tag.
+	imageVars []string
+	// memoryVars are the variables that size the memory of the pods, the request
+	// first and the limit last. A workload without any is sized by its manifest:
+	// no message suggests a variable for it, nor quotes a size.
+	memoryVars []string
+}
+
+// nexusWorkload is the Nexus pod.
+func nexusWorkload() workload {
+	return workload{
+		name:       "Nexus",
+		deployment: nexusDeployName,
+		selector:   podSelector,
+		claim:      nexusClaimName,
+		imageRef:   Params.ImageRef,
+		imageVars:  []string{envImage, envImageTag},
+		memoryVars: []string{envMemoryRequest, envMemoryLimit},
+	}
+}
+
+// upstreamWorkload is the pod of the bench upstream.
+func upstreamWorkload() workload {
+	return workload{
+		name:       upstreamDeployment,
+		deployment: upstreamDeployment,
+		selector:   upstreamPodSelector,
+		claim:      upstreamClaimName,
+		imageRef:   Params.UpstreamImageRef,
+		imageVars:  []string{envUpstreamImage, envUpstreamTag},
+	}
+}
+
+// sized reports whether variables size the pods, and so the claim.
+func (w workload) sized() bool { return len(w.memoryVars) > 0 }
 
 // Deploy applies the manifests of the bench and waits until Nexus answers on a
 // NodePort. The order is fixed:
@@ -72,7 +131,7 @@ func Deploy(ctx context.Context, r Runner, pr Prober, clk Clock, p Params, out i
 		return DeployResult{}, fmt.Errorf("render the manifests: %w", err)
 	}
 
-	d := &deployer{pf: preflight{r: r, p: p}, pr: pr, clk: clk, out: out, hosts: deployHosts(p, pre.NodeIP)}
+	d := &deployer{pf: preflight{r: r, p: p}, w: nexusWorkload(), tag: "deploy", pr: pr, clk: clk, out: out, hosts: deployHosts(p, pre.NodeIP)}
 	d.say("applying the Namespace %s", p.Namespace)
 	if err := d.apply(ctx, "the Namespace", nsDoc); err != nil {
 		return DeployResult{}, err
@@ -104,6 +163,8 @@ func deployHosts(p Params, nodeIP string) []string {
 // deployer is the state of one Deploy run.
 type deployer struct {
 	pf    preflight // the runner and the parameters, and its error builders
+	w     workload  // the pods the run watches
+	tag   string    // prefix of the progress lines
 	pr    Prober
 	clk   Clock
 	out   io.Writer
@@ -116,7 +177,7 @@ type deployer struct {
 }
 
 func (d *deployer) say(format string, args ...any) {
-	_, _ = fmt.Fprintf(d.out, "deploy: "+format+"\n", args...)
+	_, _ = fmt.Fprintf(d.out, d.tag+": "+format+"\n", args...)
 }
 
 // ---- apply ------------------------------------------------------------------
@@ -168,19 +229,10 @@ func (d *deployer) applyFailure(what, stderr string, err error) *BenchError {
 func (d *deployer) wait(ctx context.Context) ([]string, error) {
 	deadline := d.clk.Now().Add(d.pf.p.Timeout)
 	for {
-		obs, err := d.observe(ctx)
+		obs, err := d.round(ctx)
 		if err != nil {
 			return nil, err
 		}
-		failure, pending := diagnose(d.pf.p, obs)
-		if failure != nil {
-			return nil, failure
-		}
-		d.candidate = pending
-		if err := d.trackPending(); err != nil {
-			return nil, err
-		}
-		d.report(obs)
 		reached, silent := d.probeHosts(ctx)
 		if err := ctx.Err(); err != nil {
 			return nil, err
@@ -196,6 +248,26 @@ func (d *deployer) wait(ctx context.Context) ([]string, error) {
 			return nil, err
 		}
 	}
+}
+
+// round reads the cluster, diagnoses it and reports its state: what every wait
+// does before it looks at its own end condition. A failure, or a pending reading
+// that has lasted, is the error.
+func (d *deployer) round(ctx context.Context) (observation, error) {
+	obs, err := d.observe(ctx)
+	if err != nil {
+		return obs, err
+	}
+	failure, pending := diagnose(d.pf.p, obs)
+	if failure != nil {
+		return obs, failure
+	}
+	d.candidate = pending
+	if err := d.trackPending(); err != nil {
+		return obs, err
+	}
+	d.report(obs)
+	return obs, nil
 }
 
 // trackPending returns the pending reading of the round once it has lasted for
@@ -226,7 +298,7 @@ func (d *deployer) deadlineError(obs observation) error {
 		Kind: Deadline,
 		Cause: fmt.Sprintf("Nexus did not answer on NodePort %d (tried %s) within %s; last state: %s",
 			p.HTTPNodePort, strings.Join(d.hosts, ", "), p.Timeout, obs.describe()),
-		Check: describePodCommand(p) + ", then raise " + envTimeout + " if the image pull or the start is only slow; `mise run nexus-bench:down` removes the bench",
+		Check: describePodCommand(p, d.w) + ", then raise " + envTimeout + " if the image pull or the start is only slow; `mise run nexus-bench:down` removes the bench",
 	}
 }
 
@@ -269,8 +341,9 @@ func (d *deployer) warnSilent(reached, silent []string) {
 
 // ---- reading the cluster ----------------------------------------------------
 
-// observation is what one round read: the pods of Nexus and its claim.
+// observation is what one round read: the pods of a workload and its claim.
 type observation struct {
+	w    workload
 	pods []podObject
 	pvc  *claimObject
 }
@@ -314,14 +387,16 @@ type claimObject struct {
 	} `json:"status"`
 }
 
-// observe reads the pods of Nexus and the claims of the namespace.
+// observe reads the pods of the workload and the claims of the namespace; the
+// claim is the one of the workload, by name: the namespace holds the claims of
+// Nexus and of the upstream, and kubectl lists them by name.
 func (d *deployer) observe(ctx context.Context) (observation, error) {
-	var obs observation
+	obs := observation{w: d.w}
 	ns := d.pf.p.Namespace
 	var pods struct {
 		Items []podObject `json:"items"`
 	}
-	if err := d.read(ctx, "read the Nexus pod", []string{"get", "pods", "-n", ns, "-l", podSelector, "-o", "json"}, &pods); err != nil {
+	if err := d.read(ctx, "read the "+d.w.name+" pod", d.podsArgs(), &pods); err != nil {
 		return obs, err
 	}
 	var claims struct {
@@ -331,37 +406,52 @@ func (d *deployer) observe(ctx context.Context) (observation, error) {
 		return obs, err
 	}
 	obs.pods = pods.Items
-	if len(claims.Items) > 0 {
-		obs.pvc = &claims.Items[0]
+	if i := slices.IndexFunc(claims.Items, func(c claimObject) bool { return c.Metadata.Name == d.w.claim }); i >= 0 {
+		obs.pvc = &claims.Items[i]
 	}
 	return obs, nil
 }
 
+// podsArgs is the call that lists the pods of the workload.
+func (d *deployer) podsArgs() []string {
+	return []string{"get", "pods", "-n", d.pf.p.Namespace, "-l", d.w.selector, "-o", "json"}
+}
+
 // read runs a read-only kubectl call and decodes its JSON answer into into.
 func (d *deployer) read(ctx context.Context, what string, args []string, into any) error {
+	_, err := d.fetch(ctx, what, args, into, false)
+	return err
+}
+
+// fetch is read, except that an object that is not there is not an error when
+// optional: found is then false and into is untouched.
+func (d *deployer) fetch(ctx context.Context, what string, args []string, into any, optional bool) (found bool, err error) {
 	out, errOut, err := d.pf.remote(ctx, args...)
 	if err != nil {
 		if cerr := ctx.Err(); cerr != nil {
-			return cerr
+			return false, cerr
 		}
-		return d.pf.failure("could not "+what, args, string(errOut), err)
+		if optional && isNotFound(errOut) {
+			return false, nil
+		}
+		return false, d.pf.failure(what, args, string(errOut), err)
 	}
 	if err := json.Unmarshal([]byte(out), into); err != nil {
-		return &BenchError{
+		return false, &BenchError{
 			Kind:  Unclassified,
 			Cause: "kubectl answered with something that is not the answer to \"" + what + "\"",
 			Check: d.pf.command(args...),
 			Err:   err,
 		}
 	}
-	return nil
+	return true, nil
 }
 
 // describe is the one-line state of the round, for the progress and the deadline.
 func (o observation) describe() string {
 	var parts []string
 	if len(o.pods) == 0 {
-		parts = append(parts, "no pod matches "+podSelector+" yet")
+		parts = append(parts, "no pod matches "+o.w.selector+" yet")
 	}
 	for _, pod := range o.pods {
 		parts = append(parts, pod.describe())
@@ -403,7 +493,7 @@ func diagnose(p Params, obs observation) (failure, pending *BenchError) {
 		if pod.Metadata.DeletionTimestamp != nil {
 			continue
 		}
-		if f := podFailure(p, pod); f != nil {
+		if f := podFailure(p, obs.w, pod); f != nil {
 			return f, nil
 		}
 	}
@@ -411,7 +501,7 @@ func diagnose(p Params, obs observation) (failure, pending *BenchError) {
 }
 
 // podFailure is a pull that fails or a container that crashes.
-func podFailure(p Params, pod podObject) *BenchError {
+func podFailure(p Params, w workload, pod podObject) *BenchError {
 	for _, cs := range pod.Status.ContainerStatuses {
 		waiting := ""
 		if cs.State.Waiting != nil {
@@ -432,17 +522,17 @@ func podFailure(p Params, pod podObject) *BenchError {
 		case waiting == reasonErrImagePull || waiting == reasonImagePullBackOff:
 			return &BenchError{
 				Kind:  ImagePull,
-				Cause: fmt.Sprintf("the image %s could not be pulled (%s)", p.ImageRef(), waiting),
-				Check: describePodCommand(p) + ", then check " + envImage + ", " + envImageTag + " and the access of the cluster to the registry",
+				Cause: fmt.Sprintf("the image %s could not be pulled (%s)", w.imageRef(p), waiting),
+				Check: describePodCommand(p, w) + ", then check " + strings.Join(w.imageVars, ", ") + " and the access of the cluster to the registry",
 			}
 		case waiting == reasonCrashLoop || last == reasonOOMKilled:
-			return crashFailure(p, waiting, last)
+			return crashFailure(p, w, waiting, last)
 		}
 	}
 	return nil
 }
 
-func crashFailure(p Params, waiting, last string) *BenchError {
+func crashFailure(p Params, w workload, waiting, last string) *BenchError {
 	state := "restarted"
 	if waiting != "" {
 		state = waiting
@@ -450,11 +540,13 @@ func crashFailure(p Params, waiting, last string) *BenchError {
 	if last == "" {
 		last = "unknown"
 	}
-	return &BenchError{
-		Kind:  Crash,
-		Cause: fmt.Sprintf("the Nexus container keeps crashing (%s, last termination: %s) with a memory limit of %s", state, last, p.MemoryLimit),
-		Check: describePodCommand(p) + " and `kubectl --context " + p.Context + " -n " + p.Namespace + " logs deploy/nexus --previous`; raise " + envMemoryLimit + " when it was " + reasonOOMKilled,
+	cause := fmt.Sprintf("the %s container keeps crashing (%s, last termination: %s)", w.name, state, last)
+	check := describePodCommand(p, w) + " and `" + kubectlIn(p, "logs", "deploy/"+w.deployment, "--previous") + "`"
+	if w.sized() {
+		cause += " with a memory limit of " + p.MemoryLimit
+		check += "; raise " + w.memoryVars[len(w.memoryVars)-1] + " when it was " + reasonOOMKilled
 	}
+	return &BenchError{Kind: Crash, Cause: cause, Check: check}
 }
 
 // pendingReading is a pod that cannot be scheduled, or a claim that stays
@@ -468,36 +560,50 @@ func pendingReading(p Params, obs observation) *BenchError {
 			continue
 		}
 		if msg, ok := pod.unschedulable(); ok {
-			return unschedulableReading(p, msg)
+			return unschedulableReading(p, obs.w, msg)
 		}
 		scheduled = scheduled || pod.scheduled()
 	}
 	if scheduled && obs.pvc != nil && obs.pvc.Status.Phase == "Pending" {
-		return &BenchError{
-			Kind:  PodPending,
-			Cause: fmt.Sprintf("the volume claim %s (%s of storage) is still Pending although the pod is scheduled", obs.pvc.Metadata.Name, p.StorageSize),
-			Check: kubectlIn(p, "describe", "pvc", obs.pvc.Metadata.Name) + ", then lower " + envStorageSize + " or check the default StorageClass",
+		cause := fmt.Sprintf("the volume claim %s is still Pending although the pod is scheduled", obs.pvc.Metadata.Name)
+		check := kubectlIn(p, "describe", "pvc", obs.pvc.Metadata.Name) + ", then "
+		if obs.w.sized() {
+			cause = fmt.Sprintf("the volume claim %s (%s of storage) is still Pending although the pod is scheduled", obs.pvc.Metadata.Name, p.StorageSize)
+			check += "lower " + envStorageSize + " or "
 		}
+		return &BenchError{Kind: PodPending, Cause: cause, Check: check + "check the default StorageClass"}
 	}
 	return nil
 }
 
-func unschedulableReading(p Params, msg string) *BenchError {
+// unschedulableReading names what the node lacks. Only a sized workload says how
+// much it asked for and which variable to lower.
+func unschedulableReading(p Params, w workload, msg string) *BenchError {
 	var lacks, envs []string
 	if strings.Contains(msg, "Insufficient memory") {
-		lacks = append(lacks, "memory (requested "+p.MemoryRequest+")")
+		lacks = append(lacks, "memory"+w.requested(" (requested "+p.MemoryRequest+")"))
 		envs = append(envs, envMemoryRequest)
 	}
 	if strings.Contains(msg, "Insufficient cpu") {
-		lacks = append(lacks, "cpu (requested "+p.CPURequest+")")
+		lacks = append(lacks, "cpu"+w.requested(" (requested "+p.CPURequest+")"))
 		envs = append(envs, envCPURequest)
 	}
-	be := &BenchError{Kind: PodPending, Cause: "the Nexus pod cannot be scheduled", Check: describePodCommand(p)}
+	be := &BenchError{Kind: PodPending, Cause: "the " + w.name + " pod cannot be scheduled", Check: describePodCommand(p, w)}
 	if len(lacks) > 0 {
 		be.Cause += ": the node has not enough " + strings.Join(lacks, " and ") + " left"
-		be.Check += ", then lower " + strings.Join(envs, " or ")
+		if w.sized() {
+			be.Check += ", then lower " + strings.Join(envs, " or ")
+		}
 	}
 	return be
+}
+
+// requested returns text for a sized workload and "" for one its manifest sizes.
+func (w workload) requested(text string) string {
+	if w.sized() {
+		return text
+	}
+	return ""
 }
 
 // scheduled reports whether the PodScheduled condition is True.
@@ -521,9 +627,9 @@ func (pod podObject) unschedulable() (message string, ok bool) {
 	return "", false
 }
 
-// describePodCommand is the kubectl command that describes the Nexus pod.
-func describePodCommand(p Params) string {
-	return kubectlIn(p, "describe", "pod", "-l", podSelector)
+// describePodCommand is the kubectl command that describes the pods of w.
+func describePodCommand(p Params, w workload) string {
+	return kubectlIn(p, "describe", "pod", "-l", w.selector)
 }
 
 // kubectlIn is a kubectl command line, in the namespace of the bench, a user can

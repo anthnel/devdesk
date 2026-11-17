@@ -91,7 +91,7 @@ func TestProvisionOtherRefusalOfTheProxyStillFails(t *testing.T) {
 func TestBuildDescriptorLeavesAPendingProxyOut(t *testing.T) {
 	d := BuildDescriptor(Defaults(), DeployResult{NodeIP: sampleNodeIP}, ProvisionResult{
 		NexusVersion: sampleNexusVersion, Edition: "COMMUNITY", EULAAccepted: true, ProxyPending: true,
-	})
+	}, SeedResult{})
 	want := []DescriptorRepository{
 		{Name: "docker-hosted", Type: "hosted"},
 		{Name: "docker-group", Type: "group", Members: []string{"docker-hosted"}},

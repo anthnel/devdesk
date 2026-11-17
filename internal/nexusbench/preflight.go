@@ -17,6 +17,8 @@ const (
 	OpProvision
 	OpDown
 	OpStatus
+	// OpSeed is appended after OpStatus: no earlier value moves.
+	OpSeed
 )
 
 // PreflightResult is what a successful preflight learned about the cluster.
@@ -56,38 +58,70 @@ const (
 // permission is one "kubectl auth can-i" question the preflight asks.
 type permission struct {
 	verb, resource string
-	scope          permissionScope
+	// subresource is asked as --subresource=<sub>: kubectl reads "pods/exec" as
+	// the object "exec" of the pods, not as the exec subresource.
+	subresource string
+	scope       permissionScope
+}
+
+// name is the resource as a message shows it: "pods/exec".
+func (perm permission) name() string {
+	if perm.subresource == "" {
+		return perm.resource
+	}
+	return perm.resource + "/" + perm.subresource
 }
 
 // permissionsByOp is the list F2 of the plan: what each operation needs. An
 // operation absent from the map (status) writes nothing and asks nothing.
 var permissionsByOp = map[Op][]permission{
 	OpUp: {
-		{"create", "namespaces", scopeCluster},
-		{"create", "persistentvolumeclaims", scopeNamespace},
-		{"create", "services", scopeNamespace},
-		{"create", "deployments", scopeNamespace},
-		{"create", "pods/exec", scopeNamespace},
-		{"list", "services", scopeAll},
+		{"create", "namespaces", "", scopeCluster},
+		{"create", "persistentvolumeclaims", "", scopeNamespace},
+		{"create", "services", "", scopeNamespace},
+		{"create", "deployments", "", scopeNamespace},
+		{"create", "pods", "exec", scopeNamespace},
+		{"list", "services", "", scopeAll},
 		// Server-side apply is a PATCH, also on a second run (the namespace
 		// included), and Deploy reads the pods and the claims of the namespace
 		// while it waits.
-		{"patch", "namespaces", scopeCluster},
-		{"patch", "deployments", scopeNamespace},
-		{"patch", "services", scopeNamespace},
-		{"patch", "persistentvolumeclaims", scopeNamespace},
-		{"get", "pods", scopeNamespace},
-		{"list", "pods", scopeNamespace},
-		{"get", "persistentvolumeclaims", scopeNamespace},
-		{"list", "persistentvolumeclaims", scopeNamespace},
+		{"patch", "namespaces", "", scopeCluster},
+		{"patch", "deployments", "", scopeNamespace},
+		{"patch", "services", "", scopeNamespace},
+		{"patch", "persistentvolumeclaims", "", scopeNamespace},
+		{"get", "pods", "", scopeNamespace},
+		{"list", "pods", "", scopeNamespace},
+		{"get", "persistentvolumeclaims", "", scopeNamespace},
+		{"list", "persistentvolumeclaims", "", scopeNamespace},
+		// The upstream: EnsureUpstream scales it, and the seed that follows up
+		// reaches it through a port-forward, which reads the Service first. Asked
+		// last, so the fourteen above stay where they were.
+		{"patch", "deployments", "scale", scopeNamespace},
+		{"create", "pods", "portforward", scopeNamespace},
+		{"get", "services", "", scopeNamespace},
 	},
 	// Provision waits for the Deployment and reads the pods before it execs.
 	OpProvision: {
-		{"create", "pods/exec", scopeNamespace},
-		{"get", "deployments", scopeNamespace},
-		{"list", "pods", scopeNamespace},
+		{"create", "pods", "exec", scopeNamespace},
+		{"get", "deployments", "", scopeNamespace},
+		{"list", "pods", "", scopeNamespace},
 	},
-	OpDown: {{"delete", "namespaces", scopeCluster}},
+	OpDown: {{"delete", "namespaces", "", scopeCluster}},
+	// Seed reads the Deployment and the pods of the upstream, scales it back
+	// when it is cut, and reaches it through a port-forward, which gets the
+	// Service, then the pod it picks, before it opens the tunnel. EnsureUpstream
+	// reads the claim on every turn of its wait, so the two claim questions come
+	// before the first write.
+	OpSeed: {
+		{"get", "deployments", "", scopeNamespace},
+		{"list", "pods", "", scopeNamespace},
+		{"get", "pods", "", scopeNamespace},
+		{"get", "services", "", scopeNamespace},
+		{"get", "persistentvolumeclaims", "", scopeNamespace},
+		{"list", "persistentvolumeclaims", "", scopeNamespace},
+		{"create", "pods", "portforward", scopeNamespace},
+		{"patch", "deployments", "scale", scopeNamespace},
+	},
 }
 
 // RunPreflight checks, with read-only kubectl calls, that op can go ahead, and
@@ -102,7 +136,7 @@ var permissionsByOp = map[Op][]permission{
 //  4. the can-i questions of the operation
 //  5. the namespace: absent, ours, or foreign
 //  6. up only: no other Service holds one of our NodePorts
-//  7. all but down: the InternalIP of the node
+//  7. all but down and seed: the InternalIP of the node
 //
 // Every failure is a *BenchError.
 func RunPreflight(ctx context.Context, r Runner, p Params, op Op) (PreflightResult, error) {
@@ -131,7 +165,9 @@ func RunPreflight(ctx context.Context, r Runner, p Params, op Op) (PreflightResu
 			return res, err
 		}
 	}
-	if op != OpDown {
+	// The seed reaches the registries through a port-forward on the loopback: it
+	// has no use for the node address and no can-i question covers get nodes.
+	if op != OpDown && op != OpSeed {
 		if res.NodeIP, err = pf.nodeIP(ctx); err != nil {
 			return res, err
 		}
@@ -220,6 +256,9 @@ func (pf preflight) checkReachable(ctx context.Context) error {
 // non-zero exit, so the answer is read before the error.
 func (pf preflight) checkPermission(ctx context.Context, perm permission) error {
 	args := []string{"auth", "can-i", perm.verb, perm.resource}
+	if perm.subresource != "" {
+		args = append(args, "--subresource="+perm.subresource)
+	}
 	where := "cluster-wide"
 	switch perm.scope {
 	case scopeNamespace:
@@ -235,14 +274,14 @@ func (pf preflight) checkPermission(ctx context.Context, perm permission) error 
 	case strings.HasPrefix(answer, "no"):
 		return &BenchError{
 			Kind:  Forbidden,
-			Cause: fmt.Sprintf("the current user is not allowed to %s %s %s", perm.verb, perm.resource, where),
+			Cause: fmt.Sprintf("the current user is not allowed to %s %s %s", perm.verb, perm.name(), where),
 			Check: pf.command(args...),
 			Err:   err,
 		}
 	case err == nil && strings.HasPrefix(answer, "yes"):
 		return nil
 	}
-	return pf.failure(fmt.Sprintf("check the permission to %s %s", perm.verb, perm.resource), args, errOut, err)
+	return pf.failure(fmt.Sprintf("check the permission to %s %s", perm.verb, perm.name()), args, errOut, err)
 }
 
 // namespaceObject is the part of a Namespace the preflight reads.
@@ -259,8 +298,8 @@ func (pf preflight) checkNamespace(ctx context.Context, op Op) (PreflightResult,
 	out, errOut, err := pf.remote(ctx, args...)
 	switch {
 	case err != nil && isNotFound(errOut):
-		// Absent: only provision and status need it.
-		if op == OpProvision || op == OpStatus {
+		// Absent: only provision, status and seed need it.
+		if op == OpProvision || op == OpStatus || op == OpSeed {
 			return res, &BenchError{
 				Kind:  NamespaceMissing,
 				Cause: fmt.Sprintf("namespace %q does not exist", ns),
