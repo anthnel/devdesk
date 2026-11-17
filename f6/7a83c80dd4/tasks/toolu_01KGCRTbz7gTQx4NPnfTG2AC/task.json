@@ -1,0 +1,15 @@
+{
+  "tool_use_id": "toolu_01KGCRTbz7gTQx4NPnfTG2AC",
+  "agent_id": "ae0cee570ba3e5626",
+  "subagent_type": "project-tester",
+  "task_description": "Step 2 tests (red): upstream manifests",
+  "token_usage": {
+    "input_tokens": 38,
+    "cache_creation_tokens": 85295,
+    "cache_read_tokens": 974884,
+    "output_tokens": 20729,
+    "api_call_count": 17
+  },
+  "started_at": "2026-11-17T06:15:11.547468117+01:00",
+  "completed_at": "2026-11-17T06:17:17.70244991+01:00"
+}

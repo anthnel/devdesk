@@ -1,0 +1,18 @@
+{
+  "tool_use_id": "toolu_019J3opvnpGM1DQ8us6apqbC",
+  "agent_id": "af59a8417c03c25d7",
+  "subagent_type": "team-core:archivist",
+  "task_description": "Archive decision D158 (NX-02a)",
+  "files": [
+    "docs/backlog.md"
+  ],
+  "token_usage": {
+    "input_tokens": 14,
+    "cache_creation_tokens": 79145,
+    "cache_read_tokens": 377138,
+    "output_tokens": 8685,
+    "api_call_count": 7
+  },
+  "started_at": "2026-11-17T08:55:26.2748742+01:00",
+  "completed_at": "2026-11-17T08:56:11.054811148+01:00"
+}

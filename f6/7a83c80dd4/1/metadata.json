@@ -1,0 +1,197 @@
+{
+  "cli_version": "0.13.2",
+  "checkpoint_id": "f67a83c80dd4",
+  "session_id": "48330198-84f1-4ccd-9409-8d4d7a579274",
+  "strategy": "manual-commit",
+  "created_at": "2026-11-17T14:59:32.012607549Z",
+  "branch": "feat/devdesk-505-nexus-bench-seed",
+  "checkpoints_count": 48,
+  "save_step_count": 47,
+  "files_touched": [
+    "docs/architecture/nexus-bench.md",
+    "docs/backlog.md",
+    "internal/nexusbench/bench_integration_test.go",
+    "internal/nexusbench/capwriter.go",
+    "internal/nexusbench/cmd/nexus-bench/commands.go",
+    "internal/nexusbench/cmd/nexus-bench/flags.go",
+    "internal/nexusbench/cmd/nexus-bench/main.go",
+    "internal/nexusbench/cmd/nexus-bench/main_test.go",
+    "internal/nexusbench/cmd/nexus-bench/seed_test.go",
+    "internal/nexusbench/cmd/nexus-bench/status.go",
+    "internal/nexusbench/cmd/nexus-bench/usage.go",
+    "internal/nexusbench/components.go",
+    "internal/nexusbench/dataset.go",
+    "internal/nexusbench/deploy.go",
+    "internal/nexusbench/descriptor.go",
+    "internal/nexusbench/descriptor_hosts_test.go",
+    "internal/nexusbench/descriptor_test.go",
+    "internal/nexusbench/descriptor_v2_test.go",
+    "internal/nexusbench/errors.go",
+    "internal/nexusbench/errors_test.go",
+    "internal/nexusbench/fakenexus_test.go",
+    "internal/nexusbench/fakeregistry_test.go",
+    "internal/nexusbench/guard_test.go",
+    "internal/nexusbench/helper_process_test.go",
+    "internal/nexusbench/kubectl.go",
+    "internal/nexusbench/kubectl_test.go",
+    "internal/nexusbench/mise_tasks_test.go",
+    "internal/nexusbench/nexusapi.go",
+    "internal/nexusbench/ocilayout.go",
+    "internal/nexusbench/params.go",
+    "internal/nexusbench/params_test.go",
+    "internal/nexusbench/preflight.go",
+    "internal/nexusbench/preflight_seed_test.go",
+    "internal/nexusbench/preflight_test.go",
+    "internal/nexusbench/provision.go",
+    "internal/nexusbench/provision_upstream_test.go",
+    "internal/nexusbench/render.go",
+    "internal/nexusbench/render_test.go",
+    "internal/nexusbench/rest_url_test.go",
+    "internal/nexusbench/seed.go",
+    "internal/nexusbench/seed_test.go",
+    "internal/nexusbench/skopeo.go",
+    "internal/nexusbench/skopeo_test.go",
+    "internal/nexusbench/testdata/descriptor.example.json",
+    "internal/nexusbench/testdata/render-default.golden.yaml",
+    "internal/nexusbench/upstream_test.go",
+    "mise.toml"
+  ],
+  "agent": "Claude Code",
+  "model": "claude-sonnet-5-5",
+  "turn_id": "5365ca5a4d7b",
+  "compact_transcript_start": 0,
+  "token_usage": {
+    "input_tokens": 324,
+    "cache_creation_tokens": 415919,
+    "cache_read_tokens": 24975474,
+    "output_tokens": 86789,
+    "api_call_count": 114,
+    "subagent_tokens": {
+      "input_tokens": 1492,
+      "cache_creation_tokens": 6227525,
+      "cache_read_tokens": 80568123,
+      "output_tokens": 986213,
+      "api_call_count": 706
+    },
+    "subagent_tokens_complete": true
+  },
+  "session_token_usage": {
+    "input_tokens": 324,
+    "cache_creation_tokens": 415919,
+    "cache_read_tokens": 24975474,
+    "output_tokens": 86789,
+    "api_call_count": 114,
+    "subagent_tokens": {
+      "input_tokens": 1492,
+      "cache_creation_tokens": 6227525,
+      "cache_read_tokens": 80568123,
+      "output_tokens": 986213,
+      "api_call_count": 706
+    },
+    "subagent_tokens_complete": true
+  },
+  "redaction": {
+    "replacements": 2,
+    "layers": {
+      "betterleaks": 0,
+      "connection_string": 0,
+      "credential_key": 0,
+      "credential_value": 0,
+      "credentialed_uri": 0,
+      "entropy": 0,
+      "key_context": 2,
+      "provider_token": 0,
+      "shell_stdin": 0
+    }
+  },
+  "skill_events_version": 1,
+  "skill_events": [
+    {
+      "id": "prompt-skill-claude-code-team-core:feature-2026-11-16T21:03:29.275955821Z",
+      "event_type": "prompt_invocation",
+      "skill": {
+        "name": "team-core:feature"
+      },
+      "source": {
+        "agent": "claude-code",
+        "signal": "prompt_slash_command",
+        "confidence": "explicit"
+      },
+      "turn_id": "9dfbbb4932ca",
+      "timestamp": "2026-11-16T21:03:29.275955821Z",
+      "native": {
+        "command": "/team-core:feature"
+      },
+      "collapse": {
+        "target": "user_message",
+        "label": "/team-core:feature",
+        "default_collapsed": true
+      }
+    },
+    {
+      "id": "claude-skill-toolu_014fFSPN3j8pTr5s8vM3kqXj",
+      "event_type": "tool_invocation",
+      "skill": {
+        "name": "team-core:resume-work"
+      },
+      "source": {
+        "agent": "claude-code",
+        "signal": "skill_tool_use",
+        "confidence": "explicit"
+      },
+      "turn_id": "5365ca5a4d7b",
+      "transcript_anchor": {
+        "unit": "line",
+        "start": 39,
+        "end": 40,
+        "entry_ids": [
+          "81157484-ff74-4c8b-9c4a-8783ee3e49f0"
+        ],
+        "tool_use_id": "toolu_014fFSPN3j8pTr5s8vM3kqXj"
+      },
+      "native": {
+        "tool_name": "Skill",
+        "tool_use_id": "toolu_014fFSPN3j8pTr5s8vM3kqXj"
+      },
+      "collapse": {
+        "target": "tool_pair",
+        "label": "Skill: team-core:resume-work",
+        "default_collapsed": true
+      }
+    },
+    {
+      "id": "claude-skill-toolu_014EP55chPhW6qwBGeFn3J5v",
+      "event_type": "tool_invocation",
+      "skill": {
+        "name": "plane-integration:plane-conventions"
+      },
+      "source": {
+        "agent": "claude-code",
+        "signal": "skill_tool_use",
+        "confidence": "explicit"
+      },
+      "turn_id": "5365ca5a4d7b",
+      "transcript_anchor": {
+        "unit": "line",
+        "start": 43,
+        "end": 44,
+        "entry_ids": [
+          "e06006c2-a885-4b28-acde-0a498040e0e2"
+        ],
+        "tool_use_id": "toolu_014EP55chPhW6qwBGeFn3J5v"
+      },
+      "native": {
+        "tool_name": "Skill",
+        "tool_use_id": "toolu_014EP55chPhW6qwBGeFn3J5v"
+      },
+      "collapse": {
+        "target": "tool_pair",
+        "label": "Skill: plane-integration:plane-conventions",
+        "default_collapsed": true
+      }
+    }
+  ],
+  "session_metrics": {
+    "turn_count": 48
+  }
+}
