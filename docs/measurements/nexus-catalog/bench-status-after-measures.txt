@@ -1,0 +1,12 @@
+# scenario: state of the bench after the measurements (output of: mise run nexus-bench:status)
+# nexus: 3.98.1-01 COMMUNITY (internal/nexusbench/descriptor.json, nexusVersion)
+# measured: 2026-11-17, after the HEAD on docker-proxy/shared/base/manifests/1.0 (see manifest-head-proxy-shared-base--admin.http)
+# before the measurements the same command said: dataset: matches (6 images compared)
+# redacted: absolute path of the descriptor replaced by its repository-relative path, kube context name replaced by <kube-context>
+
+bench: namespace nexus-bench, context <kube-context>
+pod: running (nexus-5798c68fdc-q2rxf, 1/1 ready, 0 restarts)
+rest: ready (http://127.0.0.1:30481)
+upstream: ready
+descriptor: matches (internal/nexusbench/descriptor.json)
+dataset: differs (1 image)

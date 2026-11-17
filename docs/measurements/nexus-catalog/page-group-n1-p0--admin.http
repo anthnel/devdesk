@@ -1,0 +1,18 @@
+# scenario: pagination: group connector, n=1, page index 0, zero-based (client follows Link rel=next)
+# nexus: 3.98.1-01 COMMUNITY (internal/nexusbench/descriptor.json, nexusVersion)
+# measured: 2026-11-17
+# account: admin (nx-admin, Basic, sent preemptively)
+# redacted: Authorization header and credentials removed; HTML bodies summarised; response headers filtered to a whitelist
+
+GET /v2/_catalog?n=1 HTTP/1.1
+Host: 127.0.0.1:30482
+Authorization: Basic <redacted>
+
+HTTP/1.1 200 OK
+Server: Nexus/3.98.1-01 (COMMUNITY)
+Docker-Distribution-Api-Version: registry/2.0
+Link: <http://127.0.0.1:30482/v2/_catalog?n=1&last=api>; rel="next"
+Content-Type: application/json
+Content-Length: 24
+
+{"repositories":["api"]}

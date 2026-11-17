@@ -1,0 +1,17 @@
+# scenario: H2: _catalog on the group connector with a Bearer token (Docker client flow). Token step: GET http://127.0.0.1:30482/v2/token?service=http://127.0.0.1:30482/v2/token&scope=registry:catalog:* -> HTTP 200, token present: yes (token not recorded)
+# nexus: 3.98.1-01 COMMUNITY (internal/nexusbench/descriptor.json, nexusVersion)
+# measured: 2026-11-17
+# account: pull (Bearer, token obtained with Basic credentials)
+# redacted: Authorization header and credentials removed; HTML bodies summarised; response headers filtered to a whitelist
+
+GET /v2/_catalog HTTP/1.1
+Host: 127.0.0.1:30482
+Authorization: Bearer <redacted>
+
+HTTP/1.1 200 OK
+Server: Nexus/3.98.1-01 (COMMUNITY)
+Docker-Distribution-Api-Version: registry/2.0
+Content-Type: application/json
+Content-Length: 95
+
+{"repositories":["api","mirror/cached","mirror/uncached","shared/base","team/api","tools/cli"]}

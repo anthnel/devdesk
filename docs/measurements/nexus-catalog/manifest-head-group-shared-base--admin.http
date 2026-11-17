@@ -1,0 +1,18 @@
+# scenario: IS-07: which member answers for shared/base:1.0 through the group (digest)
+# nexus: 3.98.1-01 COMMUNITY (internal/nexusbench/descriptor.json, nexusVersion)
+# measured: 2026-11-17
+# account: admin (nx-admin, Basic, sent preemptively)
+# redacted: Authorization header and credentials removed; HTML bodies summarised; response headers filtered to a whitelist
+
+HEAD /v2/shared/base/manifests/1.0 HTTP/1.1
+Host: 127.0.0.1:30482
+Authorization: Basic <redacted>
+Accept: application/vnd.oci.image.manifest.v1+json, application/vnd.docker.distribution.manifest.v2+json
+
+HTTP/1.1 200 OK
+Server: Nexus/3.98.1-01 (COMMUNITY)
+Docker-Distribution-Api-Version: registry/2.0
+Docker-Content-Digest: sha256:d9a19506e2b5453b72096bce52903b6e635aad3cea690b8c83784b50cd17c33a
+Content-Type: application/vnd.oci.image.manifest.v1+json
+Content-Length: 397
+
