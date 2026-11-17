@@ -1,0 +1,15 @@
+{
+  "tool_use_id": "toolu_01AfEMtuQmFv3SZbrEr2qHks",
+  "agent_id": "a89d50e1a9b9d0572",
+  "subagent_type": "team-core:archivist",
+  "task_description": "Consigner les contradictions mesurées",
+  "token_usage": {
+    "input_tokens": 12,
+    "cache_creation_tokens": 65277,
+    "cache_read_tokens": 188082,
+    "output_tokens": 3639,
+    "api_call_count": 5
+  },
+  "started_at": "2026-11-17T17:42:43.818020254+01:00",
+  "completed_at": "2026-11-17T17:43:05.735411409+01:00"
+}

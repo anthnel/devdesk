@@ -1,0 +1,15 @@
+{
+  "tool_use_id": "toolu_018cnGkbtVe6SwxLnhPrhEWd",
+  "agent_id": "aa6a044cec3c5f067",
+  "subagent_type": "dev-team:reviewer",
+  "task_description": "Revue de la note de mesure",
+  "token_usage": {
+    "input_tokens": 24,
+    "cache_creation_tokens": 100552,
+    "cache_read_tokens": 791596,
+    "output_tokens": 13917,
+    "api_call_count": 11
+  },
+  "started_at": "2026-11-17T17:39:34.94256857+01:00",
+  "completed_at": "2026-11-17T17:41:25.521334337+01:00"
+}

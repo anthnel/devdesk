@@ -1,0 +1,15 @@
+{
+  "tool_use_id": "toolu_01CgBgmU7qxSC2vew4JVF6uj",
+  "agent_id": "a82f86fb228d4b7be",
+  "subagent_type": "dev-team:security-reviewer",
+  "task_description": "Revue sécurité expurgation",
+  "token_usage": {
+    "input_tokens": 20,
+    "cache_creation_tokens": 65866,
+    "cache_read_tokens": 357178,
+    "output_tokens": 5988,
+    "api_call_count": 9
+  },
+  "started_at": "2026-11-17T17:39:34.948221272+01:00",
+  "completed_at": "2026-11-17T17:40:50.55901215+01:00"
+}
