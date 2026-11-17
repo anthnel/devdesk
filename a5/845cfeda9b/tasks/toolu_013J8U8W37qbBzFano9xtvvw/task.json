@@ -1,0 +1,18 @@
+{
+  "tool_use_id": "toolu_013J8U8W37qbBzFano9xtvvw",
+  "agent_id": "ace077060dd753279",
+  "subagent_type": "project-tester",
+  "task_description": "Tests rouge étapes 2 et 3",
+  "files": [
+    "internal/registrymgr/nexus_errors_test.go"
+  ],
+  "token_usage": {
+    "input_tokens": 30,
+    "cache_creation_tokens": 117565,
+    "cache_read_tokens": 924428,
+    "output_tokens": 14292,
+    "api_call_count": 13
+  },
+  "started_at": "2026-11-17T20:19:32.222683091+01:00",
+  "completed_at": "2026-11-17T20:21:16.517260393+01:00"
+}

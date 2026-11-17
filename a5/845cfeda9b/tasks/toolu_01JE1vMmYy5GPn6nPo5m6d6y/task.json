@@ -1,0 +1,18 @@
+{
+  "tool_use_id": "toolu_01JE1vMmYy5GPn6nPo5m6d6y",
+  "agent_id": "a85f0a75ef635faf5",
+  "subagent_type": "project-coder",
+  "task_description": "Coder étape 1 SourceManagementAPI",
+  "files": [
+    "internal/oci/registry.go"
+  ],
+  "token_usage": {
+    "input_tokens": 16,
+    "cache_creation_tokens": 58251,
+    "cache_read_tokens": 283129,
+    "output_tokens": 2762,
+    "api_call_count": 7
+  },
+  "started_at": "2026-11-17T20:18:54.002709426+01:00",
+  "completed_at": "2026-11-17T20:19:17.653698072+01:00"
+}

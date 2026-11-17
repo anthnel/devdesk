@@ -1,0 +1,15 @@
+{
+  "tool_use_id": "toolu_01RYVcdoTdhGpiY7raunPH7j",
+  "agent_id": "a2cf34a0b6e9eee27",
+  "subagent_type": "dev-team:reviewer",
+  "task_description": "Revue du diff DEVDESK-509",
+  "token_usage": {
+    "input_tokens": 18,
+    "cache_creation_tokens": 70492,
+    "cache_read_tokens": 434798,
+    "output_tokens": 6803,
+    "api_call_count": 9
+  },
+  "started_at": "2026-11-17T20:23:09.706179321+01:00",
+  "completed_at": "2026-11-17T20:24:02.48207115+01:00"
+}

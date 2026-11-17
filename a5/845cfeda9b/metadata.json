@@ -1,0 +1,55 @@
+{
+  "cli_version": "0.13.2",
+  "checkpoint_id": "a5845cfeda9b",
+  "strategy": "manual-commit",
+  "branch": "fix/devdesk-509-nexus-typed-errors",
+  "checkpoints_count": 12,
+  "files_touched": [
+    "docs/architecture/network.md",
+    "docs/architecture/registries.md",
+    "docs/backlog.md",
+    "internal/oci/registry.go",
+    "internal/oci/registry_status_test.go",
+    "internal/registrymgr/nexus.go",
+    "internal/registrymgr/nexus_errors_test.go",
+    "internal/registrymgr/nexus_hardening_test.go"
+  ],
+  "sessions": [
+    {
+      "metadata": "/a5/845cfeda9b/0/metadata.json",
+      "transcript": "/a5/845cfeda9b/0/full.jsonl",
+      "compact_transcript": "/a5/845cfeda9b/0/transcript.jsonl",
+      "content_hash": "/a5/845cfeda9b/0/content_hash.txt",
+      "prompt": "/a5/845cfeda9b/0/prompt.txt"
+    }
+  ],
+  "token_usage": {
+    "input_tokens": 106,
+    "cache_creation_tokens": 127941,
+    "cache_read_tokens": 4515904,
+    "output_tokens": 29907,
+    "api_call_count": 42,
+    "subagent_tokens": {
+      "input_tokens": 216,
+      "cache_creation_tokens": 849149,
+      "cache_read_tokens": 4542570,
+      "output_tokens": 73673,
+      "api_call_count": 99
+    },
+    "subagent_tokens_complete": true
+  },
+  "redaction": {
+    "replacements": 8,
+    "layers": {
+      "betterleaks": 0,
+      "connection_string": 0,
+      "credential_key": 0,
+      "credential_value": 6,
+      "credentialed_uri": 0,
+      "entropy": 0,
+      "key_context": 2,
+      "provider_token": 0,
+      "shell_stdin": 0
+    }
+  }
+}
