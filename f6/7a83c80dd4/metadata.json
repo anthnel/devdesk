@@ -1,0 +1,82 @@
+{
+  "cli_version": "0.13.2",
+  "checkpoint_id": "f67a83c80dd4",
+  "strategy": "manual-commit",
+  "branch": "feat/devdesk-505-nexus-bench-seed",
+  "checkpoints_count": 8,
+  "files_touched": [
+    "docs/architecture/nexus-bench.md",
+    "docs/backlog.md",
+    "internal/nexusbench/bench_integration_test.go",
+    "internal/nexusbench/cmd/nexus-bench/commands.go",
+    "internal/nexusbench/cmd/nexus-bench/flags.go",
+    "internal/nexusbench/cmd/nexus-bench/main.go",
+    "internal/nexusbench/cmd/nexus-bench/main_test.go",
+    "internal/nexusbench/cmd/nexus-bench/status.go",
+    "internal/nexusbench/cmd/nexus-bench/usage.go",
+    "internal/nexusbench/deploy.go",
+    "internal/nexusbench/descriptor.go",
+    "internal/nexusbench/descriptor.json",
+    "internal/nexusbench/descriptor_hosts_test.go",
+    "internal/nexusbench/descriptor_test.go",
+    "internal/nexusbench/errors.go",
+    "internal/nexusbench/errors_test.go",
+    "internal/nexusbench/fakenexus_test.go",
+    "internal/nexusbench/guard_test.go",
+    "internal/nexusbench/kubectl.go",
+    "internal/nexusbench/kubectl_test.go",
+    "internal/nexusbench/mise_tasks_test.go",
+    "internal/nexusbench/nexusapi.go",
+    "internal/nexusbench/params.go",
+    "internal/nexusbench/params_test.go",
+    "internal/nexusbench/preflight.go",
+    "internal/nexusbench/preflight_test.go",
+    "internal/nexusbench/provision.go",
+    "internal/nexusbench/provision_ssrf_test.go",
+    "internal/nexusbench/provision_upstream_test.go",
+    "internal/nexusbench/render.go",
+    "internal/nexusbench/render_test.go",
+    "internal/nexusbench/rest_url_test.go",
+    "internal/nexusbench/testdata/descriptor.example.json",
+    "internal/nexusbench/testdata/render-default.golden.yaml",
+    "mise.toml"
+  ],
+  "sessions": [
+    {
+      "metadata": "/f6/7a83c80dd4/0/metadata.json",
+      "transcript": "/f6/7a83c80dd4/0/full.jsonl",
+      "compact_transcript": "/f6/7a83c80dd4/0/transcript.jsonl",
+      "content_hash": "/f6/7a83c80dd4/0/content_hash.txt",
+      "prompt": "/f6/7a83c80dd4/0/prompt.txt"
+    }
+  ],
+  "token_usage": {
+    "input_tokens": 104,
+    "cache_creation_tokens": 240740,
+    "cache_read_tokens": 11866502,
+    "output_tokens": 32744,
+    "api_call_count": 41,
+    "subagent_tokens": {
+      "input_tokens": 236,
+      "cache_creation_tokens": 632013,
+      "cache_read_tokens": 12064392,
+      "output_tokens": 99260,
+      "api_call_count": 111
+    },
+    "subagent_tokens_complete": true
+  },
+  "redaction": {
+    "replacements": 116,
+    "layers": {
+      "betterleaks": 76,
+      "connection_string": 0,
+      "credential_key": 0,
+      "credential_value": 0,
+      "credentialed_uri": 87,
+      "entropy": 44,
+      "key_context": 9,
+      "provider_token": 0,
+      "shell_stdin": 0
+    }
+  }
+}
