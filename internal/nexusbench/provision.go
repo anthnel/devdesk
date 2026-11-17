@@ -27,6 +27,7 @@ const (
 	rolesPath       = restAPI + "/security/roles"
 	usersPath       = restAPI + "/security/users"
 	dockerReposPath = restAPI + "/repositories/docker"
+	ssrfPath        = restAPI + "/security/ssrf-protection"
 
 	adminUserID   = "admin"
 	anonymousUser = "anonymous"
@@ -127,7 +128,7 @@ func (pv *provisioner) run(ctx context.Context) (ProvisionResult, error) {
 		return res, err
 	}
 	for _, step := range []func(context.Context) error{
-		pv.requireBlobStore, pv.ensureRealms, pv.ensureAnonymous, pv.ensurePullRole, pv.ensurePullUser, pv.ensureRepositories,
+		pv.requireBlobStore, pv.ensureRealms, pv.ensureAnonymous, pv.ensurePullRole, pv.ensurePullUser, pv.ensureUpstreamAllowed, pv.ensureRepositories,
 	} {
 		if err := step(ctx); err != nil {
 			return res, err
@@ -523,6 +524,125 @@ func (pv *provisioner) ensurePullUser(ctx context.Context) error {
 	return nil
 }
 
+// ---- SSRF protection --------------------------------------------------------------------
+
+// allowableUpstreamHost returns the one host Provision ever allows through the
+// SSRF protection: bench-upstream.<namespace>.svc.cluster.local, the Service the
+// bench deploys, for a namespace the bench accepts. It checks the namespace and
+// the URL itself (credentials, another host) rather than trust the caller, so a
+// wrong URL can never widen the protection. Errors carry no part of the URL.
+func allowableUpstreamHost(p Params) (string, error) {
+	if err := validateNamespace(p.Namespace); err != nil {
+		return "", fmt.Errorf("the upstream host is not allowed: %w", err)
+	}
+	want := "bench-upstream." + p.Namespace + ".svc.cluster.local"
+	u, err := url.Parse(p.UpstreamURL)
+	if err != nil || u.User != nil || u.Hostname() != want {
+		return "", fmt.Errorf("the upstream URL is not the Service %s of the bench", want)
+	}
+	return want, nil
+}
+
+// SSRF settings fields (H-SSRF). The settings are read and written as raw JSON
+// objects: only allowedDomains is changed, any other field the instance has (a
+// version may add some) is sent back as it was.
+const (
+	ssrfEnabled        = "enabled"
+	ssrfAllowedIPs     = "allowedIPs"
+	ssrfAllowedDomains = "allowedDomains"
+)
+
+// ensureUpstreamAllowed puts the host of the bench upstream in the allowed domains
+// of the SSRF protection, before docker-proxy is created: the narrowest setting
+// that lets the proxy read the upstream (the protection stays on, no other host is
+// allowed, and the entries the instance already has are kept). Nexus 3.98 turns
+// the protection on for a new installation and refuses a proxy whose remote URL
+// host resolves to a private address, a ClusterIP included. It does nothing
+// for an upstream the bench did not deploy, whose address the operator chose
+// (a refusal is explained when the proxy is created), when the protection is off
+// (it is never switched on or off here) or when the instance has no such setting.
+func (pv *provisioner) ensureUpstreamAllowed(ctx context.Context) error {
+	if !pv.p.UpstreamIsBench() {
+		return nil
+	}
+	host, err := allowableUpstreamHost(pv.p)
+	if err != nil {
+		return pv.fail(err.Error(), "check "+envNamespace+" and "+envUpstreamURL, err)
+	}
+	var settings map[string]json.RawMessage
+	found, err := pv.api.get(ctx, "read the SSRF protection settings", ssrfPath, nil, &settings)
+	if err != nil {
+		return err
+	}
+	if !found {
+		pv.say("the instance has no SSRF protection setting, nothing to allow")
+		return nil
+	}
+	var enabled bool
+	var domains []string
+	if err := decodeSSRFField(settings, ssrfEnabled, &enabled); err != nil {
+		return err
+	}
+	if err := decodeSSRFField(settings, ssrfAllowedDomains, &domains); err != nil {
+		return err
+	}
+	switch {
+	case !enabled:
+		pv.say("SSRF protection is off, %s needs no allowance", host)
+		return nil
+	case slices.ContainsFunc(domains, func(d string) bool { return strings.EqualFold(d, host) }):
+		pv.say("%s is already allowed by the SSRF protection", host)
+		return nil
+	}
+	if settings[ssrfAllowedDomains], err = json.Marshal(append(append([]string{}, domains...), host)); err != nil {
+		return &decodeError{Op: "allow the upstream host in the SSRF protection", Err: err}
+	}
+	// The instance may answer null for a list it has never had; it wants arrays.
+	if raw := settings[ssrfAllowedIPs]; len(raw) == 0 || string(raw) == "null" {
+		settings[ssrfAllowedIPs] = json.RawMessage("[]")
+	}
+	if err := pv.api.write(ctx, "allow the upstream host in the SSRF protection", http.MethodPut, ssrfPath, settings); err != nil {
+		return err
+	}
+	pv.say("%s is now allowed by the SSRF protection (the protection stays on)", host)
+	return nil
+}
+
+// decodeSSRFField decodes one field of the SSRF settings; an absent or null field
+// leaves out as it is.
+func decodeSSRFField(settings map[string]json.RawMessage, name string, out any) error {
+	raw, ok := settings[name]
+	if !ok || string(raw) == "null" {
+		return nil
+	}
+	if err := json.Unmarshal(raw, out); err != nil {
+		return &decodeError{Op: "read the SSRF protection settings", Err: err}
+	}
+	return nil
+}
+
+// privateUpstreamError explains a proxy the SSRF protection refused for a private
+// upstream address, or returns nil when err is not that refusal. For the upstream
+// the bench deploys the refusal is unexpected (it was allowed, or the instance has
+// no such setting): the advice is to read the setting. For an upstream the
+// operator chose it is the expected one: leave the variable unset or allow it.
+func (pv *provisioner) privateUpstreamError(err error) error {
+	var api *APIError
+	if !errors.As(err, &api) || !api.RemoteURLPrivate {
+		return nil
+	}
+	if pv.p.UpstreamIsBench() {
+		return pv.fail(
+			"Nexus refused the remote URL of "+dockerProxyRepository+" although the bench upstream is meant to be allowed in the SSRF protection: its host still resolves to a private address",
+			"read "+ssrfPath+": the instance may have no such setting, or allowedDomains does not hold bench-upstream."+pv.p.Namespace+".svc.cluster.local; then run `mise run nexus-bench:up` again",
+			err)
+	}
+	return pv.fail(
+		"Nexus refused the remote URL of "+dockerProxyRepository+": its host resolves to a private address and the SSRF protection is on, and the bench allows only the upstream it deploys",
+		"leave "+envUpstreamURL+" unset, or add the host of "+envUpstreamURL+" to allowedDomains (or allowedIPs) at "+ssrfPath+" and run `mise run nexus-bench:up` again",
+		err)
+}
+
 // ---- repositories -----------------------------------------------------------------------
 
 type repositorySpec struct {
@@ -540,7 +660,9 @@ func (pv *provisioner) repositories() []repositorySpec {
 		}
 		return s
 	}
-	// Anonymous pulls need the Docker API without a forced Basic auth.
+	// Anonymous pulls need the Docker API without a forced Basic auth. The hosted
+	// and the proxy are reached by path on the HTTP port (pathEnabled, H-PATH): it
+	// is null by default, and /v2/ then answers 404 there.
 	docker := func(extra map[string]any) map[string]any {
 		d := map[string]any{"v1Enabled": false, "forceBasicAuth": false}
 		for k, v := range extra {
@@ -552,12 +674,12 @@ func (pv *provisioner) repositories() []repositorySpec {
 		{"hosted", dockerHostedRepository, map[string]any{
 			"name": dockerHostedRepository, "online": true,
 			"storage": storage(map[string]any{"writePolicy": "ALLOW"}),
-			"docker":  docker(nil),
+			"docker":  docker(map[string]any{"pathEnabled": true}),
 		}},
 		{"proxy", dockerProxyRepository, map[string]any{
 			"name": dockerProxyRepository, "online": true,
 			"storage": storage(nil),
-			"docker":  docker(nil),
+			"docker":  docker(map[string]any{"pathEnabled": true}),
 			"proxy": map[string]any{
 				"remoteUrl": pv.p.UpstreamURL, "contentMaxAge": repositoryMaxAgeMinutes, "metadataMaxAge": repositoryMaxAgeMinutes,
 			},
@@ -590,6 +712,11 @@ func (pv *provisioner) ensureRepositories(ctx context.Context) error {
 			repo.config["group"] = map[string]any{"memberNames": []string{dockerHostedRepository}}
 		}
 		if err := pv.api.write(ctx, op, method, path, repo.config); err != nil {
+			if repo.name == dockerProxyRepository {
+				if explained := pv.privateUpstreamError(err); explained != nil {
+					return explained
+				}
+			}
 			var api *APIError
 			if repo.name != dockerProxyRepository || !errors.As(err, &api) || !api.RemoteURLBlocked {
 				return err
@@ -626,6 +753,7 @@ func asBenchError(err error, p Params, baseURL string) error {
 		api       *APIError
 		transport *transportError
 		large     *tooLargeError
+		many      *tooManyError
 		decode    *decodeError
 	)
 	switch {
@@ -649,6 +777,11 @@ func asBenchError(err error, p Params, baseURL string) error {
 		return &BenchError{
 			Kind: ProvisionFailed, Cause: large.Error(),
 			Check: "check that " + hostOf(baseURL) + " is the Nexus REST API and not another service", Err: err,
+		}
+	case errors.As(err, &many):
+		return &BenchError{
+			Kind: ProvisionFailed, Cause: many.Error(),
+			Check: "the repository holds far more than the data set: " + resetCheck, Err: err,
 		}
 	case errors.As(err, &decode):
 		return &BenchError{

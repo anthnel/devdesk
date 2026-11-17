@@ -254,13 +254,15 @@ done | jq -s '{sessions: map({
 '''
 
 # The nexus-bench:* tasks (DEVDESK-504, docs/architecture/nexus-bench.md) drive a
-# disposable Nexus on a real k0s cluster through kubectl: up, provision, down and
-# status read or change that cluster, and the bench has to be reachable from this
+# disposable Nexus on a real k0s cluster through kubectl: up, provision, down,
+# seed and status read or change that cluster, and the bench has to be reachable from this
 # machine. They are NOT part of ci, check, test or test-race and nothing depends
 # on them (mise_tasks_test.go checks it). Only render contacts nothing.
 #
 # kubectl is declared on each task that reaches the cluster rather than in
 # [tools], so the CI does not install it; render contacts nothing and has none.
+# seed (DEVDESK-505) also needs skopeo, which is a tool of the host: mise does
+# not install it and the description of the task says so.
 # The cluster (datomir) runs k0s v1.36.x and kubectl is supported within one
 # minor version of the API server, so 1.35 is the oldest accepted here.
 # Arguments go after `--`: mise appends them to the command, so
@@ -268,7 +270,7 @@ done | jq -s '{sessions: map({
 # Every flag has a NEXUS_BENCH_* variable; see `nexus-bench <subcommand> -h`.
 
 [tasks."nexus-bench:up"]
-description = "Deploy the disposable Nexus bench on the cluster, wait for it, provision it and write the descriptor (acts on the cluster; --accept-eula needed once)"
+description = "Deploy the disposable Nexus bench and its upstream on the cluster, wait for it, provision it, seed the data set and write the descriptor (acts on the cluster; --accept-eula needed once; seeding needs skopeo on this machine)"
 tools = { kubectl = "1.35" }
 run = "go run ./internal/nexusbench/cmd/nexus-bench up"
 
@@ -282,8 +284,13 @@ description = "Delete the Nexus bench namespace and wait until it is gone (acts 
 tools = { kubectl = "1.35" }
 run = "go run ./internal/nexusbench/cmd/nexus-bench down"
 
+[tasks."nexus-bench:seed"]
+description = "Put the data set in the Nexus bench that up provisioned and write the descriptor (acts on the cluster; needs skopeo on this machine, which mise does not install)"
+tools = { kubectl = "1.35" }
+run = "go run ./internal/nexusbench/cmd/nexus-bench seed"
+
 [tasks."nexus-bench:status"]
-description = "Report on the Nexus bench: pod, REST answer, descriptor drift (reads the cluster, changes nothing)"
+description = "Report on the Nexus bench: pod, REST answer, upstream, descriptor drift, data set (reads the cluster, changes nothing)"
 tools = { kubectl = "1.35" }
 run = "go run ./internal/nexusbench/cmd/nexus-bench status"
 

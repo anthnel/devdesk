@@ -64,10 +64,12 @@ func commonFlags() []paramFlag {
 		{"jvm-opts", "NEXUS_BENCH_JVM_OPTS", kindString, "JVM options of Nexus (default " + d.JVMOpts + ")"},
 		{"image", "NEXUS_BENCH_IMAGE", kindString, "Nexus image, without the tag (default " + d.Image + ")"},
 		{"image-tag", "NEXUS_BENCH_IMAGE_TAG", kindString, "Nexus image tag (default " + d.ImageTag + ")"},
+		{"upstream-image", "NEXUS_BENCH_UPSTREAM_IMAGE", kindString, "image of the bench upstream registry, without the tag (default " + d.UpstreamImage + ")"},
+		{"upstream-image-tag", "NEXUS_BENCH_UPSTREAM_IMAGE_TAG", kindString, "tag of the bench upstream registry image (default " + d.UpstreamImageTag + ")"},
 		{"upstream-url", "NEXUS_BENCH_UPSTREAM_URL", kindString, "upstream of the proxy repository (default http://bench-upstream.<namespace>.svc.cluster.local:5000)"},
 		{"anonymous", "NEXUS_BENCH_ANONYMOUS", kindBool, "enable anonymous access, --anonymous=false to disable (default true)"},
 		{"hosts", "NEXUS_BENCH_HOSTS", kindString, "comma-separated hosts the NodePorts are tried on (default 127.0.0.1 and the node address)"},
-		{"timeout", "NEXUS_BENCH_TIMEOUT", kindDuration, "how long up waits for Nexus (default " + d.Timeout.String() + ")"},
+		{"timeout", "NEXUS_BENCH_TIMEOUT", kindDuration, "how long up waits for Nexus, and how long the seed may run (default " + d.Timeout.String() + ")"},
 		{"delete-timeout", "NEXUS_BENCH_DELETE_TIMEOUT", kindDuration, "how long down waits for the namespace to go (default " + d.DeleteTimeout.String() + ")"},
 		{"secrets", "NEXUS_BENCH_SECRETS", kindString, "secrets file, outside the repository (default under $XDG_STATE_HOME/devdesk/nexus-bench)"},
 		{"descriptor", "NEXUS_BENCH_DESCRIPTOR", kindString, "descriptor file (default internal/nexusbench/descriptor.json)"},
@@ -93,7 +95,11 @@ type flagSet struct {
 
 // newFlagSet registers the flags of a subcommand. It prints nothing by itself:
 // the caller reports a parse error on stderr and the help on stdout.
-func newFlagSet(name string, provisions bool) *flagSet {
+func newFlagSet(name string) *flagSet {
+	// up and provision provision Nexus (EULA); they and seed send the admin
+	// credentials to the REST API (REST host).
+	provisions := name == "up" || name == "provision"
+	reachesREST := provisions || name == "seed"
 	fs := flag.NewFlagSet("nexus-bench "+name, flag.ContinueOnError)
 	fs.SetOutput(io.Discard)
 	fs.Usage = func() {}
@@ -115,8 +121,13 @@ func newFlagSet(name string, provisions bool) *flagSet {
 			fs.Bool(spec.name, false, spec.usage)
 		}
 	}
-	if provisions {
-		set.restHost = fs.String(restHostFlag, "", "host the REST API is reached on, and so the host the admin credentials are sent to (default "+loopbackHost+"); another host sends them in clear text")
+	switch {
+	case name == "seed":
+		// seed refuses another host (main.go): its credentials and its images
+		// always go through the loopback.
+		set.restHost = fs.String(restHostFlag, "", "loopback address the REST API is reached on (default "+loopbackHost+"); seed accepts a loopback address only, because its images and the admin credentials always go through "+loopbackHost)
+	case reachesREST:
+		set.restHost = fs.String(restHostFlag, "", "host the REST API is reached on, and so the host the admin credentials are sent to (default "+loopbackHost+"); another host sends them in clear text. It concerns the REST API only: the images always go through "+loopbackHost)
 	}
 	return set
 }

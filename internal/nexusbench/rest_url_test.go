@@ -31,7 +31,7 @@ func TestRESTBaseURL(t *testing.T) {
 func TestRESTBaseURLMatchesTheDescriptor(t *testing.T) {
 	p := Defaults()
 	p.Hosts = []string{"127.0.0.1", "::1", "10.0.0.5"}
-	d := BuildDescriptor(p, DeployResult{}, ProvisionResult{})
+	d := BuildDescriptor(p, DeployResult{}, ProvisionResult{}, SeedResult{})
 	for i, h := range p.Hosts {
 		if want := RESTBaseURL(h, p); d.REST.URLs[i] != want {
 			t.Errorf("descriptor URL %q, RESTBaseURL says %q", d.REST.URLs[i], want)

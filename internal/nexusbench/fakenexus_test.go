@@ -5,8 +5,11 @@ import (
 	"io"
 	"net/http"
 	"net/http/httptest"
+	"net/netip"
+	"net/url"
 	"slices"
 	"sort"
+	"strconv"
 	"strings"
 	"sync"
 	"testing"
@@ -40,6 +43,20 @@ import (
 //	POST /service/rest/v1/repositories/docker/{kind}  the configuration                            -> 201
 //	                                                  a proxy whose host does not resolve           -> 400, see BlockUpstream
 //	PUT  /service/rest/v1/repositories/docker/{kind}/{name}  the configuration                      -> 204
+//	GET  /service/rest/v1/components?repository=<name>[&continuationToken=<t>]                    (DEVDESK-541, NX-02a)
+//	     {"items":[{"id","repository","format":"docker","name","version","assets":[{"path","checksum":{"sha1","sha256"}}]}],
+//	     "continuationToken":<opaque string>|null}; 404 for a repository that does not exist, 400 without
+//	     the repository parameter or with a token it did not issue. H-COMPONENTS, to settle at step 12:
+//	     a Docker component is one image tag (name = the image name, version = the tag), and the sha256
+//	     checksum of its asset under v2/<name>/manifests/<tag> is the digest of the manifest. The
+//	     component lists the blob assets first, so a client that takes the first asset gets a wrong digest.
+//	GET  /service/rest/v1/security/ssrf-protection    {"enabled","allowedIPs","allowedDomains"}            (DEVDESK-505, observed on 3.98.1-01)
+//	PUT  /service/rest/v1/security/ssrf-protection    the same object                                      -> 200 with the object
+//	     The fake keeps every field of the body it does not know and gives it back (SetSSRFField), as an
+//	     instance of another version could have more fields than the three above.
+//	     While enabled, a proxy whose remote URL host is a private one (see isPrivateUpstreamHost: a cluster
+//	     Service name or a private IP address) and is in neither allowed list is refused with a 400 on
+//	     proxy.remoteUrl ("Proxy URL blocked: Host resolves to private/local IP address(es)").
 //
 // Repository configuration, as the fake demands it (a missing key is a 400):
 //
@@ -66,6 +83,8 @@ const (
 	pathRoles         = pathAPIRoot + "/security/roles"
 	pathUsers         = pathAPIRoot + "/security/users"
 	pathRepositories  = pathAPIRoot + "/repositories"
+	pathComponents    = pathAPIRoot + "/components"
+	pathSSRF          = pathAPIRoot + "/security/ssrf-protection"
 	pathAdminPassword = pathUsers + "/admin/change-password"
 
 	fakeServerHeader = "Nexus/3.98.1-01 (COMMUNITY)"
@@ -147,6 +166,21 @@ func (ft fakeFault) matches(r *http.Request) bool {
 	return (ft.method == "" || ft.method == r.Method) && strings.HasPrefix(r.URL.Path, ft.prefix)
 }
 
+// fakeComponent is one image tag held by a repository. Digest is "sha256:<hex>"
+// of the manifest, or "" for a component whose manifest asset is not listed.
+type fakeComponent struct {
+	Name, Version, Digest string
+}
+
+// defaultComponentPageSize is how many components the fake lists per page until
+// SetComponentPageSize changes it.
+const defaultComponentPageSize = 3
+
+// componentTokenPrefix starts every continuation token the fake issues. The rest
+// of a token holds characters a URL has to escape (+ / = & ?), so a client that
+// pastes the token into the query unescaped is caught.
+const componentTokenPrefix = "page+"
+
 type fakeUser struct {
 	UserID, FirstName, LastName, EmailAddress, Status string
 	Roles                                             []string
@@ -173,6 +207,13 @@ type fakeNexus struct {
 	repos           map[string]map[string]map[string]any // kind -> name -> configuration
 	faults          []fakeFault
 	upstreamBlocked bool
+	ssrfPresent     bool
+	ssrf            ssrfSettings
+	ssrfExtra       map[string]json.RawMessage // fields of the settings beyond ssrfSettings
+	components      map[string][]fakeComponent // repository name -> components, in listing order
+	componentPage   int
+	loopTokens      map[string]bool // repositories whose listing never ends
+	laterPageFails  int             // status answered to any page that carries a continuation token; 0 = none
 	dropAll         bool
 	reqs            []fakeReq
 	secretsSeen     map[string]bool
@@ -199,8 +240,14 @@ func newFakeNexus(t *testing.T, log *orderLog) *fakeNexus {
 			"nx-admin":     {"id": "nx-admin", "name": "nx-admin", "privileges": []any{"nx-all"}, "roles": []any{}},
 			"nx-anonymous": {"id": "nx-anonymous", "name": "nx-anonymous", "privileges": []any{"nx-healthcheck-read"}, "roles": []any{}},
 		},
-		repos:       map[string]map[string]map[string]any{"hosted": {}, "proxy": {}, "group": {}},
-		secretsSeen: map[string]bool{},
+		// A new 3.98 instance has SSRF protection on, with both lists empty.
+		ssrfPresent:   true,
+		ssrf:          ssrfSettings{Enabled: true, AllowedIPs: []string{}, AllowedDomains: []string{}},
+		repos:         map[string]map[string]map[string]any{"hosted": {}, "proxy": {}, "group": {}},
+		secretsSeen:   map[string]bool{},
+		components:    map[string][]fakeComponent{},
+		componentPage: defaultComponentPageSize,
+		loopTokens:    map[string]bool{},
 	}
 	f.srv = httptest.NewServer(f)
 	t.Cleanup(f.srv.Close)
@@ -260,19 +307,122 @@ func (f *fakeNexus) ResolveUpstream() {
 	f.upstreamBlocked = false
 }
 
-// refuseUnresolvedUpstream answers the 400 of an unresolvable proxy remote URL
-// and reports whether it did. The content type is the one Nexus sends.
+// refuseUnresolvedUpstream answers the 400 of a proxy remote URL Nexus will not
+// accept and reports whether it did: a host that does not resolve (BlockUpstream),
+// or, while SSRF protection is on, a private host that is not allowed. The content
+// type is the one Nexus sends.
 func (f *fakeNexus) refuseUnresolvedUpstream(w http.ResponseWriter, kind string, cfg map[string]any) bool {
-	if kind != "proxy" || !f.upstreamBlocked {
+	if kind != "proxy" {
 		return false
 	}
-	host, _ := jsonAt(cfg, "proxy", "remoteUrl").(string)
-	body := []map[string]any{{"id": "HelperBean.proxy.remoteUrl", "message": "Proxy URL blocked: Failed to resolve host: " + host}}
+	remote, _ := jsonAt(cfg, "proxy", "remoteUrl").(string)
+	message := ""
+	switch {
+	case f.upstreamBlocked:
+		message = "Proxy URL blocked: Failed to resolve host: " + remote
+	case f.ssrfRefuses(remote):
+		message = "Proxy URL blocked: Host resolves to private/local IP address(es): 10.110.133.156 (private network address). " +
+			"To allow connections, update the SSRF protection settings via the API at /v1/security/ssrf-protection."
+	default:
+		return false
+	}
+	body := []map[string]any{{"id": "HelperBean.proxy.remoteUrl", "message": message}}
 	data, _ := json.Marshal(body)
 	w.Header().Set("Content-Type", "application/vnd.siesta-validation-errors-v1+json")
 	w.WriteHeader(http.StatusBadRequest)
 	_, _ = w.Write(data)
 	return true
+}
+
+// ssrfRefuses reports whether the SSRF protection refuses the remote URL: it is
+// on, the host is a private one, and neither allowed list names it.
+func (f *fakeNexus) ssrfRefuses(remoteURL string) bool {
+	if !f.ssrfPresent || !f.ssrf.Enabled {
+		return false
+	}
+	u, err := url.Parse(remoteURL)
+	if err != nil || !isPrivateUpstreamHost(u.Hostname()) {
+		return false
+	}
+	host := strings.ToLower(u.Hostname())
+	return !slices.ContainsFunc(f.ssrf.AllowedDomains, func(d string) bool { return strings.EqualFold(d, host) }) &&
+		!slices.Contains(f.ssrf.AllowedIPs, host)
+}
+
+// isPrivateUpstreamHost stands for "the host resolves to a private address": the
+// name of a cluster Service (what the bench upstream is) or a private IP literal.
+// Any other name (the .invalid hosts of the other tests) counts as public.
+func isPrivateUpstreamHost(host string) bool {
+	host = strings.ToLower(host)
+	if strings.HasSuffix(host, ".svc.cluster.local") {
+		return true
+	}
+	ip, err := netip.ParseAddr(host)
+	return err == nil && (ip.IsPrivate() || ip.IsLoopback())
+}
+
+// ssrfSettings is the part of /v1/security/ssrf-protection the tests read and set
+// (H-SSRF): the fake keeps any other field apart, see SetSSRFField.
+type ssrfSettings struct {
+	Enabled        bool     `json:"enabled"`
+	AllowedIPs     []string `json:"allowedIPs"`
+	AllowedDomains []string `json:"allowedDomains"`
+}
+
+// SetSSRFField sets a field of the settings the client does not know about.
+func (f *fakeNexus) SetSSRFField(name string, value any) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	data, err := json.Marshal(value)
+	if err != nil {
+		f.t.Fatalf("fake Nexus: SetSSRFField: %v", err)
+	}
+	if f.ssrfExtra == nil {
+		f.ssrfExtra = map[string]json.RawMessage{}
+	}
+	f.ssrfExtra[name] = data
+}
+
+// SSRFField returns a field of the settings beyond the three the client knows,
+// decoded, and whether it is there.
+func (f *fakeNexus) SSRFField(name string) (any, bool) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	raw, ok := f.ssrfExtra[name]
+	if !ok {
+		return nil, false
+	}
+	var v any
+	if err := json.Unmarshal(raw, &v); err != nil {
+		f.t.Fatalf("fake Nexus: SSRFField: %v", err)
+	}
+	return v, true
+}
+
+// SetSSRF replaces the SSRF protection settings.
+func (f *fakeNexus) SetSSRF(s ssrfSettings) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.ssrf = s
+}
+
+// SSRF returns the SSRF protection settings.
+func (f *fakeNexus) SSRF() ssrfSettings {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	return ssrfSettings{
+		Enabled:        f.ssrf.Enabled,
+		AllowedIPs:     slices.Clone(f.ssrf.AllowedIPs),
+		AllowedDomains: slices.Clone(f.ssrf.AllowedDomains),
+	}
+}
+
+// RemoveSSRFEndpoint makes /v1/security/ssrf-protection answer 404, as a version
+// that has no such protection.
+func (f *fakeNexus) RemoveSSRFEndpoint() {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.ssrfPresent = false
 }
 
 // DropConnections makes the instance close every connection without an answer.
@@ -344,11 +494,45 @@ func (f *fakeNexus) MutateRepo(kind, name string, fn func(cfg map[string]any)) {
 	fn(cfg)
 }
 
-// DeleteRepo removes a repository.
+// DeleteRepo removes a repository and the components it held.
 func (f *fakeNexus) DeleteRepo(kind, name string) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	delete(f.repos[kind], name)
+	delete(f.components, name)
+}
+
+// AddComponents appends components to the listing of an existing repository.
+func (f *fakeNexus) AddComponents(repo string, comps ...fakeComponent) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	if !f.repoExists(repo) {
+		f.t.Fatalf("fake Nexus: no repository %q to add components to", repo)
+	}
+	f.components[repo] = append(f.components[repo], comps...)
+}
+
+// SetComponentPageSize sets how many components one page of the listing holds.
+func (f *fakeNexus) SetComponentPageSize(n int) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.componentPage = n
+}
+
+// FailLaterComponentPages makes every page after the first one (a request that
+// carries a continuation token) answer status.
+func (f *fakeNexus) FailLaterComponentPages(status int) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.laterPageFails = status
+}
+
+// LoopComponentToken makes the listing of repo hand out a continuation token on
+// every page, forever.
+func (f *fakeNexus) LoopComponentToken(repo string) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.loopTokens[repo] = true
 }
 
 // MutateRole changes a stored role in place.
@@ -515,7 +699,7 @@ func (f *fakeNexus) Snapshot() string {
 	}
 	state := map[string]any{
 		"users": users, "roles": f.roles, "realms": f.realms, "anonymous": f.anonymous,
-		"eulaAccepted": f.eulaAccepted, "blobStores": f.blobStores, "repos": f.repos,
+		"eulaAccepted": f.eulaAccepted, "blobStores": f.blobStores, "repos": f.repos, "ssrf": f.ssrfBody(),
 	}
 	data, err := json.Marshal(state)
 	if err != nil {
@@ -592,10 +776,14 @@ func (f *fakeNexus) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		f.serveEULA(w, r, body)
 	case p == pathBlobStores:
 		f.serveBlobStores(w, r)
+	case p == pathComponents:
+		f.serveComponents(w, r)
 	case p == pathRealms:
 		f.serveRealms(w, r, body)
 	case p == pathAnonymous:
 		f.serveAnonymous(w, r, body)
+	case p == pathSSRF:
+		f.serveSSRF(w, r, body)
 	case p == pathRoles || strings.HasPrefix(p, pathRoles+"/"):
 		f.serveRoles(w, r, body)
 	case p == pathUsers || strings.HasPrefix(p, pathUsers+"/"):
@@ -706,6 +894,81 @@ func (f *fakeNexus) serveBlobStores(w http.ResponseWriter, r *http.Request) {
 	f.reply(w, r, http.StatusOK, list)
 }
 
+// serveComponents lists the components of one repository, a page at a time. The
+// token is the offset of the next page behind an opaque prefix; the last page
+// carries "continuationToken": null, as Nexus does.
+func (f *fakeNexus) serveComponents(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
+		f.reply(w, r, http.StatusMethodNotAllowed, nil)
+		return
+	}
+	q := r.URL.Query()
+	repo := q.Get("repository")
+	if repo == "" {
+		f.badRequest(w, r, "the repository parameter is required")
+		return
+	}
+	if !f.repoExists(repo) {
+		f.reply(w, r, http.StatusNotFound, nil)
+		return
+	}
+	offset := 0
+	if token := q.Get("continuationToken"); token != "" {
+		if f.laterPageFails != 0 {
+			f.reply(w, r, f.laterPageFails, map[string]any{"message": "injected fault"})
+			return
+		}
+		n, ok := strings.CutPrefix(token, componentTokenPrefix)
+		if !ok {
+			f.badRequest(w, r, "unknown continuation token")
+			return
+		}
+		digits, _, _ := strings.Cut(n, "/")
+		parsed, err := strconv.Atoi(digits)
+		if err != nil || parsed < 0 {
+			f.badRequest(w, r, "unknown continuation token")
+			return
+		}
+		offset = parsed
+	}
+	all := f.components[repo]
+	end := min(offset+f.componentPage, len(all))
+	offset = min(offset, end)
+	items := make([]any, 0, end-offset)
+	for _, c := range all[offset:end] {
+		items = append(items, c.payload(repo))
+	}
+	var token any // null on the last page
+	if end < len(all) {
+		token = componentTokenPrefix + strconv.Itoa(end) + "/=&?"
+	} else if f.loopTokens[repo] {
+		token = componentTokenPrefix + "0/=&?"
+	}
+	f.reply(w, r, http.StatusOK, map[string]any{"items": items, "continuationToken": token})
+}
+
+// payload is the JSON of a component: the blob assets first (with a checksum
+// that is not the manifest's), then the manifest asset when Digest is set.
+func (c fakeComponent) payload(repo string) map[string]any {
+	blob := func(layer string) map[string]any {
+		return map[string]any{
+			"path": "v2/" + c.Name + "/blobs/sha256:" + layer, "repository": repo, "format": "docker",
+			"checksum": map[string]any{"sha1": strings.Repeat("1", 40), "sha256": layer},
+		}
+	}
+	assets := []any{blob(strings.Repeat("b", 64)), blob(strings.Repeat("c", 64))}
+	if c.Digest != "" {
+		assets = append(assets, map[string]any{
+			"path": "v2/" + c.Name + "/manifests/" + c.Version, "repository": repo, "format": "docker",
+			"checksum": map[string]any{"sha1": strings.Repeat("2", 40), "sha256": strings.TrimPrefix(c.Digest, "sha256:")},
+		})
+	}
+	return map[string]any{
+		"id": repo + ":" + c.Name + ":" + c.Version, "repository": repo, "format": "docker",
+		"group": nil, "name": c.Name, "version": c.Version, "assets": assets,
+	}
+}
+
 func (f *fakeNexus) serveRealms(w http.ResponseWriter, r *http.Request, body []byte) {
 	switch r.Method {
 	case http.MethodGet:
@@ -743,6 +1006,45 @@ func (f *fakeNexus) serveAnonymous(w http.ResponseWriter, r *http.Request, body 
 		}
 		f.anonymous = m
 		f.reply(w, r, http.StatusOK, m)
+	default:
+		f.reply(w, r, http.StatusMethodNotAllowed, nil)
+	}
+}
+
+// ssrfBody is the settings as the instance answers them: the three known fields
+// and the ones the client does not know.
+func (f *fakeNexus) ssrfBody() map[string]any {
+	body := map[string]any{"enabled": f.ssrf.Enabled, "allowedIPs": f.ssrf.AllowedIPs, "allowedDomains": f.ssrf.AllowedDomains}
+	for k, v := range f.ssrfExtra {
+		body[k] = v
+	}
+	return body
+}
+
+func (f *fakeNexus) serveSSRF(w http.ResponseWriter, r *http.Request, body []byte) {
+	if !f.ssrfPresent {
+		f.reply(w, r, http.StatusNotFound, nil)
+		return
+	}
+	switch r.Method {
+	case http.MethodGet:
+		f.reply(w, r, http.StatusOK, f.ssrfBody())
+	case http.MethodPut:
+		var s ssrfSettings
+		var all map[string]json.RawMessage
+		if err := json.Unmarshal(body, &s); err != nil || s.AllowedIPs == nil || s.AllowedDomains == nil ||
+			json.Unmarshal(body, &all) != nil {
+			f.badRequest(w, r, "enabled, allowedIPs and allowedDomains are required")
+			return
+		}
+		f.ssrf = s
+		f.ssrfExtra = map[string]json.RawMessage{}
+		for k, v := range all {
+			if k != "enabled" && k != "allowedIPs" && k != "allowedDomains" {
+				f.ssrfExtra[k] = v
+			}
+		}
+		f.reply(w, r, http.StatusOK, f.ssrfBody())
 	default:
 		f.reply(w, r, http.StatusMethodNotAllowed, nil)
 	}

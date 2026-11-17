@@ -145,6 +145,32 @@ var _ nexusbench.InitialPassword = (*fakeInitial)(nil)
 
 func (*fakeInitial) Read(context.Context) (string, bool, error) { return "", false, nil }
 
+// fakeForwarder and fakeCopier are handed to the (fake) Seed untouched: only
+// Seed forwards ports and copies images, so a call to either by the command
+// itself fails the test.
+type fakeForwarder struct{ t *testing.T }
+
+var _ nexusbench.PortForwarder = (*fakeForwarder)(nil)
+
+func (f *fakeForwarder) Forward(context.Context, string, string, int) (string, func() error, error) {
+	f.t.Error("the command forwarded a port itself: only Seed does")
+	return "", nil, errors.New("unexpected Forward")
+}
+
+type fakeCopier struct{ t *testing.T }
+
+var _ nexusbench.ImageCopier = (*fakeCopier)(nil)
+
+func (f *fakeCopier) Copy(context.Context, nexusbench.ImageRef, nexusbench.ImageRef, nexusbench.CopyOptions) error {
+	f.t.Error("the command copied an image itself: only Seed does")
+	return errors.New("unexpected Copy")
+}
+
+func (f *fakeCopier) ManifestDigest(context.Context, nexusbench.ImageRef, *nexusbench.Credentials) (string, error) {
+	f.t.Error("the command read a manifest itself: only Seed does")
+	return "", errors.New("unexpected ManifestDigest")
+}
+
 // ---- harness --------------------------------------------------------------
 
 // harness wires fake deps that log every call in order and record what they
@@ -162,6 +188,8 @@ type harness struct {
 	clock   *fakeClock
 	store   *fakeStore
 	initial *fakeInitial
+	forward *fakeForwarder
+	copier  *fakeCopier
 
 	mu     sync.Mutex
 	events []string
@@ -190,18 +218,50 @@ type harness struct {
 	// fake Provision ran: it must not have been written yet.
 	descriptorSeenAtProvision bool
 
+	// NX-02a (DEVDESK-544), recorded
+	newForwarderContexts []string
+	ensureRunner         nexusbench.Runner
+	ensureClock          nexusbench.Clock
+	ensureParams         nexusbench.Params
+	seedDeps             nexusbench.SeedDeps
+	seedURL              string
+	seedParams           nexusbench.Params
+	seedHadDeadline      bool
+	seedRemaining        time.Duration // time left on the context Seed was given
+	// descriptorSeenAtSeed is whether the descriptor file existed when the fake
+	// Seed ran: it must not have been written yet.
+	descriptorSeenAtSeed bool
+	readUpstreamRunner   nexusbench.Runner
+	readImagesURLs       []string
+
 	// programmable
-	newRunnerErr   error
-	newStoreErr    error
-	preflightRes   nexusbench.PreflightResult
-	preflightErr   error
-	deployRes      nexusbench.DeployResult
-	deployErr      error
-	provisionRes   nexusbench.ProvisionResult
-	provisionErr   error
-	destroyErr     error
-	onDeploy       func() // runs inside the fake Deploy, before it answers
-	respectContext bool   // the fakes return ctx.Err() when ctx is done, like the library
+	newRunnerErr error
+	newStoreErr  error
+	preflightRes nexusbench.PreflightResult
+	preflightErr error
+	deployRes    nexusbench.DeployResult
+	deployErr    error
+	provisionRes nexusbench.ProvisionResult
+	provisionErr error
+	destroyErr   error
+	onDeploy     func() // runs inside the fake Deploy, before it answers
+
+	// NX-02a (DEVDESK-544), programmable
+	newForwarderErr error
+	newCopierErr    error
+	ensureErr       error
+	seedRes         nexusbench.SeedResult // default: the whole data set, as Seed returns it
+	seedErr         error
+	onSeed          func() // runs inside the fake Seed, before it answers
+	blockSeed       bool   // the fake Seed waits for its context to end
+	upstreamState   nexusbench.UpstreamState
+	upstreamErr     error
+	// listings answers readImages by repository; a repository that is not in
+	// the map answers what the data set says it holds, so a seeded bench reads
+	// as matching.
+	listings       map[string][]listedImage
+	readImagesErr  error
+	respectContext bool // the fakes return ctx.Err() when ctx is done, like the library
 }
 
 func newHarness(t *testing.T) *harness {
@@ -218,6 +278,11 @@ func newHarness(t *testing.T) *harness {
 		clock:   &fakeClock{},
 		store:   &fakeStore{},
 		initial: &fakeInitial{id: 1},
+		forward: &fakeForwarder{t: t},
+		copier:  &fakeCopier{t: t},
+
+		seedRes:       nexusbench.SeedResult{Images: nexusbench.Dataset()},
+		upstreamState: nexusbench.UpstreamReady,
 
 		preflightRes: nexusbench.PreflightResult{NamespaceExists: true, NamespaceOurs: true, NodeIP: "192.168.1.31"},
 		deployRes:    nexusbench.DeployResult{ReachableHosts: []string{"127.0.0.1"}, NodeIP: "192.168.1.31"},
@@ -274,6 +339,8 @@ func opName(op nexusbench.Op) string {
 		return "OpDown"
 	case nexusbench.OpStatus:
 		return "OpStatus"
+	case nexusbench.OpSeed:
+		return "OpSeed"
 	}
 	return fmt.Sprintf("Op(%d)", int(op))
 }
@@ -316,7 +383,12 @@ func (h *harness) deps() deps {
 			if h.respectContext && ctx.Err() != nil {
 				return nexusbench.PreflightResult{}, ctx.Err()
 			}
-			return h.preflightRes, h.preflightErr
+			res := h.preflightRes
+			if op == nexusbench.OpSeed {
+				// The real RunPreflight(OpSeed) does not read the node: no NodeIP.
+				res.NodeIP = ""
+			}
+			return res, h.preflightErr
 		},
 		deploy: func(ctx context.Context, r nexusbench.Runner, pr nexusbench.Prober, clk nexusbench.Clock, p nexusbench.Params, out io.Writer) (nexusbench.DeployResult, error) {
 			h.log("deploy")
@@ -351,6 +423,69 @@ func (h *harness) deps() deps {
 			}
 			return h.destroyErr
 		},
+
+		newForwarder: func(kubeContext string) (nexusbench.PortForwarder, error) {
+			h.log("newForwarder")
+			h.newForwarderContexts = append(h.newForwarderContexts, kubeContext)
+			if h.newForwarderErr != nil {
+				return nil, h.newForwarderErr
+			}
+			return h.forward, nil
+		},
+		newCopier: func() (nexusbench.ImageCopier, error) {
+			h.log("newCopier")
+			if h.newCopierErr != nil {
+				return nil, h.newCopierErr
+			}
+			return h.copier, nil
+		},
+		ensureUpstream: func(ctx context.Context, r nexusbench.Runner, clk nexusbench.Clock, p nexusbench.Params, out io.Writer) error {
+			h.log("ensureUpstream")
+			h.ensureRunner, h.ensureClock, h.ensureParams = r, clk, p
+			_, _ = fmt.Fprintln(out, progressMarker+" ensureUpstream")
+			if h.respectContext && ctx.Err() != nil {
+				return ctx.Err()
+			}
+			return h.ensureErr
+		},
+		seed: func(ctx context.Context, d nexusbench.SeedDeps, baseURL string, p nexusbench.Params, out io.Writer) (nexusbench.SeedResult, error) {
+			h.log("seed")
+			h.seedDeps, h.seedURL, h.seedParams = d, baseURL, p
+			if deadline, ok := ctx.Deadline(); ok {
+				h.seedHadDeadline, h.seedRemaining = true, time.Until(deadline)
+			}
+			if _, err := os.Stat(h.descriptorPathOf(p)); err == nil {
+				h.descriptorSeenAtSeed = true
+			}
+			_, _ = fmt.Fprintln(out, "seed: "+progressMarker)
+			if h.onSeed != nil {
+				h.onSeed()
+			}
+			if h.blockSeed {
+				<-ctx.Done()
+				return nexusbench.SeedResult{}, fmt.Errorf("seed: %w", ctx.Err())
+			}
+			if h.respectContext && ctx.Err() != nil {
+				return nexusbench.SeedResult{}, fmt.Errorf("seed: %w", ctx.Err())
+			}
+			return h.seedRes, h.seedErr
+		},
+		readUpstream: func(_ context.Context, r nexusbench.Runner, _ nexusbench.Params) (nexusbench.UpstreamState, error) {
+			h.log("readUpstream")
+			h.readUpstreamRunner = r
+			return h.upstreamState, h.upstreamErr
+		},
+		readImages: func(_ context.Context, baseURL, repository string) ([]listedImage, error) {
+			h.log("readImages:" + repository)
+			h.readImagesURLs = append(h.readImagesURLs, baseURL)
+			if h.readImagesErr != nil {
+				return nil, h.readImagesErr
+			}
+			if l, ok := h.listings[repository]; ok {
+				return l, nil
+			}
+			return datasetListing(nexusbench.Dataset(), repository), nil
+		},
 	}
 }
 
@@ -377,14 +512,16 @@ func (h *harness) descriptorExists() bool {
 }
 
 // writeDescriptor puts a descriptor of p at the default path.
+// The descriptor is a seeded bench's (schema 2: the data set is listed), as `up`
+// leaves it once step 10 has made it seed.
 func (h *harness) writeDescriptor(p nexusbench.Params, d nexusbench.DeployResult, r nexusbench.ProvisionResult) []byte {
 	h.t.Helper()
-	return writeDescriptorAt(h.t, h.descriptor, p, d, r)
+	return writeDescriptorAt(h.t, h.descriptor, p, d, r, nexusbench.SeedResult{Images: nexusbench.Dataset()})
 }
 
-func writeDescriptorAt(t *testing.T, path string, p nexusbench.Params, d nexusbench.DeployResult, r nexusbench.ProvisionResult) []byte {
+func writeDescriptorAt(t *testing.T, path string, p nexusbench.Params, d nexusbench.DeployResult, r nexusbench.ProvisionResult, s nexusbench.SeedResult) []byte {
 	t.Helper()
-	if err := nexusbench.WriteDescriptor(path, nexusbench.BuildDescriptor(p, d, r)); err != nil {
+	if err := nexusbench.WriteDescriptor(path, nexusbench.BuildDescriptor(p, d, r, s)); err != nil {
 		t.Fatalf("WriteDescriptor(%s): %v", path, err)
 	}
 	data, err := os.ReadFile(path)
@@ -397,7 +534,30 @@ func writeDescriptorAt(t *testing.T, path string, p nexusbench.Params, d nexusbe
 // wantDescriptorBytes is the file the library writes for these inputs.
 func wantDescriptorBytes(t *testing.T, p nexusbench.Params, d nexusbench.DeployResult, r nexusbench.ProvisionResult) []byte {
 	t.Helper()
-	return writeDescriptorAt(t, filepath.Join(t.TempDir(), "want.json"), p, d, r)
+	// `up` seeds the bench (D-J): it describes the whole data set.
+	return wantDescriptorBytesWith(t, p, d, r, nexusbench.SeedResult{Images: nexusbench.Dataset()})
+}
+
+// wantDescriptorBytesWith is the file the library writes for these inputs and
+// this seed result.
+func wantDescriptorBytesWith(t *testing.T, p nexusbench.Params, d nexusbench.DeployResult, r nexusbench.ProvisionResult, s nexusbench.SeedResult) []byte {
+	t.Helper()
+	return writeDescriptorAt(t, filepath.Join(t.TempDir(), "want.json"), p, d, r, s)
+}
+
+// datasetListing is what repository holds on a bench seeded with images: the
+// hosted images in docker-hosted, the pulled-through ones in docker-proxy.
+func datasetListing(images []nexusbench.DatasetImage, repository string) []listedImage {
+	var out []listedImage
+	for _, img := range images {
+		hosted := img.Location == nexusbench.LocationHosted
+		switch {
+		case repository == "docker-hosted" && hosted,
+			repository == "docker-proxy" && !hosted && img.PullThrough:
+			out = append(out, listedImage{Name: img.Name, Tag: img.Tag, Digest: img.Digest})
+		}
+	}
+	return out
 }
 
 // requireNoCalls fails when any dependency was used.
@@ -441,7 +601,7 @@ func benchError() *nexusbench.BenchError {
 
 // ---- help and usage ---------------------------------------------------------
 
-var subcommands = []string{"up", "provision", "down", "status", "render"}
+var subcommands = []string{"up", "provision", "down", "seed", "status", "render"}
 
 func TestHelpPrintsTheSubcommandsOnStdout(t *testing.T) {
 	for _, arg := range []string{"-h", "--help", "help"} {
@@ -485,6 +645,14 @@ func TestSubcommandHelpListsItsFlags(t *testing.T) {
 		{[]string{"down", "-h"}, []string{"namespace", "context", "delete-timeout"}},
 		{[]string{"status", "-h"}, []string{"namespace", "context"}},
 		{[]string{"render", "-h"}, []string{"namespace", "image-tag"}},
+		{[]string{"up", "-h"}, []string{"upstream-image", "upstream-image-tag"}},
+		{[]string{"provision", "-h"}, []string{"upstream-image", "upstream-image-tag"}},
+		{[]string{"down", "-h"}, []string{"upstream-image", "upstream-image-tag"}},
+		{[]string{"status", "-h"}, []string{"upstream-image", "upstream-image-tag"}},
+		{[]string{"render", "-h"}, []string{"upstream-image", "upstream-image-tag"}},
+		// seed (DEVDESK-544): the common flags and the REST host (the admin
+		// credentials go there), but no EULA: it provisions nothing.
+		{[]string{"seed", "-h"}, []string{"namespace", "context", "http-nodeport", "rest-host", "timeout", "upstream-image", "upstream-image-tag", "upstream-url"}},
 	}
 	for _, tt := range tests {
 		t.Run(strings.Join(tt.args, " "), func(t *testing.T) {
@@ -641,22 +809,25 @@ func TestParametersFlagOverEnvironmentOverDefault(t *testing.T) {
 		{
 			name: "every variable",
 			env: map[string]string{
-				"NEXUS_BENCH_CONTEXT":         "ctx-env",
-				"NEXUS_BENCH_NAMESPACE":       "nb-env",
-				"NEXUS_BENCH_HTTP_NODEPORT":   "31001",
-				"NEXUS_BENCH_DOCKER_NODEPORT": "31002",
-				"NEXUS_BENCH_IMAGE_TAG":       "3.99.0",
-				"NEXUS_BENCH_TIMEOUT":         "20m",
-				"NEXUS_BENCH_DELETE_TIMEOUT":  "7m",
-				"NEXUS_BENCH_ANONYMOUS":       "false",
-				"NEXUS_BENCH_ACCEPT_EULA":     "yes",
-				"NEXUS_BENCH_HOSTS":           "10.0.0.1,10.0.0.2",
+				"NEXUS_BENCH_CONTEXT":            "ctx-env",
+				"NEXUS_BENCH_NAMESPACE":          "nb-env",
+				"NEXUS_BENCH_HTTP_NODEPORT":      "31001",
+				"NEXUS_BENCH_DOCKER_NODEPORT":    "31002",
+				"NEXUS_BENCH_IMAGE_TAG":          "3.99.0",
+				"NEXUS_BENCH_UPSTREAM_IMAGE":     "registry.example.com/team/registry",
+				"NEXUS_BENCH_UPSTREAM_IMAGE_TAG": "3.0.1",
+				"NEXUS_BENCH_TIMEOUT":            "20m",
+				"NEXUS_BENCH_DELETE_TIMEOUT":     "7m",
+				"NEXUS_BENCH_ANONYMOUS":          "false",
+				"NEXUS_BENCH_ACCEPT_EULA":        "yes",
+				"NEXUS_BENCH_HOSTS":              "10.0.0.1,10.0.0.2",
 			},
 			want: func(p *nexusbench.Params) {
 				p.Context, p.Namespace = "ctx-env", "nb-env"
 				p.UpstreamURL = "http://bench-upstream.nb-env.svc.cluster.local:5000"
 				p.HTTPNodePort, p.DockerNodePort = 31001, 31002
 				p.ImageTag = "3.99.0"
+				p.UpstreamImage, p.UpstreamImageTag = "registry.example.com/team/registry", "3.0.1"
 				p.Timeout, p.DeleteTimeout = 20*time.Minute, 7*time.Minute
 				p.Anonymous, p.AcceptEULA = false, true
 				p.Hosts = []string{"10.0.0.1", "10.0.0.2"}
@@ -695,6 +866,26 @@ func TestParametersFlagOverEnvironmentOverDefault(t *testing.T) {
 		{name: "jvm options", args: []string{"--jvm-opts", "-Xms1g -Xmx2g"}, want: func(p *nexusbench.Params) { p.JVMOpts = "-Xms1g -Xmx2g" }},
 		{name: "image", args: []string{"--image", "registry.example.com/sonatype/nexus3"}, want: func(p *nexusbench.Params) { p.Image = "registry.example.com/sonatype/nexus3" }},
 		{name: "image tag", args: []string{"--image-tag", "3.97.0"}, want: func(p *nexusbench.Params) { p.ImageTag = "3.97.0" }},
+		{name: "upstream image", args: []string{"--upstream-image", "registry.example.com/team/registry"}, want: func(p *nexusbench.Params) {
+			p.UpstreamImage = "registry.example.com/team/registry"
+		}},
+		{name: "upstream image tag", args: []string{"--upstream-image-tag", "3.0.1"}, want: func(p *nexusbench.Params) { p.UpstreamImageTag = "3.0.1" }},
+		{
+			name: "upstream image flag beats the variable",
+			env:  map[string]string{"NEXUS_BENCH_UPSTREAM_IMAGE": "registry.example.com/env/registry", "NEXUS_BENCH_UPSTREAM_IMAGE_TAG": "3.0.1"},
+			args: []string{"--upstream-image=registry.example.com/flag/registry", "--upstream-image-tag", "3.0.2"},
+			want: func(p *nexusbench.Params) {
+				p.UpstreamImage, p.UpstreamImageTag = "registry.example.com/flag/registry", "3.0.2"
+			},
+		},
+		{
+			name: "upstream image variable stays where no flag overrides it",
+			env:  map[string]string{"NEXUS_BENCH_UPSTREAM_IMAGE": "registry.example.com/env/registry", "NEXUS_BENCH_UPSTREAM_IMAGE_TAG": "3.0.1"},
+			args: []string{"--upstream-image-tag", "3.0.2"},
+			want: func(p *nexusbench.Params) {
+				p.UpstreamImage, p.UpstreamImageTag = "registry.example.com/env/registry", "3.0.2"
+			},
+		},
 		{name: "anonymous off", args: []string{"--anonymous=false"}, want: func(p *nexusbench.Params) { p.Anonymous = false }},
 		{
 			name: "anonymous flag beats the variable",
@@ -869,8 +1060,11 @@ func TestInvalidParametersStopBeforeAnyCall(t *testing.T) {
 		{"the two NodePorts are equal", nil, []string{"--http-nodeport", "31000", "--docker-nodeport", "31000"}, "NodePort"},
 		{"a variable that is not a number", map[string]string{"NEXUS_BENCH_HTTP_NODEPORT": "abc"}, nil, "NEXUS_BENCH_HTTP_NODEPORT"},
 		{"request above limit", nil, []string{"--memory-request", "8Gi"}, "NEXUS_BENCH_MEMORY"},
+		{"upstream image in the zot registry from a flag", nil, []string{"--upstream-image", "tvp-zot.incus:5000/x"}, "NEXUS_BENCH_UPSTREAM_IMAGE"},
+		{"upstream image in the zot registry from the variable", map[string]string{"NEXUS_BENCH_UPSTREAM_IMAGE": "tvp-zot.incus:5000/x"}, nil, "NEXUS_BENCH_UPSTREAM_IMAGE"},
+		{"upstream image tag that is not a tag", nil, []string{"--upstream-image-tag", "bad tag"}, "NEXUS_BENCH_UPSTREAM_IMAGE_TAG"},
 	}
-	for _, sub := range []string{"up", "provision", "down", "status", "render"} {
+	for _, sub := range []string{"up", "provision", "down", "seed", "status", "render"} {
 		for _, tt := range tests {
 			t.Run(sub+" "+tt.name, func(t *testing.T) {
 				h := newHarness(t)
@@ -1019,7 +1213,8 @@ func TestProvisionAloneRunsPreflightProvisionThenDescriptor(t *testing.T) {
 	if err != nil {
 		t.Fatalf("no descriptor written: %v", err)
 	}
-	want := wantDescriptorBytes(t, nexusbench.Defaults(), nexusbench.DeployResult{NodeIP: h.preflightRes.NodeIP}, h.provisionRes)
+	// provision seeds nothing (NX-01 behavior kept): the data set is described as empty.
+	want := wantDescriptorBytesWith(t, nexusbench.Defaults(), nexusbench.DeployResult{NodeIP: h.preflightRes.NodeIP}, h.provisionRes, nexusbench.SeedResult{})
 	if !bytes.Equal(got, want) {
 		t.Errorf("descriptor bytes differ from BuildDescriptor(p, DeployResult{NodeIP: %s}, ...):\n got %s\nwant %s", h.preflightRes.NodeIP, got, want)
 	}
@@ -1144,7 +1339,7 @@ func TestUpStopsAtTheFirstFailure(t *testing.T) {
 }
 
 func firstError(h *harness) error {
-	for _, err := range []error{h.newRunnerErr, h.newStoreErr, h.preflightErr, h.deployErr, h.provisionErr, h.destroyErr} {
+	for _, err := range []error{h.newRunnerErr, h.newStoreErr, h.newForwarderErr, h.newCopierErr, h.preflightErr, h.deployErr, h.ensureErr, h.provisionErr, h.seedErr, h.destroyErr} {
 		if err != nil {
 			return err
 		}
@@ -1349,6 +1544,9 @@ func TestNonDefaultBenchWarnsNotToCommitTheDescriptor(t *testing.T) {
 		{"docker nodeport", []string{"--docker-nodeport", "31002"}, true},
 		{"image tag", []string{"--image-tag", "3.97.0"}, true},
 		{"image", []string{"--image", "registry.example.com/sonatype/nexus3"}, true},
+		{"upstream image", []string{"--upstream-image", "registry.example.com/team/registry"}, true},
+		{"upstream image tag", []string{"--upstream-image-tag", "3.0.1"}, true},
+		{"upstream image, explicit defaults", []string{"--upstream-image", "docker.io/library/registry", "--upstream-image-tag", "3.0.0"}, false},
 		{"anonymous off", []string{"--anonymous=false"}, true},
 		{"memory limit", []string{"--memory-limit", "6Gi"}, true},
 	}
@@ -1456,6 +1654,10 @@ func TestStatusReadsAndComparesWithTheDescriptor(t *testing.T) {
 	otherNamespace := nexusbench.Defaults()
 	otherNamespace.Namespace = "elsewhere"
 	otherNamespace.UpstreamURL = "http://bench-upstream.elsewhere.svc.cluster.local:5000"
+	oldUpstreamTag := nexusbench.Defaults()
+	oldUpstreamTag.UpstreamImageTag = "3.0.1"
+	otherUpstreamImage := nexusbench.Defaults()
+	otherUpstreamImage.UpstreamImage = "registry.example/mirror/registry"
 
 	const noPod = `{"items":[]}`
 	tests := []struct {
@@ -1478,6 +1680,17 @@ func TestStatusReadsAndComparesWithTheDescriptor(t *testing.T) {
 		{
 			name: "namespace drift", descriptor: &otherNamespace,
 			want: []string{"descriptor: differs", "namespace", "elsewhere", "nexus-bench"},
+		},
+		{
+			// NX-02 (D-M): the upstream image is part of what the descriptor
+			// describes. The descriptor of a seeded bench lists the data set;
+			// the parameters know nothing of it, so it never counts as a difference.
+			name: "upstream image tag drift", descriptor: &oldUpstreamTag,
+			want: []string{"descriptor: differs", "upstream image", "3.0.1", "3.0.0"},
+		},
+		{
+			name: "upstream image drift", descriptor: &otherUpstreamImage,
+			want: []string{"descriptor: differs", "upstream image", "registry.example/mirror/registry", "docker.io/library/registry"},
 		},
 		{
 			name: "no descriptor", descriptor: nil,
@@ -1553,6 +1766,39 @@ func TestStatusReadsAndComparesWithTheDescriptor(t *testing.T) {
 				t.Error("status created a descriptor")
 			}
 		})
+	}
+}
+
+// A descriptor of NX-01 (schema 1) is not read any more: status says so and what
+// to run, and still reports the pod and REST, without touching the file.
+func TestStatusReportsASchema1Descriptor(t *testing.T) {
+	h := newHarness(t)
+	v1 := []byte(`{"schemaVersion": 1, "kubeContext": "datomir", "namespace": "nexus-bench"}` + "\n")
+	if err := os.MkdirAll(filepath.Dir(h.descriptor), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(h.descriptor, v1, 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	code, stdout, stderr := h.run("status")
+	if code != 0 {
+		t.Fatalf("exit code = %d\nstdout: %s\nstderr: %s", code, stdout, stderr)
+	}
+	lower := strings.ToLower(stdout)
+	for _, want := range []string{"descriptor: unreadable", "schema", "nexus-bench:up", "pod: running"} {
+		if !strings.Contains(lower, want) {
+			t.Errorf("stdout lacks %q:\n%s", want, stdout)
+		}
+	}
+	for _, banned := range []string{"descriptor: matches", "descriptor: differs"} {
+		if strings.Contains(lower, banned) {
+			t.Errorf("stdout must not contain %q:\n%s", banned, stdout)
+		}
+	}
+	requireClean(t, stdout, stderr)
+	if after, err := os.ReadFile(h.descriptor); err != nil || !bytes.Equal(after, v1) {
+		t.Errorf("status changed the descriptor (err=%v)", err)
 	}
 }
 

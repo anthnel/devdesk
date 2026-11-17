@@ -1,0 +1,18 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: bench-upstream
+  namespace: {{ q .Namespace }}
+  labels:
+    app.kubernetes.io/name: bench-upstream
+    app.kubernetes.io/managed-by: devdesk-nexus-bench
+    app.kubernetes.io/part-of: devdesk-nexus-bench
+spec:
+  # Cluster-internal: Nexus reaches it by its DNS name, the host by a port-forward.
+  type: ClusterIP
+  selector:
+    app.kubernetes.io/name: bench-upstream
+  ports:
+    - name: registry
+      port: 5000
+      targetPort: registry

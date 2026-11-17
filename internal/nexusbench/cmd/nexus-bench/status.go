@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -9,6 +10,17 @@ import (
 
 	"github.com/anthnel/devdesk/internal/nexusbench"
 )
+
+// listedImage is one image tag a repository lists, as the REST API of Nexus
+// reports it: the name, the tag and the manifest digest ("sha256:<hex>", empty
+// when the instance lists none).
+type listedImage = nexusbench.ListedImage
+
+// readImagesAnonymously lists the images of a repository without sending any
+// credential: a read of what anonymous access allows, nothing else.
+func readImagesAnonymously(ctx context.Context, baseURL, repository string) ([]listedImage, error) {
+	return nexusbench.ListImagesAnonymously(ctx, baseURL, repository)
+}
 
 // nexusPodSelector is the label of the Nexus pod (see 20-deployment.yaml.tmpl).
 const nexusPodSelector = "app.kubernetes.io/name=nexus"
@@ -37,11 +49,135 @@ func (s *session) status() int {
 	if err := s.ctx.Err(); err != nil {
 		return s.fail(err)
 	}
+	upstream := s.describeUpstream(runner)
+	if err := s.ctx.Err(); err != nil {
+		return s.fail(err)
+	}
+	path := s.descriptorPath()
+	desc, descErr := nexusbench.LoadDescriptor(path)
+	dataset := s.describeDataset(desc, descErr, base, rest == "ready")
+	if err := s.ctx.Err(); err != nil {
+		return s.fail(err)
+	}
 	_, _ = fmt.Fprintf(s.stdout, "bench: namespace %s, context %s\n", s.p.Namespace, s.p.Context)
 	_, _ = fmt.Fprintf(s.stdout, "pod: %s\n", pod)
 	_, _ = fmt.Fprintf(s.stdout, "rest: %s (%s)\n", rest, base)
-	_, _ = fmt.Fprintf(s.stdout, "descriptor: %s\n", s.describeDescriptor())
+	_, _ = fmt.Fprintf(s.stdout, "upstream: %s\n", upstream)
+	_, _ = fmt.Fprintf(s.stdout, "descriptor: %s\n", describeDescriptor(path, desc, descErr, s.p))
+	_, _ = fmt.Fprintf(s.stdout, "dataset: %s\n", dataset)
 	return exitOK
+}
+
+// describeUpstream says what the cluster holds of the bench upstream. An
+// upstream the bench did not deploy is not its to read; a deployment that
+// cannot be read is a finding, never an error text (it can carry output of
+// kubectl).
+func (s *session) describeUpstream(r nexusbench.Runner) string {
+	if !s.p.UpstreamIsBench() {
+		return "not managed by the bench (NEXUS_BENCH_UPSTREAM_URL points elsewhere)"
+	}
+	state, err := s.d.readUpstream(s.ctx, r, s.p)
+	if err != nil {
+		return "unknown (the deployment " + upstreamName + " could not be read)"
+	}
+	switch state {
+	case nexusbench.UpstreamReady:
+		return "ready"
+	case nexusbench.UpstreamCut:
+		return "cut (0 replicas)"
+	case nexusbench.UpstreamStarting:
+		return "starting (no pod is ready yet)"
+	}
+	return "missing (run mise run nexus-bench:up)"
+}
+
+// upstreamName is the Deployment of the bench upstream.
+const upstreamName = "bench-upstream"
+
+// The two repositories that hold the data set. The group is never read: a read
+// through it can cache an image (F9).
+const (
+	hostedRepository = "docker-hosted"
+	proxyRepository  = "docker-proxy"
+)
+
+// describeDataset compares the data set the descriptor lists with what
+// docker-hosted and docker-proxy list now. The listings are anonymous and read
+// only, so what status cannot read is "unknown", never a failure.
+func (s *session) describeDataset(d nexusbench.Descriptor, descErr error, base string, restReady bool) string {
+	switch {
+	case descErr != nil:
+		return "unknown (no readable descriptor to compare with)"
+	case len(d.Dataset) == 0 && !s.p.UpstreamIsBench():
+		// seed refuses an upstream the bench did not deploy: no point sending there.
+		return "unknown (the descriptor lists no data set)"
+	case len(d.Dataset) == 0:
+		return "unknown (the descriptor lists no data set: run mise run nexus-bench:seed)"
+	case !restReady:
+		return "unknown (Nexus does not answer)"
+	case !s.p.Anonymous:
+		return "unknown (anonymous access is off and status sends no credential)"
+	}
+	var diffs, compared int
+	for _, repo := range []string{hostedRepository, proxyRepository} {
+		listed, err := s.d.readImages(s.ctx, base, repo)
+		if err != nil {
+			return "unknown (the listing of " + repo + " failed)"
+		}
+		want := expectedIn(d.Dataset, repo)
+		compared += len(want)
+		n, ok := compareListing(want, listed)
+		if !ok {
+			return "unknown (the listing of " + repo + " gives no digest)"
+		}
+		diffs += n
+	}
+	if diffs == 0 {
+		return fmt.Sprintf("matches (%d images compared)", compared)
+	}
+	noun := "images"
+	if diffs == 1 {
+		noun = "image"
+	}
+	return fmt.Sprintf("differs (%d %s)", diffs, noun)
+}
+
+// expectedIn returns the images of the data set that repo holds: the hosted
+// ones in docker-hosted, the ones cached in the proxy in docker-proxy.
+func expectedIn(images []nexusbench.DescriptorImage, repo string) []nexusbench.DescriptorImage {
+	var out []nexusbench.DescriptorImage
+	for _, img := range images {
+		if (repo == hostedRepository && img.Location == string(nexusbench.LocationHosted)) ||
+			(repo == proxyRepository && img.CachedInProxy) {
+			out = append(out, img)
+		}
+	}
+	return out
+}
+
+// compareListing counts the differences between what a repository should hold
+// and what it lists: an image that is missing or has another digest, and an
+// image the data set does not know. ok is false when the listing gives no
+// digest for an image that is there, which makes the comparison impossible.
+func compareListing(want []nexusbench.DescriptorImage, listed []listedImage) (diffs int, ok bool) {
+	have := make(map[string]string, len(listed))
+	for _, img := range listed {
+		have[img.Name+":"+img.Tag] = img.Digest
+	}
+	for _, img := range want {
+		key := img.Name + ":" + img.Tag
+		digest, found := have[key]
+		delete(have, key)
+		switch {
+		case !found:
+			diffs++
+		case digest == "":
+			return 0, false
+		case digest != img.Digest:
+			diffs++
+		}
+	}
+	return diffs + len(have), true
 }
 
 // podList is the part of `kubectl get pods -o json` the report reads.
@@ -96,18 +232,16 @@ func readPod(s *session, r nexusbench.Runner) string {
 	return line + ")"
 }
 
-// describeDescriptor compares the versioned descriptor with the parameters of
-// this run and says where they differ.
-func (s *session) describeDescriptor() string {
-	path := s.descriptorPath()
-	d, err := nexusbench.LoadDescriptor(path)
+// describeDescriptor compares the versioned descriptor, as read at path, with
+// the parameters of this run and says where they differ.
+func describeDescriptor(path string, d nexusbench.Descriptor, err error, p nexusbench.Params) string {
 	switch {
 	case errors.Is(err, nexusbench.ErrNoDescriptor):
 		return "not found (" + path + ")"
 	case err != nil:
 		return "unreadable (" + err.Error() + ")"
 	}
-	diffs := descriptorDiffs(d, s.p)
+	diffs := descriptorDiffs(d, p)
 	if len(diffs) == 0 {
 		return "matches (" + path + ")"
 	}
@@ -116,9 +250,10 @@ func (s *session) describeDescriptor() string {
 
 // descriptorDiffs lists the fields of the descriptor that the parameters of
 // this run would write differently. The hosts and the versions are left out:
-// they come from the cluster, not from the parameters.
+// they come from the cluster, not from the parameters. So is the dataset, which
+// the parameters know nothing of.
 func descriptorDiffs(d nexusbench.Descriptor, p nexusbench.Params) []string {
-	want := nexusbench.BuildDescriptor(p, nexusbench.DeployResult{}, nexusbench.ProvisionResult{})
+	want := nexusbench.BuildDescriptor(p, nexusbench.DeployResult{}, nexusbench.ProvisionResult{}, nexusbench.SeedResult{})
 	fields := []struct{ name, got, want string }{
 		{"context", d.KubeContext, want.KubeContext},
 		{"namespace", d.Namespace, want.Namespace},
@@ -126,6 +261,7 @@ func descriptorDiffs(d nexusbench.Descriptor, p nexusbench.Params) []string {
 		{"http nodePort", strconv.Itoa(d.REST.NodePort), strconv.Itoa(want.REST.NodePort)},
 		{"docker nodePort", dockerPort(d), dockerPort(want)},
 		{"upstream URL", upstreamURL(d), upstreamURL(want)},
+		{"upstream image", d.Upstream.Image, want.Upstream.Image},
 		{"anonymous access", anonymous(d), anonymous(want)},
 	}
 	var diffs []string

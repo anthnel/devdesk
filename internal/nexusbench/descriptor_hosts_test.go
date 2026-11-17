@@ -69,7 +69,7 @@ func TestBuildDescriptorHosts(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			p := Defaults()
 			p.Hosts = tt.explicit
-			d := BuildDescriptor(p, tt.deploy, sampleProvision())
+			d := BuildDescriptor(p, tt.deploy, sampleProvision(), SeedResult{})
 
 			if !slices.Equal(d.Hosts, tt.wantHosts) {
 				t.Errorf("Hosts = %q, want %q", d.Hosts, tt.wantHosts)
@@ -86,7 +86,7 @@ func TestBuildDescriptorHosts(t *testing.T) {
 
 func TestBuildDescriptorDoesNotAliasReachedHosts(t *testing.T) {
 	reached := []string{"127.0.0.1"}
-	d := BuildDescriptor(Defaults(), DeployResult{ReachableHosts: reached}, sampleProvision())
+	d := BuildDescriptor(Defaults(), DeployResult{ReachableHosts: reached}, sampleProvision(), SeedResult{})
 	reached[0] = "changed"
 	if d.Hosts[0] != "127.0.0.1" {
 		t.Errorf("Hosts = %q follows the slice of the deploy result", d.Hosts)

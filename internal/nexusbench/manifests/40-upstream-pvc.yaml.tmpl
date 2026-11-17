@@ -1,0 +1,16 @@
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: bench-upstream-data
+  namespace: {{ q .Namespace }}
+  labels:
+    app.kubernetes.io/name: bench-upstream
+    app.kubernetes.io/managed-by: devdesk-nexus-bench
+    app.kubernetes.io/part-of: devdesk-nexus-bench
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      # Fixed: NEXUS_BENCH_STORAGE_SIZE sizes Nexus, not the upstream.
+      storage: "1Gi"

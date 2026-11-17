@@ -26,6 +26,10 @@ var namedKinds = []struct {
 	{"Deadline", Deadline},
 	{"RESTUnreachable", RESTUnreachable},
 	{"ProvisionFailed", ProvisionFailed},
+	{"SkopeoMissing", SkopeoMissing},
+	{"RegistryUnreachable", RegistryUnreachable},
+	{"RegistryRefused", RegistryRefused},
+	{"SeedFailed", SeedFailed},
 }
 
 func TestErrKindsAreDistinct(t *testing.T) {
@@ -35,6 +39,42 @@ func TestErrKindsAreDistinct(t *testing.T) {
 			t.Errorf("%s and %s share the value %d", k.name, other, k.kind)
 		}
 		seen[k.kind] = k.name
+	}
+}
+
+// The kinds are printed and compared by value: a new kind goes at the end, and
+// no earlier kind moves (DEVDESK-505).
+func TestSkopeoErrKindsAreAppendedAtTheEnd(t *testing.T) {
+	pinned := []struct {
+		name string
+		kind ErrKind
+		want int
+	}{
+		{"Unclassified", Unclassified, 0},
+		{"KubectlMissing", KubectlMissing, 1},
+		{"ContextNotFound", ContextNotFound, 2},
+		{"ClusterUnreachable", ClusterUnreachable, 3},
+		{"Forbidden", Forbidden, 4},
+		{"NamespaceForeign", NamespaceForeign, 5},
+		{"NamespaceMissing", NamespaceMissing, 6},
+		{"NodePortTaken", NodePortTaken, 7},
+		{"AdmissionDenied", AdmissionDenied, 8},
+		{"PodPending", PodPending, 9},
+		{"ImagePull", ImagePull, 10},
+		{"Crash", Crash, 11},
+		{"Deadline", Deadline, 12},
+		{"RESTUnreachable", RESTUnreachable, 13},
+		{"ProvisionFailed", ProvisionFailed, 14},
+		// The new kinds, in the order the plan names them.
+		{"SkopeoMissing", SkopeoMissing, 15},
+		{"RegistryUnreachable", RegistryUnreachable, 16},
+		{"RegistryRefused", RegistryRefused, 17},
+		{"SeedFailed", SeedFailed, 18},
+	}
+	for _, p := range pinned {
+		if int(p.kind) != p.want {
+			t.Errorf("%s = %d, want %d: kinds are appended, never renumbered", p.name, p.kind, p.want)
+		}
 	}
 }
 

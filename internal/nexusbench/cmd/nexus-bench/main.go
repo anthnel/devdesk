@@ -37,6 +37,14 @@ type deps struct {
 	deploy     func(ctx context.Context, r nexusbench.Runner, pr nexusbench.Prober, clk nexusbench.Clock, p nexusbench.Params, out io.Writer) (nexusbench.DeployResult, error)
 	provision  func(ctx context.Context, baseURL string, ip nexusbench.InitialPassword, store nexusbench.SecretStore, p nexusbench.Params, out io.Writer) (nexusbench.ProvisionResult, error)
 	destroy    func(ctx context.Context, r nexusbench.Runner, clk nexusbench.Clock, store nexusbench.SecretStore, p nexusbench.Params, out io.Writer) error
+
+	// NX-02a (DEVDESK-544): the doors of the seed and the reads of status.
+	newForwarder   func(kubeContext string) (nexusbench.PortForwarder, error)
+	newCopier      func() (nexusbench.ImageCopier, error)
+	ensureUpstream func(ctx context.Context, r nexusbench.Runner, clk nexusbench.Clock, p nexusbench.Params, out io.Writer) error
+	seed           func(ctx context.Context, d nexusbench.SeedDeps, baseURL string, p nexusbench.Params, out io.Writer) (nexusbench.SeedResult, error)
+	readUpstream   func(ctx context.Context, r nexusbench.Runner, p nexusbench.Params) (nexusbench.UpstreamState, error)
+	readImages     func(ctx context.Context, baseURL, repository string) ([]listedImage, error)
 }
 
 // defaultDeps wires the real kubectl, HTTP client, clock and files.
@@ -51,6 +59,13 @@ func defaultDeps() deps {
 		deploy:     nexusbench.Deploy,
 		provision:  nexusbench.Provision,
 		destroy:    nexusbench.Destroy,
+
+		newForwarder:   nexusbench.NewExecPortForwarder,
+		newCopier:      nexusbench.NewSkopeoCopier,
+		ensureUpstream: nexusbench.EnsureUpstream,
+		seed:           nexusbench.Seed,
+		readUpstream:   nexusbench.ReadUpstream,
+		readImages:     readImagesAnonymously,
 	}
 }
 
@@ -91,15 +106,14 @@ func run(ctx context.Context, args []string, getenv func(string) string, stdout,
 	case "-h", "--help", "help":
 		printUsage(stdout)
 		return exitOK
-	case "up", "provision", "down", "status", "render":
+	case "up", "provision", "down", "seed", "status", "render":
 	default:
 		_, _ = fmt.Fprintf(stderr, "nexus-bench: unknown subcommand %q\n\n", name)
 		printUsage(stderr)
 		return exitUsage
 	}
 
-	provisions := name == "up" || name == "provision"
-	flags := newFlagSet(name, provisions)
+	flags := newFlagSet(name)
 	if err := flags.parse(args[1:]); err != nil {
 		if errors.Is(err, flag.ErrHelp) {
 			printSubcommandHelp(stdout, name, flags)
@@ -119,6 +133,9 @@ func run(ctx context.Context, args []string, getenv func(string) string, stdout,
 		if err := validateRESTHost(host); err != nil {
 			return s.fail(err)
 		}
+		if name == "seed" && !isLoopbackHost(host) {
+			return s.fail(errors.New("seed always reaches Nexus and copies the images through 127.0.0.1, so --rest-host must be a loopback address"))
+		}
 		s.restHost, s.explicit = host, true
 	}
 
@@ -129,6 +146,8 @@ func run(ctx context.Context, args []string, getenv func(string) string, stdout,
 		return s.provision()
 	case "down":
 		return s.down()
+	case "seed":
+		return s.seed()
 	case "status":
 		return s.status()
 	default:

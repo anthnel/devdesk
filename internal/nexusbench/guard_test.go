@@ -19,8 +19,10 @@ import (
 //   - a test that reaches the real cluster, the bench descriptor or the secrets
 //     path calls requireBench(t) first, so `mise run test` can never act on
 //     datomir;
-//   - nothing but kubectl.go and secrets.go starts a process, so the bench has
-//     one door to the cluster (kubectl.go) and one to git (secrets.go);
+//   - nothing but kubectl.go, secrets.go and skopeo.go starts a process, so the
+//     bench has one door to the cluster (kubectl.go, the commands and the
+//     port-forward), one to git (secrets.go) and one to the image registries
+//     (skopeo.go);
 //   - the credentials of the REST client are attached in one place and no code
 //     names the Authorization header, so no log or error can carry it.
 //
@@ -89,9 +91,11 @@ func packageSources(t *testing.T, tests, recursive bool) []parsedSource {
 
 // benchGuardedCalls are the calls that reach the real bench: kubectl on PATH,
 // the versioned descriptor that names the bench, the secrets path of the bench,
-// and a REST client. A test (or helper) that makes one has to call
-// requireBench(t) first, unless it is an exception below.
-var benchGuardedCalls = []string{"NewExecRunner", "DescriptorPath", "DefaultSecretsPath", "newClient"}
+// and a REST client, plus the two other doors that find a binary on PATH:
+// NewExecPortForwarder (kubectl again) and NewSkopeoCopier (skopeo, which
+// reaches any registry its caller names). A test (or helper) that makes one has
+// to call requireBench(t) first, unless it is an exception below.
+var benchGuardedCalls = []string{"NewExecRunner", "NewExecPortForwarder", "NewSkopeoCopier", "DescriptorPath", "DefaultSecretsPath", "newClient"}
 
 // benchException is a function allowed to make a guarded call without
 // requireBench, because what it does cannot reach the bench. check, when set,
@@ -117,6 +121,14 @@ var requireBenchExceptions = map[string]benchException{
 	"TestExecRunnerInjectsTheContext":         {reason: "PATH leads to a fake kubectl script", check: isolatesPath},
 	"TestExecRunnerKeepsBothStreamsOnFailure": {reason: "PATH leads to a fake kubectl script", check: isolatesPath},
 	"TestExecRunnerHonorsACancelledContext":   {reason: "PATH leads to a fake kubectl script", check: isolatesPath},
+	// NewExecPortForwarder and NewSkopeoCopier (DEVDESK-539): the two helpers
+	// install a stand-in tool alone on PATH (installHelperTool) and the tests
+	// call the helpers; the two "missing" tests run on an empty PATH.
+	"newHelperForwarder":                     {reason: "PATH leads to the stand-in kubectl", check: isolatesPath},
+	"newHelperSkopeo":                        {reason: "PATH leads to the stand-in skopeo", check: isolatesPath},
+	"TestNewExecPortForwarderKubectlMissing": {reason: "PATH is an empty folder", check: isolatesPath},
+	"TestNewSkopeoCopierSkopeoMissing":       {reason: "PATH is an empty folder", check: isolatesPath},
+	"TestSkopeoAgainstFakeRegistry":          {reason: "the real skopeo talks to a registry of the test process, on the loopback, with no login of the host", check: loopbackRegistryOnly},
 }
 
 // callName returns the name a call is made under: f(...) or nexusbench.f(...).
@@ -183,8 +195,11 @@ func firstRequireBench(n ast.Node) (token.Pos, bool) {
 	return pos, found
 }
 
-// isolatesPath tells whether the function replaces PATH: installFakeKubectl(t)
-// or t.Setenv("PATH", ...).
+// pathIsolators are the helpers that put a stand-in tool alone first on PATH.
+var pathIsolators = []string{"installFakeKubectl", "installHelperTool"}
+
+// isolatesPath tells whether the function replaces PATH: installFakeKubectl(t),
+// installHelperTool(t, ...) or t.Setenv("PATH", ...).
 func isolatesPath(fn *ast.FuncDecl) string {
 	found := false
 	ast.Inspect(fn, func(n ast.Node) bool {
@@ -192,7 +207,7 @@ func isolatesPath(fn *ast.FuncDecl) string {
 		if !ok {
 			return true
 		}
-		if id, ok := call.Fun.(*ast.Ident); ok && id.Name == "installFakeKubectl" {
+		if id, ok := call.Fun.(*ast.Ident); ok && slices.Contains(pathIsolators, id.Name) {
 			found = true
 		}
 		if sel, ok := call.Fun.(*ast.SelectorExpr); ok && sel.Sel.Name == "Setenv" && len(call.Args) > 0 {
@@ -203,7 +218,37 @@ func isolatesPath(fn *ast.FuncDecl) string {
 		return true
 	})
 	if !found {
-		return "it neither calls installFakeKubectl nor sets PATH, so NewExecRunner may find the real kubectl"
+		return "it neither calls installFakeKubectl or installHelperTool nor sets PATH, so it may find the real kubectl or skopeo"
+	}
+	return ""
+}
+
+// loopbackRegistryOnly tells whether a test that runs the real skopeo only talks
+// to a registry of its own: it starts newFakeRegistry (a server of the test
+// process, on the loopback) and moves HOME, so no login of the machine can reach
+// skopeo and nothing can name the bench.
+func loopbackRegistryOnly(fn *ast.FuncDecl) string {
+	registry, home := false, false
+	ast.Inspect(fn, func(n ast.Node) bool {
+		call, ok := n.(*ast.CallExpr)
+		if !ok {
+			return true
+		}
+		if id, ok := call.Fun.(*ast.Ident); ok && id.Name == "newFakeRegistry" {
+			registry = true
+		}
+		if sel, ok := call.Fun.(*ast.SelectorExpr); ok && sel.Sel.Name == "Setenv" && len(call.Args) > 0 {
+			if lit, ok := call.Args[0].(*ast.BasicLit); ok && lit.Value == `"HOME"` {
+				home = true
+			}
+		}
+		return true
+	})
+	switch {
+	case !registry:
+		return "it does not start newFakeRegistry, so nothing says which registry skopeo talks to"
+	case !home:
+		return `it does not set HOME, so skopeo may read a login of the machine`
 	}
 	return ""
 }
@@ -328,6 +373,7 @@ func TestGuardRequireBenchDetectorSelfTest(t *testing.T) {
 		"TestFakeSecret": {reason: "fake env", check: noRealEnvironment},
 		"TestGone":       {reason: "no such function"},
 		"TestNowGuarded": {reason: "calls requireBench now"},
+		"TestFakeReg":    {reason: "own registry", check: loopbackRegistryOnly},
 	}
 	tests := []struct {
 		name         string
@@ -354,6 +400,14 @@ func TestB(t *testing.T) { _ = DescriptorPath() }`, 1, nil},
 var path = DescriptorPath()`, 1, nil},
 		{"call in a closure, no guard", `package p
 func TestA(t *testing.T) { t.Run("x", func(t *testing.T) { _ = DescriptorPath() }) }`, 1, nil},
+		{"skopeo without the guard", `package p
+func TestA(t *testing.T) { c, _ := NewSkopeoCopier(); _ = c }`, 1, nil},
+		{"port forwarder without the guard", `package p
+func TestA(t *testing.T) { f, _ := NewExecPortForwarder("c"); _ = f }`, 1, nil},
+		{"skopeo after the guard", `package p
+func TestA(t *testing.T) { requireBench(t); c, _ := NewSkopeoCopier(); _ = c }`, 0, nil},
+		{"port forwarder after the guard", `package p
+func TestA(t *testing.T) { requireBench(t); f, _ := NewExecPortForwarder("c"); _ = f }`, 0, nil},
 		{"guard first", `package p
 func TestA(t *testing.T) { requireBench(t); r, _ := NewExecRunner("c"); _ = r }`, 0, nil},
 		{"guard in the outer test, call in a closure", `package p
@@ -372,6 +426,18 @@ func TestPure(t *testing.T) { _ = DescriptorPath() }`, 0, []string{"TestPure"}},
 func TestFakePath(t *testing.T) { installFakeKubectl(t); r, _ := NewExecRunner("c"); _ = r }`, 0, []string{"TestFakePath"}},
 		{"exception that holds: PATH set", `package p
 func TestFakePath(t *testing.T) { t.Setenv("PATH", d); r, _ := NewExecRunner("c"); _ = r }`, 0, []string{"TestFakePath"}},
+		{"exception that holds: stand-in tool", `package p
+func TestFakePath(t *testing.T) { installHelperTool(t, "skopeo", nil); c, _ := NewSkopeoCopier(); _ = c }`, 0, []string{"TestFakePath"}},
+		{"exception that no longer holds: real PATH for skopeo", `package p
+func TestFakePath(t *testing.T) { c, _ := NewSkopeoCopier(); _ = c }`, 1, []string{"TestFakePath"}},
+		{"exception that no longer holds: real PATH for the port forwarder", `package p
+func TestFakePath(t *testing.T) { f, _ := NewExecPortForwarder("c"); _ = f }`, 1, []string{"TestFakePath"}},
+		{"exception that holds: own registry and own HOME", `package p
+func TestFakeReg(t *testing.T) { t.Setenv("HOME", d); newFakeRegistry(t, "", ""); c, _ := NewSkopeoCopier(); _ = c }`, 0, []string{"TestFakeReg"}},
+		{"exception that no longer holds: no registry of its own", `package p
+func TestFakeReg(t *testing.T) { t.Setenv("HOME", d); c, _ := NewSkopeoCopier(); _ = c }`, 1, []string{"TestFakeReg"}},
+		{"exception that no longer holds: the real HOME", `package p
+func TestFakeReg(t *testing.T) { newFakeRegistry(t, "", ""); c, _ := NewSkopeoCopier(); _ = c }`, 1, []string{"TestFakeReg"}},
 		{"exception that no longer holds: real PATH", `package p
 func TestFakePath(t *testing.T) { r, _ := NewExecRunner("c"); _ = r }`, 1, []string{"TestFakePath"}},
 		{"exception that holds: fake environment", `package p
@@ -406,11 +472,12 @@ func TestNowGuarded(t *testing.T) { requireBench(t); _ = DescriptorPath() }`, 0,
 	}
 }
 
-// ---- guard 2: one door to the cluster, one to git ------------------------------
+// ---- guard 2: one door to the cluster, one to git, one to the registries -------
 
 // execAllowed are the only non-test files that start a process: kubectl.go runs
-// kubectl, secrets.go runs `git check-ignore` before it accepts a secrets path.
-var execAllowed = []string{"kubectl.go", "secrets.go"}
+// kubectl (its commands and the port-forward), secrets.go runs
+// `git check-ignore` before it accepts a secrets path, skopeo.go runs skopeo.
+var execAllowed = []string{"kubectl.go", "secrets.go", "skopeo.go"}
 
 // execStarts returns "file:line: exec.Command" for every use of Command or
 // CommandContext of os/exec in src, whatever the import is called, and for a dot
@@ -450,7 +517,7 @@ func execStarts(src parsedSource) []string {
 	return out
 }
 
-func TestGuardExecCommandOnlyInKubectlAndSecrets(t *testing.T) {
+func TestGuardExecCommandOnlyInTheAllowedFiles(t *testing.T) {
 	seen := map[string]bool{}
 	for _, src := range packageSources(t, false, true) {
 		starts := execStarts(src)
