@@ -255,9 +255,10 @@ done | jq -s '{sessions: map({
 
 # The nexus-bench:* tasks (DEVDESK-504, docs/architecture/nexus-bench.md) drive a
 # disposable Nexus on a real k0s cluster through kubectl: up, provision, down,
-# seed and status read or change that cluster, and the bench has to be reachable from this
-# machine. They are NOT part of ci, check, test or test-race and nothing depends
-# on them (mise_tasks_test.go checks it). Only render contacts nothing.
+# seed, cut-upstream, restore-upstream, reset and status read or change that
+# cluster, and the bench has to be reachable from this machine. They are NOT
+# part of ci, check, test or test-race and nothing depends on them
+# (mise_tasks_test.go checks it). Only render contacts nothing.
 #
 # kubectl is declared on each task that reaches the cluster rather than in
 # [tools], so the CI does not install it; render contacts nothing and has none.
@@ -288,6 +289,21 @@ run = "go run ./internal/nexusbench/cmd/nexus-bench down"
 description = "Put the data set in the Nexus bench that up provisioned and write the descriptor (acts on the cluster; needs skopeo on this machine, which mise does not install)"
 tools = { kubectl = "1.35" }
 run = "go run ./internal/nexusbench/cmd/nexus-bench seed"
+
+[tasks."nexus-bench:cut-upstream"]
+description = "Scale the Nexus bench upstream to zero replicas and wait until no pod is left (acts on the cluster; the proxy then serves only what it cached)"
+tools = { kubectl = "1.35" }
+run = "go run ./internal/nexusbench/cmd/nexus-bench cut-upstream"
+
+[tasks."nexus-bench:restore-upstream"]
+description = "Bring the Nexus bench upstream back and put its proxy back in service (acts on the cluster; needs skopeo on this machine, which mise does not install)"
+tools = { kubectl = "1.35" }
+run = "go run ./internal/nexusbench/cmd/nexus-bench restore-upstream"
+
+[tasks."nexus-bench:reset"]
+description = "Delete the Docker repositories and the upstream storage of the Nexus bench, then provision and seed again, keeping the instance (acts on the cluster; needs skopeo on this machine, which mise does not install)"
+tools = { kubectl = "1.35" }
+run = "go run ./internal/nexusbench/cmd/nexus-bench reset"
 
 [tasks."nexus-bench:status"]
 description = "Report on the Nexus bench: pod, REST answer, upstream, descriptor drift, data set (reads the cluster, changes nothing)"

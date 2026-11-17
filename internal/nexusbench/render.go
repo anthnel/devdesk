@@ -14,7 +14,8 @@ var manifestFS embed.FS
 // Manifest files in the order Render writes them: the Namespace comes first so
 // that an apply creates it before the objects it holds.
 const (
-	namespaceTemplate = "00-namespace.yaml.tmpl"
+	namespaceTemplate     = "00-namespace.yaml.tmpl"
+	upstreamClaimTemplate = "40-upstream-pvc.yaml.tmpl"
 )
 
 var manifestTemplates = []string{
@@ -22,7 +23,7 @@ var manifestTemplates = []string{
 	"10-pvc.yaml.tmpl",
 	"20-deployment.yaml.tmpl",
 	"30-service.yaml.tmpl",
-	"40-upstream-pvc.yaml.tmpl",
+	upstreamClaimTemplate,
 	"50-upstream-deployment.yaml.tmpl",
 	"60-upstream-service.yaml.tmpl",
 }
@@ -79,6 +80,13 @@ func Render(p Params) ([]byte, error) {
 // RenderNamespace returns the Namespace document alone, the first one of Render.
 func RenderNamespace(p Params) ([]byte, error) {
 	return render(p, []string{namespaceTemplate})
+}
+
+// renderUpstreamClaim returns the PersistentVolumeClaim of the upstream alone,
+// the fifth document of Render. Recreating the claim applies this document and
+// not the stream: the stream carries parameters of Nexus that would roll its pod.
+func renderUpstreamClaim(p Params) ([]byte, error) {
+	return render(p, []string{upstreamClaimTemplate})
 }
 
 func render(p Params, names []string) ([]byte, error) {

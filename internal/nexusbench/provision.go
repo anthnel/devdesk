@@ -650,9 +650,14 @@ type repositorySpec struct {
 	config     map[string]any
 }
 
-// repositories returns the three Docker repositories, in the order they can be
-// created: the group needs its members.
-func (pv *provisioner) repositories() []repositorySpec {
+// repositories returns the three Docker repositories of the provisioner, in the
+// order they can be created.
+func (pv *provisioner) repositories() []repositorySpec { return repositorySpecs(pv.p) }
+
+// repositorySpecs returns the three Docker repositories of the bench, in the
+// order they can be created: the group needs its members. It is what Provision
+// writes and what UnblockProxy sends again.
+func repositorySpecs(p Params) []repositorySpec {
 	storage := func(extra map[string]any) map[string]any {
 		s := map[string]any{"blobStoreName": defaultBlobStore, "strictContentTypeValidation": true}
 		for k, v := range extra {
@@ -681,7 +686,7 @@ func (pv *provisioner) repositories() []repositorySpec {
 			"storage": storage(nil),
 			"docker":  docker(map[string]any{"pathEnabled": true}),
 			"proxy": map[string]any{
-				"remoteUrl": pv.p.UpstreamURL, "contentMaxAge": repositoryMaxAgeMinutes, "metadataMaxAge": repositoryMaxAgeMinutes,
+				"remoteUrl": p.UpstreamURL, "contentMaxAge": repositoryMaxAgeMinutes, "metadataMaxAge": repositoryMaxAgeMinutes,
 			},
 			"dockerProxy":   map[string]any{"indexType": "REGISTRY"},
 			"negativeCache": map[string]any{"enabled": true, "timeToLive": repositoryMaxAgeMinutes},

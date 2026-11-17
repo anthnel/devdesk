@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"io"
 	"slices"
+	"strings"
 	"time"
 )
 
@@ -66,11 +67,7 @@ func EnsureUpstream(ctx context.Context, r Runner, clk Clock, p Params, out io.W
 	}
 	switch state {
 	case UpstreamMissing:
-		return &BenchError{
-			Kind:  Unclassified,
-			Cause: fmt.Sprintf("the Deployment %s does not exist in namespace %q", upstreamDeployment, p.Namespace),
-			Check: "run `mise run nexus-bench:up`, which applies it, or " + d.pf.command("get", "deployment", upstreamDeployment, "-n", p.Namespace),
-		}
+		return missingUpstreamError(d)
 	case UpstreamReady:
 		d.say("the upstream is ready")
 		return nil
@@ -83,6 +80,53 @@ func EnsureUpstream(ctx context.Context, r Runner, clk Clock, p Params, out io.W
 		d.say("the upstream is starting")
 	}
 	return d.waitUpstream(ctx)
+}
+
+// missingUpstreamError is the error of an upstream that Deploy never applied.
+func missingUpstreamError(d *deployer) *BenchError {
+	p := d.pf.p
+	return &BenchError{
+		Kind:  Unclassified,
+		Cause: fmt.Sprintf("the Deployment %s does not exist in namespace %q", upstreamDeployment, p.Namespace),
+		Check: "run `mise run nexus-bench:up`, which applies it, or " + d.pf.command("get", "deployment", upstreamDeployment, "-n", p.Namespace),
+	}
+}
+
+// CutUpstream scales the bench upstream to zero replicas and returns once no
+// pod of it is left, a terminating one included: its volume is still mounted
+// until it is gone. It reads first and writes only when the upstream is not
+// already cut: one scale to zero, never retried. An upstream that is cut is
+// still waited for, as a pod of an earlier cut may be terminating. Like
+// EnsureUpstream, it refuses a custom upstream before any call, treats a
+// missing Deployment as an error, runs no preflight, returns a cancelled
+// context as is and accepts a nil out. The wait lasts until Params.Timeout.
+func CutUpstream(ctx context.Context, r Runner, clk Clock, p Params, out io.Writer) error {
+	if out == nil {
+		out = io.Discard
+	}
+	if !p.UpstreamIsBench() {
+		return customUpstreamError(p)
+	}
+	if err := ctx.Err(); err != nil {
+		return err
+	}
+	d := &deployer{pf: preflight{r: r, p: p}, w: upstreamWorkload(), tag: "upstream", clk: clk, out: out}
+	state, err := d.readUpstream(ctx)
+	if err != nil {
+		return err
+	}
+	switch state {
+	case UpstreamMissing:
+		return missingUpstreamError(d)
+	case UpstreamCut:
+		d.say("the upstream is already cut")
+	default:
+		d.say("scaling the upstream to zero replicas")
+		if err := d.scaleUpstream(ctx, 0); err != nil {
+			return err
+		}
+	}
+	return d.waitUpstreamGone(ctx)
 }
 
 // customUpstreamError refuses an upstream the bench does not deploy.
@@ -159,6 +203,43 @@ func (d *deployer) waitUpstream(ctx context.Context) error {
 		}
 		if !d.clk.Now().Before(deadline) {
 			return d.upstreamDeadline(obs)
+		}
+		if err := d.clk.Sleep(ctx, upstreamPollInterval); err != nil {
+			return err
+		}
+	}
+}
+
+// waitUpstreamGone polls the pods of the upstream until none is left, a
+// terminating one included, or the deadline passes. Like waitUpstream, it looks
+// at the deadline after a round.
+func (d *deployer) waitUpstreamGone(ctx context.Context) error {
+	deadline := d.clk.Now().Add(d.pf.p.Timeout)
+	for {
+		var pods struct {
+			Items []podObject `json:"items"`
+		}
+		if err := d.read(ctx, "read the "+d.w.name+" pod", d.podsArgs(), &pods); err != nil {
+			return err
+		}
+		if err := ctx.Err(); err != nil {
+			return err
+		}
+		if len(pods.Items) == 0 {
+			d.say("no pod of the upstream is left")
+			return nil
+		}
+		if !d.clk.Now().Before(deadline) {
+			p := d.pf.p
+			names := make([]string, 0, len(pods.Items))
+			for _, pod := range pods.Items {
+				names = append(names, pod.Metadata.Name)
+			}
+			return &BenchError{
+				Kind:  Deadline,
+				Cause: fmt.Sprintf("the upstream %s still has pods after %s: %s", upstreamDeployment, p.Timeout, strings.Join(names, ", ")),
+				Check: describePodCommand(p, d.w) + ", then raise " + envTimeout + " if the pod is only slow to terminate",
+			}
 		}
 		if err := d.clk.Sleep(ctx, upstreamPollInterval); err != nil {
 			return err

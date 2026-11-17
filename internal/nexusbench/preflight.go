@@ -19,7 +19,17 @@ const (
 	OpStatus
 	// OpSeed is appended after OpStatus: no earlier value moves.
 	OpSeed
+	// OpCut, OpRestore and OpReset follow OpSeed, in this order.
+	OpCut
+	OpRestore
+	OpReset
 )
+
+// readsNode is true for the operations that return the node address: down and
+// the ones that go through the loopback (seed, cut, restore, reset) do not.
+func (op Op) readsNode() bool {
+	return op == OpUp || op == OpProvision || op == OpStatus
+}
 
 // PreflightResult is what a successful preflight learned about the cluster.
 type PreflightResult struct {
@@ -72,6 +82,23 @@ func (perm permission) name() string {
 	return perm.resource + "/" + perm.subresource
 }
 
+// seedPermissions are the questions of seed, which restore asks too and reset
+// asks first. Seed reads the Deployment and the pods of the upstream, scales it
+// back when it is cut, and reaches it through a port-forward, which gets the
+// Service, then the pod it picks, before it opens the tunnel. EnsureUpstream
+// reads the claim on every turn of its wait, so the two claim questions come
+// before the first write.
+var seedPermissions = []permission{
+	{"get", "deployments", "", scopeNamespace},
+	{"list", "pods", "", scopeNamespace},
+	{"get", "pods", "", scopeNamespace},
+	{"get", "services", "", scopeNamespace},
+	{"get", "persistentvolumeclaims", "", scopeNamespace},
+	{"list", "persistentvolumeclaims", "", scopeNamespace},
+	{"create", "pods", "portforward", scopeNamespace},
+	{"patch", "deployments", "scale", scopeNamespace},
+}
+
 // permissionsByOp is the list F2 of the plan: what each operation needs. An
 // operation absent from the map (status) writes nothing and asks nothing.
 var permissionsByOp = map[Op][]permission{
@@ -106,22 +133,24 @@ var permissionsByOp = map[Op][]permission{
 		{"get", "deployments", "", scopeNamespace},
 		{"list", "pods", "", scopeNamespace},
 	},
-	OpDown: {{"delete", "namespaces", "", scopeCluster}},
-	// Seed reads the Deployment and the pods of the upstream, scales it back
-	// when it is cut, and reaches it through a port-forward, which gets the
-	// Service, then the pod it picks, before it opens the tunnel. EnsureUpstream
-	// reads the claim on every turn of its wait, so the two claim questions come
-	// before the first write.
-	OpSeed: {
+	OpDown:    {{"delete", "namespaces", "", scopeCluster}},
+	OpSeed:    seedPermissions,
+	OpRestore: seedPermissions,
+	// Cut reads the upstream Deployment, waits until no pod is left and scales
+	// it to zero: no tunnel, no Service, no claim.
+	OpCut: {
 		{"get", "deployments", "", scopeNamespace},
 		{"list", "pods", "", scopeNamespace},
-		{"get", "pods", "", scopeNamespace},
-		{"get", "services", "", scopeNamespace},
-		{"get", "persistentvolumeclaims", "", scopeNamespace},
-		{"list", "persistentvolumeclaims", "", scopeNamespace},
-		{"create", "pods", "portforward", scopeNamespace},
 		{"patch", "deployments", "scale", scopeNamespace},
 	},
+	// Reset recycles the claim: what restore asks, then the writes on the claim
+	// (a server-side apply of an absent claim needs create). It never execs: the
+	// admin password is not changed.
+	OpReset: slices.Concat(seedPermissions, []permission{
+		{"delete", "persistentvolumeclaims", "", scopeNamespace},
+		{"create", "persistentvolumeclaims", "", scopeNamespace},
+		{"patch", "persistentvolumeclaims", "", scopeNamespace},
+	}),
 }
 
 // RunPreflight checks, with read-only kubectl calls, that op can go ahead, and
@@ -136,7 +165,7 @@ var permissionsByOp = map[Op][]permission{
 //  4. the can-i questions of the operation
 //  5. the namespace: absent, ours, or foreign
 //  6. up only: no other Service holds one of our NodePorts
-//  7. all but down and seed: the InternalIP of the node
+//  7. up, provision and status only (Op.readsNode): the InternalIP of the node
 //
 // Every failure is a *BenchError.
 func RunPreflight(ctx context.Context, r Runner, p Params, op Op) (PreflightResult, error) {
@@ -165,9 +194,10 @@ func RunPreflight(ctx context.Context, r Runner, p Params, op Op) (PreflightResu
 			return res, err
 		}
 	}
-	// The seed reaches the registries through a port-forward on the loopback: it
-	// has no use for the node address and no can-i question covers get nodes.
-	if op != OpDown && op != OpSeed {
+	// The operations that reach the registries through a port-forward on the
+	// loopback have no use for the node address, and no can-i question covers
+	// get nodes.
+	if op.readsNode() {
 		if res.NodeIP, err = pf.nodeIP(ctx); err != nil {
 			return res, err
 		}
@@ -298,8 +328,8 @@ func (pf preflight) checkNamespace(ctx context.Context, op Op) (PreflightResult,
 	out, errOut, err := pf.remote(ctx, args...)
 	switch {
 	case err != nil && isNotFound(errOut):
-		// Absent: only provision, status and seed need it.
-		if op == OpProvision || op == OpStatus || op == OpSeed {
+		// Absent is fine for up and down only.
+		if op != OpUp && op != OpDown {
 			return res, &BenchError{
 				Kind:  NamespaceMissing,
 				Cause: fmt.Sprintf("namespace %q does not exist", ns),

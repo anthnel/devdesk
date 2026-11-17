@@ -65,27 +65,118 @@ func (s *session) openDoors() (doors, error) {
 	return doors{forwarder: forwarder, copier: copier}, nil
 }
 
-// runSeed runs Seed with a context that ends after Params.Timeout, counted from
-// now, so that a copy over a port-forward that hangs does not hang the command.
-// A seed that outlasts it is a failure with its own message; a cancelled run
-// keeps the plain cancellation.
-func (s *session) runSeed(runner nexusbench.Runner, store nexusbench.SecretStore, d doors) (nexusbench.SeedResult, error) {
+// bounded runs fn with a context that ends after Params.Timeout, counted from
+// now, so that a call over a port-forward that hangs does not hang the command.
+// A call that outlasts it is a failure with its own message; a cancelled run keeps
+// the plain cancellation. what names the call ("the seed"), and advice is what to
+// run next.
+func (s *session) bounded(what, advice string, fn func(ctx context.Context) error) error {
 	ctx, cancel := s.ctx, context.CancelFunc(func() {})
 	if s.p.Timeout > 0 {
 		ctx, cancel = context.WithTimeout(s.ctx, s.p.Timeout)
 	}
 	defer cancel()
-	deps := nexusbench.SeedDeps{Runner: runner, Forwarder: d.forwarder, Copier: d.copier, Clock: s.d.clock, Store: store}
-	res, err := s.d.seed(ctx, deps, s.restURL(), s.p, s.stdout)
+	err := fn(ctx)
 	if err != nil && ctx.Err() != nil && s.ctx.Err() == nil {
-		return nexusbench.SeedResult{}, &nexusbench.BenchError{
+		return &nexusbench.BenchError{
 			Kind:  nexusbench.Deadline,
-			Cause: fmt.Sprintf("the seed did not finish within %s", s.p.Timeout),
-			Check: "raise --timeout (NEXUS_BENCH_TIMEOUT) and run nexus-bench seed again: the images already copied are kept",
+			Cause: fmt.Sprintf("%s did not finish within %s", what, s.p.Timeout),
+			Check: "raise --timeout (NEXUS_BENCH_TIMEOUT) and " + advice,
 			Err:   err,
 		}
 	}
-	return res, err
+	return err
+}
+
+// seedDeps are what the library calls that copy or read through the doors need.
+func (s *session) seedDeps(runner nexusbench.Runner, store nexusbench.SecretStore, d doors) nexusbench.SeedDeps {
+	return nexusbench.SeedDeps{Runner: runner, Forwarder: d.forwarder, Copier: d.copier, Clock: s.d.clock, Store: store}
+}
+
+// runSeed runs Seed under the timeout.
+func (s *session) runSeed(runner nexusbench.Runner, store nexusbench.SecretStore, d doors) (nexusbench.SeedResult, error) {
+	var res nexusbench.SeedResult
+	err := s.bounded("the seed", "run nexus-bench seed again: the images already copied are kept", func(ctx context.Context) (err error) {
+		res, err = s.d.seed(ctx, s.seedDeps(runner, store, d), s.restURL(), s.p, s.stdout)
+		return err
+	})
+	if err != nil {
+		return nexusbench.SeedResult{}, err
+	}
+	return res, nil
+}
+
+// cutUpstream scales the upstream to zero. It needs no store and no door: the
+// preflight of a cut asks for what a scale needs.
+func (s *session) cutUpstream() int {
+	runner, _, err := s.open()
+	if err != nil {
+		return s.fail(err)
+	}
+	if _, err := s.d.preflight(s.ctx, runner, s.p, nexusbench.OpCut); err != nil {
+		return s.fail(err)
+	}
+	if err := s.d.cutUpstream(s.ctx, runner, s.d.clock, s.p, s.stdout); err != nil {
+		return s.fail(err)
+	}
+	return exitOK
+}
+
+// restoreUpstream brings a cut upstream back. It writes no descriptor.
+func (s *session) restoreUpstream() int {
+	runner, store, err := s.open()
+	if err != nil {
+		return s.fail(err)
+	}
+	d, err := s.openDoors()
+	if err != nil {
+		return s.fail(err)
+	}
+	if _, err := s.d.preflight(s.ctx, runner, s.p, nexusbench.OpRestore); err != nil {
+		return s.fail(err)
+	}
+	err = s.bounded("the restore", "run `mise run nexus-bench:restore-upstream` again", func(ctx context.Context) error {
+		return s.d.restoreUpstream(ctx, s.seedDeps(runner, store, d), s.restURL(), s.p, s.stdout)
+	})
+	if err != nil {
+		return s.fail(err)
+	}
+	return exitOK
+}
+
+// reset puts the data set back to its initial state. Reset runs its own
+// preflight; the descriptor of the previous run is read before anything is
+// deleted and written again after a reset that succeeded, with the hosts of the
+// previous one (the preflight of a reset reads no node).
+func (s *session) reset() int {
+	runner, store, err := s.open()
+	if err != nil {
+		return s.fail(err)
+	}
+	d, err := s.openDoors()
+	if err != nil {
+		return s.fail(err)
+	}
+	prev, err := s.previousDescriptor()
+	if err != nil {
+		return s.fail(err)
+	}
+	var provisioned nexusbench.ProvisionResult
+	var seeded nexusbench.SeedResult
+	err = s.bounded("the reset", "run `mise run nexus-bench:reset` again: it starts over", func(ctx context.Context) (err error) {
+		provisioned, seeded, err = s.d.reset(ctx, s.seedDeps(runner, store, d), s.restURL(), s.p, s.stdout)
+		return err
+	})
+	if errors.Is(err, context.Canceled) {
+		// The library returns the cancellation as is, and a reset stopped after its
+		// first deletion leaves a half-deleted data set.
+		_, _ = fmt.Fprintln(s.stderr, "cancelled; the data set may be half deleted, run `mise run nexus-bench:reset` again: it starts over")
+		return exitFailure
+	}
+	if err != nil {
+		return s.fail(err)
+	}
+	return s.writeDescriptor(nexusbench.DeployResult{ReachableHosts: prev.Hosts}, provisioned, seeded)
 }
 
 // up deploys the bench and the upstream, provisions Nexus, seeds the data set
@@ -109,7 +200,11 @@ func (s *session) up() int {
 	if err != nil {
 		return s.fail(err)
 	}
+	cut := false
 	if seeds {
+		if cut, err = s.foundCut(runner); err != nil {
+			return s.fail(err)
+		}
 		if err := s.d.ensureUpstream(s.ctx, runner, s.d.clock, s.p, s.stdout); err != nil {
 			return s.fail(err)
 		}
@@ -117,6 +212,11 @@ func (s *session) up() int {
 	provisioned, err := s.d.provision(s.ctx, s.restURL(), s.d.newInitial(runner, s.p.Namespace), store, s.p, s.stdout)
 	if err != nil {
 		return s.fail(err)
+	}
+	if cut {
+		if err := s.d.unblockProxy(s.ctx, store, s.restURL(), s.p, s.stdout); err != nil {
+			return s.fail(retryRestore(err))
+		}
 	}
 	var seeded nexusbench.SeedResult
 	if seeds {
@@ -127,6 +227,45 @@ func (s *session) up() int {
 		_, _ = fmt.Fprintln(s.stdout, "seed: skipped, NEXUS_BENCH_UPSTREAM_URL points at an upstream the bench did not deploy, so there is nothing to fill")
 	}
 	return s.writeDescriptor(deployed, provisioned, seeded)
+}
+
+// retryRestore tells, in the check of a BenchError, that the proxy is still
+// blocked and that a second up will not unblock it: the upstream is back by now,
+// so the second up finds it ready. Another error is returned as it is.
+func retryRestore(err error) error {
+	var be *nexusbench.BenchError
+	if !errors.As(err, &be) {
+		return err
+	}
+	return &nexusbench.BenchError{
+		Kind:  be.Kind,
+		Cause: be.Cause,
+		Check: be.Check + "; the upstream is back but docker-proxy is still blocked, and a second up will not retry that: run `mise run nexus-bench:restore-upstream`",
+		Err:   be.Err,
+	}
+}
+
+// foundCut reads the upstream before EnsureUpstream brings it back, and tells
+// whether it was cut: the proxy then needs to be unblocked (D-Q). The proxy can
+// only be unblocked through the loopback; with another REST host, up stops here,
+// before it brings the upstream back, because a refusal later would leave a proxy
+// that stays blocked (a second up finds the upstream ready).
+func (s *session) foundCut(runner nexusbench.Runner) (bool, error) {
+	state, err := s.d.readUpstream(s.ctx, runner, s.p)
+	if err != nil {
+		return false, err
+	}
+	if state != nexusbench.UpstreamCut {
+		return false, nil
+	}
+	if !nexusbench.IsLoopbackRESTHost(s.restHost) {
+		return false, &nexusbench.BenchError{
+			Kind:  nexusbench.Unclassified,
+			Cause: fmt.Sprintf("the upstream is cut and its proxy can only be put back in service through 127.0.0.1, not through %s", s.restHost),
+			Check: "run `mise run nexus-bench:restore-upstream` on the machine that runs the bench, then up again",
+		}
+	}
+	return true, nil
 }
 
 // provision provisions a bench that is already running.

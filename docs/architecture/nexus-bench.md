@@ -191,7 +191,7 @@ puts `--context <context>` before every call, so callers never pass it.
 `kubectl.go` is the only non-test file of the package that starts `kubectl` (the commands of `Runner` and the port-forward, see "The two process doors" below); the other two processes are the `git check-ignore` of the secrets store (see below) and `skopeo` (`skopeo.go`).
 
 **Preflight.** `RunPreflight(ctx, r, p, op) (PreflightResult, error)` with `op` one
-of `OpUp`, `OpProvision`, `OpDown`, `OpStatus`, `OpSeed` (appended, no earlier value moves). Checks, in this order, stopping at
+of `OpUp`, `OpProvision`, `OpDown`, `OpStatus`, `OpSeed`, `OpCut`, `OpRestore`, `OpReset` (appended, no earlier value moves). Checks, in this order, stopping at
 the first failure:
 
 1. `p.Validate()`: invalid parameters are refused before any call.
@@ -223,10 +223,16 @@ the first failure:
    `persistentvolumeclaims` (EnsureUpstream reads the claim on every turn of its
    wait, so a refusal comes before the scale write), create `pods`
    `--subresource=portforward` and patch `deployments` `--subresource=scale`
-   (namespace); `status` asks nothing. A `no` arrives on stdout with a non-zero exit, so stdout is read
+   (namespace); `cut` needs, in this order, get `deployments`, list `pods` and patch
+   `deployments` `--subresource=scale` (no tunnel, no Service, no claim); `restore`
+   needs exactly the list of `seed` (the same slice, `seedPermissions`); `reset` needs
+   that list, then delete, create and patch `persistentvolumeclaims` (the
+   server-side apply of an absent claim needs create) and never `pods` `exec` (a
+   reset does not change the admin password), all in the namespace;
+   `status` asks nothing. A `no` arrives on stdout with a non-zero exit, so stdout is read
    first: `Forbidden`, naming the verb and the resource.
 5. `kubectl get namespace <ns> -o json`: absent is fine for `up` and `down` (nothing
-   to delete) and `NamespaceMissing` for `provision`, `status` and `seed`; present
+   to delete) and `NamespaceMissing` for every other operation; present
    without the label `app.kubernetes.io/managed-by=devdesk-nexus-bench` is
    `NamespaceForeign` for every operation (the plan lists `up` and `down`;
    `provision` and `status` refuse too, so the bench never runs `exec` in a
@@ -235,9 +241,9 @@ the first failure:
    our namespace that holds `HTTPNodePort` or `DockerNodePort` is `NodePortTaken`,
    naming `<namespace>/<name>` and the port. Our own Service is accepted, which is
    what makes a second `up` possible.
-7. Everything but `down` and `seed`, `kubectl get nodes -o json` (the seed reaches
-   the registries through a loopback port-forward and no can-i covers `get nodes`,
-   so its `NodeIP` is empty): `NodeIP` is the first
+7. `up`, `provision` and `status` only (`Op.readsNode`), `kubectl get nodes -o json`
+   (`seed`, `cut`, `restore` and `reset` go through a loopback port-forward or
+   need no address, and no can-i covers `get nodes`, so their `NodeIP` is empty): `NodeIP` is the first
    `InternalIP`; none is not an error (`NodeIP` stays empty).
 
 A call that fails in a way the checks above did not expect goes through
@@ -559,7 +565,7 @@ reset).
   changing stops after 1000 calls with the same error. A `component` is `{Name, Version, Digest}`; `Digest` is
   `sha256:` + the checksum of the asset whose path holds `/manifests/` (the one
   ending in the tag first), and is empty, without an error, when the instance
-  lists no such asset. No delete and no unblock here (NX-02b).
+  lists no such asset. The delete and the unblock are in `repoapi.go` (see "Cut, restore and reset").
 - **H-COMPONENTS: held on the real bench (2026-11-17).** A Docker component is one
   image tag (`name` the image name, nested names such as `team/api` included,
   `version` the tag), the manifest asset is `v2/<name>/manifests/<tag>` and its
@@ -745,7 +751,7 @@ Known and accepted for a throw-away bench; none is fixed by this change.
 
 `internal/nexusbench/cmd/nexus-bench` is a `package main` of five files:
 `main.go` (`deps`, `defaultDeps`, `run`), `flags.go` (flags and parameter
-resolution), `commands.go` (`up`, `provision`, `down`, `seed`, `render`), `status.go` and
+resolution), `commands.go` (`up`, `provision`, `down`, `seed`, `cut-upstream`, `restore-upstream`, `reset`, `render`), `status.go` and
 `usage.go` (the help). `main()` only builds a context cancelled by SIGINT and
 SIGTERM, calls `run(ctx, args, os.Getenv, os.Stdout, os.Stderr, defaultDeps())`
 and exits with its code. `deps` holds every constructor and library call that
@@ -756,10 +762,10 @@ the doors of the seed and the reads of `status` (`newForwarder`, `newCopier`,
 `NewExecRunner`, `NewProber`, `NewClock`, `NewFileStore`,
 `NewKubectlInitialPassword`, `RunPreflight`, `Deploy`, `Provision`, `Destroy`,
 `NewExecPortForwarder`, `NewSkopeoCopier`, `EnsureUpstream`, `Seed`,
-`ReadUpstream` and `readImagesAnonymously` (which calls `ListImagesAnonymously`),
+`ReadUpstream` and `readImagesAnonymously` (NX-02b adds `cutUpstream`, `restoreUpstream`, `reset` and `unblockProxy`, wired to `CutUpstream`, `RestoreUpstream`, `Reset` and `UnblockProxy`) (which calls `ListImagesAnonymously`),
 and the tests wire fakes, so no test needs kubectl, skopeo or a network.
 
-**Tasks.** Seven, in `mise.toml`, none reachable from `ci`, `check`, `test` or
+**Tasks.** Ten, in `mise.toml`, none reachable from `ci`, `check`, `test` or
 `test-race` (`mise_tasks_test.go` reads the file and checks it, and checks that
 `kubectl` is declared on each of them, not in the global `[tools]`, so the CI does
 not install it; kubectl `1.35`, because `datomir` runs k0s v1.36.x and kubectl is
@@ -776,6 +782,9 @@ Arguments follow `--`: mise appends them to the command line.
 | `nexus-bench:provision` | `... provision` | yes (REST and `exec`) |
 | `nexus-bench:down` | `... down` | yes (deletes the namespace) |
 | `nexus-bench:seed` | `... seed` | yes (port-forward, REST reads, skopeo pushes); needs skopeo on the host |
+| `nexus-bench:cut-upstream` | `... cut-upstream` | yes (scales the upstream to zero) |
+| `nexus-bench:restore-upstream` | `... restore-upstream` | yes (scale, REST writes, port-forward, skopeo reads); needs skopeo on the host |
+| `nexus-bench:reset` | `... reset` | yes (deletes repositories and the upstream claim, then provisions and seeds); needs skopeo on the host |
 | `nexus-bench:status` | `... status` | reads only |
 | `nexus-bench:render` | `... render` | no, contacts nothing |
 | `nexus-bench:test` | `go test -timeout 60m -count=1 -run Integration ./internal/nexusbench/...` with `DEVDESK_NEXUS_BENCH=1` set by the task's `env` table (portable, no `env` command) | yes; the tests skip when `CI` is set |
@@ -786,8 +795,8 @@ per `NEXUS_BENCH_*` variable: `--context`, `--namespace`, `--http-nodeport`,
 `--memory-limit`, `--storage-size`, `--jvm-opts`, `--image`, `--image-tag`,
 `--upstream-image`, `--upstream-image-tag`, `--upstream-url`, `--anonymous`,
 `--hosts`, `--timeout`, `--delete-timeout`, `--secrets`, `--descriptor`. `up`
-and `provision` add `--accept-eula` and `--rest-host`; `seed` adds `--rest-host`
-only (it provisions nothing, so there is no EULA to accept). Each subcommand has its own `flag.FlagSet` (`ContinueOnError`,
+and `provision` add `--accept-eula` and `--rest-host`; `seed`, `restore-upstream` and `reset` add `--rest-host`
+only, and accept a loopback address only (`cut-upstream` has no REST host: it only scales). `seed` provisions nothing, so there is no EULA to accept). Each subcommand has its own `flag.FlagSet` (`ContinueOnError`,
 output discarded: the command prints parse errors itself on stderr and `-h` on
 stdout). A flag is laid over its variable and the result goes through
 `FromEnv(Defaults(), ...)` once, so "flag, then `NEXUS_BENCH_*`, then default",
@@ -1315,8 +1324,7 @@ ready pod, on the deadline (`Params.Timeout`, within one interval; a `Deadline`
 that cites the pod and names `NEXUS_BENCH_TIMEOUT`, or the pending reading that
 was still there) or sleeps `upstreamPollInterval` (2 s: a registry starts in
 seconds, and nothing is probed). A cancelled context is returned as is.
-`CutUpstream`, the recycling of the storage and the `OpCut`, `OpRestore` and
-`OpReset` preflights come with NX-02b.
+`CutUpstream` and the recycling of the storage: see "Cut, restore and reset".
 
 **Rights.** `up` gained, after its fourteen, patch `deployments/scale`, create
 `pods/portforward` and get `services` (namespace); `seed` asks get `deployments`,
@@ -1342,7 +1350,7 @@ sends is a `GET` as `admin`), and it runs no preflight: the caller does.
 2. The upstream: a custom `NEXUS_BENCH_UPSTREAM_URL` is `SeedFailed` (the proxy
    would not read what the seed pushes); then `ReadUpstream`: cut (`the upstream
    is cut`, run `nexus-bench:restore-upstream`), missing (run `up`) and starting are
-   `SeedFailed` with no write and no copy. Bringing a cut upstream back is NX-02b.
+   `SeedFailed` with no write and no copy. `restore-upstream` brings it back.
 3. The OCI layout of the whole data set in a folder made under `TMPDIR`
    (`os.MkdirTemp`), removed when Seed returns; the layout reference of an image is
    its index in `Dataset()`, so the two `shared/base` images do not mix.
@@ -1414,7 +1422,7 @@ matches (6 images compared)`); the three read-only integration tests and
 | H-UPRUN `registry:3.0.0` runs as UID 1000 on `local-path` | verified | pod Ready with `uid=1000 gid=1000`, pushes persist; idle 1m CPU, 19 Mi memory (requests 50m / 64Mi, limit 256Mi) |
 | H-SCALE `kubectl scale` needs `patch deployments/scale` | verified | `kubectl scale ... --dry-run=server -v=6` does `GET deployments/bench-upstream` then `PATCH deployments/bench-upstream/scale` |
 | H-COMPONENTS the listing shows the image once pushed or pulled | verified | see the bullet under "REST client and provisioning": nested names, manifest checksum = digest, no wait needed |
-| H-UNBLOCK, H-STALE, H-CUTDELAY, H-REPODEL | **not tested** | they need the cut, restore and reset of NX-02b, which this change does not implement; the upstream was never scaled |
+| H-UNBLOCK, H-STALE, H-CUTDELAY, H-REPODEL | **settled in NX-02b** | see "Cut, restore and reset" below: unblock held (the `PUT` lifts the block at once), stale held, cut delay 20 s, repository deletion 204 and empty at once |
 | H-SSRF (new) a proxy to a ClusterIP upstream is accepted | **false**, fixed | see below |
 
 **H-SSRF (not anticipated).** The first `up` stopped at the proxy: `400` on
@@ -1458,10 +1466,117 @@ protection off. The decision is in D158 (13).
 - `registry:3.0.0` logs at debug level by default (the readiness probe and the
   traces fill the log); `REGISTRY_LOG_LEVEL` is not set by the manifest.
 
+## Cut, restore and reset (`upstream.go`, `restore.go`, `reset.go`, `repoapi.go`, DEVDESK-534, NX-02b)
+
+Three commands, three mise tasks (`nexus-bench:cut-upstream`, `nexus-bench:restore-upstream`,
+`nexus-bench:reset`). Each runs a preflight (`OpCut`, `OpRestore`, `OpReset`, see "Errors,
+runner and preflight"); `reset` runs its own, as `down` does, the two others get theirs from
+the command. None of them can be run on a custom upstream (`NEXUS_BENCH_UPSTREAM_URL`): the
+bench scales and empties only the upstream it deploys.
+
+**`cut-upstream`** (`CutUpstream`). Reads the upstream, scales it to zero replicas when it is
+not already cut (one write, never retried), then waits, until `Params.Timeout`, for no pod of
+it to be left, a terminating one included (its volume is still mounted). Idempotent. It
+touches neither Nexus nor the descriptor and needs no skopeo, no store and no REST host.
+Measured: about 2.5 s.
+
+**`restore-upstream`** (`RestoreUpstream`). Order: the stored credentials are read first (before
+any write); `EnsureUpstream` (one replica, wait for ready); `UnblockProxy`; a check, through a
+port-forward and with no credential, that each upstream image has the digest of the data set;
+a read of each `PullThrough` image through `docker-proxy` as `bench-pull`, digest equal.
+It writes no descriptor and copies no image. `UnblockProxy` reads `docker-proxy` (absent is an
+error: `up` creates it), sends again the configuration `Provision` writes (`repositorySpecs`,
+never one read back from the instance), which lifts the automatic block, then `POST
+/v1/repositories/docker-proxy/invalidate-cache`. Measured: 3 to 7 s with the wait for ready.
+
+**`reset`** (`Reset`). Order: preflight `OpReset`; custom upstream refused; loopback origin
+checked; stored credentials, checked by one admin `GET` (a refused password stops everything
+before the first deletion); label of the upstream claim checked; `DELETE` of `docker-group`,
+`docker-proxy` and `docker-hosted` (a 404 is already done); replacement of the upstream
+storage (below); `Provision`; a wait of 30 s at most (`seedListWait`) for `docker-hosted` and
+`docker-proxy` to list nothing; `Seed`. The command reads the previous descriptor before
+anything and writes it again after a success, with the previous hosts (a reset reads no node);
+the file is the same byte for byte. Measured: about 9 to 11 s. `reset` never changes the admin
+password (`Provision` gets an `InitialPassword` that never reads the pod) and never rolls or
+restarts the Nexus pod; `nexus-data`, the namespace and the passwords are kept.
+
+**Storage of the upstream** (`recycleUpstreamStorage`). `CutUpstream`; the claim
+`bench-upstream-data` is read and its label `app.kubernetes.io/managed-by=devdesk-nexus-bench`
+checked (D-P: a claim the bench did not create is never deleted); it is deleted with
+`kubectl delete --raw /api/v1/namespaces/<ns>/persistentvolumeclaims/bench-upstream-data -f -`,
+whose body is a `DeleteOptions` with `preconditions.uid` set to the UID just read. `kubectl
+delete pvc --wait=false` was not chosen because it has no precondition: a claim replaced since
+the read would be deleted. A claim read without a UID is refused. The delete is sent once; the
+wait for `NotFound` lasts until `Params.DeleteTimeout`; then the claim alone (document 5 of
+`Render`, `renderUpstreamClaim`, never the whole stream, which would roll the Nexus pod) is
+applied again and `EnsureUpstream` runs. A claim already gone is not deleted again, and one
+still `Terminating` is waited for.
+
+> **Warning.** Never put `dryRun` in the query of the raw path (`...?dryRun=All`):
+> `kubectl delete --raw` does not honor it and the claim is really deleted (seen on the
+> bench, DEVDESK-534 step 9). There is no dry run for this call; check with `get pvc`.
+
+**Half-way.** An error after the first deletion keeps its kind and cause and ends its check
+with "the reset stopped half-way: run `mise run nexus-bench:reset` again, it starts over".
+What was deleted stays deleted; the reset is idempotent. The one exception is the
+repositories that never empty (`errRepositoriesNeverEmpty`): running again would wait for the
+same thing, so the check points at the log of the Nexus pod. A cancelled command prints that
+the data set may be half deleted.
+
+**Rights.** `cut`: get `deployments`, list `pods`, patch `deployments/scale`. `restore`: the
+list of `seed`. `reset`: that list, plus delete, create and patch `persistentvolumeclaims`;
+never `pods/exec`.
+
+**Loopback guard.** `restore-upstream` and `reset` send the admin credentials in clear text
+and go through the port-forwards of this machine, so `--rest-host` must be `127.0.0.1` or
+`::1` (`IsLoopbackRESTHost`, the one predicate of the command and the library). `localhost`,
+another loopback address (`127.0.0.2`, `::ffff:127.0.0.1`) and any name are refused;
+`requireLoopbackBase` also refuses an origin with user information and parses the host, so
+`127.0.0.1@evil.example` fails. The port-forward address is checked too
+(`checkLoopbackForward`, shared with the seed).
+
+**Closed lists.** `benchRepositories` (`docker-group`, `docker-proxy`, `docker-hosted`) are the
+only repositories `deleteRepository` accepts; `invalidatableRepositories` (`docker-proxy`,
+`docker-group`; a hosted repository has no cache) the only ones `invalidateCache` accepts. A
+name outside a list is refused before any request, so a name never decides the path the admin
+credentials go to.
+
+**`up` with a cut upstream (D-Q).** `up` reads the upstream before bringing it back; if it was
+cut, it calls `UnblockProxy` after `Provision`, so a second `up` leaves the bench nominal. With a
+cut upstream and a `--rest-host` that is not loopback, `up` stops before scaling anything (a
+refusal later would leave the proxy blocked, since a second `up` finds the upstream ready). If
+the unblock itself fails, the error says to run `restore-upstream`.
+
+**What to know when using it.**
+
+- After `reset` the Nexus blobs of the deleted repositories are not compacted: `nexus-data`
+  grows with each reset. How to get that space back is not measured.
+- The admin and `bench-pull` credentials go to the NodePort on the loopback and the images
+  through it: this assumes this machine is the node (as before NX-02b; not new).
+- Reading `mirror/cached` through `docker-proxy` after a restore proves the proxy still has it
+  in its cache, not that the proxy is unblocked. `mirror/uncached` is what proves the unblock:
+  it is served only if the proxy reaches the upstream again.
+- While the upstream is cut, the first read of an image that is not cached fails after about
+  20 s (the connect timeout of Nexus) and puts the proxy in `AUTO_BLOCKED_UNAVAILABLE`; the
+  next reads answer in 0.03 s with `manifest unknown`, which does not mean the image does not
+  exist.
+
+**Measured on the real bench (2026-11-17, datomir).** Source: `.claude/plans/DEVDESK-534-measures.md`
+(steps 0 and 9).
+
+| Hypothesis | Verdict | Evidence |
+|---|---|---|
+| H-CUTDELAY | **held** | first read of an uncached image with the upstream at zero replicas: 20 s (`502`, connect timeout, proxy `AUTO_BLOCKED_UNAVAILABLE`), then 0.02 to 0.03 s (`manifest unknown`); pods gone 1 to 2 s after the scale |
+| H-UNBLOCK | **held** | the `PUT` of the proxy configuration lifts the block (0.8 s); without it Nexus unblocks itself after 21 s (100 s cut) to 79 s (4.5 min cut), growing with the cut. `restore-upstream` serves `mirror/uncached` at once (0.04 s, digest of the data set). `invalidate-cache`: 204 |
+| H-STALE | **held** | cached images are served while cut (0.03 s) with the digest of the data set, also after `invalidate-cache` and the refreshing read, and after the upstream storage was replaced (the upstream was empty) |
+| H-REPODEL | **held** | `DELETE` of the three repositories: 204 x3; recreated empty at once (no wait seen); the group connector 8082 answers 401 again; the Nexus pod is not restarted |
+| H-PVCDEL | **held** | the claim is `NotFound` 0.09 s after the delete; its UID changes on each reset; `kubectl delete --raw` with a wrong UID: `409 Conflict` |
+
+Timings: `cut-upstream` 2.5 s, `restore-upstream` 3 to 7 s, `reset` 9 to 11 s. The UIDs of the
+namespace, the Nexus pod (0 restart) and `nexus-data` did not change across the resets.
+`DEVDESK_NEXUS_BENCH_SCENARIOS=1 mise run nexus-bench:test` (`bench_scenarios_integration_test.go`:
+`TestIntegrationUpstreamCutRestore`, `TestIntegrationResetKeepsInstance`) passes in 52 s.
+
 ## Still to come
 
-The integration tests that cut the upstream and reset the bench, `cut-upstream`,
-`restore-upstream` and `reset` with their mise tasks, the preflights `OpCut`,
-`OpRestore` and `OpReset`, the proxy unblock and the repository deletion are NX-02b
-(DEVDESK-534); H-UNBLOCK, H-STALE, H-CUTDELAY and H-REPODEL are settled there. This
-file grows with each step.
+The path that uses this lifecycle (NX-03 onward). This file grows with each step.
