@@ -147,6 +147,12 @@ as their source of truth, and `config.yaml` is what the user declares.
   advice `account may lack nx-repository-admin privilege`; the origin refusal
   has its own log message, without that advice. Either way no members come
   back.
+- **A Nexus reply that is not a repository document is a failed discovery
+  (DEVDESK-509).** A non-200 status is a typed error shown as
+  `management API returned N` (it was `HTTP N`); an empty body, invalid JSON or
+  JSON with no `type` (`{}`, `null`) is an error too, not "not a group". Neither
+  is cached (D23), so the cached members stay. A cancelled or timed-out request
+  reports the context's error, never a status error.
 - The `Members` column shows `count · TimeAgo(discovered_at)`, or `never`. It is
   not decoration: a cache with no visible age looks current whatever it holds.
 - The **registry browser reads this cache**, never the network: it opens on the

@@ -71,14 +71,18 @@ Two things about the engine are worth knowing before changing this code:
 download and extract a tar.gz (a repository template is one — `templates.md`). It speaks the distribution spec over `net/http`
 and never shells out, so it is engine-agnostic and podman changed nothing in it.
 
-**Typed status errors and context variants (DEVDESK-298, IS-18).** A registry
-or token endpoint answering with a non-success status returns
-`*oci.StatusError{Code, Source, Challenge}`; read it with `errors.As`. `Source`
-is `SourceRegistry` (the v2 API) or `SourceToken` (the Bearer token endpoint).
-`Challenge` is the `Www-Authenticate` header of a 401 whose challenge is not
-Bearer. `Error()` keeps the three historical messages to the character
-(`registry returned 404`, `token endpoint returned 403`,
-`unexpected auth challenge: ...`), so nothing on screen or in a log changed.
+**Typed status errors and context variants (DEVDESK-298, IS-18).** A registry,
+token endpoint or registry manager's management API answering with a
+non-success status returns `*oci.StatusError{Code, Source, Challenge}`; read it
+with `errors.As`. `Source` is `SourceRegistry` (the v2 API), `SourceToken` (the
+Bearer token endpoint) or `SourceManagementAPI` (a manager's own REST API, today
+Nexus `/service/rest`, DEVDESK-509). `Challenge` is the `Www-Authenticate`
+header of a 401 whose challenge is not Bearer. `Error()` keeps the three
+historical messages to the character (`registry returned 404`,
+`token endpoint returned 403`, `unexpected auth challenge: ...`), so nothing on
+screen or in a log changed for them. The management API message is
+`management API returned N`: the code only, never the status line, the body, a
+header or the URL. It replaces the Nexus client's former `HTTP N`.
 Failures that are not a status (unreadable body, missing realm, no token
 field) stay plain errors and do not match `errors.As`.
 
@@ -215,7 +219,15 @@ imports nothing from `internal/`).
   timeout unchanged) and reads each reply through
   `oci.ReadAllLimited(..., maxNexusResponse)`, 1 MiB. The cap is a hypothesis,
   not measured. The anonymous retry of the group members still happens on any
-  error but a refused off-origin redirect (see `registries.md`).
+  error but a refused off-origin redirect (see `registries.md`). A non-200
+  status is `*oci.StatusError{Source: oci.SourceManagementAPI}`
+  (`management API returned 401`). A context error (cancel, deadline) is never
+  a `StatusError`: when the context is done, a body cut mid-read reports the
+  context's own error. A 200 reply that is not a repository document (empty or
+  whitespace-only body, JSON without a `type` such as `{}` or `null`, invalid
+  JSON) is an error wrapping `errEmptyReply`, `errNoRepositoryType` or the
+  `encoding/json` error, never "not a group": the caller does not cache it
+  (D23), so the members last known stay.
 - **Docker Hub tag dates** (`fetchDockerHubTagsMeta`, `commands.go`) read the
   page through `oci.ReadAllLimited(..., maxHubTagsMetaResponse)`, 4 MiB.
   Measured on 2026-11-16 with `page_size=100`: 530,629 bytes for

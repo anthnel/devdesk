@@ -51,11 +51,14 @@ const (
 	SourceRegistry StatusSource = iota
 	// SourceToken is the Bearer token endpoint.
 	SourceToken
+	// SourceManagementAPI is a registry manager's own REST API (Nexus
+	// /service/rest), not the distribution v2 API.
+	SourceManagementAPI
 )
 
-// StatusError is a registry or token endpoint answering with a non-success
-// status. Failures that are not a status (unreadable body, missing realm, no
-// token field) are plain errors.
+// StatusError is a registry, token or management API endpoint answering with a
+// non-success status. Failures that are not a status (unreadable body, missing
+// realm, no token field) are plain errors.
 type StatusError struct {
 	Code   int
 	Source StatusSource
@@ -72,6 +75,8 @@ func (e *StatusError) Error() string {
 	switch {
 	case e.Source == SourceToken:
 		return fmt.Sprintf("token endpoint returned %d", e.Code)
+	case e.Source == SourceManagementAPI:
+		return fmt.Sprintf("management API returned %d", e.Code)
 	case e.unexpectedChallenge:
 		return fmt.Sprintf("unexpected auth challenge: %s", e.Challenge)
 	}

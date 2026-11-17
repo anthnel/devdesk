@@ -95,6 +95,25 @@ func TestListRegistryTagsTokenEndpointStatusError(t *testing.T) {
 	}
 }
 
+// A registry manager's own REST API (Nexus /service/rest) is a third source:
+// the message names neither a registry nor a token endpoint, and carries only
+// the code (no status line, no body, no header).
+func TestManagementAPIStatusErrorMessage(t *testing.T) {
+	for _, code := range []int{401, 403, 404, 429, 500, 503} {
+		t.Run(fmt.Sprint(code), func(t *testing.T) {
+			err := error(&StatusError{Code: code, Source: SourceManagementAPI})
+
+			var se *StatusError
+			if !errors.As(err, &se) || se.Source != SourceManagementAPI || se.Code != code {
+				t.Fatalf("errors.As = %+v, want Code %d and SourceManagementAPI", se, code)
+			}
+			if want := fmt.Sprintf("management API returned %d", code); err.Error() != want {
+				t.Errorf("Error() = %q, want %q", err.Error(), want)
+			}
+		})
+	}
+}
+
 // Failures that are not a status stay plain errors: a caller must not read a
 // missing realm or a bad body as an HTTP verdict.
 func TestListRegistryTagsNonStatusErrorsAreNotStatusErrors(t *testing.T) {
