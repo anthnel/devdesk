@@ -1,0 +1,18 @@
+{
+  "tool_use_id": "toolu_01Fci4iDLcK1anVBVRxaLoRu",
+  "agent_id": "add87bdbad37051bd",
+  "subagent_type": "product-team:pm",
+  "task_description": "Écrire les stories support Nexus",
+  "files": [
+    "docs/product/nexus-support/stories.md"
+  ],
+  "token_usage": {
+    "input_tokens": 88,
+    "cache_creation_tokens": 563133,
+    "cache_read_tokens": 7451121,
+    "output_tokens": 133359,
+    "api_call_count": 39
+  },
+  "started_at": "2026-11-16T17:07:42.143225797+01:00",
+  "completed_at": "2026-11-16T17:07:42.143463752+01:00"
+}
