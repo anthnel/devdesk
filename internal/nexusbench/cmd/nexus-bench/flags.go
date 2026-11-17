@@ -99,7 +99,7 @@ func newFlagSet(name string) *flagSet {
 	// up and provision provision Nexus (EULA); they and seed send the admin
 	// credentials to the REST API (REST host).
 	provisions := name == "up" || name == "provision"
-	reachesREST := provisions || name == "seed"
+	reachesREST := provisions || name == "seed" || loopbackOnly(name)
 	fs := flag.NewFlagSet("nexus-bench "+name, flag.ContinueOnError)
 	fs.SetOutput(io.Discard)
 	fs.Usage = func() {}
@@ -122,10 +122,10 @@ func newFlagSet(name string) *flagSet {
 		}
 	}
 	switch {
-	case name == "seed":
-		// seed refuses another host (main.go): its credentials and its images
+	case name == "seed" || loopbackOnly(name):
+		// These refuse another host (main.go): their credentials and their images
 		// always go through the loopback.
-		set.restHost = fs.String(restHostFlag, "", "loopback address the REST API is reached on (default "+loopbackHost+"); seed accepts a loopback address only, because its images and the admin credentials always go through "+loopbackHost)
+		set.restHost = fs.String(restHostFlag, "", "loopback address the REST API is reached on (default "+loopbackHost+"); "+name+" accepts a loopback address only, because its images and the admin credentials always go through "+loopbackHost)
 	case reachesREST:
 		set.restHost = fs.String(restHostFlag, "", "host the REST API is reached on, and so the host the admin credentials are sent to (default "+loopbackHost+"); another host sends them in clear text. It concerns the REST API only: the images always go through "+loopbackHost)
 	}
@@ -228,6 +228,10 @@ func hostAddress(host string) (netip.Addr, bool) {
 	addr, err := netip.ParseAddr(host)
 	return addr, err == nil
 }
+
+// loopbackOnly tells whether a subcommand sends the admin credentials and its
+// images through the loopback and nowhere else.
+func loopbackOnly(name string) bool { return name == "restore-upstream" || name == "reset" }
 
 // isLoopbackHost tells whether host stays on this machine.
 func isLoopbackHost(host string) bool {

@@ -7,6 +7,7 @@ import (
 	"os"
 	"path/filepath"
 	"reflect"
+	"slices"
 	"strconv"
 	"strings"
 	"testing"
@@ -1076,6 +1077,59 @@ func TestRenderUpstreamPVC(t *testing.T) {
 			}
 		})
 	}
+}
+
+// TestRenderUpstreamClaimOnly pins the document the recycling of the upstream
+// storage applies: the claim alone, byte for byte the one Render holds, so that
+// no other parameter (the memory of Nexus, an image) can reach the cluster with it.
+func TestRenderUpstreamClaimOnly(t *testing.T) {
+	for name, p := range map[string]Params{"defaults": Defaults(), "custom": customParams()} {
+		t.Run(name, func(t *testing.T) {
+			raw, err := renderUpstreamClaim(p)
+			if err != nil {
+				t.Fatal(err)
+			}
+			only := decodeStream(t, raw)
+			if !reflect.DeepEqual(only.kinds, []string{"PersistentVolumeClaim"}) || !reflect.DeepEqual(only.names, []string{upstreamName + "-data"}) {
+				t.Fatalf("kinds = %v, names = %v, want the claim %s-data alone", only.kinds, only.names, upstreamName)
+			}
+			docs := strings.Split(string(mustRenderRaw(t, p)), "---\n")
+			if len(docs) != len(manifestTemplates) {
+				t.Fatalf("Render has %d documents, want %d", len(docs), len(manifestTemplates))
+			}
+			if want := docs[slices.Index(manifestTemplates, upstreamClaimTemplate)]; string(raw) != want {
+				t.Errorf("renderUpstreamClaim = %q, want the claim document of Render = %q", raw, want)
+			}
+			for _, key := range []string{labelManagedBy, labelPartOf} {
+				var o object
+				only.of(t, "PersistentVolumeClaim", "", &o)
+				if got := o.Metadata.Labels[key]; got != benchLabel {
+					t.Errorf("label %s = %q, want %q", key, got, benchLabel)
+				}
+			}
+			again, err := renderUpstreamClaim(p)
+			if err != nil || !bytes.Equal(raw, again) {
+				t.Errorf("renderUpstreamClaim is not deterministic (error %v)", err)
+			}
+		})
+	}
+}
+
+func TestRenderUpstreamClaimRefusesInvalidParams(t *testing.T) {
+	p := Defaults()
+	p.Namespace = "Not A Namespace"
+	if raw, err := renderUpstreamClaim(p); err == nil {
+		t.Errorf("renderUpstreamClaim accepted invalid parameters: %s", raw)
+	}
+}
+
+func mustRenderRaw(t *testing.T, p Params) []byte {
+	t.Helper()
+	raw, err := Render(p)
+	if err != nil {
+		t.Fatalf("Render: %v", err)
+	}
+	return raw
 }
 
 // TestRenderUpstreamDeploymentDoesNotWriteReplicas pins F5: the Deployment of the

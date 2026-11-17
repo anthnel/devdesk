@@ -45,6 +45,12 @@ type deps struct {
 	seed           func(ctx context.Context, d nexusbench.SeedDeps, baseURL string, p nexusbench.Params, out io.Writer) (nexusbench.SeedResult, error)
 	readUpstream   func(ctx context.Context, r nexusbench.Runner, p nexusbench.Params) (nexusbench.UpstreamState, error)
 	readImages     func(ctx context.Context, baseURL, repository string) ([]listedImage, error)
+
+	// NX-02b (DEVDESK-534).
+	cutUpstream     func(ctx context.Context, r nexusbench.Runner, clk nexusbench.Clock, p nexusbench.Params, out io.Writer) error
+	restoreUpstream func(ctx context.Context, d nexusbench.SeedDeps, baseURL string, p nexusbench.Params, out io.Writer) error
+	reset           func(ctx context.Context, d nexusbench.SeedDeps, baseURL string, p nexusbench.Params, out io.Writer) (nexusbench.ProvisionResult, nexusbench.SeedResult, error)
+	unblockProxy    func(ctx context.Context, store nexusbench.SecretStore, baseURL string, p nexusbench.Params, out io.Writer) error
 }
 
 // defaultDeps wires the real kubectl, HTTP client, clock and files.
@@ -66,6 +72,11 @@ func defaultDeps() deps {
 		seed:           nexusbench.Seed,
 		readUpstream:   nexusbench.ReadUpstream,
 		readImages:     readImagesAnonymously,
+
+		cutUpstream:     nexusbench.CutUpstream,
+		restoreUpstream: nexusbench.RestoreUpstream,
+		reset:           nexusbench.Reset,
+		unblockProxy:    nexusbench.UnblockProxy,
 	}
 }
 
@@ -106,7 +117,7 @@ func run(ctx context.Context, args []string, getenv func(string) string, stdout,
 	case "-h", "--help", "help":
 		printUsage(stdout)
 		return exitOK
-	case "up", "provision", "down", "seed", "status", "render":
+	case "up", "provision", "down", "seed", "status", "render", "cut-upstream", "restore-upstream", "reset":
 	default:
 		_, _ = fmt.Fprintf(stderr, "nexus-bench: unknown subcommand %q\n\n", name)
 		printUsage(stderr)
@@ -133,8 +144,8 @@ func run(ctx context.Context, args []string, getenv func(string) string, stdout,
 		if err := validateRESTHost(host); err != nil {
 			return s.fail(err)
 		}
-		if name == "seed" && !isLoopbackHost(host) {
-			return s.fail(errors.New("seed always reaches Nexus and copies the images through 127.0.0.1, so --rest-host must be a loopback address"))
+		if (name == "seed" && !isLoopbackHost(host)) || (loopbackOnly(name) && !nexusbench.IsLoopbackRESTHost(host)) {
+			return s.fail(fmt.Errorf("%s always reaches Nexus and copies the images through 127.0.0.1, so --rest-host must be a loopback address", name))
 		}
 		s.restHost, s.explicit = host, true
 	}
@@ -150,6 +161,12 @@ func run(ctx context.Context, args []string, getenv func(string) string, stdout,
 		return s.seed()
 	case "status":
 		return s.status()
+	case "cut-upstream":
+		return s.cutUpstream()
+	case "restore-upstream":
+		return s.restoreUpstream()
+	case "reset":
+		return s.reset()
 	default:
 		return s.render()
 	}

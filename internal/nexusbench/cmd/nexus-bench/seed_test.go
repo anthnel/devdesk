@@ -14,7 +14,7 @@ package main
 //   - the context Seed is given, bounded by Params.Timeout;
 //   - `status`: the `upstream:` and `dataset:` lines, read only.
 //
-// cut-upstream, restore-upstream and reset are NX-02b: nothing here tests them.
+// cut-upstream, restore-upstream and reset are NX-02b: upstream_cmd_test.go tests them.
 //
 // Interpretations the tests fix (the report says them again):
 //
@@ -613,7 +613,9 @@ func TestUpDeploysEnsuresTheUpstreamProvisionsThenSeeds(t *testing.T) {
 			t.Errorf("%s must happen before Deploy, events: %v", e, h.eventList())
 		}
 	}
-	for _, e := range []string{"destroy", "readUpstream", "readImages:docker-hosted", "readImages:docker-proxy"} {
+	// NX-02b (D-Q): up now reads the upstream after Deploy, to know whether it
+	// found it cut (upstream_cmd_test.go pins that); it still reads no listing.
+	for _, e := range []string{"destroy", "readImages:docker-hosted", "readImages:docker-proxy"} {
 		if h.has(e) {
 			t.Errorf("up called %s: %v", e, h.eventList())
 		}

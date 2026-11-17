@@ -255,12 +255,8 @@ func (s *seeder) seedUpstream() error {
 	if stop != nil {
 		defer func() { _ = stop() }()
 	}
-	if !strings.HasPrefix(local, seedLoopbackHost+":") || !loopbackRegistry(local) {
-		return &BenchError{
-			Kind:  SeedFailed,
-			Cause: "the port-forward to the upstream is not on 127.0.0.1",
-			Check: "the bench pushes to a registry on the loopback only: check the kubectl on PATH",
-		}
+	if err := checkLoopbackForward(local); err != nil {
+		return err
 	}
 	for i, img := range s.images {
 		if img.Location != LocationUpstream {
@@ -271,6 +267,19 @@ func (s *seeder) seedUpstream() error {
 		}
 	}
 	return nil
+}
+
+// checkLoopbackForward refuses a port-forward that is not on 127.0.0.1: the
+// bench talks to the upstream with TLS verification off, on the loopback only.
+func checkLoopbackForward(local string) error {
+	if strings.HasPrefix(local, seedLoopbackHost+":") && loopbackRegistry(local) {
+		return nil
+	}
+	return &BenchError{
+		Kind:  SeedFailed,
+		Cause: "the port-forward to the upstream is not on 127.0.0.1",
+		Check: "the bench talks to a registry on the loopback only: check the kubectl on PATH",
+	}
 }
 
 // seedHosted pushes the docker-hosted images with the admin account.
@@ -429,12 +438,15 @@ func absent(components []component, want []DatasetImage) []string {
 	return out
 }
 
-// failure is the error of a step of a door (copier, forwarder): a cancelled
-// context is returned as is, a *BenchError keeps its kind and gains the step,
-// and anything else becomes a *BenchError that keeps the cause for errors.Is
-// without printing it (the text of a sub-process can carry a credential).
-func (s *seeder) failure(err error, step string) error {
-	if cerr := s.ctx.Err(); cerr != nil {
+// failure is the error of a step of a door (copier, forwarder): see stepFailure.
+func (s *seeder) failure(err error, step string) error { return stepFailure(s.ctx, err, step) }
+
+// stepFailure is the error of a step of a door: a cancelled context is returned
+// as is, a *BenchError keeps its kind and gains the step, and anything else
+// becomes a *BenchError that keeps the cause for errors.Is without printing it
+// (the text of a sub-process can carry a credential).
+func stepFailure(ctx context.Context, err error, step string) error {
+	if cerr := ctx.Err(); cerr != nil {
 		return cerr
 	}
 	var be *BenchError

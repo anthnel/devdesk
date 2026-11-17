@@ -234,6 +234,11 @@ type harness struct {
 	readUpstreamRunner   nexusbench.Runner
 	readImagesURLs       []string
 
+	// NX-02b (DEVDESK-534, step 7): what the fakes of cut-upstream,
+	// restore-upstream, reset and the unblock of up were given, and their knobs
+	// (upstream_cmd_test.go).
+	ops opsRecorder
+
 	// programmable
 	newRunnerErr error
 	newStoreErr  error
@@ -341,6 +346,12 @@ func opName(op nexusbench.Op) string {
 		return "OpStatus"
 	case nexusbench.OpSeed:
 		return "OpSeed"
+	case nexusbench.OpCut:
+		return "OpCut"
+	case nexusbench.OpRestore:
+		return "OpRestore"
+	case nexusbench.OpReset:
+		return "OpReset"
 	}
 	return fmt.Sprintf("Op(%d)", int(op))
 }
@@ -348,7 +359,7 @@ func opName(op nexusbench.Op) string {
 func (h *harness) getenv(k string) string { return h.env[k] }
 
 func (h *harness) deps() deps {
-	return deps{
+	d := deps{
 		newRunner: func(kubeContext string) (nexusbench.Runner, error) {
 			h.log("newRunner")
 			h.newRunnerContexts = append(h.newRunnerContexts, kubeContext)
@@ -487,6 +498,8 @@ func (h *harness) deps() deps {
 			return datasetListing(nexusbench.Dataset(), repository), nil
 		},
 	}
+	h.wireUpstreamOps(&d)
+	return d
 }
 
 // descriptorPathOf is where the command was told to write the descriptor.
@@ -601,7 +614,7 @@ func benchError() *nexusbench.BenchError {
 
 // ---- help and usage ---------------------------------------------------------
 
-var subcommands = []string{"up", "provision", "down", "seed", "status", "render"}
+var subcommands = []string{"up", "provision", "down", "seed", "status", "render", "cut-upstream", "restore-upstream", "reset"}
 
 func TestHelpPrintsTheSubcommandsOnStdout(t *testing.T) {
 	for _, arg := range []string{"-h", "--help", "help"} {
@@ -1064,7 +1077,7 @@ func TestInvalidParametersStopBeforeAnyCall(t *testing.T) {
 		{"upstream image in the zot registry from the variable", map[string]string{"NEXUS_BENCH_UPSTREAM_IMAGE": "tvp-zot.incus:5000/x"}, nil, "NEXUS_BENCH_UPSTREAM_IMAGE"},
 		{"upstream image tag that is not a tag", nil, []string{"--upstream-image-tag", "bad tag"}, "NEXUS_BENCH_UPSTREAM_IMAGE_TAG"},
 	}
-	for _, sub := range []string{"up", "provision", "down", "seed", "status", "render"} {
+	for _, sub := range subcommands {
 		for _, tt := range tests {
 			t.Run(sub+" "+tt.name, func(t *testing.T) {
 				h := newHarness(t)

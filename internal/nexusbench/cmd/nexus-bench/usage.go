@@ -11,8 +11,9 @@ Usage: nexus-bench <subcommand> [flags]
 
 Subcommands:
   up         check the cluster, deploy the bench and its upstream registry, wait
-             for Nexus, provision it, seed the data set with skopeo and write
-             the descriptor
+             for Nexus, provision it, put docker-proxy back in service when the
+             upstream was cut, seed the data set with skopeo and write the
+             descriptor
   provision  provision a running Nexus again (idempotent) and write the descriptor
   down       delete the bench namespace and wait until it is gone
   seed       put the data set in a bench that up provisioned (needs skopeo on
@@ -20,6 +21,15 @@ Subcommands:
   status     read the cluster and say how the bench is doing: pod, REST, upstream,
              descriptor, data set (changes nothing)
   render     print the manifests (contacts nothing)
+  cut-upstream      scale the bench upstream to zero replicas and wait until no pod
+                    is left, so the proxy can only serve what it cached (changes
+                    nothing else; no descriptor)
+  restore-upstream  bring the upstream back, put the proxy back in service and check
+                    the images against the data set (needs skopeo on this machine)
+  reset      delete docker-group, docker-proxy, docker-hosted and the upstream
+             storage, then provision and seed again: the data set is back to its
+             initial state, the pod, the namespace and the passwords are kept
+             (needs skopeo on this machine)
   help       print this text
 
 Run nexus-bench <subcommand> -h for the flags of a subcommand. Every flag has a
@@ -43,12 +53,15 @@ func printUsage(w io.Writer) {
 
 // subcommandSummary is the line each subcommand help starts with.
 var subcommandSummary = map[string]string{
-	"up":        "Check the cluster, deploy the bench and its upstream, wait for Nexus, provision it, seed the data set and write the descriptor. Seeding needs skopeo on this machine (mise does not install it) unless NEXUS_BENCH_UPSTREAM_URL points at an upstream of your own.",
-	"provision": "Provision a running Nexus again (idempotent) and write the descriptor.",
-	"down":      "Delete the bench namespace, wait until it is gone, then remove its stored passwords.",
-	"seed":      "Put the data set in a bench that up provisioned (images in docker-hosted and in the upstream, one pulled through docker-proxy) and write the descriptor. Needs skopeo on this machine; mise does not install it.",
-	"status":    "Read the cluster and the descriptor and report the pod, REST, upstream and data set; nothing is changed.",
-	"render":    "Print the manifests for these parameters; the cluster is not contacted.",
+	"up":               "Check the cluster, deploy the bench and its upstream, wait for Nexus, provision it, put docker-proxy back in service when the upstream was cut, seed the data set and write the descriptor. Seeding needs skopeo on this machine (mise does not install it) unless NEXUS_BENCH_UPSTREAM_URL points at an upstream of your own.",
+	"provision":        "Provision a running Nexus again (idempotent) and write the descriptor.",
+	"down":             "Delete the bench namespace, wait until it is gone, then remove its stored passwords.",
+	"seed":             "Put the data set in a bench that up provisioned (images in docker-hosted and in the upstream, one pulled through docker-proxy) and write the descriptor. Needs skopeo on this machine; mise does not install it.",
+	"status":           "Read the cluster and the descriptor and report the pod, REST, upstream and data set; nothing is changed.",
+	"render":           "Print the manifests for these parameters; the cluster is not contacted.",
+	"cut-upstream":     "Scale the bench upstream to zero replicas and wait until no pod of it is left: the proxy then serves only what it cached. Nothing else is changed and the descriptor is not written.",
+	"restore-upstream": "Bring the upstream back to one ready replica, put docker-proxy back in service (its configuration is sent again and its cache invalidated) and check the images of the upstream and the cached ones against the data set. Needs skopeo on this machine; mise does not install it.",
+	"reset":            "Bring the data set back to its initial state without recreating the instance: delete docker-group, docker-proxy and docker-hosted and replace the claim bench-upstream-data, then provision and seed again and write the descriptor. The Nexus pod, nexus-data, the namespace and the stored passwords are kept. Needs skopeo on this machine; mise does not install it.",
 }
 
 // printSubcommandHelp writes the help of one subcommand to w.

@@ -43,6 +43,14 @@ import (
 //	POST /service/rest/v1/repositories/docker/{kind}  the configuration                            -> 201
 //	                                                  a proxy whose host does not resolve           -> 400, see BlockUpstream
 //	PUT  /service/rest/v1/repositories/docker/{kind}/{name}  the configuration                      -> 204
+//	     a successful PUT of docker-proxy lifts the "blocked" state, see AutoBlockProxy        (DEVDESK-534, NX-02b)
+//	DELETE /service/rest/v1/repositories/{name}        any kind, no format segment                  -> 204, 404 when unknown
+//	     the repository and its components go together, unless KeepComponentsAfterDelete simulates a
+//	     storage that empties late. H-REPODEL, to settle at step 0 of NX-02b: the real answer codes, and
+//	     whether a repository recreated under the same name lists no component at once.
+//	POST /service/rest/v1/repositories/{name}/invalidate-cache   proxy and group                     -> 204
+//	     404 for an unknown name, 400 for a hosted repository (it has no cache). Empties the negative
+//	     cache (MarkNegativeCached). H-INVAL, to settle at step 0.
 //	GET  /service/rest/v1/components?repository=<name>[&continuationToken=<t>]                    (DEVDESK-541, NX-02a)
 //	     {"items":[{"id","repository","format":"docker","name","version","assets":[{"path","checksum":{"sha1","sha256"}}]}],
 //	     "continuationToken":<opaque string>|null}; 404 for a repository that does not exist, 400 without
@@ -213,6 +221,10 @@ type fakeNexus struct {
 	components      map[string][]fakeComponent // repository name -> components, in listing order
 	componentPage   int
 	loopTokens      map[string]bool // repositories whose listing never ends
+	proxyBlocked    bool            // AutoBlockProxy: docker-proxy is auto-blocked until a PUT of it
+	negativeCached  map[string]bool // repositories whose negative cache holds an entry
+	keepAfterDelete int             // components listings that still show the old ones after a DELETE
+	staleReads      map[string]int  // repository name -> listings left that show the components of a deleted one
 	laterPageFails  int             // status answered to any page that carries a continuation token; 0 = none
 	dropAll         bool
 	reqs            []fakeReq
@@ -241,13 +253,15 @@ func newFakeNexus(t *testing.T, log *orderLog) *fakeNexus {
 			"nx-anonymous": {"id": "nx-anonymous", "name": "nx-anonymous", "privileges": []any{"nx-healthcheck-read"}, "roles": []any{}},
 		},
 		// A new 3.98 instance has SSRF protection on, with both lists empty.
-		ssrfPresent:   true,
-		ssrf:          ssrfSettings{Enabled: true, AllowedIPs: []string{}, AllowedDomains: []string{}},
-		repos:         map[string]map[string]map[string]any{"hosted": {}, "proxy": {}, "group": {}},
-		secretsSeen:   map[string]bool{},
-		components:    map[string][]fakeComponent{},
-		componentPage: defaultComponentPageSize,
-		loopTokens:    map[string]bool{},
+		ssrfPresent:    true,
+		ssrf:           ssrfSettings{Enabled: true, AllowedIPs: []string{}, AllowedDomains: []string{}},
+		repos:          map[string]map[string]map[string]any{"hosted": {}, "proxy": {}, "group": {}},
+		secretsSeen:    map[string]bool{},
+		components:     map[string][]fakeComponent{},
+		componentPage:  defaultComponentPageSize,
+		loopTokens:     map[string]bool{},
+		negativeCached: map[string]bool{},
+		staleReads:     map[string]int{},
 	}
 	f.srv = httptest.NewServer(f)
 	t.Cleanup(f.srv.Close)
@@ -423,6 +437,59 @@ func (f *fakeNexus) RemoveSSRFEndpoint() {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	f.ssrfPresent = false
+}
+
+// AutoBlockProxy puts docker-proxy in the state Nexus gives a proxy whose upstream
+// failed: auto-blocked. Only a successful PUT of the repository lifts it (H-UNBLOCK,
+// to settle at step 0 of NX-02b: whether the PUT is enough, or the cache also has to be
+// invalidated). ProxyBlocked reads it back.
+func (f *fakeNexus) AutoBlockProxy() {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.proxyBlocked = true
+}
+
+// ProxyBlocked reports whether docker-proxy is still auto-blocked.
+func (f *fakeNexus) ProxyBlocked() bool {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	return f.proxyBlocked
+}
+
+// MarkNegativeCached makes the negative cache of a repository hold an entry, as a
+// proxy does once its upstream answered "not found" or did not answer. Only
+// invalidate-cache empties it.
+func (f *fakeNexus) MarkNegativeCached(name string) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.negativeCached[name] = true
+}
+
+// NegativeCached reports whether the negative cache of a repository still holds an entry.
+func (f *fakeNexus) NegativeCached(name string) bool {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	return f.negativeCached[name]
+}
+
+// KeepComponentsAfterDelete makes every repository deleted from now on keep listing
+// its old components for n more listings (one per request of the components
+// endpoint, a page counts), as a storage that empties late would. The repository
+// itself is gone at once; a repository recreated under the same name shows the old
+// components until the n listings have passed. This is H-REPODEL being false for n
+// reads.
+func (f *fakeNexus) KeepComponentsAfterDelete(n int) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.keepAfterDelete = n
+}
+
+// ComponentCount is how many components the instance holds for a repository name,
+// whether or not the repository exists.
+func (f *fakeNexus) ComponentCount(repo string) int {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	return len(f.components[repo])
 }
 
 // DropConnections makes the instance close every connection without an answer.
@@ -790,6 +857,8 @@ func (f *fakeNexus) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		f.serveUsers(w, r, body)
 	case strings.HasPrefix(p, pathRepositories+"/docker/"):
 		f.serveRepos(w, r, body)
+	case strings.HasPrefix(p, pathRepositories+"/"):
+		f.serveRepoByName(w, r)
 	default:
 		f.reply(w, r, http.StatusNotFound, nil)
 	}
@@ -911,6 +980,14 @@ func (f *fakeNexus) serveComponents(w http.ResponseWriter, r *http.Request) {
 	if !f.repoExists(repo) {
 		f.reply(w, r, http.StatusNotFound, nil)
 		return
+	}
+	if left, stale := f.staleReads[repo]; stale {
+		if left <= 0 {
+			delete(f.staleReads, repo)
+			delete(f.components, repo)
+		} else {
+			f.staleReads[repo] = left - 1
+		}
 	}
 	offset := 0
 	if token := q.Get("continuationToken"); token != "" {
@@ -1295,10 +1372,63 @@ func (f *fakeNexus) serveRepos(w http.ResponseWriter, r *http.Request, body []by
 			return
 		}
 		byName[parts[1]] = cfg
+		if kind == "proxy" && parts[1] == dockerProxyRepository {
+			f.proxyBlocked = false
+		}
 		f.reply(w, r, http.StatusNoContent, nil)
 	default:
 		f.reply(w, r, http.StatusMethodNotAllowed, nil)
 	}
+}
+
+// serveRepoByName serves the calls that name a repository without its format and
+// kind: DELETE {name} and POST {name}/invalidate-cache.
+func (f *fakeNexus) serveRepoByName(w http.ResponseWriter, r *http.Request) {
+	parts := strings.Split(strings.Trim(strings.TrimPrefix(r.URL.Path, pathRepositories+"/"), "/"), "/")
+	name := parts[0]
+	kind, found := f.repoKind(name)
+	switch {
+	case len(parts) == 1 && r.Method == http.MethodDelete:
+		if !found {
+			f.reply(w, r, http.StatusNotFound, nil)
+			return
+		}
+		delete(f.repos[kind], name)
+		delete(f.negativeCached, name)
+		if name == dockerProxyRepository {
+			f.proxyBlocked = false
+		}
+		if f.keepAfterDelete > 0 {
+			f.staleReads[name] = f.keepAfterDelete
+		} else {
+			delete(f.components, name)
+		}
+		f.reply(w, r, http.StatusNoContent, nil)
+	case len(parts) == 2 && parts[1] == "invalidate-cache" && r.Method == http.MethodPost:
+		switch {
+		case !found:
+			f.reply(w, r, http.StatusNotFound, nil)
+		case kind == "hosted":
+			f.badRequest(w, r, "a hosted repository has no cache to invalidate")
+		default:
+			delete(f.negativeCached, name)
+			f.reply(w, r, http.StatusNoContent, nil)
+		}
+	case len(parts) == 1 || (len(parts) == 2 && parts[1] == "invalidate-cache"):
+		f.reply(w, r, http.StatusMethodNotAllowed, nil)
+	default:
+		f.reply(w, r, http.StatusNotFound, nil)
+	}
+}
+
+// repoKind returns the kind ("hosted", "proxy" or "group") of the repository.
+func (f *fakeNexus) repoKind(name string) (string, bool) {
+	for kind, byName := range f.repos {
+		if _, ok := byName[name]; ok {
+			return kind, true
+		}
+	}
+	return "", false
 }
 
 func (f *fakeNexus) repoExists(name string) bool {

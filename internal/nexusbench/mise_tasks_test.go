@@ -1,8 +1,8 @@
 package nexusbench
 
 // Guard of the mise tasks of the bench (DEVDESK-504, step 8, CA1 and CA7). It
-// reads mise.toml at the repository root and runs nothing: the seven
-// nexus-bench:* tasks of NX-02a (DEVDESK-505) must exist, call the command, stay out of every task the
+// reads mise.toml at the repository root and runs nothing: the ten
+// nexus-bench:* tasks (NX-02a, DEVDESK-505, and NX-02b, DEVDESK-534) must exist, call the command, stay out of every task the
 // standard checks run (ci, check, test, test-race), and kubectl must be
 // declared where it does not slow the CI down.
 //
@@ -24,9 +24,11 @@ import (
 
 const miseBenchPrefix = "nexus-bench"
 
-// seed is the one task NX-02a adds (DEVDESK-544); cut-upstream, restore-upstream
-// and reset are NX-02b and are not listed here.
-var miseBenchSubcommands = []string{"up", "provision", "down", "seed", "status", "render"}
+// seed is the task NX-02a adds (DEVDESK-544); cut-upstream, restore-upstream and
+// reset are NX-02b (DEVDESK-534, step 7, DEVDESK-554). The messages of seed.go
+// already quote `mise run nexus-bench:restore-upstream` and
+// `mise run nexus-bench:reset`, so those two names are fixed.
+var miseBenchSubcommands = []string{"up", "provision", "down", "seed", "status", "render", "cut-upstream", "restore-upstream", "reset"}
 
 // miseFile maps a table path ("tasks|build", "tools") to its keys, each with
 // the raw text of its value.
@@ -283,15 +285,15 @@ run = [
 	}
 }
 
-func TestMiseDeclaresTheSevenBenchTasks(t *testing.T) {
+func TestMiseDeclaresTheTenBenchTasks(t *testing.T) {
 	f := loadMise(t)
 	names := []string{}
 	for _, sub := range miseBenchSubcommands {
 		names = append(names, miseBenchPrefix+":"+sub)
 	}
 	names = append(names, miseBenchPrefix+":test")
-	if len(names) != 7 {
-		t.Fatalf("the guard expects 7 bench tasks (up, provision, down, seed, status, render, test), it lists %d: %v", len(names), names)
+	if len(names) != 10 {
+		t.Fatalf("the guard expects 10 bench tasks (up, provision, down, seed, status, render, cut-upstream, restore-upstream, reset, test), it lists %d: %v", len(names), names)
 	}
 	for _, name := range names {
 		if _, ok := f.task(name); !ok {
@@ -383,14 +385,15 @@ func TestMiseNoStandardTaskReachesTheBench(t *testing.T) {
 }
 
 // kubectl is declared on the tasks that reach the cluster (up, provision, down,
-// status, test) and not on render, which contacts nothing. It is not declared in
+// seed, status, cut-upstream, restore-upstream, reset, test) and not on render,
+// which contacts nothing. It is not declared in
 // the global [tools], which would install it for every CI run.
 func TestMiseKubectlIsDeclaredOnTheBenchTasks(t *testing.T) {
 	f := loadMise(t)
 	if _, globally := f["tools"]["kubectl"]; globally {
 		t.Error("kubectl is declared in the global [tools]: it would be installed for every CI run; declare it on the cluster tasks")
 	}
-	for _, sub := range []string{"up", "provision", "down", "seed", "status", "test", "render"} {
+	for _, sub := range append(append([]string{}, miseBenchSubcommands...), "test") {
 		name := miseBenchPrefix + ":" + sub
 		task, ok := f.task(name)
 		if !ok {
@@ -427,5 +430,49 @@ func TestMiseSeedTaskNamesSkopeoAsAPrerequisiteOfTheHost(t *testing.T) {
 	}
 	if !strings.Contains(strings.ToLower(task["description"]), "acts on the cluster") {
 		t.Errorf("the description of %s does not say it acts on the cluster, as the other tasks do:\n%s", name, task["description"])
+	}
+}
+
+// restore-upstream and reset port-forward to the upstream and read digests with
+// skopeo, as seed does: it is a prerequisite of the host that mise does not
+// install, so the description of each task says it needs it (and does not
+// declare it). cut-upstream scales a Deployment and needs nothing else than
+// kubectl. All three say they act on the cluster, like the other tasks.
+func TestMiseUpstreamTasksSayWhatTheyNeedAndWhatTheyDo(t *testing.T) {
+	f := loadMise(t)
+	for _, tt := range []struct {
+		sub    string
+		skopeo bool
+	}{
+		{"cut-upstream", false},
+		{"restore-upstream", true},
+		{"reset", true},
+	} {
+		name := miseBenchPrefix + ":" + tt.sub
+		task, ok := f.task(name)
+		if !ok {
+			t.Errorf("mise.toml has no task %q", name)
+			continue
+		}
+		desc := strings.ToLower(task["description"])
+		if got := strings.Contains(desc, "skopeo"); got != tt.skopeo {
+			t.Errorf("the description of %s names skopeo = %v, want %v:\n%s", name, got, tt.skopeo, task["description"])
+		}
+		if strings.Contains(task["tools"], "skopeo") {
+			t.Errorf("%s declares skopeo in its tools: it is a tool of the host, not installed by mise:\n%s", name, task["tools"])
+		}
+		if !strings.Contains(desc, "acts on the cluster") {
+			t.Errorf("the description of %s does not say it acts on the cluster, as the other tasks do:\n%s", name, task["description"])
+		}
+		// The versions of kubectl are the ones of the other cluster tasks.
+		up, _ := f.task(miseBenchPrefix + ":up")
+		if task["tools"] != up["tools"] {
+			t.Errorf("%s declares tools %q, want those of nexus-bench:up (%q)", name, task["tools"], up["tools"])
+		}
+	}
+	// reset deletes: its description says so, so that nobody runs it for a check.
+	reset, _ := f.task(miseBenchPrefix + ":reset")
+	if d := strings.ToLower(reset["description"]); !strings.Contains(d, "delete") && !strings.Contains(d, "erase") {
+		t.Errorf("the description of nexus-bench:reset does not say it deletes the data:\n%s", reset["description"])
 	}
 }
