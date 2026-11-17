@@ -1,0 +1,23 @@
+# scenario: context: privileges of the anonymous role
+# nexus: 3.98.1-01 COMMUNITY (internal/nexusbench/descriptor.json, nexusVersion)
+# measured: 2026-11-17
+# account: admin (nx-admin, Basic, sent preemptively)
+# redacted: Authorization header and credentials removed; HTML bodies summarised; response headers filtered to a whitelist
+
+GET /service/rest/v1/security/roles/nx-anonymous HTTP/1.1
+Host: 127.0.0.1:30481
+Authorization: Basic <redacted>
+
+HTTP/1.1 200 OK
+Server: Nexus/3.98.1-01 (COMMUNITY)
+Content-Type: application/json
+
+{
+  "id" : "nx-anonymous",
+  "source" : "default",
+  "name" : "nx-anonymous",
+  "description" : "Anonymous Role",
+  "readOnly" : true,
+  "privileges" : [ "nx-healthcheck-read", "nx-search-read", "nx-repository-view-*-*-read", "nx-repository-view-*-*-browse" ],
+  "roles" : [ ]
+}

@@ -1,0 +1,86 @@
+# scenario: state after the measurements: components held by docker-proxy (REST listing, shows the cache; shared/base 1.0 was cached by the HEAD)
+# nexus: 3.98.1-01 COMMUNITY (internal/nexusbench/descriptor.json, nexusVersion)
+# measured: 2026-11-17
+# account: admin (nx-admin, Basic, sent preemptively)
+# redacted: Authorization header, credentials and uploaderIp removed; HTML bodies summarised; response headers filtered to a whitelist
+
+GET /service/rest/v1/components?repository=docker-proxy HTTP/1.1
+Host: 127.0.0.1:30481
+Authorization: Basic <redacted>
+
+HTTP/1.1 200 OK
+Server: Nexus/3.98.1-01 (COMMUNITY)
+Content-Type: application/json
+
+{
+  "items" : [ {
+    "id" : "ZG9ja2VyLXByb3h5OmRhYTY2ZDJl",
+    "repository" : "docker-proxy",
+    "format" : "docker",
+    "group" : "",
+    "name" : "mirror/cached",
+    "version" : "1.0",
+    "assets" : [ {
+      "downloadUrl" : "http://127.0.0.1:30481/repository/docker-proxy/v2/mirror/cached/manifests/1.0",
+      "path" : "/v2/mirror/cached/manifests/1.0",
+      "id" : "ZG9ja2VyLXByb3h5OmNjNjIzYWZl",
+      "repository" : "docker-proxy",
+      "format" : "docker",
+      "checksum" : {
+        "sha256" : "fc522a364e2cb0c1283fe5c96412f8bd19f2d31b3b0f42c229e6d5a7b28138d3",
+        "sha1" : "af4c73d4af9e408a17c43cb362d60883d4f5f3f9"
+      },
+      "contentType" : "application/vnd.oci.image.manifest.v1+json",
+      "lastModified" : "2026-11-17T14:51:01.878+00:00",
+      "lastDownloaded" : "2026-11-17T14:51:01.879+00:00",
+      "uploader" : "bench-pull",
+      "uploaderIp" : "<redacted>",
+      "fileSize" : 397,
+      "blobCreated" : "2026-11-17T14:51:01.878+00:00",
+      "blobStoreName" : "default",
+      "blobUpdated" : "2026-11-17T14:51:01.878+00:00",
+      "blobRef" : "default@c448ea28-8720-4110-baa7-e8ac8035b00f@2026-11-17T14:51",
+      "lastVerified" : "2026-11-17T14:51:01.868+00:00",
+      "registryUrl" : "127.0.0.1:30481/docker-proxy",
+      "docker" : {
+        "totalSize" : "3.00 KB",
+        "content_digest" : "sha256:fc522a364e2cb0c1283fe5c96412f8bd19f2d31b3b0f42c229e6d5a7b28138d3"
+      }
+    } ]
+  }, {
+    "id" : "ZG9ja2VyLXByb3h5OjI5YzIyYTBi",
+    "repository" : "docker-proxy",
+    "format" : "docker",
+    "group" : "",
+    "name" : "shared/base",
+    "version" : "1.0",
+    "assets" : [ {
+      "downloadUrl" : "http://127.0.0.1:30481/repository/docker-proxy/v2/shared/base/manifests/1.0",
+      "path" : "/v2/shared/base/manifests/1.0",
+      "id" : "ZG9ja2VyLXByb3h5OjQ1NDAyMWU2",
+      "repository" : "docker-proxy",
+      "format" : "docker",
+      "checksum" : {
+        "sha256" : "8486bd6d24f63834383a34215214daa3a293936b9e39dac58cb4eaa1746eae14",
+        "sha1" : "2e84a338934c125782a1c867c27a7a453da4ba37"
+      },
+      "contentType" : "application/vnd.oci.image.manifest.v1+json",
+      "lastModified" : "2026-11-17T16:34:47.075+00:00",
+      "lastDownloaded" : "2026-11-17T16:34:47.076+00:00",
+      "uploader" : "admin",
+      "uploaderIp" : "<redacted>",
+      "fileSize" : 397,
+      "blobCreated" : "2026-11-17T16:34:47.076+00:00",
+      "blobStoreName" : "default",
+      "blobUpdated" : "2026-11-17T16:34:47.075+00:00",
+      "blobRef" : "default@91e2876e-eb20-4edc-92d4-601100931acb@2026-11-17T16:34",
+      "lastVerified" : "2026-11-17T16:34:47.065+00:00",
+      "registryUrl" : "127.0.0.1:30481/docker-proxy",
+      "docker" : {
+        "totalSize" : "3.00 KB",
+        "content_digest" : "sha256:8486bd6d24f63834383a34215214daa3a293936b9e39dac58cb4eaa1746eae14"
+      }
+    } ]
+  } ],
+  "continuationToken" : null
+}

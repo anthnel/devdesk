@@ -1,0 +1,92 @@
+{
+  "source": "GET /service/rest/swagger.json (anonymous, HTTP 200, 742140 bytes, extract by jq)",
+  "nexus": "3.98.1-01 COMMUNITY",
+  "info": {
+    "title": "Nexus Repository Manager REST API",
+    "version": "3.98.1-01"
+  },
+  "paths": {
+    "/v1/repositories/{repositoryName}": {
+      "get": {
+        "summary": "Get repository details",
+        "responses": [
+          "200",
+          "401",
+          "403",
+          "404"
+        ]
+      },
+      "delete": {
+        "summary": "Delete repository of any format",
+        "responses": [
+          "204",
+          "401",
+          "403",
+          "404"
+        ]
+      }
+    },
+    "/v1/repositories": {
+      "get": {
+        "summary": "List repositories",
+        "responses": [
+          "200"
+        ]
+      }
+    },
+    "/v1/repositories/docker/group/{repositoryName}": {
+      "get": {
+        "summary": "Get repository",
+        "responses": [
+          "200"
+        ]
+      },
+      "put": {
+        "summary": "Update Docker group repository",
+        "responses": [
+          "204",
+          "400",
+          "401",
+          "403",
+          "404"
+        ]
+      }
+    },
+    "/v1/repositories/docker/hosted/{repositoryName}": {
+      "get": {
+        "summary": "Get repository",
+        "responses": [
+          "200"
+        ]
+      },
+      "put": {
+        "summary": "Update Docker hosted repository",
+        "responses": [
+          "204",
+          "400",
+          "401",
+          "403",
+          "404"
+        ]
+      }
+    },
+    "/v1/repositories/docker/proxy/{repositoryName}": {
+      "get": {
+        "summary": "Get repository",
+        "responses": [
+          "200"
+        ]
+      },
+      "put": {
+        "summary": "Update Docker proxy repository",
+        "responses": [
+          "204",
+          "400",
+          "401",
+          "403",
+          "404"
+        ]
+      }
+    }
+  }
+}

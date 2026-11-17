@@ -3,6 +3,25 @@
 Dated entries, most recent first (AAAA-MM-JJ). Each entry records what was
 decided, why, and which alternative was rejected. Sources live in `docs/product/`.
 
+## 2026-11-17 — DEVDESK-506 (NX-03): `_catalog` measured on the bench (no decision)
+
+Source: `docs/measurements/2026-11-17-nexus-catalog.md` (raw responses in `docs/measurements/nexus-catalog/`). Nexus `3.98.1-01` Community, bench `datomir`. Facts are measured; nothing is decided.
+
+1. **H1 contradicted.** `_catalog` does not prefix names with the member repository (`api`, not `docker-hosted/api`). There is no global `/v2/_catalog` on the HTTP port (404); only the group connector on its own port (30482) answers at the root.
+2. **H2 confirmed for the bench account.** The `bench-pull` and anonymous accounts get the same full lists as admin. The filtering case stays untested: no account in the bench is restricted to one repository.
+3. **Correction of 2026-08-10 (`docs/backlog.md` §3.18).** The detailed repository endpoint refuses the pull account with 404 "Repository not found" on this version, not 403. Anonymous gets 403. The version of the earlier instance is unknown.
+4. **IS-07 contradicted for members addressed by host and path.** Each member answers on its own path catalogue, so one walk per member is needed. On the group connector one walk finds all six names, but names carry no member, and `shared/base` resolves to the first member only.
+5. **Side effect on the bench.** A HEAD on a manifest through `docker-proxy` cached `shared/base:1.0` there. `nexus-bench:status` reports `dataset: differs (1 image)`. Reset it before NX-04.
+
+Sections to revisit (none decided):
+- **IS-03** criteria 2 and 5 (`repo_prefix`, parade R1): the prefix filter keeps nothing on this version.
+- **IS-07** criterion 2, `walks.go` and D140 (shared-walk key): one walk per member, not per host; the group needs no per-member split.
+- **NX-10**: its start condition (NX-03 contradicts H1 or H2) is met by H1. Whether to rebuild the prefix (`/v2/<prefix>/_catalog`) or use REST search is for the user to decide before NX-10 is promoted.
+- **NX-04**: start from a known state (see point 5).
+- **NX-05**: group pagination with `n=2` returns duplicates on the group connector; not yet explained.
+
+No ADR. Decision on H1 is the user's.
+
 ## 2026-11-11 — DEVDESK-341: footer activity dot instead of the braille spinner (D127)
 
 1. **Decided: work the jobs registry tracks shows the shared activity dot (`●`/`○`) in the footer, not a braille frame.** The view passes the router's blink phase with `SetBlinkPhase`. Scope: the 8 `jobs.FrameMsg` consumers, plus the explorer's load lines (option B). Details and rejected options are in D127 (`docs/backlog.md` §1.1).

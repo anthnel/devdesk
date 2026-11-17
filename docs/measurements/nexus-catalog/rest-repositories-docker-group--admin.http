@@ -1,0 +1,22 @@
+# scenario: criterion 3: generic endpoint /v1/repositories/{name} on the group
+# nexus: 3.98.1-01 COMMUNITY (internal/nexusbench/descriptor.json, nexusVersion)
+# measured: 2026-11-17
+# account: admin (nx-admin, Basic, sent preemptively)
+# redacted: Authorization header and credentials removed; HTML bodies summarised; response headers filtered to a whitelist
+
+GET /service/rest/v1/repositories/docker-group HTTP/1.1
+Host: 127.0.0.1:30481
+Authorization: Basic <redacted>
+
+HTTP/1.1 200 OK
+Server: Nexus/3.98.1-01 (COMMUNITY)
+Content-Type: application/json
+
+{
+  "name" : "docker-group",
+  "format" : "docker",
+  "type" : "group",
+  "url" : "http://127.0.0.1:30481/repository/docker-group",
+  "online" : true,
+  "attributes" : { }
+}
