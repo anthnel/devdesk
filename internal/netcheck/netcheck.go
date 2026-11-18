@@ -42,6 +42,9 @@ const (
 	Warn
 	// Fail means the objective is not met.
 	Fail
+	// Info is an observation with no objective to meet, such as which proxy
+	// applies. It is neither good nor bad, so it never colours a headline.
+	Info
 )
 
 // String implements fmt.Stringer. The words are what the UI shows, so they are
@@ -56,6 +59,8 @@ func (v Verdict) String() string {
 		return "WARN"
 	case Fail:
 		return "FAIL"
+	case Info:
+		return "INFO"
 	default:
 		return "UNKNOWN"
 	}
@@ -64,7 +69,7 @@ func (v Verdict) String() string {
 // severity ranks verdicts for Summarize. Fail outranks Unknown because a known
 // failure is more actionable than an absent observation; Unknown outranks Warn
 // because not having looked is worse than having looked and found a blemish.
-// NotApplicable ranks lowest: it never colours a headline.
+// NotApplicable and Info rank lowest: they never colour a headline.
 func (v Verdict) severity() int {
 	switch v {
 	case Fail:
@@ -89,6 +94,7 @@ const (
 	CheckReverseDNS   CheckID = "reverse-dns"
 	CheckRoute        CheckID = "route"
 	CheckICMP         CheckID = "icmp"
+	CheckProxy        CheckID = "proxy"
 	CheckTCP          CheckID = "tcp"
 	CheckTLSHandshake CheckID = "tls-handshake"
 	CheckTLSChain     CheckID = "tls-chain"
@@ -105,6 +111,7 @@ const (
 	StageResolve StageID = "resolve"
 	StageRoute   StageID = "route"
 	StageReach   StageID = "reach"
+	StageProxy   StageID = "proxy"
 	StageConnect StageID = "connect"
 	StageTLS     StageID = "tls"
 	StageHTTP    StageID = "http"
@@ -163,6 +170,10 @@ type Check struct {
 	// order asked. Nil on a placeholder (skipped or cancelled stage). It holds
 	// raw errors and is never shown nor serialized.
 	Routes []RouteLookup
+	// Proxy is set on CheckProxy only, when at least one scheme is proxied: the
+	// redacted proxy as shown, https first. It lets the connect stage tell that a
+	// proxy applies without parsing a Summary. It is never shown nor serialized.
+	Proxy string
 }
 
 // Reason discriminates the causes of a verdict that has several. It is stable:
@@ -201,6 +212,16 @@ const (
 	// Local route
 	ReasonPartialRoute      Reason = "partial-route"
 	ReasonRouteUndetermined Reason = "route-undetermined"
+
+	// Proxy
+	ReasonProxyNone       Reason = "proxy-none"
+	ReasonProxyConfigured Reason = "proxy-configured"
+	ReasonProxyExcluded   Reason = "proxy-excluded"
+	ReasonProxyLoopback   Reason = "proxy-loopback"
+	ReasonProxyInvalid    Reason = "proxy-invalid"
+
+	// TCP connect
+	ReasonDirectFailedProxyConfigured Reason = "direct-failed-proxy-configured"
 )
 
 // fact appends an observed value, skipping empty ones so a detail pane never
@@ -334,7 +355,7 @@ func Summarize(checks []Check) Verdict {
 	worst := OK
 	seen := false
 	for _, c := range checks {
-		if c.Verdict == NotApplicable {
+		if c.Verdict == NotApplicable || c.Verdict == Info {
 			continue
 		}
 		seen = true

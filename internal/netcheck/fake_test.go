@@ -11,8 +11,11 @@ import (
 	"errors"
 	"math/big"
 	"net"
+	"net/url"
 	"testing"
 	"time"
+
+	"github.com/anthnel/devdesk/internal/netproxy"
 )
 
 // testNow is the clock every test runs against, so an expiry assertion does not
@@ -30,6 +33,7 @@ type fakeEnv struct {
 	handshake func(ctx context.Context, addr, serverName string) (*tls.ConnectionState, error)
 	head      func(ctx context.Context, url string) (HTTPResult, error)
 	route     func(ctx context.Context, ip net.IP) (RouteHop, error)
+	proxy     func(u *url.URL) netproxy.Decision
 	roots     *x509.CertPool
 	now       time.Time
 }
@@ -64,6 +68,15 @@ func (f fakeEnv) Route(ctx context.Context, ip net.IP) (RouteHop, error) {
 		Source:    net.ParseIP("192.168.1.21"),
 		Gateway:   net.ParseIP("192.168.1.1"),
 	}, nil
+}
+
+// ProxyFor answers "no proxy" unless a test overrides it, so no test depends on
+// the proxy variables of the machine it runs on.
+func (f fakeEnv) ProxyFor(u *url.URL) netproxy.Decision {
+	if f.proxy != nil {
+		return f.proxy(u)
+	}
+	return netproxy.Decision{Kind: netproxy.DecisionNone}
 }
 
 func (f fakeEnv) DialTCP(ctx context.Context, addr string) (time.Duration, error) {

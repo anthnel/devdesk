@@ -4,13 +4,17 @@ import (
 	"context"
 	"crypto/tls"
 	"crypto/x509"
+	"encoding/json"
 	"errors"
 	"net"
+	"net/url"
+	"slices"
 	"strings"
 	"testing"
 	"time"
 
 	"github.com/anthnel/devdesk/internal/netcheck"
+	"github.com/anthnel/devdesk/internal/netproxy"
 )
 
 func TestNetCheckReportsAVerdictPerStage(t *testing.T) {
@@ -164,6 +168,16 @@ type fakeNetEnv struct {
 	pingCount int
 	routeEr   error
 	onResolve func()
+	// proxy answers the proxy question; nil means no proxy, so no test depends
+	// on the proxy variables of the machine it runs on.
+	proxy func(*url.URL) netproxy.Decision
+}
+
+func (e *fakeNetEnv) ProxyFor(u *url.URL) netproxy.Decision {
+	if e.proxy != nil {
+		return e.proxy(u)
+	}
+	return netproxy.Decision{Kind: netproxy.DecisionNone}
 }
 
 func (e *fakeNetEnv) Resolve(context.Context, string, string) ([]net.IP, error) {
@@ -227,4 +241,104 @@ func stubNetwork(t *testing.T, env *fakeNetEnv) {
 	previous := checkEnv
 	checkEnv = func(netcheck.Settings) netcheck.Env { return env }
 	t.Cleanup(func() { checkEnv = previous })
+}
+
+// The verdict field's schema is what an agent reads to learn the vocabulary, and
+// INFO (an observation with no objective, such as which proxy applies) is a new
+// word in it. Adding a value is compatible; leaving it out of the schema is not
+// honest.
+func TestTheVerdictSchemaListsINFO(t *testing.T) {
+	cs := connect(t, testEnv(nil))
+
+	res, err := cs.ListTools(t.Context(), nil)
+	if err != nil {
+		t.Fatalf("ListTools: %v", err)
+	}
+	for _, tool := range res.Tools {
+		if tool.Name != "net_check" {
+			continue
+		}
+		if tool.OutputSchema == nil {
+			t.Fatal("net_check declares no output schema")
+		}
+		schema, err := json.Marshal(tool.OutputSchema)
+		if err != nil {
+			t.Fatalf("marshal output schema: %v", err)
+		}
+		var doc struct {
+			Properties struct {
+				Checks struct {
+					Items struct {
+						Properties struct {
+							Verdict struct {
+								Description string `json:"description"`
+							} `json:"verdict"`
+						} `json:"properties"`
+					} `json:"items"`
+				} `json:"checks"`
+			} `json:"properties"`
+		}
+		if err := json.Unmarshal(schema, &doc); err != nil {
+			t.Fatalf("decode output schema: %v", err)
+		}
+		got := doc.Properties.Checks.Items.Properties.Verdict.Description
+		for _, want := range []string{"OK", "WARN", "FAIL", "INFO", "N/A", "UNKNOWN"} {
+			if !strings.Contains(got, want) {
+				t.Errorf("the checks[].verdict description %q does not list %s", got, want)
+			}
+		}
+		return
+	}
+	t.Fatal("net_check is not registered")
+}
+
+// DEVDESK-582: the proxy row is a Check like the others, so net_check reports
+// it, in its own stage, between the reachability probe and the TCP connect.
+func TestNetCheckReportsTheProxyRow(t *testing.T) {
+	for _, tc := range []struct {
+		name        string
+		proxy       func(*url.URL) netproxy.Decision
+		wantVerdict string
+		wantSummary string
+	}{
+		{"no proxy", nil, "N/A", "None"},
+		{"a proxy for both schemes", func(u *url.URL) netproxy.Decision {
+			return netproxy.Decision{Kind: netproxy.DecisionProxied, Variable: "HTTPS_PROXY", Proxy: "http://proxy.corp:3128"}
+		}, "INFO", "Configured for this target: http://proxy.corp:3128"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			fakeCacheHome(t)
+			env := reachableHost()
+			env.proxy = tc.proxy
+			stubNetwork(t, env)
+
+			var out netCheckOut
+			callTool(t, connect(t, testEnv(nil)), "net_check", map[string]any{"host": "example.test"}, &out)
+
+			ids := make([]string, 0, len(out.Checks))
+			var got *checkOut
+			for i, c := range out.Checks {
+				ids = append(ids, c.ID)
+				if c.ID == "proxy" {
+					got = &out.Checks[i]
+				}
+			}
+			if got == nil {
+				t.Fatalf("net_check reported no proxy check; got %v", ids)
+			}
+			if got.Stage != "proxy" || got.Title != "Proxy" {
+				t.Errorf("stage %q title %q, want proxy / Proxy", got.Stage, got.Title)
+			}
+			if got.Verdict != tc.wantVerdict || got.Summary != tc.wantSummary {
+				t.Errorf("proxy row = %s %q, want %s %q", got.Verdict, got.Summary, tc.wantVerdict, tc.wantSummary)
+			}
+			if got.Means == "" {
+				t.Error("the proxy row carries no explanation")
+			}
+			icmp, tcp, proxy := slices.Index(ids, "icmp"), slices.Index(ids, "tcp"), slices.Index(ids, "proxy")
+			if icmp < 0 || tcp < 0 || proxy != icmp+1 || tcp != proxy+1 {
+				t.Errorf("order = %v, want proxy right after icmp and right before tcp", ids)
+			}
+		})
+	}
 }

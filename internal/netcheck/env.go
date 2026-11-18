@@ -7,10 +7,13 @@ import (
 	"net"
 	"net/http"
 	"net/http/httptrace"
+	"net/url"
 	"runtime"
 	"time"
 
 	probing "github.com/prometheus-community/pro-bing"
+
+	"github.com/anthnel/devdesk/internal/netproxy"
 )
 
 // Defaults for Settings. These were the package's constants, and the comment
@@ -158,6 +161,10 @@ type Env interface {
 	// nothing: it asks the local routing table, which is why it is the one
 	// method here that answers without touching the network.
 	Route(ctx context.Context, ip net.IP) (RouteHop, error)
+	// ProxyFor reports which proxy variable, if any, applies to u. It reads
+	// the environment and sends nothing, and the answer never carries a
+	// credential: netproxy.Decision holds only a redacted display form.
+	ProxyFor(u *url.URL) netproxy.Decision
 	// TrustRoots is the store the chain is verified against. nil means the
 	// host's own, which is the only answer that matters in production — a
 	// chain "verifies" only against a store somebody actually uses.
@@ -179,6 +186,10 @@ type systemEnv struct{ timeout time.Duration }
 func SystemEnv(s Settings) Env { return systemEnv{timeout: s.Normalized().CheckTimeout} }
 
 func (systemEnv) Now() time.Time { return time.Now() }
+
+// ProxyFor answers from the process environment, through the same function
+// every DevDesk client resolves its proxy with.
+func (systemEnv) ProxyFor(u *url.URL) netproxy.Decision { return netproxy.Describe(u) }
 
 // TrustRoots returns nil: the host's own trust store is the one whose verdict
 // the user lives with.
@@ -268,6 +279,10 @@ func (e systemEnv) DialTCP(ctx context.Context, addr string) (time.Duration, err
 // all four into one error string and lose the certificate we need to inspect,
 // which is the defect this package exists to fix: the old check greped the
 // leaf and never looked at the chain at all.
+//
+// The dial is direct on purpose, like the TCP step it follows (decision Q1,
+// DEVDESK-582): the Diagnostics measure the direct path, and the Proxy row says
+// when a proxy applies.
 func (e systemEnv) Handshake(ctx context.Context, addr, serverName string) (*tls.ConnectionState, error) {
 	ctx, cancel := context.WithTimeout(ctx, e.timeout)
 	defer cancel()
@@ -298,6 +313,11 @@ func (e systemEnv) Handshake(ctx context.Context, addr, serverName string) (*tls
 // certificate problem must not hide whether the service answers. "The app
 // works, the cert is what is broken" is a useful thing to be told, and the TLS
 // checks report the cert problem on rows of their own.
+//
+// The transport below deliberately has no Proxy field: the Diagnostics measure
+// the direct path (decision Q1, DEVDESK-582), so the HEAD goes straight to the
+// target even when a proxy is configured. The Proxy row says when a proxy
+// applies. The netproxy guard lists this as a permanent exception.
 func (e systemEnv) Head(ctx context.Context, url string) (HTTPResult, error) {
 	ctx, cancel := context.WithTimeout(ctx, e.timeout)
 	defer cancel()

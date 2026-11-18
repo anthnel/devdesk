@@ -366,6 +366,7 @@ func (m *Model) GetHelpContent() help.Content {
 					"Reverse DNS        - the name an address publishes (literal targets only)\n" +
 					"Local route        - which interface carries this target, and from which address\n" +
 					"ICMP echo          - reachability; a filtered echo is a warning, never a failure\n" +
+					"Proxy              - whether a proxy variable applies to this target; the checks below go direct\n" +
 					"TCP connect        - the port you named, and the answer that decides reachability\n" +
 					"TLS handshake      - whether the port speaks TLS at all\n" +
 					"Certificate chain  - verified against this machine's store, intermediates included\n" +
@@ -381,6 +382,7 @@ func (m *Model) GetHelpContent() help.Content {
 					"          version, a chain that verifies here and will not elsewhere\n" +
 					"FAIL    - the objective is not met\n" +
 					"N/A     - no meaning for this target, or blocked by a check above it\n" +
+					"INFO    - an observation with no objective to meet, such as which proxy applies\n" +
 					"UNKNOWN - the check could not look, which is not the same as a pass\n\n" +
 					"A stage whose dependency failed does not run: its checks come back N/A naming " +
 					"what blocked them, so a broken run reads as one failure and a named point of " +
@@ -500,7 +502,8 @@ func (m *Model) GetHelpContent() help.Content {
 				Body: "Everything here runs in this process, on this machine's network stack: the " +
 					"diagnostic checks, the socket table, the interfaces and the path trace alike. They answer for " +
 					"the resolver, the routing table, the sockets and the VPN you are actually on, " +
-					"and nothing needs Docker.\n\n" +
+					"and nothing needs Docker. The checks never go through a proxy: they test the direct path " +
+					"from this machine, and the Proxy row only says whether one applies.\n\n" +
 					"The route trace used to be the exception. It ran traceroute in a container " +
 					"started with --network host, which on Docker Desktop is the Linux VM's " +
 					"namespace — so it traced the path from the VM and not from here, and the two " +

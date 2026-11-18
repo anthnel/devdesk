@@ -973,7 +973,7 @@ verified: a declared exception.
 
 `internal/ui/netdiag/` — four tabs (Diagnostics, Ports, Interfaces, Forward; the Path tab went in DEVDESK-471, the trace lives under Diagnostics):
 - **Diagnostics tab** (`model.go`): target, port and resolver, then
-  `internal/netcheck`'s pipeline — resolve, route, reach, connect, TLS, HTTP —
+  `internal/netcheck`'s pipeline — resolve, route, reach, proxy, connect, TLS, HTTP —
   chained one stage per message so the footer can name the question being asked.
   The seven tool checkboxes are gone (§3.33): the checks follow from the target
   and from what has already failed.
@@ -1368,6 +1368,74 @@ Four decisions, each with a test:
   run ever touched. `TestTheRouteStageReadsWhatTheResolveStageWrote` pins the
   coupling, which is otherwise the kind that breaks in silence.
 
+**The direct path and the Proxy row (DEVDESK-582).** The Diagnostics measure the
+direct path from this machine, never the one through a proxy (decision Q1). The
+HEAD (`systemEnv.Head`) builds its own `http.Transport` with no `Proxy` field, so
+it goes direct. `Head` and `Handshake` are the two entries listed as permanent
+exceptions of the proxy guard (below). Nothing is ever sent to a proxy.
+
+What the checks do not measure, the Proxy row reports. `StageProxy` sits between
+ICMP echo and TCP connect (check `proxy`, titled `Proxy`). It has no dependency, so
+the row is present even when DNS fails, which is the usual case behind a mandatory
+proxy. It reads the environment through `Env.ProxyFor`, which is
+`netproxy.Describe`, and asks about both schemes, because the HEAD's scheme depends
+on a handshake that runs later: `https://host:port` (`HTTPS_PROXY`) and
+`http://host:port` (`HTTP_PROXY`). The facts `HTTPS` and `HTTP` give each answer. The
+two answers merge by priority: Invalid, then Proxied, then Excluded, then Loopback,
+then None.
+
+| Merged answer | Verdict | Reason | Summary |
+|---|---|---|---|
+| no variable for either scheme | N/A | `proxy-none` | `None` |
+| a proxy for at least one scheme | INFO | `proxy-configured` | `Configured for this target: http://proxy.corp:3128`, with `(https only)` or `(http only)`, or both proxies when they differ |
+| `NO_PROXY` names the target | N/A | `proxy-excluded` | `Excluded by NO_PROXY` |
+| a loopback target | N/A | `proxy-loopback` | `Not used for a loopback target` |
+| a value that is not a usable proxy URL | WARN | `proxy-invalid` | `Invalid HTTPS_PROXY value` (the variable's name, in the case it was read in) |
+| both values invalid | WARN | `proxy-invalid` | `Invalid HTTPS_PROXY and HTTP_PROXY values` (`invalidSummary`) |
+
+The `None` row is always there, by choice: a stage must produce the same checks
+whatever it finds (`TestEveryStageProducesWhatItDeclares`), the package tells "not
+looked" from "found nothing", and the MCP output keeps a stable list.
+
+`INFO` is a new verdict: an observation with no objective to meet. `Summarize`
+and the overall verdict ignore it, as they ignore N/A. The `p` filter (problems
+only) hides it. N/A rows are greyed.
+
+When the direct dial of the TCP connect fails and at least one scheme is Proxied,
+the conclusion changes (Reason `direct-failed-proxy-configured`): `Port 443 does
+not accept direct connections; a proxy is configured for this target`, with the
+fact `Proxy`. A closed direct path is expected behind a mandatory proxy, and "does
+not accept connections" would mislead. `runConnect` reads `Check.Proxy` of the
+Proxy row, never its Summary.
+
+A proxy leaves `netproxy` only as `netproxy.Display`: `scheme://host:port`, never
+userinfo, path, query or IPv6 zone. An invalid value is named by its variable and
+never quoted. `Check.Proxy` carries that string to the connect stage, is never
+shown on its own and is never serialized, so `net_check` over MCP does not carry
+that field. The masked proxy (`scheme://host:port`) still goes out through the
+facts `HTTPS`, `HTTP` and `Proxy`, in the UI and over MCP.
+
+Limits:
+
+- **Validity is stricter than Go's.** Go ignores a value it cannot parse, so
+  `FromEnvironment` cannot tell it from "no proxy". `netproxy` also refuses a value
+  with an explicit scheme that fails to parse, an empty or non-printable host, and
+  a mis-encoded credential (an unescaped `/`, `?` or `#` before the `@`). Go
+  accepts some of these: `http://[::1` is read as `http://http:80`. The row says
+  Invalid where Go would silently go on.
+- **Excluded and Loopback are deduced.** `Describe` does not recompute
+  `NO_PROXY`. A nil answer with a valid variable means Loopback if the host is
+  `localhost` or a loopback address, otherwise Excluded. The subprocess test of
+  `netproxy` pins this against `http.ProxyFromEnvironment`.
+- **Cache against variable.** `http.ProxyFromEnvironment` reads the environment
+  once per process and caches it. `Describe` reads the variable's name and
+  validity directly. A variable changed after the first lookup can therefore show
+  a name the cached answer does not use.
+- **CGI.** When `REQUEST_METHOD` is set, Go refuses `HTTP_PROXY` (`httpproxy`: `refusing to use HTTP_PROXY value in CGI environment`), so the row says
+  `Invalid HTTP_PROXY value`.
+- **DNS and a mandatory proxy.** When DNS fails behind a mandatory proxy, the DNS
+  row does not mention the proxy. This may become a follow-up.
+
 ## The proxy entry point — `internal/netproxy` (DEVDESK-581)
 
 ### Why it exists
@@ -1396,6 +1464,16 @@ a test that keeps the rest of the module from deciding it elsewhere.
   the handshake with `cfg`. One deadline, the context's, covers proxy dial,
   `CONNECT` and handshake. The zero `Dialer` follows the environment; its
   fields (`Proxy`, `DialContext`, `ProxyTLSConfig`) are what tests swap.
+- `netproxy.Describe(u)` says what the proxy variables mean for one URL, as a
+  `Decision`: a `Kind` (`DecisionNone`, the zero value, `DecisionProxied`,
+  `DecisionExcluded`, `DecisionLoopback`, `DecisionInvalid`), the `Variable` read
+  (`HTTPS_PROXY` or `https_proxy`) and, when proxied, `Proxy`. The answer comes from
+  `FromEnvironment`; only the variable's name and validity are read apart. A
+  `Decision` carries no credential. The Proxy row of the Diagnostics uses it (see
+  above).
+- `netproxy.Display(proxy)` renders a proxy URL as `scheme://host:port` and nothing
+  else: no userinfo, path, query, fragment or IPv6 zone. It is the only way a proxy
+  leaves the package for the screen.
 - A failure of the proxy step is a `*netproxy.Error` with a `Step`:
   `StepSelect` (invalid proxy setting), `StepScheme` (socks5), `StepDial`,
   `StepProxyTLS`, `StepConnect` (refused, unreadable or unanswered), plus the
@@ -1446,8 +1524,8 @@ the file and the function of an entry.
 |---|---|---|---|---|
 | `internal/nexusbench/nexusapi.go` | `newClient` | R2, R3 | the bench is reached directly (`Proxy = nil`): a proxy would receive the bench credentials | permanent |
 | `internal/nexusbench/probe.go` | `NewProber` | R2, R3 | the probe goes without a proxy, like the bench client | permanent |
-| `internal/netcheck/env.go` | `systemEnv.Head` | R1 | the HEAD of the Diagnostics view still builds its own transport | DEVDESK-581 story 2/3 |
-| `internal/netcheck/env.go` | `systemEnv.Handshake` | R4 | the TLS step of the Diagnostics view still dials by itself | DEVDESK-581 story 2/3 |
+| `internal/netcheck/env.go` | `systemEnv.Head` | R1 | the Diagnostics measure the direct path (decision Q1, DEVDESK-582); the Proxy row says when a proxy applies | permanent |
+| `internal/netcheck/env.go` | `systemEnv.Handshake` | R4 | the Diagnostics measure the direct path (decision Q1, DEVDESK-582); the TLS step runs on the same direct path as the TCP step | permanent |
 | `internal/forward/proxy.go` | `routeTransport` | R1 | a named route stays direct, like the TCP forwards to the same target (decision Q1) | permanent |
 
 Adding an exception means adding it to `proxyExceptions` and to this table in

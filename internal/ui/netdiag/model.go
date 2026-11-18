@@ -231,7 +231,7 @@ func (m *Model) visibleChecks() []netcheck.Check {
 
 	out := make([]netcheck.Check, 0, len(all))
 	for _, c := range all {
-		if onlyProblems && (c.Verdict == netcheck.OK || c.Verdict == netcheck.NotApplicable) {
+		if onlyProblems && (c.Verdict == netcheck.OK || c.Verdict == netcheck.NotApplicable || c.Verdict == netcheck.Info) {
 			continue
 		}
 		if query != "" && !matchesQuery(c, query) {

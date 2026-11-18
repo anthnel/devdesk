@@ -13,6 +13,7 @@ import (
 	"github.com/anthnel/devdesk/internal/ui/keymap"
 	"github.com/anthnel/devdesk/internal/ui/shortcut"
 	"github.com/anthnel/devdesk/internal/ui/testutil"
+	"github.com/anthnel/devdesk/internal/ui/theme"
 )
 
 // ── View states ──────────────────────────────────────────────────────────────
@@ -358,6 +359,22 @@ func TestTheHelpDescribesTheChecksItRuns(t *testing.T) {
 	}
 }
 
+// TestTheHelpExplainsINFOInTheVerdictsSection — Rule 114: a new verdict is
+// explained where the verdicts are, not just somewhere in the help.
+func TestTheHelpExplainsINFOInTheVerdictsSection(t *testing.T) {
+	c := New(testConfig()).GetHelpContent()
+	for _, s := range c.Sections {
+		if !strings.Contains(s.Title, "Reading the verdicts") {
+			continue
+		}
+		if !strings.Contains(s.Body, "INFO") {
+			t.Errorf("the %q section does not mention INFO:\n%s", s.Title, s.Body)
+		}
+		return
+	}
+	t.Fatal("the help has no \"Reading the verdicts\" section")
+}
+
 // ── Table invariants ─────────────────────────────────────────────────────────
 
 // TestCheckColumnsHoldTheWidthInvariant is Rule 116 at the narrow end.
@@ -394,7 +411,7 @@ func TestALateStageKeepsTheCursorWhereItWas(t *testing.T) {
 // with its escape bytes, truncated mid-sequence, and bleeds over every row below.
 func TestTheVerdictCellIsPlainText(t *testing.T) {
 	for _, v := range []netcheck.Verdict{netcheck.OK, netcheck.Warn, netcheck.Fail,
-		netcheck.NotApplicable, netcheck.Unknown} {
+		netcheck.NotApplicable, netcheck.Unknown, netcheck.Info} {
 		cell := verdictCell(netcheck.Check{Verdict: v})
 		if strings.Contains(cell, "\x1b") {
 			t.Errorf("the %v cell carries an escape sequence", v)
@@ -430,12 +447,39 @@ func TestEveryVerdictHasItsOwnColour(t *testing.T) {
 	seen := map[string]netcheck.Verdict{}
 	for _, v := range []netcheck.Verdict{
 		netcheck.OK, netcheck.Warn, netcheck.Fail, netcheck.NotApplicable, netcheck.Unknown,
+		netcheck.Info,
 	} {
 		fg := fmt.Sprint(verdictStyle(netcheck.Check{Verdict: v}).GetForeground())
 		if prev, ok := seen[fg]; ok {
 			t.Errorf("%v renders in the same colour as %v", v, prev)
 		}
 		seen[fg] = v
+	}
+}
+
+// TestTheInfoCellIsAnIconAndTheWordINFO — Rule 122 (plain text) and the plan's
+// contract: the same shape as the other cells, the information icon and INFO.
+func TestTheInfoCellIsAnIconAndTheWordINFO(t *testing.T) {
+	cell := verdictCell(netcheck.Check{Verdict: netcheck.Info})
+	if want := theme.IconInfo + " INFO"; cell != want {
+		t.Errorf("the Info cell = %q, want %q", cell, want)
+	}
+	if strings.Contains(cell, "\x1b") {
+		t.Errorf("the Info cell carries an escape sequence: %q", cell)
+	}
+}
+
+// TestInfoUsesTheOrdinaryTextColour — an observation is neither good nor bad,
+// so it takes the plain text colour and brings no colour of its own (Rules 102
+// and 119: every colour lives in theme/colors.go).
+func TestInfoUsesTheOrdinaryTextColour(t *testing.T) {
+	got := fmt.Sprint(verdictStyle(netcheck.Check{Verdict: netcheck.Info}).GetForeground())
+	want := fmt.Sprint(theme.ColorText)
+	if got != want {
+		t.Errorf("Info renders in %s, want the ordinary text colour %s", got, want)
+	}
+	if dim := fmt.Sprint(theme.DimStyle.GetForeground()); got == dim {
+		t.Errorf("Info shares N/A's dim colour %s: an observation is not a non-answer", dim)
 	}
 }
 

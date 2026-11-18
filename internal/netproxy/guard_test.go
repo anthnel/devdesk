@@ -94,13 +94,13 @@ var proxyExceptions = []exception{
 	},
 	{
 		File: "internal/netcheck/env.go", Func: "systemEnv.Head", Rule: "R1",
-		Why:   "the HEAD of the Diagnostics view still builds its own transport",
-		Until: "DEVDESK-581 story 2/3",
+		Why:   "the Diagnostics measure the direct path (decision Q1, DEVDESK-582); the Proxy row says when a proxy applies",
+		Until: "permanent",
 	},
 	{
 		File: "internal/netcheck/env.go", Func: "systemEnv.Handshake", Rule: "R4",
-		Why:   "the TLS step of the Diagnostics view still dials by itself",
-		Until: "DEVDESK-581 story 2/3",
+		Why:   "the Diagnostics measure the direct path (decision Q1, DEVDESK-582); the TLS step runs on the same direct path as the TCP step",
+		Until: "permanent",
 	},
 	{
 		File: "internal/forward/proxy.go", Func: "routeTransport", Rule: "R1",
