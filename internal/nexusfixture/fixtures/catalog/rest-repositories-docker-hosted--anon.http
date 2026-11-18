@@ -1,0 +1,21 @@
+# scenario: criterion 3: generic endpoint /v1/repositories/{name} on the hosted
+# nexus: 3.98.1-01 COMMUNITY (internal/nexusbench/descriptor.json, nexusVersion)
+# measured: 2026-11-17
+# account: anonymous (no credentials)
+# redacted: Authorization header and credentials removed; HTML bodies summarised; response headers filtered to a whitelist
+
+GET /service/rest/v1/repositories/docker-hosted HTTP/1.1
+Host: 127.0.0.1:30481
+
+HTTP/1.1 200 OK
+Server: Nexus/3.98.1-01 (COMMUNITY)
+Content-Type: application/json
+
+{
+  "name" : "docker-hosted",
+  "format" : "docker",
+  "type" : "hosted",
+  "url" : "http://127.0.0.1:30481/repository/docker-hosted",
+  "online" : true,
+  "attributes" : { }
+}

@@ -1,0 +1,14 @@
+# scenario: criterion 3: detailed endpoint /v1/repositories/docker/group/{name}
+# nexus: 3.98.1-01 COMMUNITY (internal/nexusbench/descriptor.json, nexusVersion)
+# measured: 2026-11-17
+# account: anonymous (no credentials)
+# redacted: Authorization header and credentials removed; HTML bodies summarised; response headers filtered to a whitelist
+
+GET /service/rest/v1/repositories/docker/group/docker-group HTTP/1.1
+Host: 127.0.0.1:30481
+
+HTTP/1.1 403 Forbidden
+Server: Nexus/3.98.1-01 (COMMUNITY)
+Content-Length: 0
+
+<empty body>
