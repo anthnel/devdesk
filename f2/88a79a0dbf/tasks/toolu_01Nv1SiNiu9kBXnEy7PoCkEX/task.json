@@ -1,0 +1,15 @@
+{
+  "tool_use_id": "toolu_01Nv1SiNiu9kBXnEy7PoCkEX",
+  "agent_id": "a44cf9a2202107826",
+  "subagent_type": "project-coder",
+  "task_description": "Vert étape 2 DialTLS",
+  "token_usage": {
+    "input_tokens": 14,
+    "cache_creation_tokens": 51459,
+    "cache_read_tokens": 212316,
+    "output_tokens": 10489,
+    "api_call_count": 7
+  },
+  "started_at": "2026-11-18T15:27:34.615033487+01:00",
+  "completed_at": "2026-11-18T15:29:01.202542882+01:00"
+}

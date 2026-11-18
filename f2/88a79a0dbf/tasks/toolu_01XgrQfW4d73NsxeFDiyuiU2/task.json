@@ -1,0 +1,21 @@
+{
+  "tool_use_id": "toolu_01XgrQfW4d73NsxeFDiyuiU2",
+  "agent_id": "ad78e706af38492bf",
+  "subagent_type": "project-tester",
+  "task_description": "Tests rouges étape 2 DialTLS",
+  "files": [
+    "internal/netproxy/dial.go",
+    "internal/netproxy/dial_test.go",
+    "internal/netproxy/errors.go",
+    "internal/netproxy/errors_test.go"
+  ],
+  "token_usage": {
+    "input_tokens": 28,
+    "cache_creation_tokens": 99033,
+    "cache_read_tokens": 790300,
+    "output_tokens": 36054,
+    "api_call_count": 13
+  },
+  "started_at": "2026-11-18T15:23:36.76682473+01:00",
+  "completed_at": "2026-11-18T15:27:22.979071529+01:00"
+}

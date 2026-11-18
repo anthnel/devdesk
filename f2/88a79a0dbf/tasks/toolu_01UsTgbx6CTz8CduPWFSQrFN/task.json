@@ -1,0 +1,18 @@
+{
+  "tool_use_id": "toolu_01UsTgbx6CTz8CduPWFSQrFN",
+  "agent_id": "aafdcc9a052f5f1de",
+  "subagent_type": "team-core:tech-writer",
+  "task_description": "Doc: limite de la garde",
+  "files": [
+    "docs/architecture/network.md"
+  ],
+  "token_usage": {
+    "input_tokens": 6,
+    "cache_creation_tokens": 34681,
+    "cache_read_tokens": 52787,
+    "output_tokens": 658,
+    "api_call_count": 3
+  },
+  "started_at": "2026-11-18T15:55:30.319993601+01:00",
+  "completed_at": "2026-11-18T15:55:36.65926224+01:00"
+}

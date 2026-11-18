@@ -1,0 +1,15 @@
+{
+  "tool_use_id": "toolu_013Ctwix1RmbAuBCcjBikf8y",
+  "agent_id": "a316c35ad47a98734",
+  "subagent_type": "dev-team:security-reviewer",
+  "task_description": "Audit sécurité CONNECT netproxy",
+  "token_usage": {
+    "input_tokens": 32,
+    "cache_creation_tokens": 69674,
+    "cache_read_tokens": 775100,
+    "output_tokens": 11254,
+    "api_call_count": 15
+  },
+  "started_at": "2026-11-18T15:29:12.36289116+01:00",
+  "completed_at": "2026-11-18T15:31:34.023338984+01:00"
+}

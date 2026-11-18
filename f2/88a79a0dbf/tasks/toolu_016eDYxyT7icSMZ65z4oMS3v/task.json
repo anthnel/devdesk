@@ -1,0 +1,15 @@
+{
+  "tool_use_id": "toolu_016eDYxyT7icSMZ65z4oMS3v",
+  "agent_id": "a5dcac3b02cdc6eb3",
+  "subagent_type": "dev-team:reviewer",
+  "task_description": "Revue étape 2 DialTLS",
+  "token_usage": {
+    "input_tokens": 28,
+    "cache_creation_tokens": 103321,
+    "cache_read_tokens": 913434,
+    "output_tokens": 17552,
+    "api_call_count": 13
+  },
+  "started_at": "2026-11-18T15:29:12.345264209+01:00",
+  "completed_at": "2026-11-18T15:31:34.322312086+01:00"
+}

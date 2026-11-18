@@ -1,0 +1,63 @@
+{
+  "cli_version": "0.13.2",
+  "checkpoint_id": "f288a79a0dbf",
+  "strategy": "manual-commit",
+  "branch": "feat/devdesk-581-proxy-ssl",
+  "checkpoints_count": 21,
+  "files_touched": [
+    "docs/architecture/network.md",
+    "docs/architecture/ui-components.md",
+    "internal/netproxy/dial_test.go",
+    "internal/netproxy/guard_test.go",
+    "internal/netproxy/netproxy.go",
+    "internal/netproxy/netproxy_test.go",
+    "internal/oci/oci_blob.go",
+    "internal/oci/oci_blob_proxy_test.go",
+    "internal/status/ssl_checker.go",
+    "internal/status/ssl_proxy_test.go",
+    "internal/status/tls_dial.go",
+    "internal/status/types.go",
+    "internal/testutil/connectproxy/connectproxy.go",
+    "internal/testutil/connectproxy/connectproxy_test.go",
+    "internal/ui/status/footer_cert_error_test.go",
+    "internal/ui/status/view.go"
+  ],
+  "sessions": [
+    {
+      "metadata": "/f2/88a79a0dbf/0/metadata.json",
+      "transcript": "/f2/88a79a0dbf/0/full.jsonl",
+      "compact_transcript": "/f2/88a79a0dbf/0/transcript.jsonl",
+      "content_hash": "/f2/88a79a0dbf/0/content_hash.txt",
+      "prompt": "/f2/88a79a0dbf/0/prompt.txt"
+    }
+  ],
+  "token_usage": {
+    "input_tokens": 152,
+    "cache_creation_tokens": 198130,
+    "cache_read_tokens": 8454772,
+    "output_tokens": 41139,
+    "api_call_count": 56,
+    "subagent_tokens": {
+      "input_tokens": 496,
+      "cache_creation_tokens": 1800065,
+      "cache_read_tokens": 13155363,
+      "output_tokens": 287177,
+      "api_call_count": 232
+    },
+    "subagent_tokens_complete": true
+  },
+  "redaction": {
+    "replacements": 1,
+    "layers": {
+      "betterleaks": 0,
+      "connection_string": 0,
+      "credential_key": 0,
+      "credential_value": 0,
+      "credentialed_uri": 0,
+      "entropy": 0,
+      "key_context": 1,
+      "provider_token": 0,
+      "shell_stdin": 0
+    }
+  }
+}
