@@ -1,0 +1,15 @@
+{
+  "tool_use_id": "toolu_01MTygaZHJ9kQhNbvadFrUqy",
+  "agent_id": "a15d51cf4011278c1",
+  "subagent_type": "dev-team:devops",
+  "task_description": "Merger la PR 422 et clôturer",
+  "token_usage": {
+    "input_tokens": 26,
+    "cache_creation_tokens": 47504,
+    "cache_read_tokens": 469320,
+    "output_tokens": 3440,
+    "api_call_count": 12
+  },
+  "started_at": "2026-11-17T17:45:44.965961368+01:00",
+  "completed_at": "2026-11-17T17:47:34.664503853+01:00"
+}

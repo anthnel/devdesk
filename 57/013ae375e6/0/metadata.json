@@ -1,0 +1,257 @@
+{
+  "cli_version": "0.13.2",
+  "checkpoint_id": "57013ae375e6",
+  "session_id": "333288d9-1f7e-4a7c-b6ff-3bcdf490e964",
+  "strategy": "manual-commit",
+  "created_at": "2026-11-18T17:32:04.006619755Z",
+  "branch": "main",
+  "checkpoints_count": 5,
+  "save_step_count": 1,
+  "files_touched": [
+    "docs/measurements/2026-11-17-nexus-catalog.md",
+    "docs/measurements/nexus-catalog/catalog-group-connector-30482--admin.http",
+    "docs/measurements/nexus-catalog/catalog-group-connector-30482--anon.http",
+    "docs/measurements/nexus-catalog/catalog-group-connector-30482--pull.http",
+    "docs/measurements/nexus-catalog/catalog-group-connector-30482-bearer--admin.http",
+    "docs/measurements/nexus-catalog/catalog-group-connector-30482-bearer--anon.http",
+    "docs/measurements/nexus-catalog/catalog-group-connector-30482-bearer--pull.http",
+    "docs/measurements/nexus-catalog/catalog-group-path--admin.http",
+    "docs/measurements/nexus-catalog/catalog-group-path--anon.http",
+    "docs/measurements/nexus-catalog/catalog-group-path--pull.http",
+    "docs/measurements/nexus-catalog/catalog-group-path-on-connector-30482--admin.http",
+    "docs/measurements/nexus-catalog/catalog-group-repository--admin.http",
+    "docs/measurements/nexus-catalog/catalog-group-repository--anon.http",
+    "docs/measurements/nexus-catalog/catalog-group-repository--pull.http",
+    "docs/measurements/nexus-catalog/catalog-hosted-path--admin.http",
+    "docs/measurements/nexus-catalog/catalog-hosted-path--anon.http",
+    "docs/measurements/nexus-catalog/catalog-hosted-path--pull.http",
+    "docs/measurements/nexus-catalog/catalog-hosted-path-on-connector-30482--admin.http",
+    "docs/measurements/nexus-catalog/catalog-hosted-repository--admin.http",
+    "docs/measurements/nexus-catalog/catalog-hosted-repository--anon.http",
+    "docs/measurements/nexus-catalog/catalog-hosted-repository--pull.http",
+    "docs/measurements/nexus-catalog/catalog-hosted-root-30481--admin.http",
+    "docs/measurements/nexus-catalog/catalog-hosted-root-30481--anon.http",
+    "docs/measurements/nexus-catalog/catalog-hosted-root-30481--pull.http",
+    "docs/measurements/nexus-catalog/catalog-proxy-path--admin.http",
+    "docs/measurements/nexus-catalog/catalog-proxy-path--anon.http",
+    "docs/measurements/nexus-catalog/catalog-proxy-path--pull.http",
+    "docs/measurements/nexus-catalog/catalog-proxy-path-on-connector-30482--admin.http",
+    "docs/measurements/nexus-catalog/catalog-proxy-repository--admin.http",
+    "docs/measurements/nexus-catalog/catalog-proxy-repository--anon.http",
+    "docs/measurements/nexus-catalog/catalog-proxy-repository--pull.http",
+    "docs/measurements/nexus-catalog/ctx-anonymous-setting--admin.http",
+    "docs/measurements/nexus-catalog/ctx-role-bench-docker-pull--admin.http",
+    "docs/measurements/nexus-catalog/ctx-role-nx-anonymous--admin.http",
+    "docs/measurements/nexus-catalog/manifest-head-group-shared-base--admin.http",
+    "docs/measurements/nexus-catalog/manifest-head-hosted-shared-base--admin.http",
+    "docs/measurements/nexus-catalog/manifest-head-proxy-shared-base--admin.http",
+    "docs/measurements/nexus-catalog/page-group-n1000--admin.http",
+    "docs/measurements/nexus-catalog/page-group-n2-p0--admin.http",
+    "docs/measurements/nexus-catalog/page-group-n2-p1--admin.http",
+    "docs/measurements/nexus-catalog/page-group-n2-p2--admin.http",
+    "docs/measurements/nexus-catalog/page-group-n2-p3--admin.http",
+    "docs/measurements/nexus-catalog/page-group-n2-p4--admin.http",
+    "docs/measurements/nexus-catalog/page-group-n6--admin.http",
+    "docs/measurements/nexus-catalog/page-hosted-n2-p0--admin.http",
+    "docs/measurements/nexus-catalog/page-hosted-n2-p1--admin.http",
+    "docs/measurements/nexus-catalog/page-proxy-n2-p0--admin.http",
+    "docs/measurements/nexus-catalog/page-proxy-n2-p1--admin.http",
+    "docs/measurements/nexus-catalog/rest-openapi-repositories-extract.json",
+    "docs/measurements/nexus-catalog/rest-repositories-docker-group--admin.http",
+    "docs/measurements/nexus-catalog/rest-repositories-docker-group--anon.http",
+    "docs/measurements/nexus-catalog/rest-repositories-docker-group--pull.http",
+    "docs/measurements/nexus-catalog/rest-repositories-docker-hosted--admin.http",
+    "docs/measurements/nexus-catalog/rest-repositories-docker-hosted--anon.http",
+    "docs/measurements/nexus-catalog/rest-repositories-docker-hosted--pull.http",
+    "docs/measurements/nexus-catalog/rest-repositories-docker-proxy--admin.http",
+    "docs/measurements/nexus-catalog/rest-repositories-docker-proxy--anon.http",
+    "docs/measurements/nexus-catalog/rest-repositories-docker-proxy--pull.http",
+    "docs/measurements/nexus-catalog/rest-repositories-group-docker-group--admin.http",
+    "docs/measurements/nexus-catalog/rest-repositories-group-docker-group--anon.http",
+    "docs/measurements/nexus-catalog/rest-repositories-group-docker-group--pull.http",
+    "docs/measurements/nexus-catalog/rest-repositories-hosted-docker-hosted--admin.http",
+    "docs/measurements/nexus-catalog/rest-repositories-hosted-docker-hosted--anon.http",
+    "docs/measurements/nexus-catalog/rest-repositories-hosted-docker-hosted--pull.http",
+    "docs/measurements/nexus-catalog/rest-repositories-proxy-docker-proxy--admin.http",
+    "docs/measurements/nexus-catalog/rest-repositories-proxy-docker-proxy--anon.http",
+    "docs/measurements/nexus-catalog/rest-repositories-proxy-docker-proxy--pull.http",
+    "docs/measurements/nexus-catalog/tags-group-mirror-uncached--admin.http",
+    "docs/measurements/nexus-catalog/tags-group-shared-base--admin.http",
+    "docs/measurements/nexus-catalog/tags-hosted-api-path--admin.http",
+    "docs/measurements/nexus-catalog/tags-hosted-api-repository--admin.http",
+    "docs/measurements/nexus-catalog/tags-hosted-api-v2-repository--admin.http",
+    "docs/measurements/nexus-catalog/tags-hosted-shared-base--admin.http",
+    "docs/measurements/nexus-catalog/tags-proxy-shared-base--admin.http",
+    "docs/measurements/nexus-catalog/v2-ping-30481--anon.http",
+    "docs/measurements/nexus-catalog/v2-ping-30482--anon.http"
+  ],
+  "agent": "Claude Code",
+  "model": "claude-sonnet-5-5",
+  "turn_id": "4c20648e99ed",
+  "compact_transcript_start": 0,
+  "token_usage": {
+    "input_tokens": 40,
+    "cache_creation_tokens": 18793,
+    "cache_read_tokens": 2173113,
+    "output_tokens": 5796,
+    "api_call_count": 15,
+    "subagent_tokens": {
+      "input_tokens": 32,
+      "cache_creation_tokens": 49931,
+      "cache_read_tokens": 586971,
+      "output_tokens": 4924,
+      "api_call_count": 15
+    },
+    "subagent_tokens_complete": true
+  },
+  "session_token_usage": {
+    "input_tokens": 114,
+    "cache_creation_tokens": 125612,
+    "cache_read_tokens": 5508179,
+    "output_tokens": 26081,
+    "api_call_count": 47,
+    "subagent_tokens": {
+      "input_tokens": 204,
+      "cache_creation_tokens": 530399,
+      "cache_read_tokens": 7285288,
+      "output_tokens": 94548,
+      "api_call_count": 97
+    },
+    "subagent_tokens_complete": true
+  },
+  "redaction": {
+    "replacements": 5,
+    "layers": {
+      "betterleaks": 0,
+      "connection_string": 0,
+      "credential_key": 0,
+      "credential_value": 0,
+      "credentialed_uri": 0,
+      "entropy": 0,
+      "key_context": 5,
+      "provider_token": 0,
+      "shell_stdin": 0
+    }
+  },
+  "skill_events_version": 1,
+  "skill_events": [
+    {
+      "id": "prompt-skill-claude-code-team-core:feature-2026-11-17T16:29:16.778605184Z",
+      "event_type": "prompt_invocation",
+      "skill": {
+        "name": "team-core:feature"
+      },
+      "source": {
+        "agent": "claude-code",
+        "signal": "prompt_slash_command",
+        "confidence": "explicit"
+      },
+      "turn_id": "e437f67474b7",
+      "timestamp": "2026-11-17T16:29:16.778605184Z",
+      "native": {
+        "command": "/team-core:feature"
+      },
+      "collapse": {
+        "target": "user_message",
+        "label": "/team-core:feature",
+        "default_collapsed": true
+      }
+    },
+    {
+      "id": "claude-skill-toolu_01GY8NnND3ezasKZzuu9mTnb",
+      "event_type": "tool_invocation",
+      "skill": {
+        "name": "team-core:resume-work"
+      },
+      "source": {
+        "agent": "claude-code",
+        "signal": "skill_tool_use",
+        "confidence": "explicit"
+      },
+      "turn_id": "de3f7c423f0b",
+      "transcript_anchor": {
+        "unit": "line",
+        "start": 33,
+        "end": 34,
+        "entry_ids": [
+          "893ae107-5620-413f-9754-dbde9b5f1c1b"
+        ],
+        "tool_use_id": "toolu_01GY8NnND3ezasKZzuu9mTnb"
+      },
+      "native": {
+        "tool_name": "Skill",
+        "tool_use_id": "toolu_01GY8NnND3ezasKZzuu9mTnb"
+      },
+      "collapse": {
+        "target": "tool_pair",
+        "label": "Skill: team-core:resume-work",
+        "default_collapsed": true
+      }
+    },
+    {
+      "id": "claude-skill-toolu_014Btd4zDAmvXX6opjaHadQe",
+      "event_type": "tool_invocation",
+      "skill": {
+        "name": "plane-integration:plane-conventions"
+      },
+      "source": {
+        "agent": "claude-code",
+        "signal": "skill_tool_use",
+        "confidence": "explicit"
+      },
+      "turn_id": "de3f7c423f0b",
+      "transcript_anchor": {
+        "unit": "line",
+        "start": 38,
+        "end": 39,
+        "entry_ids": [
+          "ecd3301f-f2b2-445f-a74e-341668ca3e26"
+        ],
+        "tool_use_id": "toolu_014Btd4zDAmvXX6opjaHadQe"
+      },
+      "native": {
+        "tool_name": "Skill",
+        "tool_use_id": "toolu_014Btd4zDAmvXX6opjaHadQe"
+      },
+      "collapse": {
+        "target": "tool_pair",
+        "label": "Skill: plane-integration:plane-conventions",
+        "default_collapsed": true
+      }
+    },
+    {
+      "id": "claude-skill-toolu_01MQuhvzvzASYvdy9SFG7GgT",
+      "event_type": "tool_invocation",
+      "skill": {
+        "name": "release-flow"
+      },
+      "source": {
+        "agent": "claude-code",
+        "signal": "skill_tool_use",
+        "confidence": "explicit"
+      },
+      "turn_id": "4c20648e99ed",
+      "transcript_anchor": {
+        "unit": "line",
+        "start": 475,
+        "end": 476,
+        "entry_ids": [
+          "760a91b8-76ad-4335-ab0d-6a436a46a906"
+        ],
+        "tool_use_id": "toolu_01MQuhvzvzASYvdy9SFG7GgT"
+      },
+      "native": {
+        "tool_name": "Skill",
+        "tool_use_id": "toolu_01MQuhvzvzASYvdy9SFG7GgT"
+      },
+      "collapse": {
+        "target": "tool_pair",
+        "label": "Skill: release-flow",
+        "default_collapsed": true
+      }
+    }
+  ],
+  "session_metrics": {
+    "turn_count": 10
+  }
+}
