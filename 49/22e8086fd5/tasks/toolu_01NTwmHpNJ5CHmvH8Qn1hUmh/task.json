@@ -1,0 +1,19 @@
+{
+  "tool_use_id": "toolu_01NTwmHpNJ5CHmvH8Qn1hUmh",
+  "agent_id": "adf4275a77b13af0c",
+  "subagent_type": "team-core:archivist",
+  "task_description": "Archiver décisions NX-08",
+  "files": [
+    "docs/backlog.md",
+    "docs/journal.md"
+  ],
+  "token_usage": {
+    "input_tokens": 30,
+    "cache_creation_tokens": 104367,
+    "cache_read_tokens": 942406,
+    "output_tokens": 16225,
+    "api_call_count": 13
+  },
+  "started_at": "2026-11-18T13:35:00.623562503+01:00",
+  "completed_at": "2026-11-18T13:36:09.495062724+01:00"
+}

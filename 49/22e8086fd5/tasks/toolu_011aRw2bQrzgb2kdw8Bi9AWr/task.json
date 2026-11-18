@@ -1,0 +1,15 @@
+{
+  "tool_use_id": "toolu_011aRw2bQrzgb2kdw8Bi9AWr",
+  "agent_id": "abdeb0dfd06e71647",
+  "subagent_type": "team-core:tech-writer",
+  "task_description": "Docs étape 10 NX-08",
+  "token_usage": {
+    "input_tokens": 32,
+    "cache_creation_tokens": 112341,
+    "cache_read_tokens": 1129918,
+    "output_tokens": 16323,
+    "api_call_count": 15
+  },
+  "started_at": "2026-11-18T13:35:00.588933905+01:00",
+  "completed_at": "2026-11-18T13:36:57.816233833+01:00"
+}

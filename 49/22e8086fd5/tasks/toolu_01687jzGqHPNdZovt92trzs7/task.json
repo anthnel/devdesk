@@ -1,0 +1,15 @@
+{
+  "tool_use_id": "toolu_01687jzGqHPNdZovt92trzs7",
+  "agent_id": "a52e4cfa2004c56d8",
+  "subagent_type": "dev-team:security-reviewer",
+  "task_description": "Audit sécurité étape 2",
+  "token_usage": {
+    "input_tokens": 26,
+    "cache_creation_tokens": 85060,
+    "cache_read_tokens": 680544,
+    "output_tokens": 10642,
+    "api_call_count": 12
+  },
+  "started_at": "2026-11-18T12:20:45.038245848+01:00",
+  "completed_at": "2026-11-18T12:22:36.210657349+01:00"
+}

@@ -1,0 +1,89 @@
+{
+  "cli_version": "0.13.2",
+  "checkpoint_id": "4922e8086fd5",
+  "strategy": "manual-commit",
+  "branch": "feat/nexus-recorded-fixtures-devdesk-511",
+  "checkpoints_count": 43,
+  "files_touched": [
+    "internal/nexusfixture/doc.go",
+    "internal/nexusfixture/fakenexus/server.go",
+    "internal/nexusfixture/fakenexus/server_test.go",
+    "internal/nexusfixture/fixtures/catalog/catalog-group-connector-30482--admin.http",
+    "internal/nexusfixture/fixtures/catalog/catalog-group-connector-30482--anon.http",
+    "internal/nexusfixture/fixtures/catalog/catalog-group-connector-30482--pull.http",
+    "internal/nexusfixture/fixtures/catalog/catalog-group-repository--admin.http",
+    "internal/nexusfixture/fixtures/catalog/catalog-group-repository--anon.http",
+    "internal/nexusfixture/fixtures/catalog/catalog-group-repository--pull.http",
+    "internal/nexusfixture/fixtures/catalog/catalog-hosted-repository--admin.http",
+    "internal/nexusfixture/fixtures/catalog/catalog-hosted-repository--anon.http",
+    "internal/nexusfixture/fixtures/catalog/catalog-hosted-repository--pull.http",
+    "internal/nexusfixture/fixtures/catalog/catalog-hosted-root-30481--admin.http",
+    "internal/nexusfixture/fixtures/catalog/catalog-hosted-root-30481--anon.http",
+    "internal/nexusfixture/fixtures/catalog/catalog-hosted-root-30481--pull.http",
+    "internal/nexusfixture/fixtures/catalog/catalog-proxy-repository--admin.http",
+    "internal/nexusfixture/fixtures/catalog/catalog-proxy-repository--anon.http",
+    "internal/nexusfixture/fixtures/catalog/catalog-proxy-repository--pull.http",
+    "internal/nexusfixture/fixtures/catalog/page-group-n1000--admin.http",
+    "internal/nexusfixture/fixtures/catalog/rest-repositories-docker-group--admin.http",
+    "internal/nexusfixture/fixtures/catalog/rest-repositories-docker-group--anon.http",
+    "internal/nexusfixture/fixtures/catalog/rest-repositories-docker-group--pull.http",
+    "internal/nexusfixture/fixtures/catalog/rest-repositories-docker-hosted--admin.http",
+    "internal/nexusfixture/fixtures/catalog/rest-repositories-docker-hosted--anon.http",
+    "internal/nexusfixture/fixtures/catalog/rest-repositories-docker-hosted--pull.http",
+    "internal/nexusfixture/fixtures/catalog/rest-repositories-docker-proxy--admin.http",
+    "internal/nexusfixture/fixtures/catalog/rest-repositories-docker-proxy--anon.http",
+    "internal/nexusfixture/fixtures/catalog/rest-repositories-docker-proxy--pull.http",
+    "internal/nexusfixture/fixtures/catalog/rest-repositories-group-docker-group--admin.http",
+    "internal/nexusfixture/fixtures/catalog/rest-repositories-group-docker-group--anon.http",
+    "internal/nexusfixture/fixtures/catalog/rest-repositories-group-docker-group--pull.http",
+    "internal/nexusfixture/fixtures/catalog/v2-ping-30481--anon.http",
+    "internal/nexusfixture/fixtures/catalog/v2-ping-30482--anon.http",
+    "internal/nexusfixture/format.go",
+    "internal/nexusfixture/format_test.go",
+    "internal/nexusfixture/leaks.go",
+    "internal/nexusfixture/leaks_test.go",
+    "internal/nexusfixture/load.go",
+    "internal/nexusfixture/load_test.go",
+    "internal/nexusfixture/redact.go",
+    "internal/nexusfixture/redact_test.go",
+    "internal/nexusfixture/stale_test.go"
+  ],
+  "sessions": [
+    {
+      "metadata": "/49/22e8086fd5/0/metadata.json",
+      "transcript": "/49/22e8086fd5/0/full.jsonl",
+      "compact_transcript": "/49/22e8086fd5/0/transcript.jsonl",
+      "content_hash": "/49/22e8086fd5/0/content_hash.txt",
+      "prompt": "/49/22e8086fd5/0/prompt.txt"
+    }
+  ],
+  "token_usage": {
+    "input_tokens": 333,
+    "cache_creation_tokens": 336861,
+    "cache_read_tokens": 27727596,
+    "output_tokens": 92507,
+    "api_call_count": 123,
+    "subagent_tokens": {
+      "input_tokens": 1086,
+      "cache_creation_tokens": 3974198,
+      "cache_read_tokens": 38288482,
+      "output_tokens": 769753,
+      "api_call_count": 514
+    },
+    "subagent_tokens_complete": true
+  },
+  "redaction": {
+    "replacements": 9,
+    "layers": {
+      "betterleaks": 0,
+      "connection_string": 0,
+      "credential_key": 0,
+      "credential_value": 3,
+      "credentialed_uri": 0,
+      "entropy": 4,
+      "key_context": 2,
+      "provider_token": 0,
+      "shell_stdin": 0
+    }
+  }
+}

@@ -1,0 +1,15 @@
+{
+  "tool_use_id": "toolu_01JBNE8HN5cMcydKqU4JPz5D",
+  "agent_id": "a6954422df5999f4f",
+  "subagent_type": "project-coder",
+  "task_description": "Vert correctifs étape 2",
+  "token_usage": {
+    "input_tokens": 26,
+    "cache_creation_tokens": 124286,
+    "cache_read_tokens": 993113,
+    "output_tokens": 36626,
+    "api_call_count": 12
+  },
+  "started_at": "2026-11-18T12:29:49.744334274+01:00",
+  "completed_at": "2026-11-18T12:35:05.791858567+01:00"
+}

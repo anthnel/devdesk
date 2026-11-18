@@ -1,0 +1,192 @@
+{
+  "cli_version": "0.13.2",
+  "checkpoint_id": "4922e8086fd5",
+  "session_id": "4d073c53-f305-43f7-b610-2bc7b4630ac4",
+  "strategy": "manual-commit",
+  "created_at": "2026-11-18T13:18:38.429307639Z",
+  "branch": "feat/nexus-recorded-fixtures-devdesk-511",
+  "checkpoints_count": 43,
+  "save_step_count": 40,
+  "files_touched": [
+    "internal/nexusfixture/doc.go",
+    "internal/nexusfixture/fakenexus/server.go",
+    "internal/nexusfixture/fakenexus/server_test.go",
+    "internal/nexusfixture/fixtures/catalog/catalog-group-connector-30482--admin.http",
+    "internal/nexusfixture/fixtures/catalog/catalog-group-connector-30482--anon.http",
+    "internal/nexusfixture/fixtures/catalog/catalog-group-connector-30482--pull.http",
+    "internal/nexusfixture/fixtures/catalog/catalog-group-repository--admin.http",
+    "internal/nexusfixture/fixtures/catalog/catalog-group-repository--anon.http",
+    "internal/nexusfixture/fixtures/catalog/catalog-group-repository--pull.http",
+    "internal/nexusfixture/fixtures/catalog/catalog-hosted-repository--admin.http",
+    "internal/nexusfixture/fixtures/catalog/catalog-hosted-repository--anon.http",
+    "internal/nexusfixture/fixtures/catalog/catalog-hosted-repository--pull.http",
+    "internal/nexusfixture/fixtures/catalog/catalog-hosted-root-30481--admin.http",
+    "internal/nexusfixture/fixtures/catalog/catalog-hosted-root-30481--anon.http",
+    "internal/nexusfixture/fixtures/catalog/catalog-hosted-root-30481--pull.http",
+    "internal/nexusfixture/fixtures/catalog/catalog-proxy-repository--admin.http",
+    "internal/nexusfixture/fixtures/catalog/catalog-proxy-repository--anon.http",
+    "internal/nexusfixture/fixtures/catalog/catalog-proxy-repository--pull.http",
+    "internal/nexusfixture/fixtures/catalog/page-group-n1000--admin.http",
+    "internal/nexusfixture/fixtures/catalog/rest-repositories-docker-group--admin.http",
+    "internal/nexusfixture/fixtures/catalog/rest-repositories-docker-group--anon.http",
+    "internal/nexusfixture/fixtures/catalog/rest-repositories-docker-group--pull.http",
+    "internal/nexusfixture/fixtures/catalog/rest-repositories-docker-hosted--admin.http",
+    "internal/nexusfixture/fixtures/catalog/rest-repositories-docker-hosted--anon.http",
+    "internal/nexusfixture/fixtures/catalog/rest-repositories-docker-hosted--pull.http",
+    "internal/nexusfixture/fixtures/catalog/rest-repositories-docker-proxy--admin.http",
+    "internal/nexusfixture/fixtures/catalog/rest-repositories-docker-proxy--anon.http",
+    "internal/nexusfixture/fixtures/catalog/rest-repositories-docker-proxy--pull.http",
+    "internal/nexusfixture/fixtures/catalog/rest-repositories-group-docker-group--admin.http",
+    "internal/nexusfixture/fixtures/catalog/rest-repositories-group-docker-group--anon.http",
+    "internal/nexusfixture/fixtures/catalog/rest-repositories-group-docker-group--pull.http",
+    "internal/nexusfixture/fixtures/catalog/v2-ping-30481--anon.http",
+    "internal/nexusfixture/fixtures/catalog/v2-ping-30482--anon.http",
+    "internal/nexusfixture/format.go",
+    "internal/nexusfixture/format_test.go",
+    "internal/nexusfixture/leaks.go",
+    "internal/nexusfixture/leaks_test.go",
+    "internal/nexusfixture/load.go",
+    "internal/nexusfixture/load_test.go",
+    "internal/nexusfixture/redact.go",
+    "internal/nexusfixture/redact_test.go",
+    "internal/nexusfixture/stale_test.go"
+  ],
+  "agent": "Claude Code",
+  "model": "claude-sonnet-5-5",
+  "turn_id": "cccebe5935e2",
+  "compact_transcript_start": 0,
+  "token_usage": {
+    "input_tokens": 333,
+    "cache_creation_tokens": 336861,
+    "cache_read_tokens": 27727596,
+    "output_tokens": 92507,
+    "api_call_count": 123,
+    "subagent_tokens": {
+      "input_tokens": 1086,
+      "cache_creation_tokens": 3974198,
+      "cache_read_tokens": 38288482,
+      "output_tokens": 769753,
+      "api_call_count": 514
+    },
+    "subagent_tokens_complete": true
+  },
+  "session_token_usage": {
+    "input_tokens": 333,
+    "cache_creation_tokens": 336861,
+    "cache_read_tokens": 27727596,
+    "output_tokens": 92507,
+    "api_call_count": 123,
+    "subagent_tokens": {
+      "input_tokens": 1086,
+      "cache_creation_tokens": 3974198,
+      "cache_read_tokens": 38288482,
+      "output_tokens": 769753,
+      "api_call_count": 514
+    },
+    "subagent_tokens_complete": true
+  },
+  "redaction": {
+    "replacements": 9,
+    "layers": {
+      "betterleaks": 0,
+      "connection_string": 0,
+      "credential_key": 0,
+      "credential_value": 3,
+      "credentialed_uri": 0,
+      "entropy": 4,
+      "key_context": 2,
+      "provider_token": 0,
+      "shell_stdin": 0
+    }
+  },
+  "skill_events_version": 1,
+  "skill_events": [
+    {
+      "id": "prompt-skill-claude-code-team-core:feature-2026-11-18T10:05:23.114298464Z",
+      "event_type": "prompt_invocation",
+      "skill": {
+        "name": "team-core:feature"
+      },
+      "source": {
+        "agent": "claude-code",
+        "signal": "prompt_slash_command",
+        "confidence": "explicit"
+      },
+      "turn_id": "9a3bfc39fef5",
+      "timestamp": "2026-11-18T10:05:23.114298464Z",
+      "native": {
+        "command": "/team-core:feature"
+      },
+      "collapse": {
+        "target": "user_message",
+        "label": "/team-core:feature",
+        "default_collapsed": true
+      }
+    },
+    {
+      "id": "claude-skill-toolu_01EdPr4DBNWqUvcrtxqWCLgh",
+      "event_type": "tool_invocation",
+      "skill": {
+        "name": "team-core:resume-work"
+      },
+      "source": {
+        "agent": "claude-code",
+        "signal": "skill_tool_use",
+        "confidence": "explicit"
+      },
+      "turn_id": "cccebe5935e2",
+      "transcript_anchor": {
+        "unit": "line",
+        "start": 33,
+        "end": 34,
+        "entry_ids": [
+          "2becc4c0-2faf-4467-8a73-52993e69cf3e"
+        ],
+        "tool_use_id": "toolu_01EdPr4DBNWqUvcrtxqWCLgh"
+      },
+      "native": {
+        "tool_name": "Skill",
+        "tool_use_id": "toolu_01EdPr4DBNWqUvcrtxqWCLgh"
+      },
+      "collapse": {
+        "target": "tool_pair",
+        "label": "Skill: team-core:resume-work",
+        "default_collapsed": true
+      }
+    },
+    {
+      "id": "claude-skill-toolu_01CqGgXwEh3uUnESuR7CYXKw",
+      "event_type": "tool_invocation",
+      "skill": {
+        "name": "plane-integration:plane-conventions"
+      },
+      "source": {
+        "agent": "claude-code",
+        "signal": "skill_tool_use",
+        "confidence": "explicit"
+      },
+      "turn_id": "cccebe5935e2",
+      "transcript_anchor": {
+        "unit": "line",
+        "start": 38,
+        "end": 39,
+        "entry_ids": [
+          "d31725f1-ef45-4046-937c-052d4253065c"
+        ],
+        "tool_use_id": "toolu_01CqGgXwEh3uUnESuR7CYXKw"
+      },
+      "native": {
+        "tool_name": "Skill",
+        "tool_use_id": "toolu_01CqGgXwEh3uUnESuR7CYXKw"
+      },
+      "collapse": {
+        "target": "tool_pair",
+        "label": "Skill: plane-integration:plane-conventions",
+        "default_collapsed": true
+      }
+    }
+  ],
+  "session_metrics": {
+    "turn_count": 43
+  }
+}

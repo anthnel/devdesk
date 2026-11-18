@@ -1,0 +1,15 @@
+{
+  "tool_use_id": "toolu_01WkgKBvjVBNRzo7Y1i6ZLjp",
+  "agent_id": "a751008693177bc20",
+  "subagent_type": "dev-team:tester",
+  "task_description": "Vérification finale DEVDESK-511",
+  "token_usage": {
+    "input_tokens": 24,
+    "cache_creation_tokens": 178221,
+    "cache_read_tokens": 347590,
+    "output_tokens": 5624,
+    "api_call_count": 12
+  },
+  "started_at": "2026-11-18T13:37:13.753830284+01:00",
+  "completed_at": "2026-11-18T14:05:16.348421983+01:00"
+}

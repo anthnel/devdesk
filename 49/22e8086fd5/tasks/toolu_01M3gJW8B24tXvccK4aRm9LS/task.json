@@ -1,0 +1,15 @@
+{
+  "tool_use_id": "toolu_01M3gJW8B24tXvccK4aRm9LS",
+  "agent_id": "a72418c5d56dd4afc",
+  "subagent_type": "product-team:pm",
+  "task_description": "Ajouter critère 404 racine à DEVDESK-580",
+  "token_usage": {
+    "input_tokens": 12,
+    "cache_creation_tokens": 60116,
+    "cache_read_tokens": 232072,
+    "output_tokens": 8307,
+    "api_call_count": 6
+  },
+  "started_at": "2026-11-18T12:54:32.880519773+01:00",
+  "completed_at": "2026-11-18T12:55:20.84526763+01:00"
+}

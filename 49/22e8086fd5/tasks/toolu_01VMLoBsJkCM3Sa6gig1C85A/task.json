@@ -1,0 +1,15 @@
+{
+  "tool_use_id": "toolu_01VMLoBsJkCM3Sa6gig1C85A",
+  "agent_id": "a8b2ff801f83bfd60",
+  "subagent_type": "project-tester",
+  "task_description": "Rouge étape 1 NX-08.1",
+  "token_usage": {
+    "input_tokens": 26,
+    "cache_creation_tokens": 101406,
+    "cache_read_tokens": 714077,
+    "output_tokens": 30092,
+    "api_call_count": 12
+  },
+  "started_at": "2026-11-18T12:00:17.755449708+01:00",
+  "completed_at": "2026-11-18T12:03:37.695775302+01:00"
+}

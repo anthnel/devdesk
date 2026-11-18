@@ -1,0 +1,15 @@
+{
+  "tool_use_id": "toolu_018d9tyqZ32PXVPgJ5pcSGyW",
+  "agent_id": "a45691d3b26a8c358",
+  "subagent_type": "project-tester",
+  "task_description": "Marquer le test 404 racine en attente",
+  "token_usage": {
+    "input_tokens": 10,
+    "cache_creation_tokens": 43923,
+    "cache_read_tokens": 87109,
+    "output_tokens": 1530,
+    "api_call_count": 4
+  },
+  "started_at": "2026-11-18T12:51:57.193006463+01:00",
+  "completed_at": "2026-11-18T12:52:09.628170583+01:00"
+}
