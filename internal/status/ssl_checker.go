@@ -2,10 +2,12 @@ package status
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"time"
 
 	"github.com/anthnel/devdesk/internal/config"
+	"github.com/anthnel/devdesk/internal/netproxy"
 )
 
 // SSLChecker checks SSL/TLS certificates
@@ -37,12 +39,16 @@ func (s *SSLChecker) Check(ctx context.Context, component config.ComponentConfig
 
 	// Measure connection time
 	start := time.Now()
-	certs, err := FetchCertificateChain(component.Target, s.timeout)
+	certs, err := FetchCertificateChainContext(ctx, component.Target, s.timeout)
 	result.ResponseTime = time.Since(start)
 
 	if err != nil {
 		result.Status = StatusDown
 		result.Error = err.Error()
+		var proxyErr *netproxy.Error
+		if errors.As(err, &proxyErr) {
+			result.ErrorStage = StageProxy
+		}
 		return result
 	}
 	if len(certs) == 0 {

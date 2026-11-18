@@ -17,6 +17,8 @@ import (
 	"sync"
 	"syscall"
 	"time"
+
+	"github.com/anthnel/devdesk/internal/netproxy"
 )
 
 // This file holds what the layer blob download needs on top of Client: the
@@ -179,22 +181,24 @@ func resolveProxyHost(host string) ([]netip.Addr, error) {
 // blobTransport is http.DefaultTransport (proxy settings included) with
 // blobDialControl on its dialer.
 func blobTransport(allowLocal bool) *http.Transport {
-	return newBlobTransport(allowLocal, http.ProxyFromEnvironment)
+	return newBlobTransport(allowLocal, netproxy.FromEnvironment)
 }
 
 // newBlobTransport is blobTransport with the proxy selection given, which lets a
-// test choose the proxy: http.ProxyFromEnvironment reads the environment once
+// test choose the proxy: netproxy.FromEnvironment reads the environment once
 // per process.
-func newBlobTransport(allowLocal bool, proxyFor func(*http.Request) (*url.URL, error)) *http.Transport {
+func newBlobTransport(allowLocal bool, sel netproxy.Selector) *http.Transport {
 	proxies := newProxyAddrs()
-	tr := http.DefaultTransport.(*http.Transport).Clone()
-	tr.Proxy = func(req *http.Request) (*url.URL, error) {
-		proxy, err := proxyFor(req)
+	// The selector is wrapped to note every proxy it picks: dialControl lets
+	// through the address of those proxies and of no other loopback one.
+	wrapped := func(u *url.URL) (*url.URL, error) {
+		proxy, err := sel.ForRequest(&http.Request{URL: u})
 		if proxy != nil {
 			proxies.add(proxy)
 		}
 		return proxy, err
 	}
+	tr := netproxy.NewTransport(wrapped)
 	tr.DialContext = (&net.Dialer{
 		Timeout:   30 * time.Second,
 		KeepAlive: 30 * time.Second,

@@ -1368,6 +1368,121 @@ Four decisions, each with a test:
   run ever touched. `TestTheRouteStageReadsWhatTheResolveStageWrote` pins the
   coupling, which is otherwise the kind that breaks in silence.
 
+## The proxy entry point — `internal/netproxy` (DEVDESK-581)
+
+### Why it exists
+
+The HTTPS monitor followed `HTTPS_PROXY` and `NO_PROXY` while the SSL monitor
+dialed the target directly with `tls.DialWithDialer`: behind a corporate proxy
+the HTTP check was green and the SSL check red for the same host. The fix is not
+a patch on the SSL check but one place that decides the path of a connection, and
+a test that keeps the rest of the module from deciding it elsewhere.
+
+### The entry point
+
+- `netproxy.Selector` (`func(*url.URL) (*url.URL, error)`) says which proxy
+  carries a connection to a URL; `nil, nil` is direct. A nil `Selector` behaves
+  like `FromEnvironment`. `Selector.ForRequest` adapts it to
+  `http.Transport.Proxy`.
+- `netproxy.FromEnvironment` is `http.ProxyFromEnvironment` on the URL: the same
+  function, and so the same cache, as the HTTPS monitor.
+- `netproxy.NewTransport(sel)` is `http.DefaultTransport.Clone()` with `Proxy`
+  set from `sel`. It is the only way to build a transport that needs a custom
+  selection (`oci.newBlobTransport` wraps its selector to learn which proxy
+  addresses it may dial).
+- `netproxy.Dialer.DialTLS(ctx, hostport, cfg)` opens a TLS connection the way
+  an https request to `hostport` would travel: direct, or by `CONNECT` through
+  an `http://` or `https://` proxy (Basic credentials from the proxy URL), then
+  the handshake with `cfg`. One deadline, the context's, covers proxy dial,
+  `CONNECT` and handshake. The zero `Dialer` follows the environment; its
+  fields (`Proxy`, `DialContext`, `ProxyTLSConfig`) are what tests swap.
+- A failure of the proxy step is a `*netproxy.Error` with a `Step`:
+  `StepSelect` (invalid proxy setting), `StepScheme` (socks5), `StepDial`,
+  `StepProxyTLS`, `StepConnect` (refused, unreadable or unanswered), plus the
+  proxy's `host:port` (never the userinfo) and the `CONNECT` status code. Its
+  text is built from the step and the code, never from the proxy's own words. A
+  failure of the target itself (handshake, certificate) comes back as it would
+  without a proxy.
+
+### The SSL monitor
+
+`status.FetchCertificateChainContext` goes through `Dialer.DialTLS`
+(`certDialer`, swapped by tests), so the SSL check, the certificate viewer and
+the HTTPS monitor take the same path. When the failure is a `*netproxy.Error`,
+`SSLChecker.Check` sets `ComponentStatus.ErrorStage = status.StageProxy` next to
+`Error`; the field is internal (the MCP output only changes by the text of
+`error`). On the Certificates tab the selected DOWN row's `Error` is shown in the
+footer at level Error (`Model.certificateFailure`, derived on every render, no
+timer, Rule 128), so a refused `CONNECT` is readable instead of cut off in a
+column. The Monitors tab is unchanged. A timed message and the form's validation
+status keep priority over it.
+
+### The guard — `internal/netproxy/guard_test.go`
+
+`TestNoHTTPClientBypassesTheProxyEntryPoint` parses every production `.go` file
+of the module (go/ast, no type information; test files, `.worktrees`, `.git`,
+`vendor`, `testdata`, `docs-site`, `node_modules` and `internal/netproxy` itself
+are skipped) and fails on a place that leaves the entry point. The local name of
+`net/http` and `crypto/tls` is resolved, aliases included.
+
+| Rule | Reported |
+|---|---|
+| R1 | an `http.Transport` built by hand: literal, `&literal`, `new(http.Transport)` or `var x http.Transport` |
+| R2 | any reference to `http.DefaultTransport` (cloning it keeps its `Proxy` and invites the next line to replace it) |
+| R3 | an assignment to a `.Proxy` field, or a `Proxy:` key in a composite literal, in a file that imports `net/http` |
+| R4 | a raw TLS dial: `tls.Dial`, `tls.DialWithDialer`, `tls.Client`, `tls.Dialer{}`, `&tls.Dialer{}`, `new(tls.Dialer)` or `var d tls.Dialer` |
+| dot-import | a `. "net/http"` or `. "crypto/tls"` import, which hides every selector above; it cannot be excepted |
+
+A client with no `Transport` is compliant: it uses `http.DefaultTransport` and so
+the proxy environment. Reports read `file:line: rule (enclosing func)`.
+
+Known exceptions live in `proxyExceptions`, matched by file, enclosing function
+and rule, never by line.
+`TestEveryProxyExceptionStillMatches` fails on a stale entry, and
+`TestNetworkDocListsEveryProxyException` fails when this section does not name
+the file and the function of an entry.
+
+| File | Func | Rules | Reason | Until |
+|---|---|---|---|---|
+| `internal/nexusbench/nexusapi.go` | `newClient` | R2, R3 | the bench is reached directly (`Proxy = nil`): a proxy would receive the bench credentials | permanent |
+| `internal/nexusbench/probe.go` | `NewProber` | R2, R3 | the probe goes without a proxy, like the bench client | permanent |
+| `internal/netcheck/env.go` | `systemEnv.Head` | R1 | the HEAD of the Diagnostics view still builds its own transport | DEVDESK-581 story 2/3 |
+| `internal/netcheck/env.go` | `systemEnv.Handshake` | R4 | the TLS step of the Diagnostics view still dials by itself | DEVDESK-581 story 2/3 |
+| `internal/forward/proxy.go` | `routeTransport` | R1 | a named route stays direct, like the TCP forwards to the same target (decision Q1) | permanent |
+
+Adding an exception means adding it to `proxyExceptions` and to this table in
+the same commit, with a reason and an end.
+
+### What the guard does not see
+
+- Clients built inside third-party dependencies: the GitLab client-go, go-github
+  and the Docker SDK build their own transports. They are not covered.
+- A composite literal whose type is elided (`[]http.Transport{{...}}`), a local
+  variable that shadows `http` or `tls`, reflection, and a wrapper type that
+  hides the transport.
+- An `http.Transport` held by value and not built from a literal: a struct
+  field, or a parameter or result typed `http.Transport`. The guard inspects
+  literals, `new`, `var` and `.Proxy` assignments only.
+- Raw `net.Dial*` calls are out of scope: TCP forwards, DNS, the UDP of
+  `nettrace` and netcheck's `DialTCP` are not HTTP paths.
+
+### Go behaviors to keep in mind
+
+- `localhost` and loopback addresses are never proxied by
+  `http.ProxyFromEnvironment`, whatever the variables say; `*.localhost` names
+  are proxied.
+- `NO_PROXY=example.com` also covers its subdomains; `.example.com` covers the
+  subdomains only.
+- The environment is read once per process (`http.ProxyFromEnvironment`
+  caches it), so `t.Setenv` has no effect after the first call. A test that
+  needs a given environment runs the code in a subprocess, or injects a
+  `Selector`.
+- socks5 proxies: the HTTPS monitor accepts them (`net/http` does), the SSL
+  check refuses them with `StepScheme` and no new dependency. The gap is
+  deliberate and known.
+- A proxy that limits `CONNECT` to port 443 answers 403 for another port (LDAPS,
+  SMTPS); the footer now says so.
+
 ## The path trace — `internal/nettrace`
 
 The hop-by-hop path to an IPv4 target (DEVDESK-327, S-03a). It came back after

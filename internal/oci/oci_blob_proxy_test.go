@@ -12,21 +12,23 @@ import (
 	"sync"
 	"sync/atomic"
 	"testing"
+
+	"github.com/anthnel/devdesk/internal/netproxy"
 )
 
 // DEVDESK-412 step 4: a local proxy (cntlm, a corporate proxy on 127.0.0.1) is
 // the user's own configuration, so the blob transport's dial control lets
 // through the address of the proxy it was told to use for a request, and still
 // refuses every other loopback or link-local address. The proxy is injected
-// through newBlobTransport: http.ProxyFromEnvironment reads the environment once
+// through newBlobTransport: netproxy.FromEnvironment reads the environment once
 // per process, so t.Setenv cannot steer it.
 
-func fixedProxy(raw string) func(*http.Request) (*url.URL, error) {
+func fixedProxy(raw string) netproxy.Selector {
 	u, err := url.Parse(raw)
-	return func(*http.Request) (*url.URL, error) { return u, err }
+	return func(*url.URL) (*url.URL, error) { return u, err }
 }
 
-func noProxy(*http.Request) (*url.URL, error) { return nil, nil }
+func noProxy(*url.URL) (*url.URL, error) { return nil, nil }
 
 // listenLoopback opens a listener that stays open for the whole test, so a
 // refusal can only come from the client and never from a closed port.
@@ -155,7 +157,7 @@ func TestBlobDownloadThroughLocalProxy(t *testing.T) {
 	c := NewClient("http://registry.test:5000", clientTestUser, clientTestPass)
 	proxyFor := fixedProxy(proxy.URL)
 	plain := http.DefaultTransport.(*http.Transport).Clone()
-	plain.Proxy = proxyFor
+	plain.Proxy = proxyFor.ForRequest
 	c.httpClient.Transport = plain
 	c.blobClient.Transport = newBlobTransport(false, proxyFor)
 
