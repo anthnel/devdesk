@@ -541,6 +541,11 @@ opened its tags.
 `Focus` and `Blur` carry the styles with them (Rule 118), so a tab switch does
 not touch `SetStyles`.
 
+On the Certificates tab, the failure of the selected DOWN certificate is a `Status`
+at level Error derived on every render (`Model.certificateFailure`), with no
+timer: it follows the cursor and yields to a timed message and to the form's
+validation status.
+
 
 ### The activity indicator column (DEVDESK-137)
 

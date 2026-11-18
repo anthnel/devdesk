@@ -122,7 +122,25 @@ func (m Model) status() sharedcomponents.Status {
 	if m.checking || m.firstCheck {
 		return sharedcomponents.Status{Text: "Checking components...", Activity: !m.quietCheck}
 	}
-	return sharedcomponents.Status{}
+	return m.certificateFailure()
+}
+
+// certificateFailure carries the selected certificate's failure (proxy, x509,
+// dial) at level Error, derived from the selection on every render so it
+// follows the cursor and has no timer (Rule 128). Only a DOWN row counts: the
+// expiry states stay carried by the columns. The Monitors tab is unchanged.
+func (m Model) certificateFailure() sharedcomponents.Status {
+	if m.activeTab != TabCertificates {
+		return sharedcomponents.Status{}
+	}
+	sel, ok := m.sslTable.Selected()
+	if !ok || sel.Status != status.StatusDown || sel.Error == "" {
+		return sharedcomponents.Status{}
+	}
+	return sharedcomponents.Status{
+		Text:  sel.Name + " " + theme.IconChevronRight + " " + sel.Error,
+		Level: sharedcomponents.LevelError,
+	}
 }
 
 // renderTabs renders the tab bar for monitors/certificates
