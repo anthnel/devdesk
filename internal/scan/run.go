@@ -110,7 +110,10 @@ func (cliRunner) Run(ctx context.Context, tc toolCmd, progressFn func(string)) (
 
 	// Stderr is consumed two ways: streamed to progressFn while the tool runs,
 	// and kept so a failure can be reported with the tool's own diagnostic.
+	// What is kept stays raw: waitErr redacts it, on both paths. What is
+	// streamed is redacted line by line, since it leaves before the tool exits.
 	var stderr bytes.Buffer
+	redact := proxyForward().Redactor()
 	if progressFn != nil {
 		pipe, err := cmd.StderrPipe()
 		if err == nil {
@@ -125,7 +128,7 @@ func (cliRunner) Run(ctx context.Context, tc toolCmd, progressFn func(string)) (
 					}
 					stderr.WriteString(line)
 					stderr.WriteByte('\n')
-					progressFn(line)
+					progressFn(redact(line))
 				}
 				// A read failure on the progress pipe is not a scan failure:
 				// the report comes back on stdout, and the tool's exit code
@@ -162,7 +165,9 @@ func finish(name string, cmd *exec.Cmd, stdout, stderr *bytes.Buffer) ([]byte, e
 }
 
 // waitErr turns a non-zero exit into an *exitError carrying the code, and
-// leaves anything else (a killed process, a broken pipe) as it is.
+// leaves anything else (a killed process, a broken pipe) as it is. The tool's
+// diagnostic, from the buffer or from os/exec's ExitError.Stderr, is stripped of
+// the proxy credentials first (DEVDESK-583).
 func waitErr(name string, err error, stderr string) error {
 	if err == nil {
 		return nil
@@ -172,7 +177,7 @@ func waitErr(name string, err error, stderr string) error {
 		if stderr == "" {
 			stderr = string(exitErr.Stderr)
 		}
-		return &exitError{Code: exitErr.ExitCode(), Stderr: stderr}
+		return &exitError{Code: exitErr.ExitCode(), Stderr: proxyForward().Redact(stderr)}
 	}
 	return fmt.Errorf("%s failed: %w", name, err)
 }

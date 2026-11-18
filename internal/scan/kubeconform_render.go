@@ -15,7 +15,6 @@ import (
 
 	"gopkg.in/yaml.v3"
 
-	"github.com/anthnel/devdesk/internal/engine"
 	"github.com/anthnel/devdesk/internal/k8s"
 )
 
@@ -65,8 +64,11 @@ func renderer(target string, tool ToolSpec, defaultImage, binary string, args ..
 		}
 		return toolCmd{Name: name, Args: args, Dir: target}
 	}
-	run := []string{"run", "--rm", "-v", target + ":" + containerScanPath + ":ro", "-w", containerScanPath, orDefault(tool.Image, defaultImage)}
-	return toolCmd{Name: engine.Current().Binary, Args: append(run, args...)}
+	return containerRun{
+		Flags: []string{"-v", target + ":" + containerScanPath + ":ro", "-w", containerScanPath},
+		Image: orDefault(tool.Image, defaultImage),
+		Argv:  args,
+	}.cmd()
 }
 
 func orDefault(v, def string) string {
@@ -91,13 +93,13 @@ func kubeconformStdinArgs(rendered []byte, tool ToolSpec, opts KubeconformOption
 	if tool.Source != ToolSourceContainer {
 		return toolCmd{Name: kubeconformBinary(tool), Args: append(flags, "-"), Stdin: rendered}
 	}
-	args := []string{"run", "--rm", "-i"}
+	engineArgs := []string{"-i"}
 	if opts.CacheDir != "" {
-		args = append(args, "-v", opts.CacheDir+":"+kubeconformCacheMount)
+		engineArgs = append(engineArgs, "-v", opts.CacheDir+":"+kubeconformCacheMount)
 	}
-	args = append(args, kubeconformImage(tool.Image))
-	args = append(args, flags...)
-	return toolCmd{Name: engine.Current().Binary, Args: append(args, "-"), Stdin: rendered}
+	return containerRun{
+		Flags: engineArgs, Image: kubeconformImage(tool.Image), Argv: append(flags, "-"), Stdin: rendered,
+	}.cmd()
 }
 
 // k8sValidation is one schema stage over one repository: the tools it has,

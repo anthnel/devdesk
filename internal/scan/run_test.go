@@ -13,6 +13,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/anthnel/devdesk/internal/netproxy"
 	"github.com/anthnel/devdesk/internal/trust"
 )
 
@@ -39,6 +40,9 @@ func TestMain(m *testing.M) {
 	// Scan logs the command of every stage it starts, which is useful in the
 	// application and pure noise across a suite that runs hundreds of them.
 	log.SetOutput(io.Discard)
+	// A developer's HTTPS_PROXY must not reach the exact-argv tests: no proxy is
+	// forwarded unless a test installs one (DEVDESK-583).
+	proxyForward = func() netproxy.Forward { return netproxy.Forward{} }
 	// No registry and no cosign from a scan test (§3.82): every base image is
 	// unresolved, which under no rule warns and records nothing. The tests of
 	// the stage install their own.
@@ -220,7 +224,7 @@ func TestWaitErrLeavesAFailureThatIsNotAnExitAlone(t *testing.T) {
 
 // A caller that let os/exec capture the output — rather than streaming it —
 // gets the diagnostic hung on the exit error instead, and that is where it has
-// to be read from. This is the path CheckDependencies takes with Output().
+// to be read from. This is the path the tool probes of Detect (toolbox.go) take with Output().
 func TestTheDiagnosticIsTakenFromTheExitErrorWhenNothingWasCaptured(t *testing.T) {
 	tc := asScanner(t, "", "FATAL could not read config", 2)
 

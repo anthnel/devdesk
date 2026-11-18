@@ -48,6 +48,12 @@ The cache is keyed by repository/image, not by commit — a scan result stays va
 
 Deleted repositories and images drop out of the Security view and the dashboard's counts automatically; a cached result for something that no longer exists is never shown as current.
 
+## Scan behind a proxy
+
+Scanner containers receive your `HTTP_PROXY`, `HTTPS_PROXY` and `NO_PROXY`. A
+proxy on `127.0.0.1` cannot be reached from a container, and the footer warns you.
+See [Work behind a proxy](work-behind-a-proxy.md#scanner-containers).
+
 ## Configure which checks run
 
 ```yaml

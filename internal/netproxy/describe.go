@@ -59,14 +59,7 @@ func describe(u *url.URL, getenv func(string) string, sel Selector) Decision {
 	default:
 		return Decision{}
 	}
-	// The first non-empty name wins, like Go's getEnvAny.
-	name, value := "", ""
-	for _, n := range names {
-		if v := getenv(n); v != "" {
-			name, value = n, v
-			break
-		}
-	}
+	name, value := firstNonEmpty(names, getenv)
 	if name == "" {
 		return Decision{}
 	}
@@ -89,6 +82,18 @@ func describe(u *url.URL, getenv func(string) string, sel Selector) Decision {
 	return Decision{Kind: DecisionExcluded, Variable: name}
 }
 
+// firstNonEmpty returns the first of names whose value is not empty, with that
+// value, like Go's getEnvAny: upper case first, an empty value is not defined.
+// It returns two empty strings when none is set.
+func firstNonEmpty(names [2]string, getenv func(string) string) (name, value string) {
+	for _, n := range names {
+		if v := getenv(n); v != "" {
+			return n, v
+		}
+	}
+	return "", ""
+}
+
 // explicitScheme matches a value that starts with a URL scheme, as opposed to
 // one that only has "://" somewhere in its path or query.
 var explicitScheme = regexp.MustCompile(`^[A-Za-z][A-Za-z0-9+.-]*://`)
@@ -103,26 +108,33 @@ var explicitScheme = regexp.MustCompile(`^[A-Za-z][A-Za-z0-9+.-]*://`)
 //     before it became the host;
 //   - the host must be printable UTF-8, since it ends up on screen.
 func usableProxyValue(value string) bool {
+	_, ok := parseProxyValue(value)
+	return ok
+}
+
+// parseProxyValue is the parsing behind usableProxyValue: it returns the URL
+// the value stands for, and false when the value is not usable.
+func parseProxyValue(value string) (*url.URL, bool) {
 	explicit := explicitScheme.MatchString(value)
 	u, err := url.Parse(value)
 	switch {
 	case err != nil && explicit:
-		return false
+		return nil, false
 	case err == nil && u.Scheme != "" && u.Host != "":
 		// Parsed as written.
 	case err == nil && explicit:
 		// An explicit scheme with no host, such as "http://".
-		return false
+		return nil, false
 	default:
 		u, err = url.Parse("http://" + value)
 		if err != nil {
-			return false
+			return nil, false
 		}
 	}
 	if u.Host == "" || (u.User == nil && strings.Contains(value, "@")) {
-		return false
+		return nil, false
 	}
-	return isPrintable(u.Host)
+	return u, isPrintable(u.Host)
 }
 
 // isPrintable reports whether s is valid UTF-8 made of printable runes only.

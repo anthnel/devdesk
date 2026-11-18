@@ -8,8 +8,6 @@ import (
 	"os"
 	"runtime"
 	"strings"
-
-	"github.com/anthnel/devdesk/internal/engine"
 )
 
 // GitleaksFinding represents a single finding from Gitleaks
@@ -83,22 +81,19 @@ func gitleaksArgs(target string, tool ToolSpec, history bool, configPath string,
 
 	if docker {
 		image := gitleaksImage(tool.Image)
-		args := []string{
-			"run", "--rm",
-			"-v", target + ":" + containerScanPath + ":ro",
-		}
+		flags := []string{"-v", target + ":" + containerScanPath + ":ro"}
 		// Before the image name: everything after it is gitleaks' own argv.
 		if configPath != "" {
-			args = append(args, "-v", configPath+":"+gitleaksConfigMount+":ro")
+			flags = append(flags, "-v", configPath+":"+gitleaksConfigMount+":ro")
 		}
-		args = append(append(args, image, "detect"), tool.Args...)
+		args := append([]string{"detect"}, tool.Args...)
 		args = append(args,
 			"--source", containerScanPath,
 			"--gitleaks-ignore-path", containerScanPath,
 			"--report-format", "json",
 			"--report-path", "/dev/fd/1",
 		)
-		return toolCmd{Name: engine.Current().Binary, Args: appendOptions(args)}
+		return containerRun{Flags: flags, Image: image, Argv: appendOptions(args)}.cmd()
 	}
 
 	reportPath := "/dev/stdout"

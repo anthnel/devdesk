@@ -4,8 +4,6 @@ import (
 	"fmt"
 	"net/url"
 	"strings"
-
-	"github.com/anthnel/devdesk/internal/engine"
 )
 
 // Building a Trivy invocation is pure: the same inputs produce the command that
@@ -227,7 +225,7 @@ func wrapTrivy(args []string, target string, targetType TargetType, tool ToolSpe
 		return toolCmd{Name: trivyBinary(tool), Args: append(args, target)}
 	}
 
-	engineArgs := []string{"run", "--rm"}
+	var engineArgs []string
 	if tool.Config != "" {
 		engineArgs = append(engineArgs, "-v", tool.Config+":"+trivyConfigMount+":ro")
 	}
@@ -242,8 +240,7 @@ func wrapTrivy(args []string, target string, targetType TargetType, tool ToolSpe
 		}
 		args = append(args, target)
 	}
-	engineArgs = append(engineArgs, trivyImage(tool.Image))
-	return toolCmd{Name: engine.Current().Binary, Args: append(engineArgs, args...)}
+	return containerRun{Flags: engineArgs, Image: trivyImage(tool.Image), Argv: args}.cmd()
 }
 
 // trivyBinary is what to exec for a binary-source scan: the resolved path when

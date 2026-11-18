@@ -29,6 +29,13 @@ The choice to fail loudly in `binary` mode is deliberate: silently falling
 back to Docker is exactly what would make a misconfigured path invisible —
 the scan keeps "working," just with a different tool than the one requested.
 
+## Behind a proxy
+
+A scanner that runs from an image receives your proxy variables, and DevDesk
+warns in the footer when the proxy is on this machine's loopback, which the
+container cannot reach. A custom `tool.Image` receives them too. See
+[Work behind a proxy](../how-to/work-behind-a-proxy.md#scanner-containers).
+
 ## Orchestration
 
 `internal/scan/` runs Trivy and Gitleaks concurrently and streams progress:

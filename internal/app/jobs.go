@@ -5,7 +5,15 @@ import (
 
 	"github.com/anthnel/devdesk/internal/command"
 	"github.com/anthnel/devdesk/internal/jobs"
+	"github.com/anthnel/devdesk/internal/netproxy"
+	"github.com/anthnel/devdesk/internal/scan"
+	"github.com/anthnel/devdesk/internal/ui/components"
 )
+
+// containerForward is the proxy environment of this process. A variable so a
+// test can set it (TestMain empties it, so a developer's own HTTPS_PROXY never
+// reaches one).
+var containerForward = netproxy.ContainerForward
 
 // changedMsg is the snapshot the router broadcasts.
 func (a *App) changedMsg() jobs.ChangedMsg {
@@ -46,7 +54,34 @@ func (a *App) handleStartJobs(msg jobs.StartMsg) (tea.Model, tea.Cmd) {
 	if msg.Work != nil {
 		cmds = append(cmds, msg.Work(run.Context))
 	}
+	if warn := a.containerProxyWarning(run.Kind); warn != nil {
+		cmds = append(cmds, warn)
+	}
 	return a, tea.Batch(cmds...)
+}
+
+// containerProxyWarning is the footer Warning for a run about to start a scanner
+// container while the proxy variables name this machine's loopback, which the
+// container cannot reach (DEVDESK-583). Nil when there is nothing to say. It is
+// computed in Update from the detection already held, with no I/O (Rule 110),
+// and spoken through the footer (Rule 128). Every launch warns again.
+func (a *App) containerProxyWarning(kind jobs.Kind) tea.Cmd {
+	var ids []scan.ToolID
+	switch {
+	case kind == jobs.KindScan:
+		ids = scan.Required(a.config.Scan.Categories)
+	case kind == jobs.KindPull && a.config.Scan.VerifiesImages():
+		// A verified pull runs cosign (hypothesis H3 of the plan).
+		ids = []scan.ToolID{scan.ToolCosign}
+	default:
+		return nil
+	}
+	containerised := scan.RunsInContainer(a.sharedState.Tools, a.config.Scan.Tools, ids)
+	text := scan.ContainerProxyWarning(containerForward(), containerised)
+	if text == "" {
+		return nil
+	}
+	return components.PostFooter(components.LevelWarning, text)
 }
 
 // routeWork applies a progress message to the registry and hands it to the view

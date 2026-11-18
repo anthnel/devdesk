@@ -904,6 +904,31 @@ production wiring (policy, cached cosign, the registry through the engine's
 credentials); `imagepull.Default` builds on it, and `trust.Check` is the one
 sequence, shared by the pull, the Remediation tab and this stage.
 
+### Behind a proxy (DEVDESK-583)
+
+A scanner that runs from an image receives the proxy variables of DevDesk's
+process, forwarded by `containerRun.cmd` (`-e NAME` in argv, values in the child
+environment). `network.md` ("Container scanners and the proxy") has the mechanism,
+the loopback warning and the guard. What matters for scanning:
+
+- **An image the user chose is trusted with the proxy.** `tool.Image` is
+  configurable, and whatever image runs receives the proxy URL and its
+  credentials, like any `docker run -e`. Point `tool.Image` only at images you
+  trust.
+- **Stderr redaction has limits.** `cliRunner.Run` and `waitErr` strip the proxy
+  credentials from what a tool writes on stderr (streamed lines and the stored
+  diagnostic). It does not remove:
+  - a secret shorter than 4 bytes, except in the full value and in
+    `user:password@` (a bare user name shorter than 4 bytes stays);
+  - a secret split over two lines (redaction works line by line when streamed);
+  - a token the tool prints in a query string it built itself;
+  - a `Proxy-Authorization` header the tool prints encoded (base64).
+- **The plumber token is outside this change.** plumber's `GITLAB_TOKEN` is still
+  passed as `-e GITLAB_TOKEN=<value>` and so is in argv. This predates DEVDESK-583
+  and is not part of it.
+- A loopback proxy cannot be reached from the container: DevDesk warns in the
+  footer and forwards it unchanged.
+
 ## The security inventory
 
 `:sec` opens on **everything the current context has scanned**, read from

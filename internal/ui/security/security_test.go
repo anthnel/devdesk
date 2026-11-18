@@ -13,6 +13,7 @@ import (
 	"github.com/anthnel/devdesk/internal/config"
 	"github.com/anthnel/devdesk/internal/imagepull"
 	"github.com/anthnel/devdesk/internal/imageupdate"
+	"github.com/anthnel/devdesk/internal/netproxy"
 	"github.com/anthnel/devdesk/internal/scan"
 	sharedcomponents "github.com/anthnel/devdesk/internal/ui/components"
 	"github.com/anthnel/devdesk/internal/ui/keymap"
@@ -38,6 +39,9 @@ func TestMain(m *testing.M) {
 	checkImageUpdates = func([]string) map[string]imageupdate.Facts { return nil }
 	// Nor cosign, through the Remediation tab's signature checks (§3.82).
 	newPullDeps = func(*config.Config, *scan.Report) imagepull.Deps { return imagepull.Deps{} }
+	// Nor the developer's own HTTPS_PROXY, which would add a footer warning to
+	// every remediation scan (DEVDESK-583).
+	containerForward = func() netproxy.Forward { return netproxy.Forward{} }
 
 	home, err := os.MkdirTemp("", "devdesk-security-test")
 	if err != nil {

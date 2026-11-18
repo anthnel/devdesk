@@ -5,8 +5,6 @@ import (
 	"errors"
 	"fmt"
 	"os"
-
-	"github.com/anthnel/devdesk/internal/engine"
 )
 
 // plumber reads a repository's CI configuration — GitHub workflows, .gitlab-ci
@@ -102,15 +100,15 @@ func plumberArgs(target string, tool ToolSpec, opts PlumberOptions, outPath stri
 	}
 
 	if docker {
-		args := []string{"run", "--rm", "-v", target + ":" + containerScanPath + ":ro"}
+		flags := []string{"-v", target + ":" + containerScanPath + ":ro"}
 		if opts.ConfigPath != "" {
 			// Before the image name: everything after it is plumber's own argv.
-			args = append(args, "-v", opts.ConfigPath+":"+plumberConfigMount+":ro")
+			flags = append(flags, "-v", opts.ConfigPath+":"+plumberConfigMount+":ro")
 		}
-		args = append(args, plumberSafeDirectory...)
-		args = append(args, plumberTokenEnv(opts)...)
-		args = append(args, "-w", containerScanPath, plumberImage(tool.Image))
-		return toolCmd{Name: engine.Current().Binary, Args: append(args, options...)}
+		flags = append(flags, plumberSafeDirectory...)
+		flags = append(flags, plumberTokenEnv(opts)...)
+		flags = append(flags, "-w", containerScanPath)
+		return containerRun{Flags: flags, Image: plumberImage(tool.Image), Argv: options}.cmd()
 	}
 
 	// Dir, not an argument: `analyze` works on the current directory and takes

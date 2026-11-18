@@ -12,7 +12,6 @@ import (
 	"sync"
 
 	"github.com/anthnel/devdesk/internal/config"
-	"github.com/anthnel/devdesk/internal/engine"
 	"github.com/anthnel/devdesk/internal/k8s"
 )
 
@@ -79,14 +78,13 @@ func kubeconformArgs(target string, files []string, tool ToolSpec, opts Kubeconf
 		return toolCmd{Name: kubeconformBinary(tool), Args: args, Dir: target}
 	}
 
-	args := []string{"run", "--rm", "-v", target + ":" + containerScanPath + ":ro"}
+	engineArgs := []string{"-v", target + ":" + containerScanPath + ":ro"}
 	if opts.CacheDir != "" {
-		args = append(args, "-v", opts.CacheDir+":"+kubeconformCacheMount)
+		engineArgs = append(engineArgs, "-v", opts.CacheDir+":"+kubeconformCacheMount)
 	}
-	args = append(args, "-w", containerScanPath, kubeconformImage(tool.Image))
-	args = append(args, flags...)
+	engineArgs = append(engineArgs, "-w", containerScanPath)
 	// Inside the container the paths are Linux ones, whatever the host is.
-	return toolCmd{Name: engine.Current().Binary, Args: append(args, files...)}
+	return containerRun{Flags: engineArgs, Image: kubeconformImage(tool.Image), Argv: append(flags, files...)}.cmd()
 }
 
 // kubeconformFlags are the options every validation run shares, raw files or
