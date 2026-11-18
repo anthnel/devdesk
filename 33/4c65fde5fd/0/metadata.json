@@ -1,0 +1,263 @@
+{
+  "cli_version": "0.13.2",
+  "checkpoint_id": "334c65fde5fd",
+  "session_id": "0c4ba15e-aa11-4358-9e3c-29a43c657952",
+  "strategy": "manual-commit",
+  "created_at": "2026-11-18T16:35:25.361994771Z",
+  "branch": "main",
+  "checkpoints_count": 7,
+  "save_step_count": 1,
+  "files_touched": [
+    "docs-site/docs/explanation/registries.md",
+    "docs-site/docs/how-to/create-a-repo-from-a-template.md",
+    "docs/architecture/network.md",
+    "docs/architecture/nexus-bench.md",
+    "docs/architecture/registries.md",
+    "docs/architecture/templates.md",
+    "docs/backlog.md",
+    "docs/product/agent-usage-prices/stories.md",
+    "docs/product/dagger-ci-release/brief.md",
+    "docs/product/dagger-ci-release/research.md",
+    "docs/product/dagger-ci-release/stories.md",
+    "docs/product/image-search/brief.md",
+    "docs/product/image-search/feasibility.md",
+    "docs/product/image-search/research.md",
+    "docs/product/image-search/stories.md",
+    "docs/product/network-map/brief.local.md",
+    "docs/product/network-map/feasibility.local.md",
+    "docs/product/network-map/research.md",
+    "docs/product/network-map/stories.md",
+    "docs/product/nexus-support/stories.md",
+    "docs/ux/bubbletea-v2-improvements.md",
+    "docs/ux/command-suggestions.md",
+    "docs/ux/context-switch.md",
+    "docs/ux/footer-activity-indicator.md",
+    "internal/nexusbench/bench_integration_test.go",
+    "internal/nexusbench/cmd/nexus-bench/commands.go",
+    "internal/nexusbench/cmd/nexus-bench/flags.go",
+    "internal/nexusbench/cmd/nexus-bench/main.go",
+    "internal/nexusbench/cmd/nexus-bench/main_test.go",
+    "internal/nexusbench/cmd/nexus-bench/status.go",
+    "internal/nexusbench/cmd/nexus-bench/usage.go",
+    "internal/nexusbench/deploy.go",
+    "internal/nexusbench/descriptor.go",
+    "internal/nexusbench/descriptor.json",
+    "internal/nexusbench/descriptor_hosts_test.go",
+    "internal/nexusbench/descriptor_test.go",
+    "internal/nexusbench/errors.go",
+    "internal/nexusbench/errors_test.go",
+    "internal/nexusbench/fakenexus_test.go",
+    "internal/nexusbench/guard_test.go",
+    "internal/nexusbench/kubectl.go",
+    "internal/nexusbench/kubectl_test.go",
+    "internal/nexusbench/mise_tasks_test.go",
+    "internal/nexusbench/nexusapi.go",
+    "internal/nexusbench/params.go",
+    "internal/nexusbench/params_test.go",
+    "internal/nexusbench/preflight.go",
+    "internal/nexusbench/preflight_test.go",
+    "internal/nexusbench/provision.go",
+    "internal/nexusbench/provision_ssrf_test.go",
+    "internal/nexusbench/provision_upstream_test.go",
+    "internal/nexusbench/render.go",
+    "internal/nexusbench/render_test.go",
+    "internal/nexusbench/rest_url_test.go",
+    "internal/nexusbench/testdata/descriptor.example.json",
+    "internal/nexusbench/testdata/render-default.golden.yaml",
+    "internal/oci/catalog.go",
+    "internal/oci/guard.go",
+    "internal/oci/guard_test.go",
+    "internal/oci/oci.go",
+    "internal/oci/oci_blob_redirect_test.go",
+    "internal/oci/oci_client_origin_test.go",
+    "internal/oci/registry.go",
+    "internal/oci/registry_context_test.go",
+    "internal/oci/registry_origin_redirect_test.go",
+    "internal/oci/registry_realm_test.go",
+    "internal/registrymgr/nexus.go",
+    "internal/template/fetch.go",
+    "internal/template/fetch_test.go",
+    "internal/ui/oci_resources/browser_bridge.go",
+    "internal/ui/oci_resources/commands.go",
+    "internal/ui/oci_resources/registries.go",
+    "mise.toml"
+  ],
+  "agent": "Claude Code",
+  "model": "claude-sonnet-5-5",
+  "turn_id": "89dc419a4b94",
+  "compact_transcript_start": 0,
+  "token_usage": {
+    "input_tokens": 63,
+    "cache_creation_tokens": 167302,
+    "cache_read_tokens": 2879945,
+    "output_tokens": 12545,
+    "api_call_count": 23,
+    "subagent_tokens": {
+      "input_tokens": 54,
+      "cache_creation_tokens": 297707,
+      "cache_read_tokens": 1240207,
+      "output_tokens": 18264,
+      "api_call_count": 27
+    },
+    "subagent_tokens_complete": true
+  },
+  "session_token_usage": {
+    "input_tokens": 455,
+    "cache_creation_tokens": 826449,
+    "cache_read_tokens": 45085173,
+    "output_tokens": 146873,
+    "api_call_count": 168,
+    "subagent_tokens": {
+      "input_tokens": 1032,
+      "cache_creation_tokens": 3976089,
+      "cache_read_tokens": 50450273,
+      "output_tokens": 567134,
+      "api_call_count": 476
+    },
+    "subagent_tokens_complete": true
+  },
+  "redaction": {
+    "replacements": 122,
+    "layers": {
+      "betterleaks": 76,
+      "connection_string": 0,
+      "credential_key": 0,
+      "credential_value": 0,
+      "credentialed_uri": 87,
+      "entropy": 44,
+      "key_context": 15,
+      "provider_token": 0,
+      "shell_stdin": 0
+    }
+  },
+  "skill_events_version": 1,
+  "skill_events": [
+    {
+      "id": "claude-skill-toolu_01Cnc8NAKfPaJoKsiudRU6xZ",
+      "event_type": "tool_invocation",
+      "skill": {
+        "name": "plane-integration:plane-conventions"
+      },
+      "source": {
+        "agent": "claude-code",
+        "signal": "skill_tool_use",
+        "confidence": "explicit"
+      },
+      "turn_id": "a31013cedf55",
+      "transcript_anchor": {
+        "unit": "line",
+        "start": 32,
+        "end": 33,
+        "entry_ids": [
+          "5e07d77e-3ee2-4cc1-ac97-749120698f13"
+        ],
+        "tool_use_id": "toolu_01Cnc8NAKfPaJoKsiudRU6xZ"
+      },
+      "native": {
+        "tool_name": "Skill",
+        "tool_use_id": "toolu_01Cnc8NAKfPaJoKsiudRU6xZ"
+      },
+      "collapse": {
+        "target": "tool_pair",
+        "label": "Skill: plane-integration:plane-conventions",
+        "default_collapsed": true
+      }
+    },
+    {
+      "id": "claude-skill-toolu_01GZApX2RJ759QUiqU2664SW",
+      "event_type": "tool_invocation",
+      "skill": {
+        "name": "team-core:resume-work"
+      },
+      "source": {
+        "agent": "claude-code",
+        "signal": "skill_tool_use",
+        "confidence": "explicit"
+      },
+      "turn_id": "a31013cedf55",
+      "transcript_anchor": {
+        "unit": "line",
+        "start": 132,
+        "end": 133,
+        "entry_ids": [
+          "cfd280e7-af15-4b72-8214-5f9f388c9337"
+        ],
+        "tool_use_id": "toolu_01GZApX2RJ759QUiqU2664SW"
+      },
+      "native": {
+        "tool_name": "Skill",
+        "tool_use_id": "toolu_01GZApX2RJ759QUiqU2664SW"
+      },
+      "collapse": {
+        "target": "tool_pair",
+        "label": "Skill: team-core:resume-work",
+        "default_collapsed": true
+      }
+    },
+    {
+      "id": "claude-skill-toolu_01FWPwqwp3jkoiJtLsZFBCUm",
+      "event_type": "tool_invocation",
+      "skill": {
+        "name": "release-flow"
+      },
+      "source": {
+        "agent": "claude-code",
+        "signal": "skill_tool_use",
+        "confidence": "explicit"
+      },
+      "turn_id": "cf38729500f1",
+      "transcript_anchor": {
+        "unit": "line",
+        "start": 1438,
+        "end": 1439,
+        "entry_ids": [
+          "6571e0a7-c00d-4bd2-ab1d-dfeae8efbd20"
+        ],
+        "tool_use_id": "toolu_01FWPwqwp3jkoiJtLsZFBCUm"
+      },
+      "native": {
+        "tool_name": "Skill",
+        "tool_use_id": "toolu_01FWPwqwp3jkoiJtLsZFBCUm"
+      },
+      "collapse": {
+        "target": "tool_pair",
+        "label": "Skill: release-flow",
+        "default_collapsed": true
+      }
+    },
+    {
+      "id": "claude-skill-toolu_01KGq3RtiXcQW2D7EeAacekT",
+      "event_type": "tool_invocation",
+      "skill": {
+        "name": "release-flow"
+      },
+      "source": {
+        "agent": "claude-code",
+        "signal": "skill_tool_use",
+        "confidence": "explicit"
+      },
+      "turn_id": "89dc419a4b94",
+      "transcript_anchor": {
+        "unit": "line",
+        "start": 2067,
+        "end": 2068,
+        "entry_ids": [
+          "771c2313-064a-4d2f-b67a-2de1b38863ec"
+        ],
+        "tool_use_id": "toolu_01KGq3RtiXcQW2D7EeAacekT"
+      },
+      "native": {
+        "tool_name": "Skill",
+        "tool_use_id": "toolu_01KGq3RtiXcQW2D7EeAacekT"
+      },
+      "collapse": {
+        "target": "tool_pair",
+        "label": "Skill: release-flow",
+        "default_collapsed": true
+      }
+    }
+  ],
+  "session_metrics": {
+    "turn_count": 41
+  }
+}
