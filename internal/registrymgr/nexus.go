@@ -33,12 +33,14 @@ type NexusDetector struct{}
 // figure follows the reasoning of the catalog page cap and is not measured.
 const maxNexusResponse = 1 << 20
 
-// errEmptyReply and errNoRepositoryType mark a 200 reply that is not a
-// repository document. Both fail the discovery: reading either as "not a group"
-// would be cached (D23) and erase the members last known.
+// errEmptyReply, errNoRepositoryType and errNoGroupDocument mark a 200 reply
+// that is not a repository (or group) document. All fail the discovery: reading
+// any of them as "not a group" would be cached (D23) and erase the members last
+// known.
 var (
 	errEmptyReply       = errors.New("empty reply")
 	errNoRepositoryType = errors.New("reply names no repository type")
+	errNoGroupDocument  = errors.New("reply is not a group document")
 )
 
 // nexusHTTPClient refuses a redirect to another origin, so the account of the
@@ -52,9 +54,11 @@ func (n *NexusDetector) Provider() string { return ProviderNexus }
 // to a group repository and, if so, returns its member repositories.
 //
 // Returns nil, nil when the manager answered and the repository is not a group,
-// and an error when it could not be asked. Those two are not the same thing:
-// the caller caches the first and must not cache the second, or one unreachable
-// minute erases what was last known (D23).
+// a non-nil empty list for a group it listed with no member, and an error when it
+// could not be asked or refused to list the members (a *MembersRefusedError,
+// errors.Is ErrMembersRefused). Those are not the same thing: the caller caches
+// the settled answers and must not cache an error, or one unreachable minute (or
+// one refused account) erases what was last known (D23).
 func (n *NexusDetector) DetectGroup(ctx context.Context, info RegistryInfo) ([]GroupMember, error) {
 	// Resolve which URL to use for the Nexus API call.
 	apiBase := info.ManagementURL
@@ -96,7 +100,10 @@ func (n *NexusDetector) DetectGroup(ctx context.Context, info RegistryInfo) ([]G
 
 	// Step 2: format-specific endpoint — requires nx-repository-admin privilege
 	// but returns memberNames reliably on Nexus instances that support it.
-	members = n.fetchGroupMembers(ctx, host, repoName, repoFormat, info)
+	members, err = n.fetchGroupMembers(ctx, host, repoName, repoFormat, info)
+	if err != nil {
+		return nil, err
+	}
 	log.Printf("INFO [registrymgr/nexus] group %q (%s) has %d members (from format endpoint)", repoName, repoFormat, len(members))
 	return members, nil
 }
@@ -137,7 +144,7 @@ func (n *NexusDetector) fetchRepoMeta(ctx context.Context, host, repoName string
 		log.Printf("INFO [registrymgr/nexus] meta %q: reply names no repository type", repoName)
 		return "", "", nil, fmt.Errorf("parsing the reply from %s: %w", endpoint, errNoRepositoryType)
 	}
-	log.Printf("INFO [registrymgr/nexus] meta %q: type=%s format=%s", repoName, result.Type, result.Format)
+	log.Printf("INFO [registrymgr/nexus] meta %q: type=%q format=%q", repoName, result.Type, result.Format)
 
 	// Collect memberNames from whichever field Nexus populated.
 	rawNames := result.Group.MemberNames
@@ -151,13 +158,24 @@ func (n *NexusDetector) fetchRepoMeta(ctx context.Context, host, repoName string
 // fetchGroupMembers calls the format-specific group endpoint which reliably
 // includes memberNames: GET /v1/repositories/{format}/group/{name}
 // Requires nx-repository-admin privilege; falls back to anonymous when credentials fail.
-func (n *NexusDetector) fetchGroupMembers(ctx context.Context, host, repoName, format string, info RegistryInfo) []GroupMember {
+//
+// It returns a settled listing (non-nil, possibly empty) or an error, never a
+// silent "no members": a 401 or 403 is a *MembersRefusedError, anything else that
+// goes wrong is returned as it is. The caller caches the first and must not cache
+// the second (D23).
+//
+// The first attempt decides. The anonymous retry (D156) only changes the outcome
+// by succeeding: whatever it gets otherwise, the account was refused and that is
+// the actionable fact.
+func (n *NexusDetector) fetchGroupMembers(ctx context.Context, host, repoName, format string, info RegistryInfo) ([]GroupMember, error) {
 	if format == "" {
 		format = "docker"
 	}
-	endpoint := fmt.Sprintf("%s/service/rest/v1/repositories/%s/group/%s", host, format, repoName)
+	// The format comes from the server: it stays one path segment.
+	endpoint := fmt.Sprintf("%s/service/rest/v1/repositories/%s/group/%s", host, url.PathEscape(format), repoName)
 	body, err := n.nexusGET(ctx, endpoint, info)
 	if err != nil {
+		firstErr := err
 		// When auth is present but the request fails, retry anonymously.
 		// Some Nexus instances allow anonymous read of the group admin endpoint.
 		// A refused redirect to another origin is not such a failure: the
@@ -165,26 +183,72 @@ func (n *NexusDetector) fetchGroupMembers(ctx context.Context, host, repoName, f
 		if info.Username != "" && info.Password != "" && !errors.Is(err, oci.ErrOffOriginRedirect) {
 			anonInfo := RegistryInfo{URL: info.URL, ManagementURL: info.ManagementURL}
 			body, err = n.nexusGET(ctx, endpoint, anonInfo)
+			if err != nil {
+				log.Printf("INFO [registrymgr/nexus] anonymous retry for %q failed: %v", repoName, err)
+			}
+		}
+		if err != nil {
+			return nil, membersFailure(host, repoName, endpoint, firstErr, info.Username != "" && info.Password != "")
 		}
 	}
-	if errors.Is(err, oci.ErrOffOriginRedirect) {
-		// The advice below is for an account Nexus refused, not for this.
-		log.Printf("INFO [registrymgr/nexus] members unreachable %q: %v — redirect to another origin refused (the registry URL may need to be the one Nexus serves)", endpoint, err)
-		return nil
-	}
+	names, err := parseGroupMembers(body)
 	if err != nil {
-		log.Printf("INFO [registrymgr/nexus] members unreachable %q: %v — account may lack nx-repository-admin privilege; run 'docker login %s' with an admin account", endpoint, err, host)
-		return nil
+		log.Printf("INFO [registrymgr/nexus] members %q: %v", repoName, err)
+		return nil, fmt.Errorf("reading the members of group %q: %w", repoName, err)
 	}
-	var result struct {
-		Group struct {
+	return memberList(info.URL, names), nil
+}
+
+// membersFailure logs and types the failure of the first attempt on the format
+// endpoint: a refusal when the manager refused the account, the error itself
+// otherwise. The returned error holds the group and the status, never the URL.
+func membersFailure(host, repoName, endpoint string, err error, hasAuth bool) error {
+	if status, ok := refusedStatus(err); ok {
+		log.Printf("INFO [registrymgr/nexus] members refused %q: %v — account may lack nx-repository-admin privilege; run 'docker login %s' with an admin account", endpoint, err, host)
+		return &MembersRefusedError{Group: repoName, Status: status, Anonymous: !hasAuth, Cause: err}
+	}
+	if errors.Is(err, oci.ErrOffOriginRedirect) {
+		// The advice above is for an account Nexus refused, not for this.
+		log.Printf("INFO [registrymgr/nexus] members unreachable %q: %v — redirect to another origin refused (the registry URL may need to be the one Nexus serves)", endpoint, err)
+	} else {
+		log.Printf("INFO [registrymgr/nexus] members unreachable %q: %v", endpoint, err)
+	}
+	return fmt.Errorf("reading the members of group %q: %w", repoName, err)
+}
+
+// parseGroupMembers reads the member names of a format-endpoint reply. A document
+// is a `group` object carrying a `memberNames` key, an empty list included: an
+// empty body, `null`, `{}` or a group without the key is not one, and reading it
+// as "no members" would be cached over what was last known.
+func parseGroupMembers(body []byte) ([]string, error) {
+	if len(bytes.TrimSpace(body)) == 0 {
+		return nil, errEmptyReply
+	}
+	var doc struct {
+		Group *struct {
 			MemberNames []string `json:"memberNames"`
 		} `json:"group"`
 	}
-	if err := json.Unmarshal(body, &result); err != nil {
-		return nil
+	if err := json.Unmarshal(body, &doc); err != nil {
+		return nil, fmt.Errorf("parsing the reply: %w", err)
 	}
-	return memberList(info.URL, result.Group.MemberNames)
+	if doc.Group == nil || doc.Group.MemberNames == nil {
+		return nil, errNoGroupDocument
+	}
+	return doc.Group.MemberNames, nil
+}
+
+// refusedStatus reports the status of a management API refusal: 401 or 403 from
+// the manager itself, not from anything in front of it.
+func refusedStatus(err error) (int, bool) {
+	var se *oci.StatusError
+	if !errors.As(err, &se) || se.Source != oci.SourceManagementAPI {
+		return 0, false
+	}
+	if se.Code != http.StatusUnauthorized && se.Code != http.StatusForbidden {
+		return 0, false
+	}
+	return se.Code, true
 }
 
 // memberList turns the names a group declares into addresses.

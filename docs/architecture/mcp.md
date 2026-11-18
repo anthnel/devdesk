@@ -115,7 +115,7 @@ execution sees a closure that registers under another name, twice, or not at all
 | `context_list` | the contexts on this machine, and which one this process serves |
 | `context_get` | the served context's configuration — no field can carry a credential |
 | `workspaces_list` | the repositories under `workspaces_dir`, their git state and their scan state. It carried a `project_type` guessed from a signature file, with its own copy of the table; §3.46 removed the column that motivated it and this with it |
-| `registries_list` | the configured registries, and the members discovery last found |
+| `registries_list` | the configured registries, the members discovery last found (`discovery`), and `members_refused` (`at`, `age_seconds`, `status`, `anonymous`) when the manager refused to list them to this account. It sits beside `discovery`, which if present is older, and a group refused and never listed has no `discovery`. A legacy cache entry with no member is read as absent, not as `0 members`. No error text, no URL |
 | `containers_list` | what the daemon holds, with the ports parsed |
 | `ports_list` | the TCP and UDP sockets open on this machine, and the process holding each |
 | `images_list` | the local images, and whether each has ever been scanned |

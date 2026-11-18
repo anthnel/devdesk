@@ -131,9 +131,30 @@ as their source of truth, and `config.yaml` is what the user declares.
 
 - Discovery runs **only for `kind: group`**, and only when asked: `ctrl+r` on a
   group row in the Registries tab. `detectRegistryGroupCmd` writes through.
-- An empty result **is** stored — "asked, and it is not a group" is an answer.
-  A *failed* one is not: an unreachable manager must not erase what was last
-  known, which is why `registrymgr` distinguishes the two (D23).
+- Discovery has **three outcomes** (DEVDESK-510), and `detectRegistryGroupCmd`
+  writes at most once:
+  - A **settled answer** is stored: a listing, an empty result ("asked, and it
+    is not a group") or a group listed with no member (`0 members`). It clears
+    any refusal for the slug.
+  - A **refusal** (`registrymgr.ErrMembersRefused`, a `*MembersRefusedError`)
+    is stored *beside* the listing, never over it: the manager said it is a
+    group and refused to list it to this account, which says nothing about the
+    members. Only a 401 or 403 from the management API counts.
+  - Any **other error** (network, deadline, 404, 5xx, unreadable reply) is
+    stored nowhere: an unreachable manager must not erase what was last known
+    (D23). The footer says `Group refresh failed — check logs` at level Error;
+    a refusal held from an earlier probe stays as it was.
+- **File format v2.** `registry-groups.json` is the envelope
+  `{"version":2,"groups":{…},"refusals":{…}}`, written atomically; a refusal is
+  `{at, status, anonymous}`, no text, no URL. Reading goes through one decoder
+  (`decodeRegistryGroupFile`) for the cache and for `ReadRegistryGroups`, which
+  returns a `RegistryGroupSnapshot{Groups, Refusals}`. A file with no numeric
+  `version` key (or one below 2) is the old bare map: its entries with no member
+  are dropped, because an empty entry may be a refusal the old code swallowed.
+  Those groups read as `never` until the next `ctrl+r`; nothing is rewritten
+  until the next `Set`, `SetRefusal` or `Delete`. An older build cannot read a v2
+  file (it expects a map of slugs, logs an error and shows no discovery) and
+  overwrites it on its next write: the cache is lost, not corrupted.
 - **The Nexus detector does not follow a redirect to another origin
   (DEVDESK-412).** Its client refuses it (`oci.RefuseOffOriginRedirect`), so
   the account is never sent to a host it was not given for. That includes the
@@ -142,11 +163,11 @@ as their source of truth, and `config.yaml` is what the user declares.
   members, the cached ones stay, and the log says the redirect was refused. The
   anonymous retry of the members endpoint starts on any error except this
   refusal. Each Nexus reply is read up to 1 MiB (`maxNexusResponse`, not
-  measured); a larger one is an error, not a silent cut. A format endpoint that
-  is too large or fails (other than the origin refusal) is logged with the
-  advice `account may lack nx-repository-admin privilege`; the origin refusal
-  has its own log message, without that advice. Either way no members come
-  back.
+  measured); a larger one is an error, not a silent cut. A format endpoint
+  that answers 401 or 403 is logged with the advice `account may lack
+  nx-repository-admin privilege` and is a refusal (above); the origin refusal
+  has its own log message, without that advice, and is a failed discovery. No
+  members come back in either case.
 - **A Nexus reply that is not a repository document is a failed discovery
   (DEVDESK-509).** A non-200 status is a typed error shown as
   `management API returned N` (it was `HTTP N`); an empty body, invalid JSON or
@@ -155,6 +176,30 @@ as their source of truth, and `config.yaml` is what the user declares.
   reports the context's error, never a status error.
 - The `Members` column shows `count · TimeAgo(discovered_at)`, or `never`. It is
   not decoration: a cache with no visible age looks current whatever it holds.
+  A refused group shows `denied · <age>`, or `denied · N known · <age>` when a
+  listing is cached (N is still used); the age is the refusal's. State first, so
+  a narrow terminal that cuts the end keeps `denied`. The column is
+  `SizingContent`, in the warning colour, and whole from 115 columns. A refusal
+  no more recent than the listing is stale and ignored (`groupRefusal`).
+- **While a group row is selected**, the status line is derived on every render
+  (`groupMembersStatus`): Warn for a refusal (`Members could not be read with
+  this account`, or `without credentials` for an anonymous probe, then the way
+  out: declare them by hand with `repo_prefix`, or `N declared by hand are
+  used`), Info `No member found — this group is empty` for a settled empty
+  group with nothing declared. The refusal text carries no status line from the
+  manager and no URL.
+- **`→` on a refused group** opens its members when any are cached or declared;
+  otherwise the footer warns (`ctrl+r` is not offered, a refusal would repeat).
+  The members level lists the discovered members, then the config entries
+  whose `parent` is the group and that the cache does not already hold.
+- **Rule 110 holds**: the Cmd writes the disk and returns `RegistryGroupDetectedMsg`
+  with the instant `At` it wrote; only the handler changes `groupCache` and
+  `groupRefusals`, with that same `At`.
+- **`registries_list` (MCP)** reports the refusal as `members_refused` beside
+  `discovery`, never in place of it (`mcp.md`).
+- **Known limits.** Two processes writing the cache at once: the last write
+  wins, as before. That Nexus answers 403 on the format endpoint to a pull-only
+  account is a hypothesis, to confirm on the bench (NX-03).
 - The **registry browser reads this cache**, never the network: it opens on the
   first frame and works offline. `→` on a group row in the Registries tab drills
   into its members, `←`/`esc` go back.

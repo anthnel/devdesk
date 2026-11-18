@@ -364,7 +364,10 @@ type registryRow struct {
 	// refreshing is set when the row is built (Rule 110): a discovery runs for
 	// this group, and the activity column says so.
 	refreshing bool
-	config     int
+	// membersRefused is set when the row is built (Rule 110): the manager
+	// refused to list this group's members and no later listing superseded it.
+	membersRefused bool
+	config         int
 }
 
 // registryColumns describes the Registries tab. Nothing sorts or searches: the
@@ -382,10 +385,19 @@ func registryColumns() []datatable.Column[registryRow] {
 		{Title: "Kind", Sizing: datatable.SizingFixed, Optional: true, MinWidth: 10, Cell: func(r registryRow) string { return r.kind }},
 		{Title: "Auth", Sizing: datatable.SizingFixed, Optional: true, MinWidth: 12, Cell: func(r registryRow) string { return r.auth }}, // holds "credentials"
 		{Title: "Logged", Sizing: datatable.SizingFixed, MinWidth: 8, Cell: func(r registryRow) string { return r.logged }},
-		{Title: "Members", Sizing: datatable.SizingFixed, Optional: true, MinWidth: 16, Cell: func(r registryRow) string { return r.members },
+		// The floor holds "12 · 30 days ago", so the column is shown from the width
+		// it always was (100): it is the rightmost Optional column and the first
+		// dropped, so a higher floor would take it from every group, not only from
+		// the refused ones. SizingContent lets the longest refusal text,
+		// "denied · 99 known · 29 days ago", show whole once the terminal has room
+		// (from 115 columns); below that it is cut at the end and "denied" still reads.
+		{Title: "Members", Sizing: datatable.SizingContent, Optional: true, MinWidth: 16, Cell: func(r registryRow) string { return r.members },
 			Style: func(r registryRow) lipgloss.Style {
-				if r.refreshing {
+				switch {
+				case r.refreshing:
 					return theme.DimStyle
+				case r.membersRefused:
+					return lipgloss.NewStyle().Foreground(theme.ColorFooterWarn)
 				}
 				return lipgloss.NewStyle()
 			}}, // holds "12 · 30 days ago"
@@ -418,6 +430,9 @@ func (m *Model) membersCell(reg config.RegistryItem) string {
 	if m.refreshingGroups[reg.Slug] {
 		// Static text: the row's dot is the animation (Rule 122).
 		return "refreshing"
+	}
+	if v, ok := m.groupRefusal(reg.Slug); ok {
+		return refusedMembersCell(v)
 	}
 	entry, ok := m.groupCache[reg.Slug]
 	if !ok {
@@ -466,6 +481,7 @@ func (m *Model) updateRegistryTable() {
 	}
 	rows := make([]registryRow, 0, len(m.registries))
 	for i, reg := range m.registries {
+		_, refused := m.groupRefusal(reg.Slug)
 		rows = append(rows, registryRow{
 			alias:      reg.Alias,
 			url:        registryRef(reg.URL, reg.RepoPrefix),
@@ -474,7 +490,10 @@ func (m *Model) updateRegistryTable() {
 			logged:     m.loggedCell(reg.AuthMode, reg.URL),
 			members:    m.membersCell(reg),
 			refreshing: reg.Kind == config.KindGroup && m.refreshingGroups[reg.Slug],
-			config:     i,
+			// A refusal is only ever recorded for a group; the kind check keeps a
+			// stray slug from flagging another row.
+			membersRefused: reg.Kind == config.KindGroup && refused,
+			config:         i,
 		})
 	}
 	m.setRegistryRows(rows)
@@ -485,16 +504,44 @@ func (m *Model) updateRegistryTable() {
 // A member is not a config entry: it has no alias of its own to edit, its
 // credentials are the group's, and it is what the cache holds — so the columns
 // say `inherit`, carry no member count, and the row points at no config entry.
+//
+// The entries declared by hand under the group (Parent == its slug) are listed
+// after the discovered ones, minus any the cache already holds: a group whose
+// members the manager refuses to list is still made of what the user declared
+// (DEVDESK-510). They keep their own auth mode, being config entries.
 func (m *Model) updateGroupMemberTable(group config.RegistryItem) {
 	entry := m.groupCache[group.Slug]
 	rows := make([]registryRow, 0, len(entry.Members))
+	seen := make(map[string]bool, len(entry.Members))
 	for _, member := range entry.Members {
+		ref := registryRef(member.URL, member.RepoPrefix)
+		seen[ref] = true
 		rows = append(rows, registryRow{
 			alias:  member.Alias,
-			url:    registryRef(member.URL, member.RepoPrefix),
+			url:    ref,
 			kind:   "member",
 			auth:   config.AuthInherit,
 			logged: m.loggedCell(group.AuthMode, group.URL),
+			config: -1,
+		})
+	}
+	for _, reg := range m.registries {
+		ref := registryRef(reg.URL, reg.RepoPrefix)
+		if reg.Parent != group.Slug || seen[ref] {
+			continue
+		}
+		seen[ref] = true
+		// An `inherit` entry is logged in through its group, like a discovered one.
+		loginURL := reg.URL
+		if reg.AuthMode == config.AuthInherit {
+			loginURL = group.URL
+		}
+		rows = append(rows, registryRow{
+			alias:  reg.Alias,
+			url:    ref,
+			kind:   "member",
+			auth:   reg.AuthMode,
+			logged: m.loggedCell(config.ResolveAuthMode(reg, &group), loginURL),
 			config: -1,
 		})
 	}

@@ -47,6 +47,16 @@ type registryDiscovery struct {
 	AgeSeconds   int64            `json:"age_seconds" jsonschema:"how long ago the discovery ran; members are cached and may no longer be what the manager serves"`
 }
 
+// registryRefusal is what the last probe of a group established when the manager
+// refused to list its members to the account that asked. It carries the status
+// and the age, never the manager's error text or a URL.
+type registryRefusal struct {
+	At         time.Time `json:"at"`
+	AgeSeconds int64     `json:"age_seconds" jsonschema:"how long ago the manager refused"`
+	Status     int       `json:"status" jsonschema:"the HTTP status the manager answered with"`
+	Anonymous  bool      `json:"anonymous,omitempty" jsonschema:"true when the probe ran without credentials"`
+}
+
 type registryEntry struct {
 	Slug       string `json:"slug" jsonschema:"DevDesk's own identifier: what parent points at and what the group cache is keyed on"`
 	Alias      string `json:"alias,omitempty"`
@@ -59,6 +69,11 @@ type registryEntry struct {
 	Parent     string `json:"parent,omitempty" jsonschema:"the slug of the group this entry is served through"`
 
 	Discovery *registryDiscovery `json:"discovery,omitempty" jsonschema:"present only for a group that has been probed at least once; absent means nobody looked, which is not the same as it having no members"`
+
+	// MembersRefused sits beside Discovery, never in place of it: a refusal says
+	// nothing about the members, so a group refused and never listed has no
+	// discovery rather than an empty one.
+	MembersRefused *registryRefusal `json:"members_refused,omitempty" jsonschema:"present when the last probe was refused by the manager; the members could not be read with this account and can be declared by hand with repo_prefix; discovery, if present, is older"`
 }
 
 type registriesListOut struct {
@@ -86,11 +101,12 @@ func listRegistries(env *Env) []registryEntry {
 	items := env.Config.Registry.Registries
 	entries := make([]registryEntry, 0, len(items))
 
-	groups, err := cache.ReadRegistryGroups()
+	snapshot, err := cache.ReadRegistryGroups()
 	if err != nil {
 		log.Printf("ERROR [mcp/registries] read registry group cache: %v", err)
-		groups = nil
 	}
+	groups := snapshot.Groups
+	refusals := snapshot.Refusals
 	now := time.Now()
 
 	for _, item := range items {
@@ -123,6 +139,17 @@ func listRegistries(env *Env) []registryEntry {
 				})
 			}
 			entry.Discovery = discovery
+		}
+
+		if refusal, ok := refusals[item.Slug]; ok {
+			entry.MembersRefused = &registryRefusal{
+				At:        refusal.At,
+				Status:    refusal.Status,
+				Anonymous: refusal.Anonymous,
+			}
+			if !refusal.At.IsZero() {
+				entry.MembersRefused.AgeSeconds = int64(now.Sub(refusal.At).Seconds())
+			}
 		}
 
 		entries = append(entries, entry)

@@ -49,7 +49,11 @@ type Detector interface {
 	// Provider returns the declared provider this detector serves.
 	Provider() string
 	// DetectGroup returns the group members when the registry is a group repo.
-	// Returns nil, nil when the registry is not a group (not an error).
+	// Returns nil, nil when the registry is not a group (not an error), and a
+	// non-nil empty list for a group listed with no member: an empty list is a
+	// settled answer, never a refusal. A manager that refuses to list the members
+	// gives an error satisfying errors.Is(err, ErrMembersRefused); any other
+	// error is a failed discovery. Callers cache a settled answer and no error.
 	DetectGroup(ctx context.Context, info RegistryInfo) ([]GroupMember, error)
 }
 

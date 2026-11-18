@@ -146,29 +146,41 @@ func readScanResult(path string) (*scan.Result, error) {
 	return &result, nil
 }
 
+// RegistryGroupSnapshot is what the read-only reader returns: the listings and
+// the refusals on disk, kept apart.
+type RegistryGroupSnapshot struct {
+	Groups   map[string]RegistryGroupEntry
+	Refusals map[string]RegistryGroupRefusal
+}
+
 // ReadRegistryGroups returns every group discovery on disk, without writing.
 //
 // An absent slug and a slug whose entry holds no members are different answers:
 // the first means nobody has asked this registry whether it is a group, the
 // second means somebody asked and it is not (§3.8, decision 3). Both come back
-// here as they are stored, and the caller keeps them apart.
-func ReadRegistryGroups() (map[string]RegistryGroupEntry, error) {
+// here as they are stored, and the caller keeps them apart. A refusal is a third
+// answer and sits in Refusals, never in Groups. A legacy file is read through the
+// same decoder as the cache, so its member-less entries come back as absent.
+func ReadRegistryGroups() (RegistryGroupSnapshot, error) {
 	dir, err := scanCacheDir()
 	if err != nil {
-		return nil, err
+		return RegistryGroupSnapshot{}, err
 	}
 	return readRegistryGroupsAt(filepath.Join(dir, "registry-groups.json"))
 }
 
-func readRegistryGroupsAt(path string) (map[string]RegistryGroupEntry, error) {
-	entries := map[string]RegistryGroupEntry{}
+func readRegistryGroupsAt(path string) (RegistryGroupSnapshot, error) {
 	data, err := os.ReadFile(path)
 	if err != nil {
 		// A cache that does not exist yet is empty, not an error.
-		return entries, nil
+		return RegistryGroupSnapshot{
+			Groups:   map[string]RegistryGroupEntry{},
+			Refusals: map[string]RegistryGroupRefusal{},
+		}, nil
 	}
-	if err := json.Unmarshal(data, &entries); err != nil {
-		return nil, err
+	groups, refusals, _, err := decodeRegistryGroupFile(data)
+	if err != nil {
+		return RegistryGroupSnapshot{}, err
 	}
-	return entries, nil
+	return RegistryGroupSnapshot{Groups: groups, Refusals: refusals}, nil
 }

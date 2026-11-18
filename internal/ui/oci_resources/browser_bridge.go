@@ -1,6 +1,7 @@
 package ociresources
 
 import (
+	"errors"
 	"log"
 	"time"
 
@@ -158,25 +159,57 @@ func (m *Model) unscannedCount() int {
 // handleRegistryGroupDetected records a discovery. Nothing forwards it to the
 // browser any more: the browser reads the cache when it opens, so a refresh is
 // something the Registries tab does and the Members column reports.
+//
+// Three outcomes (DEVDESK-510): a listing, even an empty one, replaces the entry
+// and clears any refusal; a refusal is held beside the listing, which it leaves
+// alone; any other error changes nothing and says so in red. The instant is
+// msg.At, the one the Cmd wrote to disk.
 func (m Model) handleRegistryGroupDetected(msg RegistryGroupDetectedMsg) (tea.Model, tea.Cmd) {
 	delete(m.refreshingGroups, msg.Slug)
 
-	if msg.Err != nil {
-		log.Printf("INFO [oci_resources] group detection failed for %s: %v", oci.RedactRegistryURL(msg.RegistryURL), msg.Err)
-		// The cache keeps what was last known rather than being emptied by an
-		// unreachable manager, so the column keeps showing it — stale, and
-		// visibly so.
-		m.updateRegistryTable()
-		return m, m.footer.Error("Group refresh failed — check logs")
+	var refused *registrymgr.MembersRefusedError
+	switch {
+	case msg.Err == nil:
+		return m.handleGroupListed(msg)
+	case errors.As(msg.Err, &refused):
+		return m.handleGroupRefused(msg.Slug, refused, msg.At)
 	}
+	log.Printf("INFO [oci_resources] group detection failed for %s: %v", oci.RedactRegistryURL(msg.RegistryURL), msg.Err)
+	// The cache keeps what was last known rather than being emptied by an
+	// unreachable manager, so the column keeps showing it — stale, and
+	// visibly so. A refusal held in memory stays too: it is still the last
+	// fact known about this group.
+	m.updateRegistryTable()
+	return m, m.footer.Error("Group refresh failed — check logs")
+}
+
+// handleGroupListed records a successful listing, empty or not, and drops the
+// refusal it supersedes.
+func (m Model) handleGroupListed(msg RegistryGroupDetectedMsg) (tea.Model, tea.Cmd) {
 	if msg.Slug != "" {
 		m.groupCache[msg.Slug] = cache.RegistryGroupEntry{
 			Members:      toCachedMembers(msg.Members),
-			DiscoveredAt: time.Now(),
+			DiscoveredAt: msg.At,
 		}
+		delete(m.groupRefusals, msg.Slug)
 	}
 	m.updateRegistryTable()
 	return m, nil
+}
+
+// handleGroupRefused records that the manager refused to list the members. The
+// listing last known stays as it is: a refusal says nothing about the members.
+func (m Model) handleGroupRefused(slug string, e *registrymgr.MembersRefusedError, at time.Time) (tea.Model, tea.Cmd) {
+	r := refusalRecord(e, at)
+	if slug != "" {
+		if m.groupRefusals == nil {
+			m.groupRefusals = make(map[string]cache.RegistryGroupRefusal)
+		}
+		m.groupRefusals[slug] = r
+	}
+	log.Printf("INFO [oci_resources] group members refused (status %d, anonymous %t)", r.Status, r.Anonymous)
+	m.updateRegistryTable()
+	return m, m.footer.Warn(refusedFooterText(m.refusalView(slug, r)))
 }
 
 // toCachedMembers converts what the detector returned into what the cache and
@@ -193,6 +226,9 @@ func toCachedMembers(members []registrymgr.GroupMember) []cache.RegistryGroupMem
 func (m Model) handleRegistryGroupCacheLoaded(msg RegistryGroupCacheLoadedMsg) (tea.Model, tea.Cmd) {
 	if msg.Entries != nil {
 		m.groupCache = msg.Entries
+	}
+	if msg.Refusals != nil {
+		m.groupRefusals = msg.Refusals
 	}
 	m.updateRegistryTable()
 	return m, nil

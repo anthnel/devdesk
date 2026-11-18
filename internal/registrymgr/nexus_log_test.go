@@ -2,6 +2,7 @@ package registrymgr
 
 import (
 	"context"
+	"errors"
 	"io"
 	"net/http"
 	"strings"
@@ -50,8 +51,8 @@ func TestNexusLogKeepsTheAdminAdviceOnARefusedAccount(t *testing.T) {
 
 	members, err := (&NexusDetector{}).DetectGroup(context.Background(), env.info())
 
-	if err != nil || len(members) != 0 {
-		t.Fatalf("DetectGroup = %v, %v, want no members and no error", members, err)
+	if !errors.Is(err, ErrMembersRefused) || len(members) != 0 {
+		t.Fatalf("DetectGroup = %v, %v, want no members and errors.Is ErrMembersRefused", members, err)
 	}
 	for _, advice := range []string{nexusAdminAdvice, "docker login"} {
 		if !strings.Contains(logs.String(), advice) {
