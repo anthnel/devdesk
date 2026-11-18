@@ -1,0 +1,15 @@
+{
+  "tool_use_id": "toolu_01PH3b6Bqz3gNgVtTgQhW1Jm",
+  "agent_id": "a33a2c96819b6ddb9",
+  "subagent_type": "project-coder",
+  "task_description": "Vert étape 5 MCP",
+  "token_usage": {
+    "input_tokens": 14,
+    "cache_creation_tokens": 47962,
+    "cache_read_tokens": 202954,
+    "output_tokens": 3143,
+    "api_call_count": 6
+  },
+  "started_at": "2026-11-18T08:35:40.601481455+01:00",
+  "completed_at": "2026-11-18T08:36:11.599469747+01:00"
+}

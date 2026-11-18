@@ -1,0 +1,15 @@
+{
+  "tool_use_id": "toolu_01VKokkZzXMPFdaYpfRuo2Xf",
+  "agent_id": "a3224e18f2fc32147",
+  "subagent_type": "project-tester",
+  "task_description": "Tests rouges étape 1 registrymgr",
+  "token_usage": {
+    "input_tokens": 18,
+    "cache_creation_tokens": 69031,
+    "cache_read_tokens": 380623,
+    "output_tokens": 12650,
+    "api_call_count": 9
+  },
+  "started_at": "2026-11-18T08:26:52.873267859+01:00",
+  "completed_at": "2026-11-18T08:28:09.936487258+01:00"
+}

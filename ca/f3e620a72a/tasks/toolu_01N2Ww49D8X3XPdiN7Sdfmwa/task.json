@@ -1,0 +1,15 @@
+{
+  "tool_use_id": "toolu_01N2Ww49D8X3XPdiN7Sdfmwa",
+  "agent_id": "ac73c7b03671906cd",
+  "subagent_type": "project-tester",
+  "task_description": "Tests rouges étape 5 MCP + cache",
+  "token_usage": {
+    "input_tokens": 30,
+    "cache_creation_tokens": 75971,
+    "cache_read_tokens": 777175,
+    "output_tokens": 15808,
+    "api_call_count": 14
+  },
+  "started_at": "2026-11-18T08:33:46.938050156+01:00",
+  "completed_at": "2026-11-18T08:35:33.008026524+01:00"
+}

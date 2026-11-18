@@ -1,0 +1,64 @@
+{
+  "cli_version": "0.13.2",
+  "checkpoint_id": "caf3e620a72a",
+  "strategy": "manual-commit",
+  "branch": "feat/devdesk-510-nexus-members-refused",
+  "checkpoints_count": 22,
+  "files_touched": [
+    "docs/architecture/mcp.md",
+    "internal/cache/readonly.go",
+    "internal/cache/registry_groups.go",
+    "internal/cache/registry_groups_v2_test.go",
+    "internal/mcp/registry_tools.go",
+    "internal/mcp/registry_tools_test.go",
+    "internal/mcp/tools.go",
+    "internal/registrymgr/detector.go",
+    "internal/registrymgr/nexus.go",
+    "internal/registrymgr/nexus_errors_test.go",
+    "internal/registrymgr/nexus_hardening_test.go",
+    "internal/registrymgr/nexus_log_test.go",
+    "internal/registrymgr/nexus_members_test.go",
+    "internal/registrymgr/refusal.go",
+    "internal/ui/oci_resources/commands.go",
+    "internal/ui/oci_resources/group_refusal_test.go",
+    "internal/ui/oci_resources/model.go"
+  ],
+  "sessions": [
+    {
+      "metadata": "/ca/f3e620a72a/0/metadata.json",
+      "transcript": "/ca/f3e620a72a/0/full.jsonl",
+      "compact_transcript": "/ca/f3e620a72a/0/transcript.jsonl",
+      "content_hash": "/ca/f3e620a72a/0/content_hash.txt",
+      "prompt": "/ca/f3e620a72a/0/prompt.txt"
+    }
+  ],
+  "token_usage": {
+    "input_tokens": 166,
+    "cache_creation_tokens": 180410,
+    "cache_read_tokens": 8284714,
+    "output_tokens": 46500,
+    "api_call_count": 60,
+    "subagent_tokens": {
+      "input_tokens": 526,
+      "cache_creation_tokens": 1912247,
+      "cache_read_tokens": 16263992,
+      "output_tokens": 264748,
+      "api_call_count": 248
+    },
+    "subagent_tokens_complete": true
+  },
+  "redaction": {
+    "replacements": 20,
+    "layers": {
+      "betterleaks": 0,
+      "connection_string": 0,
+      "credential_key": 0,
+      "credential_value": 0,
+      "credentialed_uri": 0,
+      "entropy": 18,
+      "key_context": 2,
+      "provider_token": 0,
+      "shell_stdin": 0
+    }
+  }
+}

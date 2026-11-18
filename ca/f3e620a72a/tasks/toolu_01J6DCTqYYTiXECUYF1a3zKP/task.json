@@ -1,0 +1,15 @@
+{
+  "tool_use_id": "toolu_01J6DCTqYYTiXECUYF1a3zKP",
+  "agent_id": "a97dc0350e33d4857",
+  "subagent_type": "dev-team:security-reviewer",
+  "task_description": "Audit sécurité étapes 3-5",
+  "token_usage": {
+    "input_tokens": 30,
+    "cache_creation_tokens": 59520,
+    "cache_read_tokens": 690874,
+    "output_tokens": 7110,
+    "api_call_count": 15
+  },
+  "started_at": "2026-11-18T08:49:13.547259696+01:00",
+  "completed_at": "2026-11-18T08:50:30.123365132+01:00"
+}

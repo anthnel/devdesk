@@ -1,0 +1,15 @@
+{
+  "tool_use_id": "toolu_01Soxj1zBhGkyurqE7BuruuA",
+  "agent_id": "a7609bcc3b7bbb38a",
+  "subagent_type": "team-core:tech-writer",
+  "task_description": "Docs architecture DEVDESK-510",
+  "token_usage": {
+    "input_tokens": 14,
+    "cache_creation_tokens": 51319,
+    "cache_read_tokens": 201268,
+    "output_tokens": 5511,
+    "api_call_count": 7
+  },
+  "started_at": "2026-11-18T08:54:13.493072014+01:00",
+  "completed_at": "2026-11-18T08:54:52.724744795+01:00"
+}

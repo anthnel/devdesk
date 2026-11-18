@@ -1,0 +1,15 @@
+{
+  "tool_use_id": "toolu_01S3EMxTn3to2BRKYF7XATFC",
+  "agent_id": "a235618373848a5f8",
+  "subagent_type": "dev-team:architect",
+  "task_description": "Plan NX-07 membres refusés",
+  "token_usage": {
+    "input_tokens": 60,
+    "cache_creation_tokens": 164594,
+    "cache_read_tokens": 2883635,
+    "output_tokens": 43172,
+    "api_call_count": 29
+  },
+  "started_at": "2026-11-18T08:17:47.749660422+01:00",
+  "completed_at": "2026-11-18T08:25:08.5970984+01:00"
+}
