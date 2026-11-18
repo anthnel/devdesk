@@ -1,0 +1,49 @@
+{
+  "cli_version": "0.13.2",
+  "checkpoint_id": "611bf08c3126",
+  "strategy": "manual-commit",
+  "branch": "feat/devdesk-582-proxy-row",
+  "checkpoints_count": 4,
+  "files_touched": [
+    "internal/netproxy/describe.go",
+    "internal/netproxy/describe_test.go"
+  ],
+  "sessions": [
+    {
+      "metadata": "/61/1bf08c3126/0/metadata.json",
+      "transcript": "/61/1bf08c3126/0/full.jsonl",
+      "compact_transcript": "/61/1bf08c3126/0/transcript.jsonl",
+      "content_hash": "/61/1bf08c3126/0/content_hash.txt",
+      "prompt": "/61/1bf08c3126/0/prompt.txt"
+    }
+  ],
+  "token_usage": {
+    "input_tokens": 122,
+    "cache_creation_tokens": 216686,
+    "cache_read_tokens": 7346626,
+    "output_tokens": 53943,
+    "api_call_count": 47,
+    "subagent_tokens": {
+      "input_tokens": 658,
+      "cache_creation_tokens": 2273008,
+      "cache_read_tokens": 19379786,
+      "output_tokens": 290085,
+      "api_call_count": 307
+    },
+    "subagent_tokens_complete": true
+  },
+  "redaction": {
+    "replacements": 176,
+    "layers": {
+      "betterleaks": 71,
+      "connection_string": 0,
+      "credential_key": 0,
+      "credential_value": 0,
+      "credentialed_uri": 125,
+      "entropy": 8,
+      "key_context": 2,
+      "provider_token": 0,
+      "shell_stdin": 0
+    }
+  }
+}
