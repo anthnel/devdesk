@@ -649,6 +649,12 @@ Skipped win: no mention. Docker Hub, generic registries and a Nexus outside a
 group never get the line. `Cached only` and `Skipped` exclude each other, which
 keeps the budget below. Nexus's cache-only behavior comes from secondary
 sources and is not verified on a real Nexus (to confirm in IS-16).
+The Nexus catalog tests of `internal/imagesearch` (`TestCatalogOnMeasuredNexusAnswers`)
+replay answers measured on the bench (Nexus 3.98.1-01, NX-03), not hand-written
+ones: the verdicts `ok`, `No result` and `Refused` (prefix absent from a real
+catalog) are checked there. `Failed` and `Cached only` have no measured answer yet
+(NX-04); a proxy's catalog lists names it does not hold (`mirror/uncached`).
+See "Recorded fixtures" in [`nexus-bench.md`](nexus-bench.md).
 
 Each name list is fitted by `fitNames` to the room a value has
 (`shortcut.HeaderValueWidth`), so the `+N` is never lost: all the names, else

@@ -3,6 +3,18 @@
 Dated entries, most recent first (AAAA-MM-JJ). Each entry records what was
 decided, why, and which alternative was rejected. Sources live in `docs/product/`.
 
+## 2026-11-18 — DEVDESK-577 (NX-08.10): recorded Nexus answers serve as regression tests (D162)
+
+Source: `.claude/plans/DEVDESK-511-plan.md` (read-only), `docs/backlog.md` §1.1 D162. Partial scope: NX-03 answers only. Branch `feat/nexus-recorded-fixtures-devdesk-511`, changes not committed yet.
+
+1. **Decided: the NX-03 answers are regression fixtures in `internal/nexusfixture/fixtures/`, embedded.** A fake Nexus (`fakenexus`, test only) replays them; `nexus-bench record` regenerates them from the bench. A fixture that stales against `internal/nexusbench/descriptor.json` fails `mise run test`. Details and rejected options in D162.
+2. **Decided with the user: the pull account's 404 on the detailed group endpoint stays as measured.** The test pins a failed discovery (`unreachable`), not `denied`. Changed by DEVDESK-578 (NX-07b).
+3. **Decided with the user: the interface tests contradicted by H1 and IS-07 are annotated, not changed.** Approach left to the user, DEVDESK-579.
+4. **Decided with the user: the root `?n=1000` 404 waits for a measure.** No measured answer exists; the skip test activates itself on the fixture. DEVDESK-580 (NX-08b).
+5. **Not decided, to settle before NX-05:** whether skip and multi-exchange fixtures are exempt from the stale check.
+6. **Open limits, accepted:** the data-set check is anonymous, so a bench with anonymous access cut cannot be recorded at all (NX-05 may need it); exotic encodings are not caught by the leak check; the Basic header reaches a local process on the bench port before the version check; `storedSecrets` duplicates `adminFromStore`.
+7. **No ADR.** Test tooling and a dev-tool subcommand, reversible by a revert.
+
 ## 2026-11-17 — DEVDESK-506 (NX-03): `_catalog` measured on the bench (no decision)
 
 Source: `docs/measurements/2026-11-17-nexus-catalog.md` (raw responses in `docs/measurements/nexus-catalog/`). Nexus `3.98.1-01` Community, bench `datomir`. Facts are measured; nothing is decided.

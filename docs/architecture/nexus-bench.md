@@ -749,9 +749,9 @@ Known and accepted for a throw-away bench; none is fixed by this change.
 
 ## The command and the mise tasks (`cmd/nexus-bench`, `mise.toml`)
 
-`internal/nexusbench/cmd/nexus-bench` is a `package main` of five files:
+`internal/nexusbench/cmd/nexus-bench` is a `package main` of six files:
 `main.go` (`deps`, `defaultDeps`, `run`), `flags.go` (flags and parameter
-resolution), `commands.go` (`up`, `provision`, `down`, `seed`, `cut-upstream`, `restore-upstream`, `reset`, `render`), `status.go` and
+resolution), `commands.go` (`up`, `provision`, `down`, `seed`, `cut-upstream`, `restore-upstream`, `reset`, `render`), `record.go` (`record`, DEVDESK-511), `status.go` and
 `usage.go` (the help). `main()` only builds a context cancelled by SIGINT and
 SIGTERM, calls `run(ctx, args, os.Getenv, os.Stdout, os.Stderr, defaultDeps())`
 and exits with its code. `deps` holds every constructor and library call that
@@ -765,12 +765,12 @@ the doors of the seed and the reads of `status` (`newForwarder`, `newCopier`,
 `ReadUpstream` and `readImagesAnonymously` (NX-02b adds `cutUpstream`, `restoreUpstream`, `reset` and `unblockProxy`, wired to `CutUpstream`, `RestoreUpstream`, `Reset` and `UnblockProxy`) (which calls `ListImagesAnonymously`),
 and the tests wire fakes, so no test needs kubectl, skopeo or a network.
 
-**Tasks.** Ten, in `mise.toml`, none reachable from `ci`, `check`, `test` or
+**Tasks.** Eleven, in `mise.toml`, none reachable from `ci`, `check`, `test` or
 `test-race` (`mise_tasks_test.go` reads the file and checks it, and checks that
 `kubectl` is declared on each of them, not in the global `[tools]`, so the CI does
 not install it; kubectl `1.35`, because `datomir` runs k0s v1.36.x and kubectl is
 supported within one minor version of the API server, so 1.35 is the oldest
-accepted; `render` contacts no cluster and declares no kubectl, and the test
+accepted; `render` and `record` reach no cluster and declare no kubectl, and the test
 requires its absence there). `nexus-bench:seed` needs `skopeo` too, which is a
 tool of the host: mise does not install it, the task does not declare it, and its
 description says so (`TestMiseSeedTaskNamesSkopeoAsAPrerequisiteOfTheHost`).
@@ -787,6 +787,7 @@ Arguments follow `--`: mise appends them to the command line.
 | `nexus-bench:reset` | `... reset` | yes (deletes repositories and the upstream claim, then provisions and seeds); needs skopeo on the host |
 | `nexus-bench:status` | `... status` | reads only |
 | `nexus-bench:render` | `... render` | no, contacts nothing |
+| `nexus-bench:record` | `... record` | no cluster, no kubectl: reads the bench through its loopback ports and rewrites fixture files (see "Recorded fixtures") |
 | `nexus-bench:test` | `go test -timeout 60m -count=1 -run Integration ./internal/nexusbench/...` with `DEVDESK_NEXUS_BENCH=1` set by the task's `env` table (portable, no `env` command) | yes; the tests skip when `CI` is set |
 
 **Subcommands and flags.** Every subcommand takes the same parameter flags, one
@@ -1051,11 +1052,12 @@ the rule, not at a test to relax.
    or a whole `http.Header` printed with `%v`, is not seen.
 
 **The mise guard** (`mise_tasks_test.go`) reads `mise.toml` with a small
-line-based reader (no TOML library in `go.mod`) and checks: the six tasks exist
+line-based reader (no TOML library in `go.mod`) and checks: the eleven tasks exist
+(`TestMiseDeclaresTheElevenBenchTasks`)
 and call the command; none of `ci`, `check`, `test`, `test-race` reaches a
 `nexus-bench` task, directly or through `depends` and `run` references; `kubectl`
-is declared on `up`, `provision`, `down`, `status` and `test`, absent on `render`
-and absent from the global `[tools]`; `nexus-bench:test` sets
+is declared on every task that reaches the cluster, absent on `render` and `record`
+(`TestMiseRecordTaskNeedsNoKubectlAndSaysWhatItNeeds`) and absent from the global `[tools]`; `nexus-bench:test` sets
 `DEVDESK_NEXUS_BENCH=1`, runs `-run Integration` and carries a `-timeout` of at
 least 45 minutes. Limit: it reads the file, it does not ask mise to resolve it.
 
@@ -1576,6 +1578,275 @@ Timings: `cut-upstream` 2.5 s, `restore-upstream` 3 to 7 s, `reset` 9 to 11 s. T
 namespace, the Nexus pod (0 restart) and `nexus-data` did not change across the resets.
 `DEVDESK_NEXUS_BENCH_SCENARIOS=1 mise run nexus-bench:test` (`bench_scenarios_integration_test.go`:
 `TestIntegrationUpstreamCutRestore`, `TestIntegrationResetKeepsInstance`) passes in 52 s.
+
+## Recorded fixtures (`internal/nexusfixture`, `record`, DEVDESK-511, NX-08a)
+
+Plan `.claude/plans/DEVDESK-511-plan.md`. Tests of the Nexus-facing code (image
+search, group discovery) replay answers measured on the bench instead of
+hand-written ones, with no bench, no cluster and no secret: `mise run test` needs
+none of them. Scope is partial: only the NX-03 measures
+(`docs/measurements/2026-11-17-nexus-catalog.md`, Nexus 3.98.1-01 Community)
+exist as fixtures. See "What is not recorded yet" below.
+
+### Where things are
+
+| Path | Role |
+|---|---|
+| `internal/nexusfixture/` | format, parser and writer (`format.go`), embedded loader (`load.go`), `Redact` (`redact.go`), `CheckLeaks` (`leaks.go`). No `testing` import: the recorder imports it. |
+| `internal/nexusfixture/fixtures/<campaign>/*.http` | the fixtures, embedded with `go:embed`. One campaign today: `catalog` (30 files). |
+| `internal/nexusfixture/fakenexus/` | the replay server. Imports `testing`: import it from `_test.go` files only. |
+| `internal/nexusbench/record.go`, `cmd/nexus-bench/record.go` | the recorder and its command. |
+| `internal/nexusfixture/stale_test.go` | the stale-fixture test. |
+| `internal/imagesearch/catalog_fixture_test.go`, `internal/registrymgr/nexus_fixture_test.go` | the replay tests. |
+
+### Format of a fixture
+
+One file is one fixture, LF line endings only (a carriage return is refused).
+The file name is `<scenario>--<identity>.http`; the identity is `admin`, `pull`
+or `anon` and comes from the suffix alone. A file is a commented header, then one
+or more exchanges:
+
+```
+# scenario: <free text>                      required
+# nexus: <version> <EDITION> (<free text>)   required
+# measured: <YYYY-MM-DD>[, <free text>]      required
+# account: <free text>                       required
+# redacted: <free text>                      required
+# state: <free text>                         optional, "" means nominal
+# record: <replay | pending | skip: reason>  optional, default replay
+# recorded-by: nexus-bench record            written by the recorder only
+
+GET /v2/_catalog HTTP/1.1
+Host: 127.0.0.1:30482
+Authorization: Basic <redacted>
+
+HTTP/1.1 200 OK
+Server: Nexus/3.98.1-01 (COMMUNITY)
+Content-Type: application/json
+
+{"repositories":[...]}
+```
+
+- The request carries `Host`, `Authorization` (`Basic <redacted>` or `Bearer
+  <redacted>`, or none for `anon`) and optionally `Accept`.
+- The body is the text after the blank line. Two stand-ins exist: `<empty body>`,
+  and a summary for a body that is not replayed: `<HTML body omitted: N bytes,
+  <title>T</title>>`, or `<body omitted: N bytes, media/type>` for another media
+  type. The fake replays `<empty body>` as empty and the HTML stub as a minimal
+  page with that title; a test that needs the real body cannot use a stub.
+- Several exchanges in one file are separated by a `###` line (a body line made of
+  `###` is written with one backslash more and read back with one less). Nothing
+  records a multi-exchange file yet; the format reserves it for the Bearer token
+  step and for redirect chains (NX-05).
+- `record: pending` marks a request-only fixture (no response section) that
+  `record` is to fill. `Load` refuses a pending fixture.
+- `Format(Parse(b)) == b` for every embedded file (`TestEveryFixtureRoundTrips`).
+
+The `nexus:` header gives the version (first token) and the edition (second); the
+stale test reads them. Identity is by file name, not by header: the fake and the
+recorder choose the credentials from it.
+
+### Where fixtures come from
+
+The 30 files of `catalog` are copies, byte for byte, of the dated evidence in
+`docs/measurements/nexus-catalog/` (the NX-03 answers): `catalog-*` (group
+connector, hosted root, and the three repository paths, each as admin, pull and
+anon), `page-group-n1000--admin`, `rest-repositories-*` (the three formats and the
+group detail endpoint, three identities) and the two `v2-ping-*`. They are copied,
+not moved: the measurement note keeps its paths and the evidence stays as
+measured. Not imported: the `*-bearer--*` files (two exchanges), `manifest-head-*`
+(a read through the proxy caches), `*-after-measures`, `bench-status-*`, `ctx-*`,
+the `n1`/`n2` pagination files, `*-path*` and `tags-*`.
+
+A fixture is either byte-identical to its dated evidence, or it says
+`# recorded-by: nexus-bench record` (a regenerated file). No hand-written answer
+can pass as measured: `TestEveryFixtureIsMeasuredOrRecorded` compares each file
+with `EvidenceDir(campaign)` and names the offender. A regeneration rewrites the
+fixtures only, never the evidence.
+
+### Redaction and leak check
+
+`Redact` turns what the recorder read into what may be written:
+
+- `Authorization` becomes `Basic <redacted>` or `Bearer <redacted>`;
+- response headers are filtered to an allowlist (`ResponseHeaderAllowlist`:
+  `Server`, `Docker-Distribution-Api-Version`, `WWW-Authenticate`, `Location`,
+  `Link`, `Docker-Content-Digest`, `Content-Type`, `Content-Length`); request
+  headers keep `Accept` only;
+- an empty body becomes `<empty body>`, an HTML body or any non-JSON body becomes
+  a `<HTML body omitted: ...>` or `<body omitted: ...>` stub;
+- in a JSON body, the value of a key whose name ends in `token`, `password`,
+  `passwd`, `passphrase`, `secret`, `apikey`, `privatekey`, `credential` or
+  `uploaderip` (case-folded, plurals and `_`/`-` forms included; escapes are
+  decoded first) is replaced in
+  place by `"<redacted>"`; every other byte stays as Nexus sent it.
+
+`CheckLeaks(name, data, exact)` scans a fixture as text, line by line, with 13
+rules: `Authorization` not redacted; cookie or session header (`NXSESSIONID`,
+`X-Nexus-UI`); response header outside the allowlist; request header outside
+`Host`, `Authorization` and `Accept`; a header line that is not `Name: value`;
+JWT-like value; other known secret formats (GitHub, GitLab, AWS key, PEM key);
+a JSON secret key whose value is not `<redacted>`; a host outside `AllowedHosts`
+(`127.0.0.1` and the bench's own upstream service); a private, link-local, CGNAT
+or unique-local address; an internal name or local path (`datomir`,
+`secrets.json`, `/home/`, `/Users/`, a Windows profile, internal zones such as
+`.lan` or `.home.arpa`); a query parameter other than `n` and `last`; and each
+`exact` term (also lower-cased, JSON-escaped and URL-escaped). A `Leak` names the
+fixture, the line and the rule, never the matched text.
+
+`TestEmbeddedFixturesLeakNothing` runs it over every embedded fixture in `mise run
+test`. Names the repository must not carry (an employer's instance, hosts) go in
+an **external deny list**: a file outside the repository, one term per line,
+blank lines and `#` lines ignored, named by `DEVDESK_FIXTURE_DENYLIST`. When the
+variable is unset the test logs that the list was not used; the recorder adds the
+same terms to its own check.
+
+Known limits: the rules are fixed patterns, so a name that matches none of them
+is only caught by the external deny list, which nobody runs by default; an exotic
+encoding of a term (other than JSON and URL escaping, case folding, and the
+Basic encoding of the recorder's passwords) is not looked for.
+
+### The fake Nexus (`fakenexus`)
+
+```go
+s := fakenexus.New(t, fixtures...)   // fixtures from nexusfixture.Load("catalog")
+base := s.URL("127.0.0.1:30482")     // the fake that stands for that recorded Host
+```
+
+- **One `httptest` server per recorded `Host`**: `127.0.0.1:30481` (HTTP port,
+  REST and path routes) and `127.0.0.1:30482` (the group's Docker connector) get
+  two different loopback URLs. `Link`, `Location` and `WWW-Authenticate` values
+  naming `http://<recorded Host>` are rewritten to the fake's URL;
+  `Content-Length` is recomputed, never copied.
+- **Identity comes from `Authorization`**: none is `anon`; Basic with
+  `fakenexus.User(id)` (`admin`, `bench-pull`) and `fakenexus.Password`
+  (`fixture-password`) is that identity. Any other credentials match nothing.
+- **An unrecorded request is a test error**: `t.Errorf("no recorded answer for
+  ...")` and a 501. The fake never invents an answer. Two fixtures recording the
+  same host, method, target and identity, or one with no status, also fail the
+  test. `Hits(name)` counts the requests a fixture answered.
+- **Catalog tolerance, `n=1000`**: DevDesk always asks `/v2/_catalog?n=1000`
+  (`internal/oci/catalog.go`), but NX-03 recorded most catalogs without `n`. A
+  `GET P?n=1000` (no `last`) is answered by a fixture recorded as `GET P` with no
+  query when that answer is a 200 with no `Link` and at most 1000 names. Any
+  other `n` is unmatched. **Measured** for the group connector: `n=1000` and no
+  `n` answer identically (`page-group-n1000--admin` against
+  `catalog-group-connector-30482--admin`, `TestTheCatalogToleranceHasMeasuredGround`).
+  **Inferred** for hosted and proxy, where only no-`n` and `n=2` were measured.
+  The way to drop it is to record DevDesk-shaped `?n=1000` request files (pending)
+  and run `record`.
+- **No Bearer realm**: `v2-ping-*` replays the `WWW-Authenticate: Bearer realm=...`
+  challenge (rewritten to the fake), but no token endpoint is recorded, so a
+  client that follows the realm gets an unrecorded-request error (NX-05).
+
+### What the replay tests pin
+
+- `TestCatalogOnMeasuredNexusAnswers` (`imagesearch`): the real `CatalogSearcher`
+  and `Classify` on the measured catalogs, for hosted, proxy and group, as admin,
+  pull and anon; the prefix filter on a real unprefixed catalog gives the
+  `refused` verdict (`ErrPrefixNotInCatalog`). `TestCatalogOnTheHTTPPortRootIsRefused`
+  (the HTTP-port root answers 404 to a catalog) skips itself until a
+  `?n=1000` request on that root is recorded (DEVDESK-580): only the no-`n`
+  404 was measured, and the fake does not let a 404 answer `n=1000`.
+- `TestDetectGroupOnMeasuredNexusAnswers` and
+  `TestMeasuredRESTAnswersHoldThePremises` (`registrymgr`): `DetectGroup` on the
+  measured REST answers. As the pull account, the detailed group endpoint answers
+  **404, not 403** (contradiction C1 of the plan; the anonymous call gets 403).
+  Today this is a failed discovery, not a members refusal, and the test pins that
+  current behavior. DEVDESK-578 (NX-07b) is to change it.
+- The data of the prefix tests of `imagesearch` (`catalog_http_test.go`,
+  `catalog_test.go`) is now neutral (`myproject`): Nexus 3.98.1 does not prefix
+  catalog names, and a comment says so. The synthetic Nexus of
+  `internal/ui/oci_resources/browser_catalog_share_test.go` (one `_catalog` with
+  prefixed names for three members) is marked as contradicted by the
+  measures (DEVDESK-579 is to decide how a member's catalog is reached); no
+  assertion changed.
+
+### The stale-fixture test
+
+`TestFixturesMatchTheBenchVersion` (`stale_test.go`) compares the `nexus:` header
+of every fixture with `nexusVersion` and `edition` of
+`internal/nexusbench/descriptor.json` (the versioned descriptor `up` writes from
+the instance's answer; it is not `testdata/descriptor.example.json`, a golden whose
+version is a constant). It decodes three fields and imports nothing from
+`nexusbench`. A mismatch fails `mise run test` with the count per campaign, the two
+versions and the command `mise run nexus-bench:record`: bumping the Nexus image
+forces the fixtures to be regenerated in the same PR. An unreadable descriptor or
+a schema other than 2 fails with the path.
+
+Limit, to settle before NX-05: a fixture marked `record: skip`, or a multi-exchange
+fixture, is compared like the others, so the recorder skips it but the stale test
+does not exempt it; after a bump it stays red until someone edits its header by
+hand.
+
+### `nexus-bench record` / `mise run nexus-bench:record`
+
+Regenerates the fixtures from the running bench. The request to replay is read
+from the fixture itself (method, target, `Host`, request headers, identity from the
+file name), so a new fixture is a request-only file with `# record: pending`.
+
+Order: parameters, then the descriptor of this bench (schema 2, same context and
+namespace; missing means `mise run nexus-bench:up`), then the deny list, then the
+secrets store (admin password required; passwords come from the store only, no
+flag carries one), then `RecordFixtures`. There is no kubectl step. The
+descriptor is not written.
+
+Flags: the common parameter flags, plus `--campaign <name>` (repeatable, default
+every folder), `--only <glob>` (on fixture names without `.http`, e.g.
+`catalog-*`), `--dir <folder>` (default the fixtures folder of the source tree)
+and `--rest-host`, which accepts a loopback address only.
+
+Guards. All are checked before the first request, except where stated:
+
+- origins are loopback URLs and loopback `host:port` pairs of the descriptor; the
+  REST origin is required;
+- GET only, and a closed list of paths: `/v2/_catalog`, `/v2/<name>/tags/list`,
+  `/repository/<repo>/v2/_catalog`, `/service/rest/v1/repositories[/...]`, with a
+  query limited to `n` and `last`; never a manifest or a blob (a read through the
+  proxy caches and would change the bench);
+- a fixture file or campaign folder that is a symbolic link is refused; the file
+  as it stands goes through `CheckLeaks` before it is sent;
+- no redirection is followed (a 302 is recorded as such), a body is read up to 1
+  MiB, and only the fixture's request headers are sent;
+- the data set is compared **anonymously**, inside the library
+  (`ListImagesAnonymously`, run by `RecordFixtures` itself, not by the command), and
+  anything but a match is refused with `mise run nexus-bench:reset`. Consequence: a
+  bench whose anonymous access is turned off cannot be recorded;
+- the `Server:` header of each answer must name the descriptor's version and
+  edition, else it fails (`up`);
+- all or nothing: every answer is redacted and passed through `CheckLeaks` (with
+  both passwords, their Basic encodings, and the deny list) first; any leak or
+  error writes nothing. Then files are written atomically (`0644`);
+- an answer equal to the fixture, apart from `measured:`, leaves the file alone
+  (`unchanged`, bytes and modification time).
+
+A fixture that says `record: skip` or holds more than one exchange is reported as
+skipped and never requested. The report lists each fixture (`written`,
+`unchanged`, `skipped`) and one line per campaign, `record: catalog: N written, M
+unchanged, K skipped`. Errors are one line, free of secrets (`BenchError`).
+No output holds a password (`requireClean` in the tests).
+
+Written files carry `# measured:` with today's date and `# recorded-by: nexus-bench
+record`; they then stop being byte-identical to the evidence, which the provenance
+test accepts.
+
+### What is not recorded yet
+
+- `Cached only` (a decision of the UI from the config) and the verdict `failed`:
+  there is no measured failing answer; the 502 of a cut upstream is NX-04's.
+  They stay on hand-written answers. A proxy's catalog lists `mirror/uncached`,
+  which it does not hold (it relays the upstream); the search shows it, input for
+  NX-04.
+- NX-05: Bearer token flow and realm, redirects, pagination over several pages,
+  routing by port and path beyond the two bench origins. They need multi-exchange
+  recording, which the format reserves (`###`) and `record` does not do yet.
+- A `?n=1000` request on the HTTP-port root (404 root) is not recorded
+  (DEVDESK-580); its test skips until it is.
+- Both bench members of the group get the alias `docker` (`docker-hosted`,
+  `docker-proxy`): same label, display only. Flagged, not changed.
+
+NX-04 and NX-05 are meant to add files (pending fixtures, then `record`), not code,
+unless they need a new request shape.
 
 ## Still to come
 
