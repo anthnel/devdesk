@@ -1,0 +1,38 @@
+{
+  "cli_version": "0.13.2",
+  "checkpoint_id": "f7831097ea07",
+  "strategy": "manual-commit",
+  "branch": "feat/nexus-recorded-fixtures-devdesk-511",
+  "checkpoints_count": 43,
+  "files_touched": [
+    "internal/imagesearch/catalog_fixture_test.go",
+    "internal/imagesearch/catalog_http_test.go",
+    "internal/imagesearch/catalog_test.go",
+    "internal/registrymgr/nexus_fixture_test.go",
+    "internal/registrymgr/nexus_members_test.go",
+    "internal/ui/oci_resources/browser_catalog_share_test.go"
+  ],
+  "sessions": [
+    {
+      "metadata": "/f7/831097ea07/0/metadata.json",
+      "transcript": "/f7/831097ea07/0/full.jsonl",
+      "compact_transcript": "/f7/831097ea07/0/transcript.jsonl",
+      "content_hash": "/f7/831097ea07/0/content_hash.txt",
+      "prompt": "/f7/831097ea07/0/prompt.txt"
+    }
+  ],
+  "redaction": {
+    "replacements": 9,
+    "layers": {
+      "betterleaks": 0,
+      "connection_string": 0,
+      "credential_key": 0,
+      "credential_value": 3,
+      "credentialed_uri": 0,
+      "entropy": 4,
+      "key_context": 2,
+      "provider_token": 0,
+      "shell_stdin": 0
+    }
+  }
+}
