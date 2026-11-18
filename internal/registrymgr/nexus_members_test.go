@@ -245,6 +245,12 @@ func TestNexusMembersConnectionCutIsNotARefusal(t *testing.T) {
 }
 
 // CA3. Any status other than 401/403 is a failed discovery that keeps its code.
+//
+// The 404 case is not a made-up status: it is what the pull account of Nexus
+// 3.98.1-01 gets on the group's detailed endpoint (measured, see
+// TestDetectGroupOnMeasuredNexusAnswers). Treating it as a failed discovery is
+// today's behavior, pinned on purpose; DEVDESK-578 (NX-07b) makes a 404 there a
+// refusal, and then the 404 case of this test changes with it.
 func TestNexusMembersOtherStatusIsNotARefusal(t *testing.T) {
 	for _, code := range []int{http.StatusNotFound, http.StatusInternalServerError, http.StatusBadGateway, http.StatusServiceUnavailable} {
 		t.Run(fmt.Sprint(code), func(t *testing.T) {
