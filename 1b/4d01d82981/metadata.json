@@ -1,0 +1,56 @@
+{
+  "cli_version": "0.13.2",
+  "checkpoint_id": "1b4d01d82981",
+  "strategy": "manual-commit",
+  "branch": "main",
+  "checkpoints_count": 48,
+  "files_touched": [
+    "docs/architecture/nexus-bench.md",
+    "docs/backlog.md",
+    "docs/product/nexus-support/stories.md",
+    "internal/nexusbench/capwriter.go",
+    "internal/nexusbench/cmd/nexus-bench/nexus-bench",
+    "internal/nexusbench/cmd/nexus-bench/seed_test.go",
+    "internal/nexusbench/components.go",
+    "internal/nexusbench/components_anonymous_test.go",
+    "internal/nexusbench/components_test.go",
+    "internal/nexusbench/dataset.go",
+    "internal/nexusbench/dataset_test.go",
+    "internal/nexusbench/fakeregistry_test.go",
+    "internal/nexusbench/helper_process_test.go",
+    "internal/nexusbench/manifests/40-upstream-pvc.yaml.tmpl",
+    "internal/nexusbench/manifests/50-upstream-deployment.yaml.tmpl",
+    "internal/nexusbench/manifests/60-upstream-service.yaml.tmpl",
+    "internal/nexusbench/ocilayout.go",
+    "internal/nexusbench/ocilayout_test.go",
+    "internal/nexusbench/preflight_seed_test.go",
+    "internal/nexusbench/skopeo.go",
+    "internal/nexusbench/skopeo_test.go",
+    "internal/nexusbench/testdata/dataset-digests.golden",
+    "internal/nexusbench/upstream.go",
+    "internal/nexusbench/upstream_test.go"
+  ],
+  "sessions": [
+    {
+      "metadata": "/1b/4d01d82981/0/metadata.json",
+      "transcript": "/1b/4d01d82981/0/full.jsonl",
+      "compact_transcript": "/1b/4d01d82981/0/transcript.jsonl",
+      "content_hash": "/1b/4d01d82981/0/content_hash.txt",
+      "prompt": "/1b/4d01d82981/0/prompt.txt"
+    }
+  ],
+  "redaction": {
+    "replacements": 2,
+    "layers": {
+      "betterleaks": 0,
+      "connection_string": 0,
+      "credential_key": 0,
+      "credential_value": 0,
+      "credentialed_uri": 0,
+      "entropy": 0,
+      "key_context": 2,
+      "provider_token": 0,
+      "shell_stdin": 0
+    }
+  }
+}
