@@ -94,13 +94,6 @@ func (s *session) describeUpstream(r nexusbench.Runner) string {
 // upstreamName is the Deployment of the bench upstream.
 const upstreamName = "bench-upstream"
 
-// The two repositories that hold the data set. The group is never read: a read
-// through it can cache an image (F9).
-const (
-	hostedRepository = "docker-hosted"
-	proxyRepository  = "docker-proxy"
-)
-
 // describeDataset compares the data set the descriptor lists with what
 // docker-hosted and docker-proxy list now. The listings are anonymous and read
 // only, so what status cannot read is "unknown", never a failure.
@@ -119,14 +112,14 @@ func (s *session) describeDataset(d nexusbench.Descriptor, descErr error, base s
 		return "unknown (anonymous access is off and status sends no credential)"
 	}
 	var diffs, compared int
-	for _, repo := range []string{hostedRepository, proxyRepository} {
+	for _, repo := range nexusbench.DatasetRepositories() {
 		listed, err := s.d.readImages(s.ctx, base, repo)
 		if err != nil {
 			return "unknown (the listing of " + repo + " failed)"
 		}
-		want := expectedIn(d.Dataset, repo)
+		want := nexusbench.DatasetIn(d.Dataset, repo)
 		compared += len(want)
-		n, ok := compareListing(want, listed)
+		n, ok := nexusbench.CompareDataset(want, listed)
 		if !ok {
 			return "unknown (the listing of " + repo + " gives no digest)"
 		}
@@ -140,44 +133,6 @@ func (s *session) describeDataset(d nexusbench.Descriptor, descErr error, base s
 		noun = "image"
 	}
 	return fmt.Sprintf("differs (%d %s)", diffs, noun)
-}
-
-// expectedIn returns the images of the data set that repo holds: the hosted
-// ones in docker-hosted, the ones cached in the proxy in docker-proxy.
-func expectedIn(images []nexusbench.DescriptorImage, repo string) []nexusbench.DescriptorImage {
-	var out []nexusbench.DescriptorImage
-	for _, img := range images {
-		if (repo == hostedRepository && img.Location == string(nexusbench.LocationHosted)) ||
-			(repo == proxyRepository && img.CachedInProxy) {
-			out = append(out, img)
-		}
-	}
-	return out
-}
-
-// compareListing counts the differences between what a repository should hold
-// and what it lists: an image that is missing or has another digest, and an
-// image the data set does not know. ok is false when the listing gives no
-// digest for an image that is there, which makes the comparison impossible.
-func compareListing(want []nexusbench.DescriptorImage, listed []listedImage) (diffs int, ok bool) {
-	have := make(map[string]string, len(listed))
-	for _, img := range listed {
-		have[img.Name+":"+img.Tag] = img.Digest
-	}
-	for _, img := range want {
-		key := img.Name + ":" + img.Tag
-		digest, found := have[key]
-		delete(have, key)
-		switch {
-		case !found:
-			diffs++
-		case digest == "":
-			return 0, false
-		case digest != img.Digest:
-			diffs++
-		}
-	}
-	return diffs + len(have), true
 }
 
 // podList is the part of `kubectl get pods -o json` the report reads.
