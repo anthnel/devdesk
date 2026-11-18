@@ -219,7 +219,16 @@ imports nothing from `internal/`).
   timeout unchanged) and reads each reply through
   `oci.ReadAllLimited(..., maxNexusResponse)`, 1 MiB. The cap is a hypothesis,
   not measured. The anonymous retry of the group members still happens on any
-  error but a refused off-origin redirect (see `registries.md`). A non-200
+  error but a refused off-origin redirect (see `registries.md`); the first
+  attempt decides the outcome, the retry only changes it by succeeding.
+  `fetchGroupMembers` no longer swallows its errors (DEVDESK-510): a
+  `StatusError` from the management API with 401 or 403 becomes
+  `*registrymgr.MembersRefusedError` (`errors.Is(err, ErrMembersRefused)`,
+  `Group`, `Status`, `Anonymous`; its text holds the group and the status,
+  never a URL or a body), any other error is returned as it is. A reply
+  without a `group.memberNames` key (empty body, `null`, `{}`) is an error;
+  `memberNames: []` is a group with no member, a non-nil empty list. The format
+  segment of the path is escaped (`url.PathEscape`). A non-200
   status is `*oci.StatusError{Source: oci.SourceManagementAPI}`
   (`management API returned 401`). A context error (cancel, deadline) is never
   a `StatusError`: when the context is done, a body cut mid-read reports the

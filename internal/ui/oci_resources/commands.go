@@ -3,6 +3,7 @@ package ociresources
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"log"
 	"net/http"
@@ -484,12 +485,44 @@ func pullOneImageCmd(imageName string, deps imagepull.Deps) tea.Cmd {
 	)
 }
 
+// groupDetectTimeout bounds one group discovery. A variable so a test can shorten it.
+var groupDetectTimeout = 8 * time.Second
+
+// refusalRecord is the one conversion from a typed refusal to what the cache and
+// the model hold, so the disk and the memory cannot disagree.
+func refusalRecord(e *registrymgr.MembersRefusedError, at time.Time) cache.RegistryGroupRefusal {
+	return cache.RegistryGroupRefusal{At: at, Status: e.Status, Anonymous: e.Anonymous}
+}
+
+// cacheGroupRefusal records a refusal beside the listing, without touching it:
+// what was last listed stays, because a refusal says nothing about the members.
+func cacheGroupRefusal(slug string, r cache.RegistryGroupRefusal) {
+	if slug == "" {
+		return
+	}
+	c, err := cache.NewRegistryGroupCache()
+	if err != nil {
+		log.Printf("ERROR [oci_resources] open the registry group cache: %v", err)
+		return
+	}
+	if err := c.SetRefusal(slug, r); err != nil {
+		log.Printf("ERROR [oci_resources] save the group refusal for %q: %v", slug, err)
+	}
+}
+
 // detectRegistryGroupCmd calls the generic registrymgr.DetectGroup to determine
 // whether reg is a group repository and enumerate its members.
 // Always emits RegistryGroupDetectedMsg (Members==nil means not a group).
+//
+// Three outcomes, one write at most, one instant (msg.At) shared by the disk and
+// the model: a listing (even an empty one) is written and clears any refusal; a
+// refusal (*registrymgr.MembersRefusedError) is written beside the listing, which
+// it never touches; any other error (network, deadline, 404, 5xx, unreadable
+// reply) writes nothing, because not being able to ask says nothing about the
+// group.
 func detectRegistryGroupCmd(reg config.RegistryItem, password string) tea.Cmd {
 	return func() tea.Msg {
-		ctx, cancel := context.WithTimeout(context.Background(), 8*time.Second)
+		ctx, cancel := context.WithTimeout(context.Background(), groupDetectTimeout)
 		defer cancel()
 
 		username := reg.Username
@@ -511,10 +544,15 @@ func detectRegistryGroupCmd(reg config.RegistryItem, password string) tea.Cmd {
 			Password:      password,
 		}
 		members, err := registrymgr.DetectGroup(ctx, info)
-		if err == nil {
-			cacheGroupMembers(reg.Slug, members)
+		at := time.Now()
+		var refused *registrymgr.MembersRefusedError
+		switch {
+		case err == nil:
+			cacheGroupMembers(reg.Slug, members, at)
+		case errors.As(err, &refused):
+			cacheGroupRefusal(reg.Slug, refusalRecord(refused, at))
 		}
-		return RegistryGroupDetectedMsg{RegistryURL: reg.URL, Slug: reg.Slug, Members: members, Err: err}
+		return RegistryGroupDetectedMsg{RegistryURL: reg.URL, Slug: reg.Slug, Members: members, Err: err, At: at}
 	}
 }
 
@@ -524,8 +562,8 @@ func detectRegistryGroupCmd(reg config.RegistryItem, password string) tea.Cmd {
 // A discovery that found nothing is stored too: "asked, and it is not a group"
 // is an answer, and not storing it is what makes a non-group get probed forever.
 // An error is not stored — an unreachable manager must not overwrite what was
-// last known.
-func cacheGroupMembers(slug string, members []registrymgr.GroupMember) {
+// last known. at is the instant the discovery ended: the handler records the same.
+func cacheGroupMembers(slug string, members []registrymgr.GroupMember, at time.Time) {
 	if slug == "" {
 		return
 	}
@@ -536,7 +574,7 @@ func cacheGroupMembers(slug string, members []registrymgr.GroupMember) {
 	}
 	entry := cache.RegistryGroupEntry{
 		Members:      make([]cache.RegistryGroupMember, 0, len(members)),
-		DiscoveredAt: time.Now(),
+		DiscoveredAt: at,
 	}
 	for _, m := range members {
 		entry.Members = append(entry.Members, cache.RegistryGroupMember{Alias: m.Alias, URL: m.URL, RepoPrefix: m.RepoPrefix})
@@ -589,7 +627,7 @@ func loadRegistryGroupCache() tea.Cmd {
 			log.Printf("ERROR [oci_resources] open the registry group cache: %v", err)
 			return RegistryGroupCacheLoadedMsg{}
 		}
-		return RegistryGroupCacheLoadedMsg{Entries: c.GetAll()}
+		return RegistryGroupCacheLoadedMsg{Entries: c.GetAll(), Refusals: c.Refusals()}
 	}
 }
 

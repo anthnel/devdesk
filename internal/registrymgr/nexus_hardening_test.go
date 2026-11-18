@@ -296,8 +296,11 @@ func TestNexusFormatEndpointRedirectOffOriginIsRefused(t *testing.T) {
 		if len(members) != 0 {
 			t.Errorf("members = %v, want none", members)
 		}
-		if err != nil && !errors.Is(err, oci.ErrOffOriginRedirect) {
-			t.Errorf("err = %v, want nil or errors.Is oci.ErrOffOriginRedirect", err)
+		if !errors.Is(err, oci.ErrOffOriginRedirect) {
+			t.Errorf("err = %v, want errors.Is oci.ErrOffOriginRedirect (a refused redirect is a failed discovery, not 0 members)", err)
+		}
+		if errors.Is(err, ErrMembersRefused) {
+			t.Errorf("err = %v, is ErrMembersRefused, want a plain failure: no account was refused", err)
 		}
 		if n := env.b.count(); n != 0 {
 			t.Errorf("the other origin received %d requests, want 0", n)
@@ -419,8 +422,10 @@ func TestNexusAnonymousRetryDoesNotFollowAnOffOriginRedirect(t *testing.T) {
 
 		members, err := (&NexusDetector{}).DetectGroup(context.Background(), env.info())
 
-		if err != nil {
-			t.Fatalf("err = %v, want nil", err)
+		// The account's 403 is the verdict: the retry's redirect is logged, not
+		// returned, and no member is read from the other origin.
+		if !errors.Is(err, ErrMembersRefused) {
+			t.Fatalf("err = %v, want errors.Is ErrMembersRefused (the account was refused)", err)
 		}
 		if len(members) != 0 {
 			t.Errorf("members = %v, want none (the anonymous redirect was followed)", members)
@@ -528,8 +533,16 @@ func TestNexusResponseOverTheCapIsAnError(t *testing.T) {
 
 				members, err := (&NexusDetector{}).DetectGroup(context.Background(), info)
 
-				if err != nil {
-					t.Fatalf("err = %v, want nil (an unreadable format endpoint only means no members)", err)
+				if tc.want > 0 && err != nil {
+					t.Fatalf("err = %v, want nil", err)
+				}
+				// An oversized answer is a failed discovery (NX-07), not "no members"
+				// and not a refusal: nothing is cached over what was last known.
+				if tc.want == 0 {
+					if !errors.Is(err, oci.ErrBodyTooLarge) || errors.Is(err, ErrMembersRefused) {
+						t.Fatalf("err = %v, want errors.Is oci.ErrBodyTooLarge and not a refusal", err)
+					}
+					wantNoSecret(t, "error", err.Error())
 				}
 				if len(members) != tc.want {
 					t.Errorf("members = %d, want %d", len(members), tc.want)

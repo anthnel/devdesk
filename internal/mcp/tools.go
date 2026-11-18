@@ -48,7 +48,7 @@ func tools() []toolDef {
 		},
 		{
 			Name:        "registries_list",
-			Description: "List the OCI registries this context is configured with — their address, kind, provider and authentication mode — together with the members that discovery last found for a repository-manager group. It reads the cache and never the network, so a group nobody has probed is reported as unprobed rather than probed here.",
+			Description: "List the OCI registries this context is configured with — their address, kind, provider and authentication mode — together with the members that discovery last found for a repository-manager group. It reads the cache and never the network, so a group nobody has probed is reported as unprobed rather than probed here. When the manager refused to list a group's members to the configured account, the entry carries members_refused (status, age, whether the probe was anonymous) instead of a discovery; the members can then be declared by hand with repo_prefix, and a discovery that is also present is older than the refusal.",
 			register:    registerRegistriesList,
 		},
 		{

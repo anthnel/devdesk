@@ -100,6 +100,9 @@ type Model struct {
 	// groupCache is what the Members column reads: slug → last discovery. It is
 	// loaded from disk once and updated as discoveries come back.
 	groupCache map[string]cache.RegistryGroupEntry
+	// groupRefusals is what each group's manager last refused, slug → refusal.
+	// Only the handler assigns it (Rule 110).
+	groupRefusals map[string]cache.RegistryGroupRefusal
 	// refreshingGroups holds the slugs a discovery is running for, so ctrl+r on
 	// a row already refreshing does not fire a second one.
 	refreshingGroups map[string]bool
@@ -376,12 +379,16 @@ type RegistryGroupDetectedMsg struct {
 	Slug        string
 	Members     []registrymgr.GroupMember
 	Err         error
+	// At is the instant the discovery ended: the disk and the model hold the same one.
+	At time.Time
 }
 
 // RegistryGroupCacheLoadedMsg carries every cached group discovery, keyed by
 // group slug.
 type RegistryGroupCacheLoadedMsg struct {
 	Entries map[string]cache.RegistryGroupEntry
+	// Refusals is what each group's manager last refused, keyed by group slug.
+	Refusals map[string]cache.RegistryGroupRefusal
 }
 
 // BrowserSelectionLoadedMsg carries the registries this context had left
@@ -496,6 +503,7 @@ func New(cfg *config.Config) Model {
 		registries:          cfg.Registry.Registries,
 		registryLoginStatus: make(map[string]docker.LoginState),
 		groupCache:          make(map[string]cache.RegistryGroupEntry),
+		groupRefusals:       make(map[string]cache.RegistryGroupRefusal),
 		refreshingGroups:    make(map[string]bool),
 		browserDeselected:   make(map[string]bool),
 		loading:             true,

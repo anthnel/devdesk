@@ -287,9 +287,10 @@ func TestNexusUnreadableReplyIsAnError(t *testing.T) {
 	}
 }
 
-// 6. The format endpoint keeps swallowing its errors (NX-07): an unreadable
-// reply there only means no members, and the detection does not fail or panic.
-func TestNexusUnreadableFormatReplyGivesNoMembers(t *testing.T) {
+// 6. An unreadable reply from the format endpoint is a failed discovery, not
+// "no members" (NX-07): reading it as empty would be cached and erase the members
+// last known (D23). It is not a refusal either: Nexus answered 200.
+func TestNexusUnreadableFormatReplyIsAFailedDiscovery(t *testing.T) {
 	for _, body := range []string{"", "  \n", "{", "<html>login</html>", "null", `{"group":{"memberNames":5}}`} {
 		t.Run(fmt.Sprintf("%q", body), func(t *testing.T) {
 			var formatHits atomic.Int32
@@ -304,8 +305,10 @@ func TestNexusUnreadableFormatReplyGivesNoMembers(t *testing.T) {
 
 			members, err := (&NexusDetector{}).DetectGroup(context.Background(), info)
 
-			if err != nil {
-				t.Errorf("err = %v, want nil (the format endpoint's errors are swallowed)", err)
+			if err == nil {
+				t.Errorf("err = nil, want an error (an unreadable reply is not an empty group)")
+			} else if errors.Is(err, ErrMembersRefused) {
+				t.Errorf("err = %v, is ErrMembersRefused, want a plain failure", err)
 			}
 			if len(members) != 0 {
 				t.Errorf("members = %v, want none", members)

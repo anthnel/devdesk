@@ -393,6 +393,18 @@ func listsCacheOnly(reg config.RegistryItem, bySlug map[string]config.RegistryIt
 	return reg.Parent != "" && config.IsNexusGroup(bySlug[reg.Parent])
 }
 
+// declaredMembers counts the config entries declared by hand as members of the
+// group slug (their Parent is that slug).
+func declaredMembers(registries []config.RegistryItem, slug string) int {
+	n := 0
+	for _, reg := range registries {
+		if reg.Parent == slug {
+			n++
+		}
+	}
+	return n
+}
+
 // memberKey names one member of a group. Scoping it by the group's slug is what
 // keeps two groups fronting the same repository apart, and what keeps a member
 // from colliding with a standalone registry keyed on its own slug.

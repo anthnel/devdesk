@@ -115,6 +115,9 @@ func (m Model) status() sharedcomponents.Status {
 	if st.Text == "" {
 		st.Text = m.inlineSecretLine()
 	}
+	if st.Text == "" {
+		st.Text, st.Level = m.groupMembersStatus()
+	}
 	// Only a detail whose dot moves replaces the dot; a failed row's is fixed.
 	st.Activity = len(jobs.Unfinished(m.jobs)) > 0 && (!moving || st.Detail.IsZero())
 	return st
@@ -598,7 +601,8 @@ func (m Model) GetHelpContent() help.Content {
 			{Key: "enter (Browser tags)", Description: "View CVE details for the selected tag (only when scan results are cached)"},
 			{Key: "esc (Browser)", Description: "Go back to the previous screen in the registry browser"},
 			{Key: "ctrl+r", Description: "Refresh the current tab's data — on a group row, re-run member discovery"},
-			{Key: "→ (Registries)", Description: "Show a group's discovered members"},
+			{Key: "→ (Registries)", Description: "Show a group's discovered members, plus the ones declared by hand with a parent"},
+			{Key: "Members (Registries)", Description: "Last discovery of a group: never (not asked yet), N · age (members listed), 0 · age (the group answered with no member), denied · age or denied · N known · age (the manager refused to list the members to this account; \"N known\" is the list from before the refusal, still used; on a narrow terminal the end is cut, so denied stays). A refused group's members can be declared by hand with repo_prefix and a parent"},
 			{Key: "← (Registries)", Description: "Go back to the registry list"},
 			{Key: "/", Description: "Filter images by repository or tag (Images tab only)"},
 			{Key: "→ (Browser images)", Description: "Open the tags of the selected image, on its registry only"},

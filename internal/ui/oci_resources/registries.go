@@ -30,7 +30,15 @@ func (m Model) enterSelectedGroup() (tea.Model, tea.Cmd) {
 		return m, m.footer.Warn(in.Reason)
 	}
 	reg := m.getSelectedRegistry()
-	if len(m.groupCache[reg.Slug].Members) == 0 {
+	refusal, refused := m.groupRefusal(reg.Slug)
+	// A refused group opens on what is declared by hand: the refusal hides
+	// nothing the user wrote.
+	openable := len(m.groupCache[reg.Slug].Members) > 0 || (refused && refusal.Declared > 0)
+	switch {
+	case openable:
+	case refused:
+		return m, m.footer.Warn(refusedDrillInText(refusal))
+	default:
 		return m, m.footer.Warn("No members discovered yet — press ctrl+r to look")
 	}
 	m.registryGroupSlug = reg.Slug
