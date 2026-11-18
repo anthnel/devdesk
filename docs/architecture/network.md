@@ -1546,20 +1546,137 @@ the same commit, with a reason and an end.
 
 ### Go behaviors to keep in mind
 
-- `localhost` and loopback addresses are never proxied by
+Which variables are read, and how:
+
+- `HTTP_PROXY`, `HTTPS_PROXY` and `NO_PROXY`, each in two casings. The upper
+  case name wins over the lower case one, and an empty value counts as not
+  defined (`firstNonEmpty`, like Go's `getEnvAny`).
+- `ALL_PROXY` and `FTP_PROXY` are not read, by Go or by DevDesk.
+- The environment is read once per process (`http.ProxyFromEnvironment` caches
+  it; `ContainerForward` does the same with `sync.OnceValue`). A context switch
+  reads nothing again: the user restarts DevDesk after changing a variable. So
+  `t.Setenv` has no effect after the first call. A test that needs a given
+  environment runs the code in a subprocess, or injects a `Selector` (or, for the
+  containers, swaps the `proxyForward` seam of `internal/scan`).
+- `NO_PROXY` takes a host name (it also covers its subdomains), `.suffix`
+  (subdomains only), an IP address, a CIDR, `host:port`, and `*` (everything).
+- `localhost` (exactly) and loopback addresses are never proxied by
   `http.ProxyFromEnvironment`, whatever the variables say; `*.localhost` names
   are proxied.
-- `NO_PROXY=example.com` also covers its subdomains; `.example.com` covers the
-  subdomains only.
-- The environment is read once per process (`http.ProxyFromEnvironment`
-  caches it), so `t.Setenv` has no effect after the first call. A test that
-  needs a given environment runs the code in a subprocess, or injects a
-  `Selector`.
+- CGI: when `REQUEST_METHOD` is set Go refuses `HTTP_PROXY` (see the Proxy row
+  above). The container forward does not look at it: a value is forwarded as is.
+- A proxy that limits `CONNECT` to port 443 answers 403 for another port (LDAPS,
+  SMTPS); the footer now says so.
 - socks5 proxies: the HTTPS monitor accepts them (`net/http` does), the SSL
   check refuses them with `StepScheme` and no new dependency. The gap is
   deliberate and known.
-- A proxy that limits `CONNECT` to port 443 answers 403 for another port (LDAPS,
-  SMTPS); the footer now says so.
+
+Who follows these variables after DEVDESK-581 and DEVDESK-582:
+
+- The HTTP/HTTPS monitor, the SSL monitor and the certificate viewer: the entry
+  point above (DEVDESK-581).
+- The Diagnostics: direct on purpose (decision Q1). The Proxy row says which
+  proxy would apply; no check is sent to a proxy (DEVDESK-582).
+- The scanner containers: see the next section (DEVDESK-583).
+- Image pulls done by the engine: the Docker or Podman daemon pulls, with its own
+  proxy configuration (the service environment, Docker Desktop settings, the
+  Podman machine). DevDesk does not configure it and does not pass its variables
+  to it. DevDesk's own registry calls (`internal/oci`) go through the entry point.
+- `git` (clone, sync) is a child process: it inherits the environment and reads
+  it with libcurl's rules, not Go's. libcurl ignores an upper case `HTTP_PROXY`
+  for `http://` URLs (only `http_proxy` counts), reads `all_proxy`, and its
+  support for CIDR in `NO_PROXY` depends on the curl version. `http.proxy` in the
+  git configuration wins. DevDesk does nothing to reconcile the two.
+
+## Container scanners and the proxy (DEVDESK-583)
+
+A scanner that runs from an image (trivy, gitleaks, cosign, plumber,
+kubeconform, its manifest rendering, and the version probe of a tool image) has
+its own network stack and does not see this process's environment. DevDesk
+forwards the proxy itself.
+
+- **One constructor.** `scan.containerRun` (`internal/scan/container_run.go`) is
+  the only place that builds `<engine> run --rm`. Its `cmd()` writes
+  `run --rm <Flags> -e NAME ... <Image> <Argv>`. Every launcher (`trivy_args.go`,
+  `gitleaks.go`, `cosign.go`, `plumber.go`, `kubeconform.go`,
+  `kubeconform_render.go`, `tool_source.go`) goes through it.
+- **Names in argv, values in the environment.** `netproxy.ContainerForward()`
+  returns a `Forward`, a snapshot of `HTTP_PROXY`, `HTTPS_PROXY` and `NO_PROXY`
+  taken once. For each of the three, the first non-empty value of the upper then
+  lower case name is given to both casings. `cmd()` adds `-e NAME` (no value) for
+  each name, in the order of `ForwardedVariables`, and sets the values on the
+  child process through `Forward.Environ(os.Environ())` (the six names are
+  removed from the base first). The engine copies the client's value, so a
+  credential in a proxy URL is in no argv: not in the process list, not in the
+  command `:jobs` shows, not in a log. The value is not validated.
+- **No rewriting.** A proxy on `127.0.0.1`, `localhost` or `::1` is forwarded as
+  is. DevDesk does not rewrite it to `host.docker.internal`, does not add
+  `--network host` and does not fall back to a direct connection.
+- **A `Forward` never prints a value.** `String` and `GoString` show the display
+  form (`netproxy.Display`); the values sit behind a function so `fmt` finds
+  nothing to print, with any verb.
+- **The trust model.** The proxy and its credentials go to every scanner image,
+  including one the user set through `tool.Image` (see `scanning.md`).
+- **Stderr is redacted.** `cliRunner.Run` redacts each stderr line before it goes
+  to `progressFn`, and `waitErr` redacts the diagnostic kept in the `exitError`,
+  with `Forward.Redactor` / `Forward.Redact`. A raw proxy value that carries
+  credentials becomes its display form (or `[redacted]` when it cannot be parsed),
+  and the userinfo and the password disappear, as written, as Go escapes them and
+  decoded. A value with no credentials is left alone. The limits are in
+  `scanning.md`.
+- **The loopback warning.** When the HTTPS or HTTP value names this machine's
+  loopback (`Forward.Loopback`, first the HTTPS pair; `localhost` exactly and
+  loopback IPs, not `*.localhost`) and a containerised tool is about to run,
+  the footer says `<VARIABLE> is <scheme://host:port>, on this machine's loopback:
+  scanner containers cannot reach it` (`scan.ContainerProxyWarning`; the variable
+  is named as read, the value in display form). The router posts it when a scan
+  or a verified pull starts, and the Remediation tab when it scans candidates
+  (see `app-shell.md`). It is a warning: the scan still starts.
+  - False positive: if the engine's default network is `host` (Podman
+    `containers.conf` with `netns = "host"`), the proxy is reachable and the
+    warning is wrong. DevDesk does not read the engine configuration.
+  - Over-reporting: a scan (`KindScan`) takes every tool the enabled categories
+    require, while a scan of images runs only trivy. The warning can name a
+    container that the run will not use.
+- **Podman on a remote machine** (a Podman machine on macOS or Windows): to be
+  verified. Documentation says `-e NAME` without a value reads the client's
+  environment, which is what the design relies on; it has not been checked by hand
+  here.
+
+### The container guard
+
+`internal/netproxy/container_guard_test.go` keeps a launch from skipping the
+forward. Like the HTTP guard it parses the production sources of the module
+(go/ast, no types; test files, `.worktrees`, `.git`, `vendor`, `testdata`,
+`docs-site` and `node_modules` skipped, `internal/netproxy` read) and reports:
+
+| Rule | Reported |
+|---|---|
+| C1 | a `[]string` literal whose first element is the literal `"run"` |
+| C2 | a call with the literal `"run"` as argument 0 or 1 and at least one argument after it |
+
+The one allowed site is `containerRun.cmd` in `internal/scan/container_run.go`,
+hard-coded in the test. Everything else needs an entry in `containerExceptions`,
+matched by file, function and rule, and named in this section
+(`TestNetworkDocListsEveryContainerException`);
+`TestContainerGuardEveryExceptionStillMatches` fails on a stale one.
+
+| File | Func | Rule | Reason | Until |
+|---|---|---|---|---|
+| `internal/docker/launch.go` | `buildLaunchArgs` | C1 | the user's own container, configured in the launch form: not a scanner | permanent |
+| `internal/docker/launch.go` | `VerifyEntrypoint` | C2 | runs only `command -v`, nothing to forward | permanent |
+
+What the guard does not see:
+
+- a `"run"` that is not a literal: built at run time, or a named constant;
+- `append(args, "run")`: the literal is the last argument, with nothing after it;
+- the `container run` spelling: in `[]string{"container", "run", ...}` the first
+  element is not `"run"` (C1), and in `exec.Command(bin, "container", "run", img)`
+  the `"run"` is argument 2 (C2 looks at 0 and 1 only);
+- a `"run"` at argument index 2 or later;
+- C1 looks at the first element only: `[]string{"--rm", "run"}` is not reported;
+- a launch that is not a `run` (`docker create`, `exec`), and clients built in
+  third-party code.
 
 ## The path trace — `internal/nettrace`
 

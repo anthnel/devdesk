@@ -195,6 +195,13 @@ A few points shape how the route stage behaves:
   (important for round-robin DNS names, where two independent lookups can
   return different addresses).
 
+### The proxy variables
+
+The Diagnostics measure the direct path, and the **Proxy** row says whether
+`HTTPS_PROXY`, `HTTP_PROXY` or `NO_PROXY` applies to the target; nothing is sent
+to a proxy. The monitors, the SSL check and the scanner containers follow the
+variables. See [Work behind a proxy](../how-to/work-behind-a-proxy.md).
+
 ### The Trace Path button
 
 The form has two buttons, **Run Diagnostics** and **Trace Path**. `↑` and `↓`

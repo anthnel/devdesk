@@ -13,7 +13,6 @@ import (
 	"os"
 	"strings"
 
-	"github.com/anthnel/devdesk/internal/engine"
 	"github.com/anthnel/devdesk/internal/trust"
 )
 
@@ -225,7 +224,7 @@ func (c CosignVerifier) command(ref string, args []string, keyFile string) toolC
 		return cmd
 	}
 
-	engineArgs := []string{"run", "--rm"}
+	var engineArgs []string
 	if env != nil {
 		engineArgs = append(engineArgs, "-e", cosignUserEnv, "-e", cosignPasswordEnv)
 	}
@@ -237,11 +236,7 @@ func (c CosignVerifier) command(ref string, args []string, keyFile string) toolC
 			}
 		}
 	}
-	cmd := toolCmd{Name: engine.Current().Binary, Args: append(append(engineArgs, cosignImage(c.Tool.Image)), args...)}
-	if env != nil {
-		cmd.Env = append(os.Environ(), env...)
-	}
-	return cmd
+	return containerRun{Flags: engineArgs, Image: cosignImage(c.Tool.Image), Argv: args, Env: env}.cmd()
 }
 
 func (c CosignVerifier) credentialEnv(host string) []string {

@@ -10,6 +10,7 @@ import (
 
 	"github.com/anthnel/devdesk/internal/cache"
 	"github.com/anthnel/devdesk/internal/imageupdate"
+	"github.com/anthnel/devdesk/internal/netproxy"
 	"github.com/anthnel/devdesk/internal/remediation"
 	"github.com/anthnel/devdesk/internal/scan"
 	"github.com/anthnel/devdesk/internal/trust"
@@ -483,6 +484,10 @@ func (m Model) canScanCandidates() shortcut.Availability {
 	return shortcut.Availability{}
 }
 
+// containerForward is the proxy environment of this process. A variable so a
+// test can set it.
+var containerForward = netproxy.ContainerForward
+
 // scanCandidates measures every image that has not been, from its registry.
 func (m Model) scanCandidates() (tea.Model, tea.Cmd) {
 	if a := m.canScanCandidates(); !a.Enabled() {
@@ -505,6 +510,12 @@ func (m Model) scanCandidates() (tea.Model, tea.Cmd) {
 		timeout = 5 * time.Minute
 	}
 	cmds := scanRemediationCmds(m.remediation.target, refs, m.scanOptions(), timeout)
+	// A loopback proxy cannot be reached from a Trivy container (DEVDESK-583).
+	// This scan is not a job, so it never crosses the router's warning.
+	containerised := scan.RunsInContainer(m.deps, m.config.Scan.Tools, []scan.ToolID{scan.ToolTrivy})
+	if text := scan.ContainerProxyWarning(containerForward(), containerised); text != "" {
+		cmds = append([]tea.Cmd{m.footer.Warn(text)}, cmds...)
+	}
 	return m, tea.Batch(cmds...)
 }
 

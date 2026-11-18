@@ -975,6 +975,26 @@ run still going is never pruned. Each is stamped with the context it started in,
 and views **filter** (`jobs.FilterContext`) rather than the registry purging on a
 switch — purging would contradict keeping them for the session.
 
+#### The proxy warning at launch (DEVDESK-583)
+
+`handleStartJobs` ends with `containerProxyWarning(run.Kind)` (`internal/app/jobs.go`),
+which returns a `components.PostFooter` command at level Warning, or nil. It
+applies to `KindScan` (the tools `scan.Required` returns for the enabled
+categories) and to `KindPull` when `Scan.VerifiesImages()` (cosign). It is
+computed in `Update` from the detection held in `shared.State.Tools`, with no I/O
+(Rule 110): `scan.RunsInContainer` then `scan.ContainerProxyWarning` on
+`containerForward()` (a seam, emptied in the `TestMain` of `internal/app`). Every
+launch warns again; there is no deduplication. The footer message is timed, and a
+message a view posts later replaces it before it expires.
+
+A scan started over MCP goes through the same handler: the warning shows on the
+view that is active, and the MCP response does not carry it.
+
+The Remediation tab starts its scan outside the registry, so it never crosses
+`handleStartJobs`: `scanCandidates` (`internal/ui/security/remediation.go`) puts
+the same text in its own footer with `m.footer.Warn`, only when trivy would run
+in a container.
+
 #### The stamp is what the work runs under
 
 A launch is two things and the router sequences them: it admits the run, then it

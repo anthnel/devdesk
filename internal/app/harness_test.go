@@ -18,6 +18,7 @@ import (
 	"github.com/anthnel/devdesk/internal/config"
 	"github.com/anthnel/devdesk/internal/credentials"
 	"github.com/anthnel/devdesk/internal/jobs"
+	"github.com/anthnel/devdesk/internal/netproxy"
 	"github.com/anthnel/devdesk/internal/shared"
 	"github.com/anthnel/devdesk/internal/ui/help"
 	"github.com/anthnel/devdesk/internal/ui/shortcut"
@@ -50,6 +51,9 @@ func TestMain(m *testing.M) {
 	_ = os.Setenv("USERPROFILE", home)
 	// :agent-usage reads Claude Code transcripts from here; never the real ones.
 	_ = os.Unsetenv("CLAUDE_CONFIG_DIR")
+	// Never the developer's own HTTPS_PROXY: a loopback one would add a footer
+	// warning to every scan a test launches (DEVDESK-583).
+	containerForward = func() netproxy.Forward { return netproxy.Forward{} }
 
 	code := m.Run()
 

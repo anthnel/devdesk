@@ -61,6 +61,7 @@ nav:
       - Configure a context: how-to/configure-a-context.md
       - Switch forge backend (GitLab/GitHub): how-to/switch-forge-backend.md
       - Run a security scan: how-to/run-a-security-scan.md
+      - Work behind a proxy: how-to/work-behind-a-proxy.md
       - Trust image signatures: how-to/trust-image-signatures.md
       - Create a repository from a template: how-to/create-a-repo-from-a-template.md
       - Enable the MCP server: how-to/enable-the-mcp-server.md

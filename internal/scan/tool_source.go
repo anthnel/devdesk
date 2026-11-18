@@ -155,13 +155,20 @@ func toolVersion(path string, args ...string) string {
 	return string(out)
 }
 
+// containerVersionCmd is the invocation that asks an image for its version.
+func containerVersionCmd(image string, args ...string) toolCmd {
+	return containerRun{Image: image, Argv: args}.cmd()
+}
+
 // containerToolVersion asks the image what it is, through the configured
 // engine. The engine's name is part of the answer — it is what the dashboard
 // shows to say where the tool is coming from.
 func containerToolVersion(image string, args ...string) string {
 	name := engine.Current().Name
-	runArgs := append([]string{"run", "--rm", image}, args...)
-	out, err := exec.Command(engine.Current().Binary, runArgs...).Output() //nolint:gosec // the binary is a declared engine name or a configured path
+	tc := containerVersionCmd(image, args...)
+	cmd := exec.Command(tc.Name, tc.Args...) //nolint:gosec // the binary is a declared engine name or a configured path
+	cmd.Env = tc.Env
+	out, err := cmd.Output()
 	if err != nil {
 		return name
 	}
