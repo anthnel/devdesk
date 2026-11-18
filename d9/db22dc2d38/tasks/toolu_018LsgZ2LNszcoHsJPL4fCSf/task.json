@@ -1,0 +1,15 @@
+{
+  "tool_use_id": "toolu_018LsgZ2LNszcoHsJPL4fCSf",
+  "agent_id": "a7d3381287dd6c48d",
+  "subagent_type": "dev-team:reviewer",
+  "task_description": "Revue étape 6 + nettoyage",
+  "token_usage": {
+    "input_tokens": 28,
+    "cache_creation_tokens": 141817,
+    "cache_read_tokens": 845050,
+    "output_tokens": 11517,
+    "api_call_count": 13
+  },
+  "started_at": "2026-11-18T20:02:01.260763572+01:00",
+  "completed_at": "2026-11-18T20:06:00.441072613+01:00"
+}

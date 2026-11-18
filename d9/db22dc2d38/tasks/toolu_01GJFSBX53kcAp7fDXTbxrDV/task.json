@@ -1,0 +1,18 @@
+{
+  "tool_use_id": "toolu_01GJFSBX53kcAp7fDXTbxrDV",
+  "agent_id": "a92e4c182f39c7fae",
+  "subagent_type": "project-tester",
+  "task_description": "Rouge étape 3 containerRun",
+  "files": [
+    "internal/scan/container_run_test.go"
+  ],
+  "token_usage": {
+    "input_tokens": 22,
+    "cache_creation_tokens": 87578,
+    "cache_read_tokens": 616808,
+    "output_tokens": 18007,
+    "api_call_count": 10
+  },
+  "started_at": "2026-11-18T19:02:50.27189513+01:00",
+  "completed_at": "2026-11-18T19:04:50.234301178+01:00"
+}

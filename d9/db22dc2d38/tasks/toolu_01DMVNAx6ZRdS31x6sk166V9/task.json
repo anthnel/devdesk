@@ -1,0 +1,18 @@
+{
+  "tool_use_id": "toolu_01DMVNAx6ZRdS31x6sk166V9",
+  "agent_id": "ad8bec38340ee725f",
+  "subagent_type": "project-tester",
+  "task_description": "Rouge étape 5 expurgation stderr",
+  "files": [
+    "internal/scan/stderr_redact_test.go"
+  ],
+  "token_usage": {
+    "input_tokens": 14,
+    "cache_creation_tokens": 62494,
+    "cache_read_tokens": 209135,
+    "output_tokens": 8131,
+    "api_call_count": 6
+  },
+  "started_at": "2026-11-18T19:18:37.172100581+01:00",
+  "completed_at": "2026-11-18T19:19:32.396377786+01:00"
+}

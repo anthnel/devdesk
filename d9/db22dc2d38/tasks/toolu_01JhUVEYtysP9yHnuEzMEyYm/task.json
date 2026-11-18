@@ -1,0 +1,15 @@
+{
+  "tool_use_id": "toolu_01JhUVEYtysP9yHnuEzMEyYm",
+  "agent_id": "a09a27c7a6c2d877f",
+  "subagent_type": "dev-team:reviewer",
+  "task_description": "Revue étape 3 containerRun",
+  "token_usage": {
+    "input_tokens": 26,
+    "cache_creation_tokens": 78427,
+    "cache_read_tokens": 698098,
+    "output_tokens": 7880,
+    "api_call_count": 12
+  },
+  "started_at": "2026-11-18T19:15:09.48327222+01:00",
+  "completed_at": "2026-11-18T19:18:13.256491628+01:00"
+}

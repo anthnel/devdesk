@@ -1,0 +1,18 @@
+{
+  "tool_use_id": "toolu_01GVtJdnyDzQCA8QG8asrJce",
+  "agent_id": "ac5193c40371dcee5",
+  "subagent_type": "team-core:archivist",
+  "task_description": "D164 et CLAUDE.md",
+  "files": [
+    "docs/backlog.md"
+  ],
+  "token_usage": {
+    "input_tokens": 20,
+    "cache_creation_tokens": 69510,
+    "cache_read_tokens": 548275,
+    "output_tokens": 6280,
+    "api_call_count": 10
+  },
+  "started_at": "2026-11-18T20:06:24.96217284+01:00",
+  "completed_at": "2026-11-18T20:06:58.507138729+01:00"
+}
