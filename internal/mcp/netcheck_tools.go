@@ -38,9 +38,9 @@ type checkFact struct {
 
 type checkOut struct {
 	ID      string `json:"id"`
-	Stage   string `json:"stage" jsonschema:"resolve, reach, connect, tls or http"`
+	Stage   string `json:"stage" jsonschema:"resolve, reach, route, proxy, connect, tls or http"`
 	Title   string `json:"title"`
-	Verdict string `json:"verdict" jsonschema:"OK, WARN, FAIL, N/A or UNKNOWN"`
+	Verdict string `json:"verdict" jsonschema:"OK, WARN, FAIL, INFO, N/A or UNKNOWN"`
 
 	// Summary states what was observed and never what to do about it; Means and
 	// Do are the explanation layer, which is keyed on the check's id and reason.

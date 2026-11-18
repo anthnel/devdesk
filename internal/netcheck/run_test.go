@@ -290,6 +290,14 @@ func TestSummarizeIsTheOnlyAggregate(t *testing.T) {
 		{"not-applicable never colours the headline", []Verdict{OK, NotApplicable}, OK},
 		{"nothing but not-applicable is unknown", []Verdict{NotApplicable, NotApplicable}, Unknown},
 		{"no checks at all is unknown", nil, Unknown},
+		// Info is an observation with no objective, so like NotApplicable it
+		// never colours the headline and never counts as having looked.
+		{"info never colours the headline", []Verdict{OK, Info}, OK},
+		{"info does not hide a warning", []Verdict{Warn, Info}, Warn},
+		{"info does not hide a failure", []Verdict{Info, Fail}, Fail},
+		{"info does not hide unknown", []Verdict{Info, Unknown}, Unknown},
+		{"nothing but info and not-applicable is unknown", []Verdict{Info, NotApplicable}, Unknown},
+		{"nothing but info is unknown", []Verdict{Info, Info}, Unknown},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			checks := make([]Check, 0, len(tc.in))
@@ -304,10 +312,38 @@ func TestSummarizeIsTheOnlyAggregate(t *testing.T) {
 }
 
 func TestVerdictNamesAreShortEnoughForATableCell(t *testing.T) {
-	for _, v := range []Verdict{Unknown, NotApplicable, OK, Warn, Fail} {
+	for _, v := range []Verdict{Unknown, NotApplicable, OK, Warn, Fail, Info} {
 		if n := len(v.String()); n == 0 || n > 7 {
 			t.Errorf("%d renders as %q (%d chars)", int(v), v.String(), n)
 		}
+	}
+}
+
+// Info is appended after Fail so that no existing value is renumbered: a
+// Verdict is compared and ranked as an int, and a value stored or switched on
+// elsewhere must keep its meaning.
+func TestInfoIsAppendedAfterFailWithoutRenumbering(t *testing.T) {
+	for _, tc := range []struct {
+		v    Verdict
+		want int
+	}{
+		{Unknown, 0}, {NotApplicable, 1}, {OK, 2}, {Warn, 3}, {Fail, 4}, {Info, 5},
+	} {
+		if int(tc.v) != tc.want {
+			t.Errorf("%v = %d, want %d", tc.v, int(tc.v), tc.want)
+		}
+	}
+}
+
+func TestInfoReadsINFOAndRanksLikeNotApplicable(t *testing.T) {
+	if got := Info.String(); got != "INFO" {
+		t.Errorf("Info.String() = %q, want %q", got, "INFO")
+	}
+	if got := Info.severity(); got != 0 {
+		t.Errorf("Info.severity() = %d, want 0", got)
+	}
+	if Info.severity() != NotApplicable.severity() {
+		t.Errorf("Info ranks %d, NotApplicable %d: they must rank alike", Info.severity(), NotApplicable.severity())
 	}
 }
 

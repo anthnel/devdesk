@@ -376,6 +376,27 @@ func TestTheProblemsFilterDropsTheSettledRows(t *testing.T) {
 	}
 }
 
+// An Info row is an observation with no objective, so the problems filter
+// hides it with the rows that passed, and keeps the failing one.
+func TestTheProblemsFilterHidesAnInfoRow(t *testing.T) {
+	m := deliver(t, runningModel(t, "example.com"),
+		check(netcheck.CheckResolve, netcheck.Info, "An observation"),
+		check(netcheck.CheckTCP, netcheck.Fail, "Port 443 does not accept connections"),
+	)
+	if got := len(m.checksTable.Visible()); got != 2 {
+		t.Fatalf("the table shows %d rows, want both", got)
+	}
+
+	m = feed(t, m, testutil.Key("p"))
+	visible := m.checksTable.Visible()
+	if len(visible) != 1 {
+		t.Fatalf("problems only shows %d rows, want 1", len(visible))
+	}
+	if visible[0].ID != netcheck.CheckTCP {
+		t.Fatalf("kept %q, want the failing check only", visible[0].ID)
+	}
+}
+
 func TestSearchNarrowsTheChecks(t *testing.T) {
 	m := resultsModel(t)
 	m = feed(t, m, testutil.Key("/"))

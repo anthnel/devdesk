@@ -124,7 +124,7 @@ execution sees a closure that registers under another name, twice, or not at all
 | `monitors_status` | the context's monitors, probed now: status, response time, error, and for an `ssl` monitor the days left, expiry, issuer and cert state. The targets come from configuration, never from a call; `type` narrows the set before anything is probed. Bounded by a 30 s deadline, since the SSL probe takes no context |
 | `scan_inventory` | every target this context has scanned, reconciled against what still exists |
 | `scan_result` | one scan's findings, filtered by severity and category, paginated. A vulnerability carries its `class` (`os-pkgs` / `lang-pkgs`) and `ecosystem`, which say what has to move to fix it; a misconfiguration carries its span, its own wording and its status (below) |
-| `net_check` | the `internal/netcheck` pipeline: eleven checks, each with a verdict and what to do |
+| `net_check` | the `internal/netcheck` pipeline: twelve checks, each with a verdict (`OK`, `WARN`, `FAIL`, `INFO`, `N/A` or `UNKNOWN`; `INFO` is an observation with no objective to meet, and the overall verdict ignores it like `N/A`) and what to do |
 | `jobs_list` | the work this session has started, and what each run is doing right now |
 | `jobs_get` | one run target by target, with the reason any of them failed |
 | `workspace_scan_start` | `S`/`A` on `ws`, headless — returns a job id |

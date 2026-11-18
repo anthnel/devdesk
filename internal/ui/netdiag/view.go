@@ -135,6 +135,8 @@ func verdictCell(c netcheck.Check) string {
 		return theme.IconWarning + " WARN"
 	case netcheck.Fail:
 		return theme.IconError + " FAIL"
+	case netcheck.Info:
+		return theme.IconInfo + " INFO"
 	case netcheck.NotApplicable:
 		return theme.IconCanceled + " N/A"
 	default:
@@ -167,6 +169,9 @@ func verdictStyle(c netcheck.Check) lipgloss.Style {
 		return theme.StatusOKStyle
 	case netcheck.Unknown:
 		return theme.SeverityTextStyle("HIGH")
+	case netcheck.Info:
+		// An observation is neither good nor bad: the ordinary text colour.
+		return theme.AppBackgroundStyle
 	default: // NotApplicable — nothing was asked, so nothing is worth spotting
 		return theme.DimStyle
 	}

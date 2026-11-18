@@ -10,6 +10,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/anthnel/devdesk/internal/netproxy"
 	"github.com/anthnel/devdesk/internal/nettrace"
 )
 
@@ -132,10 +133,37 @@ func batteries(t *testing.T) []scenario {
 				return RouteHop{}, errors.New("network is unreachable")
 			}}, target()},
 
+		// DEVDESK-582: the four states of the Proxy row that carry guidance.
+		// "No proxy" is every other scenario, and is answered structurally.
+		{"a proxy is configured", fakeEnv{
+			roots: goodRoots, handshake: handshakeReturning(good),
+			proxy: perScheme(
+				decided(netproxy.DecisionProxied, "HTTPS_PROXY", "http://proxy.corp:3128"),
+				decided(netproxy.DecisionProxied, "HTTP_PROXY", "http://proxy.corp:3128"))}, target()},
+		{"the proxy variable is invalid", fakeEnv{
+			roots: goodRoots, handshake: handshakeReturning(good),
+			proxy: perScheme(decided(netproxy.DecisionInvalid, "HTTPS_PROXY", ""), none())}, target()},
+		{"NO_PROXY excludes the target", fakeEnv{
+			roots: goodRoots, handshake: handshakeReturning(good),
+			proxy: perScheme(
+				decided(netproxy.DecisionExcluded, "HTTPS_PROXY", ""),
+				decided(netproxy.DecisionExcluded, "HTTP_PROXY", ""))}, target()},
+		{"a loopback target with a proxy set", fakeEnv{
+			proxy: perScheme(
+				decided(netproxy.DecisionLoopback, "HTTPS_PROXY", ""),
+				decided(netproxy.DecisionLoopback, "HTTP_PROXY", ""))}, Target{Host: "localhost", Port: 22}},
+
 		{"the port is refused", fakeEnv{
 			dial: func(context.Context, string) (time.Duration, error) {
 				return 0, errors.New("connection refused")
 			}}, target()},
+		{"the port is refused behind a proxy", fakeEnv{
+			dial: func(context.Context, string) (time.Duration, error) {
+				return 0, errors.New("connection refused")
+			},
+			proxy: perScheme(
+				decided(netproxy.DecisionProxied, "HTTPS_PROXY", "http://proxy.corp:3128"),
+				decided(netproxy.DecisionProxied, "HTTP_PROXY", "http://proxy.corp:3128"))}, target()},
 		{"the port does not speak TLS", fakeEnv{}, Target{Host: "example.com", Port: 22}},
 		{"the handshake breaks", fakeEnv{
 			handshake: func(context.Context, string, string) (*tls.ConnectionState, error) {
@@ -324,6 +352,25 @@ func TestNoTwoRowsShareTheirText(t *testing.T) {
 		if len(g.means) < 40 {
 			t.Errorf("%s explains in %d characters, which is a restatement rather than a meaning",
 				key, len(g.means))
+		}
+	}
+}
+
+// TestTheBatteriesReachEveryProxyReason keeps the four proxy scenarios honest:
+// each state of the Proxy row is produced by a real Run, so its guidance is
+// reachable and not just written.
+func TestTheBatteriesReachEveryProxyReason(t *testing.T) {
+	seen := map[Reason]bool{}
+	for _, c := range produced(t) {
+		if c.ID == CheckProxy {
+			seen[c.Reason] = true
+		}
+	}
+	for _, r := range []Reason{
+		ReasonProxyNone, ReasonProxyConfigured, ReasonProxyExcluded, ReasonProxyLoopback, ReasonProxyInvalid,
+	} {
+		if !seen[r] {
+			t.Errorf("no scenario of the battery produces a proxy row with reason %q", r)
 		}
 	}
 }

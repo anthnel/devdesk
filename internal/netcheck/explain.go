@@ -71,6 +71,9 @@ func explainNotApplicable(c Check) (means, do string) {
 					"which is normal for a port that does not serve it.",
 				"If you expected TLS here, check that you named the right port."
 		}
+		if means, ok := proxyNonAnswers[c.Reason]; c.ID == CheckProxy && ok {
+			return means, ""
+		}
 		return "This question has no meaning for this target, so nothing was checked.", ""
 	}
 
@@ -82,6 +85,18 @@ func explainNotApplicable(c Check) (means, do string) {
 			"This could not be checked: %s did not succeed, and everything below it depends on that answer.",
 			blocker),
 		fmt.Sprintf("Fix %s first — this check will have an answer once it does.", blocker)
+}
+
+// proxyNonAnswers explains the three states in which the Proxy row has nothing
+// to report. Each says why, and that the checks go direct, which is what a
+// client without a proxy does too.
+var proxyNonAnswers = map[Reason]string{
+	ReasonProxyNone: "No proxy variable is set (HTTPS_PROXY, HTTP_PROXY or their lowercase forms), " +
+		"so clients on this machine connect directly, the same path these checks test.",
+	ReasonProxyExcluded: "A proxy variable is set, but NO_PROXY names this target, so clients " +
+		"connect to it directly, the same path these checks test.",
+	ReasonProxyLoopback: "Go programs, DevDesk included, never send localhost or a loopback " +
+		"address through a proxy, whatever the variables say.",
 }
 
 // guidanceFor looks up the most specific row: an exact reason match first, then
@@ -184,6 +199,20 @@ var explanations = []guidance{
 		do: "Read the TCP connect below — it answers whether the target responds without " +
 			"needing this."},
 
+	// --- the proxy ---
+	//
+	// One cause per verdict, so no reason. The N/A states are answered by
+	// explainNotApplicable and have no row here.
+	{check: CheckProxy, verdict: Info,
+		means: "Browsers and most HTTP clients on this machine, DevDesk's included, reach this " +
+			"target through this proxy. These checks do not: they test the direct path, and " +
+			"nothing here was sent to the proxy."},
+	{check: CheckProxy, verdict: Warn,
+		means: "The variable is set but is not a usable proxy URL. Depending on the value, Go " +
+			"programs, DevDesk included, either ignore it and connect directly, or fail every " +
+			"request they send through it; other tools may read it differently.",
+		do: "Set it to scheme://host:port, for example http://proxy.example.com:3128, or unset it."},
+
 	// --- the port ---
 	{check: CheckTCP, verdict: OK,
 		means: "The port is open and something is listening, which is the reachability " +
@@ -195,6 +224,13 @@ var explanations = []guidance{
 		do: "Confirm the service is running and bound to an address reachable from outside " +
 			"the machine — a service bound to 127.0.0.1 answers locally and nowhere else. " +
 			"Then trace the route to find where the connection stops."},
+	{check: CheckTCP, verdict: Fail, reason: ReasonDirectFailedProxyConfigured,
+		means: "The direct path to this port is closed, and that is all this run tests. A proxy is " +
+			"configured for this target: behind a mandatory proxy a closed direct path is expected, " +
+			"and it says nothing about whether the target is up.",
+		do: "If this target is meant to be reached through the proxy, check it from a client that " +
+			"uses it, such as an HTTPS monitor in the Status view. If it is meant to be reached " +
+			"directly, add it to NO_PROXY and look for what drops the connection."},
 
 	// --- TLS ---
 	{check: CheckTLSHandshake, verdict: OK,

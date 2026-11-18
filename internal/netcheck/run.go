@@ -18,6 +18,7 @@ var checkTitles = map[CheckID]string{
 	CheckReverseDNS:   "Reverse DNS",
 	CheckRoute:        "Local route",
 	CheckICMP:         "ICMP echo",
+	CheckProxy:        "Proxy",
 	CheckTCP:          "TCP connect",
 	CheckTLSHandshake: "TLS handshake",
 	CheckTLSChain:     "Certificate chain",
@@ -48,6 +49,7 @@ var stageTitles = map[StageID]string{
 	StageResolve: "Resolving the name",
 	StageRoute:   "Finding the way out",
 	StageReach:   "Probing reachability",
+	StageProxy:   "Reading the proxy settings",
 	StageConnect: "Connecting to the port",
 	StageTLS:     "Inspecting the certificate",
 	StageHTTP:    "Asking for a response",
@@ -101,6 +103,9 @@ func RunStep(ctx context.Context, t Target, env Env, set Settings, id StageID, p
 //   - reach gates nothing. ICMP is filtered on a large share of hosts that are
 //     perfectly reachable, so a silent ping must not cascade NotApplicable over
 //     the TLS checks — which is the whole question the user came to ask.
+//   - proxy depends on nothing and gates nothing: it reads the environment, so
+//     it is there even when the DNS fails, which is the common case behind a
+//     mandatory proxy.
 //   - http depends on connect, not on tls. A broken chain must not hide whether
 //     the service answers: "the app works, the certificate is what is wrong" is
 //     useful, and the certificate problem has rows of its own.
@@ -123,6 +128,11 @@ func stages() []stage {
 			dependsOn: StageResolve,
 			produces:  []CheckID{CheckICMP},
 			run:       runReach,
+		},
+		{
+			id:       StageProxy,
+			produces: []CheckID{CheckProxy},
+			run:      runProxy,
 		},
 		{
 			id:        StageConnect,

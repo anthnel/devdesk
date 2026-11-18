@@ -6,11 +6,15 @@ import (
 	"crypto/x509"
 	"errors"
 	"net"
+	"net/url"
+	"slices"
+	"strings"
 	"sync"
 	"testing"
 	"time"
 
 	"github.com/anthnel/devdesk/internal/netcheck"
+	"github.com/anthnel/devdesk/internal/netproxy"
 	"github.com/anthnel/devdesk/internal/ui/testutil"
 )
 
@@ -23,6 +27,9 @@ import (
 type countingEnv struct {
 	mu     sync.Mutex
 	routes map[string]int
+	// proxied lists the URLs the pipeline asked the proxy question about, in
+	// the order asked.
+	proxied []string
 }
 
 func newCountingEnv() *countingEnv {
@@ -44,6 +51,22 @@ func (e *countingEnv) totalRouteCalls() int {
 		n += c
 	}
 	return n
+}
+
+// proxyQuestions is the URLs ProxyFor was asked about.
+func (e *countingEnv) proxyQuestions() []string {
+	e.mu.Lock()
+	defer e.mu.Unlock()
+	return append([]string(nil), e.proxied...)
+}
+
+// ProxyFor records the question and answers "no proxy": the proxy variables of
+// the machine running the suite must not reach a test.
+func (e *countingEnv) ProxyFor(u *url.URL) netproxy.Decision {
+	e.mu.Lock()
+	e.proxied = append(e.proxied, u.String())
+	e.mu.Unlock()
+	return netproxy.Decision{Kind: netproxy.DecisionNone}
 }
 
 func (e *countingEnv) Resolve(_ context.Context, host, _ string) ([]net.IP, error) {
@@ -139,5 +162,67 @@ func TestNewUsesTheSystemEnv(t *testing.T) {
 	}
 	if m.checkEnv(m.checkSettings()) == nil {
 		t.Error("the default checkEnv returned a nil Env")
+	}
+}
+
+// DEVDESK-582: the proxy row is a check like the others, so it is read through
+// the model's Env, never from the real environment.
+func TestRunDiagnosticsAsksTheModelEnvForTheProxy(t *testing.T) {
+	env := newCountingEnv()
+	m := newTestModel(t)
+	m.checkEnv = func(netcheck.Settings) netcheck.Env { return env }
+
+	m = runDiagnostics(t, m, "127.0.0.1")
+
+	want := []string{"https://127.0.0.1:443", "http://127.0.0.1:443"}
+	if got := env.proxyQuestions(); !slices.Equal(got, want) {
+		t.Errorf("ProxyFor was asked about %v, want %v", got, want)
+	}
+	c, ok := m.results.Get(netcheck.CheckProxy)
+	if !ok {
+		t.Fatal("the run left no proxy check")
+	}
+	if c.Verdict != netcheck.NotApplicable || c.Summary != "None" || c.Reason != netcheck.ReasonProxyNone {
+		t.Errorf("proxy check = %v %q (reason %q), want N/A \"None\" (proxy-none)", c.Verdict, c.Summary, c.Reason)
+	}
+}
+
+// DEVDESK-582: the row is in the table, between the ICMP echo and the TCP
+// connect, with the fake env's "no proxy" answer, and it is not hidden by the
+// run having nothing to say about a proxy.
+func TestTheProxyRowIsInTheTableBetweenIcmpAndTcp(t *testing.T) {
+	m := newTestModel(t)
+	m.checkEnv = func(netcheck.Settings) netcheck.Env { return newCountingEnv() }
+
+	m = runDiagnostics(t, m, "127.0.0.1")
+
+	var ids []netcheck.CheckID
+	for _, c := range m.checksTable.Visible() {
+		ids = append(ids, c.ID)
+	}
+	icmp, proxy, tcp := slices.Index(ids, netcheck.CheckICMP), slices.Index(ids, netcheck.CheckProxy), slices.Index(ids, netcheck.CheckTCP)
+	if icmp < 0 || proxy != icmp+1 || tcp != proxy+1 {
+		t.Fatalf("rows = %v, want proxy right after icmp and right before tcp", ids)
+	}
+	if out := m.Render(); !strings.Contains(out, "Proxy") {
+		t.Errorf("the table does not show the Proxy row:\n%s", out)
+	}
+}
+
+// The stage is a question the user waits on like the others, so the footer
+// names it while it runs: 4 of 7, after the reachability probe.
+func TestTheProgressLineNamesTheProxyStage(t *testing.T) {
+	m := runningModel(t, "example.com")
+	steps := netcheck.Steps()
+	reach := slices.Index(steps, netcheck.StageReach)
+	if reach < 0 || steps[reach+1] != netcheck.StageProxy {
+		t.Fatalf("steps = %v, want the proxy stage right after reach", steps)
+	}
+
+	m, _ = step(t, m, stageDoneMsg{gen: m.runGen, stage: netcheck.StageReach, next: reach + 1, results: netcheck.ResultsOf()})
+
+	footer := m.RenderFooter(120)
+	if want := "Reading the proxy settings (4/7)"; !strings.Contains(footer, want) {
+		t.Errorf("the footer does not say %q:\n%s", want, footer)
 	}
 }
