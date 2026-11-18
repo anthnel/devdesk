@@ -1,0 +1,38 @@
+{
+  "cli_version": "0.13.2",
+  "checkpoint_id": "380eb97d92b7",
+  "strategy": "manual-commit",
+  "branch": "feat/nexus-recorded-fixtures-devdesk-511",
+  "checkpoints_count": 43,
+  "files_touched": [
+    "docs/architecture/network.md",
+    "docs/architecture/nexus-bench.md",
+    "docs/architecture/registries.md",
+    "docs/backlog.md",
+    "docs/journal.md",
+    "docs/measurements/2026-11-17-nexus-catalog.md"
+  ],
+  "sessions": [
+    {
+      "metadata": "/38/0eb97d92b7/0/metadata.json",
+      "transcript": "/38/0eb97d92b7/0/full.jsonl",
+      "compact_transcript": "/38/0eb97d92b7/0/transcript.jsonl",
+      "content_hash": "/38/0eb97d92b7/0/content_hash.txt",
+      "prompt": "/38/0eb97d92b7/0/prompt.txt"
+    }
+  ],
+  "redaction": {
+    "replacements": 9,
+    "layers": {
+      "betterleaks": 0,
+      "connection_string": 0,
+      "credential_key": 0,
+      "credential_value": 3,
+      "credentialed_uri": 0,
+      "entropy": 4,
+      "key_context": 2,
+      "provider_token": 0,
+      "shell_stdin": 0
+    }
+  }
+}
