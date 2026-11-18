@@ -91,6 +91,14 @@ type flagSet struct {
 	fs       *flag.FlagSet
 	specs    map[string]paramFlag
 	restHost *string
+	// record holds the flags only record takes.
+	record recordFlags
+}
+
+// recordFlags are the flags of record: what to record and where the fixtures are.
+type recordFlags struct {
+	campaigns []string
+	only, dir string
 }
 
 // newFlagSet registers the flags of a subcommand. It prints nothing by itself:
@@ -99,7 +107,7 @@ func newFlagSet(name string) *flagSet {
 	// up and provision provision Nexus (EULA); they and seed send the admin
 	// credentials to the REST API (REST host).
 	provisions := name == "up" || name == "provision"
-	reachesREST := provisions || name == "seed" || loopbackOnly(name)
+	reachesREST := provisions || name == "seed" || loopbackRestHostOnly(name)
 	fs := flag.NewFlagSet("nexus-bench "+name, flag.ContinueOnError)
 	fs.SetOutput(io.Discard)
 	fs.Usage = func() {}
@@ -121,7 +129,17 @@ func newFlagSet(name string) *flagSet {
 			fs.Bool(spec.name, false, spec.usage)
 		}
 	}
+	if name == "record" {
+		fs.Func("campaign", "campaign folder to record, repeatable (default every folder of --dir)", func(v string) error {
+			set.record.campaigns = append(set.record.campaigns, v)
+			return nil
+		})
+		fs.StringVar(&set.record.only, "only", "", "glob on the fixture names, without .http, e.g. catalog-* (default every fixture)")
+		fs.StringVar(&set.record.dir, "dir", "", "folder of the campaigns (default the fixtures folder of the source tree)")
+	}
 	switch {
+	case name == "record":
+		set.restHost = fs.String(restHostFlag, "", "loopback address the bench is reached on (default "+loopbackHost+"); record accepts a loopback address only, because the bench credentials always go through "+loopbackHost)
 	case name == "seed" || loopbackOnly(name):
 		// These refuse another host (main.go): their credentials and their images
 		// always go through the loopback.
@@ -232,6 +250,10 @@ func hostAddress(host string) (netip.Addr, bool) {
 // loopbackOnly tells whether a subcommand sends the admin credentials and its
 // images through the loopback and nowhere else.
 func loopbackOnly(name string) bool { return name == "restore-upstream" || name == "reset" }
+
+// loopbackRestHostOnly tells whether --rest-host must be a loopback address: the
+// subcommands of loopbackOnly, and record, which sends the bench credentials.
+func loopbackRestHostOnly(name string) bool { return name == "record" || loopbackOnly(name) }
 
 // isLoopbackHost tells whether host stays on this machine.
 func isLoopbackHost(host string) bool {

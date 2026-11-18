@@ -96,7 +96,7 @@ touching, and update it in the same commit as the code.
 | [`templates.md`](../docs/architecture/templates.md) | `internal/template` + `internal/ui/templates` — the repository-template catalog, its three sources, how files are fetched, and the `:templates` view |
 | [`ui-components.md`](../docs/architecture/ui-components.md) | `components.FooterMessage`, `internal/ui/datatable`, and the activity indicator column (`internal/ui/indicator`, `datatable.IndicatorColumn`, the row sentences `components.DescribeRow`) |
 | [`agent-usage.md`](../docs/architecture/agent-usage.md) | `internal/agentusage` — per-agent token counts from Claude Code transcripts: format, aggregation rules, tolerance, privacy (`cwd` amendment), caps, ccusage cross-check; `ListSessions`; incremental reading (`ReadDelta`, `Aggregate`, `Activity.Settled`); tool calls and time span per agent (DEVDESK-46); per-model tokens, `Billed`, and the cost estimate (`internal/agentusage/pricing`, prices from `agent_usage.prices`, DEVDESK-47); the `:agent-usage` view and its agents level and State/Tools/Duration/Est. cost columns; the Breakdown column and tab, `Usage.Categories`/`ModelTotals` (DEVDESK-98) (`internal/ui/agentusageview`) |
-| [`nexus-bench.md`](../docs/architecture/nexus-bench.md) | `internal/nexusbench` — the disposable Nexus Community bench on the k0s cluster (DEVDESK-504, NX-01; seed, DEVDESK-505; `cut-upstream`, `restore-upstream` and `reset`, DEVDESK-534): decisions, the `NEXUS_BENCH_*` parameters and their validation, manifests, preflight, deployment, provisioning, destruction, the `nexus-bench` command (`cmd/nexus-bench`) and its `mise run nexus-bench:*` tasks, the upstream cut, restore and reset, what is still to come (NX-03 onward); a development tool outside `mise run ci` |
+| [`nexus-bench.md`](../docs/architecture/nexus-bench.md) | `internal/nexusbench` — the disposable Nexus Community bench on the k0s cluster (DEVDESK-504, NX-01; seed, DEVDESK-505; `cut-upstream`, `restore-upstream` and `reset`, DEVDESK-534; recorded fixtures `internal/nexusfixture` and `nexus-bench record`, DEVDESK-511): decisions, the `NEXUS_BENCH_*` parameters and their validation, manifests, preflight, deployment, provisioning, destruction, the `nexus-bench` command (`cmd/nexus-bench`) and its `mise run nexus-bench:*` tasks, the upstream cut, restore and reset, the recorded fixtures (format, redaction, the `fakenexus` replay server, `record`, the stale test), what is still to come (NX-03 onward); a development tool outside `mise run ci` |
 
 ### Status Monitoring System
 
@@ -193,6 +193,16 @@ D85 in `docs/backlog.md`).
   (on Windows Go does not set `SO_REUSEADDR`). That is known, not a local bug.
 - `internal/testutil/loopback` is imported from `_test.go` files only; nothing
   enforces it yet.
+
+**Nexus tests replay recorded fixtures (DEVDESK-511).** The tests of the Nexus
+code (`internal/imagesearch`, `internal/registrymgr`) replay answers measured on
+the bench from `internal/nexusfixture/fixtures/`, through
+`internal/nexusfixture/fakenexus`: `mise run test` needs no bench, no cluster and
+no secret. Every fixture is leak-checked in the suite; set
+`DEVDESK_FIXTURE_DENYLIST` to a file kept outside the repository (one term per
+line) to add names the repository must not carry. A fixture whose Nexus version
+differs from `internal/nexusbench/descriptor.json` fails the suite: regenerate
+with `mise run nexus-bench:record`. See `docs/architecture/nexus-bench.md`.
 
 **Test input and colour (DEVDESK-199).** Build keys only through
 `internal/ui/testutil` (`Key`, `Keys`, `Type`, `Paste`, `Text`, `IsText`), never a

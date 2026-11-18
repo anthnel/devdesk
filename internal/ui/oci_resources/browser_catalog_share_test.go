@@ -19,10 +19,18 @@ import (
 // DEVDESK-311, step 2: the browser's lot shares catalog walks. Members of one
 // batch that reach the same catalog with the same identity cost one request.
 
+// shareMembers are three members of one Nexus group on one host.
+// This models a Nexus member catalog that Nexus 3.98.1 does not serve
+// (measured, docs/measurements/2026-11-17-nexus-catalog.md; H1/IS-07). Kept as
+// the UI contract until DEVDESK-579 decides how a member's catalog is reached.
 var shareMembers = []string{"hosted", "proxy", "group"}
 
 // nexusGroupModel opens the browser on an anonymous Nexus group whose three
 // discovered members all point at url, each with its own repo prefix.
+//
+// This models a Nexus member catalog that Nexus 3.98.1 does not serve
+// (measured, docs/measurements/2026-11-17-nexus-catalog.md; H1/IS-07). Kept as
+// the UI contract until DEVDESK-579 decides how a member's catalog is reached.
 func nexusGroupModel(t *testing.T, url string) Model {
 	t.Helper()
 	group := nexusGroup()
@@ -59,6 +67,12 @@ func runLot(t *testing.T, m Model, text string, n int) Model {
 	return m
 }
 
+// catalogRequests serves one shared /v2/_catalog whose names carry the member
+// prefix (hosted/nginx, proxy/nginx-x, group/nginx-y).
+//
+// This models a Nexus member catalog that Nexus 3.98.1 does not serve
+// (measured, docs/measurements/2026-11-17-nexus-catalog.md; H1/IS-07). Kept as
+// the UI contract until DEVDESK-579 decides how a member's catalog is reached.
 func catalogRequests(t *testing.T, status int) (*httptest.Server, *atomic.Int32) {
 	t.Helper()
 	var n atomic.Int32
@@ -79,6 +93,9 @@ func catalogRequests(t *testing.T, status int) (*httptest.Server, *atomic.Int32)
 	return srv, &n
 }
 
+// This models a Nexus member catalog that Nexus 3.98.1 does not serve
+// (measured, docs/measurements/2026-11-17-nexus-catalog.md; H1/IS-07). Kept as
+// the UI contract until DEVDESK-579 decides how a member's catalog is reached.
 func TestThreeNexusMembersOnOneCatalogWalkItOnce(t *testing.T) {
 	srv, walks := catalogRequests(t, http.StatusOK)
 	withImageSearcher(t, wiredLikeProduction(srv))
@@ -127,6 +144,9 @@ func countPrefix(rows []string, prefix string) int {
 	return n
 }
 
+// This models a Nexus member catalog that Nexus 3.98.1 does not serve
+// (measured, docs/measurements/2026-11-17-nexus-catalog.md; H1/IS-07). Kept as
+// the UI contract until DEVDESK-579 decides how a member's catalog is reached.
 func TestAFailedSharedWalkFailsEveryMemberWithOneRequest(t *testing.T) {
 	srv, walks := catalogRequests(t, http.StatusServiceUnavailable)
 	withImageSearcher(t, wiredLikeProduction(srv))
@@ -169,6 +189,9 @@ func TestTwoIdentitiesOnOneURLWalkTwice(t *testing.T) {
 	wantVerdict(t, m, "authed", imagesearch.VerdictOK)
 }
 
+// This models a Nexus member catalog that Nexus 3.98.1 does not serve
+// (measured, docs/measurements/2026-11-17-nexus-catalog.md; H1/IS-07). Kept as
+// the UI contract until DEVDESK-579 decides how a member's catalog is reached.
 func TestTwoSuccessiveSearchesWalkTwice(t *testing.T) {
 	srv, walks := catalogRequests(t, http.StatusOK)
 	withImageSearcher(t, wiredLikeProduction(srv))
@@ -187,6 +210,10 @@ func TestTwoSuccessiveSearchesWalkTwice(t *testing.T) {
 
 // A walk still in flight when a new lot replaces its lot gives the new lot no
 // late result: the generation drops the old answer.
+//
+// This models a Nexus member catalog that Nexus 3.98.1 does not serve
+// (measured, docs/measurements/2026-11-17-nexus-catalog.md; H1/IS-07). Kept as
+// the UI contract until DEVDESK-579 decides how a member's catalog is reached.
 func TestALateWalkOfAReplacedLotGivesTheNewLotNothing(t *testing.T) {
 	release := make(chan struct{})
 	entered := make(chan struct{}, 8)

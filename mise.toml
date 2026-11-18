@@ -258,10 +258,12 @@ done | jq -s '{sessions: map({
 # seed, cut-upstream, restore-upstream, reset and status read or change that
 # cluster, and the bench has to be reachable from this machine. They are NOT
 # part of ci, check, test or test-race and nothing depends on them
-# (mise_tasks_test.go checks it). Only render contacts nothing.
+# (mise_tasks_test.go checks it). Only render contacts nothing, and record
+# (DEVDESK-511) reaches the bench through its loopback ports, not the cluster.
 #
 # kubectl is declared on each task that reaches the cluster rather than in
-# [tools], so the CI does not install it; render contacts nothing and has none.
+# [tools], so the CI does not install it; render and record reach no cluster and
+# have none.
 # seed (DEVDESK-505) also needs skopeo, which is a tool of the host: mise does
 # not install it and the description of the task says so.
 # The cluster (datomir) runs k0s v1.36.x and kubectl is supported within one
@@ -309,6 +311,10 @@ run = "go run ./internal/nexusbench/cmd/nexus-bench reset"
 description = "Report on the Nexus bench: pod, REST answer, upstream, descriptor drift, data set (reads the cluster, changes nothing)"
 tools = { kubectl = "1.35" }
 run = "go run ./internal/nexusbench/cmd/nexus-bench status"
+
+[tasks."nexus-bench:record"]
+description = "Regenerate the recorded Nexus fixtures from the bench (needs the bench up and its data set as described)"
+run = "go run ./internal/nexusbench/cmd/nexus-bench record"
 
 [tasks."nexus-bench:render"]
 description = "Print the Nexus bench manifests for the current parameters (contacts nothing)"

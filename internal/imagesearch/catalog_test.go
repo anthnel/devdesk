@@ -94,27 +94,32 @@ func TestCatalogSearch(t *testing.T) {
 			text: "NGinx", names: []string{"nginx", "bitnami/nginx", "redis"},
 			want: []row{{"nginx", "nginx"}, {"bitnami/nginx", "bitnami/nginx"}},
 		},
+		// The prefix rows below use a neutral "myproject": the filter is generic (a
+		// Harbor project or a GitLab group does prefix its catalog names), but
+		// Nexus 3.98.1 never returns names prefixed by the repository (NX-03, H1).
+		// What Nexus does return is replayed by TestCatalogOnMeasuredNexusAnswers
+		// (catalog_fixture_test.go).
 		{
 			name:   "prefix stripped from Name, kept once in Repo",
-			target: Target{RepoPrefix: "docker-hosted"},
-			text:   "api", names: []string{"docker-hosted/api", "other/api"},
-			want: []row{{"api", "docker-hosted/api"}},
+			target: Target{RepoPrefix: "myproject"},
+			text:   "api", names: []string{"myproject/api", "other/api"},
+			want: []row{{"api", "myproject/api"}},
 		},
 		{
 			name:   "prefix typed with slashes",
-			target: Target{RepoPrefix: "/docker-hosted/"},
-			text:   "api", names: []string{"docker-hosted/api", "other/api"},
-			want: []row{{"api", "docker-hosted/api"}},
+			target: Target{RepoPrefix: "/myproject/"},
+			text:   "api", names: []string{"myproject/api", "other/api"},
+			want: []row{{"api", "myproject/api"}},
 		},
 		{
 			name:   "filter does not see the prefix",
-			target: Target{RepoPrefix: "docker-hosted"},
-			text:   "hosted", names: []string{"docker-hosted/api"},
+			target: Target{RepoPrefix: "myproject"},
+			text:   "project", names: []string{"myproject/api"},
 		},
 		{
 			name:   "prefix present, nothing matches",
-			target: Target{RepoPrefix: "docker-hosted"},
-			text:   "zzz", names: []string{"docker-hosted/api"},
+			target: Target{RepoPrefix: "myproject"},
+			text:   "zzz", names: []string{"myproject/api"},
 		},
 		{
 			name:   "prefix present, only invalid names under it",
@@ -133,13 +138,13 @@ func TestCatalogSearch(t *testing.T) {
 		},
 		{
 			name:   "truncated, prefix absent: no result, partial (Q1)",
-			target: Target{RepoPrefix: "docker-hosted"},
+			target: Target{RepoPrefix: "myproject"},
 			text:   "api", names: []string{"other/api"}, truncated: true, partial: true,
 		},
 		{
 			name:   "truncated, prefix present but no match",
-			target: Target{RepoPrefix: "docker-hosted"},
-			text:   "zzz", names: []string{"docker-hosted/api"}, truncated: true, partial: true,
+			target: Target{RepoPrefix: "myproject"},
+			text:   "zzz", names: []string{"myproject/api"}, truncated: true, partial: true,
 		},
 		{
 			name: "sorted by tier, then name, then repo",
@@ -182,15 +187,17 @@ func TestCatalogEntryKeyCopied(t *testing.T) {
 	}
 }
 
+// The prefix is a neutral "myproject": see the note in TestCatalogSearch. The
+// refusal on a real, unprefixed Nexus catalog is in TestCatalogOnMeasuredNexusAnswers.
 func TestCatalogPrefixNotInCatalog(t *testing.T) {
-	tg := Target{RepoPrefix: "docker-hosted"}
+	tg := Target{RepoPrefix: "myproject"}
 	t.Run("complete walk is an error", func(t *testing.T) {
 		f := &fakeList{names: []string{"other/api", "other/web"}}
 		imgs, partial, err := searchWith(f, tg, Query{Text: "api"})
 		if !errors.Is(err, ErrPrefixNotInCatalog) {
 			t.Fatalf("err = %v, want ErrPrefixNotInCatalog", err)
 		}
-		if !strings.Contains(err.Error(), "docker-hosted") {
+		if !strings.Contains(err.Error(), "myproject") {
 			t.Errorf("message %q lacks the prefix", err)
 		}
 		if imgs != nil || partial {

@@ -51,6 +51,10 @@ type deps struct {
 	restoreUpstream func(ctx context.Context, d nexusbench.SeedDeps, baseURL string, p nexusbench.Params, out io.Writer) error
 	reset           func(ctx context.Context, d nexusbench.SeedDeps, baseURL string, p nexusbench.Params, out io.Writer) (nexusbench.ProvisionResult, nexusbench.SeedResult, error)
 	unblockProxy    func(ctx context.Context, store nexusbench.SecretStore, baseURL string, p nexusbench.Params, out io.Writer) error
+
+	// NX-08.8 (DEVDESK-575): the recorder of the fixtures. It reaches the bench
+	// through its loopback ports and uses no kubectl.
+	record func(ctx context.Context, o nexusbench.RecordOptions) (nexusbench.RecordReport, error)
 }
 
 // defaultDeps wires the real kubectl, HTTP client, clock and files.
@@ -77,6 +81,8 @@ func defaultDeps() deps {
 		restoreUpstream: nexusbench.RestoreUpstream,
 		reset:           nexusbench.Reset,
 		unblockProxy:    nexusbench.UnblockProxy,
+
+		record: nexusbench.RecordFixtures,
 	}
 }
 
@@ -103,6 +109,8 @@ type session struct {
 	// operator chose it.
 	restHost string
 	explicit bool
+	// recordFlags are the flags only record takes.
+	recordFlags recordFlags
 }
 
 // run executes one command line and returns the exit code: 0 for success, 1
@@ -117,7 +125,7 @@ func run(ctx context.Context, args []string, getenv func(string) string, stdout,
 	case "-h", "--help", "help":
 		printUsage(stdout)
 		return exitOK
-	case "up", "provision", "down", "seed", "status", "render", "cut-upstream", "restore-upstream", "reset":
+	case "up", "provision", "down", "seed", "status", "render", "cut-upstream", "restore-upstream", "reset", "record":
 	default:
 		_, _ = fmt.Fprintf(stderr, "nexus-bench: unknown subcommand %q\n\n", name)
 		printUsage(stderr)
@@ -134,7 +142,7 @@ func run(ctx context.Context, args []string, getenv func(string) string, stdout,
 		return exitUsage
 	}
 
-	s := &session{ctx: ctx, getenv: getenv, stdout: stdout, stderr: stderr, d: d, restHost: loopbackHost}
+	s := &session{ctx: ctx, getenv: getenv, stdout: stdout, stderr: stderr, d: d, restHost: loopbackHost, recordFlags: flags.record}
 	p, err := flags.resolveParams(getenv)
 	if err != nil {
 		return s.fail(err)
@@ -144,7 +152,10 @@ func run(ctx context.Context, args []string, getenv func(string) string, stdout,
 		if err := validateRESTHost(host); err != nil {
 			return s.fail(err)
 		}
-		if (name == "seed" && !isLoopbackHost(host)) || (loopbackOnly(name) && !nexusbench.IsLoopbackRESTHost(host)) {
+		switch {
+		case name == "record" && !nexusbench.IsLoopbackRESTHost(host):
+			return s.fail(fmt.Errorf("record always reaches Nexus and sends the bench credentials through 127.0.0.1, so --rest-host must be a loopback address"))
+		case (name == "seed" && !isLoopbackHost(host)) || (loopbackOnly(name) && !nexusbench.IsLoopbackRESTHost(host)):
 			return s.fail(fmt.Errorf("%s always reaches Nexus and copies the images through 127.0.0.1, so --rest-host must be a loopback address", name))
 		}
 		s.restHost, s.explicit = host, true
@@ -167,6 +178,8 @@ func run(ctx context.Context, args []string, getenv func(string) string, stdout,
 		return s.restoreUpstream()
 	case "reset":
 		return s.reset()
+	case "record":
+		return s.record()
 	default:
 		return s.render()
 	}

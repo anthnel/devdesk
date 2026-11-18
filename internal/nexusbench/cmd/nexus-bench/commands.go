@@ -25,12 +25,8 @@ func (s *session) render() int {
 // order, before anything touches the cluster. Both are refused here when they
 // cannot work: kubectl missing, a secrets path that git does not ignore.
 func (s *session) open() (nexusbench.Runner, nexusbench.SecretStore, error) {
-	if s.p.SecretsPath == "" {
-		path, err := nexusbench.DefaultSecretsPath(s.p.Context, s.p.Namespace, s.getenv)
-		if err != nil {
-			return nil, nil, err
-		}
-		s.p.SecretsPath = path
+	if err := s.resolveSecretsPath(); err != nil {
+		return nil, nil, err
 	}
 	runner, err := s.d.newRunner(s.p.Context)
 	if err != nil {
@@ -41,6 +37,19 @@ func (s *session) open() (nexusbench.Runner, nexusbench.SecretStore, error) {
 		return nil, nil, err
 	}
 	return runner, store, nil
+}
+
+// resolveSecretsPath fills Params.SecretsPath with the default when none was given.
+func (s *session) resolveSecretsPath() error {
+	if s.p.SecretsPath != "" {
+		return nil
+	}
+	path, err := nexusbench.DefaultSecretsPath(s.p.Context, s.p.Namespace, s.getenv)
+	if err != nil {
+		return err
+	}
+	s.p.SecretsPath = path
+	return nil
 }
 
 // doors are the two doors the seed goes through besides kubectl: the
@@ -358,7 +367,7 @@ func (s *session) previousDescriptor() (nexusbench.Descriptor, error) {
 		return prev, &nexusbench.BenchError{
 			Kind:  nexusbench.Unclassified,
 			Cause: "there is no readable descriptor of a provisioned bench (" + err.Error() + ")",
-			Check: "run `mise run nexus-bench:up` first: the seed completes the descriptor that up writes",
+			Check: "run `mise run nexus-bench:up` first: it writes the descriptor that seed and record read",
 			Err:   err,
 		}
 	}
@@ -366,7 +375,7 @@ func (s *session) previousDescriptor() (nexusbench.Descriptor, error) {
 		return prev, &nexusbench.BenchError{
 			Kind:  nexusbench.Unclassified,
 			Cause: fmt.Sprintf("the descriptor %s describes namespace %q on context %q, not namespace %q on context %q", path, prev.Namespace, prev.KubeContext, s.p.Namespace, s.p.Context),
-			Check: "run `mise run nexus-bench:up` for this bench first: the seed completes the descriptor that up writes",
+			Check: "run `mise run nexus-bench:up` for this bench first: it writes the descriptor that seed and record read",
 		}
 	}
 	if err := nexusbench.ValidateDescriptorHosts(prev.Hosts); err != nil {

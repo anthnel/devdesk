@@ -75,18 +75,22 @@ func TestCatalogHTTPChainedPages(t *testing.T) {
 	}
 }
 
-// Criterion 2: the entry's prefix is applied once.
+// Criterion 2: the entry's prefix is applied once. The names are served prefixed
+// with a neutral "myproject" (a Harbor project or a GitLab group does that);
+// Nexus 3.98.1 never prefixes the names of a catalog (NX-03, H1), so what it
+// does return is replayed by TestCatalogOnMeasuredNexusAnswers
+// (catalog_fixture_test.go). The behavior asserted here is unchanged.
 func TestCatalogHTTPPrefix(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
-		_, _ = fmt.Fprint(w, catalogJSON("docker-hosted/api", "other/api"))
+		_, _ = fmt.Fprint(w, catalogJSON("myproject/api", "other/api"))
 	}))
 	t.Cleanup(srv.Close)
-	imgs, out, err := catalogOutcome(t, CatalogSearcher{}, Target{APIURL: srv.URL, RepoPrefix: "docker-hosted"}, "api")
+	imgs, out, err := catalogOutcome(t, CatalogSearcher{}, Target{APIURL: srv.URL, RepoPrefix: "myproject"}, "api")
 	if err != nil || out.Verdict != VerdictOK || len(imgs) != 1 {
 		t.Fatalf("imgs = %+v out = %+v err = %v", imgs, out, err)
 	}
-	if imgs[0].Name != "api" || imgs[0].Repo != "docker-hosted/api" {
-		t.Errorf("row = %+v, want Name api, Repo docker-hosted/api", imgs[0])
+	if imgs[0].Name != "api" || imgs[0].Repo != "myproject/api" {
+		t.Errorf("row = %+v, want Name api, Repo myproject/api", imgs[0])
 	}
 }
 

@@ -1,8 +1,9 @@
 package nexusbench
 
 // Guard of the mise tasks of the bench (DEVDESK-504, step 8, CA1 and CA7). It
-// reads mise.toml at the repository root and runs nothing: the ten
-// nexus-bench:* tasks (NX-02a, DEVDESK-505, and NX-02b, DEVDESK-534) must exist, call the command, stay out of every task the
+// reads mise.toml at the repository root and runs nothing: the eleven
+// nexus-bench:* tasks (NX-02a, DEVDESK-505, NX-02b, DEVDESK-534, and record,
+// DEVDESK-511 step 8) must exist, call the command, stay out of every task the
 // standard checks run (ci, check, test, test-race), and kubectl must be
 // declared where it does not slow the CI down.
 //
@@ -28,7 +29,11 @@ const miseBenchPrefix = "nexus-bench"
 // reset are NX-02b (DEVDESK-534, step 7, DEVDESK-554). The messages of seed.go
 // already quote `mise run nexus-bench:restore-upstream` and
 // `mise run nexus-bench:reset`, so those two names are fixed.
-var miseBenchSubcommands = []string{"up", "provision", "down", "seed", "status", "render", "cut-upstream", "restore-upstream", "reset"}
+//
+// record (DEVDESK-511, step 8, DEVDESK-575) regenerates the recorded fixtures
+// from a running bench through its loopback ports: it reaches no cluster, so it
+// declares no kubectl, like render.
+var miseBenchSubcommands = []string{"up", "provision", "down", "seed", "status", "render", "cut-upstream", "restore-upstream", "reset", "record"}
 
 // miseFile maps a table path ("tasks|build", "tools") to its keys, each with
 // the raw text of its value.
@@ -285,15 +290,15 @@ run = [
 	}
 }
 
-func TestMiseDeclaresTheTenBenchTasks(t *testing.T) {
+func TestMiseDeclaresTheElevenBenchTasks(t *testing.T) {
 	f := loadMise(t)
 	names := []string{}
 	for _, sub := range miseBenchSubcommands {
 		names = append(names, miseBenchPrefix+":"+sub)
 	}
 	names = append(names, miseBenchPrefix+":test")
-	if len(names) != 10 {
-		t.Fatalf("the guard expects 10 bench tasks (up, provision, down, seed, status, render, cut-upstream, restore-upstream, reset, test), it lists %d: %v", len(names), names)
+	if len(names) != 11 {
+		t.Fatalf("the guard expects 11 bench tasks (up, provision, down, seed, status, render, cut-upstream, restore-upstream, reset, record, test), it lists %d: %v", len(names), names)
 	}
 	for _, name := range names {
 		if _, ok := f.task(name); !ok {
@@ -386,7 +391,8 @@ func TestMiseNoStandardTaskReachesTheBench(t *testing.T) {
 
 // kubectl is declared on the tasks that reach the cluster (up, provision, down,
 // seed, status, cut-upstream, restore-upstream, reset, test) and not on render,
-// which contacts nothing. It is not declared in
+// which contacts nothing, nor on record, which talks to the bench through its
+// loopback ports only. It is not declared in
 // the global [tools], which would install it for every CI run.
 func TestMiseKubectlIsDeclaredOnTheBenchTasks(t *testing.T) {
 	f := loadMise(t)
@@ -402,9 +408,9 @@ func TestMiseKubectlIsDeclaredOnTheBenchTasks(t *testing.T) {
 		}
 		has := strings.Contains(task["tools"], "kubectl")
 		switch {
-		case sub == "render" && has:
-			t.Errorf("%s declares kubectl but contacts no cluster", name)
-		case sub != "render" && !has:
+		case (sub == "render" || sub == "record") && has:
+			t.Errorf("%s declares kubectl but reaches no cluster", name)
+		case sub != "render" && sub != "record" && !has:
 			t.Errorf("%s reaches the cluster but does not declare kubectl in its tools", name)
 		}
 	}
@@ -474,5 +480,39 @@ func TestMiseUpstreamTasksSayWhatTheyNeedAndWhatTheyDo(t *testing.T) {
 	reset, _ := f.task(miseBenchPrefix + ":reset")
 	if d := strings.ToLower(reset["description"]); !strings.Contains(d, "delete") && !strings.Contains(d, "erase") {
 		t.Errorf("the description of nexus-bench:reset does not say it deletes the data:\n%s", reset["description"])
+	}
+}
+
+// record replays the requests of the recorded fixtures against a running bench:
+// no kubectl, no skopeo. Its description says what it needs (the bench up, its
+// data set as described), and it is not reachable from ci, check, test or
+// test-race (TestMiseNoStandardTaskReachesTheBench covers every nexus-bench:*
+// task, this one included, once it exists).
+func TestMiseRecordTaskNeedsNoKubectlAndSaysWhatItNeeds(t *testing.T) {
+	name := miseBenchPrefix + ":record"
+	f := loadMise(t)
+	task, ok := f.task(name)
+	if !ok {
+		t.Fatalf("mise.toml has no task %q", name)
+	}
+	if strings.Contains(task["tools"], "kubectl") || strings.Contains(task["tools"], "skopeo") {
+		t.Errorf("%s declares a tool it does not use:\n%s", name, task["tools"])
+	}
+	desc := strings.ToLower(task["description"])
+	for _, w := range []string{"fixtures", "bench", "data set"} {
+		if !strings.Contains(desc, w) {
+			t.Errorf("the description of %s does not mention %q:\n%s", name, w, task["description"])
+		}
+	}
+	if strings.Contains(task["run"], "kubectl") || strings.Contains(task["run"], "-race") {
+		t.Errorf("run of %s is not the plain command:\n%s", name, task["run"])
+	}
+	for _, root := range []string{"ci", "check", "test", "test-race"} {
+		keys, _ := f.task(root)
+		for k, v := range keys {
+			if strings.Contains(v, name) {
+				t.Errorf("task %s mentions %s in %s", root, name, k)
+			}
+		}
 	}
 }

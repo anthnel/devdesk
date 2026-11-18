@@ -1,0 +1,2 @@
+go test fuzz v1
+[]byte("# scenario:0\n# nexus:0.0 0\n# measured:0000-01-01\n# account:0\n# redacted:0\n\n0 0 HTTP/1.1\nHost:0\n\nHTTP/1.1 100 \n\n###")

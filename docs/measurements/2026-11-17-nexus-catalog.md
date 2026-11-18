@@ -277,3 +277,15 @@ le scénario, la version de Nexus, la date et l'identité, puis la requête (san
 **Pour NX-08** : ces fichiers portent la version de Nexus, la date et le scénario ; ils servent de
 fixtures. Le script qui les a produits n'est pas versé (il lit les secrets) : le rejouer demande le banc, le
 fichier de secrets et les mêmes URL (colonne « URL » des tableaux).
+
+**Suite (DEVDESK-511, NX-08a)** : 30 de ces réponses ont été importées comme fixtures, copiées octet pour
+octet dans `internal/nexusfixture/fixtures/catalog/` (les fichiers de ce dossier-ci restent la preuve
+datée, inchangés). Le test `TestEveryFixtureIsMeasuredOrRecorded` vérifie qu'une fixture est identique à
+son fichier d'origine ou porte `# recorded-by: nexus-bench record`. Elles sont rejouées sans le banc par
+les tests de `internal/imagesearch` et `internal/registrymgr`, et `mise run nexus-bench:record` les
+régénère depuis le banc (voir « Recorded fixtures » dans `docs/architecture/nexus-bench.md`).
+
+**Correction** : la phrase plus haut disant que la découverte des membres « les avale toutes les deux »
+(403 et 404) est inexacte. Seuls 403 et 401 sont un refus ; un 404 sur l'endpoint détaillé est un **échec de
+découverte** (`unreachable`, rien en cache). Le compte de pull reçoit donc aujourd'hui un échec, non un
+refus. Le comportement est figé par un test sur la réponse mesurée ; DEVDESK-578 le changera.

@@ -199,7 +199,15 @@ as their source of truth, and `config.yaml` is what the user declares.
   `discovery`, never in place of it (`mcp.md`).
 - **Known limits.** Two processes writing the cache at once: the last write
   wins, as before. That Nexus answers 403 on the format endpoint to a pull-only
-  account is a hypothesis, to confirm on the bench (NX-03).
+  account was a hypothesis; NX-03 measured otherwise (below).
+- **Measured on Nexus 3.98.1-01 (NX-03, fixtures of DEVDESK-511).** The pull
+  account gets **404 `Repository not found`**, not 403, on the detailed group
+  endpoint; the anonymous call gets 403. A 404 is not a refusal, so discovery for
+  a pull account is today a failed one (`unreachable`, footer Error, nothing
+  cached): `TestDetectGroupOnMeasuredNexusAnswers` pins that behavior on the
+  recorded answers, and DEVDESK-578 (NX-07b) is to change it. The detection tests
+  replay recorded answers, see "Recorded fixtures" in
+  [`nexus-bench.md`](nexus-bench.md).
 - The **registry browser reads this cache**, never the network: it opens on the
   first frame and works offline. `→` on a group row in the Registries tab drills
   into its members, `←`/`esc` go back.

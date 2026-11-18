@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -179,6 +180,59 @@ func (c *client) do(ctx context.Context, r request) (response, error) {
 		return response{}, &tooLargeError{Op: r.op}
 	}
 	return response{status: resp.StatusCode, header: resp.Header, body: data}, nil
+}
+
+// exchange sends one GET and returns the status, the headers and the body of
+// the answer whatever the status, a 404 included (unlike do, which drops the
+// body of an answer outside 2xx): it is what the fixture recorder keeps. target
+// is the path and the raw query, as a fixture records it, appended to the base
+// of the client. Only header is sent, plus the Basic credentials of the client
+// when it has any; the Authorization value of header is a placeholder in a
+// fixture and is never sent. No redirection is followed, and an answer past
+// maxResponseBytes is a *tooLargeError whatever its status. Any other method
+// than GET, or a target that is not an absolute path, is refused before
+// anything is sent.
+func (c *client) exchange(ctx context.Context, method, target string, header http.Header) (status int, h http.Header, body []byte, err error) {
+	const op = "read the answer to a recorded request"
+	if method != http.MethodGet {
+		return 0, nil, nil, errors.New("exchange sends GET requests only")
+	}
+	if !strings.HasPrefix(target, "/") || strings.HasPrefix(target, "//") {
+		return 0, nil, nil, errors.New("exchange needs a target that is a path")
+	}
+	req, err := http.NewRequestWithContext(ctx, method, c.base+target, nil)
+	if err != nil {
+		return 0, nil, nil, &transportError{Op: op, Err: err}
+	}
+	for name, values := range header {
+		if http.CanonicalHeaderKey(name) == "Authorization" {
+			continue
+		}
+		for _, v := range values {
+			req.Header.Add(name, v)
+		}
+	}
+	// A recorded answer is read as the instance sends it: left alone, the
+	// transport asks for gzip and hands back a decoded body without its
+	// Content-Length, which is not what a fixture holds. The recorded request is
+	// the one of the fixture file, so this header is not recorded.
+	req.Header.Set("Accept-Encoding", "identity")
+	if c.user != "" {
+		req.SetBasicAuth(c.user, c.password)
+	}
+	resp, err := c.http.Do(req)
+	if err != nil {
+		return 0, nil, nil, &transportError{Op: op, Err: err}
+	}
+	defer func() { _ = resp.Body.Close() }()
+	data, err := io.ReadAll(io.LimitReader(resp.Body, maxResponseBytes+1))
+	if err != nil {
+		return 0, nil, nil, &transportError{Op: op, Err: err}
+	}
+	if len(data) > maxResponseBytes {
+		return 0, nil, nil, &tooLargeError{Op: op}
+	}
+	return resp.StatusCode, resp.Header, data, nil
 }
 
 // expect sends r and turns a status outside 2xx into an *APIError.
