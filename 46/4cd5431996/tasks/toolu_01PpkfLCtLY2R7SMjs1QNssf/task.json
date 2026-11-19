@@ -1,0 +1,15 @@
+{
+  "tool_use_id": "toolu_01PpkfLCtLY2R7SMjs1QNssf",
+  "agent_id": "a305d9acc9fec9812",
+  "subagent_type": "product-team:pm",
+  "task_description": "Proposition de release (draft)",
+  "token_usage": {
+    "input_tokens": 8,
+    "cache_creation_tokens": 50129,
+    "cache_read_tokens": 133054,
+    "output_tokens": 1900,
+    "api_call_count": 4
+  },
+  "started_at": "2026-11-18T16:19:52.71004971+01:00",
+  "completed_at": "2026-11-18T16:20:11.083417988+01:00"
+}
