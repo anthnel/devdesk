@@ -20,6 +20,7 @@ import (
 	"github.com/anthnel/devdesk/internal/jobs"
 	"github.com/anthnel/devdesk/internal/netproxy"
 	"github.com/anthnel/devdesk/internal/shared"
+	"github.com/anthnel/devdesk/internal/testutil/fakekeyring"
 	"github.com/anthnel/devdesk/internal/ui/help"
 	"github.com/anthnel/devdesk/internal/ui/shortcut"
 	"github.com/anthnel/devdesk/internal/ui/testutil"
@@ -54,6 +55,10 @@ func TestMain(m *testing.M) {
 	// Never the developer's own HTTPS_PROXY: a loopback one would add a footer
 	// warning to every scan a test launches (DEVDESK-583).
 	containerForward = func() netproxy.Forward { return netproxy.Forward{} }
+	// Never the host secret store: a test that forgets isolateHome meets this
+	// empty in-memory one instead of the keyring, git credential or session bus
+	// of the machine (DEVDESK-610).
+	fakekeyring.Install()
 
 	code := m.Run()
 
@@ -168,13 +173,19 @@ func (v *bareView) View() tea.View { return tea.NewView(v.Render()) }
 // long as the process, so under -count=N a test met the files its own previous
 // run had written: a context already created, a forge index still fresh enough
 // to skip the walk (DEVDESK-36). TestMain's HOME stays as the fallback for code
-// that runs outside a router.
-func isolateHome(t *testing.T) {
+// that runs outside a router. HOME and the host secret store are the two
+// persistent states of the machine a test can reach, so the store is replaced
+// here too: every test, and every -count=N round, starts from an empty one
+// (DEVDESK-610). It returns that store, for a test that asserts on what the
+// router wrote to it; most callers ignore it.
+func isolateHome(t *testing.T) *fakekeyring.Store {
 	t.Helper()
+	store := fakekeyring.Fresh(t)
 	home := t.TempDir()
 	t.Setenv("HOME", home)
 	t.Setenv("USERPROFILE", home)
 	t.Setenv("CLAUDE_CONFIG_DIR", "")
+	return store
 }
 
 // router builds an App hosting view as the dashboard, laid out at 180x40.

@@ -14,6 +14,7 @@ import (
 	tea "charm.land/bubbletea/v2"
 
 	"github.com/anthnel/devdesk/internal/config"
+	"github.com/anthnel/devdesk/internal/testutil/fakekeyring"
 	"github.com/anthnel/devdesk/internal/ui/components"
 	"github.com/anthnel/devdesk/internal/ui/testutil"
 )
@@ -31,6 +32,9 @@ func TestMain(m *testing.M) {
 	}
 	_ = os.Setenv("HOME", home)
 	_ = os.Setenv("USERPROFILE", home)
+	// Never the host secret store: a test that forgets isolateHome meets this
+	// empty in-memory one instead of the keyring of the machine (DEVDESK-610).
+	fakekeyring.Install()
 
 	code := m.Run()
 
@@ -44,9 +48,11 @@ func TestMain(m *testing.M) {
 // run had written: the remote themes already downloaded, so the fetch added
 // none (DEVDESK-38, the same defect as DEVDESK-36 in internal/app). Every test
 // that writes under HOME calls it, which keeps TestMain's HOME empty for the
-// tests that only read it.
+// tests that only read it. It also replaces the host secret store, the other
+// persistent state of the machine, with an empty one (DEVDESK-610).
 func isolateHome(t *testing.T) {
 	t.Helper()
+	fakekeyring.Fresh(t)
 	home := t.TempDir()
 	t.Setenv("HOME", home)
 	t.Setenv("USERPROFILE", home)
@@ -550,6 +556,35 @@ func TestCheckSecretBackendCmdReturnsAWellFormedMessage(t *testing.T) {
 	}
 	if msg.Detail == "" {
 		t.Error("Detail is empty; credentials.Select always populates it")
+	}
+}
+
+// With an isolated, reachable store the answer does not depend on the machine:
+// the keyring is chosen and persists (DEVDESK-610).
+func TestCheckSecretBackendCmdReportsAReachableKeyring(t *testing.T) {
+	fakekeyring.Fresh(t)
+
+	msg, ok := testutil.MsgOf[SecretBackendCheckedMsg](checkSecretBackendCmd("wizard-wiring-test", "auto"))
+	if !ok {
+		t.Fatal("checkSecretBackendCmd returned no SecretBackendCheckedMsg")
+	}
+	if !msg.Persists {
+		t.Errorf("Persists = false with a reachable keyring; detail %q", msg.Detail)
+	}
+}
+
+func TestCheckSecretBackendCmdReportsAnUnreachablePinnedKeyring(t *testing.T) {
+	fakekeyring.FreshUnreachable(t, errors.New("no session bus"))
+
+	msg, ok := testutil.MsgOf[SecretBackendCheckedMsg](checkSecretBackendCmd("wizard-wiring-test", "keyring"))
+	if !ok {
+		t.Fatal("checkSecretBackendCmd returned no SecretBackendCheckedMsg")
+	}
+	if msg.Persists {
+		t.Error("Persists = true although the pinned keyring is unreachable")
+	}
+	if !strings.Contains(msg.Detail, "is configured but not reachable") {
+		t.Errorf("Detail = %q, want it to say the keyring is not reachable", msg.Detail)
 	}
 }
 
