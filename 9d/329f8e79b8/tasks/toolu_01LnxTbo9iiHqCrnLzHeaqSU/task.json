@@ -1,0 +1,15 @@
+{
+  "tool_use_id": "toolu_01LnxTbo9iiHqCrnLzHeaqSU",
+  "agent_id": "a9f33529bca434641",
+  "subagent_type": "product-team:pm",
+  "task_description": "Story proxy d'environnement",
+  "token_usage": {
+    "input_tokens": 12,
+    "cache_creation_tokens": 82083,
+    "cache_read_tokens": 319757,
+    "output_tokens": 11328,
+    "api_call_count": 6
+  },
+  "started_at": "2026-11-18T14:45:16.823967874+01:00",
+  "completed_at": "2026-11-18T14:46:43.731116676+01:00"
+}
