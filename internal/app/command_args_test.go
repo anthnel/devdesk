@@ -6,6 +6,8 @@ import (
 
 	"github.com/anthnel/devdesk/internal/command"
 	"github.com/anthnel/devdesk/internal/config"
+	"github.com/anthnel/devdesk/internal/credentials"
+	"github.com/anthnel/devdesk/internal/testutil/fakekeyring"
 	"github.com/anthnel/devdesk/internal/ui/components"
 	"github.com/anthnel/devdesk/internal/ui/testutil"
 )
@@ -19,7 +21,15 @@ import (
 // "default" is current. No snapshot is loaded yet.
 func argRouter(t *testing.T, names ...string) *App {
 	t.Helper()
-	isolateHome(t)
+	a, _ := argRouterStore(t, names...)
+	return a
+}
+
+// argRouterStore is argRouter, plus the isolated host secret store the router
+// runs against (DEVDESK-610).
+func argRouterStore(t *testing.T, names ...string) (*App, *fakekeyring.Store) {
+	t.Helper()
+	store := isolateHome(t)
 	if len(names) == 0 {
 		names = []string{"default", "web", "work"}
 	}
@@ -33,7 +43,7 @@ func argRouter(t *testing.T, names ...string) *App {
 	// A plain view keeps the viewport height predictable (the dashboard adds tabs).
 	a.views[command.ViewDashboard] = &fakeView{}
 	a.resize(120, 40)
-	return a
+	return a, store
 }
 
 // ctxOpen opens the command line, applies the context load, and types text.
@@ -436,6 +446,31 @@ func TestCtxNewWithANameClosesTheLineWithoutRefusal(t *testing.T) {
 	}
 	if a.commandMode {
 		t.Error("the command line stayed open")
+	}
+}
+
+// Creating a context resolves its secret store. The router test harness
+// isolates the host store, so the switch lands on the keyring without touching
+// the machine's, and the probe leaves the store empty (DEVDESK-610).
+func TestCreatingAContextUsesTheIsolatedSecretStore(t *testing.T) {
+	// The store comes from the harness, not from a Fresh of this test's own:
+	// the test fails if isolateHome stops installing one.
+	a, store := argRouterStore(t)
+	if store == nil {
+		t.Fatal("isolateHome installed no host secret store")
+	}
+	ctxOpen(t, a, "ctx new staging")
+
+	testutil.FastTimers(t, &components.FooterMsgDuration)
+	done, ok := testutil.MsgOf[ContextSwitchCompleteMsg](press(t, a, "enter"))
+	if !ok {
+		t.Fatal("creating a context produced no completed switch")
+	}
+	if done.Secrets.Backend != credentials.BackendKeyring {
+		t.Errorf("Backend = %q, want the isolated keyring; detail %q", done.Secrets.Backend, done.Secrets.Detail)
+	}
+	if n := len(store.Entries()); n != 0 {
+		t.Errorf("the isolated store holds %d entries after a probe that only reads", n)
 	}
 }
 

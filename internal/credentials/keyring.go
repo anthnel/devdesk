@@ -4,8 +4,6 @@ import (
 	"errors"
 	"fmt"
 	"runtime"
-
-	"github.com/zalando/go-keyring"
 )
 
 const (
@@ -52,7 +50,7 @@ func (k *KeyringStorage) account(url string) string {
 
 // Save writes the secret to the host store, replacing any previous value.
 func (k *KeyringStorage) Save(url, secret string) error {
-	if err := keyring.Set(keyringService, k.account(url), secret); err != nil {
+	if err := currentHost().Set(keyringService, k.account(url), secret); err != nil {
 		return fmt.Errorf("%s: %w", KeyringName(), err)
 	}
 	return nil
@@ -61,8 +59,8 @@ func (k *KeyringStorage) Save(url, secret string) error {
 // Load reads the secret back. A missing entry is an error, matching the rest of
 // the Storage implementations.
 func (k *KeyringStorage) Load(url string) (string, error) {
-	secret, err := keyring.Get(keyringService, k.account(url))
-	if errors.Is(err, keyring.ErrNotFound) {
+	secret, err := currentHost().Get(keyringService, k.account(url))
+	if errors.Is(err, ErrNotFound) {
 		return "", fmt.Errorf("%w for %s (context: %s)", ErrNotFound, url, k.context)
 	}
 	if err != nil {
@@ -74,8 +72,8 @@ func (k *KeyringStorage) Load(url string) (string, error) {
 // Delete removes the secret. Deleting one that is not there succeeds: logout
 // must not fail because the token was already gone.
 func (k *KeyringStorage) Delete(url string) error {
-	err := keyring.Delete(keyringService, k.account(url))
-	if err == nil || errors.Is(err, keyring.ErrNotFound) {
+	err := currentHost().Delete(keyringService, k.account(url))
+	if err == nil || errors.Is(err, ErrNotFound) {
 		return nil
 	}
 	return fmt.Errorf("%s: %w", KeyringName(), err)
@@ -91,8 +89,8 @@ func (k *KeyringStorage) Delete(url string) error {
 // It is a read, so it can never leave anything behind if it is called on a
 // machine where the store turns out to be unusable.
 func KeyringAvailable() bool {
-	_, err := keyring.Get(keyringService, keyringProbeAccount)
-	return err == nil || errors.Is(err, keyring.ErrNotFound)
+	_, err := currentHost().Get(keyringService, keyringProbeAccount)
+	return err == nil || errors.Is(err, ErrNotFound)
 }
 
 // KeyringName is what the host calls its secret store, for messages the user

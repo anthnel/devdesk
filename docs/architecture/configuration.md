@@ -156,6 +156,51 @@ is still resolved.
 Credentials Management). Do not add a secret-bearing field back — the schema is
 what makes the guarantee checkable.
 
+### Testing code that reaches the secret store
+
+DEVDESK-610. `KeyringStorage` and `KeyringAvailable` call the host store through
+`credentials.HostStore` (`internal/credentials/hoststore.go`); `goKeyring{}` is the
+production implementation and the only caller of go-keyring.
+
+**The trap.** Without isolation, a test that calls `credentials.Select`,
+`KeyringAvailable` or a router that does reaches the machine's real keyring. On a
+developer machine with a locked Secret Service, the call blocks until the D-Bus
+timeout, in every test that does it.
+
+**Isolating.** Use `internal/testutil/fakekeyring`, an in-memory `HostStore`:
+
+- `fakekeyring.Install()` in `TestMain` puts an empty store in use for the whole binary.
+- `fakekeyring.Fresh(t)` gives one test its own empty store, restored at cleanup.
+- `fakekeyring.FreshUnreachable(t, err)` makes every operation fail with `err` (locked
+  keyring, no session bus); `KeyringAvailable` then reports `false`.
+- `isolateHome(t)` in `internal/app` and `internal/ui/setup` already calls `Fresh`.
+
+`credentials.SwapHostStoreForTest` is the seam behind these helpers. It panics outside a
+test binary and on a nil store; call it from `_test.go` files and `fakekeyring` only.
+
+**Guards.**
+
+- *Runtime.* `refuseUnderTest` runs before every go-keyring call and before every
+  `git credential` call. Under `testing.Testing()`, unless the `internal/credentials`
+  `TestMain` stood the guard down, it panics with `DEVDESK-610` and the operation. It
+  panics instead of returning an error because `Select` would fall back to memory and
+  the test would pass silently.
+- *Static.* `TestHostStoreGuard*` parses every `.go` file of the module: K1 forbids
+  importing go-keyring outside `hoststore.go` and the `_test.go` files of
+  `internal/credentials`; K2 forbids `SwapHostStoreForTest` in non-test files other than
+  `fakekeyring` and `internal/credentials`; K3 forbids importing `fakekeyring` from
+  non-test files.
+
+**Limits.**
+
+- The runtime guard sees only the paths a test executes.
+- The static guard has no type information: a package imported under an alias that
+  shadows another name, an import path built at run time, and a test that runs an
+  external binary reaching the keyring are not detected.
+- `gitHelperUsable` reads the git configuration and is not guarded.
+- `Install` and `Fresh` change a process-wide store: a test that uses them must not call
+  `t.Parallel`.
+
 **`~/.devdesk/trust.yaml` is not a context file** (§3.82). It holds whom to
 trust for image signatures — a fact about the world — so it is global, read by
 `internal/trust`, and **strict** where `config.Load` is not: `KnownFields(true)`,
