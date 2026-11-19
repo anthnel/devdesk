@@ -1,0 +1,51 @@
+{
+  "cli_version": "0.13.2",
+  "checkpoint_id": "ddadae400bd5",
+  "strategy": "manual-commit",
+  "branch": "test/DEVDESK-610-isolate-host-keyring",
+  "checkpoints_count": 8,
+  "files_touched": [
+    "internal/credentials/git_credential.go",
+    "internal/credentials/hoststore.go",
+    "internal/credentials/hoststore_test.go",
+    "internal/credentials/keyring.go"
+  ],
+  "sessions": [
+    {
+      "metadata": "/dd/adae400bd5/0/metadata.json",
+      "transcript": "/dd/adae400bd5/0/full.jsonl",
+      "compact_transcript": "/dd/adae400bd5/0/transcript.jsonl",
+      "content_hash": "/dd/adae400bd5/0/content_hash.txt",
+      "prompt": "/dd/adae400bd5/0/prompt.txt"
+    }
+  ],
+  "token_usage": {
+    "input_tokens": 104,
+    "cache_creation_tokens": 324683,
+    "cache_read_tokens": 4031532,
+    "output_tokens": 35515,
+    "api_call_count": 37,
+    "subagent_tokens": {
+      "input_tokens": 316,
+      "cache_creation_tokens": 1031697,
+      "cache_read_tokens": 7966456,
+      "output_tokens": 149605,
+      "api_call_count": 153
+    },
+    "subagent_tokens_complete": true
+  },
+  "redaction": {
+    "replacements": 3,
+    "layers": {
+      "betterleaks": 0,
+      "connection_string": 0,
+      "credential_key": 0,
+      "credential_value": 0,
+      "credentialed_uri": 0,
+      "entropy": 0,
+      "key_context": 3,
+      "provider_token": 0,
+      "shell_stdin": 0
+    }
+  }
+}

@@ -1,0 +1,18 @@
+{
+  "tool_use_id": "toolu_01TJuqHJowMkMeRL1kTX4USk",
+  "agent_id": "a8354a7153f2b4b41",
+  "subagent_type": "team-core:archivist",
+  "task_description": "Décision D165 backlog",
+  "files": [
+    "docs/backlog.md"
+  ],
+  "token_usage": {
+    "input_tokens": 18,
+    "cache_creation_tokens": 62704,
+    "cache_read_tokens": 293584,
+    "output_tokens": 6154,
+    "api_call_count": 8
+  },
+  "started_at": "2026-11-19T18:04:08.34807476+01:00",
+  "completed_at": "2026-11-19T18:04:41.090183177+01:00"
+}

@@ -1,0 +1,23 @@
+{
+  "tool_use_id": "toolu_01AbfHurUnooiEn8K5sP13XP",
+  "agent_id": "aa54226a1a823ec72",
+  "subagent_type": "project-coder",
+  "task_description": "Vert étape 2 DEVDESK-610",
+  "files": [
+    "internal/credentials/git_credential.go",
+    "internal/credentials/hoststore.go",
+    "internal/credentials/hoststore_test.go",
+    "internal/credentials/keyring.go",
+    "internal/testutil/fakekeyring/doc.go",
+    "internal/testutil/fakekeyring/fakekeyring.go"
+  ],
+  "token_usage": {
+    "input_tokens": 20,
+    "cache_creation_tokens": 58012,
+    "cache_read_tokens": 479554,
+    "output_tokens": 7315,
+    "api_call_count": 10
+  },
+  "started_at": "2026-11-19T17:48:49.637694485+01:00",
+  "completed_at": "2026-11-19T17:48:49.637890178+01:00"
+}

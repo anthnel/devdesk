@@ -1,0 +1,18 @@
+{
+  "tool_use_id": "toolu_01DwPrMA2GSXgmhEzJderAg2",
+  "agent_id": "ad589496ccc214dab",
+  "subagent_type": "project-tester",
+  "task_description": "Étape 4 garde statique",
+  "files": [
+    "internal/credentials/hoststore_guard_test.go"
+  ],
+  "token_usage": {
+    "input_tokens": 20,
+    "cache_creation_tokens": 71596,
+    "cache_read_tokens": 529019,
+    "output_tokens": 15283,
+    "api_call_count": 10
+  },
+  "started_at": "2026-11-19T17:49:09.289072779+01:00",
+  "completed_at": "2026-11-19T17:50:50.085500024+01:00"
+}

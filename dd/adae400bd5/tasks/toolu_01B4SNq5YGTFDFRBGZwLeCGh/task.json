@@ -1,0 +1,19 @@
+{
+  "tool_use_id": "toolu_01B4SNq5YGTFDFRBGZwLeCGh",
+  "agent_id": "a45f7372bb1e04acb",
+  "subagent_type": "dev-team:security-reviewer",
+  "task_description": "Revue sécurité étape 1",
+  "files": [
+    "internal/credentials/git_credential.go",
+    "internal/credentials/keyring.go"
+  ],
+  "token_usage": {
+    "input_tokens": 10,
+    "cache_creation_tokens": 41797,
+    "cache_read_tokens": 147005,
+    "output_tokens": 4457,
+    "api_call_count": 5
+  },
+  "started_at": "2026-11-19T17:45:31.6022049+01:00",
+  "completed_at": "2026-11-19T17:45:31.602447897+01:00"
+}

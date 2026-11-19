@@ -1,0 +1,15 @@
+{
+  "tool_use_id": "toolu_01RYnX87mmaQazH7yoJ7u9hi",
+  "agent_id": "a2c00047aa3813944",
+  "subagent_type": "project-coder",
+  "task_description": "Étape 3 isolation app/setup",
+  "token_usage": {
+    "input_tokens": 40,
+    "cache_creation_tokens": 45690,
+    "cache_read_tokens": 782757,
+    "output_tokens": 8949,
+    "api_call_count": 20
+  },
+  "started_at": "2026-11-19T17:49:09.289082951+01:00",
+  "completed_at": "2026-11-19T18:00:48.571898988+01:00"
+}
