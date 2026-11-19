@@ -1,0 +1,50 @@
+{
+  "cli_version": "0.13.2",
+  "checkpoint_id": "c1aea39166e8",
+  "strategy": "manual-commit",
+  "branch": "fix/status-footer-msgs-589",
+  "checkpoints_count": 1,
+  "files_touched": [
+    "docs/architecture/ui-components.md",
+    "internal/ui/status/footer_cert_error_test.go",
+    "internal/ui/status/update.go"
+  ],
+  "sessions": [
+    {
+      "metadata": "/c1/aea39166e8/0/metadata.json",
+      "transcript": "/c1/aea39166e8/0/full.jsonl",
+      "compact_transcript": "/c1/aea39166e8/0/transcript.jsonl",
+      "content_hash": "/c1/aea39166e8/0/content_hash.txt",
+      "prompt": "/c1/aea39166e8/0/prompt.txt"
+    }
+  ],
+  "token_usage": {
+    "input_tokens": 38,
+    "cache_creation_tokens": 174731,
+    "cache_read_tokens": 1007476,
+    "output_tokens": 14288,
+    "api_call_count": 14,
+    "subagent_tokens": {
+      "input_tokens": 112,
+      "cache_creation_tokens": 426350,
+      "cache_read_tokens": 2548165,
+      "output_tokens": 29753,
+      "api_call_count": 55
+    },
+    "subagent_tokens_complete": true
+  },
+  "redaction": {
+    "replacements": 2,
+    "layers": {
+      "betterleaks": 0,
+      "connection_string": 0,
+      "credential_key": 0,
+      "credential_value": 0,
+      "credentialed_uri": 0,
+      "entropy": 0,
+      "key_context": 2,
+      "provider_token": 0,
+      "shell_stdin": 0
+    }
+  }
+}
