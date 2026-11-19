@@ -1,0 +1,18 @@
+{
+  "tool_use_id": "toolu_011bEb5Hav6seSFhoLBdZoto",
+  "agent_id": "a90215037b40a87ef",
+  "subagent_type": "team-core:archivist",
+  "task_description": "Décision D166 DEVDESK-578",
+  "files": [
+    "docs/backlog.md"
+  ],
+  "token_usage": {
+    "input_tokens": 22,
+    "cache_creation_tokens": 64871,
+    "cache_read_tokens": 405742,
+    "output_tokens": 7041,
+    "api_call_count": 10
+  },
+  "started_at": "2026-11-19T21:42:22.722556553+01:00",
+  "completed_at": "2026-11-19T21:43:17.452947277+01:00"
+}

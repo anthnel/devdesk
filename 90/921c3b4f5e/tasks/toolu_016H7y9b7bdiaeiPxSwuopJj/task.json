@@ -1,0 +1,15 @@
+{
+  "tool_use_id": "toolu_016H7y9b7bdiaeiPxSwuopJj",
+  "agent_id": "ae4a5ca45c8eda303",
+  "subagent_type": "dev-team:security-reviewer",
+  "task_description": "Revue sécu étape 1 DEVDESK-578",
+  "token_usage": {
+    "input_tokens": 10,
+    "cache_creation_tokens": 44365,
+    "cache_read_tokens": 152649,
+    "output_tokens": 3752,
+    "api_call_count": 5
+  },
+  "started_at": "2026-11-19T21:37:22.466843828+01:00",
+  "completed_at": "2026-11-19T21:38:02.923564703+01:00"
+}
