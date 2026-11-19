@@ -33,6 +33,11 @@ type NexusDetector struct{}
 // figure follows the reasoning of the catalog page cap and is not measured.
 const maxNexusResponse = 1 << 20
 
+// maxNexusErrorBody bounds how much of a 404 body is read to tell Nexus's own
+// "Repository not found" from any other 404. An assumption: the measured body is
+// about 50 bytes. A longer one is not trusted and the 404 stays a plain status.
+const maxNexusErrorBody = 4 << 10
+
 // errEmptyReply, errNoRepositoryType and errNoGroupDocument mark a 200 reply
 // that is not a repository (or group) document. All fail the discovery: reading
 // any of them as "not a group" would be cached (D23) and erase the members last
@@ -49,6 +54,32 @@ var nexusHTTPClient = &http.Client{Timeout: 8 * time.Second, CheckRedirect: oci.
 
 // Provider returns the provider this detector serves.
 func (n *NexusDetector) Provider() string { return ProviderNexus }
+
+// repositoryNotFoundError is a 404 from the management API whose body is Nexus's
+// own "Repository not found". Its text and its cause are the status error's,
+// never the body.
+type repositoryNotFoundError struct{ status *oci.StatusError }
+
+func (e *repositoryNotFoundError) Error() string { return e.status.Error() }
+func (e *repositoryNotFoundError) Unwrap() error { return e.status }
+
+// isRepositoryNotFound reports whether body is the JSON object Nexus sends for
+// "Repository not found": a `message` string that equals it once the quotes inside
+// and the whitespace around are removed, case ignored. Anything else is false.
+func isRepositoryNotFound(body []byte) bool {
+	var doc struct {
+		Message any `json:"message"`
+	}
+	if err := json.Unmarshal(body, &doc); err != nil {
+		return false
+	}
+	msg, ok := doc.Message.(string)
+	if !ok {
+		return false
+	}
+	msg = strings.TrimSpace(strings.ReplaceAll(msg, `"`, ""))
+	return strings.EqualFold(msg, "Repository not found")
+}
 
 // DetectGroup calls the Nexus REST API to determine whether the registry points
 // to a group repository and, if so, returns its member repositories.
@@ -160,9 +191,9 @@ func (n *NexusDetector) fetchRepoMeta(ctx context.Context, host, repoName string
 // Requires nx-repository-admin privilege; falls back to anonymous when credentials fail.
 //
 // It returns a settled listing (non-nil, possibly empty) or an error, never a
-// silent "no members": a 401 or 403 is a *MembersRefusedError, anything else that
-// goes wrong is returned as it is. The caller caches the first and must not cache
-// the second (D23).
+// silent "no members": a 401, a 403 or Nexus's 404 Repository not found is a
+// *MembersRefusedError, anything else that goes wrong is returned as it is. The
+// caller caches the first and must not cache the second (D23).
 //
 // The first attempt decides. The anonymous retry (D156) only changes the outcome
 // by succeeding: whatever it gets otherwise, the account was refused and that is
@@ -205,7 +236,16 @@ func (n *NexusDetector) fetchGroupMembers(ctx context.Context, host, repoName, f
 func membersFailure(host, repoName, endpoint string, err error, hasAuth bool) error {
 	if status, ok := refusedStatus(err); ok {
 		log.Printf("INFO [registrymgr/nexus] members refused %q: %v — account may lack nx-repository-admin privilege; run 'docker login %s' with an admin account", endpoint, err, host)
-		return &MembersRefusedError{Group: repoName, Status: status, Anonymous: !hasAuth, Cause: err}
+		// The cause is the status error itself, so the refusal never carries a
+		// repositoryNotFoundError nor anything of the body.
+		// refusedStatus found one, so errors.As should not fail; if it does, the
+		// cause stays nil rather than an interface holding a nil pointer.
+		var cause error
+		var statusErr *oci.StatusError
+		if errors.As(err, &statusErr) {
+			cause = statusErr
+		}
+		return &MembersRefusedError{Group: repoName, Status: status, Anonymous: !hasAuth, Cause: cause}
 	}
 	if errors.Is(err, oci.ErrOffOriginRedirect) {
 		// The advice above is for an account Nexus refused, not for this.
@@ -239,8 +279,13 @@ func parseGroupMembers(body []byte) ([]string, error) {
 }
 
 // refusedStatus reports the status of a management API refusal: 401 or 403 from
-// the manager itself, not from anything in front of it.
+// the manager itself, not from anything in front of it, or the 404 Nexus answers
+// an account without nx-repository-admin (see repositoryNotFoundError).
 func refusedStatus(err error) (int, bool) {
+	var nf *repositoryNotFoundError
+	if errors.As(err, &nf) {
+		return http.StatusNotFound, true
+	}
 	var se *oci.StatusError
 	if !errors.As(err, &se) || se.Source != oci.SourceManagementAPI {
 		return 0, false
@@ -297,7 +342,9 @@ func memberAddress(dockerURL, memberName string) (url, prefix string) {
 
 // nexusGET performs an authenticated GET and returns the response body. A status
 // other than 200 is a *oci.StatusError from the management API: the code only, no
-// status line, body or header. A context error stays a context error.
+// status line, body or header. A 404 whose body is Nexus's own "Repository not
+// found" is a *repositoryNotFoundError, which wraps that same status error. A
+// context error stays a context error.
 func (n *NexusDetector) nexusGET(ctx context.Context, endpoint string, info RegistryInfo) ([]byte, error) {
 	req, err := http.NewRequestWithContext(ctx, "GET", endpoint, nil)
 	if err != nil {
@@ -314,7 +361,21 @@ func (n *NexusDetector) nexusGET(ctx context.Context, endpoint string, info Regi
 	}
 	defer func() { _ = resp.Body.Close() }()
 	if resp.StatusCode != http.StatusOK {
-		return nil, &oci.StatusError{Code: resp.StatusCode, Source: oci.SourceManagementAPI}
+		status := &oci.StatusError{Code: resp.StatusCode, Source: oci.SourceManagementAPI}
+		if resp.StatusCode != http.StatusNotFound {
+			return nil, status
+		}
+		errBody, err := oci.ReadAllLimited(resp.Body, maxNexusErrorBody)
+		if err != nil {
+			if ctxErr := ctx.Err(); ctxErr != nil {
+				return nil, fmt.Errorf("read Nexus response: %w", ctxErr)
+			}
+			return nil, status
+		}
+		if isRepositoryNotFound(errBody) {
+			return nil, &repositoryNotFoundError{status: status}
+		}
+		return nil, status
 	}
 	body, err := oci.ReadAllLimited(resp.Body, maxNexusResponse)
 	if err != nil {

@@ -11,6 +11,8 @@ import (
 
 	"github.com/anthnel/devdesk/internal/cache"
 	"github.com/anthnel/devdesk/internal/config"
+	"github.com/anthnel/devdesk/internal/oci"
+	"github.com/anthnel/devdesk/internal/registrymgr"
 	sharedcomponents "github.com/anthnel/devdesk/internal/ui/components"
 	"github.com/anthnel/devdesk/internal/ui/datatable"
 	"github.com/anthnel/devdesk/internal/ui/testutil"
@@ -494,5 +496,163 @@ func TestADeclaredMemberStaysCheckedInTheBrowserWhenItsGroupIsRefused(t *testing
 	}
 	if prod == nil || !b.selected(*prod) {
 		t.Errorf("the refused group is not offered as itself, checked: %+v", prod)
+	}
+}
+
+// ── DEVDESK-578: a Nexus 404 says exactly what a 403 says ───────────────────
+
+// managerRefusal is the typed error the manager layer returns for a refused
+// listing, with the cause it really carries: the status error of the management
+// API, whose own text ("management API returned 404") must never reach a screen.
+func managerRefusal(status int, anonymous bool) *registrymgr.MembersRefusedError {
+	return &registrymgr.MembersRefusedError{
+		Group: "docker-group", Status: status, Anonymous: anonymous,
+		Cause: &oci.StatusError{Code: status, Source: oci.SourceManagementAPI},
+	}
+}
+
+// refusalScreens is everything the user can read after a refused refresh.
+type refusalScreens struct {
+	footer      string
+	footerLevel sharedcomponents.Level
+	footerFrame string // the footer as rendered, ANSI stripped
+	statusLine  string
+	statusLevel sharedcomponents.Level
+	cell        string
+	rendered    string // the group row as rendered, ANSI stripped
+}
+
+func screensAfterRefusal(t *testing.T, status int, anonymous bool) refusalScreens {
+	t.Helper()
+	m := groupModel(t)
+	m = feed(t, m, RegistryGroupDetectedMsg{
+		RegistryURL: registryHostInTest, Slug: "prod", Err: managerRefusal(status, anonymous), At: at(7),
+	})
+	st := m.status()
+	return refusalScreens{
+		footer:      m.footer.Text(),
+		footerLevel: m.footer.Level(),
+		footerFrame: ansi.Strip(m.RenderFooter(180)),
+		statusLine:  st.Text,
+		statusLevel: st.Level,
+		cell:        m.registryTable.Table().Rows()[0][membersCol],
+		rendered:    ansi.Strip(renderedRow(t, m.registryTable.View(), "prod")),
+	}
+}
+
+// CA3 and CA4: a 404 and a 403 are one refusal for the user. Footer, status line
+// and cell are identical, the wording is the documented one, and nothing of the
+// 404 (its number, Nexus's message, the management API, a URL) is on screen.
+func TestANexus404ReadsLikeA403OnEveryScreen(t *testing.T) {
+	for _, anonymous := range []bool{false, true} {
+		name := "account"
+		if anonymous {
+			name = "anonymous"
+		}
+		t.Run(name, func(t *testing.T) {
+			want := screensAfterRefusal(t, 403, anonymous)
+			got := screensAfterRefusal(t, 404, anonymous)
+
+			if got != want {
+				t.Errorf("a 404 reads differently from a 403:\n404: %+v\n403: %+v", got, want)
+			}
+			if got.footerLevel != sharedcomponents.LevelWarning || got.statusLevel != sharedcomponents.LevelWarning {
+				t.Errorf("levels = footer %v, status %v, want Warn for both", got.footerLevel, got.statusLevel)
+			}
+			if got.footer != got.statusLine {
+				t.Errorf("footer = %q, status line = %q, want one sentence", got.footer, got.statusLine)
+			}
+			if !anonymous && got.footer != statusRefusedLine {
+				t.Errorf("footer = %q, want %q", got.footer, statusRefusedLine)
+			}
+			if anonymous && !strings.HasPrefix(got.footer, "Members could not be read without credentials — ") {
+				t.Errorf("footer = %q, want the anonymous wording", got.footer)
+			}
+			// groupModel holds the 2 members last known: the refusal keeps them visible.
+			if want := "denied · 2 known · " + theme.TimeAgo(at(7)); got.cell != want {
+				t.Errorf("cell = %q, want %q", got.cell, want)
+			}
+			// Criterion 3: nothing of the 404 on screen, on the footer as rendered
+			// and on every other text.
+			for what, text := range map[string]string{
+				"footer": got.footer, "rendered footer": got.footerFrame,
+				"status line": got.statusLine, "cell": got.cell, "row": got.rendered,
+			} {
+				for _, leak := range []string{"404", "Repository not found", "management API", "http"} {
+					if strings.Contains(text, leak) {
+						t.Errorf("%s = %q contains %q", what, text, leak)
+					}
+				}
+			}
+			if !strings.Contains(got.footerFrame, got.footer) {
+				t.Errorf("the rendered footer %q does not carry the message %q", got.footerFrame, got.footer)
+			}
+		})
+	}
+}
+
+// secondDeclaredConfig is declaredConfig with a second hand-declared member.
+func secondDeclaredConfig() *config.Config {
+	cfg := declaredConfig()
+	cfg.Registry.Registries = append(cfg.Registry.Registries, config.RegistryItem{
+		Slug: "dhi2", Alias: "dhi2", Kind: config.KindRegistry, Parent: "prod",
+		URL: registryHostInTest, RepoPrefix: "dhi2-proxy", AuthMode: config.AuthInherit,
+	})
+	return cfg
+}
+
+// CA5 and criterion 6: members declared by hand are used. The sentence counts
+// them, for a 404 as for a 403, and the right arrow opens them.
+func TestARefusedGroupWithDeclaredMembersSaysSoAndOpensThem(t *testing.T) {
+	for _, status := range []int{403, 404} {
+		t.Run(fmt.Sprint(status), func(t *testing.T) {
+			m := tabWith(t, secondDeclaredConfig(), nil, nil)
+			m = feed(t, m, testutil.Key("ctrl+r"))
+			m = feed(t, m, RegistryGroupDetectedMsg{
+				RegistryURL: registryHostInTest, Slug: "prod", Err: managerRefusal(status, false), At: at(7),
+			})
+
+			want := fmt.Sprintf(statusDeclaredFmt, 2)
+			if want != "Members could not be read with this account — 2 declared by hand are used" {
+				t.Fatalf("the wording constant drifted: %q", want)
+			}
+			if m.footer.Text() != want || m.footer.Level() != sharedcomponents.LevelWarning {
+				t.Errorf("footer = %q at level %v, want Warn %q", m.footer.Text(), m.footer.Level(), want)
+			}
+			if st := m.status(); st.Text != want || st.Level != sharedcomponents.LevelWarning {
+				t.Errorf("status = %q at level %v, want Warn %q", st.Text, st.Level, want)
+			}
+			if frame := ansi.Strip(m.RenderFooter(180)); strings.Contains(frame, "404") || strings.Contains(frame, "Repository not found") {
+				t.Errorf("rendered footer %q carries the 404", frame)
+			}
+			if cell := m.registryTable.Table().Rows()[0][membersCol]; cell != "denied · "+theme.TimeAgo(at(7)) {
+				t.Errorf("cell = %q, want the denied wording", cell)
+			}
+
+			m = feed(t, m, testutil.Key("right"))
+
+			if m.registryGroupSlug != "prod" {
+				t.Fatalf("registryGroupSlug = %q (footer %q), want the group entered", m.registryGroupSlug, m.footer.Text())
+			}
+			for _, alias := range []string{"dhi", "dhi2"} {
+				if _, ok := findRow(m, alias); !ok {
+					t.Errorf("the group level lacks the declared member %s: %+v", alias, m.registryTable.Items())
+				}
+			}
+		})
+	}
+}
+
+// The same arrow with nothing declared and nothing known: the refusal wording,
+// identical for a 404 and a 403, and no ctrl+r.
+func TestEnteringAGroupRefusedWith404HasTheSameDrillInText(t *testing.T) {
+	for _, status := range []int{403, 404} {
+		t.Run(fmt.Sprint(status), func(t *testing.T) {
+			r := cache.RegistryGroupRefusal{At: at(7), Status: status}
+			m := feed(t, tabWith(t, testConfig(), nil, &r), testutil.Key("right"))
+			if m.registryGroupSlug != "" || m.footer.Text() != drillInNoMembers {
+				t.Errorf("registryGroupSlug = %q, footer = %q, want the tab kept and %q", m.registryGroupSlug, m.footer.Text(), drillInNoMembers)
+			}
+		})
 	}
 }

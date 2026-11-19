@@ -1752,8 +1752,10 @@ base := s.URL("127.0.0.1:30482")     // the fake that stands for that recorded H
   `TestMeasuredRESTAnswersHoldThePremises` (`registrymgr`): `DetectGroup` on the
   measured REST answers. As the pull account, the detailed group endpoint answers
   **404, not 403** (contradiction C1 of the plan; the anonymous call gets 403).
-  Today this is a failed discovery, not a members refusal, and the test pins that
-  current behavior. DEVDESK-578 (NX-07b) is to change it.
+  Since DEVDESK-578 (NX-07b) this is a members refusal (`Status: 404`, shown as
+  `denied`), not a failed discovery, and the test pins that on the recorded
+  answers. Nexus sends the same body for a group that does not exist, see
+  `registries.md`.
 - The data of the prefix tests of `imagesearch` (`catalog_http_test.go`,
   `catalog_test.go`) is now neutral (`myproject`): Nexus 3.98.1 does not prefix
   catalog names, and a comment says so. The synthetic Nexus of

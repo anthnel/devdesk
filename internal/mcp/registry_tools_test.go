@@ -280,6 +280,63 @@ func TestARefusedGroupReportsMembersRefusedAndNoDiscovery(t *testing.T) {
 	}
 }
 
+// DEVDESK-578: a Nexus 404 "Repository not found" is recorded as a refusal with
+// status 404, and the tool publishes it as such, beside the listing last known and
+// with nothing else of the 404.
+func TestANexus404RefusalIsPublishedAsMembersRefusedStatus404(t *testing.T) {
+	fakeCacheHome(t)
+	storeGroupDiscovery(t, "nexus", cache.RegistryGroupEntry{
+		DiscoveredAt: time.Now().Add(-48 * time.Hour),
+		Members:      []cache.RegistryGroupMember{{Alias: "hosted", URL: "nexus.example.com", RepoPrefix: "docker-hosted"}},
+	})
+	storeGroupRefusal(t, "nexus", cache.RegistryGroupRefusal{At: time.Now().Add(-time.Minute), Status: 404})
+	env := refusedGroupEnv("nexus")
+
+	got := listedBySlug(t, env)["nexus"]
+
+	if got.MembersRefused == nil {
+		t.Fatal("members_refused is absent though the refusal was recorded")
+	}
+	if got.MembersRefused.Status != 404 {
+		t.Errorf("members_refused.status = %d, want 404", got.MembersRefused.Status)
+	}
+	if got.MembersRefused.Anonymous {
+		t.Error("members_refused.anonymous = true, want false: the stored value")
+	}
+	if got.Discovery == nil || len(got.Discovery.Members) != 1 {
+		t.Errorf("discovery = %+v, want the listing last known beside the refusal", got.Discovery)
+	}
+	raw := rawEntries(t, env)["nexus"]
+	refused, ok := raw["members_refused"].(map[string]any)
+	if !ok {
+		t.Fatalf("members_refused is not an object on the wire: %v", raw)
+	}
+	if status, _ := refused["status"].(float64); status != 404 {
+		t.Errorf("members_refused.status on the wire = %v, want 404", refused["status"])
+	}
+	whole := callToolRaw(t, connect(t, env), "registries_list", nil)
+	for _, leak := range []string{"Repository not found", "management API"} {
+		if strings.Contains(whole, leak) {
+			t.Errorf("the reply carries %q:\n%s", leak, whole)
+		}
+	}
+}
+
+// Same, with no listing ever read: members_refused 404 and no discovery.
+func TestANexus404RefusalWithNoListingPublishesNoDiscovery(t *testing.T) {
+	fakeCacheHome(t)
+	storeGroupRefusal(t, "nexus", cache.RegistryGroupRefusal{At: time.Now(), Status: 404, Anonymous: true})
+	env := refusedGroupEnv("nexus")
+
+	got := listedBySlug(t, env)["nexus"]
+	if got.MembersRefused == nil || got.MembersRefused.Status != 404 || !got.MembersRefused.Anonymous {
+		t.Fatalf("members_refused = %+v, want status 404, anonymous", got.MembersRefused)
+	}
+	if _, present := rawEntries(t, env)["nexus"]["discovery"]; present || got.Discovery != nil {
+		t.Errorf("discovery = %+v, want none: a refusal is not a listing", got.Discovery)
+	}
+}
+
 // The members last known stay reported next to the refusal; discovery is just
 // older than it, and says so through its own age.
 func TestARefusedGroupWithAnOlderListingReportsBoth(t *testing.T) {
