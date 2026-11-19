@@ -1,0 +1,54 @@
+{
+  "cli_version": "0.13.2",
+  "checkpoint_id": "aabbb088ba3e",
+  "strategy": "manual-commit",
+  "branch": "main",
+  "checkpoints_count": 4,
+  "files_touched": [
+    "internal/nexusbench/bench_scenarios_integration_test.go",
+    "internal/nexusbench/cmd/nexus-bench/upstream_cmd_test.go",
+    "internal/nexusbench/repoapi_test.go",
+    "internal/nexusbench/reset_test.go",
+    "internal/nexusbench/upstream_cut_test.go",
+    "internal/nexusbench/upstream_recycle_test.go",
+    "internal/nexusbench/upstream_restore_test.go"
+  ],
+  "sessions": [
+    {
+      "metadata": "/aa/bbb088ba3e/0/metadata.json",
+      "transcript": "/aa/bbb088ba3e/0/full.jsonl",
+      "compact_transcript": "/aa/bbb088ba3e/0/transcript.jsonl",
+      "content_hash": "/aa/bbb088ba3e/0/content_hash.txt",
+      "prompt": "/aa/bbb088ba3e/0/prompt.txt"
+    }
+  ],
+  "token_usage": {
+    "input_tokens": 30,
+    "cache_creation_tokens": 25473,
+    "cache_read_tokens": 3235353,
+    "output_tokens": 7778,
+    "api_call_count": 10,
+    "subagent_tokens": {
+      "input_tokens": 38,
+      "cache_creation_tokens": 106784,
+      "cache_read_tokens": 684811,
+      "output_tokens": 6649,
+      "api_call_count": 17
+    },
+    "subagent_tokens_complete": true
+  },
+  "redaction": {
+    "replacements": 34,
+    "layers": {
+      "betterleaks": 0,
+      "connection_string": 0,
+      "credential_key": 0,
+      "credential_value": 0,
+      "credentialed_uri": 8,
+      "entropy": 23,
+      "key_context": 3,
+      "provider_token": 0,
+      "shell_stdin": 0
+    }
+  }
+}
