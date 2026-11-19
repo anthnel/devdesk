@@ -1,0 +1,69 @@
+{
+  "cli_version": "0.13.2",
+  "checkpoint_id": "1f2be1311b34",
+  "strategy": "manual-commit",
+  "branch": "main",
+  "checkpoints_count": 4,
+  "files_touched": [
+    "docs/architecture/mcp.md",
+    "docs/architecture/network.md",
+    "docs/backlog.md",
+    "internal/mcp/netcheck_tools.go",
+    "internal/mcp/netcheck_tools_test.go",
+    "internal/netcheck/env.go",
+    "internal/netcheck/explain.go",
+    "internal/netcheck/explain_test.go",
+    "internal/netcheck/fake_test.go",
+    "internal/netcheck/netcheck.go",
+    "internal/netcheck/run.go",
+    "internal/netcheck/run_test.go",
+    "internal/netcheck/stage_connect.go",
+    "internal/netcheck/stage_proxy.go",
+    "internal/netcheck/stage_proxy_test.go",
+    "internal/netproxy/guard_test.go",
+    "internal/ui/netdiag/check_env_test.go",
+    "internal/ui/netdiag/header.go",
+    "internal/ui/netdiag/model.go",
+    "internal/ui/netdiag/model_test.go",
+    "internal/ui/netdiag/view.go",
+    "internal/ui/netdiag/view_test.go"
+  ],
+  "sessions": [
+    {
+      "metadata": "/1f/2be1311b34/0/metadata.json",
+      "transcript": "/1f/2be1311b34/0/full.jsonl",
+      "compact_transcript": "/1f/2be1311b34/0/transcript.jsonl",
+      "content_hash": "/1f/2be1311b34/0/content_hash.txt",
+      "prompt": "/1f/2be1311b34/0/prompt.txt"
+    }
+  ],
+  "token_usage": {
+    "input_tokens": 36,
+    "cache_creation_tokens": 16689,
+    "cache_read_tokens": 2792475,
+    "output_tokens": 7770,
+    "api_call_count": 11,
+    "subagent_tokens": {
+      "input_tokens": 48,
+      "cache_creation_tokens": 193769,
+      "cache_read_tokens": 1136294,
+      "output_tokens": 15195,
+      "api_call_count": 23
+    },
+    "subagent_tokens_complete": true
+  },
+  "redaction": {
+    "replacements": 179,
+    "layers": {
+      "betterleaks": 71,
+      "connection_string": 0,
+      "credential_key": 0,
+      "credential_value": 0,
+      "credentialed_uri": 125,
+      "entropy": 8,
+      "key_context": 5,
+      "provider_token": 0,
+      "shell_stdin": 0
+    }
+  }
+}
