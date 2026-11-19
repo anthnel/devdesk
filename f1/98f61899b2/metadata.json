@@ -1,0 +1,35 @@
+{
+  "cli_version": "0.13.2",
+  "checkpoint_id": "f198f61899b2",
+  "strategy": "manual-commit",
+  "branch": "test/DEVDESK-610-isolate-host-keyring",
+  "checkpoints_count": 8,
+  "files_touched": [
+    "internal/testutil/fakekeyring/doc.go",
+    "internal/testutil/fakekeyring/fakekeyring.go",
+    "internal/testutil/fakekeyring/fakekeyring_test.go"
+  ],
+  "sessions": [
+    {
+      "metadata": "/f1/98f61899b2/0/metadata.json",
+      "transcript": "/f1/98f61899b2/0/full.jsonl",
+      "compact_transcript": "/f1/98f61899b2/0/transcript.jsonl",
+      "content_hash": "/f1/98f61899b2/0/content_hash.txt",
+      "prompt": "/f1/98f61899b2/0/prompt.txt"
+    }
+  ],
+  "redaction": {
+    "replacements": 3,
+    "layers": {
+      "betterleaks": 0,
+      "connection_string": 0,
+      "credential_key": 0,
+      "credential_value": 0,
+      "credentialed_uri": 0,
+      "entropy": 0,
+      "key_context": 3,
+      "provider_token": 0,
+      "shell_stdin": 0
+    }
+  }
+}
