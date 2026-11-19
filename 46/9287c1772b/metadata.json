@@ -1,0 +1,34 @@
+{
+  "cli_version": "0.13.2",
+  "checkpoint_id": "469287c1772b",
+  "strategy": "manual-commit",
+  "branch": "test/DEVDESK-610-isolate-host-keyring",
+  "checkpoints_count": 8,
+  "files_touched": [
+    "docs/architecture/configuration.md",
+    "docs/backlog.md"
+  ],
+  "sessions": [
+    {
+      "metadata": "/46/9287c1772b/0/metadata.json",
+      "transcript": "/46/9287c1772b/0/full.jsonl",
+      "compact_transcript": "/46/9287c1772b/0/transcript.jsonl",
+      "content_hash": "/46/9287c1772b/0/content_hash.txt",
+      "prompt": "/46/9287c1772b/0/prompt.txt"
+    }
+  ],
+  "redaction": {
+    "replacements": 3,
+    "layers": {
+      "betterleaks": 0,
+      "connection_string": 0,
+      "credential_key": 0,
+      "credential_value": 0,
+      "credentialed_uri": 0,
+      "entropy": 0,
+      "key_context": 3,
+      "provider_token": 0,
+      "shell_stdin": 0
+    }
+  }
+}
