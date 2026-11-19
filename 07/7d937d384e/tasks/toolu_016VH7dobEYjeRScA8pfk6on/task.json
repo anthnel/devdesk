@@ -1,0 +1,15 @@
+{
+  "tool_use_id": "toolu_016VH7dobEYjeRScA8pfk6on",
+  "agent_id": "ab4ba10943eeba103",
+  "subagent_type": "project-tester",
+  "task_description": "Tests e2e, MCP, netdiag 596",
+  "token_usage": {
+    "input_tokens": 28,
+    "cache_creation_tokens": 116733,
+    "cache_read_tokens": 1162809,
+    "output_tokens": 14355,
+    "api_call_count": 13
+  },
+  "started_at": "2026-11-19T07:56:16.34395537+01:00",
+  "completed_at": "2026-11-19T07:58:23.189997624+01:00"
+}
