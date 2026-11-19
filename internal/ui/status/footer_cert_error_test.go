@@ -284,10 +284,10 @@ func TestFooterTimedMessageComesBeforeACertificateFailure(t *testing.T) {
 		t.Errorf("footer = %q, the certificate failure must not show over a timed message", got)
 	}
 
-	// Once the message is gone, the failure is still there. Clear is called on
-	// the component directly because Update never offers it a ClearFooterMsg:
-	// footer.Handle is reached only from handleMonitorOperations.
-	m.footer.Clear()
+	// Once the message is gone, the failure is still there. The expiry is built
+	// rather than run (the real timer sleeps 3 s) and goes through Update, the
+	// way the router delivers it.
+	m = feed(t, m, components.ClearFooterMsg{ID: m.footer.ID()})
 	if !strings.Contains(footerText(m), proxyRefused) {
 		t.Errorf("footer = %q after the timed message expired, want the failure back", footerText(m))
 	}
