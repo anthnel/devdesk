@@ -1,0 +1,49 @@
+{
+  "cli_version": "0.13.2",
+  "checkpoint_id": "f0e557989139",
+  "strategy": "manual-commit",
+  "branch": "main",
+  "checkpoints_count": 3,
+  "files_touched": [
+    "docs/backlog.md",
+    "internal/ui/oci_resources/group_refusal_test.go"
+  ],
+  "sessions": [
+    {
+      "metadata": "/f0/e557989139/0/metadata.json",
+      "transcript": "/f0/e557989139/0/full.jsonl",
+      "compact_transcript": "/f0/e557989139/0/transcript.jsonl",
+      "content_hash": "/f0/e557989139/0/content_hash.txt",
+      "prompt": "/f0/e557989139/0/prompt.txt"
+    }
+  ],
+  "token_usage": {
+    "input_tokens": 38,
+    "cache_creation_tokens": 102655,
+    "cache_read_tokens": 1427200,
+    "output_tokens": 6753,
+    "api_call_count": 14,
+    "subagent_tokens": {
+      "input_tokens": 24,
+      "cache_creation_tokens": 99126,
+      "cache_read_tokens": 420902,
+      "output_tokens": 5864,
+      "api_call_count": 12
+    },
+    "subagent_tokens_complete": true
+  },
+  "redaction": {
+    "replacements": 23,
+    "layers": {
+      "betterleaks": 0,
+      "connection_string": 0,
+      "credential_key": 0,
+      "credential_value": 0,
+      "credentialed_uri": 0,
+      "entropy": 18,
+      "key_context": 5,
+      "provider_token": 0,
+      "shell_stdin": 0
+    }
+  }
+}
