@@ -18,10 +18,13 @@ import (
 // every other question; only the proxy one is delegated to the system env.
 
 const (
-	e2eHelperEnv   = "NETCHECK_TEST_PROXY_E2E_HELPER"
-	e2eRefuseEnv   = "NETCHECK_TEST_PROXY_E2E_REFUSE_DIAL"
-	e2eResultMark  = "NETCHECK_E2E_RESULT:"
-	e2eSecretValue = secretUser + ":" + secretPass
+	e2eHelperEnv = "NETCHECK_TEST_PROXY_E2E_HELPER"
+	e2eRefuseEnv = "NETCHECK_TEST_PROXY_E2E_REFUSE_DIAL"
+	// e2eFailResolveEnv makes the child's fake resolver fail every lookup
+	// (DEVDESK-596).
+	e2eFailResolveEnv = "NETCHECK_TEST_PROXY_E2E_FAIL_RESOLVE"
+	e2eResultMark     = "NETCHECK_E2E_RESULT:"
+	e2eSecretValue    = secretUser + ":" + secretPass
 )
 
 type e2eResult struct {
@@ -31,6 +34,10 @@ type e2eResult struct {
 	Reason  Reason  `json:"reason"`
 	// TCPProxy is the Proxy fact of the TCP row, empty when it carries none.
 	TCPProxy string `json:"tcp_proxy"`
+	// ResolveReason and ResolveProxy are the reason and the Proxy fact of the DNS
+	// row, empty when it carries none.
+	ResolveReason Reason `json:"resolve_reason"`
+	ResolveProxy  string `json:"resolve_proxy"`
 }
 
 // TestProxyE2EHelper is the child half. It does nothing in a normal run.
@@ -42,6 +49,9 @@ func TestProxyE2EHelper(t *testing.T) {
 	env := fakeEnv{proxy: SystemEnv(set).ProxyFor}
 	if os.Getenv(e2eRefuseEnv) == "1" {
 		env.dial = refusedDial
+	}
+	if os.Getenv(e2eFailResolveEnv) == "1" {
+		env.resolve = resolveFailing(errNoSuchHost)
 	}
 	res, err := Run(context.Background(), target(), env, set)
 	if err != nil {
@@ -55,12 +65,19 @@ func TestProxyE2EHelper(t *testing.T) {
 	if !ok {
 		t.Fatal("the run left no TCP check")
 	}
+	resolve, ok := res.Get(CheckResolve)
+	if !ok {
+		t.Fatal("the run left no DNS check")
+	}
 	out, err := json.Marshal(e2eResult{
 		Dump:     fmt.Sprintf("%+v", res.All()),
 		Verdict:  row.Verdict,
 		Summary:  row.Summary,
 		Reason:   row.Reason,
 		TCPProxy: factValue(tcp, "Proxy"),
+
+		ResolveReason: resolve.Reason,
+		ResolveProxy:  factValue(resolve, "Proxy"),
 	})
 	if err != nil {
 		t.Fatalf("marshal: %v", err)
@@ -69,10 +86,11 @@ func TestProxyE2EHelper(t *testing.T) {
 }
 
 // runE2EChild runs the child with the proxy variables of the parent removed and
-// exactly vars set. With refuseDial the fake env refuses the direct TCP dial.
-func runE2EChild(t *testing.T, vars map[string]string, refuseDial bool) e2eResult {
+// exactly vars set. With refuseDial the fake env refuses the direct TCP dial;
+// with failResolve it fails every lookup.
+func runE2EChild(t *testing.T, vars map[string]string, refuseDial, failResolve bool) e2eResult {
 	t.Helper()
-	drop := []string{"HTTPS_PROXY", "HTTP_PROXY", "NO_PROXY", "ALL_PROXY", "REQUEST_METHOD", e2eHelperEnv, e2eRefuseEnv}
+	drop := []string{"HTTPS_PROXY", "HTTP_PROXY", "NO_PROXY", "ALL_PROXY", "REQUEST_METHOD", e2eHelperEnv, e2eRefuseEnv, e2eFailResolveEnv}
 	var env []string
 	for _, kv := range os.Environ() {
 		name, _, _ := strings.Cut(kv, "=")
@@ -90,6 +108,9 @@ func runE2EChild(t *testing.T, vars map[string]string, refuseDial bool) e2eResul
 	env = append(env, "GORACE=atexit_sleep_ms=0", e2eHelperEnv+"=1")
 	if refuseDial {
 		env = append(env, e2eRefuseEnv+"=1")
+	}
+	if failResolve {
+		env = append(env, e2eFailResolveEnv+"=1")
 	}
 	for k, v := range vars {
 		env = append(env, k+"="+v)
@@ -125,10 +146,15 @@ func TestTheProxyRowNeverCarriesACredentialEndToEnd(t *testing.T) {
 		name         string
 		vars         map[string]string
 		refuseDial   bool
+		failResolve  bool
 		wantVerdict  Verdict
 		wantReason   Reason
 		wantSummary  string
 		wantTCPProxy string
+		// wantResolveReason and wantResolveProxy describe the DNS row, which is
+		// only touched when failResolve is set and a proxy applies.
+		wantResolveReason Reason
+		wantResolveProxy  string
 		// tokens that must appear nowhere in the results; defaults to the user
 		// and the password.
 		tokens []string
@@ -172,10 +198,29 @@ func TestTheProxyRowNeverCarriesACredentialEndToEnd(t *testing.T) {
 			wantSummary:  "Configured for this target: " + proxyShown + " (https only)",
 			wantTCPProxy: proxyShown,
 		},
+		{
+			name:        "a failed resolution with a proxy with credentials",
+			vars:        map[string]string{"HTTPS_PROXY": "http://" + e2eSecretValue + "@proxy.test:3128"},
+			failResolve: true,
+			wantVerdict: Info, wantReason: ReasonProxyConfigured,
+			wantSummary:       "Configured for this target: " + proxyShown + " (https only)",
+			wantResolveReason: ReasonDirectResolveFailedProxyConfigured,
+			wantResolveProxy:  proxyShown,
+		},
+		{
+			// The value is unusable, so no proxy applies: the DNS row keeps its
+			// generic conclusion and the raw value shows up nowhere.
+			name:        "a failed resolution with an invalid value only",
+			vars:        map[string]string{"HTTPS_PROXY": "http://" + e2eSecretValue + "/x@proxy.test:3128"},
+			failResolve: true,
+			wantVerdict: Warn, wantReason: ReasonProxyInvalid,
+			wantSummary: "Invalid HTTPS_PROXY value",
+			tokens:      []string{secretUser, secretPass, "proxy.test", "/x@"},
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got := runE2EChild(t, tt.vars, tt.refuseDial)
+			got := runE2EChild(t, tt.vars, tt.refuseDial, tt.failResolve)
 
 			if got.Verdict != tt.wantVerdict || got.Reason != tt.wantReason || got.Summary != tt.wantSummary {
 				t.Errorf("proxy row = %v %q (%q), want %v %q (%q)",
@@ -183,6 +228,10 @@ func TestTheProxyRowNeverCarriesACredentialEndToEnd(t *testing.T) {
 			}
 			if got.TCPProxy != tt.wantTCPProxy {
 				t.Errorf("TCP row Proxy fact = %q, want %q", got.TCPProxy, tt.wantTCPProxy)
+			}
+			if got.ResolveReason != tt.wantResolveReason || got.ResolveProxy != tt.wantResolveProxy {
+				t.Errorf("DNS row = reason %q, Proxy fact %q, want %q, %q",
+					got.ResolveReason, got.ResolveProxy, tt.wantResolveReason, tt.wantResolveProxy)
 			}
 			tokens := tt.tokens
 			if tokens == nil {

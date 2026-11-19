@@ -72,6 +72,14 @@ func batteries(t *testing.T) []scenario {
 			resolve: func(context.Context, string, string) ([]net.IP, error) {
 				return nil, errors.New("no such host")
 			}}, target()},
+		// DEVDESK-596: the failed lookup behind a proxy gets its own conclusion.
+		{"the name does not resolve behind a proxy", fakeEnv{
+			resolve: func(context.Context, string, string) ([]net.IP, error) {
+				return nil, errors.New("no such host")
+			},
+			proxy: perScheme(
+				decided(netproxy.DecisionProxied, "HTTPS_PROXY", "http://proxy.corp:3128"),
+				decided(netproxy.DecisionProxied, "HTTP_PROXY", "http://proxy.corp:3128"))}, target()},
 		{"the resolver answers with something unusable", fakeEnv{
 			resolve: func(context.Context, string, string) ([]net.IP, error) {
 				return nil, &net.DNSError{Err: "server misbehaving", Name: "example.com", IsTemporary: true}

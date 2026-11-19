@@ -4,6 +4,8 @@ import (
 	"context"
 	"errors"
 	"net"
+	"reflect"
+	"slices"
 	"testing"
 	"time"
 
@@ -393,6 +395,130 @@ func TestRunStepDoesNotWriteIntoTheResultsItWasGiven(t *testing.T) {
 	if len(first.All()) != snapshot {
 		t.Fatalf("the earlier Results grew from %d to %d checks", snapshot, len(first.All()))
 	}
+}
+
+// runBeforeConclusions runs the whole pipeline the way Run does, except that no
+// stage concludes: the result is the state conclude gets to work on, with the
+// generic DNS row still in place. Run itself cannot give it, since its output
+// has already been concluded and a second conclude finds nothing left to rewrite.
+func runBeforeConclusions(t *testing.T, env Env, tg Target) Results {
+	t.Helper()
+	set := DefaultSettings().Normalized()
+	all := stages()
+	gateOf := gatesOf(all)
+	var res Results
+	for _, s := range all {
+		s.conclude = nil
+		runStage(context.Background(), s, gateOf, tg, env, set, &res)
+	}
+	return res
+}
+
+// TestEveryConclusionTouchesOnlyWhatItDeclares keeps `amends` honest, the way
+// TestEveryStageProducesWhatItDeclares does for `produces`: a stage's conclude
+// may rewrite the rows it names and no other, and a stage that concludes nothing
+// declares nothing. It starts from the results as they are before any
+// conclusion, so there is something to rewrite: where a proxy applies to a failed
+// lookup, the declared row must change (a conclude that did nothing, or an
+// `amends` that lost CheckResolve, would otherwise pass), and every other row
+// must stay as it was. The results it works on are never changed under the
+// caller either (clone is shallow, so a fact slice is shared).
+func TestEveryConclusionTouchesOnlyWhatItDeclares(t *testing.T) {
+	state, roots := buildChain(t, chainOpts{dnsNames: []string{"example.com"}, withIntermediate: true})
+	for _, tc := range []struct {
+		name string
+		tg   Target
+		env  Env
+		// rewrites is whether the Proxy stage's conclusion has something to say:
+		// the amended row must then change, and must not change otherwise.
+		rewrites bool
+	}{
+		{"a failed resolution behind a proxy", target(),
+			fakeEnv{resolve: resolveFailing(errNoSuchHost), proxy: proxiedBoth}, true},
+		{"an empty answer behind a proxy", target(),
+			fakeEnv{resolve: resolveEmpty, proxy: proxiedBoth}, true},
+		{"a misbehaving resolver behind a proxy", target(),
+			fakeEnv{resolve: resolveFailing(misbehavingErr()), proxy: proxiedBoth}, true},
+		{"a successful run behind a proxy", target(),
+			fakeEnv{proxy: proxiedBoth, roots: roots, handshake: handshakeReturning(state)}, false},
+		{"a literal address behind a proxy", Target{Host: "10.2.3.4", Port: 443},
+			fakeEnv{proxy: proxiedBoth}, false},
+		{"a failed resolution without a proxy", target(),
+			fakeEnv{resolve: resolveFailing(errNoSuchHost)}, false},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			before := runBeforeConclusions(t, tc.env, tc.tg)
+			snapshot := make([]Check, len(before.All()))
+			for i, c := range before.All() {
+				c.Facts = slices.Clone(c.Facts)
+				snapshot[i] = c
+			}
+
+			var concluding int
+			for _, s := range stages() {
+				if s.conclude == nil {
+					if s.amends != nil {
+						t.Errorf("stage %q declares amends %v but has no conclude", s.id, s.amends)
+					}
+					continue
+				}
+				concluding++
+				if len(s.amends) == 0 {
+					t.Errorf("stage %q concludes but declares no amends", s.id)
+				}
+				amended := map[CheckID]bool{}
+				for _, id := range s.amends {
+					amended[id] = true
+				}
+
+				work := before.clone()
+				s.conclude(tc.tg, &work)
+
+				if len(work.All()) != len(snapshot) {
+					t.Fatalf("stage %q: conclude changed the number of checks from %d to %d",
+						s.id, len(snapshot), len(work.All()))
+				}
+				var changed []CheckID
+				for i, c := range work.All() {
+					if c.ID != snapshot[i].ID {
+						t.Errorf("stage %q: conclude moved %q to position %d", s.id, c.ID, i)
+					}
+					if reflect.DeepEqual(c, snapshot[i]) {
+						continue
+					}
+					changed = append(changed, c.ID)
+					if !amended[c.ID] {
+						t.Errorf("stage %q: conclude changed %q, which it does not declare: %+v, was %+v",
+							s.id, c.ID, c, snapshot[i])
+					}
+				}
+				for id := range amended {
+					if got := slices.Contains(changed, id); got != tc.rewrites {
+						t.Errorf("stage %q: declared row %q changed = %v, want %v (changed rows: %v)",
+							s.id, id, got, tc.rewrites, changed)
+					}
+				}
+				if !reflect.DeepEqual(before.All(), snapshot) {
+					t.Errorf("stage %q: conclude wrote into the results it was cloned from", s.id)
+				}
+			}
+			if concluding == 0 {
+				t.Error("no stage declares a conclusion: the Proxy stage must conclude on the DNS row")
+			}
+		})
+	}
+
+	t.Run("the proxy stage amends the DNS row", func(t *testing.T) {
+		for _, s := range stages() {
+			if s.id != StageProxy {
+				continue
+			}
+			if s.conclude == nil || !slices.Equal(s.amends, []CheckID{CheckResolve}) {
+				t.Errorf("the proxy stage concludes with amends %v (conclude set: %v), want [resolve]",
+					s.amends, s.conclude != nil)
+			}
+		}
+	})
 }
 
 // TestEveryStageIsNamedForAProgressLine — a stage the user waits on with no

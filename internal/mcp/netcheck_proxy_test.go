@@ -3,6 +3,7 @@ package mcp
 import (
 	"encoding/json"
 	"net/url"
+	"slices"
 	"strings"
 	"testing"
 
@@ -173,4 +174,102 @@ func TestNetCheckReportsNoProxyAsNotApplicableNone(t *testing.T) {
 		return
 	}
 	t.Fatalf("net_check reported no proxy check:\n%s", raw)
+}
+
+// DEVDESK-596 over MCP: a named target whose direct lookup fails, behind an
+// applicable proxy, is reported on the DNS row with its own reason, summary and
+// Proxy fact, and with the explanation layer filled in. Nothing else about the
+// report moves: same checks in the same order, and Check.Proxy (an internal
+// field) is never serialized.
+func TestNetCheckReportsAFailedResolutionBehindAProxy(t *testing.T) {
+	fakeCacheHome(t)
+	const proxyShown = "http://proxy.test:3128"
+
+	run := func(t *testing.T, env *fakeNetEnv) (string, netCheckOut) {
+		t.Helper()
+		stubNetwork(t, env)
+		var out netCheckOut
+		callTool(t, connect(t, testEnv(nil)), "net_check", map[string]any{"host": "example.test"}, &out)
+		raw, err := json.Marshal(out)
+		if err != nil {
+			t.Fatalf("marshal the output: %v", err)
+		}
+		return string(raw), out
+	}
+
+	plainText, plain := run(t, unresolvableHost())
+	proxied := unresolvableHost()
+	proxied.proxy = func(*url.URL) netproxy.Decision {
+		return netproxy.Decision{Kind: netproxy.DecisionProxied, Variable: "HTTPS_PROXY", Proxy: proxyShown}
+	}
+	text, out := run(t, proxied)
+
+	// The DNS row, read from the wire form.
+	var doc struct {
+		Checks []map[string]any `json:"checks"`
+	}
+	if err := json.Unmarshal([]byte(text), &doc); err != nil {
+		t.Fatalf("decode the output: %v", err)
+	}
+	var resolve map[string]any
+	for _, c := range doc.Checks {
+		if c["id"] == "resolve" {
+			resolve = c
+		}
+	}
+	if resolve == nil {
+		t.Fatalf("net_check reported no resolve check:\n%s", text)
+	}
+	if got, want := resolve["reason"], "direct-resolve-failed-proxy-configured"; got != want {
+		t.Errorf("resolve reason = %v, want %q:\n%s", got, want, text)
+	}
+	if got, want := resolve["summary"], "example.test does not resolve directly; a proxy is configured for this target"; got != want {
+		t.Errorf("resolve summary = %v, want %q", got, want)
+	}
+	if got := resolve["verdict"]; got != "FAIL" {
+		t.Errorf("resolve verdict = %v, want FAIL: the lookup did fail", got)
+	}
+	for _, field := range []string{"means", "do"} {
+		if s, _ := resolve[field].(string); strings.TrimSpace(s) == "" {
+			t.Errorf("resolve %s is empty: the explanation layer has no entry for this reason", field)
+		}
+	}
+	facts, _ := resolve["facts"].([]any)
+	var proxyFact string
+	for _, f := range facts {
+		if m, ok := f.(map[string]any); ok && m["key"] == "Proxy" {
+			proxyFact, _ = m["value"].(string)
+		}
+	}
+	if proxyFact != proxyShown {
+		t.Errorf("resolve Proxy fact = %q, want %q:\n%s", proxyFact, proxyShown, text)
+	}
+
+	// The same checks, in the same order, as the run without a proxy.
+	ids := func(o netCheckOut) []string {
+		var got []string
+		for _, c := range o.Checks {
+			got = append(got, c.ID)
+		}
+		return got
+	}
+	if got, want := ids(out), ids(plain); !slices.Equal(got, want) {
+		t.Errorf("check ids with a proxy = %v, want %v (the same as without)", got, want)
+	}
+	if out.Verdict != plain.Verdict {
+		t.Errorf("headline verdict = %q with a proxy, %q without", out.Verdict, plain.Verdict)
+	}
+
+	// The internal Proxy field never reaches the wire: no `proxy` key on any
+	// entry, with or without a proxy, and no credential anywhere.
+	for _, c := range doc.Checks {
+		if _, has := c["proxy"]; has {
+			t.Errorf("check %v carries a proxy key: Check.Proxy is not serialized", c["id"])
+		}
+	}
+	for _, bad := range []string{mcpSecretUser, mcpSecretPass} {
+		if strings.Contains(text, bad) || strings.Contains(plainText, bad) {
+			t.Errorf("the JSON output carries %q", bad)
+		}
+	}
 }

@@ -171,8 +171,9 @@ type Check struct {
 	// raw errors and is never shown nor serialized.
 	Routes []RouteLookup
 	// Proxy is set on CheckProxy only, when at least one scheme is proxied: the
-	// redacted proxy as shown, https first. It lets the connect stage tell that a
-	// proxy applies without parsing a Summary. It is never shown nor serialized.
+	// redacted proxy as shown, https first. It lets the connect stage and the DNS
+	// conclusion (concludeResolveBehindProxy) tell that a proxy applies without
+	// parsing a Summary. It is never shown on its own nor serialized.
 	Proxy string
 }
 
@@ -191,6 +192,10 @@ const (
 	// EDNS0 queries Go's resolver sends (which this pipeline must use to
 	// reach a resolver the user names — see resolverFor in env.go).
 	ReasonServerMisbehaving Reason = "server-misbehaving"
+	// ReasonDirectResolveFailedProxyConfigured is set by the conclude hook
+	// (concludeResolveBehindProxy), which runs after the Proxy stage, when the
+	// direct lookup failed and a proxy applies to the target.
+	ReasonDirectResolveFailedProxyConfigured Reason = "direct-resolve-failed-proxy-configured"
 
 	// Certificate chain
 	ReasonSelfSigned      Reason = "self-signed"

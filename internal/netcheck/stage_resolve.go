@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"net"
+	"slices"
 	"strings"
 )
 
@@ -23,6 +24,56 @@ func runResolve(ctx context.Context, t Target, env Env, _ Settings, _ *Results) 
 		newCheck(CheckReverseDNS, StageResolve, NotApplicable,
 			"Target is a name, not an address"),
 	}
+}
+
+// concludeResolveBehindProxy rewrites a failed direct lookup once the Proxy row
+// says a proxy applies to the target: behind a mandatory proxy the name is often
+// resolved by the proxy, so "does not resolve" alone would mislead. The verdict
+// stays Fail, the lookup did fail.
+//
+// A server-misbehaving reason is more precise than the generic conclusion and is
+// kept as it is; only the Proxy fact is added. The check is replaced with a new
+// fact slice: clone is shallow, so the slice is shared with the results this
+// call started from and is never written into (Rule 110).
+func concludeResolveBehindProxy(t Target, res *Results) {
+	c, found := res.Get(CheckResolve)
+	if !found || c.Verdict != Fail {
+		return
+	}
+	display, ok := proxyConfigured(res)
+	if !ok {
+		return
+	}
+
+	switch c.Reason {
+	case "":
+		c.Summary = fmt.Sprintf("%s does not resolve directly; a proxy is configured for this target", t.Host)
+		c.Reason = ReasonDirectResolveFailedProxyConfigured
+	case ReasonServerMisbehaving:
+		if slices.ContainsFunc(c.Facts, func(f Fact) bool { return f.Key == "Proxy" }) {
+			return
+		}
+	default:
+		return
+	}
+	c.Facts = withFactAfter(c.Facts, "Resolver", Fact{Key: "Proxy", Value: display})
+	res.add(c)
+}
+
+// withFactAfter returns a new slice with f inserted right after the first fact
+// named key, or at the end when there is none. It never writes into facts.
+func withFactAfter(facts []Fact, key string, f Fact) []Fact {
+	at := len(facts)
+	for i, existing := range facts {
+		if existing.Key == key {
+			at = i + 1
+			break
+		}
+	}
+	out := make([]Fact, 0, len(facts)+1)
+	out = append(out, facts[:at]...)
+	out = append(out, f)
+	return append(out, facts[at:]...)
 }
 
 // forwardLookup resolves a name.
