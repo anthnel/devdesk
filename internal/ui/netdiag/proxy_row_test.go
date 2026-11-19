@@ -1,6 +1,9 @@
 package netdiag
 
 import (
+	"context"
+	"errors"
+	"net"
 	"net/url"
 	"slices"
 	"strings"
@@ -27,6 +30,16 @@ const (
 type proxyEnv struct {
 	*countingEnv
 	https, http netproxy.Decision
+	// resolveErr, when set, fails every lookup, as a name only a proxy can
+	// resolve does.
+	resolveErr error
+}
+
+func (e proxyEnv) Resolve(ctx context.Context, host, resolver string) ([]net.IP, error) {
+	if e.resolveErr != nil {
+		return nil, e.resolveErr
+	}
+	return e.countingEnv.Resolve(ctx, host, resolver)
 }
 
 func (e proxyEnv) ProxyFor(u *url.URL) netproxy.Decision {
@@ -47,10 +60,15 @@ func runWithProxyAnswer(t *testing.T, answer netproxy.Decision) *Model {
 // runWithProxyAnswers answers the https and the http question separately.
 func runWithProxyAnswers(t *testing.T, https, http netproxy.Decision) *Model {
 	t.Helper()
-	env := proxyEnv{countingEnv: newCountingEnv(), https: https, http: http}
+	return runProxyEnv(t, "127.0.0.1", proxyEnv{countingEnv: newCountingEnv(), https: https, http: http})
+}
+
+// runProxyEnv runs the whole pipeline against target with env.
+func runProxyEnv(t *testing.T, target string, env proxyEnv) *Model {
+	t.Helper()
 	m := newTestModel(t)
 	m.checkEnv = func(netcheck.Settings) netcheck.Env { return env }
-	return runDiagnostics(t, m, "127.0.0.1")
+	return runDiagnostics(t, m, target)
 }
 
 // openProxyRow puts the cursor on the Proxy row and opens its detail.
@@ -247,4 +265,105 @@ func TestTheHelpDescribesTheProxyRow(t *testing.T) {
 	if !found {
 		t.Errorf("\"Where the checks run\" has no sentence saying the checks never go through the proxy:\n%s", where)
 	}
+}
+
+// DEVDESK-596 at the screen level: a named target the system resolver cannot
+// resolve, behind an applicable proxy, changes the DNS row and nothing else. The
+// table keeps its rows, order, verdicts and observations, the Proxy row stays an
+// INFO row at the same position, and no secret reaches the table, the footer or
+// the DNS detail.
+func TestAFailedResolutionBehindAProxyKeepsTheScreen(t *testing.T) {
+	const (
+		host       = "example.test"
+		proxyShown = "http://proxy.test:3128"
+		genericDNS = host + " does not resolve"
+		proxiedDNS = host + " does not resolve directly; a proxy is configured for this target"
+	)
+	failing := errors.New("no such host")
+	proxied := netproxy.Decision{Kind: netproxy.DecisionProxied, Variable: "HTTPS_PROXY", Proxy: proxyShown}
+
+	baseline := runProxyEnv(t, host, proxyEnv{countingEnv: newCountingEnv(), resolveErr: failing})
+	m := runProxyEnv(t, host, proxyEnv{countingEnv: newCountingEnv(), https: proxied, http: proxied, resolveErr: failing})
+
+	type row struct {
+		ID      netcheck.CheckID
+		Title   string
+		Verdict netcheck.Verdict
+		Summary string
+	}
+	rowsOf := func(checks []netcheck.Check) []row {
+		var out []row
+		for _, c := range checks {
+			out = append(out, row{c.ID, c.Title, c.Verdict, c.Summary})
+		}
+		return out
+	}
+	got, want := rowsOf(m.checksTable.Visible()), rowsOf(baseline.checksTable.Visible())
+	if len(got) == 0 || len(got) != len(want) {
+		t.Fatalf("rows = %d with a proxy, %d without; want the same non-zero count", len(got), len(want))
+	}
+
+	dnsAt, proxyAt := -1, -1
+	for i := range got {
+		switch got[i].ID {
+		case netcheck.CheckResolve:
+			dnsAt = i
+			if got[i].Summary != proxiedDNS || got[i].Verdict != netcheck.Fail {
+				t.Errorf("DNS row = %v %q, want FAIL %q", got[i].Verdict, got[i].Summary, proxiedDNS)
+			}
+			if want[i].Summary != genericDNS {
+				t.Errorf("baseline DNS summary = %q, want %q", want[i].Summary, genericDNS)
+			}
+			// Everything but the summary of this row is as it was.
+			got[i].Summary, want[i].Summary = "", ""
+		case netcheck.CheckProxy:
+			// The Proxy row differs by construction (INFO against N/A None); it
+			// is checked on its own below.
+			proxyAt = i
+			if got[i].Verdict != netcheck.Info {
+				t.Errorf("the Proxy row verdict = %v, want INFO", got[i].Verdict)
+			}
+			got[i].Verdict, got[i].Summary = 0, ""
+			want[i].Verdict, want[i].Summary = 0, ""
+		}
+	}
+	if dnsAt < 0 || proxyAt < 0 {
+		t.Fatalf("the table has no DNS row (%d) or no Proxy row (%d)", dnsAt, proxyAt)
+	}
+	if !slices.Equal(got, want) {
+		t.Errorf("the other rows changed:\n got %v\nwant %v", got, want)
+	}
+
+	table := m.Render()
+	if line := proxyLine(t, table); !strings.Contains(line, "INFO") || !strings.Contains(line, "Configured for this target: "+proxyShown) {
+		t.Errorf("the Proxy row = %q, want an INFO row naming %s", line, proxyShown)
+	}
+	if !strings.Contains(ansi.Strip(table), proxiedDNS) {
+		t.Errorf("the table does not show %q:\n%s", proxiedDNS, ansi.Strip(table))
+	}
+	noSecret(t, "the table", table)
+	noSecret(t, "the footer", m.RenderFooter(120))
+	for _, h := range m.GetHeaderInfo("ctx") {
+		noSecret(t, "the header "+h.Key, h.Value)
+	}
+
+	// The DNS detail carries the proxy as a fact and the summary, nothing secret.
+	for i, c := range m.checksTable.Visible() {
+		if c.ID == netcheck.CheckResolve {
+			m.checksTable.SetCursor(i)
+		}
+	}
+	m = feed(t, m, testutil.Key("enter"))
+	if m.state != StateDetails || m.selected.ID != netcheck.CheckResolve {
+		t.Fatalf("state = %v, selected = %q, want the DNS detail open", m.state, m.selected.ID)
+	}
+	details := ansi.Strip(m.renderDetailsContent(100))
+	for _, want := range []string{proxiedDNS, proxyShown} {
+		if !strings.Contains(details, want) {
+			t.Errorf("the DNS detail does not carry %q:\n%s", want, details)
+		}
+	}
+	noSecret(t, "the DNS detail", details)
+	noSecret(t, "the detail screen", m.Render())
+	noSecret(t, "the detail footer", m.RenderFooter(120))
 }

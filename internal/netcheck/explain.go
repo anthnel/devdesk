@@ -144,6 +144,15 @@ var explanations = []guidance{
 			"queries this pipeline has to send to reach a resolver you name.",
 		do: "Leave the resolver field empty to use the system resolver instead, or check this " +
 			"one directly (`dig @<server> <host>`) to see what it actually sent back."},
+	{check: CheckResolve, verdict: Fail, reason: ReasonDirectResolveFailedProxyConfigured,
+		means: "Every check below needs an address, so none of them ran. Clients that go through " +
+			"the configured proxy usually hand it the name and let it resolve it, so behind a " +
+			"mandatory proxy a name this machine cannot resolve is expected and says nothing " +
+			"about whether the target exists or is up.",
+		do: "If this target is meant to be reached through the proxy, check it from a client that " +
+			"uses it, such as an HTTPS monitor in the Status view. If it is meant to be reached " +
+			"directly, add it to NO_PROXY, then check the spelling and try the name against " +
+			"another resolver."},
 
 	{check: CheckReverseDNS, verdict: OK,
 		means: "The address publishes a name, which is what mail servers and some access " +

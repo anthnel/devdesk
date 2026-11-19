@@ -41,6 +41,11 @@ type stage struct {
 	// in step.
 	produces []CheckID
 	run      func(ctx context.Context, t Target, env Env, set Settings, prior *Results) []Check
+	// amends names the checks of earlier stages that conclude may rewrite.
+	amends []CheckID
+	// conclude runs after the stage's own checks are added, only when the stage
+	// really ran.
+	conclude func(t Target, res *Results)
 }
 
 // stageTitles names a stage for a progress line. A stage is what the user waits
@@ -105,7 +110,9 @@ func RunStep(ctx context.Context, t Target, env Env, set Settings, id StageID, p
 //     the TLS checks — which is the whole question the user came to ask.
 //   - proxy depends on nothing and gates nothing: it reads the environment, so
 //     it is there even when the DNS fails, which is the common case behind a
-//     mandatory proxy.
+//     mandatory proxy. It also completes the DNS conclusion: once it has run, a
+//     failed direct lookup is rewritten to say a proxy is configured (conclude,
+//     amends), while the stage keeps its own position in the order.
 //   - http depends on connect, not on tls. A broken chain must not hide whether
 //     the service answers: "the app works, the certificate is what is wrong" is
 //     useful, and the certificate problem has rows of its own.
@@ -133,6 +140,8 @@ func stages() []stage {
 			id:       StageProxy,
 			produces: []CheckID{CheckProxy},
 			run:      runProxy,
+			amends:   []CheckID{CheckResolve},
+			conclude: concludeResolveBehindProxy,
 		},
 		{
 			id:        StageConnect,
@@ -204,6 +213,9 @@ func runStage(ctx context.Context, s stage, gateOf map[StageID]CheckID, t Target
 	}
 	for _, c := range s.run(ctx, t, env, set, res) {
 		res.add(c)
+	}
+	if s.conclude != nil {
+		s.conclude(t, res)
 	}
 }
 

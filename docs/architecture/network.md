@@ -1408,12 +1408,43 @@ fact `Proxy`. A closed direct path is expected behind a mandatory proxy, and "do
 not accept connections" would mislead. `runConnect` reads `Check.Proxy` of the
 Proxy row, never its Summary.
 
+**DNS behind a mandatory proxy (DEVDESK-596).** When the direct resolution of a
+named target fails (the DNS row is Fail) and the Proxy row says a proxy applies to
+at least one scheme, the DNS row reads `<host> does not resolve directly; a proxy is
+configured for this target`. The verdict stays Fail and the Reason is
+`direct-resolve-failed-proxy-configured`. The facts are `Resolver`, `Proxy` (the
+masked `scheme://host:port` of `netproxy.Display`) and `Error`, in that order. "Does
+not resolve" and "resolves to no address" share the Summary; the `Error` fact tells
+them apart. Without an applicable proxy (no variable, `NO_PROXY`, loopback, invalid
+value) the row is unchanged. When the resolver itself misbehaves (`server
+misbehaving`), the Reason, the Summary and the guidance stay as they were, because
+the resolver is at fault; only a `Proxy` fact is added after `Resolver`.
+
+The Proxy stage keeps its position (resolve, route, icmp, proxy, tcp, tls, http), so
+`Steps()`, the row order and the MCP output do not change. Instead, after the Proxy
+stage, the `stage.conclude`/`amends` hook calls `concludeResolveBehindProxy`, which
+rewrites the DNS row in place. It reads `Check.Proxy`, the field the TCP conclusion
+reads, never the environment and never a Summary. The `prior` slice of `RunStep` is
+never modified: the rewrite builds a new slice of facts. While a run is in progress,
+the DNS row briefly shows the generic conclusion between the end of the DNS phase
+and the end of the Proxy stage; the gap is instantaneous. Over MCP, the `resolve`
+check carries the new Reason in the existing `reason` field, with no new field.
+
+The Explain guidance says what it means and what to do. Means: every check below
+needs an address, so none of them ran; clients that go through the configured proxy
+usually hand it the name and let it resolve it, so behind a mandatory proxy a name
+this machine cannot resolve is expected and says nothing about whether the target
+exists or is up. Do: check from a client that uses the proxy (for example an HTTPS
+monitor in the Status view), or add the target to `NO_PROXY` if it must be reached
+directly, then check the spelling or try another resolver.
+
 A proxy leaves `netproxy` only as `netproxy.Display`: `scheme://host:port`, never
 userinfo, path, query or IPv6 zone. An invalid value is named by its variable and
-never quoted. `Check.Proxy` carries that string to the connect stage, is never
-shown on its own and is never serialized, so `net_check` over MCP does not carry
-that field. The masked proxy (`scheme://host:port`) still goes out through the
-facts `HTTPS`, `HTTP` and `Proxy`, in the UI and over MCP.
+never quoted. `Check.Proxy` carries that string to the connect stage and to the
+DNS conclusion (above), is never shown on its own and is never serialized, so
+`net_check` over MCP does not carry that field. The masked proxy
+(`scheme://host:port`) still goes out through the facts `HTTPS`, `HTTP` and
+`Proxy`, in the UI and over MCP.
 
 Limits:
 
@@ -1433,8 +1464,6 @@ Limits:
   a name the cached answer does not use.
 - **CGI.** When `REQUEST_METHOD` is set, Go refuses `HTTP_PROXY` (`httpproxy`: `refusing to use HTTP_PROXY value in CGI environment`), so the row says
   `Invalid HTTP_PROXY value`.
-- **DNS and a mandatory proxy.** When DNS fails behind a mandatory proxy, the DNS
-  row does not mention the proxy. This may become a follow-up.
 
 ## The proxy entry point — `internal/netproxy` (DEVDESK-581)
 

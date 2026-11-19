@@ -50,7 +50,9 @@ never send a check to a proxy. The **Proxy** row tells you whether a proxy
 variable applies to the target: configured (with its address, without any
 credential), excluded by `NO_PROXY`, not used for a loopback target, invalid, or
 none. When the direct connection fails and a proxy applies, the TCP row says so:
-a closed direct path is expected behind a mandatory proxy.
+a closed direct path is expected behind a mandatory proxy. The DNS row does the
+same when the direct resolution fails: a name this machine cannot resolve is
+expected behind a mandatory proxy.
 
 ## Scanner containers
 
