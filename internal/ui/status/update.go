@@ -49,6 +49,12 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case CheckCompleteMsg:
 		return m.handleCheckComplete(msg)
 
+	case sharedcomponents.ClearFooterMsg, sharedcomponents.PostFooterMsg:
+		// Before the table gate below: a form or a confirmation must not keep a
+		// footer message from expiring or the router's broadcast from landing.
+		m.footer.Handle(msg)
+		return m, nil
+
 	case components.ComponentFormSubmitMsg:
 		return m.handleComponentFormSubmit(msg)
 
@@ -402,12 +408,6 @@ func (m Model) handleMonitorOperations(msg tea.KeyPressMsg) (tea.Model, tea.Cmd)
 			}
 		}
 	}
-
-	// The footer owns its expiry and, since §3.61, the router's broadcast too.
-	// This view declared a FooterMessage and never offered it a message, so its
-	// own messages never cleared and a PostFooterMsg — the one thing the router
-	// has to say — landed nowhere when this was the screen on show.
-	m.footer.Handle(msg)
 
 	return m, nil
 }

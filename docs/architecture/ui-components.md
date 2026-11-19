@@ -829,7 +829,10 @@ its own. The router has no footer at all: `RenderFooter` is the active view's.
 `components.PostFooter` is the one door for the one thing the router has to say
 — that the MCP server did not start (§3.61) — and it works because every view
 already offers unhandled messages to `Handle`, so the broadcast lands wherever
-the user is without any view knowing what it is about.
+the user is without any view knowing what it is about. A view offers
+`ClearFooterMsg` and `PostFooterMsg` to `Handle` itself, in its `Update` switch
+and ahead of any gate on a form or a confirmation (the Status view does, since
+DEVDESK-589: its table gate used to keep both out).
 
 It carries its own ID, unlike a message a view sets: `PostFooter` builds the
 message **and** the timer that expires it, so Rule 128's "a message set without
