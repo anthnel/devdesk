@@ -213,6 +213,23 @@ guard `TestContainerGuard*` (`internal/netproxy/container_guard_test.go`) fails 
 `proxyForward` / `containerForward` in their `TestMain`, so a developer's `HTTPS_PROXY` does not
 change an exact argv.
 
+**Tests and the host secret store (DEVDESK-610).** By default `credentials.Select` and
+`KeyringAvailable` reach the real keyring of the machine (Secret Service over D-Bus on
+Linux); a locked keyring blocks the whole suite until the timeout. A test binary that can
+reach them isolates the store: `fakekeyring.Install()` in `TestMain`, then
+`fakekeyring.Fresh(t)` (or `FreshUnreachable(t, err)` for a locked keyring) per test, from
+`internal/testutil/fakekeyring`. `isolateHome(t)` already calls `Fresh` in `internal/app` and
+`internal/ui/setup`. Two guards enforce it: at run time, any keyring or `git credential` call
+in a test binary without the fake panics with `DEVDESK-610` and the operation; statically,
+`TestHostStoreGuard*` (`internal/credentials/hoststore_guard_test.go`) fails on K1 (go-keyring
+imported outside `internal/credentials`), K2 (`SwapHostStoreForTest` in non-test code) and K3
+(`fakekeyring` imported by non-test code). The seam is `credentials.HostStore` and
+`SwapHostStoreForTest`, reserved for tests (it panics outside a test binary). Limits: the
+runtime guard only sees the paths a test runs; the static one misses an aliased package
+name, a dynamic import and an external binary; `gitHelperUsable` reads the git config
+unguarded; `Install` and `Fresh` are global, so no `t.Parallel`. See
+`docs/architecture/configuration.md`, "Testing code that reaches the secret store".
+
 **Test input and colour (DEVDESK-199).** Build keys only through
 `internal/ui/testutil` (`Key`, `Keys`, `Type`, `Paste`, `Text`, `IsText`), never a
 literal `tea.KeyPressMsg` or `tea.Key*`. `Key` returns a
