@@ -112,6 +112,7 @@ func parsePassword(output string) (string, bool) {
 // Interactive prompts are disabled: a helper waiting on a terminal DevDesk does
 // not own would hang, and the timeout would be the only thing left to catch it.
 func runCredential(op, description string) (string, error) {
+	refuseUnderTest("git credential " + op)
 	ctx, cancel := context.WithTimeout(context.Background(), credentialTimeout)
 	defer cancel()
 
