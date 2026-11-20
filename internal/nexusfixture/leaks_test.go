@@ -480,16 +480,16 @@ func TestCheckLeaksReportsEveryLeakWithItsLine(t *testing.T) {
 // TestEmbeddedFixturesLeakNothing is the guard of criterion 1: every committed
 // fixture, byte for byte as it sits in the tree, passes the leak check.
 func TestEmbeddedFixturesLeakNothing(t *testing.T) {
-	all, err := nexusfixture.All()
-	if err != nil {
-		t.Fatal(err)
-	}
+	// A pending file has no answer to load, but it is scanned like the others. So
+	// is every file of a campaign that holds one and is therefore not loaded.
+	skipped := skippedFileCount(t)
+	all := loadAllRecorded(t)
 	files, err := filepath.Glob(filepath.Join("fixtures", "*", "*.http"))
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(files) == 0 || len(files) != len(all) {
-		t.Fatalf("%d fixture files on disk, %d embedded: the scan would not cover what the tests replay", len(files), len(all))
+	if len(files) == 0 || len(files) != len(all)+skipped {
+		t.Fatalf("%d fixture files on disk, %d embedded and %d in campaigns skipped for a pending fixture: the scan would not cover what the tests replay", len(files), len(all), skipped)
 	}
 
 	exact := externalDenylist(t)

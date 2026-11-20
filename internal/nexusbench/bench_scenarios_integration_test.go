@@ -4,13 +4,18 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"net"
 	"net/http"
 	"os"
 	"reflect"
 	"slices"
+	"strconv"
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/anthnel/devdesk/internal/imagesearch"
+	"github.com/anthnel/devdesk/internal/oci"
 )
 
 // The two scenario tests of NX-02b (DEVDESK-534, step 8 of its plan). They act on
@@ -423,6 +428,95 @@ func TestIntegrationUpstreamCutRestore(t *testing.T) {
 	restore("first", true)
 	cut("second", false)
 	restore("second", false)
+}
+
+// TestIntegrationDevDeskOnACutUpstream measures what DevDesk itself shows for the
+// proxy member of a Nexus group when the upstream is cut (NX-04, DEVDESK-580 step
+// 11.8). It is a measure, not a fixture: a fixture is replayed at once, and
+// cannot give back the delay the user waits. The first read of an image the proxy
+// does not hold takes Nexus 20 s to answer 502 (H-CUTDELAY), while the registry
+// client of DevDesk gives up after 15 s: on the real bench DevDesk therefore sees
+// a deadline, not the 502 that the recorded fixture holds (cut1-catalog-proxy-path).
+//
+// It cuts the upstream, walks the catalog of docker-proxy by its path with the
+// CatalogSearcher the registry browser uses (the same Target as a Nexus group
+// member: the API URL of the HTTP port, the prefix docker-proxy, the catalog read
+// under it), then walks it again once Nexus has answered its own 502 and blocked
+// the proxy, and logs for each the verdict, the typed cause and the duration. The
+// proxy is not blocked at the start: run it right after a reset, never after
+// another read of an uncached image. It asserts no verdict, the numbers are the
+// result; it fails only when the bench is not in the state it needs. The upstream
+// is restored when the test ends, whatever the outcome; the bench is not reset.
+// The PUT of the restore lifts the proxy block (H-UNBLOCK in
+// docs/architecture/nexus-bench.md); without it Nexus unblocks the proxy by
+// itself, measured in NX-02b at 21 to 79 s after the cut. `mise run
+// nexus-bench:reset` also lifts what a restore leaves of the cache. That the proxy
+// is not blocked at the start is not asserted: Nexus exposes no read-only signal
+// of it (only a read of an uncached image shows it, and that read both writes to
+// the cache and may block the proxy), so the precondition stays "run it right
+// after a reset".
+func TestIntegrationDevDeskOnACutUpstream(t *testing.T) {
+	requireBench(t)
+	requireScenarios(t)
+	b := openScenarioBench(t)
+	ctx, out := context.Background(), logWriter{t}
+
+	requireInitialDataset(ctx, t, b.admin)
+	b.requireUpstreamState(ctx, t, UpstreamReady, "before the cut")
+
+	// Registered before the cut so that a failure after the scale still brings the
+	// upstream back.
+	t.Cleanup(func() {
+		t.Log("cleanup: restore the upstream")
+		if err := RestoreUpstream(context.Background(), b.deps, b.restURL, b.p, out); err != nil {
+			t.Errorf("the restore failed, the upstream may stay cut: run `mise run nexus-bench:restore-upstream` (%v)", err)
+		}
+	})
+	timed(t, "cut the upstream", func() error { return CutUpstream(ctx, b.runner, b.deps.Clock, b.p, out) })
+	b.requireUpstreamState(ctx, t, UpstreamCut, "after the cut")
+
+	tg := imagesearch.Target{
+		EntryKey: "bench", APIURL: b.restURL, RepoPrefix: dockerProxyRepository, CatalogUnderPrefix: true,
+		Username: adminUserID, Password: b.secrets.AdminPassword,
+	}
+	search := func(label string) time.Duration {
+		start := time.Now()
+		// The context only bounds the test: the 15 s of the registry client are
+		// what ends the read.
+		sctx, cancel := context.WithTimeout(ctx, 2*time.Minute)
+		defer cancel()
+		imgs, partial, err := imagesearch.CatalogSearcher{}.Search(sctx, tg, imagesearch.Query{Text: "mirror"})
+		took := time.Since(start)
+		outcome := imagesearch.Classify(err, len(imgs), partial)
+		var se *oci.StatusError
+		var ne net.Error
+		var cause string
+		switch {
+		case err == nil:
+			cause = "none"
+		case errors.As(err, &se):
+			cause = "oci.StatusError, code " + strconv.Itoa(se.Code) + " " + http.StatusText(se.Code) + ", source " + strconv.Itoa(int(se.Source))
+		case errors.As(err, &ne) && ne.Timeout(), errors.Is(err, context.DeadlineExceeded):
+			cause = "deadline (net timeout)"
+		default:
+			cause = "other"
+		}
+		t.Logf("MEASURE %s: verdict %q (partial %v), %d rows, cause: %s, took %s", label, outcome.Verdict, outcome.Partial, len(imgs), cause, took.Round(100*time.Millisecond))
+		if err != nil {
+			t.Logf("MEASURE %s: error text: %v", label, err)
+		}
+		return took
+	}
+
+	first := search("first read after the cut")
+	// Nexus answers its own 502 about 20 s after the request and then blocks the
+	// proxy: wait for that, whatever the client did, before reading again.
+	if wait := 25*time.Second - first; wait > 0 {
+		if err := b.deps.Clock.Sleep(ctx, wait); err != nil {
+			t.Fatal(err)
+		}
+	}
+	search("second read, once Nexus has answered and blocked the proxy")
 }
 
 // ---- the reset ---------------------------------------------------------------------------

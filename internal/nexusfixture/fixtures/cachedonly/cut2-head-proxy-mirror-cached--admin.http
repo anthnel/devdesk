@@ -1,0 +1,22 @@
+# scenario: NX-04: HEAD of the manifest of mirror/cached:1.0 through docker-proxy, upstream cut, proxy auto-blocked
+# nexus: 3.98.1-01 COMMUNITY
+# measured: 2026-11-20
+# account: admin (nx-admin, Basic, sent preemptively)
+# redacted: Authorization header and credentials removed; HTML bodies summarised; response headers filtered to a whitelist
+# state: upstream-cut (proxy auto-blocked)
+# effect: caches
+# recorded-by: nexus-bench record
+
+HEAD /v2/docker-proxy/mirror/cached/manifests/1.0 HTTP/1.1
+Host: 127.0.0.1:30481
+Authorization: Basic <redacted>
+Accept: application/vnd.oci.image.index.v1+json, application/vnd.docker.distribution.manifest.list.v2+json, application/vnd.oci.image.manifest.v1+json, application/vnd.docker.distribution.manifest.v2+json
+
+HTTP/1.1 200 OK
+Server: Nexus/3.98.1-01 (COMMUNITY)
+Docker-Distribution-Api-Version: registry/2.0
+Docker-Content-Digest: sha256:fc522a364e2cb0c1283fe5c96412f8bd19f2d31b3b0f42c229e6d5a7b28138d3
+Content-Type: application/vnd.oci.image.manifest.v1+json
+Content-Length: 397
+
+<empty body>

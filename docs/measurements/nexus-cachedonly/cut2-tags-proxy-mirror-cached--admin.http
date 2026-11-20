@@ -1,0 +1,19 @@
+# scenario: NX-04: tags/list of mirror/cached in docker-proxy, upstream cut, proxy auto-blocked
+# nexus: 3.98.1-01 COMMUNITY
+# measured: 2026-11-20
+# account: admin (nx-admin, Basic, sent preemptively)
+# redacted: Authorization header and credentials removed; HTML bodies summarised; response headers filtered to a whitelist
+# state: upstream-cut (proxy auto-blocked)
+# recorded-by: nexus-bench record
+
+GET /v2/docker-proxy/mirror/cached/tags/list HTTP/1.1
+Host: 127.0.0.1:30481
+Authorization: Basic <redacted>
+
+HTTP/1.1 404 Not Found
+Server: Nexus/3.98.1-01 (COMMUNITY)
+Docker-Distribution-Api-Version: registry/2.0
+Content-Type: application/json
+Content-Length: 108
+
+{"errors":[{"code":"UNKNOWN","message":"Remote Auto Blocked until 2026-11-20T14:24:21.987Z","detail":null}]}

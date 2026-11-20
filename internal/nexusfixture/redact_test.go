@@ -293,10 +293,7 @@ func TestRedactThenCheckIsClean(t *testing.T) {
 // file (that is what lets it write nothing for an unchanged answer). Stub
 // fixtures cannot be turned back into a raw body and are left out.
 func TestRedactLeavesARealAnswerAsItIs(t *testing.T) {
-	all, err := nexusfixture.All()
-	if err != nil {
-		t.Fatal(err)
-	}
+	all := loadAllRecorded(t)
 	checked := 0
 	for _, f := range all {
 		for i, ex := range f.Exchanges {
