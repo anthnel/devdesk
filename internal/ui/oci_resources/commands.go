@@ -630,31 +630,60 @@ func loadRegistryGroupCache() tea.Cmd {
 // A username or password already stated outranks anything stored: it is the more
 // recent statement of intent, and it is how a wrong stored credential is worked
 // around.
+//
+// The probe goes to the management URL when there is one. When that host is not
+// the registry's, only a login stored for the management host may go there: the
+// registry host's login belongs to that host, and sending it to another one hands
+// it a password it was never given (DEVDESK-629, M1).
 func discoveryCreds(reg config.RegistryItem, username, password string) (string, string) {
-	storedUser, storedPass, _ := docker.GetStoredCreds(reg.URL)
+	if reg.ManagementURL != "" && !sameHost(reg.URL, reg.ManagementURL) {
+		if password != "" {
+			return username, password
+		}
+		return completeFromStored(reg.ManagementURL, username, password)
+	}
+
+	username, password = completeFromStored(reg.URL, username, password)
+	if reg.ManagementURL == "" || password != "" {
+		return username, password
+	}
+	return completeFromStored(reg.ManagementURL, username, password)
+}
+
+// completeFromStored fills what is missing of username and password from the
+// login the engine holds for registryURL. The management URL names a repository
+// path and Docker stores logins by host, so GetStoredCreds reads it through its
+// host key.
+func completeFromStored(registryURL, username, password string) (string, string) {
+	storedUser, storedPass, ok := docker.GetStoredCreds(registryURL)
+	if !ok {
+		return username, password
+	}
 	if username == "" {
 		username = storedUser
 	}
 	if password == "" {
 		password = storedPass
 	}
-	if reg.ManagementURL == "" || password != "" {
-		return username, password
-	}
+	return username, password
+}
 
-	// The management host may differ from the Docker registry host. Docker
-	// stores credentials by hostname only, so the repository path has to be
-	// stripped before looking one up.
-	mgmtLookup := reg.ManagementURL
-	if u, err := url.Parse(reg.ManagementURL); err == nil && u.Host != "" {
-		mgmtLookup = u.Scheme + "://" + u.Host
+// sameHost reports whether two registry or management URLs name the same
+// host[:port], a scheme-less one being read as https like the rest of the
+// application does.
+func sameHost(a, b string) bool {
+	ha, okA := hostOfURL(a)
+	hb, okB := hostOfURL(b)
+	return okA && okB && strings.EqualFold(ha, hb)
+}
+
+func hostOfURL(raw string) (string, bool) {
+	if !strings.Contains(raw, "://") {
+		raw = "https://" + raw
 	}
-	mgmtUser, mgmtPass, ok := docker.GetStoredCreds(mgmtLookup)
-	if !ok {
-		return username, password
+	u, err := url.Parse(raw)
+	if err != nil || u.Host == "" {
+		return "", false
 	}
-	if username == "" {
-		username = mgmtUser
-	}
-	return username, mgmtPass
+	return u.Host, true
 }

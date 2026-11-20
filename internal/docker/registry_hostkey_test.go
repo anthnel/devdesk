@@ -189,8 +189,11 @@ func TestRegistryLoginStateSeesAHostLogin(t *testing.T) {
 	}
 }
 
-// Logout stays on the exact key: a login stored for the host is not removed by
-// logging out of a path entry (it may serve another entry of the same host).
+// removeFromAuthFile, the auth-file half of logout, deletes the exact key only:
+// the host's own key stays in the file and GetStoredCreds still reads it. This
+// exercises that function alone, not the real `docker logout` (which a CLI or a
+// credential helper may carry out differently), so it does not prove the host's
+// login survives a logout in every setup.
 func TestRegistryLogoutKeepsTheHostLogin(t *testing.T) {
 	stub(t, &stubRunner{})
 	isolatedAuthFile(t, map[string]any{"auths": map[string]any{

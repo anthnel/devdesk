@@ -9,6 +9,7 @@ import (
 	"net/http/httptest"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 )
@@ -114,7 +115,7 @@ func TestMemberTypeLookupTypesTheMembersOnBothPaths(t *testing.T) {
 
 func TestMemberTypeLookupFailureLeavesItUnknown(t *testing.T) {
 	old := nexusHTTPClient
-	nexusHTTPClient = &http.Client{Timeout: 100 * time.Millisecond, CheckRedirect: old.CheckRedirect}
+	nexusHTTPClient = &http.Client{Timeout: 400 * time.Millisecond, CheckRedirect: old.CheckRedirect}
 	t.Cleanup(func() { nexusHTTPClient = old })
 	logs := nexusLog(t)
 
@@ -245,5 +246,107 @@ func TestMemberTypeLookupWithoutCredentialsIsAnonymous(t *testing.T) {
 
 	if rec.count() != 1 || rec.auths[0] != "" {
 		t.Errorf("type requests = %d with auths %q, want one without credentials", rec.count(), rec.auths)
+	}
+}
+
+// A `type` longer than 64 runes is cut before it is logged, so a hostile manager
+// cannot fill the log.
+func TestMemberTypeLogTruncatesALongType(t *testing.T) {
+	logs := nexusLog(t)
+	long := strings.Repeat("x", 5000)
+	info, _ := typedGroupServer(t, []string{"m-long"}, false, answerType(long))
+
+	got, err := (&NexusDetector{}).DetectGroup(context.Background(), info)
+
+	if err != nil {
+		t.Fatalf("err = %v", err)
+	}
+	if got[0].Type != "" {
+		t.Errorf("Type = %q, want unknown", got[0].Type)
+	}
+	out := logs.String()
+	if !strings.Contains(out, strings.Repeat("x", 64)) || strings.Contains(out, strings.Repeat("x", 65)) {
+		t.Errorf("the log must hold exactly 64 characters of the type, got %d bytes of log", len(out))
+	}
+}
+
+// At most typeLookupWorkers lookups are in flight at once.
+func TestMemberTypeLookupConcurrencyStaysWithinTheWorkerCount(t *testing.T) {
+	var names []string
+	for i := range 24 {
+		names = append(names, fmt.Sprintf("m%02d", i))
+	}
+	var inFlight, peak atomic.Int32
+	info, rec := typedGroupServer(t, names, false, func(w http.ResponseWriter, r *http.Request, name string) {
+		n := inFlight.Add(1)
+		defer inFlight.Add(-1)
+		for {
+			p := peak.Load()
+			if n <= p || peak.CompareAndSwap(p, n) {
+				break
+			}
+		}
+		time.Sleep(30 * time.Millisecond)
+		answerType("hosted")(w, r, name)
+	})
+
+	if _, err := (&NexusDetector{}).DetectGroup(context.Background(), info); err != nil {
+		t.Fatalf("err = %v", err)
+	}
+
+	if rec.count() != len(names) {
+		t.Errorf("%d type requests, want %d", rec.count(), len(names))
+	}
+	if got := peak.Load(); got > typeLookupWorkers || got < 2 {
+		t.Errorf("peak concurrency = %d, want between 2 and %d", got, typeLookupWorkers)
+	}
+}
+
+// An expired context starts no further lookup and leaves the types unknown, with
+// no member-type line in the log.
+func TestMemberTypeLookupStopsWhenTheContextIsDone(t *testing.T) {
+	logs := nexusLog(t)
+	info, rec := typedGroupServer(t, []string{"a", "b", "c"}, false, answerType("hosted"))
+	// DetectGroup itself would fail on a dead context; ask the lookup directly.
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+
+	types := (&NexusDetector{}).memberTypes(ctx, strings.TrimSuffix(info.URL, "/repository/docker-group"), []string{"a", "b", "c"}, info)
+
+	if len(types) != 0 {
+		t.Errorf("types = %v, want none after cancellation", types)
+	}
+	if rec.count() != 0 {
+		t.Errorf("%d type requests after cancellation, want none", rec.count())
+	}
+	if strings.Contains(logs.String(), "type unknown") {
+		t.Errorf("lookups were logged after cancellation: %q", logs.String())
+	}
+}
+
+// A deadline that expires while every worker is busy stops the loop: the lookups
+// that were not started are not launched afterwards.
+func TestMemberTypeLookupStopsLaunchingAfterTheDeadline(t *testing.T) {
+	var names []string
+	for i := range 32 {
+		names = append(names, fmt.Sprintf("m%02d", i))
+	}
+	info, rec := typedGroupServer(t, names, false, func(w http.ResponseWriter, r *http.Request, _ string) {
+		<-r.Context().Done()
+	})
+	ctx, cancel := context.WithTimeout(context.Background(), 100*time.Millisecond)
+	defer cancel()
+
+	start := time.Now()
+	types := (&NexusDetector{}).memberTypes(ctx, strings.TrimSuffix(info.URL, "/repository/docker-group"), names, info)
+
+	if time.Since(start) > 2*time.Second {
+		t.Errorf("memberTypes took %v after a 100 ms deadline", time.Since(start))
+	}
+	if len(types) != 0 {
+		t.Errorf("types = %v, want none", types)
+	}
+	if got := rec.count(); got > typeLookupWorkers {
+		t.Errorf("%d lookups started, want at most the %d that were running at the deadline", got, typeLookupWorkers)
 	}
 }

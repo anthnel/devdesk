@@ -318,8 +318,19 @@ func (n *NexusDetector) memberTypes(ctx context.Context, host string, names []st
 	var wg sync.WaitGroup
 	slots := make(chan struct{}, typeLookupWorkers)
 	for i, name := range names {
+		// Past the deadline (or a cancel) no further read is started: the rest
+		// stay unknown instead of being launched and logged one by one.
+		if ctx.Err() != nil {
+			break
+		}
+		select {
+		case slots <- struct{}{}:
+		case <-ctx.Done():
+		}
+		if ctx.Err() != nil {
+			break
+		}
 		wg.Add(1)
-		slots <- struct{}{}
 		go func() {
 			defer wg.Done()
 			defer func() { <-slots }()
@@ -355,8 +366,19 @@ func (n *NexusDetector) memberType(ctx context.Context, host, name string, info 
 	case "hosted", "proxy", "group":
 		return doc.Type
 	}
-	log.Printf("INFO [registrymgr/nexus] member %q type unknown: reply says %q", name, doc.Type)
+	log.Printf("INFO [registrymgr/nexus] member %q type unknown: reply says %q", name, truncateRunes(doc.Type, maxLoggedTypeRunes))
 	return ""
+}
+
+// maxLoggedTypeRunes bounds the server-supplied `type` value written to the log.
+const maxLoggedTypeRunes = 64
+
+// truncateRunes cuts s to at most n runes.
+func truncateRunes(s string, n int) string {
+	if r := []rune(s); len(r) > n {
+		return string(r[:n])
+	}
+	return s
 }
 
 // memberList turns the names a group declares into addresses, typed by types

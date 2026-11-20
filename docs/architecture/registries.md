@@ -108,6 +108,21 @@ keys, and a login stored for `127.0.0.1` is not found for an entry on port
 30481. The exact key wins over the host's. `auth_mode: anonymous` still sends
 nothing, whatever the lookup could find; `credsFor` reads it first.
 
+**The registry host's login never goes to another management host (DEVDESK-629,
+M1).** `discoveryCreds` (`internal/ui/oci_resources/commands.go`) looks at the
+host of `management_url`: when it is not the registry URL's `host[:port]` (compared
+case-insensitively, a scheme-less URL read as https), only a login stored for the
+management host is sent there, and nothing found means anonymous; the registry
+host's login, which the host key above now finds for a URL with a path, is never
+used for it. A username or password stated by the user still outranks any stored
+one. Same host: unchanged.
+
+**Known risk, left as is (DEVDESK-629, decided by the user).** A login stored for
+`h` or `https://h` also serves an entry whose URL is `http://h/path`, so the
+Basic header goes in clear over http. That was already true for a URL without a
+path; the host key extends it to a URL with one. A separate story may treat "no
+Basic over http outside loopback".
+
 `internal/config/registries.go` normalizes the list at load and is the only
 place that decides a slug. Two rules hold it together:
 
@@ -187,7 +202,8 @@ as their source of truth, and `config.yaml` is what the user declares.
   conversion from `registrymgr.GroupMember` and `cacheGroupMembers` uses it. A
   cache written before the field has no type until the next `ctrl+r`. The file
   version stays 2 (additive; an older build ignores the key). The MCP output does
-  not carry the type.
+  not carry the type. The value logged for an unrecognized `type` is cut to 64
+  characters before `%q`.
 - **File format v2.** `registry-groups.json` is the envelope
   `{"version":2,"groups":{…},"refusals":{…}}`, written atomically; a refusal is
   `{at, status, anonymous}`, no text, no URL. Reading goes through one decoder

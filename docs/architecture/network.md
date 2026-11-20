@@ -328,7 +328,10 @@ imports nothing from `internal/`).
   `type` when it is `hosted`, `proxy` or `group`. A failure (status, deadline,
   redirect refused, invalid JSON, `{}`, `null`, any other value) leaves the
   member's `GroupMember.Type` empty (unknown), is logged at INFO with the server
-  values quoted (`%q`), and never fails the discovery or changes the list. A
+  values quoted (`%q`, an unrecognized `type` cut to 64 characters first), and
+  never fails the discovery or changes the list. No lookup is started once the
+  context is done (the loop checks `ctx.Err()` and its wait for a free slot
+  listens to `ctx`); the members not reached stay unknown. A
   group refused or not a group asks for no type. Cost: up to 32 more requests per
   `ctrl+r` on a Nexus group, none at start-up or at search time. The measured
   generic answers (`rest-repositories-docker-{hosted,proxy}--*`) carry `type`
@@ -602,7 +605,9 @@ engine's (`docker.GetStoredCreds`), as for the Remediation tab. For a URL with
 a path the lookup is exact key first, then `host[:port]` as written (never the
 host alone when the port differs, no default port made explicit), shared with
 `RegistryLoginState` through `credentialPhases` (DEVDESK-635); logout stays on
-the exact key.
+the exact key. These callers pass the image's own registry host, so the login
+they find goes to that same host; only the group discovery can name a second one
+(`management_url`), see `registries.md`.
 
 **What each view compares with:**
 
