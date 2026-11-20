@@ -120,6 +120,18 @@ type Column[T any] struct {
 	// be left to Cell either — Cell does not know the width it will be rendered
 	// at, and that is deliberate: it is what makes the value measurable.
 	TruncateHead bool
+	// KeepSuffix returns a fixed suffix the cell of this row ends with ("" for
+	// none, and nil for a column that has none). When the cell is too wide for the
+	// column, the part in front of the suffix is cut (from the end TruncateHead
+	// says) and the suffix stays whole: "nexus-production (group)" becomes
+	// "nexus-p… (group)", never "nexus-production …" or "(grou…". A suffix is
+	// meaningful as a whole, and a cut that eats it makes the cell read as another
+	// value. A column no wider than the suffix cannot keep it and is cut as usual.
+	// The suffix is compared with the normalized text (tabs and line breaks
+	// removed), so a suffix that contains a tab or a line break never matches and
+	// the cell falls back to the usual cut.
+	// Like Cell it returns plain text, and like Cell it must be pure and cheap.
+	KeepSuffix func(T) string
 	// Flex is the column's share of the space left over once every column has
 	// what it wants. 0 takes no part; the leftover is split between the
 	// flexible ones by weight.

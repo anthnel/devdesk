@@ -131,6 +131,7 @@ datatable.New(datatable.Config[T]{
         MaxWidth: 48,   // 0 = no ceiling; only meaningful on SizingContent
         Optional: false, // true = droppable before any column that is not
         TruncateHead: true, // cut the start, for values told apart by their end
+        KeepSuffix: func(x T) string { … }, // nil = none; a fixed suffix kept whole when the cell is cut
         Flex:   1,      // share of what is left once everyone has what it wants
         Cell:   func(x T) string { … },  // plain text — Rule 122 by construction
         Style:  func(x T) lipgloss.Style { … }, // nil = the table's own colours
@@ -216,6 +217,21 @@ reference and a path share their prefix and are told apart by their end; an
 address is identified by the network it starts with. It cannot be left to `Cell`
 either — `Cell` does not know the width it will be rendered at, and that is what
 makes the value measurable.
+
+**`KeepSuffix` keeps a fixed suffix whole when a cell is cut (DEVDESK-579,
+NX-12).** `func(T) string` returns the suffix the row's cell ends with (`""` or a
+nil func for none). When the cell is wider than the column and really ends with
+it, only the part in front of the suffix is cut, from the end `TruncateHead`
+says, and the suffix is appended whole: `nexus-production (group)` in a 16-cell
+column renders `nexus-p… (group)`, never `nexus-production …` or `(grou…`, which
+would read as another value. The alias gets whatever room the suffix leaves (the
+marker alone at the least); a column no wider than the suffix cannot keep it and
+is cut as usual. Padding, when the cut text is short, goes at the end of the
+cell as everywhere. It is a cut rule, not a sizing rule: `Sizing`, `MinWidth` and
+the solver are untouched, and the cell stays plain text (Rule 122). The Registry
+columns of the registry browser's image and tag tables use it with the group
+unit's ` (group)` suffix (`internal/ui/oci_resources`, `groupUnitSuffix`).
+Tested in `keep_suffix_test.go`.
 
 ### When the measurement is taken
 

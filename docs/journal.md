@@ -3,6 +3,18 @@
 Dated entries, most recent first (AAAA-MM-JJ). Each entry records what was
 decided, why, and which alternative was rejected. Sources live in `docs/product/`.
 
+## 2026-11-20 — DEVDESK-579 (NX-12): a group member's catalog is read under its path (D167)
+
+Source: `docs/backlog.md` D167, plan `.claude/plans/DEVDESK-579-plan.md`, measurement `docs/measurements/2026-11-17-nexus-catalog.md` (Nexus 3.98.1-01 Community). Decided by the user on 2026-11-20. Closes the open decisions of the 2026-11-17 entry (H1, IS-07, NX-10) and item 3 of the 2026-11-18 entry.
+
+1. **Decided: a member's catalog is read at `/v2/<prefix>/_catalog`, each name rebuilt as `<prefix>/<name>`.** One walk per member (`walkKey` includes the catalogue prefix; amends D140 points 4 and 9). Rejected: `/repository/<name>/v2/_catalog` (D39 removed it: it finds images that cannot be pulled), the Nexus search API (kept for a restricted account, DEVDESK-513), and changing nothing.
+2. **Decided: a discovered group member on a group's connector becomes one search unit, `<alias> (group)`.** Selecting it in the picker is bypassed by design. The suffix is never truncated; a help phrase is shown on `?`. Alternatives `nx/*`, `(all)` and `(members)` rejected. An undiscovered group is unchanged.
+3. **Decided: the prefix is validated before any request, and the `Link` next page is followed only on the member's own path.** No new configuration field, no automatic fallback on a 404.
+4. **Not measured, accepted:** the `?n=1000` tolerance on a path (inferred, not measured); a 404 of the group with `?n=1000` (criterion 6 test on the group is Skip, DEVDESK-580); upper-case names and prefixes (refused and ignored); a restricted account; other Nexus versions, reverse proxies and HTTPS. The catalogue of a proxy lists the upstream, not its cache, which contradicts the `Cached only` label (NX-09).
+5. **Visible effect:** ticking a single bare member now searches the whole group.
+6. **Closes:** 2026-11-17, H1 (point 1) and IS-07 (point 4) are settled by the approach above; the NX-10 decision left to the user is taken (the search API stays a separate option, DEVDESK-513). 2026-11-18, point 3: the interface tests are annotated with DEVDESK-579 as the approach reference. Point 4 of 2026-11-18 (`?n=1000` on the root) stays open, DEVDESK-580.
+7. **No ADR.** Reversible by a revert; no schema or disk cache change. Number D167 checked on 2026-11-20; a parallel session could take it.
+
 ## 2026-11-18 — DEVDESK-577 (NX-08.10): recorded Nexus answers serve as regression tests (D162)
 
 Source: `.claude/plans/DEVDESK-511-plan.md` (read-only), `docs/backlog.md` §1.1 D162. Partial scope: NX-03 answers only. Branch `feat/nexus-recorded-fixtures-devdesk-511`, changes not committed yet.

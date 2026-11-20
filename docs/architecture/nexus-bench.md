@@ -1593,7 +1593,7 @@ exist as fixtures. See "What is not recorded yet" below.
 | Path | Role |
 |---|---|
 | `internal/nexusfixture/` | format, parser and writer (`format.go`), embedded loader (`load.go`), `Redact` (`redact.go`), `CheckLeaks` (`leaks.go`). No `testing` import: the recorder imports it. |
-| `internal/nexusfixture/fixtures/<campaign>/*.http` | the fixtures, embedded with `go:embed`. One campaign today: `catalog` (30 files). |
+| `internal/nexusfixture/fixtures/<campaign>/*.http` | the fixtures, embedded with `go:embed`. One campaign today: `catalog` (42 files). |
 | `internal/nexusfixture/fakenexus/` | the replay server. Imports `testing`: import it from `_test.go` files only. |
 | `internal/nexusbench/record.go`, `cmd/nexus-bench/record.go` | the recorder and its command. |
 | `internal/nexusfixture/stale_test.go` | the stale-fixture test. |
@@ -1648,15 +1648,17 @@ recorder choose the credentials from it.
 
 ### Where fixtures come from
 
-The 30 files of `catalog` are copies, byte for byte, of the dated evidence in
+The 42 files of `catalog` are copies, byte for byte, of the dated evidence in
 `docs/measurements/nexus-catalog/` (the NX-03 answers): `catalog-*` (group
 connector, hosted root, and the three repository paths, each as admin, pull and
-anon), `page-group-n1000--admin`, `rest-repositories-*` (the three formats and the
+anon), `catalog-{hosted,proxy,group}-path--{admin,pull,anon}` and
+`catalog-{hosted,proxy,group}-path-on-connector-30482--admin` (the 12 answers of
+the catalog by member path, DEVDESK-579), `page-group-n1000--admin`, `rest-repositories-*` (the three formats and the
 group detail endpoint, three identities) and the two `v2-ping-*`. They are copied,
 not moved: the measurement note keeps its paths and the evidence stays as
 measured. Not imported: the `*-bearer--*` files (two exchanges), `manifest-head-*`
 (a read through the proxy caches), `*-after-measures`, `bench-status-*`, `ctx-*`,
-the `n1`/`n2` pagination files, `*-path*` and `tags-*`.
+the `n1`/`n2` pagination files, the other `*-path*` files and `tags-*`.
 
 A fixture is either byte-identical to its dated evidence, or it says
 `# recorded-by: nexus-bench record` (a regenerated file). No hand-written answer
@@ -1733,6 +1735,11 @@ base := s.URL("127.0.0.1:30482")     // the fake that stands for that recorded H
   `n` answer identically (`page-group-n1000--admin` against
   `catalog-group-connector-30482--admin`, `TestTheCatalogToleranceHasMeasuredGround`).
   **Inferred** for hosted and proxy, where only no-`n` and `n=2` were measured.
+  The same inference covers `/v2/<repository>/_catalog` (hosted and proxy, by path,
+  DEVDESK-579): `?n=1000` is tolerated on the strength of the no-`n` answer, not
+  measured. It is **not** tolerated on the group's path catalog, which answers 404:
+  a 404 never answers `n=1000`, so the group's path test (criterion 6) stays in a
+  documented `Skip` until a `?n=1000` request is recorded (DEVDESK-580).
   The way to drop it is to record DevDesk-shaped `?n=1000` request files (pending)
   and run `record`.
 - **No Bearer realm**: `v2-ping-*` replays the `WWW-Authenticate: Bearer realm=...`
@@ -1760,9 +1767,10 @@ base := s.URL("127.0.0.1:30482")     // the fake that stands for that recorded H
   `catalog_test.go`) is now neutral (`myproject`): Nexus 3.98.1 does not prefix
   catalog names, and a comment says so. The synthetic Nexus of
   `internal/ui/oci_resources/browser_catalog_share_test.go` (one `_catalog` with
-  prefixed names for three members) is marked as contradicted by the
-  measures (DEVDESK-579 is to decide how a member's catalog is reached); no
-  assertion changed.
+  prefixed names for three members) was marked as contradicted by the measures;
+  DEVDESK-579 (NX-12) settled how a member's catalog is reached (its path, see
+  `network.md`), and the catalog tests of `imagesearch` now also replay the 12
+  path-catalog fixtures (`catalog_fixture_test.go`).
 
 ### The stale-fixture test
 
@@ -1803,6 +1811,7 @@ Guards. All are checked before the first request, except where stated:
 - origins are loopback URLs and loopback `host:port` pairs of the descriptor; the
   REST origin is required;
 - GET only, and a closed list of paths: `/v2/_catalog`, `/v2/<name>/tags/list`,
+  `/v2/<repo>[/<repo>...]/_catalog` (the catalog of a member by path, DEVDESK-579),
   `/repository/<repo>/v2/_catalog`, `/service/rest/v1/repositories[/...]`, with a
   query limited to `n` and `last`; never a manifest or a blob (a read through the
   proxy caches and would change the bench);

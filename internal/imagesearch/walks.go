@@ -8,6 +8,7 @@ import (
 	"encoding/binary"
 	"errors"
 	"net/url"
+	"strconv"
 	"strings"
 	"sync"
 )
@@ -37,8 +38,11 @@ type walkShareCtxKey struct{}
 
 // walkKey identifies one shareable walk.
 type walkKey struct {
-	apiURL   string
-	identity [sha256.Size]byte
+	apiURL string
+	// catalogPrefix is the path the catalog is read under; empty for the root
+	// catalog. Two members of one host are two catalogs (DEVDESK-579).
+	catalogPrefix string
+	identity      [sha256.Size]byte
 }
 
 // errWalkAborted is what followers see when the leader's walk panicked.
@@ -52,6 +56,9 @@ func (k walkKey) String() string {
 		return "walkKey{<unparsable URL>}"
 	}
 	u.User = nil
+	if k.catalogPrefix != "" {
+		return "walkKey{" + u.String() + ", catalog under " + strconv.Quote(k.catalogPrefix) + "}"
+	}
 	return "walkKey{" + u.String() + "}"
 }
 
@@ -82,8 +89,8 @@ func WithSharedWalks(ctx context.Context) context.Context {
 }
 
 // keyFor builds the memo key of a target: the API URL (trailing slash
-// ignored) and an HMAC of the length-prefixed username and password, so
-// "ab"+"c" and "a"+"bc" differ.
+// ignored), the catalog prefix when the catalog is read under one, and an HMAC
+// of the length-prefixed username and password, so "ab"+"c" and "a"+"bc" differ.
 func (s *walkShare) keyFor(t Target) walkKey {
 	mac := hmac.New(sha256.New, s.secret[:])
 	var n [8]byte
@@ -93,6 +100,7 @@ func (s *walkShare) keyFor(t Target) walkKey {
 		mac.Write([]byte(part))
 	}
 	k := walkKey{apiURL: strings.TrimSuffix(t.APIURL, "/")}
+	k.catalogPrefix = catalogPrefix(t)
 	copy(k.identity[:], mac.Sum(nil))
 	return k
 }
@@ -133,7 +141,7 @@ func (s *walkShare) walk(ctx context.Context, t Target, list CatalogLister) ([]s
 		}
 		close(call.done)
 	}()
-	call.names, call.truncated, call.err = list(ctx, t.APIURL, t.Username, t.Password, CatalogMaxPages, CatalogPageSize)
+	call.names, call.truncated, call.err = list(ctx, t.APIURL, catalogPrefix(t), t.Username, t.Password, CatalogMaxPages, CatalogPageSize)
 	return call.names, call.truncated, call.err
 }
 
@@ -143,5 +151,14 @@ func walkCatalog(ctx context.Context, t Target, list CatalogLister) ([]string, b
 	if s, ok := ctx.Value(walkShareCtxKey{}).(*walkShare); ok {
 		return s.walk(ctx, t, list)
 	}
-	return list(ctx, t.APIURL, t.Username, t.Password, CatalogMaxPages, CatalogPageSize)
+	return list(ctx, t.APIURL, catalogPrefix(t), t.Username, t.Password, CatalogMaxPages, CatalogPageSize)
+}
+
+// catalogPrefix is the path the target's catalog is read under: its prefix when
+// CatalogUnderPrefix is set, empty (the root catalog) otherwise.
+func catalogPrefix(t Target) string {
+	if t.CatalogUnderPrefix {
+		return t.RepoPrefix
+	}
+	return ""
 }
