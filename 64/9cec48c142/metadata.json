@@ -1,0 +1,72 @@
+{
+  "cli_version": "0.13.2",
+  "checkpoint_id": "649cec48c142",
+  "strategy": "manual-commit",
+  "branch": "feat/devdesk-580-pr2-recorder-flows",
+  "checkpoints_count": 8,
+  "files_touched": [
+    "docs/architecture/nexus-bench.md",
+    "internal/nexusbench/cmd/nexus-bench/flags.go",
+    "internal/nexusbench/cmd/nexus-bench/main_test.go",
+    "internal/nexusbench/cmd/nexus-bench/record.go",
+    "internal/nexusbench/cmd/nexus-bench/record_state_cmd_test.go",
+    "internal/nexusbench/cmd/nexus-bench/usage.go",
+    "internal/nexusbench/nexusapi.go",
+    "internal/nexusbench/preflight.go",
+    "internal/nexusbench/preflight_record_test.go",
+    "internal/nexusbench/record.go",
+    "internal/nexusbench/record_flow.go",
+    "internal/nexusbench/record_flow_test.go",
+    "internal/nexusbench/record_head_test.go",
+    "internal/nexusbench/record_request.go",
+    "internal/nexusbench/record_state_test.go",
+    "internal/nexusbench/record_test.go",
+    "internal/nexusfixture/fakenexus/flow_test.go",
+    "internal/nexusfixture/fakenexus/server.go",
+    "internal/nexusfixture/flow_format_test.go",
+    "internal/nexusfixture/format.go",
+    "internal/nexusfixture/leaks.go",
+    "internal/nexusfixture/leaks_flow_test.go",
+    "internal/nexusfixture/leaks_test.go",
+    "internal/nexusfixture/redact.go",
+    "internal/nexusfixture/redact_flow_test.go"
+  ],
+  "sessions": [
+    {
+      "metadata": "/64/9cec48c142/0/metadata.json",
+      "transcript": "/64/9cec48c142/0/full.jsonl",
+      "compact_transcript": "/64/9cec48c142/0/transcript.jsonl",
+      "content_hash": "/64/9cec48c142/0/content_hash.txt",
+      "prompt": "/64/9cec48c142/0/prompt.txt"
+    }
+  ],
+  "token_usage": {
+    "input_tokens": 52,
+    "cache_creation_tokens": 35730,
+    "cache_read_tokens": 3608042,
+    "output_tokens": 12880,
+    "api_call_count": 18,
+    "subagent_tokens": {
+      "input_tokens": 466,
+      "cache_creation_tokens": 1547901,
+      "cache_read_tokens": 28741299,
+      "output_tokens": 301640,
+      "api_call_count": 227
+    },
+    "subagent_tokens_complete": true
+  },
+  "redaction": {
+    "replacements": 0,
+    "layers": {
+      "betterleaks": 0,
+      "connection_string": 0,
+      "credential_key": 0,
+      "credential_value": 0,
+      "credentialed_uri": 0,
+      "entropy": 0,
+      "key_context": 0,
+      "provider_token": 0,
+      "shell_stdin": 0
+    }
+  }
+}

@@ -1,0 +1,15 @@
+{
+  "tool_use_id": "toolu_01TAx7gWy9uQks6cfvJ9vu9Z",
+  "agent_id": "aaf98eda29e4cc1aa",
+  "subagent_type": "dev-team:security-reviewer",
+  "task_description": "Security review PR2 diff",
+  "token_usage": {
+    "input_tokens": 20,
+    "cache_creation_tokens": 87831,
+    "cache_read_tokens": 425485,
+    "output_tokens": 8864,
+    "api_call_count": 9
+  },
+  "started_at": "2026-11-20T14:30:23.551720652+01:00",
+  "completed_at": "2026-11-20T14:32:02.450069543+01:00"
+}
