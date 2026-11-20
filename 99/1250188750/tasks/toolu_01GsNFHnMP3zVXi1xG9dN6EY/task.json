@@ -1,0 +1,15 @@
+{
+  "tool_use_id": "toolu_01GsNFHnMP3zVXi1xG9dN6EY",
+  "agent_id": "a755cd53d9e0a75c8",
+  "subagent_type": "product-team:pm",
+  "task_description": "Proposer la prochaine story",
+  "token_usage": {
+    "input_tokens": 14,
+    "cache_creation_tokens": 88914,
+    "cache_read_tokens": 368677,
+    "output_tokens": 4642,
+    "api_call_count": 7
+  },
+  "started_at": "2026-11-19T10:17:52.15256995+01:00",
+  "completed_at": "2026-11-19T10:18:33.30529663+01:00"
+}

@@ -1,0 +1,15 @@
+{
+  "tool_use_id": "toolu_01Q51PdCKjcmzn2p9SYFbCgp",
+  "agent_id": "ac720aa96c6bd0f85",
+  "subagent_type": "dev-team:devops",
+  "task_description": "Story Done et nettoyage 596",
+  "token_usage": {
+    "input_tokens": 8,
+    "cache_creation_tokens": 40965,
+    "cache_read_tokens": 126014,
+    "output_tokens": 1258,
+    "api_call_count": 4
+  },
+  "started_at": "2026-11-19T08:51:26.126866152+01:00",
+  "completed_at": "2026-11-19T08:51:43.58636299+01:00"
+}

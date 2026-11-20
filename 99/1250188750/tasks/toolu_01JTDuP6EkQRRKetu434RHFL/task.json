@@ -1,0 +1,15 @@
+{
+  "tool_use_id": "toolu_01JTDuP6EkQRRKetu434RHFL",
+  "agent_id": "a699e5a0e3626fabb",
+  "subagent_type": "product-team:pm",
+  "task_description": "Brouillon proposition release",
+  "token_usage": {
+    "input_tokens": 14,
+    "cache_creation_tokens": 85693,
+    "cache_read_tokens": 299277,
+    "output_tokens": 5959,
+    "api_call_count": 6
+  },
+  "started_at": "2026-11-19T08:51:26.126731406+01:00",
+  "completed_at": "2026-11-19T08:52:02.634586457+01:00"
+}
