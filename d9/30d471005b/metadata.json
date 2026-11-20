@@ -1,0 +1,53 @@
+{
+  "cli_version": "0.13.2",
+  "checkpoint_id": "d930d471005b",
+  "strategy": "manual-commit",
+  "branch": "docs/devdesk-514-nexus-docs-alignment",
+  "checkpoints_count": 4,
+  "files_touched": [
+    "docs-site/docs/explanation/registries.md",
+    "docs/architecture/network.md",
+    "docs/architecture/nexus-bench.md",
+    "docs/architecture/registries.md",
+    "docs/backlog.md",
+    "docs/journal.md"
+  ],
+  "sessions": [
+    {
+      "metadata": "/d9/30d471005b/0/metadata.json",
+      "transcript": "/d9/30d471005b/0/full.jsonl",
+      "compact_transcript": "/d9/30d471005b/0/transcript.jsonl",
+      "content_hash": "/d9/30d471005b/0/content_hash.txt",
+      "prompt": "/d9/30d471005b/0/prompt.txt"
+    }
+  ],
+  "token_usage": {
+    "input_tokens": 86,
+    "cache_creation_tokens": 114078,
+    "cache_read_tokens": 3543521,
+    "output_tokens": 21619,
+    "api_call_count": 32,
+    "subagent_tokens": {
+      "input_tokens": 164,
+      "cache_creation_tokens": 570423,
+      "cache_read_tokens": 5622078,
+      "output_tokens": 74212,
+      "api_call_count": 75
+    },
+    "subagent_tokens_complete": true
+  },
+  "redaction": {
+    "replacements": 2,
+    "layers": {
+      "betterleaks": 0,
+      "connection_string": 0,
+      "credential_key": 0,
+      "credential_value": 0,
+      "credentialed_uri": 0,
+      "entropy": 0,
+      "key_context": 2,
+      "provider_token": 0,
+      "shell_stdin": 0
+    }
+  }
+}
