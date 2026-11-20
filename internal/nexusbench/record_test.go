@@ -141,11 +141,15 @@ func (b *recBench) serve(w http.ResponseWriter, r *http.Request) {
 	server := b.server
 	b.mu.Unlock()
 
+	h := w.Header()
 	if r.Header.Get("Authorization") != "" && (!basic || pass != recPasswords[user]) {
+		// Nexus names itself on a refusal too (the NX-03 401s carry Server).
+		if server != "" {
+			h.Set("Server", server)
+		}
 		w.WriteHeader(http.StatusUnauthorized)
 		return
 	}
-	h := w.Header()
 	if server != "" {
 		h.Set("Server", server)
 	}

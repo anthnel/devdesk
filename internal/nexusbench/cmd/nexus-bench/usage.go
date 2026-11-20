@@ -31,8 +31,10 @@ Subcommands:
              initial state, the pod, the namespace and the passwords are kept
              (needs skopeo on this machine)
   record     regenerate the recorded Nexus fixtures from the bench: replay their
-             requests through the loopback ports (no kubectl) once the data set
-             is checked, and rewrite the files whose answer changed
+             requests through the loopback ports once the data set is checked,
+             follow the Bearer and redirect flows they declare, and rewrite the
+             files whose answers changed (no kubectl, unless --state asks it to
+             read the upstream)
   help       print this text
 
 Run nexus-bench <subcommand> -h for the flags of a subcommand. Every flag has a
@@ -65,7 +67,7 @@ var subcommandSummary = map[string]string{
 	"cut-upstream":     "Scale the bench upstream to zero replicas and wait until no pod of it is left: the proxy then serves only what it cached. Nothing else is changed and the descriptor is not written.",
 	"restore-upstream": "Bring the upstream back to one ready replica, put docker-proxy back in service (its configuration is sent again and its cache invalidated) and check the images of the upstream and the cached ones against the data set. Needs skopeo on this machine; mise does not install it.",
 	"reset":            "Bring the data set back to its initial state without recreating the instance: delete docker-group, docker-proxy and docker-hosted and replace the claim bench-upstream-data, then provision and seed again and write the descriptor. The Nexus pod, nexus-data, the namespace and the stored passwords are kept. Needs skopeo on this machine; mise does not install it.",
-	"record":           "Regenerate the recorded Nexus fixtures from the bench: each fixture request is replayed through the loopback ports with the stored credentials, after the data set of the bench has been compared with the descriptor, and the redacted answers are written back only when every one passed. Uses no kubectl. DEVDESK_FIXTURE_DENYLIST names a file of extra terms (one per line) no fixture may hold.",
+	"record":           "Regenerate the recorded Nexus fixtures from the bench: each fixture request is replayed through the loopback ports with the stored credentials, after the data set of the bench has been compared with the descriptor, and the redacted answers are written back only when every one passed. A fixture that declares flow: bearer or flow: redirects is followed as DevDesk would, inside the origins of the bench. Uses no kubectl, except with --state, which reads the upstream (read only) and refuses a bench that is not in that state. A HEAD that can cache an image in the proxy is sent only with --allow-cache-effects, and the bench then needs a reset. DEVDESK_FIXTURE_DENYLIST names a file of extra terms (one per line) no fixture may hold.",
 }
 
 // printSubcommandHelp writes the help of one subcommand to w.

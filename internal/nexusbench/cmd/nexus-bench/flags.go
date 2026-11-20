@@ -95,10 +95,26 @@ type flagSet struct {
 	record recordFlags
 }
 
-// recordFlags are the flags of record: what to record and where the fixtures are.
+// The values of --state.
+const (
+	stateNominal     = "nominal"
+	stateUpstreamCut = "upstream-cut"
+)
+
+// defaultRequestTimeout is the default of --request-timeout: the 15 s the recorder
+// has always given a request.
+const defaultRequestTimeout = 15 * time.Second
+
+// recordFlags are the flags of record: what to record, where the fixtures are,
+// and in which state the bench is.
 type recordFlags struct {
 	campaigns []string
 	only, dir string
+	// state is "" when --state was not given: nothing is read of the cluster and no
+	// fixture is filtered by its state.
+	state             string
+	allowCacheEffects bool
+	requestTimeout    time.Duration
 }
 
 // newFlagSet registers the flags of a subcommand. It prints nothing by itself:
@@ -136,6 +152,15 @@ func newFlagSet(name string) *flagSet {
 		})
 		fs.StringVar(&set.record.only, "only", "", "glob on the fixture names, without .http, e.g. catalog-* (default every fixture)")
 		fs.StringVar(&set.record.dir, "dir", "", "folder of the campaigns (default the fixtures folder of the source tree)")
+		fs.Func("state", "state the bench is in, nominal or upstream-cut: reads the upstream from the cluster (read only), refuses a bench in another state, and records only the fixtures of that state (default no state: nothing is read and no fixture is filtered)", func(v string) error {
+			if v != stateNominal && v != stateUpstreamCut {
+				return fmt.Errorf("%q is not %s or %s", v, stateNominal, stateUpstreamCut)
+			}
+			set.record.state = v
+			return nil
+		})
+		fs.BoolVar(&set.record.allowCacheEffects, "allow-cache-effects", false, "send the fixtures that say \"effect: caches\" (the HEAD of a manifest through the proxy, the group or a connector): such a request can cache an image in the proxy, and the bench then needs a reset")
+		fs.DurationVar(&set.record.requestTimeout, "request-timeout", defaultRequestTimeout, "how long one request may take, connection included; ask for 45s when the upstream is cut, its first read takes 20 s")
 	}
 	switch {
 	case name == "record":
