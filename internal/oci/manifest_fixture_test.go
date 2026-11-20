@@ -113,7 +113,7 @@ func TestManifestDigestOnMeasuredCutUpstream(t *testing.T) {
 		},
 		{
 			// Upstream cut: nothing to serve. A 404 with an empty body (a HEAD has none):
-			// DevDesk gets no typed cause, only "registry returned 404 for <repo>:<tag>".
+			// the error is a typed 404 whose text stays "registry returned 404 for <repo>:<tag>".
 			name: "cut, uncached image", fixture: "cut2-head-proxy-mirror-uncached--admin",
 			repo: "docker-proxy/mirror/uncached", target: "/v2/docker-proxy/mirror/uncached/manifests/1.0", status: 404,
 			effect: nexusfixture.EffectCaches,
@@ -144,12 +144,14 @@ func TestManifestDigestOnMeasuredCutUpstream(t *testing.T) {
 				if err == nil || digest != "" {
 					t.Fatalf("ManifestDigest = %q, %v, want an error", digest, err)
 				}
-				// Measured behavior, not a wish: the HEAD path returns an untyped
-				// error, so NX-04's criterion "typed cause" holds on the catalog and
-				// tags path only. Nobody can errors.As a status out of it today.
+				// DEVDESK-631 (F6): the HEAD path rejects with a typed status, so a
+				// caller can errors.As the 404 out of it, like the tags and catalog paths.
 				var se *oci.StatusError
-				if errors.As(err, &se) {
-					t.Errorf("err is now a *oci.StatusError (%v): the HEAD path became typed, update the measurement note", err)
+				if !errors.As(err, &se) {
+					t.Fatalf("err = %v (%T), want an *oci.StatusError reachable with errors.As", err, err)
+				}
+				if se.Code != tc.status || se.Source != oci.SourceRegistry {
+					t.Errorf("StatusError = {Code: %d, Source: %v}, want {Code: %d, Source: SourceRegistry}", se.Code, se.Source, tc.status)
 				}
 				if want := "registry returned 404 for " + tc.repo + ":1.0"; err.Error() != want {
 					t.Errorf("err = %q, want %q", err, want)

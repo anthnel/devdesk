@@ -246,7 +246,8 @@ var manifestAccept = strings.Join([]string{
 // registry's Docker-Content-Digest header.
 //
 // It is a HEAD request: Docker Hub does not count a HEAD against the pull rate
-// limit, and nothing but the header is needed.
+// limit, and nothing but the header is needed. A non-200 answer is an error
+// wrapping a *StatusError (errors.As); a 200 without the header is a plain error.
 func ManifestDigest(apiURL, repo, tag, username, password string) (string, error) {
 	rawURL := fmt.Sprintf("%s/v2/%s/manifests/%s", strings.TrimSuffix(apiURL, "/"), repo, url.PathEscape(tag))
 	resp, _, err := registryDo(http.MethodHead, rawURL, manifestAccept, username, password, "")
@@ -255,7 +256,7 @@ func ManifestDigest(apiURL, repo, tag, username, password string) (string, error
 	}
 	_ = resp.Body.Close()
 	if resp.StatusCode != http.StatusOK {
-		return "", fmt.Errorf("registry returned %d for %s:%s", resp.StatusCode, repo, tag)
+		return "", fmt.Errorf("%w for %s:%s", &StatusError{Code: resp.StatusCode, Source: SourceRegistry}, repo, tag)
 	}
 	digest := resp.Header.Get("Docker-Content-Digest")
 	if digest == "" {

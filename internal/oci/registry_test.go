@@ -1,6 +1,8 @@
 package oci
 
 import (
+	"errors"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -383,6 +385,58 @@ func TestAnUnknownTagHasNoDigest(t *testing.T) {
 	defer srv.Close()
 	if _, err := ManifestDigest(srv.URL, "library/alpine", "nope", "", ""); err == nil {
 		t.Error("a 404 was read as a digest")
+	}
+}
+
+// DEVDESK-631 (F6): a non-200 HEAD is a typed status, reachable with errors.As,
+// and its text is the one callers have always shown.
+func TestManifestDigestStatusIsTyped(t *testing.T) {
+	for _, code := range []int{http.StatusForbidden, http.StatusNotFound, http.StatusTooManyRequests,
+		http.StatusInternalServerError, http.StatusBadGateway} {
+		t.Run(http.StatusText(code), func(t *testing.T) {
+			srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+				w.WriteHeader(code)
+			}))
+			defer srv.Close()
+
+			digest, err := ManifestDigest(srv.URL, "r", "t", "", "")
+
+			if digest != "" {
+				t.Errorf("digest = %q, want none", digest)
+			}
+			var se *StatusError
+			if !errors.As(err, &se) {
+				t.Fatalf("err = %v (%T), want a *StatusError reachable with errors.As", err, err)
+			}
+			if se.Code != code || se.Source != SourceRegistry {
+				t.Errorf("StatusError = {Code: %d, Source: %v}, want {Code: %d, Source: SourceRegistry}", se.Code, se.Source, code)
+			}
+			if want := fmt.Sprintf("registry returned %d for r:t", code); err.Error() != want {
+				t.Errorf("err = %q, want %q", err, want)
+			}
+		})
+	}
+}
+
+// A 200 without Docker-Content-Digest is not a status: the registry answered, it
+// just did not say what was asked, so the error stays a plain one.
+func TestManifestDigestWithoutDigestStaysPlain(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.WriteHeader(http.StatusOK)
+	}))
+	defer srv.Close()
+
+	digest, err := ManifestDigest(srv.URL, "r", "t", "", "")
+
+	if err == nil || digest != "" {
+		t.Fatalf("ManifestDigest = %q, %v, want an error", digest, err)
+	}
+	var se *StatusError
+	if errors.As(err, &se) {
+		t.Errorf("err = %v is a *StatusError, want a plain error", err)
+	}
+	if want := "registry gave no digest for r:t"; err.Error() != want {
+		t.Errorf("err = %q, want %q", err, want)
 	}
 }
 

@@ -86,6 +86,14 @@ header or the URL. It replaces the Nexus client's former `HTTP N`.
 Failures that are not a status (unreadable body, missing realm, no token
 field) stay plain errors and do not match `errors.As`.
 
+`oci.ManifestDigest` (the `HEAD` on a manifest) is typed too (DEVDESK-631): a
+non-200 answer returns `fmt.Errorf("%w for %s:%s", &StatusError{Code, Source:
+SourceRegistry}, repo, tag)`, so `errors.As` finds the `*StatusError` and the
+text stays `registry returned 404 for repo:tag` to the byte. A 200 without a
+`Docker-Content-Digest` header stays a plain error (`registry gave no digest for
+repo:tag`). Its callers (`imageupdate`, the signature stage of `scan`) only log
+the error and mark the reference failed; none reads the text.
+
 The unexported `unexpectedChallenge` field is a deviation from the plan, which
 had only `Code`, `Source` and `Challenge`: with those three, a 401 with a
 non-Bearer challenge and a 401 returned by the registry after a token exchange
