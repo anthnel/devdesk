@@ -370,30 +370,86 @@ func TestEmbeddedSetMatchesTheDirectory(t *testing.T) {
 
 // Provenance: no hand-written answer can pass as measured. A fixture is either
 // byte-identical to its dated evidence under docs/measurements/, or it says it
-// was produced by the recorder.
+// was produced by the recorder. Every embedded campaign is checked, not only
+// catalog: a campaign added later (NX-04, NX-05) must not escape the check.
 func TestEveryFixtureIsMeasuredOrRecorded(t *testing.T) {
-	fixtures, err := nexusfixture.Load("catalog")
-	if err != nil {
-		t.Fatalf("Load(catalog): %v", err)
+	campaigns := nexusfixture.Campaigns()
+	if len(campaigns) == 0 {
+		t.Fatal("Campaigns() is empty: nothing would be checked")
 	}
-	for _, f := range fixtures {
-		t.Run(f.Name, func(t *testing.T) {
-			if f.Meta.RecordedBy == "nexus-bench record" {
-				return
-			}
-			if f.Meta.RecordedBy != "" {
-				t.Fatalf("%s: recorded-by = %q, want empty or \"nexus-bench record\"", f.Name, f.Meta.RecordedBy)
-			}
-			evidence, ok := nexusfixture.EvidenceDir(f.Campaign)
-			if !ok {
-				t.Fatalf("%s: campaign %q has no evidence directory and the fixture is not recorded-by nexus-bench record", f.Name, f.Campaign)
-			}
-			want, err := os.ReadFile(filepath.Join("..", "..", filepath.FromSlash(evidence), f.Name+".http"))
-			if err != nil {
-				t.Fatalf("%s: neither recorded-by nexus-bench record nor backed by its evidence: %v", f.Name, err)
-			}
-			if got := nexusfixture.Format(f); string(got) != string(want) {
-				t.Errorf("%s is not byte-identical to %s/%s.http and is not recorded-by nexus-bench record", f.Name, evidence, f.Name)
+	for _, campaign := range campaigns {
+		fixtures, err := nexusfixture.Load(campaign)
+		if err != nil {
+			t.Fatalf("Load(%s): %v", campaign, err)
+		}
+		for _, f := range fixtures {
+			t.Run(campaign+"/"+f.Name, func(t *testing.T) {
+				if err := nexusfixture.CheckProvenance(f, filepath.Join("..", "..")); err != nil {
+					t.Error(err)
+				}
+			})
+		}
+	}
+}
+
+// provenanceRoot builds a repository root holding the evidence of one fixture.
+func provenanceRoot(t *testing.T, name string, data []byte) string {
+	t.Helper()
+	root := t.TempDir()
+	dir, ok := nexusfixture.EvidenceDir("catalog")
+	if !ok {
+		t.Fatal("the catalog campaign has no evidence directory")
+	}
+	if err := os.MkdirAll(filepath.Join(root, filepath.FromSlash(dir)), 0o750); err != nil {
+		t.Fatal(err)
+	}
+	if data != nil {
+		if err := os.WriteFile(filepath.Join(root, filepath.FromSlash(dir), name+".http"), data, 0o600); err != nil {
+			t.Fatal(err)
+		}
+	}
+	return root
+}
+
+func TestCheckProvenance(t *testing.T) {
+	const name = "synthetic--admin"
+	recorded := strings.Replace(synthValid, "# redacted:", "# recorded-by: nexus-bench record\n# redacted:", 1)
+	foreign := strings.Replace(synthValid, "# redacted:", "# recorded-by: somebody\n# redacted:", 1)
+	parse := func(t *testing.T, campaign, text string) nexusfixture.Fixture {
+		t.Helper()
+		f, err := nexusfixture.Parse(campaign, name+".http", []byte(text))
+		if err != nil {
+			t.Fatalf("Parse: %v", err)
+		}
+		return f
+	}
+	tests := []struct {
+		name     string
+		campaign string
+		text     string
+		evidence []byte // nil: no evidence file; the root always has the directory
+		wantErr  bool
+	}{
+		{name: "recorded needs no evidence", campaign: "catalog", text: recorded},
+		{name: "recorded in a campaign with no evidence directory", campaign: "access", text: recorded},
+		{name: "imported and identical to its evidence", campaign: "catalog", text: synthValid, evidence: []byte(synthValid)},
+		{name: "imported with no evidence file", campaign: "catalog", text: synthValid, wantErr: true},
+		{name: "imported and different from its evidence", campaign: "catalog", text: synthValid,
+			evidence: []byte(strings.Replace(synthValid, `{"repositories":[]}`, `{"repositories":["x"]}`, 1)), wantErr: true},
+		{name: "no recorded-by in a campaign with no evidence directory", campaign: "access", text: synthValid, wantErr: true},
+		{name: "a recorded-by that is not the recorder", campaign: "catalog", text: foreign, evidence: []byte(foreign), wantErr: true},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			f := parse(t, tt.campaign, tt.text)
+			err := nexusfixture.CheckProvenance(f, provenanceRoot(t, name, tt.evidence))
+			switch {
+			case tt.wantErr && err == nil:
+				t.Errorf("CheckProvenance accepted %s (campaign %s), want an error", f.Name, f.Campaign)
+			case tt.wantErr && !strings.Contains(err.Error(), name):
+				t.Errorf("error %q does not name the fixture %s", err, name)
+			case !tt.wantErr && err != nil:
+				t.Errorf("CheckProvenance refused %s: %v", f.Name, err)
 			}
 		})
 	}

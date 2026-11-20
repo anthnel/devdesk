@@ -206,13 +206,15 @@ const toleratedN = 1000
 // and lists at most 1000 names: one page holds the whole catalog, as with n=1000.
 // Any other n is not measured and is not tolerated.
 //
-// Measured for the group connector: n=1000 and no n answer identically
-// (page-group-n1000--admin and catalog-group-connector-30482--admin, pinned by
-// TestTheCatalogToleranceHasMeasuredGround). Inferred for hosted and proxy: only
-// no-n and n=2 were measured there. The same inference covers the catalog read by
-// path, "/v2/<repository>/_catalog" (DEVDESK-579), on hosted and proxy: no n=1000
-// was measured against a real Nexus on that path. A group answers 404 there, which
-// is never tolerated, so "?n=1000" on a group path stays unmatched.
+// Measured: n=1000 and no n answer identically on the group connector
+// (page-group-n1000--admin and catalog-group-connector-30482--admin), and, since
+// DEVDESK-580, on the hosted and proxy catalogs by path and on the 404 of the root
+// and of the group path (catalog-*-n1000--*, for the three identities); all pinned
+// by TestTheCatalogToleranceHasMeasuredGround. Those exact fixtures win over the
+// tolerance. For the other targets (the "/repository/<name>/v2/" paths, the group
+// connector's pull and anonymous identities) it stays an inference: only no-n and
+// n=2 were measured there. A 404 is never tolerated, so "?n=1000" on a target with
+// no exact fixture stays unmatched.
 func matchCatalogTolerance(routes []route, target string, id nexusfixture.Identity) (route, bool) {
 	path, rawQuery, _ := strings.Cut(target, "?")
 	query, err := url.ParseQuery(rawQuery)

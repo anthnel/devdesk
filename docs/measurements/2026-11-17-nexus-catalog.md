@@ -308,3 +308,20 @@ désormais un **refus** (`denied`, `status: 404`), non plus un échec de découv
 ci-dessus décrit l'état avant ce correctif. Seul un 404 dont le `message` JSON vaut « Repository not found »
 est requalifié. Limite : Nexus répond le même corps pour un groupe réellement absent (voir
 `docs/architecture/registries.md`).
+
+**Suite (DEVDESK-580, PR1)** : les requêtes de la forme exacte que DevDesk envoie (`?n=1000`) ont été
+enregistrées le 2026-11-20 sur le banc k0s (Nexus 3.98.1-01 Community, `status` : descriptor matches,
+dataset matches avant et après), `nexus-bench record --campaign catalog --only '*-n1000--*'`, GET seulement,
+pour les trois identités (admin, pull, anon), sans écriture sur le banc. Résultats, identiques pour les trois
+comptes : `GET /v2/_catalog?n=1000` sur le port HTTP du hosted (30481) : **404** (page HTML), comme sans `n` ;
+`GET /v2/docker-group/_catalog?n=1000` : **404**, comme sans `n` (l'hypothèse « un 404 reste un 404 avec
+`?n=1000` » du plan DEVDESK-579, H-4, est donc mesurée) ; `GET /v2/docker-hosted/_catalog?n=1000` : **200**,
+`api, shared/base, team/api, tools/cli`, sans `Link`, corps identique à la réponse sans `n` ; `GET
+/v2/docker-proxy/_catalog?n=1000` : **200**, `mirror/cached, mirror/uncached, shared/base`, sans `Link`,
+identique à la réponse sans `n`. La tolérance `?n=1000` de fakenexus est donc mesurée (non plus inférée) pour
+le hosted et le proxy par chemin, et le test `TestCatalogOnTheHTTPPortRootIsRefused` ainsi que
+`TestCatalogOfAGroupUnderItsPrefixIsRefused` ne sont plus en `Skip` : verdict `refused`, `StatusError{404}`.
+Les 21 réponses de pagination et de listes de tags de ce dossier sont de plus importées comme fixtures
+(`page-group-n1-*`, `page-group-n2-*`, `page-hosted-n2-*`, `page-proxy-n2-*`, `page-group-n6`, cinq `tags-*`).
+Toujours non mesuré : la tolérance sur les chemins `/repository/<nom>/v2/` et pour les identités pull et anon
+du connecteur de groupe.

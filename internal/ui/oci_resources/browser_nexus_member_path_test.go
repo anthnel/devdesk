@@ -110,7 +110,7 @@ func declaredMember(base, slug, prefix string) config.RegistryItem {
 // catalogs once each and nothing else: no root catalog, no connector, no other recording.
 func wantOnlyMemberCatalogsAsked(t *testing.T, s *fakenexus.Server, fixtures []nexusfixture.Fixture) {
 	t.Helper()
-	for _, name := range []string{"catalog-hosted-path--anon", "catalog-proxy-path--anon"} {
+	for _, name := range []string{"catalog-hosted-path-n1000--anon", "catalog-proxy-path-n1000--anon"} {
 		if h := s.Hits(name); h != 1 {
 			t.Errorf("Hits(%s) = %d, want 1 (one walk per member)", name, h)
 		}

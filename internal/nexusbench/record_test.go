@@ -812,6 +812,100 @@ func TestRecordAcceptsTheShapesOfTheClosedList(t *testing.T) {
 	}
 }
 
+// DEVDESK-580: the Link of a Nexus group page carries the last name with its slash
+// escaped ("last=shared%2Fbase"), so the recorder must be able to send that form
+// back. Only %2F in the value of last is let through; every other percent escape,
+// and any escape in the path, stays refused.
+func TestRefusedRequestHandlesAnEscapedSlashInLast(t *testing.T) {
+	tests := []struct {
+		target  string
+		refused bool
+	}{
+		{target: "/v2/_catalog?n=2&last=shared%2Fbase"},
+		{target: "/v2/_catalog?n=2&last=shared%2fbase"},
+		{target: "/v2/_catalog?n=1&last=a%2Fb%2Fc"},
+		{target: "/v2/docker-hosted/_catalog?n=2&last=shared%2Fbase"},
+		{target: "/v2/_catalog?n=2&last=shared/base"}, // the literal form stays accepted
+
+		{target: "/v2/_catalog?n=2&last=a%2e%2e", refused: true},
+		{target: "/v2/_catalog?n=2&last=a%2F..", refused: true},
+		{target: "/v2/_catalog?n=2&last=%00", refused: true},
+		{target: "/v2/_catalog?n=2&last=%2", refused: true},
+		{target: "/v2/_catalog?n=2&last=%252F", refused: true},
+		{target: "/v2/_catalog?n=2&last=a%20b", refused: true},
+		{target: "/v2/_catalog?n=2&last=a%3Fb", refused: true},
+		{target: "/v2/_catalog?n=%2F", refused: true},
+		{target: "/v2/_catalog?token=a%2Fb", refused: true},
+		{target: "/v2/docker%2Fhosted/_catalog", refused: true},
+		{target: "/v2/%2e%2e/_catalog", refused: true},
+		{target: "/v2/_catalog%2Fx", refused: true},
+	}
+	for _, tt := range tests {
+		t.Run(tt.target, func(t *testing.T) {
+			got := refusedRequest("GET", tt.target)
+			switch {
+			case tt.refused && got == "":
+				t.Errorf("refusedRequest(GET, %q) = \"\", want a refusal", tt.target)
+			case !tt.refused && got != "":
+				t.Errorf("refusedRequest(GET, %q) = %q, want it accepted", tt.target, got)
+			}
+		})
+	}
+}
+
+func TestRecordQueryParamAllowsOnlyAnEscapedSlashInLast(t *testing.T) {
+	for param, want := range map[string]bool{
+		"n=2":                true,
+		"last=shared%2Fbase": true,
+		"last=shared%2fbase": true,
+		"last=a%2F%2Fb":      true,
+		"last=shared/base":   true,
+		"last=":              true,
+		"last=a%2e":          false,
+		"last=%2":            false,
+		"last=%252F":         false,
+		"last=%":             false,
+		"n=%2F":              false,
+		"n=2%2F":             false,
+		"token=%2F":          false,
+		"last=a b":           false,
+		"last=a%2Fb&n=1":     false,
+	} {
+		if got := recordQueryParam.MatchString(param); got != want {
+			t.Errorf("recordQueryParam.MatchString(%q) = %v, want %v", param, got, want)
+		}
+	}
+}
+
+// End to end on the bench stand-in: a page fixture whose request carries the
+// escaped last is requested exactly as the file wrote it, answered and written.
+func TestRecordFillsAPendingPageWithAnEscapedLast(t *testing.T) {
+	e := newRecEnv(t)
+	const target = "/v2/_catalog?n=2&last=shared%2Fbase"
+	body := `{"repositories":["team/api","tools/cli"]}`
+	e.docker.answer("admin", target, recAnswer{contentType: "application/json", body: body})
+	path := e.pending("page-group-n2-p2--admin", recDockerHost, target)
+
+	rep, err := e.record()
+	if err != nil {
+		t.Fatalf("RecordFixtures refused a page request with an escaped last: %v", err)
+	}
+	if want := []string{"catalog/page-group-n2-p2--admin"}; !slices.Equal(rep.Written, want) {
+		t.Errorf("Written = %v, want %v", rep.Written, want)
+	}
+	f := requireRecorded(t, path, "2026-11-18")
+	if ex := f.Exchanges[0]; ex.Target != target || ex.Status != 200 || string(ex.Body) != body {
+		t.Errorf("recorded %s answered %d %q, want %s answered 200 and the page", ex.Target, ex.Status, ex.Body, target)
+	}
+	var got []string
+	for _, s := range e.docker.requests() {
+		got = append(got, s.uri)
+	}
+	if want := []string{target}; !slices.Equal(got, want) {
+		t.Errorf("the bench received %v, want exactly %v", got, want)
+	}
+}
+
 // ---- guards: refused before any request -----------------------------------------
 
 func TestRecordRefusesWhatItMayNotSend(t *testing.T) {
