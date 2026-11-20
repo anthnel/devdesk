@@ -1,0 +1,15 @@
+{
+  "tool_use_id": "toolu_018SJofi1t4bn4sAc8odoa56",
+  "agent_id": "aeb655da987344df0",
+  "subagent_type": "dev-team:security-reviewer",
+  "task_description": "Audit sécurité étapes 6-7",
+  "token_usage": {
+    "input_tokens": 28,
+    "cache_creation_tokens": 121966,
+    "cache_read_tokens": 829477,
+    "output_tokens": 10037,
+    "api_call_count": 12
+  },
+  "started_at": "2026-11-20T20:07:58.564105128+01:00",
+  "completed_at": "2026-11-20T20:09:51.457975644+01:00"
+}

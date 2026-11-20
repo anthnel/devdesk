@@ -1,0 +1,49 @@
+{
+  "cli_version": "0.13.2",
+  "checkpoint_id": "8223554fb737",
+  "strategy": "manual-commit",
+  "branch": "feat/devdesk-629-nexus-measure-fixes",
+  "checkpoints_count": 3,
+  "files_touched": [
+    "internal/docker/registry_hostkey_test.go",
+    "internal/registrymgr/nexus_member_types_test.go"
+  ],
+  "sessions": [
+    {
+      "metadata": "/82/23554fb737/0/metadata.json",
+      "transcript": "/82/23554fb737/0/full.jsonl",
+      "compact_transcript": "/82/23554fb737/0/transcript.jsonl",
+      "content_hash": "/82/23554fb737/0/content_hash.txt",
+      "prompt": "/82/23554fb737/0/prompt.txt"
+    }
+  ],
+  "token_usage": {
+    "input_tokens": 20,
+    "cache_creation_tokens": 19344,
+    "cache_read_tokens": 1886818,
+    "output_tokens": 7382,
+    "api_call_count": 7,
+    "subagent_tokens": {
+      "input_tokens": 110,
+      "cache_creation_tokens": 565732,
+      "cache_read_tokens": 3809070,
+      "output_tokens": 40383,
+      "api_call_count": 50
+    },
+    "subagent_tokens_complete": true
+  },
+  "redaction": {
+    "replacements": 3,
+    "layers": {
+      "betterleaks": 0,
+      "connection_string": 0,
+      "credential_key": 0,
+      "credential_value": 0,
+      "credentialed_uri": 0,
+      "entropy": 0,
+      "key_context": 3,
+      "provider_token": 0,
+      "shell_stdin": 0
+    }
+  }
+}
