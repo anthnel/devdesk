@@ -320,6 +320,19 @@ imports nothing from `internal/`).
   JSON) is an error wrapping `errEmptyReply`, `errNoRepositoryType` or the
   `encoding/json` error, never "not a group": the caller does not cache it
   (D23), so the members last known stay.
+- **Each member is typed by one more GET (DEVDESK-636).** After the member names
+  are known (either endpoint), `memberTypes` asks
+  `/service/rest/v1/repositories/<member>` for each one (the name through
+  `url.PathEscape`, `nexusHTTPClient`, the group's credentials or none, at most
+  `maxTypedMembers` = 32 members and `typeLookupWorkers` = 8 at once) and keeps
+  `type` when it is `hosted`, `proxy` or `group`. A failure (status, deadline,
+  redirect refused, invalid JSON, `{}`, `null`, any other value) leaves the
+  member's `GroupMember.Type` empty (unknown), is logged at INFO with the server
+  values quoted (`%q`), and never fails the discovery or changes the list. A
+  group refused or not a group asks for no type. Cost: up to 32 more requests per
+  `ctrl+r` on a Nexus group, none at start-up or at search time. The measured
+  generic answers (`rest-repositories-docker-{hosted,proxy}--*`) carry `type`
+  for all three identities.
 - **Docker Hub tag dates** (`fetchDockerHubTagsMeta`, `commands.go`) read the
   page through `oci.ReadAllLimited(..., maxHubTagsMetaResponse)`, 4 MiB.
   Measured on 2026-11-16 with `page_size=100`: 530,629 bytes for

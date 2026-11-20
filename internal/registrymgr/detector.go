@@ -23,10 +23,15 @@ const (
 // how the member is reached, and empty is the honest answer there — an empty
 // prefix against a bare host is wrong and visibly so, where a synthesised path
 // is wrong and plausible.
+//
+// Type is what the repository manager says the member is: "hosted", "proxy",
+// "group", or "" when it was not read or could not be (never guessed from the
+// name). Nexus fills it; the other detectors leave it empty.
 type GroupMember struct {
 	Alias      string
 	URL        string
 	RepoPrefix string
+	Type       string
 }
 
 // RegistryInfo carries the information needed for group detection.

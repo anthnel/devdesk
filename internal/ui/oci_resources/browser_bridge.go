@@ -232,7 +232,7 @@ func (m Model) handleGroupRefused(slug string, e *registrymgr.MembersRefusedErro
 func toCachedMembers(members []registrymgr.GroupMember) []cache.RegistryGroupMember {
 	out := make([]cache.RegistryGroupMember, 0, len(members))
 	for _, m := range members {
-		out = append(out, cache.RegistryGroupMember{Alias: m.Alias, URL: m.URL, RepoPrefix: m.RepoPrefix})
+		out = append(out, cache.RegistryGroupMember{Alias: m.Alias, URL: m.URL, RepoPrefix: m.RepoPrefix, Type: m.Type})
 	}
 	return out
 }

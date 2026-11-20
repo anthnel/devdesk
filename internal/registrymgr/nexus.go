@@ -10,6 +10,7 @@ import (
 	"net/http"
 	"net/url"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/anthnel/devdesk/internal/oci"
@@ -116,7 +117,7 @@ func (n *NexusDetector) DetectGroup(ctx context.Context, info RegistryInfo) ([]G
 
 	// Step 1: generic endpoint — confirms this repo is a group, gets its format,
 	// and may already include memberNames in the attributes field (no admin privilege needed).
-	repoType, repoFormat, members, err := n.fetchRepoMeta(ctx, host, repoName, info)
+	repoType, repoFormat, names, err := n.fetchRepoMeta(ctx, host, repoName, info)
 	if err != nil {
 		return nil, err
 	}
@@ -124,26 +125,26 @@ func (n *NexusDetector) DetectGroup(ctx context.Context, info RegistryInfo) ([]G
 		return nil, nil
 	}
 
-	if len(members) > 0 {
-		log.Printf("INFO [registrymgr/nexus] group %q (%s) has %d members (from generic endpoint)", repoName, repoFormat, len(members))
-		return members, nil
+	if len(names) > 0 {
+		log.Printf("INFO [registrymgr/nexus] group %q (%s) has %d members (from generic endpoint)", repoName, repoFormat, len(names))
+		return memberList(info.URL, names, n.memberTypes(ctx, host, names, info)), nil
 	}
 
 	// Step 2: format-specific endpoint — requires nx-repository-admin privilege
 	// but returns memberNames reliably on Nexus instances that support it.
-	members, err = n.fetchGroupMembers(ctx, host, repoName, repoFormat, info)
+	names, err = n.fetchGroupMembers(ctx, host, repoName, repoFormat, info)
 	if err != nil {
 		return nil, err
 	}
-	log.Printf("INFO [registrymgr/nexus] group %q (%s) has %d members (from format endpoint)", repoName, repoFormat, len(members))
-	return members, nil
+	log.Printf("INFO [registrymgr/nexus] group %q (%s) has %d members (from format endpoint)", repoName, repoFormat, len(names))
+	return memberList(info.URL, names, n.memberTypes(ctx, host, names, info)), nil
 }
 
 // fetchRepoMeta calls the generic /v1/repositories/{name} endpoint.
-// Returns type, format and any memberNames found in attributes, or an error when
+// Returns type, format and any member names found in attributes, or an error when
 // the manager could not be asked.
 // Some Nexus deployments include memberNames in attributes.group without requiring admin privilege.
-func (n *NexusDetector) fetchRepoMeta(ctx context.Context, host, repoName string, info RegistryInfo) (repoType, format string, members []GroupMember, err error) {
+func (n *NexusDetector) fetchRepoMeta(ctx context.Context, host, repoName string, info RegistryInfo) (repoType, format string, names []string, err error) {
 	endpoint := fmt.Sprintf("%s/service/rest/v1/repositories/%s", host, repoName)
 	body, err := n.nexusGET(ctx, endpoint, info)
 	if err != nil {
@@ -182,15 +183,14 @@ func (n *NexusDetector) fetchRepoMeta(ctx context.Context, host, repoName string
 	if len(rawNames) == 0 {
 		rawNames = result.Attributes.Group.MemberNames
 	}
-	members = memberList(info.URL, rawNames)
-	return result.Type, result.Format, members, nil
+	return result.Type, result.Format, rawNames, nil
 }
 
 // fetchGroupMembers calls the format-specific group endpoint which reliably
 // includes memberNames: GET /v1/repositories/{format}/group/{name}
 // Requires nx-repository-admin privilege; falls back to anonymous when credentials fail.
 //
-// It returns a settled listing (non-nil, possibly empty) or an error, never a
+// It returns the member names of a settled listing (non-nil, possibly empty) or an error, never a
 // silent "no members": a 401, a 403 or Nexus's 404 Repository not found is a
 // *MembersRefusedError, anything else that goes wrong is returned as it is. The
 // caller caches the first and must not cache the second (D23).
@@ -198,7 +198,7 @@ func (n *NexusDetector) fetchRepoMeta(ctx context.Context, host, repoName string
 // The first attempt decides. The anonymous retry (D156) only changes the outcome
 // by succeeding: whatever it gets otherwise, the account was refused and that is
 // the actionable fact.
-func (n *NexusDetector) fetchGroupMembers(ctx context.Context, host, repoName, format string, info RegistryInfo) ([]GroupMember, error) {
+func (n *NexusDetector) fetchGroupMembers(ctx context.Context, host, repoName, format string, info RegistryInfo) ([]string, error) {
 	if format == "" {
 		format = "docker"
 	}
@@ -227,7 +227,7 @@ func (n *NexusDetector) fetchGroupMembers(ctx context.Context, host, repoName, f
 		log.Printf("INFO [registrymgr/nexus] members %q: %v", repoName, err)
 		return nil, fmt.Errorf("reading the members of group %q: %w", repoName, err)
 	}
-	return memberList(info.URL, names), nil
+	return names, nil
 }
 
 // membersFailure logs and types the failure of the first attempt on the format
@@ -296,8 +296,72 @@ func refusedStatus(err error) (int, bool) {
 	return se.Code, true
 }
 
-// memberList turns the names a group declares into addresses.
-func memberList(dockerURL string, names []string) []GroupMember {
+// maxTypedMembers bounds the type lookups of one discovery: a group with more
+// members gets the first ones typed and the rest unknown. It is a courtesy to the
+// server (one request each), not a measured figure.
+const maxTypedMembers = 32
+
+// typeLookupWorkers is how many type lookups run at once.
+const typeLookupWorkers = 8
+
+// memberTypes asks /service/rest/v1/repositories/<name> for the type of each
+// member (url.PathEscape), with the group's credentials or none, at most
+// maxTypedMembers of them. The result maps a name to "hosted", "proxy" or
+// "group"; a failure, an unreadable reply or any other value leaves the name out
+// (type unknown) and is logged at INFO with %q. It never fails the discovery:
+// a type is a hint for the display, not part of the answer.
+func (n *NexusDetector) memberTypes(ctx context.Context, host string, names []string, info RegistryInfo) map[string]string {
+	if len(names) > maxTypedMembers {
+		names = names[:maxTypedMembers]
+	}
+	types := make([]string, len(names))
+	var wg sync.WaitGroup
+	slots := make(chan struct{}, typeLookupWorkers)
+	for i, name := range names {
+		wg.Add(1)
+		slots <- struct{}{}
+		go func() {
+			defer wg.Done()
+			defer func() { <-slots }()
+			types[i] = n.memberType(ctx, host, name, info)
+		}()
+	}
+	wg.Wait()
+	out := make(map[string]string, len(names))
+	for i, name := range names {
+		if types[i] != "" {
+			out[name] = types[i]
+		}
+	}
+	return out
+}
+
+// memberType reads the type of one member, "" when it cannot be known.
+func (n *NexusDetector) memberType(ctx context.Context, host, name string, info RegistryInfo) string {
+	endpoint := fmt.Sprintf("%s/service/rest/v1/repositories/%s", host, url.PathEscape(name))
+	body, err := n.nexusGET(ctx, endpoint, info)
+	if err != nil {
+		log.Printf("INFO [registrymgr/nexus] member %q type unknown: %v", name, err)
+		return ""
+	}
+	var doc struct {
+		Type string `json:"type"`
+	}
+	if err := json.Unmarshal(body, &doc); err != nil {
+		log.Printf("INFO [registrymgr/nexus] member %q type unknown: reply is not a repository document", name)
+		return ""
+	}
+	switch doc.Type {
+	case "hosted", "proxy", "group":
+		return doc.Type
+	}
+	log.Printf("INFO [registrymgr/nexus] member %q type unknown: reply says %q", name, doc.Type)
+	return ""
+}
+
+// memberList turns the names a group declares into addresses, typed by types
+// (a name absent from it is of unknown type).
+func memberList(dockerURL string, names []string, types map[string]string) []GroupMember {
 	members := make([]GroupMember, 0, len(names))
 	for _, name := range names {
 		url, prefix := memberAddress(dockerURL, name)
@@ -305,6 +369,7 @@ func memberList(dockerURL string, names []string) []GroupMember {
 			Alias:      cleanMemberAlias(name),
 			URL:        url,
 			RepoPrefix: prefix,
+			Type:       types[name],
 		})
 	}
 	return members

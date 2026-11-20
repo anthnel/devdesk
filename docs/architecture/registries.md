@@ -179,6 +179,15 @@ as their source of truth, and `config.yaml` is what the user declares.
     reply) is stored nowhere: an unreachable manager must not erase what was
     last known (D23). The footer says `Group refresh failed — check logs` at level Error;
     a refusal held from an earlier probe stays as it was.
+- **Each member carries its type (DEVDESK-636).** `RegistryGroupMember.Type`
+  (`type`, `omitempty`: `hosted`, `proxy`, `group`; absent means unknown) comes
+  from one GET per member during the discovery (`memberTypes`, 32 members at
+  most, see `network.md`, "The Nexus detector"); a failed lookup leaves it
+  unknown and never fails the discovery. `toCachedMembers` is the one
+  conversion from `registrymgr.GroupMember` and `cacheGroupMembers` uses it. A
+  cache written before the field has no type until the next `ctrl+r`. The file
+  version stays 2 (additive; an older build ignores the key). The MCP output does
+  not carry the type.
 - **File format v2.** `registry-groups.json` is the envelope
   `{"version":2,"groups":{…},"refusals":{…}}`, written atomically; a refusal is
   `{at, status, anonymous}`, no text, no URL. Reading goes through one decoder

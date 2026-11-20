@@ -573,13 +573,7 @@ func cacheGroupMembers(slug string, members []registrymgr.GroupMember, at time.T
 		log.Printf("ERROR [oci_resources] open the registry group cache: %v", err)
 		return
 	}
-	entry := cache.RegistryGroupEntry{
-		Members:      make([]cache.RegistryGroupMember, 0, len(members)),
-		DiscoveredAt: at,
-	}
-	for _, m := range members {
-		entry.Members = append(entry.Members, cache.RegistryGroupMember{Alias: m.Alias, URL: m.URL, RepoPrefix: m.RepoPrefix})
-	}
+	entry := cache.RegistryGroupEntry{Members: toCachedMembers(members), DiscoveredAt: at}
 	if err := c.Set(slug, entry); err != nil {
 		log.Printf("ERROR [oci_resources] save group members for %q: %v", slug, err)
 	}
