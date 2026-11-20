@@ -72,6 +72,20 @@ is never sent to a server you did not configure. That includes a redirect from
 `http` to `https` on the same host: enter the registry URL with `https`. When a
 redirect is refused, discovery finds no members and says so in the log.
 
+## Searching images in a Nexus group
+
+The image search reads the catalog of a Nexus member on the member's own path,
+so each member answers for itself. When Nexus lists the members of a group,
+DevDesk searches the group once and labels it `<alias> (group)`: Nexus does not
+say which member holds each image, so the results do not name one. Ticking a
+single member in the registry browser still searches the whole group, and a
+result can come from a member you did not tick.
+
+Two limits to know. A repository name with an uppercase letter cannot be
+searched this way; DevDesk refuses it without sending a request. And a Nexus
+account restricted to some repositories may see a shorter catalog, which can
+show as "no result".
+
 ## Authentication follows the address, not a flag
 
 `auth_mode` is read before any credential lookup, on every code path that

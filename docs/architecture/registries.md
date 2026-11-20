@@ -41,12 +41,28 @@ line. The provider is read from the config (`config.IsNexusGroup`), never
 guessed from the URL. See `network.md`, "Level 1 header summary".
 
 The image search (`network.md`, `CatalogSearcher`, DEVDESK-306) reads the same
-pair: it walks the catalog of the entry's host (`/v2/_catalog`, with the entry's
-`auth_mode` through `credsFor`), keeps the names under `<repo_prefix>/` and
-matches the typed text on the part after it. A catalog with no name under the
-prefix is refused, not "no result". Entries that share an API URL and an
-identity share one walk per search (DEVDESK-311, `network.md`); an entry with
-other credentials, another port or another subdomain is walked on its own.
+pair, with `auth_mode` through `credsFor`. Two ways to read a catalog:
+
+- **A Nexus member** (a discovered member of a `provider: nexus` group, or a
+  `parent:` entry of one, DEVDESK-579) is read on its own path,
+  `/v2/<repo_prefix>/_catalog`. Nexus answers with names that do not carry the
+  prefix; DevDesk rebuilds `<repo_prefix>/<name>`. An empty catalog is "no
+  result"; a 404, 401, 403 or 405 is refused. One walk per member.
+- **Any other entry** walks the root catalog of its host (`/v2/_catalog`), keeps
+  the names under `<repo_prefix>/` and matches the typed text on the part after
+  it. A catalog with no name under the prefix is refused, not "no result".
+  Entries that share an API URL and an identity share one walk per search
+  (DEVDESK-311, `network.md`); an entry with other credentials, another port or
+  another subdomain is walked on its own.
+
+**A discovered group is searched as one unit.** The members the detector found
+with no address of their own (same URL and `repo_prefix` as the group) are merged
+into one search unit, the group, labelled `<alias> (group)`. Nexus reads the
+catalog through the group without saying which member holds a name, so rows carry
+no member. The picker's selection does not narrow this: a single ticked bare
+member searches the whole group, and an unticked member's name can appear. A
+group that was never discovered (a pull account) is searched as itself. See
+`network.md`, "Image search and Nexus members".
 
 Three things follow, each with a test:
 

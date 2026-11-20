@@ -15,6 +15,11 @@ type Target struct {
 	RegistryURL string
 	APIURL      string
 	RepoPrefix  string
+	// CatalogUnderPrefix tells that the catalog is served under RepoPrefix, at
+	// /v2/<RepoPrefix>/_catalog, and lists names relative to it (a Nexus group
+	// member, DEVDESK-579). Without it the catalog is the root one and
+	// RepoPrefix is expected inside its names.
+	CatalogUnderPrefix bool
 	// Username and Password are empty for an anonymous entry (D12).
 	Username string
 	Password string

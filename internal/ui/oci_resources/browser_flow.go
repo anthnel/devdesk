@@ -3,11 +3,13 @@ package ociresources
 import (
 	"context"
 	"maps"
+	"slices"
 	"sync/atomic"
 	"time"
 
 	tea "charm.land/bubbletea/v2"
 
+	"github.com/anthnel/devdesk/internal/config"
 	"github.com/anthnel/devdesk/internal/imagesearch"
 	"github.com/anthnel/devdesk/internal/oci"
 )
@@ -79,12 +81,79 @@ func (b *RegistryBrowser) targetFor(entry browserRegistryEntry) imagesearch.Targ
 	return imagesearch.Target{
 		EntryKey: entry.key, Alias: entryAlias(entry), RegistryURL: entry.URL,
 		APIURL: registryAPIURL(entry.URL), RepoPrefix: entry.repoPrefix,
-		Username: user, Password: pass,
+		CatalogUnderPrefix: entry.catalogUnderPrefix,
+		Username:           user, Password: pass,
 	}
 }
 
-// startImageSearch opens a lot and asks the Searcher once per entry.
-func (b *RegistryBrowser) startImageSearch(query string, entries []browserRegistryEntry) (*RegistryBrowser, tea.Cmd) {
+// groupUnitSuffix follows the group's label on the unit that stands for members
+// with no address of their own (searchUnits). It is the one place the label is
+// written.
+const groupUnitSuffix = " (group)"
+
+// searchUnits turns the entries a search is asked on into what it walks. The
+// members of a group that share the group's address (its URL and its prefix, so
+// the same catalog read under the same identity) are replaced by ONE entry, the
+// group, standing where the first of them stood: a connector of its own answers
+// /v2/_catalog with the union of its members' names and no attribution, so
+// walking it once per member would repeat every name and credit it to the wrong
+// member (DEVDESK-579, 3-A). The rule is "same address", not "Nexus": groups maps
+// every group's slug to the group, whatever its provider. Everything else is kept
+// as it is, in order. Pure: the input is not modified.
+func searchUnits(entries []browserRegistryEntry, groups map[string]config.RegistryItem) []browserRegistryEntry {
+	var units []browserRegistryEntry
+	placed := map[string]bool{}
+	for _, e := range entries {
+		g, ok := groups[e.ParentSlug]
+		if !ok || e.ParentSlug == "" || e.URL != g.URL || e.repoPrefix != g.RepoPrefix {
+			units = append(units, e)
+			continue
+		}
+		if !placed[g.Slug] {
+			placed[g.Slug] = true
+			units = append(units, groupUnit(e, g))
+		}
+	}
+	return units
+}
+
+// groupUnit is the entry that searches group g in place of its member first: the
+// group's own address and key, read at the root of its catalog, with what the
+// members agreed on (credentials, cache-only). ParentSlug stays g's slug, so the
+// group-level `r` stop takes its rows; ParentAlias stays empty, so the label is
+// the group's, marked by groupUnitSuffix.
+func groupUnit(first browserRegistryEntry, g config.RegistryItem) browserRegistryEntry {
+	return browserRegistryEntry{
+		URL: g.URL, Alias: browserAlias(g) + groupUnitSuffix, repoPrefix: g.RepoPrefix,
+		Slug: g.Slug, ParentSlug: g.Slug, parentURL: g.URL,
+		authMode: first.authMode, cachedOnly: first.cachedOnly,
+		key: g.Slug,
+	}
+}
+
+// groupsBySlug maps the slug of every configured group to the group.
+func (b *RegistryBrowser) groupsBySlug() map[string]config.RegistryItem {
+	groups := map[string]config.RegistryItem{}
+	for _, reg := range b.registries {
+		if reg.Kind == config.KindGroup {
+			groups[reg.Slug] = reg
+		}
+	}
+	return groups
+}
+
+// startImageSearch opens a lot and asks the Searcher once per search unit
+// (searchUnits) of entries. The units a lot makes up live in lotUnits until the
+// next image search, which survives the tag lots opened from its rows so that →
+// resolves the unit, and never in b.entries.
+func (b *RegistryBrowser) startImageSearch(query string, picked []browserRegistryEntry) (*RegistryBrowser, tea.Cmd) {
+	entries := searchUnits(picked, b.groupsBySlug())
+	b.lotUnits = map[string]browserRegistryEntry{}
+	for _, e := range entries {
+		if !slices.Contains(picked, e) {
+			b.lotUnits[e.key] = e
+		}
+	}
 	// The walk memo belongs to this lot: it dies with it, and nothing is
 	// cached between two searches.
 	ctx := imagesearch.WithSharedWalks(b.beginRequests())

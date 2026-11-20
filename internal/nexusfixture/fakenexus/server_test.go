@@ -447,6 +447,80 @@ func TestTheCatalogToleranceHasMeasuredGround(t *testing.T) {
 	}
 }
 
+// DEVDESK-579, hypothesis H-4. DevDesk asks "GET /v2/<repository>/_catalog?n=1000"
+// and the measured answers of the catalog read by path were recorded without n.
+// The tolerance serves the no-n answer for n=1000; this pins that it does so for
+// hosted and proxy and for the three identities. What it shows is the fake's
+// behavior, not Nexus's: that Nexus answers n=1000 like no n on these paths was
+// never measured (only the group connector, by TestTheCatalogToleranceHasMeasuredGround).
+// Only a recorded "?n=1000" fixture (nexus-bench record) lifts that.
+func TestPathCatalogToleranceServesN1000FromTheNoNAnswer(t *testing.T) {
+	ids := []nexusfixture.Identity{nexusfixture.Admin, nexusfixture.Pull, nexusfixture.Anonymous}
+	for _, repo := range []string{"hosted", "proxy"} {
+		for _, id := range ids {
+			fixture := "catalog-" + repo + "-path--" + string(id)
+			t.Run(fixture, func(t *testing.T) {
+				rec := &recorder{TB: t}
+				s := fakenexus.New(rec, all(t)...)
+				resp, body := get(t, s.URL(hostHTTP), "/v2/docker-"+repo+"/_catalog?n=1000", id)
+				if errs := rec.failures(); len(errs) != 0 {
+					t.Fatalf("unexpected test errors: %q", errs)
+				}
+				if resp.StatusCode != http.StatusOK {
+					t.Fatalf("status = %d, want 200", resp.StatusCode)
+				}
+				if want := recordedBody(t, loadAll(t)[fixture]); !bytes.Equal(body, want) {
+					t.Errorf("body = %q, want %q", body, want)
+				}
+				if got := s.Hits(fixture); got != 1 {
+					t.Errorf("Hits(%s) = %d, want 1", fixture, got)
+				}
+				if resp.Header.Get("Link") != "" {
+					t.Errorf("a tolerated answer carries a Link: %q", resp.Header.Get("Link"))
+				}
+			})
+		}
+	}
+}
+
+// The group has no catalog by path: the recorded no-n answer is a 404 page, and
+// the tolerance serves only 200s (TestCatalogTolerance, "a recorded 404 is not
+// tolerated"). So "?n=1000" on the group path is NOT served: the fake answers 501
+// and fails the test. The no-n request is served as recorded. A test of the
+// "refused on a measured 404" verdict (DEVDESK-579 criterion 6) therefore needs
+// either a recorded "?n=1000" fixture or a deliberate extension of the tolerance
+// to a 404, and this test moves with that decision.
+func TestPathCatalogOfTheGroupIsA404ButItsN1000IsUnmatched(t *testing.T) {
+	for _, id := range []nexusfixture.Identity{nexusfixture.Admin, nexusfixture.Pull, nexusfixture.Anonymous} {
+		fixture := "catalog-group-path--" + string(id)
+		t.Run(fixture+" no n", func(t *testing.T) {
+			rec := &recorder{TB: t}
+			s := fakenexus.New(rec, all(t)...)
+			resp, _ := get(t, s.URL(hostHTTP), "/v2/docker-group/_catalog", id)
+			if errs := rec.failures(); len(errs) != 0 {
+				t.Fatalf("unexpected test errors: %q", errs)
+			}
+			if resp.StatusCode != http.StatusNotFound {
+				t.Errorf("status = %d, want the recorded 404", resp.StatusCode)
+			}
+			if got := s.Hits(fixture); got != 1 {
+				t.Errorf("Hits(%s) = %d, want 1", fixture, got)
+			}
+		})
+		t.Run(fixture+" n=1000", func(t *testing.T) {
+			rec := &recorder{TB: t}
+			s := fakenexus.New(rec, all(t)...)
+			resp, _ := get(t, s.URL(hostHTTP), "/v2/docker-group/_catalog?n=1000", id)
+			if resp.StatusCode != http.StatusNotImplemented {
+				t.Errorf("status = %d, want 501 (a 404 is not tolerated)", resp.StatusCode)
+			}
+			if n := len(rec.failures()); n != 1 {
+				t.Errorf("%d test errors, want 1: %q", n, rec.failures())
+			}
+		})
+	}
+}
+
 func TestWWWAuthenticateIsRewrittenToTheFakeServer(t *testing.T) {
 	s := fakenexus.New(t, all(t)...)
 	base := s.URL(hostGroup)

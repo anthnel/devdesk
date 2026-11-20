@@ -1,6 +1,7 @@
 package nexusfixture_test
 
 import (
+	"encoding/json"
 	"os"
 	"path/filepath"
 	"reflect"
@@ -13,12 +14,14 @@ import (
 	"github.com/anthnel/devdesk/internal/nexusfixture"
 )
 
-// importedCatalog is the set of NX-03 files the plan imports (30 files): only
-// what the replay steps use, plus the two pings. It is the REQUIRED set, not the
-// whole set: a later campaign file (NX-04, NX-05) may sit next to them. The bearer files (two
-// exchanges), the manifest HEADs (a read through the proxy caches), the
-// "after-measures" files, the page n1/n2 files and the path/tags files are
-// deliberately not imported.
+// importedCatalog is the set of NX-03 files the plans import (42 files): only
+// what the replay steps use, plus the two pings, plus (DEVDESK-579) the twelve
+// answers of the catalog read by path: <repository>/_catalog on the HTTP port
+// for the three identities, and on the group connector for admin. It is the
+// REQUIRED set, not the whole set: a later campaign file (NX-04, NX-05) may sit
+// next to them. The bearer files (two exchanges), the manifest HEADs (a read
+// through the proxy caches), the "after-measures" files, the page n1/n2 files
+// and the tags files are deliberately not imported.
 func importedCatalog() []string {
 	var names []string
 	for _, id := range []string{"admin", "pull", "anon"} {
@@ -37,7 +40,22 @@ func importedCatalog() []string {
 		}
 	}
 	names = append(names, "page-group-n1000--admin", "v2-ping-30481--anon", "v2-ping-30482--anon")
+	names = append(names, pathCatalog()...)
 	sort.Strings(names)
+	return names
+}
+
+// pathCatalog is the twelve NX-03 answers of the catalog read by path
+// (DEVDESK-579): the file names the plan copies, byte for byte, from
+// docs/measurements/nexus-catalog/.
+func pathCatalog() []string {
+	var names []string
+	for _, repo := range []string{"hosted", "proxy", "group"} {
+		for _, id := range []string{"admin", "pull", "anon"} {
+			names = append(names, "catalog-"+repo+"-path--"+id)
+		}
+		names = append(names, "catalog-"+repo+"-path-on-connector-30482--admin")
+	}
 	return names
 }
 
@@ -46,8 +64,8 @@ func TestLoadCatalogHoldsTheImportedSet(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Load(catalog): %v", err)
 	}
-	if len(importedCatalog()) != 30 {
-		t.Fatalf("test bug: the required set has %d names, the plan says 30", len(importedCatalog()))
+	if len(importedCatalog()) != 42 {
+		t.Fatalf("test bug: the required set has %d names, the plan says 42", len(importedCatalog()))
 	}
 	byName := map[string]nexusfixture.Fixture{}
 	for i, f := range fixtures {
@@ -95,8 +113,10 @@ func TestLoadCatalogIdentities(t *testing.T) {
 		}
 	}
 	// At least the NX-03 counts (nine scenarios x three, the n1000 page as
-	// admin, two pings as anon): a later file may only add to them.
-	for id, min := range map[nexusfixture.Identity]int{nexusfixture.Admin: 10, nexusfixture.Pull: 9, nexusfixture.Anonymous: 11} {
+	// admin, two pings as anon, then the catalog read by path: three scenarios x
+	// three identities and three more as admin on the group connector): a later
+	// file may only add to them.
+	for id, min := range map[nexusfixture.Identity]int{nexusfixture.Admin: 16, nexusfixture.Pull: 12, nexusfixture.Anonymous: 14} {
 		if counts[id] < min {
 			t.Errorf("identity %s has %d fixtures, want at least %d", id, counts[id], min)
 		}
@@ -152,6 +172,88 @@ func TestLoadedFixturesCarryTheMeasuredFacts(t *testing.T) {
 	plain := byName["catalog-group-connector-30482--admin"].Exchanges[0]
 	if n1000.Target != "/v2/_catalog?n=1000" || plain.Target != "/v2/_catalog" {
 		t.Errorf("targets = %q and %q, want /v2/_catalog?n=1000 and /v2/_catalog", n1000.Target, plain.Target)
+	}
+}
+
+// The facts the catalog-by-path tests stand on (DEVDESK-579, Nexus 3.98.1-01):
+// hosted and proxy answer a path-prefixed catalog (docker.pathEnabled) with their
+// own names, unprefixed, to all three identities; the group answers 404 (no
+// pathEnabled); the group connector port serves none of the three by path. A
+// regeneration that changed one must be seen here.
+func TestLoadedPathCatalogFixturesCarryTheMeasuredFacts(t *testing.T) {
+	fixtures, err := nexusfixture.Load("catalog")
+	if err != nil {
+		t.Fatalf("Load(catalog): %v", err)
+	}
+	byName := map[string]nexusfixture.Fixture{}
+	for _, f := range fixtures {
+		byName[f.Name] = f
+	}
+	hosted := []string{"api", "shared/base", "team/api", "tools/cli"}
+	proxy := []string{"mirror/cached", "mirror/uncached", "shared/base"}
+	tests := []struct {
+		name      string
+		host      string
+		repo      string
+		status    int
+		wantNames []string // nil: no catalog is expected (a 404 page)
+	}{
+		{"catalog-hosted-path--admin", "127.0.0.1:30481", "docker-hosted", 200, hosted},
+		{"catalog-hosted-path--pull", "127.0.0.1:30481", "docker-hosted", 200, hosted},
+		{"catalog-hosted-path--anon", "127.0.0.1:30481", "docker-hosted", 200, hosted},
+		{"catalog-proxy-path--admin", "127.0.0.1:30481", "docker-proxy", 200, proxy},
+		{"catalog-proxy-path--pull", "127.0.0.1:30481", "docker-proxy", 200, proxy},
+		{"catalog-proxy-path--anon", "127.0.0.1:30481", "docker-proxy", 200, proxy},
+		{"catalog-group-path--admin", "127.0.0.1:30481", "docker-group", 404, nil},
+		{"catalog-group-path--pull", "127.0.0.1:30481", "docker-group", 404, nil},
+		{"catalog-group-path--anon", "127.0.0.1:30481", "docker-group", 404, nil},
+		{"catalog-hosted-path-on-connector-30482--admin", "127.0.0.1:30482", "docker-hosted", 404, nil},
+		{"catalog-proxy-path-on-connector-30482--admin", "127.0.0.1:30482", "docker-proxy", 404, nil},
+		{"catalog-group-path-on-connector-30482--admin", "127.0.0.1:30482", "docker-group", 404, nil},
+	}
+	if len(tests) != len(pathCatalog()) {
+		t.Fatalf("test bug: %d cases for %d path fixtures", len(tests), len(pathCatalog()))
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			f, ok := byName[tt.name]
+			if !ok {
+				t.Fatalf("%s is not loaded: copy it byte for byte from docs/measurements/nexus-catalog/", tt.name)
+			}
+			if len(f.Exchanges) != 1 {
+				t.Fatalf("%d exchanges, want 1", len(f.Exchanges))
+			}
+			ex := f.Exchanges[0]
+			// The request is exactly the one DevDesk makes without paging: the
+			// path of the repository, no n (fakenexus tolerates n=1000 on it).
+			if want := "/v2/" + tt.repo + "/_catalog"; ex.Method != "GET" || ex.Target != want {
+				t.Errorf("request = %s %s, want GET %s", ex.Method, ex.Target, want)
+			}
+			if ex.Host != tt.host {
+				t.Errorf("Host = %q, want %q", ex.Host, tt.host)
+			}
+			if ex.Status != tt.status {
+				t.Errorf("Status = %d, want %d", ex.Status, tt.status)
+			}
+			if ex.Header.Get("Link") != "" {
+				t.Errorf("Link = %q: a one-page catalog has none (the tolerance needs it)", ex.Header.Get("Link"))
+			}
+			if tt.wantNames == nil {
+				if len(ex.Body) != 0 && ex.Stub == "" {
+					t.Errorf("a %d answer holds a body that is not a summarised page: %q", tt.status, ex.Body)
+				}
+				return
+			}
+			var body struct {
+				Repositories []string `json:"repositories"`
+			}
+			if err := json.Unmarshal(ex.Body, &body); err != nil {
+				t.Fatalf("body %q is not a catalog: %v", ex.Body, err)
+			}
+			if !reflect.DeepEqual(body.Repositories, tt.wantNames) {
+				t.Errorf("names = %v, want %v (relative to the repository, never prefixed with it)", body.Repositories, tt.wantNames)
+			}
+		})
 	}
 }
 

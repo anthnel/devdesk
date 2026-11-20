@@ -69,8 +69,9 @@ func searchColumns() []datatable.Column[searchRow] {
 		},
 		{
 			Title: "Registry", Sizing: datatable.SizingContent, MinWidth: 16,
-			Cell: func(r searchRow) string { return r.label },
-			Less: lessSearchRegistry,
+			Cell:       func(r searchRow) string { return r.label },
+			KeepSuffix: func(searchRow) string { return groupUnitSuffix },
+			Less:       lessSearchRegistry,
 		},
 		{
 			Title: "Stars", Sizing: datatable.SizingFixed, Optional: true, DropFirst: true, MinWidth: 7,

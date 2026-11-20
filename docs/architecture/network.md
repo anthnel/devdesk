@@ -282,6 +282,28 @@ kept across pages.
 - **HTTP 3xx redirects are hardened too** (DEVDESK-410): the walk goes through
   `registryHTTPClient`, whose `CheckRedirect` refuses a redirect to another
   origin (see "Credentials stay on their origin" above).
+- **Under a prefix, `next` must also stay on the member's catalog path.** A
+  non-empty prefix follows a `next` only when its escaped path is exactly
+  `/v2/<prefix>/_catalog` (same origin already checked); a link to
+  `/v2/_catalog` or to another repository would attach the names of another
+  catalog to the prefix, so it ends the walk as `truncated`, unfollowed. With
+  an empty prefix any same-origin path is followed, as before.
+
+**Catalog under a prefix (DEVDESK-579, NX-12).** `ListCatalogUnderContext(ctx,
+apiURL, prefix, username, password, maxPages, pageSize)` is the same walk on
+`/v2/<prefix>/_catalog`, the catalog of one Nexus group member; `ListCatalogContext`
+is it with an empty prefix, and the two rules above apply to it unchanged. Names
+come back as the server sent them, without the prefix (the caller rebuilds
+`<prefix>/<name>`). Each prefix segment goes through `url.PathEscape`, so a
+space, `%`, `?`, `#` or an already-encoded `%2F` stays one segment on the wire.
+A prefix is refused before any request, with an error that gives the rule and
+never carries the prefix or a credential, when it has an empty segment (leading,
+trailing or doubled `/`), a `.` segment, any `..` (read literally, `a..b` too),
+a backslash, a segment of spaces only, a control character (NUL included), a
+segment over 255 bytes or a prefix over 1024 bytes. The blank segment, the
+control characters and the length bounds are a choice: no repository name holds
+them. Under a prefix, `next` is also held to the member's catalog path (last
+bullet above).
 
 ## Image search — `internal/imagesearch` (DEVDESK-298, IS-18)
 
@@ -322,7 +344,8 @@ and `CatalogSearcher` (IS-03); dhi.io is IS-17:
   `https://` added when there is no scheme) and compares `Hostname()`, so
   userinfo (`dhi.io@evil.example`), a trailing dot and a port cannot fool it.
 - `CatalogSearcher` (DEVDESK-306, IS-03, `catalog.go`): searches a private
-  registry by walking `/v2/_catalog` through `oci.ListCatalogContext` and
+  registry by walking `/v2/_catalog` through `oci.ListCatalogContext` (or, for a
+  Nexus member, `/v2/<prefix>/_catalog`, see "Catalog under a prefix" below) and
   filtering **client-side**: the text the user typed is never sent to the
   registry. Steps, in order:
   1. The query is trimmed; fewer than `CatalogMinQueryRunes` (2) runes returns
@@ -331,14 +354,15 @@ and `CatalogSearcher` (IS-03); dhi.io is IS-17:
      `CatalogMaxPages` (10) pages, so at most 10 000 names. A cut walk sets
      `truncated`. An error from the walk (status, deadline, unreadable page)
      is returned as is, with no row.
-  3. Guard R1 (before the filter): when the target has a `RepoPrefix`, only the
+  3. Guard R1 (before the filter), **root catalog only**: when the target has a `RepoPrefix`, only the
      names that start with `<prefix>/` are candidates. If the walk is complete and
      no name carries the prefix, the answer is `ErrPrefixNotInCatalog` (the
      cause names the prefix); this protects against a catalog that does not
      list names the way the entry reaches them (Nexus, IS-16) and would
      otherwise read as a false "no result". If the walk is truncated, the
      prefix may be on a page not read: the answer is no result with
-     `partial` set, not an error.
+     `partial` set, not an error. A target with `CatalogUnderPrefix` skips this
+     step (see below).
   4. Filter: case-insensitive substring match on the part **after** the prefix.
      `Image.Name` is that part, `Image.Repo` the full catalog name.
   5. Only valid names are kept (`validRepoPath`, `names.go`: every
@@ -358,13 +382,17 @@ and `CatalogSearcher` (IS-03); dhi.io is IS-17:
   batch context and `CatalogSearcher` goes through `walkCatalog`, so a search
   queries `/v2/_catalog` once per API URL and identity. Without the memo
   (any other caller) every call walks on its own.
-  - Key: the exact API URL (trailing slash ignored) and the identity, an
+  - Key: the exact API URL (trailing slash ignored), the catalog prefix
+    (`catalogPrefix`, empty for the root catalog; DEVDESK-579) and the identity, an
     HMAC-SHA256 of username and password under a random per-batch key: no
     secret is held in clear and the key prints no userinfo. Two identities
     never share a walk, because Harbor, Artifactory and GitLab filter the
     catalog per account. A `credentials` entry with no effective secret shares
     the walk of an anonymous entry. A member on another port or subdomain has
-    another API URL and is not grouped.
+    another API URL and is not grouped. Two Nexus members of one host read two
+    different catalogs, so they have two keys and two walks: D140 no longer
+    merges them (D167 amends it). Entries on the root catalog still share one
+    walk per API URL and identity.
   - Leader and followers: the first call for a key walks, the others wait (or
     return on their own context). It is a memo, not a singleflight: the key is
     kept after the walk, so a member arriving later reuses the result, and it
@@ -378,10 +406,31 @@ and `CatalogSearcher` (IS-03); dhi.io is IS-17:
     never an empty catalog.
   - `repo_prefix` filtering, `partial`, `ErrPrefixNotInCatalog` and
     `Cached only` stay computed per member.
-  - Unverified assumption: members of one host answer on the same
-    `/v2/_catalog` (IS-16).
+  - Members of one Nexus host do **not** answer on the same `/v2/_catalog`
+    (measured, Nexus 3.98.1-01): each answers on its own path catalog, which is why
+    the key carries the prefix. For other registries on one host the assumption
+    stays unverified.
   A catalog may be disabled or filtered to the account's rights (Harbor,
   Artifactory, GitLab): the answer is then `refused` or a shortened list.
+- **`Target.CatalogUnderPrefix` (DEVDESK-579, NX-12).** A Nexus member has no
+  usable root catalog: `/v2/_catalog` answers 404 on the HTTP port, and on a
+  group connector it lists the members' names together with no member attribution.
+  With the flag set, `CatalogSearcher` hands the lister `catalogPrefix = RepoPrefix`
+  and reads `/v2/<prefix>/_catalog`. Differences from the root catalog:
+  - Nexus returns names **without** the prefix; `Image.Repo` is rebuilt as
+    `<prefix>/<name>`.
+  - No guard R1: every name belongs to the member. An empty catalog is
+    `no result`, not `refused`.
+  - A prefix that fails `validRepoPath` is `refused` before any request. That
+    check refuses uppercase, so a catalog name outside the OCI grammar is
+    ignored and a member whose repository name has uppercase is refused. Not
+    measured: whether Nexus serves `/v2/<UpperCaseName>/_catalog`.
+  - Verdicts: 404, 401, 403 and 405 are `refused`; 5xx, 429 and network errors
+    are `failed`.
+  - The walk key holds the prefix (D140 amended, above). No request goes to
+    `/v2/_catalog` for these targets.
+  Who sets the flag is the UI's decision: see "Image search and Nexus members"
+  below. Every other target keeps the root catalog and R1.
 - **Verdicts (DEVDESK-303, IS-12, `verdict.go`).** `Classify(err, n, partial)`
   is a pure function that turns one registry's answer into an `Outcome{Verdict,
   Partial, Skipped}`. `Verdict` is one of `VerdictOK` (`ok`), `VerdictNoResult`
@@ -627,6 +676,27 @@ pending. Only an `ok` verdict appends rows. `Outcome(entryKey)` reads one
 verdict (false while pending). `Model.RegistryBrowserOutcomes()` returns a copy
 of the map, or nil when the browser is closed; it is for the tests and for IS-13.
 
+**Image search and Nexus members (DEVDESK-579, NX-12).** `targetFor` sets
+`CatalogUnderPrefix` on two kinds of entry: a plain entry that lists cached
+content only and has a `repo_prefix` (a `parent:` entry of a `provider: nexus`
+group), and a discovered member of a Nexus group that has a `repo_prefix`. The two
+tests are equivalent, because `checkRepoPrefixes` refuses a `repo_prefix` on a
+group. Any other entry keeps the root catalog and guard R1.
+
+`searchUnits` decides what a lot searches. Discovered members **without an
+address of their own** (same URL and same `repo_prefix` as their group, with the
+group's slug as `ParentSlug`) are merged into **one** unit, the group, labelled
+`<alias> (group)` (`groupUnitSuffix`). It is walked once, and its rows name no
+member: Nexus does not say which member holds a name. By design this bypasses the
+picker's selection: ticking one bare member searches the whole group, and a row can
+carry the name of a member that was unticked. A group that was not discovered (a
+pull account) is searched as itself, with its bare label. The Registry column
+keeps the whole suffix when it cuts a cell (`datatable.Column.KeepSuffix`, see
+`ui-components.md`). `lotUnits` holds the units of the current lot until the next
+image search; `entryFor` falls back on it, so labels, the `→` tags drill of a group
+row and the `r` filter work on a unit. The `?` help says: `'nx (group)': images
+found through the group; Nexus does not say which member holds each one.`
+
 **Level 1 header summary (DEVDESK-305, IS-13).** `searchHeaderInfo`
 (`browser_summary.go`, called from `GetHeaderInfo`) says what the lot did, one
 header line per class, in this order: `Images` (the row count, always), then
@@ -660,6 +730,9 @@ replay answers measured on the bench (Nexus 3.98.1-01, NX-03), not hand-written
 ones: the verdicts `ok`, `No result` and `Refused` (prefix absent from a real
 catalog) are checked there. `Failed` and `Cached only` have no measured answer yet
 (NX-04); a proxy's catalog lists names it does not hold (`mirror/uncached`).
+Measured: the path catalog of a proxy member lists the upstream, not its cache, which
+contradicts the `Cached only` wording of the header. Not changed here (NX-09);
+flagged.
 See "Recorded fixtures" in [`nexus-bench.md`](nexus-bench.md).
 
 Each name list is fitted by `fitNames` to the room a value has

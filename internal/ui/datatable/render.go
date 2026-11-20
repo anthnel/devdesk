@@ -138,7 +138,11 @@ func (m *Model[T]) rowLine(cols []table.Column, item T, selected bool) string {
 			line.WriteString(m.indicatorCellStyle(state, selected).Render(fitted))
 			continue
 		}
-		fitted := fit(text, cols[i].Width, c.TruncateHead)
+		suffix := ""
+		if c.KeepSuffix != nil {
+			suffix = c.KeepSuffix(item)
+		}
+		fitted := fitKeeping(text, suffix, cols[i].Width, c.TruncateHead)
 		if !busy && (!selected || m.preserveColumnColors) {
 			if runs, ok := m.multiRunCell(c, item, fitted, selected); ok {
 				line.WriteString(runs)
@@ -203,6 +207,13 @@ func (m *Model[T]) indicatorCellStyle(state indicator.State, selected bool) lipg
 // x/ansi sums in StringWidth, so a cell is exactly as wide as Lip Gloss and the
 // viewport think it is, VS16 emoji and keycaps included (DEVDESK-280).
 func fit(text string, width int, head bool) string {
+	return fitKeeping(text, "", width, head)
+}
+
+// fitKeeping is fit for a column that declares Column.KeepSuffix: when text ends
+// with suffix and is too wide, the part in front of the suffix gives way and the
+// suffix stays whole. An empty suffix is fit.
+func fitKeeping(text, suffix string, width int, head bool) string {
 	if width <= 0 {
 		return ""
 	}
@@ -215,12 +226,7 @@ func fit(text string, width int, head bool) string {
 	if strings.Contains(text, "\t") {
 		text = strings.ReplaceAll(text, "\t", "    ")
 	}
-	var cut string
-	if head {
-		cut = truncateHead(text, width)
-	} else {
-		cut = truncateTail(text, width)
-	}
+	cut := truncateKeeping(text, suffix, width, head)
 	if pad := width - cellWidth(cut); pad > 0 {
 		// A trailing Prepend character is invisible and would merge with the
 		// first padding space into one zero-width cluster.
@@ -228,6 +234,26 @@ func fit(text string, width int, head bool) string {
 		cut += strings.Repeat(" ", pad)
 	}
 	return cut
+}
+
+// truncateKeeping cuts text to width from the end the column asks for. With a
+// suffix the text actually ends with, only the part before it is cut, the suffix
+// is appended whole, and the alias takes whatever room is left (the marker alone
+// at the least). A column no wider than the suffix has no room to keep it: the
+// whole text is cut as usual, since a suffix alone would say nothing.
+func truncateKeeping(text, suffix string, width int, head bool) string {
+	truncate := truncateTail
+	if head {
+		truncate = truncateHead
+	}
+	if suffix == "" || !strings.HasSuffix(text, suffix) || cellWidth(text) <= width {
+		return truncate(text, width)
+	}
+	room := width - cellWidth(suffix)
+	if room <= 0 {
+		return truncate(text, width)
+	}
+	return truncate(strings.TrimSuffix(text, suffix), room) + suffix
 }
 
 // isPrepend reports the Prepend grapheme-break characters, which attach to the

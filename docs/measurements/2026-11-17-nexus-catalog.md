@@ -285,6 +285,19 @@ son fichier d'origine ou porte `# recorded-by: nexus-bench record`. Elles sont r
 les tests de `internal/imagesearch` et `internal/registrymgr`, et `mise run nexus-bench:record` les
 régénère depuis le banc (voir « Recorded fixtures » dans `docs/architecture/nexus-bench.md`).
 
+**Suite (DEVDESK-579, NX-12)** : le point ouvert 4 est tranché : DevDesk lit le catalogue d'un membre par
+`/v2/<préfixe>/_catalog` (les noms reviennent sans le préfixe, DevDesk le reconstruit). Les 12 réponses
+`catalog-{hosted,proxy,group}-path--{admin,pull,anon}` et
+`catalog-{hosted,proxy,group}-path-on-connector-30482--admin` sont importées comme fixtures (42 au total),
+octet pour octet ; les preuves datées de ce dossier ne changent pas. Le parcours est un par membre ;
+sur un groupe découvert, une seule unité de recherche (le groupe), sans attribution à un membre. Ce qui
+n'est **pas mesuré** : la tolérance `?n=1000` de fakenexus sur `/v2/<dépôt>/_catalog` (hosted, proxy) est
+une inférence ; le 404 du groupe par chemin avec `?n=1000` n'est pas toléré (test en `Skip`, DEVDESK-580) ;
+que le 404 du groupe vienne de `pathEnabled` sur les trois dépôts ; les autres versions de Nexus, un reverse
+proxy, HTTPS ; `/v2/<NomMajuscule>/_catalog` ; un compte restreint à certains dépôts (risque de faux
+« no result »). Le catalogue d'un proxy liste l'amont et non son cache (mesuré) : cela contredit le libellé
+`Cached only` (NX-09, hors périmètre). Voir `docs/architecture/network.md`.
+
 **Correction** : la phrase plus haut disant que la découverte des membres « les avale toutes les deux »
 (403 et 404) est inexacte. Seuls 403 et 401 sont un refus ; un 404 sur l'endpoint détaillé est un **échec de
 découverte** (`unreachable`, rien en cache). Le compte de pull reçoit donc aujourd'hui un échec, non un

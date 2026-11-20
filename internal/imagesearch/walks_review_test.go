@@ -15,7 +15,7 @@ import (
 func TestSharedWalkLeaderPanicIsAnErrorForOthers(t *testing.T) {
 	gate := make(chan struct{})
 	entered := make(chan struct{}, 1)
-	panicking := func(context.Context, string, string, string, int, int) ([]string, bool, error) {
+	panicking := func(context.Context, string, string, string, string, int, int) ([]string, bool, error) {
 		entered <- struct{}{}
 		<-gate
 		panic("boom")
@@ -79,7 +79,7 @@ func TestSharedWalkLeaderPanicIsAnErrorForOthers(t *testing.T) {
 func TestSharedWalkLeaderCancelNotMemoized(t *testing.T) {
 	var calls atomic.Int32
 	entered := make(chan struct{}, 1)
-	list := func(ctx context.Context, _, _, _ string, _, _ int) ([]string, bool, error) {
+	list := func(ctx context.Context, _, _, _, _ string, _, _ int) ([]string, bool, error) {
 		if calls.Add(1) == 1 {
 			entered <- struct{}{}
 			<-ctx.Done()

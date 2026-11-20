@@ -53,10 +53,14 @@ type browserRegistryEntry struct {
 	// cachedOnly marks an entry whose content can only be listed from the
 	// discovered-members cache: a Nexus group, its members, or an entry that
 	// declares a Nexus group as its parent (DEVDESK-308).
-	cachedOnly  bool
-	ParentAlias string // non-empty = member of a group
-	ParentSlug  string
-	parentURL   string // URL of the parent RegistryItem (for credential lookup)
+	cachedOnly bool
+	// catalogUnderPrefix marks an entry whose catalog Nexus serves under its
+	// prefix, at /v2/<prefix>/_catalog: a prefixed member of a Nexus group,
+	// discovered or declared (DEVDESK-579).
+	catalogUnderPrefix bool
+	ParentAlias        string // non-empty = member of a group
+	ParentSlug         string
+	parentURL          string // URL of the parent RegistryItem (for credential lookup)
 	// key identifies the entry among all the others, and is what the checkbox,
 	// the remembered exclusions and every result are keyed on (D40). It is not
 	// the URL: two registries may be declared on one host — the form enforces
@@ -138,7 +142,8 @@ func tagColumns() []datatable.Column[tagRow] {
 		datatable.IndicatorColumn(func(r tagRow) indicator.State { return r.Activity.State }, nil, nil),
 		{
 			Title: "Registry", Sizing: datatable.SizingContent, MinWidth: 20,
-			Cell: func(r tagRow) string { return r.label },
+			Cell:       func(r tagRow) string { return r.label },
+			KeepSuffix: func(tagRow) string { return groupUnitSuffix },
 		},
 		{
 			Title: "Tag", Sizing: datatable.SizingContent, MinWidth: 30, Flex: 1,
@@ -266,6 +271,12 @@ type RegistryBrowser struct {
 	// its generation; written only by startImageSearch (DEVDESK-305).
 	searchKeys []string
 	searchGen  uint64
+	// lotUnits are the group units the current lot searches in place of members
+	// with no address of their own, by key (searchUnits). Rebuilt by every
+	// startImageSearch and never part of entries: the picker keeps its members.
+	// They live until the next image search, not just for the lot: tag lots opened
+	// from the image rows must still resolve the unit's key (→).
+	lotUnits map[string]browserRegistryEntry
 
 	// The router's snapshot, for the activity column and the footer: the
 	// registry's runs and remembered failures, and the context they are read in.
@@ -346,6 +357,7 @@ func (b *RegistryBrowser) buildEntries(groups map[string]cache.RegistryGroupEntr
 		mode := config.ResolveAuthMode(reg, nil)
 
 		members := groups[reg.Slug].Members
+		cacheOnly := listsCacheOnly(reg, bySlug)
 		if reg.Kind != config.KindGroup || len(members) == 0 {
 			// A group nobody has discovered yet is offered as itself: it is a
 			// pullable registry too, and hiding it would be worse than listing
@@ -355,7 +367,13 @@ func (b *RegistryBrowser) buildEntries(groups map[string]cache.RegistryGroupEntr
 				URL: reg.URL, Alias: alias, Slug: reg.Slug, authMode: mode,
 				repoPrefix: reg.RepoPrefix,
 				key:        reg.Slug,
-				cachedOnly: listsCacheOnly(reg, bySlug),
+				cachedOnly: cacheOnly,
+				// The same predicate, narrowed to the entries that have a prefix. It
+				// is not the discovered members' (IsNexusGroup && RepoPrefix != ""):
+				// the two coincide because checkRepoPrefixes refuses a repo_prefix on
+				// a group, so no entry here is a group with a prefix. Do not "fix" the
+				// asymmetry.
+				catalogUnderPrefix: cacheOnly && reg.RepoPrefix != "",
 			})
 			continue
 		}
@@ -373,7 +391,9 @@ func (b *RegistryBrowser) buildEntries(groups map[string]cache.RegistryGroupEntr
 				parentURL:   reg.URL,
 				authMode:    mode,
 				cachedOnly:  config.IsNexusGroup(reg),
-				key:         memberKey(reg.Slug, m.URL, m.RepoPrefix),
+				// Nexus serves a member's catalog under its prefix.
+				catalogUnderPrefix: config.IsNexusGroup(reg) && m.RepoPrefix != "",
+				key:                memberKey(reg.Slug, m.URL, m.RepoPrefix),
 			})
 		}
 	}

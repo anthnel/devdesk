@@ -357,6 +357,7 @@ func restOriginKey(d Descriptor) (string, bool) {
 var (
 	recordPaths = []*regexp.Regexp{
 		regexp.MustCompile(`^/v2/(_catalog|[a-z0-9._/-]+/tags/list)?$`),
+		regexp.MustCompile(`^/v2/[a-z0-9._-]+(/[a-z0-9._-]+)*/_catalog$`),
 		regexp.MustCompile(`^/repository/[A-Za-z0-9._-]+/v2/_catalog$`),
 		regexp.MustCompile(`^/service/rest/v1/repositories(/[A-Za-z0-9._-]+)*$`),
 	}

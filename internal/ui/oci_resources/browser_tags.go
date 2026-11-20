@@ -93,7 +93,8 @@ func nextFilter(stops []resultFilter, cur resultFilter) resultFilter {
 	return resultFilter{}
 }
 
-// entryFor returns the browser entry a result came from, or nil.
+// entryFor returns the browser entry a result came from, or nil: one of the
+// picker's entries, else a group unit of the current lot (lotUnits).
 //
 // It resolves by entry key, not by URL: every member of a path-routed group
 // answers to the same host, so a URL identifies a whole instance and a result
@@ -103,6 +104,9 @@ func (b *RegistryBrowser) entryFor(key string) *browserRegistryEntry {
 		if b.entries[i].key == key {
 			return &b.entries[i]
 		}
+	}
+	if u, ok := b.lotUnits[key]; ok {
+		return &u
 	}
 	return nil
 }

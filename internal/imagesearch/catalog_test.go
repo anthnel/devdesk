@@ -7,6 +7,8 @@ import (
 	"reflect"
 	"strings"
 	"testing"
+
+	"github.com/anthnel/devdesk/internal/oci"
 )
 
 // These tests pin CatalogSearcher (DEVDESK-306 step 5) with a fake List: the
@@ -20,12 +22,13 @@ type fakeList struct {
 
 	calls              int
 	apiURL, user, pass string
+	catalogPrefix      string
 	maxPages, pageSize int
 }
 
-func (f *fakeList) list(_ context.Context, apiURL, username, password string, maxPages, pageSize int) ([]string, bool, error) {
+func (f *fakeList) list(_ context.Context, apiURL, catalogPrefix, username, password string, maxPages, pageSize int) ([]string, bool, error) {
 	f.calls++
-	f.apiURL, f.user, f.pass, f.maxPages, f.pageSize = apiURL, username, password, maxPages, pageSize
+	f.apiURL, f.catalogPrefix, f.user, f.pass, f.maxPages, f.pageSize = apiURL, catalogPrefix, username, password, maxPages, pageSize
 	return f.names, f.truncated, f.err
 }
 
@@ -75,6 +78,9 @@ func TestCatalogListArguments(t *testing.T) {
 	}
 	if f.apiURL != tg.APIURL || f.user != "u" || f.pass != "p" || f.maxPages != 10 || f.pageSize != 1000 {
 		t.Errorf("List got %q %q %q %d %d", f.apiURL, f.user, f.pass, f.maxPages, f.pageSize)
+	}
+	if f.catalogPrefix != "" {
+		t.Errorf("List got catalogPrefix %q, want empty: a root walk", f.catalogPrefix)
 	}
 }
 
@@ -294,5 +300,274 @@ func TestCatalogInvalidNamesNeverRendered(t *testing.T) {
 				t.Errorf("control rune %U in %+v", r, im)
 			}
 		}
+	}
+}
+
+// DEVDESK-579 (NX-12), step 2: a Nexus group member's catalog is served under its
+// own path, /v2/<prefix>/_catalog, and lists names relative to it. A target with
+// CatalogUnderPrefix walks that catalog (the lister gets the prefix), applies no
+// R1 (no name is expected to carry the prefix) and rebuilds Repo as
+// "<prefix>/<name>". Without the flag nothing changes: root catalog and R1.
+
+// memberCatalog is what a Nexus hosted member lists, measured: unprefixed names.
+var memberCatalog = []string{"api", "shared/base", "team/api", "tools/cli"}
+
+func underPrefixTarget(prefix string) Target {
+	return Target{EntryKey: "k-" + prefix, APIURL: "https://nexus.example", RepoPrefix: prefix, CatalogUnderPrefix: true}
+}
+
+func TestCatalogUnderPrefixRows(t *testing.T) {
+	type row struct{ name, repo string }
+	cases := []struct {
+		name      string
+		prefix    string
+		text      string
+		names     []string
+		truncated bool
+		want      []row
+		partial   bool
+	}{
+		{
+			name: "names are relative, Repo is rebuilt", prefix: "docker-hosted", text: "api", names: memberCatalog,
+			want: []row{{"api", "docker-hosted/api"}, {"team/api", "docker-hosted/team/api"}},
+		},
+		{
+			name: "a nested prefix is kept whole", prefix: "a/b", text: "api", names: memberCatalog,
+			want: []row{{"api", "a/b/api"}, {"team/api", "a/b/team/api"}},
+		},
+		{
+			// No R1: a name that looks prefixed is a name of the member, not a prefix to
+			// strip. The prefix is the member's own path, never part of the listing.
+			name: "a name that starts with the prefix is not stripped", prefix: "docker-hosted", text: "api",
+			names: []string{"docker-hosted/api"},
+			want:  []row{{"docker-hosted/api", "docker-hosted/docker-hosted/api"}},
+		},
+		{
+			name: "names of other projects are not dropped", prefix: "docker-proxy", text: "mirror",
+			names: []string{"mirror/cached", "mirror/uncached", "shared/base"},
+			want:  []row{{"mirror/cached", "docker-proxy/mirror/cached"}, {"mirror/uncached", "docker-proxy/mirror/uncached"}},
+		},
+		{
+			name: "the filter does not see the prefix", prefix: "docker-hosted", text: "hosted", names: memberCatalog,
+		},
+		{
+			name: "no match is no result", prefix: "docker-hosted", text: "zzz", names: memberCatalog,
+		},
+		{
+			name: "invalid names are never rendered", prefix: "docker-hosted", text: "api",
+			names: []string{"API", "-api", "a//api", "api\x1b[31m", "api"},
+			want:  []row{{"api", "docker-hosted/api"}},
+		},
+		{
+			name: "sorted by tier, then name", prefix: "p", text: "web",
+			names: []string{"x/webby", "x/web", "webapp", "web"},
+			want:  []row{{"web", "p/web"}, {"x/web", "p/x/web"}, {"webapp", "p/webapp"}, {"x/webby", "p/x/webby"}},
+		},
+		{
+			name: "truncated keeps the partial mark", prefix: "docker-hosted", text: "api", names: memberCatalog,
+			truncated: true, partial: true,
+			want: []row{{"api", "docker-hosted/api"}, {"team/api", "docker-hosted/team/api"}},
+		},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			f := &fakeList{names: tc.names, truncated: tc.truncated}
+			tg := underPrefixTarget(tc.prefix)
+			imgs, partial, err := searchWith(f, tg, Query{Text: tc.text})
+			if err != nil {
+				t.Fatalf("err = %v, want nil (no R1 on a catalog read by path)", err)
+			}
+			var got []row
+			for _, im := range imgs {
+				got = append(got, row{im.Name, im.Repo})
+				if im.EntryKey != tg.EntryKey {
+					t.Errorf("EntryKey = %q, want %q", im.EntryKey, tg.EntryKey)
+				}
+				if im.Description != "" || im.Stars != 0 || im.HasStars || im.Official {
+					t.Errorf("%s: Hub field set: %+v", im.Repo, im)
+				}
+				if !validRepoPath(im.Repo) {
+					t.Errorf("Repo %q is not a valid repository path", im.Repo)
+				}
+			}
+			if !reflect.DeepEqual(got, tc.want) {
+				t.Errorf("rows = %v, want %v", got, tc.want)
+			}
+			if partial != tc.partial {
+				t.Errorf("partial = %v, want %v", partial, tc.partial)
+			}
+			if f.calls != 1 {
+				t.Errorf("List called %d times, want 1", f.calls)
+			}
+		})
+	}
+}
+
+// The member answered, so an empty catalog is "no result", never a refusal: the
+// prefix is not looked for in the names.
+func TestCatalogUnderPrefixEmptyCatalogIsNoResult(t *testing.T) {
+	for _, truncated := range []bool{false, true} {
+		t.Run(fmt.Sprintf("truncated=%v", truncated), func(t *testing.T) {
+			f := &fakeList{names: nil, truncated: truncated}
+			imgs, partial, err := searchWith(f, underPrefixTarget("docker-hosted"), Query{Text: "api"})
+			if err != nil || imgs != nil || partial != truncated {
+				t.Fatalf("got %v partial=%v err=%v, want nil %v nil", imgs, partial, err, truncated)
+			}
+			want := Outcome{Verdict: VerdictNoResult, Partial: truncated}
+			if got := Classify(err, len(imgs), partial); got != want {
+				t.Errorf("outcome = %+v, want %+v", got, want)
+			}
+		})
+	}
+}
+
+// R1 is not applied: whatever the names, ErrPrefixNotInCatalog never comes back.
+func TestCatalogUnderPrefixNeverReportsAMissingPrefix(t *testing.T) {
+	f := &fakeList{names: []string{"other/api", "web"}}
+	imgs, _, err := searchWith(f, underPrefixTarget("docker-hosted"), Query{Text: "api"})
+	if errors.Is(err, ErrPrefixNotInCatalog) {
+		t.Fatalf("err = %v: R1 was applied to a catalog read by path", err)
+	}
+	if err != nil || len(imgs) != 1 || imgs[0].Repo != "docker-hosted/other/api" {
+		t.Errorf("imgs = %+v err = %v, want docker-hosted/other/api", imgs, err)
+	}
+}
+
+// The lister walks /v2/<catalogPrefix>/_catalog; a root walk passes "".
+func TestCatalogListerReceivesTheCatalogPrefix(t *testing.T) {
+	cases := []struct {
+		name   string
+		target Target
+		want   string
+	}{
+		{"under the prefix", underPrefixTarget("docker-hosted"), "docker-hosted"},
+		{"nested prefix", underPrefixTarget("a/b"), "a/b"},
+		{"root walk with a prefix filter keeps the root", Target{RepoPrefix: "docker-hosted"}, ""},
+		{"root walk without a prefix", Target{}, ""},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			f := &fakeList{names: []string{"docker-hosted/api"}}
+			tc.target.APIURL = "https://nexus.example"
+			if _, _, err := searchWith(f, tc.target, Query{Text: "api"}); err != nil {
+				t.Fatal(err)
+			}
+			if f.calls != 1 || f.catalogPrefix != tc.want {
+				t.Errorf("List called %d times with catalogPrefix %q, want once with %q", f.calls, f.catalogPrefix, tc.want)
+			}
+			if f.apiURL != "https://nexus.example" {
+				t.Errorf("apiURL = %q: the prefix must not be folded into it", f.apiURL)
+			}
+		})
+	}
+}
+
+// Without CatalogUnderPrefix a prefixed entry is unchanged to the byte: the root
+// catalog, R1 comprised.
+func TestCatalogWithoutTheFlagKeepsRootAndR1(t *testing.T) {
+	t.Run("names carrying the prefix", func(t *testing.T) {
+		f := &fakeList{names: []string{"docker-hosted/api", "other/api"}}
+		imgs, _, err := searchWith(f, Target{RepoPrefix: "docker-hosted"}, Query{Text: "api"})
+		if err != nil || len(imgs) != 1 || imgs[0].Name != "api" || imgs[0].Repo != "docker-hosted/api" {
+			t.Fatalf("imgs = %+v err = %v, want {api, docker-hosted/api}", imgs, err)
+		}
+		if f.catalogPrefix != "" {
+			t.Errorf("catalogPrefix = %q, want empty", f.catalogPrefix)
+		}
+	})
+	t.Run("names not carrying the prefix are refused", func(t *testing.T) {
+		f := &fakeList{names: memberCatalog}
+		_, _, err := searchWith(f, Target{RepoPrefix: "docker-hosted"}, Query{Text: "api"})
+		if !errors.Is(err, ErrPrefixNotInCatalog) {
+			t.Fatalf("err = %v, want ErrPrefixNotInCatalog", err)
+		}
+	})
+}
+
+// An empty or invalid prefix is refused before any request: the catalog path is
+// built from it. The cause names the prefix, quoted, so no control byte reaches
+// the screen.
+func TestCatalogUnderPrefixRefusesAnInvalidPrefix(t *testing.T) {
+	cases := []struct {
+		name   string
+		prefix string
+	}{
+		{"empty", ""},
+		{"only slashes", "///"},
+		{"dot-dot", ".."},
+		{"dot-dot inside", "a/../b"},
+		{"dot", "."},
+		{"dot segment", "a/./b"},
+		{"empty segment", "a//b"},
+		{"leading slash", "/a"},
+		{"trailing slash", "a/"},
+		{"uppercase", "Docker-Hosted"},
+		{"space", "my repo"},
+		{"percent", "a%2fb"},
+		{"backslash", `a\b`},
+		{"query", "a?b"},
+		{"control character", "a\x1b[31m"},
+		{"NUL", "a\x00b"},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			f := &fakeList{names: memberCatalog}
+			imgs, partial, err := searchWith(f, underPrefixTarget(tc.prefix), Query{Text: "api"})
+			if !errors.Is(err, ErrUnsupported) {
+				t.Fatalf("err = %v, want ErrUnsupported", err)
+			}
+			if imgs != nil || partial {
+				t.Errorf("got %v partial=%v, want nil false", imgs, partial)
+			}
+			if f.calls != 0 {
+				t.Errorf("List called %d times, want 0: the path must not be built from it", f.calls)
+			}
+			if got := Classify(err, 0, partial); got != (Outcome{Verdict: VerdictRefused}) {
+				t.Errorf("outcome = %+v, want refused", got)
+			}
+			for _, r := range err.Error() {
+				if r < 0x20 || r == 0x7f {
+					t.Errorf("control rune %U in the cause %q", r, err)
+				}
+			}
+			if q := fmt.Sprintf("%q", tc.prefix); tc.prefix != "" && !strings.Contains(err.Error(), q) {
+				t.Errorf("cause %q does not name the prefix as %s", err, q)
+			}
+		})
+	}
+}
+
+// What the walk says about a member comes through unchanged, so Classify tells a
+// refusal from a failure. A broken member never turns into rows or into a
+// verdict about another target (that part is in catalog_under_http_test.go).
+func TestCatalogUnderPrefixListErrorsKeepTheirVerdict(t *testing.T) {
+	cases := []struct {
+		name string
+		err  error
+		want Verdict
+	}{
+		{"404, a group on the HTTP port", &oci.StatusError{Code: 404, Source: oci.SourceRegistry}, VerdictRefused},
+		{"401", &oci.StatusError{Code: 401, Source: oci.SourceRegistry}, VerdictRefused},
+		{"403", &oci.StatusError{Code: 403, Source: oci.SourceRegistry}, VerdictRefused},
+		{"405", &oci.StatusError{Code: 405, Source: oci.SourceRegistry}, VerdictRefused},
+		{"500", &oci.StatusError{Code: 500, Source: oci.SourceRegistry}, VerdictFailed},
+		{"503", &oci.StatusError{Code: 503, Source: oci.SourceRegistry}, VerdictFailed},
+		{"429", &oci.StatusError{Code: 429, Source: oci.SourceRegistry}, VerdictFailed},
+		{"network", errors.New("connection reset"), VerdictFailed},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			f := &fakeList{names: memberCatalog, truncated: true, err: tc.err}
+			imgs, partial, err := searchWith(f, underPrefixTarget("docker-group"), Query{Text: "api"})
+			if !errors.Is(err, tc.err) {
+				t.Fatalf("err = %v, want %v", err, tc.err)
+			}
+			if imgs != nil || partial {
+				t.Errorf("got %v partial=%v, want nil false", imgs, partial)
+			}
+			if got := Classify(err, len(imgs), partial); got != (Outcome{Verdict: tc.want}) {
+				t.Errorf("outcome = %+v, want %v", got, tc.want)
+			}
+		})
 	}
 }

@@ -93,6 +93,9 @@ func TestCatalogOnMeasuredNexusAnswers(t *testing.T) {
 		want     Verdict
 		rows     []string // Repo of each row, in the order Search returns them
 		prefixIs bool     // the error is ErrPrefixNotInCatalog (criterion 3)
+		// underPrefix reads the catalog at /v2/<prefix>/_catalog (DEVDESK-579): the
+		// names come back unprefixed and Repo is "<prefix>/<name>".
+		underPrefix bool
 	}{
 		// The group connector: the one place where a root /v2/_catalog answers. Six
 		// names, none prefixed, the union of both members.
@@ -149,12 +152,48 @@ func TestCatalogOnMeasuredNexusAnswers(t *testing.T) {
 			name: "hosted by path, prefix docker-hosted", host: nexusHTTPPort, path: nexusHosted, scenario: "catalog-hosted-repository",
 			prefix: "docker-hosted", query: "api", want: VerdictRefused, prefixIs: true,
 		},
+
+		// DEVDESK-579 (NX-12): a member read at /v2/<prefix>/_catalog on the HTTP port
+		// (docker.pathEnabled). Nexus answers with the member's own, unprefixed
+		// names; DevDesk rebuilds "<prefix>/<name>" and applies no R1. The root
+		// /v2/_catalog of that port (a 404 page) is never asked.
+		{
+			name: "hosted under its prefix, api", host: nexusHTTPPort, scenario: "catalog-hosted-path",
+			prefix: "docker-hosted", underPrefix: true, query: "api", want: VerdictOK,
+			rows: []string{"docker-hosted/api", "docker-hosted/team/api"},
+		},
+		{
+			// shared/base is in the hosted AND the proxy catalog: each member reports
+			// its own, with its own reference.
+			name: "hosted under its prefix, base", host: nexusHTTPPort, scenario: "catalog-hosted-path",
+			prefix: "docker-hosted", underPrefix: true, query: "base", want: VerdictOK,
+			rows: []string{"docker-hosted/shared/base"},
+		},
+		{
+			name: "hosted under its prefix, mirror", host: nexusHTTPPort, scenario: "catalog-hosted-path",
+			prefix: "docker-hosted", underPrefix: true, query: "mirror", want: VerdictNoResult,
+		},
+		{
+			name: "proxy under its prefix, mirror", host: nexusHTTPPort, scenario: "catalog-proxy-path",
+			prefix: "docker-proxy", underPrefix: true, query: "mirror", want: VerdictOK,
+			rows: []string{"docker-proxy/mirror/cached", "docker-proxy/mirror/uncached"},
+		},
+		{
+			name: "proxy under its prefix, base", host: nexusHTTPPort, scenario: "catalog-proxy-path",
+			prefix: "docker-proxy", underPrefix: true, query: "base", want: VerdictOK,
+			rows: []string{"docker-proxy/shared/base"},
+		},
+		{
+			name: "proxy under its prefix, api", host: nexusHTTPPort, scenario: "catalog-proxy-path",
+			prefix: "docker-proxy", underPrefix: true, query: "api", want: VerdictNoResult,
+		},
 	}
 	for _, tc := range cases {
 		for _, id := range measuredIdentities {
 			t.Run(tc.name+" as "+string(id), func(t *testing.T) {
 				s := fakenexus.New(t, fixtures...)
 				tg := targetFor(s.URL(tc.host)+tc.path, tc.prefix, id)
+				tg.CatalogUnderPrefix = tc.underPrefix
 
 				imgs, partial, err := CatalogSearcher{}.Search(context.Background(), tg, Query{Text: tc.query})
 				out := Classify(err, len(imgs), partial)
@@ -174,12 +213,26 @@ func TestCatalogOnMeasuredNexusAnswers(t *testing.T) {
 				var got []string
 				for _, im := range imgs {
 					got = append(got, im.Repo)
-					if im.Name != im.Repo {
+					switch {
+					case tc.underPrefix && im.Repo != tc.prefix+"/"+im.Name:
+						t.Errorf("row %+v: Repo is not %q + Name", im, tc.prefix+"/")
+					case !tc.underPrefix && im.Name != im.Repo:
 						t.Errorf("row %+v: Name differs from Repo with no prefix applied", im)
 					}
 				}
 				if !reflect.DeepEqual(got, tc.rows) {
 					t.Errorf("rows = %v, want %v", got, tc.rows)
+				}
+
+				// Criterion 2: a target read under its prefix never asks a root catalog.
+				if tc.underPrefix {
+					for _, f := range fixtures {
+						if strings.Contains(f.Name, "-root-") || strings.Contains(f.Name, "-connector-") {
+							if h := s.Hits(f.Name); h != 0 {
+								t.Errorf("Hits(%s) = %d, want 0: a root catalog was asked", f.Name, h)
+							}
+						}
+					}
 				}
 
 				// Exactly one catalog request, answered by the expected recording.
@@ -278,5 +331,102 @@ func TestMeasuredCatalogsDoNotDependOnTheAccount(t *testing.T) {
 				t.Errorf("%s: unexpected body %q", scenario, a.Body)
 			}
 		}
+	}
+}
+
+// underTargetFor is targetFor for an entry whose catalog is read under its prefix.
+func underTargetFor(apiURL, prefix string, id nexusfixture.Identity) Target {
+	tg := targetFor(apiURL, prefix, id)
+	tg.CatalogUnderPrefix = true
+	return tg
+}
+
+// Criterion 4 on measured answers: hosted and proxy are two members of ONE host
+// (127.0.0.1:30481). Each is walked once, under its own path, in a shared batch;
+// searching the same member again reuses its walk. shared/base is in both
+// catalogs, and each row keeps its own member's reference.
+func TestCatalogMembersOfOneHostAreWalkedSeparately(t *testing.T) {
+	fixtures := loadCatalogFixtures(t)
+	for _, id := range measuredIdentities {
+		t.Run(string(id), func(t *testing.T) {
+			s := fakenexus.New(t, fixtures...)
+			apiURL := s.URL(nexusHTTPPort)
+			ctx := WithSharedWalks(context.Background())
+			search := func(key, prefix, text string) string {
+				tg := underTargetFor(apiURL, prefix, id)
+				tg.EntryKey = key
+				imgs, partial, err := CatalogSearcher{}.Search(ctx, tg, Query{Text: text})
+				if out := Classify(err, len(imgs), partial); out != (Outcome{Verdict: VerdictOK}) {
+					t.Fatalf("%s: outcome = %+v err = %v, want ok", key, out, err)
+				}
+				return names(imgs)
+			}
+
+			if got := search("hosted", "docker-hosted", "base"); got != "docker-hosted/shared/base" {
+				t.Errorf("hosted rows = %q, want docker-hosted/shared/base", got)
+			}
+			if got := search("proxy", "docker-proxy", "base"); got != "docker-proxy/shared/base" {
+				t.Errorf("proxy rows = %q, want docker-proxy/shared/base", got)
+			}
+			if got := search("hosted-again", "docker-hosted", "api"); got != "docker-hosted/api,docker-hosted/team/api" {
+				t.Errorf("hosted rows, second search = %q", got)
+			}
+
+			if h := s.Hits("catalog-hosted-path--" + string(id)); h != 1 {
+				t.Errorf("Hits(catalog-hosted-path--%s) = %d, want 1: one walk for the hosted member", id, h)
+			}
+			if h := s.Hits("catalog-proxy-path--" + string(id)); h != 1 {
+				t.Errorf("Hits(catalog-proxy-path--%s) = %d, want 1: one walk for the proxy member", id, h)
+			}
+			if n := totalHits(s, fixtures); n != 2 {
+				t.Errorf("%d requests answered in total, want 2 (criterion 4); none on a root catalog (criterion 2)", n)
+			}
+		})
+	}
+}
+
+// The group by its path on the HTTP port is not a catalog: Nexus answers a 404
+// page there (catalog-group-path--*, measured WITHOUT n). With the "?n=1000" that
+// DevDesk sends, fakenexus does not let a recorded 404 answer (TestCatalogTolerance,
+// "a recorded 404 is not tolerated"): that target answers a 501 and a t.Errorf.
+// That a Nexus 404 stays a 404 with a "?n=1000" is an assumption, not a
+// measurement, and none is invented here (plan DEVDESK-579, hypothesis H-4).
+//
+// Pending: record GET /v2/docker-group/_catalog?n=1000 on 127.0.0.1:30481 with
+// `nexus-bench record` (DEVDESK-580, NX-08b); this test then runs by itself.
+// Criterion 6: the group is refused with its StatusError, not "no result" and not
+// "failed", and it is not a prefix problem either.
+func TestCatalogOfAGroupUnderItsPrefixIsRefused(t *testing.T) {
+	fixtures := loadCatalogFixtures(t)
+	const target = "/v2/docker-group/_catalog?n=1000"
+	if !recordsTarget(fixtures, nexusHTTPPort, target) {
+		t.Skip("pending DEVDESK-580 (NX-08b): no measured fixture for GET " + target + " on the HTTP port (only the no-n answer, catalog-group-path--*, is measured, and fakenexus does not tolerate a 404 for n=1000); record it on the bench with `nexus-bench record`")
+	}
+	for _, id := range measuredIdentities {
+		t.Run(string(id), func(t *testing.T) {
+			s := fakenexus.New(t, fixtures...)
+			ctx := WithSharedWalks(context.Background())
+
+			imgs, partial, err := CatalogSearcher{}.Search(ctx, underTargetFor(s.URL(nexusHTTPPort), "docker-group", id), Query{Text: "api"})
+			if got := Classify(err, len(imgs), partial); got != (Outcome{Verdict: VerdictRefused}) {
+				t.Fatalf("outcome = %+v, want refused (err = %v)", got, err)
+			}
+			var se *oci.StatusError
+			if !errors.As(err, &se) || se.Code != 404 || se.Source != oci.SourceRegistry {
+				t.Errorf("err = %v (%T), want *oci.StatusError{404, SourceRegistry}", err, err)
+			}
+			if errors.Is(err, ErrPrefixNotInCatalog) {
+				t.Error("R1 was reached: a catalog read by path has none")
+			}
+			if n := totalHits(s, fixtures); n != 1 {
+				t.Errorf("%d requests answered in total, want 1", n)
+			}
+
+			// The group's 404 does not touch the members of the same host.
+			other, partial, err := CatalogSearcher{}.Search(ctx, underTargetFor(s.URL(nexusHTTPPort), "docker-hosted", id), Query{Text: "api"})
+			if got := Classify(err, len(other), partial); got != (Outcome{Verdict: VerdictOK}) {
+				t.Errorf("hosted member: outcome = %+v, want ok (err = %v)", got, err)
+			}
+		})
 	}
 }
