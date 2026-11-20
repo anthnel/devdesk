@@ -1,0 +1,56 @@
+{
+  "cli_version": "0.13.2",
+  "checkpoint_id": "4afd56bf8fa1",
+  "strategy": "manual-commit",
+  "branch": "feat/devdesk-629-nexus-measure-fixes",
+  "checkpoints_count": 2,
+  "files_touched": [
+    "internal/ui/oci_resources/browser_cached_only_fixture_test.go",
+    "internal/ui/oci_resources/browser_cached_only_test.go",
+    "internal/ui/oci_resources/browser_catalog_share_test.go",
+    "internal/ui/oci_resources/browser_group_connector_test.go",
+    "internal/ui/oci_resources/browser_group_unit_label_test.go",
+    "internal/ui/oci_resources/browser_mayomit_test.go",
+    "internal/ui/oci_resources/browser_nexus_member_path_test.go",
+    "internal/ui/oci_resources/browser_summary_test.go",
+    "internal/ui/oci_resources/members_refused_test.go"
+  ],
+  "sessions": [
+    {
+      "metadata": "/4a/fd56bf8fa1/0/metadata.json",
+      "transcript": "/4a/fd56bf8fa1/0/full.jsonl",
+      "compact_transcript": "/4a/fd56bf8fa1/0/transcript.jsonl",
+      "content_hash": "/4a/fd56bf8fa1/0/content_hash.txt",
+      "prompt": "/4a/fd56bf8fa1/0/prompt.txt"
+    }
+  ],
+  "token_usage": {
+    "input_tokens": 14,
+    "cache_creation_tokens": 15554,
+    "cache_read_tokens": 1430049,
+    "output_tokens": 5547,
+    "api_call_count": 5,
+    "subagent_tokens": {
+      "input_tokens": 126,
+      "cache_creation_tokens": 449431,
+      "cache_read_tokens": 6662504,
+      "output_tokens": 72410,
+      "api_call_count": 61
+    },
+    "subagent_tokens_complete": true
+  },
+  "redaction": {
+    "replacements": 7,
+    "layers": {
+      "betterleaks": 0,
+      "connection_string": 0,
+      "credential_key": 0,
+      "credential_value": 4,
+      "credentialed_uri": 0,
+      "entropy": 0,
+      "key_context": 3,
+      "provider_token": 0,
+      "shell_stdin": 0
+    }
+  }
+}
