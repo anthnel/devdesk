@@ -13,7 +13,7 @@ var ErrMembersRefused = errors.New("group members refused")
 // Its text holds the group and the status only: never a URL, header or body.
 type MembersRefusedError struct {
 	Group     string // repository name in the manager (path segment, no URL)
-	Status    int    // 401 or 403
+	Status    int    // 401, 403, or 404 (Nexus: Repository not found)
 	Anonymous bool   // the refused request carried no credential
 	Cause     error  // the *oci.StatusError (Source: SourceManagementAPI)
 }

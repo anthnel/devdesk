@@ -139,10 +139,12 @@ as their source of truth, and `config.yaml` is what the user declares.
   - A **refusal** (`registrymgr.ErrMembersRefused`, a `*MembersRefusedError`)
     is stored *beside* the listing, never over it: the manager said it is a
     group and refused to list it to this account, which says nothing about the
-    members. Only a 401 or 403 from the management API counts.
-  - Any **other error** (network, deadline, 404, 5xx, unreadable reply) is
-    stored nowhere: an unreachable manager must not erase what was last known
-    (D23). The footer says `Group refresh failed — check logs` at level Error;
+    members. A 401 or 403 from the management API counts, and so does the one
+    404 Nexus sends an account without `nx-repository-admin` (DEVDESK-578):
+    `status` is then 404. The member list is never written for it.
+  - Any **other error** (network, deadline, any other 404, 5xx, unreadable
+    reply) is stored nowhere: an unreachable manager must not erase what was
+    last known (D23). The footer says `Group refresh failed — check logs` at level Error;
     a refusal held from an earlier probe stays as it was.
 - **File format v2.** `registry-groups.json` is the envelope
   `{"version":2,"groups":{…},"refusals":{…}}`, written atomically; a refusal is
@@ -164,10 +166,10 @@ as their source of truth, and `config.yaml` is what the user declares.
   anonymous retry of the members endpoint starts on any error except this
   refusal. Each Nexus reply is read up to 1 MiB (`maxNexusResponse`, not
   measured); a larger one is an error, not a silent cut. A format endpoint
-  that answers 401 or 403 is logged with the advice `account may lack
-  nx-repository-admin privilege` and is a refusal (above); the origin refusal
-  has its own log message, without that advice, and is a failed discovery. No
-  members come back in either case.
+  that answers 401, 403 or the Nexus 404 (below) is logged with the advice
+  `account may lack nx-repository-admin privilege` and is a refusal (above);
+  the origin refusal has its own log message, without that advice, and is a
+  failed discovery. No members come back in either case.
 - **A Nexus reply that is not a repository document is a failed discovery
   (DEVDESK-509).** A non-200 status is a typed error shown as
   `management API returned N` (it was `HTTP N`); an empty body, invalid JSON or
@@ -202,11 +204,20 @@ as their source of truth, and `config.yaml` is what the user declares.
   account was a hypothesis; NX-03 measured otherwise (below).
 - **Measured on Nexus 3.98.1-01 (NX-03, fixtures of DEVDESK-511).** The pull
   account gets **404 `Repository not found`**, not 403, on the detailed group
-  endpoint; the anonymous call gets 403. A 404 is not a refusal, so discovery for
-  a pull account is today a failed one (`unreachable`, footer Error, nothing
-  cached): `TestDetectGroupOnMeasuredNexusAnswers` pins that behavior on the
-  recorded answers, and DEVDESK-578 (NX-07b) is to change it. The detection tests
-  replay recorded answers, see "Recorded fixtures" in
+  endpoint; the anonymous call gets 403. The 403 of D161 was a hypothesis the
+  bench disproved. Since DEVDESK-578 (NX-07b) that 404 is a refusal like the
+  403: a `*MembersRefusedError{Status: 404}` whose `Cause` is the
+  `*oci.StatusError`, stored in `refusals` with `status: 404`, shown as
+  `denied · <age>`, with declared members (`repo_prefix`) still listed.
+  `TestDetectGroupOnMeasuredNexusAnswers` pins it on the recorded answers. Only
+  a 404 whose JSON `message` is `Repository not found` (inner quotes and
+  surrounding spaces removed, case ignored) is requalified; any other 404 (empty
+  or HTML body, another JSON, a body over 4 KiB, a 404 on the generic
+  `/v1/repositories/<name>` endpoint) stays a failed discovery. **Known limit:**
+  Nexus sends the same body for a group that does not exist. If the group is
+  deleted between the two calls (the first one established it is a group),
+  `denied` shows wrongly until the next successful `ctrl+r`. The detection
+  tests replay recorded answers, see "Recorded fixtures" in
   [`nexus-bench.md`](nexus-bench.md).
 - The **registry browser reads this cache**, never the network: it opens on the
   first frame and works offline. `→` on a group row in the Registries tab drills

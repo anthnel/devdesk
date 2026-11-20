@@ -2,6 +2,7 @@ package ociresources
 
 import (
 	"bytes"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"net/http"
@@ -67,6 +68,48 @@ func replyStatus(code int) http.HandlerFunc {
 	return func(w http.ResponseWriter, _ *http.Request) { w.WriteHeader(code) }
 }
 
+// nexusNotFoundBody is the body a Nexus 3 sends, with a 404, for a group the
+// account may not read (measured, DEVDESK-578): the message holds its own quotes.
+const nexusNotFoundBody = `{"id":"*","message":"\"Repository not found\""}`
+
+// replyNexusNotFound is that 404, with its body.
+func replyNexusNotFound() http.HandlerFunc {
+	return func(w http.ResponseWriter, _ *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusNotFound)
+		_, _ = w.Write([]byte(nexusNotFoundBody))
+	}
+}
+
+// refusingManagers are the three answers that are a refusal, each with the status
+// the cache must record for it.
+var refusingManagers = []struct {
+	name   string
+	status int
+	reply  http.HandlerFunc
+}{
+	{"401", http.StatusUnauthorized, replyStatus(http.StatusUnauthorized)},
+	{"403", http.StatusForbidden, replyStatus(http.StatusForbidden)},
+	{"404 Nexus Repository not found", http.StatusNotFound, replyNexusNotFound()},
+}
+
+// listingOnDisk is the raw JSON the cache file holds under groups[groupSlug], nil
+// when there is none: what "the list is never written" is compared on, byte for byte.
+func listingOnDisk(t *testing.T, home string) json.RawMessage {
+	t.Helper()
+	data, err := os.ReadFile(groupCacheFile(home))
+	if err != nil {
+		t.Fatalf("reading the cache file: %v", err)
+	}
+	var file struct {
+		Groups map[string]json.RawMessage `json:"groups"`
+	}
+	if err := json.Unmarshal(data, &file); err != nil {
+		t.Fatalf("decoding the cache file: %v\n%s", err, data)
+	}
+	return file.Groups[groupSlug]
+}
+
 func replyMembers(names string) http.HandlerFunc {
 	return func(w http.ResponseWriter, _ *http.Request) {
 		_, _ = fmt.Fprintf(w, `{"group":{"memberNames":%s}}`, names)
@@ -121,14 +164,16 @@ func runDetect(t *testing.T, reg config.RegistryItem) RegistryGroupDetectedMsg {
 
 // ── The Cmd: what it writes ─────────────────────────────────────────────────
 
-// CA1 and D23: a refused listing is recorded, and what was last known stays.
+// CA1 and D23: a refused listing is recorded, and what was last known stays. A
+// Nexus 404 "Repository not found" is the same refusal as a 403 (DEVDESK-578).
 func TestARefusedListingIsRecordedAndKeepsTheMembersLastKnown(t *testing.T) {
-	for _, code := range []int{http.StatusUnauthorized, http.StatusForbidden} {
-		t.Run(fmt.Sprint(code), func(t *testing.T) {
-			isolateGroupHome(t)
+	for _, tc := range refusingManagers {
+		t.Run(tc.name, func(t *testing.T) {
+			home := isolateGroupHome(t)
 			known := knownMembers()
 			seedGroup(t, &known, nil)
-			reg := nexusGroupServer(t, replyStatus(code))
+			listingBefore := listingOnDisk(t, home)
+			reg := nexusGroupServer(t, tc.reply)
 
 			msg := runDetect(t, reg)
 
@@ -136,8 +181,8 @@ func TestARefusedListingIsRecordedAndKeepsTheMembersLastKnown(t *testing.T) {
 				t.Fatalf("msg.Err = %v, want a members refusal", msg.Err)
 			}
 			var refused *registrymgr.MembersRefusedError
-			if !errors.As(msg.Err, &refused) || refused.Status != code {
-				t.Fatalf("msg.Err = %v, want *MembersRefusedError with status %d", msg.Err, code)
+			if !errors.As(msg.Err, &refused) || refused.Status != tc.status {
+				t.Fatalf("msg.Err = %v, want *MembersRefusedError with status %d", msg.Err, tc.status)
 			}
 			if msg.At.IsZero() {
 				t.Error("msg.At is zero: the handler cannot hold the instant the disk holds")
@@ -152,12 +197,15 @@ func TestARefusedListingIsRecordedAndKeepsTheMembersLastKnown(t *testing.T) {
 				t.Errorf("DiscoveredAt = %v, want %v untouched: a refusal is not a listing",
 					entry.DiscoveredAt, known.DiscoveredAt)
 			}
+			if after := listingOnDisk(t, home); !bytes.Equal(after, listingBefore) {
+				t.Errorf("the listing changed on a refusal:\nbefore: %s\nafter:  %s", listingBefore, after)
+			}
 			r := c.Refusal(groupSlug)
 			if r == nil {
 				t.Fatal("the refusal was not written to the cache")
 			}
-			if r.Status != code || !r.Anonymous {
-				t.Errorf("refusal on disk = %+v, want status %d, anonymous", *r, code)
+			if r.Status != tc.status || !r.Anonymous {
+				t.Errorf("refusal on disk = %+v, want status %d, anonymous", *r, tc.status)
 			}
 			if !r.At.Equal(msg.At) {
 				t.Errorf("refusal At = %v, msg.At = %v: disk and memory must hold the same instant", r.At, msg.At)
@@ -167,22 +215,30 @@ func TestARefusedListingIsRecordedAndKeepsTheMembersLastKnown(t *testing.T) {
 }
 
 // A group never listed and then refused has a refusal and still no listing:
-// "an entry is present" keeps meaning "a settled answer".
+// "an entry is present" keeps meaning "a settled answer". That holds for the
+// Nexus 404 as for the 403: no empty group, no "0 members".
 func TestARefusedGroupNeverListedGetsNoListing(t *testing.T) {
-	isolateGroupHome(t)
-	reg := nexusGroupServer(t, replyStatus(http.StatusForbidden))
+	for _, tc := range refusingManagers {
+		t.Run(tc.name, func(t *testing.T) {
+			home := isolateGroupHome(t)
+			reg := nexusGroupServer(t, tc.reply)
 
-	msg := runDetect(t, reg)
+			msg := runDetect(t, reg)
 
-	if !errors.Is(msg.Err, registrymgr.ErrMembersRefused) {
-		t.Fatalf("msg.Err = %v, want a members refusal", msg.Err)
-	}
-	c := openGroupCache(t)
-	if entry := c.Get(groupSlug); entry != nil {
-		t.Errorf("listing on disk = %+v, want none: a refusal must not read as \"0 members\"", entry)
-	}
-	if c.Refusal(groupSlug) == nil {
-		t.Error("the refusal was not written to the cache")
+			if !errors.Is(msg.Err, registrymgr.ErrMembersRefused) {
+				t.Fatalf("msg.Err = %v, want a members refusal", msg.Err)
+			}
+			c := openGroupCache(t)
+			if entry := c.Get(groupSlug); entry != nil {
+				t.Errorf("listing on disk = %+v, want none: a refusal must not read as \"0 members\"", entry)
+			}
+			if listing := listingOnDisk(t, home); listing != nil {
+				t.Errorf("the cache file holds a groups entry %s, want none", listing)
+			}
+			if r := c.Refusal(groupSlug); r == nil || r.Status != tc.status {
+				t.Errorf("refusal on disk = %+v, want status %d", r, tc.status)
+			}
+		})
 	}
 }
 
@@ -251,6 +307,18 @@ func TestAnUnreachableManagerWritesNothing(t *testing.T) {
 		{"server error", func(*testing.T) http.HandlerFunc { return replyStatus(http.StatusInternalServerError) }},
 		{"bad gateway", func(*testing.T) http.HandlerFunc { return replyStatus(http.StatusBadGateway) }},
 		{"not found", func(*testing.T) http.HandlerFunc { return replyStatus(http.StatusNotFound) }},
+		{"not found, other JSON message", func(*testing.T) http.HandlerFunc {
+			return func(w http.ResponseWriter, _ *http.Request) {
+				w.WriteHeader(http.StatusNotFound)
+				_, _ = w.Write([]byte(`{"id":"*","message":"\"Component not found\""}`))
+			}
+		}},
+		{"not found, HTML body", func(*testing.T) http.HandlerFunc {
+			return func(w http.ResponseWriter, _ *http.Request) {
+				w.WriteHeader(http.StatusNotFound)
+				_, _ = w.Write([]byte("<html>Repository not found</html>"))
+			}
+		}},
 		{"unreadable reply", func(*testing.T) http.HandlerFunc {
 			return func(w http.ResponseWriter, _ *http.Request) { _, _ = w.Write([]byte("<html>")) }
 		}},
@@ -284,7 +352,7 @@ func TestAnUnreachableManagerWritesNothing(t *testing.T) {
 				t.Fatal("msg.Err = nil: an unreachable manager is a failed discovery")
 			}
 			if errors.Is(msg.Err, registrymgr.ErrMembersRefused) {
-				t.Errorf("msg.Err = %v: only a 401 or 403 is a refusal, this is a transient failure", msg.Err)
+				t.Errorf("msg.Err = %v: only a 401, 403 or Nexus's 404 Repository not found is a refusal, this is a transient failure", msg.Err)
 			}
 			after, err := os.ReadFile(groupCacheFile(home))
 			if err != nil {
@@ -353,6 +421,8 @@ func TestTheHandlerRecordsARefusalAndLeavesTheKnownMembersAlone(t *testing.T) {
 		{"account", refusalOf(403, false), cache.RegistryGroupRefusal{At: at(7), Status: 403}},
 		{"anonymous", refusalOf(401, true), cache.RegistryGroupRefusal{At: at(7), Status: 401, Anonymous: true}},
 		{"wrapped", fmt.Errorf("discovery: %w", refusalOf(403, false)), cache.RegistryGroupRefusal{At: at(7), Status: 403}},
+		{"nexus 404", refusalOf(404, false), cache.RegistryGroupRefusal{At: at(7), Status: 404}},
+		{"nexus 404 anonymous", refusalOf(404, true), cache.RegistryGroupRefusal{At: at(7), Status: 404, Anonymous: true}},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			m := groupModel(t)
@@ -414,6 +484,75 @@ func TestASettledListingClearsTheRefusalInMemory(t *testing.T) {
 			}
 			if !entry.DiscoveredAt.Equal(at(8)) {
 				t.Errorf("DiscoveredAt = %v, want msg.At = %v: disk and memory hold the same instant", entry.DiscoveredAt, at(8))
+			}
+		})
+	}
+}
+
+// Criterion 5, model side: a refusal known as a 404 is not replaced by a failure.
+func TestAnUnreachableManagerKeepsAKnown404Refusal(t *testing.T) {
+	m := groupModel(t)
+	m = feed(t, m, RegistryGroupDetectedMsg{
+		RegistryURL: "registry.example.com", Slug: "prod", Err: refusalOf(404, false), At: at(7),
+	})
+	m = feed(t, m, testutil.Key("ctrl+r"))
+	refusal := m.groupRefusals["prod"]
+
+	m = feed(t, m, RegistryGroupDetectedMsg{
+		RegistryURL: "registry.example.com", Slug: "prod", Err: errUnreachable{}, At: at(8),
+	})
+
+	if got := m.groupRefusals["prod"]; got != refusal || got.Status != 404 {
+		t.Errorf("groupRefusals[prod] = %+v, want the earlier 404 refusal %+v kept", got, refusal)
+	}
+	if entry := m.groupCache["prod"]; len(entry.Members) != 2 || !entry.DiscoveredAt.Equal(at(3)) {
+		t.Errorf("groupCache[prod] = %+v, want what was last known", entry)
+	}
+}
+
+// CA3: a 404 Nexus refusal is known on disk, then the manager fails (5xx, closed
+// connection, 404 of another kind): the file does not change by one byte.
+func TestAFailureDoesNotReplaceAKnown404Refusal(t *testing.T) {
+	failures := []struct {
+		name  string
+		reply http.HandlerFunc
+	}{
+		{"server error", replyStatus(http.StatusInternalServerError)},
+		{"bad gateway", replyStatus(http.StatusBadGateway)},
+		{"plain 404", replyStatus(http.StatusNotFound)},
+		{"connection closed", func(w http.ResponseWriter, _ *http.Request) {
+			if conn, _, err := w.(http.Hijacker).Hijack(); err == nil {
+				_ = conn.Close()
+			}
+		}},
+	}
+	for _, tc := range failures {
+		t.Run(tc.name, func(t *testing.T) {
+			home := isolateGroupHome(t)
+			known := knownMembers()
+			seedGroup(t, &known, nil)
+			if msg := runDetect(t, nexusGroupServer(t, replyNexusNotFound())); !errors.Is(msg.Err, registrymgr.ErrMembersRefused) {
+				t.Fatalf("setup: msg.Err = %v, want the 404 refusal recorded", msg.Err)
+			}
+			before, err := os.ReadFile(groupCacheFile(home))
+			if err != nil {
+				t.Fatalf("reading the cache: %v", err)
+			}
+
+			msg := runDetect(t, nexusGroupServer(t, tc.reply))
+
+			if msg.Err == nil || errors.Is(msg.Err, registrymgr.ErrMembersRefused) {
+				t.Fatalf("msg.Err = %v, want a transient failure that is not a refusal", msg.Err)
+			}
+			after, err := os.ReadFile(groupCacheFile(home))
+			if err != nil {
+				t.Fatalf("reading the cache after: %v", err)
+			}
+			if !bytes.Equal(before, after) {
+				t.Errorf("the cache file changed on a failed discovery:\nbefore: %s\nafter:  %s", before, after)
+			}
+			if r := openGroupCache(t).Refusal(groupSlug); r == nil || r.Status != http.StatusNotFound {
+				t.Errorf("refusal on disk = %+v, want the 404 refusal still there", r)
 			}
 		})
 	}
@@ -494,6 +633,35 @@ func TestARefusalOnDiskSurvivesARestart(t *testing.T) {
 	m := feed(t, registriesTab(t), msg)
 	if got := m.groupRefusals[groupSlug]; got != want {
 		t.Errorf("groupRefusals[%s] = %+v, want %+v after the load", groupSlug, got, want)
+	}
+}
+
+// CA1, persistence, for the Nexus 404: the refusal a real discovery wrote is read
+// back after a restart with status 404, beside the listing last known, and the
+// model holds it.
+func TestANexus404RefusalSurvivesARestart(t *testing.T) {
+	isolateGroupHome(t)
+	known := knownMembers()
+	seedGroup(t, &known, nil)
+	detected := runDetect(t, nexusGroupServer(t, replyNexusNotFound()))
+	if !errors.Is(detected.Err, registrymgr.ErrMembersRefused) {
+		t.Fatalf("detect: msg.Err = %v, want a members refusal", detected.Err)
+	}
+
+	msg, ok := run(t, loadRegistryGroupCache()).(RegistryGroupCacheLoadedMsg)
+	if !ok {
+		t.Fatal("loadRegistryGroupCache did not return a RegistryGroupCacheLoadedMsg")
+	}
+	got := msg.Refusals[groupSlug]
+	if got.Status != http.StatusNotFound || !got.Anonymous || !got.At.Equal(detected.At) {
+		t.Fatalf("msg.Refusals[%s] = %+v, want status 404, anonymous, at %v", groupSlug, got, detected.At)
+	}
+	if len(msg.Entries[groupSlug].Members) != 2 {
+		t.Errorf("msg.Entries[%s] = %+v, want the listing last known as well", groupSlug, msg.Entries[groupSlug])
+	}
+	m := feed(t, registriesTab(t), msg)
+	if m.groupRefusals[groupSlug] != got {
+		t.Errorf("groupRefusals[%s] = %+v, want %+v after the load", groupSlug, m.groupRefusals[groupSlug], got)
 	}
 }
 

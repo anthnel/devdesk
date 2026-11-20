@@ -289,3 +289,9 @@ régénère depuis le banc (voir « Recorded fixtures » dans `docs/architecture
 (403 et 404) est inexacte. Seuls 403 et 401 sont un refus ; un 404 sur l'endpoint détaillé est un **échec de
 découverte** (`unreachable`, rien en cache). Le compte de pull reçoit donc aujourd'hui un échec, non un
 refus. Le comportement est figé par un test sur la réponse mesurée ; DEVDESK-578 le changera.
+
+**Suite (DEVDESK-578)** : le 404 `Repository not found` du compte de pull sur l'endpoint détaillé est
+désormais un **refus** (`denied`, `status: 404`), non plus un échec de découverte : la « Correction »
+ci-dessus décrit l'état avant ce correctif. Seul un 404 dont le `message` JSON vaut « Repository not found »
+est requalifié. Limite : Nexus répond le même corps pour un groupe réellement absent (voir
+`docs/architecture/registries.md`).

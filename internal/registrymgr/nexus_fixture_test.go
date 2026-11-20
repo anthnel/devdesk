@@ -3,7 +3,6 @@ package registrymgr
 import (
 	"context"
 	"encoding/json"
-	"errors"
 	"net/http"
 	"reflect"
 	"strings"
@@ -11,7 +10,6 @@ import (
 
 	"github.com/anthnel/devdesk/internal/nexusfixture"
 	"github.com/anthnel/devdesk/internal/nexusfixture/fakenexus"
-	"github.com/anthnel/devdesk/internal/oci"
 )
 
 // DEVDESK-511 (NX-08, step 5): DetectGroup walks the REST answers MEASURED on
@@ -123,6 +121,10 @@ func TestMeasuredRESTAnswersHoldThePremises(t *testing.T) {
 	if pull.Status != http.StatusNotFound || !strings.Contains(string(pull.Body), "Repository not found") {
 		t.Errorf("detailed as pull: %d %q, want 404 \"Repository not found\"", pull.Status, pull.Body)
 	}
+	// DEVDESK-578: the body is what tells this 404 from any other one.
+	if !isRepositoryNotFound(pull.Body) {
+		t.Errorf("isRepositoryNotFound(%q) = false, want true for the measured pull body", pull.Body)
+	}
 }
 
 func memberNamesOf(t *testing.T, body []byte) []string {
@@ -211,25 +213,19 @@ func TestDetectGroupOnMeasuredNexusAnswers(t *testing.T) {
 
 	// C1 (DEVDESK-511 plan, decided by the user): the pull account does not get
 	// the 403 that D161 (NX-07) assumed on the detailed endpoint, it gets 404
-	// "Repository not found" (rest-repositories-group-docker-group--pull). DevDesk
-	// types only 401 and 403 as a refusal, so today this is a FAILED discovery:
-	// the UI says the manager is unreachable, writes nothing to the group cache
-	// and asks again every time, and never says "denied".
-	//
-	// This test pins that CURRENT behavior on the real answer. It is not the
-	// wanted one: DEVDESK-578 (NX-07b, "a 404 on a group's detailed endpoint is a
-	// refusal") changes it, and flips this test with it.
-	t.Run("group as the pull account is a failed discovery today, DEVDESK-578", func(t *testing.T) {
+	// "Repository not found" (rest-repositories-group-docker-group--pull). That is
+	// Nexus hiding the endpoint from an account without nx-repository-admin, not a
+	// repository that is missing (the generic endpoint just said it is a group),
+	// so since DEVDESK-578 (NX-07b) it is a refusal like the 403: the UI can say
+	// "denied" instead of "unreachable". Only this 404 body qualifies; every other
+	// 404 stays a failed discovery (see TestNexusMembers404*).
+	t.Run("group as the pull account is refused, 404 Repository not found", func(t *testing.T) {
 		s := fakenexus.New(t, all...)
 		id := nexusfixture.Pull
 
 		members, err := (&NexusDetector{}).DetectGroup(context.Background(), restInfo(s, restGroup, id))
 
-		wantFailedDiscovery(t, members, err)
-		var se *oci.StatusError
-		if !errors.As(err, &se) || se.Code != http.StatusNotFound || se.Source != oci.SourceManagementAPI {
-			t.Errorf("err = %v, want errors.As *oci.StatusError{404, management API}", err)
-		}
+		wantRefused(t, members, err, http.StatusNotFound, false)
 		if strings.Contains(err.Error(), fakenexus.Password) {
 			t.Errorf("error leaks the password: %v", err)
 		}

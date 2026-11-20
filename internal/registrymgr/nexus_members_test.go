@@ -246,11 +246,10 @@ func TestNexusMembersConnectionCutIsNotARefusal(t *testing.T) {
 
 // CA3. Any status other than 401/403 is a failed discovery that keeps its code.
 //
-// The 404 case is not a made-up status: it is what the pull account of Nexus
-// 3.98.1-01 gets on the group's detailed endpoint (measured, see
-// TestDetectGroupOnMeasuredNexusAnswers). Treating it as a failed discovery is
-// today's behavior, pinned on purpose; DEVDESK-578 (NX-07b) makes a 404 there a
-// refusal, and then the 404 case of this test changes with it.
+// The 404 here has an empty body: that is not what a Nexus says to a pull account
+// (that one carries {"message":"\"Repository not found\""} and is a refusal since
+// DEVDESK-578, see TestNexusMembers404*). A bare 404 says nothing about the
+// account, so it stays a failure.
 func TestNexusMembersOtherStatusIsNotARefusal(t *testing.T) {
 	for _, code := range []int{http.StatusNotFound, http.StatusInternalServerError, http.StatusBadGateway, http.StatusServiceUnavailable} {
 		t.Run(fmt.Sprint(code), func(t *testing.T) {
@@ -334,5 +333,261 @@ func TestMembersRefusedErrorShape(t *testing.T) {
 	want := `reading the members of group "docker-group": management API returned 403`
 	if got := err.Error(); got != want {
 		t.Errorf("Error() = %q, want %q", got, want)
+	}
+}
+
+// DEVDESK-578 (NX-07b): on the detailed endpoint of a group the generic endpoint
+// already confirmed, a 404 whose body is Nexus's own {"message":"\"Repository not
+// found\""} is what an account without nx-repository-admin gets (measured for the
+// pull account of Nexus 3.98.1-01). It is a refusal. Any other 404 is not.
+
+// nexusNotFoundBody is the body measured on the pull account's 404 (compact).
+const nexusNotFoundBody = `{"id":"*","message":"\"Repository not found\""}`
+
+// nexusNotFound answers the way Nexus answers a pull account on the detailed endpoint.
+func nexusNotFound(w http.ResponseWriter, _ *http.Request) {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusNotFound)
+	_, _ = io.WriteString(w, nexusNotFoundBody)
+}
+
+// wantRefused404 adds to wantRefused what DEVDESK-578 promises about the text:
+// the group and the status, never the body Nexus sent.
+func wantRefused404(t *testing.T, members []GroupMember, err error, anonymous bool) {
+	t.Helper()
+	wantRefused(t, members, err, http.StatusNotFound, anonymous)
+	if err == nil {
+		return
+	}
+	const want = `reading the members of group "docker-group": management API returned 404`
+	if got := err.Error(); got != want {
+		t.Errorf("Error() = %q, want %q", got, want)
+	}
+	if strings.Contains(strings.ToLower(err.Error()), "repository not found") {
+		t.Errorf("error carries the body of the reply: %v", err)
+	}
+	// The cause is the bare status error: neither repositoryNotFoundError nor the
+	// body is reachable through it.
+	var refused *MembersRefusedError
+	if !errors.As(err, &refused) {
+		return
+	}
+	if _, ok := refused.Cause.(*oci.StatusError); !ok {
+		t.Errorf("Cause is %T, want exactly *oci.StatusError", refused.Cause)
+	}
+}
+
+// The account gets Nexus's 404 and so does the anonymous retry (D156): a refusal
+// of the account, two requests on the detailed endpoint.
+func TestNexus404MembersRefusedAccountThenNotFoundAnonymousRetry(t *testing.T) {
+	info, formatHits := membersServer(t, nexusNotFound)
+
+	members, err := (&NexusDetector{}).DetectGroup(context.Background(), info)
+
+	wantRefused404(t, members, err, false)
+	if got := formatHits.Load(); got != 2 {
+		t.Errorf("the format endpoint received %d requests, want 2 (account, then the anonymous retry of D156)", got)
+	}
+}
+
+// No credential: the same 404 is an anonymous refusal and there is nothing to drop.
+func TestNexus404MembersWithoutCredentialIsAnAnonymousRefusal(t *testing.T) {
+	info, formatHits := membersServer(t, nexusNotFound)
+	info.Username, info.Password = "", ""
+
+	members, err := (&NexusDetector{}).DetectGroup(context.Background(), info)
+
+	wantRefused404(t, members, err, true)
+	if got := formatHits.Load(); got != 1 {
+		t.Errorf("the format endpoint received %d requests, want exactly 1", got)
+	}
+}
+
+// The account gets Nexus's 404 but the anonymous retry is let in: D156 still
+// rescues the listing, and nothing is reported as refused.
+func TestNexus404MembersAnonymousRetrySucceeds(t *testing.T) {
+	info, formatHits := membersServer(t, func(w http.ResponseWriter, r *http.Request) {
+		if r.Header.Get("Authorization") != "" {
+			nexusNotFound(w, r)
+			return
+		}
+		_, _ = io.WriteString(w, `{"group":{"memberNames":["a-proxy"]}}`)
+	})
+
+	members, err := (&NexusDetector{}).DetectGroup(context.Background(), info)
+
+	if err != nil {
+		t.Fatalf("err = %v, want nil (the anonymous retry succeeded)", err)
+	}
+	if len(members) != 1 || members[0].RepoPrefix != "a-proxy" {
+		t.Errorf("members = %+v, want exactly a-proxy", members)
+	}
+	if got := formatHits.Load(); got != 2 {
+		t.Errorf("the format endpoint received %d requests, want 2", got)
+	}
+}
+
+// The account gets Nexus's 404, the anonymous retry a 500: the first attempt
+// decides, the refusal is still the verdict.
+func TestNexus404MembersWhoseAnonymousRetryFailsIsStillARefusal(t *testing.T) {
+	info, _ := membersServer(t, func(w http.ResponseWriter, r *http.Request) {
+		if r.Header.Get("Authorization") != "" {
+			nexusNotFound(w, r)
+			return
+		}
+		w.WriteHeader(http.StatusInternalServerError)
+	})
+
+	members, err := (&NexusDetector{}).DetectGroup(context.Background(), info)
+
+	wantRefused404(t, members, err, false)
+}
+
+// Only Nexus's own "Repository not found" JSON is requalified. Everything else
+// with a 404 stays a failed discovery that keeps its code.
+func TestNexus404MembersOtherNotFoundIsNotARefusal(t *testing.T) {
+	// A valid Nexus body followed by padding past the 4 KiB the reader keeps: the
+	// message cannot be trusted to be the whole reply.
+	padded := nexusNotFoundBody + strings.Repeat(" ", 5<<10)
+	for _, tc := range []struct{ name, body string }{
+		{"empty body", ""},
+		{"html page naming the text", "<html><body>Repository not found</body></html>"},
+		{"json not found", `{"message":"Not Found"}`},
+		{"json other message", `{"id":"*","message":"Repository not found in this context"}`},
+		{"invalid json", `{"id":"*","message":"\"Repository not found\"`},
+		{"valid body then padding over 4 KiB", padded},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			info, _ := membersServer(t, func(w http.ResponseWriter, _ *http.Request) {
+				w.WriteHeader(http.StatusNotFound)
+				_, _ = io.WriteString(w, tc.body)
+			})
+
+			members, err := (&NexusDetector{}).DetectGroup(context.Background(), info)
+
+			wantFailedDiscovery(t, members, err)
+			var se *oci.StatusError
+			if !errors.As(err, &se) || se.Code != http.StatusNotFound {
+				t.Errorf("err = %v, want errors.As *oci.StatusError with code 404", err)
+			}
+		})
+	}
+}
+
+// A 404 "Repository not found" on the GENERIC endpoint says the repository is not
+// there: a failed discovery, not a members refusal.
+func TestNexus404GenericEndpointIsNotAMembersRefusal(t *testing.T) {
+	info, _ := nexusServer(t, nexusNotFound)
+
+	members, err := (&NexusDetector{}).DetectGroup(context.Background(), info)
+
+	wantFailedDiscovery(t, members, err)
+	var se *oci.StatusError
+	if !errors.As(err, &se) || se.Code != http.StatusNotFound {
+		t.Errorf("err = %v, want errors.As *oci.StatusError with code 404", err)
+	}
+}
+
+// The deadline expires while the body of the 404 is being read (headers sent,
+// then silence): a context error, never a refusal.
+func TestNexus404MembersDeadlineWhileReadingTheBodyIsNotARefusal(t *testing.T) {
+	info, _ := membersServer(t, func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusNotFound)
+		_, _ = io.WriteString(w, `{"id":"*",`)
+		w.(http.Flusher).Flush()
+		blockUntilGone(t, r)
+	})
+	ctx, cancel := context.WithTimeout(context.Background(), 150*time.Millisecond)
+	defer cancel()
+
+	members, err := (&NexusDetector{}).DetectGroup(ctx, info)
+
+	wantContextError(t, err, context.DeadlineExceeded)
+	wantFailedDiscovery(t, members, err)
+}
+
+// The log of a 404 refusal says the status and keeps the admin advice, but never
+// the body Nexus sent nor the password.
+func TestNexus404MembersLogHoldsNeitherTheBodyNorThePassword(t *testing.T) {
+	logs := nexusLog(t)
+	info, _ := membersServer(t, nexusNotFound)
+
+	members, err := (&NexusDetector{}).DetectGroup(context.Background(), info)
+
+	wantRefused404(t, members, err, false)
+	out := logs.String()
+	if !strings.Contains(out, "members refused") || !strings.Contains(out, "404") {
+		t.Fatalf("the log does not record the refusal with its status (the test checks nothing): %s", out)
+	}
+	for _, leak := range []string{"Repository not found", `"id":"*"`, nexusTestPass} {
+		if strings.Contains(out, leak) {
+			t.Errorf("the log leaks %q: %s", leak, out)
+		}
+	}
+	if !strings.Contains(out, nexusAdminAdvice) {
+		t.Errorf("the log lost the admin advice for a 404 refusal: %s", out)
+	}
+}
+
+// isRepositoryNotFound reads only Nexus's message: quotes around it removed, case
+// ignored, anything else (including a non-JSON reply) is false.
+func TestIsRepositoryNotFound(t *testing.T) {
+	for _, tc := range []struct {
+		name string
+		body string
+		want bool
+	}{
+		{"measured body", nexusNotFoundBody, true},
+		{"pretty printed as recorded", "{\n  \"id\" : \"*\",\n  \"message\" : \"\\\"Repository not found\\\"\"\n}", true},
+		{"without inner quotes", `{"message":"Repository not found"}`, true},
+		{"message only, quoted", `{"message":"\"Repository not found\""}`, true},
+		{"lower case", `{"message":"\"repository not found\""}`, true},
+		{"upper case", `{"message":"REPOSITORY NOT FOUND"}`, true},
+		{"surrounding whitespace", " \n" + nexusNotFoundBody + "\n ", true},
+		{"nil body", "", false},
+		{"null", `null`, false},
+		{"empty object", `{}`, false},
+		{"empty array", `[]`, false},
+		{"message null", `{"message":null}`, false},
+		{"message number", `{"message":5}`, false},
+		{"message list", `{"message":["Repository not found"]}`, false},
+		{"message object", `{"message":{"text":"Repository not found"}}`, false},
+		{"other message", `{"message":"Not Found"}`, false},
+		{"message with a suffix", `{"message":"Repository not found: docker-group"}`, false},
+		{"other key", `{"error":"Repository not found"}`, false},
+		{"html", `<html>Repository not found</html>`, false},
+		{"truncated json", `{"message":"Repository not found"`, false},
+		{"plain text", `Repository not found`, false},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			if got := isRepositoryNotFound([]byte(tc.body)); got != tc.want {
+				t.Errorf("isRepositoryNotFound(%q) = %v, want %v", tc.body, got, tc.want)
+			}
+		})
+	}
+}
+
+// repositoryNotFoundError carries the status of the 404 and nothing of its body:
+// its text and its cause are the StatusError's, and refusedStatus reads it as a
+// 404 refusal, which a bare 404 StatusError is not.
+func TestRepositoryNotFoundErrorShape(t *testing.T) {
+	status := &oci.StatusError{Code: http.StatusNotFound, Source: oci.SourceManagementAPI}
+	err := error(&repositoryNotFoundError{status: status})
+
+	if got, want := err.Error(), status.Error(); got != want {
+		t.Errorf("Error() = %q, want the status error's %q", got, want)
+	}
+	var se *oci.StatusError
+	if !errors.As(err, &se) || se != status {
+		t.Errorf("errors.As *oci.StatusError = %v, want the status itself", se)
+	}
+	if code, ok := refusedStatus(err); !ok || code != http.StatusNotFound {
+		t.Errorf("refusedStatus(repositoryNotFoundError) = (%d, %v), want (404, true)", code, ok)
+	}
+	if code, ok := refusedStatus(fmt.Errorf("wrapped: %w", err)); !ok || code != http.StatusNotFound {
+		t.Errorf("refusedStatus(wrapped) = (%d, %v), want (404, true)", code, ok)
+	}
+	if code, ok := refusedStatus(status); ok {
+		t.Errorf("refusedStatus(bare 404 StatusError) = (%d, true), want false", code)
 	}
 }

@@ -222,10 +222,16 @@ imports nothing from `internal/`).
   error but a refused off-origin redirect (see `registries.md`); the first
   attempt decides the outcome, the retry only changes it by succeeding.
   `fetchGroupMembers` no longer swallows its errors (DEVDESK-510): a
-  `StatusError` from the management API with 401 or 403 becomes
+  `StatusError` from the management API with 401 or 403, or the 404 Nexus
+  answers a pull account (DEVDESK-578), becomes
   `*registrymgr.MembersRefusedError` (`errors.Is(err, ErrMembersRefused)`,
   `Group`, `Status`, `Anonymous`; its text holds the group and the status,
-  never a URL or a body), any other error is returned as it is. A reply
+  never a URL or a body; for the 404, `Cause` is the plain
+  `*oci.StatusError`), any other error is returned as it is. `nexusGET` reads
+  the body of a 404 only, up to 4 KiB (`maxNexusErrorBody`, a hypothesis: the
+  measured body is about 50 bytes), and only to check that its JSON `message`
+  is `Repository not found`; the body never reaches an error or a log. A 404
+  with any other body, or a longer one, stays a plain status error. A reply
   without a `group.memberNames` key (empty body, `null`, `{}`) is an error;
   `memberNames: []` is a group with no member, a non-nil empty list. The format
   segment of the path is escaped (`url.PathEscape`). A non-200

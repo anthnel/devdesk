@@ -517,9 +517,10 @@ func cacheGroupRefusal(slug string, r cache.RegistryGroupRefusal) {
 // Three outcomes, one write at most, one instant (msg.At) shared by the disk and
 // the model: a listing (even an empty one) is written and clears any refusal; a
 // refusal (*registrymgr.MembersRefusedError) is written beside the listing, which
-// it never touches; any other error (network, deadline, 404, 5xx, unreadable
-// reply) writes nothing, because not being able to ask says nothing about the
-// group.
+// it never touches (a 401 or 403, or the 404 Nexus answers with "Repository not
+// found"); any other error (network, deadline, a 404 other than Nexus's
+// Repository not found, 5xx, unreadable reply) writes nothing, because not
+// being able to ask says nothing about the group.
 func detectRegistryGroupCmd(reg config.RegistryItem, password string) tea.Cmd {
 	return func() tea.Msg {
 		ctx, cancel := context.WithTimeout(context.Background(), groupDetectTimeout)
