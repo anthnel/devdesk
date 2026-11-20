@@ -1,0 +1,15 @@
+{
+  "tool_use_id": "toolu_01TXZBS27TWfnM6N2HoKtven",
+  "agent_id": "affc8ae678c283ec4",
+  "subagent_type": "dev-team:devops",
+  "task_description": "Merge PR 429 et nettoyage",
+  "token_usage": {
+    "input_tokens": 16,
+    "cache_creation_tokens": 47906,
+    "cache_read_tokens": 299224,
+    "output_tokens": 2936,
+    "api_call_count": 8
+  },
+  "started_at": "2026-11-18T22:28:07.699542757+01:00",
+  "completed_at": "2026-11-18T22:28:52.605606033+01:00"
+}

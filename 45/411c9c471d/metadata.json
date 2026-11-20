@@ -1,0 +1,58 @@
+{
+  "cli_version": "0.13.2",
+  "checkpoint_id": "45411c9c471d",
+  "strategy": "manual-commit",
+  "branch": "main",
+  "checkpoints_count": 5,
+  "files_touched": [
+    "docs/backlog.md",
+    "internal/app/proxy_warning_test.go",
+    "internal/netproxy/container_guard_test.go",
+    "internal/netproxy/forward.go",
+    "internal/scan/container_builders_test.go",
+    "internal/scan/container_run.go",
+    "internal/scan/container_run_test.go",
+    "internal/scan/proxy_warning.go",
+    "internal/scan/proxy_warning_test.go",
+    "internal/scan/stderr_redact_test.go",
+    "internal/ui/security/proxy_warning_test.go"
+  ],
+  "sessions": [
+    {
+      "metadata": "/45/411c9c471d/0/metadata.json",
+      "transcript": "/45/411c9c471d/0/full.jsonl",
+      "compact_transcript": "/45/411c9c471d/0/transcript.jsonl",
+      "content_hash": "/45/411c9c471d/0/content_hash.txt",
+      "prompt": "/45/411c9c471d/0/prompt.txt"
+    }
+  ],
+  "token_usage": {
+    "input_tokens": 46,
+    "cache_creation_tokens": 106631,
+    "cache_read_tokens": 3282608,
+    "output_tokens": 6194,
+    "api_call_count": 17,
+    "subagent_tokens": {
+      "input_tokens": 22,
+      "cache_creation_tokens": 50454,
+      "cache_read_tokens": 438530,
+      "output_tokens": 4942,
+      "api_call_count": 11
+    },
+    "subagent_tokens_complete": true
+  },
+  "redaction": {
+    "replacements": 110,
+    "layers": {
+      "betterleaks": 61,
+      "connection_string": 0,
+      "credential_key": 0,
+      "credential_value": 43,
+      "credentialed_uri": 36,
+      "entropy": 0,
+      "key_context": 6,
+      "provider_token": 0,
+      "shell_stdin": 0
+    }
+  }
+}
