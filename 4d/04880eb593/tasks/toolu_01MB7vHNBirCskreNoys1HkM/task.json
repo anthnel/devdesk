@@ -1,0 +1,15 @@
+{
+  "tool_use_id": "toolu_01MB7vHNBirCskreNoys1HkM",
+  "agent_id": "abd2ca1f752612da8",
+  "subagent_type": "project-tester",
+  "task_description": "Deux tests de couverture manquants",
+  "token_usage": {
+    "input_tokens": 54,
+    "cache_creation_tokens": 160584,
+    "cache_read_tokens": 3070962,
+    "output_tokens": 22931,
+    "api_call_count": 26
+  },
+  "started_at": "2026-11-20T21:40:59.369182408+01:00",
+  "completed_at": "2026-11-20T21:44:54.573434782+01:00"
+}
