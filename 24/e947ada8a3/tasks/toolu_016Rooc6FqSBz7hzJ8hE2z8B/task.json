@@ -1,0 +1,15 @@
+{
+  "tool_use_id": "toolu_016Rooc6FqSBz7hzJ8hE2z8B",
+  "agent_id": "a4e8b42291ad82046",
+  "subagent_type": "product-team:pm",
+  "task_description": "Amender critère 2 DEVDESK-578",
+  "token_usage": {
+    "input_tokens": 8,
+    "cache_creation_tokens": 52118,
+    "cache_read_tokens": 124747,
+    "output_tokens": 2852,
+    "api_call_count": 4
+  },
+  "started_at": "2026-11-19T22:39:31.557207608+01:00",
+  "completed_at": "2026-11-19T22:39:51.512559842+01:00"
+}

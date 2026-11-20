@@ -1,0 +1,15 @@
+{
+  "tool_use_id": "toolu_014yqxkRB1oBJ4Buxdzzj1zN",
+  "agent_id": "a21e752fecb79f794",
+  "subagent_type": "project-tester",
+  "task_description": "Rouge étape 1 NX-12 oci",
+  "token_usage": {
+    "input_tokens": 22,
+    "cache_creation_tokens": 72165,
+    "cache_read_tokens": 595386,
+    "output_tokens": 17622,
+    "api_call_count": 11
+  },
+  "started_at": "2026-11-20T08:44:32.013501669+01:00",
+  "completed_at": "2026-11-20T08:46:23.39250181+01:00"
+}

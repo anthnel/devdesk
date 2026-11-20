@@ -1,0 +1,18 @@
+{
+  "tool_use_id": "toolu_01Y2bQiD7GSoFAHgKyhENeMi",
+  "agent_id": "a0bca78b607e42be1",
+  "subagent_type": "project-coder",
+  "task_description": "Vert aide + troncature suffixe groupe",
+  "files": [
+    "internal/ui/datatable/keep_suffix_test.go"
+  ],
+  "token_usage": {
+    "input_tokens": 38,
+    "cache_creation_tokens": 115865,
+    "cache_read_tokens": 1886925,
+    "output_tokens": 14258,
+    "api_call_count": 19
+  },
+  "started_at": "2026-11-20T09:20:30.751395409+01:00",
+  "completed_at": "2026-11-20T09:28:14.941169453+01:00"
+}

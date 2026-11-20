@@ -1,0 +1,15 @@
+{
+  "tool_use_id": "toolu_01QSRUGXatrnn8bJstzAxAqJ",
+  "agent_id": "acbebdfdb0f3cd089",
+  "subagent_type": "dev-team:security-reviewer",
+  "task_description": "Revue sécu étape 1 NX-12",
+  "token_usage": {
+    "input_tokens": 18,
+    "cache_creation_tokens": 73348,
+    "cache_read_tokens": 407484,
+    "output_tokens": 6751,
+    "api_call_count": 8
+  },
+  "started_at": "2026-11-20T08:47:37.848852101+01:00",
+  "completed_at": "2026-11-20T08:48:45.147517261+01:00"
+}

@@ -1,0 +1,15 @@
+{
+  "tool_use_id": "toolu_01NqEceD83GVohWePbY8bNT2",
+  "agent_id": "aac80945a656e4b0a",
+  "subagent_type": "project-coder",
+  "task_description": "Vert étape 1 NX-12 oci",
+  "token_usage": {
+    "input_tokens": 14,
+    "cache_creation_tokens": 42237,
+    "cache_read_tokens": 222834,
+    "output_tokens": 4750,
+    "api_call_count": 7
+  },
+  "started_at": "2026-11-20T08:46:30.462722491+01:00",
+  "completed_at": "2026-11-20T08:47:23.472779211+01:00"
+}

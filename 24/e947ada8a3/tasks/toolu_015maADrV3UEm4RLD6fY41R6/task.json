@@ -1,0 +1,15 @@
+{
+  "tool_use_id": "toolu_015maADrV3UEm4RLD6fY41R6",
+  "agent_id": "a71089fd7bfb72354",
+  "subagent_type": "dev-team:devops",
+  "task_description": "Merger PR 433 et nettoyer",
+  "token_usage": {
+    "input_tokens": 14,
+    "cache_creation_tokens": 47864,
+    "cache_read_tokens": 254715,
+    "output_tokens": 2173,
+    "api_call_count": 7
+  },
+  "started_at": "2026-11-20T08:32:07.291523182+01:00",
+  "completed_at": "2026-11-20T08:32:41.633920421+01:00"
+}

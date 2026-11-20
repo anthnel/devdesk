@@ -1,0 +1,15 @@
+{
+  "tool_use_id": "toolu_013fXk5M5BtqssxAsfPa7z7n",
+  "agent_id": "a7def0318d99dc200",
+  "subagent_type": "dev-team:reviewer",
+  "task_description": "Revue étape 1 NX-12",
+  "token_usage": {
+    "input_tokens": 16,
+    "cache_creation_tokens": 81064,
+    "cache_read_tokens": 378996,
+    "output_tokens": 5183,
+    "api_call_count": 7
+  },
+  "started_at": "2026-11-20T08:47:37.855859978+01:00",
+  "completed_at": "2026-11-20T08:48:21.985076056+01:00"
+}

@@ -1,0 +1,18 @@
+{
+  "tool_use_id": "toolu_018YYnEij2Z2yoGeZg5buzU8",
+  "agent_id": "a55b5f4fdd95e08bc",
+  "subagent_type": "team-core:archivist",
+  "task_description": "Entrée journal NX-12",
+  "files": [
+    "docs/journal.md"
+  ],
+  "token_usage": {
+    "input_tokens": 12,
+    "cache_creation_tokens": 55186,
+    "cache_read_tokens": 213234,
+    "output_tokens": 3317,
+    "api_call_count": 5
+  },
+  "started_at": "2026-11-20T09:30:13.550298238+01:00",
+  "completed_at": "2026-11-20T09:30:29.251367324+01:00"
+}

@@ -1,0 +1,18 @@
+{
+  "tool_use_id": "toolu_01BJSgtin34isegQbUdtbrrb",
+  "agent_id": "a4ef67f9ae1202275",
+  "subagent_type": "project-tester",
+  "task_description": "Rouge aide + troncature libellé groupe",
+  "files": [
+    "internal/ui/oci_resources/browser_group_unit_label_test.go"
+  ],
+  "token_usage": {
+    "input_tokens": 50,
+    "cache_creation_tokens": 157274,
+    "cache_read_tokens": 1994584,
+    "output_tokens": 21984,
+    "api_call_count": 24
+  },
+  "started_at": "2026-11-20T09:16:52.730080805+01:00",
+  "completed_at": "2026-11-20T09:20:20.08190583+01:00"
+}

@@ -1,0 +1,81 @@
+{
+  "cli_version": "0.13.2",
+  "checkpoint_id": "24e947ada8a3",
+  "strategy": "manual-commit",
+  "branch": "feat/devdesk-579-nexus-member-catalog-by-path",
+  "checkpoints_count": 37,
+  "files_touched": [
+    "docs-site/docs/explanation/registries.md",
+    "docs/architecture/network.md",
+    "docs/architecture/nexus-bench.md",
+    "docs/architecture/registries.md",
+    "docs/architecture/ui-components.md",
+    "docs/backlog.md",
+    "docs/journal.md",
+    "docs/measurements/2026-11-17-nexus-catalog.md",
+    "internal/imagesearch/catalog.go",
+    "internal/imagesearch/catalog_fixture_test.go",
+    "internal/imagesearch/catalog_test.go",
+    "internal/imagesearch/imagesearch.go",
+    "internal/imagesearch/walks.go",
+    "internal/imagesearch/walks_review_test.go",
+    "internal/imagesearch/walks_test.go",
+    "internal/nexusbench/record.go",
+    "internal/nexusbench/record_catalog_path_test.go",
+    "internal/nexusfixture/fakenexus/server.go",
+    "internal/nexusfixture/fakenexus/server_test.go",
+    "internal/nexusfixture/load_test.go",
+    "internal/oci/catalog.go",
+    "internal/oci/catalog_under_test.go",
+    "internal/ui/datatable/datatable.go",
+    "internal/ui/datatable/keep_suffix_test.go",
+    "internal/ui/datatable/render.go",
+    "internal/ui/oci_resources/browser_catalog_share_test.go",
+    "internal/ui/oci_resources/browser_flow.go",
+    "internal/ui/oci_resources/browser_group_connector_test.go",
+    "internal/ui/oci_resources/browser_group_unit_label_test.go",
+    "internal/ui/oci_resources/browser_images.go",
+    "internal/ui/oci_resources/browser_nexus_member_path_test.go",
+    "internal/ui/oci_resources/browser_tags.go",
+    "internal/ui/oci_resources/registry_browser.go",
+    "internal/ui/oci_resources/view.go"
+  ],
+  "sessions": [
+    {
+      "metadata": "/24/e947ada8a3/0/metadata.json",
+      "transcript": "/24/e947ada8a3/0/full.jsonl",
+      "compact_transcript": "/24/e947ada8a3/0/transcript.jsonl",
+      "content_hash": "/24/e947ada8a3/0/content_hash.txt",
+      "prompt": "/24/e947ada8a3/0/prompt.txt"
+    }
+  ],
+  "token_usage": {
+    "input_tokens": 244,
+    "cache_creation_tokens": 371986,
+    "cache_read_tokens": 21711196,
+    "output_tokens": 60905,
+    "api_call_count": 86,
+    "subagent_tokens": {
+      "input_tokens": 812,
+      "cache_creation_tokens": 2915507,
+      "cache_read_tokens": 32360636,
+      "output_tokens": 388825,
+      "api_call_count": 388
+    },
+    "subagent_tokens_complete": true
+  },
+  "redaction": {
+    "replacements": 29,
+    "layers": {
+      "betterleaks": 0,
+      "connection_string": 0,
+      "credential_key": 0,
+      "credential_value": 0,
+      "credentialed_uri": 0,
+      "entropy": 22,
+      "key_context": 7,
+      "provider_token": 0,
+      "shell_stdin": 0
+    }
+  }
+}

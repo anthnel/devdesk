@@ -1,0 +1,18 @@
+{
+  "tool_use_id": "toolu_01CV2XtSuZuYmHetraa3jz6u",
+  "agent_id": "a8011931c989746db",
+  "subagent_type": "project-coder",
+  "task_description": "Vert étape 5 NX-12 UI",
+  "files": [
+    "internal/ui/oci_resources/registry_browser.go"
+  ],
+  "token_usage": {
+    "input_tokens": 22,
+    "cache_creation_tokens": 107197,
+    "cache_read_tokens": 765315,
+    "output_tokens": 5243,
+    "api_call_count": 10
+  },
+  "started_at": "2026-11-20T09:02:00.606859151+01:00",
+  "completed_at": "2026-11-20T09:05:06.08886135+01:00"
+}
