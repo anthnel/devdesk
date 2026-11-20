@@ -1,10 +1,8 @@
 package nexusbench
 
 import (
-	"bytes"
 	"context"
 	"encoding/base64"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"io/fs"
@@ -27,8 +25,9 @@ import (
 // of each recorded fixture against the bench and writes the redacted answer back
 // to the same file. It sends the bench credentials, so everything that could go
 // wrong is refused before the first fixture request, and nothing is written
-// unless every answer passed: GET only, a closed list of paths, loopback origins
-// only, no redirection, a leak check of what will be written.
+// unless every answer passed: GET and the HEAD of a manifest only, a closed list
+// of paths, loopback origins only, a redirection or a Bearer challenge followed
+// only inside a declared flow (record_flow.go), a leak check of what will be written.
 
 const (
 	// recordedBy is the value of the "recorded-by" header the recorder sets.
@@ -39,6 +38,37 @@ const (
 	// recordedDateLayout is the date of the "measured" header.
 	recordedDateLayout = "2006-01-02"
 )
+
+// BenchState is the state of the bench a run records against: the fixtures whose
+// "state" header names another state are skipped (DEVDESK-580, PR2).
+type BenchState string
+
+// The states a run can declare.
+const (
+	// StateNominal is the bench as seeded: the upstream is up, the proxy is in
+	// service. A run in this state takes the fixtures with no "state" header, or one
+	// that starts with "nominal".
+	StateNominal BenchState = ""
+	// StateUpstreamCut is the bench after cut-upstream: the upstream has no replica.
+	// A run in this state takes the fixtures whose "state" header starts with it.
+	StateUpstreamCut BenchState = "upstream-cut"
+	// StateAny is a run that declares no state: every fixture is recorded whatever
+	// its "state" header says, as before the states existed. It is what the command
+	// passes when --state is not given, so that nothing changes for a run that never
+	// asked for a state; it is not a state of the bench.
+	StateAny BenchState = "any"
+)
+
+// defaultRecordTimeout bounds one request of the recorder when RecordOptions.RequestTimeout is 0.
+const defaultRecordTimeout = 15 * time.Second
+
+// recordRequestTimeout is the timeout of one request of a run: the option, or the default.
+func recordRequestTimeout(o RecordOptions) time.Duration {
+	if o.RequestTimeout > 0 {
+		return o.RequestTimeout
+	}
+	return defaultRecordTimeout
+}
 
 // RecordOptions says what to record and against which bench.
 type RecordOptions struct {
@@ -60,12 +90,29 @@ type RecordOptions struct {
 	Now func() time.Time
 	// DenyTerms are extra terms no written fixture may hold (the external deny list).
 	DenyTerms []string
+	// State is the state the bench is in: only the fixtures whose "state" header
+	// starts with it are recorded, the others are reported skipped. The zero value is
+	// StateNominal, which takes the fixtures with no "state" header; StateAny turns
+	// the filter off. The library only filters: it is the command that reads the
+	// cluster to check that the bench is in the state the run declares.
+	State BenchState
+	// AllowCacheEffects lets a fixture that says "effect: caches" be sent: such a
+	// request can leave an image in the proxy, and the bench has then to be reset.
+	AllowCacheEffects bool
+	// RequestTimeout bounds one request of the run, connection included; 0 means
+	// defaultRecordTimeout (15 s).
+	RequestTimeout time.Duration
 }
 
 // RecordReport lists the fixtures of a run as "<campaign>/<name>". A Skipped
 // entry is followed by ": <reason>".
 type RecordReport struct {
 	Written, Unchanged, Skipped []string
+	// CacheEffects are the fixtures of the run that were sent with "effect: caches":
+	// the bench can hold a cached image because of them, and needs a reset. It is
+	// also filled when the run fails after sending one, the only part of the report
+	// an error leaves.
+	CacheEffects []string
 }
 
 // recordJob is one fixture to replay.
@@ -76,8 +123,13 @@ type recordJob struct {
 	current  nexusfixture.Fixture
 	user     string // "" for an anonymous fixture
 	password string
-	origin   string
 }
+
+// recordBadPassword is the public wrong password of the badcred identity. It is the
+// recorder's own constant, equal to fakenexus.BadPassword, which the replay server
+// recognizes: fakenexus imports testing, so the recorder cannot import it. It is no
+// secret of the bench.
+const recordBadPassword = "fixture-wrong-password"
 
 // recordWrite is a fixture file to replace, held back until every answer passed.
 type recordWrite struct {
@@ -87,11 +139,12 @@ type recordWrite struct {
 }
 
 // RecordFixtures regenerates the recorded fixtures from the bench. A fixture is
-// skipped (reported, never requested) when it says "record: skip" or holds more
-// than one exchange. A fixture whose answer is the one it already holds, apart
-// from its date, is left alone, bytes and modification time. Every error is a
-// *BenchError, free of secrets; on an error nothing is written and the report is
-// empty.
+// skipped (reported, never requested) when it says "record: skip", when it is of
+// another state than the run (RecordOptions.State) or when it holds more than one
+// exchange and names no flow. A fixture whose answers are the ones it already
+// holds, apart from its date, is left alone, bytes and modification time. Every
+// error is a *BenchError, free of secrets; on an error nothing is written and the
+// report is empty, apart from RecordReport.CacheEffects.
 func RecordFixtures(ctx context.Context, o RecordOptions) (RecordReport, error) {
 	if err := ctx.Err(); err != nil {
 		return RecordReport{}, recordError("the recording was cancelled before it started", "run it again", err)
@@ -105,14 +158,14 @@ func RecordFixtures(ctx context.Context, o RecordOptions) (RecordReport, error) 
 			return RecordReport{}, err
 		}
 	}
-	writes, unchanged, err := gatherAnswers(ctx, o, jobs)
+	writes, unchanged, sent, err := gatherAnswers(ctx, o, jobs)
 	if err != nil {
-		return RecordReport{}, err
+		return RecordReport{CacheEffects: sent}, err
 	}
-	report.Unchanged = unchanged
+	report.Unchanged, report.CacheEffects = unchanged, sent
 	for i, w := range writes {
 		if err := writeFileAtomic(w.path, w.data, recordedFileMode, recordedDirMode); err != nil {
-			return RecordReport{}, recordError(
+			return RecordReport{CacheEffects: sent}, recordError(
 				fmt.Sprintf("%s could not be written (%d fixture(s) of this run were already written)", w.name, i),
 				"check the permissions of the fixtures folder, then record again", err)
 		}
@@ -135,6 +188,9 @@ func recordError(cause, check string, err error) *BenchError {
 // planRecording reads the fixtures and refuses anything that must not be sent.
 func planRecording(o RecordOptions) ([]recordJob, RecordReport, error) {
 	var report RecordReport
+	if err := checkRunOptions(o); err != nil {
+		return nil, report, err
+	}
 	if err := checkOrigins(o); err != nil {
 		return nil, report, err
 	}
@@ -254,33 +310,98 @@ func planFixture(o RecordOptions, fsys fs.FS, filePath, campaign, fileName strin
 	if reason, ok := strings.CutPrefix(f.Meta.Record, "skip"); ok {
 		return recordJob{}, strings.TrimSpace(strings.TrimPrefix(reason, ":")), nil
 	}
-	if len(f.Exchanges) != 1 {
-		return recordJob{}, fmt.Sprintf("holds %d exchanges, only one is recorded yet", len(f.Exchanges)), nil
+	if reason := stateSkip(o.State, f.Meta.State); reason != "" {
+		return recordJob{}, reason, nil
+	}
+	if len(f.Exchanges) != 1 && f.Meta.Flow == "" {
+		return recordJob{}, fmt.Sprintf("holds %d exchanges and names no flow, so only a fixture of one exchange is recorded", len(f.Exchanges)), nil
 	}
 	// The file is scanned as it stands: a request header outside Host, the
-	// credentials and Accept, or a query other than n and last, refuses it.
+	// credentials and Accept, or a query other than n and last (and, on a token
+	// path, service and scope), refuses it.
 	if leaks := nexusfixture.CheckLeaks(label, data, recordTerms(o)); len(leaks) > 0 {
 		return recordJob{}, "", recordError(label+" is refused before it is sent: "+describeLeaks(leaks), "fix the file", nil)
 	}
+	// Only the first exchange is sent: the others are what a flow adds to it.
 	ex := f.Exchanges[0]
-	if reason := refusedRequest(ex.Method, ex.Target); reason != "" {
-		return recordJob{}, "", recordError(label+" asks for something the recorder does not send ("+reason+")", "record only GET requests of the closed list of paths", nil)
+	restHost, _ := restOriginKey(o.Descriptor)
+	if reason, check := refusedFixtureRequest(ex, f.Meta, restHost, o.AllowCacheEffects); reason != "" {
+		return recordJob{}, "", recordError(label+" asks for something the recorder does not send ("+reason+")", check, nil)
 	}
-	origin, ok := o.Origins[ex.Host]
-	if !ok {
+	if _, ok := o.Origins[ex.Host]; !ok {
 		return recordJob{}, "", recordError(label+" is recorded on "+ex.Host+", which has no origin", "give the origin of this host:port", nil)
 	}
-	job := recordJob{campaign: campaign, name: label, path: filePath, current: f, origin: origin}
+	job := recordJob{campaign: campaign, name: label, path: filePath, current: f}
 	switch f.Identity {
 	case nexusfixture.Admin:
 		job.user, job.password = adminUserID, o.Secrets.AdminPassword
 	case nexusfixture.Pull:
 		job.user, job.password = pullUserID, o.Secrets.PullPassword
+	case nexusfixture.BadCredentials:
+		job.user, job.password = adminUserID, recordBadPassword
 	}
 	if job.user != "" && job.password == "" {
 		return recordJob{}, "", recordError("the bench has no stored password for "+job.user+", the account of "+label, upCheck, nil)
 	}
 	return job, "", nil
+}
+
+// checkRunOptions refuses a state the recorder does not know and a negative
+// timeout, before anything is read or sent.
+func checkRunOptions(o RecordOptions) error {
+	switch o.State {
+	case StateNominal, StateUpstreamCut, StateAny:
+	default:
+		return recordError(fmt.Sprintf("the state %q is not one the recorder knows", string(o.State)), "declare nominal or upstream-cut, or no state", nil)
+	}
+	if o.RequestTimeout < 0 {
+		return recordError("the request timeout is negative", "give a duration of at least one second, or none for 15s", nil)
+	}
+	return nil
+}
+
+// stateSkip returns why a fixture is not recorded in the state of the run, or "".
+// declared is the "state" header of the fixture: empty means nominal, and the
+// state it names must start the header (free text may follow, "upstream-cut (the
+// proxy is blocked)"). A run of StateAny takes everything.
+func stateSkip(run BenchState, declared string) string {
+	if run == StateAny {
+		return ""
+	}
+	have := fixtureState(declared)
+	want := string(run)
+	if run == StateNominal {
+		want = nominalState
+	}
+	if have == want {
+		return ""
+	}
+	if declared == "" {
+		return fmt.Sprintf("the fixture declares no state (nominal), the run is in state %q", want)
+	}
+	return fmt.Sprintf("the fixture declares state %q, the run is in state %q", declared, want)
+}
+
+// nominalState names StateNominal in a "state" header and in a message.
+const nominalState = "nominal"
+
+// fixtureState is the state a "state" header names: "nominal" for none, the
+// known state it starts with, or the header itself when it names none.
+func fixtureState(declared string) string {
+	if declared == "" {
+		return nominalState
+	}
+	for _, state := range []string{nominalState, string(StateUpstreamCut)} {
+		if rest, ok := strings.CutPrefix(declared, state); ok && (rest == "" || !isStateChar(rest[0])) {
+			return state
+		}
+	}
+	return declared
+}
+
+// isStateChar reports whether c can continue the name of a state.
+func isStateChar(c byte) bool {
+	return c == '-' || c >= 'a' && c <= 'z' || c >= 'A' && c <= 'Z' || c >= '0' && c <= '9'
 }
 
 // checkOrigins refuses an origin that is not a loopback URL, a key that is not a
@@ -351,9 +472,11 @@ func restOriginKey(d Descriptor) (string, bool) {
 	return net.JoinHostPort(strings.Trim(d.Hosts[0], "[]"), strconv.Itoa(d.REST.NodePort)), true
 }
 
-// The closed list of what the recorder may ask for. A manifest or a blob read
-// through a proxy repository would cache an image and change the bench, so none
-// is allowed, whatever the path says.
+// The closed list of what the recorder may ask for with a GET. A manifest or a blob
+// read through a proxy repository would cache an image and change the bench, so
+// none is allowed, whatever the path says; the exceptions (the HEAD of a manifest,
+// the blob of docker-hosted in a redirects flow) are record_request.go's, and the
+// token paths are a Bearer flow's alone (record_flow.go).
 var (
 	recordPaths = []*regexp.Regexp{
 		regexp.MustCompile(`^/v2/(_catalog|[a-z0-9._/-]+/tags/list)?$`),
@@ -467,100 +590,6 @@ func CompareDataset(want []DescriptorImage, listed []ListedImage) (diffs int, ok
 		}
 	}
 	return diffs + len(have), true
-}
-
-// ---- gathering the answers ------------------------------------------------------
-
-// gatherAnswers asks every job and returns the files to write and the fixtures
-// that did not change. The first problem ends the run: nothing is written yet.
-func gatherAnswers(ctx context.Context, o RecordOptions, jobs []recordJob) (writes []recordWrite, unchanged []string, err error) {
-	clients := map[string]*client{}
-	defer func() {
-		for _, c := range clients {
-			c.closeIdle()
-		}
-	}()
-	now := time.Now
-	if o.Now != nil {
-		now = o.Now
-	}
-	date := now().Format(recordedDateLayout)
-	for _, j := range jobs {
-		key := j.origin + "\x00" + j.user
-		c, ok := clients[key]
-		if !ok {
-			c = newClient(j.origin, j.user, j.password)
-			clients[key] = c
-		}
-		data, same, err := j.record(ctx, o, c, date)
-		switch {
-		case err != nil:
-			return nil, nil, err
-		case same:
-			unchanged = append(unchanged, j.name)
-		default:
-			writes = append(writes, recordWrite{name: j.name, path: j.path, data: data})
-		}
-	}
-	return writes, unchanged, nil
-}
-
-// record asks the bench for the answer of the job and returns the bytes of the
-// fixture it would write; same is true when the file already holds that answer.
-func (j recordJob) record(ctx context.Context, o RecordOptions, c *client, date string) (data []byte, same bool, err error) {
-	ex := j.current.Exchanges[0]
-	status, header, body, err := c.exchange(ctx, ex.Method, ex.Target, ex.RequestHeader)
-	if err != nil {
-		return nil, false, recordError("the answer to "+j.name+" could not be read", "check that the bench answers on its loopback ports", err)
-	}
-	if !benchVersionMatches(header.Get("Server"), o.Descriptor) {
-		return nil, false, recordError("the answer to "+j.name+" does not come from the Nexus version and edition the descriptor names", upCheck, nil)
-	}
-	if declaresJSON(header.Get("Content-Type")) && len(body) > 0 && !json.Valid(body) {
-		return nil, false, recordError("the answer to "+j.name+" is declared JSON and is not", "do not record this answer: a secret could hide from the redaction in it", nil)
-	}
-	answer := nexusfixture.Redact(nexusfixture.RawExchange{
-		Method: ex.Method, Target: ex.Target, Host: ex.Host, RequestHeader: ex.RequestHeader,
-		Status: status, Header: header, Body: body,
-	})
-	if answer.Stub == "" && answer.Header.Get("Content-Length") != "" {
-		// A redacted body is not as long as the one Nexus sent.
-		answer.Header.Set("Content-Length", strconv.Itoa(len(answer.Body)))
-	}
-	f := j.current
-	f.Meta.NexusVersion, f.Meta.Edition, f.Meta.NexusNote = o.Descriptor.NexusVersion, o.Descriptor.Edition, ""
-	f.Meta.Measured, f.Meta.RecordedBy = date, recordedBy
-	if f.Meta.Record == nexusfixture.RecordPending {
-		f.Meta.Record = ""
-	}
-	f.Exchanges = []nexusfixture.Exchange{answer}
-	data = nexusfixture.Format(f)
-
-	// What will be written is read back and checked, not what was built.
-	back, err := nexusfixture.Parse(j.campaign, filepath.Base(j.path), data)
-	if err != nil || !bytes.Equal(nexusfixture.Format(back), data) {
-		return nil, false, recordError("the answer to "+j.name+" does not read back as a fixture", "do not record this answer", err)
-	}
-	if leaks := nexusfixture.CheckLeaks(j.name, data, recordTerms(o)); len(leaks) > 0 {
-		return nil, false, recordError("the answer to "+j.name+" would leak: "+describeLeaks(leaks), "nothing was written; fix the bench or the redaction", nil)
-	}
-	if holdsTerm(header, body, recordTerms(o)) {
-		return nil, false, recordError("the answer to "+j.name+" holds a bench password or a denied term where the file would not show it", "nothing was written; do not record this answer", nil)
-	}
-	return data, sameAnswer(j.current, f), nil
-}
-
-// sameAnswer reports whether the file already holds the answer: the same
-// exchange under the same version and edition. The date, the notes and who
-// recorded it do not count.
-func sameAnswer(current, recorded nexusfixture.Fixture) bool {
-	if current.Meta.NexusVersion != recorded.Meta.NexusVersion || current.Meta.Edition != recorded.Meta.Edition {
-		return false
-	}
-	text := func(ex nexusfixture.Exchange) []byte {
-		return nexusfixture.Format(nexusfixture.Fixture{Exchanges: []nexusfixture.Exchange{ex}})
-	}
-	return bytes.Equal(text(current.Exchanges[0]), text(recorded.Exchanges[0]))
 }
 
 var serverHeader = regexp.MustCompile(`^Nexus/(\S+) \(([A-Za-z]+)\)$`)

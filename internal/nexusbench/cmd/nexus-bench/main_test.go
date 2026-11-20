@@ -352,6 +352,8 @@ func opName(op nexusbench.Op) string {
 		return "OpRestore"
 	case nexusbench.OpReset:
 		return "OpReset"
+	case nexusbench.OpRecord:
+		return "OpRecord"
 	}
 	return fmt.Sprintf("Op(%d)", int(op))
 }

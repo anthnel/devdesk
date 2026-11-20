@@ -21,8 +21,10 @@ type Leak struct {
 // AllowedHosts are the only hosts a fixture may name, in a URL or a Host
 // header: the loopback address the bench is published on and the bench's own
 // proxy upstream (the one internal/nexusbench/testdata/descriptor.example.json
-// names). The bench's LAN addresses are not allowed.
-var AllowedHosts = []string{"127.0.0.1", "bench-upstream.nexus-bench.svc.cluster.local"}
+// names). The bench's LAN addresses are not allowed. realm-probe.invalid
+// (DEVDESK-580) is the reserved name the recorder sends in X-Forwarded-Host to see
+// whether a Bearer realm follows it; .invalid never resolves, so it names no host.
+var AllowedHosts = []string{"127.0.0.1", "bench-upstream.nexus-bench.svc.cluster.local", "realm-probe.invalid"}
 
 // The rules, by the name a Leak carries.
 const (
@@ -59,6 +61,8 @@ var (
 	ipv6Local = regexp.MustCompile(`(?i)(?:^|[^0-9a-f])(?:f[cd][0-9a-f]{2}|fe[89ab][0-9a-f]):`)
 	// bareHost is a host name in an internal zone; the group is the name.
 	bareHost = regexp.MustCompile(`(?i)([a-z0-9_-]+(?:\.[a-z0-9_-]+)*\.(?:home\.arpa|lan|internal|local))(?:$|[^a-z0-9_-])`)
+	// percentEscape is a URL escape, a separator for bareHost.
+	percentEscape = regexp.MustCompile(`%[0-9A-Fa-f]{2}`)
 	// localPath is a user's home directory anchored at the start of a value (after
 	// a quote, a blank or "="): "/home/" inside an image path is legitimate.
 	// winProfile is a Windows profile path, raw or JSON-escaped.
@@ -70,8 +74,16 @@ var (
 	sessionHeaders = []string{"cookie", "set-cookie", "x-nexus-ui"}
 	// internalNames are matched ignoring case.
 	internalNames = []string{"datomir", "secrets.json", "xdg_state_home"}
-	// queryParams are the only parameters a request URL may carry (the paging of _catalog).
-	queryParams = []string{"n", "last"}
+	// queryParams are the parameters a request URL may carry (the paging of _catalog);
+	// tokenQueryParams are the only ones added on a token path ("account" is never
+	// admitted: it names the user).
+	queryParams      = []string{"n", "last"}
+	tokenQueryParams = []string{"service", "scope"}
+	// tokenPath is the path of a Bearer token request, on the connector or under a repository.
+	tokenPath = regexp.MustCompile(`^(?:/repository/[A-Za-z0-9._-]+)?/v2/token$`)
+	// probeHeaders are the request headers of the realm probe, besides Host,
+	// Authorization and Accept; their value goes through probeValueAllowed.
+	probeHeaders = []string{"X-Forwarded-Host", "X-Forwarded-Proto"}
 	// jsonEscaper writes a term as it sits inside a JSON string.
 	jsonEscaper = strings.NewReplacer(`\`, `\\`, `"`, `\"`, `/`, `\/`)
 )
@@ -91,9 +103,12 @@ const (
 
 // CheckLeaks scans one fixture, line by line (lines count from 1), for what a
 // fixture must not hold: an Authorization other than the placeholders, a cookie
-// or session header, a request header outside Host, Authorization and Accept, a
+// or session header, a request header outside Host, Authorization, Accept and the
+// two probe headers (X-Forwarded-Host, X-Forwarded-Proto) with an allowed value, a
 // response header outside ResponseHeaderAllowlist, a line of a header section
-// that is not "Name: value", a request query parameter other than n and last, a
+// that is not "Name: value", a request query parameter other than n and last (and,
+// on a token path only, service, whose value goes through the host rules, and
+// scope), a
 // JWT-like value or another well-known secret format, a JSON secret key whose
 // value is not "<redacted>" (or null), a host outside AllowedHosts, a private,
 // link-local, CGNAT or unique-local address, an internal name or local path, and
@@ -193,11 +208,38 @@ func (c *leakScan) scanRequestLine(n int, line string) {
 	if len(fields) < 2 {
 		return
 	}
-	_, query, _ := strings.Cut(fields[1], "?")
+	path, query, _ := strings.Cut(fields[1], "?")
+	onToken := IsTokenPath(path)
 	for param := range strings.SplitSeq(query, "&") {
-		if name, _, _ := strings.Cut(param, "="); param != "" && !contains(queryParams, name) {
+		name, value, _ := strings.Cut(param, "=")
+		switch {
+		case param == "" || contains(queryParams, name):
+		case onToken && contains(tokenQueryParams, name):
+			if name == "service" {
+				c.scanService(n, value)
+			}
+		default:
 			c.add(n, ruleQuery)
 		}
+	}
+}
+
+// IsTokenPath reports whether a request path (no query) is that of a Bearer token
+// request: "/v2/token", or the same under "/repository/<name>".
+func IsTokenPath(path string) bool { return tokenPath.MatchString(path) }
+
+// scanService applies the host rules to the value of a token request's service
+// parameter, once URL-decoded: a URL (its authority), or a bare host and port.
+func (c *leakScan) scanService(n int, value string) {
+	decoded, err := url.QueryUnescape(value)
+	if err != nil {
+		decoded = value
+	}
+	if !urlAuth.MatchString(decoded) && !allowedAuthority(decoded) {
+		c.add(n, ruleHost)
+	}
+	if decoded != value {
+		c.scanText(n, decoded)
 	}
 }
 
@@ -227,6 +269,19 @@ func (c *leakScan) scanHeader(n int, line string, state lineState) {
 	if state == stReqHeaders && lower == "host" && !allowedHost(value) {
 		c.add(n, ruleHost)
 	}
+	if state == stReqHeaders && allowedHeader(probeHeaders, name) && !probeValueAllowed(lower, value) {
+		c.add(n, ruleHost)
+	}
+}
+
+// probeValueAllowed reports whether a probe header (lower-cased name) may carry
+// the value: a host of AllowedHosts for X-Forwarded-Host, and exactly http or
+// https for X-Forwarded-Proto, the scheme a real probe sends (never a host).
+func probeValueAllowed(lowerName, value string) bool {
+	if lowerName == "x-forwarded-proto" {
+		return value == "http" || value == "https"
+	}
+	return allowedHost(value)
 }
 
 func allowedResponseHeader(name string) bool {
@@ -235,7 +290,8 @@ func allowedResponseHeader(name string) bool {
 
 // allowedRequestHeader admits Host, Authorization and what Redact keeps of a request.
 func allowedRequestHeader(name string) bool {
-	return allowedHeader([]string{"Host", "Authorization"}, name) || allowedHeader(requestHeaderAllowlist, name)
+	return allowedHeader([]string{"Host", "Authorization"}, name) ||
+		allowedHeader(requestHeaderAllowlist, name) || allowedHeader(probeHeaders, name)
 }
 
 func allowedHeader(allowlist []string, name string) bool {
@@ -291,6 +347,12 @@ func (c *leakScan) scanAddresses(n int, line string) {
 	}
 }
 
+// isLocalAddress reports whether s is a private, link-local or CGNAT address.
+func isLocalAddress(s string) bool {
+	addr, err := netip.ParseAddr(s)
+	return err == nil && (addr.IsPrivate() || addr.IsLinkLocalUnicast() || cgnat.Contains(addr))
+}
+
 // scanInternal reports internal names, bare internal host names and local paths.
 func (c *leakScan) scanInternal(n int, line, lower string) {
 	for _, name := range internalNames {
@@ -299,9 +361,20 @@ func (c *leakScan) scanInternal(n int, line, lower string) {
 		}
 	}
 	if strings.Contains(line, ".") {
-		for _, m := range bareHost.FindAllStringSubmatch(line, -1) {
-			if !contains(AllowedHosts, strings.ToLower(m[1])) {
-				c.add(n, ruleInternalName)
+		// A URL-encoded separator ("%2F") would otherwise join the name before it
+		// ("2Fbench-upstream..."), and decoding can make a match disappear
+		// ("nexus.home.arpa%2Dmirror" becomes one longer name, "x.lan%41" too). So the
+		// line is scanned decoded and with each escape turned into a separator, and
+		// any match of either is a leak.
+		texts := []string{percentEscape.ReplaceAllString(line, " ")}
+		if decoded, err := url.PathUnescape(line); err == nil && decoded != line {
+			texts = append(texts, decoded)
+		}
+		for _, text := range texts {
+			for _, m := range bareHost.FindAllStringSubmatch(text, -1) {
+				if !contains(AllowedHosts, strings.ToLower(m[1])) {
+					c.add(n, ruleInternalName)
+				}
 			}
 		}
 	}

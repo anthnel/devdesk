@@ -193,9 +193,20 @@ func (c *client) do(ctx context.Context, r request) (response, error) {
 // than GET, or a target that is not an absolute path, is refused before
 // anything is sent.
 func (c *client) exchange(ctx context.Context, method, target string, header http.Header) (status int, h http.Header, body []byte, err error) {
-	const op = "read the answer to a recorded request"
 	if method != http.MethodGet {
 		return 0, nil, nil, errors.New("exchange sends GET requests only")
+	}
+	return c.recorded(ctx, method, target, header, "")
+}
+
+// recorded is exchange for the recorder of the flows (DEVDESK-580): it also sends a
+// HEAD, whose answer has no body, and, when bearer is not empty, sends that token
+// as a Bearer credential instead of the Basic ones of the client. The token is
+// attached here and nowhere else, like the Basic credentials.
+func (c *client) recorded(ctx context.Context, method, target string, header http.Header, bearer string) (status int, h http.Header, body []byte, err error) {
+	const op = "read the answer to a recorded request"
+	if method != http.MethodGet && method != http.MethodHead {
+		return 0, nil, nil, errors.New("the recorder sends GET and HEAD requests only")
 	}
 	if !strings.HasPrefix(target, "/") || strings.HasPrefix(target, "//") {
 		return 0, nil, nil, errors.New("exchange needs a target that is a path")
@@ -217,7 +228,10 @@ func (c *client) exchange(ctx context.Context, method, target string, header htt
 	// Content-Length, which is not what a fixture holds. The recorded request is
 	// the one of the fixture file, so this header is not recorded.
 	req.Header.Set("Accept-Encoding", "identity")
-	if c.user != "" {
+	switch {
+	case bearer != "":
+		req.Header.Set("Authorization", "Bearer "+bearer)
+	case c.user != "":
 		req.SetBasicAuth(c.user, c.password)
 	}
 	resp, err := c.http.Do(req)
@@ -233,6 +247,24 @@ func (c *client) exchange(ctx context.Context, method, target string, header htt
 		return 0, nil, nil, &tooLargeError{Op: op}
 	}
 	return resp.StatusCode, resp.Header, data, nil
+}
+
+// setTimeout bounds each call of the client, connection included.
+func (c *client) setTimeout(d time.Duration) { c.http.Timeout = d }
+
+// placeholderHeader returns a copy of h whose credentials line is the placeholder
+// a fixture holds for scheme ("Basic" or "Bearer"), or has none when scheme is
+// empty. It is the request header Redact is given for a request the recorder built.
+func placeholderHeader(h http.Header, scheme string) http.Header {
+	out := h.Clone()
+	if out == nil {
+		out = http.Header{}
+	}
+	out.Del("Authorization")
+	if scheme != "" {
+		out.Set("Authorization", scheme+" <redacted>")
+	}
+	return out
 }
 
 // expect sends r and turns a status outside 2xx into an *APIError.

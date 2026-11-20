@@ -770,7 +770,7 @@ and the tests wire fakes, so no test needs kubectl, skopeo or a network.
 `kubectl` is declared on each of them, not in the global `[tools]`, so the CI does
 not install it; kubectl `1.35`, because `datomir` runs k0s v1.36.x and kubectl is
 supported within one minor version of the API server, so 1.35 is the oldest
-accepted; `render` and `record` reach no cluster and declare no kubectl, and the test
+accepted; `render` and `record` declare no kubectl (`record` reaches no cluster unless `--state` is given, which then needs a kubectl already on the `PATH`), and the test
 requires its absence there). `nexus-bench:seed` needs `skopeo` too, which is a
 tool of the host: mise does not install it, the task does not declare it, and its
 description says so (`TestMiseSeedTaskNamesSkopeoAsAPrerequisiteOfTheHost`).
@@ -787,7 +787,7 @@ Arguments follow `--`: mise appends them to the command line.
 | `nexus-bench:reset` | `... reset` | yes (deletes repositories and the upstream claim, then provisions and seeds); needs skopeo on the host |
 | `nexus-bench:status` | `... status` | reads only |
 | `nexus-bench:render` | `... render` | no, contacts nothing |
-| `nexus-bench:record` | `... record` | no cluster, no kubectl: reads the bench through its loopback ports and rewrites fixture files (see "Recorded fixtures") |
+| `nexus-bench:record` | `... record` | no cluster, no kubectl declared: reads the bench through its loopback ports and rewrites fixture files (see "Recorded fixtures"); only `--state` reads the upstream, and needs `kubectl` on the `PATH` (the task does not install it) |
 | `nexus-bench:test` | `go test -timeout 60m -count=1 -run Integration ./internal/nexusbench/...` with `DEVDESK_NEXUS_BENCH=1` set by the task's `env` table (portable, no `env` command) | yes; the tests skip when `CI` is set |
 
 **Subcommands and flags.** Every subcommand takes the same parameter flags, one
@@ -1602,8 +1602,10 @@ exist as fixtures. See "What is not recorded yet" below.
 ### Format of a fixture
 
 One file is one fixture, LF line endings only (a carriage return is refused).
-The file name is `<scenario>--<identity>.http`; the identity is `admin`, `pull`
-or `anon` and comes from the suffix alone. A file is a commented header, then one
+The file name is `<scenario>--<identity>.http`; the identity is `admin`, `pull`,
+`anon` or `badcred` (`nexusfixture.BadCredentials`: the `admin` account with the
+public wrong password `fakenexus.BadPassword`, the way to record a refused login)
+and comes from the suffix alone. A file is a commented header, then one
 or more exchanges:
 
 ```
@@ -1613,6 +1615,8 @@ or more exchanges:
 # account: <free text>                       required
 # redacted: <free text>                      required
 # state: <free text>                         optional, "" means nominal
+# flow: <bearer | redirects>                 optional, how the recorder follows an answer
+# effect: caches                             optional, the request can cache an image in the proxy
 # record: <replay | pending | skip: reason>  optional, default replay
 # recorded-by: nexus-bench record            written by the recorder only
 
@@ -1635,9 +1639,20 @@ Content-Type: application/json
   type. The fake replays `<empty body>` as empty and the HTML stub as a minimal
   page with that title; a test that needs the real body cannot use a stub.
 - Several exchanges in one file are separated by a `###` line (a body line made of
-  `###` is written with one backslash more and read back with one less). Nothing
-  records a multi-exchange file yet; the format reserves it for the Bearer token
-  step and for redirect chains (NX-05).
+  `###` is written with one backslash more and read back with one less). The
+  optional `flow` header says why a file holds several: `bearer` (the 401 with its
+  `WWW-Authenticate: Bearer` challenge, the token request, the retry with the token)
+  or `redirects` (each hop of a same-origin redirect chain); `parse` refuses any
+  other value, naming the header. `effect: caches` marks a request that can leave
+  an image in the proxy (a HEAD of a manifest through it); it is the only value.
+  Both are written after `state` and before `record`, and `nexus-bench record`
+  honours them (see below). A flow that stops short says why in the parentheses of
+  the `nexus:` header, which the recorder rewrites on every run:
+  `realm off-origin, not followed`, `realm not followed` (a realm on an origin of
+  the run that is no token path, or has a scheme or user information the recorder
+  refuses), `no challenge`, `off-origin redirect, not followed` (also `no Bearer
+  challenge`, `token refused, not retried`, `redirect to a request outside the
+  closed list, not followed`).
 - `record: pending` marks a request-only fixture (no response section) that
   `record` is to fill. `Load` refuses a pending fixture.
 - `Format(Parse(b)) == b` for every embedded file (`TestEveryFixtureRoundTrips`).
@@ -1697,25 +1712,43 @@ the fixtures only, never the evidence.
 - response headers are filtered to an allowlist (`ResponseHeaderAllowlist`:
   `Server`, `Docker-Distribution-Api-Version`, `WWW-Authenticate`, `Location`,
   `Link`, `Docker-Content-Digest`, `Content-Type`, `Content-Length`); request
-  headers keep `Accept` only;
+  headers keep `Accept` and the two headers of the realm probe, `X-Forwarded-Host`
+  (a value of `AllowedHosts`) and `X-Forwarded-Proto` (exactly `http` or `https`, never
+  a value of `AllowedHosts`); any other value drops the header, and
+  `X-Forwarded-For` is never kept;
 - an empty body becomes `<empty body>`, an HTML body or any non-JSON body becomes
   a `<HTML body omitted: ...>` or `<body omitted: ...>` stub;
 - in a JSON body, the value of a key whose name ends in `token`, `password`,
   `passwd`, `passphrase`, `secret`, `apikey`, `privatekey`, `credential` or
   `uploaderip` (case-folded, plurals and `_`/`-` forms included; escapes are
   decoded first) is replaced in
-  place by `"<redacted>"`; every other byte stays as Nexus sent it.
+  place by `"<redacted>"`; every other byte stays as Nexus sent it (a token answer
+  keeps its `expires_in`);
+- in a JSON body, a private, link-local or CGNAT IPv4 address, with its port, inside
+  the value of a `message`, `detail` or `error` key (case-folded) becomes
+  `<redacted-address>`: the 502 of a cut upstream names the upstream's cluster
+  address. An address in any other value is left for `CheckLeaks` to refuse (all or
+  nothing).
 
 `CheckLeaks(name, data, exact)` scans a fixture as text, line by line, with 13
 rules: `Authorization` not redacted; cookie or session header (`NXSESSIONID`,
 `X-Nexus-UI`); response header outside the allowlist; request header outside
-`Host`, `Authorization` and `Accept`; a header line that is not `Name: value`;
+`Host`, `Authorization`, `Accept` and the two probe headers (`X-Forwarded-Host`,
+`X-Forwarded-Proto`: `X-Forwarded-Host` goes through the host rule, `X-Forwarded-Proto`
+admits exactly `http` or `https` and never a host); a header line that is not `Name: value`;
 JWT-like value; other known secret formats (GitHub, GitLab, AWS key, PEM key);
-a JSON secret key whose value is not `<redacted>`; a host outside `AllowedHosts`
-(`127.0.0.1` and the bench's own upstream service); a private, link-local, CGNAT
+a JSON secret key whose value is not `<redacted>` (`Bearer <redacted>` is the only
+form of a Bearer `Authorization`); a host outside `AllowedHosts` (`127.0.0.1`, the
+bench's own upstream service, and `realm-probe.invalid`, the reserved name the realm
+probe sends in `X-Forwarded-Host`); a private, link-local, CGNAT
 or unique-local address; an internal name or local path (`datomir`,
 `secrets.json`, `/home/`, `/Users/`, a Windows profile, internal zones such as
-`.lan` or `.home.arpa`); a query parameter other than `n` and `last`; and each
+`.lan` or `.home.arpa`, looked for in the line decoded and in the line with each `%XX`
+turned into a separator, because decoding can make a match disappear: `x.lan%41`,
+`nexus.home.arpa%2Dmirror`); a query parameter other than `n` and `last`, except `service`
+and `scope` on a token path only (`/v2/token`, `/repository/<name>/v2/token`), where
+`service` is URL-decoded and goes through the host rules and `account` stays refused;
+and each
 `exact` term (also lower-cased, JSON-escaped and URL-escaped). A `Leak` names the
 fixture, the line and the rule, never the matched text.
 
@@ -1745,11 +1778,25 @@ base := s.URL("127.0.0.1:30482")     // the fake that stands for that recorded H
   `Content-Length` is recomputed, never copied.
 - **Identity comes from `Authorization`**: none is `anon`; Basic with
   `fakenexus.User(id)` (`admin`, `bench-pull`) and `fakenexus.Password`
-  (`fixture-password`) is that identity. Any other credentials match nothing.
+  (`fixture-password`) is that identity; Basic `admin` with `fakenexus.BadPassword`
+  (`fixture-wrong-password`) is `badcred`; `Bearer fixture-token-<identity>` (`admin`,
+  `pull`, `anon`; there is no `badcred` token) is that identity, presented as a
+  Bearer. Any other credentials match nothing.
+- **Token route**: a recorded request on a token path is matched on its path, then on
+  its query decoded, after the recorded `http://<Host>` of each value is pointed at
+  the fake (so `service` must name the fake the client was sent to, not the recorded
+  address). The answer is served with `<redacted>` replaced by
+  `fixture-token-<identity of the fixture>`. A request carrying that token matches
+  the exchanges recorded with `Bearer <redacted>` for that identity, never another's,
+  and an unauthenticated one never matches a Bearer exchange.
+- **HEAD**: the recorded headers are replayed, `Content-Length` included (the size a
+  GET would have), and no body is written.
 - **An unrecorded request is a test error**: `t.Errorf("no recorded answer for
   ...")` and a 501. The fake never invents an answer. Two fixtures recording the
-  same host, method, target and identity, or one with no status, also fail the
-  test. `Hits(name)` counts the requests a fixture answered.
+  same host, method, target, identity and Bearer-or-not (checked exchange by
+  exchange, also inside one multi-exchange file), or one with no status, also fail
+  the test. The error reads `no recorded answer for <method> <target> as
+  <identity>`, or `as unrecognized credentials`. `Hits(name)` counts the requests a fixture answered.
 - **Catalog tolerance, `n=1000`**: DevDesk always asks `/v2/_catalog?n=1000`
   (`internal/oci/catalog.go`), but NX-03 recorded most catalogs without `n`. An
   exact fixture always wins. Otherwise a `GET P?n=1000` (no `last`) is answered
@@ -1766,9 +1813,10 @@ base := s.URL("127.0.0.1:30482")     // the fake that stands for that recorded H
   tolerated: `?n=1000` on a target with no exact fixture is unmatched
   (`TestCatalogToleranceDoesNotServeA404`). A test of the tolerance itself leaves the
   exact fixtures out of the set (`without` in `server_test.go`).
-- **No Bearer realm**: `v2-ping-*` replays the `WWW-Authenticate: Bearer realm=...`
-  challenge (rewritten to the fake), but no token endpoint is recorded, so a
-  client that follows the realm gets an unrecorded-request error (NX-05).
+- **Bearer realm**: `v2-ping-*` replays the `WWW-Authenticate: Bearer realm=...`
+  challenge (rewritten to the fake). A token endpoint is replayed only when a fixture
+  recorded one (a `flow: bearer` file); with none, a client that follows the realm
+  gets an unrecorded-request error. No embedded fixture records a flow yet.
 
 ### What the replay tests pin
 
@@ -1809,10 +1857,12 @@ versions and the command `mise run nexus-bench:record`: bumping the Nexus image
 forces the fixtures to be regenerated in the same PR. An unreadable descriptor or
 a schema other than 2 fails with the path.
 
-Limit, to settle before NX-05: a fixture marked `record: skip`, or a multi-exchange
-fixture, is compared like the others, so the recorder skips it but the stale test
-does not exempt it; after a bump it stays red until someone edits its header by
-hand.
+A fixture marked `record: skip`, or one with several exchanges and no `flow`
+header, is compared like the others: the recorder skips it but the stale test does
+not exempt it, so after a bump it stays red until someone edits its header by hand.
+That is why it stays the exception, each one justified in its header. The
+multi-exchange fixtures of a flow (`flow: bearer`, `flow: redirects`) are not in that
+case: `nexus-bench record` regenerates them (DEVDESK-580, PR2).
 
 ### `nexus-bench record` / `mise run nexus-bench:record`
 
@@ -1823,30 +1873,103 @@ file name), so a new fixture is a request-only file with `# record: pending`.
 Order: parameters, then the descriptor of this bench (schema 2, same context and
 namespace; missing means `mise run nexus-bench:up`), then the deny list, then the
 secrets store (admin password required; passwords come from the store only, no
-flag carries one), then `RecordFixtures`. There is no kubectl step. The
-descriptor is not written.
+flag carries one), then, with `--state` only, the state of the bench, then
+`RecordFixtures`. Without `--state` there is no kubectl step and no state filter:
+the run behaves as it did before the states existed (`RecordOptions.State` is
+`StateAny`). It therefore records every fixture it selects, `state: upstream-cut`
+ones included, and can overwrite such a fixture with a nominal answer: always pass
+`--state` for a campaign that mixes states. The descriptor is not written.
 
 Flags: the common parameter flags, plus `--campaign <name>` (repeatable, default
 every folder), `--only <glob>` (on fixture names without `.http`, e.g.
-`catalog-*`), `--dir <folder>` (default the fixtures folder of the source tree)
-and `--rest-host`, which accepts a loopback address only.
+`catalog-*`), `--dir <folder>` (default the fixtures folder of the source tree),
+`--rest-host`, which accepts a loopback address only, and three that only `record`
+takes (the other subcommands refuse them with exit 2):
+
+- `--state nominal|upstream-cut`: the state the bench is in. The command builds the
+  kubectl runner, runs the preflight `OpRecord` (get the Deployment, list the pods,
+  nothing written, no node, no tunnel), reads the upstream (`ReadUpstream`, read
+  only) and compares: `nominal` wants the upstream ready, `upstream-cut` wants it
+  cut, anything else is exit 1 with a message that names the declared state and
+  what to run (`restore-upstream`, `cut-upstream`, `up`), before any request. The
+  library then records only the fixtures whose `state` header starts with that
+  state (`nominal` also takes a file with no `state` header); the others are
+  reported `skipped` and never requested, the file untouched. The fixtures that are
+  sensitive to the order of the requests carry a `cut1-`, `cut2-` prefix: the files
+  of a campaign are sent in the lexical order of their names, and `--only` splits a
+  state in separate runs. An unknown value is a usage error (exit 2).
+- `--allow-cache-effects`: lets a fixture that says `effect: caches` be sent (see
+  the guards). It reaches for no cluster by itself.
+- `--request-timeout <duration>` (default `15s`): what one request may take,
+  connection included, per request and not for the run. The upstream's first read
+  takes 20 s when it is cut (NX-02b), so a run in that state asks for `45s`. A
+  negative value is refused before anything is read.
 
 Guards. All are checked before the first request, except where stated:
 
 - origins are loopback URLs and loopback `host:port` pairs of the descriptor; the
   REST origin is required;
-- GET only, and a closed list of paths: `/v2/_catalog`, `/v2/<name>/tags/list`,
+- GET and the HEAD of a manifest only, and a closed list of paths:
+  `/v2/_catalog`, `/v2/<name>/tags/list`,
   `/v2/<repo>[/<repo>...]/_catalog` (the catalog of a member by path, DEVDESK-579),
   `/repository/<repo>/v2/_catalog`, `/service/rest/v1/repositories[/...]`, with a
   query limited to `n` and `last`; never a manifest or a blob (a read through the
   proxy caches and would change the bench). The only percent escape admitted is
   `%2F` (either case) in the value of `last`, the form a Nexus group page `Link`
   gives (`last=shared%2Fbase`, DEVDESK-580); any other escape, one in the path or in
-  `n`, and a literal `..` stay refused (`recordQueryParam`, `refusedRequest`);
+  `n`, and a literal `..` stay refused (`recordQueryParam`, `refusedRequest`). The
+  extensions of DEVDESK-580 are `record_request.go`'s (`refusedFixtureRequest`):
+  - the HEAD of a manifest of `docker-hosted` on the HTTP port
+    (`/repository/docker-hosted/v2/<name>/manifests/<ref>`, or the path routing
+    `/v2/docker-hosted/...`) is sent as any GET is. Through `docker-proxy`,
+    `docker-group` or a Docker connector it can cache an image in the proxy: it is
+    sent only when the fixture says `effect: caches` **and** the run says
+    `--allow-cache-effects` (each refusal names what is missing), and the report
+    lists the fixture under `CacheEffects`. A HEAD with a query, an escape, a
+    dot-dot, an upper-case name or a repository that is none of the bench's is
+    refused whatever the flags. A HEAD answer has no body, it is written
+    `<empty body>`, with its `Docker-Content-Digest` and `Content-Length`;
+  - the GET of a blob of `docker-hosted` (`.../blobs/sha256:<64 hex>`, HTTP port),
+    only for a `flow: redirects` fixture; its body is summarized, never kept. A GET
+    of a manifest, and a blob anywhere else, stay refused;
+  - the token paths (`/v2/token`, `/repository/<name>/v2/token`) are in no list: a
+    token request is built by a `bearer` flow from the challenge it follows, and a
+    fixture that asks for one itself is refused;
 - a fixture file or campaign folder that is a symbolic link is refused; the file
   as it stands goes through `CheckLeaks` before it is sent;
-- no redirection is followed (a 302 is recorded as such), a body is read up to 1
-  MiB, and only the fixture's request headers are sent;
+- a redirection is followed only by a `flow: redirects` fixture, a Bearer
+  challenge only by a `flow: bearer` fixture; elsewhere a 302 or a 401 is recorded as
+  such. A body is read up to 1 MiB, and only the fixture's request headers are sent.
+  The flows (`record_flow.go`):
+  - `bearer`: the first exchange is sent as DevDesk sends it (Basic for `admin`,
+    `pull` and `badcred`, nothing for `anon`). On a 401 with a `WWW-Authenticate:
+    Bearer` challenge, the realm is followed only when its `host:port` is a key of
+    the run's origins (`RecordOptions.Origins`) **and** its path is a token path;
+    the token is then asked for with the identity's credentials and the `service`
+    and `scope` of the challenge, and the first request is sent again with `Bearer
+    <token>`: three exchanges (`Authorization` written `Basic <redacted>`, `Basic
+    <redacted>`, `Bearer <redacted>`; the token body `{"token":"<redacted>",...}`).
+    Any other realm ends the flow with the 401 alone and the note `realm off-origin,
+    not followed` (its `host:port` is no origin of the run); a realm on an origin of
+    the run whose path is no token path, or whose scheme or user information is
+    refused, gets the note `realm not followed`. Nothing is sent to it, which is
+    what the measurement of a refusal is. A 401 of the token request ends it too
+    (two exchanges); no 401 gives one exchange and the note `no challenge`. The token
+    read is added to the forbidden terms of the run before any check, so that no
+    file, error or report can hold it: an answer that carries it anywhere but in
+    the token answer itself is refused;
+  - `redirects`: a 3xx whose `Location` (a relative one is resolved against the
+    request that was redirected) is on the same origin as the request of the hop (its
+    `host:port` equals that request's `Host`) and a request the closed list allows is
+    followed with the same credentials, up to 5 hops; every hop is an exchange. Any
+    other `Location`, another origin of the descriptor included, is recorded and not
+    followed (note `off-origin redirect, not followed`, or `redirect to a request
+    outside the closed list, not followed` for the same origin); a chain past 5 hops is an error and nothing is
+    written;
+  - the `badcred` identity sends `admin` with `recordBadPassword`
+    (`fixture-wrong-password`, the recorder's own constant, equal to
+    `fakenexus.BadPassword`, which imports `testing`); it needs no stored password and
+    the file says `Basic <redacted>`;
 - the data set is compared **anonymously**, inside the library
   (`ListImagesAnonymously`, run by `RecordFixtures` itself, not by the command), and
   anything but a match is refused with `mise run nexus-bench:reset`. Consequence: a
@@ -1856,14 +1979,21 @@ Guards. All are checked before the first request, except where stated:
 - all or nothing: every answer is redacted and passed through `CheckLeaks` (with
   both passwords, their Basic encodings, and the deny list) first; any leak or
   error writes nothing. Then files are written atomically (`0644`);
-- an answer equal to the fixture, apart from `measured:`, leaves the file alone
-  (`unchanged`, bytes and modification time).
+- answers equal to the fixture, apart from `measured:`, leave the file alone
+  (`unchanged`, bytes and modification time). `sameAnswer` compares every exchange of
+  the file, so a change in the token step or in the answer to the retry is a new
+  answer.
 
-A fixture that says `record: skip` or holds more than one exchange is reported as
-skipped and never requested. The report lists each fixture (`written`,
-`unchanged`, `skipped`) and one line per campaign, `record: catalog: N written, M
-unchanged, K skipped`. Errors are one line, free of secrets (`BenchError`).
-No output holds a password (`requireClean` in the tests).
+A fixture that says `record: skip`, that is of another state than the run, or that
+holds more than one exchange and names no flow, is reported as skipped (with its
+reason) and never requested; a run whose fixtures are all skipped asks nothing of the
+bench, not even the data set. The report lists each fixture (`written`, `unchanged`,
+`skipped`) and one line per campaign, `record: catalog: N written, M unchanged, K
+skipped`. When fixtures were sent with a cache effect, the output names each
+(`cache effect  <campaign>/<name>`) and asks for `mise run nexus-bench:reset`; the
+report keeps `CacheEffects` even when the run fails after sending one, and the
+command then asks for the reset after the error. Errors are one line, free of secrets
+(`BenchError`). No output holds a password or a token (`requireClean` in the tests).
 
 Written files carry `# measured:` with today's date and `# recorded-by: nexus-bench
 record`; they then stop being byte-identical to the evidence, which the provenance
@@ -1876,9 +2006,9 @@ test accepts.
   They stay on hand-written answers. A proxy's catalog lists `mirror/uncached`,
   which it does not hold (it relays the upstream); the search shows it, input for
   NX-04.
-- NX-05: Bearer token flow and realm, redirects, pagination over several pages,
-  routing by port and path beyond the two bench origins. They need multi-exchange
-  recording, which the format reserves (`###`) and `record` does not do yet.
+- NX-05: Bearer token flow and realm, redirects, routing by port and path beyond the
+  two bench origins. `record` now records the multi-exchange flows (DEVDESK-580,
+  PR2); what is missing is the measurement itself, the `access` campaign (later PRs).
 - The `?n=1000` request on the HTTP-port root is recorded (DEVDESK-580). Still
   open for that story: the `cachedonly` and `access` campaigns (NX-04, NX-05, later
   PRs), and the `tags-hosted-api-repository` fixture (`/repository/<name>/v2/...`,

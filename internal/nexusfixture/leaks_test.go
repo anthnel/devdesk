@@ -299,7 +299,10 @@ func TestLeakIsNeverTheMatchedText(t *testing.T) {
 }
 
 func TestAllowedHostsAreLoopbackAndTheBenchUpstream(t *testing.T) {
-	want := []string{"127.0.0.1", "bench-upstream.nexus-bench.svc.cluster.local"}
+	// realm-probe.invalid (DEVDESK-580) is the reserved name the recorder sends in
+	// X-Forwarded-Host to see whether the Bearer realm follows it; .invalid never
+	// resolves, so it names no host.
+	want := []string{"127.0.0.1", "bench-upstream.nexus-bench.svc.cluster.local", "realm-probe.invalid"}
 	if got := nexusfixture.AllowedHosts; !slices.Equal(got, want) {
 		t.Errorf("AllowedHosts = %v, want %v", got, want)
 	}
