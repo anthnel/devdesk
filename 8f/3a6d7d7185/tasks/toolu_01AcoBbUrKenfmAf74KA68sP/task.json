@@ -1,0 +1,15 @@
+{
+  "tool_use_id": "toolu_01AcoBbUrKenfmAf74KA68sP",
+  "agent_id": "a0525aff88c1af416",
+  "subagent_type": "project-tester",
+  "task_description": "PR4 access fixtures, read-only bench",
+  "token_usage": {
+    "input_tokens": 52,
+    "cache_creation_tokens": 114678,
+    "cache_read_tokens": 1848170,
+    "output_tokens": 16547,
+    "api_call_count": 25
+  },
+  "started_at": "2026-11-20T16:22:31.252160845+01:00",
+  "completed_at": "2026-11-20T16:25:04.056376618+01:00"
+}

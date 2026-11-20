@@ -1,0 +1,15 @@
+{
+  "tool_use_id": "toolu_017naHfSkZJQJ2BgeCnKjySj",
+  "agent_id": "af81fa80a5859b65d",
+  "subagent_type": "project-coder",
+  "task_description": "Green PR4 recorder extension",
+  "token_usage": {
+    "input_tokens": 92,
+    "cache_creation_tokens": 134452,
+    "cache_read_tokens": 3675860,
+    "output_tokens": 29392,
+    "api_call_count": 46
+  },
+  "started_at": "2026-11-20T16:31:28.520074278+01:00",
+  "completed_at": "2026-11-20T16:36:37.432973812+01:00"
+}

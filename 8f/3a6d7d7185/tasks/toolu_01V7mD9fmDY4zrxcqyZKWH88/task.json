@@ -1,0 +1,15 @@
+{
+  "tool_use_id": "toolu_01V7mD9fmDY4zrxcqyZKWH88",
+  "agent_id": "a98d340190baa3df1",
+  "subagent_type": "dev-team:tester",
+  "task_description": "Final criteria verification DEVDESK-580",
+  "token_usage": {
+    "input_tokens": 22,
+    "cache_creation_tokens": 66614,
+    "cache_read_tokens": 527566,
+    "output_tokens": 7865,
+    "api_call_count": 11
+  },
+  "started_at": "2026-11-20T17:09:02.121511903+01:00",
+  "completed_at": "2026-11-20T17:15:06.0110321+01:00"
+}

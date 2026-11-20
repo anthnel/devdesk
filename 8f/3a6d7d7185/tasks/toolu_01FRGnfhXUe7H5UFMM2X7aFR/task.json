@@ -1,0 +1,15 @@
+{
+  "tool_use_id": "toolu_01FRGnfhXUe7H5UFMM2X7aFR",
+  "agent_id": "ad2ddeabc240cd8f2",
+  "subagent_type": "project-tester",
+  "task_description": "Red tests PR4 recorder extension",
+  "token_usage": {
+    "input_tokens": 70,
+    "cache_creation_tokens": 209218,
+    "cache_read_tokens": 3620373,
+    "output_tokens": 46827,
+    "api_call_count": 34
+  },
+  "started_at": "2026-11-20T16:25:27.234342345+01:00",
+  "completed_at": "2026-11-20T16:31:18.54885832+01:00"
+}
