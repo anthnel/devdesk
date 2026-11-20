@@ -3,6 +3,14 @@
 Dated entries, most recent first (AAAA-MM-JJ). Each entry records what was
 decided, why, and which alternative was rejected. Sources live in `docs/product/`.
 
+## 2026-11-20 — DEVDESK-514 (NX-11, task 514.3): IS-16 criteria against the measures (D169)
+
+Source: `docs/backlog.md` D169. Documentation only, no decision, no ADR. Measures frozen: `docs/measurements/2026-11-17-nexus-catalog.md`, `2026-11-20-nexus-cached-only.md`, `2026-11-20-nexus-access.md`. Bench only (Nexus 3.98.1-01 Community); the company instance is not measured.
+
+1. **Contradicted:** IS-03 H1 (prefixed names), IS-07 and D140 (members sharing a catalogue), D161 (403 expected; 404 measured on the bench, 403 for other instances not settled; DEVDESK-578), IS-14 and D137 (`Cached only`: a proxy lists its upstream, not its cache). **Confirmed:** H2, routing by path and by group connector, Bearer realm on the same origin. **Open:** see the « Measured Nexus behavior » section of `docs/architecture/network.md`.
+2. **IS-16 criteria:** 1 partial, 2 partial, 3 corrected, 4 corrected, 5 corrected (partial), 6 partial (IS-03 text not in this repository). Details and missing evidence: D169.
+3. **Closure of IS-16 and any follow-up task are left to the user.** Nothing is closed or created in Plane.
+
 ## 2026-11-20 — DEVDESK-629 (NX-04, NX-05): eight Nexus and registry corrections (D168)
 
 Source: `docs/backlog.md` D168; plan `.claude/plans/DEVDESK-629-plan.md` (not versioned); tasks DEVDESK-630 to DEVDESK-637 (task 629.1 to 629.8) on `feat/devdesk-629-nexus-measure-fixes`. Decided by the user on 2026-11-20 (story DEVDESK-629). The measure notes in `docs/measurements/` are frozen and describe the code before this lot.

@@ -37,8 +37,7 @@ front of it lands in the wrong place).
 Like `provider`, how a repository is addressed is **declared, never
 sniffed**. Whether a repository manager exposes a member on a path prefix, a
 dedicated port, or a subdomain is a setting on that repository, and the one
-API endpoint that would reveal it typically answers `403` to an ordinary
-pull account — the same endpoint that would say what a group's members even
+API endpoint that would reveal it answers an ordinary pull account with `403` (an enterprise Nexus, version unknown) or `404` (measured on the bench, Nexus 3.98.1 Community) — the same endpoint that would say what a group's members even
 are. An instance that refuses to answer refuses both questions at once, so
 guessing at the shape isn't a fallback; it's the failure mode this design
 avoids.
