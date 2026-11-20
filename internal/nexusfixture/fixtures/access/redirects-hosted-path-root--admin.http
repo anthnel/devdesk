@@ -1,0 +1,19 @@
+# scenario: NX-05: H4 redirects: GET /v2/docker-hosted on the HTTP port
+# nexus: 3.98.1-01 COMMUNITY
+# measured: 2026-11-20
+# account: admin (nx-admin, Basic, sent preemptively)
+# redacted: Authorization header and credentials removed; HTML bodies summarised; response headers filtered to a whitelist
+# state: nominal
+# flow: redirects
+# recorded-by: nexus-bench record
+
+GET /v2/docker-hosted HTTP/1.1
+Host: 127.0.0.1:30481
+Authorization: Basic <redacted>
+
+HTTP/1.1 404 Not Found
+Server: Nexus/3.98.1-01 (COMMUNITY)
+Content-Type: text/html;charset=utf-8
+Content-Length: 1333
+
+<HTML body omitted: 1333 bytes, <title>404 - Sonatype Nexus Repository</title>>

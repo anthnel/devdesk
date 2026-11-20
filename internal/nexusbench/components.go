@@ -42,7 +42,14 @@ type ListedImage struct{ Name, Tag, Digest string }
 // a 401 or 403 is an *APIError like any other refusal. It is the listing of the
 // status command, which never reads docker-group (F9) and never starts skopeo.
 func ListImagesAnonymously(ctx context.Context, baseURL, repo string) ([]ListedImage, error) {
-	c := newClient(baseURL, "", "")
+	return listImagesAs(ctx, baseURL, repo, "", "")
+}
+
+// listImagesAs is ListImagesAnonymously with the Basic credentials of an account
+// (none when user is empty): the recorder compares the data set of a bench whose
+// anonymous access is cut with the listing the admin account reads.
+func listImagesAs(ctx context.Context, baseURL, repo, user, password string) ([]ListedImage, error) {
+	c := newClient(baseURL, user, password)
 	defer c.closeIdle()
 	list, err := c.listComponents(ctx, repo)
 	if err != nil {

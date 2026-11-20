@@ -1,0 +1,19 @@
+# scenario: NX-05: H4 redirects: GET /v2 without the trailing slash on the HTTP port
+# nexus: 3.98.1-01 COMMUNITY
+# measured: 2026-11-20
+# account: admin (nx-admin, Basic, sent preemptively)
+# redacted: Authorization header and credentials removed; HTML bodies summarised; response headers filtered to a whitelist
+# state: nominal
+# flow: redirects
+# recorded-by: nexus-bench record
+
+GET /v2 HTTP/1.1
+Host: 127.0.0.1:30481
+Authorization: Basic <redacted>
+
+HTTP/1.1 200 OK
+Server: Nexus/3.98.1-01 (COMMUNITY)
+Docker-Distribution-Api-Version: registry/2.0
+Content-Length: 0
+
+<empty body>

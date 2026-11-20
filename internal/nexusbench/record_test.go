@@ -215,6 +215,11 @@ func recListing(repo string) []ListedImage {
 }
 
 func (b *recBench) serveListing(repo string, images []ListedImage) {
+	b.serveListingFor("", repo, images)
+}
+
+// serveListingFor answers the listing of repo to one account ("" is anonymous).
+func (b *recBench) serveListingFor(user, repo string, images []ListedImage) {
 	items := []map[string]any{}
 	for _, img := range images {
 		assets := []map[string]any{}
@@ -230,7 +235,7 @@ func (b *recBench) serveListing(repo string, images []ListedImage) {
 	if err != nil {
 		panic(err)
 	}
-	b.answer("", componentsPath+"?repository="+repo, recAnswer{contentType: "application/json", body: string(body)})
+	b.answer(user, componentsPath+"?repository="+repo, recAnswer{contentType: "application/json", body: string(body)})
 }
 
 func (b *recBench) serveDataset() {
@@ -925,7 +930,7 @@ func TestRecordRefusesWhatItMayNotSend(t *testing.T) {
 		{name: "a blob", target: "/v2/team/api/blobs/sha256:abcd"},
 		{name: "a blob hidden in a tags path", target: "/v2/x/blobs/tags/list"},
 		{name: "a manifest in the REST path", target: "/service/rest/v1/repositories/docker-proxy/manifests/x"},
-		{name: "the tags of a repository path", target: "/repository/docker-hosted/v2/team/api/tags/list"},
+		{name: "the tags of a repository path outside the bench", target: "/repository/maven-central/v2/team/api/tags/list"},
 		{name: "another REST path", target: "/service/rest/v1/security/users"},
 		{name: "the components listing", target: "/service/rest/v1/components"},
 		{name: "the root", target: "/"},

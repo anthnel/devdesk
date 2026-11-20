@@ -1,0 +1,42 @@
+# scenario: NX-05: H4 the DockerToken realm removed: GET /v2/ on port 30482 without credentials, the Docker client flow
+# nexus: 3.98.1-01 COMMUNITY
+# measured: 2026-11-20
+# account: anonymous (no credentials)
+# redacted: Authorization header and credentials removed; HTML bodies summarised; response headers filtered to a whitelist
+# state: realm-off
+# flow: bearer
+# recorded-by: nexus-bench record
+
+GET /v2/ HTTP/1.1
+Host: 127.0.0.1:30482
+
+HTTP/1.1 401 Unauthorized
+Server: Nexus/3.98.1-01 (COMMUNITY)
+Docker-Distribution-Api-Version: registry/2.0
+WWW-Authenticate: Bearer realm="http://127.0.0.1:30482/v2/token",service="http://127.0.0.1:30482/v2/token"
+Content-Type: application/json
+Content-Length: 113
+
+{"errors":[{"code":"UNAUTHORIZED","message":"access to the requested resource is not authorized","detail":null}]}
+###
+GET /v2/token?service=http%3A%2F%2F127.0.0.1%3A30482%2Fv2%2Ftoken HTTP/1.1
+Host: 127.0.0.1:30482
+Accept: application/json
+
+HTTP/1.1 200 OK
+Server: Nexus/3.98.1-01 (COMMUNITY)
+Content-Type: application/json
+Content-Length: 22
+
+{"token":"<redacted>"}
+###
+GET /v2/ HTTP/1.1
+Host: 127.0.0.1:30482
+Authorization: Bearer <redacted>
+
+HTTP/1.1 401 Unauthorized
+Server: Nexus/3.98.1-01 (COMMUNITY)
+WWW-Authenticate: BASIC realm="Sonatype Nexus Repository Manager"
+Content-Length: 0
+
+<empty body>

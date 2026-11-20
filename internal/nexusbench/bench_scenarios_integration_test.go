@@ -15,6 +15,7 @@ import (
 	"time"
 
 	"github.com/anthnel/devdesk/internal/imagesearch"
+	"github.com/anthnel/devdesk/internal/nexusfixture"
 	"github.com/anthnel/devdesk/internal/oci"
 )
 
@@ -821,4 +822,196 @@ func TestIntegrationResetKeepsInstance(t *testing.T) {
 			t.Errorf("GET /repositories as %s = HTTP %d after the reset, want 200", pullUserID, resp.status)
 		}
 	})
+}
+
+// ---- the access variants (DEVDESK-580, PR4, W5 and W6) -------------------------------
+
+const (
+	// dockerTokenRealm is the Docker Bearer Token Realm of the bench.
+	dockerTokenRealm = "DockerToken"
+	// accessCampaign is the campaign the two variants record.
+	accessCampaign = "access"
+	// realmOffPrefix and anonymousOffPrefix select, by the name of the fixture, what
+	// each variant records: the run declares no state (StateAny), the name tells the
+	// fixtures of the realm-off bench from those of the anonymous-off one.
+	realmOffPrefix       = "w5-"
+	anonymousOffPrefix   = "w6-"
+	accessRestoreTimeout = 10 * time.Minute
+)
+
+// readAnonymousEnabled reads the anonymous access setting as admin.
+func (b scenarioBench) readAnonymousEnabled(ctx context.Context, t *testing.T) bool {
+	t.Helper()
+	var got struct {
+		Enabled bool `json:"enabled"`
+	}
+	if err := b.admin.read(ctx, "read the anonymous access", anonymousPath, nil, &got); err != nil {
+		t.Fatalf("read the anonymous access: %v", err)
+	}
+	return got.Enabled
+}
+
+// requireNominalAccess fails unless the bench is as `status` reports a nominal one:
+// the data set is the descriptor's, both required realms are active and the
+// anonymous access is what the parameters say.
+func (b scenarioBench) requireNominalAccess(ctx context.Context, t *testing.T, when string) {
+	t.Helper()
+	if problems := datasetProblems(ctx, t, b.admin); len(problems) > 0 {
+		t.Fatalf("%s: the data set is not the descriptor's (%s): %s", when, strings.Join(problems, "; "), resetCheck)
+	}
+	realms, err := ActiveRealms(ctx, b.restURL, b.deps.Store, b.p)
+	if err != nil {
+		t.Fatalf("%s: read the active realms: %v", when, err)
+	}
+	for _, want := range requiredRealms {
+		if !slices.Contains(realms, want) {
+			t.Fatalf("%s: the realm %s is not active (active: %v): run `mise run nexus-bench:provision`", when, want, realms)
+		}
+	}
+	if got := b.readAnonymousEnabled(ctx, t); got != b.p.Anonymous {
+		t.Fatalf("%s: anonymous access is %v, the parameters say %v: run `mise run nexus-bench:provision`", when, got, b.p.Anonymous)
+	}
+}
+
+// recordAccess runs the recorder in-process on the fixtures of the access campaign
+// whose name starts with prefix, whatever their declared state. It writes them
+// under the source tree like `nexus-bench record` does, and fails when none was
+// recorded: a missing fixture must not pass for a recording.
+func recordAccess(ctx context.Context, t *testing.T, b scenarioBench, prefix string, asAdmin bool) {
+	t.Helper()
+	requireBench(t)
+	desc, err := LoadDescriptor(DescriptorPath())
+	if err != nil {
+		t.Fatalf("LoadDescriptor: %v", err)
+	}
+	dir, err := nexusfixture.SourceDir()
+	if err != nil {
+		t.Fatalf("fixtures folder: %v", err)
+	}
+	var deny []string
+	if file := os.Getenv("DEVDESK_FIXTURE_DENYLIST"); file != "" {
+		data, err := os.ReadFile(file)
+		if err != nil {
+			t.Fatalf("read the deny list: %v", err)
+		}
+		for _, line := range strings.Split(string(data), "\n") {
+			if line = strings.TrimSpace(line); line != "" && !strings.HasPrefix(line, "#") {
+				deny = append(deny, line)
+			}
+		}
+	}
+	report, err := RecordFixtures(ctx, RecordOptions{
+		Origins:        RecordOrigins(desc, ""),
+		Descriptor:     desc,
+		Secrets:        b.secrets,
+		Dir:            dir,
+		Campaigns:      []string{accessCampaign},
+		Only:           prefix + "*",
+		DenyTerms:      deny,
+		State:          StateAny,
+		DatasetAsAdmin: asAdmin,
+		RequestTimeout: 45 * time.Second,
+	})
+	if err != nil {
+		t.Fatalf("record %s/%s*: %v", accessCampaign, prefix, err)
+	}
+	t.Logf("recorded %s/%s*: written %v, unchanged %v, skipped %v", accessCampaign, prefix, report.Written, report.Unchanged, report.Skipped)
+	if len(report.Written)+len(report.Unchanged) == 0 {
+		t.Fatalf("no fixture named %s* in the campaign %s was recorded: the campaign holds none, or each is skipped", prefix, accessCampaign)
+	}
+}
+
+// TestIntegrationDevDeskAccessVariants records the two fixtures sets of NX-05 that
+// need the bench changed: W5 (the Docker Bearer Token Realm removed from the active
+// realms, fixtures named w5-*) then W6 (anonymous access cut, fixtures named w6-*,
+// the data set compared as admin). It writes nothing else on the bench: no W7 and
+// no W8. Provision, which puts the bench back, is registered before the first write
+// and runs again whatever the outcome; the test ends by checking that the bench is
+// nominal again. It needs the same environment as the other scenarios.
+func TestIntegrationDevDeskAccessVariants(t *testing.T) {
+	requireBench(t)
+	requireScenarios(t)
+	b := openScenarioBench(t)
+	ctx, out := context.Background(), logWriter{t}
+
+	b.requireNominalAccess(ctx, t, "before the variants")
+	original, err := ActiveRealms(ctx, b.restURL, b.deps.Store, b.p)
+	if err != nil {
+		t.Fatalf("read the active realms: %v", err)
+	}
+
+	// restored is true while the bench is known to be nominal: it is cleared before
+	// each write, and set once Provision has put the bench back.
+	restored := true
+	restore := func(ctx context.Context) error {
+		rctx, cancel := context.WithTimeout(ctx, accessRestoreTimeout)
+		defer cancel()
+		initial := NewKubectlInitialPassword(b.runner, b.p.Namespace)
+		if _, err := Provision(rctx, b.restURL, initial, b.deps.Store, b.p, out); err != nil {
+			return err
+		}
+		restored = true
+		return nil
+	}
+	// Registered before the first write, so that a failure half-way still puts the
+	// settings back.
+	t.Cleanup(func() {
+		if restored {
+			return
+		}
+		t.Log("cleanup: provision, to put the realms and the anonymous access back")
+		if err := restore(context.Background()); err != nil {
+			t.Errorf("the closing provision failed, the bench may be changed: run `mise run nexus-bench:provision` (%v)", err)
+		}
+	})
+
+	t.Run("W5 DockerToken realm off", func(t *testing.T) {
+		without := slices.DeleteFunc(slices.Clone(original), func(r string) bool { return r == dockerTokenRealm })
+		restored = false
+		if err := SetActiveRealms(ctx, b.restURL, b.deps.Store, b.p, without); err != nil {
+			t.Fatalf("remove %s from the active realms: %v", dockerTokenRealm, err)
+		}
+		if got, err := ActiveRealms(ctx, b.restURL, b.deps.Store, b.p); err != nil || slices.Contains(got, dockerTokenRealm) {
+			t.Fatalf("the realm %s is still active after the change (active %v, error %v)", dockerTokenRealm, got, err)
+		}
+		recordAccess(ctx, t, b, realmOffPrefix, false)
+		if err := restore(ctx); err != nil {
+			t.Fatalf("provision after W5: %v", err)
+		}
+		b.requireNominalAccess(ctx, t, "after W5")
+	})
+
+	t.Run("W6 anonymous access off", func(t *testing.T) {
+		if !restored {
+			t.Fatal("W5 left the bench changed: W6 does not start before the closing provision has put it back")
+		}
+		restored = false
+		if err := SetAnonymousAccess(ctx, b.restURL, b.deps.Store, b.p, false); err != nil {
+			t.Fatalf("cut the anonymous access: %v", err)
+		}
+		if b.readAnonymousEnabled(ctx, t) {
+			t.Fatal("anonymous access is still enabled after the cut")
+		}
+		recordAccess(ctx, t, b, anonymousOffPrefix, true)
+		if err := restore(ctx); err != nil {
+			t.Fatalf("provision after W6: %v", err)
+		}
+	})
+
+	// The end state: what `status` reports of a nominal bench, and the realms as
+	// they were, in any order.
+	b.requireNominalAccess(ctx, t, "after the variants")
+	// Compared as sets: Provision appends DockerToken at the end of the list, so
+	// a variant that removed it gets it back in a different position.
+	if got, err := ActiveRealms(ctx, b.restURL, b.deps.Store, b.p); err != nil || !sameRealms(got, original) {
+		t.Errorf("the active realms are %v after the variants (error %v), they were %v", got, err, original)
+	}
+}
+
+// sameRealms reports whether two realm lists hold the same names, in any order.
+func sameRealms(a, b []string) bool {
+	a, b = slices.Clone(a), slices.Clone(b)
+	slices.Sort(a)
+	slices.Sort(b)
+	return slices.Equal(a, b)
 }

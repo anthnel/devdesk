@@ -114,6 +114,7 @@ type recordFlags struct {
 	// fixture is filtered by its state.
 	state             string
 	allowCacheEffects bool
+	datasetAsAdmin    bool
 	requestTimeout    time.Duration
 }
 
@@ -160,6 +161,7 @@ func newFlagSet(name string) *flagSet {
 			return nil
 		})
 		fs.BoolVar(&set.record.allowCacheEffects, "allow-cache-effects", false, "send the fixtures that say \"effect: caches\" (the HEAD of a manifest through the proxy, the group or a connector): such a request can cache an image in the proxy, and the bench then needs a reset")
+		fs.BoolVar(&set.record.datasetAsAdmin, "dataset-as-admin", false, "compare the data set of the bench with the listing the admin account reads, instead of the anonymous one: for a bench whose anonymous access is cut (the access scenarios). The stored admin credentials go to the REST API for the two listings")
 		fs.DurationVar(&set.record.requestTimeout, "request-timeout", defaultRequestTimeout, "how long one request may take, connection included; ask for 45s when the upstream is cut, its first read takes 20 s")
 	}
 	switch {

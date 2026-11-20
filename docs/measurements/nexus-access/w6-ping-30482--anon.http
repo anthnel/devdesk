@@ -1,0 +1,19 @@
+# scenario: NX-05: H4 anonymous access cut: GET /v2/ on port 30482 without credentials, the challenge
+# nexus: 3.98.1-01 COMMUNITY
+# measured: 2026-11-20
+# account: anonymous (no credentials)
+# redacted: Authorization header and credentials removed; HTML bodies summarised; response headers filtered to a whitelist
+# state: anon-off
+# recorded-by: nexus-bench record
+
+GET /v2/ HTTP/1.1
+Host: 127.0.0.1:30482
+
+HTTP/1.1 401 Unauthorized
+Server: Nexus/3.98.1-01 (COMMUNITY)
+Docker-Distribution-Api-Version: registry/2.0
+WWW-Authenticate: Bearer realm="http://127.0.0.1:30482/v2/token",service="http://127.0.0.1:30482/v2/token"
+Content-Type: application/json
+Content-Length: 113
+
+{"errors":[{"code":"UNAUTHORIZED","message":"access to the requested resource is not authorized","detail":null}]}
