@@ -3,6 +3,27 @@
 Dated entries, most recent first (AAAA-MM-JJ). Each entry records what was
 decided, why, and which alternative was rejected. Sources live in `docs/product/`.
 
+## 2026-11-20 — DEVDESK-629 (NX-04, NX-05): eight Nexus and registry corrections (D168)
+
+Source: `docs/backlog.md` D168; plan `.claude/plans/DEVDESK-629-plan.md` (not versioned); tasks DEVDESK-630 to DEVDESK-637 (task 629.1 to 629.8) on `feat/devdesk-629-nexus-measure-fixes`. Decided by the user on 2026-11-20 (story DEVDESK-629). The measure notes in `docs/measurements/` are frozen and describe the code before this lot.
+
+1. **Decided: a Bearer realm off the origin is never followed with credentials (F1, option B).** Refused only when credentials are set, with `token realm on another host`; the frozen exceptions are Docker Hub and `registry.gitlab.com` to `gitlab.com`. Self-hosted GitLab stays refused (option C, a per-configuration exception, is a follow-up). Rejected: option A (Docker Hub only, GitLab.com broken with credentials) and following the realm without credentials.
+2. **Decided: the 404 `Remote Auto Blocked` of a proxy with a cut upstream is `failed`, temporary (F3).** Detected on the exact JSON prefix, body read up to 4 KiB; any other 404 stays `refused`.
+3. **Decided: the timeout reads `no answer within 15 s` (F5).** The delay stays at 15 s; only the wording changes.
+4. **Decided: a Docker login of an entry with a path is found by its exact key, then by `host[:port]` as written (F7).** Logout stays on the exact key. Known risk B1, left as is by the user: a login stored for `host` also serves `http://host/path`, a clear Basic over http.
+5. **Decided: `Cached only` becomes `May omit images` (F2), carried by the type of each discovered member.** A group always carries it; a proxy when `failed` or `refused`. The type costs up to 32 GET per discovery, 8 at a time. F4: a group that silently omits names is never said `absent`; DevDesk cannot detect it.
+6. **Decided: duplicate catalogue names are deduplicated silently (F8).** First appearance order kept; the caps count distinct names.
+7. **Decided: the non-200 of `oci.ManifestDigest` is a typed `*oci.StatusError` (F6, DEVDESK-631); the text is unchanged.** Frozen notes that call that error untyped describe the code before this lot.
+8. **Observed during implementation:** the security audit found M1 (a `management_url` on another host received the registry host's login); fixed before merge (D168 point 4). B1 is not fixed; the decision is documented in D168.
+9. **Not measured:** the logout of a path entry (R6 in the plan) is inferred from the CLI behaviour, not checked against Nexus.
+10. **No ADR.** Reversible by a revert; the cache field of point 5 is additive. Number D168 is free on `main` as of 2026-11-20; re-check at merge.
+
+**Proposed follow-ups (not started):**
+- A separate task: the realm `query` kept on a non-timeout network error in `fetch token:` (predates this lot).
+- A story: refuse Basic over http outside loopback (B1).
+- Verify the logout of a path entry (R6); a story if the whole host is logged out.
+- After merge: close NX-09 (DEVDESK-512); then NX-11 (DEVDESK-514).
+
 ## 2026-11-20 — DEVDESK-579 (NX-12): a group member's catalog is read under its path (D167)
 
 Source: `docs/backlog.md` D167, plan `.claude/plans/DEVDESK-579-plan.md`, measurement `docs/measurements/2026-11-17-nexus-catalog.md` (Nexus 3.98.1-01 Community). Decided by the user on 2026-11-20. Closes the open decisions of the 2026-11-17 entry (H1, IS-07, NX-10) and item 3 of the 2026-11-18 entry.
