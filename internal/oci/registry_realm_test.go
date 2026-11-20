@@ -214,6 +214,18 @@ func TestBearerRealmStillAccepted(t *testing.T) {
 					}
 					fx := newBearerRegistry(t, tt.tlsRegistry, realm, hits, rt)
 
+					// DEVDESK-629 (F1): a realm on another origin is no longer taken
+					// when credentials are set; anonymous, the flow is as before.
+					if tt.realm != "same" && cred.user != "" {
+						err := op.run(fx.apiURL, cred.user, cred.pass)
+						if !errors.Is(err, ErrTokenRealmOffOrigin) {
+							t.Fatalf("err = %v, want ErrTokenRealmOffOrigin (credentials must not follow a realm off the origin)", err)
+						}
+						if n := hits.count(); n != 0 {
+							t.Errorf("realm received %d requests, want 0 (auth %q)", n, hits.anyAuth())
+						}
+						return
+					}
 					if err := op.run(fx.apiURL, cred.user, cred.pass); err != nil {
 						t.Fatalf("err = %v, want the walk to succeed", err)
 					}
@@ -283,6 +295,103 @@ func TestCheckTokenRealm(t *testing.T) {
 				if strings.Contains(err.Error(), leak) {
 					t.Errorf("err = %q leaks %q", err, leak)
 				}
+			}
+		})
+	}
+}
+
+// DEVDESK-629 (F1): with credentials, a realm on another origin is refused before any
+// request to it. The registry gets its one initial request, the token server none,
+// and the error is not a StatusError: it names the realm's host and nothing else.
+
+// offOriginOps are the entry points of registryOps plus the catalog under a prefix.
+func offOriginOps() []registryOp {
+	return append(registryOps(), registryOp{"ListCatalogUnderContext", func(api, user, pass string) error {
+		_, _, err := ListCatalogUnderContext(context.Background(), api, "x", user, pass, 10, 1000)
+		return err
+	}})
+}
+
+func TestTokenRealmOffOriginSendsNothingThere(t *testing.T) {
+	for _, op := range offOriginOps() {
+		t.Run(op.name, func(t *testing.T) {
+			realmURL, realmHits, _ := newTokenServer(t, false)
+			fx := newBearerRegistry(t, false, func(string) string { return realmURL + "/token" }, realmHits, nil)
+
+			err := op.run(fx.apiURL, "admin", realmTestPassword)
+
+			if !errors.Is(err, ErrTokenRealmOffOrigin) {
+				t.Fatalf("err = %v, want ErrTokenRealmOffOrigin", err)
+			}
+			var se *StatusError
+			if errors.As(err, &se) {
+				t.Errorf("err is a StatusError (%v): a refused realm is not an HTTP status", se)
+			}
+			if n := realmHits.count(); n != 0 {
+				t.Errorf("token server received %d requests, want 0 (auth %q)", n, realmHits.anyAuth())
+			}
+			if n := fx.regHits.count(); n != 1 {
+				t.Errorf("registry received %d requests, want only the first one", n)
+			}
+			assertNoRealmLeak(t, err)
+			host := strings.TrimPrefix(realmURL, "http://")
+			if !strings.Contains(err.Error(), host) {
+				t.Errorf("err = %q, want the realm's host %q named", err, host)
+			}
+		})
+	}
+}
+
+// registryGETContext is the shared entry point of the tag and catalog readers.
+func TestTokenRealmOffOriginRefusedByTheGet(t *testing.T) {
+	realmURL, realmHits, _ := newTokenServer(t, false)
+	fx := newBearerRegistry(t, false, func(string) string { return realmURL + "/token" }, realmHits, nil)
+
+	_, _, _, err := registryGETContext(context.Background(), fx.apiURL+"/v2/x/tags/list", "admin", realmTestPassword, "")
+
+	if !errors.Is(err, ErrTokenRealmOffOrigin) {
+		t.Fatalf("err = %v, want ErrTokenRealmOffOrigin", err)
+	}
+	if n := realmHits.count(); n != 0 {
+		t.Errorf("token server received %d requests, want 0", n)
+	}
+	assertNoRealmLeak(t, err)
+}
+
+// Without credentials the anonymous token request still goes out, without an
+// Authorization header, and the walk succeeds.
+func TestTokenRealmOffOriginAnonymousStillAsks(t *testing.T) {
+	for _, op := range offOriginOps() {
+		t.Run(op.name, func(t *testing.T) {
+			realmURL, realmHits, _ := newTokenServer(t, false)
+			fx := newBearerRegistry(t, false, func(string) string { return realmURL + "/token" }, realmHits, nil)
+
+			if err := op.run(fx.apiURL, "", ""); err != nil {
+				t.Fatalf("err = %v, want the anonymous walk to succeed", err)
+			}
+			if n := realmHits.count(); n != 1 {
+				t.Errorf("token server received %d requests, want 1", n)
+			}
+			if got := realmHits.anyAuth(); got != "" {
+				t.Errorf("token request carried Authorization %q, want none", got)
+			}
+		})
+	}
+}
+
+// Half a credential is no credential: the Basic header is sent only with both, so
+// the refusal applies only with both (the condition of doRequestContext).
+func TestTokenRealmOffOriginHalfCredentialsAreAnonymous(t *testing.T) {
+	for _, c := range []struct{ name, user, pass string }{{"user only", "admin", ""}, {"password only", "", realmTestPassword}} {
+		t.Run(c.name, func(t *testing.T) {
+			realmURL, realmHits, _ := newTokenServer(t, false)
+			fx := newBearerRegistry(t, false, func(string) string { return realmURL + "/token" }, realmHits, nil)
+
+			if err := registryOps()[0].run(fx.apiURL, c.user, c.pass); err != nil {
+				t.Fatalf("err = %v, want the anonymous flow", err)
+			}
+			if got := realmHits.anyAuth(); got != "" {
+				t.Errorf("token request carried Authorization %q, want none", got)
 			}
 		})
 	}

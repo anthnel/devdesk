@@ -2,6 +2,7 @@ package oci
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"net"
 	"net/http"
@@ -291,8 +292,13 @@ func TestExchangeBearerTokenBoundsResponse(t *testing.T) {
 	}))
 	defer reg.Close()
 
-	if _, err := ListRegistryTagsContext(context.Background(), reg.URL, "x", "user", "pass"); err == nil {
+	// Anonymous: the token server is another origin (DEVDESK-629, F1).
+	_, err := ListRegistryTagsContext(context.Background(), reg.URL, "x", "", "")
+	if err == nil {
 		t.Fatal("err = nil, want an error for a token response over 1 MiB")
+	}
+	if errors.Is(err, ErrTokenRealmOffOrigin) {
+		t.Fatalf("err = %v: refused for its realm, not for the bound", err)
 	}
 }
 
@@ -311,7 +317,8 @@ func TestExchangeBearerTokenSmallResponse(t *testing.T) {
 		_, _ = fmt.Fprint(w, `{"tags":["a"]}`)
 	}))
 	defer reg.Close()
-	got, err := ListRegistryTagsContext(context.Background(), reg.URL, "x", "user", "pass")
+	// Anonymous: the token server is another origin (DEVDESK-629, F1).
+	got, err := ListRegistryTagsContext(context.Background(), reg.URL, "x", "", "")
 	if err != nil || strings.Join(got, ",") != "a" {
 		t.Fatalf("tags = %v, err = %v, want [a]", got, err)
 	}

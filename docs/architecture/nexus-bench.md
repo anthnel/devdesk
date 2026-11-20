@@ -1811,9 +1811,10 @@ measurement changed):
 - `TestBearerFlowOnMeasuredNexusAnswers`: a wrong password is a typed `*oci.StatusError{401, SourceRegistry}` carrying the
   `BASIC` challenge, no token request; an anonymous `GET /v2/` follows 401, token, retry and ends on a plain 401 (nominal and W5); an
   anonymous catalog read with anonymous access cut goes to the realm (what Nexus answers there was NOT recorded and is not asserted).
-- `TestMeasuredRealmStaysOnTheRegistryOrigin`: every measured realm is on the origin of its request; the probe's off-origin
-  `https` realm IS FOLLOWED (token request sent to it, with Basic when credentials are configured). This contradicts criterion 3 of
-  NX-08b and is pinned, not corrected; the note lists the conditional correction.
+- `TestMeasuredRealmStaysOnTheRegistryOrigin`: every measured realm is on the origin of its request (and `checkRealmOrigin` accepts it
+  with credentials); the probe's off-origin `https` realm gets the anonymous token request when no credentials are configured, and is
+  REFUSED when they are (`ErrTokenRealmOffOrigin`, nothing sent to that host), since DEVDESK-629 / D168. The frozen note
+  (`docs/measurements/2026-11-20-nexus-access.md`) still describes the earlier behavior (the realm was followed, with Basic); it is not edited.
 - `TestRedirectsOnMeasuredNexusAnswers`: no exchange of any campaign carries a 3xx or a `Location` (a future redirect turns it
   red); the direct answers are replayed. The refusal of an off-origin redirect or `Link` stays covered by hand-written tests only,
   named in the test and in the note. The blob GET is a stub (3072 bytes not kept) that fakenexus cannot serve: pinned from the file.

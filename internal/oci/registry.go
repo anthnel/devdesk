@@ -87,8 +87,11 @@ func (e *StatusError) Error() string {
 //
 // apiURL is the API base (see the browser's registryAPIURL). Credentials, when
 // given, go as Basic auth and, on a 401 that names a Bearer realm, to that
-// realm's token endpoint — the flow Docker Hub and most hosted registries use.
-// The token is kept for the following pages.
+// realm's token endpoint — the flow Docker Hub and most hosted registries use —
+// only when the realm is on the registry's origin or is one of realmExceptions;
+// otherwise the walk stops with ErrTokenRealmOffOrigin and nothing is sent there.
+// Without credentials the anonymous token request goes to any realm. The token is
+// kept for the following pages.
 //
 // The list is followed across pages: whatever a registry caps a response at,
 // and Docker Hub does not, a repository with more tags than one page holds is
@@ -320,7 +323,8 @@ func exchangeBearerToken(registryURL, challenge, username, password string) (str
 // credentials: the realm would otherwise receive them (or a token request) in
 // clear. A missing or unparsable realm passes: exchangeBearerTokenContext
 // reports those. The error names the realm's host only, never its userinfo,
-// path or query.
+// path or query. Which origin a realm may be on, with credentials, is
+// checkRealmOrigin's question.
 func checkTokenRealm(registryURL, challenge string) error {
 	realm, ok := parseBearerChallenge(challenge)["realm"]
 	if !ok {
@@ -343,10 +347,14 @@ func checkTokenRealm(registryURL, challenge string) error {
 }
 
 // exchangeBearerTokenContext is exchangeBearerToken bound to ctx. It applies
-// checkTokenRealm itself, so no caller reaches an insecure realm by skipping
+// checkTokenRealm and checkRealmOrigin itself, so no caller reaches an insecure
+// realm, or sends credentials to one on another origin, by skipping
 // registryDoContext; registryURL is the registry that sent the challenge.
 func exchangeBearerTokenContext(ctx context.Context, registryURL, challenge, username, password string) (string, error) {
 	if err := checkTokenRealm(registryURL, challenge); err != nil {
+		return "", err
+	}
+	if err := checkRealmOrigin(registryURL, challenge, username != "" && password != ""); err != nil {
 		return "", err
 	}
 	u, err := tokenEndpoint(challenge)

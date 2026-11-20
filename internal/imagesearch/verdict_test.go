@@ -34,6 +34,9 @@ func classifyCases() []classifyCase {
 		{"query too short wrapped", fmt.Errorf("x: %w", ErrQueryTooShort), 0, false, Outcome{Verdict: VerdictNoResult, Skipped: true}},
 		{"unsupported", ErrUnsupported, 0, false, refused},
 		{"prefix not in catalog", ErrPrefixNotInCatalog, 0, false, refused},
+		// DEVDESK-629 (F1): a token realm refused for being off the origin is a failure
+		// (rule 5), not a refusal by the registry.
+		{"token realm off the origin", fmt.Errorf("search: %w (auth.example)", oci.ErrTokenRealmOffOrigin), 0, false, failed},
 		{"registry 401", status(401), 0, false, refused},
 		{"registry 403", status(403), 0, false, refused},
 		{"registry 404", status(404), 0, false, refused},

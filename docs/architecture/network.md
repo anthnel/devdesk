@@ -105,7 +105,7 @@ for that timeout too. A caller cannot tell the client timeout from the
 context's deadline, so `imagesearch.Classify` (DEVDESK-303, IS-12) puts both in
 the `failed` verdict.
 
-**Credentials stay on their origin (DEVDESK-410).** Three guards keep the Basic
+**Credentials stay on their origin (DEVDESK-410).** Four guards keep the Basic
 credentials and the Bearer token from leaving the registry they were meant for:
 
 - **The tag list never follows a `Link: rel="next"` to another origin.**
@@ -132,11 +132,39 @@ credentials and the Bearer token from leaving the registry they were meant for:
 - **The token endpoint's answer is capped at 1 MiB** (`maxTokenResponse`). A
   larger body is an error (`token response over 1048576 bytes`), not a silent
   cut.
+- **A Bearer realm on another origin gets no credentials (DEVDESK-629,
+  D168).** `exchangeBearerTokenContext` calls `checkRealmOrigin`
+  (`internal/oci/realm.go`) right after `checkTokenRealm`: when credentials
+  are configured (username and password both set, the condition under which
+  Basic is sent) and the realm's scheme, host or port differ from the request
+  that received the challenge, the exchange stops before any request to the
+  realm with an error wrapping `ErrTokenRealmOffOrigin`
+  (`token realm on another host (<host>)`, `errors.Is`), naming the realm's host
+  only and not a `StatusError`. Without credentials the anonymous token request
+  goes out as before. The comparison is `sameOrigin`'s, exact: `host` and
+  `host:443` are two origins (H2). Two exceptions, frozen in `realmExceptions`
+  (a test pins the list), one way, https on both sides, host exact with no
+  port: Docker Hub (`registry-1.docker.io` to `auth.docker.io`) and GitLab.com
+  (`registry.gitlab.com` to `gitlab.com`). A self-hosted GitLab registry whose
+  realm is on the GitLab host is refused. The refusal shows at the footer, level
+  Error, as `token realm on another host`, in the three interactive flows of the
+  registry browser: tags opened from the search (`Could not load tags: token
+  realm on another host`), tags opened from the form (silent before, this one
+  failure only, H1) and image search (`Image search on <alias>: token realm on
+  another host`), through `registryFailureReason`
+  (`internal/ui/oci_resources/registry_failure.go`); the search verdict is
+  `failed`. The realm's host stays in the journal. The other callers
+  (`imageupdate`, signature, remediation) have no footer.
 
 **Behavior change.** Some redirects that were followed are now refused: `http`
 to `https` on the same host, `host` to `host:443`, and a host written with a
 different case. The comparison is on the exact scheme and `host:port`, and the
 guard refuses when in doubt.
+
+**Behavior change (DEVDESK-629).** A registry configured with credentials whose
+Bearer realm is on another origin (other than the two exceptions above) used to
+receive them as Basic at its token endpoint; it now fails with
+`token realm on another host`. Without credentials nothing changes.
 
 **The other registry clients (DEVDESK-412).** The same two guards, plus a few
 more, cover the clients DEVDESK-410 left out. The shared code is

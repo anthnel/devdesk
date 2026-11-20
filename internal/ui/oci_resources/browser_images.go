@@ -278,6 +278,9 @@ func (m Model) handleImageSearchResult(msg ImageSearchResultMsg) (tea.Model, tea
 		alias = entryAlias(*e)
 	}
 	logSearchOutcome(alias, oc, msg.Err)
+	if reason := registryFailureReason(msg.Err); reason != "" {
+		return m, m.footer.Error("Image search on " + alias + ": " + reason)
+	}
 	return m, nil
 }
 
