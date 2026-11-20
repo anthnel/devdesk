@@ -1,0 +1,15 @@
+{
+  "tool_use_id": "toolu_016W8c8QGMNoq9UAasHFZxQ7",
+  "agent_id": "abbfab6921d3f04cd",
+  "subagent_type": "product-team:pm",
+  "task_description": "Critères d'acceptation DEVDESK-629",
+  "token_usage": {
+    "input_tokens": 22,
+    "cache_creation_tokens": 128583,
+    "cache_read_tokens": 754919,
+    "output_tokens": 13712,
+    "api_call_count": 9
+  },
+  "started_at": "2026-11-20T18:04:11.566556137+01:00",
+  "completed_at": "2026-11-20T18:06:02.673312661+01:00"
+}
