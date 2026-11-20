@@ -56,6 +56,7 @@ func (s *session) record() int {
 		DenyTerms:         deny,
 		State:             s.recordState(),
 		AllowCacheEffects: s.recordFlags.allowCacheEffects,
+		DatasetAsAdmin:    s.recordFlags.datasetAsAdmin,
 		RequestTimeout:    s.recordFlags.requestTimeout,
 	})
 	if errors.Is(err, context.Canceled) {

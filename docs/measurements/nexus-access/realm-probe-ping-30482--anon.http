@@ -1,0 +1,22 @@
+# scenario: NX-05: H4 realm: GET /v2/ on port 30482 with X-Forwarded-Host and X-Forwarded-Proto, does the realm follow
+# nexus: 3.98.1-01 COMMUNITY (realm off-origin, not followed)
+# measured: 2026-11-20
+# account: anonymous (no credentials)
+# redacted: Authorization header and credentials removed; HTML bodies summarised; response headers filtered to a whitelist
+# state: nominal
+# flow: bearer
+# recorded-by: nexus-bench record
+
+GET /v2/ HTTP/1.1
+Host: 127.0.0.1:30482
+X-Forwarded-Host: realm-probe.invalid
+X-Forwarded-Proto: https
+
+HTTP/1.1 401 Unauthorized
+Server: Nexus/3.98.1-01 (COMMUNITY)
+Docker-Distribution-Api-Version: registry/2.0
+WWW-Authenticate: Bearer realm="https://realm-probe.invalid/v2/token",service="https://realm-probe.invalid/v2/token"
+Content-Type: application/json
+Content-Length: 113
+
+{"errors":[{"code":"UNAUTHORIZED","message":"access to the requested resource is not authorized","detail":null}]}

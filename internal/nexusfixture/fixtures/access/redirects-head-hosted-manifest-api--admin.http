@@ -1,0 +1,22 @@
+# scenario: NX-05: H4 redirects: HEAD of the manifest of api:1.0.0 in docker-hosted
+# nexus: 3.98.1-01 COMMUNITY
+# measured: 2026-11-20
+# account: admin (nx-admin, Basic, sent preemptively)
+# redacted: Authorization header and credentials removed; HTML bodies summarised; response headers filtered to a whitelist
+# state: nominal
+# flow: redirects
+# recorded-by: nexus-bench record
+
+HEAD /v2/docker-hosted/api/manifests/1.0.0 HTTP/1.1
+Host: 127.0.0.1:30481
+Authorization: Basic <redacted>
+Accept: application/vnd.oci.image.index.v1+json, application/vnd.docker.distribution.manifest.list.v2+json, application/vnd.oci.image.manifest.v1+json, application/vnd.docker.distribution.manifest.v2+json
+
+HTTP/1.1 200 OK
+Server: Nexus/3.98.1-01 (COMMUNITY)
+Docker-Distribution-Api-Version: registry/2.0
+Docker-Content-Digest: sha256:241d539e25e7715ee530207ef552fe850bab8a59bc0b328359b8cffcfed49cb8
+Content-Type: application/vnd.oci.image.manifest.v1+json
+Content-Length: 397
+
+<empty body>

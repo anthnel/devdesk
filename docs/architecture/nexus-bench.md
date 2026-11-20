@@ -1585,21 +1585,24 @@ Plan `.claude/plans/DEVDESK-511-plan.md`. Tests of the Nexus-facing code (image
 search, group discovery) replay answers measured on the bench instead of
 hand-written ones, with no bench, no cluster and no secret: `mise run test` needs
 none of them. Scope is partial: the NX-03 measures
-(`docs/measurements/2026-11-17-nexus-catalog.md`) and the NX-04 ones (a proxy whose
-upstream is cut, `docs/measurements/2026-11-20-nexus-cached-only.md`), all on Nexus
-3.98.1-01 Community, exist as fixtures. See "What is not recorded yet" below.
+(`docs/measurements/2026-11-17-nexus-catalog.md`), the NX-04 ones (a proxy whose
+upstream is cut, `docs/measurements/2026-11-20-nexus-cached-only.md`) and the NX-05 ones
+(routing, authentication, Bearer realm, redirects, `Link`,
+`docs/measurements/2026-11-20-nexus-access.md`), all on Nexus 3.98.1-01 Community, exist as
+fixtures. See "What is not recorded yet" below.
 
 ### Where things are
 
 | Path | Role |
 |---|---|
 | `internal/nexusfixture/` | format, parser and writer (`format.go`), embedded loader (`load.go`), `Redact` (`redact.go`), `CheckLeaks` (`leaks.go`). No `testing` import: the recorder imports it. |
-| `internal/nexusfixture/fixtures/<campaign>/*.http` | the fixtures, embedded with `go:embed`. Two campaigns today: `catalog` (75 files) and `cachedonly` (17 files, NX-04). |
+| `internal/nexusfixture/fixtures/<campaign>/*.http` | the fixtures, embedded with `go:embed`. Three campaigns today: `catalog` (75 files), `cachedonly` (17 files, NX-04) and `access` (43 files, NX-05). |
 | `internal/nexusfixture/fakenexus/` | the replay server. Imports `testing`: import it from `_test.go` files only. |
 | `internal/nexusbench/record.go`, `cmd/nexus-bench/record.go` | the recorder and its command. |
 | `internal/nexusfixture/stale_test.go` | the stale-fixture test. |
 | `internal/imagesearch/catalog_fixture_test.go`, `internal/registrymgr/nexus_fixture_test.go` | the replay tests of the `catalog` campaign. |
 | `internal/imagesearch/cachedonly_fixture_test.go`, `internal/ui/oci_resources/browser_cached_only_fixture_test.go`, `internal/oci/manifest_fixture_test.go` | the replay tests of the `cachedonly` campaign (see "The `cachedonly` campaign" below). |
+| `internal/oci/registry_fixture_test.go`, `internal/imagesearch/access_fixture_test.go`, `internal/ui/oci_resources/browser_nexus_routing_fixture_test.go` | the replay tests of the `access` campaign (see "The `access` campaign" below). |
 
 ### Format of a fixture
 
@@ -1698,6 +1701,12 @@ written from `pending` files too, then frozen byte for byte in
 `docs/measurements/nexus-cachedonly/`, whose note is
 `docs/measurements/2026-11-20-nexus-cached-only.md`). None is imported from older evidence.
 
+The 43 files of `access` were all recorded by `nexus-bench record` on 2026-11-20 (NX-05, written from
+`pending` files too, then frozen byte for byte in `docs/measurements/nexus-access/`, whose note is
+`docs/measurements/2026-11-20-nexus-access.md`). The `w5-` and `w6-` ones were recorded by the guarded
+scenario `TestIntegrationDevDeskAccessVariants`, which writes to the bench and puts it back. None is
+imported from older evidence.
+
 A fixture is either byte-identical to its dated evidence, or it says
 `# recorded-by: nexus-bench record` (a regenerated file). The check catches a
 hand-edited copy of measured evidence and an unknown `recorded-by` value, but it
@@ -1773,6 +1782,53 @@ version bump until a hand edit), and a redaction rule changes the bytes of files
 wrote, which means recording them again on the bench. The replay tests match the message by its
 prefix (`Remote Auto Blocked until `) and check the rest parses as a date, never the date
 itself: keep it that way.
+
+### The `access` campaign (DEVDESK-580, PR4, NX-05)
+
+43 files, all recorded by `nexus-bench record` on 2026-11-20, frozen in `docs/measurements/nexus-access/`
+(`evidenceDirs["access"]`, byte-identical copies). By family and state:
+
+| Prefix | State | What it holds |
+|---|---|---|
+| `routing-tags-*` (9), `tags-page-hosted-n1` | `nominal` | `tags/list` of `api` by path, by `/repository/<r>` and on the group connector, for admin, pull and anon; one page of `?n=1` with its `Link` |
+| `bearer-*` (6) | `nominal`, `flow: bearer` | `GET /v2/` anonymous on both ports (401 Bearer, token, retry: three exchanges); catalogs for anon (200) and `badcred` (401 BASIC) |
+| `realm-probe-*` (2) | `nominal`, `flow: bearer` | `GET /v2/` with `X-Forwarded-Host: realm-probe.invalid` and `X-Forwarded-Proto: https`: the realm follows the announced host; one exchange (the recorder does not follow an off-origin realm) |
+| `redirects-*` (7) | `nominal`, `flow: redirects` | `GET /v2` without its slash, `/v2/<repo>`, `/repository/<r>/v2`, the HEAD of a hosted manifest, the GET of a hosted blob: no redirect anywhere |
+| `w5-*` (10) | `realm-off` | the `DockerToken` realm removed from the active realms |
+| `w6-*` (8) | `anon-off` | anonymous access cut |
+
+Like `cachedonly`, a state can hold the SAME request as another with another answer (`GET /v2/` anonymous as
+`bearer-ping-`, `realm-probe-ping-`, `w5-ping-`, `w6-ping-`, `w5-bearer-ping-`; the same catalog request in `bearer-catalog-`, `w5-catalog-`
+and `w6-catalog-`), and fakenexus refuses two recordings of one request: a test builds one fake from a chosen subset,
+never from the whole campaign. `fakenexus` keys a request on host, method, target, identity and Bearer-or-not, never on a
+request header, so the probe's `X-Forwarded-*` are recorded but not matched.
+
+What the replay tests pin (they check the recorded statuses and challenges first, and fail naming the file if the
+measurement changed):
+
+- `TestValidCredentialsNeverEnterTheBearerFlowOnNexus` (`internal/oci`): admin and pull, nominal, W5 and W6: one request,
+  Basic at once, none to `/v2/token`.
+- `TestBearerFlowOnMeasuredNexusAnswers`: a wrong password is a typed `*oci.StatusError{401, SourceRegistry}` carrying the
+  `BASIC` challenge, no token request; an anonymous `GET /v2/` follows 401, token, retry and ends on a plain 401 (nominal and W5); an
+  anonymous catalog read with anonymous access cut goes to the realm (what Nexus answers there was NOT recorded and is not asserted).
+- `TestMeasuredRealmStaysOnTheRegistryOrigin`: every measured realm is on the origin of its request; the probe's off-origin
+  `https` realm IS FOLLOWED (token request sent to it, with Basic when credentials are configured). This contradicts criterion 3 of
+  NX-08b and is pinned, not corrected; the note lists the conditional correction.
+- `TestRedirectsOnMeasuredNexusAnswers`: no exchange of any campaign carries a 3xx or a `Location` (a future redirect turns it
+  red); the direct answers are replayed. The refusal of an off-origin redirect or `Link` stays covered by hand-written tests only,
+  named in the test and in the note. The blob GET is a stub (3072 bytes not kept) that fakenexus cannot serve: pinned from the file.
+- `TestTagsLinkOnMeasuredNexusAnswers`: the measured `Link` resolves to a same-origin URL the client would follow. The walk of the
+  catalog pages (criterion 6) is `TestCatalogWalk*` of PR1.
+- `TestCatalogVerdictsOnMeasuredNexusAccess` (`internal/imagesearch`): `refused` for a wrong password, `ok` for admin and for anon
+  unless anonymous access is cut.
+- `TestURLsDevDeskCallsAreTheMeasuredOnes` (`internal/ui/oci_resources`): the real browser, search and tag list, for the three
+  addressing modes (by path with a member `repo_prefix`, by connector, by `/repository/<r>` in the URL of an entry) and the three
+  identities; the fake answers only what the bench answered and `Hits` are exact. `TestAccessVariantsThroughTheBrowser`: the same for the
+  verdicts, nominal, W5 and W6.
+
+Not measured, so not replayed: subdomain routing, a dedicated connector for `docker-hosted` or `docker-proxy` (W7), `docker.subdomain`
+(W8), an off-origin realm or redirect on a real topology, HEAD or GET of a manifest or blob through the proxy or the group, the token
+endpoint under W6, the `pull` account under W5 and W6, the second page of the tags.
 
 ### Redaction and leak check
 
@@ -1953,7 +2009,7 @@ ones included, and can overwrite such a fixture with a nominal answer: always pa
 Flags: the common parameter flags, plus `--campaign <name>` (repeatable, default
 every folder), `--only <glob>` (on fixture names without `.http`, e.g.
 `catalog-*`), `--dir <folder>` (default the fixtures folder of the source tree),
-`--rest-host`, which accepts a loopback address only, and three that only `record`
+`--rest-host`, which accepts a loopback address only, and four that only `record`
 takes (the other subcommands refuse them with exit 2):
 
 - `--state nominal|upstream-cut`: the state the bench is in. The command builds the
@@ -1970,6 +2026,18 @@ takes (the other subcommands refuse them with exit 2):
   state in separate runs. An unknown value is a usage error (exit 2).
 - `--allow-cache-effects`: lets a fixture that says `effect: caches` be sent (see
   the guards). It reaches for no cluster by itself.
+- `--dataset-as-admin` (boolean, off by default, DEVDESK-580 PR4): compares the data
+  set of the bench with the listing the admin account reads instead of the anonymous
+  one (`RecordOptions.DatasetAsAdmin`). It exists for a bench whose anonymous access is
+  cut (scenario W6), where the anonymous listing is a 401 and the run would be refused.
+  With it the two listings (`docker-hosted` and `docker-proxy`, never `docker-group`)
+  are sent with the stored admin credentials to the REST origin and never anonymously,
+  even when anonymous access is still on (it is not a fallback); the comparison, the
+  refusal on a drift and its advice (`reset`) are the same. The admin password is
+  checked before the first request (a run that has jobs and none stored is refused
+  with `mise run nexus-bench:up`), a refused listing is a refusal whose advice does
+  not blame anonymous access, and no password is in an error. A run with nothing to
+  record reads no listing. Without the flag nothing changes. It reaches for no cluster.
 - `--request-timeout <duration>` (default `15s`): what one request may take,
   connection included, per request and not for the run. The upstream's first read
   takes 20 s when it is cut (NX-02b), so a run in that state asks for `45s`. A
@@ -1982,7 +2050,13 @@ Guards. All are checked before the first request, except where stated:
 - GET and the HEAD of a manifest only, and a closed list of paths:
   `/v2/_catalog`, `/v2/<name>/tags/list`,
   `/v2/<repo>[/<repo>...]/_catalog` (the catalog of a member by path, DEVDESK-579),
-  `/repository/<repo>/v2/_catalog`, `/service/rest/v1/repositories[/...]`, with a
+  `/repository/<repo>/v2/_catalog`, `/service/rest/v1/repositories[/...]`, and four
+  shapes of the `access` campaign (DEVDESK-580, PR4), GET only, `<repo>` being one of the
+  three repositories of the bench (`docker-hosted`, `docker-proxy`, `docker-group`,
+  the set the HEAD of a manifest knows): `/v2` (no trailing slash),
+  `/repository/<repo>/v2` (no trailing slash), `/v2/<repo>` (exactly the repository,
+  nothing after it) and `/repository/<repo>/v2/<name>/tags/list` (the tags of an image
+  by the repository path); with a
   query limited to `n` and `last`; never a manifest or a blob (a read through the
   proxy caches and would change the bench). The only percent escape admitted is
   `%2F` (either case) in the value of `last`, the form a Nexus group page `Link`
@@ -2069,6 +2143,43 @@ Written files carry `# measured:` with today's date and `# recorded-by: nexus-be
 record`; they then stop being byte-identical to the evidence, which the provenance
 test accepts.
 
+### The access bricks and the guarded scenario (`access.go`, DEVDESK-580, PR4, W5 and W6)
+
+Two settings of the bench have to change for the fixtures of the `access` campaign that
+need them, and the bench must then be put back. Three functions of `access.go` do it,
+for the scenario test only (bench tools, not DevDesk features):
+
+- `ActiveRealms(ctx, baseURL, store, p) ([]string, error)` reads the active realms in the
+  order the instance lists them (one GET).
+- `SetActiveRealms(ctx, baseURL, store, p, realms) error` replaces them with the list as
+  given, in its order, in one PUT. A list that would lock the bench out is refused before
+  any request: none, one without `NexusAuthenticatingRealm`, or one with a blank name
+  (Provision, which puts the bench back, signs in as admin).
+- `SetAnonymousAccess(ctx, baseURL, store, p, enabled) error` enables or disables anonymous
+  access with one read (to keep the realm) and one PUT of the same object `ensureAnonymous`
+  sends (`enabled`, `userId`, `realmName`, shared in `client.setAnonymous`).
+
+Guards, as for `RestoreUpstream`: a REST origin that is not the loopback is refused before
+the credentials are read (`requireLoopbackBase`); the stored admin credentials are the only
+ones sent (none stored: a refusal that names `mise run nexus-bench:up`, nothing sent); a
+cancelled context is returned as is; every other error is a `*BenchError` that carries no
+password; no write but the one PUT. Provision undoes both (it adds the required realms back
+and sets anonymous access to what the parameters say), so `mise run nexus-bench:provision`
+is the way back.
+
+`TestIntegrationDevDeskAccessVariants` (`bench_scenarios_integration_test.go`) uses them. It
+needs `DEVDESK_NEXUS_BENCH=1` and `DEVDESK_NEXUS_BENCH_SCENARIOS=1` (skipped otherwise) and
+the environment of the other scenarios. It checks that the bench is nominal (data set,
+required realms, anonymous access), then: W5 removes `DockerToken` from the active realms,
+calls `RecordFixtures` in-process on the `access` fixtures named `w5-*` (`StateAny`), and
+runs Provision; W6 cuts anonymous access, records the `w6-*` fixtures with `DatasetAsAdmin`,
+and runs Provision; it ends by checking that the data set, the realms (as they were, in
+their order) and anonymous access are nominal again. The Provision of the way back is
+registered with `t.Cleanup` before the first write and runs again whatever the outcome. It
+makes no other write (no W7, no W8). It writes the fixtures it records under the source
+tree, like `nexus-bench record`; a campaign without a `w5-` or `w6-` fixture fails the run
+rather than passing for a recording.
+
 ### What is not recorded yet
 
 - `Cached only` and the verdict `failed` are measured since DEVDESK-580 (PR3): the 502 of a
@@ -2078,13 +2189,12 @@ test accepts.
   and the deadline the user really waits for (15 s in the client, 20 s in Nexus), which
   no fixture can replay. A proxy's catalog lists `mirror/uncached`, which it does not
   hold (it relays the upstream); the search shows it.
-- NX-05: Bearer token flow and realm, redirects, routing by port and path beyond the
-  two bench origins. `record` now records the multi-exchange flows (DEVDESK-580,
-  PR2); what is missing is the measurement itself, the `access` campaign (later PRs).
-- The `?n=1000` request on the HTTP-port root is recorded (DEVDESK-580). Still
-  open for that story: the `access` campaign (NX-05, a later PR), and the
-  `tags-hosted-api-repository` fixture (`/repository/<name>/v2/...`,
-  outside the closed list).
+- NX-05 is recorded and replayed since DEVDESK-580 (PR4): the `access` campaign above. What stays unmeasured
+  is listed at the end of that section (subdomain, a connector for `docker-hosted`, an off-origin realm or
+  redirect, the token endpoint under W6). `tags-hosted-api-repository` is no longer postponed: the
+  `/repository/<name>/v2/<image>/tags/list` shape is in the recorder's closed list and recorded as
+  `routing-tags-hosted-repository`.
+- The `?n=1000` request on the HTTP-port root is recorded (DEVDESK-580, PR1).
 - Both bench members of the group get the alias `docker` (`docker-hosted`,
   `docker-proxy`): same label, display only. Flagged, not changed.
 

@@ -102,6 +102,12 @@ type RecordOptions struct {
 	// RequestTimeout bounds one request of the run, connection included; 0 means
 	// defaultRecordTimeout (15 s).
 	RequestTimeout time.Duration
+	// DatasetAsAdmin compares the data set with the listing the admin account reads,
+	// instead of the anonymous one, so that a bench whose anonymous access is cut
+	// can be recorded (DEVDESK-580, W6). The admin credentials then go to the REST
+	// origin for the two listings, which they already do for a fixture of the admin
+	// identity. False keeps the anonymous comparison.
+	DatasetAsAdmin bool
 }
 
 // RecordReport lists the fixtures of a run as "<campaign>/<name>". A Skipped
@@ -154,6 +160,9 @@ func RecordFixtures(ctx context.Context, o RecordOptions) (RecordReport, error) 
 		return RecordReport{}, err
 	}
 	if len(jobs) > 0 {
+		if o.DatasetAsAdmin && o.Secrets.AdminPassword == "" {
+			return RecordReport{}, recordError("the bench has no stored password for "+adminUserID+", the account of the data set listing", upCheck, nil)
+		}
 		if err := checkBenchDataset(ctx, o); err != nil {
 			return RecordReport{}, err
 		}
@@ -483,6 +492,14 @@ var (
 		regexp.MustCompile(`^/v2/[a-z0-9._-]+(/[a-z0-9._-]+)*/_catalog$`),
 		regexp.MustCompile(`^/repository/[A-Za-z0-9._-]+/v2/_catalog$`),
 		regexp.MustCompile(`^/service/rest/v1/repositories(/[A-Za-z0-9._-]+)*$`),
+		// The access shapes (DEVDESK-580, PR4), GET only, on the three repositories of
+		// the bench: the registry root and the repository path with no trailing
+		// slash, the exact repository in the connector namespace, and the tags of an
+		// image through the repository path.
+		regexp.MustCompile(`^/v2$`),
+		regexp.MustCompile(`^/repository/` + benchRepos + `/v2$`),
+		regexp.MustCompile(`^/v2/` + benchRepos + `$`),
+		regexp.MustCompile(`^/repository/` + benchRepos + `/v2/[a-z0-9._-]+(/[a-z0-9._-]+)*/tags/list$`),
 	}
 	// recordQueryParam admits one percent escape only: %2F in the value of last,
 	// the form a Nexus group page Link gives the last name (DEVDESK-580).
@@ -521,8 +538,9 @@ func refusedRequest(method, target string) string {
 
 // ---- the data set of the bench ---------------------------------------------------
 
-// checkBenchDataset compares, anonymously, what docker-hosted and docker-proxy
-// list with the data set of the descriptor: a bench that does not hold it would
+// checkBenchDataset compares what docker-hosted and docker-proxy list with the data
+// set of the descriptor, anonymously or, with DatasetAsAdmin, as the admin account
+// (a bench whose anonymous access is cut): a bench that does not hold it would
 // record answers that are not the ones the fixtures describe. What cannot be read
 // is a refusal too.
 func checkBenchDataset(ctx context.Context, o RecordOptions) error {
@@ -531,11 +549,15 @@ func checkBenchDataset(ctx context.Context, o RecordOptions) error {
 	}
 	key, _ := restOriginKey(o.Descriptor)
 	base := o.Origins[key]
+	user, password, readCheck := "", "", "check that the bench answers and that anonymous access is on"
+	if o.DatasetAsAdmin {
+		user, password = adminUserID, o.Secrets.AdminPassword
+		readCheck = "check that the bench answers and that the stored admin password is the instance's: " + upCheck
+	}
 	for _, repo := range DatasetRepositories() {
-		listed, err := ListImagesAnonymously(ctx, base, repo)
+		listed, err := listImagesAs(ctx, base, repo, user, password)
 		if err != nil {
-			return recordError("the listing of "+repo+" could not be read, so the data set of the bench is unknown",
-				"check that the bench answers and that anonymous access is on", err)
+			return recordError("the listing of "+repo+" could not be read, so the data set of the bench is unknown", readCheck, err)
 		}
 		diffs, ok := CompareDataset(DatasetIn(o.Descriptor.Dataset, repo), listed)
 		if !ok {

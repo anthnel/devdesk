@@ -1,0 +1,19 @@
+# scenario: NX-05: H4 Bearer: _catalog?n=1000 of docker-hosted by path, challenge and token if any
+# nexus: 3.98.1-01 COMMUNITY (no Bearer challenge)
+# measured: 2026-11-20
+# account: admin with a wrong password (Basic, sent preemptively)
+# redacted: Authorization header and credentials removed; HTML bodies summarised; response headers filtered to a whitelist
+# state: nominal
+# flow: bearer
+# recorded-by: nexus-bench record
+
+GET /v2/docker-hosted/_catalog?n=1000 HTTP/1.1
+Host: 127.0.0.1:30481
+Authorization: Basic <redacted>
+
+HTTP/1.1 401 Unauthorized
+Server: Nexus/3.98.1-01 (COMMUNITY)
+WWW-Authenticate: BASIC realm="Sonatype Nexus Repository Manager"
+Content-Length: 0
+
+<empty body>

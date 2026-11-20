@@ -1,0 +1,20 @@
+# scenario: NX-05: H4 Link: tags/list?n=1 of api in docker-hosted (without n: routing-tags-hosted-path)
+# nexus: 3.98.1-01 COMMUNITY
+# measured: 2026-11-20
+# account: admin (nx-admin, Basic, sent preemptively)
+# redacted: Authorization header and credentials removed; HTML bodies summarised; response headers filtered to a whitelist
+# state: nominal
+# recorded-by: nexus-bench record
+
+GET /v2/docker-hosted/api/tags/list?n=1 HTTP/1.1
+Host: 127.0.0.1:30481
+Authorization: Basic <redacted>
+
+HTTP/1.1 200 OK
+Server: Nexus/3.98.1-01 (COMMUNITY)
+Docker-Distribution-Api-Version: registry/2.0
+Link: <http://127.0.0.1:30481/v2/docker-hosted/api/tags/list?n=1&last=1.0.0>; rel="next"
+Content-Type: application/json
+Content-Length: 31
+
+{"name":"api","tags":["1.0.0"]}

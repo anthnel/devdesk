@@ -28,6 +28,7 @@ const (
 var evidenceDirs = map[string]string{
 	"catalog":    "docs/measurements/nexus-catalog",
 	"cachedonly": "docs/measurements/nexus-cachedonly",
+	"access":     "docs/measurements/nexus-access",
 }
 
 // Load reads the fixtures of one embedded campaign, sorted by name. It refuses

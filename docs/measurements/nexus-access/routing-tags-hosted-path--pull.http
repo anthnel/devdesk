@@ -1,0 +1,19 @@
+# scenario: NX-05: H4 routing: tags/list of api by path on the HTTP port
+# nexus: 3.98.1-01 COMMUNITY
+# measured: 2026-11-20
+# account: bench-pull (role bench-docker-pull, Basic, sent preemptively)
+# redacted: Authorization header and credentials removed; HTML bodies summarised; response headers filtered to a whitelist
+# state: nominal
+# recorded-by: nexus-bench record
+
+GET /v2/docker-hosted/api/tags/list HTTP/1.1
+Host: 127.0.0.1:30481
+Authorization: Basic <redacted>
+
+HTTP/1.1 200 OK
+Server: Nexus/3.98.1-01 (COMMUNITY)
+Docker-Distribution-Api-Version: registry/2.0
+Content-Type: application/json
+Content-Length: 39
+
+{"name":"api","tags":["1.0.0","1.1.0"]}

@@ -432,21 +432,28 @@ func (pv *provisioner) ensureRealms(ctx context.Context) error {
 // ensureAnonymous sets whether anonymous access is enabled, keeping the realm of
 // the anonymous user as the instance has it.
 func (pv *provisioner) ensureAnonymous(ctx context.Context) error {
+	if err := pv.api.setAnonymous(ctx, pv.p.Anonymous); err != nil {
+		return err
+	}
+	pv.say("anonymous access enabled: %t", pv.p.Anonymous)
+	return nil
+}
+
+// setAnonymous reads the anonymous access setting, then sends it back whole with
+// enabled as given and the realm kept as the instance has it (the default realm
+// when it has none): one read, one PUT.
+func (c *client) setAnonymous(ctx context.Context, enabled bool) error {
 	var current struct {
 		RealmName string `json:"realmName"`
 	}
-	if err := pv.api.read(ctx, "read the anonymous access", anonymousPath, nil, &current); err != nil {
+	if err := c.read(ctx, "read the anonymous access", anonymousPath, nil, &current); err != nil {
 		return err
 	}
 	if current.RealmName == "" {
 		current.RealmName = defaultAnonymousRealm
 	}
-	payload := map[string]any{"enabled": pv.p.Anonymous, "userId": anonymousUser, "realmName": current.RealmName}
-	if err := pv.api.write(ctx, "set the anonymous access", http.MethodPut, anonymousPath, payload); err != nil {
-		return err
-	}
-	pv.say("anonymous access enabled: %t", pv.p.Anonymous)
-	return nil
+	payload := map[string]any{"enabled": enabled, "userId": anonymousUser, "realmName": current.RealmName}
+	return c.write(ctx, "set the anonymous access", http.MethodPut, anonymousPath, payload)
 }
 
 // ---- role and user ----------------------------------------------------------------------

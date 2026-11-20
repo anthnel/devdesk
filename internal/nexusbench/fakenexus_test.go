@@ -550,6 +550,13 @@ func (f *fakeNexus) SetAnonymous(enabled bool) {
 	f.anonymous["enabled"] = enabled
 }
 
+// MutateAnonymous changes the anonymous access setting in place.
+func (f *fakeNexus) MutateAnonymous(fn func(m map[string]any)) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	fn(f.anonymous)
+}
+
 // MutateRepo changes a stored repository configuration in place.
 func (f *fakeNexus) MutateRepo(kind, name string, fn func(cfg map[string]any)) {
 	f.mu.Lock()
