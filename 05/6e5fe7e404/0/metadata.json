@@ -1,0 +1,214 @@
+{
+  "cli_version": "0.13.2",
+  "checkpoint_id": "056e5fe7e404",
+  "session_id": "a6450a0b-1048-448d-839a-40b092de52d4",
+  "strategy": "manual-commit",
+  "created_at": "2026-11-20T12:56:43.449310505Z",
+  "branch": "feat/devdesk-580-pr1-catalog-n1000",
+  "checkpoints_count": 9,
+  "save_step_count": 5,
+  "files_touched": [
+    "docs/architecture/nexus-bench.md",
+    "docs/measurements/2026-11-17-nexus-catalog.md",
+    "internal/imagesearch/catalog_fixture_test.go",
+    "internal/nexusbench/record.go",
+    "internal/nexusbench/record_test.go",
+    "internal/nexusfixture/fakenexus/server.go",
+    "internal/nexusfixture/fakenexus/server_test.go",
+    "internal/nexusfixture/fixtures/catalog/page-group-n1-p0--admin.http",
+    "internal/nexusfixture/fixtures/catalog/page-group-n1-p1--admin.http",
+    "internal/nexusfixture/fixtures/catalog/page-group-n1-p2--admin.http",
+    "internal/nexusfixture/fixtures/catalog/page-group-n1-p3--admin.http",
+    "internal/nexusfixture/fixtures/catalog/page-group-n1-p4--admin.http",
+    "internal/nexusfixture/fixtures/catalog/page-group-n1-p5--admin.http",
+    "internal/nexusfixture/fixtures/catalog/page-group-n2-p0--admin.http",
+    "internal/nexusfixture/fixtures/catalog/page-group-n2-p1--admin.http",
+    "internal/nexusfixture/fixtures/catalog/page-group-n2-p2--admin.http",
+    "internal/nexusfixture/fixtures/catalog/page-group-n2-p3--admin.http",
+    "internal/nexusfixture/fixtures/catalog/page-group-n2-p4--admin.http",
+    "internal/nexusfixture/fixtures/catalog/page-group-n6--admin.http",
+    "internal/nexusfixture/fixtures/catalog/page-hosted-n2-p0--admin.http",
+    "internal/nexusfixture/fixtures/catalog/page-hosted-n2-p1--admin.http",
+    "internal/nexusfixture/fixtures/catalog/page-proxy-n2-p0--admin.http",
+    "internal/nexusfixture/fixtures/catalog/page-proxy-n2-p1--admin.http",
+    "internal/nexusfixture/fixtures/catalog/tags-group-shared-base--admin.http",
+    "internal/nexusfixture/fixtures/catalog/tags-hosted-api-path--admin.http",
+    "internal/nexusfixture/fixtures/catalog/tags-hosted-api-v2-repository--admin.http",
+    "internal/nexusfixture/fixtures/catalog/tags-hosted-shared-base--admin.http",
+    "internal/nexusfixture/fixtures/catalog/tags-proxy-shared-base--admin.http",
+    "internal/nexusfixture/load.go",
+    "internal/nexusfixture/load_test.go",
+    "internal/oci/catalog_fixture_test.go",
+    "internal/ui/oci_resources/browser_group_connector_test.go",
+    "internal/ui/oci_resources/browser_nexus_member_path_test.go"
+  ],
+  "agent": "Claude Code",
+  "model": "claude-sonnet-5-5",
+  "turn_id": "73f6b710d8ac",
+  "compact_transcript_start": 0,
+  "token_usage": {
+    "input_tokens": 82,
+    "cache_creation_tokens": 155177,
+    "cache_read_tokens": 4324623,
+    "output_tokens": 27861,
+    "api_call_count": 32,
+    "subagent_tokens": {
+      "input_tokens": 240,
+      "cache_creation_tokens": 914038,
+      "cache_read_tokens": 7580392,
+      "output_tokens": 118820,
+      "api_call_count": 116
+    },
+    "subagent_tokens_complete": true
+  },
+  "session_token_usage": {
+    "input_tokens": 82,
+    "cache_creation_tokens": 155177,
+    "cache_read_tokens": 4324623,
+    "output_tokens": 27861,
+    "api_call_count": 32,
+    "subagent_tokens": {
+      "input_tokens": 240,
+      "cache_creation_tokens": 914038,
+      "cache_read_tokens": 7580392,
+      "output_tokens": 118820,
+      "api_call_count": 116
+    },
+    "subagent_tokens_complete": true
+  },
+  "redaction": {
+    "replacements": 0,
+    "layers": {
+      "betterleaks": 0,
+      "connection_string": 0,
+      "credential_key": 0,
+      "credential_value": 0,
+      "credentialed_uri": 0,
+      "entropy": 0,
+      "key_context": 0,
+      "provider_token": 0,
+      "shell_stdin": 0
+    }
+  },
+  "skill_events_version": 1,
+  "skill_events": [
+    {
+      "id": "prompt-skill-claude-code-team-core:feature-2026-11-20T11:09:54.602614314Z",
+      "event_type": "prompt_invocation",
+      "skill": {
+        "name": "team-core:feature"
+      },
+      "source": {
+        "agent": "claude-code",
+        "signal": "prompt_slash_command",
+        "confidence": "explicit"
+      },
+      "turn_id": "045f82c209fd",
+      "timestamp": "2026-11-20T11:09:54.602614314Z",
+      "native": {
+        "command": "/team-core:feature"
+      },
+      "collapse": {
+        "target": "user_message",
+        "label": "/team-core:feature",
+        "default_collapsed": true
+      }
+    },
+    {
+      "id": "claude-skill-toolu_01YbecwDUt7RtfUyuyVvzMHx",
+      "event_type": "tool_invocation",
+      "skill": {
+        "name": "team-core:resume-work"
+      },
+      "source": {
+        "agent": "claude-code",
+        "signal": "skill_tool_use",
+        "confidence": "explicit"
+      },
+      "turn_id": "73f6b710d8ac",
+      "transcript_anchor": {
+        "unit": "line",
+        "start": 38,
+        "end": 39,
+        "entry_ids": [
+          "dd16fc7f-e3a4-4ca7-9804-8cce8a13f11d"
+        ],
+        "tool_use_id": "toolu_01YbecwDUt7RtfUyuyVvzMHx"
+      },
+      "native": {
+        "tool_name": "Skill",
+        "tool_use_id": "toolu_01YbecwDUt7RtfUyuyVvzMHx"
+      },
+      "collapse": {
+        "target": "tool_pair",
+        "label": "Skill: team-core:resume-work",
+        "default_collapsed": true
+      }
+    },
+    {
+      "id": "claude-skill-toolu_014Wyjopfc6jCenSQqRQWfWb",
+      "event_type": "tool_invocation",
+      "skill": {
+        "name": "plane-integration:plane-conventions"
+      },
+      "source": {
+        "agent": "claude-code",
+        "signal": "skill_tool_use",
+        "confidence": "explicit"
+      },
+      "turn_id": "73f6b710d8ac",
+      "transcript_anchor": {
+        "unit": "line",
+        "start": 43,
+        "end": 44,
+        "entry_ids": [
+          "68561f52-b3df-433b-ac62-2a138edd6555"
+        ],
+        "tool_use_id": "toolu_014Wyjopfc6jCenSQqRQWfWb"
+      },
+      "native": {
+        "tool_name": "Skill",
+        "tool_use_id": "toolu_014Wyjopfc6jCenSQqRQWfWb"
+      },
+      "collapse": {
+        "target": "tool_pair",
+        "label": "Skill: plane-integration:plane-conventions",
+        "default_collapsed": true
+      }
+    },
+    {
+      "id": "claude-skill-toolu_01XrA3VyMPkV5KHoR6548W7v",
+      "event_type": "tool_invocation",
+      "skill": {
+        "name": "git-worktree-pr"
+      },
+      "source": {
+        "agent": "claude-code",
+        "signal": "skill_tool_use",
+        "confidence": "explicit"
+      },
+      "turn_id": "73f6b710d8ac",
+      "transcript_anchor": {
+        "unit": "line",
+        "start": 198,
+        "end": 199,
+        "entry_ids": [
+          "0c4bd6ce-943f-4530-8112-bfc9a8024948"
+        ],
+        "tool_use_id": "toolu_01XrA3VyMPkV5KHoR6548W7v"
+      },
+      "native": {
+        "tool_name": "Skill",
+        "tool_use_id": "toolu_01XrA3VyMPkV5KHoR6548W7v"
+      },
+      "collapse": {
+        "target": "tool_pair",
+        "label": "Skill: git-worktree-pr",
+        "default_collapsed": true
+      }
+    }
+  ],
+  "session_metrics": {
+    "turn_count": 9
+  }
+}

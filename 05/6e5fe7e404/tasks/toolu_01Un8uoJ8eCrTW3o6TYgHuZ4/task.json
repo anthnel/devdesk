@@ -1,0 +1,15 @@
+{
+  "tool_use_id": "toolu_01Un8uoJ8eCrTW3o6TYgHuZ4",
+  "agent_id": "a10cd301a6ec1e1fe",
+  "subagent_type": "dev-team:architect",
+  "task_description": "Plan DEVDESK-580 fixtures NX-04/05",
+  "token_usage": {
+    "input_tokens": 50,
+    "cache_creation_tokens": 214929,
+    "cache_read_tokens": 3016146,
+    "output_tokens": 54257,
+    "api_call_count": 24
+  },
+  "started_at": "2026-11-20T12:15:57.827425433+01:00",
+  "completed_at": "2026-11-20T12:25:22.186315273+01:00"
+}

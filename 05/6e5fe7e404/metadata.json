@@ -1,0 +1,80 @@
+{
+  "cli_version": "0.13.2",
+  "checkpoint_id": "056e5fe7e404",
+  "strategy": "manual-commit",
+  "branch": "feat/devdesk-580-pr1-catalog-n1000",
+  "checkpoints_count": 9,
+  "files_touched": [
+    "docs/architecture/nexus-bench.md",
+    "docs/measurements/2026-11-17-nexus-catalog.md",
+    "internal/imagesearch/catalog_fixture_test.go",
+    "internal/nexusbench/record.go",
+    "internal/nexusbench/record_test.go",
+    "internal/nexusfixture/fakenexus/server.go",
+    "internal/nexusfixture/fakenexus/server_test.go",
+    "internal/nexusfixture/fixtures/catalog/page-group-n1-p0--admin.http",
+    "internal/nexusfixture/fixtures/catalog/page-group-n1-p1--admin.http",
+    "internal/nexusfixture/fixtures/catalog/page-group-n1-p2--admin.http",
+    "internal/nexusfixture/fixtures/catalog/page-group-n1-p3--admin.http",
+    "internal/nexusfixture/fixtures/catalog/page-group-n1-p4--admin.http",
+    "internal/nexusfixture/fixtures/catalog/page-group-n1-p5--admin.http",
+    "internal/nexusfixture/fixtures/catalog/page-group-n2-p0--admin.http",
+    "internal/nexusfixture/fixtures/catalog/page-group-n2-p1--admin.http",
+    "internal/nexusfixture/fixtures/catalog/page-group-n2-p2--admin.http",
+    "internal/nexusfixture/fixtures/catalog/page-group-n2-p3--admin.http",
+    "internal/nexusfixture/fixtures/catalog/page-group-n2-p4--admin.http",
+    "internal/nexusfixture/fixtures/catalog/page-group-n6--admin.http",
+    "internal/nexusfixture/fixtures/catalog/page-hosted-n2-p0--admin.http",
+    "internal/nexusfixture/fixtures/catalog/page-hosted-n2-p1--admin.http",
+    "internal/nexusfixture/fixtures/catalog/page-proxy-n2-p0--admin.http",
+    "internal/nexusfixture/fixtures/catalog/page-proxy-n2-p1--admin.http",
+    "internal/nexusfixture/fixtures/catalog/tags-group-shared-base--admin.http",
+    "internal/nexusfixture/fixtures/catalog/tags-hosted-api-path--admin.http",
+    "internal/nexusfixture/fixtures/catalog/tags-hosted-api-v2-repository--admin.http",
+    "internal/nexusfixture/fixtures/catalog/tags-hosted-shared-base--admin.http",
+    "internal/nexusfixture/fixtures/catalog/tags-proxy-shared-base--admin.http",
+    "internal/nexusfixture/load.go",
+    "internal/nexusfixture/load_test.go",
+    "internal/oci/catalog_fixture_test.go",
+    "internal/ui/oci_resources/browser_group_connector_test.go",
+    "internal/ui/oci_resources/browser_nexus_member_path_test.go"
+  ],
+  "sessions": [
+    {
+      "metadata": "/05/6e5fe7e404/0/metadata.json",
+      "transcript": "/05/6e5fe7e404/0/full.jsonl",
+      "compact_transcript": "/05/6e5fe7e404/0/transcript.jsonl",
+      "content_hash": "/05/6e5fe7e404/0/content_hash.txt",
+      "prompt": "/05/6e5fe7e404/0/prompt.txt"
+    }
+  ],
+  "token_usage": {
+    "input_tokens": 82,
+    "cache_creation_tokens": 155177,
+    "cache_read_tokens": 4324623,
+    "output_tokens": 27861,
+    "api_call_count": 32,
+    "subagent_tokens": {
+      "input_tokens": 240,
+      "cache_creation_tokens": 914038,
+      "cache_read_tokens": 7580392,
+      "output_tokens": 118820,
+      "api_call_count": 116
+    },
+    "subagent_tokens_complete": true
+  },
+  "redaction": {
+    "replacements": 0,
+    "layers": {
+      "betterleaks": 0,
+      "connection_string": 0,
+      "credential_key": 0,
+      "credential_value": 0,
+      "credentialed_uri": 0,
+      "entropy": 0,
+      "key_context": 0,
+      "provider_token": 0,
+      "shell_stdin": 0
+    }
+  }
+}

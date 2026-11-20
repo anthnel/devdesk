@@ -1,0 +1,15 @@
+{
+  "tool_use_id": "toolu_01LBs86LU1Hod7aBqf8Benur",
+  "agent_id": "a7b796cb92d7dfc9a",
+  "subagent_type": "dev-team:reviewer",
+  "task_description": "Review PR1 diff",
+  "token_usage": {
+    "input_tokens": 22,
+    "cache_creation_tokens": 93804,
+    "cache_read_tokens": 655229,
+    "output_tokens": 11472,
+    "api_call_count": 11
+  },
+  "started_at": "2026-11-20T12:59:26.773836492+01:00",
+  "completed_at": "2026-11-20T13:01:01.661146597+01:00"
+}

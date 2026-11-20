@@ -1,0 +1,29 @@
+{
+  "tool_use_id": "toolu_01KFEd4d34ru1EKbdXsUfJbZ",
+  "agent_id": "a85df2e34697099ac",
+  "subagent_type": "project-tester",
+  "task_description": "PR1 step 4: record n1000 fixtures",
+  "files": [
+    "internal/nexusfixture/fixtures/catalog/catalog-group-path-n1000--admin.http",
+    "internal/nexusfixture/fixtures/catalog/catalog-group-path-n1000--anon.http",
+    "internal/nexusfixture/fixtures/catalog/catalog-group-path-n1000--pull.http",
+    "internal/nexusfixture/fixtures/catalog/catalog-hosted-path-n1000--admin.http",
+    "internal/nexusfixture/fixtures/catalog/catalog-hosted-path-n1000--anon.http",
+    "internal/nexusfixture/fixtures/catalog/catalog-hosted-path-n1000--pull.http",
+    "internal/nexusfixture/fixtures/catalog/catalog-hosted-root-30481-n1000--admin.http",
+    "internal/nexusfixture/fixtures/catalog/catalog-hosted-root-30481-n1000--anon.http",
+    "internal/nexusfixture/fixtures/catalog/catalog-hosted-root-30481-n1000--pull.http",
+    "internal/nexusfixture/fixtures/catalog/catalog-proxy-path-n1000--admin.http",
+    "internal/nexusfixture/fixtures/catalog/catalog-proxy-path-n1000--anon.http",
+    "internal/nexusfixture/fixtures/catalog/catalog-proxy-path-n1000--pull.http"
+  ],
+  "token_usage": {
+    "input_tokens": 60,
+    "cache_creation_tokens": 100011,
+    "cache_read_tokens": 1723329,
+    "output_tokens": 19377,
+    "api_call_count": 29
+  },
+  "started_at": "2026-11-20T12:56:34.621905181+01:00",
+  "completed_at": "2026-11-20T12:59:14.115161583+01:00"
+}
