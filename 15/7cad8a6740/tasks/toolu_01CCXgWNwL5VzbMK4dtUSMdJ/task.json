@@ -1,0 +1,15 @@
+{
+  "tool_use_id": "toolu_01CCXgWNwL5VzbMK4dtUSMdJ",
+  "agent_id": "aa3a9674b8882e0dc",
+  "subagent_type": "project-coder",
+  "task_description": "Vert étape 2 (F6 ManifestDigest)",
+  "token_usage": {
+    "input_tokens": 30,
+    "cache_creation_tokens": 119472,
+    "cache_read_tokens": 567271,
+    "output_tokens": 5336,
+    "api_call_count": 14
+  },
+  "started_at": "2026-11-20T18:47:43.457381178+01:00",
+  "completed_at": "2026-11-20T18:54:06.447089432+01:00"
+}

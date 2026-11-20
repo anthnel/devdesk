@@ -1,0 +1,18 @@
+{
+  "tool_use_id": "toolu_01UCqpD7nvNEy2Mvfma6NR4u",
+  "agent_id": "a6ac7ad8e7dc359db",
+  "subagent_type": "project-tester",
+  "task_description": "Rouge étape 3 (F3 Auto Blocked)",
+  "files": [
+    "internal/oci/status_body_test.go"
+  ],
+  "token_usage": {
+    "input_tokens": 42,
+    "cache_creation_tokens": 90223,
+    "cache_read_tokens": 1253981,
+    "output_tokens": 16690,
+    "api_call_count": 20
+  },
+  "started_at": "2026-11-20T18:54:24.051096363+01:00",
+  "completed_at": "2026-11-20T18:56:24.808693269+01:00"
+}
