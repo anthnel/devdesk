@@ -1,0 +1,154 @@
+{
+  "cli_version": "0.13.2",
+  "checkpoint_id": "222ce2eb6bd0",
+  "session_id": "b299bf96-4dd7-4914-bbb4-5a59ac419449",
+  "strategy": "manual-commit",
+  "created_at": "2026-11-20T18:51:43.669196662Z",
+  "branch": "feat/devdesk-629-nexus-measure-fixes",
+  "checkpoints_count": 2,
+  "save_step_count": 2,
+  "files_touched": [
+    "internal/oci/catalog_fixture_test.go",
+    "internal/oci/catalog_test.go"
+  ],
+  "agent": "Claude Code",
+  "model": "claude-sonnet-5-5",
+  "turn_id": "6965733902cf",
+  "checkpoint_transcript_start": 762,
+  "transcript_lines_at_start": 762,
+  "compact_transcript_start": 87,
+  "token_usage": {
+    "input_tokens": 14,
+    "cache_creation_tokens": 15886,
+    "cache_read_tokens": 1253762,
+    "output_tokens": 5694,
+    "api_call_count": 5,
+    "subagent_tokens": {
+      "input_tokens": 98,
+      "cache_creation_tokens": 218899,
+      "cache_read_tokens": 3751977,
+      "output_tokens": 39494,
+      "api_call_count": 45
+    },
+    "subagent_tokens_complete": true
+  },
+  "session_token_usage": {
+    "input_tokens": 170,
+    "cache_creation_tokens": 235923,
+    "cache_read_tokens": 10480283,
+    "output_tokens": 64038,
+    "api_call_count": 65,
+    "subagent_tokens": {
+      "input_tokens": 674,
+      "cache_creation_tokens": 2329226,
+      "cache_read_tokens": 25587086,
+      "output_tokens": 286053,
+      "api_call_count": 319
+    },
+    "subagent_tokens_complete": true
+  },
+  "redaction": {
+    "replacements": 3,
+    "layers": {
+      "betterleaks": 0,
+      "connection_string": 0,
+      "credential_key": 0,
+      "credential_value": 0,
+      "credentialed_uri": 0,
+      "entropy": 0,
+      "key_context": 3,
+      "provider_token": 0,
+      "shell_stdin": 0
+    }
+  },
+  "skill_events_version": 1,
+  "skill_events": [
+    {
+      "id": "prompt-skill-claude-code-team-core:feature-2026-11-20T17:03:27.027038529Z",
+      "event_type": "prompt_invocation",
+      "skill": {
+        "name": "team-core:feature"
+      },
+      "source": {
+        "agent": "claude-code",
+        "signal": "prompt_slash_command",
+        "confidence": "explicit"
+      },
+      "turn_id": "7ad50d4d2684",
+      "timestamp": "2026-11-20T17:03:27.027038529Z",
+      "native": {
+        "command": "/team-core:feature"
+      },
+      "collapse": {
+        "target": "user_message",
+        "label": "/team-core:feature",
+        "default_collapsed": true
+      }
+    },
+    {
+      "id": "claude-skill-toolu_01CFknMwJ24EbthBSmi9ebaa",
+      "event_type": "tool_invocation",
+      "skill": {
+        "name": "team-core:resume-work"
+      },
+      "source": {
+        "agent": "claude-code",
+        "signal": "skill_tool_use",
+        "confidence": "explicit"
+      },
+      "turn_id": "eeaec243059e",
+      "transcript_anchor": {
+        "unit": "line",
+        "start": 34,
+        "end": 35,
+        "entry_ids": [
+          "4e5628c8-47f0-4128-ac96-5e8be17c80d5"
+        ],
+        "tool_use_id": "toolu_01CFknMwJ24EbthBSmi9ebaa"
+      },
+      "native": {
+        "tool_name": "Skill",
+        "tool_use_id": "toolu_01CFknMwJ24EbthBSmi9ebaa"
+      },
+      "collapse": {
+        "target": "tool_pair",
+        "label": "Skill: team-core:resume-work",
+        "default_collapsed": true
+      }
+    },
+    {
+      "id": "claude-skill-toolu_01FYY2AgQHb7GgbRNtdtS4Qw",
+      "event_type": "tool_invocation",
+      "skill": {
+        "name": "plane-integration:plane-conventions"
+      },
+      "source": {
+        "agent": "claude-code",
+        "signal": "skill_tool_use",
+        "confidence": "explicit"
+      },
+      "turn_id": "eeaec243059e",
+      "transcript_anchor": {
+        "unit": "line",
+        "start": 38,
+        "end": 39,
+        "entry_ids": [
+          "b774471d-1421-466b-8b6f-7f9150ce7fc5"
+        ],
+        "tool_use_id": "toolu_01FYY2AgQHb7GgbRNtdtS4Qw"
+      },
+      "native": {
+        "tool_name": "Skill",
+        "tool_use_id": "toolu_01FYY2AgQHb7GgbRNtdtS4Qw"
+      },
+      "collapse": {
+        "target": "tool_pair",
+        "label": "Skill: plane-integration:plane-conventions",
+        "default_collapsed": true
+      }
+    }
+  ],
+  "session_metrics": {
+    "turn_count": 20
+  }
+}
