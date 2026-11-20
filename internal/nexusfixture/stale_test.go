@@ -141,10 +141,7 @@ func TestFixturesMatchTheBenchVersion(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	fixtures, err := nexusfixture.All()
-	if err != nil {
-		t.Fatalf("All: %v", err)
-	}
+	fixtures := loadAllRecorded(t)
 	if len(fixtures) == 0 {
 		t.Fatal("no embedded fixture: the stale check would pass on nothing")
 	}

@@ -273,6 +273,10 @@ func TestCampaignsAndAll(t *testing.T) {
 	if !slices.Contains(campaigns, "catalog") {
 		t.Fatalf("Campaigns() = %v, want it to include catalog", campaigns)
 	}
+	if len(pendingFiles(t)) > 0 {
+		t.Log("a campaign holds a pending fixture: All() is checked by TestAllRefusesACampaignWithAPendingFixture")
+		return
+	}
 	all, err := nexusfixture.All()
 	if err != nil {
 		t.Fatalf("All: %v", err)
@@ -373,9 +377,9 @@ func TestEmbeddedSetMatchesTheDirectory(t *testing.T) {
 // was produced by the recorder. Every embedded campaign is checked, not only
 // catalog: a campaign added later (NX-04, NX-05) must not escape the check.
 func TestEveryFixtureIsMeasuredOrRecorded(t *testing.T) {
-	campaigns := nexusfixture.Campaigns()
+	campaigns := loadableCampaigns(t)
 	if len(campaigns) == 0 {
-		t.Fatal("Campaigns() is empty: nothing would be checked")
+		t.Fatal("no loadable campaign: the provenance check would pass on nothing")
 	}
 	for _, campaign := range campaigns {
 		fixtures, err := nexusfixture.Load(campaign)

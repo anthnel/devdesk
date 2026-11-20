@@ -26,7 +26,8 @@ const (
 // evidenceDirs maps a campaign to the dated measurement it was imported from,
 // relative to the repository root.
 var evidenceDirs = map[string]string{
-	"catalog": "docs/measurements/nexus-catalog",
+	"catalog":    "docs/measurements/nexus-catalog",
+	"cachedonly": "docs/measurements/nexus-cachedonly",
 }
 
 // Load reads the fixtures of one embedded campaign, sorted by name. It refuses
