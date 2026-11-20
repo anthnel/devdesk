@@ -1,0 +1,15 @@
+{
+  "tool_use_id": "toolu_01SMFvoNvptJeN8J2Yk447G5",
+  "agent_id": "aa38b79cfaccf9c70",
+  "subagent_type": "project-coder",
+  "task_description": "Vert étape 1 (F1 realm)",
+  "token_usage": {
+    "input_tokens": 32,
+    "cache_creation_tokens": 257706,
+    "cache_read_tokens": 1144342,
+    "output_tokens": 11330,
+    "api_call_count": 15
+  },
+  "started_at": "2026-11-20T18:31:16.753456999+01:00",
+  "completed_at": "2026-11-20T18:42:38.501936901+01:00"
+}
