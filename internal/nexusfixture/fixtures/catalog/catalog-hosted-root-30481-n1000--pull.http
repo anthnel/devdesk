@@ -1,0 +1,17 @@
+# scenario: H1/H2: _catalog?n=1000 at the root of the HTTP port (path routing), where hosted and proxy live
+# nexus: 3.98.1-01 COMMUNITY
+# measured: 2026-11-20
+# account: bench-pull (role bench-docker-pull, Basic, sent preemptively)
+# redacted: Authorization header and credentials removed; HTML bodies summarised; response headers filtered to a whitelist
+# recorded-by: nexus-bench record
+
+GET /v2/_catalog?n=1000 HTTP/1.1
+Host: 127.0.0.1:30481
+Authorization: Basic <redacted>
+
+HTTP/1.1 404 Not Found
+Server: Nexus/3.98.1-01 (COMMUNITY)
+Content-Type: text/html;charset=utf-8
+Content-Length: 1309
+
+<HTML body omitted: 1309 bytes, <title>404 - Sonatype Nexus Repository</title>>

@@ -568,7 +568,7 @@ func TestMembersWithAPathKeepTheirOwnWalkBesideTheGroupUnit(t *testing.T) {
 		t.Fatalf("answers came for %v, want one each for %v", got, want)
 	}
 	wantExactHits(t, s, fixtures, map[string]int{
-		"catalog-hosted-path--admin": 1, "catalog-proxy-path--admin": 1, "page-group-n1000--admin": 1,
+		"catalog-hosted-path-n1000--admin": 1, "catalog-proxy-path-n1000--admin": 1, "page-group-n1000--admin": 1,
 	})
 	want := sorted([]string{hosted + ":docker-hosted/shared/base", proxy + ":docker-proxy/shared/base", "nx:shared/base"})
 	if rows := repoKeys(m); !slices.Equal(rows, want) {

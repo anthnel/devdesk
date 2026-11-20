@@ -1,6 +1,7 @@
 package nexusfixture
 
 import (
+	"bytes"
 	"embed"
 	"fmt"
 	"io/fs"
@@ -15,7 +16,12 @@ import (
 //go:embed fixtures
 var embedded embed.FS
 
-const fixturesDir = "fixtures"
+const (
+	fixturesDir = "fixtures"
+
+	// recordedByRecorder is the recorded-by value only the recorder writes.
+	recordedByRecorder = "nexus-bench record"
+)
 
 // evidenceDirs maps a campaign to the dated measurement it was imported from,
 // relative to the repository root.
@@ -95,6 +101,32 @@ func All() ([]Fixture, error) {
 func EvidenceDir(campaign string) (string, bool) {
 	dir, ok := evidenceDirs[campaign]
 	return dir, ok
+}
+
+// CheckProvenance reports why a fixture may not pass as measured, or nil. A
+// fixture is either recorded-by "nexus-bench record", or byte-identical to its
+// dated evidence under repoRoot (the repository root, see EvidenceDir). Any other
+// recorded-by value, a campaign with no evidence directory, a missing evidence
+// file and a difference are errors that name the fixture.
+func CheckProvenance(f Fixture, repoRoot string) error {
+	if f.Meta.RecordedBy == recordedByRecorder {
+		return nil
+	}
+	if f.Meta.RecordedBy != "" {
+		return fmt.Errorf("nexusfixture: %s: recorded-by = %q, want empty or %q", f.Name, f.Meta.RecordedBy, recordedByRecorder)
+	}
+	evidence, ok := EvidenceDir(f.Campaign)
+	if !ok {
+		return fmt.Errorf("nexusfixture: %s: campaign %q has no evidence directory and the fixture is not recorded-by %s", f.Name, f.Campaign, recordedByRecorder)
+	}
+	want, err := os.ReadFile(filepath.Join(repoRoot, filepath.FromSlash(evidence), f.Name+fileSuffix))
+	if err != nil {
+		return fmt.Errorf("nexusfixture: %s: neither recorded-by %s nor backed by its evidence: %w", f.Name, recordedByRecorder, err)
+	}
+	if got := Format(f); !bytes.Equal(got, want) {
+		return fmt.Errorf("nexusfixture: %s is not byte-identical to %s/%s%s and is not recorded-by %s", f.Name, evidence, f.Name, fileSuffix, recordedByRecorder)
+	}
+	return nil
 }
 
 // SourceDir is the fixtures directory in the source tree, for the recorder

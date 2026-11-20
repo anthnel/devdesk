@@ -49,14 +49,26 @@ func loadCatalogFixtures(t *testing.T) []nexusfixture.Fixture {
 	return fixtures
 }
 
+// n1000Scenarios are the scenarios recorded with the "?n=1000" DevDesk sends
+// (DEVDESK-580): the exact fixture answers, not a no-n one through the tolerance
+// of fakenexus.
+var n1000Scenarios = map[string]bool{
+	"catalog-hosted-path": true, "catalog-proxy-path": true,
+	"catalog-group-path": true, "catalog-hosted-root-30481": true,
+}
+
 // answeringFixture is the fixture that answers DevDesk's "GET .../v2/_catalog?n=1000"
-// for a scenario and an identity. Only the group connector's admin answer was
-// recorded with n=1000 itself; every other one is a no-n recording that the
-// fake lets answer n=1000 (the tolerance of fakenexus, measured on that one
-// connector, inferred for hosted and proxy).
+// for a scenario and an identity. The group connector's admin answer and the
+// catalog by member path (hosted and proxy) were recorded with n=1000 itself
+// (page-group-n1000--admin, catalog-*-path-n1000--*); the others are no-n
+// recordings that the fake lets answer n=1000 (its tolerance, measured on the
+// group connector and, since DEVDESK-580, on the hosted and proxy paths).
 func answeringFixture(scenario string, id nexusfixture.Identity) string {
 	if scenario == "catalog-group-connector-30482" && id == nexusfixture.Admin {
 		return "page-group-n1000--admin"
+	}
+	if n1000Scenarios[scenario] {
+		return scenario + "-n1000--" + string(id)
 	}
 	return scenario + "--" + string(id)
 }
@@ -250,22 +262,12 @@ func TestCatalogOnMeasuredNexusAnswers(t *testing.T) {
 // What discovery gives a Nexus group member is the HTTP port plus the member's
 // prefix (registrymgr, step 5). DevDesk then asks the root of that port for
 // /v2/_catalog?n=1000, where Nexus has no catalog at all: it answers 404 (an
-// HTML page, measured as catalog-hosted-root-30481--*). The 404 comes before any
+// HTML page, measured as catalog-hosted-root-30481-n1000--*, recorded on the bench
+// with the n=1000 DevDesk sends, DEVDESK-580). The 404 comes before any
 // filtering, so R1 is not reached: the verdict is refused, with a registry
 // StatusError, not "no result" and not "failed".
-//
-// Pending (DEVDESK-580): the root 404 was recorded WITHOUT the "n=1000"
-// DevDesk sends, and fakenexus deliberately does not let a recorded non-200
-// answer an n=1000 request (TestCatalogTolerance, "a recorded 404 is not
-// tolerated"). There is no measured fixture for GET /v2/_catalog?n=1000 on the
-// root port of a hosted repository, and none is invented here. It is to be
-// recorded on the bench through DEVDESK-580 (NX-08b) with `nexus-bench record`;
-// remove the Skip below once that fixture exists, the body is ready to run.
 func TestCatalogOnTheHTTPPortRootIsRefused(t *testing.T) {
 	fixtures := loadCatalogFixtures(t)
-	if !recordsTarget(fixtures, nexusHTTPPort, "/v2/_catalog?n=1000") {
-		t.Skip("pending DEVDESK-580 (NX-08b): no measured fixture for GET /v2/_catalog?n=1000 on the root port of a hosted repository; record it on the bench with `nexus-bench record` (this test runs by itself once it is recorded)")
-	}
 	for _, id := range measuredIdentities {
 		for _, prefix := range []string{"docker-hosted", "docker-proxy"} {
 			t.Run(prefix+" as "+string(id), func(t *testing.T) {
@@ -283,26 +285,12 @@ func TestCatalogOnTheHTTPPortRootIsRefused(t *testing.T) {
 				if errors.Is(err, ErrPrefixNotInCatalog) {
 					t.Error("R1 was reached: there is no catalog to filter on this port")
 				}
-				if h := s.Hits("catalog-hosted-root-30481--" + string(id)); h != 1 {
-					t.Errorf("Hits(catalog-hosted-root-30481--%s) = %d, want 1", id, h)
+				if h := s.Hits("catalog-hosted-root-30481-n1000--" + string(id)); h != 1 {
+					t.Errorf("Hits(catalog-hosted-root-30481-n1000--%s) = %d, want 1", id, h)
 				}
 			})
 		}
 	}
-}
-
-// recordsTarget reports whether a loaded fixture holds an exchange for exactly
-// this target on this recorded Host, for any account: the tolerance of fakenexus
-// is not a recording, and the test above needs the real answer.
-func recordsTarget(fixtures []nexusfixture.Fixture, host, target string) bool {
-	for _, f := range fixtures {
-		for _, ex := range f.Exchanges {
-			if ex.Host == host && ex.Target == target {
-				return true
-			}
-		}
-	}
-	return false
 }
 
 // The fixtures are measured with the three accounts and the answers do not
@@ -372,11 +360,11 @@ func TestCatalogMembersOfOneHostAreWalkedSeparately(t *testing.T) {
 				t.Errorf("hosted rows, second search = %q", got)
 			}
 
-			if h := s.Hits("catalog-hosted-path--" + string(id)); h != 1 {
-				t.Errorf("Hits(catalog-hosted-path--%s) = %d, want 1: one walk for the hosted member", id, h)
+			if h := s.Hits("catalog-hosted-path-n1000--" + string(id)); h != 1 {
+				t.Errorf("Hits(catalog-hosted-path-n1000--%s) = %d, want 1: one walk for the hosted member", id, h)
 			}
-			if h := s.Hits("catalog-proxy-path--" + string(id)); h != 1 {
-				t.Errorf("Hits(catalog-proxy-path--%s) = %d, want 1: one walk for the proxy member", id, h)
+			if h := s.Hits("catalog-proxy-path-n1000--" + string(id)); h != 1 {
+				t.Errorf("Hits(catalog-proxy-path-n1000--%s) = %d, want 1: one walk for the proxy member", id, h)
 			}
 			if n := totalHits(s, fixtures); n != 2 {
 				t.Errorf("%d requests answered in total, want 2 (criterion 4); none on a root catalog (criterion 2)", n)
@@ -386,22 +374,12 @@ func TestCatalogMembersOfOneHostAreWalkedSeparately(t *testing.T) {
 }
 
 // The group by its path on the HTTP port is not a catalog: Nexus answers a 404
-// page there (catalog-group-path--*, measured WITHOUT n). With the "?n=1000" that
-// DevDesk sends, fakenexus does not let a recorded 404 answer (TestCatalogTolerance,
-// "a recorded 404 is not tolerated"): that target answers a 501 and a t.Errorf.
-// That a Nexus 404 stays a 404 with a "?n=1000" is an assumption, not a
-// measurement, and none is invented here (plan DEVDESK-579, hypothesis H-4).
-//
-// Pending: record GET /v2/docker-group/_catalog?n=1000 on 127.0.0.1:30481 with
-// `nexus-bench record` (DEVDESK-580, NX-08b); this test then runs by itself.
-// Criterion 6: the group is refused with its StatusError, not "no result" and not
-// "failed", and it is not a prefix problem either.
+// page there, with or without n (catalog-group-path--* measured without n,
+// catalog-group-path-n1000--* with the n=1000 DevDesk sends, DEVDESK-580).
+// Criterion 6: the group is refused with its StatusError, not "no result" and
+// not "failed", and it is not a prefix problem either.
 func TestCatalogOfAGroupUnderItsPrefixIsRefused(t *testing.T) {
 	fixtures := loadCatalogFixtures(t)
-	const target = "/v2/docker-group/_catalog?n=1000"
-	if !recordsTarget(fixtures, nexusHTTPPort, target) {
-		t.Skip("pending DEVDESK-580 (NX-08b): no measured fixture for GET " + target + " on the HTTP port (only the no-n answer, catalog-group-path--*, is measured, and fakenexus does not tolerate a 404 for n=1000); record it on the bench with `nexus-bench record`")
-	}
 	for _, id := range measuredIdentities {
 		t.Run(string(id), func(t *testing.T) {
 			s := fakenexus.New(t, fixtures...)

@@ -1593,7 +1593,7 @@ exist as fixtures. See "What is not recorded yet" below.
 | Path | Role |
 |---|---|
 | `internal/nexusfixture/` | format, parser and writer (`format.go`), embedded loader (`load.go`), `Redact` (`redact.go`), `CheckLeaks` (`leaks.go`). No `testing` import: the recorder imports it. |
-| `internal/nexusfixture/fixtures/<campaign>/*.http` | the fixtures, embedded with `go:embed`. One campaign today: `catalog` (42 files). |
+| `internal/nexusfixture/fixtures/<campaign>/*.http` | the fixtures, embedded with `go:embed`. One campaign today: `catalog` (75 files). |
 | `internal/nexusfixture/fakenexus/` | the replay server. Imports `testing`: import it from `_test.go` files only. |
 | `internal/nexusbench/record.go`, `cmd/nexus-bench/record.go` | the recorder and its command. |
 | `internal/nexusfixture/stale_test.go` | the stale-fixture test. |
@@ -1648,23 +1648,46 @@ recorder choose the credentials from it.
 
 ### Where fixtures come from
 
-The 42 files of `catalog` are copies, byte for byte, of the dated evidence in
-`docs/measurements/nexus-catalog/` (the NX-03 answers): `catalog-*` (group
-connector, hosted root, and the three repository paths, each as admin, pull and
-anon), `catalog-{hosted,proxy,group}-path--{admin,pull,anon}` and
-`catalog-{hosted,proxy,group}-path-on-connector-30482--admin` (the 12 answers of
-the catalog by member path, DEVDESK-579), `page-group-n1000--admin`, `rest-repositories-*` (the three formats and the
-group detail endpoint, three identities) and the two `v2-ping-*`. They are copied,
-not moved: the measurement note keeps its paths and the evidence stays as
+Of the 75 files of `catalog`, 63 are copies, byte for byte, of the dated evidence in
+`docs/measurements/nexus-catalog/` (the NX-03 answers) and 12 were recorded by
+`nexus-bench record` (DEVDESK-580).
+
+The copies: `catalog-*` (group connector, hosted root, and the three repository
+paths, each as admin, pull and anon), `catalog-{hosted,proxy,group}-path--{admin,pull,anon}`
+and `catalog-{hosted,proxy,group}-path-on-connector-30482--admin` (the 12 answers of
+the catalog by member path, DEVDESK-579), `page-group-n1000--admin`,
+`rest-repositories-*` (the three formats and the group detail endpoint, three
+identities), the two `v2-ping-*`, and the 21 imported by DEVDESK-580 (PR1): the
+pagination measured by NX-03, `page-group-n1-p0..p5`, `page-group-n2-p0..p4`,
+`page-hosted-n2-p0..p1`, `page-proxy-n2-p0..p1` and `page-group-n6` (16, admin), and
+five `tags-*` files for the tag lists (`tags-hosted-api-path`,
+`tags-hosted-api-v2-repository`, `tags-{proxy,hosted,group}-shared-base`, admin). They are
+copied, not moved: the measurement note keeps its paths and the evidence stays as
 measured. Not imported: the `*-bearer--*` files (two exchanges), `manifest-head-*`
 (a read through the proxy caches), `*-after-measures`, `bench-status-*`, `ctx-*`,
-the `n1`/`n2` pagination files, the other `*-path*` files and `tags-*`.
+the other `*-path*` files, `tags-group-mirror-uncached` (no proof it had no cache
+effect) and `tags-hosted-api-repository` (outside the recorder's closed list,
+postponed to the NX-05 PR).
+
+The 12 recorded ones carry `# recorded-by: nexus-bench record` and the date
+2026-11-20: the answers to the `n=1000` DevDesk sends, for the three identities,
+`catalog-hosted-root-30481-n1000--*` (404, the HTTP-port root),
+`catalog-group-path-n1000--*` (404), `catalog-hosted-path-n1000--*` (200, 4 names) and
+`catalog-proxy-path-n1000--*` (200, 3 names). They were written from `pending`
+request files, as for any new fixture.
 
 A fixture is either byte-identical to its dated evidence, or it says
-`# recorded-by: nexus-bench record` (a regenerated file). No hand-written answer
-can pass as measured: `TestEveryFixtureIsMeasuredOrRecorded` compares each file
-with `EvidenceDir(campaign)` and names the offender. A regeneration rewrites the
-fixtures only, never the evidence.
+`# recorded-by: nexus-bench record` (a regenerated file). The check catches a
+hand-edited copy of measured evidence and an unknown `recorded-by` value, but it
+cannot prove a fixture was recorded. The `recorded-by` header is declarative:
+`CheckProvenance` accepts any fixture that declares `nexus-bench record` with no
+further check, so a hand-written file carrying that line passes. The guard
+against that is PR review, not code.
+`TestEveryFixtureIsMeasuredOrRecorded` runs `CheckProvenance(fixture, repoRoot)`
+over every embedded campaign (not only `catalog`, so a campaign added later
+cannot escape it); a fixture with no header is compared byte for byte with
+`EvidenceDir(campaign)`, and the test names the offender. A regeneration rewrites
+the fixtures only, never the evidence.
 
 ### Redaction and leak check
 
@@ -1728,20 +1751,21 @@ base := s.URL("127.0.0.1:30482")     // the fake that stands for that recorded H
   same host, method, target and identity, or one with no status, also fail the
   test. `Hits(name)` counts the requests a fixture answered.
 - **Catalog tolerance, `n=1000`**: DevDesk always asks `/v2/_catalog?n=1000`
-  (`internal/oci/catalog.go`), but NX-03 recorded most catalogs without `n`. A
-  `GET P?n=1000` (no `last`) is answered by a fixture recorded as `GET P` with no
-  query when that answer is a 200 with no `Link` and at most 1000 names. Any
-  other `n` is unmatched. **Measured** for the group connector: `n=1000` and no
-  `n` answer identically (`page-group-n1000--admin` against
-  `catalog-group-connector-30482--admin`, `TestTheCatalogToleranceHasMeasuredGround`).
-  **Inferred** for hosted and proxy, where only no-`n` and `n=2` were measured.
-  The same inference covers `/v2/<repository>/_catalog` (hosted and proxy, by path,
-  DEVDESK-579): `?n=1000` is tolerated on the strength of the no-`n` answer, not
-  measured. It is **not** tolerated on the group's path catalog, which answers 404:
-  a 404 never answers `n=1000`, so the group's path test (criterion 6) stays in a
-  documented `Skip` until a `?n=1000` request is recorded (DEVDESK-580).
-  The way to drop it is to record DevDesk-shaped `?n=1000` request files (pending)
-  and run `record`.
+  (`internal/oci/catalog.go`), but NX-03 recorded most catalogs without `n`. An
+  exact fixture always wins. Otherwise a `GET P?n=1000` (no `last`) is answered
+  by a fixture recorded as `GET P` with no query when that answer is a 200 with no
+  `Link` and at most 1000 names. Any other `n` is unmatched. **Measured** (`n=1000`
+  and no `n` answer identically): for the group connector (`page-group-n1000--admin`
+  against `catalog-group-connector-30482--admin`) and, since DEVDESK-580, for the
+  hosted and proxy catalogs by path, the 404 of the group's path and the 404 of the
+  HTTP-port root, for the three identities (`catalog-*-n1000--*` against their no-`n`
+  twin; `TestTheCatalogToleranceHasMeasuredGround`). Those exact fixtures are what the
+  replay tests hit; the tolerance stays for the group connector's pull and anonymous
+  identities and the `/repository/<name>/v2/` paths, where it is still an
+  **inference** (only no-`n` and `n=2` were measured). A recorded 404 is never
+  tolerated: `?n=1000` on a target with no exact fixture is unmatched
+  (`TestCatalogToleranceDoesNotServeA404`). A test of the tolerance itself leaves the
+  exact fixtures out of the set (`without` in `server_test.go`).
 - **No Bearer realm**: `v2-ping-*` replays the `WWW-Authenticate: Bearer realm=...`
   challenge (rewritten to the fake), but no token endpoint is recorded, so a
   client that follows the realm gets an unrecorded-request error (NX-05).
@@ -1752,9 +1776,10 @@ base := s.URL("127.0.0.1:30482")     // the fake that stands for that recorded H
   and `Classify` on the measured catalogs, for hosted, proxy and group, as admin,
   pull and anon; the prefix filter on a real unprefixed catalog gives the
   `refused` verdict (`ErrPrefixNotInCatalog`). `TestCatalogOnTheHTTPPortRootIsRefused`
-  (the HTTP-port root answers 404 to a catalog) skips itself until a
-  `?n=1000` request on that root is recorded (DEVDESK-580): only the no-`n`
-  404 was measured, and the fake does not let a 404 answer `n=1000`.
+  (the HTTP-port root answers 404 to `?n=1000`, `catalog-hosted-root-30481-n1000--*`)
+  and `TestCatalogOfAGroupUnderItsPrefixIsRefused` (the group's path, 404 as well,
+  `catalog-group-path-n1000--*`) give `refused` with a registry `StatusError{404}`
+  (DEVDESK-580, no `Skip` left).
 - `TestDetectGroupOnMeasuredNexusAnswers` and
   `TestMeasuredRESTAnswersHoldThePremises` (`registrymgr`): `DetectGroup` on the
   measured REST answers. As the pull account, the detailed group endpoint answers
@@ -1814,7 +1839,10 @@ Guards. All are checked before the first request, except where stated:
   `/v2/<repo>[/<repo>...]/_catalog` (the catalog of a member by path, DEVDESK-579),
   `/repository/<repo>/v2/_catalog`, `/service/rest/v1/repositories[/...]`, with a
   query limited to `n` and `last`; never a manifest or a blob (a read through the
-  proxy caches and would change the bench);
+  proxy caches and would change the bench). The only percent escape admitted is
+  `%2F` (either case) in the value of `last`, the form a Nexus group page `Link`
+  gives (`last=shared%2Fbase`, DEVDESK-580); any other escape, one in the path or in
+  `n`, and a literal `..` stay refused (`recordQueryParam`, `refusedRequest`);
 - a fixture file or campaign folder that is a symbolic link is refused; the file
   as it stands goes through `CheckLeaks` before it is sent;
 - no redirection is followed (a 302 is recorded as such), a body is read up to 1
@@ -1851,8 +1879,10 @@ test accepts.
 - NX-05: Bearer token flow and realm, redirects, pagination over several pages,
   routing by port and path beyond the two bench origins. They need multi-exchange
   recording, which the format reserves (`###`) and `record` does not do yet.
-- A `?n=1000` request on the HTTP-port root (404 root) is not recorded
-  (DEVDESK-580); its test skips until it is.
+- The `?n=1000` request on the HTTP-port root is recorded (DEVDESK-580). Still
+  open for that story: the `cachedonly` and `access` campaigns (NX-04, NX-05, later
+  PRs), and the `tags-hosted-api-repository` fixture (`/repository/<name>/v2/...`,
+  outside the closed list).
 - Both bench members of the group get the alias `docker` (`docker-hosted`,
   `docker-proxy`): same label, display only. Flagged, not changed.
 

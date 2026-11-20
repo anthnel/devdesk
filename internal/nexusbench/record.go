@@ -361,7 +361,9 @@ var (
 		regexp.MustCompile(`^/repository/[A-Za-z0-9._-]+/v2/_catalog$`),
 		regexp.MustCompile(`^/service/rest/v1/repositories(/[A-Za-z0-9._-]+)*$`),
 	}
-	recordQueryParam = regexp.MustCompile(`^(n=[0-9]{1,6}|last=[A-Za-z0-9._/-]*)$`)
+	// recordQueryParam admits one percent escape only: %2F in the value of last,
+	// the form a Nexus group page Link gives the last name (DEVDESK-580).
+	recordQueryParam = regexp.MustCompile(`^(n=[0-9]{1,6}|last=([A-Za-z0-9._/-]|%2[Ff])*)$`)
 )
 
 // refusedRequest returns why a request may not be sent, or "".
@@ -370,7 +372,9 @@ func refusedRequest(method, target string) string {
 	switch {
 	case method != http.MethodGet:
 		return "the method is not GET"
-	case strings.Contains(target, "..") || strings.Contains(target, "%"):
+	case strings.Contains(target, "..") || strings.Contains(p, "%"):
+		// An escape in the query is left to recordQueryParam, which lets only %2F
+		// through in the value of last.
 		return "the target holds a dot-dot or an escape"
 	case strings.Contains(p+"/", "/manifests/") || strings.Contains(p+"/", "/blobs/"):
 		return "a manifest or a blob read can change the bench"
