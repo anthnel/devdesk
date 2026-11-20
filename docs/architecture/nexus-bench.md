@@ -1584,20 +1584,22 @@ namespace, the Nexus pod (0 restart) and `nexus-data` did not change across the 
 Plan `.claude/plans/DEVDESK-511-plan.md`. Tests of the Nexus-facing code (image
 search, group discovery) replay answers measured on the bench instead of
 hand-written ones, with no bench, no cluster and no secret: `mise run test` needs
-none of them. Scope is partial: only the NX-03 measures
-(`docs/measurements/2026-11-17-nexus-catalog.md`, Nexus 3.98.1-01 Community)
-exist as fixtures. See "What is not recorded yet" below.
+none of them. Scope is partial: the NX-03 measures
+(`docs/measurements/2026-11-17-nexus-catalog.md`) and the NX-04 ones (a proxy whose
+upstream is cut, `docs/measurements/2026-11-20-nexus-cached-only.md`), all on Nexus
+3.98.1-01 Community, exist as fixtures. See "What is not recorded yet" below.
 
 ### Where things are
 
 | Path | Role |
 |---|---|
 | `internal/nexusfixture/` | format, parser and writer (`format.go`), embedded loader (`load.go`), `Redact` (`redact.go`), `CheckLeaks` (`leaks.go`). No `testing` import: the recorder imports it. |
-| `internal/nexusfixture/fixtures/<campaign>/*.http` | the fixtures, embedded with `go:embed`. One campaign today: `catalog` (75 files). |
+| `internal/nexusfixture/fixtures/<campaign>/*.http` | the fixtures, embedded with `go:embed`. Two campaigns today: `catalog` (75 files) and `cachedonly` (17 files, NX-04). |
 | `internal/nexusfixture/fakenexus/` | the replay server. Imports `testing`: import it from `_test.go` files only. |
 | `internal/nexusbench/record.go`, `cmd/nexus-bench/record.go` | the recorder and its command. |
 | `internal/nexusfixture/stale_test.go` | the stale-fixture test. |
-| `internal/imagesearch/catalog_fixture_test.go`, `internal/registrymgr/nexus_fixture_test.go` | the replay tests. |
+| `internal/imagesearch/catalog_fixture_test.go`, `internal/registrymgr/nexus_fixture_test.go` | the replay tests of the `catalog` campaign. |
+| `internal/imagesearch/cachedonly_fixture_test.go`, `internal/ui/oci_resources/browser_cached_only_fixture_test.go`, `internal/oci/manifest_fixture_test.go` | the replay tests of the `cachedonly` campaign (see "The `cachedonly` campaign" below). |
 
 ### Format of a fixture
 
@@ -1691,6 +1693,11 @@ The 12 recorded ones carry `# recorded-by: nexus-bench record` and the date
 `catalog-proxy-path-n1000--*` (200, 3 names). They were written from `pending`
 request files, as for any new fixture.
 
+The 17 files of `cachedonly` were all recorded by `nexus-bench record` on 2026-11-20 (NX-04,
+written from `pending` files too, then frozen byte for byte in
+`docs/measurements/nexus-cachedonly/`, whose note is
+`docs/measurements/2026-11-20-nexus-cached-only.md`). None is imported from older evidence.
+
 A fixture is either byte-identical to its dated evidence, or it says
 `# recorded-by: nexus-bench record` (a regenerated file). The check catches a
 hand-edited copy of measured evidence and an unknown `recorded-by` value, but it
@@ -1703,6 +1710,69 @@ over every embedded campaign (not only `catalog`, so a campaign added later
 cannot escape it); a fixture with no header is compared byte for byte with
 `EvidenceDir(campaign)`, and the test names the offender. A regeneration rewrites
 the fixtures only, never the evidence.
+
+### The `cachedonly` campaign (DEVDESK-580, PR3, NX-04)
+
+17 files, all recorded by `nexus-bench record` on 2026-11-20, frozen as evidence in
+`docs/measurements/nexus-cachedonly/` (`evidenceDirs["cachedonly"]`; the copies are
+byte-identical to the fixtures). The file name prefix says in which state of the bench
+the request was sent, and the order matters (the files of a campaign are sent in lexical
+order):
+
+| Prefix | State | What it holds |
+|---|---|---|
+| `nominal-` | upstream reachable | the proxy's `_catalog` (admin, pull, anon), `tags/list` of `mirror/cached` and `mirror/uncached`, and `nominal-zz-head-...` (a HEAD of the uncached manifest through the proxy, `effect: caches`, sent last) |
+| `cut1-` | upstream cut, proxy not yet blocked | the first read, `_catalog` of the proxy: 502 after about 20 s |
+| `cut2-` | upstream cut, proxy auto-blocked | the same read (3 identities), the hosted catalog (control), the group connector's catalog, `tags/list` through the proxy and the group, HEAD of both manifests |
+
+Two requests recorded in different states are the SAME request with different answers
+(`GET /v2/docker-proxy/_catalog?n=1000` as `nominal-`, `cut1-` and `cut2-`), and fakenexus
+refuses two recordings of one request: a test builds one fake per state from a chosen
+subset of fixtures, never from the whole campaign (`fakenexus.New(t, picked...)`).
+
+The replay tests pin what the measure says, including what contradicts the criteria of
+NX-08b; each starts by checking the recorded status of the fixtures it uses, so a
+regenerated fixture with another answer fails there and names the file. The three that
+cover NX-04: `TestProxyCatalogOnMeasuredCutUpstream`, `TestHostedAndGroupCatalogOnMeasuredCutUpstream`
+and `TestFailedNexusAnswerKeepsItsCause` (`internal/imagesearch`),
+`TestCachedOnlyLineOnMeasuredCutUpstream` and the group-connector one
+(`internal/ui/oci_resources`), `TestManifestDigestOnMeasuredCutUpstream` and
+`TestTagsOnMeasuredCutUpstream` (`internal/oci`). What they cannot replay: the delay. The
+first read after the cut takes Nexus about 20 s to answer its 502, the registry client gives
+up after 15 s, so on the live bench DevDesk shows `failed` with a deadline and no
+`*oci.StatusError`. That verdict, that 20 s delay and the dataset status the bench printed
+after the HEAD (`dataset: differs`) are **reported by the session of 2026-11-20, not
+replayable by a fixture**: the guarded integration test `TestIntegrationDevDeskOnACutUpstream`
+(`internal/nexusbench`, `DEVDESK_NEXUS_BENCH_SCENARIOS=1`, asserts nothing, logs verdict,
+cause and duration) was not replayed for this PR. H-CUTDELAY (20 s) was measured in NX-02b on
+a read of an uncached **manifest**, not on `_catalog`; that `_catalog` shows the same delay is
+the report above, not a measurement of this repository.
+
+The hosted catalog is a fixture of this campaign in the cut state only
+(`cut2-catalog-hosted-path`, a control); its nominal answer is `catalog-hosted-path-n1000` of
+`catalog` (NX-03). Likewise the HEAD of the shared homonym through the group
+(`manifest-head-group-shared-base--admin`) is a proof of NX-03
+(`docs/measurements/nexus-catalog`), not a fixture embedded here.
+
+A campaign that still holds a `record: pending` file cannot be loaded, so the provenance,
+version and redaction checks skip it. `TestNoPendingFixtureIsVersioned` (`internal/nexusfixture`)
+fails the suite as soon as such a file exists in an embedded campaign, unless
+`DEVDESK_FIXTURE_RECORDING=1` is set: that variable is for a local recording session only
+(the request files are written, the recorder fills them) and is never set in a run that is
+committed or merged.
+
+Regeneration and the date. Five bodies hold `Remote Auto Blocked until <date>`, the end of
+the block, which changes at every recording. The stale test reads only the version and the
+edition, `TestRedactLeavesARealAnswerAsItIs` and the leak check do not care about a date, so
+nothing goes red; but `sameAnswer` compares whole exchanges, so a regeneration (after
+`cut-upstream`, in the `cut1-` then `cut2-` order) reports those five files `written` with a
+new date, never `unchanged`. That is churn in the diff, not a divergence. Neither
+`record: skip` nor a redaction rule was used: `skip` would stop the recorder from regenerating
+those files and the stale test does not exempt a skipped fixture (it would stay red after a
+version bump until a hand edit), and a redaction rule changes the bytes of files the recorder
+wrote, which means recording them again on the bench. The replay tests match the message by its
+prefix (`Remote Auto Blocked until `) and check the rest parses as a date, never the date
+itself: keep it that way.
 
 ### Redaction and leak check
 
@@ -2001,17 +2071,19 @@ test accepts.
 
 ### What is not recorded yet
 
-- `Cached only` (a decision of the UI from the config) and the verdict `failed`:
-  there is no measured failing answer; the 502 of a cut upstream is NX-04's.
-  They stay on hand-written answers. A proxy's catalog lists `mirror/uncached`,
-  which it does not hold (it relays the upstream); the search shows it, input for
-  NX-04.
+- `Cached only` and the verdict `failed` are measured since DEVDESK-580 (PR3): the 502 of a
+  cut upstream and the 404 of an auto-blocked proxy are fixtures of the `cachedonly`
+  campaign, replayed by the tests above. What stays on hand-written answers is every
+  other failure (a 5xx or a 429 on a hosted member, an unreadable body, a network error)
+  and the deadline the user really waits for (15 s in the client, 20 s in Nexus), which
+  no fixture can replay. A proxy's catalog lists `mirror/uncached`, which it does not
+  hold (it relays the upstream); the search shows it.
 - NX-05: Bearer token flow and realm, redirects, routing by port and path beyond the
   two bench origins. `record` now records the multi-exchange flows (DEVDESK-580,
   PR2); what is missing is the measurement itself, the `access` campaign (later PRs).
 - The `?n=1000` request on the HTTP-port root is recorded (DEVDESK-580). Still
-  open for that story: the `cachedonly` and `access` campaigns (NX-04, NX-05, later
-  PRs), and the `tags-hosted-api-repository` fixture (`/repository/<name>/v2/...`,
+  open for that story: the `access` campaign (NX-05, a later PR), and the
+  `tags-hosted-api-repository` fixture (`/repository/<name>/v2/...`,
   outside the closed list).
 - Both bench members of the group get the alias `docker` (`docker-hosted`,
   `docker-proxy`): same label, display only. Flagged, not changed.

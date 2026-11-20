@@ -406,13 +406,15 @@ func TestParseErrors(t *testing.T) {
 // Content-Type, Content-Length (the order of every NX-03 file), and writes
 // WWW-Authenticate with its capitals, not as the canonical Www-Authenticate.
 func TestEveryFixtureRoundTrips(t *testing.T) {
-	files, err := filepath.Glob(filepath.Join("fixtures", "catalog", "*.http"))
+	files, err := filepath.Glob(filepath.Join("fixtures", "*", "*.http"))
 	if err != nil {
 		t.Fatal(err)
 	}
 	present := map[string]bool{}
 	for _, path := range files {
-		present[strings.TrimSuffix(filepath.Base(path), ".http")] = true
+		if filepath.Base(filepath.Dir(path)) == "catalog" {
+			present[strings.TrimSuffix(filepath.Base(path), ".http")] = true
+		}
 	}
 	for _, name := range importedCatalog() {
 		if !present[name] {
@@ -420,13 +422,14 @@ func TestEveryFixtureRoundTrips(t *testing.T) {
 		}
 	}
 	for _, path := range files {
+		campaign := filepath.Base(filepath.Dir(path))
 		name := strings.TrimSuffix(filepath.Base(path), ".http")
-		t.Run(name, func(t *testing.T) {
+		t.Run(campaign+"/"+name, func(t *testing.T) {
 			data, err := os.ReadFile(path)
 			if err != nil {
 				t.Fatal(err)
 			}
-			f, err := nexusfixture.Parse("catalog", filepath.Base(path), data)
+			f, err := nexusfixture.Parse(campaign, filepath.Base(path), data)
 			if err != nil {
 				t.Fatalf("Parse: %v", err)
 			}
