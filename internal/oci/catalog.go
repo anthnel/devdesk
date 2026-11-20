@@ -168,7 +168,7 @@ func registryGETBoundedContext(ctx context.Context, rawURL, username, password, 
 		err = errors.New("catalog page over " + strconv.FormatInt(limit, 10) + " bytes")
 	}
 	if err != nil {
-		return nil, "", token, err
+		return nil, "", token, noAnswer(err)
 	}
 	return body, resp.Header.Get("Link"), token, nil
 }

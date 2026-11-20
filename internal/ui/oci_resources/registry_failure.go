@@ -23,5 +23,9 @@ func registryFailureReason(err error) string {
 	if errors.As(err, &se) && se.UpstreamBlocked() {
 		return reasonUpstreamBlocked
 	}
+	var na *oci.NoAnswerError
+	if errors.As(err, &na) {
+		return na.Error()
+	}
 	return ""
 }

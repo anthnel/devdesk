@@ -123,11 +123,26 @@ exported surface.
 every page. The old names delegate with `context.Background()`, signatures
 unchanged. A deadline or a cancel reaches the caller as an error that
 satisfies `errors.Is(err, context.DeadlineExceeded)` or `context.Canceled`,
-and never as a `StatusError`. **Limit:** `registryHTTPClient` keeps its own
-`Timeout: 15s` per request, and the client wraps `context.DeadlineExceeded`
-for that timeout too. A caller cannot tell the client timeout from the
-context's deadline, so `imagesearch.Classify` (DEVDESK-303, IS-12) puts both in
-the `failed` verdict.
+and never as a `StatusError`.
+
+**The abandon after 15 s is typed (DEVDESK-633).** `oci.RequestTimeout` (15 s,
+unchanged) is the delay of `registryHTTPClient` and the value of
+`imageSearchDeadline`. A registry that does not answer in time ends the request
+with a `*oci.NoAnswerError`, whose text is exactly `no answer within N s`, N read
+from the constant (no `15` literal outside the tests). It wraps only
+`context.DeadlineExceeded` (`Unwrap`), so `errors.Is` still finds a deadline,
+while the URL, userinfo, host, `/v2/` path and query never come back in the
+message. It is applied to the errors of `doRequestContext`, of the token
+endpoint's `Do` and `readToken`, and of the body reads of `registryGETContext` and
+`registryGETBoundedContext` (so tags, catalog, catalog under a prefix, the
+manifest digest and the token exchange are covered). `context.Canceled` is not
+touched, and a 502 received in time stays a `*StatusError{502}`, `failed`, with no
+"no answer". `registryFailureReason` returns the error's own text, so the footer
+(Error) says `Image search on <alias>: no answer within 15 s` and `Could not load
+tags: no answer within 15 s`, and the journal reads `ERROR [oci_resources] image
+search on <alias>: no answer within 15 s`. **Limit:** the client's own delay and the
+context's deadline are still one case: both give the same error and the same text,
+and `imagesearch.Classify` (DEVDESK-303, IS-12) puts it in the `failed` verdict.
 
 **Credentials stay on their origin (DEVDESK-410).** Four guards keep the Basic
 credentials and the Bearer token from leaving the registry they were meant for:
@@ -716,7 +731,8 @@ injects nothing: its tests avoid level 1 by typing a name with a `/`.
 `targetFor(entry)` (same credentials as the tag flow, `credsFor`). Each command
 wraps the lot's context in `context.WithTimeout(ctx, imageSearchDeadline)`:
 `imageSearchDeadline` is 15 s **per registry**, the whole walk included, on top
-of the 15 s client timeout per request (see the limit above). A registry's
+of the 15 s client timeout per request (`imageSearchDeadline = oci.RequestTimeout`,
+see "The abandon after 15 s is typed" above). A registry's
 answer arrives as `ImageSearchResultMsg{Gen, EntryKey, Images, Partial, Err}`
 and `AddImageResults` takes it (false when stale; `pendingSearches` never goes
 under 0).

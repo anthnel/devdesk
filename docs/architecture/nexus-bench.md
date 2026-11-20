@@ -2188,7 +2188,8 @@ rather than passing for a recording.
   campaign, replayed by the tests above. What stays on hand-written answers is every
   other failure (a 5xx or a 429 on a hosted member, an unreadable body, a network error)
   and the deadline the user really waits for (15 s in the client, 20 s in Nexus), which
-  no fixture can replay. A proxy's catalog lists `mirror/uncached`, which it does not
+  no fixture can replay (the abandon is typed since DEVDESK-633, `*oci.NoAnswerError`, text
+  `no answer within 15 s`; the measures are unchanged). A proxy's catalog lists `mirror/uncached`, which it does not
   hold (it relays the upstream); the search shows it.
 - NX-05 is recorded and replayed since DEVDESK-580 (PR4): the `access` campaign above. What stays unmeasured
   is listed at the end of that section (subdomain, a connector for `docker-hosted`, an off-origin realm or

@@ -9,13 +9,12 @@ import (
 	"net/http"
 	"net/url"
 	"strings"
-	"time"
 )
 
 // registryHTTPClient is swapped by tests that must reach a stand-in for a
 // registry by another address.
 var registryHTTPClient = &http.Client{
-	Timeout:       15 * time.Second,
+	Timeout:       RequestTimeout,
 	CheckRedirect: RefuseOffOriginRedirect,
 }
 
@@ -162,7 +161,7 @@ func registryGETContext(ctx context.Context, rawURL, username, password, token s
 		return nil, "", token, registryStatusError(resp)
 	}
 	body, err = io.ReadAll(io.LimitReader(resp.Body, maxTagResponse))
-	return body, resp.Header.Get("Link"), token, err
+	return body, resp.Header.Get("Link"), token, noAnswer(err)
 }
 
 // registryDo sends one request, answering a Bearer challenge once. The caller
@@ -191,6 +190,9 @@ func registryDoContext(ctx context.Context, method, rawURL, accept, username, pa
 		return nil, "", err
 	}
 	if resp, err = doRequestContext(ctx, method, rawURL, accept, "", "", token); err != nil {
+		if na := asNoAnswer(err); na != nil {
+			return nil, token, na
+		}
 		return nil, token, fmt.Errorf("%s (retry) %s: %w", method, RedactURL(rawURL), err)
 	}
 	return resp, token, nil
@@ -220,6 +222,9 @@ func doRequestContext(ctx context.Context, method, rawURL, accept, username, pas
 	}
 	resp, err := registryHTTPClient.Do(req)
 	if err != nil {
+		if na := asNoAnswer(err); na != nil {
+			return nil, na
+		}
 		return nil, fmt.Errorf("%s %s: %w", method, RedactURL(rawURL), StripRedirectTarget(err))
 	}
 	return resp, nil
@@ -376,6 +381,9 @@ func exchangeBearerTokenContext(ctx context.Context, registryURL, challenge, use
 	}
 	resp, err := registryHTTPClient.Do(req)
 	if err != nil {
+		if na := asNoAnswer(err); na != nil {
+			return "", na
+		}
 		return "", fmt.Errorf("fetch token: %w", StripRedirectTarget(err))
 	}
 	defer func() { _ = resp.Body.Close() }()
@@ -418,6 +426,9 @@ func tokenEndpoint(challenge string) (string, error) {
 func readToken(body io.Reader) (string, error) {
 	data, err := io.ReadAll(io.LimitReader(body, maxTokenResponse+1))
 	if err != nil {
+		if na := asNoAnswer(err); na != nil {
+			return "", na
+		}
 		return "", fmt.Errorf("read token response: %w", err)
 	}
 	if len(data) > maxTokenResponse {
