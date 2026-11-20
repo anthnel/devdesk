@@ -1,0 +1,57 @@
+{
+  "cli_version": "0.13.2",
+  "checkpoint_id": "e2be2a7aa0db",
+  "strategy": "manual-commit",
+  "branch": "feat/devdesk-580-pr3-cachedonly",
+  "checkpoints_count": 6,
+  "files_touched": [
+    "docs/architecture/nexus-bench.md",
+    "docs/measurements/2026-11-20-nexus-cached-only.md",
+    "internal/imagesearch/cachedonly_fixture_test.go",
+    "internal/nexusbench/bench_scenarios_integration_test.go",
+    "internal/nexusfixture/format_test.go",
+    "internal/nexusfixture/leaks_test.go",
+    "internal/nexusfixture/load.go",
+    "internal/nexusfixture/load_test.go",
+    "internal/nexusfixture/redact_test.go",
+    "internal/nexusfixture/stale_test.go"
+  ],
+  "sessions": [
+    {
+      "metadata": "/e2/be2a7aa0db/0/metadata.json",
+      "transcript": "/e2/be2a7aa0db/0/full.jsonl",
+      "compact_transcript": "/e2/be2a7aa0db/0/transcript.jsonl",
+      "content_hash": "/e2/be2a7aa0db/0/content_hash.txt",
+      "prompt": "/e2/be2a7aa0db/0/prompt.txt"
+    }
+  ],
+  "token_usage": {
+    "input_tokens": 40,
+    "cache_creation_tokens": 33923,
+    "cache_read_tokens": 3319910,
+    "output_tokens": 13059,
+    "api_call_count": 14,
+    "subagent_tokens": {
+      "input_tokens": 312,
+      "cache_creation_tokens": 1156456,
+      "cache_read_tokens": 15364610,
+      "output_tokens": 138171,
+      "api_call_count": 149
+    },
+    "subagent_tokens_complete": true
+  },
+  "redaction": {
+    "replacements": 0,
+    "layers": {
+      "betterleaks": 0,
+      "connection_string": 0,
+      "credential_key": 0,
+      "credential_value": 0,
+      "credentialed_uri": 0,
+      "entropy": 0,
+      "key_context": 0,
+      "provider_token": 0,
+      "shell_stdin": 0
+    }
+  }
+}

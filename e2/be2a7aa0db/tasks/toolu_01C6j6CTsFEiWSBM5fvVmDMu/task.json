@@ -1,0 +1,15 @@
+{
+  "tool_use_id": "toolu_01C6j6CTsFEiWSBM5fvVmDMu",
+  "agent_id": "a13619dfba8b33807",
+  "subagent_type": "dev-team:security-reviewer",
+  "task_description": "Security review PR3 fixtures",
+  "token_usage": {
+    "input_tokens": 20,
+    "cache_creation_tokens": 87863,
+    "cache_read_tokens": 457051,
+    "output_tokens": 6096,
+    "api_call_count": 9
+  },
+  "started_at": "2026-11-20T15:34:35.175310373+01:00",
+  "completed_at": "2026-11-20T15:35:38.274415079+01:00"
+}

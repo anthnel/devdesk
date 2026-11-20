@@ -1,0 +1,15 @@
+{
+  "tool_use_id": "toolu_01BM6oedr5nxhorQhP1k85Vq",
+  "agent_id": "ad506a94b500fe409",
+  "subagent_type": "project-tester",
+  "task_description": "PR3 replay tests and measurement note",
+  "token_usage": {
+    "input_tokens": 92,
+    "cache_creation_tokens": 231135,
+    "cache_read_tokens": 6160843,
+    "output_tokens": 60407,
+    "api_call_count": 45
+  },
+  "started_at": "2026-11-20T15:26:08.134343456+01:00",
+  "completed_at": "2026-11-20T15:34:21.19138928+01:00"
+}
