@@ -1,0 +1,18 @@
+{
+  "tool_use_id": "toolu_01Wqpr9KrBEr24nJW9JoSwzy",
+  "agent_id": "ad86ff223fc2b286c",
+  "subagent_type": "team-core:tech-writer",
+  "task_description": "Rédiger la note de décision Dagger",
+  "files": [
+    "docs/product/dagger-ci-release/note-decision.md"
+  ],
+  "token_usage": {
+    "input_tokens": 12,
+    "cache_creation_tokens": 58856,
+    "cache_read_tokens": 204889,
+    "output_tokens": 11813,
+    "api_call_count": 6
+  },
+  "started_at": "2026-11-20T22:19:56.049538203+01:00",
+  "completed_at": "2026-11-20T22:21:14.810306783+01:00"
+}

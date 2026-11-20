@@ -1,0 +1,15 @@
+{
+  "tool_use_id": "toolu_01SvEhFo3DDEjn3hG7n7MeW5",
+  "agent_id": "ad3ea4386e0eec6bf",
+  "subagent_type": "dev-team:devops",
+  "task_description": "Merger la PR 440",
+  "token_usage": {
+    "input_tokens": 16,
+    "cache_creation_tokens": 52132,
+    "cache_read_tokens": 316535,
+    "output_tokens": 3826,
+    "api_call_count": 8
+  },
+  "started_at": "2026-11-20T22:23:04.168512167+01:00",
+  "completed_at": "2026-11-20T22:23:54.870423719+01:00"
+}

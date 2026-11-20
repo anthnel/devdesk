@@ -1,0 +1,15 @@
+{
+  "tool_use_id": "toolu_01YKk3ZUJgnKgb2cszeJ3HXZ",
+  "agent_id": "ae8d5c7ec835e840e",
+  "subagent_type": "team-core:archivist",
+  "task_description": "D168 F4 et journal DEVDESK-629",
+  "token_usage": {
+    "input_tokens": 22,
+    "cache_creation_tokens": 75076,
+    "cache_read_tokens": 605312,
+    "output_tokens": 11938,
+    "api_call_count": 11
+  },
+  "started_at": "2026-11-20T21:45:10.098644973+01:00",
+  "completed_at": "2026-11-20T21:46:25.03355238+01:00"
+}
