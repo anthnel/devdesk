@@ -1,8 +1,11 @@
 package ociresources
 
 import (
+	"context"
 	"errors"
 	"fmt"
+	"net/http"
+	"net/http/httptest"
 	"strings"
 	"testing"
 
@@ -30,6 +33,9 @@ func TestRegistryFailureReason(t *testing.T) {
 		{"the sentinel", oci.ErrTokenRealmOffOrigin, "token realm on another host"},
 		{"the sentinel, wrapped", offOriginErr(), "token realm on another host"},
 		{"a 404 from the registry", &oci.StatusError{Code: 404, Source: oci.SourceRegistry}, ""},
+		{"a blocked upstream", blockedUpstreamErr(t), "the proxy's upstream is temporarily blocked"},
+		{"a blocked upstream, wrapped", fmt.Errorf("registry tags: %w", blockedUpstreamErr(t)), "the proxy's upstream is temporarily blocked"},
+		{"a 404 that is not blocked", notBlocked404Err(t), ""},
 		{"a plain error", errors.New("boom"), ""},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
@@ -127,5 +133,62 @@ func TestImageSearchFooterStaysSilentForOtherFailures(t *testing.T) {
 
 	if m.footer.IsSet() {
 		t.Errorf("footer = %q, want none", m.footer.Text())
+	}
+}
+
+// DEVDESK-629 (F3): a Nexus proxy whose upstream is auto-blocked answers 404 "Remote Auto
+// Blocked". Only the real client can build that StatusError, so these tests read it from a
+// registry that answers it.
+
+func registryAnswering404(t *testing.T, body string) error {
+	t.Helper()
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.WriteHeader(http.StatusNotFound)
+		_, _ = w.Write([]byte(body))
+	}))
+	t.Cleanup(srv.Close)
+	_, err := oci.ListRegistryTagsContext(context.Background(), srv.URL, "library/nginx", "", "")
+	return err
+}
+
+func blockedUpstreamErr(t *testing.T) error {
+	t.Helper()
+	return registryAnswering404(t, `{"errors":[{"code":"UNKNOWN","message":"Remote Auto Blocked until 2026-11-20T14:24:21.987Z"}]}`)
+}
+
+func notBlocked404Err(t *testing.T) error {
+	t.Helper()
+	return registryAnswering404(t, `{"errors":[{"message":"Repository not found"}]}`)
+}
+
+// Tags opened from level 1 (right): the footer says the upstream is temporarily blocked,
+// with no date and no duration.
+func TestTagsFooterSaysTheUpstreamIsTemporarilyBlocked(t *testing.T) {
+	m := afterRight(t)
+
+	m, cmd := step(t, m, failedTags(m, blockedUpstreamErr(t)))
+
+	want := tagsLoadFailedText + ": the proxy's upstream is temporarily blocked"
+	if m.footer.Level() != components.LevelError || m.footer.Text() != want {
+		t.Errorf("footer = %q at level %v, want the error %q", m.footer.Text(), m.footer.Level(), want)
+	}
+	for _, leak := range []string{"until", "2026", "Remote Auto Blocked"} {
+		if strings.Contains(m.footer.Text(), leak) {
+			t.Errorf("footer = %q carries %q from the body", m.footer.Text(), leak)
+		}
+	}
+	if cmd == nil {
+		t.Error("no Cmd: the footer message has no timer")
+	}
+}
+
+// A 404 that is not the blocked message adds no reason at the footer.
+func TestTagsFooterKeepsItsGenericTextOnAnOrdinary404(t *testing.T) {
+	m := afterRight(t)
+
+	m, _ = step(t, m, failedTags(m, notBlocked404Err(t)))
+
+	if strings.Contains(m.footer.Text(), "blocked") {
+		t.Errorf("footer = %q, want no blocked reason on an ordinary 404", m.footer.Text())
 	}
 }

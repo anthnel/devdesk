@@ -100,12 +100,12 @@ func TestCachedOnlyLineOnMeasuredCutUpstream(t *testing.T) {
 			level:   "ERROR", cause: "502",
 		},
 		{
-			// Once Nexus has blocked the proxy: 404 "Remote Auto Blocked". Refused (a 404 is
-			// a refusal), listed as "unsupported", not Cached only and not Failed.
+			// Once Nexus has blocked the proxy: 404 "Remote Auto Blocked". DEVDESK-629 (F3):
+			// Failed (the upstream is temporarily blocked), neither Refused nor Cached only.
 			name: "proxy auto-blocked", proxy: "cut2-catalog-proxy-path--admin", hosted: hostedCut, status: 404,
-			verdict: imagesearch.VerdictRefused,
-			want:    searchSummary{Refused: []string{proxyMember}, CachedOnly: []string{hostedMember + cachedNoResultMark}},
-			level:   "INFO", cause: "404",
+			verdict: imagesearch.VerdictFailed,
+			want:    searchSummary{Failed: []string{proxyMember}, CachedOnly: []string{hostedMember + cachedNoResultMark}},
+			level:   "ERROR", cause: "temporarily blocked",
 		},
 	}
 	for _, tc := range members {

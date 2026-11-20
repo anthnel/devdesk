@@ -17,7 +17,8 @@ const (
 	VerdictNoResult
 	// VerdictRefused means unsupported or refused.
 	VerdictRefused
-	// VerdictFailed means network, deadline, 5xx, 429 or unreadable body.
+	// VerdictFailed means network, deadline, 5xx, 429, unreadable body or a proxy whose
+	// upstream is temporarily blocked (a 404 that says so).
 	VerdictFailed
 )
 
@@ -67,7 +68,7 @@ func Classify(err error, n int, partial bool) Outcome {
 		return Outcome{Verdict: VerdictRefused}
 	}
 	var se *oci.StatusError
-	if errors.As(err, &se) && refusedStatus(se) {
+	if errors.As(err, &se) && !se.UpstreamBlocked() && refusedStatus(se) {
 		return Outcome{Verdict: VerdictRefused}
 	}
 	return Outcome{Verdict: VerdictFailed}

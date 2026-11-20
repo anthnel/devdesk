@@ -161,7 +161,7 @@ func registryGETBoundedContext(ctx context.Context, rawURL, username, password, 
 	}
 	defer func() { _ = resp.Body.Close() }()
 	if resp.StatusCode != http.StatusOK {
-		return nil, "", token, &StatusError{Code: resp.StatusCode, Source: SourceRegistry}
+		return nil, "", token, registryStatusError(resp)
 	}
 	body, err = io.ReadAll(io.LimitReader(resp.Body, limit+1))
 	if err == nil && int64(len(body)) > limit {

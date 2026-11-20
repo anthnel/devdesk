@@ -68,6 +68,9 @@ type StatusError struct {
 	// unexpectedChallenge tells that 401 apart from a 401 answered after a
 	// token exchange, so Error() keeps both historical messages.
 	unexpectedChallenge bool
+	// upstreamBlocked marks a 404 whose body says the proxy's upstream is blocked for
+	// a while (see registryStatusError); Error() says so without the body.
+	upstreamBlocked bool
 }
 
 // Error returns the message the plain errors carried before the type existed.
@@ -79,6 +82,8 @@ func (e *StatusError) Error() string {
 		return fmt.Sprintf("management API returned %d", e.Code)
 	case e.unexpectedChallenge:
 		return fmt.Sprintf("unexpected auth challenge: %s", e.Challenge)
+	case e.upstreamBlocked:
+		return fmt.Sprintf("registry returned %d: the proxy's upstream is temporarily blocked, try again later", e.Code)
 	}
 	return fmt.Sprintf("registry returned %d", e.Code)
 }
@@ -154,7 +159,7 @@ func registryGETContext(ctx context.Context, rawURL, username, password, token s
 	}
 	defer func() { _ = resp.Body.Close() }()
 	if resp.StatusCode != http.StatusOK {
-		return nil, "", token, &StatusError{Code: resp.StatusCode, Source: SourceRegistry}
+		return nil, "", token, registryStatusError(resp)
 	}
 	body, err = io.ReadAll(io.LimitReader(resp.Body, maxTagResponse))
 	return body, resp.Header.Get("Link"), token, err
@@ -254,9 +259,9 @@ func ManifestDigest(apiURL, repo, tag, username, password string) (string, error
 	if err != nil {
 		return "", err
 	}
-	_ = resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 	if resp.StatusCode != http.StatusOK {
-		return "", fmt.Errorf("%w for %s:%s", &StatusError{Code: resp.StatusCode, Source: SourceRegistry}, repo, tag)
+		return "", fmt.Errorf("%w for %s:%s", registryStatusError(resp), repo, tag)
 	}
 	digest := resp.Header.Get("Docker-Content-Digest")
 	if digest == "" {

@@ -94,6 +94,22 @@ text stays `registry returned 404 for repo:tag` to the byte. A 200 without a
 repo:tag`). Its callers (`imageupdate`, the signature stage of `scan`) only log
 the error and mark the reference failed; none reads the text.
 
+A 404 whose body says the proxy's upstream is blocked is marked (DEVDESK-632):
+`registryStatusError(resp)` (`internal/oci/status_body.go`) builds the
+`*StatusError` of every non-200 registry answer (tags, catalog, `ManifestDigest`)
+and, for a 404 only, reads at most 4 KiB of the body (`maxStatusBody`, a
+hypothesis like `maxNexusErrorBody`). When the body is JSON and the `message` of
+the first `errors[]` entry starts with `Remote Auto Blocked` (exact, case
+sensitive, no leading space), `UpstreamBlocked()` is true. A missing, empty,
+plain-text, longer or unreadable body, another message, another status (502,
+403) leaves it false. The body never reaches the error: `Error()` is `registry
+returned 404: the proxy's upstream is temporarily blocked, try again later`, with
+no date and no duration. `imagesearch.Classify` ranks it `failed` (temporary),
+not `refused`; the tags footer says `Could not load tags: the proxy's upstream
+is temporarily blocked` (`registryFailureReason`) and the journal line carries
+`temporarily blocked`. Every other 404 stays `refused` with `registry returned
+404`.
+
 The unexported `unexpectedChallenge` field is a deviation from the plan, which
 had only `Code`, `Source` and `Challenge`: with those three, a 401 with a
 non-Bearer challenge and a 401 returned by the registry after a token exchange
@@ -483,8 +499,9 @@ and `CatalogSearcher` (IS-03); dhi.io is IS-17:
   3. `ErrUnsupported` or `ErrPrefixNotInCatalog` is `refused`;
   4. a `*oci.StatusError` is `refused` when `refusedStatus` holds: 401 and 403
      from either source, 404 and 405 from `SourceRegistry` only (a 404 from the
-     token endpoint is a failure); any other status, 429 and 5xx included, is
-     `failed`;
+     token endpoint is a failure), except a 404 marked `UpstreamBlocked()` (a
+     Nexus proxy whose upstream is blocked, DEVDESK-632), which is `failed`;
+     any other status, 429 and 5xx included, is `failed`;
   5. anything else is `failed`: deadline, cancel, network, unreadable or
      oversized body, invalid request.
 

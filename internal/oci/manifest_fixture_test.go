@@ -180,20 +180,21 @@ func TestTagsOnMeasuredCutUpstream(t *testing.T) {
 		target  string
 		status  int
 		tags    []string
-		code    int // the StatusError Code expected, 0 = none
+		code    int  // the StatusError Code expected, 0 = none
+		blocked bool // DEVDESK-629 (F3): the 404 says "Remote Auto Blocked"
 	}{
 		{"nominal, cached image", "nominal-tags-proxy-mirror-cached--admin", proxyHost, "docker-proxy/mirror/cached",
-			"/v2/docker-proxy/mirror/cached/tags/list", 200, []string{"1.0"}, 0},
+			"/v2/docker-proxy/mirror/cached/tags/list", 200, []string{"1.0"}, 0, false},
 		// The tag list of an image the proxy holds nothing of is served from the
 		// upstream: listed, although not cached.
 		{"nominal, uncached image", "nominal-tags-proxy-mirror-uncached--admin", proxyHost, "docker-proxy/mirror/uncached",
-			"/v2/docker-proxy/mirror/uncached/tags/list", 200, []string{"1.0"}, 0},
+			"/v2/docker-proxy/mirror/uncached/tags/list", 200, []string{"1.0"}, 0, false},
 		{"cut, cached image, proxy", "cut2-tags-proxy-mirror-cached--admin", proxyHost, "docker-proxy/mirror/cached",
-			"/v2/docker-proxy/mirror/cached/tags/list", 404, nil, 404},
+			"/v2/docker-proxy/mirror/cached/tags/list", 404, nil, 404, true},
 		{"cut, uncached image, proxy", "cut2-tags-proxy-mirror-uncached--admin", proxyHost, "docker-proxy/mirror/uncached",
-			"/v2/docker-proxy/mirror/uncached/tags/list", 404, nil, 404},
+			"/v2/docker-proxy/mirror/uncached/tags/list", 404, nil, 404, true},
 		{"cut, cached image, group", "cut2-tags-group-mirror-cached--admin", groupHost, "mirror/cached",
-			"/v2/mirror/cached/tags/list", 200, []string{}, 0},
+			"/v2/mirror/cached/tags/list", 200, []string{}, 0, false},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
@@ -214,6 +215,15 @@ func TestTagsOnMeasuredCutUpstream(t *testing.T) {
 			var se *oci.StatusError
 			if !errors.As(err, &se) || se.Code != tc.code || se.Source != oci.SourceRegistry {
 				t.Errorf("err = %v (%T), want *oci.StatusError{%d, SourceRegistry}", err, err, tc.code)
+			}
+			// DEVDESK-629 (F3): the measured body of a blocked proxy says so.
+			if se.UpstreamBlocked() != tc.blocked {
+				t.Errorf("UpstreamBlocked() = %v, want %v", se.UpstreamBlocked(), tc.blocked)
+			}
+			if tc.blocked {
+				if want := "registry returned 404: the proxy's upstream is temporarily blocked, try again later"; err.Error() != want {
+					t.Errorf("err = %q, want %q", err, want)
+				}
 			}
 			if len(tags) != 0 {
 				t.Errorf("tags = %v, want none", tags)

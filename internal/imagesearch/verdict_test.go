@@ -5,6 +5,8 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"net/http"
+	"net/http/httptest"
 	"net/url"
 	"testing"
 
@@ -115,5 +117,59 @@ func TestSentinelsAreDistinctErrorsWithAMessage(t *testing.T) {
 	}
 	if errors.Is(ErrQueryTooShort, ErrPrefixNotInCatalog) || errors.Is(ErrQueryTooShort, ErrUnsupported) {
 		t.Error("sentinels must be distinct")
+	}
+}
+
+// upstreamBlocked reports whether err holds a *oci.StatusError whose UpstreamBlocked()
+// is true.
+func upstreamBlocked(err error) bool {
+	var se *oci.StatusError
+	if !errors.As(err, &se) {
+		return false
+	}
+	return se.UpstreamBlocked()
+}
+
+// registryAnswers returns the error oci.ListRegistryTagsContext gives for a registry that
+// answers status and body: the only way to hold a blocked StatusError from outside oci.
+func registryAnswers(t *testing.T, status int, body string) error {
+	t.Helper()
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.WriteHeader(status)
+		_, _ = w.Write([]byte(body))
+	}))
+	t.Cleanup(srv.Close)
+	_, err := oci.ListRegistryTagsContext(context.Background(), srv.URL, "docker-proxy/mirror/cached", "", "")
+	return err
+}
+
+// DEVDESK-629 (F3): a 404 whose Nexus message is "Remote Auto Blocked" is a failure (the
+// proxy's upstream is temporarily blocked), not a refusal; any other 404 stays refused.
+func TestClassifyUpstreamBlocked(t *testing.T) {
+	const blocked = `{"errors":[{"code":"UNKNOWN","message":"Remote Auto Blocked until 2026-11-20T14:24:21.987Z"}]}`
+	cases := []struct {
+		name string
+		err  error
+		want Outcome
+	}{
+		{"blocked 404", registryAnswers(t, 404, blocked), Outcome{Verdict: VerdictFailed}},
+		{"blocked 404, wrapped", fmt.Errorf("search: %w", registryAnswers(t, 404, blocked)), Outcome{Verdict: VerdictFailed}},
+		{"plain 404", registryAnswers(t, 404, ""), Outcome{Verdict: VerdictRefused}},
+		{"404 repository not found", registryAnswers(t, 404, `{"errors":[{"message":"Repository not found"}]}`), Outcome{Verdict: VerdictRefused}},
+		{"404 plain text blocked", registryAnswers(t, 404, "Remote Auto Blocked until 2026-11-20T14:24:21.987Z"), Outcome{Verdict: VerdictRefused}},
+		{"blocked message on a 403", registryAnswers(t, 403, blocked), Outcome{Verdict: VerdictRefused}},
+		{"blocked message on a 502", registryAnswers(t, 502, blocked), Outcome{Verdict: VerdictFailed}},
+		{"404 from the token endpoint", &oci.StatusError{Code: 404, Source: oci.SourceToken}, Outcome{Verdict: VerdictFailed}},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			if got := Classify(tc.err, 0, false); got != tc.want {
+				t.Errorf("Classify(%v) = %+v, want %+v", tc.err, got, tc.want)
+			}
+		})
+	}
+	// The blocked one is detected, the others are not.
+	if err := registryAnswers(t, 404, blocked); !upstreamBlocked(err) {
+		t.Errorf("UpstreamBlocked() = false on the blocked 404 (%v)", err)
 	}
 }
