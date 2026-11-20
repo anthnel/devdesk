@@ -120,16 +120,25 @@ func searchUnits(entries []browserRegistryEntry, groups map[string]config.Regist
 
 // groupUnit is the entry that searches group g in place of its member first: the
 // group's own address and key, read at the root of its catalog, with what the
-// members agreed on (credentials, cache-only). ParentSlug stays g's slug, so the
+// members agreed on (credentials). ParentSlug stays g's slug, so the
 // group-level `r` stop takes its rows; ParentAlias stays empty, so the label is
 // the group's, marked by groupUnitSuffix.
 func groupUnit(first browserRegistryEntry, g config.RegistryItem) browserRegistryEntry {
 	return browserRegistryEntry{
 		URL: g.URL, Alias: browserAlias(g) + groupUnitSuffix, repoPrefix: g.RepoPrefix,
 		Slug: g.Slug, ParentSlug: g.Slug, parentURL: g.URL,
-		authMode: first.authMode, cachedOnly: first.cachedOnly,
+		authMode: first.authMode, role: groupRole(g),
 		key: g.Slug,
 	}
+}
+
+// groupRole is the role of the unit that stands for group g: a Nexus group may
+// omit images, a group of another provider has no role.
+func groupRole(g config.RegistryItem) nexusRole {
+	if config.IsNexusGroup(g) {
+		return nexusRoleGroup
+	}
+	return nexusRoleUnknown
 }
 
 // groupsBySlug maps the slug of every configured group to the group.

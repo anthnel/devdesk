@@ -500,8 +500,8 @@ and `CatalogSearcher` (IS-03); dhi.io is IS-17:
     `failed`), and only members arriving afterwards walk again. A
     panic in the leader gives followers a sentinel error (`errWalkAborted`),
     never an empty catalog.
-  - `repo_prefix` filtering, `partial`, `ErrPrefixNotInCatalog` and
-    `Cached only` stay computed per member.
+  - `repo_prefix` filtering, `partial`, `ErrPrefixNotInCatalog` and the
+    `May omit images` mention stay computed per member.
   - Members of one Nexus host do **not** answer on the same `/v2/_catalog`
     (measured, Nexus 3.98.1-01): each answers on its own path catalog, which is why
     the key carries the prefix. For other registries on one host the assumption
@@ -806,7 +806,7 @@ found through the group; Nexus does not say which member holds each one.`
 header line per class, in this order: `Images` (the row count, always), then
 `Pending` (a count, live lot) or `Interrupted` (names, the lot was abandoned
 with the left arrow before they answered), `Failed` (red), `Refused`, `Partial`
-(orange), `Cached only` (orange, DEVDESK-308, IS-14), `No result` (dim) and `Skipped` (dim, catalog not walked because the
+(orange), `May omit images` (orange, DEVDESK-308 IS-14, reworded by DEVDESK-629 F2), `No result` (dim) and `Skipped` (dim, catalog not walked because the
 query is shorter than `imagesearch.CatalogMinQueryRunes`). A class with nothing
 to say has no line, so a lot where every registry answered shows only `Images`.
 `summarizeSearch` (pure) sorts the lot's keys into the classes. A name is the
@@ -815,28 +815,43 @@ Registry column's label (`entryLabel`: alias, else URL, else key), in form order
 nothing (Skipped excluded). A registry that is both partial and empty appears
 on both lines, on purpose.
 
-`Cached only` lists the registries whose list is limited to cached content: a
-`provider: nexus` + `kind: group` entry, or a member of such a group (a
-discovered member, or a declared entry whose `parent` is the slug of one).
-`config.IsNexusGroup` and `listsCacheOnly` decide, once, into
-`browserRegistryEntry.cachedOnly`; `summarizeSearch` reads it by entry key
-(`entryCachedOnly`, not by slug: members share their group's slug). A concerned
-registry that answered with no result is marked ` (no result)` on that line and
-is not on `No result`, so `No result: quay` means absent from the registry and
-`Cached only: nexus (no result)` means absent from the cache. A concerned
-partial registry appears on `Partial` and on `Cached only`. Failed, Refused and
-Skipped win: no mention. Docker Hub, generic registries and a Nexus outside a
-group never get the line. `Cached only` and `Skipped` exclude each other, which
-keeps the budget below. Nexus's cache-only behavior comes from secondary
-sources and is not verified on a real Nexus (to confirm in IS-16).
+`May omit images` lists the registries that may not have listed every image
+they hold, by their role in a Nexus group (DEVDESK-629, F2; it replaces the
+`Cached only` line of DEVDESK-308, whose "limited to cached content" reading the
+measures of NX-04 contradicted). `browserRegistryEntry.role` is a `nexusRole`
+(group, proxy, hosted, unknown), set once by `buildEntries`: a
+`provider: nexus` + `kind: group` entry is a group; a discovered member of one
+takes `memberRole(RegistryGroupMember.Type)` (`hosted`, `proxy`, `group`; any
+other value, case included, is unknown); a declared entry whose `parent` is the
+slug of a Nexus group takes the type of the discovered member at its exact
+`(URL, RepoPrefix)`, and is unknown when none matches or the cache predates the
+type (H5); a group unit (`groupUnit`) is a group. `isNexusGroupOrMember` (the
+former `listsCacheOnly`) only drives `catalogUnderPrefix`. The pure rule is
+`mayOmit(role, outcome)`: a group whatever it answered (it says nothing about
+what a member it could not reach left out), a proxy only when it `failed` or was
+`refused`, a hosted repository never, an unknown role never (no mention is better
+than a false one), and never a `Skipped` outcome. `summarizeSearch` takes a
+`func(string) nexusRole` and reads it by entry key (`entryRole`, not by slug:
+members share their group's slug). A group that answered with no result is
+marked ` (no result)` on that line and is not on `No result`; the mark does not
+mean the image is absent, only that this registry listed nothing and may have
+left out what it could not reach, while `No result: quay` means the registry
+answered and holds nothing that matches. A `failed` or `refused` mention stays on
+its own line too and carries no mark; a partial registry appears on `Partial` and
+on `May omit images`. Docker Hub, generic registries and a Nexus outside a group
+never get the line. `Skipped` and `May omit images` exclude each other (`Skipped`
+means no catalog entry answered), which keeps the budget below. The search sends
+no request to the members of a group (F4): the group answers on its own connector,
+and a member the group could not reach is invisible to DevDesk; the line says it
+may happen, it cannot say it did. The MCP server is unchanged.
 The Nexus catalog tests of `internal/imagesearch` (`TestCatalogOnMeasuredNexusAnswers`)
 replay answers measured on the bench (Nexus 3.98.1-01, NX-03), not hand-written
 ones: the verdicts `ok`, `No result` and `Refused` (prefix absent from a real
-catalog) are checked there. `Failed` and `Cached only` have no measured answer yet
-(NX-04); a proxy's catalog lists names it does not hold (`mirror/uncached`).
-Measured: the path catalog of a proxy member lists the upstream, not its cache, which
-contradicts the `Cached only` wording of the header. Not changed here (NX-09);
-flagged.
+catalog) are checked there. `Failed` and the group line are measured since NX-04
+(DEVDESK-580, PR3): a proxy's catalog lists names it does not hold
+(`mirror/uncached`) while its upstream answers, and a group on its connector answers
+`no result` for `mirror` once a member's upstream is cut, which is why `(no result)`
+does not mean absent.
 See "Recorded fixtures" in [`nexus-bench.md`](nexus-bench.md).
 
 Each name list is fitted by `fitNames` to the room a value has
@@ -844,8 +859,8 @@ Each name list is fitted by `fitNames` to the room a value has
 the first k names then `+N`, else `+N` alone. `Skipped` carries the hint
 ` (type N+ characters)`, which is the first thing dropped when the header is
 narrow. The summary has a budget of `shortcut.HeaderRows` (7) lines, `Images`
-included; classes after the sixth are left out (with `Cached only` the seven
-classes fit only because `Pending`/`Interrupted` and `Skipped`/`Cached only`
+included; classes after the sixth are left out (with `May omit images` the seven
+classes fit only because `Pending`/`Interrupted` and `Skipped`/`May omit images`
 exclude each other). Before the first
 `WindowSizeMsg` nothing is abbreviated. At level 2 (tags) the header is the
 usual tag count.

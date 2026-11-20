@@ -30,7 +30,7 @@ import (
 // ("nx (group)"). It is one constant of the production code, and every assertion
 // below reads it from there, so the label the UX settles on changes in one place.
 // It shows in: the Registry column of the level 1 rows, the header lines that
-// name a registry (Cached only, Failed, Refused, No result), the `r` filter
+// name a registry (May omit images, Failed, Refused, No result), the `r` filter
 // token, the Registry column of the tag table a row opens, and the journal.
 // An undiscovered group is the group itself, offered under its own plain label.
 
@@ -148,13 +148,17 @@ func connectorTestGroup(slug, url, prefix, provider string) config.RegistryItem 
 }
 
 // groupMemberEntry is the picker entry buildEntries makes for a discovered member.
+//
+// Its role is the member's own, as discovery typed it: a proxy here, so the unit
+// that replaces it proves it does not inherit it (a unit is the group).
 func groupMemberEntry(g config.RegistryItem, alias, url, prefix string) browserRegistryEntry {
 	return browserRegistryEntry{
 		URL: url, Alias: alias, repoPrefix: prefix, Slug: g.Slug,
 		ParentAlias: browserAlias(g), ParentSlug: g.Slug, parentURL: g.URL,
-		authMode: g.AuthMode, cachedOnly: config.IsNexusGroup(g),
+		authMode:           g.AuthMode,
 		catalogUnderPrefix: config.IsNexusGroup(g) && prefix != "",
 		key:                memberKey(g.Slug, url, prefix),
+		role:               nexusRoleProxy,
 	}
 }
 
@@ -185,7 +189,7 @@ func TestSearchUnits(t *testing.T) {
 	pgBare := groupMemberEntry(pg, "bare", pg.URL, "")
 	// What buildEntries makes of a group nobody discovered (the group itself) and
 	// of standalone registries: none of them is a member.
-	groupAlone := browserRegistryEntry{URL: gURL, Alias: "nx", Slug: "nx", key: "nx", cachedOnly: true, authMode: config.AuthAnonymous}
+	groupAlone := browserRegistryEntry{URL: gURL, Alias: "nx", Slug: "nx", key: "nx", authMode: config.AuthAnonymous}
 	soloSameHost := browserRegistryEntry{URL: gURL, Alias: "solo", Slug: "solo", key: "solo", authMode: config.AuthAnonymous}
 	soloPrefixed := browserRegistryEntry{URL: gURL, Alias: "other", Slug: "other", key: "other", repoPrefix: "p", authMode: config.AuthAnonymous}
 	hub := browserRegistryEntry{URL: "docker.io", Alias: "hub", Slug: "hub", key: "hub", authMode: config.AuthAnonymous}
@@ -267,8 +271,17 @@ func checkGroupUnit(t *testing.T, unit browserRegistryEntry, g config.RegistryIt
 	if unit.ParentSlug != g.Slug || unit.ParentAlias != "" {
 		t.Errorf("unit ParentSlug = %q, ParentAlias = %q, want %q and none", unit.ParentSlug, unit.ParentAlias, g.Slug)
 	}
-	if unit.authMode != first.authMode || unit.cachedOnly != first.cachedOnly {
-		t.Errorf("unit authMode = %q, cachedOnly = %v, want its members' (%q, %v)", unit.authMode, unit.cachedOnly, first.authMode, first.cachedOnly)
+	if unit.authMode != first.authMode {
+		t.Errorf("unit authMode = %q, want its members' (%q)", unit.authMode, first.authMode)
+	}
+	// The unit is the group, not its first member: a Nexus group may omit images, a
+	// group that is not Nexus has no role.
+	wantRole := nexusRoleUnknown
+	if config.IsNexusGroup(g) {
+		wantRole = nexusRoleGroup
+	}
+	if got := unit.role; got != wantRole {
+		t.Errorf("unit role = %v, want %v (the group's, not its first member's %v)", got, wantRole, first.role)
 	}
 	if unit.catalogUnderPrefix {
 		t.Error("a unit at the group's own address is read at the root, never under a prefix")
@@ -331,16 +344,17 @@ func TestDiscoveredGroupMembersOnTheConnectorAreSearchedAsTheGroup(t *testing.T)
 			}
 			wantVerdict(t, m, "nx", imagesearch.VerdictOK)
 
-			// Header: the count of the rows, and the unit named once as cached only.
+			// Header: the count of the rows, and the unit named once as one that may
+			// omit images (it is the group, whatever its members are).
 			keys, vals := headerLines(m)
-			if want := []string{"Images", "Cached only"}; !slices.Equal(keys, want) {
+			if want := []string{"Images", mayOmitKey}; !slices.Equal(keys, want) {
 				t.Errorf("header keys = %v, want %v", keys, want)
 			}
 			if vals["Images"] != strconv.Itoa(len(tt.repos)) {
 				t.Errorf("Images = %q, want %d", vals["Images"], len(tt.repos))
 			}
-			if vals["Cached only"] != label {
-				t.Errorf("Cached only = %q, want %q once, not once per member", vals["Cached only"], label)
+			if vals[mayOmitKey] != label {
+				t.Errorf("%s = %q, want %q once, not once per member", mayOmitKey, vals[mayOmitKey], label)
 			}
 
 			// The picker is not the search: it still shows the group and its two members.
@@ -401,6 +415,11 @@ func TestAFailingGroupConnectorIsOneVerdictUnderTheGroupLabel(t *testing.T) {
 			_, vals := headerLines(m)
 			if want := groupUnitLabel("nx"); vals[tt.header] != want {
 				t.Errorf("%s = %q, want %q", tt.header, vals[tt.header], want)
+			}
+			// A group that failed or was refused may have omitted images too: it is on
+			// May omit images beside its own line, without the mark (H4).
+			if want := groupUnitLabel("nx"); vals[mayOmitKey] != want {
+				t.Errorf("%s = %q, want %q", mayOmitKey, vals[mayOmitKey], want)
 			}
 			if rows := rowsOf(m); len(rows) != 0 {
 				t.Errorf("rows = %v, want none", rows)
@@ -526,11 +545,11 @@ func TestAnUndiscoveredGroupOnTheConnectorIsSearchedAsItself(t *testing.T) {
 			}
 			wantVerdict(t, m, "nx", imagesearch.VerdictOK)
 			keys, vals := headerLines(m)
-			if want := []string{"Images", "Cached only"}; !slices.Equal(keys, want) {
+			if want := []string{"Images", mayOmitKey}; !slices.Equal(keys, want) {
 				t.Errorf("header keys = %v, want %v", keys, want)
 			}
-			if vals["Cached only"] != "nx" {
-				t.Errorf("Cached only = %q, want \"nx\"", vals["Cached only"])
+			if vals[mayOmitKey] != "nx" {
+				t.Errorf("%s = %q, want \"nx\"", mayOmitKey, vals[mayOmitKey])
 			}
 		})
 	}
@@ -548,10 +567,10 @@ func mixedGroupModel(t *testing.T) (Model, *fakenexus.Server, []nexusfixture.Fix
 	connector, rest := s.URL(benchConnectorPort), s.URL(benchHTTPPort)
 	withImageSearcher(t, nexusOnlySearcher(t))
 	groups := map[string]cache.RegistryGroupEntry{"nx": {Members: []cache.RegistryGroupMember{
-		{Alias: "docker-hosted", URL: rest, RepoPrefix: "docker-hosted"},
-		{Alias: "docker-proxy", URL: rest, RepoPrefix: "docker-proxy"},
-		{Alias: "legacy-a", URL: connector},
-		{Alias: "legacy-b", URL: connector},
+		{Alias: "docker-hosted", URL: rest, RepoPrefix: "docker-hosted", Type: "hosted"},
+		{Alias: "docker-proxy", URL: rest, RepoPrefix: "docker-proxy", Type: "proxy"},
+		{Alias: "legacy-a", URL: connector, Type: "hosted"},
+		{Alias: "legacy-b", URL: connector, Type: "proxy"},
 	}}}
 	m := modelWithGroups(t, []config.RegistryItem{benchGroupAs(t, nexusfixture.Admin, connector)}, groups)
 	return m, s, fixtures, connector, rest
@@ -577,9 +596,11 @@ func TestMembersWithAPathKeepTheirOwnWalkBesideTheGroupUnit(t *testing.T) {
 	for _, k := range []string{hosted, proxy, "nx"} {
 		wantVerdict(t, m, k, imagesearch.VerdictOK)
 	}
-	// The summary, not the header: the header abbreviates a long list ("+2").
-	if got, want := m.registryBrowser.searchSummary().CachedOnly, []string{"nx/docker-hosted", "nx/docker-proxy", groupUnitLabel("nx")}; !slices.Equal(got, want) {
-		t.Errorf("Cached only = %v, want %v", got, want)
+	// The summary, not the header: the header abbreviates a long list ("+2"). The
+	// members with a path answered and are a hosted and a proxy: not mentioned. The
+	// unit is the group: mentioned, whatever the members it stands for are.
+	if got, want := m.registryBrowser.searchSummary().MayOmit, []string{groupUnitLabel("nx")}; !slices.Equal(got, want) {
+		t.Errorf("%s = %v, want %v", mayOmitKey, got, want)
 	}
 }
 

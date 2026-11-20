@@ -3,7 +3,6 @@ package ociresources
 import (
 	"errors"
 	"reflect"
-	"slices"
 	"strconv"
 	"strings"
 	"testing"
@@ -96,6 +95,9 @@ func TestFitNamesNeverHidesACount(t *testing.T) {
 
 // ── summarizeSearch ──────────────────────────────────────────────────────────
 
+// DEVDESK-629 (F2): the lot's keys are sorted into classes, and a registry that may
+// omit images (mayOmit, by role) also goes to MayOmit. A group's no result is marked
+// and leaves No result: it does not say the image is absent.
 func TestSummarizeSearch(t *testing.T) {
 	ok := imagesearch.Outcome{Verdict: imagesearch.VerdictOK}
 	okPartial := imagesearch.Outcome{Verdict: imagesearch.VerdictOK, Partial: true}
@@ -104,68 +106,88 @@ func TestSummarizeSearch(t *testing.T) {
 	skipped := imagesearch.Outcome{Verdict: imagesearch.VerdictNoResult, Skipped: true}
 	refused := imagesearch.Outcome{Verdict: imagesearch.VerdictRefused}
 	failed := imagesearch.Outcome{Verdict: imagesearch.VerdictFailed}
+	group := map[string]nexusRole{"a": nexusRoleGroup}
+	proxy := map[string]nexusRole{"a": nexusRoleProxy}
+	hosted := map[string]nexusRole{"a": nexusRoleHosted}
+	one := func(oc imagesearch.Outcome) map[string]imagesearch.Outcome {
+		return map[string]imagesearch.Outcome{"a": oc}
+	}
 
 	tests := []struct {
 		name     string
 		keys     []string
 		outcomes map[string]imagesearch.Outcome
 		live     bool
-		cached   []string // keys the lot's cachedOnly predicate accepts
+		roles    map[string]nexusRole // role by key; a key not in it is unknown
 		want     searchSummary
 	}{
 		{"no keys", nil, nil, true, nil, searchSummary{}},
-		{"ok without a mark appears nowhere", []string{"a"}, map[string]imagesearch.Outcome{"a": ok}, true, nil, searchSummary{}},
+		{"ok without a mark appears nowhere", []string{"a"}, one(ok), true, nil, searchSummary{}},
 		{"no outcome in a live lot is pending", []string{"a", "b"}, nil, true, nil, searchSummary{Pending: 2}},
 		{"no outcome in an abandoned lot is interrupted", []string{"a", "b"},
 			map[string]imagesearch.Outcome{"a": ok}, false, nil, searchSummary{Interrupted: []string{"b"}}},
-		{"failed", []string{"a"}, map[string]imagesearch.Outcome{"a": failed}, true, nil, searchSummary{Failed: []string{"a"}}},
-		{"refused", []string{"a"}, map[string]imagesearch.Outcome{"a": refused}, true, nil, searchSummary{Refused: []string{"a"}}},
-		{"ok partial", []string{"a"}, map[string]imagesearch.Outcome{"a": okPartial}, true, nil, searchSummary{Partial: []string{"a"}}},
-		{"no result", []string{"a"}, map[string]imagesearch.Outcome{"a": none}, true, nil, searchSummary{NoResult: []string{"a"}}},
-		{"no result and partial is both", []string{"a"}, map[string]imagesearch.Outcome{"a": nonePartial}, true, nil,
+		{"failed", []string{"a"}, one(failed), true, nil, searchSummary{Failed: []string{"a"}}},
+		{"refused", []string{"a"}, one(refused), true, nil, searchSummary{Refused: []string{"a"}}},
+		{"ok partial", []string{"a"}, one(okPartial), true, nil, searchSummary{Partial: []string{"a"}}},
+		{"no result", []string{"a"}, one(none), true, nil, searchSummary{NoResult: []string{"a"}}},
+		{"no result and partial is both", []string{"a"}, one(nonePartial), true, nil,
 			searchSummary{NoResult: []string{"a"}, Partial: []string{"a"}}},
-		{"skipped is only skipped", []string{"a"}, map[string]imagesearch.Outcome{"a": skipped}, true, nil,
-			searchSummary{Skipped: []string{"a"}}},
+		{"skipped is only skipped", []string{"a"}, one(skipped), true, nil, searchSummary{Skipped: []string{"a"}}},
 		{"names follow the keys, not the map", []string{"z", "m", "a"},
 			map[string]imagesearch.Outcome{"a": refused, "m": refused, "z": refused}, true, nil,
 			searchSummary{Refused: []string{"z", "m", "a"}}},
 		{"a mix", []string{"hub", "prod", "dev", "slow", "third"},
 			map[string]imagesearch.Outcome{"hub": ok, "prod": refused, "dev": failed, "slow": okPartial}, true, nil,
 			searchSummary{Pending: 1, Failed: []string{"dev"}, Refused: []string{"prod"}, Partial: []string{"slow"}}},
-		// DEVDESK-308 (IS-14): a registry that only lists cached content gets the
-		// Cached only line; a no-result there means "absent from the cache" and
-		// leaves No result, which then means "absent from the registry".
-		{"cached ok is listed", []string{"a"}, map[string]imagesearch.Outcome{"a": ok}, true, []string{"a"},
-			searchSummary{CachedOnly: []string{"a"}}},
-		{"cached no result is marked and leaves No result", []string{"a"}, map[string]imagesearch.Outcome{"a": none}, true, []string{"a"},
-			searchSummary{CachedOnly: []string{"a" + cachedNoResultMark}}},
-		{"cached ok partial is on both lines", []string{"a"}, map[string]imagesearch.Outcome{"a": okPartial}, true, []string{"a"},
-			searchSummary{Partial: []string{"a"}, CachedOnly: []string{"a"}}},
-		{"cached no result and partial is Partial and marked", []string{"a"}, map[string]imagesearch.Outcome{"a": nonePartial}, true, []string{"a"},
-			searchSummary{Partial: []string{"a"}, CachedOnly: []string{"a" + cachedNoResultMark}}},
-		{"cached failed keeps only Failed", []string{"a"}, map[string]imagesearch.Outcome{"a": failed}, true, []string{"a"},
-			searchSummary{Failed: []string{"a"}}},
-		{"cached refused keeps only Refused", []string{"a"}, map[string]imagesearch.Outcome{"a": refused}, true, []string{"a"},
-			searchSummary{Refused: []string{"a"}}},
-		{"cached skipped keeps only Skipped", []string{"a"}, map[string]imagesearch.Outcome{"a": skipped}, true, []string{"a"},
-			searchSummary{Skipped: []string{"a"}}},
-		{"cached pending stays pending", []string{"a"}, nil, true, []string{"a"}, searchSummary{Pending: 1}},
-		{"cached interrupted stays interrupted", []string{"a"}, nil, false, []string{"a"}, searchSummary{Interrupted: []string{"a"}}},
+
+		// A group may omit what a member cannot reach, whatever it answered.
+		{"group ok is listed", []string{"a"}, one(ok), true, group, searchSummary{MayOmit: []string{"a"}}},
+		{"group no result is marked and leaves No result", []string{"a"}, one(none), true, group,
+			searchSummary{MayOmit: []string{"a" + noResultMark}}},
+		{"group ok partial is on both lines", []string{"a"}, one(okPartial), true, group,
+			searchSummary{Partial: []string{"a"}, MayOmit: []string{"a"}}},
+		{"group no result and partial is Partial and marked", []string{"a"}, one(nonePartial), true, group,
+			searchSummary{Partial: []string{"a"}, MayOmit: []string{"a" + noResultMark}}},
+		{"group failed is on Failed and on May omit, without the mark", []string{"a"}, one(failed), true, group,
+			searchSummary{Failed: []string{"a"}, MayOmit: []string{"a"}}},
+		{"group refused is on Refused and on May omit, without the mark", []string{"a"}, one(refused), true, group,
+			searchSummary{Refused: []string{"a"}, MayOmit: []string{"a"}}},
+		{"group skipped keeps only Skipped", []string{"a"}, one(skipped), true, group, searchSummary{Skipped: []string{"a"}}},
+		{"group pending stays pending", []string{"a"}, nil, true, group, searchSummary{Pending: 1}},
+		{"group interrupted stays interrupted", []string{"a"}, nil, false, group, searchSummary{Interrupted: []string{"a"}}},
+
+		// A proxy only when it failed or was refused: its upstream answers or it does not.
+		{"proxy ok is not mentioned", []string{"a"}, one(ok), true, proxy, searchSummary{}},
+		{"proxy no result is a plain No result", []string{"a"}, one(none), true, proxy, searchSummary{NoResult: []string{"a"}}},
+		{"proxy ok partial is only Partial", []string{"a"}, one(okPartial), true, proxy, searchSummary{Partial: []string{"a"}}},
+		{"proxy failed is on Failed and on May omit", []string{"a"}, one(failed), true, proxy,
+			searchSummary{Failed: []string{"a"}, MayOmit: []string{"a"}}},
+		{"proxy refused is on Refused and on May omit", []string{"a"}, one(refused), true, proxy,
+			searchSummary{Refused: []string{"a"}, MayOmit: []string{"a"}}},
+		{"proxy skipped keeps only Skipped", []string{"a"}, one(skipped), true, proxy, searchSummary{Skipped: []string{"a"}}},
+
+		// A hosted repository holds what it holds.
+		{"hosted failed keeps only Failed", []string{"a"}, one(failed), true, hosted, searchSummary{Failed: []string{"a"}}},
+		{"hosted refused keeps only Refused", []string{"a"}, one(refused), true, hosted, searchSummary{Refused: []string{"a"}}},
+		{"hosted no result is a plain No result", []string{"a"}, one(none), true, hosted, searchSummary{NoResult: []string{"a"}}},
+		{"hosted ok is not mentioned", []string{"a"}, one(ok), true, hosted, searchSummary{}},
+
 		{"an unconcerned registry is unchanged", []string{"a", "b", "c"},
-			map[string]imagesearch.Outcome{"a": ok, "b": none, "c": none}, true, []string{"a"},
-			searchSummary{CachedOnly: []string{"a"}, NoResult: []string{"b", "c"}}},
-		{"cached names follow the keys", []string{"z", "m", "a"},
-			map[string]imagesearch.Outcome{"a": ok, "m": none, "z": ok}, true, []string{"a", "m", "z"},
-			searchSummary{CachedOnly: []string{"z", "m" + cachedNoResultMark, "a"}}},
+			map[string]imagesearch.Outcome{"a": ok, "b": none, "c": none}, true, map[string]nexusRole{"a": nexusRoleGroup},
+			searchSummary{MayOmit: []string{"a"}, NoResult: []string{"b", "c"}}},
+		{"mentioned names follow the keys", []string{"z", "m", "a"},
+			map[string]imagesearch.Outcome{"a": failed, "m": none, "z": ok}, true,
+			map[string]nexusRole{"z": nexusRoleGroup, "m": nexusRoleGroup, "a": nexusRoleProxy},
+			searchSummary{Failed: []string{"a"}, MayOmit: []string{"z", "m" + noResultMark, "a"}}},
 	}
 	label := func(k string) string { return "L:" + k }
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			concerned := func(k string) bool { return slices.Contains(tt.cached, k) }
-			got := summarizeSearch(tt.keys, tt.outcomes, tt.live, label, concerned)
+			role := func(k string) nexusRole { return tt.roles[k] }
+			got := summarizeSearch(tt.keys, tt.outcomes, tt.live, label, role)
 			// Names carry the label, not the key.
 			want := tt.want
-			for _, p := range []*[]string{&want.Interrupted, &want.Failed, &want.Refused, &want.Partial, &want.CachedOnly, &want.NoResult, &want.Skipped} {
+			for _, p := range []*[]string{&want.Interrupted, &want.Failed, &want.Refused, &want.Partial, &want.MayOmit, &want.NoResult, &want.Skipped} {
 				for i, k := range *p {
 					(*p)[i] = "L:" + k
 				}

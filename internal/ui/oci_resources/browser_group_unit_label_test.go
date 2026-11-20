@@ -214,7 +214,7 @@ func TestTheHeaderLinesNeverCutTheGroupSuffix(t *testing.T) {
 		key      string
 		answer   func(t *testing.T, m Model) Model
 	}{
-		{"Cached only", config.ProviderNexus, "Cached only", func(t *testing.T, m Model) Model {
+		{"May omit images", config.ProviderNexus, mayOmitKey, func(t *testing.T, m Model) Model {
 			return answerFor(t, m, longGroupSlug, oneImage("webapp"), false, nil)
 		}},
 		{"Failed", config.ProviderNexus, "Failed", func(t *testing.T, m Model) Model {

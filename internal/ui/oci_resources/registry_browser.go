@@ -35,6 +35,33 @@ const (
 	browserStateImages                     // level 1: image search results
 )
 
+// nexusRole is what a picker entry is in a Nexus group.
+type nexusRole int
+
+const (
+	// nexusRoleUnknown: not in a Nexus group, or its type was never read (a cache
+	// written before the type, a declared entry with no discovered member).
+	nexusRoleUnknown nexusRole = iota
+	nexusRoleGroup
+	nexusRoleProxy
+	nexusRoleHosted
+)
+
+// memberRole maps the repository type the manager reported for a member to a
+// role. A group nested in a group counts as a group; any other value, the
+// spelling included, is unknown.
+func memberRole(typ string) nexusRole {
+	switch typ {
+	case "hosted":
+		return nexusRoleHosted
+	case "proxy":
+		return nexusRoleProxy
+	case "group":
+		return nexusRoleGroup
+	}
+	return nexusRoleUnknown
+}
+
 // browserRegistryEntry is one selectable registry in the browser form.
 // Group members have ParentSlug set; standalone registries have it empty.
 type browserRegistryEntry struct {
@@ -50,10 +77,11 @@ type browserRegistryEntry struct {
 	// what replaced matching on URL — two registries configured with the same
 	// URL used to collide.
 	Slug string
-	// cachedOnly marks an entry whose content can only be listed from the
-	// discovered-members cache: a Nexus group, its members, or an entry that
-	// declares a Nexus group as its parent (DEVDESK-308).
-	cachedOnly bool
+	// role is what the entry is in a Nexus group: the group itself, a proxy, a
+	// hosted repository, or unknown (not in a Nexus group, or no type was read
+	// for it). It decides whether the level 1 header says the entry may omit
+	// images (DEVDESK-629, F2).
+	role nexusRole
 	// catalogUnderPrefix marks an entry whose catalog Nexus serves under its
 	// prefix, at /v2/<prefix>/_catalog: a prefixed member of a Nexus group,
 	// discovered or declared (DEVDESK-579).
@@ -357,7 +385,7 @@ func (b *RegistryBrowser) buildEntries(groups map[string]cache.RegistryGroupEntr
 		mode := config.ResolveAuthMode(reg, nil)
 
 		members := groups[reg.Slug].Members
-		cacheOnly := listsCacheOnly(reg, bySlug)
+		nexusEntry := isNexusGroupOrMember(reg, bySlug)
 		if reg.Kind != config.KindGroup || len(members) == 0 {
 			// A group nobody has discovered yet is offered as itself: it is a
 			// pullable registry too, and hiding it would be worse than listing
@@ -367,13 +395,13 @@ func (b *RegistryBrowser) buildEntries(groups map[string]cache.RegistryGroupEntr
 				URL: reg.URL, Alias: alias, Slug: reg.Slug, authMode: mode,
 				repoPrefix: reg.RepoPrefix,
 				key:        reg.Slug,
-				cachedOnly: cacheOnly,
+				role:       standaloneRole(reg, bySlug, groups),
 				// The same predicate, narrowed to the entries that have a prefix. It
 				// is not the discovered members' (IsNexusGroup && RepoPrefix != ""):
 				// the two coincide because checkRepoPrefixes refuses a repo_prefix on
 				// a group, so no entry here is a group with a prefix. Do not "fix" the
 				// asymmetry.
-				catalogUnderPrefix: cacheOnly && reg.RepoPrefix != "",
+				catalogUnderPrefix: nexusEntry && reg.RepoPrefix != "",
 			})
 			continue
 		}
@@ -390,7 +418,7 @@ func (b *RegistryBrowser) buildEntries(groups map[string]cache.RegistryGroupEntr
 				ParentSlug:  reg.Slug,
 				parentURL:   reg.URL,
 				authMode:    mode,
-				cachedOnly:  config.IsNexusGroup(reg),
+				role:        memberRoleIn(reg, m),
 				// Nexus serves a member's catalog under its prefix.
 				catalogUnderPrefix: config.IsNexusGroup(reg) && m.RepoPrefix != "",
 				key:                memberKey(reg.Slug, m.URL, m.RepoPrefix),
@@ -404,13 +432,43 @@ func (b *RegistryBrowser) buildEntries(groups map[string]cache.RegistryGroupEntr
 	}
 }
 
-// listsCacheOnly reports whether reg can only be listed from the cache: it is a
-// Nexus group, or it declares a Nexus group as its parent (Q-B ii).
-func listsCacheOnly(reg config.RegistryItem, bySlug map[string]config.RegistryItem) bool {
+// isNexusGroupOrMember reports whether reg is a Nexus group, or declares a Nexus
+// group as its parent (Q-B ii): the entries whose catalog Nexus serves under a
+// prefix when they have one.
+func isNexusGroupOrMember(reg config.RegistryItem, bySlug map[string]config.RegistryItem) bool {
 	if config.IsNexusGroup(reg) {
 		return true
 	}
 	return reg.Parent != "" && config.IsNexusGroup(bySlug[reg.Parent])
+}
+
+// memberRoleIn is the role of the discovered member m of group g: its stored type
+// when g is a Nexus group, unknown otherwise (another provider has no Nexus type).
+func memberRoleIn(g config.RegistryItem, m cache.RegistryGroupMember) nexusRole {
+	if !config.IsNexusGroup(g) {
+		return nexusRoleUnknown
+	}
+	return memberRole(m.Type)
+}
+
+// standaloneRole is the role of the entry that stands for reg itself: a Nexus
+// group is a group; an entry that declares a Nexus group as its parent takes the
+// type of the discovered member at its exact (URL, RepoPrefix), and is unknown
+// when none matches or the type was never read; anything else is unknown.
+func standaloneRole(reg config.RegistryItem, bySlug map[string]config.RegistryItem,
+	groups map[string]cache.RegistryGroupEntry) nexusRole {
+	if config.IsNexusGroup(reg) {
+		return nexusRoleGroup
+	}
+	if reg.Parent == "" || !config.IsNexusGroup(bySlug[reg.Parent]) {
+		return nexusRoleUnknown
+	}
+	for _, m := range groups[reg.Parent].Members {
+		if m.URL == reg.URL && m.RepoPrefix == reg.RepoPrefix {
+			return memberRole(m.Type)
+		}
+	}
+	return nexusRoleUnknown
 }
 
 // declaredMembers counts the config entries declared by hand as members of the

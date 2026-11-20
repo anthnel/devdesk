@@ -2183,7 +2183,7 @@ rather than passing for a recording.
 
 ### What is not recorded yet
 
-- `Cached only` and the verdict `failed` are measured since DEVDESK-580 (PR3): the 502 of a
+- The group line (now `May omit images`, DEVDESK-629 F2) and the verdict `failed` are measured since DEVDESK-580 (PR3): the 502 of a
   cut upstream and the 404 of an auto-blocked proxy are fixtures of the `cachedonly`
   campaign, replayed by the tests above. What stays on hand-written answers is every
   other failure (a 5xx or a 429 on a hosted member, an unreadable body, a network error)
