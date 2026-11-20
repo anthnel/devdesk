@@ -86,6 +86,36 @@ header or the URL. It replaces the Nexus client's former `HTTP N`.
 Failures that are not a status (unreadable body, missing realm, no token
 field) stay plain errors and do not match `errors.As`.
 
+`oci.ManifestDigest` (the `HEAD` on a manifest) is typed too (DEVDESK-631): a
+non-200 answer returns `fmt.Errorf("%w for %s:%s", &StatusError{Code, Source:
+SourceRegistry}, repo, tag)`, so `errors.As` finds the `*StatusError` and the
+text stays `registry returned 404 for repo:tag` to the byte. A 200 without a
+`Docker-Content-Digest` header stays a plain error (`registry gave no digest for
+repo:tag`). Its callers (`imageupdate`, the signature stage of `scan`) only log
+the error and mark the reference failed; none reads the text.
+
+A 404 whose body says the proxy's upstream is blocked is marked (DEVDESK-632):
+`registryStatusError(resp)` (`internal/oci/status_body.go`) builds the
+`*StatusError` of every non-200 registry answer (tags, catalog, `ManifestDigest`)
+and, for a 404 only, reads at most 4 KiB of the body (`maxStatusBody`, a
+hypothesis like `maxNexusErrorBody`). When the body is JSON and the `message` of
+the first `errors[]` entry starts with `Remote Auto Blocked` (exact, case
+sensitive, no leading space), `UpstreamBlocked()` is true. A missing, empty,
+plain-text, longer or cut body, another message, another status (502,
+403) leaves it false. A body read that ends on a deadline (the client's 15 s
+delay, the caller's context) is no answer: `registryStatusError` returns the
+`*NoAnswerError` (verdict `failed`, `no answer within N s`) instead of a plain
+404; any other read failure (a truncated body, an unexpected EOF) keeps the plain,
+unmarked 404. `ManifestDigest` is a `HEAD`, which has no body: a "Remote Auto
+Blocked" 404 on a manifest can never be marked `UpstreamBlocked()` and stays a
+plain 404 (`refused`). The body never reaches the error: `Error()` is `registry
+returned 404: the proxy's upstream is temporarily blocked, try again later`, with
+no date and no duration. `imagesearch.Classify` ranks it `failed` (temporary),
+not `refused`; the tags footer says `Could not load tags: the proxy's upstream
+is temporarily blocked` (`registryFailureReason`) and the journal line carries
+`temporarily blocked`. Every other 404 stays `refused` with `registry returned
+404`.
+
 The unexported `unexpectedChallenge` field is a deviation from the plan, which
 had only `Code`, `Source` and `Challenge`: with those three, a 401 with a
 non-Bearer challenge and a 401 returned by the registry after a token exchange
@@ -99,13 +129,32 @@ exported surface.
 every page. The old names delegate with `context.Background()`, signatures
 unchanged. A deadline or a cancel reaches the caller as an error that
 satisfies `errors.Is(err, context.DeadlineExceeded)` or `context.Canceled`,
-and never as a `StatusError`. **Limit:** `registryHTTPClient` keeps its own
-`Timeout: 15s` per request, and the client wraps `context.DeadlineExceeded`
-for that timeout too. A caller cannot tell the client timeout from the
-context's deadline, so `imagesearch.Classify` (DEVDESK-303, IS-12) puts both in
-the `failed` verdict.
+and never as a `StatusError`.
 
-**Credentials stay on their origin (DEVDESK-410).** Three guards keep the Basic
+**The abandon after 15 s is typed (DEVDESK-633).** `oci.RequestTimeout` (15 s,
+unchanged) is the delay of `registryHTTPClient` and the value of
+`imageSearchDeadline`. A registry that does not answer in time ends the request
+with a `*oci.NoAnswerError`, whose text is exactly `no answer within N s`, N read
+from the constant (no `15` literal outside the tests). It wraps only
+`context.DeadlineExceeded` (`Unwrap`), so `errors.Is` still finds a deadline,
+while the URL, userinfo, host, `/v2/` path and query never come back in the
+message. It is applied to the errors of `doRequestContext`, of the token
+endpoint's `Do` and `readToken`, and of the body reads of `registryGETContext` and
+`registryGETBoundedContext` (so tags, catalog, catalog under a prefix, the
+manifest digest and the token exchange are covered). `context.Canceled` is not
+touched, and a 502 received in time stays a `*StatusError{502}`, `failed`, with no
+"no answer". `registryFailureReason` returns the error's own text, so the footer
+(Error) says `Image search on <alias>: no answer within 15 s` and `Could not load
+tags: no answer within 15 s`, and the journal reads `ERROR [oci_resources] image
+search on <alias>: no answer within 15 s`. **Limit:** the client's own delay and the
+context's deadline are still one case: both give the same error and the same text,
+and `imagesearch.Classify` (DEVDESK-303, IS-12) puts it in the `failed` verdict.
+Only a delay that satisfies `errors.Is(err, context.DeadlineExceeded)` becomes a
+`NoAnswerError`: a transport-level "TLS handshake timeout" keeps its own text. The
+Docker Hub client of `internal/imagesearch/hub.go` keeps its own 15 s delay,
+untyped (out of scope).
+
+**Credentials stay on their origin (DEVDESK-410).** Four guards keep the Basic
 credentials and the Bearer token from leaving the registry they were meant for:
 
 - **The tag list never follows a `Link: rel="next"` to another origin.**
@@ -132,11 +181,39 @@ credentials and the Bearer token from leaving the registry they were meant for:
 - **The token endpoint's answer is capped at 1 MiB** (`maxTokenResponse`). A
   larger body is an error (`token response over 1048576 bytes`), not a silent
   cut.
+- **A Bearer realm on another origin gets no credentials (DEVDESK-629,
+  D168).** `exchangeBearerTokenContext` calls `checkRealmOrigin`
+  (`internal/oci/realm.go`) right after `checkTokenRealm`: when credentials
+  are configured (username and password both set, the condition under which
+  Basic is sent) and the realm's scheme, host or port differ from the request
+  that received the challenge, the exchange stops before any request to the
+  realm with an error wrapping `ErrTokenRealmOffOrigin`
+  (`token realm on another host (<host>)`, `errors.Is`), naming the realm's host
+  only and not a `StatusError`. Without credentials the anonymous token request
+  goes out as before. The comparison is `sameOrigin`'s, exact: `host` and
+  `host:443` are two origins (H2). Two exceptions, frozen in `realmExceptions`
+  (a test pins the list), one way, https on both sides, host exact with no
+  port: Docker Hub (`registry-1.docker.io` to `auth.docker.io`) and GitLab.com
+  (`registry.gitlab.com` to `gitlab.com`). A self-hosted GitLab registry whose
+  realm is on the GitLab host is refused. The refusal shows at the footer, level
+  Error, as `token realm on another host`, in the three interactive flows of the
+  registry browser: tags opened from the search (`Could not load tags: token
+  realm on another host`), tags opened from the form (silent before, this one
+  failure only, H1) and image search (`Image search on <alias>: token realm on
+  another host`), through `registryFailureReason`
+  (`internal/ui/oci_resources/registry_failure.go`); the search verdict is
+  `failed`. The realm's host stays in the journal. The other callers
+  (`imageupdate`, signature, remediation) have no footer.
 
 **Behavior change.** Some redirects that were followed are now refused: `http`
 to `https` on the same host, `host` to `host:443`, and a host written with a
 different case. The comparison is on the exact scheme and `host:port`, and the
 guard refuses when in doubt.
+
+**Behavior change (DEVDESK-629).** A registry configured with credentials whose
+Bearer realm is on another origin (other than the two exceptions above) used to
+receive them as Basic at its token endpoint; it now fails with
+`token realm on another host`. Without credentials nothing changes.
 
 **The other registry clients (DEVDESK-412).** The same two guards, plus a few
 more, cover the clients DEVDESK-410 left out. The shared code is
@@ -243,6 +320,22 @@ imports nothing from `internal/`).
   JSON) is an error wrapping `errEmptyReply`, `errNoRepositoryType` or the
   `encoding/json` error, never "not a group": the caller does not cache it
   (D23), so the members last known stay.
+- **Each member is typed by one more GET (DEVDESK-636).** After the member names
+  are known (either endpoint), `memberTypes` asks
+  `/service/rest/v1/repositories/<member>` for each one (the name through
+  `url.PathEscape`, `nexusHTTPClient`, the group's credentials or none, at most
+  `maxTypedMembers` = 32 members and `typeLookupWorkers` = 8 at once) and keeps
+  `type` when it is `hosted`, `proxy` or `group`. A failure (status, deadline,
+  redirect refused, invalid JSON, `{}`, `null`, any other value) leaves the
+  member's `GroupMember.Type` empty (unknown), is logged at INFO with the server
+  values quoted (`%q`, an unrecognized `type` cut to 64 characters first), and
+  never fails the discovery or changes the list. No lookup is started once the
+  context is done (the loop checks `ctx.Err()` and its wait for a free slot
+  listens to `ctx`); the members not reached stay unknown. A
+  group refused or not a group asks for no type. Cost: up to 32 more requests per
+  `ctrl+r` on a Nexus group, none at start-up or at search time. The measured
+  generic answers (`rest-repositories-docker-{hosted,proxy}--*`) carry `type`
+  for all three identities.
 - **Docker Hub tag dates** (`fetchDockerHubTagsMeta`, `commands.go`) read the
   page through `oci.ReadAllLimited(..., maxHubTagsMetaResponse)`, 4 MiB.
   Measured on 2026-11-16 with `page_size=100`: 530,629 bytes for
@@ -270,7 +363,10 @@ asks `<apiURL>/v2/_catalog?n=<pageSize>` and follows `Link: rel="next"` for at
 most `maxPages` pages (non-positive limits are an error). `truncated` is true
 when names were left: the page cap was reached with a `next` link, more than
 `maxPages*pageSize` names came back (the list is cut to that), or the `next`
-link points to another origin. Each page body is capped at 1 MiB; a larger
+link points to another origin. A name already returned is skipped silently
+(first appearance order kept; a Nexus group repeats names across pages, the
+measured `n=2` walk, DEVDESK-634), and the `maxPages*pageSize` cap counts
+distinct names. Each page body is capped at 1 MiB; a larger
 page is an error, not a silent cut. A non-200 answer is a `*StatusError`.
 Authentication is the tags' flow: Basic, then Bearer on a challenge, the token
 kept across pages.
@@ -404,8 +500,8 @@ and `CatalogSearcher` (IS-03); dhi.io is IS-17:
     `failed`), and only members arriving afterwards walk again. A
     panic in the leader gives followers a sentinel error (`errWalkAborted`),
     never an empty catalog.
-  - `repo_prefix` filtering, `partial`, `ErrPrefixNotInCatalog` and
-    `Cached only` stay computed per member.
+  - `repo_prefix` filtering, `partial`, `ErrPrefixNotInCatalog` and the
+    `May omit images` mention stay computed per member.
   - Members of one Nexus host do **not** answer on the same `/v2/_catalog`
     (measured, Nexus 3.98.1-01): each answers on its own path catalog, which is why
     the key carries the prefix. For other registries on one host the assumption
@@ -447,8 +543,9 @@ and `CatalogSearcher` (IS-03); dhi.io is IS-17:
   3. `ErrUnsupported` or `ErrPrefixNotInCatalog` is `refused`;
   4. a `*oci.StatusError` is `refused` when `refusedStatus` holds: 401 and 403
      from either source, 404 and 405 from `SourceRegistry` only (a 404 from the
-     token endpoint is a failure); any other status, 429 and 5xx included, is
-     `failed`;
+     token endpoint is a failure), except a 404 marked `UpstreamBlocked()` (a
+     Nexus proxy whose upstream is blocked, DEVDESK-632), which is `failed`;
+     any other status, 429 and 5xx included, is `failed`;
   5. anything else is `failed`: deadline, cancel, network, unreadable or
      oversized body, invalid request.
 
@@ -504,7 +601,13 @@ multi-platform tag's digest is the index's, the one `docker pull` records in
 `RepoDigests`. Docker Hub does not count a `HEAD` against its pull rate limit.
 The tag list (`oci.ListRegistryTags`) is only read for a tag with a patch
 component. At most four references are asked at once; credentials are the
-engine's (`docker.GetStoredCreds`), as for the Remediation tab.
+engine's (`docker.GetStoredCreds`), as for the Remediation tab. For a URL with
+a path the lookup is exact key first, then `host[:port]` as written (never the
+host alone when the port differs, no default port made explicit), shared with
+`RegistryLoginState` through `credentialPhases` (DEVDESK-635); logout stays on
+the exact key. These callers pass the image's own registry host, so the login
+they find goes to that same host; only the group discovery can name a second one
+(`management_url`), see `registries.md`.
 
 **What each view compares with:**
 
@@ -663,7 +766,8 @@ injects nothing: its tests avoid level 1 by typing a name with a `/`.
 `targetFor(entry)` (same credentials as the tag flow, `credsFor`). Each command
 wraps the lot's context in `context.WithTimeout(ctx, imageSearchDeadline)`:
 `imageSearchDeadline` is 15 s **per registry**, the whole walk included, on top
-of the 15 s client timeout per request (see the limit above). A registry's
+of the 15 s client timeout per request (`imageSearchDeadline = oci.RequestTimeout`,
+see "The abandon after 15 s is typed" above). A registry's
 answer arrives as `ImageSearchResultMsg{Gen, EntryKey, Images, Partial, Err}`
 and `AddImageResults` takes it (false when stale; `pendingSearches` never goes
 under 0).
@@ -702,7 +806,7 @@ found through the group; Nexus does not say which member holds each one.`
 header line per class, in this order: `Images` (the row count, always), then
 `Pending` (a count, live lot) or `Interrupted` (names, the lot was abandoned
 with the left arrow before they answered), `Failed` (red), `Refused`, `Partial`
-(orange), `Cached only` (orange, DEVDESK-308, IS-14), `No result` (dim) and `Skipped` (dim, catalog not walked because the
+(orange), `May omit images` (orange, DEVDESK-308 IS-14, reworded by DEVDESK-629 F2), `No result` (dim) and `Skipped` (dim, catalog not walked because the
 query is shorter than `imagesearch.CatalogMinQueryRunes`). A class with nothing
 to say has no line, so a lot where every registry answered shows only `Images`.
 `summarizeSearch` (pure) sorts the lot's keys into the classes. A name is the
@@ -711,28 +815,43 @@ Registry column's label (`entryLabel`: alias, else URL, else key), in form order
 nothing (Skipped excluded). A registry that is both partial and empty appears
 on both lines, on purpose.
 
-`Cached only` lists the registries whose list is limited to cached content: a
-`provider: nexus` + `kind: group` entry, or a member of such a group (a
-discovered member, or a declared entry whose `parent` is the slug of one).
-`config.IsNexusGroup` and `listsCacheOnly` decide, once, into
-`browserRegistryEntry.cachedOnly`; `summarizeSearch` reads it by entry key
-(`entryCachedOnly`, not by slug: members share their group's slug). A concerned
-registry that answered with no result is marked ` (no result)` on that line and
-is not on `No result`, so `No result: quay` means absent from the registry and
-`Cached only: nexus (no result)` means absent from the cache. A concerned
-partial registry appears on `Partial` and on `Cached only`. Failed, Refused and
-Skipped win: no mention. Docker Hub, generic registries and a Nexus outside a
-group never get the line. `Cached only` and `Skipped` exclude each other, which
-keeps the budget below. Nexus's cache-only behavior comes from secondary
-sources and is not verified on a real Nexus (to confirm in IS-16).
+`May omit images` lists the registries that may not have listed every image
+they hold, by their role in a Nexus group (DEVDESK-629, F2; it replaces the
+`Cached only` line of DEVDESK-308, whose "limited to cached content" reading the
+measures of NX-04 contradicted). `browserRegistryEntry.role` is a `nexusRole`
+(group, proxy, hosted, unknown), set once by `buildEntries`: a
+`provider: nexus` + `kind: group` entry is a group; a discovered member of one
+takes `memberRole(RegistryGroupMember.Type)` (`hosted`, `proxy`, `group`; any
+other value, case included, is unknown); a declared entry whose `parent` is the
+slug of a Nexus group takes the type of the discovered member at its exact
+`(URL, RepoPrefix)`, and is unknown when none matches or the cache predates the
+type (H5); a group unit (`groupUnit`) is a group. `isNexusGroupOrMember` (the
+former `listsCacheOnly`) only drives `catalogUnderPrefix`. The pure rule is
+`mayOmit(role, outcome)`: a group whatever it answered (it says nothing about
+what a member it could not reach left out), a proxy only when it `failed` or was
+`refused`, a hosted repository never, an unknown role never (no mention is better
+than a false one), and never a `Skipped` outcome. `summarizeSearch` takes a
+`func(string) nexusRole` and reads it by entry key (`entryRole`, not by slug:
+members share their group's slug). A group that answered with no result is
+marked ` (no result)` on that line and is not on `No result`; the mark does not
+mean the image is absent, only that this registry listed nothing and may have
+left out what it could not reach, while `No result: quay` means the registry
+answered and holds nothing that matches. A `failed` or `refused` mention stays on
+its own line too and carries no mark; a partial registry appears on `Partial` and
+on `May omit images`. Docker Hub, generic registries and a Nexus outside a group
+never get the line. `Skipped` and `May omit images` exclude each other (`Skipped`
+means no catalog entry answered), which keeps the budget below. The search sends
+no request to the members of a group (F4): the group answers on its own connector,
+and a member the group could not reach is invisible to DevDesk; the line says it
+may happen, it cannot say it did. The MCP server is unchanged.
 The Nexus catalog tests of `internal/imagesearch` (`TestCatalogOnMeasuredNexusAnswers`)
 replay answers measured on the bench (Nexus 3.98.1-01, NX-03), not hand-written
 ones: the verdicts `ok`, `No result` and `Refused` (prefix absent from a real
-catalog) are checked there. `Failed` and `Cached only` have no measured answer yet
-(NX-04); a proxy's catalog lists names it does not hold (`mirror/uncached`).
-Measured: the path catalog of a proxy member lists the upstream, not its cache, which
-contradicts the `Cached only` wording of the header. Not changed here (NX-09);
-flagged.
+catalog) are checked there. `Failed` and the group line are measured since NX-04
+(DEVDESK-580, PR3): a proxy's catalog lists names it does not hold
+(`mirror/uncached`) while its upstream answers, and a group on its connector answers
+`no result` for `mirror` once a member's upstream is cut, which is why `(no result)`
+does not mean absent.
 See "Recorded fixtures" in [`nexus-bench.md`](nexus-bench.md).
 
 Each name list is fitted by `fitNames` to the room a value has
@@ -740,8 +859,8 @@ Each name list is fitted by `fitNames` to the room a value has
 the first k names then `+N`, else `+N` alone. `Skipped` carries the hint
 ` (type N+ characters)`, which is the first thing dropped when the header is
 narrow. The summary has a budget of `shortcut.HeaderRows` (7) lines, `Images`
-included; classes after the sixth are left out (with `Cached only` the seven
-classes fit only because `Pending`/`Interrupted` and `Skipped`/`Cached only`
+included; classes after the sixth are left out (with `May omit images` the seven
+classes fit only because `Pending`/`Interrupted` and `Skipped`/`May omit images`
 exclude each other). Before the first
 `WindowSizeMsg` nothing is abbreviated. At level 2 (tags) the header is the
 usual tag count.

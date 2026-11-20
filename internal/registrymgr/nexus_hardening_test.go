@@ -357,9 +357,14 @@ func TestNexusSameOriginRedirectIsFollowedWithCredentials(t *testing.T) {
 		// no members means the format endpoint is the one that gets redirected.
 		generic string
 		moved   string // path part of the second hop that must carry Authorization
+		// hops is how many requests land on moved: on the generic endpoint the
+		// group's own request and one type lookup per member (DEVDESK-629, F2a,
+		// both members answer through the same redirect), on the format endpoint
+		// the one request.
+		hops int
 	}{
-		{"generic endpoint", nexusGroupMembers, "/moved-meta"},
-		{"format endpoint", nexusGroupNoMembers, "/moved-format"},
+		{"generic endpoint", nexusGroupMembers, "/moved-meta", 3},
+		{"format endpoint", nexusGroupNoMembers, "/moved-format", 1},
 	}
 	for _, tc := range cases {
 		for _, status := range redirectStatuses {
@@ -394,8 +399,14 @@ func TestNexusSameOriginRedirectIsFollowedWithCredentials(t *testing.T) {
 				if len(members) != 2 {
 					t.Fatalf("members = %v, want the 2 of the redirected answer", members)
 				}
-				if got := a.authsFor(tc.moved); len(got) != 1 || got[0] != nexusBasic(t) {
-					t.Errorf("Authorization on %s = %q, want one Basic header", tc.moved, got)
+				got := a.authsFor(tc.moved)
+				if len(got) != tc.hops {
+					t.Errorf("Authorization on %s = %q, want %d Basic headers", tc.moved, got, tc.hops)
+				}
+				for _, auth := range got {
+					if auth != nexusBasic(t) {
+						t.Errorf("Authorization on %s = %q, want only Basic headers", tc.moved, got)
+					}
 				}
 			})
 		}

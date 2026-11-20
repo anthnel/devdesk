@@ -9,13 +9,12 @@ import (
 	"net/http"
 	"net/url"
 	"strings"
-	"time"
 )
 
 // registryHTTPClient is swapped by tests that must reach a stand-in for a
 // registry by another address.
 var registryHTTPClient = &http.Client{
-	Timeout:       15 * time.Second,
+	Timeout:       RequestTimeout,
 	CheckRedirect: RefuseOffOriginRedirect,
 }
 
@@ -68,6 +67,9 @@ type StatusError struct {
 	// unexpectedChallenge tells that 401 apart from a 401 answered after a
 	// token exchange, so Error() keeps both historical messages.
 	unexpectedChallenge bool
+	// upstreamBlocked marks a 404 whose body says the proxy's upstream is blocked for
+	// a while (see registryStatusError); Error() says so without the body.
+	upstreamBlocked bool
 }
 
 // Error returns the message the plain errors carried before the type existed.
@@ -79,6 +81,8 @@ func (e *StatusError) Error() string {
 		return fmt.Sprintf("management API returned %d", e.Code)
 	case e.unexpectedChallenge:
 		return fmt.Sprintf("unexpected auth challenge: %s", e.Challenge)
+	case e.upstreamBlocked:
+		return fmt.Sprintf("registry returned %d: the proxy's upstream is temporarily blocked, try again later", e.Code)
 	}
 	return fmt.Sprintf("registry returned %d", e.Code)
 }
@@ -87,8 +91,11 @@ func (e *StatusError) Error() string {
 //
 // apiURL is the API base (see the browser's registryAPIURL). Credentials, when
 // given, go as Basic auth and, on a 401 that names a Bearer realm, to that
-// realm's token endpoint — the flow Docker Hub and most hosted registries use.
-// The token is kept for the following pages.
+// realm's token endpoint — the flow Docker Hub and most hosted registries use —
+// only when the realm is on the registry's origin or is one of realmExceptions;
+// otherwise the walk stops with ErrTokenRealmOffOrigin and nothing is sent there.
+// Without credentials the anonymous token request goes to any realm. The token is
+// kept for the following pages.
 //
 // The list is followed across pages: whatever a registry caps a response at,
 // and Docker Hub does not, a repository with more tags than one page holds is
@@ -151,10 +158,10 @@ func registryGETContext(ctx context.Context, rawURL, username, password, token s
 	}
 	defer func() { _ = resp.Body.Close() }()
 	if resp.StatusCode != http.StatusOK {
-		return nil, "", token, &StatusError{Code: resp.StatusCode, Source: SourceRegistry}
+		return nil, "", token, registryStatusError(resp)
 	}
 	body, err = io.ReadAll(io.LimitReader(resp.Body, maxTagResponse))
-	return body, resp.Header.Get("Link"), token, err
+	return body, resp.Header.Get("Link"), token, noAnswer(err)
 }
 
 // registryDo sends one request, answering a Bearer challenge once. The caller
@@ -183,6 +190,9 @@ func registryDoContext(ctx context.Context, method, rawURL, accept, username, pa
 		return nil, "", err
 	}
 	if resp, err = doRequestContext(ctx, method, rawURL, accept, "", "", token); err != nil {
+		if na := asNoAnswer(err); na != nil {
+			return nil, token, na
+		}
 		return nil, token, fmt.Errorf("%s (retry) %s: %w", method, RedactURL(rawURL), err)
 	}
 	return resp, token, nil
@@ -212,6 +222,9 @@ func doRequestContext(ctx context.Context, method, rawURL, accept, username, pas
 	}
 	resp, err := registryHTTPClient.Do(req)
 	if err != nil {
+		if na := asNoAnswer(err); na != nil {
+			return nil, na
+		}
 		return nil, fmt.Errorf("%s %s: %w", method, RedactURL(rawURL), StripRedirectTarget(err))
 	}
 	return resp, nil
@@ -243,16 +256,17 @@ var manifestAccept = strings.Join([]string{
 // registry's Docker-Content-Digest header.
 //
 // It is a HEAD request: Docker Hub does not count a HEAD against the pull rate
-// limit, and nothing but the header is needed.
+// limit, and nothing but the header is needed. A non-200 answer is an error
+// wrapping a *StatusError (errors.As); a 200 without the header is a plain error.
 func ManifestDigest(apiURL, repo, tag, username, password string) (string, error) {
 	rawURL := fmt.Sprintf("%s/v2/%s/manifests/%s", strings.TrimSuffix(apiURL, "/"), repo, url.PathEscape(tag))
 	resp, _, err := registryDo(http.MethodHead, rawURL, manifestAccept, username, password, "")
 	if err != nil {
 		return "", err
 	}
-	_ = resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 	if resp.StatusCode != http.StatusOK {
-		return "", fmt.Errorf("registry returned %d for %s:%s", resp.StatusCode, repo, tag)
+		return "", fmt.Errorf("%w for %s:%s", registryStatusError(resp), repo, tag)
 	}
 	digest := resp.Header.Get("Docker-Content-Digest")
 	if digest == "" {
@@ -320,7 +334,8 @@ func exchangeBearerToken(registryURL, challenge, username, password string) (str
 // credentials: the realm would otherwise receive them (or a token request) in
 // clear. A missing or unparsable realm passes: exchangeBearerTokenContext
 // reports those. The error names the realm's host only, never its userinfo,
-// path or query.
+// path or query. Which origin a realm may be on, with credentials, is
+// checkRealmOrigin's question.
 func checkTokenRealm(registryURL, challenge string) error {
 	realm, ok := parseBearerChallenge(challenge)["realm"]
 	if !ok {
@@ -343,10 +358,14 @@ func checkTokenRealm(registryURL, challenge string) error {
 }
 
 // exchangeBearerTokenContext is exchangeBearerToken bound to ctx. It applies
-// checkTokenRealm itself, so no caller reaches an insecure realm by skipping
+// checkTokenRealm and checkRealmOrigin itself, so no caller reaches an insecure
+// realm, or sends credentials to one on another origin, by skipping
 // registryDoContext; registryURL is the registry that sent the challenge.
 func exchangeBearerTokenContext(ctx context.Context, registryURL, challenge, username, password string) (string, error) {
 	if err := checkTokenRealm(registryURL, challenge); err != nil {
+		return "", err
+	}
+	if err := checkRealmOrigin(registryURL, challenge, username != "" && password != ""); err != nil {
 		return "", err
 	}
 	u, err := tokenEndpoint(challenge)
@@ -362,6 +381,9 @@ func exchangeBearerTokenContext(ctx context.Context, registryURL, challenge, use
 	}
 	resp, err := registryHTTPClient.Do(req)
 	if err != nil {
+		if na := asNoAnswer(err); na != nil {
+			return "", na
+		}
 		return "", fmt.Errorf("fetch token: %w", StripRedirectTarget(err))
 	}
 	defer func() { _ = resp.Body.Close() }()
@@ -404,6 +426,9 @@ func tokenEndpoint(challenge string) (string, error) {
 func readToken(body io.Reader) (string, error) {
 	data, err := io.ReadAll(io.LimitReader(body, maxTokenResponse+1))
 	if err != nil {
+		if na := asNoAnswer(err); na != nil {
+			return "", na
+		}
 		return "", fmt.Errorf("read token response: %w", err)
 	}
 	if len(data) > maxTokenResponse {

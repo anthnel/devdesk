@@ -4,6 +4,7 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"errors"
+	"net/url"
 	"os"
 	"strings"
 
@@ -26,10 +27,8 @@ func registryCandidates(registryURL string) []string {
 	base := strings.TrimSuffix(registryURL, "/")
 
 	// Check if this URL is any known Docker Hub alias; if so, return the full set.
-	for _, alias := range dockerHubKeys {
-		if strings.EqualFold(base, strings.TrimSuffix(alias, "/")) {
-			return dockerHubKeys
-		}
+	if isDockerHubKey(base) {
+		return dockerHubKeys
 	}
 
 	// Generic: bare hostname, https://, http:// variants.
@@ -42,6 +41,58 @@ func registryCandidates(registryURL string) []string {
 		candidates = append(candidates, "https://"+base, "http://"+base)
 	}
 	return candidates
+}
+
+// hostKey is the host[:port] of registryURL as written (https:// assumed when it
+// has no scheme), when that differs from what registryCandidates already tries:
+// ok is false for a URL without a path, an unparsable one, and a Docker Hub
+// alias. The port is kept as written, never added or dropped: nexus.example and
+// nexus.example:443 are two keys, as in the CLI's own ConvertToHostname
+// (DEVDESK-635). It is what `docker login <host>:<port>` stores for a registry
+// whose entry URL carries a path (a Nexus /repository/<name> connector).
+func hostKey(registryURL string) (key string, ok bool) {
+	raw := strings.TrimSuffix(registryURL, "/")
+	if !strings.Contains(raw, "://") {
+		raw = "https://" + raw
+	}
+	u, err := url.Parse(raw)
+	if err != nil || u.Host == "" || (u.Path == "" && u.RawQuery == "") {
+		return "", false
+	}
+	if isDockerHubKey(u.Host) {
+		return "", false
+	}
+	return u.Host, true
+}
+
+// credentialPhase is one lookup of stored credentials: the auth-file keys to
+// try and the address the credential helpers are asked.
+type credentialPhase struct {
+	candidates []string
+	helperHost string
+}
+
+// credentialPhases lists the lookups in order: the exact candidates with
+// helperHost(registryURL), then, when hostKey applies, registryCandidates(key)
+// with key as the helper host. The first phase that finds a login wins, so an
+// exact key always beats the host's. GetStoredCreds and RegistryLoginState
+// share it; logout does not (it stays on the exact key).
+func credentialPhases(registryURL string) []credentialPhase {
+	phases := []credentialPhase{{registryCandidates(registryURL), helperHost(registryURL)}}
+	if key, ok := hostKey(registryURL); ok {
+		phases = append(phases, credentialPhase{registryCandidates(key), key})
+	}
+	return phases
+}
+
+// isDockerHubKey reports whether base (no trailing slash) is a Docker Hub alias.
+func isDockerHubKey(base string) bool {
+	for _, alias := range dockerHubKeys {
+		if strings.EqualFold(base, strings.TrimSuffix(alias, "/")) {
+			return true
+		}
+	}
+	return false
 }
 
 // authPath returns the engine's registry credential file — ~/.docker/config.json
@@ -155,8 +206,18 @@ func RegistryLoginState(registryURL string) LoginState {
 	if err := readAuthFile(&cfg); err != nil {
 		return LoginNone
 	}
+	for _, phase := range credentialPhases(registryURL) {
+		if state := loginStateOf(cfg, phase); state != LoginNone {
+			return state
+		}
+	}
+	return LoginNone
+}
+
+// loginStateOf is RegistryLoginState for one lookup phase.
+func loginStateOf(cfg authFile, phase credentialPhase) LoginState {
 	found := false
-	for _, c := range registryCandidates(registryURL) {
+	for _, c := range phase.candidates {
 		entry, ok := cfg.Auths[c]
 		if !ok {
 			continue
@@ -166,7 +227,7 @@ func RegistryLoginState(registryURL string) LoginState {
 		}
 		found = true
 	}
-	host := helperHost(registryURL)
+	host := phase.helperHost
 	if found {
 		// An empty entry holds nothing by itself: the secret is in the helper,
 		// and with no helper configured there is no secret anywhere.
@@ -264,19 +325,27 @@ func GetStoredCreds(registryURL string) (username, password string, ok bool) {
 		return "", "", false
 	}
 
-	hostname := helperHost(registryURL)
+	for _, phase := range credentialPhases(registryURL) {
+		if u, p, ok := storedCredsOf(cfg, phase); ok {
+			return u, p, true
+		}
+	}
+	return "", "", false
+}
 
-	helper := cfg.CredHelpers[hostname]
+// storedCredsOf is GetStoredCreds for one lookup phase.
+func storedCredsOf(cfg authFile, phase credentialPhase) (username, password string, ok bool) {
+	helper := cfg.CredHelpers[phase.helperHost]
 	if helper == "" {
 		helper = cfg.CredsStore
 	}
 	if helper != "" {
-		if u, p, ok := getCredsFromHelper(helper, hostname); ok {
+		if u, p, ok := getCredsFromHelper(helper, phase.helperHost); ok {
 			return u, p, true
 		}
 	}
 
-	for _, candidate := range registryCandidates(registryURL) {
+	for _, candidate := range phase.candidates {
 		if entry, ok := cfg.Auths[candidate]; ok && entry.Auth != "" {
 			if u, p, ok := decodeAuth(entry.Auth); ok {
 				return u, p, true

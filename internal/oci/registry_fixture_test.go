@@ -496,15 +496,15 @@ func wwwAuthenticateRealm(t *testing.T, challenge string) *url.URL {
 // The X-Forwarded-Host and X-Forwarded-Proto probe shows that Nexus builds the
 // realm from the host the request ANNOUNCES: behind a reverse proxy that sets them
 // (the enterprise case, which the bench does not reproduce) the realm is on
-// whatever origin the proxy says. The probe's answer is replayed here, and what
-// DevDesk does with such a realm is the fact pinned: it FOLLOWS it. checkTokenRealm
-// refuses a realm by scheme only (not http behind https, not a scheme other than
-// http or https); a realm on another origin over https is taken (Docker Hub's own
-// case, deliberate), and, when credentials are set, they go to it as Basic.
+// whatever origin the proxy says. The probe's answer is replayed here.
 //
-// That contradicts criterion 3 of NX-08b ("the realms off the origin are refused as
-// measured"): nothing measured shows a refusal, and the code has none. The
-// contradiction is pinned, not corrected (docs/measurements/2026-11-20-nexus-access.md).
+// Behavior changed by DEVDESK-629 (F1); the frozen note
+// (docs/measurements/2026-11-20-nexus-access.md) describes the code before it. The
+// client used to FOLLOW such a realm and send its Basic credentials to it. It now
+// refuses it with ErrTokenRealmOffOrigin, before any request to that host, when
+// credentials are configured; without credentials the anonymous token request still
+// goes out. A realm on the origin of its request (every realm measured on the bench)
+// is unchanged.
 func TestMeasuredRealmStaysOnTheRegistryOrigin(t *testing.T) {
 	t.Run("every measured realm is on the origin of its request", func(t *testing.T) {
 		cases := []struct {
@@ -548,11 +548,14 @@ func TestMeasuredRealmStaysOnTheRegistryOrigin(t *testing.T) {
 				if err := checkTokenRealm(base, challenge[len("Bearer "):]); err != nil {
 					t.Errorf("checkTokenRealm refuses the measured realm: %v", err)
 				}
+				if err := checkRealmOrigin(base, challenge[len("Bearer "):], true); err != nil {
+					t.Errorf("checkRealmOrigin refuses the measured realm, with credentials: %v", err)
+				}
 			})
 		}
 	})
 
-	t.Run("a realm announced off the origin is followed", func(t *testing.T) {
+	t.Run("a realm announced off the origin", func(t *testing.T) {
 		const offOrigin = "realm-probe.invalid"
 		cases := []struct {
 			fixture   string
@@ -602,10 +605,11 @@ func TestMeasuredRealmStaysOnTheRegistryOrigin(t *testing.T) {
 			})
 
 			// The credentials of a configured registry: the client sends Basic at once (to
-			// the registry, as Nexus accepts it), and, on the challenge, again to the realm.
-			// The fixture is the probe's anonymous recording, so the registry here is a
-			// handler that serves its recorded 401 to ANY caller: it is the only place this
-			// pin is not a measured exchange, only the measured header.
+			// the registry, as Nexus accepts it) and, on the challenge, refuses the realm:
+			// nothing goes to the off-origin host. The fixture is the probe's anonymous
+			// recording, so the registry here is a handler that serves its recorded 401 to
+			// ANY caller: it is the only place this pin is not a measured exchange, only the
+			// measured header.
 			t.Run(tc.fixture+", with credentials", func(t *testing.T) {
 				reg := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 					for name, values := range ex.Header {
@@ -621,16 +625,25 @@ func TestMeasuredRealmStaysOnTheRegistryOrigin(t *testing.T) {
 
 				_, _, _, err := registryGETContext(context.Background(), reg.URL+"/v2/", "admin", "S3CRETPW", "")
 
-				var se *StatusError
-				if !errors.As(err, &se) || se.Source != SourceToken || se.Code != 403 {
-					t.Fatalf("err = %v (%T), want the 403 of the off-origin token endpoint", err, err)
+				if !errors.Is(err, ErrTokenRealmOffOrigin) {
+					t.Fatalf("err = %v (%T), want ErrTokenRealmOffOrigin: the credentials must not follow the realm", err, err)
 				}
 				reqs := wire.requests()
-				if len(reqs) != 2 || reqs[1].Host != offOrigin {
-					t.Fatalf("wire = %+v, want the read then one token request to %s", reqs, offOrigin)
+				if len(reqs) != 1 {
+					t.Fatalf("wire = %+v, want only the initial read of the registry", reqs)
 				}
-				if !strings.HasPrefix(reqs[1].Auth, "Basic ") {
-					t.Errorf("Authorization of the token request = %q: the credentials stopped at the registry, this pin is out of date", reqs[1].Auth)
+				for _, r := range reqs {
+					if r.Host == offOrigin {
+						t.Errorf("a request went to %s: %+v", offOrigin, r)
+					}
+				}
+				for _, leak := range []string{"/v2/token", "/repository/docker-hosted/v2/token", "S3CRETPW"} {
+					if strings.Contains(err.Error(), leak) {
+						t.Errorf("err = %q leaks %q", err, leak)
+					}
+				}
+				if !strings.Contains(err.Error(), offOrigin) {
+					t.Errorf("err = %q, want the realm's host %s named", err, offOrigin)
 				}
 			})
 		}

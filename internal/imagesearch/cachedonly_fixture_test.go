@@ -100,23 +100,24 @@ func TestProxyCatalogOnMeasuredCutUpstream(t *testing.T) {
 		query   string
 		want    Verdict
 		rows    []string
-		code    int // the StatusError Code expected when the verdict comes from an error
+		code    int  // the StatusError Code expected when the verdict comes from an error
+		blocked bool // DEVDESK-629 (F3): the 404 is Nexus's "Remote Auto Blocked"
 	}
 	proxy := []probe{
 		// Control: the upstream reachable. The catalog of a proxy lists what its
 		// upstream holds, mirror/uncached included (it relays _catalog).
-		{"nominal-catalog-proxy-path--admin", nexusfixture.Admin, 200, "mirror", VerdictOK, []string{"docker-proxy/mirror/cached", "docker-proxy/mirror/uncached"}, 0},
-		{"nominal-catalog-proxy-path--pull", nexusfixture.Pull, 200, "mirror", VerdictOK, []string{"docker-proxy/mirror/cached", "docker-proxy/mirror/uncached"}, 0},
-		{"nominal-catalog-proxy-path--anon", nexusfixture.Anonymous, 200, "mirror", VerdictOK, []string{"docker-proxy/mirror/cached", "docker-proxy/mirror/uncached"}, 0},
+		{"nominal-catalog-proxy-path--admin", nexusfixture.Admin, 200, "mirror", VerdictOK, []string{"docker-proxy/mirror/cached", "docker-proxy/mirror/uncached"}, 0, false},
+		{"nominal-catalog-proxy-path--pull", nexusfixture.Pull, 200, "mirror", VerdictOK, []string{"docker-proxy/mirror/cached", "docker-proxy/mirror/uncached"}, 0, false},
+		{"nominal-catalog-proxy-path--anon", nexusfixture.Anonymous, 200, "mirror", VerdictOK, []string{"docker-proxy/mirror/cached", "docker-proxy/mirror/uncached"}, 0, false},
 		// The first read after the cut: Nexus relays the failure of its upstream as a
 		// 502. Not refused (a 5xx is a failure), whatever the identity would be.
-		{"cut1-catalog-proxy-path--admin", nexusfixture.Admin, 502, "mirror", VerdictFailed, nil, 502},
+		{"cut1-catalog-proxy-path--admin", nexusfixture.Admin, 502, "mirror", VerdictFailed, nil, 502, false},
 		// Once Nexus has auto-blocked the proxy: a 404 whose body says "Remote Auto
-		// Blocked". DevDesk reads no body, a 404 is a refusal: "unsupported or
-		// refused", although the proxy is blocked and holds mirror/cached.
-		{"cut2-catalog-proxy-path--admin", nexusfixture.Admin, 404, "mirror", VerdictRefused, nil, 404},
-		{"cut2-catalog-proxy-path--pull", nexusfixture.Pull, 404, "mirror", VerdictRefused, nil, 404},
-		{"cut2-catalog-proxy-path--anon", nexusfixture.Anonymous, 404, "mirror", VerdictRefused, nil, 404},
+		// Blocked". DEVDESK-629 (F3): DevDesk reads that message, the proxy is
+		// temporarily blocked, a failure and not a refusal, whatever the identity.
+		{"cut2-catalog-proxy-path--admin", nexusfixture.Admin, 404, "mirror", VerdictFailed, nil, 404, true},
+		{"cut2-catalog-proxy-path--pull", nexusfixture.Pull, 404, "mirror", VerdictFailed, nil, 404, true},
+		{"cut2-catalog-proxy-path--anon", nexusfixture.Anonymous, 404, "mirror", VerdictFailed, nil, 404, true},
 	}
 	for _, p := range proxy {
 		t.Run(p.fixture, func(t *testing.T) {
@@ -147,6 +148,9 @@ func TestProxyCatalogOnMeasuredCutUpstream(t *testing.T) {
 				var se *oci.StatusError
 				if !errors.As(err, &se) || se.Code != p.code || se.Source != oci.SourceRegistry {
 					t.Errorf("err = %v (%T), want *oci.StatusError{%d, SourceRegistry}", err, err, p.code)
+				}
+				if got := upstreamBlocked(err); got != p.blocked {
+					t.Errorf("UpstreamBlocked() = %v, want %v (err = %v)", got, p.blocked, err)
 				}
 			}
 			if h := s.Hits(p.fixture); h != 1 {

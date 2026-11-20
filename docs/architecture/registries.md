@@ -33,12 +33,14 @@ carrying it answers 403 to an ordinary pull account — the same endpoint that
 would say what a group's members are. An instance that refuses one refuses both,
 so guessing is not a fallback, it is the defect.
 
-The same declaration drives the image search header (DEVDESK-308): a
-`provider: nexus` + `kind: group` entry, its discovered members, and a declared
-entry with `parent: <slug>` pointing at such a group are listed from cached
-content only, so the browser's level 1 header shows them on a `Cached only`
-line. The provider is read from the config (`config.IsNexusGroup`), never
-guessed from the URL. See `network.md`, "Level 1 header summary".
+The same declaration drives the image search header (DEVDESK-308, reworded by
+DEVDESK-629): a `provider: nexus` + `kind: group` entry, its discovered members
+and a declared entry with `parent: <slug>` pointing at such a group get a role
+(group, proxy, hosted, from the member's `Type` that discovery stores), and the
+browser's level 1 header says on a `May omit images` line which of them may not
+have listed every image. The provider is read from the config
+(`config.IsNexusGroup`), never guessed from the URL. See `network.md`, "Level 1
+header summary".
 
 The image search (`network.md`, `CatalogSearcher`, DEVDESK-306) reads the same
 pair, with `auth_mode` through `credsFor`. Two ways to read a catalog:
@@ -97,6 +99,32 @@ own** — it shares its group's single credential entry, so a password of its ow
 has nowhere to go — and why `inherit` on an entry with no group is refused.
 Both are load-time errors.
 
+An entry whose URL carries a path (a Nexus `/repository/<name>` connector,
+`http://127.0.0.1:30481/repository/docker-hosted`) finds that login too
+(DEVDESK-635): `docker.GetStoredCreds` and `docker.RegistryLoginState` share
+`credentialPhases`, which looks under the exact address first, then under the
+entry's `host[:port]` **as written** (`hostKey`, with its `https://` and
+`http://` variants and the credential helpers asked for that key). The port is
+never added, dropped or widened: `nexus.example` and `nexus.example:443` are two
+keys, and a login stored for `127.0.0.1` is not found for an entry on port
+30481. The exact key wins over the host's. `auth_mode: anonymous` still sends
+nothing, whatever the lookup could find; `credsFor` reads it first.
+
+**The registry host's login never goes to another management host (DEVDESK-629,
+M1).** `discoveryCreds` (`internal/ui/oci_resources/commands.go`) looks at the
+host of `management_url`: when it is not the registry URL's `host[:port]` (compared
+case-insensitively, a scheme-less URL read as https), only a login stored for the
+management host is sent there, and nothing found means anonymous; the registry
+host's login, which the host key above now finds for a URL with a path, is never
+used for it. A username or password stated by the user still outranks any stored
+one. Same host: unchanged.
+
+**Known risk, left as is (DEVDESK-629, decided by the user).** A login stored for
+`h` or `https://h` also serves an entry whose URL is `http://h/path`, so the
+Basic header goes in clear over http. That was already true for a URL without a
+path; the host key extends it to a URL with one. A separate story may treat "no
+Basic over http outside loopback".
+
 `internal/config/registries.go` normalizes the list at load and is the only
 place that decides a slug. Two rules hold it together:
 
@@ -138,6 +166,12 @@ docker leaves an empty `auths` entry behind a helper, podman leaves none under
 `credHelpers` and ignores `credsStore` entirely. Both run
 `docker-credential-<name>` helpers — podman has no prefix of its own (D73).
 
+The lookup has two phases for an entry with a path (exact key, then
+`host[:port]`, DEVDESK-635); the `Logged` cell and the credentials sent agree.
+Logout (`U`) is unchanged and stays on the exact key; known limit: `docker
+logout <url with a path>` may remove the host's login, since the CLI keys on the
+host, which then also affects the other entries of that host.
+
 ## Registry group cache
 
 `internal/cache/registry_groups.go` — `RegistryGroupCache`, keyed by **group
@@ -162,6 +196,16 @@ as their source of truth, and `config.yaml` is what the user declares.
     reply) is stored nowhere: an unreachable manager must not erase what was
     last known (D23). The footer says `Group refresh failed — check logs` at level Error;
     a refusal held from an earlier probe stays as it was.
+- **Each member carries its type (DEVDESK-636).** `RegistryGroupMember.Type`
+  (`type`, `omitempty`: `hosted`, `proxy`, `group`; absent means unknown) comes
+  from one GET per member during the discovery (`memberTypes`, 32 members at
+  most, see `network.md`, "The Nexus detector"); a failed lookup leaves it
+  unknown and never fails the discovery. `toCachedMembers` is the one
+  conversion from `registrymgr.GroupMember` and `cacheGroupMembers` uses it. A
+  cache written before the field has no type until the next `ctrl+r`. The file
+  version stays 2 (additive; an older build ignores the key). The MCP output does
+  not carry the type. The value logged for an unrecognized `type` is cut to 64
+  characters before `%q`.
 - **File format v2.** `registry-groups.json` is the envelope
   `{"version":2,"groups":{…},"refusals":{…}}`, written atomically; a refusal is
   `{at, status, anonymous}`, no text, no URL. Reading goes through one decoder

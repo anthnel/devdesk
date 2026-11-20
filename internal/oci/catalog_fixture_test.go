@@ -123,33 +123,25 @@ func TestCatalogWalkFollowsEveryMeasuredPage(t *testing.T) {
 }
 
 // Nexus pages a group inconsistently (NX-03): a name comes back on two pages.
-// The walker does not deduplicate at this level; the test pins what was sent.
-func TestCatalogWalkKeepsTheMeasuredGroupN2Answer(t *testing.T) {
+// DEVDESK-629 (F8): the walker drops the repeats in silence and keeps the order
+// of first appearance; the frozen note describes the walker before it did.
+func TestCatalogWalkDeduplicatesTheMeasuredGroupN2Answer(t *testing.T) {
 	pages := pageNames("page-group-n2", 5)
 	fake := fakenexus.New(t, measuredPages(t, pages...)...)
 	names, truncated, err := walk(t, fake.URL(groupHost), "", 2)
 	if err != nil {
 		t.Fatalf("ListCatalogUnderContext: %v", err)
 	}
-	want := []string{
-		"api", "mirror/cached",
-		"mirror/uncached", "shared/base",
-		"team/api", "tools/cli",
-		"shared/base", "team/api",
-		"tools/cli",
-	}
-	if len(want) != 9 {
-		t.Fatalf("test bug: %d names", len(want))
-	}
+	want := []string{"api", "mirror/cached", "mirror/uncached", "shared/base", "team/api", "tools/cli"}
 	if !slices.Equal(names, want) {
-		t.Errorf("names = %v, want %v", names, want)
+		t.Errorf("names = %v, want %v (each name once, first-appearance order)", names, want)
 	}
 	if truncated {
 		t.Error("truncated = true, want false")
 	}
-	for _, dup := range []string{"shared/base", "team/api", "tools/cli"} {
-		if got := count(names, dup); got != 2 {
-			t.Errorf("%s appears %d times, want 2 (Nexus sent it twice)", dup, got)
+	for _, name := range want {
+		if got := count(names, name); got != 1 {
+			t.Errorf("%s appears %d times, want 1", name, got)
 		}
 	}
 	requireHits(t, fake, pages, 1)

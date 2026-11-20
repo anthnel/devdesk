@@ -488,8 +488,10 @@ func TestADeclaredMemberStaysCheckedInTheBrowserWhenItsGroupIsRefused(t *testing
 	if dhi == nil {
 		t.Fatalf("the declared member is not an entry of the browser: %+v", b.entries)
 	}
-	if !b.selected(*dhi) || !dhi.cachedOnly {
-		t.Errorf("declared member: checked = %v, cachedOnly = %v, want both true", b.selected(*dhi), dhi.cachedOnly)
+	// Nobody discovered the group, so there is no member to take a type from (H5):
+	// the declared entry is checked and its role is unknown.
+	if !b.selected(*dhi) || dhi.role != nexusRoleUnknown {
+		t.Errorf("declared member: checked = %v, role = %v, want checked and unknown", b.selected(*dhi), dhi.role)
 	}
 	if dhi.URL != registryHostInTest || dhi.repoPrefix != "dhi-proxy" {
 		t.Errorf("declared member = %q + %q, want its address kept", dhi.URL, dhi.repoPrefix)

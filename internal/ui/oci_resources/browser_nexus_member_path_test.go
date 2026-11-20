@@ -193,23 +193,21 @@ func TestNexusMembersByPathWalkTheirOwnCatalog(t *testing.T) {
 	}
 }
 
-// The same members, once a lot has run, are listed as "Cached only" under their
-// own labels, and nothing is Failed or Refused.
-func TestNexusMembersByPathAreCachedOnlyAndHealthy(t *testing.T) {
-	s, _ := nexusFake(t)
+// DEVDESK-629 (F2, H4): the same members, typed, once a lot has run and both
+// answered: nothing to report, so the header is the image count alone. A proxy whose
+// upstream answers is not "limited to the cache", a hosted repository never is. The
+// type was read at discovery, so the lot asks the members' catalogs and nothing else.
+func TestNexusMembersByPathThatAnsweredAreNotMentioned(t *testing.T) {
+	s, fixtures := nexusFake(t)
 	base := s.URL(benchHTTPPort)
 	withImageSearcher(t, nexusOnlySearcher(t))
 
-	m := runLot(t, nexusMembersModel(t, base, "docker-hosted", "docker-proxy"), "base", 2)
+	m := runLot(t, typedNexusMembersModel(t, base, typedMember{"docker-hosted", "hosted"}, typedMember{"docker-proxy", "proxy"}), "base", 2)
 
-	_, vals := headerLines(m)
-	if want := "nx/docker-hosted, nx/docker-proxy"; vals["Cached only"] != want {
-		t.Errorf("Cached only = %q, want %q", vals["Cached only"], want)
-	}
-	for _, k := range []string{"Failed", "Refused"} {
-		if vals[k] != "" {
-			t.Errorf("%s = %q, want none", k, vals[k])
-		}
+	wantOnlyMemberCatalogsAsked(t, s, fixtures)
+	keys, vals := headerLines(m)
+	if want := []string{"Images"}; !slices.Equal(keys, want) {
+		t.Errorf("header keys = %v, want %v (values %v)", keys, want, vals)
 	}
 }
 
@@ -237,6 +235,21 @@ func TestDeclaredNexusMembersWalkTheirOwnCatalog(t *testing.T) {
 	}
 	wantVerdict(t, m, "hosted", imagesearch.VerdictOK)
 	wantVerdict(t, m, "proxy", imagesearch.VerdictOK)
+}
+
+// A hosted repository that fails is only failed: it holds what it holds, a failed
+// read of it says nothing about names it would have left out. The proxy beside it
+// answered, so there is no mention at all.
+func TestAHostedMemberWhoseCatalogFailsIsNeverMentioned(t *testing.T) {
+	srv := newPathServer(t, map[string]int{"/v2/a/_catalog": http.StatusServiceUnavailable, "/v2/b/_catalog": http.StatusOK})
+	withImageSearcher(t, wiredLikeProduction(srv.Server))
+
+	m := runLot(t, typedNexusMembersModel(t, srv.URL, typedMember{"a", "hosted"}, typedMember{"b", "proxy"}), "nginx", 2)
+
+	vals := wantHeaderKeys(t, m, "Images", "Failed")
+	if vals["Failed"] != "nx/a" {
+		t.Errorf("Failed = %q, want nx/a", vals["Failed"])
+	}
 }
 
 // pathServer answers the catalog of each member path with a status and counts
@@ -316,7 +329,9 @@ func TestAMemberWhoseCatalogAnswersAnErrorDoesNotSpoilTheOthers(t *testing.T) {
 			withImageSearcher(t, wiredLikeProduction(srv.Server))
 			logs := captureLog(t)
 
-			m := runLot(t, nexusMembersModel(t, srv.URL, "a", "b"), "nginx", 2)
+			// a is the proxy, b the hosted repository: a refused or failed proxy may
+			// have omitted images, so it is mentioned; b answered.
+			m := runLot(t, typedNexusMembersModel(t, srv.URL, typedMember{"a", "proxy"}, typedMember{"b", "hosted"}), "nginx", 2)
 
 			keyA, keyB := memberKey("nx", srv.URL, "a"), memberKey("nx", srv.URL, "b")
 			wantVerdict(t, m, keyA, tt.verdict)
@@ -339,8 +354,8 @@ func TestAMemberWhoseCatalogAnswersAnErrorDoesNotSpoilTheOthers(t *testing.T) {
 			if !strings.Contains(vals[tt.header], "nx/a") || strings.Contains(vals[tt.header], "nx/b") {
 				t.Errorf("%s = %q, want nx/a and not nx/b", tt.header, vals[tt.header])
 			}
-			if !strings.Contains(vals["Cached only"], "nx/b") {
-				t.Errorf("Cached only = %q, want it to list nx/b", vals["Cached only"])
+			if vals[mayOmitKey] != "nx/a" {
+				t.Errorf("%s = %q, want nx/a (the proxy, no mark) and not nx/b", mayOmitKey, vals[mayOmitKey])
 			}
 
 			// The cause is in the journal: readable (the status), with no URL.

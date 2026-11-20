@@ -1811,9 +1811,10 @@ measurement changed):
 - `TestBearerFlowOnMeasuredNexusAnswers`: a wrong password is a typed `*oci.StatusError{401, SourceRegistry}` carrying the
   `BASIC` challenge, no token request; an anonymous `GET /v2/` follows 401, token, retry and ends on a plain 401 (nominal and W5); an
   anonymous catalog read with anonymous access cut goes to the realm (what Nexus answers there was NOT recorded and is not asserted).
-- `TestMeasuredRealmStaysOnTheRegistryOrigin`: every measured realm is on the origin of its request; the probe's off-origin
-  `https` realm IS FOLLOWED (token request sent to it, with Basic when credentials are configured). This contradicts criterion 3 of
-  NX-08b and is pinned, not corrected; the note lists the conditional correction.
+- `TestMeasuredRealmStaysOnTheRegistryOrigin`: every measured realm is on the origin of its request (and `checkRealmOrigin` accepts it
+  with credentials); the probe's off-origin `https` realm gets the anonymous token request when no credentials are configured, and is
+  REFUSED when they are (`ErrTokenRealmOffOrigin`, nothing sent to that host), since DEVDESK-629 / D168. The frozen note
+  (`docs/measurements/2026-11-20-nexus-access.md`) still describes the earlier behavior (the realm was followed, with Basic); it is not edited.
 - `TestRedirectsOnMeasuredNexusAnswers`: no exchange of any campaign carries a 3xx or a `Location` (a future redirect turns it
   red); the direct answers are replayed. The refusal of an off-origin redirect or `Link` stays covered by hand-written tests only,
   named in the test and in the note. The blob GET is a stub (3072 bytes not kept) that fakenexus cannot serve: pinned from the file.
@@ -2182,12 +2183,13 @@ rather than passing for a recording.
 
 ### What is not recorded yet
 
-- `Cached only` and the verdict `failed` are measured since DEVDESK-580 (PR3): the 502 of a
+- The group line (now `May omit images`, DEVDESK-629 F2) and the verdict `failed` are measured since DEVDESK-580 (PR3): the 502 of a
   cut upstream and the 404 of an auto-blocked proxy are fixtures of the `cachedonly`
   campaign, replayed by the tests above. What stays on hand-written answers is every
   other failure (a 5xx or a 429 on a hosted member, an unreadable body, a network error)
   and the deadline the user really waits for (15 s in the client, 20 s in Nexus), which
-  no fixture can replay. A proxy's catalog lists `mirror/uncached`, which it does not
+  no fixture can replay (the abandon is typed since DEVDESK-633, `*oci.NoAnswerError`, text
+  `no answer within 15 s`; the measures are unchanged). A proxy's catalog lists `mirror/uncached`, which it does not
   hold (it relays the upstream); the search shows it.
 - NX-05 is recorded and replayed since DEVDESK-580 (PR4): the `access` campaign above. What stays unmeasured
   is listed at the end of that section (subdomain, a connector for `docker-hosted`, an off-origin realm or

@@ -52,17 +52,32 @@ func (m Model) handleMultiRegistryTagsLoaded(msg MultiRegistryTagsLoadedMsg) (te
 		return m, nil
 	}
 	if msg.Err != nil {
-		m.registryBrowser.AddRegistryTags(msg.EntryKey, msg.RegistryURL, msg.Alias, msg.Repo, nil)
-		if m.registryBrowser.tagsFromSearch {
-			log.Printf("ERROR [oci_resources] registry tags on %s: %s", msg.Alias, searchErrorCause(msg.Err))
-			return m, m.footer.Error(tagsLoadFailedText)
-		}
-		log.Printf("ERROR [oci_resources] registry tags %s from %s: %v", msg.Repo, oci.RedactRegistryURL(msg.RegistryURL), msg.Err)
-		return m, nil
+		return m.handleMultiRegistryTagsFailed(msg)
 	}
 	m.registryBrowser.SetScanCache(m.scanCache)
 	m.registryBrowser.AddRegistryTags(msg.EntryKey, msg.RegistryURL, msg.Alias, msg.Repo, msg.Tags)
 	return m, loadMultiRegistryTagsMetaCmd(msg.Gen, msg.EntryKey, msg.RegistryURL, msg.Repo)
+}
+
+// handleMultiRegistryTagsFailed records a failed tag listing. Opened from the search
+// (→) it says so at the footer, with the reason when there is one; opened from the
+// form it stays in the journal, except for a refused token realm (DEVDESK-629).
+func (m Model) handleMultiRegistryTagsFailed(msg MultiRegistryTagsLoadedMsg) (tea.Model, tea.Cmd) {
+	m.registryBrowser.AddRegistryTags(msg.EntryKey, msg.RegistryURL, msg.Alias, msg.Repo, nil)
+	reason := registryFailureReason(msg.Err)
+	if m.registryBrowser.tagsFromSearch {
+		log.Printf("ERROR [oci_resources] registry tags on %s: %s", msg.Alias, searchErrorCause(msg.Err))
+		text := tagsLoadFailedText
+		if reason != "" {
+			text += ": " + reason
+		}
+		return m, m.footer.Error(text)
+	}
+	log.Printf("ERROR [oci_resources] registry tags %s from %s: %v", msg.Repo, oci.RedactRegistryURL(msg.RegistryURL), msg.Err)
+	if reason != "" {
+		return m, m.footer.Error(reason)
+	}
+	return m, nil
 }
 
 // handleMultiRegistryTagsMeta stores tag metadata for one registry in the browser.
@@ -217,7 +232,7 @@ func (m Model) handleGroupRefused(slug string, e *registrymgr.MembersRefusedErro
 func toCachedMembers(members []registrymgr.GroupMember) []cache.RegistryGroupMember {
 	out := make([]cache.RegistryGroupMember, 0, len(members))
 	for _, m := range members {
-		out = append(out, cache.RegistryGroupMember{Alias: m.Alias, URL: m.URL, RepoPrefix: m.RepoPrefix})
+		out = append(out, cache.RegistryGroupMember{Alias: m.Alias, URL: m.URL, RepoPrefix: m.RepoPrefix, Type: m.Type})
 	}
 	return out
 }

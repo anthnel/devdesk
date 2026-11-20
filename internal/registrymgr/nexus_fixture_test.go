@@ -3,6 +3,7 @@ package registrymgr
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"net/http"
 	"reflect"
 	"strings"
@@ -170,11 +171,12 @@ func wantHits(t *testing.T, s *fakenexus.Server, fixtures map[string]nexusfixtur
 }
 
 // The group's two members, as the admin's detailed answer lists them (F2: both
-// aliases come out as "docker", the -hosted and -proxy suffixes being stripped).
+// aliases come out as "docker", the -hosted and -proxy suffixes being stripped),
+// typed by their own generic answers (DEVDESK-629, F2a).
 func measuredMembers(s *fakenexus.Server) []GroupMember {
 	return []GroupMember{
-		{Alias: "docker", URL: s.URL(restHost), RepoPrefix: restHosted},
-		{Alias: "docker", URL: s.URL(restHost), RepoPrefix: restProxy},
+		{Alias: "docker", URL: s.URL(restHost), RepoPrefix: restHosted, Type: "hosted"},
+		{Alias: "docker", URL: s.URL(restHost), RepoPrefix: restProxy, Type: "proxy"},
 	}
 }
 
@@ -197,7 +199,13 @@ func TestDetectGroupOnMeasuredNexusAnswers(t *testing.T) {
 		if want := measuredMembers(s); !reflect.DeepEqual(members, want) {
 			t.Errorf("members = %+v, want %+v", members, want)
 		}
-		wantHits(t, s, fixtures, map[string]int{genericFixture(restGroup, id): 1, detailedFixture(restGroup, id): 1})
+		// F2a: one more request per member, on its own generic endpoint.
+		wantHits(t, s, fixtures, map[string]int{
+			genericFixture(restGroup, id):  1,
+			detailedFixture(restGroup, id): 1,
+			genericFixture(restHosted, id): 1,
+			genericFixture(restProxy, id):  1,
+		})
 	})
 
 	t.Run("group as anonymous is refused, 403", func(t *testing.T) {
@@ -254,5 +262,67 @@ func TestDetectGroupOnMeasuredNexusAnswers(t *testing.T) {
 				wantHits(t, s, fixtures, map[string]int{genericFixture(repo, id): 1})
 			})
 		}
+	}
+}
+
+// DEVDESK-629 (F2a): the type of each member is what its own generic answer
+// measured, one request each, and a refused listing asks for no type at all.
+func TestDetectGroupTypesItsMembersOnMeasuredAnswers(t *testing.T) {
+	fixtures := restFixtures(t)
+	all := make([]nexusfixture.Fixture, 0, len(fixtures))
+	for _, f := range fixtures {
+		all = append(all, f)
+	}
+
+	t.Run("admin", func(t *testing.T) {
+		s := fakenexus.New(t, all...)
+		id := nexusfixture.Admin
+
+		members, err := (&NexusDetector{}).DetectGroup(context.Background(), restInfo(s, restGroup, id))
+
+		if err != nil {
+			t.Fatalf("err = %v, want nil", err)
+		}
+		want := map[string]string{restHosted: "hosted", restProxy: "proxy"}
+		if len(members) != len(want) {
+			t.Fatalf("members = %+v, want %d", members, len(want))
+		}
+		for _, m := range members {
+			if m.Type != want[m.RepoPrefix] {
+				t.Errorf("member %q Type = %q, want %q", m.RepoPrefix, m.Type, want[m.RepoPrefix])
+			}
+			// The type is the one the recording says, not a guess from the name.
+			var doc struct {
+				Type string `json:"type"`
+			}
+			if err := json.Unmarshal(restExchange(t, fixtures, genericFixture(m.RepoPrefix, id)).Body, &doc); err != nil || doc.Type != m.Type {
+				t.Errorf("member %q: recorded type %q (err %v), DetectGroup says %q", m.RepoPrefix, doc.Type, err, m.Type)
+			}
+		}
+		wantHits(t, s, fixtures, map[string]int{
+			genericFixture(restGroup, id):  1,
+			detailedFixture(restGroup, id): 1,
+			genericFixture(restHosted, id): 1,
+			genericFixture(restProxy, id):  1,
+		})
+	})
+
+	for _, id := range []nexusfixture.Identity{nexusfixture.Pull, nexusfixture.Anonymous} {
+		t.Run(string(id)+" is refused and asks for no type", func(t *testing.T) {
+			s := fakenexus.New(t, all...)
+
+			_, err := (&NexusDetector{}).DetectGroup(context.Background(), restInfo(s, restGroup, id))
+
+			if !errors.Is(err, ErrMembersRefused) {
+				t.Fatalf("err = %v, want errors.Is ErrMembersRefused", err)
+			}
+			for _, repo := range []string{restHosted, restProxy} {
+				for _, as := range restIdentities {
+					if got := s.Hits(genericFixture(repo, as)); got != 0 {
+						t.Errorf("Hits(%s) = %d, want 0: a refused listing has no member to type", genericFixture(repo, as), got)
+					}
+				}
+			}
+		})
 	}
 }

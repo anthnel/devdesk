@@ -111,9 +111,9 @@ func TestThreeGenericEntriesOnOneCatalogWalkItOnce(t *testing.T) {
 			t.Errorf("row %q is outside every entry prefix", r)
 		}
 	}
-	// Nothing here is a Nexus member: no "Cached only" line.
-	if _, vals := headerLines(m); vals["Cached only"] != "" {
-		t.Errorf("Cached only = %q, want none for generic entries", vals["Cached only"])
+	// Nothing here is a Nexus member: no "May omit images" line.
+	if _, vals := headerLines(m); vals[mayOmitKey] != "" {
+		t.Errorf("%s = %q, want none for generic entries", mayOmitKey, vals[mayOmitKey])
 	}
 }
 

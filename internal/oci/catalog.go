@@ -41,6 +41,9 @@ func ListCatalogContext(ctx context.Context, apiURL, username, password string, 
 // link to another origin (never followed: the Basic credentials and the token
 // are not sent to it). HTTP 3xx redirects follow registryHTTPClient, which
 // refuses off-origin ones (RefuseOffOriginRedirect, DEVDESK-410).
+// A name already returned is skipped silently, first appearance order kept:
+// a Nexus group repeats names across pages (the measured n=2 walk of a group,
+// NX-03, DEVDESK-634), and the caps count distinct names.
 // Authentication is the tag flow's (Basic, then Bearer on a challenge, token
 // kept across pages); a non-200 answer is a *StatusError. A prefix that
 // checkCatalogPrefix refuses is an error before any request.
@@ -64,6 +67,7 @@ func ListCatalogUnderContext(ctx context.Context, apiURL, prefix, username, pass
 		memberPath = path
 	}
 	token := ""
+	seen := make(map[string]struct{})
 	for page := 0; next != ""; page++ {
 		if page == maxPages {
 			return names, true, nil
@@ -79,7 +83,13 @@ func ListCatalogUnderContext(ctx context.Context, apiURL, prefix, username, pass
 		if err := json.Unmarshal(body, &result); err != nil {
 			return nil, false, fmt.Errorf("decode catalog response: %w", err)
 		}
-		names = append(names, result.Repositories...)
+		for _, name := range result.Repositories {
+			if _, dup := seen[name]; dup {
+				continue
+			}
+			seen[name] = struct{}{}
+			names = append(names, name)
+		}
 		if len(names) > maxPages*pageSize {
 			return names[:maxPages*pageSize], true, nil
 		}
@@ -161,14 +171,14 @@ func registryGETBoundedContext(ctx context.Context, rawURL, username, password, 
 	}
 	defer func() { _ = resp.Body.Close() }()
 	if resp.StatusCode != http.StatusOK {
-		return nil, "", token, &StatusError{Code: resp.StatusCode, Source: SourceRegistry}
+		return nil, "", token, registryStatusError(resp)
 	}
 	body, err = io.ReadAll(io.LimitReader(resp.Body, limit+1))
 	if err == nil && int64(len(body)) > limit {
 		err = errors.New("catalog page over " + strconv.FormatInt(limit, 10) + " bytes")
 	}
 	if err != nil {
-		return nil, "", token, err
+		return nil, "", token, noAnswer(err)
 	}
 	return body, resp.Header.Get("Link"), token, nil
 }

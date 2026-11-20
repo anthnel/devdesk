@@ -158,7 +158,9 @@ func tokenRegistry(t *testing.T, tokenBody string) string {
 	return reg.URL
 }
 
-// A token body of exactly 1 MiB is accepted; one byte more is refused.
+// A token body of exactly 1 MiB is accepted; one byte more is refused. The token
+// server is another origin, so the calls are anonymous (DEVDESK-629, F1: with
+// credentials that realm is refused, which is not what this test is about).
 func TestExchangeBearerTokenExactBound(t *testing.T) {
 	const bound = 1 << 20
 	pad := func(total int) string {
@@ -170,14 +172,18 @@ func TestExchangeBearerTokenExactBound(t *testing.T) {
 		t.Fatalf("fixture sizes %d, %d", len(atBound), len(overBound))
 	}
 	t.Run("exactly 1 MiB is accepted", func(t *testing.T) {
-		got, err := ListRegistryTagsContext(context.Background(), tokenRegistry(t, atBound), "x", "user", "pass")
+		got, err := ListRegistryTagsContext(context.Background(), tokenRegistry(t, atBound), "x", "", "")
 		if err != nil || strings.Join(got, ",") != "a" {
 			t.Fatalf("tags = %v, err = %v, want [a]", got, err)
 		}
 	})
 	t.Run("1 MiB plus one byte is refused", func(t *testing.T) {
-		if _, err := ListRegistryTagsContext(context.Background(), tokenRegistry(t, overBound), "x", "user", "pass"); err == nil {
+		_, err := ListRegistryTagsContext(context.Background(), tokenRegistry(t, overBound), "x", "", "")
+		if err == nil {
 			t.Fatal("err = nil, want an error over the bound")
+		}
+		if errors.Is(err, ErrTokenRealmOffOrigin) {
+			t.Fatalf("err = %v: refused for its realm, not for the bound", err)
 		}
 	})
 }
