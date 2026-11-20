@@ -585,7 +585,11 @@ multi-platform tag's digest is the index's, the one `docker pull` records in
 `RepoDigests`. Docker Hub does not count a `HEAD` against its pull rate limit.
 The tag list (`oci.ListRegistryTags`) is only read for a tag with a patch
 component. At most four references are asked at once; credentials are the
-engine's (`docker.GetStoredCreds`), as for the Remediation tab.
+engine's (`docker.GetStoredCreds`), as for the Remediation tab. For a URL with
+a path the lookup is exact key first, then `host[:port]` as written (never the
+host alone when the port differs, no default port made explicit), shared with
+`RegistryLoginState` through `credentialPhases` (DEVDESK-635); logout stays on
+the exact key.
 
 **What each view compares with:**
 

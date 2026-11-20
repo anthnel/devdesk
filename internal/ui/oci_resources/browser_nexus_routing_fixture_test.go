@@ -77,13 +77,15 @@ func routingModes() []routingMode {
 			tags: "routing-tags-hosted-repository", repo: "api",
 			build: func(t *testing.T, id nexusfixture.Identity, base string) Model {
 				entry := config.RegistryItem{Slug: "legacy", Alias: "legacy", URL: base + "/repository/docker-hosted", Kind: config.KindRegistry, Provider: config.ProviderGeneric}
+				// DEVDESK-629 (F7): the login of a path entry lives under its host[:port]
+				// (the real case, NX-05 contradiction 6), found after the exact address. The
+				// anonymous entry has the same login stored and must still send nothing: the
+				// "--anon" fixture is served, a Basic header would look for "--admin".
+				u, _ := url.Parse(entry.URL)
+				writeDockerConfig(t, map[string]any{"auths": map[string]any{u.Host: map[string]string{"auth": encodeAuth(fakenexus.User(id), fakenexus.Password)}}})
 				if id == nexusfixture.Anonymous {
 					entry.AuthMode = config.AuthAnonymous
 				} else {
-					// The login is looked up under the entry's whole address, path included
-					// (docker.GetStoredCreds): a login stored for the bare host is not found.
-					u, _ := url.Parse(entry.URL)
-					writeDockerConfig(t, map[string]any{"auths": map[string]any{u.Host + u.Path: map[string]string{"auth": encodeAuth(fakenexus.User(id), fakenexus.Password)}}})
 					entry.AuthMode = config.AuthCredentials
 				}
 				return modelWithGroups(t, []config.RegistryItem{entry}, nil)
