@@ -347,7 +347,10 @@ asks `<apiURL>/v2/_catalog?n=<pageSize>` and follows `Link: rel="next"` for at
 most `maxPages` pages (non-positive limits are an error). `truncated` is true
 when names were left: the page cap was reached with a `next` link, more than
 `maxPages*pageSize` names came back (the list is cut to that), or the `next`
-link points to another origin. Each page body is capped at 1 MiB; a larger
+link points to another origin. A name already returned is skipped silently
+(first appearance order kept; a Nexus group repeats names across pages, the
+measured `n=2` walk, DEVDESK-634), and the `maxPages*pageSize` cap counts
+distinct names. Each page body is capped at 1 MiB; a larger
 page is an error, not a silent cut. A non-200 answer is a `*StatusError`.
 Authentication is the tags' flow: Basic, then Bearer on a challenge, the token
 kept across pages.

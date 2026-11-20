@@ -451,3 +451,67 @@ func TestListCatalogContextCancelled(t *testing.T) {
 		t.Errorf("names = %v, want nil", names)
 	}
 }
+
+// DEVDESK-629 (F8): the page and name caps of ListCatalogUnderContext count the
+// distinct names, since a group may repeat a name on a later page.
+func TestCatalogWalkCapsCountDistinctNames(t *testing.T) {
+	tests := []struct {
+		name          string
+		maxPages      int
+		pageSize      int
+		pages         [][]string // answered by the k-th request
+		lastHasNext   bool       // the final page carries a Link
+		want          []string
+		wantTruncated bool
+	}{
+		{
+			name:     "repeats do not hit the name cap",
+			maxPages: 3, pageSize: 2,
+			pages: [][]string{{"a", "b"}, {"b", "c"}, {"c", "d"}},
+			want:  []string{"a", "b", "c", "d"},
+		},
+		{
+			name:     "a repeated page still ends on the page cap",
+			maxPages: 2, pageSize: 1,
+			pages:         [][]string{{"a"}, {"a"}},
+			lastHasNext:   true,
+			want:          []string{"a"},
+			wantTruncated: true,
+		},
+		{
+			name:     "one oversized page is cut at the name cap",
+			maxPages: 1, pageSize: 2,
+			pages:         [][]string{{"a", "b", "c"}},
+			want:          []string{"a", "b"},
+			wantTruncated: true,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			var requests atomic.Int32
+			srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+				k := int(requests.Add(1)) - 1
+				if k >= len(tt.pages) {
+					http.Error(w, "no such page", http.StatusNotImplemented)
+					return
+				}
+				if k < len(tt.pages)-1 || tt.lastHasNext {
+					w.Header().Set("Link", fmt.Sprintf(`</v2/_catalog?n=%d&last=p%d>; rel="next"`, tt.pageSize, k))
+				}
+				_, _ = fmt.Fprint(w, catalogBody(tt.pages[k]...))
+			}))
+			defer srv.Close()
+
+			names, truncated, err := ListCatalogUnderContext(context.Background(), srv.URL, "", "", "", tt.maxPages, tt.pageSize)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if got, want := strings.Join(names, ","), strings.Join(tt.want, ","); got != want {
+				t.Errorf("names = %s, want %s", got, want)
+			}
+			if truncated != tt.wantTruncated {
+				t.Errorf("truncated = %v, want %v", truncated, tt.wantTruncated)
+			}
+		})
+	}
+}
