@@ -101,8 +101,14 @@ and, for a 404 only, reads at most 4 KiB of the body (`maxStatusBody`, a
 hypothesis like `maxNexusErrorBody`). When the body is JSON and the `message` of
 the first `errors[]` entry starts with `Remote Auto Blocked` (exact, case
 sensitive, no leading space), `UpstreamBlocked()` is true. A missing, empty,
-plain-text, longer or unreadable body, another message, another status (502,
-403) leaves it false. The body never reaches the error: `Error()` is `registry
+plain-text, longer or cut body, another message, another status (502,
+403) leaves it false. A body read that ends on a deadline (the client's 15 s
+delay, the caller's context) is no answer: `registryStatusError` returns the
+`*NoAnswerError` (verdict `failed`, `no answer within N s`) instead of a plain
+404; any other read failure (a truncated body, an unexpected EOF) keeps the plain,
+unmarked 404. `ManifestDigest` is a `HEAD`, which has no body: a "Remote Auto
+Blocked" 404 on a manifest can never be marked `UpstreamBlocked()` and stays a
+plain 404 (`refused`). The body never reaches the error: `Error()` is `registry
 returned 404: the proxy's upstream is temporarily blocked, try again later`, with
 no date and no duration. `imagesearch.Classify` ranks it `failed` (temporary),
 not `refused`; the tags footer says `Could not load tags: the proxy's upstream
@@ -143,6 +149,10 @@ tags: no answer within 15 s`, and the journal reads `ERROR [oci_resources] image
 search on <alias>: no answer within 15 s`. **Limit:** the client's own delay and the
 context's deadline are still one case: both give the same error and the same text,
 and `imagesearch.Classify` (DEVDESK-303, IS-12) puts it in the `failed` verdict.
+Only a delay that satisfies `errors.Is(err, context.DeadlineExceeded)` becomes a
+`NoAnswerError`: a transport-level "TLS handshake timeout" keeps its own text. The
+Docker Hub client of `internal/imagesearch/hub.go` keeps its own 15 s delay,
+untyped (out of scope).
 
 **Credentials stay on their origin (DEVDESK-410).** Four guards keep the Basic
 credentials and the Bearer token from leaving the registry they were meant for:

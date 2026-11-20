@@ -19,13 +19,20 @@ const upstreamBlockedPrefix = "Remote Auto Blocked"
 // does it read the body, at most maxStatusBody bytes, and it marks the error when the
 // first errors[].message starts with upstreamBlockedPrefix. The body never reaches the
 // error: neither its text, the date it carries nor anything else.
-func registryStatusError(resp *http.Response) *StatusError {
+//
+// A body read that ends on a deadline (the client's delay, the caller's context) is no
+// answer: the result is the *NoAnswerError, not a 404. Any other read failure (a cut
+// body) leaves a plain, unmarked 404.
+func registryStatusError(resp *http.Response) error {
 	se := &StatusError{Code: resp.StatusCode, Source: SourceRegistry}
 	if resp.StatusCode != http.StatusNotFound {
 		return se
 	}
 	body, err := io.ReadAll(io.LimitReader(resp.Body, maxStatusBody))
 	if err != nil {
+		if na := asNoAnswer(err); na != nil {
+			return na
+		}
 		return se
 	}
 	var doc struct {

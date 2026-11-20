@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"net/http"
 	"net/http/httptest"
-	"reflect"
 	"strings"
 	"sync/atomic"
 	"testing"
@@ -21,9 +20,8 @@ import (
 // swapped for one of tens of milliseconds against a server that blocks on its own
 // request context, stands in for the real delay.
 //
-// This file names no symbol of the step (it detects the type by name), so it fails on
-// an assertion before the code exists. The assertions that need the symbols
-// (RequestTimeout, NoAnswerError) are in noanswer_symbols_test.go.
+// The assertions that pin RequestTimeout and the shape of NoAnswerError are in
+// noanswer_symbols_test.go.
 
 // productionTimeout is the delay of the client as shipped, read before any test swaps it.
 var productionTimeout = registryHTTPClient.Timeout
@@ -36,10 +34,9 @@ func noAnswerText() string {
 
 // noAnswerIn reports whether err is, or wraps, a *NoAnswerError, and returns its text.
 func noAnswerIn(err error) (string, bool) {
-	for e := err; e != nil; e = errors.Unwrap(e) {
-		if reflect.TypeOf(e).String() == "*oci.NoAnswerError" {
-			return e.Error(), true
-		}
+	var na *NoAnswerError
+	if errors.As(err, &na) {
+		return na.Error(), true
 	}
 	return "", false
 }
@@ -279,6 +276,38 @@ func TestCancelledContextIsNotNoAnswer(t *testing.T) {
 			}
 			if _, ok := noAnswerIn(err); ok {
 				t.Errorf("a cancellation became a no-answer error: %v", err)
+			}
+		})
+	}
+}
+
+// A 404 whose header arrives and whose body then stalls: the client's delay ends the body
+// read, which is no answer, not a plain 404 (DEVDESK-629 review). The body is never
+// read for the answer: neither its text nor the URL comes back.
+func TestStalledNotFoundBodyIsNoAnswer(t *testing.T) {
+	stall := func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Length", "1000")
+		w.WriteHeader(http.StatusNotFound)
+		_, _ = w.Write([]byte(`{"errors":[{"message":"Remote Auto Blocked until`))
+		w.(http.Flusher).Flush()
+		blockUntilGone(r)
+	}
+	for _, c := range registryCalls() {
+		t.Run(c.name, func(t *testing.T) {
+			withClientTimeout(t, shortClientTimeout)
+			srv, hits := countingServer(t, stall)
+
+			err := c.run(context.Background(), srv.URL)
+
+			wantNoAnswer(t, err)
+			if hits.Load() == 0 {
+				t.Error("the registry received no request")
+			}
+			host := strings.TrimPrefix(srv.URL, "http://")
+			for _, leak := range []string{"Remote", "blocked", "404", "http://", host, "/v2/"} {
+				if strings.Contains(err.Error(), leak) {
+					t.Errorf("err = %q carries %q", err.Error(), leak)
+				}
 			}
 		})
 	}
