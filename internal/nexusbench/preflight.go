@@ -23,6 +23,9 @@ const (
 	OpCut
 	OpRestore
 	OpReset
+	// OpRecord follows OpReset: the recorder reads the upstream to check the state
+	// of the bench (DEVDESK-580, PR2).
+	OpRecord
 )
 
 // readsNode is true for the operations that return the node address: down and
@@ -151,6 +154,12 @@ var permissionsByOp = map[Op][]permission{
 		{"create", "persistentvolumeclaims", "", scopeNamespace},
 		{"patch", "persistentvolumeclaims", "", scopeNamespace},
 	}),
+	// Record reads the upstream Deployment and its pods to learn the state of the
+	// bench (ReadUpstream) and nothing else: no write, no tunnel, no node.
+	OpRecord: {
+		{"get", "deployments", "", scopeNamespace},
+		{"list", "pods", "", scopeNamespace},
+	},
 }
 
 // RunPreflight checks, with read-only kubectl calls, that op can go ahead, and

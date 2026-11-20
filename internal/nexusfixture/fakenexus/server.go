@@ -5,11 +5,14 @@
 package fakenexus
 
 import (
+	"bytes"
 	"encoding/json"
+	"maps"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
 	"regexp"
+	"slices"
 	"strconv"
 	"strings"
 	"sync"
@@ -21,10 +24,18 @@ import (
 // Password is the password the fake accepts for every account.
 const Password = "fixture-password"
 
+// BadPassword is the public wrong password that, with the user "admin", makes the
+// fake identify the request as the BadCredentials identity.
+const BadPassword = "fixture-wrong-password"
+
+// tokenPrefix starts the token the fake serves: "fixture-token-<identity>". A
+// request carrying it as a Bearer credential is identified as that identity.
+const tokenPrefix = "fixture-token-"
+
 // User returns the user name an identity authenticates as; anonymous has none.
 func User(id nexusfixture.Identity) string {
 	switch id {
-	case nexusfixture.Admin:
+	case nexusfixture.Admin, nexusfixture.BadCredentials:
 		return "admin"
 	case nexusfixture.Pull:
 		return "bench-pull"
@@ -37,11 +48,25 @@ func User(id nexusfixture.Identity) string {
 // one of the bench's accounts (wrong password, unknown user, Bearer...).
 const unknownCredentials = "unrecognized credentials"
 
+// who is what a request authenticates as: an account, and whether it presented
+// it as a Bearer token (a recorded "Bearer <redacted>") rather than Basic or nothing.
+type who struct {
+	id     nexusfixture.Identity
+	bearer bool
+}
+
 // route is one recorded exchange, with the fixture it comes from.
 type route struct {
 	fixture  string
 	identity nexusfixture.Identity
+	bearer   bool // the exchange was recorded with a Bearer Authorization
 	ex       nexusfixture.Exchange
+}
+
+// recordedBearer reports whether a recorded exchange carries a Bearer Authorization.
+func recordedBearer(ex nexusfixture.Exchange) bool {
+	scheme, _, _ := strings.Cut(ex.RequestHeader.Get("Authorization"), " ")
+	return strings.EqualFold(scheme, "Bearer")
 }
 
 // Server answers the recorded exchanges, one httptest server per recorded Host.
@@ -74,7 +99,7 @@ func New(t testing.TB, fixtures ...nexusfixture.Fixture) *Server {
 			if !s.accept(f, ex, seen) {
 				continue
 			}
-			routes[ex.Host] = append(routes[ex.Host], route{fixture: f.Name, identity: f.Identity, ex: ex})
+			routes[ex.Host] = append(routes[ex.Host], route{fixture: f.Name, identity: f.Identity, bearer: recordedBearer(ex), ex: ex})
 		}
 	}
 
@@ -97,16 +122,19 @@ func New(t testing.TB, fixtures ...nexusfixture.Fixture) *Server {
 }
 
 // exchangeKey is what a request is matched on: two exchanges sharing it cannot
-// both be replayed.
+// both be replayed. The same request with and without a Bearer token (the 401 and
+// its retry in a Bearer flow) are two exchanges.
 type exchangeKey struct {
 	host, method, target string
 	identity             nexusfixture.Identity
+	bearer               bool
 }
 
 // accept reports whether an exchange can be replayed faithfully, and fails the
 // test (naming the fixture) when it cannot: a Status of 0 (the handler would
 // panic on it), a stub with no faithful stand-in, or a second exchange for the
-// same host, method, target and identity. A refused exchange is not served.
+// same host, method, target, identity and Bearer-or-not, checked exchange by
+// exchange. A refused exchange is not served.
 func (s *Server) accept(f nexusfixture.Fixture, ex nexusfixture.Exchange, seen map[exchangeKey]string) bool {
 	ok := true
 	if ex.Status == 0 {
@@ -118,7 +146,7 @@ func (s *Server) accept(f nexusfixture.Fixture, ex nexusfixture.Exchange, seen m
 			f.Name, ex.Method, ex.Target, ex.Stub, emptyStub)
 		ok = false
 	}
-	key := exchangeKey{host: ex.Host, method: ex.Method, target: ex.Target, identity: f.Identity}
+	key := exchangeKey{host: ex.Host, method: ex.Method, target: ex.Target, identity: f.Identity, bearer: recordedBearer(ex)}
 	if first, dup := seen[key]; dup {
 		s.t.Errorf("fakenexus: fixtures %s and %s both record %s %s on %s as %s",
 			first, f.Name, ex.Method, ex.Target, ex.Host, f.Identity)
@@ -152,50 +180,105 @@ func (s *Server) handler(routes []route) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		id, known := identify(r)
 		if known {
-			if rt, ok := match(routes, r.Method, r.URL.RequestURI(), id); ok {
+			if rt, ok := s.match(routes, r.Method, r.URL.RequestURI(), id); ok {
 				s.replay(w, rt)
 				return
 			}
 		}
 		label := unknownCredentials
 		if known {
-			label = string(id)
+			label = string(id.id)
 		}
 		s.t.Errorf("no recorded answer for %s %s as %s", r.Method, r.URL.RequestURI(), label)
 		http.Error(w, "no recorded answer", http.StatusNotImplemented)
 	})
 }
 
-// identify reads the account a request authenticates as. known is false when the
-// credentials are none of the bench's: that never matches a recording.
-func identify(r *http.Request) (id nexusfixture.Identity, known bool) {
-	if r.Header.Get("Authorization") == "" {
-		return nexusfixture.Anonymous, true
+// identify reads the account a request authenticates as: nothing is anonymous, a
+// Bearer token is the identity it names (tokenPrefix), Basic with Password is the
+// account of that user, and Basic with BadPassword and the user "admin" is
+// BadCredentials. known is false when the credentials are none of these: that
+// never matches a recording.
+func identify(r *http.Request) (w who, known bool) {
+	header := r.Header.Get("Authorization")
+	if header == "" {
+		return who{id: nexusfixture.Anonymous}, true
+	}
+	if token, ok := strings.CutPrefix(header, "Bearer "); ok {
+		for _, id := range []nexusfixture.Identity{nexusfixture.Admin, nexusfixture.Pull, nexusfixture.Anonymous} {
+			if token == tokenOf(id) {
+				return who{id: id, bearer: true}, true
+			}
+		}
+		return who{}, false
 	}
 	user, pass, ok := r.BasicAuth()
-	if !ok || pass != Password {
-		return "", false
-	}
-	for _, id := range []nexusfixture.Identity{nexusfixture.Admin, nexusfixture.Pull} {
-		if user == User(id) {
-			return id, true
+	switch {
+	case ok && pass == Password:
+		for _, id := range []nexusfixture.Identity{nexusfixture.Admin, nexusfixture.Pull} {
+			if user == User(id) {
+				return who{id: id}, true
+			}
 		}
+	case ok && pass == BadPassword && user == User(nexusfixture.BadCredentials):
+		return who{id: nexusfixture.BadCredentials}, true
 	}
-	return "", false
+	return who{}, false
 }
 
-// match picks the exchange recorded for the method, target and identity: the
-// exact target first, then the catalog tolerance.
-func match(routes []route, method, target string, id nexusfixture.Identity) (route, bool) {
+// tokenOf is the token the fake serves to an identity.
+func tokenOf(id nexusfixture.Identity) string { return tokenPrefix + string(id) }
+
+// match picks the exchange recorded for the method, target and credentials: the
+// exact target first (a token request on its decoded query), then the catalog
+// tolerance.
+func (s *Server) match(routes []route, method, target string, w who) (route, bool) {
 	for _, rt := range routes {
-		if rt.identity == id && rt.ex.Method == method && rt.ex.Target == target {
+		if rt.identity == w.id && rt.bearer == w.bearer && rt.ex.Method == method && s.sameTarget(rt.ex.Target, target) {
 			return rt, true
 		}
 	}
 	if method != http.MethodGet {
 		return route{}, false
 	}
-	return matchCatalogTolerance(routes, target, id)
+	return matchCatalogTolerance(routes, target, w)
+}
+
+// sameTarget compares a recorded target with a requested one: equal, or, for a
+// token request, the same path and the same decoded query once the recorded
+// "http://<host>" of each value is pointed at the fake that stands for it (the
+// client built "service" from a realm the fake had rewritten). A token request
+// that still names the recorded address is not the one the fake handed out.
+func (s *Server) sameTarget(recorded, requested string) bool {
+	recPath, recQuery, _ := strings.Cut(recorded, "?")
+	path, query, _ := strings.Cut(requested, "?")
+	if !nexusfixture.IsTokenPath(recPath) {
+		return recorded == requested
+	}
+	if path != recPath {
+		return false
+	}
+	want, err := url.ParseQuery(recQuery)
+	if err != nil {
+		return false
+	}
+	got, err := url.ParseQuery(query)
+	if err != nil {
+		return false
+	}
+	for _, values := range want {
+		for i, v := range values {
+			values[i] = s.rewrite(v)
+		}
+	}
+	return maps.EqualFunc(want, got, slices.Equal[[]string])
+}
+
+// rewrite points the recorded host of a value at its fake server.
+func (s *Server) rewrite(v string) string {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.rewriter.Replace(v)
 }
 
 // toleratedN is the only n (what DevDesk asks) tolerated without "last".
@@ -215,7 +298,7 @@ const toleratedN = 1000
 // connector's pull and anonymous identities) it stays an inference: only no-n and
 // n=2 were measured there. A 404 is never tolerated, so "?n=1000" on a target with
 // no exact fixture stays unmatched.
-func matchCatalogTolerance(routes []route, target string, id nexusfixture.Identity) (route, bool) {
+func matchCatalogTolerance(routes []route, target string, w who) (route, bool) {
 	path, rawQuery, _ := strings.Cut(target, "?")
 	query, err := url.ParseQuery(rawQuery)
 	if err != nil || len(query) != 1 || len(query["n"]) != 1 {
@@ -227,7 +310,7 @@ func matchCatalogTolerance(routes []route, target string, id nexusfixture.Identi
 	}
 	for _, rt := range routes {
 		ex := rt.ex
-		if rt.identity != id || ex.Method != http.MethodGet || ex.Target != path ||
+		if rt.identity != w.id || rt.bearer != w.bearer || ex.Method != http.MethodGet || ex.Target != path ||
 			ex.Status != http.StatusOK || ex.Header.Get("Link") != "" {
 			continue
 		}
@@ -245,9 +328,11 @@ func matchCatalogTolerance(routes []route, target string, id nexusfixture.Identi
 // fake server of that host. A body is data and is never rewritten.
 var rewrittenHeaders = []string{"Link", "Location", "Www-Authenticate"}
 
-// replay writes the recorded status, headers and body. Content-Length is never
-// copied: it is recomputed from the body actually served, since a stub is shorter
-// than the answer it summarises.
+// replay writes the recorded status, headers and body. Content-Length is
+// recomputed from the body actually served, since a stub is shorter than the
+// answer it summarises; a HEAD answer has no body, so its recorded Content-Length
+// (the size of the answer a GET would give) is kept. A token answer has its
+// "<redacted>" replaced by the token of the identity it was recorded for.
 func (s *Server) replay(w http.ResponseWriter, rt route) {
 	s.mu.Lock()
 	s.hits[rt.fixture]++
@@ -272,9 +357,21 @@ func (s *Server) replay(w http.ResponseWriter, rt route) {
 		h["Content-Type"] = nil // a nil value stops Go from sniffing one
 	}
 	body, _ := bodyOf(ex) // a stub without a stand-in was refused by New
-	h.Set("Content-Length", strconv.Itoa(len(body)))
+	if path, _, _ := strings.Cut(ex.Target, "?"); nexusfixture.IsTokenPath(path) {
+		body = bytes.ReplaceAll(body, []byte("<redacted>"), []byte(tokenOf(rt.identity)))
+	}
+	head := ex.Method == http.MethodHead
+	length := strconv.Itoa(len(body))
+	if head {
+		length = ex.Header.Get("Content-Length")
+	}
+	if length != "" {
+		h.Set("Content-Length", length)
+	}
 	w.WriteHeader(ex.Status)
-	_, _ = w.Write(body)
+	if !head {
+		_, _ = w.Write(body)
+	}
 }
 
 var htmlTitle = regexp.MustCompile(`, (<title>.*</title>)>$`)

@@ -21,7 +21,22 @@ const (
 	Admin     Identity = "admin"
 	Pull      Identity = "pull"
 	Anonymous Identity = "anon"
+
+	// BadCredentials is a known account (admin) with a wrong, public password
+	// (fakenexus.BadPassword): the bench answers it as it answers any bad login.
+	BadCredentials Identity = "badcred"
 )
+
+// The values of the optional "flow" header: how the recorder follows a request
+// that is answered by a challenge or a redirect.
+const (
+	FlowBearer    = "bearer"    // follow one Bearer challenge, then retry
+	FlowRedirects = "redirects" // follow same-origin redirects, record each hop
+)
+
+// EffectCaches is the only value of the optional "effect" header: the request
+// can cache an image in the proxy.
+const EffectCaches = "caches"
 
 // RecordPending marks a request-only fixture that the recorder has yet to fill.
 const RecordPending = "pending"
@@ -48,6 +63,8 @@ type Meta struct {
 	Account      string
 	Redacted     string
 	State        string // "" = nominal
+	Flow         string // "" = one exchange, or FlowBearer / FlowRedirects
+	Effect       string // "" = none, or EffectCaches
 	Record       string // "" = replay, "replay", "pending" or "skip: <reason>"
 	RecordedBy   string // "" for an imported NX-03 file
 }
@@ -79,7 +96,7 @@ var (
 	versionPattern = regexp.MustCompile(`^\d+(\.\d+)+(-[0-9A-Za-z.]+)?$`)
 
 	requiredHeaders = []string{"scenario", "nexus", "measured", "account", "redacted"}
-	optionalHeaders = []string{"state", "record", "recorded-by"}
+	optionalHeaders = []string{"state", "flow", "effect", "record", "recorded-by"}
 
 	requestOrder  = []string{"Authorization", "Accept"}
 	responseOrder = []string{
@@ -108,13 +125,13 @@ func Parse(campaign, fileName string, data []byte) (Fixture, error) {
 	f.Name = name
 	i := strings.LastIndex(name, identitySep)
 	if i < 0 {
-		return f, parseErr(fileName, "no identity suffix, want --admin, --pull or --anon")
+		return f, parseErr(fileName, "no identity suffix, want --admin, --pull, --anon or --badcred")
 	}
 	f.Scenario, f.Identity = name[:i], Identity(name[i+len(identitySep):])
 	switch f.Identity {
-	case Admin, Pull, Anonymous:
+	case Admin, Pull, Anonymous, BadCredentials:
 	default:
-		return f, parseErr(fileName, "unknown identity suffix %q, want admin, pull or anon", string(f.Identity))
+		return f, parseErr(fileName, "unknown identity suffix %q, want admin, pull, anon or badcred", string(f.Identity))
 	}
 
 	if bytes.IndexByte(data, '\r') >= 0 {
@@ -176,12 +193,15 @@ func parseMeta(text string) (Meta, string, error) {
 	}
 	m := Meta{
 		Scenario: raw["scenario"], Measured: raw["measured"], Account: raw["account"], Redacted: raw["redacted"],
-		State: raw["state"], Record: raw["record"], RecordedBy: raw["recorded-by"],
+		State: raw["state"], Flow: raw["flow"], Effect: raw["effect"], Record: raw["record"], RecordedBy: raw["recorded-by"],
 	}
 	if err := parseNexus(&m, raw["nexus"]); err != nil {
 		return Meta{}, "", err
 	}
 	if err := checkMeasured(m.Measured); err != nil {
+		return Meta{}, "", err
+	}
+	if err := checkFlowAndEffect(m); err != nil {
 		return Meta{}, "", err
 	}
 	if err := checkRecord(m.Record); err != nil {
@@ -243,6 +263,16 @@ func checkMeasured(v string) error {
 	}
 	if after := v[10:]; after != "" && !strings.HasPrefix(after, ",") {
 		return fmt.Errorf("measured header: the date may only be followed by \", free text\"")
+	}
+	return nil
+}
+
+func checkFlowAndEffect(m Meta) error {
+	if m.Flow != "" && m.Flow != FlowBearer && m.Flow != FlowRedirects {
+		return fmt.Errorf("flow header: %q is not %s or %s", m.Flow, FlowBearer, FlowRedirects)
+	}
+	if m.Effect != "" && m.Effect != EffectCaches {
+		return fmt.Errorf("effect header: %q is not %s", m.Effect, EffectCaches)
 	}
 	return nil
 }
@@ -413,7 +443,9 @@ func writeMeta(b *bytes.Buffer, m Meta) {
 	for _, l := range lines {
 		fmt.Fprintf(b, "# %s: %s\n", l.key, l.value)
 	}
-	for _, l := range []struct{ key, value string }{{"state", m.State}, {"record", m.Record}, {"recorded-by", m.RecordedBy}} {
+	for _, l := range []struct{ key, value string }{
+		{"state", m.State}, {"flow", m.Flow}, {"effect", m.Effect}, {"record", m.Record}, {"recorded-by", m.RecordedBy},
+	} {
 		if l.value != "" {
 			fmt.Fprintf(b, "# %s: %s\n", l.key, l.value)
 		}

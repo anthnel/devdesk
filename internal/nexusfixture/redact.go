@@ -42,12 +42,16 @@ type RawExchange struct {
 
 var htmlTitle = regexp.MustCompile(`(?is)<title[^>]*>(.*?)</title>`)
 
+// addressPlaceholder replaces a private, link-local or CGNAT IPv4 address (with
+// its port) in the message of a JSON error.
+const addressPlaceholder = "<redacted-address>"
+
 // Redact turns a raw exchange into one that is safe to write to a fixture: the
 // Authorization value becomes a placeholder, request and response headers are
 // filtered to their allowlists, an empty body is marked, a JSON body has the
-// values of its secret keys replaced in place, and any other body (HTML
-// included) is summarized: nothing tells where a secret sits in it. It does not
-// modify raw.
+// values of its secret keys replaced in place and the private addresses of its
+// message, detail and error values hidden, and any other body (HTML included) is
+// summarized: nothing tells where a secret sits in it. It does not modify raw.
 func Redact(raw RawExchange) Exchange {
 	ex := Exchange{
 		Method: raw.Method, Target: raw.Target, Host: raw.Host,
@@ -67,7 +71,7 @@ func Redact(raw RawExchange) Exchange {
 	case isHTML(media, raw.Body):
 		ex.Stub = htmlStub(raw.Body)
 	case isJSON(media):
-		ex.Body = []byte(redactSecretJSON(string(raw.Body)))
+		ex.Body = []byte(redactAddresses(redactSecretJSON(string(raw.Body))))
 	default:
 		ex.Stub = omittedStub(media, len(raw.Body))
 	}
@@ -89,6 +93,14 @@ func redactRequestHeader(in http.Header) http.Header {
 	for _, name := range requestHeaderAllowlist {
 		if values := in.Values(name); len(values) > 0 {
 			out[http.CanonicalHeaderKey(name)] = append([]string(nil), values...)
+		}
+	}
+	// A probe header is kept only with a value CheckLeaks admits; otherwise it is dropped.
+	for _, name := range probeHeaders {
+		for _, v := range in.Values(name) {
+			if v = strings.TrimSpace(v); probeValueAllowed(strings.ToLower(name), v) {
+				out.Add(name, v)
+			}
 		}
 	}
 	return out
@@ -173,18 +185,23 @@ var secretKeySuffixes = []string{
 	"credential", "credentials", "uploaderip",
 }
 
-// isSecretKey reports whether a JSON key, as written between its quotes, names a
-// secret. Escapes are decoded first, so "pass\u0077ord" is "password".
-func isSecretKey(raw string) bool {
-	if strings.Contains(raw, `\`) {
-		var key string
-		if json.Unmarshal([]byte(`"`+raw+`"`), &key) == nil {
-			raw = key
-		} else {
-			raw = strings.ReplaceAll(raw, `\`, "")
-		}
+// decodeKey returns a JSON key, as written between its quotes, with its escapes
+// decoded: "pass\u0077ord" is "password".
+func decodeKey(raw string) string {
+	if !strings.Contains(raw, `\`) {
+		return raw
 	}
-	lower := strings.ToLower(raw)
+	var key string
+	if json.Unmarshal([]byte(`"`+raw+`"`), &key) == nil {
+		return key
+	}
+	return strings.ReplaceAll(raw, `\`, "")
+}
+
+// isSecretKey reports whether a JSON key, as written between its quotes, names a
+// secret.
+func isSecretKey(raw string) bool {
+	lower := strings.ToLower(decodeKey(raw))
 	for _, suffix := range secretKeySuffixes {
 		if strings.HasSuffix(lower, suffix) {
 			return true
@@ -228,6 +245,13 @@ func stringEnd(text string, start int, lineBound bool) (int, bool) {
 // secret. It returns where the key starts and where its value starts (after the
 // colon and the blanks).
 func nextSecretKey(text string, from int, lineBound bool) (key, value int, ok bool) {
+	return nextKey(text, from, lineBound, isSecretKey)
+}
+
+// nextKey finds the first member at or after from whose key, as written between
+// its quotes, satisfies match. It returns where the key starts and where its value
+// starts (after the colon and the blanks).
+func nextKey(text string, from int, lineBound bool, match func(rawKey string) bool) (key, value int, ok bool) {
 	for i := from; i < len(text); {
 		q := strings.IndexByte(text[i:], '"')
 		if q < 0 {
@@ -239,7 +263,7 @@ func nextSecretKey(text string, from int, lineBound bool) (key, value int, ok bo
 		if !closed {
 			continue
 		}
-		if colon := skipBlanks(text, end); colon < len(text) && text[colon] == ':' && isSecretKey(text[start+1:end-1]) {
+		if colon := skipBlanks(text, end); colon < len(text) && text[colon] == ':' && match(text[start+1:end-1]) {
 			return start, skipBlanks(text, colon+1), true
 		}
 	}
@@ -292,4 +316,68 @@ func keptValueLen(rest string) int {
 		return 4
 	}
 	return 0
+}
+
+// addressKeys are the JSON keys whose values are error text, where a server may
+// name an address it could not reach (lower case).
+var addressKeys = []string{"message", "detail", "error"}
+
+func isAddressKey(raw string) bool {
+	return contains(addressKeys, strings.ToLower(decodeKey(raw)))
+}
+
+// redactAddresses replaces each private, link-local or CGNAT IPv4 address, with
+// its port when there is one, by "<redacted-address>" in the values of the
+// message, detail and error keys. An address anywhere else is left as sent, for
+// CheckLeaks to refuse. Every other byte stays as sent.
+func redactAddresses(body string) string {
+	var b strings.Builder
+	last := 0
+	for from := 0; ; {
+		_, value, ok := nextKey(body, from, false, isAddressKey)
+		if !ok {
+			break
+		}
+		end := valueEnd(body, value)
+		b.WriteString(body[last:value])
+		b.WriteString(hideAddresses(body[value:end]))
+		last, from = end, end
+	}
+	b.WriteString(body[last:])
+	return b.String()
+}
+
+// hideAddresses applies the address rule to one JSON value.
+func hideAddresses(value string) string {
+	if !strings.Contains(value, ".") {
+		return value
+	}
+	var b strings.Builder
+	last := 0
+	for _, m := range ipv4Like.FindAllStringSubmatchIndex(value, -1) {
+		start, end := m[2], m[3]
+		if !isLocalAddress(value[start:end]) {
+			continue
+		}
+		b.WriteString(value[last:start])
+		b.WriteString(addressPlaceholder)
+		last = end + portLen(value[end:])
+	}
+	b.WriteString(value[last:])
+	return b.String()
+}
+
+// portLen is the length of a ":port" (one to five digits) at the start of s, or 0.
+func portLen(s string) int {
+	if !strings.HasPrefix(s, ":") {
+		return 0
+	}
+	n := 1
+	for n < len(s) && n <= 5 && s[n] >= '0' && s[n] <= '9' {
+		n++
+	}
+	if n == 1 {
+		return 0
+	}
+	return n
 }
