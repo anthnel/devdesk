@@ -1,0 +1,15 @@
+{
+  "tool_use_id": "toolu_011PmTMrSgvPSc9yYGKqFGtW",
+  "agent_id": "afe088852ec5304ce",
+  "subagent_type": "dev-team:reviewer",
+  "task_description": "Revue étape 8 (637)",
+  "token_usage": {
+    "input_tokens": 22,
+    "cache_creation_tokens": 83858,
+    "cache_read_tokens": 610510,
+    "output_tokens": 6509,
+    "api_call_count": 10
+  },
+  "started_at": "2026-11-20T21:26:18.176497101+01:00",
+  "completed_at": "2026-11-20T21:28:05.614190053+01:00"
+}

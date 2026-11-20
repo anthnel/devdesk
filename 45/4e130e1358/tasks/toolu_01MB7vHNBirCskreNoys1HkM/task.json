@@ -1,0 +1,7 @@
+{
+  "tool_use_id": "toolu_01MB7vHNBirCskreNoys1HkM",
+  "agent_id": "abd2ca1f752612da8",
+  "subagent_type": "project-tester",
+  "task_description": "Deux tests de couverture manquants",
+  "started_at": "2026-11-20T21:40:59.369182408+01:00"
+}
