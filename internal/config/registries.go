@@ -318,3 +318,9 @@ func checkParents(items []RegistryItem, taken map[string]bool) error {
 	}
 	return nil
 }
+
+// DefaultHubRegistry is a TDD red-step stub (DEVDESK-670): it returns an empty
+// entry so the tests compile and fail on their assertions.
+func DefaultHubRegistry() RegistryItem {
+	return RegistryItem{}
+}

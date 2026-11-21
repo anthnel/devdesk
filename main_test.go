@@ -2,6 +2,7 @@ package main
 
 import (
 	"bytes"
+	"errors"
 	"log"
 	"os"
 	"path/filepath"
@@ -131,5 +132,145 @@ func TestEnsureDefaultContextLogsAWarnWhenItCannotWrite(t *testing.T) {
 	ensureDefaultContext()
 	if !strings.Contains(buf.String(), "WARN [config] could not create the default context file") {
 		t.Errorf("log = %q, want the WARN line", buf.String())
+	}
+}
+
+// DEVDESK-663 (S-01) criterion 3. main loads the config before
+// ensureDefaultContext, so on a first launch the session would run on
+// Default() (no registry) and its first config.Save would write config.yaml
+// without the Docker Hub entry. ensureDefaultContext reports `created`, and
+// reloadOnFirstLaunch rereads the config only in that case.
+
+func isolatedHome(t *testing.T) string {
+	t.Helper()
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+	t.Setenv("USERPROFILE", home)
+	return home
+}
+
+func TestEnsureDefaultContextReportsWhetherItCreatedTheFile(t *testing.T) {
+	isolatedHome(t)
+	if !ensureDefaultContext() {
+		t.Fatal("first launch: ensureDefaultContext() = false, want true (the file was created)")
+	}
+	if ensureDefaultContext() {
+		t.Error("second launch: ensureDefaultContext() = true, want false (the file was already there)")
+	}
+}
+
+func TestEnsureDefaultContextReportsFalseWhenItCannotWrite(t *testing.T) {
+	home := isolatedHome(t)
+	// A file where the config directory should be makes the creation fail.
+	if err := os.WriteFile(filepath.Join(home, ".devdesk"), []byte("x"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	log.SetOutput(&bytes.Buffer{})
+	t.Cleanup(func() { log.SetOutput(os.Stderr) })
+	if ensureDefaultContext() {
+		t.Error("ensureDefaultContext() = true after a failed write, want false")
+	}
+}
+
+func TestReloadOnFirstLaunch(t *testing.T) {
+	before := config.Default()
+	reloaded := config.Default()
+	reloaded.Registry.Registries = []config.RegistryItem{config.DefaultHubRegistry()}
+	boom := errors.New("read failed")
+
+	cases := []struct {
+		name      string
+		created   bool
+		load      func() (*config.Config, error)
+		want      *config.Config
+		wantCalls int
+	}{
+		{"created: the config is read again", true, func() (*config.Config, error) { return reloaded, nil }, reloaded, 1},
+		{"context already there: nothing is read", false, func() (*config.Config, error) { return reloaded, nil }, before, 0},
+		{"created but the reread fails: the session keeps what it had", true, func() (*config.Config, error) { return nil, boom }, before, 1},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			calls := 0
+			load := func() (*config.Config, error) { calls++; return tc.load() }
+			if got := reloadOnFirstLaunch(before, tc.created, load); got != tc.want {
+				t.Errorf("returned %p, want %p", got, tc.want)
+			}
+			if calls != tc.wantCalls {
+				t.Errorf("load called %d times, want %d", calls, tc.wantCalls)
+			}
+		})
+	}
+}
+
+// The startup sequence of runTUI, end to end on a throwaway HOME: Load, then
+// ensureDefaultContext, then the reload, then a first Save.
+func TestFirstLaunchSessionSeesTheHubEntryAndSavesIt(t *testing.T) {
+	isolatedHome(t)
+	cfg, err := config.Load()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(cfg.Registry.Registries) != 0 {
+		t.Fatalf("precondition: Load before the file exists gave %+v, want the Default() fallback", cfg.Registry.Registries)
+	}
+
+	created := ensureDefaultContext()
+	cfg = reloadOnFirstLaunch(cfg, created, config.Load)
+
+	if got := cfg.Registry.Registries; len(got) != 1 || got[0] != config.DefaultHubRegistry() {
+		t.Fatalf("the session config registries = %+v, want exactly [%+v] (:oci must show Docker Hub without a restart)",
+			got, config.DefaultHubRegistry())
+	}
+
+	// The first save of the session must not drop the entry.
+	if err := config.Save(cfg); err != nil {
+		t.Fatal(err)
+	}
+	saved, err := config.Load()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := saved.Registry.Registries; len(got) != 1 || got[0] != config.DefaultHubRegistry() {
+		t.Errorf("config.yaml registries after the first Save = %+v, want exactly [%+v]", got, config.DefaultHubRegistry())
+	}
+}
+
+func TestLaunchOnAnExistingContextReadsAndAddsNothing(t *testing.T) {
+	home := isolatedHome(t)
+	dir := filepath.Join(home, ".devdesk")
+	if err := os.MkdirAll(dir, 0o700); err != nil {
+		t.Fatal(err)
+	}
+	path, err := config.GetContextPath("default")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(path, []byte("app:\n  theme: dark\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	cfg, err := config.Load()
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	created := ensureDefaultContext()
+	calls := 0
+	got := reloadOnFirstLaunch(cfg, created, func() (*config.Config, error) { calls++; return config.Load() })
+
+	if created {
+		t.Error("ensureDefaultContext() = true on an existing config.yaml")
+	}
+	if calls != 0 || got != cfg {
+		t.Errorf("an existing context was reread (%d loads) or replaced", calls)
+	}
+	if len(got.Registry.Registries) != 0 {
+		t.Errorf("registries = %+v, want none: an existing context is never given the Docker Hub entry", got.Registry.Registries)
+	}
+	if err := config.Save(got); err != nil {
+		t.Fatal(err)
+	}
+	if data, _ := os.ReadFile(path); strings.Contains(string(data), "docker.io") {
+		t.Errorf("a Save on an existing context wrote docker.io:\n%s", data)
 	}
 }

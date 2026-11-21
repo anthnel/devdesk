@@ -1,6 +1,10 @@
 package setup
 
-import "testing"
+import (
+	"testing"
+
+	"github.com/anthnel/devdesk/internal/config"
+)
 
 func TestBuildConfigUsesTheWizardsAnswers(t *testing.T) {
 	m := New()
@@ -38,5 +42,34 @@ func TestBuildConfigUsesTheWizardsAnswers(t *testing.T) {
 	}
 	if len(cfg.Status.Components) != 0 {
 		t.Errorf("Status.Components = %v, want empty (matches config.CreateContext)", cfg.Status.Components)
+	}
+}
+
+// DEVDESK-663 (S-01) criterion 5, DEVDESK-664 (S-02) criterion 3: the entry of
+// a context the wizard builds is the one :context new writes, and it is there
+// exactly once. buildConfig is S-02's scope, so the test is written now (it
+// compiles against the shared constructor) and skipped until S-02 injects the
+// entry; the S-02 task removes the Skip.
+func TestBuildConfigAndCreateContextWriteTheSameHubEntry(t *testing.T) {
+	t.Skip("S-02 (DEVDESK-664): buildConfig does not inject config.DefaultHubRegistry() yet")
+
+	isolateHome(t)
+	if err := config.CreateContext("fresh"); err != nil {
+		t.Fatal(err)
+	}
+	created, err := config.LoadContext("fresh")
+	if err != nil {
+		t.Fatal(err)
+	}
+	built := buildConfig(New()).Registry.Registries
+
+	if len(built) != 1 || built[0] != config.DefaultHubRegistry() {
+		t.Fatalf("buildConfig registries = %+v, want exactly [%+v]", built, config.DefaultHubRegistry())
+	}
+	if got := created.Registry.Registries; len(got) != 1 || got[0] != built[0] {
+		t.Errorf("CreateContext registries = %+v, buildConfig = %+v: the two paths diverge", got, built)
+	}
+	if got := config.Default().Registry.Registries; len(got) != 0 {
+		t.Errorf("config.Default() registries = %+v, want none", got)
 	}
 }

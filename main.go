@@ -62,10 +62,17 @@ func forcedColorProfile(getenv func(string) string) (colorprofile.Profile, bool)
 // ensureDefaultContext writes config.yaml, with the commented price example, on
 // a first launch. A failure is logged and does not stop the launch: the
 // application runs on the in-memory defaults, as it did before the file existed.
-func ensureDefaultContext() {
+func ensureDefaultContext() bool {
 	if _, err := config.CreateDefaultContextIfMissing(); err != nil {
 		log.Printf("WARN [config] could not create the default context file: %v", err)
 	}
+	// TDD red-step stub (DEVDESK-670): the real value is the created flag.
+	return false
+}
+
+// reloadOnFirstLaunch is a TDD red-step stub (DEVDESK-670) so the tests compile.
+func reloadOnFirstLaunch(cfg *config.Config, created bool, load func() (*config.Config, error)) *config.Config {
+	return cfg
 }
 
 func runTUI() {
