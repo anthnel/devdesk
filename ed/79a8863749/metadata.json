@@ -1,0 +1,46 @@
+{
+  "cli_version": "0.13.2",
+  "checkpoint_id": "ed79a8863749",
+  "strategy": "manual-commit",
+  "branch": "feat/default-docker-hub-registry",
+  "checkpoints_count": 14,
+  "files_touched": null,
+  "sessions": [
+    {
+      "metadata": "/ed/79a8863749/0/metadata.json",
+      "transcript": "/ed/79a8863749/0/full.jsonl",
+      "compact_transcript": "/ed/79a8863749/0/transcript.jsonl",
+      "content_hash": "/ed/79a8863749/0/content_hash.txt",
+      "prompt": "/ed/79a8863749/0/prompt.txt"
+    }
+  ],
+  "token_usage": {
+    "input_tokens": 10,
+    "cache_creation_tokens": 10949,
+    "cache_read_tokens": 751857,
+    "output_tokens": 3083,
+    "api_call_count": 3,
+    "subagent_tokens": {
+      "input_tokens": 36,
+      "cache_creation_tokens": 100876,
+      "cache_read_tokens": 673944,
+      "output_tokens": 11308,
+      "api_call_count": 18
+    },
+    "subagent_tokens_complete": true
+  },
+  "redaction": {
+    "replacements": 13,
+    "layers": {
+      "betterleaks": 0,
+      "connection_string": 0,
+      "credential_key": 0,
+      "credential_value": 0,
+      "credentialed_uri": 0,
+      "entropy": 0,
+      "key_context": 13,
+      "provider_token": 0,
+      "shell_stdin": 0
+    }
+  }
+}
