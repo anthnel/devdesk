@@ -227,14 +227,23 @@ loading body in the table views it covers. There is no declared exception.
 
 `tea.Tick` blocks for its entire duration, and `testutil.Msgs` runs the
 whole batch it is given: a test that inspects a `Cmd` carrying the timer
-pays the full three seconds.
+pays the full three seconds. The timer starts when the `Cmd` is **built**
+(`PostFooter` and `FooterMessage.set` call `tea.Tick` at that moment), not
+when it runs: shortening the duration after the `Update` that returned the
+`Cmd` is too late, the three seconds are already armed.
 
 - To verify that a message **disappears**, build the expiry rather than
   running the `Cmd`:
   `feed(t, m, components.ClearFooterMsg{ID: m.footer.ID()})`.
 - For a test that must drain the `Cmd` (because it is looking for another
-  one inside it), shorten the timer:
-  `testutil.FastTimers(t, &components.FooterMsgDuration)`.
+  one inside it), shorten the timer **before the `Update` that builds the
+  `Cmd`**, as the first line of the test:
+  `testutil.FastTimers(t, &components.FooterMsgDuration)`. A helper that
+  drains a `Cmd` (like `drive` in `internal/app`) only covers the `Cmds` it
+  builds itself.
+- `requireNoRealFooterWait(t)` (`internal/app/footer_timer_guard_test.go`)
+  fails a test that took over 1.5 s: use it in a test that builds and drains
+  footer `Cmds`.
 
 `FooterMsgDuration` is an exported `var` for this reason alone; its
 production value is fixed by `TestAMessageGetsThreeSeconds`.

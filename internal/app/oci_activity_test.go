@@ -150,6 +150,8 @@ func TestOCIShowsAPullFailureThatSecDoesNot(t *testing.T) {
 
 // A removal that succeeded drops the failure; one that failed keeps it.
 func TestOCISuccessfulRemovalClearsTheFailure(t *testing.T) {
+	requireNoRealFooterWait(t)
+	testutil.FastTimers(t, &sharedcomponents.FooterMsgDuration)
 	a := ociRouter(t)
 	failScanFromSec(a, secImage)
 

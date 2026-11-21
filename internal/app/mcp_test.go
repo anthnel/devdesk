@@ -197,6 +197,8 @@ func TestAStoreThatDoesNotPersistStopsTheBind(t *testing.T) {
 // Rule 128 calls this an Error and not a Warn: the bind was refused, which is
 // the system saying no.
 func TestAFailedBindIsReportedOnScreen(t *testing.T) {
+	requireNoRealFooterWait(t)
+	testutil.FastTimers(t, &components.FooterMsgDuration)
 	cfg := enabledConfig()
 	cfg.MCP.Listen = "127.0.0.1:0"
 

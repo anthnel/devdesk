@@ -28,7 +28,9 @@ import (
 // drive executes cmd and feeds the context messages it yields back through
 // Update (and the Cmds those return), returning every footer post met on the
 // way. Expiry timers are shortened (Rule 128) and never fed back, so a posted
-// message stays on screen.
+// message stays on screen. Shortening here only covers the Cmds built inside
+// drive: a footer timer starts when its Cmd is built, so a test that builds one
+// before calling drive shortens FooterMsgDuration itself, first (DEVDESK-644).
 func drive(t *testing.T, a *App, cmd tea.Cmd) []components.PostFooterMsg {
 	t.Helper()
 	testutil.FastTimers(t, &components.FooterMsgDuration)
@@ -305,6 +307,8 @@ func TestCtxUppercaseNameIsInvalidAndCreatesNothing(t *testing.T) {
 }
 
 func TestHandlerMapsAFormatErrorToTheInvalidNameText(t *testing.T) {
+	requireNoRealFooterWait(t)
+	testutil.FastTimers(t, &components.FooterMsgDuration)
 	a := argRouter(t)
 	err := config.ValidateContextName("Work")
 	if err == nil {
@@ -335,6 +339,8 @@ func TestCtxNewWithAReservedNameIsRefusedWithNoFile(t *testing.T) {
 }
 
 func TestHandlerMapsAReservedErrorToItsText(t *testing.T) {
+	requireNoRealFooterWait(t)
+	testutil.FastTimers(t, &components.FooterMsgDuration)
 	a := argRouter(t)
 	_, cmd := a.Update(ContextSwitchErrorMsg{Name: "new", Op: opCreate, Error: config.ValidateNewContextName("new")})
 	wantPost(t, drive(t, a, cmd), components.LevelError, `"new" is reserved — choose another name`)
@@ -515,6 +521,8 @@ func TestContextCreatedAfterTheSnapshotAnswersAlreadyExists(t *testing.T) {
 // ── Handler: any other error ─────────────────────────────────────────────────
 
 func TestHandlerMapsAnyOtherErrorToFailedToSwitchAndLogsIt(t *testing.T) {
+	requireNoRealFooterWait(t)
+	testutil.FastTimers(t, &components.FooterMsgDuration)
 	a := argRouter(t)
 	var logs bytes.Buffer
 	log.SetOutput(&logs)
