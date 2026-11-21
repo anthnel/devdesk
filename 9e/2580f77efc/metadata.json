@@ -1,0 +1,48 @@
+{
+  "cli_version": "0.13.2",
+  "checkpoint_id": "9e2580f77efc",
+  "strategy": "manual-commit",
+  "branch": "ci/real-test-job",
+  "checkpoints_count": 1,
+  "files_touched": [
+    "internal/ui/testutil/mise_ci_guard_test.go"
+  ],
+  "sessions": [
+    {
+      "metadata": "/9e/2580f77efc/0/metadata.json",
+      "transcript": "/9e/2580f77efc/0/full.jsonl",
+      "compact_transcript": "/9e/2580f77efc/0/transcript.jsonl",
+      "content_hash": "/9e/2580f77efc/0/content_hash.txt",
+      "prompt": "/9e/2580f77efc/0/prompt.txt"
+    }
+  ],
+  "token_usage": {
+    "input_tokens": 42,
+    "cache_creation_tokens": 42788,
+    "cache_read_tokens": 4402342,
+    "output_tokens": 19149,
+    "api_call_count": 15,
+    "subagent_tokens": {
+      "input_tokens": 146,
+      "cache_creation_tokens": 457094,
+      "cache_read_tokens": 3275039,
+      "output_tokens": 51012,
+      "api_call_count": 71
+    },
+    "subagent_tokens_complete": true
+  },
+  "redaction": {
+    "replacements": 10,
+    "layers": {
+      "betterleaks": 0,
+      "connection_string": 0,
+      "credential_key": 0,
+      "credential_value": 0,
+      "credentialed_uri": 0,
+      "entropy": 0,
+      "key_context": 10,
+      "provider_token": 0,
+      "shell_stdin": 0
+    }
+  }
+}
