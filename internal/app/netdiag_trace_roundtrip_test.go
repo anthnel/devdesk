@@ -1,15 +1,18 @@
 package app
 
 import (
+	"context"
 	"fmt"
 	"strings"
 	"testing"
+	"time"
 
 	tea "charm.land/bubbletea/v2"
 	"charm.land/lipgloss/v2"
 	"github.com/charmbracelet/x/ansi"
 
 	"github.com/anthnel/devdesk/internal/command"
+	"github.com/anthnel/devdesk/internal/netcheck"
 	"github.com/anthnel/devdesk/internal/nettrace"
 	"github.com/anthnel/devdesk/internal/ui/keymap"
 	"github.com/anthnel/devdesk/internal/ui/netdiag"
@@ -118,6 +121,15 @@ func runDiagnostics(t *testing.T, a *App, cmd tea.Cmd) {
 	t.Fatal("the diagnostic pipeline did not finish")
 }
 
+// noPingEnv is the production Env with the ICMP echo answered in place: the
+// Ping stage sends nothing (about 2.4 s a run against 127.0.0.1 under -race),
+// every other stage reads the machine as usual.
+type noPingEnv struct{ netcheck.Env }
+
+func (noPingEnv) Ping(_ context.Context, _ string, count int) (netcheck.PingStats, error) {
+	return netcheck.PingStats{Sent: count, Received: count, AvgRTT: time.Millisecond}, nil
+}
+
 // selectLocalRoute moves the results cursor to the row H acts on and reports
 // whether it got there. The router cannot read the table, so the row is
 // recognised by H becoming available.
@@ -171,6 +183,9 @@ func TestTraceRoundTripKeepsTheScreenHeight(t *testing.T) {
 			if traceGreyedOnForm(t, a) {
 				t.Skip("the Trace Path button is greyed on this platform (DEVDESK-334)")
 			}
+			netdiagView(t, a).SetCheckEnvForTest(func(s netcheck.Settings) netcheck.Env {
+				return noPingEnv{netcheck.SystemEnv(s)}
+			})
 			for _, msg := range testutil.Type("127.0.0.1") {
 				a.Update(msg)
 			}

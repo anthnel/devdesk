@@ -13,6 +13,7 @@ import (
 
 	"github.com/anthnel/devdesk/internal/command"
 	"github.com/anthnel/devdesk/internal/jobs"
+	"github.com/anthnel/devdesk/internal/ui/agentusageview"
 	"github.com/anthnel/devdesk/internal/ui/indicator"
 	"github.com/anthnel/devdesk/internal/ui/testutil"
 )
@@ -134,6 +135,9 @@ func TestAgentUsageStaticMotionKeepsTheDotSteadyAndStartsNoChain(t *testing.T) {
 // wait, the tick it yields and the read it starts must leave the router's
 // animation chain untouched: same seq, no new request for a periodic message.
 func TestAgentUsagePollingAddsNoAnimationTick(t *testing.T) {
+	// Before the session opens: pollTickCmd freezes the interval when the
+	// answer builds the Cmd, so the wait below lasts a millisecond, not 2 s.
+	testutil.FastTimers(t, agentusageview.PollIntervalForTest())
 	got := stubAnimationEvery(t, time.UnixMilli(1000))
 	a, answerCmd := openLiveAgentSession(t)
 	if !a.anim.ticking {
@@ -144,7 +148,7 @@ func TestAgentUsagePollingAddsNoAnimationTick(t *testing.T) {
 	if answerCmd == nil {
 		t.Fatal("fixture error: the answer returned no Cmd (the poll wait)")
 	}
-	// Msgs sleeps the 2 s poll interval.
+	// Msgs runs the poll wait, shortened above.
 	for _, msg := range testutil.Msgs(answerCmd) {
 		if _, ok := msg.(animationTickMsg); ok {
 			continue // the stub yields it at once; it is the chain, not the poll
