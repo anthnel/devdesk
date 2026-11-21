@@ -209,7 +209,11 @@ guard `TestContainerGuard*` (`internal/netproxy/container_guard_test.go`) fails 
 `"run"` literal; only the two permanent exceptions in that file are allowed. The tests of
 `internal/scan`, `internal/app` and `internal/ui/security` neutralise the seams
 `proxyForward` / `containerForward` in their `TestMain`, so a developer's `HTTPS_PROXY` does not
-change an exact argv.
+change an exact argv. The `TestMain` of `internal/app`
+also replaces `detectTools` (`internal/app/scan_tools.go`, production value `scan.Detect`) with an
+empty report, so `App.Init` never runs the `trivy`, `gitleaks` and `plumber` of the machine
+(DEVDESK-645); `TestInitDoesNotRunTheScannersOfTheHost` and `TestDetectToolsIsScanDetectInProduction`
+guard it.
 
 **Tests and the host secret store (DEVDESK-610).** By default `credentials.Select` and
 `KeyringAvailable` reach the real keyring of the machine (Secret Service over D-Bus on
