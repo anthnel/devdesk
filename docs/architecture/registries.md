@@ -158,6 +158,88 @@ badly-formed slug instead of correcting it, and drops the group-only fields when
 the kind is not a group.
 
 
+## The default Docker Hub entry (DEVDESK-663, D171)
+
+A new context starts with one registry entry, Docker Hub, so that `:oci`
+`b` can search and list tags on a first launch without any setup. The product
+decision is in `docs/product/default-registries/` (`brief.md`, `stories.md`);
+the config side is in `configuration.md`, "The default Docker Hub registry".
+
+**Paths that create it**
+
+- `:context new`: `config.CreateContext`, through `createContextFile`.
+- The first launch: `ensureDefaultContext` calls
+  `config.CreateDefaultContextIfMissing`, which writes `config.yaml` from the
+  same config (`createContextFile`), and `sessionConfig` (`main.go`) rereads it when the file was just
+  created. Without the reread the session would run on `Default()` and its
+  first save would write the file without the entry. A failed reread keeps the
+  config the session had and logs a warning.
+- `dk setup`: `buildConfig` (`internal/ui/setup/answers.go`) sets it itself,
+  and `config.WriteNewContext` (`internal/ui/setup/commands.go`) writes the
+  file. A confirmed overwrite replaces the whole file, so the old registries go and
+  the new context carries Docker Hub only (DEVDESK-662).
+
+**Where it is injected, and why there**
+
+`newContextConfig` (`internal/config/context_create.go`) and `buildConfig`
+call `config.DefaultHubRegistry()`, the single constructor. Never put it in
+`Default()` or `applyDefaults`: both also build the config `Load` falls back
+to, so a user who deletes the entry would see it come back. Each call builds
+its own slice.
+
+**An existing context is never modified.** No migration adds the entry to a
+file that already exists, and a deleted entry stays deleted.
+
+**The values**
+
+| Field | Value | Why |
+|---|---|---|
+| `url` | `docker.io` | `oci.IsDockerHub` recognises only `docker.io` and `registry-1.docker.io`. For those the search goes to `HubSearcher`. `index.docker.io` is not recognised: the search would go to `/v2/_catalog` and fail (measured, see below). |
+| `slug` | `docker-io` | Written explicitly, as `RegistryForm` would require. |
+| `kind` | `registry` | A plain registry, not a group. |
+| `provider`, `username` | empty | Nothing to declare, no account. |
+| `auth_mode` | `anonymous` | The choice of D171 (decision 5), against the architect's recommendation `credentials`. No credentials are sent, so the `docker login` of the user is not used for this entry, Docker Hub's anonymous limits apply and a 429 is possible. |
+| `alias` | empty | A non-empty alias rewrites the display of every `docker.io/...` image in `:oci` and `:sec` (`docker.ApplyAliases`, fed by `registryalias.From`). |
+
+The entry is an ordinary one: `E` edits it, `D` removes it. `U` is refused on
+it with `This registry is marked anonymous` (`loginSelectedRegistry`). To use
+an account, edit the entry to `credentials`: the form logs in on submit when a
+password is typed (`handleRegistryFormSubmit`).
+
+**What was measured (2026-11-21)**
+
+`docs/measurements/2026-11-21-docker-hub-anonymous.md`, on `main` at
+`1a20aee9`, before DEVDESK-667 (S-04b). It is a snapshot of Docker Hub's
+behaviour and of DevDesk that day:
+
+- Search: `HubSearcher`, `GET https://index.docker.io/v1/search`, 200, 50
+  results, no credentials.
+- Tags: `registry-1.docker.io` with an anonymous token from
+  `auth.docker.io`; dates from `hub.docker.com` for the 100 most recent tags
+  only.
+- The pull quota header on the manifest answer read `100;w=3600`; `research.md`
+  says 100 pulls per 6 hours. The measure records the header and does not
+  settle the difference.
+- Docker announced a tighter anonymous limit in February 2025 (10 pulls per
+  hour) and promised six months' notice; as of 2026-11-21 (date of the
+  research) it is not applied. These figures are not guaranteed.
+- Not verified: the pull of an image end to end. DevDesk reached the
+  `docker pull` step, but the account that ran the measure could not reach the
+  Docker daemon.
+- With Docker Hub unreachable, the measure found search and typed-repository
+  tag errors silent in the footer (gaps G1 and G2 of the note). That was the
+  state before S-04b.
+
+**What a failure shows since S-04b (DEVDESK-667)**
+
+A Docker Hub search failure shows `Image search on <alias>: <cause>` at the
+footer, level Error. A tag listing opened from the form shows `Could not load
+tags`, followed by `: <cause>` when there is one; it is always shown. The
+causes named are a 429 (`Docker Hub anonymous rate limit reached, try again
+later` for this entry; the Hub search never sends credentials), a timeout, a
+network error, a DNS failure and an unreachable proxy. Any other error adds no
+cause. See `network.md`, "Why a failure says it at the footer".
+
 ## Where the login lives — the `Logged` column
 
 `docker.RegistryLoginState` reads the engine's auth file and answers three

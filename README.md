@@ -150,6 +150,43 @@ keyring or git credential helper — never in the config file. See
 `docs/architecture/configuration.md` for the full schema and
 `.claude/CLAUDE.md` (`## Credentials Management`) for the storage backends.
 
+### The default Docker Hub registry
+
+A new context (`:context new`, a first launch, `dk setup`) starts with one
+registry, Docker Hub (`docker.io`, `auth_mode: anonymous`), so that the image
+search and the tag list in `:oci` work straight away. Contexts that already
+exist are not changed.
+
+```yaml
+registry:
+  registries:
+    - slug: docker-io
+      kind: registry
+      url: docker.io
+      username: ""
+      alias: ""
+      auth_mode: anonymous
+```
+
+It is an ordinary entry. In the registries list of `:oci`, `D` removes it and
+it does not come back. `E` edits it.
+
+- **No login.** Anonymous means DevDesk sends no credentials. Your own
+  `docker login` is not used for this entry, and `U` (login/logout) answers
+  `This registry is marked anonymous`.
+- **Anonymous limits.** Docker Hub caps anonymous pulls per IP address. On
+  2026-11-21 its documentation said 100 pulls per 6 hours, and the header seen
+  that day read `100;w=3600` (a one-hour window). Docker can change these
+  numbers. Behind a NAT or a proxy, everyone on the address shares the quota,
+  and Docker Hub can answer HTTP 429 (too many requests).
+- **Rate limit message.** When Docker Hub answers 429, the footer says
+  `Docker Hub anonymous rate limit reached, try again later`.
+- **Use an account.** Press `E` on the entry, set Auth to `credentials`, type
+  your username and password, and submit: DevDesk saves the entry and runs
+  `docker login` (the password is never written to the file). From then on `U`
+  logs out, or opens the form again to log in. Or remove the entry and add it
+  again with `N`.
+
 ### Themes
 
 The built-in `default` theme and twelve more ship inside the binary —
