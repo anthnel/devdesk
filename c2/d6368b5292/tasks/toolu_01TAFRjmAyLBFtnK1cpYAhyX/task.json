@@ -1,0 +1,15 @@
+{
+  "tool_use_id": "toolu_01TAFRjmAyLBFtnK1cpYAhyX",
+  "agent_id": "a300176491f5bee35",
+  "subagent_type": "dev-team:devops",
+  "task_description": "Merger PR 434 et nettoyer",
+  "token_usage": {
+    "input_tokens": 12,
+    "cache_creation_tokens": 48117,
+    "cache_read_tokens": 209783,
+    "output_tokens": 2124,
+    "api_call_count": 6
+  },
+  "started_at": "2026-11-20T12:05:50.809930673+01:00",
+  "completed_at": "2026-11-20T12:06:23.24418998+01:00"
+}
