@@ -29,6 +29,13 @@ type scanToolsDetectedMsg struct {
 	report scan.Report
 }
 
+// detectTools is the detection itself. A variable so a test can set it
+// (TestMain replaces it with an empty answer, so App.Init never runs the
+// trivy, gitleaks and plumber of the machine, and a test gives the same result
+// and takes the same time with or without them; DEVDESK-645).
+// TestDetectToolsIsScanDetectInProduction pins the production value.
+var detectTools = scan.Detect
+
 // detectScanTools starts a detection against the current tool settings. The
 // settings are copied into the Cmd, which never touches the model (Rule 110).
 func (a *App) detectScanTools() tea.Cmd {
@@ -36,7 +43,7 @@ func (a *App) detectScanTools() tea.Cmd {
 	gen, tools := a.toolsGen, a.config.Scan.Tools
 	a.toolsDetectedFor = tools
 	return func() tea.Msg {
-		return scanToolsDetectedMsg{gen: gen, report: scan.Detect(tools)}
+		return scanToolsDetectedMsg{gen: gen, report: detectTools(tools)}
 	}
 }
 

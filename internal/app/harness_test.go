@@ -19,6 +19,7 @@ import (
 	"github.com/anthnel/devdesk/internal/credentials"
 	"github.com/anthnel/devdesk/internal/jobs"
 	"github.com/anthnel/devdesk/internal/netproxy"
+	"github.com/anthnel/devdesk/internal/scan"
 	"github.com/anthnel/devdesk/internal/shared"
 	"github.com/anthnel/devdesk/internal/testutil/fakekeyring"
 	"github.com/anthnel/devdesk/internal/ui/help"
@@ -55,6 +56,13 @@ func TestMain(m *testing.M) {
 	// Never the developer's own HTTPS_PROXY: a loopback one would add a footer
 	// warning to every scan a test launches (DEVDESK-583).
 	containerForward = func() netproxy.Forward { return netproxy.Forward{} }
+	// Never the scanners of the machine: App.Init starts a detection that would
+	// run the real trivy, gitleaks and plumber (`--version`), so the result and
+	// the duration of a test would depend on what is installed (DEVDESK-645).
+	// The production value is kept in productionDetectTools.
+	detectTools = func(config.ScanTools) scan.Report {
+		return scan.Report{Tools: map[scan.ToolID]scan.ToolStatus{}}
+	}
 	// Never the host secret store: a test that forgets isolateHome meets this
 	// empty in-memory one instead of the keyring, git credential or session bus
 	// of the machine (DEVDESK-610).
