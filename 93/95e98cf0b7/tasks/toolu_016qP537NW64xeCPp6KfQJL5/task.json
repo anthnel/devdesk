@@ -1,0 +1,15 @@
+{
+  "tool_use_id": "toolu_016qP537NW64xeCPp6KfQJL5",
+  "agent_id": "af107bd70b50b4502",
+  "subagent_type": "product-team:pm",
+  "task_description": "Draft release proposal for PR 353",
+  "token_usage": {
+    "input_tokens": 16,
+    "cache_creation_tokens": 111508,
+    "cache_read_tokens": 546404,
+    "output_tokens": 4826,
+    "api_call_count": 8
+  },
+  "started_at": "2026-11-20T17:53:00.006436369+01:00",
+  "completed_at": "2026-11-20T17:53:43.465990527+01:00"
+}

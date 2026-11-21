@@ -1,0 +1,15 @@
+{
+  "tool_use_id": "toolu_01NXWfuBgBHdRTRvsUPfnuu4",
+  "agent_id": "a3786fc4a93e5413f",
+  "subagent_type": "dev-team:devops",
+  "task_description": "Merge the 4 stacked PRs in order",
+  "token_usage": {
+    "input_tokens": 50,
+    "cache_creation_tokens": 83891,
+    "cache_read_tokens": 1431154,
+    "output_tokens": 10210,
+    "api_call_count": 23
+  },
+  "started_at": "2026-11-20T17:37:26.358677928+01:00",
+  "completed_at": "2026-11-20T17:42:58.880368916+01:00"
+}
