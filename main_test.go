@@ -15,6 +15,7 @@ import (
 	"charm.land/lipgloss/v2"
 
 	"github.com/anthnel/devdesk/internal/config"
+	"github.com/anthnel/devdesk/internal/testutil/contextfiles"
 )
 
 type safeBuf struct {
@@ -273,5 +274,130 @@ func TestLaunchOnAnExistingContextReadsAndAddsNothing(t *testing.T) {
 	}
 	if data, _ := os.ReadFile(path); strings.Contains(string(data), "docker.io") {
 		t.Errorf("a Save on an existing context wrote docker.io:\n%s", data)
+	}
+}
+
+// DEVDESK-665 (S-03). The startup of runTUI on a machine that already has
+// contexts: Load, then sessionConfig (ensureDefaultContext and its reload), then
+// a Save. Nothing in that sequence may add Docker Hub or touch the file.
+
+// startSession runs the startup sequence of runTUI against the real files.
+func startSession(t *testing.T) *config.Config {
+	t.Helper()
+	cfg, err := config.Load()
+	if err != nil {
+		t.Fatal(err)
+	}
+	return sessionConfig(cfg, ensureDefaultContext, config.Load)
+}
+
+func registryURLs(cfg *config.Config) []string {
+	var urls []string
+	for _, r := range cfg.Registry.Registries {
+		urls = append(urls, r.URL)
+	}
+	return urls
+}
+
+// Criterion 1 (startup): every shape of context file, as the current context of
+// a launch, is read as it is and not rewritten by the startup sequence.
+func TestStartupOnExistingContextsAddsNothingAndKeepsTheBytes(t *testing.T) {
+	for _, s := range contextfiles.Shapes() {
+		t.Run(s.Name, func(t *testing.T) {
+			isolatedHome(t)
+			if err := config.EnsureConfigDir(); err != nil {
+				t.Fatal(err)
+			}
+			path, err := config.GetContextPath("default")
+			if err != nil {
+				t.Fatal(err)
+			}
+			if err := os.WriteFile(path, []byte(s.Content), 0o600); err != nil {
+				t.Fatal(err)
+			}
+
+			cfg := startSession(t)
+
+			if got := registryURLs(cfg); strings.Join(got, ",") != strings.Join(s.URLs, ",") {
+				t.Errorf("the session registries = %v, want %v", got, s.URLs)
+			}
+			if data, _ := os.ReadFile(path); string(data) != s.Content {
+				t.Errorf("startup rewrote the file.\nbefore:\n%s\nafter:\n%s", s.Content, data)
+			}
+		})
+	}
+}
+
+// Criterion 2 (restart): the entry a new machine started with is removed, saved,
+// and the program is started again, twice. ensureDefaultContext finds the file,
+// so nothing is created and nothing is reread, and the entry stays gone.
+func TestRestartAfterRemovingTheHubEntryDoesNotBringItBack(t *testing.T) {
+	isolatedHome(t)
+	cfg := startSession(t) // first launch: creates config.yaml with the entry
+	if len(cfg.Registry.Registries) != 1 {
+		t.Fatalf("precondition: the first launch holds %+v, want the Docker Hub entry", cfg.Registry.Registries)
+	}
+	cfg.Registry.Registries = nil
+	if err := config.Save(cfg); err != nil {
+		t.Fatal(err)
+	}
+	path, _ := config.GetContextPath("default")
+
+	for launch := 2; launch <= 3; launch++ {
+		loaded, err := config.Load()
+		if err != nil {
+			t.Fatal(err)
+		}
+		created := false
+		reloads := 0
+		got := sessionConfig(loaded, func() bool { created = ensureDefaultContext(); return created },
+			func() (*config.Config, error) { reloads++; return config.Load() })
+		if created || reloads != 0 || got != loaded {
+			t.Fatalf("launch %d: created=%v reloads=%d, want an untouched existing context", launch, created, reloads)
+		}
+		if len(got.Registry.Registries) != 0 {
+			t.Fatalf("launch %d: the removed entry came back: %+v", launch, got.Registry.Registries)
+		}
+		if err := config.Save(got); err != nil {
+			t.Fatal(err)
+		}
+		if data, _ := os.ReadFile(path); strings.Contains(string(data), "docker.io") {
+			t.Fatalf("launch %d: the file names docker.io again:\n%s", launch, data)
+		}
+	}
+}
+
+// Criterion 5 (load fallback): a config.yaml that cannot be parsed makes Load
+// fail, and runTUI then runs on config.Default(). That fallback has no registry,
+// the startup does not reread it into one, and the broken file is left alone.
+func TestLoadFallbackOfRunTUIHasNoRegistryAndTouchesNothing(t *testing.T) {
+	isolatedHome(t)
+	if err := config.EnsureConfigDir(); err != nil {
+		t.Fatal(err)
+	}
+	path, _ := config.GetContextPath("default")
+	const broken = "app: [unterminated\n"
+	if err := os.WriteFile(path, []byte(broken), 0o600); err != nil {
+		t.Fatal(err)
+	}
+
+	if _, err := config.Load(); err == nil {
+		t.Fatal("Load() accepted a file that is not YAML; the fallback is not exercised")
+	}
+	cfg := config.Default() // what runTUI does on a Load error
+	log.SetOutput(&bytes.Buffer{})
+	t.Cleanup(func() { log.SetOutput(os.Stderr) })
+
+	reloads := 0
+	got := sessionConfig(cfg, ensureDefaultContext, func() (*config.Config, error) { reloads++; return config.Load() })
+
+	if reloads != 0 || got != cfg {
+		t.Errorf("the fallback config was reread (%d loads) or replaced", reloads)
+	}
+	if len(got.Registry.Registries) != 0 {
+		t.Errorf("the load fallback carries registries: %+v", got.Registry.Registries)
+	}
+	if data, _ := os.ReadFile(path); string(data) != broken {
+		t.Errorf("the unreadable file was rewritten:\n%s", data)
 	}
 }
