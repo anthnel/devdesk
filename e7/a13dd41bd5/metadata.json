@@ -1,0 +1,46 @@
+{
+  "cli_version": "0.13.2",
+  "checkpoint_id": "e7a13dd41bd5",
+  "strategy": "manual-commit",
+  "branch": "test/scan-detect-hermetic",
+  "checkpoints_count": 5,
+  "files_touched": null,
+  "sessions": [
+    {
+      "metadata": "/e7/a13dd41bd5/0/metadata.json",
+      "transcript": "/e7/a13dd41bd5/0/full.jsonl",
+      "compact_transcript": "/e7/a13dd41bd5/0/transcript.jsonl",
+      "content_hash": "/e7/a13dd41bd5/0/content_hash.txt",
+      "prompt": "/e7/a13dd41bd5/0/prompt.txt"
+    }
+  ],
+  "token_usage": {
+    "input_tokens": 44,
+    "cache_creation_tokens": 24016,
+    "cache_read_tokens": 6326284,
+    "output_tokens": 12151,
+    "api_call_count": 15,
+    "subagent_tokens": {
+      "input_tokens": 62,
+      "cache_creation_tokens": 247647,
+      "cache_read_tokens": 1093448,
+      "output_tokens": 11744,
+      "api_call_count": 29
+    },
+    "subagent_tokens_complete": true
+  },
+  "redaction": {
+    "replacements": 19,
+    "layers": {
+      "betterleaks": 0,
+      "connection_string": 0,
+      "credential_key": 0,
+      "credential_value": 0,
+      "credentialed_uri": 0,
+      "entropy": 0,
+      "key_context": 19,
+      "provider_token": 0,
+      "shell_stdin": 0
+    }
+  }
+}
