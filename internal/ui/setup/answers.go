@@ -31,5 +31,10 @@ func buildConfig(m Model) *config.Config {
 	// no monitors to manage.
 	cfg.Status.Components = []config.ComponentConfig{}
 
+	// A new context starts with the Docker Hub entry, from the one constructor
+	// (DEVDESK-664); never in config.Default(), which also serves the load
+	// fallback. Each call gets its own slice.
+	cfg.Registry.Registries = []config.RegistryItem{config.DefaultHubRegistry()}
+
 	return cfg
 }

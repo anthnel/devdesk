@@ -47,12 +47,8 @@ func TestBuildConfigUsesTheWizardsAnswers(t *testing.T) {
 
 // DEVDESK-663 (S-01) criterion 5, DEVDESK-664 (S-02) criterion 3: the entry of
 // a context the wizard builds is the one :context new writes, and it is there
-// exactly once. buildConfig is S-02's scope, so the test is written now (it
-// compiles against the shared constructor) and skipped until S-02 injects the
-// entry; the S-02 task removes the Skip.
+// exactly once.
 func TestBuildConfigAndCreateContextWriteTheSameHubEntry(t *testing.T) {
-	t.Skip("S-02 (DEVDESK-664): buildConfig does not inject config.DefaultHubRegistry() yet")
-
 	isolateHome(t)
 	if err := config.CreateContext("fresh"); err != nil {
 		t.Fatal(err)
