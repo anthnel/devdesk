@@ -158,6 +158,69 @@ badly-formed slug instead of correcting it, and drops the group-only fields when
 the kind is not a group.
 
 
+## The default Docker Hub entry (DEVDESK-663, D171)
+
+A new context starts with one registry entry, Docker Hub, so that `:oci`
+`b` can search and list tags on a first launch without any setup. The product
+decision is in `docs/product/default-registries/` (`brief.md`, `stories.md`);
+the config side is in `configuration.md`, "The default Docker Hub registry".
+
+**Paths that create it**
+
+- `:context new` (`config.CreateContext`, `WriteNewContext`).
+- The first launch: `ensureDefaultContext` writes `config.yaml` from the same
+  config, and `sessionConfig` (`main.go`) rereads it when the file was just
+  created. Without the reread the session would run on `Default()` and its
+  first save would write the file without the entry. A failed reread keeps the
+  config the session had and logs a warning.
+- `dk setup`: `buildConfig` (`internal/ui/setup/answers.go`) sets it itself. A
+  confirmed overwrite replaces the whole file, so the old registries go and
+  the new context carries Docker Hub only (DEVDESK-662).
+
+**Where it is injected, and why there**
+
+`newContextConfig` (`internal/config/context_create.go`) and `buildConfig`
+call `config.DefaultHubRegistry()`, the single constructor. Never put it in
+`Default()` or `applyDefaults`: both also build the config `Load` falls back
+to, so a user who deletes the entry would see it come back. Each call builds
+its own slice.
+
+**An existing context is never modified.** No migration adds the entry to a
+file that already exists, and a deleted entry stays deleted.
+
+**The values**
+
+| Field | Value | Why |
+|---|---|---|
+| `url` | `docker.io` | `oci.IsDockerHub` recognises only `docker.io` and `registry-1.docker.io`. For those the search goes to `HubSearcher`. `index.docker.io` is not recognised: the search would go to `/v2/_catalog` and fail (measured, see below). |
+| `slug` | `docker-io` | Written explicitly, as `RegistryForm` would require. |
+| `kind` | `registry` | A plain registry, not a group. |
+| `provider`, `username` | empty | Nothing to declare, no account. |
+| `auth_mode` | `anonymous` | No credentials are sent; the `docker login` of the user is not used for this entry. |
+| `alias` | empty | A non-empty alias rewrites the display of every `docker.io/...` image in `:oci` and `:sec` (`docker.ApplyAliases`, fed by `registryalias.From`). |
+
+The entry is an ordinary one: `E` edits it, `D` removes it. `U` is refused on
+it with `This registry is marked anonymous` (`loginSelectedRegistry`).
+
+**What was measured (2026-11-21)**
+
+`docs/measurements/2026-11-21-docker-hub-anonymous.md`, on `main` at
+`1a20aee9`, a snapshot of Docker Hub's behaviour that day:
+
+- Search: `HubSearcher`, `GET https://index.docker.io/v1/search`, 200, 50
+  results, no credentials.
+- Tags: `registry-1.docker.io` with an anonymous token from
+  `auth.docker.io`; dates from `hub.docker.com` for the 100 most recent tags
+  only.
+- The pull quota header on the manifest answer read `100;w=3600`; `research.md`
+  says 100 pulls per 6 hours. The measure records the header and does not
+  settle the difference.
+- Not verified: the pull of an image end to end. DevDesk reached the
+  `docker pull` step, but the account that ran the measure could not reach the
+  Docker daemon.
+- With Docker Hub unreachable, search and typed-repository tag errors show
+  nothing in the footer (gaps G1 and G2 of the note).
+
 ## Where the login lives — the `Logged` column
 
 `docker.RegistryLoginState` reads the engine's auth file and answers three

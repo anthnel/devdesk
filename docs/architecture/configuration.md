@@ -330,6 +330,13 @@ file with that new context, whatever registries the old one held
 (`WriteNewContext` always replaces the file, DEVDESK-662). The one accepted
 race is listed under the price example block above.
 
+In short, for the registry list of a context: a **new** context (`:context
+new`, a first launch, `dk setup`) contains the Docker Hub entry; an **existing**
+context is not migrated and keeps the list it has; an entry the user removes
+does not come back, since no load or save path adds it. The values of the entry
+and the reasons for them are in `registries.md`, "The default Docker Hub
+entry".
+
 ## Configuration view — `internal/ui/configuration`
 
 Edits every **scalar** setting a context carries, in seven tabs (`app`, the
