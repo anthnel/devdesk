@@ -3,6 +3,15 @@
 Dated entries, most recent first (AAAA-MM-JJ). Each entry records what was
 decided, why, and which alternative was rejected. Sources live in `docs/product/`.
 
+## 2026-11-21 — Default Docker Hub registry in a new context (D171)
+
+Source: `docs/backlog.md` D171; `docs/product/default-registries/` (`brief.md`, `research.md`, `stories.md`). Plane: module « Registre par défaut », DEVDESK-663 to DEVDESK-668; bug of `dk setup`, DEVDESK-662 (separate).
+
+1. **Decided: the Docker Hub entry (`docker.io`, `auth_mode: anonymous`, empty alias) is written when a new context is created**, by `:context new`, the first launch and `dk setup` (confirmed overwrite included, D-A). Never added to existing contexts, never in `Default()`.
+2. **Rejected:** the critic's verdict « pivot » (set aside by the user); writing on demand; an implicit Hub target in memory.
+3. **Rejected for the MVP:** variant B (other public registries) and variant C (first-launch suggestions screen).
+4. **Chosen against the recommendation:** `anonymous` over `credentials`. Accepted: no `docker login` for this entry, Docker Hub anonymous limits and 429 (readable only after S-04b, Could), `U` refused. To revisit if S-04a (measure of search, tags and pull) fails.
+
 ## 2026-11-21 — CI with real tests under 10 minutes: the tests run under `-race` in CI, D149 replaced (D170)
 
 Source: `docs/backlog.md` D170; `docs/product/ci-tests-rapides/` (`measures.md`, `feasibility.md`, `stories.md`, decisions of the user of 2026-11-21); `docs/measurements/2026-11-21-ci-validation.md` (DEVDESK-650, PR #450). Plane: DEVDESK-643 to DEVDESK-653 (S-08b is DEVDESK-384). Number D170: D169 was already taken on `main` by DEVDESK-514 (NX-11) when this entry was written.
