@@ -179,6 +179,8 @@ func TestContextSnapshotAfterLoad(t *testing.T) {
 }
 
 func TestContextLoadErrorPostsFooterAndStaysNotReady(t *testing.T) {
+	requireNoRealFooterWait(t)
+	testutil.FastTimers(t, &components.FooterMsgDuration)
 	a := contextRouter(t)
 	_, cmd := a.Update(contextNamesLoadedMsg{Err: errors.New("boom")})
 	post, ok := testutil.MsgOf[components.PostFooterMsg](cmd)

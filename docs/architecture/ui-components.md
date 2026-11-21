@@ -101,7 +101,13 @@ blocks for its whole duration and `testutil.Msgs` runs every command it is
 handed, so a test inspecting a Cmd that carries the timer paid three real
 seconds — four did. A test that wants to see a message expire builds
 `components.ClearFooterMsg{ID: m.footer.ID()}` instead; one that must drain the
-Cmd calls `testutil.FastTimers(t, &components.FooterMsgDuration)`.
+Cmd calls `testutil.FastTimers(t, &components.FooterMsgDuration)` **before the
+`Update` that builds the Cmd**: the timer starts when `PostFooter` or
+`FooterMessage.set` builds the `tea.Tick`, not when the Cmd runs, so shortening
+the duration afterwards leaves the three seconds armed (DEVDESK-644: seven
+`internal/app` tests lost about 3 s each that way; `requireNoRealFooterWait`
+in `internal/app/footer_timer_guard_test.go` now fails a test that takes over
+1.5 s).
 `TestAMessageGetsThreeSeconds` pins the production value.
 
 Two source-level tests hold the line, on the model of `internal/ui/keymap`'s:

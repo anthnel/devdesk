@@ -166,6 +166,11 @@ func Resize(width, height int) tea.Msg {
 // that sleeps or performs I/O — tea.Tick blocks for its whole duration, and the
 // Docker runners shell out. Assert on the command's identity or on model state
 // instead for those.
+//
+// A tea.Tick starts counting when the command is built, not when it runs, so a
+// timer shortened with FastTimers must be shortened before the Update that
+// builds the command: afterwards the full duration is already armed and Msgs
+// sleeps for what is left of it.
 func Msgs(cmd tea.Cmd) []tea.Msg {
 	if cmd == nil {
 		return nil

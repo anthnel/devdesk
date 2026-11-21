@@ -11,6 +11,7 @@ import (
 	tea "charm.land/bubbletea/v2"
 
 	"github.com/anthnel/devdesk/internal/ui/components"
+	"github.com/anthnel/devdesk/internal/ui/testutil"
 )
 
 // DEVDESK-88 step 7: a failure to list contexts, or an unclassified disk error
@@ -62,6 +63,8 @@ func TestCreateDiskErrorSaysCreateNotSwitch(t *testing.T) {
 }
 
 func TestErrorFooterPerOperation(t *testing.T) {
+	requireNoRealFooterWait(t)
+	testutil.FastTimers(t, &components.FooterMsgDuration)
 	a := routerAt(t, &fakeView{}, 180, 40)
 	_, cmd := a.Update(ContextSwitchErrorMsg{Name: "x", Op: opCreate, Error: os.ErrPermission})
 	wantPost(t, drive(t, a, cmd), components.LevelError, `Failed to create context "x" — check logs`)
