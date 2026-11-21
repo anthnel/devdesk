@@ -322,9 +322,13 @@ session would run on `Default()` and its first `Save` would write the file
 without the entry. `ensureDefaultContext` therefore reports whether it created
 the file, and `sessionConfig` (`main.go`, called by `runTUI` and by the
 first-launch tests) rereads the config through `reloadOnFirstLaunch` in that
-case; a failed reread keeps the config the session had. `dk setup`
-(`buildConfig`) is not covered yet (DEVDESK-664). The one accepted race is
-listed under the price example block above.
+case; a failed reread keeps the config the session had. `dk setup` builds its
+config in `buildConfig` (`internal/ui/setup/answers.go`), from `Default()`, so
+it sets the entry itself from the same constructor (DEVDESK-664): a wizard run
+writes a new context with Docker Hub, and a confirmed overwrite replaces the
+file with that new context, whatever registries the old one held
+(`WriteNewContext` always replaces the file, DEVDESK-662). The one accepted
+race is listed under the price example block above.
 
 ## Configuration view — `internal/ui/configuration`
 
