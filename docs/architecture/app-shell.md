@@ -1583,6 +1583,23 @@ field, an `AdvanceSpinner` call and a `"◉"` literal into `jobsview`.
 guard checks its footer): `:sec` is seeded by `seedSecurityFooter`, a running
 scan on the selected row.
 
+### Router tests do not wait on a timer or the network (DEVDESK-646)
+
+Three tests used to cost about 8 s under `-race`; each now has a seam instead of a wait.
+`TestAgentUsagePollingAddsNoAnimationTick` shortens the view's poll with
+`testutil.FastTimers(t, agentusageview.PollIntervalForTest())` before the session opens
+(`pollTickCmd` freezes the interval when it builds the `Cmd`).
+`TestPasteIntoCommandPaletteReachesTheField` sets the palette cursor static
+(`Styles().Cursor.Blink = false`), so a paste arms no 530 ms blink `Cmd`.
+`TestTraceRoundTripKeepsTheScreenHeight` swaps the Diagnostics Env with
+`netdiag.Model.SetCheckEnvForTest` (`noPingEnv`: the real Env, the ICMP echo answered in place).
+Both `...ForTest` seams panic outside a test binary, like `credentials.SwapHostStoreForTest`.
+
+**There is no absolute duration guard** ("no test over 5 s", decided on purpose): a fixed
+threshold depends on how loaded the runner is, so it would fail a correct test on a busy
+runner and say nothing about a real wait. The guards that exist target a cause instead
+(`requireNoRealFooterWait` for the footer timer).
+
 ## Bubble Tea Message Flow
 
 Custom messages defined in view models (e.g., `internal/ui/status/model.go`):
