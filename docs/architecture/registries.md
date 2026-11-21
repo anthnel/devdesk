@@ -167,14 +167,16 @@ the config side is in `configuration.md`, "The default Docker Hub registry".
 
 **Paths that create it**
 
-- `:context new` (`config.CreateContext`, `WriteNewContext`).
-- The first launch: `ensureDefaultContext` writes `config.yaml` from the same
-  config, and `sessionConfig` (`main.go`) rereads it when the file was just
+- `:context new`: `config.CreateContext`, through `createContextFile`.
+- The first launch: `ensureDefaultContext` calls
+  `config.CreateDefaultContextIfMissing`, which writes `config.yaml` from the
+  same config (`createContextFile`), and `sessionConfig` (`main.go`) rereads it when the file was just
   created. Without the reread the session would run on `Default()` and its
   first save would write the file without the entry. A failed reread keeps the
   config the session had and logs a warning.
-- `dk setup`: `buildConfig` (`internal/ui/setup/answers.go`) sets it itself. A
-  confirmed overwrite replaces the whole file, so the old registries go and
+- `dk setup`: `buildConfig` (`internal/ui/setup/answers.go`) sets it itself,
+  and `config.WriteNewContext` (`internal/ui/setup/commands.go`) writes the
+  file. A confirmed overwrite replaces the whole file, so the old registries go and
   the new context carries Docker Hub only (DEVDESK-662).
 
 **Where it is injected, and why there**
@@ -207,7 +209,8 @@ password is typed (`handleRegistryFormSubmit`).
 **What was measured (2026-11-21)**
 
 `docs/measurements/2026-11-21-docker-hub-anonymous.md`, on `main` at
-`1a20aee9`, a snapshot of Docker Hub's behaviour that day:
+`1a20aee9`, before DEVDESK-667 (S-04b). It is a snapshot of Docker Hub's
+behaviour and of DevDesk that day:
 
 - Search: `HubSearcher`, `GET https://index.docker.io/v1/search`, 200, 50
   results, no credentials.
@@ -223,8 +226,19 @@ password is typed (`handleRegistryFormSubmit`).
 - Not verified: the pull of an image end to end. DevDesk reached the
   `docker pull` step, but the account that ran the measure could not reach the
   Docker daemon.
-- With Docker Hub unreachable, search and typed-repository tag errors show
-  nothing in the footer (gaps G1 and G2 of the note).
+- With Docker Hub unreachable, the measure found search and typed-repository
+  tag errors silent in the footer (gaps G1 and G2 of the note). That was the
+  state before S-04b.
+
+**What a failure shows since S-04b (DEVDESK-667)**
+
+A Docker Hub search failure shows `Image search on <alias>: <cause>` at the
+footer, level Error. A tag listing opened from the form shows `Could not load
+tags`, followed by `: <cause>` when there is one; it is always shown. The
+causes named are a 429 (`Docker Hub anonymous rate limit reached, try again
+later` for this entry; the Hub search never sends credentials), a timeout, a
+network error, a DNS failure and an unreachable proxy. Any other error adds no
+cause. See `network.md`, "Why a failure says it at the footer".
 
 ## Where the login lives — the `Logged` column
 

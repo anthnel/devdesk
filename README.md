@@ -180,8 +180,7 @@ it does not come back. `E` edits it.
   numbers. Behind a NAT or a proxy, everyone on the address shares the quota,
   and Docker Hub can answer HTTP 429 (too many requests).
 - **Rate limit message.** When Docker Hub answers 429, the footer says
-  `Docker Hub anonymous rate limit reached, try again later`. (Note to remove
-  once PR #461, DEVDESK-667, is merged: this message is not in `main` yet.)
+  `Docker Hub anonymous rate limit reached, try again later`.
 - **Use an account.** Press `E` on the entry, set Auth to `credentials`, type
   your username and password, and submit: DevDesk saves the entry and runs
   `docker login` (the password is never written to the file). From then on `U`
