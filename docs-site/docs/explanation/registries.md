@@ -22,6 +22,24 @@ both shapes live in the same list rather than two separate ones.
 | `auth_mode` | `credentials`, `anonymous`, or `inherit` for a member |
 | `repo_prefix` | what's prepended to the repository name; together with `url` this is the entry's full address |
 
+## The default Docker Hub entry
+
+A new context (`:context new`, a first launch, `dk setup`) starts with one
+registry, Docker Hub: `url: docker.io`, `slug: docker-io`, `kind: registry`,
+`auth_mode: anonymous`, no username and no alias. Contexts that already exist
+are not changed, and an entry you delete does not come back.
+
+- **`docker.io`, not `index.docker.io`.** DevDesk recognises `docker.io` and
+  `registry-1.docker.io` as Docker Hub and searches it through Hub's search
+  API. `index.docker.io` would go to `/v2/_catalog` and the search would fail.
+- **No alias.** A non-empty alias would rewrite the display of every
+  `docker.io/...` image in `:oci` and `:sec`.
+- **Anonymous.** DevDesk sends no credentials and does not use your
+  `docker login` for this entry; `U` answers `This registry is marked
+  anonymous`. Docker Hub's anonymous pull limits apply (see the
+  [README](https://github.com/anthnel/devdesk#the-default-docker-hub-registry)
+  for the figures and how to switch to an account).
+
 ## An entry is an address, not a URL
 
 The pair `(url, repo_prefix)` is what a registry is actually reached by, and

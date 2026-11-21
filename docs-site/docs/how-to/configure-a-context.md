@@ -86,6 +86,17 @@ is editable from the **Configuration** view (`:config`) — closed-set fields
 [configuration reference](../reference/configuration.md) for every key, or
 edit the YAML file directly and restart.
 
+## The default Docker Hub registry
+
+A new context starts with one registry, Docker Hub (`docker.io`,
+`auth_mode: anonymous`). Existing contexts are not changed. It is an ordinary
+entry: in the registries list of `:oci`, `D` removes it (it does not come
+back) and `E` edits it. `U` is refused on it, because DevDesk sends no
+credentials and ignores your own `docker login` for this entry. To use an
+account, press `E`, set Auth to `credentials`, type your username and
+password, and submit. See
+[Registries](../explanation/registries.md#the-default-docker-hub-entry).
+
 ## Credentials stay out of the file
 
 Forge tokens and registry passwords are never written to `config.yaml`.

@@ -196,11 +196,13 @@ file that already exists, and a deleted entry stays deleted.
 | `slug` | `docker-io` | Written explicitly, as `RegistryForm` would require. |
 | `kind` | `registry` | A plain registry, not a group. |
 | `provider`, `username` | empty | Nothing to declare, no account. |
-| `auth_mode` | `anonymous` | No credentials are sent; the `docker login` of the user is not used for this entry. |
+| `auth_mode` | `anonymous` | The choice of D171 (decision 5), against the architect's recommendation `credentials`. No credentials are sent, so the `docker login` of the user is not used for this entry, Docker Hub's anonymous limits apply and a 429 is possible. |
 | `alias` | empty | A non-empty alias rewrites the display of every `docker.io/...` image in `:oci` and `:sec` (`docker.ApplyAliases`, fed by `registryalias.From`). |
 
 The entry is an ordinary one: `E` edits it, `D` removes it. `U` is refused on
-it with `This registry is marked anonymous` (`loginSelectedRegistry`).
+it with `This registry is marked anonymous` (`loginSelectedRegistry`). To use
+an account, edit the entry to `credentials`: the form logs in on submit when a
+password is typed (`handleRegistryFormSubmit`).
 
 **What was measured (2026-11-21)**
 
@@ -215,6 +217,9 @@ it with `This registry is marked anonymous` (`loginSelectedRegistry`).
 - The pull quota header on the manifest answer read `100;w=3600`; `research.md`
   says 100 pulls per 6 hours. The measure records the header and does not
   settle the difference.
+- Docker announced a tighter anonymous limit in February 2025 (10 pulls per
+  hour) and promised six months' notice; as of 2026-11-21 (date of the
+  research) it is not applied. These figures are not guaranteed.
 - Not verified: the pull of an image end to end. DevDesk reached the
   `docker pull` step, but the account that ran the measure could not reach the
   Docker daemon.

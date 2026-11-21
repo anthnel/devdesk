@@ -160,9 +160,11 @@ exist are not changed.
 ```yaml
 registry:
   registries:
-    - url: docker.io
-      slug: docker-io
+    - slug: docker-io
       kind: registry
+      url: docker.io
+      username: ""
+      alias: ""
       auth_mode: anonymous
 ```
 
@@ -180,8 +182,11 @@ it does not come back. `E` edits it.
 - **Rate limit message.** When Docker Hub answers 429, the footer says
   `Docker Hub anonymous rate limit reached, try again later`. (Note to remove
   once PR #461, DEVDESK-667, is merged: this message is not in `main` yet.)
-- **Use an account.** Press `E` on the entry, set Auth to `credentials`, then
-  press `U` to log in. Or remove the entry and add it again with `N`.
+- **Use an account.** Press `E` on the entry, set Auth to `credentials`, type
+  your username and password, and submit: DevDesk saves the entry and runs
+  `docker login` (the password is never written to the file). From then on `U`
+  logs out, or opens the form again to log in. Or remove the entry and add it
+  again with `N`.
 
 ### Themes
 
