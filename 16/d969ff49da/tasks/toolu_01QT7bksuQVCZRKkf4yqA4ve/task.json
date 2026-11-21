@@ -1,0 +1,18 @@
+{
+  "tool_use_id": "toolu_01QT7bksuQVCZRKkf4yqA4ve",
+  "agent_id": "a816e975ba90625b0",
+  "subagent_type": "product-team:pm",
+  "task_description": "Créer le backlog dans Plane",
+  "files": [
+    "docs/product/ci-tests-rapides/stories.md"
+  ],
+  "token_usage": {
+    "input_tokens": 26,
+    "cache_creation_tokens": 131763,
+    "cache_read_tokens": 1172920,
+    "output_tokens": 27500,
+    "api_call_count": 13
+  },
+  "started_at": "2026-11-21T14:14:40.901069663+01:00",
+  "completed_at": "2026-11-21T14:14:40.901367946+01:00"
+}

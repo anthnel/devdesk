@@ -1,0 +1,18 @@
+{
+  "tool_use_id": "toolu_01BcUCPBzra6m3kp1uUdDBbr",
+  "agent_id": "a34425f8bc16facaf",
+  "subagent_type": "product-team:researcher",
+  "task_description": "Recherche alternatives CI Dagger",
+  "files": [
+    "docs/product/dagger-ci-datomir/research.md"
+  ],
+  "token_usage": {
+    "input_tokens": 34,
+    "cache_creation_tokens": 76219,
+    "cache_read_tokens": 723197,
+    "output_tokens": 17325,
+    "api_call_count": 17
+  },
+  "started_at": "2026-11-21T12:58:28.19713874+01:00",
+  "completed_at": "2026-11-21T12:58:28.197288285+01:00"
+}
