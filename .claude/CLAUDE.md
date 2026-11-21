@@ -53,7 +53,7 @@ mise run vet          # Run go vet
 mise run lint         # MANDATORY before commits - golangci-lint
 mise run tidy         # Tidy dependencies
 mise run check        # fmt + vet + lint + test in one go
-mise run ci           # the five checks in order (fmt-check, vet, lint, build, test-race), stops at the first failure; unlike check it rewrites no file and also runs build and test-race. `test-race` is the only test run (`-race` covers `go test`); `mise run test` stays available alone for the fast local loop. CI itself runs only fmt-check, vet, lint and build: tests are disabled in CI (maintainer decision, D149), so run this locally before every PR
+mise run ci           # the five checks in order (fmt-check, vet, lint, build, test-race), stops at the first failure; unlike check it rewrites no file and also runs build and test-race. `test-race` is the only test run (`-race` covers `go test`); `mise run test` stays available alone for the fast local loop. CI runs fmt-check, vet, lint and build in the `Lint and build` job and `test-race` in the `Test` job, on every pull request, docs-only ones included (the docs-only shortcut applies to `Lint and build` only); the whole CI targets under 10 minutes, so run this locally before a PR to catch a red check early
 
 # Installation
 mise run install      # Install to $GOPATH/bin
