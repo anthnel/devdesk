@@ -2881,3 +2881,4 @@ search box where the old tab had no input at all, so `InEditMode()` had to stop
 returning a hardcoded `false` — otherwise a `:` typed into the query opens the
 command line (Rule 111).
 
+
