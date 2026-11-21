@@ -1,0 +1,45 @@
+{
+  "cli_version": "0.13.2",
+  "checkpoint_id": "7b59c5ea1547",
+  "strategy": "manual-commit",
+  "branch": "test/internal-app-real-waits",
+  "checkpoints_count": 1,
+  "files_touched": [
+    "docs/architecture/app-shell.md",
+    "internal/app/agent_usage_activity_test.go",
+    "internal/app/netdiag_trace_roundtrip_test.go",
+    "internal/app/paste_test.go",
+    "internal/ui/agentusageview/test_seam.go",
+    "internal/ui/netdiag/test_seam.go"
+  ],
+  "sessions": [
+    {
+      "metadata": "/7b/59c5ea1547/0/metadata.json",
+      "transcript": "/7b/59c5ea1547/0/full.jsonl",
+      "compact_transcript": "/7b/59c5ea1547/0/transcript.jsonl",
+      "content_hash": "/7b/59c5ea1547/0/content_hash.txt",
+      "prompt": "/7b/59c5ea1547/0/prompt.txt"
+    }
+  ],
+  "token_usage": {
+    "input_tokens": 22,
+    "cache_creation_tokens": 78469,
+    "cache_read_tokens": 753817,
+    "output_tokens": 6456,
+    "api_call_count": 9
+  },
+  "redaction": {
+    "replacements": 1,
+    "layers": {
+      "betterleaks": 0,
+      "connection_string": 0,
+      "credential_key": 0,
+      "credential_value": 0,
+      "credentialed_uri": 0,
+      "entropy": 0,
+      "key_context": 1,
+      "provider_token": 0,
+      "shell_stdin": 0
+    }
+  }
+}
