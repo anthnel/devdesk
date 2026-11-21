@@ -1,0 +1,46 @@
+{
+  "cli_version": "0.13.2",
+  "checkpoint_id": "d7824e470cac",
+  "strategy": "manual-commit",
+  "branch": "test/footer-timers-before-cmd",
+  "checkpoints_count": 1,
+  "files_touched": null,
+  "sessions": [
+    {
+      "metadata": "/d7/824e470cac/0/metadata.json",
+      "transcript": "/d7/824e470cac/0/full.jsonl",
+      "compact_transcript": "/d7/824e470cac/0/transcript.jsonl",
+      "content_hash": "/d7/824e470cac/0/content_hash.txt",
+      "prompt": "/d7/824e470cac/0/prompt.txt"
+    }
+  ],
+  "token_usage": {
+    "input_tokens": 56,
+    "cache_creation_tokens": 64471,
+    "cache_read_tokens": 5188852,
+    "output_tokens": 25441,
+    "api_call_count": 21,
+    "subagent_tokens": {
+      "input_tokens": 158,
+      "cache_creation_tokens": 389834,
+      "cache_read_tokens": 3429785,
+      "output_tokens": 35473,
+      "api_call_count": 75
+    },
+    "subagent_tokens_complete": true
+  },
+  "redaction": {
+    "replacements": 10,
+    "layers": {
+      "betterleaks": 0,
+      "connection_string": 0,
+      "credential_key": 0,
+      "credential_value": 0,
+      "credentialed_uri": 0,
+      "entropy": 0,
+      "key_context": 10,
+      "provider_token": 0,
+      "shell_stdin": 0
+    }
+  }
+}
