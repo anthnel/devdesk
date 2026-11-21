@@ -9,6 +9,9 @@
 repository-manager groups, told apart by `kind` (§3.8). A group fronts several
 registries and is pullable itself, which is why they share a list.
 
+A new context starts with one entry, Docker Hub (`config.DefaultHubRegistry()`);
+see `configuration.md`, "The default Docker Hub registry".
+
 | Field | Meaning |
 |---|---|
 | `slug` | DevDesk's own identifier: what `parent` points at and what the group cache is keyed on. Everything Docker-facing stays keyed on `url`, because Docker is. |

@@ -273,19 +273,12 @@ which stops a forgotten `cache_read` from under-pricing silently.
     block is dropped, since the table itself is the example.
   - *Accepted race.* The read and the write are not atomic: a hand edit that
     removes the block between them can see it written back by that save. The
-    window is small and the consequence is a comment, so it is accepted.
+    window is small and the consequence is a comment, so it is accepted. The
+    same class applies to a second process whose `Load` ran before the first
+    created the file: it gets `created=false`, keeps `Default()`, and its first
+    save rewrites `config.yaml` without the Docker Hub entry (next section).
   - `default` therefore exists on disk from the first launch and appears in
     `:context list` at once.
-  - *Docker Hub registry (DEVDESK-663).* `newContextConfig`, the config both
-    creators write, also carries one registry entry built by
-    `config.DefaultHubRegistry()` (`url: docker.io`, `slug: docker-io`,
-    `kind: registry`, `auth_mode: anonymous`, empty alias, no "built in"
-    marker). It is injected there and never in `Default()` or `applyDefaults`,
-    which also serve the load fallback: an entry the user deleted would come
-    back. `ensureDefaultContext` reports whether it created the file, and
-    `reloadOnFirstLaunch` rereads the config in that case (a failed reread
-    keeps the config the session had), so the first `Save` does not drop the
-    entry. `dk setup` (`buildConfig`) is not covered yet (DEVDESK-664).
 - **One block per context.** The section lives in the context file, so each
   context needs its own prices.
 - **Not editable in `:cfg`.** There is no tab for it.
@@ -313,6 +306,25 @@ a `←→` cycle field declared with `cycleWithDefault` (absent reads
 `pause (default)`). The setting applies without a restart: the router calls
 `applyWhenUnfocused` on `ConfigSavedMsg` and on a context switch (see
 `app-shell.md`, "Terminal focus").
+
+### The default Docker Hub registry (DEVDESK-663)
+
+`newContextConfig`, the config both context creators write (`CreateContext`,
+`WriteNewContext`), carries one registry entry built by
+`config.DefaultHubRegistry()` (`url: docker.io`, `slug: docker-io`,
+`kind: registry`, `auth_mode: anonymous`, empty alias, no "built in" marker).
+It is injected there and never in `Default()` or `applyDefaults`, which also
+serve the load fallback: an entry the user deleted would come back. A context
+that already exists is never given it.
+
+On a first launch `main` loads the config before `config.yaml` exists, so the
+session would run on `Default()` and its first `Save` would write the file
+without the entry. `ensureDefaultContext` therefore reports whether it created
+the file, and `sessionConfig` (`main.go`, called by `runTUI` and by the
+first-launch tests) rereads the config through `reloadOnFirstLaunch` in that
+case; a failed reread keeps the config the session had. `dk setup`
+(`buildConfig`) is not covered yet (DEVDESK-664). The one accepted race is
+listed under the price example block above.
 
 ## Configuration view — `internal/ui/configuration`
 

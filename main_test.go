@@ -204,7 +204,8 @@ func TestReloadOnFirstLaunch(t *testing.T) {
 }
 
 // The startup sequence of runTUI, end to end on a throwaway HOME: Load, then
-// ensureDefaultContext, then the reload, then a first Save.
+// sessionConfig (ensureDefaultContext and the reload, the very call runTUI
+// makes), then a first Save.
 func TestFirstLaunchSessionSeesTheHubEntryAndSavesIt(t *testing.T) {
 	isolatedHome(t)
 	cfg, err := config.Load()
@@ -215,8 +216,7 @@ func TestFirstLaunchSessionSeesTheHubEntryAndSavesIt(t *testing.T) {
 		t.Fatalf("precondition: Load before the file exists gave %+v, want the Default() fallback", cfg.Registry.Registries)
 	}
 
-	created := ensureDefaultContext()
-	cfg = reloadOnFirstLaunch(cfg, created, config.Load)
+	cfg = sessionConfig(cfg, ensureDefaultContext, config.Load)
 
 	if got := cfg.Registry.Registries; len(got) != 1 || got[0] != config.DefaultHubRegistry() {
 		t.Fatalf("the session config registries = %+v, want exactly [%+v] (:oci must show Docker Hub without a restart)",
@@ -254,9 +254,10 @@ func TestLaunchOnAnExistingContextReadsAndAddsNothing(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	created := ensureDefaultContext()
+	created := false
+	ensure := func() bool { created = ensureDefaultContext(); return created }
 	calls := 0
-	got := reloadOnFirstLaunch(cfg, created, func() (*config.Config, error) { calls++; return config.Load() })
+	got := sessionConfig(cfg, ensure, func() (*config.Config, error) { calls++; return config.Load() })
 
 	if created {
 		t.Error("ensureDefaultContext() = true on an existing config.yaml")

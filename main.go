@@ -90,6 +90,14 @@ func reloadOnFirstLaunch(cfg *config.Config, created bool, load func() (*config.
 	return reloaded
 }
 
+// sessionConfig turns the configuration main loaded into the one the session
+// runs on: ensure creates config.yaml on a first launch, and the config is
+// reread only then. runTUI and the first-launch tests both go through it, so
+// dropping or reordering the step fails a test.
+func sessionConfig(cfg *config.Config, ensure func() bool, load func() (*config.Config, error)) *config.Config {
+	return reloadOnFirstLaunch(cfg, ensure(), load)
+}
+
 func runTUI() {
 	// Load the configuration
 	cfg, err := config.Load()
@@ -117,7 +125,7 @@ func runTUI() {
 	}
 
 	// The log is open (or unavailable): a failure below is reported, never fatal.
-	cfg = reloadOnFirstLaunch(cfg, ensureDefaultContext(), config.Load)
+	cfg = sessionConfig(cfg, ensureDefaultContext, config.Load)
 
 	// app.theme is applied by the router (app.New).
 	theme.SetGaugeGlyph(cfg.App.GaugeGlyph)
