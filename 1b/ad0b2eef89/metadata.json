@@ -1,0 +1,52 @@
+{
+  "cli_version": "0.13.2",
+  "checkpoint_id": "1bad0b2eef89",
+  "strategy": "manual-commit",
+  "branch": "docs/ci-tests-rapides-product",
+  "checkpoints_count": 4,
+  "files_touched": [
+    "docs/product/ci-tests-rapides/brief.md",
+    "docs/product/ci-tests-rapides/feasibility.md",
+    "docs/product/ci-tests-rapides/measures.md",
+    "docs/product/ci-tests-rapides/research.md",
+    "docs/product/ci-tests-rapides/stories.md"
+  ],
+  "sessions": [
+    {
+      "metadata": "/1b/ad0b2eef89/0/metadata.json",
+      "transcript": "/1b/ad0b2eef89/0/full.jsonl",
+      "compact_transcript": "/1b/ad0b2eef89/0/transcript.jsonl",
+      "content_hash": "/1b/ad0b2eef89/0/content_hash.txt",
+      "prompt": "/1b/ad0b2eef89/0/prompt.txt"
+    }
+  ],
+  "token_usage": {
+    "input_tokens": 48,
+    "cache_creation_tokens": 35081,
+    "cache_read_tokens": 6661245,
+    "output_tokens": 14767,
+    "api_call_count": 17,
+    "subagent_tokens": {
+      "input_tokens": 52,
+      "cache_creation_tokens": 258993,
+      "cache_read_tokens": 1801332,
+      "output_tokens": 24309,
+      "api_call_count": 25
+    },
+    "subagent_tokens_complete": true
+  },
+  "redaction": {
+    "replacements": 14,
+    "layers": {
+      "betterleaks": 0,
+      "connection_string": 0,
+      "credential_key": 0,
+      "credential_value": 0,
+      "credentialed_uri": 0,
+      "entropy": 0,
+      "key_context": 14,
+      "provider_token": 0,
+      "shell_stdin": 0
+    }
+  }
+}
