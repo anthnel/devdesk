@@ -51,3 +51,7 @@ func noAnswer(err error) error {
 	}
 	return err
 }
+
+// NoAnswer is err, or the *NoAnswerError it amounts to when it is a deadline, for the
+// callers outside this package that run a registry request of their own.
+func NoAnswer(err error) error { return noAnswer(err) }

@@ -143,16 +143,50 @@ endpoint's `Do` and `readToken`, and of the body reads of `registryGETContext` a
 `registryGETBoundedContext` (so tags, catalog, catalog under a prefix, the
 manifest digest and the token exchange are covered). `context.Canceled` is not
 touched, and a 502 received in time stays a `*StatusError{502}`, `failed`, with no
-"no answer". `registryFailureReason` returns the error's own text, so the footer
-(Error) says `Image search on <alias>: no answer within 15 s` and `Could not load
+"no answer". `registryFailureReason` returns the error's own text for it (a constant
+by construction), so the footer (Error) says `Image search on <alias>: no answer within 15 s` and `Could not load
 tags: no answer within 15 s`, and the journal reads `ERROR [oci_resources] image
 search on <alias>: no answer within 15 s`. **Limit:** the client's own delay and the
 context's deadline are still one case: both give the same error and the same text,
 and `imagesearch.Classify` (DEVDESK-303, IS-12) puts it in the `failed` verdict.
 Only a delay that satisfies `errors.Is(err, context.DeadlineExceeded)` becomes a
 `NoAnswerError`: a transport-level "TLS handshake timeout" keeps its own text. The
-Docker Hub client of `internal/imagesearch/hub.go` keeps its own 15 s delay,
-untyped (out of scope).
+Docker Hub client of `internal/imagesearch/hub.go` is typed too since DEVDESK-667:
+see "Why a failure says it at the footer" below.
+
+**Why a failure says it at the footer (DEVDESK-667, S-04b).** The Docker Hub search
+(`HubSearcher`) uses `oci.RequestTimeout` as its client delay and wraps a deadline with
+`oci.NoAnswer` (the exported form of the internal `noAnswer` conversion, one rule for
+both), so its failure is a `*oci.NoAnswerError` like the catalog's, with no URL or
+`q=` in the text; any other transport error keeps its `*url.Error`, so `errors.As`
+still finds the `*net.OpError` inside. `registryFailureReason(err, access)`
+(`internal/ui/oci_resources/registry_failure.go`) turns an error into one constant
+sentence, tested in this order, and returns `""` for anything else (so a 500, a
+503, a 401/403/404/405 or an unknown error changes nothing):
+
+| Error | Reason |
+|---|---|
+| `context.Canceled` | none (the user left) |
+| `oci.ErrTokenRealmOffOrigin` | `token realm on another host` |
+| `*oci.StatusError`, upstream blocked | `the proxy's upstream is temporarily blocked` |
+| `*oci.StatusError` 429, registry or token endpoint | by access, below |
+| `*oci.NoAnswerError` | `no answer within N s` |
+| `*net.OpError` with `Op == "proxyconnect"` | `could not reach the proxy` |
+| `*net.DNSError` | `could not resolve the registry host` |
+| any other `*net.OpError` | `could not reach the registry` |
+
+The no-answer reading is tested before the net errors: a connection that timed out is
+both. The 429 wording follows `registryAccess`, which says how the request identified
+itself: `Docker Hub anonymous rate limit reached, try again later`,
+`Docker Hub rate limit reached, try again later` (entry with credentials),
+`rate limit reached (HTTP 429), try again later` (any other registry). `accessFor`
+derives it from the entry's resolved `authMode` (no credential store read in
+`Update`); the Hub search is always `accessHubAnonymous`, since it sends no
+credentials whatever the entry holds, and a tag listing is `accessHubLogin` only for a
+Hub entry whose mode uses credentials. The reason never carries `err.Error()`, a host
+or a typed text. The footer is `m.footer.Error` only (Rule 128): `Image search on
+<alias>: <reason>` at level 1, `Could not load tags[: <reason>]` for the tags; the
+tables stay tables (Rule 139) and nothing is retried.
 
 **Credentials stay on their origin (DEVDESK-410).** Four guards keep the Basic
 credentials and the Bearer token from leaving the registry they were meant for:
@@ -198,8 +232,8 @@ credentials and the Bearer token from leaving the registry they were meant for:
   realm is on the GitLab host is refused. The refusal shows at the footer, level
   Error, as `token realm on another host`, in the three interactive flows of the
   registry browser: tags opened from the search (`Could not load tags: token
-  realm on another host`), tags opened from the form (silent before, this one
-  failure only, H1) and image search (`Image search on <alias>: token realm on
+  realm on another host`), tags opened from the form (`Could not load tags: token realm on
+  another host` since DEVDESK-667; it was the bare reason before) and image search (`Image search on <alias>: token realm on
   another host`), through `registryFailureReason`
   (`internal/ui/oci_resources/registry_failure.go`); the search verdict is
   `failed`. The realm's host stays in the journal. The other callers
@@ -1036,8 +1070,11 @@ records where the table came from: `tagsFromSearch` (true for `→`) and
   set, leaves the table with its header only (Rule 139), shows `tagsLoadFailedText`
   (`Could not load tags`) as a 3 s footer Error, and logs
   `ERROR [oci_resources] registry tags on <alias>: <cause>` where the cause comes
-  from `searchErrorCause`: no credentials, no URL. The full-name flow is
-  unchanged and silent on screen (it logs `registry tags <repo> from <url>`).
+  from `searchErrorCause`: no credentials, no URL. The full-name flow (opened from
+  the form) says the same since DEVDESK-667: `handleMultiRegistryTagsFailed` shows
+  `Could not load tags`, plus `: <reason>` when `registryFailureReason` has one,
+  whichever way the listing was opened; it keeps its own journal line
+  (`registry tags <repo> from <url>`).
 - **Search in flight.** `→` while the level 1 search still runs cancels it
   (the browser has one lot at a time, `beginRequests`): the rows already shown
   stay, the late ones are dropped. Unchanged by IS-03, although catalog walks

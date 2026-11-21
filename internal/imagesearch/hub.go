@@ -9,7 +9,6 @@ import (
 	"net/url"
 	"strconv"
 	"strings"
-	"time"
 	"unicode"
 
 	"github.com/charmbracelet/x/ansi"
@@ -71,7 +70,7 @@ func (h HubSearcher) Search(ctx context.Context, t Target, q Query) ([]Image, bo
 	client := h.Client
 	if client == nil {
 		client = &http.Client{
-			Timeout: 15 * time.Second,
+			Timeout: oci.RequestTimeout,
 			CheckRedirect: func(*http.Request, []*http.Request) error {
 				return http.ErrUseLastResponse
 			},
@@ -79,7 +78,9 @@ func (h HubSearcher) Search(ctx context.Context, t Target, q Query) ([]Image, bo
 	}
 	resp, err := client.Do(req)
 	if err != nil {
-		return nil, false, fmt.Errorf("hub search: %w", err)
+		// NoAnswer turns a deadline into the typed error, whose text holds no URL; any
+		// other error keeps its *url.Error, which the callers log through a redactor.
+		return nil, false, fmt.Errorf("hub search: %w", oci.NoAnswer(err))
 	}
 	defer func() { _ = resp.Body.Close() }()
 	if resp.StatusCode != http.StatusOK {
@@ -87,7 +88,7 @@ func (h HubSearcher) Search(ctx context.Context, t Target, q Query) ([]Image, bo
 	}
 	body, err := io.ReadAll(io.LimitReader(resp.Body, hubMaxBody+1))
 	if err != nil {
-		return nil, false, fmt.Errorf("hub search: %w", err)
+		return nil, false, fmt.Errorf("hub search: %w", oci.NoAnswer(err))
 	}
 	if len(body) > hubMaxBody {
 		return nil, false, fmt.Errorf("hub search: response over %d bytes", hubMaxBody)

@@ -274,11 +274,13 @@ func (m Model) handleImageSearchResult(msg ImageSearchResultMsg) (tea.Model, tea
 	}
 	oc, _ := m.registryBrowser.Outcome(msg.EntryKey)
 	alias := msg.EntryKey
-	if e := m.registryBrowser.entryFor(msg.EntryKey); e != nil {
-		alias = entryAlias(*e)
+	entry := m.registryBrowser.entryFor(msg.EntryKey)
+	if entry != nil {
+		alias = entryAlias(*entry)
 	}
 	logSearchOutcome(alias, oc, msg.Err)
-	if reason := registryFailureReason(msg.Err); reason != "" {
+	// The Docker Hub search sends no credentials whatever the entry holds.
+	if reason := registryFailureReason(msg.Err, accessFor(entry, true)); reason != "" {
 		return m, m.footer.Error("Image search on " + alias + ": " + reason)
 	}
 	return m, nil
