@@ -23,14 +23,21 @@ import (
 // checked in both directions: a step missing from ci.yml fails, and so does a
 // local-only task that comes back into ci.yml, so tests return to the CI only
 // by a decision that edits this file.
+//
+// DEVDESK-648: `mise run ci` runs the tests once, with the race detector
+// (`test-race`, which already covers what `go test` does). The plain `test`
+// task still exists for the fast local loop but is no longer a step of `ci`.
 
-var ciSteps = []string{"fmt-check", "vet", "lint", "build", "test", "test-race"}
+var ciSteps = []string{"fmt-check", "vet", "lint", "build", "test-race"}
 
 // localOnlySteps are the steps of `mise run ci` that ci.yml must NOT run.
 // D149: the `Test` job of ci.yml only writes a summary line (the main-protection
 // ruleset requires a check named `Test`), and the tests run on the maintainer's
-// machine through `mise run ci`.
-var localOnlySteps = []string{"test", "test-race"}
+// machine through `mise run ci`. Since DEVDESK-648 the only test step of `ci`
+// is `test-race`; `test` is no longer a step of `ci`, so it is not listed here.
+// DEVDESK-649 (S-05) puts `test-race` in the CI: it then leaves this set, and
+// the set becomes empty.
+var localOnlySteps = []string{"test-race"}
 
 // workflowSteps returns steps without the local-only ones, order preserved.
 func workflowSteps(steps []string) []string {
@@ -171,6 +178,34 @@ func TestMiseCIMatchesWorkflowSteps(t *testing.T) {
 	if strings.Join(fromCI, ",") != strings.Join(want, ",") {
 		t.Errorf("ci.yml `mise run` steps = %v, want %v: the steps of [tasks.ci] (%v) minus the local-only %v, in the same order",
 			fromCI, want, miseSteps, localOnlySteps)
+	}
+}
+
+// DEVDESK-648: the plain `test` task stays defined (fast local loop, and the
+// only test task usable without a C compiler) but `ci` must not call it, so the
+// suite is not run twice.
+func TestMiseTestTaskExistsButCIDoesNotCallIt(t *testing.T) {
+	body, all := ciTaskBody(t)
+	if !all["test"] {
+		t.Error("mise.toml must still define the `test` task (fast local loop without -race)")
+	}
+	if !all["test-race"] {
+		t.Error("mise.toml must define the `test-race` task that `ci` runs")
+	}
+	steps := ciRunSteps(t, body)
+	if slices.Contains(steps, "test") {
+		t.Errorf("[tasks.ci] runs `test` (steps = %v): tests run once, through `test-race`", steps)
+	}
+	// A test step is `test` or any `test-*` task; exactly one is allowed and it
+	// is `test-race`.
+	var testSteps []string
+	for _, s := range steps {
+		if s == "test" || strings.HasPrefix(s, "test-") {
+			testSteps = append(testSteps, s)
+		}
+	}
+	if !slices.Equal(testSteps, []string{"test-race"}) {
+		t.Errorf("[tasks.ci] test steps = %v (steps = %v), want exactly [test-race]", testSteps, steps)
 	}
 }
 
