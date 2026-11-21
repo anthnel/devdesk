@@ -1,0 +1,46 @@
+{
+  "cli_version": "0.13.2",
+  "checkpoint_id": "807dfd13d812",
+  "strategy": "manual-commit",
+  "branch": "feat/hub-failure-reasons",
+  "checkpoints_count": 4,
+  "files_touched": null,
+  "sessions": [
+    {
+      "metadata": "/80/7dfd13d812/0/metadata.json",
+      "transcript": "/80/7dfd13d812/0/full.jsonl",
+      "compact_transcript": "/80/7dfd13d812/0/transcript.jsonl",
+      "content_hash": "/80/7dfd13d812/0/content_hash.txt",
+      "prompt": "/80/7dfd13d812/0/prompt.txt"
+    }
+  ],
+  "token_usage": {
+    "input_tokens": 6,
+    "cache_creation_tokens": 7788,
+    "cache_read_tokens": 648246,
+    "output_tokens": 3007,
+    "api_call_count": 2,
+    "subagent_tokens": {
+      "input_tokens": 102,
+      "cache_creation_tokens": 346940,
+      "cache_read_tokens": 4770864,
+      "output_tokens": 51903,
+      "api_call_count": 51
+    },
+    "subagent_tokens_complete": true
+  },
+  "redaction": {
+    "replacements": 16,
+    "layers": {
+      "betterleaks": 0,
+      "connection_string": 0,
+      "credential_key": 0,
+      "credential_value": 0,
+      "credentialed_uri": 0,
+      "entropy": 0,
+      "key_context": 16,
+      "provider_token": 0,
+      "shell_stdin": 0
+    }
+  }
+}
