@@ -318,3 +318,18 @@ func checkParents(items []RegistryItem, taken map[string]bool) error {
 	}
 	return nil
 }
+
+// DefaultHubRegistry returns the Docker Hub entry a new context starts with.
+// It is the only definition of that entry: newContextConfig and, later, the
+// setup wizard both call it. It is an ordinary entry, editable and removable,
+// with no marker saying it is built in. The alias is empty on purpose (a
+// non-empty alias would rewrite how every docker.io image is displayed) and
+// the mode is anonymous: Docker Hub serves public images without a login.
+func DefaultHubRegistry() RegistryItem {
+	return RegistryItem{
+		URL:      "docker.io",
+		Slug:     "docker-io",
+		Kind:     KindRegistry,
+		AuthMode: AuthAnonymous,
+	}
+}

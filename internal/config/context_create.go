@@ -7,11 +7,15 @@ import (
 )
 
 // newContextConfig returns the configuration of a freshly created context:
-// the defaults, with no monitors and no forge URL.
+// the defaults, with no monitors, no forge URL and the Docker Hub registry.
+// The registry is added here and never in Default() or applyDefaults, which
+// also serve the load fallback: an entry the user deleted would come back.
+// Each call builds its own slice, so two configs never share one.
 func newContextConfig() *Config {
 	cfg := Default()
 	cfg.Status.Components = []ComponentConfig{}
 	cfg.Forge.URL = ""
+	cfg.Registry.Registries = []RegistryItem{DefaultHubRegistry()}
 	return cfg
 }
 

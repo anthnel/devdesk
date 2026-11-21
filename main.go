@@ -60,12 +60,42 @@ func forcedColorProfile(getenv func(string) string) (colorprofile.Profile, bool)
 }
 
 // ensureDefaultContext writes config.yaml, with the commented price example, on
-// a first launch. A failure is logged and does not stop the launch: the
-// application runs on the in-memory defaults, as it did before the file existed.
-func ensureDefaultContext() {
-	if _, err := config.CreateDefaultContextIfMissing(); err != nil {
+// a first launch, and reports whether it created the file. A failure is logged
+// and does not stop the launch: the application runs on the in-memory defaults,
+// as it did before the file existed.
+func ensureDefaultContext() bool {
+	created, err := config.CreateDefaultContextIfMissing()
+	if err != nil {
 		log.Printf("WARN [config] could not create the default context file: %v", err)
+		return false
 	}
+	return created
+}
+
+// reloadOnFirstLaunch rereads the configuration when ensureDefaultContext has
+// just written config.yaml. main loads the config before the file exists, so
+// without the reread the session would run on Default() and its first Save
+// would write the file without the entries a new context carries. A failed
+// reread keeps the configuration the session already has: the launch is never
+// blocked by it.
+func reloadOnFirstLaunch(cfg *config.Config, created bool, load func() (*config.Config, error)) *config.Config {
+	if !created {
+		return cfg
+	}
+	reloaded, err := load()
+	if err != nil {
+		log.Printf("WARN [config] could not read the new default context file, keeping the defaults: %v", err)
+		return cfg
+	}
+	return reloaded
+}
+
+// sessionConfig turns the configuration main loaded into the one the session
+// runs on: ensure creates config.yaml on a first launch, and the config is
+// reread only then. runTUI and the first-launch tests both go through it, so
+// dropping or reordering the step fails a test.
+func sessionConfig(cfg *config.Config, ensure func() bool, load func() (*config.Config, error)) *config.Config {
+	return reloadOnFirstLaunch(cfg, ensure(), load)
 }
 
 func runTUI() {
@@ -95,7 +125,7 @@ func runTUI() {
 	}
 
 	// The log is open (or unavailable): a failure below is reported, never fatal.
-	ensureDefaultContext()
+	cfg = sessionConfig(cfg, ensureDefaultContext, config.Load)
 
 	// app.theme is applied by the router (app.New).
 	theme.SetGaugeGlyph(cfg.App.GaugeGlyph)
