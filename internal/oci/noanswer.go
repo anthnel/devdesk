@@ -51,3 +51,9 @@ func noAnswer(err error) error {
 	}
 	return err
 }
+
+// NoAnswer is err, or the *NoAnswerError it amounts to when it is a deadline, for the
+// callers outside this package that run a registry request of their own.
+//
+// RED-STAGE STUB (DEVDESK-674): it returns err untouched so the tests compile and fail.
+func NoAnswer(err error) error { return err }

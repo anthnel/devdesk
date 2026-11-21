@@ -561,8 +561,10 @@ func TestTagsFailingAfterRightAreLoggedWithoutSecrets(t *testing.T) {
 	}
 }
 
-// c.7: the full name flow is unchanged: silent, and its own log line.
-func TestTheFullNameFlowStaysSilentOnFailure(t *testing.T) {
+// c.7, rewritten by DEVDESK-667: the full name flow no longer fails silently. An unknown
+// cause shows the generic text at level Error, as → does; the flow keeps its own log line
+// (which names the repository and the redacted URL, not the → one).
+func TestTheFullNameFlowSaysItCouldNotLoadTagsOnFailure(t *testing.T) {
 	logs := captureLog(t)
 	withFullTagRecorder(t)
 	withImageSearcher(t, &fakeSearcher{})
@@ -574,11 +576,14 @@ func TestTheFullNameFlowStaysSilentOnFailure(t *testing.T) {
 
 	m, cmd := step(t, m, failedTags(m, errors.New("boom")))
 
-	if m.footer.IsSet() {
-		t.Errorf("footer = %q, want none", m.footer.Text())
+	if m.footer.Level() != components.LevelError || m.footer.Text() != tagsLoadFailedText {
+		t.Errorf("footer = %q at level %v, want the error %q", m.footer.Text(), m.footer.Level(), tagsLoadFailedText)
 	}
-	if cmd != nil {
-		t.Errorf("Cmd = %T, want nil", testutil.Msg(cmd))
+	if cmd == nil {
+		t.Error("no Cmd: the footer message has no timer")
+	}
+	if strings.Contains(m.footer.Text(), "boom") {
+		t.Errorf("footer = %q carries the error text", m.footer.Text())
 	}
 	if !strings.Contains(logs.String(), "registry tags library/nginx from") {
 		t.Errorf("log = %q, want the existing `registry tags library/nginx from` line", logs.String())

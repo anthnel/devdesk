@@ -64,7 +64,7 @@ func (m Model) handleMultiRegistryTagsLoaded(msg MultiRegistryTagsLoadedMsg) (te
 // form it stays in the journal, except for a refused token realm (DEVDESK-629).
 func (m Model) handleMultiRegistryTagsFailed(msg MultiRegistryTagsLoadedMsg) (tea.Model, tea.Cmd) {
 	m.registryBrowser.AddRegistryTags(msg.EntryKey, msg.RegistryURL, msg.Alias, msg.Repo, nil)
-	reason := registryFailureReason(msg.Err)
+	reason := registryFailureReason(msg.Err, accessOther)
 	if m.registryBrowser.tagsFromSearch {
 		log.Printf("ERROR [oci_resources] registry tags on %s: %s", msg.Alias, searchErrorCause(msg.Err))
 		text := tagsLoadFailedText

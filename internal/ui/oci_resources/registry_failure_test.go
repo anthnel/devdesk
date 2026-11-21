@@ -4,8 +4,10 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"net"
 	"net/http"
 	"net/http/httptest"
+	"net/url"
 	"strings"
 	"testing"
 
@@ -23,26 +25,138 @@ func offOriginErr() error {
 	return fmt.Errorf("registry tags: %w", fmt.Errorf("%w (auth.example)", oci.ErrTokenRealmOffOrigin))
 }
 
+// The labels of a rate limit, one per way the request identified itself.
+const (
+	reasonHubAnonymousRateLimit = "Docker Hub anonymous rate limit reached, try again later"
+	reasonHubLoginRateLimit     = "Docker Hub rate limit reached, try again later"
+	reasonOtherRateLimit        = "rate limit reached (HTTP 429), try again later"
+)
+
+// netFailure builds what the HTTP client returns for a failed connection: a *url.Error that
+// holds the full request URL (secrets and typed query included) around the *net.OpError.
+func netFailure(inner error) error {
+	return &url.Error{
+		Op: "Get", URL: "https://bob:s3cretpw@index.docker.io/v1/search?n=50&q=nginx",
+		Err: inner,
+	}
+}
+
+func opError(op string, inner error) *net.OpError {
+	return &net.OpError{Op: op, Net: "tcp", Addr: &net.TCPAddr{IP: net.IPv4(127, 0, 0, 1), Port: 1}, Err: inner}
+}
+
+// everyAccess runs check for the three ways a request can identify itself.
+var everyAccess = []struct {
+	name   string
+	access registryAccess
+}{
+	{"other registry", accessOther},
+	{"hub anonymous", accessHubAnonymous},
+	{"hub login", accessHubLogin},
+}
+
 func TestRegistryFailureReason(t *testing.T) {
+	refused := errors.New("connect: connection refused")
+	noAnswer := &oci.NoAnswerError{After: oci.RequestTimeout}
 	for _, tt := range []struct {
 		name string
 		err  error
-		want string
+		want string // the same for every access
 	}{
 		{"nil", nil, ""},
 		{"the sentinel", oci.ErrTokenRealmOffOrigin, "token realm on another host"},
 		{"the sentinel, wrapped", offOriginErr(), "token realm on another host"},
 		{"a 404 from the registry", &oci.StatusError{Code: 404, Source: oci.SourceRegistry}, ""},
+		{"a 401 from the registry", &oci.StatusError{Code: 401, Source: oci.SourceRegistry}, ""},
+		{"a 403 from the token endpoint", &oci.StatusError{Code: 403, Source: oci.SourceToken}, ""},
+		{"a 500 from the registry", &oci.StatusError{Code: 500, Source: oci.SourceRegistry}, ""},
+		{"a 503 from the registry", &oci.StatusError{Code: 503, Source: oci.SourceRegistry}, ""},
 		{"a blocked upstream", blockedUpstreamErr(t), "the proxy's upstream is temporarily blocked"},
 		{"a blocked upstream, wrapped", fmt.Errorf("registry tags: %w", blockedUpstreamErr(t)), "the proxy's upstream is temporarily blocked"},
 		{"a 404 that is not blocked", notBlocked404Err(t), ""},
 		{"a plain error", errors.New("boom"), ""},
+		{"a bare deadline", fmt.Errorf("hub search: %w", context.DeadlineExceeded), ""},
+		{"no answer", noAnswer, noAnswer.Error()},
+		{"no answer, wrapped", fmt.Errorf("hub search: %w", noAnswer), noAnswer.Error()},
+		// A connection that timed out is also a *net.OpError: the no-answer reading wins.
+		{"no answer that is also a net error", fmt.Errorf("%w: %w", noAnswer, opError("dial", refused)), noAnswer.Error()},
+		{"a bare cancellation", context.Canceled, ""},
+		{"a cancellation in a url error", netFailure(context.Canceled), ""},
+		{"a cancellation, wrapped", fmt.Errorf("hub search: %w", netFailure(context.Canceled)), ""},
+		// A cancellation inside a net error is still the user leaving.
+		{"a cancellation in a net error", netFailure(opError("dial", context.Canceled)), ""},
+		{"a refused proxy", netFailure(opError("proxyconnect", refused)), "could not reach the proxy"},
+		{"a refused proxy, wrapped", fmt.Errorf("hub search: %w", netFailure(opError("proxyconnect", refused))), "could not reach the proxy"},
+		{"a refused connection", netFailure(opError("dial", refused)), "could not reach the registry"},
+		{"a reset connection", netFailure(opError("read", errors.New("connection reset by peer"))), "could not reach the registry"},
+		{"a refused connection, wrapped", fmt.Errorf("registry tags: %w", netFailure(opError("dial", refused))), "could not reach the registry"},
+		{"a net error with no url error", opError("dial", refused), "could not reach the registry"},
+		// What the dialer really returns for an unknown host: an *OpError around the *DNSError.
+		{"an unresolvable host", netFailure(opError("dial", &net.DNSError{Err: "no such host", Name: "index.docker.io", IsNotFound: true})), "could not resolve the registry host"},
+		{"an unresolvable host, bare", &net.DNSError{Err: "no such host", Name: "index.docker.io", IsNotFound: true}, "could not resolve the registry host"},
+		{"a DNS timeout", netFailure(opError("dial", &net.DNSError{Err: "i/o timeout", Name: "index.docker.io", IsTimeout: true})), "could not resolve the registry host"},
 	} {
-		t.Run(tt.name, func(t *testing.T) {
-			if got := registryFailureReason(tt.err); got != tt.want {
-				t.Errorf("registryFailureReason(%v) = %q, want %q", tt.err, got, tt.want)
+		for _, acc := range everyAccess {
+			t.Run(tt.name+"/"+acc.name, func(t *testing.T) {
+				got := registryFailureReason(tt.err, acc.access)
+				if got != tt.want {
+					t.Errorf("registryFailureReason(%v, %s) = %q, want %q", tt.err, acc.name, got, tt.want)
+				}
+				// The reason is a constant: nothing of the request or the host comes with it.
+				for _, leak := range []string{"index.docker.io", "127.0.0.1", "s3cretpw", "bob", "nginx", "q=", "http"} {
+					if strings.Contains(got, leak) {
+						t.Errorf("reason %q carries %q", got, leak)
+					}
+				}
+			})
+		}
+	}
+}
+
+// A 429 is a rate limit, worded by who was asked and how they were identified: the
+// registry's answer and the token endpoint's are the same limit.
+func TestRegistryFailureReasonRecognisesARateLimit(t *testing.T) {
+	want := map[string]string{
+		"other registry": reasonOtherRateLimit,
+		"hub anonymous":  reasonHubAnonymousRateLimit,
+		"hub login":      reasonHubLoginRateLimit,
+	}
+	for _, src := range []struct {
+		name   string
+		source oci.StatusSource
+	}{
+		{"the registry", oci.SourceRegistry},
+		{"the token endpoint", oci.SourceToken},
+	} {
+		for _, wrapped := range []bool{false, true} {
+			for _, acc := range everyAccess {
+				name := src.name + "/" + acc.name
+				if wrapped {
+					name += "/wrapped"
+				}
+				t.Run(name, func(t *testing.T) {
+					var err error = &oci.StatusError{Code: 429, Source: src.source}
+					if wrapped {
+						err = fmt.Errorf("hub search: %w", err)
+					}
+					if got := registryFailureReason(err, acc.access); got != want[acc.name] {
+						t.Errorf("registryFailureReason(429 from %s, %s) = %q, want %q", src.name, acc.name, got, want[acc.name])
+					}
+				})
 			}
-		})
+		}
+	}
+}
+
+// The reasons that do not depend on the access are the same under each of them.
+func TestRegistryFailureReasonSentinelsIgnoreTheAccess(t *testing.T) {
+	for _, acc := range everyAccess {
+		if got := registryFailureReason(offOriginErr(), acc.access); got != "token realm on another host" {
+			t.Errorf("%s: realm reason = %q", acc.name, got)
+		}
+		if got := registryFailureReason(blockedUpstreamErr(t), acc.access); got != "the proxy's upstream is temporarily blocked" {
+			t.Errorf("%s: blocked upstream reason = %q", acc.name, got)
+		}
 	}
 }
 
@@ -64,8 +178,9 @@ func TestTagsFooterNamesAnOffOriginTokenRealmFromSearch(t *testing.T) {
 	}
 }
 
-// Tags opened from the form (the full name flow): silent today, the footer is added
-// for this one failure only; any other failure stays silent.
+// Tags opened from the form (the full name flow): the footer says it could not load them,
+// with the reason when there is one, exactly as for → (DEVDESK-667, G2). It used to say
+// nothing but for a refused token realm, and that one had no prefix.
 func TestTagsFooterNamesAnOffOriginTokenRealmFromTheForm(t *testing.T) {
 	setup := func(t *testing.T) Model {
 		captureLog(t)
@@ -81,17 +196,21 @@ func TestTagsFooterNamesAnOffOriginTokenRealmFromTheForm(t *testing.T) {
 
 	t.Run("off-origin realm", func(t *testing.T) {
 		m := setup(t)
-		m, _ = step(t, m, failedTags(m, offOriginErr()))
-		if m.footer.Level() != components.LevelError || m.footer.Text() != "token realm on another host" {
-			t.Errorf("footer = %q at level %v, want the error %q", m.footer.Text(), m.footer.Level(), "token realm on another host")
+		m, cmd := step(t, m, failedTags(m, offOriginErr()))
+		want := tagsLoadFailedText + ": token realm on another host"
+		if m.footer.Level() != components.LevelError || m.footer.Text() != want {
+			t.Errorf("footer = %q at level %v, want the error %q", m.footer.Text(), m.footer.Level(), want)
+		}
+		if cmd == nil {
+			t.Error("no Cmd: the footer message has no timer")
 		}
 	})
 
-	t.Run("any other failure stays silent", func(t *testing.T) {
+	t.Run("an unknown cause still says tags could not load", func(t *testing.T) {
 		m := setup(t)
 		m, _ = step(t, m, failedTags(m, errors.New("boom")))
-		if m.footer.IsSet() {
-			t.Errorf("footer = %q, want none", m.footer.Text())
+		if m.footer.Level() != components.LevelError || m.footer.Text() != tagsLoadFailedText {
+			t.Errorf("footer = %q at level %v, want the error %q", m.footer.Text(), m.footer.Level(), tagsLoadFailedText)
 		}
 	})
 }
