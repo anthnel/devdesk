@@ -276,6 +276,16 @@ which stops a forgotten `cache_read` from under-pricing silently.
     window is small and the consequence is a comment, so it is accepted.
   - `default` therefore exists on disk from the first launch and appears in
     `:context list` at once.
+  - *Docker Hub registry (DEVDESK-663).* `newContextConfig`, the config both
+    creators write, also carries one registry entry built by
+    `config.DefaultHubRegistry()` (`url: docker.io`, `slug: docker-io`,
+    `kind: registry`, `auth_mode: anonymous`, empty alias, no "built in"
+    marker). It is injected there and never in `Default()` or `applyDefaults`,
+    which also serve the load fallback: an entry the user deleted would come
+    back. `ensureDefaultContext` reports whether it created the file, and
+    `reloadOnFirstLaunch` rereads the config in that case (a failed reread
+    keeps the config the session had), so the first `Save` does not drop the
+    entry. `dk setup` (`buildConfig`) is not covered yet (DEVDESK-664).
 - **One block per context.** The section lives in the context file, so each
   context needs its own prices.
 - **Not editable in `:cfg`.** There is no tab for it.

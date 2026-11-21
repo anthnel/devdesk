@@ -60,19 +60,34 @@ func forcedColorProfile(getenv func(string) string) (colorprofile.Profile, bool)
 }
 
 // ensureDefaultContext writes config.yaml, with the commented price example, on
-// a first launch. A failure is logged and does not stop the launch: the
-// application runs on the in-memory defaults, as it did before the file existed.
+// a first launch, and reports whether it created the file. A failure is logged
+// and does not stop the launch: the application runs on the in-memory defaults,
+// as it did before the file existed.
 func ensureDefaultContext() bool {
-	if _, err := config.CreateDefaultContextIfMissing(); err != nil {
+	created, err := config.CreateDefaultContextIfMissing()
+	if err != nil {
 		log.Printf("WARN [config] could not create the default context file: %v", err)
+		return false
 	}
-	// TDD red-step stub (DEVDESK-670): the real value is the created flag.
-	return false
+	return created
 }
 
-// reloadOnFirstLaunch is a TDD red-step stub (DEVDESK-670) so the tests compile.
+// reloadOnFirstLaunch rereads the configuration when ensureDefaultContext has
+// just written config.yaml. main loads the config before the file exists, so
+// without the reread the session would run on Default() and its first Save
+// would write the file without the entries a new context carries. A failed
+// reread keeps the configuration the session already has: the launch is never
+// blocked by it.
 func reloadOnFirstLaunch(cfg *config.Config, created bool, load func() (*config.Config, error)) *config.Config {
-	return cfg
+	if !created {
+		return cfg
+	}
+	reloaded, err := load()
+	if err != nil {
+		log.Printf("WARN [config] could not read the new default context file, keeping the defaults: %v", err)
+		return cfg
+	}
+	return reloaded
 }
 
 func runTUI() {
@@ -102,7 +117,7 @@ func runTUI() {
 	}
 
 	// The log is open (or unavailable): a failure below is reported, never fatal.
-	ensureDefaultContext()
+	cfg = reloadOnFirstLaunch(cfg, ensureDefaultContext(), config.Load)
 
 	// app.theme is applied by the router (app.New).
 	theme.SetGaugeGlyph(cfg.App.GaugeGlyph)
