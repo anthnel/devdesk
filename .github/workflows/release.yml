@@ -56,7 +56,11 @@ jobs:
           # clone has none.
           ref: ${{ needs.release-please.outputs.tag_name }}
           fetch-depth: 0
+      # No cache: the Actions cache is written by jobs that run PR and test code,
+      # and this workflow holds `contents: write`, so it must never restore it.
       - uses: jdx/mise-action@v4
+        with:
+          cache: false
       # Through a mise task for the reason ci.yml gives: a raw command here
       # would be a second spelling of the release build, free to drift from the
       # one anybody can run locally with `mise run release-snapshot`.
