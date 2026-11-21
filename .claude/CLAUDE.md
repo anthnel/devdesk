@@ -53,7 +53,7 @@ mise run vet          # Run go vet
 mise run lint         # MANDATORY before commits - golangci-lint
 mise run tidy         # Tidy dependencies
 mise run check        # fmt + vet + lint + test in one go
-mise run ci           # the six checks in order (fmt-check, vet, lint, build, test, test-race), stops at the first failure; unlike check it rewrites no file and also runs build and test-race. CI itself runs only fmt-check, vet, lint and build: tests are disabled in CI (maintainer decision, D149), so run this locally before every PR
+mise run ci           # the five checks in order (fmt-check, vet, lint, build, test-race), stops at the first failure; unlike check it rewrites no file and also runs build and test-race. `test-race` is the only test run (`-race` covers `go test`); `mise run test` stays available alone for the fast local loop. CI runs fmt-check, vet, lint and build in the `Lint and build` job and `test-race` in the `Test` job, on every pull request, docs-only ones included (the docs-only shortcut applies to `Lint and build` only); the whole CI targets under 10 minutes, so run this locally before a PR to catch a red check early
 
 # Installation
 mise run install      # Install to $GOPATH/bin
@@ -209,7 +209,11 @@ guard `TestContainerGuard*` (`internal/netproxy/container_guard_test.go`) fails 
 `"run"` literal; only the two permanent exceptions in that file are allowed. The tests of
 `internal/scan`, `internal/app` and `internal/ui/security` neutralise the seams
 `proxyForward` / `containerForward` in their `TestMain`, so a developer's `HTTPS_PROXY` does not
-change an exact argv.
+change an exact argv. The `TestMain` of `internal/app`
+also replaces `detectTools` (`internal/app/scan_tools.go`, production value `scan.Detect`) with an
+empty report, so `App.Init` never runs the `trivy`, `gitleaks` and `plumber` of the machine
+(DEVDESK-645); `TestInitDoesNotRunTheScannersOfTheHost` and `TestDetectToolsIsScanDetectInProduction`
+guard it.
 
 **Tests and the host secret store (DEVDESK-610).** By default `credentials.Select` and
 `KeyringAvailable` reach the real keyring of the machine (Secret Service over D-Bus on

@@ -1,15 +1,19 @@
 # Every step runs a mise task rather than a raw go command, so CI and a local
-# `mise run check` cannot drift apart. Tool versions come from mise.toml.
+# `mise run ci` cannot drift apart. Tool versions come from mise.toml.
 #
-# Docs-only pull requests skip the expensive steps, never the jobs. There is
-# deliberately no `paths-ignore`: a workflow that does not start never reports
-# its checks, and the required `Lint and build` and `Test` checks would stay
-# "pending" forever, blocking the PR. Instead both jobs always run, and in
-# `Lint and build` the `scope` step asks .github/scripts/docs-only.sh whether
-# the diff touches only documentation. The list of documentation paths lives
-# in that script alone. The `Test` job runs no tests (see its comment).
-# Steps are skipped only when the output is exactly `true`; on a push to main,
-# or when the scope step is skipped, fails or prints nothing, everything runs.
+# Docs-only pull requests skip the expensive steps of `Lint and build`, never
+# the jobs. There is deliberately no `paths-ignore`: a workflow that does not
+# start never reports its checks, and the required `Lint and build` and `Test`
+# checks would stay "pending" forever, blocking the PR. Instead both jobs always
+# run, and in `Lint and build` the `scope` step asks .github/scripts/docs-only.sh
+# whether the diff touches only documentation. The list of documentation paths
+# lives in that script alone. Steps are skipped only when the output is exactly
+# `true`; on a push to main, or when the scope step is skipped, fails or prints
+# nothing, everything runs.
+#
+# The `Test` job has no such shortcut: it runs `mise run test-race` on every
+# pull request, docs-only ones included. Some tests read Markdown files, which
+# the classifier counts as documentation.
 name: CI
 
 on:
@@ -49,12 +53,54 @@ jobs:
       - if: steps.scope.outputs.docs_only != 'true'
         run: mise run build
 
-  # Tests are disabled in CI by decision of the maintainer: they run locally
-  # before every PR (`mise run ci` or `mise run check`). The job stays, and
-  # stays green, only because the `main-protection` ruleset requires a check
-  # named `Test`; a missing job would block every PR.
+  # Runs the whole suite under the race detector (`-race` covers what a plain
+  # `go test` does) on every pull request and every push to main. The 15 minute
+  # timeout turns a stuck test into a red check instead of a run that never ends.
+  # No `needs`: this job runs in parallel with `Lint and build`. Only Go is
+  # installed through mise; the job receives no secret. The Go build and module
+  # caches are restored on every run and saved only on a push to main, so pull
+  # requests never fill the repository cache quota. The save step runs only after
+  # the tests passed and only when the exact key was not restored, so a failed run
+  # never writes a cache and an existing key is never saved twice. The key carries
+  # the OS, the Go version mise resolved, the go.sum hash and `race`;
+  # `actions/setup-go` is not used because it would install a second Go next to
+  # mise's.
   test:
     name: Test
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     steps:
-      - run: 'echo "Tests are not run in CI (maintainer decision); run \`mise run ci\` locally" >> "$GITHUB_STEP_SUMMARY"'
+      - uses: actions/checkout@v5
+        with:
+          persist-credentials: false
+      - uses: jdx/mise-action@v4
+        with:
+          install_args: go
+      - id: goenv
+        run: |
+          {
+            echo "gocache=$(go env GOCACHE)"
+            echo "gomodcache=$(go env GOMODCACHE)"
+            echo "goversion=$(go env GOVERSION)"
+          } >> "$GITHUB_OUTPUT"
+      - id: gocache
+        uses: actions/cache/restore@v5
+        with:
+          path: |
+            ${{ steps.goenv.outputs.gocache }}
+            ${{ steps.goenv.outputs.gomodcache }}
+          key: ${{ runner.os }}-go-${{ steps.goenv.outputs.goversion }}-${{ hashFiles('**/go.sum') }}-race
+          restore-keys: |
+            ${{ runner.os }}-go-${{ steps.goenv.outputs.goversion }}-
+      # GOFLAGS=-count=1 disables Go's test result cache: a warm build cache must
+      # never report a package as "(cached)" and hide a real failure.
+      - run: mise run test-race
+        env:
+          GOFLAGS: -count=1
+      - if: github.ref == 'refs/heads/main' && steps.gocache.outputs.cache-hit != 'true'
+        uses: actions/cache/save@v5
+        with:
+          path: |
+            ${{ steps.goenv.outputs.gocache }}
+            ${{ steps.goenv.outputs.gomodcache }}
+          key: ${{ runner.os }}-go-${{ steps.goenv.outputs.goversion }}-${{ hashFiles('**/go.sum') }}-race

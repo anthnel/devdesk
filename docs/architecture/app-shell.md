@@ -853,6 +853,19 @@ view it holds as `shared.ScanToolsMsg` — `broadcastJobs`'s pattern, and
 | a saved tool source, binary or image, or the engine | `handleConfigSaved` → `redetectIfToolsMoved`, comparing against the settings the last detection ran on (`scan.SameDetection`) — the configuration view edits the router's own `*config.Config`, so there is no "before" to compare to otherwise |
 | `ctrl+r` on the dashboard | `shared.ScanToolsDetectRequestMsg` |
 
+**The detection is a seam in the tests** (DEVDESK-645). `detectScanTools` calls
+the package variable `detectTools`, whose production value is `scan.Detect`.
+`App.Init` starts a detection, so a test that plays `Init` would run the real
+`trivy`, `gitleaks` and `plumber` of the machine (`--version`) and get another
+answer, and another duration, on a workstation that has them and on a runner
+that does not. The `TestMain` of `internal/app` replaces `detectTools` with an
+empty report, next to `containerForward`; never non-test code.
+`TestDetectToolsIsScanDetectInProduction` pins the production value, and
+`TestInitDoesNotRunTheScannersOfTheHost` puts decoys of the three tools first on
+`PATH` and fails if `Init` executes one. A test that needs a given detection
+feeds a `scanToolsDetectedMsg` (the `detected(gen)` helper) instead of running
+the `Cmd`.
+
 **Not on a timer.** A tool is installed far less often than the dashboard
 ticks; `ctrl+r` is the way to see one installed while DevDesk runs.
 
@@ -1569,6 +1582,23 @@ field, an `AdvanceSpinner` call and a `"◉"` literal into `jobsview`.
 **The footer half** is `migratedFooterSeeds` (a view seeds a row at a state and the
 guard checks its footer): `:sec` is seeded by `seedSecurityFooter`, a running
 scan on the selected row.
+
+### Router tests do not wait on a timer or the network (DEVDESK-646)
+
+Three tests used to cost about 8 s under `-race`; each now has a seam instead of a wait.
+`TestAgentUsagePollingAddsNoAnimationTick` shortens the view's poll with
+`testutil.FastTimers(t, agentusageview.PollIntervalForTest())` before the session opens
+(`pollTickCmd` freezes the interval when it builds the `Cmd`).
+`TestPasteIntoCommandPaletteReachesTheField` sets the palette cursor static
+(`Styles().Cursor.Blink = false`), so a paste arms no 530 ms blink `Cmd`.
+`TestTraceRoundTripKeepsTheScreenHeight` swaps the Diagnostics Env with
+`netdiag.Model.SetCheckEnvForTest` (`noPingEnv`: the real Env, the ICMP echo answered in place).
+Both `...ForTest` seams panic outside a test binary, like `credentials.SwapHostStoreForTest`.
+
+**There is no absolute duration guard** ("no test over 5 s", decided on purpose): a fixed
+threshold depends on how loaded the runner is, so it would fail a correct test on a busy
+runner and say nothing about a real wait. The guards that exist target a cause instead
+(`requireNoRealFooterWait` for the footer timer).
 
 ## Bubble Tea Message Flow
 

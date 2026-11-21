@@ -192,15 +192,16 @@ description = "Run fmt, vet, lint and tests (pre-commit checklist)"
 depends = ["fmt", "vet", "lint", "test"]
 
 [tasks.ci]
-description = "Reproduce the CI locally: the four checks of ci.yml (fmt-check, vet, lint, build) then test and test-race, in order, stopping at the first failure; unlike check it rewrites no file (fmt-check, not fmt)"
-# Sequential on purpose: `depends` would run the steps in parallel. test-race
-# fails plainly when no C compiler is installed; nothing is skipped or masked.
+description = "Reproduce the CI locally: fmt-check, vet, lint, build, then test-race, in order, stopping at the first failure; test-race is the only test run (-race covers what go test does), `mise run test` stays available alone for the fast local loop; unlike check it rewrites no file (fmt-check, not fmt)"
+# Sequential on purpose: `depends` would run the steps in parallel. The tests run
+# once, under the race detector (DEVDESK-648): a separate `test` step only
+# repeated the same suite. test-race fails plainly when no C compiler is
+# installed; nothing is skipped or masked.
 run = [
   { task = "fmt-check" },
   { task = "vet" },
   { task = "lint" },
   { task = "build" },
-  { task = "test" },
   { task = "test-race" },
 ]
 

@@ -3,6 +3,23 @@
 Dated entries, most recent first (AAAA-MM-JJ). Each entry records what was
 decided, why, and which alternative was rejected. Sources live in `docs/product/`.
 
+## 2026-11-21 — CI with real tests under 10 minutes: the tests run under `-race` in CI, D149 replaced (D170)
+
+Source: `docs/backlog.md` D170; `docs/product/ci-tests-rapides/` (`measures.md`, `feasibility.md`, `stories.md`, decisions of the user of 2026-11-21); `docs/measurements/2026-11-21-ci-validation.md` (DEVDESK-650, PR #450). Plane: DEVDESK-643 to DEVDESK-653 (S-08b is DEVDESK-384). Number D170: D169 was already taken on `main` by DEVDESK-514 (NX-11) when this entry was written.
+
+1. **Decided: the 10-minute target is met, and D149 is replaced by D170.** On GitHub-hosted runners (`ubuntu-latest`, 4 vCPU, gcc 15.2.0): ten warm runs, all green, end to end 285 s to 418 s (median 329 s); two cold runs at 348 s and 397 s. S-08a and S-08b are not triggered.
+2. **Why it changed:** the bottleneck was `internal/app`, 302 s without `-race` and 327 s with it, 99.5 % of the wall time, made of real waits (dashboard refresh timer, footer timers, scanner detection), not compilation. Repaired by S-01 (DEVDESK-643, PR #444), S-02a (DEVDESK-644, PR #445), S-04 (DEVDESK-648, PR #443) and S-05 (DEVDESK-649, PR #446).
+3. **Decided: the job `Test` runs the `-race` tests on every pull request, docs-only included.** The docs-only shortcut stays on `Lint and build` only. Cost accepted: a documentation PR waits about 5 to 7 minutes.
+4. **Rejected: Dagger** (S-09, DEVDESK-653, Won't): Dagger with self-hosted runners on datomir (security: privileged engine on a public repository, AI agents on the same cluster) and a persistent Dagger cache (at most about 45 s on 22 cores). Re-evaluation conditions in D170.
+5. **Delivered:** S-01, S-02a, S-04, S-05 and S-06 (S-06 in PR #450, measure only). S-07 is this PR. Not done, optional: S-02b (DEVDESK-645), S-02c (DEVDESK-646), S-03 (DEVDESK-647); the target holds without them.
+
+**Not measured or open:**
+- `fmt-check`, `vet`, `lint` and `build` are only seen as job durations (`Lint and build`: 125 s to 192 s). The 316 s local threshold of `mise run ci` is not confirmed.
+- One commit family and one runner image (`20261116.202.1`). The two cold runs are Go-cache misses on existing runs, not runs after `gh cache delete`.
+- External pull request approval is `first_time_contributors`, not changed here. The security audit recommends `all_external_contributors`. Decision for the user.
+
+**Not decided here:** no ADR; each change is reversible by a revert.
+
 ## 2026-11-20 — DEVDESK-514 (NX-11, task 514.3): IS-16 criteria against the measures (D169)
 
 Source: `docs/backlog.md` D169. Documentation only, no decision, no ADR. Measures frozen: `docs/measurements/2026-11-17-nexus-catalog.md`, `2026-11-20-nexus-cached-only.md`, `2026-11-20-nexus-access.md`. Bench only (Nexus 3.98.1-01 Community); the company instance is not measured.

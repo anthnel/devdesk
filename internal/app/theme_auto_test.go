@@ -28,8 +28,16 @@ import (
 
 const wantDarkBg = "#1e1e2e" // the default theme
 
+// autoConfig covers autoRouter and autoRouterWith. It forces the start view to
+// "workspaces": with app.theme "auto" the start view's Init is deferred until the
+// terminal answers (settleTheme -> runDeferredStartInit), and the tests drain it
+// through testutil.Msgs. testConfig() starts on the dashboard, whose Init arms a
+// real 10 s refresh tick (scheduleRefresh), so every such test would sleep 10 s.
+// An auto router built with a raw testConfig() brings that wait back without any
+// noise (DEVDESK-643). The workspaces Init carries no timer.
 func autoConfig(theme_, dark, light string) *config.Config {
 	cfg := testConfig()
+	cfg.App.DefaultView = "workspaces"
 	cfg.App.Theme = theme_
 	cfg.App.ThemeDark = dark
 	cfg.App.ThemeLight = light

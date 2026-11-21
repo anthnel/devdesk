@@ -36,6 +36,12 @@ func TestPasteIntoCommandPaletteReachesTheField(t *testing.T) {
 			if !a.commandMode {
 				t.Fatal("ctrl+p did not open the palette")
 			}
+			// A moved cursor re-arms the blink, a Cmd that sleeps the
+			// bubbles blink period (530 ms) when sawQuit runs it below.
+			// The test is about the pasted text, so the cursor stays static.
+			styles := a.commandInput.Styles()
+			styles.Cursor.Blink = false
+			a.commandInput.SetStyles(styles)
 			before := len(view.received)
 
 			_, cmd := a.Update(testutil.Paste(tc.paste))
