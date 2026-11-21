@@ -1,0 +1,19 @@
+{
+  "tool_use_id": "toolu_013dXFTEdy6gh2hsTv17njwE",
+  "agent_id": "a35d9c1ac79a16a54",
+  "subagent_type": "product-team:researcher",
+  "task_description": "Recherche registres par défaut",
+  "files": [
+    "docs/product/default-registries/brief.md",
+    "docs/product/default-registries/research.md"
+  ],
+  "token_usage": {
+    "input_tokens": 18,
+    "cache_creation_tokens": 67130,
+    "cache_read_tokens": 314907,
+    "output_tokens": 13709,
+    "api_call_count": 9
+  },
+  "started_at": "2026-11-21T19:13:16.132563644+01:00",
+  "completed_at": "2026-11-21T19:13:16.13291961+01:00"
+}

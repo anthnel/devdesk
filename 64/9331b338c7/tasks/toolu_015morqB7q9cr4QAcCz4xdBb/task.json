@@ -1,0 +1,19 @@
+{
+  "tool_use_id": "toolu_015morqB7q9cr4QAcCz4xdBb",
+  "agent_id": "a537b123127aa67e4",
+  "subagent_type": "product-team:pm",
+  "task_description": "Mettre à jour stories après faisabilité",
+  "files": [
+    "docs/product/default-registries/brief.md",
+    "docs/product/default-registries/stories.md"
+  ],
+  "token_usage": {
+    "input_tokens": 10,
+    "cache_creation_tokens": 74182,
+    "cache_read_tokens": 232692,
+    "output_tokens": 18525,
+    "api_call_count": 5
+  },
+  "started_at": "2026-11-21T19:38:04.593132012+01:00",
+  "completed_at": "2026-11-21T19:38:04.593540273+01:00"
+}

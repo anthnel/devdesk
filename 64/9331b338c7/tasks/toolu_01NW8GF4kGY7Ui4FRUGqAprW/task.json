@@ -1,0 +1,18 @@
+{
+  "tool_use_id": "toolu_01NW8GF4kGY7Ui4FRUGqAprW",
+  "agent_id": "a547d7b9250728382",
+  "subagent_type": "product-team:pm",
+  "task_description": "Rédiger brief default-registries",
+  "files": [
+    "docs/product/default-registries/brief.md"
+  ],
+  "token_usage": {
+    "input_tokens": 14,
+    "cache_creation_tokens": 63565,
+    "cache_read_tokens": 255854,
+    "output_tokens": 3684,
+    "api_call_count": 6
+  },
+  "started_at": "2026-11-21T19:11:28.591463652+01:00",
+  "completed_at": "2026-11-21T19:11:28.591640476+01:00"
+}

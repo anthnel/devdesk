@@ -1,0 +1,18 @@
+{
+  "tool_use_id": "toolu_01A1PcdEeq3odVHKDSosner9",
+  "agent_id": "abeabfda6448f748c",
+  "subagent_type": "product-team:pm",
+  "task_description": "Créer module et stories dans Plane",
+  "files": [
+    "docs/product/default-registries/stories.md"
+  ],
+  "token_usage": {
+    "input_tokens": 18,
+    "cache_creation_tokens": 84984,
+    "cache_read_tokens": 600892,
+    "output_tokens": 12564,
+    "api_call_count": 9
+  },
+  "started_at": "2026-11-21T19:40:49.829851084+01:00",
+  "completed_at": "2026-11-21T19:40:49.830157788+01:00"
+}

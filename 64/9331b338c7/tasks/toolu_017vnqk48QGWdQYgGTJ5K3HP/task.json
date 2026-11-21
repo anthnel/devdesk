@@ -1,0 +1,19 @@
+{
+  "tool_use_id": "toolu_017vnqk48QGWdQYgGTJ5K3HP",
+  "agent_id": "a6e99890b2bd37878",
+  "subagent_type": "product-team:pm",
+  "task_description": "Rédiger stories default-registries",
+  "files": [
+    "docs/product/default-registries/brief.md",
+    "docs/product/default-registries/stories.md"
+  ],
+  "token_usage": {
+    "input_tokens": 18,
+    "cache_creation_tokens": 95881,
+    "cache_read_tokens": 509200,
+    "output_tokens": 15341,
+    "api_call_count": 8
+  },
+  "started_at": "2026-11-21T19:26:10.565321133+01:00",
+  "completed_at": "2026-11-21T19:26:10.565707953+01:00"
+}
