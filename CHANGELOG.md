@@ -1,5 +1,90 @@
 # Changelog
 
+## [2.1.0](https://github.com/anthnel/devdesk/compare/v2.0.0...v2.1.0) (2026-11-21)
+
+
+### Features
+
+* add app.theme auto with embedded dark and light themes (DEVDESK-258) ([#367](https://github.com/anthnel/devdesk/issues/367)) ([f26012d](https://github.com/anthnel/devdesk/commit/f26012deee0da9774633375b72ba76ce0c5f9c3e))
+* add mise run ci chaining the six CI checks (DEVDESK-342) ([#373](https://github.com/anthnel/devdesk/issues/373)) ([d5e7e85](https://github.com/anthnel/devdesk/commit/d5e7e85d641e2b24badf31e7d49796f3aa59cd49))
+* add Run Diagnostics and Trace Path buttons to the Diagnostics form (DEVDESK-470) ([147593c](https://github.com/anthnel/devdesk/commit/147593c001b1f7eef842661c9f2996fb5e0761c9))
+* add the native path trace engine internal/nettrace (DEVDESK-327) ([#400](https://github.com/anthnel/devdesk/issues/400)) ([9d9a868](https://github.com/anthnel/devdesk/commit/9d9a86886f6aeb35692d4386ae1b79a0eae2886d))
+* add the Nexus bench NX-01 (DEVDESK-504) ([#420](https://github.com/anthnel/devdesk/issues/420)) ([75ec254](https://github.com/anthnel/devdesk/commit/75ec254e00ea306c04c533c52d80884c7a2c0920))
+* add the Path tab with streaming hops and an H shortcut from Diagnostics (DEVDESK-328) ([#401](https://github.com/anthnel/devdesk/issues/401)) ([e096ef7](https://github.com/anthnel/devdesk/commit/e096ef7c6b098a6ca1d5e371926fb4c4ca1fb4a0))
+* choose a Docker Engine container as the Path trace source with ctrl+o (DEVDESK-330) ([#403](https://github.com/anthnel/devdesk/issues/403)) ([1816b14](https://github.com/anthnel/devdesk/commit/1816b14696170b28a8cd6ce461d8dc2d341fff6e))
+* classify each registry's image search answer into three verdicts (DEVDESK-303) ([#391](https://github.com/anthnel/devdesk/issues/391)) ([abe1f67](https://github.com/anthnel/devdesk/commit/abe1f6763991c64d93d054d5fcb0f2f6f6e8f68a))
+* come back to image search level 1 with the left arrow key or esc (DEVDESK-307) ([#390](https://github.com/anthnel/devdesk/issues/390)) ([bd074e6](https://github.com/anthnel/devdesk/commit/bd074e6d6f91b11c7d2a47f22a37dd14b773317e))
+* default image search order, key-tracked cursor and selected-row footer (DEVDESK-302) ([#388](https://github.com/anthnel/devdesk/issues/388)) ([c23b07a](https://github.com/anthnel/devdesk/commit/c23b07a84d74805222f994f2e729d93972333ea9))
+* filter the level 1 image table by registry with the r key (DEVDESK-310) ([#396](https://github.com/anthnel/devdesk/issues/396)) ([9f593fb](https://github.com/anthnel/devdesk/commit/9f593fbf94e414bf5321d2583414bb63be1d8668))
+* fold the Path tab into the Diagnostics trace level, four tabs (DEVDESK-471) ([e08e67c](https://github.com/anthnel/devdesk/commit/e08e67cef1bd40b3ee0febece873acc6d5459f17))
+* grey out the Path tab with a named reason on unsupported platforms (DEVDESK-334) ([3168006](https://github.com/anthnel/devdesk/commit/31680064787cb408900ead2fdf3f64739d39d9ba))
+* image search level 1 in the OCI registry browser, inactive until a searcher is wired (DEVDESK-299) ([#384](https://github.com/anthnel/devdesk/issues/384)) ([a65b54d](https://github.com/anthnel/devdesk/commit/a65b54d5e998ae81975ffbee203b58dc1a08fc4b))
+* image search level 1 on Docker Hub (DEVDESK-301) ([#387](https://github.com/anthnel/devdesk/issues/387)) ([d6b7529](https://github.com/anthnel/devdesk/commit/d6b7529050d8e5c6508778b7b061c268dff1461f))
+* keep each registry's outcome visible in the level 1 header (DEVDESK-305) ([#393](https://github.com/anthnel/devdesk/issues/393)) ([93396b7](https://github.com/anthnel/devdesk/commit/93396b763974e70ab505b756c5f93713706d6f7c))
+* label WSL2 source and Windows host in the Path column (DEVDESK-333) ([#406](https://github.com/anthnel/devdesk/issues/406)) ([b522394](https://github.com/anthnel/devdesk/commit/b522394d9ff3f5004c470f294df9784d44f5bd37))
+* migrate to Charm v2 (DEVDESK-201, DEVDESK-208) ([c0f9ee1](https://github.com/anthnel/devdesk/commit/c0f9ee1baab6072ff9e16a78fbba65d0902d98e7))
+* **netcheck:** say a proxy is configured when the direct DNS lookup fails (DEVDESK-596) ([#430](https://github.com/anthnel/devdesk/issues/430)) ([20dece3](https://github.com/anthnel/devdesk/commit/20dece320ac68b46051e8f1e104affdd2ff8dc8c))
+* **netcheck:** tell which proxy applies to a Diagnostics target (DEVDESK-582) ([#428](https://github.com/anthnel/devdesk/issues/428)) ([fe9ebf8](https://github.com/anthnel/devdesk/commit/fe9ebf8001433ea3355701372fc08c135e79b773))
+* **nexusbench:** cut and restore the proxy upstream and reset the bench without recreating the instance (DEVDESK-534) ([#423](https://github.com/anthnel/devdesk/issues/423)) ([5ba3d5e](https://github.com/anthnel/devdesk/commit/5ba3d5e54d888eba30fbe498aa85a1e6a662ba4b))
+* **nexusbench:** seed the Nexus bench with known images and deploy the proxy upstream (DEVDESK-505) ([#421](https://github.com/anthnel/devdesk/issues/421)) ([ace0fcd](https://github.com/anthnel/devdesk/commit/ace0fcdfe52c065362c6695e72965418ead23c26))
+* open an image's tags with the right arrow key from image search level 1 (DEVDESK-304) ([#389](https://github.com/anthnel/devdesk/issues/389)) ([af28bf3](https://github.com/anthnel/devdesk/commit/af28bf3341773369cacac3212cc4605d0e08a569))
+* open the tags of the typed name explicitly with a second Open Tags button in the registry browser (DEVDESK-300) ([#385](https://github.com/anthnel/devdesk/issues/385)) ([5ff4e6e](https://github.com/anthnel/devdesk/commit/5ff4e6e0b95f42ef20764ce3021b78a838d3d874))
+* pause view reads while the terminal is unfocused, add app.when_unfocused (DEVDESK-210) ([#364](https://github.com/anthnel/devdesk/issues/364)) ([1df1d7b](https://github.com/anthnel/devdesk/commit/1df1d7b9a64b9c470ddf59ad178365027c154aa7))
+* read a Nexus group member's catalog under its path (DEVDESK-579) ([#434](https://github.com/anthnel/devdesk/issues/434)) ([7cb91e8](https://github.com/anthnel/devdesk/commit/7cb91e8d35d052253b105e7d797c30c431be9980))
+* read the local route once for Diagnostics and the path trace (DEVDESK-473) ([#417](https://github.com/anthnel/devdesk/issues/417)) ([e939a06](https://github.com/anthnel/devdesk/commit/e939a066bf118d45fdfcda7508c396a22791266b))
+* record multi-exchange Bearer and redirect flows, manifest HEADs and bench states (DEVDESK-580) ([#436](https://github.com/anthnel/devdesk/issues/436)) ([53c839b](https://github.com/anthnel/devdesk/commit/53c839bb10491d97a95a25cfbd0c2e3a0619d8eb))
+* replay recorded Nexus answers as regression tests (DEVDESK-511) ([#426](https://github.com/anthnel/devdesk/issues/426)) ([9f878a2](https://github.com/anthnel/devdesk/commit/9f878a2ad954099f5dcd7ba63ff3b82bc3d109f1))
+* route the terminal focus level to the view on screen (DEVDESK-210) ([#363](https://github.com/anthnel/devdesk/issues/363)) ([eb13ee9](https://github.com/anthnel/devdesk/commit/eb13ee9e33f328cfc07abe34b3c50d8a2f3a529f))
+* say no route or undetermined on the Diagnostics route stage (DEVDESK-474) ([899df36](https://github.com/anthnel/devdesk/commit/899df36399c93c9f101569303f68069290462291))
+* say when a Nexus listing is limited to cached content (DEVDESK-308) ([#394](https://github.com/anthnel/devdesk/issues/394)) ([f74f306](https://github.com/anthnel/devdesk/commit/f74f306dd99428d4e6ee2df7aa722d002b894261))
+* **scan:** forward the proxy to container scanners and document what DevDesk reads (DEVDESK-583) ([#429](https://github.com/anthnel/devdesk/issues/429)) ([7de12bb](https://github.com/anthnel/devdesk/commit/7de12bbb23c60d956ea084acded6ad8815556ff5))
+* search a private registry through its catalog (DEVDESK-306) ([#392](https://github.com/anthnel/devdesk/issues/392)) ([75be683](https://github.com/anthnel/devdesk/commit/75be68354f508694a57e5d135d8bf976044ba87c))
+* set the terminal background from the theme (DEVDESK-209) ([#356](https://github.com/anthnel/devdesk/issues/356)) ([5813532](https://github.com/anthnel/devdesk/commit/5813532127fdc1d30a33d3754a8ae9c7e8ca1caf))
+* set the terminal window title to "dk · view · context" and restore it on exit (DEVDESK-257) ([#366](https://github.com/anthnel/devdesk/issues/366)) ([4042d2b](https://github.com/anthnel/devdesk/commit/4042d2b8c3279ea2fe340ea479c936c4a15f8761))
+* shared activity dot for :containers, :agent-usage, :sec, :net, forge auth and dk setup (DEVDESK-371, DEVDESK-372, DEVDESK-373, DEVDESK-375, DEVDESK-376) ([#376](https://github.com/anthnel/devdesk/issues/376)) ([cbeda2e](https://github.com/anthnel/devdesk/commit/cbeda2ef6c30af5f739869abc7d9908eb69b32d9))
+* shared activity dot for the viewer and :oci loads (DEVDESK-370, DEVDESK-374) ([#375](https://github.com/anthnel/devdesk/issues/375)) ([e4cc688](https://github.com/anthnel/devdesk/commit/e4cc688eaba43bc1ab1920fd90888111f65e192a))
+* show an engine row in the Path column when the container's bridge is not visible on this machine (DEVDESK-332) ([#405](https://github.com/anthnel/devdesk/issues/405)) ([c2b4e96](https://github.com/anthnel/devdesk/commit/c2b4e961e818916c53d5f2c0ca3df29c40480cdc))
+* show how far the call went when the path trace fails (DEVDESK-335) ([#409](https://github.com/anthnel/devdesk/issues/409)) ([d7c4267](https://github.com/anthnel/devdesk/commit/d7c4267d4917f1df35dcbf5590232119a302f6b2))
+* show job progress in the terminal tab via View.ProgressBar (DEVDESK-211) ([#365](https://github.com/anthnel/devdesk/issues/365)) ([a596538](https://github.com/anthnel/devdesk/commit/a596538ebd1336f8b41a4dc3b5fdf124cd67d6ee))
+* show the container's bridge in the Path column only when this machine has it (DEVDESK-331) ([#404](https://github.com/anthnel/devdesk/issues/404)) ([fb4e5f9](https://github.com/anthnel/devdesk/commit/fb4e5f93a44d56452fa8111801e38da9ad0d2a45))
+* show the shared activity dot in :status and add the loading test bench (DEVDESK-369) ([#372](https://github.com/anthnel/devdesk/issues/372)) ([9c6c782](https://github.com/anthnel/devdesk/commit/9c6c782582f4c232e91a3bd4515126009fbb50c1))
+* show the shared activity dot in the footer instead of the braille spinner (DEVDESK-341) ([#370](https://github.com/anthnel/devdesk/issues/370)) ([5f76cc1](https://github.com/anthnel/devdesk/commit/5f76cc162fe83642a169c2cff876ca039e0162f7))
+* show this machine, its interface and gateway before the hops in the Path tab (DEVDESK-329) ([#402](https://github.com/anthnel/devdesk/issues/402)) ([65b4729](https://github.com/anthnel/devdesk/commit/65b4729623cdaa5bddb36aa4dce08ce510292dcc))
+* sort the level 1 image table with the dot key (DEVDESK-309) ([#395](https://github.com/anthnel/devdesk/issues/395)) ([5db95ce](https://github.com/anthnel/devdesk/commit/5db95ce6daca9f20bca5338d3e1c325814e3a317))
+* suspend the animation while the terminal is blurred (DEVDESK-210) ([#362](https://github.com/anthnel/devdesk/issues/362)) ([2cf7ea2](https://github.com/anthnel/devdesk/commit/2cf7ea2c8b721d6b0d0107af80fc6216f420c594))
+* trace the path on native Windows with ICMP echoes (DEVDESK-486) ([388fc8c](https://github.com/anthnel/devdesk/commit/388fc8cfb7880e3d65eb20146568bc6a1c2a24d1))
+* typed registry errors, context-aware tag lookups and generation-stamped tag results (DEVDESK-298) ([#383](https://github.com/anthnel/devdesk/issues/383)) ([e7a8a22](https://github.com/anthnel/devdesk/commit/e7a8a22ce9750535603fe08b53ba4b4f00a15a23))
+* underline invalid form fields with a curly red line and a footer message (DEVDESK-292) ([#368](https://github.com/anthnel/devdesk/issues/368)) ([56166bf](https://github.com/anthnel/devdesk/commit/56166bf87b30d7459a515b1a4ec8dfd6626d1972))
+* walk a host's catalog only once per search and identity (DEVDESK-311) ([#397](https://github.com/anthnel/devdesk/issues/397)) ([5285034](https://github.com/anthnel/devdesk/commit/5285034310645e5cad91d7f64b37ed4d75ec32a5))
+* write a commented agent_usage.prices example into new context files (DEVDESK-314) ([#398](https://github.com/anthnel/devdesk/issues/398)) ([f5c0bc5](https://github.com/anthnel/devdesk/commit/f5c0bc5e3b02a384be141b32690de2e70862ffa1))
+
+
+### Bug Fixes
+
+* align the mise ci guard with D149 (DEVDESK-502) ([#418](https://github.com/anthnel/devdesk/issues/418)) ([ed14483](https://github.com/anthnel/devdesk/commit/ed1448325f3e717b70b93046e35f27b393844f9b))
+* calibrate the hub body cap test to kernel TCP buffers (DEVDESK-411) ([#415](https://github.com/anthnel/devdesk/issues/415)) ([68f635d](https://github.com/anthnel/devdesk/commit/68f635d52e97d29fb18c36f71826a9183afd48f0))
+* **deps:** bump golang.org/x/net to v0.62.0 (DEVDESK-278) ([#357](https://github.com/anthnel/devdesk/issues/357)) ([463d53a](https://github.com/anthnel/devdesk/commit/463d53aeca15919f44ea200725752abf2ad56e39))
+* extend the registry origin and size hardening to the other HTTP clients (DEVDESK-412) ([#419](https://github.com/anthnel/devdesk/issues/419)) ([dae964b](https://github.com/anthnel/devdesk/commit/dae964b752081c4b139f213ae303f170a337ea77))
+* join the bottom bar to the viewport frame (DEVDESK-457) ([d0b76ce](https://github.com/anthnel/devdesk/commit/d0b76ce76584bc1b0888d3386584ca8525ecb4b0))
+* keep registry credentials on the registry's origin and bound the token response (DEVDESK-410) ([#399](https://github.com/anthnel/devdesk/issues/399)) ([f2617de](https://github.com/anthnel/devdesk/commit/f2617de9b327f48814821a943ebdd9181cc5a8c8))
+* let the space key reach text fields in configuration and the OCI launch form (DEVDESK-266) ([#359](https://github.com/anthnel/devdesk/issues/359)) ([5393279](https://github.com/anthnel/devdesk/commit/5393279f0222f48c117bec9d9194e71e4d7040d1))
+* measure datatable cells by grapheme cluster so VS16 emoji match x/ansi (DEVDESK-280) ([#371](https://github.com/anthnel/devdesk/issues/371)) ([2f383de](https://github.com/anthnel/devdesk/commit/2f383dec091ece5755c16ae6057f4f8018245253))
+* **nexus:** act on the NX-04/NX-05 measurements (DEVDESK-629) ([#440](https://github.com/anthnel/devdesk/issues/440)) ([a253e8c](https://github.com/anthnel/devdesk/commit/a253e8c3cae2a5fbf9f98044d21ea92117eaf375))
+* recognise Docker Hub through isDockerHub when loading tag dates (DEVDESK-297) ([#386](https://github.com/anthnel/devdesk/issues/386)) ([4beb086](https://github.com/anthnel/devdesk/commit/4beb0865fd9b0c22f4a0d7326142eb434daa7055))
+* restart the cursor blink when the Diagnostics form regains focus (DEVDESK-485) ([2fdcc25](https://github.com/anthnel/devdesk/commit/2fdcc2537af4d103616a0faab37485681c47def2))
+* **status:** route ClearFooterMsg and PostFooterMsg to the footer (DEVDESK-589) ([#431](https://github.com/anthnel/devdesk/issues/431)) ([e732f73](https://github.com/anthnel/devdesk/commit/e732f73c58c193cc057dd3196fe10ed09bef0dc4))
+* **status:** route the SSL monitor through the proxy and guard against proxy-less HTTP clients (DEVDESK-581) ([#427](https://github.com/anthnel/devdesk/issues/427)) ([124a11b](https://github.com/anthnel/devdesk/commit/124a11b7bd8dbc4602a570da5f32939553a1029e))
+* tell a refused Nexus group member list from an empty group (DEVDESK-510) ([#425](https://github.com/anthnel/devdesk/issues/425)) ([2faf472](https://github.com/anthnel/devdesk/commit/2faf472f9dadf5224dfbaa94c53026be3f9f3a97))
+* treat a Nexus 404 "Repository not found" on the group endpoint as a members refusal (DEVDESK-578) ([#433](https://github.com/anthnel/devdesk/issues/433)) ([b7cd143](https://github.com/anthnel/devdesk/commit/b7cd143b91da42265967e5147d3eaee0942a3abf))
+* type the Nexus management API errors and refuse unreadable replies (DEVDESK-509) ([#424](https://github.com/anthnel/devdesk/issues/424)) ([dce7480](https://github.com/anthnel/devdesk/commit/dce7480516821a99bb0e0a635077a9ca27ebb137))
+* work around the bubbletea renderer ticker race after a fast exec (DEVDESK-290) ([#361](https://github.com/anthnel/devdesk/issues/361)) ([cd83400](https://github.com/anthnel/devdesk/commit/cd83400815e95e13027b2a9348c6286282fec9d6))
+
+
+### Refactoring
+
+* centralize the space key in keymap and guard legacy key fields (DEVDESK-200) ([#352](https://github.com/anthnel/devdesk/issues/352)) ([63ebd72](https://github.com/anthnel/devdesk/commit/63ebd72b3d0f834b5dfd584e055bbbe8e35a7ef6))
+* remove the footer spinner API and guard against its return (DEVDESK-377) ([#378](https://github.com/anthnel/devdesk/issues/378)) ([37ab5a8](https://github.com/anthnel/devdesk/commit/37ab5a82a81ab5e3f758c35b1be16f0bacef729c))
+
 ## [2.0.0](https://github.com/anthnel/devdesk/compare/v1.7.0...v2.0.0) (2026-11-09)
 
 
