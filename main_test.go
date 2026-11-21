@@ -278,10 +278,11 @@ func TestLaunchOnAnExistingContextReadsAndAddsNothing(t *testing.T) {
 }
 
 // DEVDESK-665 (S-03). The startup of runTUI on a machine that already has
-// contexts: Load, then sessionConfig (ensureDefaultContext and its reload), then
-// a Save. Nothing in that sequence may add Docker Hub or touch the file.
+// contexts: Load, then sessionConfig (ensureDefaultContext, and a reload only on
+// a first launch). Nothing in that sequence may add Docker Hub or touch the file.
 
-// startSession runs the startup sequence of runTUI against the real files.
+// startSession runs that startup sequence against the real files: config.Load,
+// then sessionConfig with ensureDefaultContext and config.Load. It never saves.
 func startSession(t *testing.T) *config.Config {
 	t.Helper()
 	cfg, err := config.Load()
