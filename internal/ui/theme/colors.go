@@ -1,5 +1,7 @@
 package theme
 
+// Package theme holds the shared colors and styles (S-06 CI validation probe).
+
 import "image/color"
 
 // All color variables are populated by ApplyTheme(DefaultTheme()) in init().
