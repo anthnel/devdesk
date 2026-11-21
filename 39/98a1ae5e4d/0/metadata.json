@@ -1,0 +1,282 @@
+{
+  "cli_version": "0.13.2",
+  "checkpoint_id": "3998a1ae5e4d",
+  "session_id": "0c81ffa1-136a-4a89-932d-73690eafdf28",
+  "strategy": "manual-commit",
+  "created_at": "2026-11-21T15:27:45.144079767Z",
+  "branch": "docs/ci-validation-measure",
+  "checkpoints_count": 2,
+  "save_step_count": 8,
+  "files_touched": [],
+  "agent": "Claude Code",
+  "model": "claude-sonnet-5-5",
+  "turn_id": "c816602ec3c7",
+  "checkpoint_transcript_start": 1416,
+  "transcript_lines_at_start": 1416,
+  "compact_transcript_start": 131,
+  "session_token_usage": {
+    "input_tokens": 284,
+    "cache_creation_tokens": 327524,
+    "cache_read_tokens": 20668269,
+    "output_tokens": 137256,
+    "api_call_count": 101,
+    "subagent_tokens": {
+      "input_tokens": 782,
+      "cache_creation_tokens": 2457060,
+      "cache_read_tokens": 25573500,
+      "output_tokens": 321900,
+      "api_call_count": 381
+    },
+    "subagent_tokens_complete": true
+  },
+  "redaction": {
+    "replacements": 11,
+    "layers": {
+      "betterleaks": 0,
+      "connection_string": 0,
+      "credential_key": 0,
+      "credential_value": 0,
+      "credentialed_uri": 0,
+      "entropy": 0,
+      "key_context": 11,
+      "provider_token": 0,
+      "shell_stdin": 0
+    }
+  },
+  "skill_events_version": 1,
+  "skill_events": [
+    {
+      "id": "prompt-skill-claude-code-idea-2026-11-21T11:33:46.336501437Z",
+      "event_type": "prompt_invocation",
+      "skill": {
+        "name": "idea"
+      },
+      "source": {
+        "agent": "claude-code",
+        "signal": "prompt_slash_command",
+        "confidence": "explicit"
+      },
+      "turn_id": "0a6705906ff8",
+      "timestamp": "2026-11-21T11:33:46.336501437Z",
+      "native": {
+        "command": "/idea"
+      },
+      "collapse": {
+        "target": "user_message",
+        "label": "/idea",
+        "default_collapsed": true
+      }
+    },
+    {
+      "id": "prompt-skill-claude-code-product-team:idea-2026-11-21T11:34:29.719790606Z",
+      "event_type": "prompt_invocation",
+      "skill": {
+        "name": "product-team:idea"
+      },
+      "source": {
+        "agent": "claude-code",
+        "signal": "prompt_slash_command",
+        "confidence": "explicit"
+      },
+      "turn_id": "efef5b2e8aaf",
+      "timestamp": "2026-11-21T11:34:29.719790606Z",
+      "native": {
+        "command": "/product-team:idea"
+      },
+      "collapse": {
+        "target": "user_message",
+        "label": "/product-team:idea",
+        "default_collapsed": true
+      }
+    },
+    {
+      "id": "claude-skill-toolu_01SuctJJgXhoSFoXfa7Y7ajk",
+      "event_type": "tool_invocation",
+      "skill": {
+        "name": "product-team:idea"
+      },
+      "source": {
+        "agent": "claude-code",
+        "signal": "skill_tool_use",
+        "confidence": "explicit"
+      },
+      "turn_id": "fb66cbc4ffbd",
+      "transcript_anchor": {
+        "unit": "line",
+        "start": 34,
+        "end": 35,
+        "entry_ids": [
+          "2cc0c1e7-c21f-4ba5-9031-ad29e7438f15"
+        ],
+        "tool_use_id": "toolu_01SuctJJgXhoSFoXfa7Y7ajk"
+      },
+      "native": {
+        "tool_name": "Skill",
+        "tool_use_id": "toolu_01SuctJJgXhoSFoXfa7Y7ajk"
+      },
+      "collapse": {
+        "target": "tool_pair",
+        "label": "Skill: product-team:idea",
+        "default_collapsed": true
+      }
+    },
+    {
+      "id": "claude-skill-toolu_012PGeBojZcC8eByrSXbRA2D",
+      "event_type": "tool_invocation",
+      "skill": {
+        "name": "product-team:user-stories"
+      },
+      "source": {
+        "agent": "claude-code",
+        "signal": "skill_tool_use",
+        "confidence": "explicit"
+      },
+      "turn_id": "fb66cbc4ffbd",
+      "transcript_anchor": {
+        "unit": "line",
+        "start": 278,
+        "end": 279,
+        "entry_ids": [
+          "f397902c-87dd-4a4a-a0ea-20cf6709101d"
+        ],
+        "tool_use_id": "toolu_012PGeBojZcC8eByrSXbRA2D"
+      },
+      "native": {
+        "tool_name": "Skill",
+        "tool_use_id": "toolu_012PGeBojZcC8eByrSXbRA2D"
+      },
+      "collapse": {
+        "target": "tool_pair",
+        "label": "Skill: product-team:user-stories",
+        "default_collapsed": true
+      }
+    },
+    {
+      "id": "claude-skill-toolu_01NWca1Ku6d7eePtgnty9z9J",
+      "event_type": "tool_invocation",
+      "skill": {
+        "name": "team-core:resume-work"
+      },
+      "source": {
+        "agent": "claude-code",
+        "signal": "skill_tool_use",
+        "confidence": "explicit"
+      },
+      "turn_id": "fb66cbc4ffbd",
+      "transcript_anchor": {
+        "unit": "line",
+        "start": 530,
+        "end": 531,
+        "entry_ids": [
+          "a2d8d058-15b9-4c40-b0b2-ce86fbf46eee"
+        ],
+        "tool_use_id": "toolu_01NWca1Ku6d7eePtgnty9z9J"
+      },
+      "native": {
+        "tool_name": "Skill",
+        "tool_use_id": "toolu_01NWca1Ku6d7eePtgnty9z9J"
+      },
+      "collapse": {
+        "target": "tool_pair",
+        "label": "Skill: team-core:resume-work",
+        "default_collapsed": true
+      }
+    },
+    {
+      "id": "claude-skill-toolu_01KivjssEK5YMQC5doUspu2w",
+      "event_type": "tool_invocation",
+      "skill": {
+        "name": "git-worktree-pr"
+      },
+      "source": {
+        "agent": "claude-code",
+        "signal": "skill_tool_use",
+        "confidence": "explicit"
+      },
+      "turn_id": "fb66cbc4ffbd",
+      "transcript_anchor": {
+        "unit": "line",
+        "start": 534,
+        "end": 535,
+        "entry_ids": [
+          "8abd5c75-faa8-4f82-9bc7-39829724c8c7"
+        ],
+        "tool_use_id": "toolu_01KivjssEK5YMQC5doUspu2w"
+      },
+      "native": {
+        "tool_name": "Skill",
+        "tool_use_id": "toolu_01KivjssEK5YMQC5doUspu2w"
+      },
+      "collapse": {
+        "target": "tool_pair",
+        "label": "Skill: git-worktree-pr",
+        "default_collapsed": true
+      }
+    },
+    {
+      "id": "claude-skill-toolu_01TJkcUEB7gunD2D1LXpkBmV",
+      "event_type": "tool_invocation",
+      "skill": {
+        "name": "plane-integration:plane-conventions"
+      },
+      "source": {
+        "agent": "claude-code",
+        "signal": "skill_tool_use",
+        "confidence": "explicit"
+      },
+      "turn_id": "fb66cbc4ffbd",
+      "transcript_anchor": {
+        "unit": "line",
+        "start": 538,
+        "end": 539,
+        "entry_ids": [
+          "ac990150-8243-491b-bf62-ab51f4a56f45"
+        ],
+        "tool_use_id": "toolu_01TJkcUEB7gunD2D1LXpkBmV"
+      },
+      "native": {
+        "tool_name": "Skill",
+        "tool_use_id": "toolu_01TJkcUEB7gunD2D1LXpkBmV"
+      },
+      "collapse": {
+        "target": "tool_pair",
+        "label": "Skill: plane-integration:plane-conventions",
+        "default_collapsed": true
+      }
+    },
+    {
+      "id": "claude-skill-toolu_01VvYdt4K1pzxSBjJkoonU9m",
+      "event_type": "tool_invocation",
+      "skill": {
+        "name": "release-flow"
+      },
+      "source": {
+        "agent": "claude-code",
+        "signal": "skill_tool_use",
+        "confidence": "explicit"
+      },
+      "turn_id": "ca15bbd59548",
+      "transcript_anchor": {
+        "unit": "line",
+        "start": 917,
+        "end": 918,
+        "entry_ids": [
+          "a53a9a28-a356-4c5e-9d89-8c4141c10df0"
+        ],
+        "tool_use_id": "toolu_01VvYdt4K1pzxSBjJkoonU9m"
+      },
+      "native": {
+        "tool_name": "Skill",
+        "tool_use_id": "toolu_01VvYdt4K1pzxSBjJkoonU9m"
+      },
+      "collapse": {
+        "target": "tool_pair",
+        "label": "Skill: release-flow",
+        "default_collapsed": true
+      }
+    }
+  ],
+  "session_metrics": {
+    "turn_count": 12
+  }
+}
