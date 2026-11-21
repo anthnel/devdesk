@@ -59,25 +59,23 @@ func (m Model) handleMultiRegistryTagsLoaded(msg MultiRegistryTagsLoadedMsg) (te
 	return m, loadMultiRegistryTagsMetaCmd(msg.Gen, msg.EntryKey, msg.RegistryURL, msg.Repo)
 }
 
-// handleMultiRegistryTagsFailed records a failed tag listing. Opened from the search
-// (→) it says so at the footer, with the reason when there is one; opened from the
-// form it stays in the journal, except for a refused token realm (DEVDESK-629).
+// handleMultiRegistryTagsFailed records a failed tag listing. Opened from the form or from
+// the search (→), it says so at the footer, level Error: "Could not load tags", with the
+// reason when there is one (DEVDESK-629, DEVDESK-667). Nothing is retried.
 func (m Model) handleMultiRegistryTagsFailed(msg MultiRegistryTagsLoadedMsg) (tea.Model, tea.Cmd) {
 	m.registryBrowser.AddRegistryTags(msg.EntryKey, msg.RegistryURL, msg.Alias, msg.Repo, nil)
-	reason := registryFailureReason(msg.Err)
+	access := accessFor(m.registryBrowser.entryFor(msg.EntryKey), false)
+	reason := registryFailureReason(msg.Err, access)
 	if m.registryBrowser.tagsFromSearch {
 		log.Printf("ERROR [oci_resources] registry tags on %s: %s", msg.Alias, searchErrorCause(msg.Err))
-		text := tagsLoadFailedText
-		if reason != "" {
-			text += ": " + reason
-		}
-		return m, m.footer.Error(text)
+	} else {
+		log.Printf("ERROR [oci_resources] registry tags %s from %s: %v", msg.Repo, oci.RedactRegistryURL(msg.RegistryURL), msg.Err)
 	}
-	log.Printf("ERROR [oci_resources] registry tags %s from %s: %v", msg.Repo, oci.RedactRegistryURL(msg.RegistryURL), msg.Err)
+	text := tagsLoadFailedText
 	if reason != "" {
-		return m, m.footer.Error(reason)
+		text += ": " + reason
 	}
-	return m, nil
+	return m, m.footer.Error(text)
 }
 
 // handleMultiRegistryTagsMeta stores tag metadata for one registry in the browser.

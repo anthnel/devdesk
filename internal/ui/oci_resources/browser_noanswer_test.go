@@ -173,8 +173,9 @@ func TestTagsFooterKeepsItsGenericTextOnATimely502(t *testing.T) {
 	}
 }
 
-// Tags opened from the form stay silent for a failure with no reason today; no answer is
-// one that has a reason, so it shows, like the refused realm.
+// Tags opened from the form say they could not load, with the reason when there is one
+// (DEVDESK-667); no answer is one that has a reason, so it follows the generic text, as it
+// does after →.
 func TestTagsFromTheFormSayNoAnswer(t *testing.T) {
 	captureLog(t)
 	withFullTagRecorder(t)
@@ -184,7 +185,8 @@ func TestTagsFromTheFormSayNoAnswer(t *testing.T) {
 
 	m, _ = step(t, m, failedTags(m, expiredTagsErr(t)))
 
-	if m.footer.Level() != components.LevelError || m.footer.Text() != noAnswerText() {
-		t.Errorf("footer = %q at level %v, want the error %q", m.footer.Text(), m.footer.Level(), noAnswerText())
+	want := tagsLoadFailedText + ": " + noAnswerText()
+	if m.footer.Level() != components.LevelError || m.footer.Text() != want {
+		t.Errorf("footer = %q at level %v, want the error %q", m.footer.Text(), m.footer.Level(), want)
 	}
 }

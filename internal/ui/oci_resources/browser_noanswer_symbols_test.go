@@ -25,13 +25,13 @@ func TestRegistryFailureReasonForNoAnswer(t *testing.T) {
 		"bare":    noAnswer,
 		"wrapped": fmt.Errorf("registry tags: %w", noAnswer),
 	} {
-		if got := registryFailureReason(err); got != want {
+		if got := registryFailureReason(err, accessOther); got != want {
 			t.Errorf("%s: registryFailureReason = %q, want %q", name, got, want)
 		}
 	}
 	// The error built by the real client is the same one.
 	var ne *oci.NoAnswerError
-	if err := expiredTagsErr(t); !errors.As(err, &ne) || registryFailureReason(err) != want {
-		t.Errorf("real client error %v: reason %q, want %q", err, registryFailureReason(err), want)
+	if err := expiredTagsErr(t); !errors.As(err, &ne) || registryFailureReason(err, accessOther) != want {
+		t.Errorf("real client error %v: reason %q, want %q", err, registryFailureReason(err, accessOther), want)
 	}
 }
