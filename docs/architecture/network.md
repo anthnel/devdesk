@@ -454,8 +454,13 @@ and `CatalogSearcher` (IS-03); dhi.io is IS-17:
      names that start with `<prefix>/` are candidates. If the walk is complete and
      no name carries the prefix, the answer is `ErrPrefixNotInCatalog` (the
      cause names the prefix); this protects against a catalog that does not
-     list names the way the entry reaches them (Nexus, IS-16) and would
-     otherwise read as a false "no result". If the walk is truncated, the
+     list names the way the entry reaches them and would otherwise read as a
+     false "no result". The assumption that a Nexus catalog lists names prefixed
+     by the repository was **contradicted** on the bench (Nexus 3.98.1-01
+     Community, 2026-11-17, NX-03, hypothesis H1 of IS-03; D167): Nexus lists
+     names without the prefix, so a Nexus member no longer goes through R1 (see
+     `CatalogUnderPrefix` below). R1 still applies to every other registry that
+     has a `repo_prefix`; none of them was measured. If the walk is truncated, the
      prefix may be on a page not read: the answer is no result with
      `partial` set, not an error. A target with `CatalogUnderPrefix` skips this
      step (see below).
@@ -504,8 +509,11 @@ and `CatalogSearcher` (IS-03); dhi.io is IS-17:
     `May omit images` mention stay computed per member.
   - Members of one Nexus host do **not** answer on the same `/v2/_catalog`
     (measured, Nexus 3.98.1-01): each answers on its own path catalog, which is why
-    the key carries the prefix. For other registries on one host the assumption
-    stays unverified.
+    the key carries the prefix. This contradicts the shared-walk premise of
+    IS-07 / D140 for Nexus members (measured on the bench, Nexus 3.98.1-01
+    Community, 2026-11-17, NX-03; D167). For other registries on one host
+    (Harbor, Artifactory, GitLab) the premise is neither confirmed nor
+    contradicted: not measured.
   A catalog may be disabled or filtered to the account's rights (Harbor,
   Artifactory, GitLab): the answer is then `refused` or a shortened list.
 - **`Target.CatalogUnderPrefix` (DEVDESK-579, NX-12).** A Nexus member has no
@@ -780,6 +788,10 @@ pending. Only an `ok` verdict appends rows. `Outcome(entryKey)` reads one
 verdict (false while pending). `Model.RegistryBrowserOutcomes()` returns a copy
 of the map, or nil when the browser is closed; it is for the tests and for IS-13.
 
+The Nexus verdicts below rest on measures made on the local bench, not on a
+company instance: read "Measured Nexus behavior" after this section before
+trusting a verdict for another Nexus.
+
 **Image search and Nexus members (DEVDESK-579, NX-12).** `targetFor` sets
 `CatalogUnderPrefix` on two kinds of entry: a plain entry that lists cached
 content only and has a `repo_prefix` (a `parent:` entry of a `provider: nexus`
@@ -800,6 +812,61 @@ keeps the whole suffix when it cuts a cell (`datatable.Column.KeepSuffix`, see
 image search; `entryFor` falls back on it, so labels, the `→` tags drill of a group
 row and the `r` filter work on a unit. The `?` help says: `'nx (group)': images
 found through the group; Nexus does not say which member holds each one.`
+
+**Measured Nexus behavior (NX-03, NX-04, NX-05).** Where the code rests on how
+Nexus answers, this is what was observed and what was not. Every row was
+**measured on the local bench**: Nexus Repository **3.98.1-01 Community**
+(`docker.io/sonatype/nexus3:3.98.1`), k0s cluster, HTTP only, no reverse proxy,
+no TLS, a file blob store (reported, not independently verified), three repositories holding six image names, one pull account with rights on
+all Docker repositories. It was **not measured on the company's Nexus instance**:
+the user decided on 2026-11-17 not to cross-check it, and that has not been done
+since. The only datum from a company instance is the 2026-08-10 note (a pull
+account refused on the detailed endpoint, Nexus version not recorded); it was
+not re-measured there. The raw answers and the dates are in the frozen notes
+`docs/measurements/2026-11-17-nexus-catalog.md` (NX-03),
+`2026-11-20-nexus-cached-only.md` (NX-04) and `2026-11-20-nexus-access.md`
+(NX-05); those notes describe the code of their day, this section the code now.
+
+| Behavior | Measured (3.98.1-01 Community, bench) | Verdict on the old assumption | Code now |
+|---|---|---|---|
+| `_catalog` prefix (2026-11-17) | Names carry **no** repository prefix, whatever the URL form. `/v2/_catalog` on the HTTP port is a 404 (HTML): no root catalog. A hosted or proxy repository answers on `/v2/<repo>/_catalog` (200); a group answers on its own connector (root of its port: the union of its members, no attribution) and 404s under `/v2/<group>/_catalog` | H1 of IS-03 (prefixed names) and IS-07 (members of one host share a root catalog): **contradicted** (D167) | `ListCatalogUnderContext` reads `/v2/<prefix>/_catalog` and rebuilds `<prefix>/<name>`; one walk per member; a group is one unit |
+| `_catalog` rights (2026-11-17) | The pull account and the anonymous account get 200 and the full list, same as admin | H2 (a pull account may call `_catalog`): **confirmed** for the bench accounts | `refused` only on 401, 403, 404, 405 |
+| Detailed group endpoint (2026-11-17) | `GET /service/rest/v1/repositories/<format>/group/<name>`: the pull account gets **404** `Repository not found`, anonymous gets 403, admin gets `memberNames`. The generic endpoint answers all three, without members | The D161 expectation of a 403 for the pull account: **contradicted on the bench**; the 403 seen on 2026-08-10 on a company instance (version unknown) is **not settled** (DEVDESK-578) | the 404 with that exact message is a members refusal (`registries.md`) |
+| Proxy content (2026-11-20, NX-04) | Upstream reachable: `_catalog` and `tags/list` list what the **upstream** holds (`mirror/uncached` is listed and pullable); a HEAD on a manifest pulls it **and writes it to the proxy cache**, `tags/list` and `_catalog` do not (cache writes read from `status` output, reported, not independently verified; NX-03 saw the same on an unrequested HEAD, attribution inferred). Upstream cut: the first `_catalog` read gets a 502 after about 20 s (reported, not independently verified), then the proxy auto-blocks and answers 404 `Remote Auto Blocked until <date>` to `_catalog` and `tags/list`, even for an image in its cache; the block is temporary (Nexus lifted it 21 s to 79 s after the cut, and `restore-upstream` lifts it at once); a HEAD still serves the cached image (200) and 404s the uncached one. The group's `_catalog` then omits the proxy's names with a 200 and its `tags/list` of a proxy image is an empty 200 | H3 / IS-14 / D137 (a proxy lists its cache, "limited to cached content"): **contradicted** | D168 (DEVDESK-629): `May omit images` replaces `Cached only`; the blocked 404 is `failed`, marked `UpstreamBlocked()` (DEVDESK-632); a delay is `no answer within 15 s` (DEVDESK-633) |
+| Routing (2026-11-20, NX-05) | By path on the HTTP port (`/v2/<repo>/...`, also `/repository/<repo>/v2/...`) and by the group's connector: all answer 200 for admin, pull and anonymous | path and group connector: **confirmed** | DevDesk calls `/v2/<repo>/...` and the connector; it never uses the `/repository/` form (D39) |
+| Bearer realm (2026-11-20, NX-05) | An anonymous `GET /v2/` is a 401 `Bearer` whose realm is on the same origin as the request, with the connector or repository path; the token request answers 200 even anonymously, but replaying `GET /v2/` with that token was a 401 again (nominal and with `DockerToken` removed). A wrong password gets a 401 `BASIC`, no `Bearer` challenge. With valid credentials DevDesk sends Basic first and never enters the Bearer flow. The realm is built from the announced host: `X-Forwarded-Host` and `X-Forwarded-Proto` change it | same-origin realm: **confirmed**. Token replay: on `GET /v2/` the token did not make the request accepted (the NX-05 note says so for this bench); NX-03 had a token accepted on a group-connector catalog. No other authenticated Bearer flow measured, and the answer to the token request with anonymous access cut is not | D168: a realm on another origin gets no credentials (`ErrTokenRealmOffOrigin`, two frozen exceptions, see "Credentials stay on their origin") |
+| Redirects (2026-11-20, NX-05) | No 3xx and no `Location` in any answer (`tags`, `_catalog`, manifest HEAD, blob GET on `docker-hosted`, `/v2` without a slash) | none observed on this bench (same origin); off-origin: inconclusive (file blob store, no S3, no reverse proxy: reported, not verified; nothing read through the proxy or group) | the off-origin refusal stays (`RefuseOffOriginRedirect`), covered by hand-written tests only |
+| `Link` and `n` (2026-11-17, 2026-11-20) | `n` is respected, `Link` is absolute and same-origin; `?n=1000` on `/v2/<repo>/_catalog` is a 200 for hosted and proxy, a 404 for the group by path and for the HTTP root. A group on its connector with `n=2` repeats names across pages (5 pages for 6 names) | confirmed (repeat: a new fact) | the catalog walk drops repeated names (DEVDESK-634) |
+
+**Still open: not measured, or not conclusive.** Each one says what is missing.
+
+- **An account restricted to some repositories** (a silent filtering that would
+  read as a false "no result"; also the 403 or 404 of the detailed endpoint for
+  such an account): the bench has no such account. Needs a role and a user limited
+  to one Docker repository, which is a write on the bench.
+- **A different Nexus version, a Nexus Pro, a Nexus behind a reverse proxy, HTTPS,
+  LDAP, an S3 blob store, `forceBasicAuth`**: one version on one HTTP bench. The
+  403-versus-404 difference with the 2026-08-10 note may come from the version;
+  needs the version of that instance or a second bench.
+- **A realm or a redirect on another origin**: the bench produces none (only the
+  `X-Forwarded-*` probe shows the realm follows the announced host). Needs a
+  reverse proxy in front of the bench, or an S3 blob store.
+- **Subdomain routing and a dedicated connector for a hosted or proxy
+  repository** (also `docker.subdomain`): not tried (W7 and W8 not done); the
+  subdomain connector is documented as Pro, unverified on Community.
+- **Whether the group's 404 under `/v2/<group>/_catalog` comes from
+  `pathEnabled`** (on the three repositories), and the tolerance of `?n=1000` on
+  `/repository/<repo>/v2/` paths and for the pull and anonymous identities of the
+  group connector.
+- **An uppercase repository name** (`/v2/<Name>/_catalog`).
+- **An anonymous call with anonymous access cut**: the 401 `Bearer` is known, the
+  answer of its token request is not.
+- **The duration of the auto-block on `_catalog`**, a proxy with an empty cache,
+  and the group's `tags/list` of a homonym with the upstream cut.
+- **Logout of an entry with a path** (`U`): probably clears every repository of
+  the host (D168, R6); not measured.
+- **Why a group repeats names across pages**: the group probably merges the pages
+  of its members; not settled.
 
 **Level 1 header summary (DEVDESK-305, IS-13).** `searchHeaderInfo`
 (`browser_summary.go`, called from `GetHeaderInfo`) says what the lot did, one

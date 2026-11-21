@@ -1,5 +1,7 @@
 # The Nexus bench — `internal/nexusbench`
 
+> Looking for how to run the bench? See [`../nexus-bench-usage.md`](../nexus-bench-usage.md).
+
 > DevDesk architecture notes. Referenced from `.claude/CLAUDE.md`;
 > read this file when working on the code it describes.
 

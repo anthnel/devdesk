@@ -29,7 +29,7 @@ the Docker client puts `/v2/` first and the whole path after it.
 Like `provider`, it is **declared, never sniffed**. Whether a repository answers
 on a path prefix, a connector port or a subdomain is a setting on that repository
 (`docker.httpPort`, `docker.httpsPort`, `docker.subdomain`), and the one endpoint
-carrying it answers 403 to an ordinary pull account — the same endpoint that
+carrying it refuses an ordinary pull account (403 or 404, see "Known limits" below) — the same endpoint that
 would say what a group's members are. An instance that refuses one refuses both,
 so guessing is not a fallback, it is the defect.
 
@@ -47,8 +47,12 @@ pair, with `auth_mode` through `credsFor`. Two ways to read a catalog:
 
 - **A Nexus member** (a discovered member of a `provider: nexus` group, or a
   `parent:` entry of one, DEVDESK-579) is read on its own path,
-  `/v2/<repo_prefix>/_catalog`. Nexus answers with names that do not carry the
-  prefix; DevDesk rebuilds `<repo_prefix>/<name>`. An empty catalog is "no
+  `/v2/<repo_prefix>/_catalog`. Nexus (3.98.1-01 Community, measured on the bench
+  on 2026-11-17) answers with names that do not carry the
+  prefix; DevDesk rebuilds `<repo_prefix>/<name>`. The pull account gets 200
+  and the full list on `_catalog`, like admin (same version, bench, 2026-11-17;
+  hypothesis H2 confirmed). Not measured: an account restricted to one
+  repository, the company instance. An empty catalog is "no
   result"; a 404, 401, 403 or 405 is refused. One walk per member.
 - **Any other entry** walks the root catalog of its host (`/v2/_catalog`), keeps
   the names under `<repo_prefix>/` and matches the typed text on the part after
@@ -260,12 +264,16 @@ as their source of truth, and `config.yaml` is what the user declares.
 - **`registries_list` (MCP)** reports the refusal as `members_refused` beside
   `discovery`, never in place of it (`mcp.md`).
 - **Known limits.** Two processes writing the cache at once: the last write
-  wins, as before. That Nexus answers 403 on the format endpoint to a pull-only
-  account was a hypothesis; NX-03 measured otherwise (below).
-- **Measured on Nexus 3.98.1-01 (NX-03, fixtures of DEVDESK-511).** The pull
+  wins, as before. The 403 a Nexus gives a pull-only account on the format
+  endpoint (D161) is explained once, in the next bullet; what stays open is
+  listed in "Measured Nexus behavior" in `network.md`.
+- **Measured on the local bench, Nexus 3.98.1-01 Community, 2026-11-17 (NX-03,
+  fixtures of DEVDESK-511).** The pull
   account gets **404 `Repository not found`**, not 403, on the detailed group
   endpoint; the anonymous call gets 403. The 403 of D161 was a hypothesis the
-  bench disproved. Since DEVDESK-578 (NX-07b) that 404 is a refusal like the
+  bench disproved. The 2026-08-10 observation of a 403 came from a company
+  instance of unknown version; it was not cross-checked, so whether the
+  difference is the version or the privileges is open. Since DEVDESK-578 (NX-07b) that 404 is a refusal like the
   403: a `*MembersRefusedError{Status: 404}` whose `Cause` is the
   `*oci.StatusError`, stored in `refusals` with `status: 404`, shown as
   `denied · <age>`, with declared members (`repo_prefix`) still listed.
