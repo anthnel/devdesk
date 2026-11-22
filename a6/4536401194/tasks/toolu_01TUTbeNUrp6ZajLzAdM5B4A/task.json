@@ -1,0 +1,15 @@
+{
+  "tool_use_id": "toolu_01TUTbeNUrp6ZajLzAdM5B4A",
+  "agent_id": "ae4ebe48e705e2ece",
+  "subagent_type": "project-tester",
+  "task_description": "Tests rouges étapes 4 et 5",
+  "token_usage": {
+    "input_tokens": 20,
+    "cache_creation_tokens": 62750,
+    "cache_read_tokens": 403839,
+    "output_tokens": 12832,
+    "api_call_count": 10
+  },
+  "started_at": "2026-11-22T10:24:09.084544828+01:00",
+  "completed_at": "2026-11-22T10:25:30.061748887+01:00"
+}

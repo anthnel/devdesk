@@ -1,0 +1,18 @@
+{
+  "tool_use_id": "toolu_0114NCMzN3ipUPxjCCHgkPMB",
+  "agent_id": "af5260543d173b8e6",
+  "subagent_type": "product-team:researcher",
+  "task_description": "Recherche alternatives Kyverno",
+  "files": [
+    "docs/product/kyverno-policies/research.md"
+  ],
+  "token_usage": {
+    "input_tokens": 26,
+    "cache_creation_tokens": 68237,
+    "cache_read_tokens": 504293,
+    "output_tokens": 15732,
+    "api_call_count": 13
+  },
+  "started_at": "2026-11-22T10:24:09.079020734+01:00",
+  "completed_at": "2026-11-22T10:27:26.455485484+01:00"
+}

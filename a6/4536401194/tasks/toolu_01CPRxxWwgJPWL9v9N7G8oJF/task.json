@@ -1,0 +1,15 @@
+{
+  "tool_use_id": "toolu_01CPRxxWwgJPWL9v9N7G8oJF",
+  "agent_id": "a3f3dfa3aeb4cb6d7",
+  "subagent_type": "product-team:critic",
+  "task_description": "Critique de l'idée Kyverno",
+  "token_usage": {
+    "input_tokens": 14,
+    "cache_creation_tokens": 45695,
+    "cache_read_tokens": 164869,
+    "output_tokens": 6070,
+    "api_call_count": 6
+  },
+  "started_at": "2026-11-22T10:24:09.079863751+01:00",
+  "completed_at": "2026-11-22T10:25:14.498044792+01:00"
+}

@@ -1,0 +1,15 @@
+{
+  "tool_use_id": "toolu_01NJx6mAhYMsnfid811Vn8mr",
+  "agent_id": "acb21465162f2c724",
+  "subagent_type": "dev-team:architect",
+  "task_description": "Faisabilité recherche dhi.io",
+  "token_usage": {
+    "input_tokens": 42,
+    "cache_creation_tokens": 89674,
+    "cache_read_tokens": 1301644,
+    "output_tokens": 12773,
+    "api_call_count": 20
+  },
+  "started_at": "2026-11-22T10:33:01.644337365+01:00",
+  "completed_at": "2026-11-22T10:35:19.881216244+01:00"
+}

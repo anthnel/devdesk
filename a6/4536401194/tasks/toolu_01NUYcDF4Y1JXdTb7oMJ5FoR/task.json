@@ -1,0 +1,19 @@
+{
+  "tool_use_id": "toolu_01NUYcDF4Y1JXdTb7oMJ5FoR",
+  "agent_id": "a09adce2264c63ce0",
+  "subagent_type": "product-team:pm",
+  "task_description": "Rédiger le spike Kyverno",
+  "files": [
+    "docs/product/kyverno-policies/brief.md",
+    "docs/product/kyverno-policies/stories.md"
+  ],
+  "token_usage": {
+    "input_tokens": 14,
+    "cache_creation_tokens": 75894,
+    "cache_read_tokens": 332517,
+    "output_tokens": 16198,
+    "api_call_count": 7
+  },
+  "started_at": "2026-11-22T10:31:14.018186855+01:00",
+  "completed_at": "2026-11-22T10:31:14.430190894+01:00"
+}

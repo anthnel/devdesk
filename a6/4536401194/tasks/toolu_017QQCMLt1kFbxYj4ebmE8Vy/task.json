@@ -1,0 +1,18 @@
+{
+  "tool_use_id": "toolu_017QQCMLt1kFbxYj4ebmE8Vy",
+  "agent_id": "afe33696970412d36",
+  "subagent_type": "product-team:researcher",
+  "task_description": "API catalogue dhi.io",
+  "files": [
+    "docs/product/dhi-image-search/research.md"
+  ],
+  "token_usage": {
+    "input_tokens": 12,
+    "cache_creation_tokens": 36705,
+    "cache_read_tokens": 148413,
+    "output_tokens": 5516,
+    "api_call_count": 6
+  },
+  "started_at": "2026-11-22T10:33:01.630286056+01:00",
+  "completed_at": "2026-11-22T10:34:08.446520543+01:00"
+}
