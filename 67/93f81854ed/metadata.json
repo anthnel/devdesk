@@ -1,0 +1,36 @@
+{
+  "cli_version": "0.13.2",
+  "checkpoint_id": "6793f81854ed",
+  "strategy": "manual-commit",
+  "branch": "docs/kyverno-apply-measurement",
+  "checkpoints_count": 14,
+  "files_touched": [
+    "docs/journal.md",
+    "docs/product/kyverno-policies/brief.md",
+    "docs/product/kyverno-policies/research.md",
+    "docs/product/kyverno-policies/stories.md"
+  ],
+  "sessions": [
+    {
+      "metadata": "/67/93f81854ed/0/metadata.json",
+      "transcript": "/67/93f81854ed/0/full.jsonl",
+      "compact_transcript": "/67/93f81854ed/0/transcript.jsonl",
+      "content_hash": "/67/93f81854ed/0/content_hash.txt",
+      "prompt": "/67/93f81854ed/0/prompt.txt"
+    }
+  ],
+  "redaction": {
+    "replacements": 15,
+    "layers": {
+      "betterleaks": 0,
+      "connection_string": 0,
+      "credential_key": 0,
+      "credential_value": 0,
+      "credentialed_uri": 0,
+      "entropy": 0,
+      "key_context": 15,
+      "provider_token": 0,
+      "shell_stdin": 0
+    }
+  }
+}
