@@ -27,12 +27,12 @@ type visibleCase struct {
 	visible []string
 }
 
+// KSV-0030 and KSV-0104 absent are no longer here: they have a fix since
+// DEVDESK-688 and their key is lit. KSV-0104 on an explicit Unconfined stays a
+// refusal, greyed from the finding alone.
 func visibleCases() []visibleCase {
-	seccomp := func(origin string) scan.Finding {
-		f := missingFinding("KSV-0104", pssBaselineLn)
-		f.SeccompOrigin = origin
-		return f
-	}
+	unconfined := missingFinding("KSV-0104", pssBaselineLn)
+	unconfined.SeccompOrigin = "unconfined"
 	return []visibleCase{
 		{"KSV-0103", missingFinding("KSV-0103"), "baseline", []string{"windowsOptions.hostProcess", "false"}},
 		{"KSV-0022", missingFinding("KSV-0022"), "baseline", []string{"remove", "capabilities.add"}},
@@ -47,10 +47,7 @@ func visibleCases() []visibleCase {
 		{"KSV-0105", missingFinding("KSV-0105"), "restricted", []string{"runAsUser", "greater than 0"}},
 		{"KSV-0106", missingFinding("KSV-0106"), "restricted", []string{"capabilities.drop", "ALL", "NET_BIND_SERVICE"}},
 		{"KSV-0121", missingFinding("KSV-0121"), "restricted", []string{"hostPath", "/, /boot, /dev, /etc"}},
-		{"KSV-0030", missingFinding("KSV-0030"), "restricted", []string{"seccompProfile.type", "RuntimeDefault"}},
-		{"KSV-0104 unconfined", seccomp("unconfined"), "baseline", []string{"seccompProfile.type", "Unconfined", "RuntimeDefault"}},
-		{"KSV-0104 absent", seccomp("absent"), "restricted", []string{"seccompProfile.type", "RuntimeDefault"}},
-		{"KSV-0104 unknown origin", seccomp(""), "baseline", []string{"seccompProfile"}},
+		{"KSV-0104 unconfined", unconfined, "baseline", []string{"seccompProfile.type", "Unconfined", "RuntimeDefault"}},
 	}
 }
 

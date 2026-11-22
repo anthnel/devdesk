@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"log"
 	"path/filepath"
+	"strings"
 
 	tea "charm.land/bubbletea/v2"
 
@@ -61,7 +62,11 @@ type MisconfigFixPreparedMsg struct {
 	// looks in. It is File.File for every rule but the build context's, whose
 	// fix edits the .dockerignore beside the Dockerfile it reports (§3.81).
 	FindingFile string
-	Err         error
+	// Scope is what the verification looks for: the workload an edit clears for
+	// every container, or the zero value for a fix of one occurrence
+	// (DEVDESK-688).
+	Scope remediation.Scope
+	Err   error
 }
 
 // MisconfigFixWrittenMsg reports the write. File is the file written,
@@ -72,6 +77,7 @@ type MisconfigFixWrittenMsg struct {
 	FindingFile string
 	Rule        string
 	Instance    string
+	Scope       remediation.Scope
 	Err         error
 }
 
@@ -98,8 +104,16 @@ func (m Model) canFixMisconfig() shortcut.Availability {
 	if m.result == nil || m.result.TargetType != scan.TargetDirectory {
 		return shortcut.Unavailable(reasonFileNotOnDisk)
 	}
-	if _, ok := remediation.FixFor(f); !ok {
+	rule, ok := remediation.FixFor(f)
+	if !ok {
 		return shortcut.Unavailable(noFixReason(f))
+	}
+	// A refusal the finding alone settles (DEVDESK-688): greyed in advance, with
+	// the reason the press of the key would give.
+	if rule.Declines != nil {
+		if reason := rule.Declines(f); reason != "" {
+			return shortcut.Unavailable(reason)
+		}
 	}
 	// Reading the file here would be I/O on a path the header calls every
 	// frame, so the declines that need the content are left to the Cmd and
@@ -176,6 +190,7 @@ func prepareMisconfigFixCmd(target string, f scan.Finding) tea.Cmd {
 		return MisconfigFixPreparedMsg{
 			Target: target, File: file, FindingFile: f.File,
 			Rule: f.ID, Instance: instanceOf(f), Body: body + diff,
+			Scope: rule.ScopeOf(updated, edits),
 		}
 	}
 }
@@ -202,7 +217,7 @@ func (m Model) handleMisconfigFixPrepared(msg MisconfigFixPreparedMsg) (tea.Mode
 		return m, m.footer.Error("Could not prepare the fix — the file may have changed, check logs")
 	}
 	m.misconfigPending = &msg.File
-	m.misconfigFinding = misconfigFindingRef{Rule: msg.Rule, Instance: msg.Instance, File: msg.FindingFile}
+	m.misconfigFinding = misconfigFindingRef{Rule: msg.Rule, Instance: msg.Instance, File: msg.FindingFile, Scope: msg.Scope}
 	// Rule 104: the safe answer is the default — ConfirmModal opens on No.
 	m.confirmModal = sharedcomponents.NewConfirmModal("Fix misconfiguration", misconfigConfirmationText(msg.File, msg.Body))
 	return m, nil
@@ -235,7 +250,7 @@ func writeMisconfigFixCmd(target string, ref misconfigFindingRef, f preparedWrit
 		err := patch.WriteIfUnchanged(f.Path, f.Original, f.Updated)
 		return MisconfigFixWrittenMsg{
 			Target: target, File: f.File, FindingFile: ref.File,
-			Rule: ref.Rule, Instance: ref.Instance, Err: err,
+			Rule: ref.Rule, Instance: ref.Instance, Scope: ref.Scope, Err: err,
 		}
 	}
 }
@@ -250,6 +265,8 @@ type misconfigFindingRef struct {
 	Instance string
 	// File is where the finding points, which is not always the file written.
 	File string
+	// Scope is the workload the fix clears, when it clears one.
+	Scope remediation.Scope
 }
 
 func (m Model) handleMisconfigFixWritten(msg MisconfigFixWrittenMsg) (tea.Model, tea.Cmd) {
@@ -263,7 +280,7 @@ func (m Model) handleMisconfigFixWritten(msg MisconfigFixWrittenMsg) (tea.Model,
 	// The file changed; the result did not. A re-scan is what turns "written"
 	// into "fixed", so it starts here rather than being left to the user — as a
 	// job, visible in `:jobs` and stoppable with K.
-	v := misconfigVerify{Target: msg.Target, Rule: msg.Rule, File: msg.FindingFile, Instance: msg.Instance}
+	v := misconfigVerify{Target: msg.Target, Rule: msg.Rule, File: msg.FindingFile, Instance: msg.Instance, Scope: msg.Scope}
 	m.misconfigVerifying = &v
 	scan := m.startMisconfigVerification(v)
 	footer := m.footer.Info(fmt.Sprintf("Fixed %s — re-scanning to confirm %s is gone", msg.File, msg.Rule))
@@ -299,6 +316,9 @@ type misconfigVerify struct {
 	// File is the file the finding points at, where the rule is looked for.
 	File     string
 	Instance string
+	// Scope is what a rule that clears a whole workload is looked for in
+	// (DEVDESK-688). The zero value: this occurrence, through holdsRule.
+	Scope remediation.Scope
 }
 
 // MisconfigVerifiedMsg is the verdict: whether the rule the fix was about is
@@ -308,6 +328,12 @@ type MisconfigVerifiedMsg struct {
 	Rule    string
 	File    string
 	Cleared bool
+	// Scope is the scope the verdict was judged by; the zero value for a fix of
+	// one occurrence.
+	Scope remediation.Scope
+	// Still lists the rule ids the re-scan still reports in the scope of the
+	// fix; Cleared is true when it is empty (DEVDESK-688).
+	Still []string
 	// Result is the scan the verdict was read from, so the tab can stop showing
 	// findings the edit has already dealt with.
 	Result *scan.Result
@@ -342,11 +368,57 @@ func verifyMisconfigCmd(v misconfigVerify) tea.Cmd {
 		if err != nil {
 			return MisconfigVerifiedMsg{Target: v.Target, Rule: v.Rule, File: v.File, Err: err}
 		}
+		still := stillReported(result, v)
 		return MisconfigVerifiedMsg{
 			Target: v.Target, Rule: v.Rule, File: v.File,
-			Cleared: !holdsRule(result, v.Rule, v.File, v.Instance), Result: result,
+			Cleared: len(still) == 0, Still: still, Scope: v.Scope, Result: result,
 		}
 	}
+}
+
+// stillReported lists the rule ids the result still reports for the fix v.
+//
+// Without a scope it is holdsRule on the occurrence that was fixed. With one, it
+// is each rule of the scope looked for in the lines of the edited workload: one
+// edit cleared them for every container of the pod, so a finding on another
+// container still counts, and a finding of another workload of the file does not.
+// A scope with no lines (0, 0: the computation failed) reads the whole file, the
+// safe side: "still reported" at worst, never a "fixed" that was not measured.
+func stillReported(result *scan.Result, v misconfigVerify) []string {
+	if len(v.Scope.Rules) == 0 {
+		if holdsRule(result, v.Rule, v.File, v.Instance) {
+			return []string{v.Rule}
+		}
+		return nil
+	}
+	if result == nil {
+		return nil
+	}
+	var still []string
+	for _, rule := range v.Scope.Rules {
+		if holdsRuleInScope(result, rule, v.File, v.Scope) {
+			still = append(still, rule)
+		}
+	}
+	return still
+}
+
+// holdsRuleInScope says whether the result reports rule in file, at a line that
+// is inside the scope's lines (anywhere in the file when the scope has none). A
+// finding with no line (Line <= 0) cannot be placed outside the scope, so it
+// counts as inside: the safe side.
+func holdsRuleInScope(result *scan.Result, rule, file string, scope remediation.Scope) bool {
+	want := remediation.RuleKey(rule)
+	wholeFile := scope.Line == 0 && scope.EndLine == 0
+	for _, f := range result.Findings {
+		if scan.Categorize(f) != scan.CategoryMisconfiguration || f.File != file || remediation.RuleKey(f.ID) != want {
+			continue
+		}
+		if wholeFile || f.Line <= 0 || (f.Line >= scope.Line && f.Line <= scope.EndLine) {
+			return true
+		}
+	}
+	return false
 }
 
 // holdsRule says whether a result still reports this rule for this file —
@@ -404,7 +476,15 @@ func (m Model) handleMisconfigVerified(msg MisconfigVerifiedMsg) (tea.Model, tea
 	if !msg.Cleared {
 		// Not a failure: the file was written, and the rule still fires. Saying
 		// so is the only honest answer, and it is why the scan exists.
-		return m, m.footer.Warn(fmt.Sprintf("%s still reported in %s after the fix", msg.Rule, msg.File))
+		ids := msg.Still
+		if len(ids) == 0 {
+			ids = []string{msg.Rule}
+		}
+		return m, m.footer.Warn(fmt.Sprintf("%s still reported in %s after the fix", strings.Join(ids, " and "), msg.File))
+	}
+	if len(msg.Scope.Rules) > 0 {
+		return m, m.footer.Info(fmt.Sprintf("%s cleared for the whole pod in %s — confirmed by a re-scan",
+			strings.Join(msg.Scope.Rules, " and "), msg.File))
 	}
 	return m, m.footer.Info(fmt.Sprintf("%s cleared in %s — confirmed by a re-scan", msg.Rule, msg.File))
 }

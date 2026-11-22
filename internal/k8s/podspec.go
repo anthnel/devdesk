@@ -9,6 +9,8 @@ import (
 // PodSpec is one pod spec of a workload and its containers (containers,
 // initContainers and ephemeralContainers).
 type PodSpec struct {
+	// Key is the key node of the pod spec ("spec"), for its line and column.
+	Key        *yaml.Node
 	Spec       *yaml.Node
 	Containers []*yaml.Node
 }
@@ -40,11 +42,15 @@ func PodSpecs(doc *yaml.Node) []PodSpec {
 	if !ok {
 		return nil
 	}
-	spec := follow(doc, path)
-	if spec == nil || spec.Kind != yaml.MappingNode {
+	parent := follow(doc, path[:len(path)-1])
+	if parent == nil {
 		return nil
 	}
-	ps := PodSpec{Spec: spec}
+	key, spec, ok := Entry(parent, path[len(path)-1])
+	if !ok || spec.Kind != yaml.MappingNode {
+		return nil
+	}
+	ps := PodSpec{Key: key, Spec: spec}
 	for _, key := range []string{"containers", "initContainers", "ephemeralContainers"} {
 		_, list, ok := Entry(spec, key)
 		if !ok || list.Kind != yaml.SequenceNode {
@@ -65,10 +71,10 @@ func PodSpecs(doc *yaml.Node) []PodSpec {
 // to: the annotation sits on the metadata next to the pod spec, which the spec
 // node alone does not reach.
 func SeccompType(doc *yaml.Node, spec PodSpec, container *yaml.Node) string {
-	if t := seccompTypeOf(container); t != "" {
+	if t := SeccompTypeOf(container); t != "" {
 		return t
 	}
-	if t := seccompTypeOf(spec.Spec); t != "" {
+	if t := SeccompTypeOf(spec.Spec); t != "" {
 		return t
 	}
 	path, ok := podSpecPaths[Scalar(doc, "kind")]
@@ -88,9 +94,38 @@ func SeccompType(doc *yaml.Node, spec PodSpec, container *yaml.Node) string {
 	return Scalar(annotations, seccompAnnotationPrefix+Scalar(container, "name"))
 }
 
-// seccompTypeOf reads securityContext.seccompProfile.type of a container or a
-// pod spec.
-func seccompTypeOf(n *yaml.Node) string {
+// seccompAnnotationFamily is what the two annotation spellings share: the
+// per-container one (container.seccomp...) and the pod one (seccomp...).
+const seccompAnnotationFamily = "seccomp.security.alpha.kubernetes.io/"
+
+// HasSeccompAnnotation reports whether the pod template's metadata, or the
+// document's own, carries a seccomp annotation (DEVDESK-688).
+func HasSeccompAnnotation(doc *yaml.Node) bool {
+	metas := []*yaml.Node{follow(doc, []string{"metadata"})}
+	if path, ok := podSpecPaths[Scalar(doc, "kind")]; ok {
+		metas = append(metas, follow(doc, append(append([]string(nil), path[:len(path)-1]...), "metadata")))
+	}
+	for _, meta := range metas {
+		if meta == nil {
+			continue
+		}
+		_, annotations, ok := Entry(meta, "annotations")
+		if !ok || annotations.Kind != yaml.MappingNode {
+			continue
+		}
+		for i := 0; i+1 < len(annotations.Content); i += 2 {
+			if strings.Contains(annotations.Content[i].Value, seccompAnnotationFamily) {
+				return true
+			}
+		}
+	}
+	return false
+}
+
+// SeccompTypeOf is the profile type a container or a pod spec sets in its own
+// securityContext.seccompProfile.type, without looking further (DEVDESK-688).
+// Empty when it sets none, or a seccompProfile without a type.
+func SeccompTypeOf(n *yaml.Node) string {
 	if n == nil {
 		return ""
 	}

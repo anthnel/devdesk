@@ -164,6 +164,25 @@ func LineEnding(content []byte) string {
 	return "\n"
 }
 
+// LineEndingAt is the line ending of one 1-based line, for an insertion right
+// under it: a single "\r\n" elsewhere in an LF file must not make the inserted
+// lines CRLF (DEVDESK-688). When the line cannot be read (out of range, or the
+// last line with no ending), it is LineEnding of the whole file.
+func LineEndingAt(content []byte, line int) string {
+	start, ok := LineStart(content, line)
+	if !ok {
+		return LineEnding(content)
+	}
+	i := bytes.IndexByte(content[start:], '\n')
+	if i < 0 {
+		return LineEnding(content)
+	}
+	if i > 0 && content[start+i-1] == '\r' {
+		return "\r\n"
+	}
+	return "\n"
+}
+
 // PlainScalarSpan is where a plain (unquoted) scalar's text sits in content.
 // A quoted or block scalar is refused: its bytes are not its value, and an
 // edit computed from the value would cut the quoting in half.
@@ -196,4 +215,25 @@ func OwnLineIndent(content []byte, n *yaml.Node) (lineStart int, indent string, 
 		return 0, "", false
 	}
 	return lineStart, string(prefix), true
+}
+
+// DocumentSpan is the first and last line of the document that holds line
+// (DEVDESK-688): what a re-scan looks at to judge one workload of a file.
+func DocumentSpan(content []byte, line int) (Span, bool) {
+	root, ok := DocumentAt(content, line)
+	if !ok {
+		return Span{}, false
+	}
+	return Span{Line: root.Line, EndLine: lastLine(root)}, true
+}
+
+// IndentStep is how many columns the first key of a block mapping value sits
+// right of its parent key: the file's own indentation step (DEVDESK-688). It
+// is false for a value that is not a block mapping, or an empty one.
+func IndentStep(key, value *yaml.Node) (int, bool) {
+	if key == nil || value == nil || value.Kind != yaml.MappingNode || value.Style&yaml.FlowStyle != 0 || len(value.Content) == 0 {
+		return 0, false
+	}
+	step := value.Content[0].Column - key.Column
+	return step, step > 0
 }

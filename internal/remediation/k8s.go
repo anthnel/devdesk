@@ -35,8 +35,10 @@ import (
 //     the manifest. It is the USER 1000 lesson of §3.78 — the re-scan would
 //     approve a pod that no longer runs.
 //   - Resource requests and limits have no universal value.
-//   - A seccomp profile can be set at the pod or the container level, and
-//     which one the author meant is not something the finding says.
+//
+// A seccomp profile is fixed at the pod level, where one RuntimeDefault covers
+// every container (DEVDESK-688, k8s_seccomp.go); what is left to the author is
+// an explicit Unconfined or Localhost.
 
 // The reasons the Kubernetes fixes decline.
 const (
@@ -277,52 +279,80 @@ func fixHostNamespace(field string) func([]byte, scan.Finding) ([]patch.Edit, st
 // this fix to decide), and a field the pod spec does not set. The value is
 // returned as written, so the caller still sees a quoted or tagged scalar.
 func podSpecFlag(content []byte, f scan.Finding, field string) (*yaml.Node, string) {
-	if reason := plainManifest(f); reason != "" {
+	doc, ps, reason := locatePodSpec(content, f)
+	if reason != "" {
 		return nil, reason
 	}
+	if !namesWorkload(doc, ps.Spec, f) {
+		return nil, ReasonWorkloadChanged
+	}
+	_, value, reason := podSpecEntry(doc, ps.Spec, field)
+	switch {
+	case reason != "":
+		return nil, reason
+	case value == nil:
+		return nil, ReasonHostFieldNotTrue
+	}
+	return value, ""
+}
+
+// locatePodSpec finds the pod spec of the workload the finding is in: a plain
+// manifest, a reported line, the document that holds it and exactly one pod spec
+// in it. It does not check what the finding says about the workload; each fix
+// has its own way to tell a stale finding.
+func locatePodSpec(content []byte, f scan.Finding) (doc *yaml.Node, ps k8s.PodSpec, reason string) {
+	if reason := plainManifest(f); reason != "" {
+		return nil, k8s.PodSpec{}, reason
+	}
 	if f.Line <= 0 {
-		return nil, ReasonUnreadableSpan
+		return nil, k8s.PodSpec{}, ReasonUnreadableSpan
 	}
 	doc, ok := k8s.DocumentAt(content, f.Line)
 	if !ok {
-		return nil, ReasonUnreadableSpan
+		return nil, k8s.PodSpec{}, ReasonUnreadableSpan
 	}
 	specs := k8s.PodSpecs(doc)
 	if len(specs) != 1 {
-		return nil, ReasonUnreadableSpan
+		return nil, k8s.PodSpec{}, ReasonUnreadableSpan
 	}
-	spec := specs[0].Spec
-	if !namesWorkload(doc, spec, f) {
-		return nil, ReasonWorkloadChanged
-	}
+	return doc, specs[0], ""
+}
+
+// podSpecEntry finds one key of a pod spec. A pod spec that something else
+// shares through an alias is refused (ReasonSharedByAlias), and so is a key
+// written twice, an alias used as a key, or a merge key when the field is not
+// written beside it (ReasonAmbiguousField): which value is in force is not for
+// a fix to decide. A field the pod spec does not set is not a refusal: it comes
+// back as nil, nil, "", and the caller decides what that means. A value that is
+// an alias, or that something else shares, is refused (ReasonSharedByAlias).
+func podSpecEntry(doc, spec *yaml.Node, field string) (key, value *yaml.Node, reason string) {
 	if isShared(doc, spec) {
-		return nil, ReasonSharedByAlias
+		return nil, nil, ReasonSharedByAlias
 	}
-	var value *yaml.Node
 	merged := false
 	for i := 0; i+1 < len(spec.Content); i += 2 {
-		key := spec.Content[i]
+		k := spec.Content[i]
 		switch {
-		case key.Kind == yaml.AliasNode:
-			return nil, ReasonAmbiguousField
-		case key.Tag == "!!merge":
+		case k.Kind == yaml.AliasNode:
+			return nil, nil, ReasonAmbiguousField
+		case k.Tag == "!!merge":
 			merged = true
-		case key.Value == field:
+		case k.Value == field:
 			if value != nil {
-				return nil, ReasonAmbiguousField
+				return nil, nil, ReasonAmbiguousField
 			}
-			value = spec.Content[i+1]
+			key, value = k, spec.Content[i+1]
 		}
 	}
 	switch {
 	case value == nil && merged:
-		return nil, ReasonAmbiguousField
+		return nil, nil, ReasonAmbiguousField
 	case value == nil:
-		return nil, ReasonHostFieldNotTrue
+		return nil, nil, ""
 	case value.Kind == yaml.AliasNode || isShared(doc, value):
-		return nil, ReasonSharedByAlias
+		return nil, nil, ReasonSharedByAlias
 	}
-	return value, ""
+	return key, value, ""
 }
 
 // namesWorkload reports whether doc is the workload Trivy's message names (kind

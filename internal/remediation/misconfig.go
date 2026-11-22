@@ -1,10 +1,13 @@
 package remediation
 
 import (
+	"bytes"
 	"regexp"
+	"slices"
 	"strings"
 
 	"github.com/anthnel/devdesk/internal/dockerfile"
+	"github.com/anthnel/devdesk/internal/k8s"
 	"github.com/anthnel/devdesk/internal/patch"
 	"github.com/anthnel/devdesk/internal/scan"
 )
@@ -51,6 +54,44 @@ type Rule struct {
 	// .dockerignore beside it. It may read the disk, so it is called where the
 	// fix is computed, never where the shortcut column is.
 	Target func(root string, f scan.Finding) (rel, reason string)
+	// Declines is a refusal the finding alone settles, so the write key is
+	// greyed without reading the file (Rule 130). Nil: none (DEVDESK-688).
+	Declines func(scan.Finding) string
+	// WorkloadRules are the rule ids the edit clears for the whole pod. When
+	// set, the verification re-scan looks for any of them in the lines of the
+	// edited workload instead of this occurrence alone (DEVDESK-688).
+	WorkloadRules []string
+}
+
+// Scope is what the verification re-scan looks for. The zero value: this
+// occurrence of the rule, as before DEVDESK-688.
+type Scope struct {
+	Rules         []string
+	Line, EndLine int // 0, 0: the whole file
+}
+
+// ScopeOf computes the scope of r for edits applied to a file, read in the
+// updated content. A rule with no WorkloadRules has the zero scope.
+//
+// The lines are those of the document the first edit lands in. When no document
+// holds it the lines stay 0, 0, which the verification reads as the whole file:
+// the safe side, a verdict of "still reported" at worst.
+func (r Rule) ScopeOf(updated []byte, edits []patch.Edit) Scope {
+	if len(r.WorkloadRules) == 0 {
+		return Scope{}
+	}
+	scope := Scope{Rules: slices.Clone(r.WorkloadRules)}
+	if len(edits) == 0 {
+		return scope
+	}
+	// Nothing before the lowest edit has moved, so its start is the same offset
+	// in the updated content.
+	start := slices.MinFunc(edits, func(a, b patch.Edit) int { return a.Span.Start - b.Span.Start }).Span.Start
+	line := 1 + bytes.Count(updated[:min(start, len(updated))], []byte("\n"))
+	if span, ok := k8s.DocumentSpan(updated, line); ok {
+		scope.Line, scope.EndLine = span.Line, span.EndLine
+	}
+	return scope
 }
 
 // FileFor returns the file this rule's fix edits for f, relative to root, or
@@ -240,6 +281,24 @@ var catalog = map[string]Rule{
 		Title:   "Set hostPID: false on the pod",
 		Fix:     fixHostNamespace("hostPID"),
 		Warning: hostNamespaceWarning,
+	},
+	// The seccomp profile of a pod (DEVDESK-688): one edit closes both rules for
+	// every container of the pod, so the re-scan looks at the pod.
+	RuleKey("KSV-0030"): {
+		AVDID:         "KSV-0030",
+		Title:         "Set seccompProfile.type: RuntimeDefault on the pod",
+		Fix:           fixSeccomp,
+		Warning:       seccompWarning,
+		Declines:      seccompDeclines,
+		WorkloadRules: []string{"KSV-0030", "KSV-0104"},
+	},
+	RuleKey("KSV-0104"): {
+		AVDID:         "KSV-0104",
+		Title:         "Set seccompProfile.type: RuntimeDefault on the pod",
+		Fix:           fixSeccomp,
+		Warning:       seccompWarning,
+		Declines:      seccompDeclines,
+		WorkloadRules: []string{"KSV-0030", "KSV-0104"},
 	},
 	// The build context (§3.81): the one fix of a finding DevDesk emits itself,
 	// and the one whose edit lands in another file than the finding's.

@@ -36,17 +36,18 @@ func missingFinding(id string, refs ...string) scan.Finding {
 	}
 }
 
-// The 15 rules the text covers: the 13 without any planned fix, and the two
-// that S-03 will fix (KSV-0030, KSV-0104), refused with a text until then.
+// The 14 findings the text covers: the 13 rules without any fix, and KSV-0104 on
+// an explicit Unconfined, the one seccomp case the fix of DEVDESK-688 (S-03)
+// refuses from the finding alone. KSV-0030 and KSV-0104 absent have a fix now:
+// they open its diff (misconfig_seccomp_test.go), and this text only comes back
+// when that fix declines.
 func missingFindings() []scan.Finding {
-	absent := missingFinding("KSV-0104", pssBaselineLn)
-	absent.SeccompOrigin = "absent"
 	unconfined := missingFinding("KSV-0104", pssBaselineLn)
 	unconfined.SeccompOrigin = "unconfined"
-	list := []scan.Finding{absent, unconfined}
+	list := []scan.Finding{unconfined}
 	for _, id := range []string{
 		"KSV-0103", "KSV-0022", "KSV-0023", "KSV-0024", "KSV-0002", "KSV-0025", "KSV-0026",
-		"KSV-0027", "KSV-0028", "KSV-0012", "KSV-0105", "KSV-0106", "KSV-0121", "KSV-0030",
+		"KSV-0027", "KSV-0028", "KSV-0012", "KSV-0105", "KSV-0106", "KSV-0121",
 	} {
 		list = append(list, missingFinding(id))
 	}
