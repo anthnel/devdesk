@@ -1,0 +1,19 @@
+{
+  "tool_use_id": "toolu_01Pr8i9e1FY7SCRmGGZK1ByH",
+  "agent_id": "a89f6946cbf13cf38",
+  "subagent_type": "product-team:pm",
+  "task_description": "Brief et stories process-list",
+  "files": [
+    "docs/product/process-list/brief.md",
+    "docs/product/process-list/stories.md"
+  ],
+  "token_usage": {
+    "input_tokens": 18,
+    "cache_creation_tokens": 108757,
+    "cache_read_tokens": 488884,
+    "output_tokens": 27888,
+    "api_call_count": 8
+  },
+  "started_at": "2026-11-22T21:46:43.154064924+01:00",
+  "completed_at": "2026-11-22T21:46:43.15447382+01:00"
+}
