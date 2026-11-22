@@ -313,6 +313,7 @@ depend on guessing what the image is for.
 | `AVD-DS-0029` | Add `--no-install-recommends` to `apt-get install` |
 | `KSV-0001` | Set `allowPrivilegeEscalation: false` on the container |
 | `KSV-0017` | Set `privileged: false` on the container |
+| `KSV-0008` / `0009` / `0010` | Set `hostIPC`, `hostNetwork` or `hostPID` to `false` on the pod (see below) |
 | removed Kubernetes API | Move the resource to the `apiVersion` that replaced it |
 | `.git` in the build context | Add `.git` to `.dockerignore` |
 
@@ -320,6 +321,14 @@ A rule may still decline for a particular file — for example, a base image
 whose distribution cannot be identified gets no `adduser` block. Declining
 says why and points you to the agent path. A doubtful edit would leave you
 second-guessing a diff.
+
+**Host namespaces reverse a choice.** `hostIPC`, `hostNetwork` and `hostPID`
+are usually set on purpose, for example by a node agent that must see the host.
+Their confirmation starts with a warning above the diff: the fix may break
+such a workload. Read it before you write. The fix declines when it cannot
+place the edit exactly: the pod spec or the value is shared through a YAML
+alias, the key appears twice or may come from a `<<` merge, the field is no
+longer `true`, or `true` is quoted or tagged.
 
 **A written file is not yet a fixed one.** Writing starts a re-scan of that
 target — an ordinary job, shown in `:jobs` as `verify fix` — and the verdict is

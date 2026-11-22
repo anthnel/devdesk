@@ -38,6 +38,10 @@ type Rule struct {
 	// It never guesses. An instance it cannot read exactly is one it declines,
 	// and the reason is shown to the user as-is (Rule 129: English).
 	Fix func(content []byte, f scan.Finding) ([]patch.Edit, string)
+	// Warning is a sentence the confirmation shows with the diff when the
+	// fix reverses a choice the author may have made on purpose (DEVDESK-687).
+	// Empty for a fix that has nothing to warn about.
+	Warning string
 	// Target is the file the fix edits, when it is not the one the finding
 	// points at: a slash path relative to root, the scanned directory, or a
 	// reason when there is no file to edit. Nil edits f.File.
@@ -110,6 +114,11 @@ const (
 	nonRootUser = "appuser"
 	nonRootUID  = "10001"
 )
+
+// hostNamespaceWarning is shown next to the diff of a host namespace fix
+// (DEVDESK-687): turning the field off undoes something the manifest was
+// written to do.
+const hostNamespaceWarning = "This reverses an explicit choice by the author; it may break node agents that need the host namespace"
 
 // catalog is keyed by ruleKey, and it is short on purpose. Adding an entry means
 // having seen the rule recur and having an edit that is exactly right for it;
@@ -211,6 +220,26 @@ var catalog = map[string]Rule{
 		AVDID: "KSV-0017",
 		Title: "Set privileged: false on the container",
 		Fix:   fixPrivileged,
+	},
+	// The host namespaces of a pod (DEVDESK-687): a fix that reverses an
+	// explicit choice, so each carries a Warning.
+	RuleKey("KSV-0008"): {
+		AVDID:   "KSV-0008",
+		Title:   "Set hostIPC: false on the pod",
+		Fix:     fixHostNamespace("hostIPC"),
+		Warning: hostNamespaceWarning,
+	},
+	RuleKey("KSV-0009"): {
+		AVDID:   "KSV-0009",
+		Title:   "Set hostNetwork: false on the pod",
+		Fix:     fixHostNamespace("hostNetwork"),
+		Warning: hostNamespaceWarning,
+	},
+	RuleKey("KSV-0010"): {
+		AVDID:   "KSV-0010",
+		Title:   "Set hostPID: false on the pod",
+		Fix:     fixHostNamespace("hostPID"),
+		Warning: hostNamespaceWarning,
 	},
 	// The build context (§3.81): the one fix of a finding DevDesk emits itself,
 	// and the one whose edit lands in another file than the finding's.

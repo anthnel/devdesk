@@ -654,6 +654,7 @@ evaluated.
 |---|---|
 | `KSV-0017` privileged | `privileged: true` → `false` |
 | `KSV-0001` allowPrivilegeEscalation | `true` → `false`; when absent, a line inserted in the container's `securityContext`, or a `securityContext` block inserted in the container |
+| `KSV-0008` hostIPC, `KSV-0009` hostNetwork, `KSV-0010` hostPID | `true` → `false` on the pod spec (DEVDESK-687), see below |
 | `K8S-API-REMOVED` | the `apiVersion` renamed, **only** for the kinds the deprecation guide marks "No notable changes" (CronJob, RBAC, storage, Lease, IngressClass, PriorityClass, RuntimeClass, APIService, CSIStorageCapacity) |
 
 The edits are still byte ranges: `internal/k8s` turns yaml.v3's node positions
@@ -664,6 +665,29 @@ insertion goes above a key that begins its own line, at that key's indentation
 container. The container is found by the name in Trivy's message, inside the
 document and the lines the finding reported; a file that no longer matches is
 declined as stale.
+
+**Host namespaces (DEVDESK-687).** The three fields are on the pod, not on a
+container, and Trivy words the path as `spec.template.spec.<field>` even for a
+Pod, so the fix finds the pod spec through `k8s.PodSpecs(DocumentAt(f.Line))`
+(by kind) and not through `reportedContainer`. It is a one-token swap, and
+`podSpecFlag` first refuses a stale finding (`ReasonWorkloadChanged`): the
+document found at `f.Line` must be the workload the message names (Trivy words
+it `Pod 'all' should not set …`, kind then `metadata.name`, checked against
+`testdata/pss/trivy-0.76.2.json`), and its pod spec must start within
+`[f.Line, f.EndLine]` (no upper bound when `EndLine` is 0). A message that names
+no workload gives nothing to compare, so it is refused too. Then it declines
+what it cannot place exactly: a pod spec or value that a
+YAML alias or an aliased anchor shares (`ReasonSharedByAlias`), a key written
+twice, a key written as an alias (`*k : false` with `&k hostNetwork`, which may
+stand for the field) or a field that may come from a `<<` merge
+(`ReasonAmbiguousField`), a
+field that is not `true` any more (`ReasonHostFieldNotTrue`), and a quoted,
+tagged or non-`true` spelling (`ReasonNotPlainBoolean`). The three catalog
+entries carry `Rule.Warning` ("reverses an explicit choice … node agents"),
+which `prepareMisconfigFixCmd` puts in the confirmation body above the diff; a
+DaemonSet is offered like any other kind. The KSV-0017 and KSV-0001 fixes do
+not have these guards yet (they read the container through `k8s.Entry`, which
+follows aliases).
 
 Two declines are the API server's own validation rather than caution:
 `allowPrivilegeEscalation: false` is refused on a privileged container or one
