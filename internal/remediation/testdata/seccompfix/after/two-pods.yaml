@@ -1,0 +1,22 @@
+apiVersion: v1
+kind: Pod
+metadata:
+  name: first
+  namespace: demo
+spec:
+  securityContext:
+    seccompProfile:
+      type: RuntimeDefault
+  containers:
+    - name: a
+      image: busybox:1.36
+---
+apiVersion: v1
+kind: Pod
+metadata:
+  name: second
+  namespace: demo
+spec:
+  containers:
+    - name: b
+      image: busybox:1.36

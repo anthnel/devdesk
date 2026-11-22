@@ -241,7 +241,9 @@ describes what Trivy's check looks for, not an edit DevDesk has verified for you
   text for it, and sends you to the check's description in Trivy. It names no
   field.
 - A rule that has a built-in fix (such as KSV-0017) shows its confirmation
-  instead. A finding outside Pod Security keeps the generic refusal.
+  instead. KSV-0030 and KSV-0104 have one for a missing seccomp profile; the
+  text above is what they say when that fix declines, and it is what greys
+  `ctrl+o` on a KSV-0104 that is an explicit `Unconfined`. A finding outside Pod Security keeps the generic refusal.
 
 Doing what the text says does not make the manifest compliant. Scan again
 after your edit: the finding disappearing is what one scanner found, not a
@@ -348,6 +350,7 @@ depend on guessing what the image is for.
 | `KSV-0001` | Set `allowPrivilegeEscalation: false` on the container |
 | `KSV-0017` | Set `privileged: false` on the container |
 | `KSV-0008` / `0009` / `0010` | Set `hostIPC`, `hostNetwork` or `hostPID` to `false` on the pod (see below) |
+| `KSV-0030` / `KSV-0104` | Set `seccompProfile.type: RuntimeDefault` on the pod (see below) |
 | removed Kubernetes API | Move the resource to the `apiVersion` that replaced it |
 | `.git` in the build context | Add `.git` to `.dockerignore` |
 
@@ -363,6 +366,55 @@ such a workload. Read it before you write. The fix declines when it cannot
 place the edit exactly: the pod spec or the value is shared through a YAML
 alias, the key appears twice or may come from a `<<` merge, the field is no
 longer `true`, or `true` is quoted or tagged.
+
+### Seccomp: one setting for the whole pod
+
+`KSV-0030` and `KSV-0104` ask for a seccomp profile. DevDesk writes it once, on
+the pod, where it covers every container, init containers included:
+
+```yaml
+spec:
+  securityContext:
+    seccompProfile:
+      type: RuntimeDefault
+```
+
+The lines are inserted under `spec:` (or under an existing `securityContext:`,
+whose other keys stay as they are) with the indentation of your file, 2 or 4
+spaces, and its line endings. Nothing else in the file changes, and the
+confirmation shows only added lines.
+
+**It can break a workload.** A process that made a system call without a seccomp
+filter may be blocked by `RuntimeDefault`. The confirmation starts with a warning
+to that effect: neither Trivy nor the re-scan can tell, so test the workload.
+
+The fix declines, with the reason in the footer and nothing written, when:
+
+- a container or the pod sets `Unconfined` or a `Localhost` profile, or a
+  `seccompProfile` without a `type`: set it by hand if the workload allows it;
+- the workload has a seccomp annotation;
+- it is a Windows pod (`spec.os.name: windows`);
+- `securityContext` is written inline (`{...}`) or is empty (`null`);
+- the pod spec or `securityContext` is shared through a YAML alias, a key is
+  written twice, or a `<<` merge key could bring the field;
+- the pod already sets `RuntimeDefault`, or the manifest no longer matches the
+  finding.
+
+Only one case is known before you press the key: a KSV-0104 that is an explicit
+`Unconfined` is greyed with the usual text. The other reasons need the file, so
+they appear in the footer when you press `ctrl+o`. A pod where some containers
+already have `RuntimeDefault` and others have nothing is offered the fix.
+
+**The re-scan judges the pod.** One edit closes both rules for all the
+containers of the pod, so the verdict looks at the whole workload that was
+edited, not at one container: `KSV-0030 and KSV-0104 cleared for the whole pod`,
+or a warning naming what is still reported. Other workloads in the same file do
+not count.
+
+Two limits. Trivy does not read `ephemeralContainers`, so the re-scan confirms
+nothing about them (the fix still refuses an ephemeral container set to
+`Unconfined` or `Localhost`). And a cleared finding means Trivy no longer reports
+it, not that the workload still runs.
 
 **A written file is not yet a fixed one.** Writing starts a re-scan of that
 target — an ordinary job, shown in `:jobs` as `verify fix` — and the verdict is

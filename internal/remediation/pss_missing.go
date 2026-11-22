@@ -24,8 +24,10 @@ type missingRule struct {
 // missingRules is keyed by RuleKey. It holds the rules of the Pod Security table
 // that have no fix of their own; a rule with a fix (KSV-0017, KSV-0001,
 // KSV-0008 to KSV-0010) is absent on purpose, so its confirmation diff is what
-// the user sees. KSV-0030 and KSV-0104 are here until S-03 fixes them, and stay:
-// the text still tells what a declined fix leaves to do by hand. KSV-0104 is
+// the user sees. KSV-0030 and KSV-0104 have a fix since DEVDESK-688 and stay
+// here: the text is shown only for a KSV-0104 Unconfined, which the fix never
+// touches and greys in advance. Every other refusal of the seccomp fix shows its
+// own ReasonSeccomp* reason at the press of the key, not this text. KSV-0104 is
 // handled apart because its text depends on SeccompOrigin.
 var missingRules = map[string]missingRule{
 	RuleKey("KSV-0103"): {"KSV-0103", "set windowsOptions.hostProcess to false, or remove it", ""},

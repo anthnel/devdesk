@@ -1,0 +1,2 @@
+# The CRLF fixture must keep its line endings: the repository normalizes text to LF.
+*crlf*.yaml -text

@@ -643,6 +643,31 @@ the finding's `Title` and `Message`, which Trivy (`Container 'api' of …`) and
 kubeconform (`Deployment/web: …`) make specific — and never the line, which the
 fix itself moves.
 
+**A fix that clears a whole pod is judged by scope (DEVDESK-688).** One seccomp
+edit closes KSV-0030 and KSV-0104 for every container of the pod, so judging
+one occurrence would be wrong in both directions: KSV-0030 has the same
+`instanceOf` for every container of the file, and a KSV-0104 names one
+container. A rule can declare `Rule.WorkloadRules` (the ids its edit clears for
+the pod; nil for every other rule, which keeps `holdsRule` unchanged).
+`Rule.ScopeOf(updated, edits)` then returns a `remediation.Scope{Rules, Line,
+EndLine}`: the rules, and the lines of the document the first edit lands in, read
+in the **updated** content (`k8s.DocumentSpan`, first to last line of the
+document). `prepareMisconfigFixCmd` stores it in `MisconfigFixPreparedMsg`, and it
+travels through `misconfigFindingRef`, `MisconfigFixWrittenMsg` and
+`misconfigVerify`. `stillReported(result, v)` returns the ids of `Scope.Rules`
+that the re-scan still reports in the same file at a line inside the scope (a
+finding with no line, `Line <= 0`, counts as inside: the safe side); with
+no scope it is `holdsRule`. So a finding of another container of the same pod
+counts, and one of another workload of the file does not. If the lines cannot be
+computed (`0, 0`) the whole file is read: at worst a "still reported" that is
+wrong, never a "fixed" that was not measured. `MisconfigVerifiedMsg` gained
+`Scope` and `Still`. The verdict reads `KSV-0030 and KSV-0104 cleared for the
+whole pod in <file> — confirmed by a re-scan`, or `<ids still found> still
+reported in <file> after the fix` (Warn). Limit: if the file changes between the
+write and the re-scan, the lines may no longer match the workload; this is the
+same class of limit as the instance comparison. The re-scan judges what Trivy
+reads, not whether the workload still runs.
+
 #### Kubernetes manifests in the catalog (§3.80)
 
 Three rules, in `internal/remediation/k8s.go`, and they only ever touch a
@@ -655,6 +680,7 @@ evaluated.
 | `KSV-0017` privileged | `privileged: true` → `false` |
 | `KSV-0001` allowPrivilegeEscalation | `true` → `false`; when absent, a line inserted in the container's `securityContext`, or a `securityContext` block inserted in the container |
 | `KSV-0008` hostIPC, `KSV-0009` hostNetwork, `KSV-0010` hostPID | `true` → `false` on the pod spec (DEVDESK-687), see below |
+| `KSV-0030`, `KSV-0104` seccomp | `securityContext.seccompProfile.type: RuntimeDefault` inserted on the pod spec (DEVDESK-688), see below |
 | `K8S-API-REMOVED` | the `apiVersion` renamed, **only** for the kinds the deprecation guide marks "No notable changes" (CronJob, RBAC, storage, Lease, IngressClass, PriorityClass, RuntimeClass, APIService, CSIStorageCapacity) |
 
 The edits are still byte ranges: `internal/k8s` turns yaml.v3's node positions
@@ -695,8 +721,101 @@ adding `CAP_SYS_ADMIN`, so the fix would pass Trivy's rule and produce a
 manifest nobody can apply. Left out entirely, for §3.78's `USER 1000` reason:
 `runAsNonRoot`, `readOnlyRootFilesystem` and dropping `ALL` capabilities pass
 their rule and can stop the container from starting. Resource limits have no
-universal value, and a seccomp profile can sit at the pod or the container
-level.
+universal value.
+
+**Seccomp (DEVDESK-688).** `KSV-0030` and `KSV-0104` share one fix,
+`fixSeccomp` (`internal/remediation/k8s_seccomp.go`): one
+`securityContext.seccompProfile.type: RuntimeDefault` on the **pod spec**, which
+covers every container of the pod, init containers included. Container level is
+never written. The pod spec is found as for the host namespaces
+(`locatePodSpec`, then `podSpecEntry`, the two halves `podSpecFlag` was split
+into; a field the pod spec does not set is no longer a refusal of
+`podSpecEntry`, it comes back as `nil, nil, ""`, which is the normal case here).
+
+*Insertion.* `insertBelowKey` inserts whole lines at the start of the line after
+the parent key, never above its first child: a comment written above that child
+stays on it, and the insertion never falls at the end of a file without a final
+newline. The indentation is the one of the first child key
+(`k8s.OwnLineIndent`); one nesting level is the file's own step,
+`k8s.IndentStep(key, value)` (the column of the first child minus the column of
+the key, block mapping only), so a file indented by 4 spaces gets 4. The line
+ending is the one of the key's line (`k8s.LineEndingAt`; the file's when that
+line cannot be read), so a CRLF file keeps CRLF and a stray `\r\n` in an LF file
+does not mix endings. Two shapes: no
+`securityContext` on the pod, then three lines under `spec:` (`securityContext:`,
+`seccompProfile:`, `type: RuntimeDefault`); a block `securityContext`, then two
+lines under it, and its other keys are untouched. The edit is a single
+insertion (`Old` empty), so the diff shows `+` lines only. `k8s.PodSpec` gained
+`Key`, the key node of the pod spec (its line and column).
+
+*Refusals* (nothing written, no confirmation). The checks run in this order:
+`seccompTarget` (stale finding), `podSpecEntry` for `securityContext` (alias,
+duplicate), then `seccompRefusal`:
+
+| Case | Reason |
+|---|---|
+| a container, init or ephemeral, or the pod sets `Unconfined` | `ReasonSeccompUnconfined` |
+| the same with `Localhost` | `ReasonSeccompLocalhost` |
+| a `seccompProfile` with no `type`, or a type the fix does not know | `ReasonSeccompNoType` |
+| a seccomp annotation (`seccomp.security.alpha.kubernetes.io/` family, per container or per pod) on the pod template metadata or the document's (`k8s.HasSeccompAnnotation`) | `ReasonSeccompAnnotation` |
+| `spec.os.name: windows`, case ignored | `ReasonWindowsPod` |
+| `securityContext` written inline (`{...}`) | `ReasonInlineMapping` |
+| `securityContext:` null (empty, `~`, `null`) | `ReasonEmptySecurityContext` |
+| pod spec or `securityContext` shared through an alias | `ReasonSharedByAlias` |
+| a key written twice, an alias used as a key, or a `<<` merge key in the pod spec, its `securityContext`, a container or a container's `securityContext` | `ReasonAmbiguousField` |
+| the pod already has `RuntimeDefault` | `ReasonSeccompAlreadySet` |
+| stale finding | `ReasonWorkloadChanged`, `ReasonContainerNotFound` |
+
+Staleness: KSV-0104 words its container and workload
+(`container "b" of deployment "three" in "demo" namespace …`), so kind (case
+ignored), `metadata.name` and the container inside `[Line, EndLine]` are
+checked. KSV-0030 names nothing (the same message for every container and
+workload), so the only check is that one container of the pod spec starts inside
+the reported lines. This is weaker, and accepted: the fix re-reads the whole
+pod for any seccomp setting, so the edit is right for the workload it lands in.
+A pod where some containers already have `RuntimeDefault` and another has
+nothing is **offered** the fix: the pod-level setting changes nothing for those
+that have one. Merge keys are refused everywhere in this scope, because a
+`seccompProfile` they bring would be invisible; some valid manifests are refused
+for that.
+
+*Declines and the grey key.* `Rule.Declines func(scan.Finding) string` is a
+refusal the finding alone settles, so `canFixMisconfig` greys the key with it,
+without reading the file (Rule 130). It is set only for the seccomp rules, and
+`seccompDeclines` answers only for KSV-0104 with `SeccompOrigin == "unconfined"`,
+with the text of `MissingFor(f)` (DEVDESK-689). Every other refusal needs the
+file, so it shows at the press of the key, in the footer at the Warn level, with
+no modal; the key is lit until then. This is the same split as the host
+namespaces. Widening `annotateSeccomp` to compute fixability at scan time was
+rejected: a new `Finding` field in the cache and in the MCP `scan_result`, and a
+value stale as soon as the file changes.
+
+*Warning.* `Rule.Warning` (`seccompWarning`) is shown above the diff: `A workload
+that ran without a seccomp filter may fail at run time under RuntimeDefault (a
+blocked system call); the re-scan cannot detect that`. Trivy and the re-scan see
+the manifest, not the behavior of the process; the safeguards are this text, the
+modal that opens on No, and the user's version control.
+
+*Limits.* Trivy does not read `ephemeralContainers`: a bare ephemeral container
+fires nothing, and the re-scan cannot confirm anything about them. The fix does
+read them, since `k8s.PodSpecs` lists them: an ephemeral `Unconfined` or
+`Localhost` is refused, a bare one is covered by the pod setting. The checks
+bundle can change the message formats and the annotation behavior
+(`testdata/seccompfix/README.md` names the bundle the measures come from).
+`k8s.SeccompTypeOf` is the exported read of one node's own
+`securityContext.seccompProfile.type` (`SeccompType`, which also looks at the pod
+and the annotation, is unchanged).
+
+*Fixture.* `internal/remediation/testdata/seccompfix/` holds six manifests in
+`before/` and the same files as the fix must write them in `after/` (two Pods in
+one file; a CronJob at 4 spaces; a Pod in CRLF; a StatefulSet with a
+`securityContext`; a Deployment of three containers; a Pod with an init
+container), and the recorded Trivy 0.76.2 outputs of both
+(`trivy-0.76.2-before.json`, `-after.json`; the recorded `after` has no
+KSV-0030 or KSV-0104 left but the second Pod of `two-pods.yaml`).
+`k8s_seccomp_trivy_test.go` applies the fix at each recorded finding and compares
+the bytes; it needs no Trivy. It is separate from `testdata/pss/`, which
+`TestThePodSecurityTableMatchesTrivy` reads.
 
 Starting it on the user's behalf is acceptable because it is an ordinary job
 (§3.58): it appears in `:jobs` labelled `verify fix`, and `K` stops it. A scan of
@@ -846,8 +965,11 @@ modal, no file touched, the same set of keys.
   columns for the 15 rules and the three origins of KSV-0104 and requires the
   field and the value to be visible. Keep a new need short for that reason.
 - Rules with a text (`missingRules`): KSV-0103, 0022, 0023, 0024, 0002, 0025, 0026,
-  0027, 0028, 0012, 0105, 0106, 0121, plus KSV-0030 and KSV-0104, which S-03 will
-  fix; their text stays for the cases where that fix declines. Each field and
+  0027, 0028, 0012, 0105, 0106, 0121, plus KSV-0030 and KSV-0104, which have a
+  fix since DEVDESK-688; their text stays for the cases where that fix declines,
+  and it is what greys the key of a KSV-0104 `unconfined` in advance
+  (`Rule.Declines`, see the seccomp paragraph above). The other refusals of that
+  fix read the file, so they reach the footer at the press of the key. Each field and
   value was read in the source of the Trivy check. KSV-0022 says Trivy's check is
   stricter than Pod Security. KSV-0025 also covers the second rule of its check
   (a `seLinuxOptions.role` or `user` key fails). KSV-0012 has no fix of its own:
