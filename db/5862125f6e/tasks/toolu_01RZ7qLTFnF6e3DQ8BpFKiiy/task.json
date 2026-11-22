@@ -1,0 +1,19 @@
+{
+  "tool_use_id": "toolu_01RZ7qLTFnF6e3DQ8BpFKiiy",
+  "agent_id": "aac8bb1a5e93e3da7",
+  "subagent_type": "product-team:pm",
+  "task_description": "Stories corrections par profil PSS",
+  "files": [
+    "docs/product/pss-profile-fixes/brief.md",
+    "docs/product/pss-profile-fixes/stories.md"
+  ],
+  "token_usage": {
+    "input_tokens": 18,
+    "cache_creation_tokens": 72846,
+    "cache_read_tokens": 492213,
+    "output_tokens": 23723,
+    "api_call_count": 9
+  },
+  "started_at": "2026-11-22T13:42:24.96116914+01:00",
+  "completed_at": "2026-11-22T13:45:08.919025805+01:00"
+}

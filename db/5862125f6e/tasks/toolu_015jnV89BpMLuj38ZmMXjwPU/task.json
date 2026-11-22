@@ -1,0 +1,15 @@
+{
+  "tool_use_id": "toolu_015jnV89BpMLuj38ZmMXjwPU",
+  "agent_id": "af8642d32de0ede14",
+  "subagent_type": "dev-team:architect",
+  "task_description": "Faisabilité corrections par profil PSS",
+  "token_usage": {
+    "input_tokens": 46,
+    "cache_creation_tokens": 94135,
+    "cache_read_tokens": 1424537,
+    "output_tokens": 24963,
+    "api_call_count": 22
+  },
+  "started_at": "2026-11-22T13:28:41.389828558+01:00",
+  "completed_at": "2026-11-22T13:32:56.375059751+01:00"
+}
