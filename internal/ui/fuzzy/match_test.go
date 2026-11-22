@@ -62,3 +62,36 @@ func TestMatchScoresSegmentBoundaryHigher(t *testing.T) {
 		t.Errorf("boundary score = %d, mid-word score = %d, want boundary higher", boundary, midword)
 	}
 }
+
+// DEVDESK-678: MatchExact is the literal-substring counterpart of Match. It
+// folds case, ignores scattered letters, and says whether one occurrence sits
+// at a path boundary (index 0 or right after a "/").
+func TestMatchExact(t *testing.T) {
+	tests := []struct {
+		name         string
+		candidate    string
+		query        string
+		wantBoundary bool
+		wantOK       bool
+	}{
+		{"segment start", "workspaces/devdesk", "dev", true, true},
+		{"scattered letters are no match", "docs/data-env", "dev", false, false},
+		{"subsequence is not a substring", "workspaces/devdesk", "wsd", false, false},
+		{"case is folded", "Workspaces/DevDesk", "DEV", true, true},
+		{"a later occurrence at a boundary counts", "xdev/dev", "dev", true, true},
+		{"mid-word only", "zdevz", "dev", false, true},
+		{"folding is Unicode-aware", "Équipe/ÉTÉ", "été", true, true},
+		{"start of the candidate", "devdesk", "dev", true, true},
+		{"empty query", "devdesk", "", false, false},
+		{"empty candidate", "", "dev", false, false},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			boundary, ok := MatchExact(tt.candidate, tt.query)
+			if ok != tt.wantOK || boundary != tt.wantBoundary {
+				t.Errorf("MatchExact(%q, %q) = (boundary %v, ok %v), want (boundary %v, ok %v)",
+					tt.candidate, tt.query, boundary, ok, tt.wantBoundary, tt.wantOK)
+			}
+		})
+	}
+}

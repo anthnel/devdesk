@@ -326,7 +326,10 @@ any other. A path gone since the prompt opened is refused with a `Warn`; a
 repository gone from a level that is still there lands in that level, with the
 same `Warn`. Without
 an index yet the prompt opens anyway and waits (`Indexing GitLab...`); the
-router's next broadcast fills it. `g` is greyed without a session.
+router's next broadcast fills it. `g` is greyed without a session. `tab` in
+the prompt flips between fuzzy and exact matching, the same finder as in ws;
+the scorer and the exact sort order are described in `workspaces.md`
+("Exact mode", DEVDESK-678). The prompt opens in fuzzy each time.
 
 ## Creating and deleting — the row is the progress
 

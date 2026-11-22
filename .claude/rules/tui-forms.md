@@ -287,6 +287,12 @@ Forbidden:
 suggestion there (`keymap.DeclaredExceptions()`, surface `app/command-line`). The
 command line has no tabs and no fields, so neither job of `tab` exists on it.
 
+**Declared exception: the `g` prompt.** `tab` switches the search mode between
+fuzzy and exact there (`keymap.DeclaredExceptions()`, surface `fuzzy/finder`,
+DEVDESK-678). The prompt has no tabs and no fields to walk through, so neither
+job of `tab` exists on it. The key is listed in the shortcuts header, named after
+the mode it switches to.
+
 #### Detailed rules
 
 **`Tab / Shift+Tab` — tabs only**

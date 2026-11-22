@@ -439,6 +439,16 @@ either side of it:
   dependency behind it — none existed anywhere in this codebase before this
   — scored higher for a consecutive run of matched characters and for a
   match landing right after a `/`.
+- **Exact mode** (DEVDESK-678): `tab` flips the prompt between fuzzy and
+  exact (`Finder.Mode`, `Finder.ModeShortcut`; the header advertises the mode
+  it switches to, in ws and in the forge explorer alike). Exact keeps the
+  paths that contain the query literally, case-insensitively
+  (`fuzzy.MatchExact`). It sorts in three keys: a path-boundary match first
+  (the query occurs at the start of the path or right after a `/`, in at
+  least one place), then the shorter path (counted in runes), then the
+  original entry order (stable sort). The bar prints the mode (`fuzzy` or
+  `exact`) before the query. The prompt always opens in fuzzy. `tab` is the declared exception `fuzzy/finder` in
+  `internal/ui/keymap`.
 - **Landing** (`jumpToPath`, `update.go`) does not walk anything: it
   computes, in one shot, the `currentPath`/`navigationStack` that manually
   drilling down to the target's parent would have built one `navigateIn`

@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"sort"
 	"strings"
+	"unicode/utf8"
 
 	"charm.land/bubbles/v2/textinput"
 	tea "charm.land/bubbletea/v2"
@@ -11,6 +12,7 @@ import (
 
 	sharedcomponents "github.com/anthnel/devdesk/internal/ui/components"
 	"github.com/anthnel/devdesk/internal/ui/datatable"
+	"github.com/anthnel/devdesk/internal/ui/shortcut"
 	"github.com/anthnel/devdesk/internal/ui/theme"
 )
 
@@ -44,6 +46,25 @@ type Candidate struct {
 	Role  theme.IconRole
 }
 
+// Mode is how the prompt matches the query against the candidates.
+type Mode int
+
+const (
+	// ModeFuzzy matches the query as a subsequence, ranked by Match. It is the
+	// zero value, so a new prompt starts here.
+	ModeFuzzy Mode = iota
+	// ModeExact matches the query as a literal substring, ranked by MatchExact.
+	ModeExact
+)
+
+// String is the label the bar shows.
+func (m Mode) String() string {
+	if m == ModeExact {
+		return "exact"
+	}
+	return "fuzzy"
+}
+
 // Finder is the "g" prompt: a query, and the candidates that match it,
 // ranked. It owns its own key handling while active, and a datatable.Model
 // purely for rendering and cursor movement over an already-ranked list. The
@@ -56,6 +77,7 @@ type Finder struct {
 	loadingText string
 	candidates  []Candidate
 	skipped     int
+	mode        Mode
 	results     datatable.Model[Candidate]
 }
 
@@ -112,6 +134,9 @@ func (f *Finder) SetCandidates(candidates []Candidate, skipped int) {
 	f.rematch()
 }
 
+// Mode reports how the prompt currently matches.
+func (f *Finder) Mode() Mode { return f.mode }
+
 // Loading reports whether the candidates have not arrived yet.
 func (f *Finder) Loading() bool { return f.loading }
 
@@ -133,6 +158,10 @@ func (f *Finder) Update(msg tea.Msg) (*Finder, tea.Cmd) {
 				k := c.Key
 				return f, func() tea.Msg { return ConfirmMsg{Key: k} }
 			}
+			return f, nil
+		case "tab":
+			f.mode = toggled(f.mode)
+			f.rematch()
 			return f, nil
 		case "up", "down", "pgup", "pgdown", "home", "end":
 			f.results.Update(msg)
@@ -159,12 +188,55 @@ func (f *Finder) rematch() {
 		return
 	}
 
+	f.results.SetItems(rank(f.candidates, query, f.mode))
+	f.results.Remeasure()
+	f.results.GotoTop()
+}
+
+// toggled is the other mode.
+func toggled(m Mode) Mode {
+	if m == ModeFuzzy {
+		return ModeExact
+	}
+	return ModeFuzzy
+}
+
+// rank returns the candidates that match query in the given mode, best first.
+// It is pure: cands is neither reordered nor modified. Fuzzy ranks by Match
+// score; exact puts a match at a path boundary first, then the shorter label,
+// and ties keep the original order.
+func rank(cands []Candidate, query string, mode Mode) []Candidate {
+	if mode == ModeExact {
+		type hit struct {
+			c        Candidate
+			boundary bool
+			length   int
+		}
+		hits := make([]hit, 0, len(cands))
+		for _, c := range cands {
+			if boundary, ok := MatchExact(c.Label, query); ok {
+				hits = append(hits, hit{c: c, boundary: boundary, length: utf8.RuneCountInString(c.Label)})
+			}
+		}
+		sort.SliceStable(hits, func(i, j int) bool {
+			if hits[i].boundary != hits[j].boundary {
+				return hits[i].boundary
+			}
+			return hits[i].length < hits[j].length
+		})
+		rows := make([]Candidate, len(hits))
+		for i, h := range hits {
+			rows[i] = h.c
+		}
+		return rows
+	}
+
 	type scored struct {
 		c     Candidate
 		score int
 	}
-	matches := make([]scored, 0, len(f.candidates))
-	for _, c := range f.candidates {
+	matches := make([]scored, 0, len(cands))
+	for _, c := range cands {
 		if score, ok := Match(c.Label, query); ok {
 			matches = append(matches, scored{c: c, score: score})
 		}
@@ -175,9 +247,7 @@ func (f *Finder) rematch() {
 	for i, m := range matches {
 		rows[i] = m.c
 	}
-	f.results.SetItems(rows)
-	f.results.Remeasure()
-	f.results.GotoTop()
+	return rows
 }
 
 // StatusText is the footer's one line while the prompt is open.
@@ -209,12 +279,22 @@ func (f *Finder) MatchHint() string {
 // whichever occupies it.
 func (f *Finder) RenderBar(width int) string {
 	inner := theme.Bg(" ") + theme.KeyStyle.Render("Find") +
+		theme.Bg(" ") + theme.DimStyle.Render(f.mode.String()) +
 		theme.Bg(" ") + theme.DimStyle.Render(theme.IconChevronRight) + theme.Bg(" ") +
 		f.query.View()
 	if hint := f.MatchHint(); hint != "" {
 		inner += theme.Bg("  ") + theme.DimStyle.Render(hint)
 	}
 	return sharedcomponents.BarFrame(width, inner)
+}
+
+// ModeShortcut is the entry the view adds to its header and help: tab, named
+// after the mode it would switch to. It always applies, so it is never greyed.
+func (f *Finder) ModeShortcut() shortcut.Shortcut {
+	if f.mode == ModeFuzzy {
+		return shortcut.Shortcut{Key: "tab", Description: "Exact match"}
+	}
+	return shortcut.Shortcut{Key: "tab", Description: "Fuzzy match"}
 }
 
 // RenderFooter is the whole footer while the prompt is open: the bar, the

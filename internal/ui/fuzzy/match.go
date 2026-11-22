@@ -3,7 +3,10 @@
 // it ranks them against what the user types and says which one was picked.
 package fuzzy
 
-import "strings"
+import (
+	"strings"
+	"unicode/utf8"
+)
 
 // Match reports whether query is a subsequence of candidate
 // (case-insensitive) and, when it is, a score where higher is a better
@@ -53,4 +56,33 @@ func Match(candidate, query string) (int, bool) {
 	// of letters.
 	score -= ci - len(q)
 	return score, true
+}
+
+// MatchExact reports whether query occurs in candidate as a literal substring
+// (case-insensitive) and whether at least one occurrence sits at a path
+// boundary: the start of the candidate, or right after a "/". Scattered
+// letters never match, which is what separates it from Match.
+func MatchExact(candidate, query string) (atBoundary, ok bool) {
+	if query == "" {
+		return false, false
+	}
+	c := strings.ToLower(candidate)
+	q := strings.ToLower(query)
+	// The first rune's size is the step to the next possible occurrence, so
+	// overlapping occurrences are all visited without splitting a rune.
+	_, step := utf8.DecodeRuneInString(q)
+
+	for offset := 0; offset < len(c); {
+		i := strings.Index(c[offset:], q)
+		if i < 0 {
+			break
+		}
+		at := offset + i
+		ok = true
+		if at == 0 || c[at-1] == '/' {
+			return true, true
+		}
+		offset = at + step
+	}
+	return false, ok
 }

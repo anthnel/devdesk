@@ -55,6 +55,15 @@ consecutively) scored higher for consecutive runs and for a match landing
 right after a `/` — so `wsdd` beats a same-length coincidental match buried
 mid-path when both contain the letters.
 
+Press `tab` in the prompt to switch to exact matching: the query must appear
+as one contiguous piece of the path, ignoring case. Results that start at the
+beginning of the path or right after a `/` come first, then shorter paths,
+then the original order. The bar shows the current mode (`fuzzy` or `exact`)
+before the query, and the shortcuts header names the mode `tab` switches to
+("Exact match" or "Fuzzy match"). The prompt opens in fuzzy mode every time.
+The forge explorer (`:ge`) has the same `g` prompt, and the two views share
+the same behavior.
+
 The query field sits in the same footer bar slot as the `/` filter and the
 document viewer's `g` (go-to-line) — the same framed rectangle, never two
 different implementations of it. It's a lowercase, view-local binding, like

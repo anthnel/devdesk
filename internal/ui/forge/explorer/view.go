@@ -448,10 +448,14 @@ func (m Model) GetShortcuts() shortcut.Shortcuts {
 			{Key: "esc", Description: "Cancel"},
 		}
 	case ModeFuzzyFinding:
-		return []shortcut.Shortcut{
+		shortcuts := []shortcut.Shortcut{
 			{Key: "enter", Description: "Jump to entry"},
 			{Key: "esc", Description: "Cancel"},
 		}
+		if m.finder != nil {
+			shortcuts = append(shortcuts, m.finder.ModeShortcut())
+		}
+		return shortcuts
 	}
 
 	// Normal mode. A load in flight greys the lot rather than emptying it: the
@@ -631,6 +635,7 @@ func (m Model) GetHelpContent() help.Content {
 			{Key: keymap.New, Description: "Create a new group or project under the current context. Use ←→ to select the type."},
 			{Key: keymap.Delete, Description: "Delete the selected group or project"},
 			{Key: "g", Description: "Find any " + strings.ToLower(v.Namespace) + " or " + strings.ToLower(v.Repository) + " by typing part of its path, and jump there"},
+			{Key: "tab", Description: "Switch the g prompt between fuzzy and exact matching (while it is open)"},
 			{Key: ".", Description: "Cycle sort column (Name → Created → Activity, then back to the forge's own order)"},
 			{Key: "/", Description: "Filter the current level by name or path"},
 			{Key: "Ctrl+R", Description: "Refresh the explorer"},
@@ -646,7 +651,9 @@ func (m Model) GetHelpContent() help.Content {
 				Title: "Finding anything (g)",
 				Body: "Press g and type at least three characters of a path: every " + strings.ToLower(v.Namespace) + " and " +
 					strings.ToLower(v.Repository) + " you can see is matched, at any depth, and ranked. Enter jumps there — inside a " +
-					strings.ToLower(v.Namespace) + ", or onto the row of a " + strings.ToLower(v.Repository) + ". Esc closes the prompt.\n" +
+					strings.ToLower(v.Namespace) + ", or onto the row of a " + strings.ToLower(v.Repository) + ". Esc closes the prompt. " +
+					"Press tab to switch between fuzzy and exact matching: exact keeps only the paths that contain what you typed, " +
+					"literally, ignoring case; the next prompt starts in fuzzy again.\n" +
 					"The list comes from an index of the whole " + v.Name + " tree, built in the background each time a session opens " +
 					"(it shows in :jobs) and kept on disk, so it is there at once the next time. It is also what lets a level " +
 					"appear immediately when you drill in: the rows come from the index, then the Role and CI columns fill in " +
