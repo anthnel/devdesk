@@ -135,8 +135,8 @@ func New(cfg *config.Config, secrets credentials.Storage) Model {
 		Columns:        findingColumns(),
 		SortColumn:     -1, // the order the scanner reported
 		SelectedStyles: findingSelectedStyles,
-		Tokens:         severityTokens(),
-		TokenMatch:     matchesSeverity,
+		Tokens:         findingTokens(),
+		TokenMatch:     matchesFinding(cfg.Scan.EffectivePSSProfile()),
 	})
 
 	return Model{
@@ -186,10 +186,15 @@ var severityToken = map[scan.SeverityLevel]string{
 	scan.SeverityLow:      "low",
 }
 
-// matchesSeverity keeps everything while no token is active: an empty filter
-// means "no opinion", not "nothing".
+// matchesSeverity keeps everything while no severity token is active: an empty
+// filter means "no opinion", not "nothing". It reads the four severity tokens
+// only, so the Pod Security token alone does not count as a severity choice.
 func matchesSeverity(f scan.Finding, active map[string]bool) bool {
-	if len(active) == 0 {
+	chosen := false
+	for _, label := range severityToken {
+		chosen = chosen || active[label]
+	}
+	if !chosen {
 		return true
 	}
 	return active[severityToken[f.Severity]]

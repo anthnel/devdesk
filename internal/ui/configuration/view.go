@@ -469,6 +469,14 @@ func (m Model) status() sharedcomponents.Status {
 			Level: sharedcomponents.LevelWarning,
 		}
 	}
+	if m.activeTab >= 0 && m.activeTab < len(m.sections) && m.sections[m.activeTab].Title == "scan" &&
+		!m.config.Scan.PSSProfileValid() {
+		return sharedcomponents.Status{
+			Text: fmt.Sprintf("%s %q is not %s — all is used, nothing is hidden",
+				pssProfileName, m.config.Scan.PSSProfile, strings.Join(config.PSSProfiles(), ", ")),
+			Level: sharedcomponents.LevelWarning,
+		}
+	}
 	return sharedcomponents.Status{Text: m.hint(m.current())}
 }
 
@@ -608,6 +616,16 @@ func (m Model) GetHelpContent() help.Content {
 					"terminal has no focus, and catches up when it comes back. run suspends\n" +
 					"nothing. It is per context and applies as you cycle it; it needs a\n" +
 					"terminal that reports focus.",
+			},
+			{
+				Title: pssProfileName,
+				Body: "all (default) only labels the Kubernetes findings that Pod Security\n" +
+					"Standards covers with the profile that requires them (baseline or\n" +
+					"restricted), on the Misconfigurations tab. baseline and restricted\n" +
+					"let p hide, there, the findings that profile does not require:\n" +
+					"baseline hides restricted ones, restricted hides nothing. It is per\n" +
+					"context; a value outside the three is read as all, and the footer\n" +
+					"says so.",
 			},
 			{
 				Title: "Secret backend",

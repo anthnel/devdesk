@@ -80,6 +80,7 @@ func (m Model) resultsShortcuts() shortcut.Shortcuts {
 		{Key: "h", Description: "Toggle HIGH", Disabled: notFindings},
 		{Key: "m", Description: "Toggle MEDIUM", Disabled: notFindings},
 		{Key: "l", Description: "Toggle LOW", Disabled: notFindings},
+		{Key: pssFilterKey, Description: "Toggle Pod Security filter", Disabled: !m.canTogglePSS().Enabled()},
 		{Key: "/", Description: "Search", Disabled: notFindings},
 		{Key: ".", Description: "Sort", Disabled: notFindings},
 		{Key: keymap.Exclude, Description: "Exclude", Disabled: !m.canExclude().Enabled()},
@@ -158,6 +159,9 @@ func (m Model) GetHeaderInfo(context string) []shortcut.HeaderInfo {
 	}
 	if key, value, ok := m.headerCount(); ok {
 		info = append(info, shortcut.HeaderInfo{Key: key, Value: value, Style: theme.HeaderValueStyle})
+	}
+	if pss, ok := m.pssHeader(); ok {
+		info = append(info, pss)
 	}
 	if value, style, ok := m.headerFixable(); ok {
 		info = append(info, shortcut.HeaderInfo{Key: "Fixable", Value: value, Style: style})
@@ -249,6 +253,7 @@ func (m Model) GetHelpContent() help.Content {
 			{Key: openPipelineKey, Description: "Open the pipeline the forge resolves for this repository — every include and component expanded (CI tab)"},
 			{Key: "tab / shift+tab", Description: "Switch tabs in results (CVE, Secrets, Licenses, Misconfig, CI, Remediation)"},
 			{Key: "c / h / m / l", Description: "Filter by severity — cumulative, so c and h together show CRITICAL and HIGH"},
+			{Key: pssFilterKey, Description: "Toggle the Pod Security filter, which hides the Kubernetes findings the profile in scan.pss_profile does not require (Misconfigurations tab)"},
 			{Key: "ctrl+r", Description: "Back to the inventory (results)"},
 			{Key: "esc", Description: "Back"},
 			{Key: "ctrl+p", Description: "Open command mode"},
@@ -275,6 +280,13 @@ func (m Model) GetHelpContent() help.Content {
 			{
 				Title: "Results",
 				Body:  "Results are displayed by tab (CVE, Secrets, Licenses, Misconfig). Every finding belongs to exactly one tab, and the count on each label is the same number the scan recorded. Severity is filtered with c, h, m and l — they are cumulative, so c and h together ask for CRITICAL or HIGH, which a threshold could not express. The active ones are shown in the bar under the table, beside the search field. '.' cycles the sort column and '/' searches. The Fixable figure in the header counts the vulnerabilities that have a fixed version, split into base image packages (cleared by upgrading the image's packages or moving to a newer base image) and application dependencies (cleared only by bumping the dependency itself); a result scanned before this was recorded shows its findings as unclassified until the next scan. Press Enter to view finding details, which name the package kind and the command that moves it. For secrets, X adds a finding to .gitleaksignore; it is offered for Gitleaks findings only, since that file is matched on a Gitleaks fingerprint a Trivy secret does not have.\nEsc returns to the inventory, or to the list the results were opened from.",
+			},
+			{
+				Title: "Pod Security",
+				Body: "On the Misconfigurations tab, a Kubernetes finding that a Pod Security Standards profile requires starts its title with that profile: baseline or restricted. The label is there under every setting. restricted includes baseline, so a restricted finding is one the baseline profile does not ask for.\n" +
+					"The profile comes from a table of Trivy's rules kept in DevDesk, checked against Trivy's own output. A rule the table lacks but whose reference carries a #baseline or #restricted anchor is labelled with it and marked '(from Trivy, no fix)': the profile is Trivy's, and DevDesk offers no fix for it. A rule that links the standard without an anchor, or not at all, has no label. KSV-0104 is baseline when the profile is explicitly Unconfined and restricted when none is set, read from the manifest at scan time; a result scanned before that, or a file changed since, counts as baseline.\n" +
+					"scan.pss_profile (scan tab of the configuration view) is all, baseline or restricted, and all by default. Under baseline or restricted, p hides what that profile does not require, and the header says the profile, the state of the filter and how many findings it hides. The filter is off whenever the tab opens, and p is greyed, with the reason, under all or elsewhere than the Misconfigurations tab. A value outside the three is read as all, with a warning on entering the tab.\n" +
+					"When the filter leaves no Pod Security finding, the header says 'no violation detected by Trivy for <profile>': that is what one scanner found in these manifests, not proof of compliance.",
 			},
 			{
 				Title: "Remediation",

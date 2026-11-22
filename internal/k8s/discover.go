@@ -268,3 +268,33 @@ func readBounded(path string) ([]byte, error) {
 	}
 	return os.ReadFile(path) //nolint:gosec // a file of the repository being scanned
 }
+
+// ReadManifestIn reads a file of root, which it cannot leave (a ".." or a
+// symlink pointing out is refused), under the same size bound as readBounded.
+// It opens the file once and judges that handle: a FIFO or a device is refused
+// whatever Stat said a moment earlier, and the read itself is bounded, so a
+// file that grows after the check cannot be read whole.
+func ReadManifestIn(root *os.Root, name string) ([]byte, error) {
+	// nonBlock lets a FIFO open without waiting for a writer, so the check
+	// below can refuse it.
+	f, err := root.OpenFile(name, os.O_RDONLY|nonBlock, 0)
+	if err != nil {
+		return nil, err
+	}
+	defer func() { _ = f.Close() }()
+	info, err := f.Stat()
+	if err != nil {
+		return nil, err
+	}
+	if !info.Mode().IsRegular() {
+		return nil, errors.New("not a regular file")
+	}
+	data, err := io.ReadAll(io.LimitReader(f, maxManifestSize+1))
+	if err != nil {
+		return nil, err
+	}
+	if len(data) > maxManifestSize {
+		return nil, errors.New("too large to be a hand-written manifest")
+	}
+	return data, nil
+}

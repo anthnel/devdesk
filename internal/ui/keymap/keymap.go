@@ -217,7 +217,7 @@ var localToggles = []Surface{
 	{"netdiag/ports", "ui/netdiag/ports_model.go", []string{"t", "u", "l", "e", "n", "z"}},
 	{"netdiag/checks", "ui/netdiag/", []string{"p"}},
 	{"oci/browser", "ui/oci_resources/browser_", []string{"r"}},
-	{"security/findings", "ui/security/", []string{"c", "h", "m", "l"}},
+	{"security/findings", "ui/security/", []string{"c", "h", "m", "l", "p"}},
 	// g opens the fuzzy-find prompt across the whole workspaces tree. Same
 	// justification as the viewer's g: the jump takes an argument (the typed
 	// query), which is not a role home/end/G could ever cover.

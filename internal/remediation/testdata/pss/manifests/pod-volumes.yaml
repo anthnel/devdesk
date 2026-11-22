@@ -1,0 +1,17 @@
+apiVersion: v1
+kind: Pod
+metadata:
+  name: volumes
+  namespace: demo
+spec:
+  containers:
+    - name: app
+      image: nginx:1.27
+      volumeMounts:
+        - name: disk
+          mountPath: /data
+  volumes:
+    - name: disk
+      gcePersistentDisk:
+        pdName: data
+        fsType: ext4

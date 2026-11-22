@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"slices"
 	"strings"
 )
 
@@ -61,16 +62,19 @@ type TrivyLicense struct {
 
 // TrivyMisconfiguration represents a misconfiguration found by Trivy
 type TrivyMisconfiguration struct {
-	Type          string `json:"Type"`
-	ID            string `json:"ID"`
-	AVDID         string `json:"AVDID"`
-	Title         string `json:"Title"`
-	Desc          string `json:"Description"`
-	Message       string `json:"Message"`
-	Severity      string `json:"Severity"`
-	Resolution    string `json:"Resolution"`
-	PrimaryURL    string `json:"PrimaryURL"`
-	Status        string `json:"Status"`
+	Type       string `json:"Type"`
+	ID         string `json:"ID"`
+	AVDID      string `json:"AVDID"`
+	Title      string `json:"Title"`
+	Desc       string `json:"Description"`
+	Message    string `json:"Message"`
+	Severity   string `json:"Severity"`
+	Resolution string `json:"Resolution"`
+	PrimaryURL string `json:"PrimaryURL"`
+	// References carries the Pod Security Standards link, with its #baseline or
+	// #restricted anchor, that PrimaryURL (the rule's own page) leaves out.
+	References    []string `json:"References"`
+	Status        string   `json:"Status"`
 	CauseMetadata struct {
 		StartLine int `json:"StartLine"`
 		EndLine   int `json:"EndLine"`
@@ -141,6 +145,21 @@ func trivyFixCommand(ecosystem string, vuln TrivyVulnerability) string {
 	return fmt.Sprintf("Update %s to %s", vuln.PkgName, target)
 }
 
+// mergeRefs is the reference list of a finding: primary first, then the other
+// references in their order, without duplicates.
+func mergeRefs(primary string, refs []string) []string {
+	out := make([]string, 0, len(refs)+1)
+	if primary != "" {
+		out = append(out, primary)
+	}
+	for _, r := range refs {
+		if r != "" && !slices.Contains(out, r) {
+			out = append(out, r)
+		}
+	}
+	return out
+}
+
 // parseTrivyOutput parses Trivy JSON output into findings
 func parseTrivyOutput(data []byte) ([]Finding, error) {
 	var report TrivyReport
@@ -153,16 +172,7 @@ func parseTrivyOutput(data []byte) ([]Finding, error) {
 	for _, result := range report.Results {
 		// Process vulnerabilities
 		for _, vuln := range result.Vulnerabilities {
-			// Build references from PrimaryURL and advisory links
-			refs := make([]string, 0, len(vuln.References)+1)
-			if vuln.PrimaryURL != "" {
-				refs = append(refs, vuln.PrimaryURL)
-			}
-			for _, r := range vuln.References {
-				if r != vuln.PrimaryURL {
-					refs = append(refs, r)
-				}
-			}
+			refs := mergeRefs(vuln.PrimaryURL, vuln.References)
 
 			// Build a fix command suggestion when a fixed version is known
 			fixCmd := trivyFixCommand(result.Type, vuln)
@@ -218,10 +228,6 @@ func parseTrivyOutput(data []byte) ([]Finding, error) {
 
 		// Process misconfigurations found by Trivy
 		for _, misconf := range result.Misconfigurations {
-			var miscRefs []string
-			if misconf.PrimaryURL != "" {
-				miscRefs = append(miscRefs, misconf.PrimaryURL)
-			}
 			findings = append(findings, Finding{
 				ID:          firstNonEmpty(misconf.AVDID, misconf.ID),
 				Title:       misconf.Title,
@@ -238,7 +244,7 @@ func parseTrivyOutput(data []byte) ([]Finding, error) {
 				// dialect ("kubernetes").
 				IaCType:    strings.ToLower(result.Type),
 				Resolution: misconf.Resolution,
-				References: miscRefs,
+				References: mergeRefs(misconf.PrimaryURL, misconf.References),
 			})
 		}
 	}

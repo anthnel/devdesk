@@ -90,6 +90,10 @@ func (m Model) buildDetailsContent() string {
 		b.WriteString(theme.SubTitleStyle.Render("Type: ") + textStyle.Render(f.IaCType) + "\n")
 	}
 
+	if label := pssLabel(f); label != "" {
+		b.WriteString(theme.SubTitleStyle.Render("Pod Security: ") + textStyle.Render(label) + "\n")
+	}
+
 	// File path with wrapping (can be long)
 	if f.File != "" {
 		b.WriteString(theme.SubTitleStyle.Render("File: ") + textStyle.Width(contentWidth-6).Render(f.File) + "\n")

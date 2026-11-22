@@ -10,6 +10,7 @@ import (
 
 	"github.com/anthnel/devdesk/internal/cache"
 	"github.com/anthnel/devdesk/internal/docker"
+	"github.com/anthnel/devdesk/internal/remediation"
 	"github.com/anthnel/devdesk/internal/scan"
 	sdk "github.com/modelcontextprotocol/go-sdk/mcp"
 )
@@ -153,6 +154,7 @@ type finding struct {
 	IaCType     string   `json:"iac_type,omitempty" jsonschema:"the dialect a misconfiguration was found in, such as dockerfile, kubernetes, helm or terraform; helm means the file is a template, not the YAML it renders"`
 	Resolution  string   `json:"resolution,omitempty"`
 	References  []string `json:"references,omitempty"`
+	PSSProfile  string   `json:"pss_profile,omitempty" jsonschema:"the Pod Security Standards profile (baseline or restricted) that requires the rule behind a Kubernetes finding; absent when the finding is not a Pod Security one"`
 }
 
 type scanResultIn struct {
@@ -330,6 +332,12 @@ func page(offset, limit int) (int, int) {
 // arrives here as an omission rather than as an exposure — the same argument the
 // allow-list of tools makes.
 func expose(f scan.Finding) finding {
+	// The effective profile, the one the security view's filter uses; absent
+	// for a finding outside Pod Security.
+	var pssProfile string
+	if pss, ok := remediation.PodSecurity(f); ok {
+		pssProfile = string(pss.Profile)
+	}
 	return finding{
 		ID:          f.ID,
 		Title:       f.Title,
@@ -351,6 +359,7 @@ func expose(f scan.Finding) finding {
 		IaCType:     f.IaCType,
 		Resolution:  f.Resolution,
 		References:  f.References,
+		PSSProfile:  pssProfile,
 	}
 }
 

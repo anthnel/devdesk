@@ -173,6 +173,46 @@ template or the kustomization it came from. Without them, those directories
 are left unvalidated and the log says so. Custom resources are skipped: their schema is
 in a CRD kubeconform does not read. Nothing ever connects to a cluster.
 
+## Pod Security profile of a finding
+
+Trivy's Kubernetes rules that implement the
+[Pod Security Standards](https://kubernetes.io/docs/concepts/security/pod-security-standards/)
+belong to one of two profiles: `baseline`, the minimum that blocks known
+privilege escalations, and `restricted`, which includes `baseline` and adds
+current hardening practice. On the Misconfigurations tab, DevDesk starts the
+title of each such finding with its profile, for example `baseline · Privileged`.
+The label is shown whatever you set. A finding outside Pod Security has none.
+
+DevDesk keeps a table of Trivy's rules and their profile, checked against a
+recorded Trivy output. A rule that is not in the table but whose reference
+carries a profile is labelled `(from Trivy, no fix)`: the profile is Trivy's,
+and DevDesk offers no fix for it. KSV-0117 and KSV-0119 link the standard with
+no profile, so they carry no label.
+
+To narrow the list, set `scan.pss_profile` to the profile you aim at (in `:cfg`,
+the **Pod Security profile** field of the `scan` tab), then press `p` on the
+Misconfigurations tab:
+
+- `baseline` hides the `restricted` findings and keeps the `baseline` ones.
+- `restricted` hides nothing: it requires both profiles.
+- A Kubernetes finding outside Pod Security is never hidden.
+
+The filter is off every time the tab opens, so the setting alone hides nothing.
+The header shows the profile, whether the filter is on and how many findings it
+hides. If the filter is on and no Pod Security finding remains, it says
+`no violation detected by Trivy for <profile>`. That is what one scanner found,
+not a statement that the manifest meets the profile.
+
+KSV-0104 (no seccomp profile) fires for an explicit `Unconfined` and for a
+missing profile, with the same message. DevDesk reads the manifest again at scan
+time to tell them apart: `Unconfined` counts for `baseline`, a missing profile
+only for `restricted`. When it cannot tell (a result cached before this existed,
+a file changed since the scan), the finding counts as `baseline`, so it stays
+visible.
+
+The table can lag behind the checks Trivy downloads, which update independently
+of Trivy. A rule newer than the table keeps the profile Trivy gives it.
+
 ## The build context
 
 A `COPY . .` sends the whole directory to the builder, and what no

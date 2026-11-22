@@ -31,6 +31,8 @@ From **Templates** (`:tpl`), `S` scans what a template would put in a new reposi
 
 Open **Security** (`:sec`) once a scan finishes. Findings are grouped by severity (CRITICAL, HIGH, MEDIUM, LOW) with cumulative filters — press `c`, `h`, `m`, `l` to toggle a severity on or off; several can be active at once (`c`+`h` means "CRITICAL or HIGH"). Trivy findings include remediation details (fixed version, advisory link) where the scanner provides them; Gitleaks findings show the file and line the secret was found at.
 
+On the Misconfigurations tab, each Kubernetes finding that a Pod Security profile requires starts with `baseline` or `restricted`. To hide the ones your target profile does not ask for, set `scan.pss_profile` to `baseline` or `restricted` in `:cfg` and press `p`; the filter is off each time the tab opens. See [Pod Security profile of a finding](../explanation/scanning.md#pod-security-profile-of-a-finding).
+
 With the Misconfiguration category on, the lists gain a `CFG` column: the number of misconfigurations, coloured by the worst one. A `?` after the count means part of the target was not read — a Helm chart nothing rendered, say — so `0?` is not the same as `0`. See [The CFG column](../explanation/scanning.md#the-cfg-column).
 
 ## Fix what the scan found

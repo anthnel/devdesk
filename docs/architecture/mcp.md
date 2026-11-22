@@ -184,6 +184,20 @@ everything the fix needs and stay the thing that measures.
 | `status` | what the scanner concluded for the rule on this target |
 | `id` | the AVD id — the rule's stable identity, and what a re-scan is checked against |
 | `resolution`, `references` | the prose fix and the advisory |
+| `pss_profile` | `baseline` or `restricted`: the Pod Security Standards profile that requires the rule behind a Kubernetes finding (DEVDESK-686). Absent (`omitempty`) when the finding is not a Pod Security one |
+
+**`pss_profile` is the profile DevDesk shows, not Trivy's raw anchor.** It comes
+from `remediation.PodSecurity`, the same call as the security view's label and
+filter, so a KSV-0104 finding whose seccomp profile is missing reads `restricted`
+although Trivy anchors the rule `#baseline`. The setting `scan.pss_profile` does
+not change it: the field is the same under `all`. A finding with an unknown
+KSV-0104 origin, and KSV-0117 and KSV-0119 (no anchor), are covered in
+`scanning.md`.
+
+**`references` gains the Pod Security link.** A misconfiguration's references used
+to be the rule's own page alone; they now also carry the standard's link, with its
+`#baseline` or `#restricted` anchor, after it. The first entry is unchanged. The
+change is additive, and a result cached before it keeps the single entry.
 
 **`end_line` at zero means unknown, never line zero** — an old cached result, or
 a rule that reports a point rather than a span. Same convention as `class` and

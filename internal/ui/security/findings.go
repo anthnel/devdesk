@@ -54,9 +54,11 @@ func findingColumns() []datatable.Column[scan.Finding] {
 		},
 		{
 			Title: "Title", Sizing: datatable.SizingContent, MinWidth: 20, Flex: 1,
-			Cell:   func(f scan.Finding) string { return f.Title },
+			// The Pod Security label is a prefix of the text (DEVDESK-686); the
+			// sort stays on the title and the search sees the label.
+			Cell:   titleWithLabel,
 			Less:   func(a, b scan.Finding) bool { return a.Title < b.Title },
-			Search: func(f scan.Finding) string { return f.Title + " " + f.PkgName + " " + f.File },
+			Search: func(f scan.Finding) string { return titleWithLabel(f) + " " + f.PkgName + " " + f.File },
 		},
 		{
 			Title: "Source", Sizing: datatable.SizingFixed, Optional: true, MinWidth: 14,
@@ -233,6 +235,12 @@ func (m *Model) countFindingsByTab() (cve, secrets, licenses, misconfigs, ci int
 	return cve, secrets, licenses, misconfigs, ci
 }
 
+// enterTab is what entering a tab starts: the Dockerfile read of the
+// Remediation tab, the invalid-setting warning of the Misconfigurations one.
+func (m *Model) enterTab() tea.Cmd {
+	return tea.Batch(m.enterRemediationTab(), m.enterPSSTab())
+}
+
 // enterRemediationTab reads the Dockerfiles when the tab just switched to is the
 // Remediation one, and does nothing on any other.
 func (m *Model) enterRemediationTab() tea.Cmd {
@@ -245,6 +253,13 @@ func (m *Model) enterRemediationTab() tea.Cmd {
 // switchTab switches to the given tab index and refreshes the table
 func (m *Model) switchTab(tab int) {
 	m.activeTab = tab
+	// The Pod Security filter belongs to one visit of the Misconfigurations
+	// tab: it is off on the way in and on the way out.
+	// Only when it is on: switching off an off token rebuilds the rows and
+	// measures the columns again for nothing.
+	if m.findingsTable.IsTokenActive(pssToken) {
+		m.findingsTable.SetTokenActive(pssToken, false)
+	}
 	// The CI tab carries a score line above the table, so the height changes
 	// with the tab and not only with the window.
 	m.resizeFindings()
@@ -405,17 +420,19 @@ func (m Model) handleResultsState(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 		return m.goHome()
 	case "tab":
 		m.switchTab((m.activeTab + 1) % tabCount)
-		cmd := m.enterRemediationTab()
+		cmd := m.enterTab()
 		return m, cmd
 	case "shift+tab":
 		m.switchTab((m.activeTab + tabCount - 1) % tabCount)
-		cmd := m.enterRemediationTab()
+		cmd := m.enterTab()
 		return m, cmd
 	// 1-4 jumped straight to a tab. They were the application's only numeric
 	// bindings, and an exception in a single view is precisely what §3.26
 	// dismantles — tab reaches all four.
 	case "c", "h", "m", "l":
 		return m.toggleSeverity(msg.String())
+	case pssFilterKey:
+		return m.togglePSS()
 	case keymap.Exclude:
 		return m.handleIgnoreSecret()
 	case openPipelineKey:
