@@ -125,6 +125,7 @@ Default images: `aquasec/trivy`, `zricethezav/gitleaks`, `getplumber/plumber`,
 | Key | Type | Default | Meaning |
 |---|---|---|---|
 | `base_image_track` | string | `same-line` | How far remediation may move a base image: `same-line` \| `next-major` |
+| `pss_profile` | string | `all` | `all` \| `baseline` \| `restricted` — the Pod Security profile you aim at. The Misconfigurations tab labels every Pod Security finding under any value; under `baseline` or `restricted`, `p` hides what that profile does not require (`restricted` includes `baseline`, so it hides nothing). The key is optional and not written until you set it; any other value is read as `all`, with a warning. See [Pod Security profile](../explanation/scanning.md#pod-security-profile-of-a-finding) |
 | `image_verification` | string | `on` | `on` \| `off` — check image signatures before every pull, in the `Sig` columns and in scans. Only `off` disables it, and it overrides `~/.devdesk/trust.yaml`. See [Image signatures](../explanation/signatures.md) |
 | `cache_dir` | string | | Scan report cache |
 | `max_cached_reports` | int | `50` | |

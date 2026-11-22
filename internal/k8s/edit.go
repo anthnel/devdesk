@@ -15,7 +15,47 @@ import (
 // the edit is a byte range and everything around it — comments, anchors,
 // indentation, quoting elsewhere — stays exactly as the author wrote it.
 
-// DocumentAt returns the top-level mapping of the document that holds line.
+// DocumentIndex holds the top-level mappings of a manifest, decoded once, so a
+// caller with many lines to place (one finding each) does not decode the file
+// again for every one.
+type DocumentIndex struct {
+	roots []*yaml.Node
+	last  []int
+}
+
+// IndexDocuments decodes content once. Like DocumentAt it stops at the first
+// decode error, keeping the documents read before it, and ignores documents
+// that are not a mapping.
+func IndexDocuments(content []byte) *DocumentIndex {
+	index := &DocumentIndex{}
+	dec := yaml.NewDecoder(bytes.NewReader(content))
+	for {
+		var doc yaml.Node
+		if err := dec.Decode(&doc); err != nil {
+			return index
+		}
+		if doc.Kind != yaml.DocumentNode || len(doc.Content) == 0 {
+			continue
+		}
+		if root := doc.Content[0]; root.Kind == yaml.MappingNode {
+			index.roots = append(index.roots, root)
+			index.last = append(index.last, lastLine(root))
+		}
+	}
+}
+
+// At returns the top-level mapping of the document that holds line.
+func (d *DocumentIndex) At(line int) (*yaml.Node, bool) {
+	for i, root := range d.roots {
+		if root.Line <= line && line <= d.last[i] {
+			return root, true
+		}
+	}
+	return nil, false
+}
+
+// DocumentAt returns the top-level mapping of the document that holds line,
+// decoding only as far as it.
 func DocumentAt(content []byte, line int) (*yaml.Node, bool) {
 	dec := yaml.NewDecoder(bytes.NewReader(content))
 	for {

@@ -1,0 +1,2066 @@
+{
+  "Results": [
+    {
+      "Target": "pod-all.yaml",
+      "Type": "kubernetes",
+      "Misconfigurations": [
+        {
+          "ID": "KSV-0001",
+          "Title": "Can elevate its own privileges",
+          "Message": "Container 'app' of Pod 'all' should set 'securityContext.allowPrivilegeEscalation' to false",
+          "Status": "FAIL",
+          "PrimaryURL": "https://avd.aquasec.com/misconfig/ksv-0001",
+          "References": [
+            "https://kubernetes.io/docs/concepts/security/pod-security-standards/#restricted",
+            "https://avd.aquasec.com/misconfig/ksv-0001"
+          ],
+          "CauseMetadata": {
+            "StartLine": 23,
+            "EndLine": 37
+          }
+        },
+        {
+          "ID": "KSV-0002",
+          "Title": "Runtime/Default AppArmor profile not set",
+          "Message": "Container 'app' of Pod 'all' should specify an AppArmor profile",
+          "Status": "FAIL",
+          "PrimaryURL": "https://avd.aquasec.com/misconfig/ksv-0002",
+          "References": [
+            "https://kubernetes.io/docs/concepts/security/pod-security-standards/#baseline",
+            "https://avd.aquasec.com/misconfig/ksv-0002"
+          ],
+          "CauseMetadata": {
+            "StartLine": 23,
+            "EndLine": 37
+          }
+        },
+        {
+          "ID": "KSV-0003",
+          "Title": "Default capabilities: some containers do not drop all",
+          "Message": "Container 'app' of Pod 'all' should add 'ALL' to 'securityContext.capabilities.drop'",
+          "Status": "FAIL",
+          "PrimaryURL": "https://avd.aquasec.com/misconfig/ksv-0003",
+          "References": [
+            "https://kubesec.io/basics/containers-securitycontext-capabilities-drop-index-all/",
+            "https://avd.aquasec.com/misconfig/ksv-0003"
+          ],
+          "CauseMetadata": {
+            "StartLine": 23,
+            "EndLine": 37
+          }
+        },
+        {
+          "ID": "KSV-0004",
+          "Title": "Default capabilities: some containers do not drop any",
+          "Message": "Container 'app' of 'pod' 'all' in 'demo' namespace should set securityContext.capabilities.drop",
+          "Status": "FAIL",
+          "PrimaryURL": "https://avd.aquasec.com/misconfig/ksv-0004",
+          "References": [
+            "https://kubesec.io/basics/containers-securitycontext-capabilities-drop-index-all/",
+            "https://avd.aquasec.com/misconfig/ksv-0004"
+          ],
+          "CauseMetadata": {
+            "StartLine": 23,
+            "EndLine": 37
+          }
+        },
+        {
+          "ID": "KSV-0008",
+          "Title": "Access to host IPC namespace",
+          "Message": "Pod 'all' should not set 'spec.template.spec.hostIPC' to true",
+          "Status": "FAIL",
+          "PrimaryURL": "https://avd.aquasec.com/misconfig/ksv-0008",
+          "References": [
+            "https://kubernetes.io/docs/concepts/security/pod-security-standards/#baseline",
+            "https://avd.aquasec.com/misconfig/ksv-0008"
+          ],
+          "CauseMetadata": {
+            "StartLine": 8,
+            "EndLine": 41
+          }
+        },
+        {
+          "ID": "KSV-0009",
+          "Title": "Access to host network",
+          "Message": "Pod 'all' should not set 'spec.template.spec.hostNetwork' to true",
+          "Status": "FAIL",
+          "PrimaryURL": "https://avd.aquasec.com/misconfig/ksv-0009",
+          "References": [
+            "https://kubernetes.io/docs/concepts/security/pod-security-standards/#baseline",
+            "https://avd.aquasec.com/misconfig/ksv-0009"
+          ],
+          "CauseMetadata": {
+            "StartLine": 8,
+            "EndLine": 41
+          }
+        },
+        {
+          "ID": "KSV-0010",
+          "Title": "Access to host PID",
+          "Message": "Pod 'all' should not set 'spec.template.spec.hostPID' to true",
+          "Status": "FAIL",
+          "PrimaryURL": "https://avd.aquasec.com/misconfig/ksv-0010",
+          "References": [
+            "https://kubernetes.io/docs/concepts/security/pod-security-standards/#baseline",
+            "https://avd.aquasec.com/misconfig/ksv-0010"
+          ],
+          "CauseMetadata": {
+            "StartLine": 8,
+            "EndLine": 41
+          }
+        },
+        {
+          "ID": "KSV-0011",
+          "Title": "CPU not limited",
+          "Message": "Container 'app' of Pod 'all' should set 'resources.limits.cpu'",
+          "Status": "FAIL",
+          "PrimaryURL": "https://avd.aquasec.com/misconfig/ksv-0011",
+          "References": [
+            "https://cloud.google.com/blog/products/containers-kubernetes/kubernetes-best-practices-resource-requests-and-limits",
+            "https://avd.aquasec.com/misconfig/ksv-0011"
+          ],
+          "CauseMetadata": {
+            "StartLine": 23,
+            "EndLine": 37
+          }
+        },
+        {
+          "ID": "KSV-0012",
+          "Title": "Runs as root user",
+          "Message": "Container 'app' of Pod 'all' should set 'securityContext.runAsNonRoot' to true",
+          "Status": "FAIL",
+          "PrimaryURL": "https://avd.aquasec.com/misconfig/ksv-0012",
+          "References": [
+            "https://kubernetes.io/docs/concepts/security/pod-security-standards/#restricted",
+            "https://avd.aquasec.com/misconfig/ksv-0012"
+          ],
+          "CauseMetadata": {
+            "StartLine": 23,
+            "EndLine": 37
+          }
+        },
+        {
+          "ID": "KSV-0014",
+          "Title": "Root file system is not read-only",
+          "Message": "Container 'app' of Pod 'all' should set 'securityContext.readOnlyRootFilesystem' to true",
+          "Status": "FAIL",
+          "PrimaryURL": "https://avd.aquasec.com/misconfig/ksv-0014",
+          "References": [
+            "https://kubesec.io/basics/containers-securitycontext-readonlyrootfilesystem-true/",
+            "https://avd.aquasec.com/misconfig/ksv-0014"
+          ],
+          "CauseMetadata": {
+            "StartLine": 23,
+            "EndLine": 37
+          }
+        },
+        {
+          "ID": "KSV-0015",
+          "Title": "CPU requests not specified",
+          "Message": "Container 'app' of Pod 'all' should set 'resources.requests.cpu'",
+          "Status": "FAIL",
+          "PrimaryURL": "https://avd.aquasec.com/misconfig/ksv-0015",
+          "References": [
+            "https://cloud.google.com/blog/products/containers-kubernetes/kubernetes-best-practices-resource-requests-and-limits",
+            "https://avd.aquasec.com/misconfig/ksv-0015"
+          ],
+          "CauseMetadata": {
+            "StartLine": 23,
+            "EndLine": 37
+          }
+        },
+        {
+          "ID": "KSV-0016",
+          "Title": "Memory requests not specified",
+          "Message": "Container 'app' of Pod 'all' should set 'resources.requests.memory'",
+          "Status": "FAIL",
+          "PrimaryURL": "https://avd.aquasec.com/misconfig/ksv-0016",
+          "References": [
+            "https://kubesec.io/basics/containers-resources-limits-memory/",
+            "https://avd.aquasec.com/misconfig/ksv-0016"
+          ],
+          "CauseMetadata": {
+            "StartLine": 23,
+            "EndLine": 37
+          }
+        },
+        {
+          "ID": "KSV-0017",
+          "Title": "Privileged",
+          "Message": "Container 'app' of Pod 'all' should set 'securityContext.privileged' to false",
+          "Status": "FAIL",
+          "PrimaryURL": "https://avd.aquasec.com/misconfig/ksv-0017",
+          "References": [
+            "https://kubernetes.io/docs/concepts/security/pod-security-standards/#baseline",
+            "https://avd.aquasec.com/misconfig/ksv-0017"
+          ],
+          "CauseMetadata": {
+            "StartLine": 23,
+            "EndLine": 37
+          }
+        },
+        {
+          "ID": "KSV-0018",
+          "Title": "Memory not limited",
+          "Message": "Container 'app' of Pod 'all' should set 'resources.limits.memory'",
+          "Status": "FAIL",
+          "PrimaryURL": "https://avd.aquasec.com/misconfig/ksv-0018",
+          "References": [
+            "https://kubesec.io/basics/containers-resources-limits-memory/",
+            "https://avd.aquasec.com/misconfig/ksv-0018"
+          ],
+          "CauseMetadata": {
+            "StartLine": 23,
+            "EndLine": 37
+          }
+        },
+        {
+          "ID": "KSV-0020",
+          "Title": "Runs with UID <= 10000",
+          "Message": "Container 'app' of Pod 'all' should set 'securityContext.runAsUser' > 10000",
+          "Status": "FAIL",
+          "PrimaryURL": "https://avd.aquasec.com/misconfig/ksv-0020",
+          "References": [
+            "https://kubesec.io/basics/containers-securitycontext-runasuser/",
+            "https://avd.aquasec.com/misconfig/ksv-0020"
+          ],
+          "CauseMetadata": {
+            "StartLine": 23,
+            "EndLine": 37
+          }
+        },
+        {
+          "ID": "KSV-0021",
+          "Title": "Runs with GID <= 10000",
+          "Message": "Container 'app' of Pod 'all' should set 'securityContext.runAsGroup' > 10000",
+          "Status": "FAIL",
+          "PrimaryURL": "https://avd.aquasec.com/misconfig/ksv-0021",
+          "References": [
+            "https://kubesec.io/basics/containers-securitycontext-runasuser/",
+            "https://avd.aquasec.com/misconfig/ksv-0021"
+          ],
+          "CauseMetadata": {
+            "StartLine": 23,
+            "EndLine": 37
+          }
+        },
+        {
+          "ID": "KSV-0022",
+          "Title": "Specific capabilities added",
+          "Message": "Container 'app' of Pod 'all' should not set 'securityContext.capabilities.add'",
+          "Status": "FAIL",
+          "PrimaryURL": "https://avd.aquasec.com/misconfig/ksv-0022",
+          "References": [
+            "https://kubernetes.io/docs/concepts/security/pod-security-standards/#baseline",
+            "https://avd.aquasec.com/misconfig/ksv-0022"
+          ],
+          "CauseMetadata": {
+            "StartLine": 23,
+            "EndLine": 37
+          }
+        },
+        {
+          "ID": "KSV-0023",
+          "Title": "hostPath volumes mounted",
+          "Message": "Pod 'all' should not set 'spec.template.volumes.hostPath'",
+          "Status": "FAIL",
+          "PrimaryURL": "https://avd.aquasec.com/misconfig/ksv-0023",
+          "References": [
+            "https://kubernetes.io/docs/concepts/security/pod-security-standards/#baseline",
+            "https://avd.aquasec.com/misconfig/ksv-0023"
+          ],
+          "CauseMetadata": {
+            "StartLine": 8,
+            "EndLine": 41
+          }
+        },
+        {
+          "ID": "KSV-0024",
+          "Title": "Access to host ports",
+          "Message": "Container 'app' of Pod 'all' should not set host ports, 'ports[*].hostPort'",
+          "Status": "FAIL",
+          "PrimaryURL": "https://avd.aquasec.com/misconfig/ksv-0024",
+          "References": [
+            "https://kubernetes.io/docs/concepts/security/pod-security-standards/#baseline",
+            "https://avd.aquasec.com/misconfig/ksv-0024"
+          ],
+          "CauseMetadata": {
+            "StartLine": 23,
+            "EndLine": 37
+          }
+        },
+        {
+          "ID": "KSV-0025",
+          "Title": "SELinux custom options set",
+          "Message": "Pod 'all' uses invalid seLinux type 'spc_t'",
+          "Status": "FAIL",
+          "PrimaryURL": "https://avd.aquasec.com/misconfig/ksv-0025",
+          "References": [
+            "https://kubernetes.io/docs/concepts/security/pod-security-standards/#baseline",
+            "https://avd.aquasec.com/misconfig/ksv-0025"
+          ],
+          "CauseMetadata": {
+            "StartLine": 8,
+            "EndLine": 41
+          }
+        },
+        {
+          "ID": "KSV-0026",
+          "Title": "Unsafe sysctl options set",
+          "Message": "Pod 'all' has disallowed sysctls: [\"net.core.somaxconn\"] and must only use allowed sysctls.",
+          "Status": "FAIL",
+          "PrimaryURL": "https://avd.aquasec.com/misconfig/ksv-0026",
+          "References": [
+            "https://kubernetes.io/docs/concepts/security/pod-security-standards/#baseline",
+            "https://avd.aquasec.com/misconfig/ksv-0026"
+          ],
+          "CauseMetadata": {
+            "StartLine": 1,
+            "EndLine": 41
+          }
+        },
+        {
+          "ID": "KSV-0027",
+          "Title": "Non-default /proc masks set",
+          "Message": "Pod 'all' should not set 'spec.containers[*].securityContext.procMount' or 'spec.initContainers[*].securityContext.procMount'",
+          "Status": "FAIL",
+          "PrimaryURL": "https://avd.aquasec.com/misconfig/ksv-0027",
+          "References": [
+            "https://kubernetes.io/docs/concepts/security/pod-security-standards/#baseline",
+            "https://avd.aquasec.com/misconfig/ksv-0027"
+          ],
+          "CauseMetadata": {
+            "StartLine": 23,
+            "EndLine": 37
+          }
+        },
+        {
+          "ID": "KSV-0030",
+          "Title": "Runtime/Default Seccomp profile not set",
+          "Message": "Either Pod or Container should set 'securityContext.seccompProfile.type' to 'RuntimeDefault'",
+          "Status": "FAIL",
+          "PrimaryURL": "https://avd.aquasec.com/misconfig/ksv-0030",
+          "References": [
+            "https://kubernetes.io/docs/concepts/security/pod-security-standards/#restricted",
+            "https://avd.aquasec.com/misconfig/ksv-0030"
+          ],
+          "CauseMetadata": {
+            "StartLine": 23,
+            "EndLine": 37
+          }
+        },
+        {
+          "ID": "KSV-0103",
+          "Title": "Access to host process",
+          "Message": "You should not enable hostProcess.",
+          "Status": "FAIL",
+          "PrimaryURL": "https://avd.aquasec.com/misconfig/ksv-0103",
+          "References": [
+            "https://kubernetes.io/docs/concepts/security/pod-security-standards/#baseline",
+            "https://avd.aquasec.com/misconfig/ksv-0103"
+          ],
+          "CauseMetadata": {
+            "StartLine": 20,
+            "EndLine": 21
+          }
+        },
+        {
+          "ID": "KSV-0103",
+          "Title": "Access to host process",
+          "Message": "You should not enable hostProcess.",
+          "Status": "FAIL",
+          "PrimaryURL": "https://avd.aquasec.com/misconfig/ksv-0103",
+          "References": [
+            "https://kubernetes.io/docs/concepts/security/pod-security-standards/#baseline",
+            "https://avd.aquasec.com/misconfig/ksv-0103"
+          ],
+          "CauseMetadata": {
+            "StartLine": 8,
+            "EndLine": 41
+          }
+        },
+        {
+          "ID": "KSV-0104",
+          "Title": "Seccomp policies disabled",
+          "Message": "container \"app\" of pod \"all\" in \"demo\" namespace should specify a seccomp profile",
+          "Status": "FAIL",
+          "PrimaryURL": "https://avd.aquasec.com/misconfig/ksv-0104",
+          "References": [
+            "https://kubernetes.io/docs/concepts/security/pod-security-standards/#baseline",
+            "https://avd.aquasec.com/misconfig/ksv-0104"
+          ],
+          "CauseMetadata": {
+            "StartLine": 23,
+            "EndLine": 37
+          }
+        },
+        {
+          "ID": "KSV-0105",
+          "Title": "Containers must not set runAsUser to 0",
+          "Message": "securityContext.runAsUser should be set to a value greater than 0",
+          "Status": "FAIL",
+          "PrimaryURL": "https://avd.aquasec.com/misconfig/ksv-0105",
+          "References": [
+            "https://kubernetes.io/docs/concepts/security/pod-security-standards/#restricted",
+            "https://avd.aquasec.com/misconfig/ksv-0105"
+          ],
+          "CauseMetadata": {
+            "StartLine": 28,
+            "EndLine": 34
+          }
+        },
+        {
+          "ID": "KSV-0106",
+          "Title": "Container capabilities must only include NET_BIND_SERVICE",
+          "Message": "container should drop all",
+          "Status": "FAIL",
+          "PrimaryURL": "https://avd.aquasec.com/misconfig/ksv-0106",
+          "References": [
+            "https://kubernetes.io/docs/concepts/security/pod-security-standards/#restricted",
+            "https://avd.aquasec.com/misconfig/ksv-0106"
+          ],
+          "CauseMetadata": {
+            "StartLine": 23,
+            "EndLine": 37
+          }
+        },
+        {
+          "ID": "KSV-0117",
+          "Title": "Prevent binding to privileged ports",
+          "Message": "pod all in demo namespace should not set spec.template.spec.containers.ports.containerPort to less than 1024",
+          "Status": "FAIL",
+          "PrimaryURL": "https://avd.aquasec.com/misconfig/ksv-0117",
+          "References": [
+            "https://kubernetes.io/docs/concepts/security/pod-security-standards/",
+            "https://www.stigviewer.com/stig/kubernetes/2022-12-02/finding/V-242414",
+            "https://avd.aquasec.com/misconfig/ksv-0117"
+          ],
+          "CauseMetadata": {
+            "StartLine": null,
+            "EndLine": null
+          }
+        },
+        {
+          "ID": "KSV-0119",
+          "Title": "NET_RAW capability added",
+          "Message": "container app of pod all in demo namespace should not include 'NET_RAW' in securityContext.capabilities.add",
+          "Status": "FAIL",
+          "PrimaryURL": "https://avd.aquasec.com/misconfig/ksv-0119",
+          "References": [
+            "https://kubernetes.io/docs/concepts/security/pod-security-standards/",
+            "https://avd.aquasec.com/misconfig/ksv-0119"
+          ],
+          "CauseMetadata": {
+            "StartLine": null,
+            "EndLine": null
+          }
+        },
+        {
+          "ID": "KSV-0121",
+          "Title": "Kubernetes resource with disallowed volumes mounted",
+          "Message": "pod all in demo namespace shouldn't have volumes set to {\"/etc\"}",
+          "Status": "FAIL",
+          "PrimaryURL": "https://avd.aquasec.com/misconfig/ksv-0121",
+          "References": [
+            "https://kubernetes.io/docs/concepts/security/pod-security-standards/#restricted",
+            "https://avd.aquasec.com/misconfig/ksv-0121"
+          ],
+          "CauseMetadata": {
+            "StartLine": 8,
+            "EndLine": 41
+          }
+        }
+      ]
+    },
+    {
+      "Target": "pod-volumes.yaml",
+      "Type": "kubernetes",
+      "Misconfigurations": [
+        {
+          "ID": "KSV-0001",
+          "Title": "Can elevate its own privileges",
+          "Message": "Container 'app' of Pod 'volumes' should set 'securityContext.allowPrivilegeEscalation' to false",
+          "Status": "FAIL",
+          "PrimaryURL": "https://avd.aquasec.com/misconfig/ksv-0001",
+          "References": [
+            "https://kubernetes.io/docs/concepts/security/pod-security-standards/#restricted",
+            "https://avd.aquasec.com/misconfig/ksv-0001"
+          ],
+          "CauseMetadata": {
+            "StartLine": 8,
+            "EndLine": 12
+          }
+        },
+        {
+          "ID": "KSV-0003",
+          "Title": "Default capabilities: some containers do not drop all",
+          "Message": "Container 'app' of Pod 'volumes' should add 'ALL' to 'securityContext.capabilities.drop'",
+          "Status": "FAIL",
+          "PrimaryURL": "https://avd.aquasec.com/misconfig/ksv-0003",
+          "References": [
+            "https://kubesec.io/basics/containers-securitycontext-capabilities-drop-index-all/",
+            "https://avd.aquasec.com/misconfig/ksv-0003"
+          ],
+          "CauseMetadata": {
+            "StartLine": 8,
+            "EndLine": 12
+          }
+        },
+        {
+          "ID": "KSV-0004",
+          "Title": "Default capabilities: some containers do not drop any",
+          "Message": "Container 'app' of 'pod' 'volumes' in 'demo' namespace should set securityContext.capabilities.drop",
+          "Status": "FAIL",
+          "PrimaryURL": "https://avd.aquasec.com/misconfig/ksv-0004",
+          "References": [
+            "https://kubesec.io/basics/containers-securitycontext-capabilities-drop-index-all/",
+            "https://avd.aquasec.com/misconfig/ksv-0004"
+          ],
+          "CauseMetadata": {
+            "StartLine": 8,
+            "EndLine": 12
+          }
+        },
+        {
+          "ID": "KSV-0011",
+          "Title": "CPU not limited",
+          "Message": "Container 'app' of Pod 'volumes' should set 'resources.limits.cpu'",
+          "Status": "FAIL",
+          "PrimaryURL": "https://avd.aquasec.com/misconfig/ksv-0011",
+          "References": [
+            "https://cloud.google.com/blog/products/containers-kubernetes/kubernetes-best-practices-resource-requests-and-limits",
+            "https://avd.aquasec.com/misconfig/ksv-0011"
+          ],
+          "CauseMetadata": {
+            "StartLine": 8,
+            "EndLine": 12
+          }
+        },
+        {
+          "ID": "KSV-0012",
+          "Title": "Runs as root user",
+          "Message": "Container 'app' of Pod 'volumes' should set 'securityContext.runAsNonRoot' to true",
+          "Status": "FAIL",
+          "PrimaryURL": "https://avd.aquasec.com/misconfig/ksv-0012",
+          "References": [
+            "https://kubernetes.io/docs/concepts/security/pod-security-standards/#restricted",
+            "https://avd.aquasec.com/misconfig/ksv-0012"
+          ],
+          "CauseMetadata": {
+            "StartLine": 8,
+            "EndLine": 12
+          }
+        },
+        {
+          "ID": "KSV-0014",
+          "Title": "Root file system is not read-only",
+          "Message": "Container 'app' of Pod 'volumes' should set 'securityContext.readOnlyRootFilesystem' to true",
+          "Status": "FAIL",
+          "PrimaryURL": "https://avd.aquasec.com/misconfig/ksv-0014",
+          "References": [
+            "https://kubesec.io/basics/containers-securitycontext-readonlyrootfilesystem-true/",
+            "https://avd.aquasec.com/misconfig/ksv-0014"
+          ],
+          "CauseMetadata": {
+            "StartLine": 8,
+            "EndLine": 12
+          }
+        },
+        {
+          "ID": "KSV-0015",
+          "Title": "CPU requests not specified",
+          "Message": "Container 'app' of Pod 'volumes' should set 'resources.requests.cpu'",
+          "Status": "FAIL",
+          "PrimaryURL": "https://avd.aquasec.com/misconfig/ksv-0015",
+          "References": [
+            "https://cloud.google.com/blog/products/containers-kubernetes/kubernetes-best-practices-resource-requests-and-limits",
+            "https://avd.aquasec.com/misconfig/ksv-0015"
+          ],
+          "CauseMetadata": {
+            "StartLine": 8,
+            "EndLine": 12
+          }
+        },
+        {
+          "ID": "KSV-0016",
+          "Title": "Memory requests not specified",
+          "Message": "Container 'app' of Pod 'volumes' should set 'resources.requests.memory'",
+          "Status": "FAIL",
+          "PrimaryURL": "https://avd.aquasec.com/misconfig/ksv-0016",
+          "References": [
+            "https://kubesec.io/basics/containers-resources-limits-memory/",
+            "https://avd.aquasec.com/misconfig/ksv-0016"
+          ],
+          "CauseMetadata": {
+            "StartLine": 8,
+            "EndLine": 12
+          }
+        },
+        {
+          "ID": "KSV-0018",
+          "Title": "Memory not limited",
+          "Message": "Container 'app' of Pod 'volumes' should set 'resources.limits.memory'",
+          "Status": "FAIL",
+          "PrimaryURL": "https://avd.aquasec.com/misconfig/ksv-0018",
+          "References": [
+            "https://kubesec.io/basics/containers-resources-limits-memory/",
+            "https://avd.aquasec.com/misconfig/ksv-0018"
+          ],
+          "CauseMetadata": {
+            "StartLine": 8,
+            "EndLine": 12
+          }
+        },
+        {
+          "ID": "KSV-0020",
+          "Title": "Runs with UID <= 10000",
+          "Message": "Container 'app' of Pod 'volumes' should set 'securityContext.runAsUser' > 10000",
+          "Status": "FAIL",
+          "PrimaryURL": "https://avd.aquasec.com/misconfig/ksv-0020",
+          "References": [
+            "https://kubesec.io/basics/containers-securitycontext-runasuser/",
+            "https://avd.aquasec.com/misconfig/ksv-0020"
+          ],
+          "CauseMetadata": {
+            "StartLine": 8,
+            "EndLine": 12
+          }
+        },
+        {
+          "ID": "KSV-0021",
+          "Title": "Runs with GID <= 10000",
+          "Message": "Container 'app' of Pod 'volumes' should set 'securityContext.runAsGroup' > 10000",
+          "Status": "FAIL",
+          "PrimaryURL": "https://avd.aquasec.com/misconfig/ksv-0021",
+          "References": [
+            "https://kubesec.io/basics/containers-securitycontext-runasuser/",
+            "https://avd.aquasec.com/misconfig/ksv-0021"
+          ],
+          "CauseMetadata": {
+            "StartLine": 8,
+            "EndLine": 12
+          }
+        },
+        {
+          "ID": "KSV-0028",
+          "Title": "Non-core volume types used.",
+          "Message": "Pod 'volumes' should set 'spec.volumes[*]' to an allowed volume type",
+          "Status": "FAIL",
+          "PrimaryURL": "https://avd.aquasec.com/misconfig/ksv-0028",
+          "References": [
+            "https://kubernetes.io/docs/concepts/security/pod-security-standards/#restricted",
+            "https://avd.aquasec.com/misconfig/ksv-0028"
+          ],
+          "CauseMetadata": {
+            "StartLine": 6,
+            "EndLine": 17
+          }
+        },
+        {
+          "ID": "KSV-0030",
+          "Title": "Runtime/Default Seccomp profile not set",
+          "Message": "Either Pod or Container should set 'securityContext.seccompProfile.type' to 'RuntimeDefault'",
+          "Status": "FAIL",
+          "PrimaryURL": "https://avd.aquasec.com/misconfig/ksv-0030",
+          "References": [
+            "https://kubernetes.io/docs/concepts/security/pod-security-standards/#restricted",
+            "https://avd.aquasec.com/misconfig/ksv-0030"
+          ],
+          "CauseMetadata": {
+            "StartLine": 8,
+            "EndLine": 12
+          }
+        },
+        {
+          "ID": "KSV-0104",
+          "Title": "Seccomp policies disabled",
+          "Message": "container \"app\" of pod \"volumes\" in \"demo\" namespace should specify a seccomp profile",
+          "Status": "FAIL",
+          "PrimaryURL": "https://avd.aquasec.com/misconfig/ksv-0104",
+          "References": [
+            "https://kubernetes.io/docs/concepts/security/pod-security-standards/#baseline",
+            "https://avd.aquasec.com/misconfig/ksv-0104"
+          ],
+          "CauseMetadata": {
+            "StartLine": 8,
+            "EndLine": 12
+          }
+        },
+        {
+          "ID": "KSV-0106",
+          "Title": "Container capabilities must only include NET_BIND_SERVICE",
+          "Message": "container should drop all",
+          "Status": "FAIL",
+          "PrimaryURL": "https://avd.aquasec.com/misconfig/ksv-0106",
+          "References": [
+            "https://kubernetes.io/docs/concepts/security/pod-security-standards/#restricted",
+            "https://avd.aquasec.com/misconfig/ksv-0106"
+          ],
+          "CauseMetadata": {
+            "StartLine": 8,
+            "EndLine": 12
+          }
+        },
+        {
+          "ID": "KSV-0118",
+          "Title": "Default security context configured",
+          "Message": "container volumes in demo namespace is using the default security context",
+          "Status": "FAIL",
+          "PrimaryURL": "https://avd.aquasec.com/misconfig/ksv-0118",
+          "References": [
+            "https://kubernetes.io/docs/tasks/configure-pod-container/security-context/",
+            "https://avd.aquasec.com/misconfig/ksv-0118"
+          ],
+          "CauseMetadata": {
+            "StartLine": 8,
+            "EndLine": 12
+          }
+        },
+        {
+          "ID": "KSV-0118",
+          "Title": "Default security context configured",
+          "Message": "pod volumes in demo namespace is using the default security context, which allows root privileges",
+          "Status": "FAIL",
+          "PrimaryURL": "https://avd.aquasec.com/misconfig/ksv-0118",
+          "References": [
+            "https://kubernetes.io/docs/tasks/configure-pod-container/security-context/",
+            "https://avd.aquasec.com/misconfig/ksv-0118"
+          ],
+          "CauseMetadata": {
+            "StartLine": 6,
+            "EndLine": 17
+          }
+        }
+      ]
+    },
+    {
+      "Target": "seccomp-absent.yaml",
+      "Type": "kubernetes",
+      "Misconfigurations": [
+        {
+          "ID": "KSV-0001",
+          "Title": "Can elevate its own privileges",
+          "Message": "Container 'app' of Pod 'absent' should set 'securityContext.allowPrivilegeEscalation' to false",
+          "Status": "FAIL",
+          "PrimaryURL": "https://avd.aquasec.com/misconfig/ksv-0001",
+          "References": [
+            "https://kubernetes.io/docs/concepts/security/pod-security-standards/#restricted",
+            "https://avd.aquasec.com/misconfig/ksv-0001"
+          ],
+          "CauseMetadata": {
+            "StartLine": 8,
+            "EndLine": 9
+          }
+        },
+        {
+          "ID": "KSV-0003",
+          "Title": "Default capabilities: some containers do not drop all",
+          "Message": "Container 'app' of Pod 'absent' should add 'ALL' to 'securityContext.capabilities.drop'",
+          "Status": "FAIL",
+          "PrimaryURL": "https://avd.aquasec.com/misconfig/ksv-0003",
+          "References": [
+            "https://kubesec.io/basics/containers-securitycontext-capabilities-drop-index-all/",
+            "https://avd.aquasec.com/misconfig/ksv-0003"
+          ],
+          "CauseMetadata": {
+            "StartLine": 8,
+            "EndLine": 9
+          }
+        },
+        {
+          "ID": "KSV-0004",
+          "Title": "Default capabilities: some containers do not drop any",
+          "Message": "Container 'app' of 'pod' 'absent' in 'demo' namespace should set securityContext.capabilities.drop",
+          "Status": "FAIL",
+          "PrimaryURL": "https://avd.aquasec.com/misconfig/ksv-0004",
+          "References": [
+            "https://kubesec.io/basics/containers-securitycontext-capabilities-drop-index-all/",
+            "https://avd.aquasec.com/misconfig/ksv-0004"
+          ],
+          "CauseMetadata": {
+            "StartLine": 8,
+            "EndLine": 9
+          }
+        },
+        {
+          "ID": "KSV-0011",
+          "Title": "CPU not limited",
+          "Message": "Container 'app' of Pod 'absent' should set 'resources.limits.cpu'",
+          "Status": "FAIL",
+          "PrimaryURL": "https://avd.aquasec.com/misconfig/ksv-0011",
+          "References": [
+            "https://cloud.google.com/blog/products/containers-kubernetes/kubernetes-best-practices-resource-requests-and-limits",
+            "https://avd.aquasec.com/misconfig/ksv-0011"
+          ],
+          "CauseMetadata": {
+            "StartLine": 8,
+            "EndLine": 9
+          }
+        },
+        {
+          "ID": "KSV-0012",
+          "Title": "Runs as root user",
+          "Message": "Container 'app' of Pod 'absent' should set 'securityContext.runAsNonRoot' to true",
+          "Status": "FAIL",
+          "PrimaryURL": "https://avd.aquasec.com/misconfig/ksv-0012",
+          "References": [
+            "https://kubernetes.io/docs/concepts/security/pod-security-standards/#restricted",
+            "https://avd.aquasec.com/misconfig/ksv-0012"
+          ],
+          "CauseMetadata": {
+            "StartLine": 8,
+            "EndLine": 9
+          }
+        },
+        {
+          "ID": "KSV-0014",
+          "Title": "Root file system is not read-only",
+          "Message": "Container 'app' of Pod 'absent' should set 'securityContext.readOnlyRootFilesystem' to true",
+          "Status": "FAIL",
+          "PrimaryURL": "https://avd.aquasec.com/misconfig/ksv-0014",
+          "References": [
+            "https://kubesec.io/basics/containers-securitycontext-readonlyrootfilesystem-true/",
+            "https://avd.aquasec.com/misconfig/ksv-0014"
+          ],
+          "CauseMetadata": {
+            "StartLine": 8,
+            "EndLine": 9
+          }
+        },
+        {
+          "ID": "KSV-0015",
+          "Title": "CPU requests not specified",
+          "Message": "Container 'app' of Pod 'absent' should set 'resources.requests.cpu'",
+          "Status": "FAIL",
+          "PrimaryURL": "https://avd.aquasec.com/misconfig/ksv-0015",
+          "References": [
+            "https://cloud.google.com/blog/products/containers-kubernetes/kubernetes-best-practices-resource-requests-and-limits",
+            "https://avd.aquasec.com/misconfig/ksv-0015"
+          ],
+          "CauseMetadata": {
+            "StartLine": 8,
+            "EndLine": 9
+          }
+        },
+        {
+          "ID": "KSV-0016",
+          "Title": "Memory requests not specified",
+          "Message": "Container 'app' of Pod 'absent' should set 'resources.requests.memory'",
+          "Status": "FAIL",
+          "PrimaryURL": "https://avd.aquasec.com/misconfig/ksv-0016",
+          "References": [
+            "https://kubesec.io/basics/containers-resources-limits-memory/",
+            "https://avd.aquasec.com/misconfig/ksv-0016"
+          ],
+          "CauseMetadata": {
+            "StartLine": 8,
+            "EndLine": 9
+          }
+        },
+        {
+          "ID": "KSV-0018",
+          "Title": "Memory not limited",
+          "Message": "Container 'app' of Pod 'absent' should set 'resources.limits.memory'",
+          "Status": "FAIL",
+          "PrimaryURL": "https://avd.aquasec.com/misconfig/ksv-0018",
+          "References": [
+            "https://kubesec.io/basics/containers-resources-limits-memory/",
+            "https://avd.aquasec.com/misconfig/ksv-0018"
+          ],
+          "CauseMetadata": {
+            "StartLine": 8,
+            "EndLine": 9
+          }
+        },
+        {
+          "ID": "KSV-0020",
+          "Title": "Runs with UID <= 10000",
+          "Message": "Container 'app' of Pod 'absent' should set 'securityContext.runAsUser' > 10000",
+          "Status": "FAIL",
+          "PrimaryURL": "https://avd.aquasec.com/misconfig/ksv-0020",
+          "References": [
+            "https://kubesec.io/basics/containers-securitycontext-runasuser/",
+            "https://avd.aquasec.com/misconfig/ksv-0020"
+          ],
+          "CauseMetadata": {
+            "StartLine": 8,
+            "EndLine": 9
+          }
+        },
+        {
+          "ID": "KSV-0021",
+          "Title": "Runs with GID <= 10000",
+          "Message": "Container 'app' of Pod 'absent' should set 'securityContext.runAsGroup' > 10000",
+          "Status": "FAIL",
+          "PrimaryURL": "https://avd.aquasec.com/misconfig/ksv-0021",
+          "References": [
+            "https://kubesec.io/basics/containers-securitycontext-runasuser/",
+            "https://avd.aquasec.com/misconfig/ksv-0021"
+          ],
+          "CauseMetadata": {
+            "StartLine": 8,
+            "EndLine": 9
+          }
+        },
+        {
+          "ID": "KSV-0030",
+          "Title": "Runtime/Default Seccomp profile not set",
+          "Message": "Either Pod or Container should set 'securityContext.seccompProfile.type' to 'RuntimeDefault'",
+          "Status": "FAIL",
+          "PrimaryURL": "https://avd.aquasec.com/misconfig/ksv-0030",
+          "References": [
+            "https://kubernetes.io/docs/concepts/security/pod-security-standards/#restricted",
+            "https://avd.aquasec.com/misconfig/ksv-0030"
+          ],
+          "CauseMetadata": {
+            "StartLine": 8,
+            "EndLine": 9
+          }
+        },
+        {
+          "ID": "KSV-0104",
+          "Title": "Seccomp policies disabled",
+          "Message": "container \"app\" of pod \"absent\" in \"demo\" namespace should specify a seccomp profile",
+          "Status": "FAIL",
+          "PrimaryURL": "https://avd.aquasec.com/misconfig/ksv-0104",
+          "References": [
+            "https://kubernetes.io/docs/concepts/security/pod-security-standards/#baseline",
+            "https://avd.aquasec.com/misconfig/ksv-0104"
+          ],
+          "CauseMetadata": {
+            "StartLine": 8,
+            "EndLine": 9
+          }
+        },
+        {
+          "ID": "KSV-0106",
+          "Title": "Container capabilities must only include NET_BIND_SERVICE",
+          "Message": "container should drop all",
+          "Status": "FAIL",
+          "PrimaryURL": "https://avd.aquasec.com/misconfig/ksv-0106",
+          "References": [
+            "https://kubernetes.io/docs/concepts/security/pod-security-standards/#restricted",
+            "https://avd.aquasec.com/misconfig/ksv-0106"
+          ],
+          "CauseMetadata": {
+            "StartLine": 8,
+            "EndLine": 9
+          }
+        },
+        {
+          "ID": "KSV-0118",
+          "Title": "Default security context configured",
+          "Message": "container absent in demo namespace is using the default security context",
+          "Status": "FAIL",
+          "PrimaryURL": "https://avd.aquasec.com/misconfig/ksv-0118",
+          "References": [
+            "https://kubernetes.io/docs/tasks/configure-pod-container/security-context/",
+            "https://avd.aquasec.com/misconfig/ksv-0118"
+          ],
+          "CauseMetadata": {
+            "StartLine": 8,
+            "EndLine": 9
+          }
+        },
+        {
+          "ID": "KSV-0118",
+          "Title": "Default security context configured",
+          "Message": "pod absent in demo namespace is using the default security context, which allows root privileges",
+          "Status": "FAIL",
+          "PrimaryURL": "https://avd.aquasec.com/misconfig/ksv-0118",
+          "References": [
+            "https://kubernetes.io/docs/tasks/configure-pod-container/security-context/",
+            "https://avd.aquasec.com/misconfig/ksv-0118"
+          ],
+          "CauseMetadata": {
+            "StartLine": 6,
+            "EndLine": 9
+          }
+        }
+      ]
+    },
+    {
+      "Target": "seccomp-ctr-unconfined.yaml",
+      "Type": "kubernetes",
+      "Misconfigurations": [
+        {
+          "ID": "KSV-0001",
+          "Title": "Can elevate its own privileges",
+          "Message": "Container 'app' of Pod 'ctr-unconfined' should set 'securityContext.allowPrivilegeEscalation' to false",
+          "Status": "FAIL",
+          "PrimaryURL": "https://avd.aquasec.com/misconfig/ksv-0001",
+          "References": [
+            "https://kubernetes.io/docs/concepts/security/pod-security-standards/#restricted",
+            "https://avd.aquasec.com/misconfig/ksv-0001"
+          ],
+          "CauseMetadata": {
+            "StartLine": 8,
+            "EndLine": 12
+          }
+        },
+        {
+          "ID": "KSV-0003",
+          "Title": "Default capabilities: some containers do not drop all",
+          "Message": "Container 'app' of Pod 'ctr-unconfined' should add 'ALL' to 'securityContext.capabilities.drop'",
+          "Status": "FAIL",
+          "PrimaryURL": "https://avd.aquasec.com/misconfig/ksv-0003",
+          "References": [
+            "https://kubesec.io/basics/containers-securitycontext-capabilities-drop-index-all/",
+            "https://avd.aquasec.com/misconfig/ksv-0003"
+          ],
+          "CauseMetadata": {
+            "StartLine": 8,
+            "EndLine": 12
+          }
+        },
+        {
+          "ID": "KSV-0004",
+          "Title": "Default capabilities: some containers do not drop any",
+          "Message": "Container 'app' of 'pod' 'ctr-unconfined' in 'demo' namespace should set securityContext.capabilities.drop",
+          "Status": "FAIL",
+          "PrimaryURL": "https://avd.aquasec.com/misconfig/ksv-0004",
+          "References": [
+            "https://kubesec.io/basics/containers-securitycontext-capabilities-drop-index-all/",
+            "https://avd.aquasec.com/misconfig/ksv-0004"
+          ],
+          "CauseMetadata": {
+            "StartLine": 8,
+            "EndLine": 12
+          }
+        },
+        {
+          "ID": "KSV-0011",
+          "Title": "CPU not limited",
+          "Message": "Container 'app' of Pod 'ctr-unconfined' should set 'resources.limits.cpu'",
+          "Status": "FAIL",
+          "PrimaryURL": "https://avd.aquasec.com/misconfig/ksv-0011",
+          "References": [
+            "https://cloud.google.com/blog/products/containers-kubernetes/kubernetes-best-practices-resource-requests-and-limits",
+            "https://avd.aquasec.com/misconfig/ksv-0011"
+          ],
+          "CauseMetadata": {
+            "StartLine": 8,
+            "EndLine": 12
+          }
+        },
+        {
+          "ID": "KSV-0012",
+          "Title": "Runs as root user",
+          "Message": "Container 'app' of Pod 'ctr-unconfined' should set 'securityContext.runAsNonRoot' to true",
+          "Status": "FAIL",
+          "PrimaryURL": "https://avd.aquasec.com/misconfig/ksv-0012",
+          "References": [
+            "https://kubernetes.io/docs/concepts/security/pod-security-standards/#restricted",
+            "https://avd.aquasec.com/misconfig/ksv-0012"
+          ],
+          "CauseMetadata": {
+            "StartLine": 8,
+            "EndLine": 12
+          }
+        },
+        {
+          "ID": "KSV-0014",
+          "Title": "Root file system is not read-only",
+          "Message": "Container 'app' of Pod 'ctr-unconfined' should set 'securityContext.readOnlyRootFilesystem' to true",
+          "Status": "FAIL",
+          "PrimaryURL": "https://avd.aquasec.com/misconfig/ksv-0014",
+          "References": [
+            "https://kubesec.io/basics/containers-securitycontext-readonlyrootfilesystem-true/",
+            "https://avd.aquasec.com/misconfig/ksv-0014"
+          ],
+          "CauseMetadata": {
+            "StartLine": 8,
+            "EndLine": 12
+          }
+        },
+        {
+          "ID": "KSV-0015",
+          "Title": "CPU requests not specified",
+          "Message": "Container 'app' of Pod 'ctr-unconfined' should set 'resources.requests.cpu'",
+          "Status": "FAIL",
+          "PrimaryURL": "https://avd.aquasec.com/misconfig/ksv-0015",
+          "References": [
+            "https://cloud.google.com/blog/products/containers-kubernetes/kubernetes-best-practices-resource-requests-and-limits",
+            "https://avd.aquasec.com/misconfig/ksv-0015"
+          ],
+          "CauseMetadata": {
+            "StartLine": 8,
+            "EndLine": 12
+          }
+        },
+        {
+          "ID": "KSV-0016",
+          "Title": "Memory requests not specified",
+          "Message": "Container 'app' of Pod 'ctr-unconfined' should set 'resources.requests.memory'",
+          "Status": "FAIL",
+          "PrimaryURL": "https://avd.aquasec.com/misconfig/ksv-0016",
+          "References": [
+            "https://kubesec.io/basics/containers-resources-limits-memory/",
+            "https://avd.aquasec.com/misconfig/ksv-0016"
+          ],
+          "CauseMetadata": {
+            "StartLine": 8,
+            "EndLine": 12
+          }
+        },
+        {
+          "ID": "KSV-0018",
+          "Title": "Memory not limited",
+          "Message": "Container 'app' of Pod 'ctr-unconfined' should set 'resources.limits.memory'",
+          "Status": "FAIL",
+          "PrimaryURL": "https://avd.aquasec.com/misconfig/ksv-0018",
+          "References": [
+            "https://kubesec.io/basics/containers-resources-limits-memory/",
+            "https://avd.aquasec.com/misconfig/ksv-0018"
+          ],
+          "CauseMetadata": {
+            "StartLine": 8,
+            "EndLine": 12
+          }
+        },
+        {
+          "ID": "KSV-0020",
+          "Title": "Runs with UID <= 10000",
+          "Message": "Container 'app' of Pod 'ctr-unconfined' should set 'securityContext.runAsUser' > 10000",
+          "Status": "FAIL",
+          "PrimaryURL": "https://avd.aquasec.com/misconfig/ksv-0020",
+          "References": [
+            "https://kubesec.io/basics/containers-securitycontext-runasuser/",
+            "https://avd.aquasec.com/misconfig/ksv-0020"
+          ],
+          "CauseMetadata": {
+            "StartLine": 8,
+            "EndLine": 12
+          }
+        },
+        {
+          "ID": "KSV-0021",
+          "Title": "Runs with GID <= 10000",
+          "Message": "Container 'app' of Pod 'ctr-unconfined' should set 'securityContext.runAsGroup' > 10000",
+          "Status": "FAIL",
+          "PrimaryURL": "https://avd.aquasec.com/misconfig/ksv-0021",
+          "References": [
+            "https://kubesec.io/basics/containers-securitycontext-runasuser/",
+            "https://avd.aquasec.com/misconfig/ksv-0021"
+          ],
+          "CauseMetadata": {
+            "StartLine": 8,
+            "EndLine": 12
+          }
+        },
+        {
+          "ID": "KSV-0030",
+          "Title": "Runtime/Default Seccomp profile not set",
+          "Message": "Either Pod or Container should set 'securityContext.seccompProfile.type' to 'RuntimeDefault'",
+          "Status": "FAIL",
+          "PrimaryURL": "https://avd.aquasec.com/misconfig/ksv-0030",
+          "References": [
+            "https://kubernetes.io/docs/concepts/security/pod-security-standards/#restricted",
+            "https://avd.aquasec.com/misconfig/ksv-0030"
+          ],
+          "CauseMetadata": {
+            "StartLine": 8,
+            "EndLine": 12
+          }
+        },
+        {
+          "ID": "KSV-0104",
+          "Title": "Seccomp policies disabled",
+          "Message": "container \"app\" of pod \"ctr-unconfined\" in \"demo\" namespace should specify a seccomp profile",
+          "Status": "FAIL",
+          "PrimaryURL": "https://avd.aquasec.com/misconfig/ksv-0104",
+          "References": [
+            "https://kubernetes.io/docs/concepts/security/pod-security-standards/#baseline",
+            "https://avd.aquasec.com/misconfig/ksv-0104"
+          ],
+          "CauseMetadata": {
+            "StartLine": 8,
+            "EndLine": 12
+          }
+        },
+        {
+          "ID": "KSV-0106",
+          "Title": "Container capabilities must only include NET_BIND_SERVICE",
+          "Message": "container should drop all",
+          "Status": "FAIL",
+          "PrimaryURL": "https://avd.aquasec.com/misconfig/ksv-0106",
+          "References": [
+            "https://kubernetes.io/docs/concepts/security/pod-security-standards/#restricted",
+            "https://avd.aquasec.com/misconfig/ksv-0106"
+          ],
+          "CauseMetadata": {
+            "StartLine": 8,
+            "EndLine": 12
+          }
+        },
+        {
+          "ID": "KSV-0118",
+          "Title": "Default security context configured",
+          "Message": "pod ctr-unconfined in demo namespace is using the default security context, which allows root privileges",
+          "Status": "FAIL",
+          "PrimaryURL": "https://avd.aquasec.com/misconfig/ksv-0118",
+          "References": [
+            "https://kubernetes.io/docs/tasks/configure-pod-container/security-context/",
+            "https://avd.aquasec.com/misconfig/ksv-0118"
+          ],
+          "CauseMetadata": {
+            "StartLine": 6,
+            "EndLine": 12
+          }
+        }
+      ]
+    },
+    {
+      "Target": "seccomp-pod-unconfined.yaml",
+      "Type": "kubernetes",
+      "Misconfigurations": [
+        {
+          "ID": "KSV-0001",
+          "Title": "Can elevate its own privileges",
+          "Message": "Container 'app' of Pod 'pod-unconfined' should set 'securityContext.allowPrivilegeEscalation' to false",
+          "Status": "FAIL",
+          "PrimaryURL": "https://avd.aquasec.com/misconfig/ksv-0001",
+          "References": [
+            "https://kubernetes.io/docs/concepts/security/pod-security-standards/#restricted",
+            "https://avd.aquasec.com/misconfig/ksv-0001"
+          ],
+          "CauseMetadata": {
+            "StartLine": 11,
+            "EndLine": 12
+          }
+        },
+        {
+          "ID": "KSV-0003",
+          "Title": "Default capabilities: some containers do not drop all",
+          "Message": "Container 'app' of Pod 'pod-unconfined' should add 'ALL' to 'securityContext.capabilities.drop'",
+          "Status": "FAIL",
+          "PrimaryURL": "https://avd.aquasec.com/misconfig/ksv-0003",
+          "References": [
+            "https://kubesec.io/basics/containers-securitycontext-capabilities-drop-index-all/",
+            "https://avd.aquasec.com/misconfig/ksv-0003"
+          ],
+          "CauseMetadata": {
+            "StartLine": 11,
+            "EndLine": 12
+          }
+        },
+        {
+          "ID": "KSV-0004",
+          "Title": "Default capabilities: some containers do not drop any",
+          "Message": "Container 'app' of 'pod' 'pod-unconfined' in 'demo' namespace should set securityContext.capabilities.drop",
+          "Status": "FAIL",
+          "PrimaryURL": "https://avd.aquasec.com/misconfig/ksv-0004",
+          "References": [
+            "https://kubesec.io/basics/containers-securitycontext-capabilities-drop-index-all/",
+            "https://avd.aquasec.com/misconfig/ksv-0004"
+          ],
+          "CauseMetadata": {
+            "StartLine": 11,
+            "EndLine": 12
+          }
+        },
+        {
+          "ID": "KSV-0011",
+          "Title": "CPU not limited",
+          "Message": "Container 'app' of Pod 'pod-unconfined' should set 'resources.limits.cpu'",
+          "Status": "FAIL",
+          "PrimaryURL": "https://avd.aquasec.com/misconfig/ksv-0011",
+          "References": [
+            "https://cloud.google.com/blog/products/containers-kubernetes/kubernetes-best-practices-resource-requests-and-limits",
+            "https://avd.aquasec.com/misconfig/ksv-0011"
+          ],
+          "CauseMetadata": {
+            "StartLine": 11,
+            "EndLine": 12
+          }
+        },
+        {
+          "ID": "KSV-0012",
+          "Title": "Runs as root user",
+          "Message": "Container 'app' of Pod 'pod-unconfined' should set 'securityContext.runAsNonRoot' to true",
+          "Status": "FAIL",
+          "PrimaryURL": "https://avd.aquasec.com/misconfig/ksv-0012",
+          "References": [
+            "https://kubernetes.io/docs/concepts/security/pod-security-standards/#restricted",
+            "https://avd.aquasec.com/misconfig/ksv-0012"
+          ],
+          "CauseMetadata": {
+            "StartLine": 11,
+            "EndLine": 12
+          }
+        },
+        {
+          "ID": "KSV-0014",
+          "Title": "Root file system is not read-only",
+          "Message": "Container 'app' of Pod 'pod-unconfined' should set 'securityContext.readOnlyRootFilesystem' to true",
+          "Status": "FAIL",
+          "PrimaryURL": "https://avd.aquasec.com/misconfig/ksv-0014",
+          "References": [
+            "https://kubesec.io/basics/containers-securitycontext-readonlyrootfilesystem-true/",
+            "https://avd.aquasec.com/misconfig/ksv-0014"
+          ],
+          "CauseMetadata": {
+            "StartLine": 11,
+            "EndLine": 12
+          }
+        },
+        {
+          "ID": "KSV-0015",
+          "Title": "CPU requests not specified",
+          "Message": "Container 'app' of Pod 'pod-unconfined' should set 'resources.requests.cpu'",
+          "Status": "FAIL",
+          "PrimaryURL": "https://avd.aquasec.com/misconfig/ksv-0015",
+          "References": [
+            "https://cloud.google.com/blog/products/containers-kubernetes/kubernetes-best-practices-resource-requests-and-limits",
+            "https://avd.aquasec.com/misconfig/ksv-0015"
+          ],
+          "CauseMetadata": {
+            "StartLine": 11,
+            "EndLine": 12
+          }
+        },
+        {
+          "ID": "KSV-0016",
+          "Title": "Memory requests not specified",
+          "Message": "Container 'app' of Pod 'pod-unconfined' should set 'resources.requests.memory'",
+          "Status": "FAIL",
+          "PrimaryURL": "https://avd.aquasec.com/misconfig/ksv-0016",
+          "References": [
+            "https://kubesec.io/basics/containers-resources-limits-memory/",
+            "https://avd.aquasec.com/misconfig/ksv-0016"
+          ],
+          "CauseMetadata": {
+            "StartLine": 11,
+            "EndLine": 12
+          }
+        },
+        {
+          "ID": "KSV-0018",
+          "Title": "Memory not limited",
+          "Message": "Container 'app' of Pod 'pod-unconfined' should set 'resources.limits.memory'",
+          "Status": "FAIL",
+          "PrimaryURL": "https://avd.aquasec.com/misconfig/ksv-0018",
+          "References": [
+            "https://kubesec.io/basics/containers-resources-limits-memory/",
+            "https://avd.aquasec.com/misconfig/ksv-0018"
+          ],
+          "CauseMetadata": {
+            "StartLine": 11,
+            "EndLine": 12
+          }
+        },
+        {
+          "ID": "KSV-0020",
+          "Title": "Runs with UID <= 10000",
+          "Message": "Container 'app' of Pod 'pod-unconfined' should set 'securityContext.runAsUser' > 10000",
+          "Status": "FAIL",
+          "PrimaryURL": "https://avd.aquasec.com/misconfig/ksv-0020",
+          "References": [
+            "https://kubesec.io/basics/containers-securitycontext-runasuser/",
+            "https://avd.aquasec.com/misconfig/ksv-0020"
+          ],
+          "CauseMetadata": {
+            "StartLine": 11,
+            "EndLine": 12
+          }
+        },
+        {
+          "ID": "KSV-0021",
+          "Title": "Runs with GID <= 10000",
+          "Message": "Container 'app' of Pod 'pod-unconfined' should set 'securityContext.runAsGroup' > 10000",
+          "Status": "FAIL",
+          "PrimaryURL": "https://avd.aquasec.com/misconfig/ksv-0021",
+          "References": [
+            "https://kubesec.io/basics/containers-securitycontext-runasuser/",
+            "https://avd.aquasec.com/misconfig/ksv-0021"
+          ],
+          "CauseMetadata": {
+            "StartLine": 11,
+            "EndLine": 12
+          }
+        },
+        {
+          "ID": "KSV-0030",
+          "Title": "Runtime/Default Seccomp profile not set",
+          "Message": "Either Pod or Container should set 'securityContext.seccompProfile.type' to 'RuntimeDefault'",
+          "Status": "FAIL",
+          "PrimaryURL": "https://avd.aquasec.com/misconfig/ksv-0030",
+          "References": [
+            "https://kubernetes.io/docs/concepts/security/pod-security-standards/#restricted",
+            "https://avd.aquasec.com/misconfig/ksv-0030"
+          ],
+          "CauseMetadata": {
+            "StartLine": 11,
+            "EndLine": 12
+          }
+        },
+        {
+          "ID": "KSV-0104",
+          "Title": "Seccomp policies disabled",
+          "Message": "container \"app\" of pod \"pod-unconfined\" in \"demo\" namespace should specify a seccomp profile",
+          "Status": "FAIL",
+          "PrimaryURL": "https://avd.aquasec.com/misconfig/ksv-0104",
+          "References": [
+            "https://kubernetes.io/docs/concepts/security/pod-security-standards/#baseline",
+            "https://avd.aquasec.com/misconfig/ksv-0104"
+          ],
+          "CauseMetadata": {
+            "StartLine": 11,
+            "EndLine": 12
+          }
+        },
+        {
+          "ID": "KSV-0106",
+          "Title": "Container capabilities must only include NET_BIND_SERVICE",
+          "Message": "container should drop all",
+          "Status": "FAIL",
+          "PrimaryURL": "https://avd.aquasec.com/misconfig/ksv-0106",
+          "References": [
+            "https://kubernetes.io/docs/concepts/security/pod-security-standards/#restricted",
+            "https://avd.aquasec.com/misconfig/ksv-0106"
+          ],
+          "CauseMetadata": {
+            "StartLine": 11,
+            "EndLine": 12
+          }
+        }
+      ]
+    },
+    {
+      "Target": "seccomp-three-containers.yaml",
+      "Type": "kubernetes",
+      "Misconfigurations": [
+        {
+          "ID": "KSV-0001",
+          "Title": "Can elevate its own privileges",
+          "Message": "Container 'bare' of Deployment 'three' should set 'securityContext.allowPrivilegeEscalation' to false",
+          "Status": "FAIL",
+          "PrimaryURL": "https://avd.aquasec.com/misconfig/ksv-0001",
+          "References": [
+            "https://kubernetes.io/docs/concepts/security/pod-security-standards/#restricted",
+            "https://avd.aquasec.com/misconfig/ksv-0001"
+          ],
+          "CauseMetadata": {
+            "StartLine": 27,
+            "EndLine": 28
+          }
+        },
+        {
+          "ID": "KSV-0001",
+          "Title": "Can elevate its own privileges",
+          "Message": "Container 'sidecar' of Deployment 'three' should set 'securityContext.allowPrivilegeEscalation' to false",
+          "Status": "FAIL",
+          "PrimaryURL": "https://avd.aquasec.com/misconfig/ksv-0001",
+          "References": [
+            "https://kubernetes.io/docs/concepts/security/pod-security-standards/#restricted",
+            "https://avd.aquasec.com/misconfig/ksv-0001"
+          ],
+          "CauseMetadata": {
+            "StartLine": 22,
+            "EndLine": 26
+          }
+        },
+        {
+          "ID": "KSV-0001",
+          "Title": "Can elevate its own privileges",
+          "Message": "Container 'web' of Deployment 'three' should set 'securityContext.allowPrivilegeEscalation' to false",
+          "Status": "FAIL",
+          "PrimaryURL": "https://avd.aquasec.com/misconfig/ksv-0001",
+          "References": [
+            "https://kubernetes.io/docs/concepts/security/pod-security-standards/#restricted",
+            "https://avd.aquasec.com/misconfig/ksv-0001"
+          ],
+          "CauseMetadata": {
+            "StartLine": 17,
+            "EndLine": 21
+          }
+        },
+        {
+          "ID": "KSV-0003",
+          "Title": "Default capabilities: some containers do not drop all",
+          "Message": "Container 'bare' of Deployment 'three' should add 'ALL' to 'securityContext.capabilities.drop'",
+          "Status": "FAIL",
+          "PrimaryURL": "https://avd.aquasec.com/misconfig/ksv-0003",
+          "References": [
+            "https://kubesec.io/basics/containers-securitycontext-capabilities-drop-index-all/",
+            "https://avd.aquasec.com/misconfig/ksv-0003"
+          ],
+          "CauseMetadata": {
+            "StartLine": 27,
+            "EndLine": 28
+          }
+        },
+        {
+          "ID": "KSV-0003",
+          "Title": "Default capabilities: some containers do not drop all",
+          "Message": "Container 'sidecar' of Deployment 'three' should add 'ALL' to 'securityContext.capabilities.drop'",
+          "Status": "FAIL",
+          "PrimaryURL": "https://avd.aquasec.com/misconfig/ksv-0003",
+          "References": [
+            "https://kubesec.io/basics/containers-securitycontext-capabilities-drop-index-all/",
+            "https://avd.aquasec.com/misconfig/ksv-0003"
+          ],
+          "CauseMetadata": {
+            "StartLine": 22,
+            "EndLine": 26
+          }
+        },
+        {
+          "ID": "KSV-0003",
+          "Title": "Default capabilities: some containers do not drop all",
+          "Message": "Container 'web' of Deployment 'three' should add 'ALL' to 'securityContext.capabilities.drop'",
+          "Status": "FAIL",
+          "PrimaryURL": "https://avd.aquasec.com/misconfig/ksv-0003",
+          "References": [
+            "https://kubesec.io/basics/containers-securitycontext-capabilities-drop-index-all/",
+            "https://avd.aquasec.com/misconfig/ksv-0003"
+          ],
+          "CauseMetadata": {
+            "StartLine": 17,
+            "EndLine": 21
+          }
+        },
+        {
+          "ID": "KSV-0004",
+          "Title": "Default capabilities: some containers do not drop any",
+          "Message": "Container 'bare' of 'deployment' 'three' in 'demo' namespace should set securityContext.capabilities.drop",
+          "Status": "FAIL",
+          "PrimaryURL": "https://avd.aquasec.com/misconfig/ksv-0004",
+          "References": [
+            "https://kubesec.io/basics/containers-securitycontext-capabilities-drop-index-all/",
+            "https://avd.aquasec.com/misconfig/ksv-0004"
+          ],
+          "CauseMetadata": {
+            "StartLine": 27,
+            "EndLine": 28
+          }
+        },
+        {
+          "ID": "KSV-0004",
+          "Title": "Default capabilities: some containers do not drop any",
+          "Message": "Container 'sidecar' of 'deployment' 'three' in 'demo' namespace should set securityContext.capabilities.drop",
+          "Status": "FAIL",
+          "PrimaryURL": "https://avd.aquasec.com/misconfig/ksv-0004",
+          "References": [
+            "https://kubesec.io/basics/containers-securitycontext-capabilities-drop-index-all/",
+            "https://avd.aquasec.com/misconfig/ksv-0004"
+          ],
+          "CauseMetadata": {
+            "StartLine": 22,
+            "EndLine": 26
+          }
+        },
+        {
+          "ID": "KSV-0004",
+          "Title": "Default capabilities: some containers do not drop any",
+          "Message": "Container 'web' of 'deployment' 'three' in 'demo' namespace should set securityContext.capabilities.drop",
+          "Status": "FAIL",
+          "PrimaryURL": "https://avd.aquasec.com/misconfig/ksv-0004",
+          "References": [
+            "https://kubesec.io/basics/containers-securitycontext-capabilities-drop-index-all/",
+            "https://avd.aquasec.com/misconfig/ksv-0004"
+          ],
+          "CauseMetadata": {
+            "StartLine": 17,
+            "EndLine": 21
+          }
+        },
+        {
+          "ID": "KSV-0011",
+          "Title": "CPU not limited",
+          "Message": "Container 'bare' of Deployment 'three' should set 'resources.limits.cpu'",
+          "Status": "FAIL",
+          "PrimaryURL": "https://avd.aquasec.com/misconfig/ksv-0011",
+          "References": [
+            "https://cloud.google.com/blog/products/containers-kubernetes/kubernetes-best-practices-resource-requests-and-limits",
+            "https://avd.aquasec.com/misconfig/ksv-0011"
+          ],
+          "CauseMetadata": {
+            "StartLine": 27,
+            "EndLine": 28
+          }
+        },
+        {
+          "ID": "KSV-0011",
+          "Title": "CPU not limited",
+          "Message": "Container 'sidecar' of Deployment 'three' should set 'resources.limits.cpu'",
+          "Status": "FAIL",
+          "PrimaryURL": "https://avd.aquasec.com/misconfig/ksv-0011",
+          "References": [
+            "https://cloud.google.com/blog/products/containers-kubernetes/kubernetes-best-practices-resource-requests-and-limits",
+            "https://avd.aquasec.com/misconfig/ksv-0011"
+          ],
+          "CauseMetadata": {
+            "StartLine": 22,
+            "EndLine": 26
+          }
+        },
+        {
+          "ID": "KSV-0011",
+          "Title": "CPU not limited",
+          "Message": "Container 'web' of Deployment 'three' should set 'resources.limits.cpu'",
+          "Status": "FAIL",
+          "PrimaryURL": "https://avd.aquasec.com/misconfig/ksv-0011",
+          "References": [
+            "https://cloud.google.com/blog/products/containers-kubernetes/kubernetes-best-practices-resource-requests-and-limits",
+            "https://avd.aquasec.com/misconfig/ksv-0011"
+          ],
+          "CauseMetadata": {
+            "StartLine": 17,
+            "EndLine": 21
+          }
+        },
+        {
+          "ID": "KSV-0012",
+          "Title": "Runs as root user",
+          "Message": "Container 'bare' of Deployment 'three' should set 'securityContext.runAsNonRoot' to true",
+          "Status": "FAIL",
+          "PrimaryURL": "https://avd.aquasec.com/misconfig/ksv-0012",
+          "References": [
+            "https://kubernetes.io/docs/concepts/security/pod-security-standards/#restricted",
+            "https://avd.aquasec.com/misconfig/ksv-0012"
+          ],
+          "CauseMetadata": {
+            "StartLine": 27,
+            "EndLine": 28
+          }
+        },
+        {
+          "ID": "KSV-0012",
+          "Title": "Runs as root user",
+          "Message": "Container 'sidecar' of Deployment 'three' should set 'securityContext.runAsNonRoot' to true",
+          "Status": "FAIL",
+          "PrimaryURL": "https://avd.aquasec.com/misconfig/ksv-0012",
+          "References": [
+            "https://kubernetes.io/docs/concepts/security/pod-security-standards/#restricted",
+            "https://avd.aquasec.com/misconfig/ksv-0012"
+          ],
+          "CauseMetadata": {
+            "StartLine": 22,
+            "EndLine": 26
+          }
+        },
+        {
+          "ID": "KSV-0012",
+          "Title": "Runs as root user",
+          "Message": "Container 'web' of Deployment 'three' should set 'securityContext.runAsNonRoot' to true",
+          "Status": "FAIL",
+          "PrimaryURL": "https://avd.aquasec.com/misconfig/ksv-0012",
+          "References": [
+            "https://kubernetes.io/docs/concepts/security/pod-security-standards/#restricted",
+            "https://avd.aquasec.com/misconfig/ksv-0012"
+          ],
+          "CauseMetadata": {
+            "StartLine": 17,
+            "EndLine": 21
+          }
+        },
+        {
+          "ID": "KSV-0014",
+          "Title": "Root file system is not read-only",
+          "Message": "Container 'bare' of Deployment 'three' should set 'securityContext.readOnlyRootFilesystem' to true",
+          "Status": "FAIL",
+          "PrimaryURL": "https://avd.aquasec.com/misconfig/ksv-0014",
+          "References": [
+            "https://kubesec.io/basics/containers-securitycontext-readonlyrootfilesystem-true/",
+            "https://avd.aquasec.com/misconfig/ksv-0014"
+          ],
+          "CauseMetadata": {
+            "StartLine": 27,
+            "EndLine": 28
+          }
+        },
+        {
+          "ID": "KSV-0014",
+          "Title": "Root file system is not read-only",
+          "Message": "Container 'sidecar' of Deployment 'three' should set 'securityContext.readOnlyRootFilesystem' to true",
+          "Status": "FAIL",
+          "PrimaryURL": "https://avd.aquasec.com/misconfig/ksv-0014",
+          "References": [
+            "https://kubesec.io/basics/containers-securitycontext-readonlyrootfilesystem-true/",
+            "https://avd.aquasec.com/misconfig/ksv-0014"
+          ],
+          "CauseMetadata": {
+            "StartLine": 22,
+            "EndLine": 26
+          }
+        },
+        {
+          "ID": "KSV-0014",
+          "Title": "Root file system is not read-only",
+          "Message": "Container 'web' of Deployment 'three' should set 'securityContext.readOnlyRootFilesystem' to true",
+          "Status": "FAIL",
+          "PrimaryURL": "https://avd.aquasec.com/misconfig/ksv-0014",
+          "References": [
+            "https://kubesec.io/basics/containers-securitycontext-readonlyrootfilesystem-true/",
+            "https://avd.aquasec.com/misconfig/ksv-0014"
+          ],
+          "CauseMetadata": {
+            "StartLine": 17,
+            "EndLine": 21
+          }
+        },
+        {
+          "ID": "KSV-0015",
+          "Title": "CPU requests not specified",
+          "Message": "Container 'bare' of Deployment 'three' should set 'resources.requests.cpu'",
+          "Status": "FAIL",
+          "PrimaryURL": "https://avd.aquasec.com/misconfig/ksv-0015",
+          "References": [
+            "https://cloud.google.com/blog/products/containers-kubernetes/kubernetes-best-practices-resource-requests-and-limits",
+            "https://avd.aquasec.com/misconfig/ksv-0015"
+          ],
+          "CauseMetadata": {
+            "StartLine": 27,
+            "EndLine": 28
+          }
+        },
+        {
+          "ID": "KSV-0015",
+          "Title": "CPU requests not specified",
+          "Message": "Container 'sidecar' of Deployment 'three' should set 'resources.requests.cpu'",
+          "Status": "FAIL",
+          "PrimaryURL": "https://avd.aquasec.com/misconfig/ksv-0015",
+          "References": [
+            "https://cloud.google.com/blog/products/containers-kubernetes/kubernetes-best-practices-resource-requests-and-limits",
+            "https://avd.aquasec.com/misconfig/ksv-0015"
+          ],
+          "CauseMetadata": {
+            "StartLine": 22,
+            "EndLine": 26
+          }
+        },
+        {
+          "ID": "KSV-0015",
+          "Title": "CPU requests not specified",
+          "Message": "Container 'web' of Deployment 'three' should set 'resources.requests.cpu'",
+          "Status": "FAIL",
+          "PrimaryURL": "https://avd.aquasec.com/misconfig/ksv-0015",
+          "References": [
+            "https://cloud.google.com/blog/products/containers-kubernetes/kubernetes-best-practices-resource-requests-and-limits",
+            "https://avd.aquasec.com/misconfig/ksv-0015"
+          ],
+          "CauseMetadata": {
+            "StartLine": 17,
+            "EndLine": 21
+          }
+        },
+        {
+          "ID": "KSV-0016",
+          "Title": "Memory requests not specified",
+          "Message": "Container 'bare' of Deployment 'three' should set 'resources.requests.memory'",
+          "Status": "FAIL",
+          "PrimaryURL": "https://avd.aquasec.com/misconfig/ksv-0016",
+          "References": [
+            "https://kubesec.io/basics/containers-resources-limits-memory/",
+            "https://avd.aquasec.com/misconfig/ksv-0016"
+          ],
+          "CauseMetadata": {
+            "StartLine": 27,
+            "EndLine": 28
+          }
+        },
+        {
+          "ID": "KSV-0016",
+          "Title": "Memory requests not specified",
+          "Message": "Container 'sidecar' of Deployment 'three' should set 'resources.requests.memory'",
+          "Status": "FAIL",
+          "PrimaryURL": "https://avd.aquasec.com/misconfig/ksv-0016",
+          "References": [
+            "https://kubesec.io/basics/containers-resources-limits-memory/",
+            "https://avd.aquasec.com/misconfig/ksv-0016"
+          ],
+          "CauseMetadata": {
+            "StartLine": 22,
+            "EndLine": 26
+          }
+        },
+        {
+          "ID": "KSV-0016",
+          "Title": "Memory requests not specified",
+          "Message": "Container 'web' of Deployment 'three' should set 'resources.requests.memory'",
+          "Status": "FAIL",
+          "PrimaryURL": "https://avd.aquasec.com/misconfig/ksv-0016",
+          "References": [
+            "https://kubesec.io/basics/containers-resources-limits-memory/",
+            "https://avd.aquasec.com/misconfig/ksv-0016"
+          ],
+          "CauseMetadata": {
+            "StartLine": 17,
+            "EndLine": 21
+          }
+        },
+        {
+          "ID": "KSV-0018",
+          "Title": "Memory not limited",
+          "Message": "Container 'bare' of Deployment 'three' should set 'resources.limits.memory'",
+          "Status": "FAIL",
+          "PrimaryURL": "https://avd.aquasec.com/misconfig/ksv-0018",
+          "References": [
+            "https://kubesec.io/basics/containers-resources-limits-memory/",
+            "https://avd.aquasec.com/misconfig/ksv-0018"
+          ],
+          "CauseMetadata": {
+            "StartLine": 27,
+            "EndLine": 28
+          }
+        },
+        {
+          "ID": "KSV-0018",
+          "Title": "Memory not limited",
+          "Message": "Container 'sidecar' of Deployment 'three' should set 'resources.limits.memory'",
+          "Status": "FAIL",
+          "PrimaryURL": "https://avd.aquasec.com/misconfig/ksv-0018",
+          "References": [
+            "https://kubesec.io/basics/containers-resources-limits-memory/",
+            "https://avd.aquasec.com/misconfig/ksv-0018"
+          ],
+          "CauseMetadata": {
+            "StartLine": 22,
+            "EndLine": 26
+          }
+        },
+        {
+          "ID": "KSV-0018",
+          "Title": "Memory not limited",
+          "Message": "Container 'web' of Deployment 'three' should set 'resources.limits.memory'",
+          "Status": "FAIL",
+          "PrimaryURL": "https://avd.aquasec.com/misconfig/ksv-0018",
+          "References": [
+            "https://kubesec.io/basics/containers-resources-limits-memory/",
+            "https://avd.aquasec.com/misconfig/ksv-0018"
+          ],
+          "CauseMetadata": {
+            "StartLine": 17,
+            "EndLine": 21
+          }
+        },
+        {
+          "ID": "KSV-0020",
+          "Title": "Runs with UID <= 10000",
+          "Message": "Container 'bare' of Deployment 'three' should set 'securityContext.runAsUser' > 10000",
+          "Status": "FAIL",
+          "PrimaryURL": "https://avd.aquasec.com/misconfig/ksv-0020",
+          "References": [
+            "https://kubesec.io/basics/containers-securitycontext-runasuser/",
+            "https://avd.aquasec.com/misconfig/ksv-0020"
+          ],
+          "CauseMetadata": {
+            "StartLine": 27,
+            "EndLine": 28
+          }
+        },
+        {
+          "ID": "KSV-0020",
+          "Title": "Runs with UID <= 10000",
+          "Message": "Container 'sidecar' of Deployment 'three' should set 'securityContext.runAsUser' > 10000",
+          "Status": "FAIL",
+          "PrimaryURL": "https://avd.aquasec.com/misconfig/ksv-0020",
+          "References": [
+            "https://kubesec.io/basics/containers-securitycontext-runasuser/",
+            "https://avd.aquasec.com/misconfig/ksv-0020"
+          ],
+          "CauseMetadata": {
+            "StartLine": 22,
+            "EndLine": 26
+          }
+        },
+        {
+          "ID": "KSV-0020",
+          "Title": "Runs with UID <= 10000",
+          "Message": "Container 'web' of Deployment 'three' should set 'securityContext.runAsUser' > 10000",
+          "Status": "FAIL",
+          "PrimaryURL": "https://avd.aquasec.com/misconfig/ksv-0020",
+          "References": [
+            "https://kubesec.io/basics/containers-securitycontext-runasuser/",
+            "https://avd.aquasec.com/misconfig/ksv-0020"
+          ],
+          "CauseMetadata": {
+            "StartLine": 17,
+            "EndLine": 21
+          }
+        },
+        {
+          "ID": "KSV-0021",
+          "Title": "Runs with GID <= 10000",
+          "Message": "Container 'bare' of Deployment 'three' should set 'securityContext.runAsGroup' > 10000",
+          "Status": "FAIL",
+          "PrimaryURL": "https://avd.aquasec.com/misconfig/ksv-0021",
+          "References": [
+            "https://kubesec.io/basics/containers-securitycontext-runasuser/",
+            "https://avd.aquasec.com/misconfig/ksv-0021"
+          ],
+          "CauseMetadata": {
+            "StartLine": 27,
+            "EndLine": 28
+          }
+        },
+        {
+          "ID": "KSV-0021",
+          "Title": "Runs with GID <= 10000",
+          "Message": "Container 'sidecar' of Deployment 'three' should set 'securityContext.runAsGroup' > 10000",
+          "Status": "FAIL",
+          "PrimaryURL": "https://avd.aquasec.com/misconfig/ksv-0021",
+          "References": [
+            "https://kubesec.io/basics/containers-securitycontext-runasuser/",
+            "https://avd.aquasec.com/misconfig/ksv-0021"
+          ],
+          "CauseMetadata": {
+            "StartLine": 22,
+            "EndLine": 26
+          }
+        },
+        {
+          "ID": "KSV-0021",
+          "Title": "Runs with GID <= 10000",
+          "Message": "Container 'web' of Deployment 'three' should set 'securityContext.runAsGroup' > 10000",
+          "Status": "FAIL",
+          "PrimaryURL": "https://avd.aquasec.com/misconfig/ksv-0021",
+          "References": [
+            "https://kubesec.io/basics/containers-securitycontext-runasuser/",
+            "https://avd.aquasec.com/misconfig/ksv-0021"
+          ],
+          "CauseMetadata": {
+            "StartLine": 17,
+            "EndLine": 21
+          }
+        },
+        {
+          "ID": "KSV-0030",
+          "Title": "Runtime/Default Seccomp profile not set",
+          "Message": "Either Pod or Container should set 'securityContext.seccompProfile.type' to 'RuntimeDefault'",
+          "Status": "FAIL",
+          "PrimaryURL": "https://avd.aquasec.com/misconfig/ksv-0030",
+          "References": [
+            "https://kubernetes.io/docs/concepts/security/pod-security-standards/#restricted",
+            "https://avd.aquasec.com/misconfig/ksv-0030"
+          ],
+          "CauseMetadata": {
+            "StartLine": 22,
+            "EndLine": 26
+          }
+        },
+        {
+          "ID": "KSV-0030",
+          "Title": "Runtime/Default Seccomp profile not set",
+          "Message": "Either Pod or Container should set 'securityContext.seccompProfile.type' to 'RuntimeDefault'",
+          "Status": "FAIL",
+          "PrimaryURL": "https://avd.aquasec.com/misconfig/ksv-0030",
+          "References": [
+            "https://kubernetes.io/docs/concepts/security/pod-security-standards/#restricted",
+            "https://avd.aquasec.com/misconfig/ksv-0030"
+          ],
+          "CauseMetadata": {
+            "StartLine": 27,
+            "EndLine": 28
+          }
+        },
+        {
+          "ID": "KSV-0104",
+          "Title": "Seccomp policies disabled",
+          "Message": "container \"bare\" of deployment \"three\" in \"demo\" namespace should specify a seccomp profile",
+          "Status": "FAIL",
+          "PrimaryURL": "https://avd.aquasec.com/misconfig/ksv-0104",
+          "References": [
+            "https://kubernetes.io/docs/concepts/security/pod-security-standards/#baseline",
+            "https://avd.aquasec.com/misconfig/ksv-0104"
+          ],
+          "CauseMetadata": {
+            "StartLine": 27,
+            "EndLine": 28
+          }
+        },
+        {
+          "ID": "KSV-0104",
+          "Title": "Seccomp policies disabled",
+          "Message": "container \"sidecar\" of deployment \"three\" in \"demo\" namespace should specify a seccomp profile",
+          "Status": "FAIL",
+          "PrimaryURL": "https://avd.aquasec.com/misconfig/ksv-0104",
+          "References": [
+            "https://kubernetes.io/docs/concepts/security/pod-security-standards/#baseline",
+            "https://avd.aquasec.com/misconfig/ksv-0104"
+          ],
+          "CauseMetadata": {
+            "StartLine": 22,
+            "EndLine": 26
+          }
+        },
+        {
+          "ID": "KSV-0106",
+          "Title": "Container capabilities must only include NET_BIND_SERVICE",
+          "Message": "container should drop all",
+          "Status": "FAIL",
+          "PrimaryURL": "https://avd.aquasec.com/misconfig/ksv-0106",
+          "References": [
+            "https://kubernetes.io/docs/concepts/security/pod-security-standards/#restricted",
+            "https://avd.aquasec.com/misconfig/ksv-0106"
+          ],
+          "CauseMetadata": {
+            "StartLine": 27,
+            "EndLine": 28
+          }
+        },
+        {
+          "ID": "KSV-0106",
+          "Title": "Container capabilities must only include NET_BIND_SERVICE",
+          "Message": "container should drop all",
+          "Status": "FAIL",
+          "PrimaryURL": "https://avd.aquasec.com/misconfig/ksv-0106",
+          "References": [
+            "https://kubernetes.io/docs/concepts/security/pod-security-standards/#restricted",
+            "https://avd.aquasec.com/misconfig/ksv-0106"
+          ],
+          "CauseMetadata": {
+            "StartLine": 22,
+            "EndLine": 26
+          }
+        },
+        {
+          "ID": "KSV-0106",
+          "Title": "Container capabilities must only include NET_BIND_SERVICE",
+          "Message": "container should drop all",
+          "Status": "FAIL",
+          "PrimaryURL": "https://avd.aquasec.com/misconfig/ksv-0106",
+          "References": [
+            "https://kubernetes.io/docs/concepts/security/pod-security-standards/#restricted",
+            "https://avd.aquasec.com/misconfig/ksv-0106"
+          ],
+          "CauseMetadata": {
+            "StartLine": 17,
+            "EndLine": 21
+          }
+        },
+        {
+          "ID": "KSV-0118",
+          "Title": "Default security context configured",
+          "Message": "container three in demo namespace is using the default security context",
+          "Status": "FAIL",
+          "PrimaryURL": "https://avd.aquasec.com/misconfig/ksv-0118",
+          "References": [
+            "https://kubernetes.io/docs/tasks/configure-pod-container/security-context/",
+            "https://avd.aquasec.com/misconfig/ksv-0118"
+          ],
+          "CauseMetadata": {
+            "StartLine": 27,
+            "EndLine": 28
+          }
+        },
+        {
+          "ID": "KSV-0118",
+          "Title": "Default security context configured",
+          "Message": "deployment three in demo namespace is using the default security context, which allows root privileges",
+          "Status": "FAIL",
+          "PrimaryURL": "https://avd.aquasec.com/misconfig/ksv-0118",
+          "References": [
+            "https://kubernetes.io/docs/tasks/configure-pod-container/security-context/",
+            "https://avd.aquasec.com/misconfig/ksv-0118"
+          ],
+          "CauseMetadata": {
+            "StartLine": 15,
+            "EndLine": 28
+          }
+        }
+      ]
+    }
+  ]
+}

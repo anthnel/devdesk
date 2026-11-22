@@ -150,6 +150,12 @@ type Finding struct {
 	// reaches it without being added there deliberately.
 	Job        string `json:"job,omitempty"`
 	ScriptLine string `json:"script_line,omitempty"`
+	// SeccompOrigin says why a KSV-0104 finding fired (DEVDESK-686): "unconfined"
+	// when the effective seccomp type is an explicit Unconfined, "absent" when
+	// none is set, empty when unknown (a result cached before this field, a file
+	// changed since the scan, a container not found). Trivy's message is the same
+	// text for both causes, so the manifest is read again at scan time.
+	SeccompOrigin string `json:"seccomp_origin,omitempty"`
 	// IaCType is the dialect a misconfiguration was found in: Trivy's
 	// Result.Type — "dockerfile", "kubernetes", "helm", "terraform",
 	// "cloudformation"… — and "kubernetes" for a schema finding (§3.80). It is
@@ -730,6 +736,11 @@ func (s *Scanner) Scan(ctx context.Context, target string, targetType TargetType
 				notify(ProgressUpdate{Stage: "misconfig", Label: "Misconfigurations", Status: StageRunning, Detail: detail})
 			}
 			findings, err := RunTrivyMisconfig(egCtx, target, targetType, s.spec(ToolTrivy), s.options.TrivyServer, s.options.Tools.Trivy.IgnoreEOL, progressFn)
+			if err == nil && targetType == TargetDirectory {
+				// File reads stay out of the lock. An image has no manifest on
+				// disk to read again.
+				annotateSeccompContext(egCtx, target, findings)
+			}
 			mu.Lock()
 			defer mu.Unlock()
 			if err != nil {

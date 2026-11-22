@@ -184,6 +184,25 @@ func imageVerificationField() field {
 // motionLabel is named once: the footer warning and the tests read it.
 const motionLabel = "Motion"
 
+// pssProfileName is named once: the footer warning, the help and the tests
+// read it.
+const pssProfileName = "Pod Security profile"
+
+// pssProfileField is scan.pss_profile (DEVDESK-686): a cycle over a closed set
+// (Rule 132) whose empty value stands for all, and which refuses anything else.
+func pssProfileField() field {
+	f := cycleWithDefault(pssProfileName, func(c *config.Config) *string { return &c.Scan.PSSProfile },
+		config.PSSProfiles(), config.PSSProfileAll,
+		"Marks Kubernetes findings with the profile that requires them; p filters the Misconfigurations tab")
+	f.validate = func(v string) error {
+		if !slices.Contains(config.PSSProfiles(), v) {
+			return fmt.Errorf("%s must be %s", pssProfileName, strings.Join(config.PSSProfiles(), ", "))
+		}
+		return nil
+	}
+	return f
+}
+
 // whenUnfocusedLabel is named once: the tests read it.
 const whenUnfocusedLabel = "When unfocused"
 
@@ -460,6 +479,7 @@ func sections(themes, views []string, configPath, contextName, forgeType string,
 			group("Remediation", theme.IconDocker,
 				cycle("Base image bumps", func(c *config.Config) *string { return &c.Scan.BaseImageTrack },
 					config.BaseImageTracks(), "same-line keeps the major version; next-major may take the next one"),
+				pssProfileField(),
 			),
 			group("Signatures", theme.IconLock, imageVerificationField()),
 			group("Limits", theme.IconHourglass,

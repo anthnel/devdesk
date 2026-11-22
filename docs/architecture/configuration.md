@@ -133,6 +133,28 @@ keep blinking`), derived on every frame rather than set as a timed message. The
 setting applies without a restart: the router calls `applyMotion` on
 `ConfigSavedMsg` and on a context switch.
 
+**`scan.pss_profile`** is the Pod Security profile a context aims at (DEVDESK-686):
+`all`, `baseline` or `restricted`. It is `yaml:"pss_profile,omitempty"` and
+**never defaulted in memory**: an absent key stays `""`, which reads as `all`
+(`ScanConfig.EffectivePSSProfile`), so loading a context and saving it does not
+add the key. That differs from `scan.base_image_track`, which is defaulted at load
+and written back. `PSSProfileValid` accepts `""` and the three names. An invalid
+value (hand-edited YAML) is kept as read, behaves as `all`, and logs
+`WARN [config] scan.pss_profile "<v>" is not all, baseline or restricted, using all`
+once per load, from `applyDefaults`. The file is not rewritten.
+
+The names are stated in `internal/config/pss_profile.go` and again in
+`internal/remediation`, which `config` cannot import;
+`TestTheProfileNamesMatchTheConfig` keeps them in step. What the setting does is
+described in `scanning.md`, "The Pod Security profile of a finding".
+
+In `:cfg` it is the **Pod Security profile** field of the `scan` tab, group
+Remediation, a `←→` cycle (Rule 132) declared with `cycleWithDefault`. While the
+key is absent it reads `all (default)`; the first arrow starts from `all`, and
+only cycling writes the key. A value outside the three is refused with the valid
+ones listed. When the file holds one, the `scan` tab's footer shows a permanent
+warning-level `Status` (the value, and that `all` is used and nothing is hidden).
+
 **`app.container_engine`** names the engine every container, image, network and
 volume comes from: `auto` (the default — docker if it is on PATH, else podman),
 `docker`, `podman`, or an explicit path to a binary. It sits in `app` beside

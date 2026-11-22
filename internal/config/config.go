@@ -483,6 +483,12 @@ type ScanConfig struct {
 	// "same-line" (the default) or "next-major". See base_image_track.go.
 	BaseImageTrack string `yaml:"base_image_track"`
 
+	// PSSProfile is the Pod Security profile this context aims at: "all",
+	// "baseline" or "restricted". Never defaulted in memory: empty reads as
+	// "all", so a file written before the key existed is not rewritten with it.
+	// See pss_profile.go.
+	PSSProfile string `yaml:"pss_profile,omitempty"`
+
 	// ImageVerification is "on" (the default) or "off": whether image
 	// signatures are verified. Per context, unlike the policy in
 	// ~/.devdesk/trust.yaml — whom to trust is a fact about the world, whether
@@ -619,6 +625,9 @@ func applyDefaults(cfg *Config) error {
 	if cfg.Scan.BaseImageTrack == "" {
 		cfg.Scan.BaseImageTrack = BaseImageTrackSameLine
 	}
+	// scan.pss_profile is not defaulted: empty reads as all, so a file written
+	// before the key existed is not rewritten with it.
+	warnInvalidPSSProfile(cfg.Scan)
 	if cfg.Scan.ImageVerification == "" {
 		cfg.Scan.ImageVerification = ImageVerificationOn
 	}

@@ -579,6 +579,8 @@ enough to display and not enough to replace.
 | `Status` | what Trivy concluded for the rule on this target |
 | `ID` | `AVDID` — the stable identity a re-scan is checked against |
 | `IaCType` | the **result's** `Type` — `dockerfile`, `kubernetes`, `helm`, `terraform`… (§3.80). Not the misconfiguration's own `Type`, which is a label ("Kubernetes Security Check") |
+| `References` | `PrimaryURL` first, then Trivy's own `References`, without duplicates (`mergeRefs`, shared with the vulnerabilities). `References[0]` is still the rule's page. The new entry is the Pod Security Standards link, with its `#baseline` or `#restricted` anchor (DEVDESK-686) |
+| `SeccompOrigin` | `unconfined`, `absent`, or empty (unknown), for a KSV-0104 finding of a directory scan only; see "The Pod Security profile of a finding" below |
 
 `IaCType` is what tells a Deployment's `KSV-*` rule from a Dockerfile's `DS*`
 rule without guessing from the file name. The Misconfigurations tab shows it in
@@ -684,6 +686,115 @@ Three outcomes, and none of them is silent:
 | the rule is gone | `Info`, and the new result replaces the one on screen — a footer saying "cleared" above a table still listing the rule would contradict itself |
 | the rule survived its own fix | `Warn`. Not a failure: the file was written and the rule still fires, which is what the scan exists to find out |
 | the result cannot be read | `Error`, logged |
+
+### The Pod Security profile of a finding (DEVDESK-686)
+
+Trivy anchors the Kubernetes rules that implement the Pod Security Standards
+(PSS) to a profile: the first `References` entry that points at
+`kubernetes.io/docs/concepts/security/pod-security-standards/` ends in
+`#baseline` or `#restricted`. DevDesk shows that profile on every such finding
+and lets the user hide, on the Misconfigurations tab, what the profile it aims at
+does not require. It labels and filters; it fixes nothing, and Trivy stays the
+only source of findings.
+
+**The table.** `internal/remediation/pss.go` holds `pssProfiles`, a map from
+`RuleKey` to `Profile`, written by hand. `PodSecurity(finding)` returns the
+profile and whether the finding is a Pod Security one. It answers `false` for
+anything that is not a Trivy misconfiguration (`Source` is not
+`SourceTrivyMisconfig`), so kubeconform and build-context findings never get a
+profile.
+
+| Profile | Rules |
+|---|---|
+| `baseline` | KSV-0002, 0008, 0009, 0010, 0017, 0022, 0023, 0024, 0025, 0026, 0027, 0103, 0104 |
+| `restricted` | KSV-0001, 0012, 0028, 0030, 0105, 0106, 0121 |
+
+`restricted` includes `baseline`: `Profile.Covers` says a target `restricted`
+requires both, and a target `baseline` only itself. KSV-0121 (forbidden volume
+types) is in the table although no earlier list of the rules named it.
+
+A rule the table lacks falls back on the anchor: `pssAnchor` reads the profile
+out of `References`, and the result carries `FromTrivy` (the label says
+`(from Trivy, no fix)`). This keeps a rule added by a newer check bundle visible
+until the table catches up.
+
+`TestThePodSecurityTableMatchesTrivy` compares the table with a recorded Trivy
+output (`internal/remediation/testdata/pss/`, with a README naming the command,
+the Trivy version and the check bundle digest). It fails both ways: a table entry
+the output lacks, and an anchored rule the table lacks. It does not read Trivy's
+anchors at run time as the single source: the table is maintained by hand.
+
+**KSV-0104 is the one rule the manifest decides.** Trivy anchors it `#baseline`,
+but it fires for an explicit `seccompProfile: Unconfined` (baseline forbids it)
+and for a missing seccomp profile (only `restricted` asks for one). The message
+is the same text for both, and the reported span is the container's block, not
+the `Unconfined` line. So the scan reads the manifest again:
+
+- `annotateSeccomp` (`internal/scan/seccomp_origin.go`) runs after the
+  misconfiguration stage, outside the scan lock, only for a **directory** target
+  (an image has no manifest on disk), and only for `kubernetes` findings of
+  KSV-0104. Each file is read and decoded once (`k8s.IndexDocuments`, however many
+  findings point into it), through `os.Root` and under the same size bound as the
+  Kubernetes fixes (`k8s.ReadManifestIn`: one open, the handle must be a regular
+  file, the read itself is bounded; a FIFO is refused without blocking). The scan
+  context stops the work between findings.
+- `seccompOrigin` finds the document at the reported line, the container by the
+  name in the message (`container "app"`, lower case and double quotes, unlike
+  the other KSV messages) inside the reported lines, and asks
+  `k8s.SeccompType` for the type in force, in Trivy's order: the container's
+  `securityContext`, then the pod's, then the container's annotation.
+  `Unconfined` gives `unconfined`; no type gives `absent`. When two containers
+  (an init container and a container may share a name) match inside the
+  reported lines, none is picked and the origin stays empty.
+- The result is `Finding.SeccompOrigin` (`omitempty`). Anything the scan cannot
+  confirm leaves it empty and logs `WARN [scan] seccomp origin: …`: the file
+  changed since Trivy read it, the container is not at the reported lines, the
+  path leaves the scanned directory, a read error. The scan never fails on it.
+
+`PodSecurity` then reads it: `absent` makes the profile `restricted`;
+`unconfined` and empty stay `baseline`. The table applies to a cached result too
+(the profile comes from the rule id); only the KSV-0104 distinction needs a new
+scan.
+
+**What the user sees** (`internal/ui/security/pss.go`).
+
+- The Title cell on the Misconfigurations tab starts with the label,
+  `baseline · Privileged`, plain text (Rule 122), under every setting including
+  `all`. The sort stays on the title; the search sees the label. The details
+  show a `Pod Security:` line.
+- `scan.pss_profile` (see `configuration.md`) is the target. `p` toggles a
+  filter token of the tab's bar. The filter is off whenever the tab opens, and
+  `switchTab` turns it off on the way in and out. Under `baseline` it hides the
+  `restricted` findings; under `restricted` it hides nothing; a finding outside
+  Pod Security is never hidden. `matchesSeverity` reads the four severity tokens
+  only, so the filter token alone is not a severity choice.
+- `p` is greyed with its reason (Rule 130) outside the Misconfigurations tab,
+  under `all`, and under an invalid value.
+- Under `baseline` or `restricted`, the header has a `Pod Security` entry:
+  `baseline · filter off`, or `baseline · filter on · 3 hidden`. When the
+  filter is on and no Pod Security finding remains, it adds
+  `no violation detected by Trivy for baseline`. The count is made on the whole
+  tab, before the severity filter and the search. The wording is what Trivy
+  found, never "compliant".
+- An invalid `scan.pss_profile` shows a footer warning on entering the tab, and
+  nothing is hidden.
+
+**Limits.**
+
+- Trivy downloads its checks bundle independently of its own version. The table
+  can drift from the bundle a machine has without the recorded output showing it;
+  only recording it again detects that. The anchor fallback limits the effect.
+- KSV-0117 (ports below 1024) and KSV-0119 (`NET_RAW`) link the standard without
+  an anchor, so they name no profile: no label, never hidden, no `pss_profile` in
+  `scan_result`. KSV-0005 has no link at all.
+- KSV-0104 with an unknown origin (a result cached before this field, a file
+  changed since the scan, a container not found) counts as `baseline`, so it is
+  shown under the filter. Nothing is hidden without proof.
+- KSV-0022 keeps the profile Trivy gives it, even where the rule is stricter than the standard.
+- Trivy reads `containers` and `initContainers`, not `ephemeralContainers`; the
+  seccomp read follows the findings Trivy reports.
+- The label says which profile requires a rule. A scan with nothing hidden is
+  not a statement that the manifest meets the profile.
 
 ### The Remediation tab — base images, and the tags they could move to (§3.2, phase B)
 
