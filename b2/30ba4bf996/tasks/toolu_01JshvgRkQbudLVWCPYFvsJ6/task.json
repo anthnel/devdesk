@@ -1,0 +1,15 @@
+{
+  "tool_use_id": "toolu_01JshvgRkQbudLVWCPYFvsJ6",
+  "agent_id": "a541042bc3f4a4a54",
+  "subagent_type": "dev-team:tester",
+  "task_description": "Spike Kyverno : mesures et note",
+  "token_usage": {
+    "input_tokens": 220,
+    "cache_creation_tokens": 532357,
+    "cache_read_tokens": 16835362,
+    "output_tokens": 118530,
+    "api_call_count": 109
+  },
+  "started_at": "2026-11-22T10:47:55.001673929+01:00",
+  "completed_at": "2026-11-22T11:09:39.910740814+01:00"
+}

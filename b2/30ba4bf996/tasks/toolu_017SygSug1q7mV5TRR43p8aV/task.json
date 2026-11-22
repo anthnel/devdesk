@@ -1,0 +1,19 @@
+{
+  "tool_use_id": "toolu_017SygSug1q7mV5TRR43p8aV",
+  "agent_id": "a6b3b3c29ade5f43b",
+  "subagent_type": "product-team:pm",
+  "task_description": "Mettre à jour les docs produit après le spike",
+  "files": [
+    "docs/product/kyverno-policies/brief.md",
+    "docs/product/kyverno-policies/stories.md"
+  ],
+  "token_usage": {
+    "input_tokens": 20,
+    "cache_creation_tokens": 116867,
+    "cache_read_tokens": 847438,
+    "output_tokens": 18195,
+    "api_call_count": 10
+  },
+  "started_at": "2026-11-22T12:05:22.734487148+01:00",
+  "completed_at": "2026-11-22T12:07:17.688484269+01:00"
+}

@@ -1,0 +1,15 @@
+{
+  "tool_use_id": "toolu_014J43YYYHQjNffyqCdE8UCR",
+  "agent_id": "ac3db7711d28d7537",
+  "subagent_type": "dev-team:reviewer",
+  "task_description": "Relecture de la note de mesure Kyverno",
+  "token_usage": {
+    "input_tokens": 50,
+    "cache_creation_tokens": 127691,
+    "cache_read_tokens": 2321437,
+    "output_tokens": 25209,
+    "api_call_count": 24
+  },
+  "started_at": "2026-11-22T12:05:22.735868523+01:00",
+  "completed_at": "2026-11-22T12:08:37.584749352+01:00"
+}

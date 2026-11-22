@@ -1,0 +1,15 @@
+{
+  "tool_use_id": "toolu_01BurGWFRcLPRLSpF1DZB27u",
+  "agent_id": "a52ac61115297b435",
+  "subagent_type": "dev-team:devops",
+  "task_description": "Merge PR 464 et clôture",
+  "token_usage": {
+    "input_tokens": 18,
+    "cache_creation_tokens": 54597,
+    "cache_read_tokens": 316227,
+    "output_tokens": 3978,
+    "api_call_count": 8
+  },
+  "started_at": "2026-11-22T10:42:15.298112+01:00",
+  "completed_at": "2026-11-22T10:42:52.988862945+01:00"
+}

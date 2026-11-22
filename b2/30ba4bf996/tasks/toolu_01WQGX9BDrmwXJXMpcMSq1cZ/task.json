@@ -1,0 +1,18 @@
+{
+  "tool_use_id": "toolu_01WQGX9BDrmwXJXMpcMSq1cZ",
+  "agent_id": "a0953017a840bf226",
+  "subagent_type": "product-team:pm",
+  "task_description": "Créer la story spike Kyverno",
+  "files": [
+    "docs/product/kyverno-policies/stories.md"
+  ],
+  "token_usage": {
+    "input_tokens": 14,
+    "cache_creation_tokens": 82284,
+    "cache_read_tokens": 427579,
+    "output_tokens": 10240,
+    "api_call_count": 7
+  },
+  "started_at": "2026-11-22T10:39:50.891233161+01:00",
+  "completed_at": "2026-11-22T10:40:53.009493583+01:00"
+}

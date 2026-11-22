@@ -1,0 +1,15 @@
+{
+  "tool_use_id": "toolu_012HaRKPQQ2NL4qCZzhRBLyh",
+  "agent_id": "aa914b4cb32297abd",
+  "subagent_type": "dev-team:devops",
+  "task_description": "Commit, push et PR DEVDESK-678",
+  "token_usage": {
+    "input_tokens": 12,
+    "cache_creation_tokens": 44693,
+    "cache_read_tokens": 205775,
+    "output_tokens": 2585,
+    "api_call_count": 6
+  },
+  "started_at": "2026-11-22T10:35:38.599882368+01:00",
+  "completed_at": "2026-11-22T10:36:29.561187145+01:00"
+}

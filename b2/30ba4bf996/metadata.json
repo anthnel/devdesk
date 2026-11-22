@@ -1,0 +1,48 @@
+{
+  "cli_version": "0.13.2",
+  "checkpoint_id": "b230ba4bf996",
+  "strategy": "manual-commit",
+  "branch": "docs/kyverno-apply-measurement",
+  "checkpoints_count": 14,
+  "files_touched": [
+    "docs/measurements/2026-11-22-kyverno-apply.md"
+  ],
+  "sessions": [
+    {
+      "metadata": "/b2/30ba4bf996/0/metadata.json",
+      "transcript": "/b2/30ba4bf996/0/full.jsonl",
+      "compact_transcript": "/b2/30ba4bf996/0/transcript.jsonl",
+      "content_hash": "/b2/30ba4bf996/0/content_hash.txt",
+      "prompt": "/b2/30ba4bf996/0/prompt.txt"
+    }
+  ],
+  "token_usage": {
+    "input_tokens": 116,
+    "cache_creation_tokens": 95563,
+    "cache_read_tokens": 12084572,
+    "output_tokens": 40281,
+    "api_call_count": 42,
+    "subagent_tokens": {
+      "input_tokens": 368,
+      "cache_creation_tokens": 1062167,
+      "cache_read_tokens": 21611946,
+      "output_tokens": 194866,
+      "api_call_count": 179
+    },
+    "subagent_tokens_complete": true
+  },
+  "redaction": {
+    "replacements": 15,
+    "layers": {
+      "betterleaks": 0,
+      "connection_string": 0,
+      "credential_key": 0,
+      "credential_value": 0,
+      "credentialed_uri": 0,
+      "entropy": 0,
+      "key_context": 15,
+      "provider_token": 0,
+      "shell_stdin": 0
+    }
+  }
+}
