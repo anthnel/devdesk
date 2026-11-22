@@ -304,6 +304,15 @@ var exceptions = []Exception{
 			"move between fields) do not exist there, and completing is what " +
 			"tab means in every shell. Nothing is run: enter does that.",
 	},
+	{
+		Key:     "tab",
+		Surface: "fuzzy/finder",
+		Why: "Switch the g prompt (ws and ge) between fuzzy and exact matching. " +
+			"The prompt is a single query line with no tabs and no fields, so " +
+			"tab's usual jobs (Rule 135: switch tabs, never move between fields) " +
+			"do not exist there, and it is the one key that flips the prompt " +
+			"without typing into the query.",
+	},
 }
 
 // DeclaredExceptions returns the declared exceptions.

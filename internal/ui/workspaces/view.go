@@ -573,10 +573,14 @@ func (m Model) GetShortcuts() shortcut.Shortcuts {
 
 	// Fuzzy-finding mode
 	if m.mode == ModeFuzzyFinding {
-		return []shortcut.Shortcut{
+		shortcuts := []shortcut.Shortcut{
 			{Key: "enter", Description: "Jump to directory"},
 			{Key: "esc", Description: "Cancel"},
 		}
+		if m.fuzzyFinder != nil {
+			shortcuts = append(shortcuts, m.fuzzyFinder.ModeShortcut())
+		}
+		return shortcuts
 	}
 
 	// Normal mode — every action of this mode is listed, in one order, and the
@@ -661,6 +665,7 @@ func (m Model) GetHelpContent() help.Content {
 			{Key: "ctrl+r", Description: "Refresh the list"},
 			{Key: "/", Description: "Filter the list by name or git remote"},
 			{Key: "g", Description: "Fuzzy find a directory anywhere under the workspaces root"},
+			{Key: "tab", Description: "Switch the g prompt between fuzzy and exact matching (while it is open)"},
 			{Key: "ctrl+p", Description: "Open command mode"},
 			{Key: "?", Description: "Show this help"},
 		},
@@ -680,7 +685,7 @@ func (m Model) GetHelpContent() help.Content {
 			},
 			{
 				Title: "Fuzzy find",
-				Body:  "Press g to jump straight to a directory anywhere under the workspaces root, without drilling down level by level. Type at least 3 characters to search; move through the ranked results with ↑↓ and press Enter to land in that directory's parent listing with it selected, or Esc to cancel. The search covers directories only — not files — and does not descend into a git repository's own contents, mirroring how S, F and A discover nested repositories.",
+				Body:  "Press g to jump straight to a directory anywhere under the workspaces root, without drilling down level by level. Type at least 3 characters to search; move through the ranked results with ↑↓ and press Enter to land in that directory's parent listing with it selected, or Esc to cancel. Press tab to switch between fuzzy and exact matching: exact keeps only the paths that contain what you typed, literally, ignoring case; the next prompt starts in fuzzy again. The search covers directories only — not files — and does not descend into a git repository's own contents, mirroring how S, F and A discover nested repositories.",
 			},
 			{
 				Title: "Git Status",
