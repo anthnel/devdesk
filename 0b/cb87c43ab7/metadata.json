@@ -1,0 +1,41 @@
+{
+  "cli_version": "0.13.2",
+  "checkpoint_id": "0bcb87c43ab7",
+  "strategy": "manual-commit",
+  "branch": "feat/g-exact-search",
+  "checkpoints_count": 12,
+  "files_touched": [
+    "docs/product/g-exact-search/brief.md",
+    "docs/product/g-exact-search/stories.md"
+  ],
+  "sessions": [
+    {
+      "metadata": "/0b/cb87c43ab7/0/metadata.json",
+      "transcript": "/0b/cb87c43ab7/0/full.jsonl",
+      "compact_transcript": "/0b/cb87c43ab7/0/transcript.jsonl",
+      "content_hash": "/0b/cb87c43ab7/0/content_hash.txt",
+      "prompt": "/0b/cb87c43ab7/0/prompt.txt"
+    }
+  ],
+  "token_usage": {
+    "input_tokens": 2,
+    "cache_creation_tokens": 16840,
+    "cache_read_tokens": 228727,
+    "output_tokens": 411,
+    "api_call_count": 1
+  },
+  "redaction": {
+    "replacements": 8,
+    "layers": {
+      "betterleaks": 0,
+      "connection_string": 0,
+      "credential_key": 0,
+      "credential_value": 0,
+      "credentialed_uri": 0,
+      "entropy": 0,
+      "key_context": 8,
+      "provider_token": 0,
+      "shell_stdin": 0
+    }
+  }
+}
