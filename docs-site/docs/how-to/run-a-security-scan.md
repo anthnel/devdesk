@@ -42,6 +42,8 @@ The results of a repository scan offer two fixes that DevDesk writes itself, bot
 - **Remediation tab** — newer tags for each Dockerfile base image. `S` scans the candidates, `space` chooses one per stage, `enter` shows the diff, `ctrl+o` writes it.
 - **Misconfigurations tab** — `ctrl+o` on a finding the built-in catalog covers (a missing `USER`, `ADD` instead of `COPY`, a missing `--no-cache`…) writes the fix, then re-scans to check that the rule is gone.
 
+On a Pod Security finding with no built-in fix, `ctrl+o` writes nothing. The footer says which field to set and to what value for the profile of the finding. See [When there is no fix](../explanation/scanning.md#when-there-is-no-fix).
+
 For anything else, an AI client connected over [MCP](connect-an-ai-client.md) can read the finding, edit the file and re-scan. See [Remediation](../explanation/scanning.md#remediation).
 
 ## Why results might be stale
