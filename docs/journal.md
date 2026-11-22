@@ -3,6 +3,51 @@
 Dated entries, most recent first (AAAA-MM-JJ). Each entry records what was
 decided, why, and which alternative was rejected. Sources live in `docs/product/`.
 
+## 2026-11-22 — Kyverno policies: measure before any implementation (DEVDESK-10, spike DEVDESK-685)
+
+Source: `docs/product/kyverno-policies/` (`brief.md`, `research.md`, `stories.md`); `docs/measurements/2026-11-22-kyverno-apply.md`. Plane: DEVDESK-10 (epic, Backlog), spike S0 = DEVDESK-685. No `D<n>` number: the decision is recorded here only.
+
+1. **Idea explored:** run `kyverno apply` on Kubernetes manifests, offline, as a finding category (Misconfiguration). Research and critique found that Trivy's `KSV-*` checks already cover much of the Pod Security Standards.
+2. **Decided by the user: a measurement spike before any implementation.** Subject: the 19 policies of the `pod-security` `baseline` and `restricted` sets of `kyverno/policies` (local clone, HEAD `85554e1e`). The user had first wanted the organisation's own policies; the spike measures the standard set, because overlap with Trivy is the value criterion.
+3. **Result: NO-GO.** Trivy covers 97.7 % of the violations (899 of 920 failing resource/policy pairs), against a no-go threshold of 85 %. 21 residual pairs come from 10 documents and 5 policies; 9 of 10 sampled were true positives.
+4. **Other findings:**
+   - Silent false greens: a malformed policy or an empty directory exits 0.
+   - The report has no file name and no line.
+   - Verdicts were correct on 38 of 38 test cases (offline, not on a cluster).
+5. **Limits:** Kyverno 1.19.2 only (1.20 not measured); 4 public repositories; the cluster's Kyverno version not read; organisation policies not measured.
+6. **Decided:** DEVDESK-10 stays in Backlog, re-scoped to the organisation's policies (S7 of `stories.md`). No implementation story is created before a go.
+7. **Note:** the measure is frozen as written; a changed number gets a new note.
+
+## 2026-11-22 — dhi.io in the OCI browser: image search not offered
+
+Source: `docs/architecture/network.md` (IS-17, `route.go`, `isDHI`); `docs/architecture/registries.md`. Plane: DEVDESK-312 (IS-17, « Won't »), DEVDESK-303. No `D<n>` number. The research file expected at `docs/product/dhi-image-search/research.md` is not in this worktree (not found on 2026-11-22); it is not cited here.
+
+1. **Observed by the user:** the search of the OCI browser reports « image search not supported » on `dhi.io`.
+2. **Why:** the refusal is intended. `dhi.io` is refused before routing, with no request (IS-17, DEVDESK-312, « Won't »). No documented catalogue API exists for it.
+3. **Feasibility checked on 2026-11-22:** the Docker Hub filter for DHI has no documented parameter; the Hub `dhi/` namespace does not contain the hardened images; Nexus lists only what its proxy has already pulled.
+4. **Pending:** a manual check on the user's own DHI account. No implementation decision.
+5. **Options kept open:** B (an explanatory message on the refusal), D (exact-name lookup), E (a real search, which needs a catalogue source). None chosen.
+
+## 2026-11-22 — `g` prompt: fuzzy or exact match, `tab` to switch (DEVDESK-678, PR #464)
+
+Source: `docs/product/g-exact-search/` (`brief.md`, `stories.md`); `docs/architecture/workspaces.md` (Exact mode), `docs/architecture/forge.md`, `docs/architecture/app-shell.md` (declared exception). Commit `6a50fc2d`, PR #464. No `D<n>` number.
+
+1. **Decided:** `tab` switches the `g` prompt of `ws` and `ge` between fuzzy and exact match. Exact means a contiguous substring, case-insensitive. The mode shows in the `Find` bar and the header names the mode it switches to.
+2. **Why:** fuzzy matching drowns a known name in false positives (`dev` also matches any path with d, e, v in order).
+3. **Rule 135 exception, declared:** `tab` breaks Rule 135 (tabs only, never fields). The user accepted the exception after the feasibility check; the brief had chosen `tab` before anyone checked the rule. The prompt has no tabs or fields, so neither job of `tab` exists there (`keymap.DeclaredExceptions()`, surface `fuzzy/finder`).
+4. **Not remembered:** one setting shared by `ws` and `ge`; each opening of `g` starts in fuzzy.
+5. **Ranking in exact mode:** a match at the start of a path or right after `/` first, then the shortest path.
+6. **Scope:** no research or critique step (clear need, limited impact on a shared component).
+
+## 2026-11-22 — Dagger: keep `mise run ci` for now (DEVDESK-343, DEVDESK-344)
+
+Source: `docs/product/dagger-ci-release/note-decision.md` (2026-11-20, sections 1 and 10). Plane: DEVDESK-343, DEVDESK-344. No `D<n>` number.
+
+1. **Decided by the user: keep `mise run ci` as the check.** Dagger is not adopted.
+2. **Why:** the spikes are closed. The local measures (verdicts, durations, module size) stay in the note. Criterion 5 (zero cost, Entire included) was never measured, so the spike cannot conclude « adopted ».
+3. **Not done:** S4 (the Entire and Dagger Cloud account check, about 30 minutes, no card) was not carried out.
+4. **Unchanged:** `.github/workflows/ci.yml` and the `main-protection` ruleset.
+
 ## 2026-11-21 — Default Docker Hub registry in a new context (D171)
 
 Source: `docs/backlog.md` D171; `docs/product/default-registries/` (`brief.md`, `research.md`, `stories.md`). Plane: module « Registre par défaut », DEVDESK-663 to DEVDESK-668; bug of `dk setup`, DEVDESK-662 (separate).
