@@ -158,9 +158,13 @@ func prepareMisconfigFixCmd(target string, f scan.Finding) tea.Cmd {
 			log.Printf("ERROR [security/misconfig] git state of %s: %v", rel, err)
 			file.StateErr = true
 		}
+		body := rule.Title + "\n\n"
+		if rule.Warning != "" {
+			body += "Warning: " + rule.Warning + "\n\n"
+		}
 		return MisconfigFixPreparedMsg{
 			Target: target, File: file, FindingFile: f.File,
-			Rule: f.ID, Instance: instanceOf(f), Body: rule.Title + "\n\n" + diff,
+			Rule: f.ID, Instance: instanceOf(f), Body: body + diff,
 		}
 	}
 }
