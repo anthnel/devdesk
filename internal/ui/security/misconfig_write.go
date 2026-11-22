@@ -99,13 +99,24 @@ func (m Model) canFixMisconfig() shortcut.Availability {
 		return shortcut.Unavailable(reasonFileNotOnDisk)
 	}
 	if _, ok := remediation.FixFor(f); !ok {
-		return shortcut.Unavailable(remediation.ReasonNoFixForRule)
+		return shortcut.Unavailable(noFixReason(f))
 	}
 	// Reading the file here would be I/O on a path the header calls every
 	// frame, so the declines that need the content are left to the Cmd and
 	// reach the footer. What is settled here is everything the finding alone
 	// can answer.
 	return shortcut.Availability{}
+}
+
+// noFixReason is why a finding with no fix in the catalog is refused: for a Pod
+// Security finding, what the manifest is missing (DEVDESK-689); for anything
+// else, the generic refusal. The fix is tried first, so a rule that has one never
+// reaches the missing text.
+func noFixReason(f scan.Finding) string {
+	if text, ok := remediation.MissingFor(f); ok {
+		return text
+	}
+	return remediation.ReasonNoFixForRule
 }
 
 // ── Preparing ────────────────────────────────────────────────────────────────
@@ -130,7 +141,7 @@ func prepareMisconfigFixCmd(target string, f scan.Finding) tea.Cmd {
 	return func() tea.Msg {
 		rule, ok := remediation.FixFor(f)
 		if !ok {
-			return MisconfigFixPreparedMsg{Target: target, Rule: f.ID, Err: errDeclined{remediation.ReasonNoFixForRule}}
+			return MisconfigFixPreparedMsg{Target: target, Rule: f.ID, Err: errDeclined{noFixReason(f)}}
 		}
 		rel, reason := rule.FileFor(target, f)
 		if reason != "" {

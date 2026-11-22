@@ -820,6 +820,51 @@ scan.
 - The label says which profile requires a rule. A scan with nothing hidden is
   not a statement that the manifest meets the profile.
 
+### What a Pod Security refusal says (DEVDESK-689)
+
+On the Misconfigurations tab, a Pod Security finding the catalog has no fix for
+is refused with a text that says what the manifest is missing, instead of
+`ReasonNoFixForRule`. `remediation.MissingFor(f)` (`internal/remediation/pss_missing.go`)
+returns `(text, true)` or `("", false)`; `noFixReason` in
+`internal/ui/security/misconfig_write.go` reads it, after `FixFor`, for both
+`canFixMisconfig` (the reason of the greyed `ctrl+o`, one `Availability` for the
+header and the handler, Rule 130) and `prepareMisconfigFixCmd`. Pressing the key
+shows the text in the footer through `components.FooterMessage.Warn`
+(`LevelWarning`, orange, for `FooterMsgDuration`): `prepareMisconfigFix` does it
+for a refusal read from `canFixMisconfig`, and `handleMisconfigFixPrepared` does it
+for the `errDeclined` the Cmd returns; nothing failed, so it is not an error. No
+modal, no file touched, the same set of keys.
+
+- Shape: `<id> (<profile>): <need> (no built-in fix)`, then ` — <detail>` when the
+  rule has one, for example `KSV-0012 (restricted): set runAsNonRoot to true (no
+  built-in fix) — on the pod, or on every container`. The profile is the one
+  `PodSecurity` returns for that finding. The need (field and value) comes first
+  because the footer keeps one line and `FooterMessage.View` cuts it with an
+  ellipsis: at 80 columns the prefix takes 21 to 23, so the need has to fit in
+  the rest and the detail is what may be cut.
+  `TestTheRefusalKeepsItsFieldAndValueAt80Columns` renders the footer at 80
+  columns for the 15 rules and the three origins of KSV-0104 and requires the
+  field and the value to be visible. Keep a new need short for that reason.
+- Rules with a text (`missingRules`): KSV-0103, 0022, 0023, 0024, 0002, 0025, 0026,
+  0027, 0028, 0012, 0105, 0106, 0121, plus KSV-0030 and KSV-0104, which S-03 will
+  fix; their text stays for the cases where that fix declines. Each field and
+  value was read in the source of the Trivy check. KSV-0022 says Trivy's check is
+  stricter than Pod Security. KSV-0025 also covers the second rule of its check
+  (a `seLinuxOptions.role` or `user` key fails). KSV-0012 has no fix of its own:
+  the text says where `runAsNonRoot` can be set, on the pod or on every
+  container. KSV-0028 names `emptyDir` as an allowed type and `nfs` as a refused
+  one. KSV-0002's need says "the AppArmor annotation"; the full key is in the
+  detail, which an 80-column footer cuts.
+- KSV-0104 depends on `SeccompOrigin`: `unconfined` names `Unconfined` and
+  `RuntimeDefault`, `absent` names `RuntimeDefault`, an unknown origin names
+  `seccompProfile` only.
+- A rule whose profile comes from Trivy (`FromTrivy`, not in the table) gets a
+  fallback that cites Trivy, the profile and the rule id, says DevDesk has no fix
+  and no text, and points to the check's description in Trivy. It names no field.
+- Rules with a fix (KSV-0017, 0001, 0008 to 0010) and anything that is not Pod
+  Security give `("", false)`: the confirmation diff, or the generic refusal for
+  another KSV rule, is what the user gets.
+
 ### The Remediation tab — base images, and the tags they could move to (§3.2, phase B)
 
 The sixth tab of the results (`TabRemediation`, `internal/ui/security/remediation.go`)

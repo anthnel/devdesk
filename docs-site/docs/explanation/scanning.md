@@ -213,6 +213,40 @@ visible.
 The table can lag behind the checks Trivy downloads, which update independently
 of Trivy. A rule newer than the table keeps the profile Trivy gives it.
 
+### When there is no fix
+
+Most Pod Security rules have no safe automatic edit: the right value depends on
+what the workload does. When you press `ctrl+o` on such a finding, DevDesk
+changes no file and opens no confirmation. The footer says what the manifest is
+missing, as a warning (the orange level of the footer, shown for a few seconds):
+
+```text
+KSV-0012 (restricted): set runAsNonRoot to true (no built-in fix) — on the pod, or on every container
+```
+
+The same text is the reason shown when `ctrl+o` is greyed. It names the rule,
+the profile of the finding, and the field with the value that profile expects,
+first, so that a narrow terminal, which cuts the line with an ellipsis, still
+shows it; the details come last. Setting it is your decision: the text
+describes what Trivy's check looks for, not an edit DevDesk has verified for your workload.
+
+- Some cases say more. KSV-0022 says Trivy's check is stricter than Pod Security,
+  which allows a list of capabilities. KSV-0025 asks for `seLinuxOptions.type`
+  `container_t` and for no `role` or `user`. KSV-0012 has no fix of its own: it
+  says to set `runAsNonRoot` on the pod, or on every container. KSV-0104 says
+  whether `seccompProfile` is `Unconfined` or not set; when DevDesk cannot tell,
+  it names `seccompProfile` only.
+- A rule whose profile comes from Trivy (labelled `(from Trivy, no fix)`) gets a
+  shorter text. It names the rule and the profile, says DevDesk has no fix and no
+  text for it, and sends you to the check's description in Trivy. It names no
+  field.
+- A rule that has a built-in fix (such as KSV-0017) shows its confirmation
+  instead. A finding outside Pod Security keeps the generic refusal.
+
+Doing what the text says does not make the manifest compliant. Scan again
+after your edit: the finding disappearing is what one scanner found, not a
+statement that the manifest meets the profile.
+
 ## The build context
 
 A `COPY . .` sends the whole directory to the builder, and what no
