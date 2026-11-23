@@ -1,0 +1,25 @@
+{
+  "tool_use_id": "toolu_017o885Ht6nQQa1FcTMqoTB7",
+  "agent_id": "a2e691e20489ddc49",
+  "subagent_type": "project-tester",
+  "task_description": "Tests rouges 751 lot 2",
+  "files": [
+    "internal/app/sec_details_header_test.go",
+    "internal/ui/keymap/details_fix_exception_test.go",
+    "internal/ui/security/details_actions.go",
+    "internal/ui/security/details_actions_test.go",
+    "internal/ui/security/details_fix_flow_test.go",
+    "internal/ui/security/details_open_copy_test.go",
+    "internal/ui/security/never_run_guard_test.go",
+    "internal/ui/security/security_test.go"
+  ],
+  "token_usage": {
+    "input_tokens": 104,
+    "cache_creation_tokens": 270330,
+    "cache_read_tokens": 9885636,
+    "output_tokens": 78751,
+    "api_call_count": 51
+  },
+  "started_at": "2026-11-23T19:55:07.998161347+01:00",
+  "completed_at": "2026-11-23T20:06:02.522347377+01:00"
+}

@@ -1,0 +1,15 @@
+{
+  "tool_use_id": "toolu_01VT8HscViKPsSDdmsuEhQ1E",
+  "agent_id": "ad171e3ef1f4eddf1",
+  "subagent_type": "dev-team:devops",
+  "task_description": "Plane Done DEVDESK-750",
+  "token_usage": {
+    "input_tokens": 6,
+    "cache_creation_tokens": 42475,
+    "cache_read_tokens": 73170,
+    "output_tokens": 678,
+    "api_call_count": 3
+  },
+  "started_at": "2026-11-23T19:31:04.226375935+01:00",
+  "completed_at": "2026-11-23T19:31:15.517128184+01:00"
+}

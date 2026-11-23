@@ -1,0 +1,22 @@
+{
+  "tool_use_id": "toolu_01WRhND2MZL4s4CUoFhauewj",
+  "agent_id": "aa365b4e16ecc31ec",
+  "subagent_type": "project-coder",
+  "task_description": "Corrections revues 751",
+  "files": [
+    "internal/scan/fixcommand_safety_test.go",
+    "internal/ui/security/details_command_safety_test.go",
+    "internal/ui/security/details_control_test.go",
+    "internal/ui/security/details_symlink_test.go",
+    "internal/ui/security/details_verify_test.go"
+  ],
+  "token_usage": {
+    "input_tokens": 100,
+    "cache_creation_tokens": 184051,
+    "cache_read_tokens": 6585052,
+    "output_tokens": 39408,
+    "api_call_count": 48
+  },
+  "started_at": "2026-11-23T20:18:17.985496323+01:00",
+  "completed_at": "2026-11-23T20:27:03.569547256+01:00"
+}
