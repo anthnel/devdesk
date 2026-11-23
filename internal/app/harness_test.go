@@ -186,7 +186,7 @@ func (v *bareView) View() tea.View { return tea.NewView(v.Render()) }
 // here too: every test, and every -count=N round, starts from an empty one
 // (DEVDESK-610). It returns that store, for a test that asserts on what the
 // router wrote to it; most callers ignore it.
-func isolateHome(t *testing.T) *fakekeyring.Store {
+func isolateHome(t testing.TB) *fakekeyring.Store {
 	t.Helper()
 	store := fakekeyring.Fresh(t)
 	home := t.TempDir()
@@ -202,7 +202,7 @@ func router(t *testing.T, view Screen) *App {
 	return routerAt(t, view, 180, 40)
 }
 
-func routerAt(t *testing.T, view Screen, width, height int) *App {
+func routerAt(t testing.TB, view Screen, width, height int) *App {
 	t.Helper()
 	isolateHome(t)
 	a := &App{

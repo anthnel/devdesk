@@ -5,6 +5,7 @@ import (
 
 	tea "charm.land/bubbletea/v2"
 	"charm.land/lipgloss/v2"
+	"github.com/charmbracelet/x/ansi"
 
 	"github.com/anthnel/devdesk/internal/ui/components"
 	"github.com/anthnel/devdesk/internal/ui/overlay"
@@ -41,9 +42,78 @@ func (a *App) Render() string {
 	body := a.renderBody(barBelow)
 	inner := fitHeight(header, body, footer, a.height)
 
-	placed := lipgloss.Place(a.width, a.height, lipgloss.Left, lipgloss.Top, inner,
-		lipgloss.WithWhitespaceStyle(lipgloss.NewStyle().Background(theme.ColorBackground)))
-	return a.withPalette(placed)
+	return a.withPalette(padFrame(inner, a.width, a.height))
+}
+
+// padFrame fills inner to width x height with the background (Rule 115): a
+// short line gets background cells on its right, and missing rows at the bottom
+// are full-width background rows. It leaves the cells lipgloss.Place(width,
+// height, Left, Top, inner, WithWhitespaceStyle(Background)) leaves. Place pads
+// nothing horizontally as soon as one line is as wide as the screen, and the
+// header line is, so padFrame stops measuring at the first such line (usually
+// the first) where Place measures them all, and returns inner itself, without a
+// copy, when there is nothing to fill. Width is x/ansi's (grapheme clusters),
+// not theme.PadWithBg's runewidth, which counts a VS16 emoji as one cell (Rule 116).
+//
+// Like Place, it never cuts: once a line is wider than width no line is padded,
+// and the rows it adds are as wide as the widest line. A tab or a CR makes Place
+// rewrite the block before measuring it, so such a frame is handed to Place.
+func padFrame(inner string, width, height int) string {
+	if strings.IndexByte(inner, '\t') >= 0 || strings.IndexByte(inner, '\r') >= 0 {
+		return lipgloss.Place(width, height, lipgloss.Left, lipgloss.Top, inner,
+			lipgloss.WithWhitespaceStyle(lipgloss.NewStyle().Background(theme.ColorBackground)))
+	}
+	missing := height - (strings.Count(inner, "\n") + 1)
+	if missing <= 0 && hasLineAtLeast(inner, width) {
+		return inner
+	}
+	return fillFrame(inner, width, missing)
+}
+
+// hasLineAtLeast reports whether some line of s is at least width cells wide.
+func hasLineAtLeast(s string, width int) bool {
+	for rest := s; ; {
+		line, after, more := strings.Cut(rest, "\n")
+		if ansi.StringWidth(line) >= width {
+			return true
+		}
+		if !more {
+			return false
+		}
+		rest = after
+	}
+}
+
+// fillFrame is padFrame's filling pass: it measures every line, pads them when
+// none reaches width, and appends missing rows as wide as the widest line.
+func fillFrame(inner string, width, missing int) string {
+	lines := strings.Split(inner, "\n")
+	widths := make([]int, len(lines))
+	widest := 0
+	for i, line := range lines {
+		widths[i] = ansi.StringWidth(line)
+		widest = max(widest, widths[i])
+	}
+
+	bg := lipgloss.NewStyle().Background(theme.ColorBackground)
+	var b strings.Builder
+	for i, line := range lines {
+		if i > 0 {
+			b.WriteByte('\n')
+		}
+		b.WriteString(line)
+		if widest < width {
+			b.WriteString(bg.Render(strings.Repeat(" ", width-widths[i])))
+		}
+	}
+	if missing > 0 {
+		filler := bg.Render(strings.Repeat(" ", max(width, widest)))
+		for range missing {
+			b.WriteByte('\n')
+			b.WriteString(filler)
+		}
+	}
+	return b.String()
 }
 
 // withPalette draws the open command palette over the final screen. The

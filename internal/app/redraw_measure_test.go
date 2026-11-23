@@ -9,10 +9,12 @@ import (
 	"time"
 
 	tea "charm.land/bubbletea/v2"
+	"charm.land/lipgloss/v2"
 	"github.com/charmbracelet/colorprofile"
 
 	"github.com/anthnel/devdesk/internal/jobs"
 	"github.com/anthnel/devdesk/internal/ui/testutil"
+	"github.com/anthnel/devdesk/internal/ui/theme"
 )
 
 // Measurement of the renderer's output cost (DEVDESK-139, criterion 8). Opt-in:
@@ -189,5 +191,108 @@ func TestMeasureRedrawCost(t *testing.T) {
 				t.Fatalf("no redraw counted: %+v", st)
 			}
 		})
+	}
+}
+
+// Warm cost of one View() (DEVDESK-281, task 281.1). The frame is the one
+// TestMeasureRedrawCost draws: 20 animated rows at 120x40, TrueColor. Each
+// iteration flips the animation phase so the content differs from the last
+// one and nothing can be served from a cache. -cpu 1 runs it with GOMAXPROCS=1;
+// it pins no core. Prefix the command with `taskset -c N` to pin one:
+//
+//	go test ./internal/app -run '^$' -bench 'AppView|RenderBody|PlaceFrame' -benchtime 2s -count 10 -cpu 1
+//
+// BenchmarkAppView draws the plain frame: no command palette is open and no
+// overlay (help, modal) is composed over it, so it does not include the cost of
+// either.
+
+// Sinks keep the compiler from discarding the results.
+var (
+	viewSink  tea.View
+	bodySink  string
+	placeSink string
+)
+
+// benchRouter is the router of the measurement: measuredView, 20 animated
+// rows, 120x40, the colour profile the tea.Program of measureRedraws forces.
+func benchRouter(b *testing.B) (*App, *measuredView) {
+	b.Helper()
+	view := &measuredView{rows: 20, blink: true}
+	return trueColorRouter(b, view, measureWidth, measureHeight), view
+}
+
+// trueColorRouter is routerAt with the TrueColor profile the router would learn
+// from a real terminal. It lives here because this file and profile_test.go
+// are the only ones allowed to name colorprofile (source_guard_test.go in
+// internal/ui/testutil).
+func trueColorRouter(t testing.TB, view Screen, width, height int) *App {
+	t.Helper()
+	a := routerAt(t, view, width, height)
+	a.colorProfile = colorprofile.TrueColor
+	return a
+}
+
+// BenchmarkAppView measures App.View() as the program calls it after an Update.
+func BenchmarkAppView(b *testing.B) {
+	a, view := benchRouter(b)
+	b.ReportAllocs()
+	for b.Loop() {
+		view.phase = !view.phase
+		viewSink = a.View()
+	}
+}
+
+// BenchmarkRenderBody isolates renderBody, the view's own Render included.
+func BenchmarkRenderBody(b *testing.B) {
+	a, view := benchRouter(b)
+	b.ReportAllocs()
+	for b.Loop() {
+		view.phase = !view.phase
+		bodySink = a.renderBody(false)
+	}
+}
+
+// BenchmarkPlaceFrame isolates the lipgloss.Place of App.Render (the
+// non-overlay path). The two inner frames are the router's, one per phase.
+//
+// Read its result (about 73-79 microseconds and one allocation per call) as
+// mostly measurement, not as the cost of a real fill: the inner frame is already
+// width x height, so Place has nothing to pad and only walks and copies it. The
+// figure is not what Place costs when it really fills a short frame.
+func BenchmarkPlaceFrame(b *testing.B) {
+	a, view := benchRouter(b)
+	var inner [2]string
+	for i := range inner {
+		view.phase = i == 1
+		inner[i] = innerFrame(a)
+	}
+	whitespace := lipgloss.WithWhitespaceStyle(lipgloss.NewStyle().Background(theme.ColorBackground))
+	b.ReportAllocs()
+	n := 0
+	for b.Loop() {
+		n++
+		placeSink = lipgloss.Place(a.width, a.height, lipgloss.Left, lipgloss.Top, inner[n&1], whitespace)
+	}
+}
+
+// BenchmarkPadFrame is BenchmarkPlaceFrame for padFrame, on the same inner
+// frames: what App.Render now calls where it used to call lipgloss.Place. Like
+// Place's, the frame is already width x height, so this is the cost of
+// deciding that nothing needs filling, not of a real fill: padFrame measures the
+// first line only (the header's, full width, ends the search at once) where
+// Place measures every line, and fillFrame, the filling pass, is not measured
+// at all.
+func BenchmarkPadFrame(b *testing.B) {
+	a, view := benchRouter(b)
+	var inner [2]string
+	for i := range inner {
+		view.phase = i == 1
+		inner[i] = innerFrame(a)
+	}
+	b.ReportAllocs()
+	n := 0
+	for b.Loop() {
+		n++
+		placeSink = padFrame(inner[n&1], a.width, a.height)
 	}
 }
