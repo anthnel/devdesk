@@ -49,7 +49,7 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m.handleGitLabAuthSuccess(msg)
 
 	case LogoutCompleteMsg:
-		return m.handleLogoutComplete()
+		return m.handleLogoutComplete(msg)
 	}
 
 	m.footer.Handle(msg)
@@ -189,7 +189,7 @@ func (m *Model) handleGitLabAuthSuccess(msg ForgeAuthSuccessMsg) (tea.Model, tea
 }
 
 // handleLogoutComplete resets the state after logout
-func (m *Model) handleLogoutComplete() (tea.Model, tea.Cmd) {
+func (m *Model) handleLogoutComplete(msg LogoutCompleteMsg) (tea.Model, tea.Cmd) {
 	m.authenticated = false
 	m.user = forge.User{}
 	m.currentField = fieldToken
@@ -198,6 +198,11 @@ func (m *Model) handleLogoutComplete() (tea.Model, tea.Cmd) {
 	m.warning = ""
 	m.success = "✓ Logged out successfully"
 	m.tokenInput.Focus()
+	if msg.Err != nil {
+		log.Printf("ERROR [forge/auth] forget the token at logout: %v", msg.Err)
+		m.success = "✓ Logged out"
+		return m, m.footer.Warn("Logged out, but the token may remain in " + m.secrets.StoreName() + " — check logs")
+	}
 	return m, nil
 }
 
@@ -284,11 +289,9 @@ func (m *Model) logout() tea.Cmd {
 		// Create the auth
 		auth := session.NewAuth(storage)
 
-		// Remove the credentials from storage
-		_ = auth.Logout(url) // Ignore the error, we log out anyway
-
-		// Do NOT modify m.config here (Rule 110) - do it in Update()
-		// Return the logout-complete message
-		return LogoutCompleteMsg{}
+		// Remove the credentials from storage. The session ends even if this
+		// fails; the error travels to Update(), which tells the user the token
+		// may still be in the store. Do NOT modify m.config here (Rule 110).
+		return LogoutCompleteMsg{Err: auth.Logout(url)}
 	}
 }

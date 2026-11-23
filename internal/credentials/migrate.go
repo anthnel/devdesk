@@ -36,7 +36,7 @@ func MigrateLegacySecrets(sel Selection, contextName string) []string {
 	}
 
 	store := sel.Storage
-	where := sel.storeName()
+	where := sel.StoreName()
 	var notes []string
 	movedToken := false
 	movedPassword := false

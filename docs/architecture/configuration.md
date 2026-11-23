@@ -217,6 +217,15 @@ godbus falls back to `$XDG_RUNTIME_DIR/bus`, the same bus.
   made that path reachable (an absent store already did). The file is now left as it is
   and the note reads `The plaintext secrets stayed in the configuration file: no
   persistent secret store answered.`; a real move names the store it went to.
+- An abandoned `Set` may still land later, once the store is unlocked. So a login whose
+  save timed out does not say the token was not saved: `session.saveWarning` reads
+  `The secret store did not answer; the token may still be saved once it is unlocked.`
+  Any other failed save keeps `The token was not saved: …`.
+- Logging out while a call is stuck: `Delete` is refused without being tried, and a
+  `Set` still pending may write the token back after the logout. The session ends
+  anyway, but the error is no longer dropped: `LogoutCompleteMsg.Err` reaches the auth
+  view, which warns in the footer `Logged out, but the token may remain in <store>`. A
+  refused `Delete` is not retried later (out of scope).
 - A panic in the call (the DEVDESK-610 guard below) is carried back to the caller's
   goroutine, so it still fails the test that reached the store.
 

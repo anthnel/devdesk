@@ -50,9 +50,9 @@ type Selection struct {
 	Detail string
 }
 
-// storeName names where a secret saved here goes, for a sentence the user
-// reads: "moved ... into <storeName>".
-func (s Selection) storeName() string {
+// StoreName names where a secret saved here goes, for a sentence the user
+// reads: "moved ... into <StoreName>".
+func (s Selection) StoreName() string {
 	switch s.Backend {
 	case BackendKeyring:
 		return "the " + KeyringName()

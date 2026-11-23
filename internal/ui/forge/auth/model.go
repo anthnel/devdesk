@@ -176,5 +176,9 @@ type AuthResultMsg struct {
 	ConfigToSave *config.Config
 }
 
-// LogoutCompleteMsg signals that logout is complete
-type LogoutCompleteMsg struct{}
+// LogoutCompleteMsg signals that logout is complete. Err is the store's
+// failure to forget the token: the session ends either way, but the token may
+// remain in the store, and the user is told so (DEVDESK-745).
+type LogoutCompleteMsg struct {
+	Err error
+}
