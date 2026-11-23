@@ -362,21 +362,32 @@ func (v *k8sValidation) renderKustomizations(ctx context.Context, dirs []string)
 }
 
 // overlayFailure is the finding for an overlay kustomize did not build. In a
-// container, an overlay that failed to accumulate its resources and reaches a
-// directory outside the mount failed because DevDesk could not show it that
+// container, an overlay whose build failed on the very reference that reaches
+// a directory outside the mount failed because DevDesk could not show it that
 // directory, not because it is broken: it is reported as not validated, LOW,
 // rather than blamed (DEVDESK-742), and kustomize's own error goes to the log.
 // Any other failure keeps the HIGH finding and kustomize's whole message.
 func (v *k8sValidation) overlayFailure(ctx context.Context, tool ToolSpec, dir, file string, err error) Finding {
 	if tool.Source == ToolSourceContainer && strings.Contains(err.Error(), "accumulating resources") {
 		overlay := filepath.Join(v.scope.mountedTarget(), filepath.FromSlash(dir))
-		if from, ref, ok := k8s.EscapingReference(ctx, v.scope.mount, overlay); ok {
+		if from, ref, ok := k8s.EscapingReference(ctx, v.scope.mount, overlay); ok && missedOutside(err, ref) {
 			log.Printf("[scan/k8s] overlay %s not built: %s references %s, outside what the container sees (%s): %v",
 				dir, from, ref, v.scope.mount, err)
 			return outsideMountFinding(file, v.relToTarget(from), dir, ref)
 		}
 	}
 	return renderFailure(SourceKustomize, "kustomize", file, "Overlay does not build", err)
+}
+
+// missedOutside reports whether kustomize failed on ref for want of the path:
+// measured on kustomize v5.8.3, a reference the container cannot see fails as
+// "accumulating resources from '<ref>': evalsymlink failure … no such file or
+// directory", nested under the overlay's own reference when it is a base's.
+// A malformed file or a broken patch in the mount names neither.
+func missedOutside(err error, ref string) bool {
+	msg := err.Error()
+	_, after, found := strings.Cut(msg, "accumulating resources from '"+ref+"'")
+	return found && (strings.Contains(after, "evalsymlink failure") || strings.Contains(after, "no such file or directory"))
 }
 
 // relToTarget is a real host path under the mount, relative to the target

@@ -10,8 +10,8 @@ import (
 )
 
 // An overlay that failed in a container is reported LOW, not blamed, only when
-// kustomize failed to accumulate its resources and the overlay does reach a
-// directory outside the mount. Any other failure, a binary run, or a reference
+// kustomize failed to accumulate the very reference that reaches a directory
+// outside the mount, for want of the path. Any other failure, a binary run, or a reference
 // that does not exist keeps the HIGH finding and kustomize's whole message;
 // the LOW one still logs what kustomize said (review of DEVDESK-742).
 func TestOnlyAnAccumulationFailureOutsideTheMountIsNotBlamed(t *testing.T) {
@@ -27,6 +27,11 @@ func TestOnlyAnAccumulationFailureOutsideTheMountIsNotBlamed(t *testing.T) {
 
 	const accumulation = "Error: accumulating resources: accumulation err='accumulating resources from '../../base': " +
 		"evalsymlink failure on '/base' : lstat /base: no such file or directory'"
+	// Measured on kustomize v5.8.3: a malformed resource file in the mount
+	// also fails "accumulating resources", without naming the reference that
+	// leaves the mount nor a path that does not exist.
+	const brokenFile = "Error: accumulating resources: accumulating resources from 'broken.yaml': " +
+		"MalformedYAMLError: yaml: line 1: did not find expected node content in File: broken.yaml"
 	const patch = "Error: no matches for Id Deployment.v1.apps/web.[noNs]; failed to find unique target for patch"
 	image := ToolSpec{Source: ToolSourceContainer}
 	binary := ToolSpec{Source: ToolSourceBinary}
@@ -39,6 +44,7 @@ func TestOnlyAnAccumulationFailureOutsideTheMountIsNotBlamed(t *testing.T) {
 	}{
 		{"image, accumulation, reaches outside", image, "prod", accumulation, SeverityLow},
 		{"image, another failure, reaches outside", image, "prod", patch, SeverityHigh},
+		{"image, a broken file in the mount, reaches outside", image, "prod", brokenFile, SeverityHigh},
 		{"binary, accumulation, reaches outside", binary, "prod", accumulation, SeverityHigh},
 		{"image, accumulation, reference missing", image, "broken", accumulation, SeverityHigh},
 	}
