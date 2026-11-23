@@ -142,16 +142,22 @@ func wantFor[T any](c Column[T], measured int) int {
 // last measured it; it may be shorter than columns, and a missing entry reads
 // as no measurement, which leaves a SizingContent column at its MinWidth.
 //
+// hidden may be nil or shorter than columns; a column marked in it is taken out
+// before anything is solved (SetColumnHidden), so it costs no padding either.
+//
 // The result always sums to exactly the room the kept columns have, so the
 // rendered line spans the viewport interior at every width (Rule 116).
-func solveWidths[T any](columns []Column[T], viewportWidth int, measured []int) []int {
+func solveWidths[T any](columns []Column[T], viewportWidth int, measured []int, hidden []bool) []int {
 	if len(columns) == 0 {
 		return nil
 	}
 
-	kept := make([]int, len(columns))
-	for i := range kept {
-		kept[i] = i
+	kept := make([]int, 0, len(columns))
+	for i := range columns {
+		if i < len(hidden) && hidden[i] {
+			continue
+		}
+		kept = append(kept, i)
 	}
 
 	for {

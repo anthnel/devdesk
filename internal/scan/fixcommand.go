@@ -1,6 +1,7 @@
 package scan
 
 import (
+	"fmt"
 	"regexp"
 	"strconv"
 	"strings"
@@ -153,4 +154,21 @@ func PickFixed(installed, fixedIn string) string {
 		best, bestSameMajor = opt, same
 	}
 	return best
+}
+
+// fixInstruction is the sentence a finding carries when its ecosystem has no
+// known command. The text is stored in the scan cache, so it must not change.
+func fixInstruction(pkg, target string) string {
+	return fmt.Sprintf("Update %s to %s", pkg, target)
+}
+
+// IsFixInstruction reports whether f.FixCommand is the sentence fixInstruction
+// writes for f's package rather than a command the user can run. A caller shows
+// a command as "Run: ..." and a sentence as plain text.
+func IsFixInstruction(f Finding) bool {
+	if f.PkgName == "" {
+		return false
+	}
+	prefix := fixInstruction(f.PkgName, "")
+	return strings.HasPrefix(f.FixCommand, prefix) && len(f.FixCommand) > len(prefix)
 }

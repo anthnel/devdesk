@@ -642,6 +642,95 @@ thing to a calling agent through `scan_result` and stay the thing that measures
 the result — see `mcp.md`. A finite catalog of fixes for the recurring Dockerfile
 rules is phase B of §3.78 and does not exist yet.
 
+### The finding detail (DEVDESK-750)
+
+`Enter` on a finding opens a scrollable detail (`internal/ui/security/details.go`).
+It used to overflow the viewport (the text width had a floor of 40 cells, `Match`,
+`Run:`, `Package` and `Version` had no width at all, and the viewport itself was
+given the view's width instead of two cells less), print a render failure's whole
+stderr as a title, and bury the one thing a reader wants, what to do, under the
+facts.
+
+**Layout, measured.** The router hands the details state `H - 12` rows
+(`shortcut.HeaderRows` 7, one blank row, a two-row footer, the title line and the
+bottom border) and the viewport frame takes two columns, so the viewport is `W - 2`
+wide (`sizeDetails`, called from `enter` and from `WindowSizeMsg`, so a resize
+while the detail is open is right too); `Padding(1)` takes one cell and one row
+on each side:
+
+| Terminal | Viewport rows | Text rows visible (after the top padding) | Text width |
+|---|---|---|---|
+| 80x24 | 12 | 11 | 76 |
+| 120x40 | 28 | 27 | 116 |
+| 175x50 | 38 | 37 | 171 |
+
+**Order.** The header (severity, ID), the title on one line, then the fix status
+and the remediation, the `Message`, the `Description`, the facts (Source, Type,
+Pod Security, File, Line, Package, Kind, Version, Fixed In, Match), the `Script`
+of a CI finding and the `References`. A section is emitted only when it has
+content, and sections are joined by exactly one blank line (never two). Every
+value is wrapped at the text width, hanging under its label (`detailsText`,
+`details_text.go`); a tab and a run of blank lines are normalised first. At 80x24
+the status is on the fifth text line.
+
+**Display only.** `shortPaths(text, target)` removes `<target>/` and the container
+mount `/scan/` from the title, the Message and the File, folds a path under HOME to
+`~/`, and ignores a target that is not an absolute path (an image reference). The
+finding keeps its text, the scan cache is untouched, and
+`scan.renderFailure` still writes the absolute paths, which is what the cache holds. The title is `oneLine`: the first line, cut with `theme.Ellipsis`. The Message is
+`cappedLines`: wrapped at `min(width, 110)` cells, 8 lines at most, then `… N more
+lines` (wrapped lines, not source lines). A Message equal to the title or to the
+description is not repeated. Widths are measured with `x/ansi`, as the viewport
+does, never with the `runewidth`-based `theme` helpers.
+
+**The fix status.** `fixStatusOf(f, onDisk)` (`details_fix.go`) says it in words,
+never in a colour or a key name (Rules 130, 134):
+
+| Finding | Label |
+|---|---|
+| vulnerability with `FixedIn` | `Fix available` (`Fixed in <version>`) |
+| vulnerability without | `No fix available` |
+| misconfiguration, catalog rule, directory, no refusal | `Built-in fix available` (the rule's title, and its warning) |
+| misconfiguration, the rule declines this instance | `No built-in fix for this instance` (the reason) |
+| misconfiguration on an image | `No built-in fix here` |
+| misconfiguration with no catalog rule | `No built-in fix` (the missing text, or the generic reason) |
+| secret, license, CI | no status line |
+
+A misconfiguration's status reads `misconfigFixAvailability`, extracted from
+`canFixMisconfig`, so the shortcut in the header and the detail are one
+computation (`TestFixStatusAndTheShortcutAgree`).
+
+**Command or sentence.** `scan.IsFixInstruction(f)` says whether `FixCommand` is the
+`Update <pkg> to <version>` sentence written for an ecosystem with no known command
+(`fixInstruction`, same bytes as before: the cache is unchanged). `fixAction` shows a
+command as `Run: <cmd>` and a sentence as plain text under Remediation.
+
+**The scroll position.** In the details state `status()` returns `Lines a-b of N`
+(`scrollPosition`) when the content is taller than the viewport, read from the viewport on
+every render: a `Status`, not a footer message, so it does not expire after 3 s
+(Rule 128), and a warning still wins over it. The footer stays two lines (Rule 124).
+
+**The File column.** The Misconfigurations tab has a `File` column
+(`SizingContent`, 16 to 40 cells, `Optional`, `TruncateHead`, no `Less` and no `Search`:
+the Title search already matches `f.File`). It is the last column, so it is the first dropped
+on a narrow terminal, and a long path keeps its end. `resizeFindings` hides it on the other
+tabs with `SetColumnHidden` (`ui-components.md`). The cell is plain text (Rule 122):
+`shortPaths(f.File, "")`. The table's columns are built once, before any result
+exists, so the cell does not know the scanned target (the detail does, through
+`Model.scanTarget`): it shortens a path under `/scan/`, leaves a relative path as it is
+(Trivy reports relative paths) and folds any other absolute path under `~`. An absolute
+`File` under the scanned directory therefore reads `~/repo/k/x.yaml` in the table and
+`k/x.yaml` in the detail. Giving the cell the target would need the datatable to swap its
+columns after construction; not worth it for a path Trivy does not emit.
+
+**Limits of `shortPaths`.** Only POSIX paths starting with `/` are recognised: a
+Windows path (`C:\repo\x`) is left as it is. A path containing a space is cut at its first
+space, so what follows the space is not shortened. `dropBlankLines` (the Message) removes
+every blank line, so it also drops the paragraph breaks of a Message that is not a stderr.
+`oneLine` (the ID and the title) and `normalizeText` turn a tab into four spaces and drop
+carriage returns before measuring: `x/ansi` counts a tab as no cell while lipgloss renders
+it as four, so a tab-separated title used to span far past the viewport.
+
 ### Fixing a misconfiguration in place — the catalog (§3.78, phase B)
 
 `internal/remediation/misconfig.go` holds a **deliberately finite** catalog of

@@ -66,8 +66,28 @@ func findingColumns() []datatable.Column[scan.Finding] {
 			Less:   func(a, b scan.Finding) bool { return sourceDisplay(a) < sourceDisplay(b) },
 			Search: sourceDisplay,
 		},
+		{
+			// Appended last, so the indices above do not move. No Less and no
+			// Search: the Title search already matches the file, and a second
+			// way to ask the same question is noise. It keeps the end of a long
+			// path, which is what tells two findings apart.
+			Title: "File", Sizing: datatable.SizingContent, MinWidth: 16, MaxWidth: 40,
+			Optional: true, TruncateHead: true,
+			Cell: fileCell,
+		},
 	}
 }
+
+// fileColumn is the index of the File column in findingColumns.
+const fileColumn = 4
+
+// fileCell is the File cell: plain text (Rule 122), with the scanner container's
+// mount removed and a path under HOME folded. The columns are built once, before
+// any result exists, so the cell does not know the scanned target (the detail
+// does): an absolute path under the target shows as the folded absolute path here
+// and as a relative one in the detail. Trivy reports relative paths, so this is
+// the rare case.
+func fileCell(f scan.Finding) string { return shortPaths(f.File, "") }
 
 // severityRank orders the levels by how bad they are, which is the only order
 // worth sorting this column by: alphabetically, CRITICAL lands between no two
@@ -409,8 +429,7 @@ func (m Model) handleResultsState(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 			// under it, which is how workspaces got D24.
 			m.selectedFinding = &finding
 			m.state = StateDetails
-			m.detailsViewport.SetWidth(m.width)
-			m.detailsViewport.SetHeight(m.height)
+			m.sizeDetails()
 			m.detailsViewport.SetContent(m.buildDetailsContent())
 			m.detailsViewport.GotoTop()
 		}
@@ -469,6 +488,11 @@ func (m Model) toggleSeverity(key string) (tea.Model, tea.Cmd) {
 // two findings on one tab out of five — for a letter the inventory already
 // carries per target — was not worth the jump on every tab switch.
 func (m *Model) resizeFindings() {
+	// The File column belongs to the Misconfigurations tab: the same rule
+	// there can fire in many files, and nowhere else it says nothing more than
+	// the title. Done here, with the size, so a tab switch and a resize cannot
+	// disagree.
+	m.findingsTable.SetColumnHidden(fileColumn, m.activeTab != TabMisconfig)
 	m.findingsTable.Resize(m.width, max(m.height, 5))
 	m.remediation.table.Resize(m.width, max(m.height, 5))
 }

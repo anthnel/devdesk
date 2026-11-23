@@ -168,6 +168,12 @@ func (m Model) status() sharedcomponents.Status {
 	if m.state == StateInventory {
 		return m.inventoryStatus()
 	}
+	// Which lines of a long detail are on screen: a state of the screen, derived
+	// here and never stored, so no timer can take it away (Rule 128).
+	if m.state == StateDetails {
+		vp := m.detailsViewport
+		return sharedcomponents.Status{Text: scrollPosition(vp.YOffset(), vp.VisibleLineCount(), vp.TotalLineCount())}
+	}
 	// Ahead of the failed stages below: on this tab what is happening now is
 	// what the footer is for, and a stage that failed still shows on the others.
 	if status, ok := m.remediationStatus(); ok {

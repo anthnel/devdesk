@@ -43,3 +43,29 @@ func TestHelpInventoryExplainsTheActivityColumn(t *testing.T) {
 		}
 	}
 }
+
+// DEVDESK-750 step 8, Rule 114: the help says how a finding's detail is laid out
+// and where the File column is.
+func TestHelpDescribesTheFindingDetails(t *testing.T) {
+	body := helpSection(t, "Finding details")
+
+	for _, want := range []string{
+		"Message",             // the section that is capped
+		"8 lines",             // how many
+		"110",                 // and how wide
+		"relative",            // paths shown relative to the scanned directory
+		"Lines",               // the scroll position in the footer
+		"Built-in fix",        // the fix status in words
+		"Description",         // what comes after the status and the remediation
+		"Remediation",         // and the remediation itself
+		"No fix available",    // a vulnerability's other status
+		"No built-in fix for", // a rule that declines this instance
+	} {
+		if !strings.Contains(body, want) {
+			t.Errorf("the Finding details help does not mention %q:\n%s", want, body)
+		}
+	}
+	if results := helpSection(t, "Results"); !strings.Contains(results, "File") {
+		t.Errorf("the Results help does not mention the File column of the Misconfigurations tab:\n%s", results)
+	}
+}

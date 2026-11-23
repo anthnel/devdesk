@@ -224,6 +224,17 @@ address is identified by the network it starts with. It cannot be left to `Cell`
 either — `Cell` does not know the width it will be rendered at, and that is what
 makes the value measurable.
 
+**`SetColumnHidden(i, hidden)` takes one column out of the layout for as long as a
+view says so (DEVDESK-750).** A hidden column has width 0, no header, no cell and no
+padding: `solveWidths` starts its `kept` list without it, so its two cells of padding go
+back to the others and `RenderedWidth()` stays `width - 2` (Rule 116). It differs from
+`Optional`, which is the solver's decision for lack of room; this is the view's decision
+for lack of purpose, as the `:sec` findings table does with its `File` column off the
+Misconfigurations tab. The first column cannot be hidden and an index out of range changes
+nothing. `CycleSort` and `SetSort` skip a hidden column, and hiding the sorted column puts
+the sort back to none. The caller resizes afterwards; `resizeFindings` does it in the same
+call as the hide. Tested in `hidden_test.go`.
+
 **`KeepSuffix` keeps a fixed suffix whole when a cell is cut (DEVDESK-579,
 NX-12).** `func(T) string` returns the suffix the row's cell ends with (`""` or a
 nil func for none). When the cell is wider than the column and really ends with
