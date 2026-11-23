@@ -201,11 +201,7 @@ func (a *App) renderBody(barBelow bool) string {
 	if a.frameless() {
 		innerWidth = a.viewport.Width()
 	}
-	a.viewport.SetContent(lipgloss.NewStyle().
-		Background(theme.ColorBackground).
-		Foreground(theme.ColorText).
-		Width(innerWidth).
-		Render(content))
+	a.viewport.SetContent(styleBody(content, innerWidth))
 
 	body := a.viewport.View()
 
