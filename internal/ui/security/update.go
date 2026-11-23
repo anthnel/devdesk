@@ -113,13 +113,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m.handleInventoryResultLoaded(msg)
 
 	case InventoryScanFinishedMsg:
-		// A scan of the target a fix is waiting on answers that fix, whoever
-		// started it — the verification does not need to be the run that reports.
-		if v := m.misconfigVerifying; v != nil && v.Target == msg.Name && msg.Err == nil {
-			next, cmd := m.handleInventoryScanFinished(msg)
-			return next, tea.Batch(cmd, verifyMisconfigCmd(*v))
-		}
-		return m.handleInventoryScanFinished(msg)
+		return m.handleScanFinishedForFix(msg)
 
 	case InventoryScanStartingMsg:
 		// The row is already spinning: the router recorded the transition
@@ -152,6 +146,12 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	case MisconfigVerifiedMsg:
 		return m.handleMisconfigVerified(msg)
+
+	case FixCommandCopiedMsg:
+		return m.handleFixCommandCopied(msg)
+
+	case FindingFileRefusedMsg:
+		return m, m.footer.Warn(msg.Reason)
 
 	case jobs.ChangedMsg:
 		return m.handleJobsChanged(msg)

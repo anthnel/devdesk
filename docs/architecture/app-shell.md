@@ -597,6 +597,20 @@ them off the screen anyway. And the granularity is the **package**, not the
 view's state: a key bound in one tab and announced in another passes. What these
 catch is the key bound *nowhere*, which is what both instances were.
 
+**`ctrl+o` on `security/details` (DEVDESK-751).** A declared Ctrl exception
+(`keymap.DeclaredExceptions()`, key `ctrl+o`, surface `security/details`), separate
+from the `security/results/remediation-tab` entry because `IsException` matches by
+key and the pair is told apart by surface. In the `:sec` finding detail it applies
+the built-in fix of the finding shown: the same preparation, the same confirmation
+that defaults to No and the same write as the Misconfigurations tab, then the same
+re-scan (the footer says `Re-scanning` meanwhile). It never writes on its own key
+press. The detail's other keys are `esc`, `W`, `enter` (opens the finding's file in
+the viewer, which has `O`; the detail binds no `O`), `Y` (Copy) and `X` (Exclude),
+the last two being in the vocabulary already. `details_fix_exception_test.go`
+(`internal/ui/keymap`) fails if the entry or its reason disappears, if
+`handleDetailsState` stops binding an advertised key, or if this file and
+`tui-layout.md` stop naming the surface.
+
 **`ctrl+o` on `netdiag/trace` (DEVDESK-330, DEVDESK-471).** A declared Ctrl exception
 (`keymap.DeclaredExceptions()`, key `ctrl+o`, surface `netdiag/trace`; the
 `security/results/remediation-tab` entry for the same key is a separate one, so

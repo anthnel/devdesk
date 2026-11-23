@@ -288,6 +288,17 @@ var exceptions = []Exception{
 	},
 	{
 		Key:     "ctrl+o",
+		Surface: "security/details",
+		Why: "Apply the built-in fix of the finding shown in the :sec detail. It is " +
+			"the same act as the Misconfigurations tab's ctrl+o, with the same write " +
+			"and the same confirmation, which defaults to No: the key never writes " +
+			"on its own. The entry is separate from the tab's because the exceptions " +
+			"are keyed by key and surface, and the next survey must tell the uses of " +
+			"ctrl+o apart. No letter of the vocabulary fits, and the detail's own " +
+			"letters are taken (W, Y, X).",
+	},
+	{
+		Key:     "ctrl+o",
 		Surface: "netdiag/trace",
 		Why: "Open the \"Trace from\" selector (this machine or a running container) on " +
 			"the Diagnostics trace sub-level. The action exists on one screen, so a " +

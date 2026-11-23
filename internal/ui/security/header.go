@@ -21,19 +21,29 @@ func (m Model) GetShortcuts() shortcut.Shortcuts {
 	case StateResults:
 		return m.resultsShortcuts()
 	case StateDetails:
-		// A finding with no published reference is the same screen as one with
-		// three, so `o` is greyed rather than dropped (Rule 130).
-		f := m.selectedFinding
-		return []shortcut.Shortcut{
-			{Key: "esc", Description: "Back"},
-			// keymap.Web, which is what handleDetailsState binds. It read
-			// "o" and nothing answered it: the key advertised did nothing and
-			// the key that worked was never shown — Rule 130's hazard seen
-			// from the other side.
-			{Key: keymap.Web, Description: "Open ref", Disabled: f == nil || len(f.References) == 0},
-		}
+		return m.detailsShortcuts()
 	}
 	return nil
+}
+
+// detailsShortcuts is the detail's column: the same six keys for every finding,
+// each greyed when it has nothing to act on (Rule 130). Every availability is
+// computed from the finding on screen alone, so the header reads no file. The
+// descriptions are at most ten cells: the column is 19 cells wide at 80 columns
+// and `<ctrl+o>` takes nine of them.
+func (m Model) detailsShortcuts() shortcut.Shortcuts {
+	// A finding with no published reference is the same screen as one with three,
+	// so W is greyed rather than dropped. keymap.Web is what handleDetailsState
+	// binds: a key advertised under another name would do nothing.
+	f := m.selectedFinding
+	return []shortcut.Shortcut{
+		{Key: "esc", Description: "Back"},
+		{Key: keymap.Web, Description: "Open ref", Disabled: f == nil || len(f.References) == 0},
+		{Key: "enter", Description: "Open file", Disabled: !m.canOpenFindingFile().Enabled()},
+		{Key: writeRemediationKey, Description: "Apply fix", Disabled: !m.canFixMisconfig().Enabled()},
+		{Key: keymap.Copy, Description: "Copy cmd", Disabled: !m.canCopyFixCommand().Enabled()},
+		{Key: keymap.Exclude, Description: "Exclude", Disabled: !m.canExclude().Enabled()},
+	}
 }
 
 // resultsShortcuts advertises the findings table's own keys.
@@ -246,9 +256,11 @@ func (m Model) GetHelpContent() help.Content {
 			{Key: "space", Description: "Choose the candidate under the cursor for its stage — only a scanned one (Remediation tab)"},
 			{Key: "enter", Description: "Show what the chosen bases would change, as a diff (Remediation tab)"},
 			{Key: writeRemediationKey, Description: "Write the chosen bases into the Dockerfiles, after a confirmation that defaults to No (Remediation tab)"},
-			{Key: writeRemediationKey, Description: "Apply the built-in fix for the selected rule, after a confirmation showing the diff and defaulting to No. Only a few rules have one — some Dockerfile rules, privileged and allowPrivilegeEscalation on a plain Kubernetes manifest, an apiVersion whose replacement is a rename, and .git added to an existing .dockerignore; the rest are handed to an agent through the MCP server (Misconfigurations tab)"},
+			{Key: writeRemediationKey, Description: "Apply the built-in fix for the selected rule, after a confirmation showing the diff and defaulting to No. Only a few rules have one — some Dockerfile rules, privileged and allowPrivilegeEscalation on a plain Kubernetes manifest, an apiVersion whose replacement is a rename, and .git added to an existing .dockerignore; the rest are handed to an agent through the MCP server (Misconfigurations tab, and the detail of a finding)"},
+			{Key: "enter", Description: "Open the finding's file in the viewer, which has O for the IDE and esc to come back to the detail (detail)"},
+			{Key: keymap.Copy, Description: "Copy the command under Run to the clipboard, whole. DevDesk never runs it (detail)"},
 			{Key: keymap.Scan, Description: "Measure the base images and their candidates by scanning them from their registries (Remediation tab)"},
-			{Key: keymap.Exclude, Description: "Exclude a secret — add it to .gitleaksignore (Secrets tab, Gitleaks findings only)"},
+			{Key: keymap.Exclude, Description: "Exclude a secret — add it to .gitleaksignore (Secrets tab and the detail of a Gitleaks finding)"},
 			{Key: keymap.Web, Description: "Open first reference URL in the default browser (detail view)"},
 			{Key: openPipelineKey, Description: "Open the pipeline the forge resolves for this repository — every include and component expanded (CI tab)"},
 			{Key: "tab / shift+tab", Description: "Switch tabs in results (CVE, Secrets, Licenses, Misconfig, CI, Remediation)"},
@@ -283,11 +295,12 @@ func (m Model) GetHelpContent() help.Content {
 			},
 			{
 				Title: "Finding details",
-				Body: "The detail of a finding puts what to do before what it is: its severity, ID and title (always one line, cut with an ellipsis), then the fix status in words, then the Remediation, then the Message, the Description, the facts (Source, Type, File, Line, Package, Match) and the References. A section with nothing to say is left out.\n" +
-					"The fix status reads 'Fix available' with the fixed version, or 'No fix available' when none is published, for a vulnerability. For a misconfiguration it reads 'Built-in fix available' (with what the fix does, and its warning when it has one), 'No built-in fix for this instance' when the rule has a fix that declines this finding, 'No built-in fix here' for an image, whose files cannot be written, and 'No built-in fix' for a rule DevDesk has no fix for. It is the same answer the shortcut for writing a fix gives. Secrets, licenses and CI findings have no fix status.\n" +
-					"Remediation shows the resolution the scanner gave and, when there is one, the command to run ('Run:'). A sentence such as 'Update foo to 1.2', for an ecosystem DevDesk has no command for, is shown as text, never as a command.\n" +
-					"The Message is what the scanner said about this instance, which tells two findings of one rule apart. It shows at most 8 lines of at most 110 cells, then '… N more lines'; the rest is in the log. A message that only repeats the title or the description is not shown again.\n" +
-					"Paths in the title, the Message and the File are shown relative to the scanned directory (an absolute path under your home directory starts with ~); the finding itself is not changed.\n" +
+				Body: "The detail of a finding puts what to do before why: its severity, ID and title (always one line, cut with an ellipsis), then the Fix block, then Why, Output and Refs. It is one column of at most 110 cells. A section with nothing to say is left out.\n" +
+					"Fix is always there and says the status in words, one of six. 'Built-in fix available': DevDesk can write the fix for this rule. 'Built-in fix unavailable: <reason>': the rule has a built-in fix and it declines this instance, for the reason given. 'Manual': the finding tells how to fix it by hand, which includes a vulnerability with a fixed version. 'No fix published': a vulnerability with no fixed version. 'Cannot fix here': a misconfiguration of an image, whose files are inside it and cannot be written. 'No guidance available': nothing tells how to fix it. For a misconfiguration the status is the same answer the shortcut for writing a fix gives.\n" +
+					"Under Fix, with no blank line: Where is the file and line, then the package, the CI job, its script line and the matched text when the finding has them. Do is the numbered steps, then the resolution the scanner gave, word for word. Run is the command, on one line, cut with an ellipsis when it is wider than the column; DevDesk shows it and never runs it. A sentence such as 'Update foo to 1.2', for an ecosystem DevDesk has no command for, is a step under Do, never a command. So is a command that is not plain words (a line break, a control character, a shell metacharacter such as ; | & $ or a quote): its text is under Do, cleaned, and Y cannot copy it. Effect is what the fix does, or 'Fixed in <version>', and Warning is what the built-in fix may break.\n" +
+					"Why holds the Description, the Pod Security profile, the Source and the Type. Output is what the scanner said about this instance, which tells two findings of one rule apart: at most 8 lines of at most 110 cells, then '… N more lines'; the rest is in the log. An Output that only repeats the title or the description is not shown. Refs lists the references.\n" +
+					"The detail has six keys, the same for every finding, each greyed with its reason in the footer when it has nothing to act on. Esc goes back. W opens the first reference. Enter opens the finding's file in the viewer (O there opens the IDE, esc comes back to the detail); whether the file exists is for the viewer to say, and a path outside the scanned directory, a file reached through a link that leaves it, or a target that is an image, is refused. Ctrl+O applies the built-in fix of this finding, with the same preview, the same confirmation that defaults to No, the same write and the same re-scan as the Misconfigurations tab; while the re-scan runs the footer says so, and when it ends the detail shows the finding as the re-scan read it, or closes if the finding is gone, with the verdict in the footer. Y copies the command under Run to the clipboard, whole even when the screen cuts it; DevDesk never runs a command. X adds a Gitleaks secret to .gitleaksignore, after a confirmation. Each acts on the finding on screen, not on the row behind it.\n" +
+					"Paths in the title, Where and Output are shown relative to the scanned directory (an absolute path under your home directory starts with ~); the finding itself is not changed.\n" +
 					"When the detail is taller than the viewport, the footer says which lines are on screen: 'Lines a-b of N'. A long detail scrolls with the arrows, page keys, Home and End.",
 			},
 			{

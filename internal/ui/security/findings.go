@@ -297,7 +297,7 @@ func (m Model) handleIgnoreSecret() (tea.Model, tea.Cmd) {
 	if exclude := m.canExclude(); !exclude.Enabled() {
 		return m, m.footer.Warn(exclude.Reason)
 	}
-	finding, _ := m.findingsTable.Selected()
+	finding, _ := m.subjectFinding()
 	m.findingToIgnore = &finding
 	m.confirmModal = sharedcomponents.NewConfirmModal(
 		"Ignore Secret",
@@ -388,7 +388,7 @@ func (m Model) canExclude() shortcut.Availability {
 	if m.activeTab != TabSecrets {
 		return shortcut.Unavailable(reasonNotASecret)
 	}
-	finding, ok := m.findingsTable.Selected()
+	finding, ok := m.subjectFinding()
 	switch {
 	case !ok:
 		return shortcut.Unavailable(reasonNoFinding)

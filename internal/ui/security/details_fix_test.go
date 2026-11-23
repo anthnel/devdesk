@@ -11,17 +11,10 @@ import (
 	"github.com/anthnel/devdesk/internal/ui/testutil"
 )
 
-// DEVDESK-750 (step 3): the fix status line of the finding detail, and the one
-// computation it shares with the shortcut column (Rule 130).
-
-const (
-	labelFixAvailable   = "Fix available"
-	labelNoFixAvailable = "No fix available"
-	labelBuiltIn        = "Built-in fix available"
-	labelDeclined       = "No built-in fix for this instance"
-	labelImage          = "No built-in fix here"
-	labelNoBuiltIn      = "No built-in fix"
-)
+// DEVDESK-751 (steps 1 and 2): the closed vocabulary of the Fix line of the
+// finding detail, and the one computation it shares with the shortcut column
+// (Rule 130). It replaces the DEVDESK-750 labels ("Fix available", "No fix
+// available", "No built-in fix here", ...).
 
 func misconfigOf(id string) scan.Finding {
 	return scan.Finding{ID: id, Title: "A misconfiguration", Severity: scan.SeverityHigh,
@@ -31,6 +24,12 @@ func misconfigOf(id string) scan.Finding {
 func unconfinedSeccomp() scan.Finding {
 	f := misconfigOf("KSV-0104")
 	f.File, f.SeccompOrigin = "pod.yaml", "unconfined"
+	return f
+}
+
+// withResolution is f with a Resolution sentence, the guidance a scanner gives.
+func withResolution(f scan.Finding) scan.Finding {
+	f.Resolution = "Rotate the credential and remove it from the history."
 	return f
 }
 
@@ -51,44 +50,173 @@ func TestFixStatusOf(t *testing.T) {
 	if declineReason == "" {
 		t.Fatal("KSV-0104 unconfined must decline from the finding alone")
 	}
-	missing, ok := remediation.MissingFor(misconfigOf("KSV-0012"))
-	if !ok {
+	if _, ok := remediation.MissingFor(misconfigOf("KSV-0012")); !ok {
 		t.Fatal("KSV-0012 must have a MissingFor text")
 	}
+	if _, ok := remediation.MissingFor(misconfigOf("KSV-0003")); ok {
+		t.Fatal("KSV-0003 must have no MissingFor text: it is the no-guidance rule of these tests")
+	}
+	cve := scan.Finding{ID: "CVE-1", Source: scan.SourceTrivy, FixedIn: "1.2.3"}
 
 	tests := []struct {
-		name       string
-		f          scan.Finding
-		onDisk     bool
-		wantLabel  string
-		wantDetail string
-		wantWarn   string
+		name      string
+		f         scan.Finding
+		onDisk    bool
+		want      fixStatus
+		wantLabel string
+		// loose compares State and Reason only: the plan does not say what
+		// Effect and Warning hold for this row.
+		loose bool
 	}{
-		{"CVE with a fixed version", scan.Finding{ID: "CVE-1", Source: scan.SourceTrivy, FixedIn: "1.2.3"}, true,
-			labelFixAvailable, "Fixed in 1.2.3", ""},
-		{"CVE on an image with a fixed version", scan.Finding{ID: "CVE-1", Source: scan.SourceTrivy, FixedIn: "1.2.3"}, false,
-			labelFixAvailable, "Fixed in 1.2.3", ""},
+		{"built-in fix on disk", misconfigOf("DS002"), true,
+			fixStatus{State: fixBuiltIn, Effect: builtIn.Title, Warning: builtIn.Warning}, labelBuiltInAvailable, false},
+		{"built-in fix with a warning", misconfigOf("KSV-0009"), true,
+			fixStatus{State: fixBuiltIn, Effect: hostNS.Title, Warning: hostNS.Warning}, labelBuiltInAvailable, false},
+		{"catalog rule that declines this instance", declines, true,
+			fixStatus{State: fixBuiltInDeclined, Reason: declineReason}, labelBuiltInUnavailable + ": " + declineReason, true},
+		{"catalog rule on an image", misconfigOf("DS002"), false,
+			fixStatus{State: fixCannotFixHere, Reason: reasonFileNotOnDisk}, labelCannotFixHere, true},
+		{"rule with a MissingFor text on an image", misconfigOf("KSV-0012"), false,
+			fixStatus{State: fixCannotFixHere, Reason: reasonFileNotOnDisk}, labelCannotFixHere, true},
+		{"rule with no fix on an image", misconfigOf("KSV-0003"), false,
+			fixStatus{State: fixCannotFixHere, Reason: reasonFileNotOnDisk}, labelCannotFixHere, true},
+		{"rule with a MissingFor text", misconfigOf("KSV-0012"), true, fixStatus{State: fixManual}, labelManual, false},
+		{"rule with no fix and a Resolution", withResolution(misconfigOf("KSV-0003")), true,
+			fixStatus{State: fixManual}, labelManual, false},
+		{"rule with a FixCommand and no catalog fix", func() scan.Finding {
+			f := misconfigOf("KSV-0003")
+			f.FixCommand = "Edit the manifest"
+			return f
+		}(), true, fixStatus{State: fixManual}, labelManual, false},
+		{"rule with no fix and no text", misconfigOf("KSV-0003"), true, fixStatus{State: fixNoGuidance}, labelNoGuidance, false},
+		{"render failure without a Resolution", scan.Finding{ID: scan.K8sRenderID, Source: scan.SourceKubeconform}, true,
+			fixStatus{State: fixNoGuidance}, labelNoGuidance, false},
+		{"render failure with a Resolution", withResolution(scan.Finding{ID: scan.K8sRenderID, Source: scan.SourceKustomize}), true,
+			fixStatus{State: fixManual}, labelManual, false},
+		{"CVE with a fixed version", cve, true,
+			fixStatus{State: fixManual, Effect: "Fixed in 1.2.3"}, labelManual, false},
+		{"CVE on an image with a fixed version", cve, false,
+			fixStatus{State: fixManual, Effect: "Fixed in 1.2.3"}, labelManual, false},
 		{"CVE without a fixed version", scan.Finding{ID: "CVE-2", Source: scan.SourceTrivy}, true,
-			labelNoFixAvailable, "No fixed version is published", ""},
-		{"built-in fix on disk", misconfigOf("DS002"), true, labelBuiltIn, builtIn.Title, builtIn.Warning},
-		{"built-in fix with a warning", misconfigOf("KSV-0009"), true, labelBuiltIn, hostNS.Title, hostNS.Warning},
-		{"catalog rule that declines this instance", declines, true, labelDeclined, declineReason, ""},
-		{"catalog rule on an image", misconfigOf("DS002"), false, labelImage, reasonFileNotOnDisk, ""},
-		{"rule with a MissingFor text", misconfigOf("KSV-0012"), true, labelNoBuiltIn, missing, ""},
-		{"rule with no fix and no text", misconfigOf("KSV-0003"), true, labelNoBuiltIn, remediation.ReasonNoFixForRule, ""},
-		{"render failure", scan.Finding{ID: scan.K8sRenderID, Source: scan.SourceKubeconform}, true,
-			labelNoBuiltIn, remediation.ReasonNoFixForRule, ""},
-		{"gitleaks secret", scan.Finding{ID: "generic-api-key", Source: scan.SourceGitleaks}, true, "", "", ""},
-		{"trivy secret", scan.Finding{ID: "aws-access-key-id", Source: scan.SourceTrivySecret}, true, "", "", ""},
-		{"license", scan.Finding{ID: "GPL-3.0", Source: scan.SourceTrivyLicense}, true, "", "", ""},
-		{"CI score", scan.Finding{ID: "PLUMBER-1", Source: scan.SourcePlumber}, true, "", "", ""},
+			fixStatus{State: fixNoFixPublished}, labelNoFixPublished, false},
+		{"gitleaks secret without guidance", scan.Finding{ID: "generic-api-key", Source: scan.SourceGitleaks}, true,
+			fixStatus{State: fixNoGuidance}, labelNoGuidance, false},
+		{"gitleaks secret with a Resolution", withResolution(scan.Finding{ID: "generic-api-key", Source: scan.SourceGitleaks}), true,
+			fixStatus{State: fixManual}, labelManual, false},
+		{"trivy secret without guidance", scan.Finding{ID: "aws-access-key-id", Source: scan.SourceTrivySecret}, true,
+			fixStatus{State: fixNoGuidance}, labelNoGuidance, false},
+		{"trivy secret with a Resolution", withResolution(scan.Finding{ID: "aws-access-key-id", Source: scan.SourceTrivySecret}), true,
+			fixStatus{State: fixManual}, labelManual, false},
+		{"license without guidance", scan.Finding{ID: "GPL-3.0", Source: scan.SourceTrivyLicense}, true,
+			fixStatus{State: fixNoGuidance}, labelNoGuidance, false},
+		{"license with a Resolution", withResolution(scan.Finding{ID: "GPL-3.0", Source: scan.SourceTrivyLicense}), true,
+			fixStatus{State: fixManual}, labelManual, false},
+		{"CI score without guidance", scan.Finding{ID: "PLUMBER-1", Source: scan.SourcePlumber}, true,
+			fixStatus{State: fixNoGuidance}, labelNoGuidance, false},
+		{"CI score with a Resolution", withResolution(scan.Finding{ID: "PLUMBER-1", Source: scan.SourcePlumber}), true,
+			fixStatus{State: fixManual}, labelManual, false},
 	}
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			got := fixStatusOf(tc.f, tc.onDisk)
-			want := fixStatus{Label: tc.wantLabel, Detail: tc.wantDetail, Warning: tc.wantWarn}
-			if got != want {
-				t.Errorf("fixStatusOf(%q, onDisk=%v) = %+v, want %+v", tc.f.ID, tc.onDisk, got, want)
+			if tc.loose {
+				if got.State != tc.want.State || got.Reason != tc.want.Reason {
+					t.Errorf("fixStatusOf(%q, onDisk=%v) = %+v, want state %v and reason %q",
+						tc.f.ID, tc.onDisk, got, tc.want.State, tc.want.Reason)
+				}
+			} else if got != tc.want {
+				t.Errorf("fixStatusOf(%q, onDisk=%v) = %+v, want %+v", tc.f.ID, tc.onDisk, got, tc.want)
+			}
+			if label := got.Label(); label != tc.wantLabel {
+				t.Errorf("Label() = %q, want %q", label, tc.wantLabel)
+			}
+		})
+	}
+}
+
+// Label is the closed vocabulary of AC1: the constants, and the one label that
+// carries a reason after a colon.
+func TestFixStatusLabel(t *testing.T) {
+	tests := []struct {
+		s    fixStatus
+		want string
+	}{
+		{fixStatus{State: fixBuiltIn}, "Built-in fix available"},
+		{fixStatus{State: fixBuiltInDeclined, Reason: "Seccomp is Unconfined"}, "Built-in fix unavailable: Seccomp is Unconfined"},
+		{fixStatus{State: fixManual}, "Manual"},
+		{fixStatus{State: fixNoFixPublished}, "No fix published"},
+		{fixStatus{State: fixCannotFixHere, Reason: reasonFileNotOnDisk}, "Cannot fix here"},
+		{fixStatus{State: fixNoGuidance}, "No guidance available"},
+	}
+	for _, tc := range tests {
+		if got := tc.s.Label(); got != tc.want {
+			t.Errorf("Label() of %+v = %q, want %q", tc.s, got, tc.want)
+		}
+	}
+}
+
+// statusFixtures are the findings the invariants run over: every misconfiguration
+// of the agreement set, and one finding per other category, with and without
+// guidance.
+func statusFixtures() []scan.Finding {
+	out := append([]scan.Finding{}, agreementFixtures()...)
+	out = append(out,
+		scan.Finding{ID: "CVE-1", Source: scan.SourceTrivy, FixedIn: "1.2.3"},
+		scan.Finding{ID: "CVE-2", Source: scan.SourceTrivy},
+		scan.Finding{ID: "generic-api-key", Source: scan.SourceGitleaks},
+		withResolution(scan.Finding{ID: "generic-api-key", Source: scan.SourceGitleaks}),
+		scan.Finding{ID: "GPL-3.0", Source: scan.SourceTrivyLicense},
+		scan.Finding{ID: "PLUMBER-1", Source: scan.SourcePlumber},
+		withResolution(misconfigOf("KSV-0003")),
+		scan.Finding{ID: "X-1"},
+	)
+	return out
+}
+
+// Invariant 1: a label is one of the five constants, or "Built-in fix
+// unavailable: " followed by a reason.
+func TestEveryFixLabelIsInTheClosedVocabulary(t *testing.T) {
+	closed := map[string]bool{
+		"Built-in fix available": true, "Manual": true, "No fix published": true,
+		"Cannot fix here": true, "No guidance available": true,
+	}
+	const declinedPrefix = "Built-in fix unavailable: "
+	for _, f := range statusFixtures() {
+		for _, onDisk := range []bool{true, false} {
+			label := fixStatusOf(f, onDisk).Label()
+			declined := strings.HasPrefix(label, declinedPrefix) && strings.TrimPrefix(label, declinedPrefix) != ""
+			if !closed[label] && !declined {
+				t.Errorf("%s (onDisk=%v): %q is outside the closed vocabulary", f.ID, onDisk, label)
+			}
+		}
+	}
+	for _, c := range []struct{ got, want string }{
+		{labelBuiltInAvailable, "Built-in fix available"}, {labelBuiltInUnavailable, "Built-in fix unavailable"},
+		{labelManual, "Manual"}, {labelNoFixPublished, "No fix published"},
+		{labelCannotFixHere, "Cannot fix here"}, {labelNoGuidance, "No guidance available"},
+	} {
+		if c.got != c.want {
+			t.Errorf("label constant = %q, want %q", c.got, c.want)
+		}
+	}
+}
+
+func TestHasGuidance(t *testing.T) {
+	tests := []struct {
+		name string
+		f    scan.Finding
+		want bool
+	}{
+		{"nothing", scan.Finding{ID: "X-1"}, false},
+		{"a Resolution", scan.Finding{Resolution: "Do the thing"}, true},
+		{"a FixCommand", scan.Finding{FixCommand: "go get x@v1"}, true},
+		{"a MissingFor text", misconfigOf("KSV-0012"), true},
+		{"a rule with no text", misconfigOf("KSV-0003"), false},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			if got := hasGuidance(tc.f); got != tc.want {
+				t.Errorf("hasGuidance = %v, want %v", got, tc.want)
 			}
 		})
 	}
@@ -97,14 +225,10 @@ func TestFixStatusOf(t *testing.T) {
 // The status carries words, never a key name: the key is the footer's business
 // (Rules 130 and 134), and one that is greyed would make a hint a lie.
 func TestFixStatusNamesNoKey(t *testing.T) {
-	findings := []scan.Finding{
-		misconfigOf("DS002"), misconfigOf("KSV-0009"), unconfinedSeccomp(), misconfigOf("KSV-0012"),
-		misconfigOf("KSV-0003"), {ID: "CVE-1", Source: scan.SourceTrivy, FixedIn: "1"},
-	}
-	for _, f := range findings {
+	for _, f := range statusFixtures() {
 		for _, onDisk := range []bool{true, false} {
 			s := fixStatusOf(f, onDisk)
-			for _, text := range []string{s.Label, s.Detail} {
+			for _, text := range []string{s.Label(), s.Reason, s.Effect, s.Warning} {
 				lower := strings.ToLower(text)
 				for _, key := range []string{"ctrl+", "[o]", "[" + writeRemediationKey + "]"} {
 					if strings.Contains(lower, key) {
@@ -176,8 +300,8 @@ func agreementFixtures() []scan.Finding {
 	}
 }
 
-// The header's shortcut column and the detail's status say the same thing, on
-// every misconfiguration, on a directory and on an image.
+// Invariant 2: "Built-in fix available" is shown exactly when ctrl+o is enabled,
+// on every misconfiguration, on a directory and on an image.
 func TestFixStatusAndTheShortcutAgree(t *testing.T) {
 	for _, f := range agreementFixtures() {
 		for _, kind := range []scan.TargetType{scan.TargetDirectory, scan.TargetImage} {
@@ -186,14 +310,54 @@ func TestFixStatusAndTheShortcutAgree(t *testing.T) {
 				m := misconfigModelFor(t, f, kind)
 				enabled := m.canFixMisconfig().Enabled()
 				status := fixStatusOf(f, onDisk)
-				if want := status.Label == labelBuiltIn; enabled != want {
-					t.Errorf("canFixMisconfig enabled = %v, fixStatusOf label = %q", enabled, status.Label)
+				if want := status.State == fixBuiltIn; enabled != want {
+					t.Errorf("canFixMisconfig enabled = %v, fixStatusOf = %+v (%q)", enabled, status, status.Label())
 				}
-				if !onDisk && status.Label == labelBuiltIn {
-					t.Errorf("an image target can never read %q", status.Label)
+				if enabled != (status.Label() == labelBuiltInAvailable) {
+					t.Errorf("canFixMisconfig enabled = %v, label = %q", enabled, status.Label())
+				}
+				if !onDisk && status.State == fixBuiltIn {
+					t.Errorf("an image target can never read %q", status.Label())
 				}
 			})
 		}
+	}
+}
+
+// Invariant 3: when ctrl+o is refused, the footer says the reason, and the Fix
+// line says the same one: "Built-in fix unavailable: R" for a catalog rule that
+// declines (R is the footer), "Cannot fix here" on an image (reasonFileNotOnDisk).
+func TestTheFooterAfterCtrlOSaysTheReasonOfTheFixLine(t *testing.T) {
+	refused := 0
+	for _, f := range agreementFixtures() {
+		for _, kind := range []scan.TargetType{scan.TargetDirectory, scan.TargetImage} {
+			t.Run(f.ID+"/"+string(kind), func(t *testing.T) {
+				m := misconfigModelFor(t, f, kind)
+				a := m.canFixMisconfig()
+				if a.Enabled() {
+					return
+				}
+				refused++
+				status := fixStatusOf(f, kind == scan.TargetDirectory)
+				switch _, inCatalog := remediation.FixFor(f); {
+				case kind == scan.TargetImage:
+					if status.State != fixCannotFixHere || status.Reason != reasonFileNotOnDisk {
+						t.Errorf("on an image the status is %+v, want Cannot fix here with %q", status, reasonFileNotOnDisk)
+					}
+				case inCatalog:
+					if status.State != fixBuiltInDeclined || status.Reason != a.Reason {
+						t.Errorf("a catalog rule that declines reads %+v, want Built-in fix unavailable with %q", status, a.Reason)
+					}
+				}
+				m, _ = step(t, m, testutil.Key(writeRemediationKey))
+				if footer := footerText(m, 400); !strings.Contains(footer, a.Reason) {
+					t.Errorf("the footer after ctrl+o does not say %q:\n%s", a.Reason, footer)
+				}
+			})
+		}
+	}
+	if refused == 0 {
+		t.Fatal("no fixture is refused: the invariant is not exercised")
 	}
 }
 

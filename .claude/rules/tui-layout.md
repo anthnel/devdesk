@@ -103,12 +103,17 @@ once.
   - `c` `h` `m` `l` (security): severities, **cumulative** — `c`+`h` asks for
     "CRITICAL **or** HIGH", which a single threshold cannot express.
 
-- **Four exceptions, declared** in `keymap.DeclaredExceptions()`: `o` (open
+- **Five exceptions, declared** in `keymap.DeclaredExceptions()`: `o` (open
   the pipeline the forge resolves, security/results/ci-tab), `ctrl+y` (copy
   the `docker run` command), `ctrl+o` (write the chosen base images into
-  the Dockerfiles, security/results/remediation-tab) and `ctrl+o` again on
-  netdiag/trace (open the "Trace from" selector: this
-  machine or a running container; it changes nothing by itself). Burning a global
+  the Dockerfiles, security/results/remediation-tab), `ctrl+o` again on
+  security/details (apply the built-in fix of the finding shown: the same
+  write and the same confirmation as the Misconfigurations tab, defaulting to
+  No; DEVDESK-751) and `ctrl+o` on netdiag/trace (open the "Trace from"
+  selector: this machine or a running container; it changes nothing by itself).
+  The `:sec` detail's other keys need no exception: `Y` (Copy) and `X`
+  (Exclude) are in the vocabulary, and `enter` opens the viewer, which has `O`.
+  Burning a global
   uppercase letter for an action present in a single sub-screen would cost
   more than it gains. They are written up as exceptions so the next survey
   does not mistake them for drift. `ctrl+o` is nano's Write Out, and the

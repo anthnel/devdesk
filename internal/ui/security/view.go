@@ -171,6 +171,9 @@ func (m Model) status() sharedcomponents.Status {
 	// Which lines of a long detail are on screen: a state of the screen, derived
 	// here and never stored, so no timer can take it away (Rule 128).
 	if m.state == StateDetails {
+		if status, ok := m.verifyingStatus(); ok {
+			return status
+		}
 		vp := m.detailsViewport
 		return sharedcomponents.Status{Text: scrollPosition(vp.YOffset(), vp.VisibleLineCount(), vp.TotalLineCount())}
 	}
