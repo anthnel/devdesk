@@ -23,7 +23,9 @@ type section struct {
 	title string
 	// render returns the box's content lines. It returns the *same count* of
 	// them whatever the state of the data — that's the contract
-	// TestEverySectionKeepsItsHeightWhateverItsState checks.
+	// TestEverySectionKeepsItsHeightWhateverItsState checks. The count may
+	// depend on the layout (tier, chart height, density), never on the data:
+	// densityTight drops the blank line under each chart (DEVDESK-743).
 	render func(m Model, width int, t tier) []string
 }
 
@@ -291,7 +293,9 @@ func renderHealthSection(m Model, width int, t tier) []string {
 
 	// Six lines, not seven: the blank line that used to separate monitoring
 	// from security paid for the certificate expiry. A seventh line here
-	// would overflow the whole overview.
+	// would cost the whole overview a line: Health is not the tallest box of
+	// its row today, but the row budget is what decides when the grid has to
+	// tighten (DEVDESK-743).
 	//
 	// Critical stays the CRITICAL count alone, for the same reason: the
 	// coverage gap it used to carry alongside ("148  - unscanned") is a
@@ -633,8 +637,8 @@ const (
 
 // chartHeight is how many lines a chart gets.
 //
-// At `standard` it's 1: the grid barely fits there, so a chart takes the
-// place of a blank line rather than adding to it.
+// At `standard` it's 1: a sparkline, which reads at one line, and every line
+// counts there (DEVDESK-743: the grid tightens before it loses one).
 //
 // At `wide` it is **measured**, not derived from constants: View() first
 // renders the grid with no curve at all, observes what's left, and passes
@@ -723,9 +727,13 @@ func chartOf(m Model, width int, t tier, pick func(metrics.HostSample) float64, 
 
 // chartBlock is a chart followed by one empty line. The chart's background
 // is lighter than the box's, so without this line the area touches the
-// value that follows it and the two read as a single block.
+// value that follows it and the two read as a single block. densityTight
+// gives the line up (DEVDESK-743): touching beats being cut off.
 func chartBlock(m Model, values []float64, width int, t tier, maxValue float64) []string {
 	lines := renderChart(values, theme.BoxContentWidth(width), m.chartHeight(t), maxValue)
+	if !m.density.chartGap() {
+		return lines
+	}
 	return append(lines, theme.Bg(""))
 }
 

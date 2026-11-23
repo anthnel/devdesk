@@ -23,18 +23,22 @@ func (m Model) View() tea.View { return tea.NewView(m.Render()) }
 // frame: every other view frames one object (a table, a form), the
 // dashboard is made of heterogeneous groups that a single frame wouldn't
 // help read.
+//
+// The grid opens on its first row's top border: the header's own blank line
+// already separates them, and the title rule the blank line above the boxes
+// used to keep them off is gone (DEVDESK-743). When the grid does not fit its
+// height, layout() tightens it, then draws only the whole rows that fit.
 func (m Model) Render() string {
-	t := layoutTier(m.width, m.height)
-	colWidth := t.columnWidth(m.width)
-	columns := m.columnsFor(t)
+	p := m.layout()
+	m = p.model
+	if p.shownRows == 0 {
+		return theme.EmptyLineBg(m.width)
+	}
 
-	m.chartLines = m.fitCharts(columns, colWidth, t)
-	inner := m.innerHeights(columns, colWidth, t)
-
-	rendered := make([][]string, len(columns))
+	rendered := make([][]string, len(p.columns))
 	height := 0
-	for i, col := range columns {
-		rendered[i] = m.renderColumn(col, colWidth, inner, t)
+	for i, col := range p.columns {
+		rendered[i] = m.renderColumn(col[:min(len(col), p.shownRows)], p.colWidth, p.inner, p.tier)
 		if len(rendered[i]) > height {
 			height = len(rendered[i])
 		}
@@ -42,13 +46,9 @@ func (m Model) Render() string {
 
 	pad := theme.EmptyLineBg(sidePadding)
 	gap := theme.EmptyLineBg(columnGap)
-	blank := theme.EmptyLineBg(colWidth)
+	blank := theme.EmptyLineBg(p.colWidth)
 
-	// A blank line opens the grid (leadingBlank). It was written to keep the
-	// boxes off the title rule; the dashboard has none since DEVDESK-743, and
-	// the line is kept under the header's own blank line.
-	lines := make([]string, 0, height+1)
-	lines = append(lines, theme.EmptyLineBg(m.width))
+	lines := make([]string, 0, height)
 	for i := range height {
 		var line strings.Builder
 		line.WriteString(pad)
@@ -125,10 +125,7 @@ func (m Model) fitCharts(columns [][]section, width int, t tier) int {
 
 	bare := m
 	bare.chartLines = 0
-	used := leadingBlank
-	for _, height := range bare.innerHeights(columns, width, t) {
-		used += height + theme.BoxChrome
-	}
+	used := bare.stackHeight(bare.innerHeights(columns, width, t))
 
 	// The floor is **one** line, not three: a braille curve needs three lines
 	// to be worth more than a sparkline, but forcing three lines when there
@@ -174,14 +171,14 @@ func (m Model) innerHeights(columns [][]section, width int, t tier) []int {
 			}
 			content = max(content, len(col[i].render(m, width, t)))
 		}
-		heights[i] = max(nominalInnerHeight, content+trailingBlank)
+		heights[i] = max(nominalInnerHeight, content+m.density.trailing())
 	}
 	return heights
 }
 
 // renderColumn stacks a column's boxes. No blank line between them: their
-// borders already separate them, and at 30 lines the budget is exactly two
-// boxes.
+// borders already separate them, and every line counts (DEVDESK-743: the
+// two-column overview takes 26 content lines roomy, 20 at densityTight).
 func (m Model) renderColumn(sections []section, width int, inner []int, t tier) []string {
 	var lines []string
 	for i, s := range sections {
@@ -190,7 +187,7 @@ func (m Model) renderColumn(sections []section, width int, inner []int, t tier) 
 			height = inner[i]
 		}
 		content := padTo(s.render(m, width, t), height, theme.BoxContentWidth(width))
-		lines = append(lines, theme.RenderTitledBox(s.title, content, width)...)
+		lines = append(lines, theme.RenderTitledBoxPadded(s.title, content, width, m.density.topPadding())...)
 	}
 	return lines
 }
@@ -299,7 +296,14 @@ func (m Model) RenderFooter(width int) string {
 // limitation here but the right sentence: it is the screen a user is most
 // likely to be watching while a batch runs somewhere else, and what it can
 // honestly say is how much is going and where to look.
+//
+// The floor comes first: while boxes are hidden (layout), the line says why
+// and how tall the terminal must be, as a warning (Rule 128). It is a state,
+// not an event, so it is derived here rather than set with a timer.
 func (m Model) status() sharedcomponents.Status {
+	if p := m.layout(); p.floored {
+		return sharedcomponents.Status{Text: m.floorStatus(p), Level: sharedcomponents.LevelWarning}
+	}
 	line := sharedcomponents.JobsStatusLine(m.jobs, "")
 	if line == "" {
 		return sharedcomponents.Status{}

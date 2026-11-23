@@ -127,6 +127,9 @@ type Model struct {
 	// fitCharts. It is never written by Update(): it is not state, it is a
 	// layout result that does not survive the frame.
 	chartLines int
+	// density is measured the same way, by layout(): the blank lines the grid
+	// keeps at this height (DEVDESK-743). Zero, densityRoomy, outside a frame.
+	density density
 
 	// Data
 	serviceComponents []status.ComponentStatus

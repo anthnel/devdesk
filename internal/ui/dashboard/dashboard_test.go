@@ -560,6 +560,13 @@ func overflowAt(t *testing.T, m Model, width, height int, at tier) int {
 // never whether it exists. A section that shows at `wide` shows at `compact`
 // too, inline or behind a tab: a fact that vanishes on a small terminal is
 // indistinguishable from a bug.
+//
+// One declared exception, accepted by the user for DEVDESK-743: the floor.
+// When even the tightest grid does not fit, the dashboard draws only the whole
+// rows that do, and the footer says the terminal is too short and how many rows
+// it needs. That is the only state that hides a box, and it says so:
+// TestTheFloorIsTheOnlyWayToHideABox. This test is about where a section is laid
+// out, which the floor does not change.
 func TestNoFactIsUnreachableAtAnyPalier(t *testing.T) {
 	m, _ := loadedModel(t)
 

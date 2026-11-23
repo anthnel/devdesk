@@ -704,11 +704,41 @@ viewport (`App.titleLineHeight()` is 0 instead of 1). Only the dashboard
 implements it: its boxes carry their own titles and the window title names the
 screen, so the `── Dashboard ──` rule only cost a row its grid needs. The
 dashboard stays a `FramelessView`; any other frameless view keeps its titled
-rule. `GetTitle()` is still implemented and read (window title, help). Removing
-the rule gives the dashboard one row; it does not make the grid fit at every
-height: the two-column overview needs 27 content lines (a 38-row terminal) and
-the stacked one 48, and below that the viewport, which does not scroll, still
-cuts the last rows (`TestTheDashboardClosesEveryBoxAtEveryRealisticSize`).
+rule. `GetTitle()` is still implemented and read (window title, help).
+
+**How the dashboard fits its height (DEVDESK-743).** The router's viewport does
+not scroll, so a grid taller than its height used to lose its last lines, the
+bottom borders of the lowest boxes. The dashboard now never renders more lines
+than it is given (`internal/ui/dashboard/fit.go`):
+
+- The grid opens on its first row's top border: the blank line it drew above
+  the boxes kept them off the title rule, which is gone.
+- **Density, measured.** `layout()` renders the grid at each density until one
+  fits, in the order that costs the reading least: `densityRoomy` (every blank
+  line), `densityNoTrailing` (no blank line under a row's tallest box),
+  `densityNoTopPadding` (no blank line under a box's title, through
+  `theme.RenderTitledBoxPadded`), `densityTight` (no blank line under a chart).
+  No threshold is written down: the boxes are measured, like `fitCharts`.
+  With the data of the report, the two-column overview takes 26 content lines
+  roomy (a 37-row terminal) and 20 tight (31 rows); one column, 47 and 36.
+  The tier choice is unchanged, and a tall terminal renders as before (at
+  `wide`, the two rows freed above go to the curves, which `fitCharts` sizes
+  from the room left).
+- **The floor.** When even `densityTight` does not fit, the dashboard draws the
+  whole rows of boxes that fit, top first (one column: whole boxes from the
+  top), never a cut box, and nothing at all if not even one row fits. The
+  footer then carries a warning (`components.Status`, `LevelWarning`, Rule
+  128): `Terminal too short for the dashboard (need N rows)`, where N is the
+  tight grid plus the router's rows above (`shortcut.HeaderRows` + its blank
+  line, no title line) and the view's own footer. It is the only state that
+  hides a box, and the exception to `TestNoFactIsUnreachableAtAnyPalier`
+  the user accepted; `TestTheFloorIsTheOnlyWayToHideABox` pins it.
+- Guards: `TestTheDashboardClosesEveryBoxAtEveryRealisticSize` (router, widths
+  80 to 200, heights 24 to 60: every box shown is closed, a hidden box comes
+  with the warning, and N is exact: nothing hidden at N rows, the warning still
+  there at N - 1), `TestTheResourcesTabStillFits`, and
+  `TestATallDashboardIsUnchanged` (golden renderings of main at 175x60 and
+  200x60, `internal/app/testdata/dashboard743/`).
 
 There are **three** name lists, and each answers a different question:
 
