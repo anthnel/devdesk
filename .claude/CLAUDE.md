@@ -138,7 +138,11 @@ the credential manager *and* in plaintext:
 The order is keyring → git credential → memory; `app.secret_backend` in the
 context config pins the head of it (`auto`, `keyring`, `git-credential`). A
 pinned backend that is unreachable falls through to memory rather than silently
-to the other one.
+to the other one. Every host store operation (the probe, `Save`, `Load`,
+`Delete`) is bounded to 3 s: a store that does not answer, such as a locked
+Secret Service waiting on an unlock prompt over SSH, is skipped like an absent
+one, `Detail` says so, and it is not asked again while that call is stuck
+(`internal/credentials/hoststore_bound.go`, DEVDESK-745).
 
 The router resolves one `Selection` per context and keeps it in
 `shared.State.Secrets`. It must be reused for the lifetime of the context — a

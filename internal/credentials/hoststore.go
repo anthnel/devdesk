@@ -32,21 +32,31 @@ type HostStore interface {
 
 // hostBox lets an atomic.Pointer hold an interface value, so a Cmd reading the
 // current store while a t.Cleanup restores the previous one is not a data race.
-type hostBox struct{ store HostStore }
+// It also carries the count of calls to that store that outlived
+// keyringTimeout (see boundedHost): a swap starts a fresh count.
+type hostBox struct {
+	store HostStore
+	stuck atomic.Int32
+}
 
 var currentStore atomic.Pointer[hostBox]
+
+// defaultBox holds the production store when no test swapped it. It is a
+// single value so that its stuck count lasts for the whole process.
+var defaultBox = &hostBox{store: goKeyring{}}
 
 // hostReachableUnderTest is set only by the TestMain of this package, whose
 // tests mock go-keyring themselves and run git against a hermetic config. In
 // any other test binary it stays false, so the real store is refused.
 var hostReachableUnderTest atomic.Bool
 
-// currentHost returns the store in use: goKeyring{} unless a test swapped it.
+// currentHost returns the store in use, goKeyring{} unless a test swapped it,
+// with every call bounded by keyringTimeout (DEVDESK-745).
 func currentHost() HostStore {
 	if b := currentStore.Load(); b != nil {
-		return b.store
+		return boundedHost{box: b}
 	}
-	return goKeyring{}
+	return boundedHost{box: defaultBox}
 }
 
 // SwapHostStoreForTest installs s and returns the store it replaces. It panics

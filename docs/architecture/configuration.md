@@ -178,6 +178,45 @@ is still resolved.
 Credentials Management). Do not add a secret-bearing field back — the schema is
 what makes the guarantee checkable.
 
+### A host store that does not answer (DEVDESK-745)
+
+Every call to the host store is bounded: `currentHost()` wraps the store in use in
+`boundedHost` (`internal/credentials/hoststore_bound.go`), which runs the call in a
+goroutine and gives up after `keyringTimeout`, 3 s, with `ErrKeyringUnresponsive`.
+That covers the probe (`KeyringAvailable`, run by `Select` before the first frame)
+and `KeyringStorage.Save`, `Load` and `Delete`.
+
+**Why.** go-keyring has no deadline. Reading from a locked Secret Service collection
+asks the daemon to unlock it, and go-keyring then waits for the unlock prompt's
+`Completed` signal with no timeout (`secret_service.handlePrompt`). In an SSH session
+nobody can answer the prompt, so the launch waited forever on a blank screen, the log
+stopping after the theme line. Removing `DBUS_SESSION_BUS_ADDRESS` does not avoid it:
+godbus falls back to `$XDG_RUNTIME_DIR/bus`, the same bus.
+
+**What follows a timeout.**
+
+- `Select` skips the store as if it were absent: `auto` goes on to the git credential
+  helper, then memory; a pinned `keyring` falls to memory, as for an unreachable store.
+  `Detail` says the store did not answer, that it is probably locked, and the way out
+  (unlock it and restart DevDesk, or set `app.secret_backend`); the auth view and
+  `dk setup` show `Detail` as before. An absent store keeps its own message.
+- The call is abandoned, not cancelled: the `HostStore` interface has no context and
+  go-keyring cannot stop the wait, so its goroutine stays blocked until the store
+  answers, possibly for the rest of the process (one goroutine, one D-Bus connection).
+- While such a call is pending, every new call fails at once with
+  `ErrKeyringUnresponsive`: a context switch or a later `Load` does not wait another
+  3 s, and no further goroutine is leaked. The count is per store (`hostBox.stuck`); it
+  returns to zero when the stuck call returns (the user unlocked the store), and the
+  store is then asked again. The `Selection` already resolved for the context is kept,
+  per the one-`Selection`-per-context rule; the next `Select` (context switch, restart)
+  finds the store again.
+- A panic in the call (the DEVDESK-610 guard below) is carried back to the caller's
+  goroutine, so it still fails the test that reached the store.
+
+The 3 s bound is a fixed value, not a setting; the tests of `internal/credentials`
+shorten it (`shortKeyringTimeout`), except `TestSelectDoesNotWaitForAHostStoreThatNeverAnswers`,
+which keeps it.
+
 ### Testing code that reaches the secret store
 
 DEVDESK-610. `KeyringStorage` and `KeyringAvailable` call the host store through
@@ -186,8 +225,8 @@ production implementation and the only caller of go-keyring.
 
 **The trap.** Without isolation, a test that calls `credentials.Select`,
 `KeyringAvailable` or a router that does reaches the machine's real keyring. On a
-developer machine with a locked Secret Service, the call blocks until the D-Bus
-timeout, in every test that does it.
+developer machine with a locked Secret Service, the call waits for an unlock prompt;
+since DEVDESK-745 it gives up after 3 s, in every test that does it.
 
 **Isolating.** Use `internal/testutil/fakekeyring`, an in-memory `HostStore`:
 

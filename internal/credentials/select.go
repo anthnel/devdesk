@@ -3,6 +3,7 @@ package credentials
 import (
 	"bytes"
 	"context"
+	"errors"
 	"os/exec"
 	"strings"
 	"time"
@@ -73,11 +74,20 @@ func (s Selection) Persists() bool {
 // The returned Selection must be kept for the lifetime of the context. Calling
 // Select again yields a fresh MemoryStorage, and a token saved into the old one
 // would be invisible to it.
+//
+// The probe of the host store is bounded by keyringTimeout (DEVDESK-745): a
+// store that does not answer is skipped like an absent one, and Detail says it
+// did not answer, since the user can fix that (unlock it) where they cannot
+// fix an absent one.
 func Select(contextName, preference string) Selection {
 	switch preference {
 	case PreferenceKeyring:
-		if KeyringAvailable() {
+		probe := keyringProbe()
+		if probe == nil {
 			return keyringSelection(contextName)
+		}
+		if errors.Is(probe, ErrKeyringUnresponsive) {
+			return memorySelection(KeyringName() + " is configured but " + keyringSilence())
 		}
 		return memorySelection(KeyringName() + " is configured but not reachable")
 
@@ -88,13 +98,29 @@ func Select(contextName, preference string) Selection {
 		return memorySelection("git is not configured with a credential helper that stores secrets safely")
 	}
 
-	if KeyringAvailable() {
+	probe := keyringProbe()
+	if probe == nil {
 		return keyringSelection(contextName)
 	}
+	silent := errors.Is(probe, ErrKeyringUnresponsive)
 	if helper, ok := gitHelperUsable(); ok {
-		return gitSelection(contextName, helper)
+		sel := gitSelection(contextName, helper)
+		if silent {
+			sel.Detail += " The " + KeyringName() + " was skipped: it " + keyringSilence() + "."
+		}
+		return sel
+	}
+	if silent {
+		return memorySelection("the " + KeyringName() + " " + keyringSilence())
 	}
 	return memorySelection("no " + KeyringName() + " and no usable git credential helper")
+}
+
+// keyringSilence says that the host store did not answer and what to do about
+// it, as the end of a sentence whose subject is the store.
+func keyringSilence() string {
+	return "did not answer within " + keyringTimeout.String() +
+		" (probably locked): unlock it and restart DevDesk, or set app.secret_backend"
 }
 
 func keyringSelection(contextName string) Selection {
