@@ -1,0 +1,15 @@
+{
+  "tool_use_id": "toolu_01TQxPYt8kW5iwwq3UEV8yyx",
+  "agent_id": "ace9bcd48ffc00797",
+  "subagent_type": "project-tester",
+  "task_description": "747.1 tests rouges un alias",
+  "token_usage": {
+    "input_tokens": 36,
+    "cache_creation_tokens": 139384,
+    "cache_read_tokens": 1787243,
+    "output_tokens": 23248,
+    "api_call_count": 17
+  },
+  "started_at": "2026-11-23T18:22:19.072308872+01:00",
+  "completed_at": "2026-11-23T18:25:15.953861408+01:00"
+}
