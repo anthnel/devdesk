@@ -36,14 +36,24 @@ registry:
     password: hunter2
 `
 
+// The migration target is the host store (go-keyring's mock, installed by
+// TestMain): until DEVDESK-745 this test migrated into a MemoryStorage, which
+// the migration now refuses because it does not persist.
 func TestMigrateLegacySecretsMovesBothSecrets(t *testing.T) {
+	mockKeyring(t)
 	path := legacyContextFile(t, legacyBoth)
-	store := NewMemoryStorage()
+	sel := keyringSelection("default")
+	store := sel.Storage
 
-	notes := MigrateLegacySecrets(store, "default")
+	notes := MigrateLegacySecrets(sel, "default")
 
 	if len(notes) != 2 {
 		t.Errorf("notes = %v, want one per secret moved", notes)
+	}
+	for _, n := range notes {
+		if !strings.Contains(n, "into the "+KeyringName()) {
+			t.Errorf("note %q does not name the store the secret went to", n)
+		}
 	}
 
 	token, err := store.Load("https://gitlab.example.com")
@@ -69,7 +79,7 @@ func TestMigrateLegacySecretsMovesBothSecrets(t *testing.T) {
 func TestMigrateLegacySecretsIsSilentWhenThereIsNothingToMove(t *testing.T) {
 	legacyContextFile(t, "gitlab:\n    url: https://gitlab.example.com\n")
 
-	if notes := MigrateLegacySecrets(NewMemoryStorage(), "default"); notes != nil {
+	if notes := MigrateLegacySecrets(persistentMemory(), "default"); notes != nil {
 		t.Errorf("notes = %v, want none", notes)
 	}
 }
@@ -79,7 +89,7 @@ func TestMigrateLegacySecretsIsSilentWhenThereIsNothingToMove(t *testing.T) {
 func TestMigrateLegacySecretsKeepsThePlaintextWhenTheStoreRefuses(t *testing.T) {
 	path := legacyContextFile(t, legacyBoth)
 
-	notes := MigrateLegacySecrets(failingStorage{}, "default")
+	notes := MigrateLegacySecrets(Selection{Storage: failingStorage{}, Backend: BackendKeyring}, "default")
 
 	data, err := os.ReadFile(path)
 	if err != nil {
@@ -97,9 +107,8 @@ func TestMigrateLegacySecretsKeepsThePlaintextWhenTheStoreRefuses(t *testing.T) 
 // use it against. It is unusable plaintext, so it goes — and the user is told.
 func TestMigrateLegacySecretsDropsASecretWithNoURL(t *testing.T) {
 	path := legacyContextFile(t, "gitlab:\n    token: glpat-orphan\n")
-	store := NewMemoryStorage()
 
-	notes := MigrateLegacySecrets(store, "default")
+	notes := MigrateLegacySecrets(persistentMemory(), "default")
 
 	data, err := os.ReadFile(path)
 	if err != nil {
@@ -118,13 +127,13 @@ func TestMigrateLegacySecretsOnAMissingContext(t *testing.T) {
 	t.Setenv("HOME", home)
 	t.Setenv("USERPROFILE", home)
 
-	if notes := MigrateLegacySecrets(NewMemoryStorage(), "default"); notes != nil {
+	if notes := MigrateLegacySecrets(persistentMemory(), "default"); notes != nil {
 		t.Errorf("notes = %v, want none for a context that does not exist", notes)
 	}
 }
 
 func TestMigrateLegacySecretsOnAnInvalidContextName(t *testing.T) {
-	if notes := MigrateLegacySecrets(NewMemoryStorage(), "Not A Context"); notes != nil {
+	if notes := MigrateLegacySecrets(persistentMemory(), "Not A Context"); notes != nil {
 		t.Errorf("notes = %v, want none", notes)
 	}
 }
@@ -134,3 +143,42 @@ type failingStorage struct{}
 func (failingStorage) Save(string, string) error   { return errors.New("store unavailable") }
 func (failingStorage) Load(string) (string, error) { return "", errors.New("store unavailable") }
 func (failingStorage) Delete(string) error         { return errors.New("store unavailable") }
+
+// A host store that does not answer, with no git helper to fall back on,
+// leaves Select on memory. Migrating there would delete the plaintext from the
+// file and keep the secret only until the process exits (DEVDESK-745): the
+// file must stay as it is, and the note must say nothing moved.
+func TestMigrateLegacySecretsKeepsTheFileWhenNoStorePersists(t *testing.T) {
+	for _, pref := range []string{PreferenceAuto, PreferenceKeyring} {
+		t.Run(pref, func(t *testing.T) {
+			shortKeyringTimeout(t)
+			useHangingHost(t)
+			hermeticGitWithHelper(t, "store")
+			path := legacyContextFile(t, legacyBoth)
+
+			sel := Select("default", pref)
+			if sel.Persists() {
+				t.Fatalf("Select(%q) = %q, want a selection that does not persist", pref, sel.Backend)
+			}
+			notes := MigrateLegacySecrets(sel, "default")
+
+			data, err := os.ReadFile(path)
+			if err != nil {
+				t.Fatalf("reading file: %v", err)
+			}
+			if string(data) != legacyBoth {
+				t.Errorf("the configuration file changed although no store persists:\n%s", data)
+			}
+			joined := strings.Join(notes, " ")
+			if strings.Contains(joined, "moved") || !strings.Contains(joined, "no persistent secret store answered") {
+				t.Errorf("notes = %v, want them to say the secrets were kept in the file", notes)
+			}
+		})
+	}
+}
+
+// persistentMemory is a selection that claims to persist, backed by memory: for
+// the tests whose subject is not the destination (nothing to move, no URL).
+func persistentMemory() Selection {
+	return Selection{Storage: NewMemoryStorage(), Backend: BackendKeyring}
+}

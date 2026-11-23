@@ -152,7 +152,8 @@ first one holds.
 `MigrateLegacySecrets` runs at startup and on every context switch: a
 `gitlab.token` or `registry.password` left in a context file by an older build
 is moved into the store and deleted from the YAML, with the result reported in
-the auth view.
+the auth view. It takes the `Selection` and moves nothing when it does not
+persist (memory): the secret stays in the YAML and the note says so (DEVDESK-745).
 
 ## Testing
 

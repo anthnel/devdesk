@@ -50,6 +50,19 @@ type Selection struct {
 	Detail string
 }
 
+// storeName names where a secret saved here goes, for a sentence the user
+// reads: "moved ... into <storeName>".
+func (s Selection) storeName() string {
+	switch s.Backend {
+	case BackendKeyring:
+		return "the " + KeyringName()
+	case BackendGitCredential:
+		return "the git credential helper"
+	default:
+		return "memory, for this session only"
+	}
+}
+
 // Persists reports whether a secret saved here survives the process.
 func (s Selection) Persists() bool {
 	return s.Backend != BackendMemory

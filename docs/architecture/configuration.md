@@ -210,6 +210,13 @@ godbus falls back to `$XDG_RUNTIME_DIR/bus`, the same bus.
   store is then asked again. The `Selection` already resolved for the context is kept,
   per the one-`Selection`-per-context rule; the next `Select` (context switch, restart)
   finds the store again.
+- `MigrateLegacySecrets` takes the `Selection` and migrates nothing to one that does not
+  persist. Before, a `MemoryStorage.Save` always succeeded, so the plaintext token and
+  registry password were deleted from the YAML and lived in memory only, with a note
+  saying they had moved into the secret store. A silent store with no usable git helper
+  made that path reachable (an absent store already did). The file is now left as it is
+  and the note reads `The plaintext secrets stayed in the configuration file: no
+  persistent secret store answered.`; a real move names the store it went to.
 - A panic in the call (the DEVDESK-610 guard below) is carried back to the caller's
   goroutine, so it still fails the test that reached the store.
 
