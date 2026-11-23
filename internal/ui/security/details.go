@@ -146,6 +146,7 @@ func (m Model) detailsFix(f scan.Finding, t detailsText) []string {
 	lines = append(lines, m.detailsWhere(f, t)...)
 	lines = append(lines, t.list("Do: ", fixSteps(f), f.Resolution, t.text)...)
 	lines = append(lines, detailsRun(f, t)...)
+	lines = append(lines, detailsRepro(f, t)...)
 	lines = append(lines, t.field("Effect: ", status.Effect, t.text)...)
 	return append(lines, t.field("Warning: ", status.Warning, t.text)...)
 }

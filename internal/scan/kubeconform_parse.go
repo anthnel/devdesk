@@ -101,6 +101,13 @@ type kubeconformFieldProblem struct {
 // origin, when not nil, names the file a resource came from — for rendered
 // input, where kubeconform can only say "stdin".
 func parseKubeconformOutput(out []byte, version string, read func(string) ([]byte, error), origin func(kind, name string) string) ([]Finding, int, error) {
+	return parseKubeconformReport(out, version, read, origin, "")
+}
+
+// parseKubeconformReport is parseKubeconformOutput for a report of rendered
+// input: rendered is the renderer's dialect (helm, kustomize), "" for a plain
+// manifest, and tells the steps of a schema finding where the fix lives.
+func parseKubeconformReport(out []byte, version string, read func(string) ([]byte, error), origin func(kind, name string) string, rendered string) ([]Finding, int, error) {
 	var report kubeconformOutput
 	if err := json.Unmarshal(out, &report); err != nil {
 		return nil, 0, fmt.Errorf("parsing kubeconform output: %w", err)
@@ -127,7 +134,7 @@ func parseKubeconformOutput(out []byte, version string, read func(string) ([]byt
 		}
 		switch r.Status {
 		case kubeconformInvalid:
-			findings = append(findings, schemaFindings(r, content(r.Filename))...)
+			findings = append(findings, schemaFindings(r, content(r.Filename), version, rendered)...)
 		case kubeconformError:
 			f, custom := errorFinding(r, version, content(r.Filename))
 			if custom {
@@ -142,7 +149,7 @@ func parseKubeconformOutput(out []byte, version string, read func(string) ([]byt
 
 // schemaFindings is one finding per field the schema rejected, so each one has
 // its own line and can be fixed on its own.
-func schemaFindings(r kubeconformResource, content []byte) []Finding {
+func schemaFindings(r kubeconformResource, content []byte, version, rendered string) []Finding {
 	problems := r.ValidationErrors
 	if len(problems) == 0 {
 		// An invalid resource with no field detail still gets reported, on the
@@ -156,6 +163,7 @@ func schemaFindings(r kubeconformResource, content []byte) []Finding {
 		f.Description = fmt.Sprintf("The resource does not match the schema of %s %s: the API server would reject it.", r.Version, r.Kind)
 		f.Message = strings.TrimSpace(pointerLabel(p.Path) + " " + p.Msg)
 		f.Resolution = "Correct the field so it matches the API's schema for this kind and apiVersion."
+		f.Steps = schemaSteps(r, p, version, rendered)
 		f.Line, f.EndLine = locateProblem(content, r, p)
 		out = append(out, f)
 	}

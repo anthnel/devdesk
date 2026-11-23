@@ -106,6 +106,18 @@ type Finding struct {
 	Resolution  string        `json:"resolution,omitempty"`  // Recommended fix steps
 	References  []string      `json:"references,omitempty"`  // Links to advisories or documentation
 	FixCommand  string        `json:"fix_command,omitempty"` // Suggested command to run
+	// Steps are numbered remediation steps DevDesk writes for a finding it builds
+	// itself (K8S-RENDER, K8S-SCHEMA, HELM-LINT, secrets). Shown under Do before the
+	// Resolution, which stays word for word. Empty on third-party findings and on a
+	// result cached before DEVDESK-752.
+	Steps []string `json:"steps,omitempty"`
+	// Repro is one line that reproduces the finding with the tool on this machine,
+	// run from the scanned directory. Empty when the tool ran in a container (Q3),
+	// when no single plain command reproduces it, or on an older result.
+	Repro string `json:"repro,omitempty"`
+	// RanFrom is where the tool ran (binary or container), recorded only on the
+	// findings one local command could reproduce. Empty means unknown.
+	RanFrom ToolSource `json:"ran_from,omitempty"`
 	// Class and Ecosystem say what kind of package a vulnerability sits in:
 	// Trivy's Result.Class (os-pkgs or lang-pkgs) and Result.Type (alpine,
 	// debian, gomod, npm...). The class decides the fix — a base image bump

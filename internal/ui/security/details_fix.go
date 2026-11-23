@@ -4,7 +4,6 @@ import (
 	"path/filepath"
 	"strconv"
 	"strings"
-	"unicode"
 
 	"github.com/anthnel/devdesk/internal/remediation"
 	"github.com/anthnel/devdesk/internal/scan"
@@ -110,19 +109,15 @@ func guidanceStatus(f scan.Finding) fixStatus {
 	return fixStatus{State: fixNoGuidance}
 }
 
-// hasGuidance says whether f carries any instruction: a Resolution, a
+// hasGuidance says whether f carries any instruction: a Resolution, Steps, a
 // FixCommand or a remediation.MissingFor text.
 func hasGuidance(f scan.Finding) bool {
-	if f.Resolution != "" || f.FixCommand != "" {
+	if f.Resolution != "" || f.FixCommand != "" || len(f.Steps) > 0 {
 		return true
 	}
 	_, ok := remediation.MissingFor(f)
 	return ok
 }
-
-// shellMeta are the characters that make a shell read more than words in a
-// command: separators, expansions, redirections, quoting, globbing, comments.
-const shellMeta = ";|&$`<>()\\'\"{}*?!#"
 
 // runCommand is the text under Run and the text Y copies: the FixCommand trimmed,
 // when fixAction calls it a command and it is plain words. One computation, two
@@ -137,30 +132,18 @@ const shellMeta = ";|&$`<>()\\'\"{}*?!#"
 func runCommand(f scan.Finding) (string, bool) {
 	label, text := fixAction(f)
 	cmd := strings.TrimSpace(text)
-	if label != "Run" || cmd == "" || !plainWords(cmd) {
+	if label != "Run" || cmd == "" || !scan.PlainWords(cmd) {
 		return "", false
 	}
 	return cmd, true
 }
 
-// plainWords reports whether cmd is made of visible characters and single
-// spaces, with no shell metacharacter.
-func plainWords(cmd string) bool {
-	for _, r := range cmd {
-		switch {
-		case r == ' ':
-		case unicode.IsControl(r), !unicode.IsPrint(r), strings.ContainsRune(shellMeta, r):
-			return false
-		}
-	}
-	return true
-}
-
-// fixSteps are the numbered steps under Do: what a rule the catalog cannot fix
-// is missing, and a FixCommand that is not offered under Run: a sentence rather
-// than a command, or a command runCommand refuses.
+// fixSteps are the numbered steps under Do: the steps DevDesk wrote for the
+// finding (Steps, first), what a rule the catalog cannot fix is missing, and a
+// FixCommand that is not offered under Run: a sentence rather than a command, or
+// a command runCommand refuses.
 func fixSteps(f scan.Finding) []string {
-	var steps []string
+	steps := append([]string(nil), f.Steps...)
 	if _, inCatalog := remediation.FixFor(f); !inCatalog {
 		if text, ok := remediation.MissingFor(f); ok {
 			steps = append(steps, text)

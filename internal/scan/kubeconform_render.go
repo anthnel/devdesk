@@ -244,6 +244,13 @@ func orDefault(v, def string) string {
 	return v
 }
 
+// renderRepro is the Repro line of a renderer run on target (a chart or an
+// overlay directory), run from the scanned directory like the scan did. The
+// user's arguments are left out: they may hold a secret (--set password=...).
+func renderRepro(tool ToolSpec, name, sub, target string) (string, ToolSource) {
+	return localRepro(tool, name, []string{sub}, target)
+}
+
 func helmArgs(scope renderScope, chart string, tool ToolSpec, sub string) toolCmd {
 	return renderer(scope, tool, DefaultHelmImage, "helm", sub, chart)
 }
@@ -307,8 +314,10 @@ func (v *k8sValidation) renderCharts(ctx context.Context, charts []string) error
 			// render has usually been reported by it already, with more to
 			// say. The render failure is the fallback, not a second copy.
 			if !hasError(lint) {
+				repro, from := renderRepro(tool, "helm", "template", chart)
 				v.report.Findings = append(v.report.Findings,
-					renderFailure(SourceHelm, "helm", path.Join(chart, "Chart.yaml"), "Chart does not render", tool.Source, err))
+					renderFailure(SourceHelm, "helm", path.Join(chart, "Chart.yaml"), "Chart does not render", from,
+						renderSteps(SourceHelm, chart, from, failureDetail(err)), repro, err))
 			}
 			continue
 		}
@@ -343,8 +352,10 @@ func (v *k8sValidation) renderKustomizations(ctx context.Context, dirs []string)
 			if ctx.Err() != nil {
 				return ctx.Err()
 			}
+			repro, from := renderRepro(tool, "kustomize", "build", dir)
 			v.report.Findings = append(v.report.Findings,
-				renderFailure(SourceKustomize, "kustomize", file, "Overlay does not build", tool.Source, err))
+				renderFailure(SourceKustomize, "kustomize", file, "Overlay does not build", from,
+					renderSteps(SourceKustomize, dir, from, failureDetail(err)), repro, err))
 			continue
 		}
 		// kustomize adds no origin to what it emits unless the kustomization
@@ -372,7 +383,7 @@ func (v *k8sValidation) validateRendered(ctx context.Context, rendered []byte, d
 		return err
 	}
 	noFile := func(string) ([]byte, error) { return nil, errors.New("rendered, not a file") }
-	findings, skipped, err := parseKubeconformOutput(out, v.opts.KubernetesVersion, noFile, origin)
+	findings, skipped, err := parseKubeconformReport(out, v.opts.KubernetesVersion, noFile, origin, dialect)
 	if err != nil {
 		return err
 	}
@@ -395,6 +406,10 @@ func helmLint(ctx context.Context, scope renderScope, chart string, tool ToolSpe
 	findings, recognised := parseHelmLint(out, chart, scope)
 	if err != nil && !recognised {
 		log.Printf("ERROR [scan/helm] lint %s: %v", chart, err)
+	}
+	repro, from := renderRepro(tool, "helm", "lint", chart)
+	for i := range findings {
+		findings[i].Repro, findings[i].RanFrom = repro, from
 	}
 	return findings
 }
@@ -420,7 +435,7 @@ func parseHelmLint(out []byte, chart string, scope renderScope) ([]Finding, bool
 			// Printed instead of the messages when the chart could not be
 			// loaded at all.
 			recognised = true
-			findings = append(findings, helmLintFinding(chart, SeverityHigh, strings.TrimPrefix(line, "Error ")))
+			findings = append(findings, helmLintFinding(chart, chart, SeverityHigh, strings.TrimPrefix(line, "Error ")))
 		default:
 			m := helmLintLine.FindStringSubmatch(line)
 			if m == nil {
@@ -429,9 +444,9 @@ func parseHelmLint(out []byte, chart string, scope renderScope) ([]Finding, bool
 			recognised = true
 			switch m[1] {
 			case "ERROR":
-				findings = append(findings, helmLintFinding(file(m[2]), SeverityHigh, m[3]))
+				findings = append(findings, helmLintFinding(chart, file(m[2]), SeverityHigh, m[3]))
 			case "WARNING":
-				findings = append(findings, helmLintFinding(file(m[2]), SeverityLow, m[3]))
+				findings = append(findings, helmLintFinding(chart, file(m[2]), SeverityLow, m[3]))
 			}
 		}
 	}
@@ -459,8 +474,9 @@ func helmLintPath(p, chart string, scope renderScope) string {
 	}
 }
 
-func helmLintFinding(file string, severity SeverityLevel, msg string) Finding {
+func helmLintFinding(chart, file string, severity SeverityLevel, msg string) Finding {
 	return Finding{
+		Steps:       helmLintSteps(file, chart),
 		ID:          HelmLintID,
 		Title:       msg,
 		Description: "helm lint reported this about the chart.",
@@ -484,12 +500,11 @@ func hasError(findings []Finding) bool {
 // renderFailure is a chart or an overlay that could not be rendered: nothing
 // in it was validated, and `helm install` or `kubectl apply -k` would fail the
 // same way.
-func renderFailure(source, dialect, file, title string, from ToolSource, err error) Finding {
-	detail := err.Error()
-	var exitErr *exitError
-	if errors.As(err, &exitErr) && exitErr.Stderr != "" {
-		detail = strings.TrimSpace(exitErr.Stderr)
-	}
+//
+// steps and repro are what the caller wrote for it (renderSteps, localRepro);
+// from is where the renderer ran.
+func renderFailure(source, dialect, file, title string, from ToolSource, steps []string, repro string, err error) Finding {
+	detail := failureDetail(err)
 	first, _, _ := strings.Cut(detail, "\n")
 	return Finding{
 		ID:          K8sRenderID,
@@ -497,11 +512,23 @@ func renderFailure(source, dialect, file, title string, from ToolSource, err err
 		Description: "The directory could not be rendered, so none of its resources were validated.",
 		Message:     detail,
 		Resolution:  renderResolution(source, from, detail),
+		Steps:       steps,
+		Repro:       repro,
+		RanFrom:     from,
 		Severity:    SeverityHigh,
 		Source:      source,
 		File:        file,
 		IaCType:     dialect,
 	}
+}
+
+// failureDetail is what a renderer printed when it failed, or the error itself.
+func failureDetail(err error) string {
+	var exitErr *exitError
+	if errors.As(err, &exitErr) && exitErr.Stderr != "" {
+		return strings.TrimSpace(exitErr.Stderr)
+	}
+	return err.Error()
 }
 
 // How to fix a chart or an overlay that does not render, in the renderer's own
@@ -535,7 +562,7 @@ func renderResolution(source string, from ToolSource, detail string) string {
 		return helmRenderResolution
 	}
 	advice := kustomizeRenderResolution
-	if strings.Contains(detail, "security; file") && strings.Contains(detail, "is not in or below") {
+	if isLoadRestrictor(detail) {
 		advice = loadRestrictorResolution
 	}
 	if from == ToolSourceContainer &&

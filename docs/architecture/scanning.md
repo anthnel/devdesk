@@ -280,6 +280,52 @@ no line, so it could feed neither the table's jump-to-line nor a fix.
   directory with its own kustomization or, when the deployment tool does the
   same, `scan.tools.kustomize.args: [--load-restrictor=LoadRestrictionsNone]`.
   The finding stays HIGH (DEVDESK-742).
+- **The findings DevDesk writes carry `Steps`, and some a `Repro`**
+  (DEVDESK-752). `Steps` are numbered, imperative sentences, one action each,
+  alternatives as separate steps; they are shown under `Do` before the
+  Resolution, which is not rewritten (the load restrictor's Resolution stays
+  byte for byte DEVDESK-742's). `K8S-RENDER` (`renderSteps`, steps.go): for
+  the load restrictor, `Reference a directory that has its own
+  kustomization.yaml, or` / `move the file below <dir>.`; for any other
+  kustomize failure `Run kustomize build <dir> and fix the first error it
+  reports.`, plus a step about the mount for an image that could not find a
+  path (the same condition as `mountResolution`); for a chart, `helm template`
+  and `helm dependency build`. `HELM-LINT` (`helmLintSteps`) had no Resolution:
+  its two steps are what the detail shows. `K8S-SCHEMA` (`schemaSteps`): one
+  step naming the field, the `apiVersion` and kind and the Kubernetes release
+  the validation used, and for a finding in rendered output a second one naming
+  the render command (`Render it with helm and validate the output against
+  Kubernetes 1.36.0.`). Secrets (Gitleaks and Trivy, `secretSteps`): revoke or
+  rotate, then remove it from the file; a new slice per finding.
+  `K8S-API-REMOVED`, `K8S-PARSE`, Trivy vulnerabilities, misconfigurations and
+  licenses, plumber and the build context carry no `Steps`, no `Repro`.
+- **`Repro` is one command, built only when the tool ran on this machine**
+  (`localRepro`, repro.go): the program, the arguments DevDesk wrote and the
+  paths, joined by single spaces, run from the scanned directory (the line
+  carries no `cd`). It is the line DevDesk built, not a copy of the run: the
+  user's own `scan.tools.*.args` are never in it (they may hold a secret, such
+  as `--set password=...` or a URL with a token), nor are the flags DevDesk
+  adds for itself (`-output json`, `-cache <dir>`). `K8S-RENDER`:
+  `kustomize build <dir>` or `helm template <chart>`; `HELM-LINT`:
+  `helm lint <chart>`; a `K8S-SCHEMA` finding of a plain file:
+  `kubeconform -strict -kubernetes-version <v> <file>`. A finding
+  found in rendered output has none (it was checked through a pipe), nor do
+  secrets (a re-scan of the whole repository would print them). Nothing is
+  quoted: `reproLine` refuses the whole line when a token is empty, holds a
+  blank or is not `PlainWords`, so a path with a space gives no `Repro`; it
+  also refuses a path (a positional token) that starts with `-`, which a
+  shell would read as an option once pasted. `PlainWords` refuses `[` and `]`
+  anywhere (a glob), and `~`, `^`, `%` and `=` at the head of a word (home
+  directory, history or glob negation, job, command path in zsh) while
+  keeping them inside one (`semver@^6.3.1`, `1:12.2.0~rc1-2`, `pkg==1.2`,
+  `--flag=value`). The
+  program is the plain tool name when `exec.LookPath` (the `lookPath` seam,
+  replaced in `TestMain`) resolves to the configured binary or when none is
+  configured, else the configured path.
+- **`RanFrom`** is the `ToolSource` (`binary` or `container`) of the findings
+  that one local command could reproduce, written next to `Repro`. It is how
+  the detail tells "the tool ran in a container, there is no `Repro`" from "no
+  plain command says it". Empty means unknown, as on every older result.
 - **A renderer in a container sees the target's git repository**
   (`renderScope`, DEVDESK-742): `git rev-parse --show-toplevel`, run in the
   target through the runner, names the root mounted read-only at `/scan`, and
@@ -649,6 +695,16 @@ thing to a calling agent through `scan_result` and stay the thing that measures
 the result — see `mcp.md`. A finite catalog of fixes for the recurring Dockerfile
 rules is phase B of §3.78 and does not exist yet.
 
+### Writing a Resolution, Steps and Repro for a new finding (proposed, to be confirmed)
+
+Proposed, not decided: the parser that builds a finding in `internal/scan` writes, beside its
+constructor, a `Resolution` (one paragraph) and, when the fix has distinct actions, `Steps`
+(imperative English US sentences, one action each, alternatives as separate steps, no key name,
+the tool or Kubernetes version when it decides the answer), and a `Repro` built only through
+`localRepro` (never assembled by hand, so the `PlainWords` refusal and the container rule always
+apply). Text written by a third party (Trivy, plumber) is never restructured: it stays in
+`Resolution` as the scanner wrote it. To be confirmed by the owner of the scan area.
+
 ### The finding detail (DEVDESK-750, DEVDESK-751)
 
 `Enter` on a finding opens a scrollable detail (`internal/ui/security/details.go`).
@@ -690,6 +746,7 @@ Where: k8s/deploy.yaml:12                       <- File[:Line], then Package, Jo
 Do: 1. <MissingFor | "Update x to 1.2">         <- numbered steps, then the Resolution, word for word
     <Resolution, wrapped, hanging>
 Run: $ go get golang.org/x/net@v0.23.0          <- one line, cut with an ellipsis; omitted with no command
+Repro: $ kustomize build kustomizations/dev     <- DevDesk's own findings only (DEVDESK-752)
 Effect: <rule.Title | Fixed in X>
 Warning: <rule.Warning>
                                                 <- blank
@@ -699,7 +756,7 @@ Refs:
 ```
 
 The builders are `detailsFix` (status, `detailsWhere`, `Do` from `fixSteps` and the
-Resolution, `detailsRun`, Effect, Warning), `detailsWhy`, `detailsOutput` and
+Resolution, `detailsRun`, `detailsRepro`, Effect, Warning), `detailsWhy`, `detailsOutput` and
 `detailsReferences`, each under 50 lines. The Fix block is written in `ColorText` alone
 and its labels in `theme.DetailLabelStyle` (bold, `ColorText`): `ColorDim`, `ColorSubTitleFg`,
 `ColorTitleFg` and `ColorWarn` fall under 4.5:1 on several shipped themes, so the word
@@ -717,6 +774,21 @@ finding keeps its text, the scan cache is untouched, and
 lines` (wrapped lines, not source lines). A Message equal to the title or to the
 description is not repeated. Widths are measured with `x/ansi`, as the viewport
 does, never with the `runewidth`-based `theme` helpers.
+
+**Steps and Repro in the detail (DEVDESK-752).** `fixSteps` puts `f.Steps` first, then the
+steps it has always built; `hasGuidance` counts `Steps`, so a `HELM-LINT` finding with steps
+and no Resolution is `Manual`, not `No guidance available` (a result cached before DEVDESK-752
+still says the latter until it is scanned again). `detailsRepro` writes `Repro: $ <command>` under
+`Run`, on one line cut with `theme.Ellipsis`, in `ColorText`, naming no key (Rule 134); when
+`RanFrom` is `container` the line reads `Repro: none: the tool ran in a container, not on this
+machine`, and with no `Repro` for any other reason there is no line. `reproCommand` is to the
+`Repro` what `runCommand` is to the `FixCommand`: a `Repro` read back from a cache goes through
+`scan.PlainWords` again at display time (only blanks are trimmed, so a trailing line break is
+refused), and a finding that ran in a container has none whatever its cache says. `copyCommand`
+is what `Y` copies: the command under `Run`, else the `Repro`, else the reason
+(`reasonToolInContainer`, else `reasonNoCommand`); the header description stays `Copy cmd`.
+DevDesk never runs either command: `reproCommand`, `copyCommand` and `detailsRepro` are roots of
+`TestTheCopiedCommandIsNeverRun` in `never_run_guard_test.go`.
 
 **The fix status.** `fixStatusOf(f, onDisk)` (`details_fix.go`) says it in words, in a closed
 vocabulary, never in a colour or a key name (Rules 130, 134). Every label is one of the five
@@ -749,7 +821,7 @@ are gone.
 (`fixInstruction`, same bytes as before: the cache is unchanged). `fixAction` shows a
 command as `Run: <cmd>` and a sentence as a step under `Do`. `runCommand(f)` is the one
 computation behind the `Run` line and `Y`: the trimmed `FixCommand` when `fixAction` says `Run`
-and it is plain words (`plainWords`), `("", false)` otherwise. It refuses a line break, any control
+and it is plain words (`scan.PlainWords`, moved from the detail so the scan and the detail agree on one definition), `("", false)` otherwise. It refuses a line break, any control
 character (`unicode.IsControl`: an escape sequence, a tab, a carriage return, a NUL), any character
 with no visible form or a blank other than a single space (`!unicode.IsPrint`: no-break space,
 zero-width and right-to-left marks, line separator) and any shell metacharacter
@@ -782,7 +854,7 @@ availabilities reads the disk, so a header redraw does no I/O.
 |---|---|---|---|
 | `enter` | `canOpenFindingFile` (`findingFilePath`) | `reasonNoFile`, `reasonFileOutsideTarget`, `reasonFileNotOnDisk` | in the Cmd, `staysInside` follows the links, then `uiviewer.OpenRequestMsg{Source: viewer.NewFileSource(path)}`; the viewer reports a missing file. A link that leaves the target gives `FindingFileRefusedMsg` and a Warn with `reasonFileLinkOutsideTarget` |
 | `ctrl+o` | `canFixMisconfig` | `reasonNotMisconfigTab`, `reasonFileNotOnDisk`, the `Declines` reason, `noFixReason` | `prepareMisconfigFix`: the Misconfigurations tab's preview, confirmation (default No), write and re-scan |
-| `Y` | `canCopyFixCommand` (`runCommand`) | `reasonNoCommand` | `writeClipboard(command)` in the Cmd, then `FixCommandCopiedMsg` |
+| `Y` | `canCopyFixCommand` (`copyCommand`: `runCommand`, else `reproCommand`) | `reasonNoCommand`, `reasonToolInContainer` | `writeClipboard(command)` in the Cmd, then `FixCommandCopiedMsg` |
 | `X` | `canExclude` | `reasonNotASecret`, `reasonNotGitleaks` | `handleIgnoreSecret`: the confirmation of the results state, byte for byte |
 
 `subjectFinding()` is what these actions act on: the finding on screen in the details state
@@ -1747,6 +1819,16 @@ elsewhere can differ from what this context would produce. That is the accepted
 cost: the `Scanned` column carries the age, and `S` rescans. The secret verdict
 is unaffected — `Sensitive` is `nil` when no stage looked, which is what a scan
 run with secrets off writes anyway.
+
+**`Steps`, `Repro` and `RanFrom` (DEVDESK-752) need no cache version.** The three fields of
+`scan.Finding` are `omitempty`, like `Class`, `EndLine` and `IaCType`: `encoding/json` ignores a
+field missing from the file (an older result read by this build gives no steps, no `Repro`, no
+`RanFrom`) and one it does not know (a newer result read by an older build), so
+`workspace-results/*.json` and `image-results/*.json` keep their shape, and a version bump (which
+would force a re-scan of every target for three optional fields) was refused. The two index files
+hold no findings and are untouched. The cost is accepted: a finding scanned before DEVDESK-752
+shows no steps and no `Repro` until its target is scanned again
+(`internal/cache/steps_compat_test.go`).
 
 Cache invalidation: `S` (single) overwrites; `A` (all) rescans, and purges the cache first when its checkbox is ticked.
 

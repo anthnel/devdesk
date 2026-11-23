@@ -63,16 +63,15 @@ func (m Model) canOpenFindingFile() shortcut.Availability {
 	return a
 }
 
-// canCopyFixCommand says whether Y has a command to copy.
+// canCopyFixCommand says whether Y has a command to copy: the one under Run, else
+// the Repro line.
 func (m Model) canCopyFixCommand() shortcut.Availability {
 	f, ok := m.subjectFinding()
 	if !ok {
 		return shortcut.Unavailable(reasonNoFinding)
 	}
-	if _, ok := runCommand(f); !ok {
-		return shortcut.Unavailable(reasonNoCommand)
-	}
-	return shortcut.Availability{}
+	_, a := copyCommand(f)
+	return a
 }
 
 // FindingFileRefusedMsg reports that enter did not open the finding's file, and
@@ -134,14 +133,15 @@ func evalExisting(path string) (string, error) {
 	return filepath.Join(resolved, filepath.Base(path)), nil
 }
 
-// copyFixCommand puts the command under Run on the clipboard, whole. It never
-// runs it. The command is copied into the Cmd (Rule 110).
+// copyFixCommand puts the command under Run, or else the Repro line, on the
+// clipboard, whole. It never runs it. The command is copied into the Cmd
+// (Rule 110).
 func (m Model) copyFixCommand() (tea.Model, tea.Cmd) {
 	if a := m.canCopyFixCommand(); !a.Enabled() {
 		return m, m.footer.Warn(a.Reason)
 	}
 	f, _ := m.subjectFinding()
-	command, _ := runCommand(f)
+	command, _ := copyCommand(f)
 	return m, func() tea.Msg {
 		return FixCommandCopiedMsg{Command: command, Err: writeClipboard(command)}
 	}

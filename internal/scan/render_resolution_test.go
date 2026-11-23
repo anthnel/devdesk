@@ -67,7 +67,7 @@ func TestARenderFailureIsResolvedInItsRenderersTerms(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			f := renderFailure(tt.source, tt.dialect, "x/kustomization.yaml", "Overlay does not build", tt.from,
-				&exitError{Code: 1, Stderr: tt.stderr})
+				nil, "", &exitError{Code: 1, Stderr: tt.stderr})
 
 			if f.Severity != SeverityHigh || f.ID != K8sRenderID {
 				t.Errorf("finding = %s %s, want %s HIGH", f.ID, f.Severity, K8sRenderID)
