@@ -423,6 +423,7 @@ func (m Model) handleResultsState(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 		}
 		return m, func() tea.Msg { return BackToOriginMsg{Origin: m.OriginView} }
 	case "enter":
+		var preview tea.Cmd
 		if finding, ok := m.findingsTable.Selected(); ok {
 			// The details view is about a finding, not about a row index — an
 			// index would name a different one the moment the list changed
@@ -430,10 +431,11 @@ func (m Model) handleResultsState(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 			m.selectedFinding = &finding
 			m.state = StateDetails
 			m.sizeDetails()
+			preview = m.startChangePreview()
 			m.detailsViewport.SetContent(m.buildDetailsContent())
 			m.detailsViewport.GotoTop()
 		}
-		return m, nil
+		return m, preview
 	case "ctrl+r":
 		m.activeTab = TabCVE
 		return m.goHome()

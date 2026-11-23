@@ -1,8 +1,10 @@
 package git
 
 import (
+	"context"
 	"path/filepath"
 	"strings"
+	"time"
 )
 
 // FileState is what git knows about one file: whether an edit to it can be
@@ -25,6 +27,9 @@ const (
 	FileClean
 )
 
+// stateTimeout bounds the whole of StateOf.
+var stateTimeout = 5 * time.Second
+
 // StateOf reports what git knows about the file at path.
 //
 // A directory that is not a working copy is an answer (FileOutsideRepo), not an
@@ -37,17 +42,23 @@ func StateOf(path string) (FileState, error) {
 		dir = "."
 	}
 
-	if _, err := run(dir, "", "rev-parse", "--git-dir"); err != nil {
+	ctx, cancel := context.WithTimeout(context.Background(), stateTimeout)
+	defer cancel()
+
+	if _, err := runReadOnly(ctx, dir, "rev-parse", "--git-dir"); err != nil {
 		if isNotARepository(err) {
 			return FileOutsideRepo, nil
 		}
 		return FileOutsideRepo, err
 	}
-	if _, err := run(dir, "", "ls-files", "--error-unmatch", "--", name); err != nil {
+	if _, err := runReadOnly(ctx, dir, "ls-files", "--error-unmatch", "--", name); err != nil {
+		if ctx.Err() != nil {
+			return FileOutsideRepo, ctx.Err()
+		}
 		// A path git does not track is a failure of the command, by design.
 		return FileUntracked, nil
 	}
-	out, err := run(dir, "", "status", "--porcelain", "--", name)
+	out, err := runReadOnly(ctx, dir, "status", "--porcelain", "--", name)
 	if err != nil {
 		return FileClean, err
 	}

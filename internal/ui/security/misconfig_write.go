@@ -4,14 +4,13 @@ import (
 	"errors"
 	"fmt"
 	"log"
-	"path/filepath"
 	"strings"
+	"time"
 
 	tea "charm.land/bubbletea/v2"
 
 	"github.com/anthnel/devdesk/internal/cache"
 	"github.com/anthnel/devdesk/internal/command"
-	"github.com/anthnel/devdesk/internal/git"
 	"github.com/anthnel/devdesk/internal/jobs"
 	"github.com/anthnel/devdesk/internal/patch"
 	"github.com/anthnel/devdesk/internal/remediation"
@@ -66,6 +65,9 @@ type MisconfigFixPreparedMsg struct {
 	// every container, or the zero value for a fix of one occurrence
 	// (DEVDESK-688).
 	Scope remediation.Scope
+	// Lines is the diff as the preview and the confirmation show it: markers,
+	// sanitized, neither capped nor cut (DEVDESK-753).
+	Lines []string
 	Err   error
 }
 
@@ -101,8 +103,11 @@ func (m Model) canFixMisconfig() shortcut.Availability {
 	if !ok {
 		return shortcut.Unavailable(reasonNoFinding)
 	}
-	_, a := misconfigFixAvailability(f, m.targetOnDisk())
-	return a
+	if _, a := misconfigFixAvailability(f, m.targetOnDisk()); !a.Enabled() {
+		return a
+	}
+	// What the stored preview knows, with no disk read (DEVDESK-753).
+	return m.previewVerdict(f)
 }
 
 // misconfigFixAvailability is what canFixMisconfig answers for a finding once a
@@ -154,56 +159,16 @@ func (m Model) prepareMisconfigFix() (tea.Model, tea.Cmd) {
 		return m, m.footer.Warn(a.Reason)
 	}
 	f, _ := m.subjectFinding()
-	return m, prepareMisconfigFixCmd(m.targetPath, f)
+	return m, prepareMisconfigFixCmd(m.targetPath, f, m.scannedAt())
 }
 
-// prepareMisconfigFixCmd reads the file, asks the catalog for the edits and
-// applies them. The finding is copied in (Rule 110).
+// prepareMisconfigFixCmd runs computeMisconfigFix off Update (Rule 110). The
+// finding is copied in. scannedAt is when the result on screen was measured.
 //
 // A rule that declines here is not an error: it is an answer, and it reaches the
 // footer as a warning rather than as a failure.
-func prepareMisconfigFixCmd(target string, f scan.Finding) tea.Cmd {
-	return func() tea.Msg {
-		rule, ok := remediation.FixFor(f)
-		if !ok {
-			return MisconfigFixPreparedMsg{Target: target, Rule: f.ID, Err: errDeclined{noFixReason(f)}}
-		}
-		rel, reason := rule.FileFor(target, f)
-		if reason != "" {
-			return MisconfigFixPreparedMsg{Target: target, Rule: f.ID, Err: errDeclined{reason}}
-		}
-		path := filepath.Join(target, filepath.FromSlash(rel))
-		original, err := readFile(path)
-		if err != nil {
-			return MisconfigFixPreparedMsg{Target: target, Rule: f.ID, Err: err}
-		}
-		edits, reason := rule.Fix(original, f)
-		if reason != "" {
-			return MisconfigFixPreparedMsg{Target: target, Rule: f.ID, Err: errDeclined{reason}}
-		}
-		updated, err := patch.Rewrite(original, edits)
-		if err != nil {
-			return MisconfigFixPreparedMsg{Target: target, Rule: f.ID, Err: fmt.Errorf("%s: %w", rel, err)}
-		}
-		diff, err := patch.Diff(rel, original, edits)
-		if err != nil {
-			return MisconfigFixPreparedMsg{Target: target, Rule: f.ID, Err: fmt.Errorf("%s: %w", rel, err)}
-		}
-		file := preparedWrite{File: rel, Path: path, Original: original, Updated: updated}
-		if file.State, err = git.StateOf(path); err != nil {
-			log.Printf("ERROR [security/misconfig] git state of %s: %v", rel, err)
-			file.StateErr = true
-		}
-		body := rule.Title + "\n\n"
-		if rule.Warning != "" {
-			body += "Warning: " + rule.Warning + "\n\n"
-		}
-		return MisconfigFixPreparedMsg{
-			Target: target, File: file, FindingFile: f.File,
-			Rule: f.ID, Instance: instanceOf(f), Body: body + diff,
-			Scope: rule.ScopeOf(updated, edits),
-		}
-	}
+func prepareMisconfigFixCmd(target string, f scan.Finding, scannedAt time.Time) tea.Cmd {
+	return func() tea.Msg { return computeMisconfigFix(target, f, scannedAt) }
 }
 
 // errDeclined carries a catalog refusal through the same channel as a failure,
@@ -224,7 +189,7 @@ func (m Model) handleMisconfigFixPrepared(msg MisconfigFixPreparedMsg) (tea.Mode
 		return m, m.footer.Warn(d.reason)
 	}
 	if msg.Err != nil {
-		log.Printf("ERROR [security/misconfig] prepare fix: %v", msg.Err)
+		log.Printf("ERROR [security/misconfig] prepare fix: %s", withoutPath(msg.Err))
 		return m, m.footer.Error("Could not prepare the fix — the file may have changed, check logs")
 	}
 	m.misconfigPending = &msg.File
@@ -241,7 +206,14 @@ func (m Model) handleMisconfigFixPrepared(msg MisconfigFixPreparedMsg) (tea.Mode
 // land in the file. What the user agrees to is the diff, so the diff is what the
 // modal shows — followed by what git will and will not be able to undo.
 func misconfigConfirmationText(f preparedWrite, body string) string {
-	return body + "\n" + fmt.Sprintf("%s: %s\n", f.File, gitAdvice(f))
+	return body + "\n" + fmt.Sprintf("%s: %s\n", shownName(f.File), gitAdvice(f))
+}
+
+// shownName makes a file name, which the scanned repository chose, safe to put
+// in the confirmation or the footer: no escape sequence, no control character,
+// and one line.
+func shownName(name string) string {
+	return strings.ReplaceAll(withoutControlSpace(name), "\n", " ")
 }
 
 // handleMisconfigFixConfirmed runs the write the modal was about.
@@ -256,9 +228,20 @@ func (m Model) handleMisconfigFixConfirmed() (tea.Model, tea.Cmd) {
 	return m, writeMisconfigFixCmd(m.targetPath, ref, *file)
 }
 
+// errLeavesTarget is the refusal of a write whose path now leads out of the
+// scanned directory: a link was put there after the preview.
+var errLeavesTarget = errors.New("the file is now reached through a link that leaves the scanned directory")
+
 func writeMisconfigFixCmd(target string, ref misconfigFindingRef, f preparedWrite) tea.Cmd {
 	return func() tea.Msg {
-		err := patch.WriteIfUnchanged(f.Path, f.Original, f.Updated)
+		// The preview checked the path, and the content check below would pass for
+		// a link to a file holding the same bytes: look again, as late as possible.
+		var err error
+		if staysInside(target, f.Path) {
+			err = patch.WriteIfUnchanged(f.Path, f.Original, f.Updated)
+		} else {
+			err = errLeavesTarget
+		}
 		return MisconfigFixWrittenMsg{
 			Target: target, File: f.File, FindingFile: ref.File,
 			Rule: ref.Rule, Instance: ref.Instance, Scope: ref.Scope, Err: err,
@@ -294,7 +277,7 @@ func (m Model) handleMisconfigFixWritten(msg MisconfigFixWrittenMsg) (tea.Model,
 	v := misconfigVerify{Target: msg.Target, Rule: msg.Rule, File: msg.FindingFile, Instance: msg.Instance, Scope: msg.Scope}
 	m.misconfigVerifying = &v
 	scan := m.startMisconfigVerification(v)
-	footer := m.footer.Info(fmt.Sprintf("Fixed %s — re-scanning to confirm %s is gone", msg.File, msg.Rule))
+	footer := m.footer.Info(fmt.Sprintf("Fixed %s — re-scanning to confirm %s is gone", shownName(msg.File), msg.Rule))
 	return m, tea.Batch(scan, footer)
 }
 
@@ -319,11 +302,15 @@ func (m Model) handleScanFinishedForFix(msg InventoryScanFinishedMsg) (tea.Model
 // reportFailedFix sets the footer on the model it is called on, which is why it
 // takes a pointer: on a copy the message would be set and then thrown away.
 func (m *Model) reportFailedFix(msg MisconfigFixWrittenMsg) tea.Cmd {
+	name := shownName(msg.File)
 	if errors.Is(msg.Err, patch.ErrChanged) {
-		return m.footer.Error(fmt.Sprintf("%s changed since the preview — review it again", msg.File))
+		return m.footer.Error(fmt.Sprintf("%s changed since the preview — review it again", name))
 	}
-	log.Printf("ERROR [security/misconfig] write %s: %v", msg.File, msg.Err)
-	return m.footer.Error(fmt.Sprintf("Failed to write %s — check logs", msg.File))
+	if errors.Is(msg.Err, errLeavesTarget) {
+		return m.footer.Error(fmt.Sprintf("Nothing was written to %s — %s", name, errLeavesTarget))
+	}
+	log.Printf("ERROR [security/misconfig] write %s: %s", msg.File, withoutPath(msg.Err))
+	return m.footer.Error(fmt.Sprintf("Failed to write %s — check logs", name))
 }
 
 // ── Verifying (§3.78, phase B3) ──────────────────────────────────────────────
@@ -495,13 +482,23 @@ func (m Model) handleMisconfigVerified(msg MisconfigVerifiedMsg) (tea.Model, tea
 		return m, nil
 	}
 	m.misconfigVerifying = nil
+	// The file was rewritten whatever the re-scan managed to say: the detail
+	// that is still open asks for its change again (DEVDESK-753).
 	if msg.Err != nil {
-		log.Printf("ERROR [security/misconfig] verify %s: %v", msg.Rule, msg.Err)
-		return m, m.footer.Error("Could not read the verification scan — check logs")
+		log.Printf("ERROR [security/misconfig] verify %s: %s", msg.Rule, withoutPath(msg.Err))
+		return m, tea.Batch(m.restartChangePreview(), m.footer.Error("Could not read the verification scan — check logs"))
 	}
 	if msg.Result != nil {
 		m.setResult(msg.Result)
 	}
+	preview := m.restartChangePreview()
+	verdict := m.verdictFooter(msg)
+	return m, tea.Batch(preview, verdict)
+}
+
+// verdictFooter sets the footer to what the re-scan found, and returns its timer.
+func (m *Model) verdictFooter(msg MisconfigVerifiedMsg) tea.Cmd {
+	msg.File = shownName(msg.File)
 	if !msg.Cleared {
 		// Not a failure: the file was written, and the rule still fires. Saying
 		// so is the only honest answer, and it is why the scan exists.
@@ -509,11 +506,11 @@ func (m Model) handleMisconfigVerified(msg MisconfigVerifiedMsg) (tea.Model, tea
 		if len(ids) == 0 {
 			ids = []string{msg.Rule}
 		}
-		return m, m.footer.Warn(fmt.Sprintf("%s still reported in %s after the fix", strings.Join(ids, " and "), msg.File))
+		return m.footer.Warn(fmt.Sprintf("%s still reported in %s after the fix", strings.Join(ids, " and "), msg.File))
 	}
 	if len(msg.Scope.Rules) > 0 {
-		return m, m.footer.Info(fmt.Sprintf("%s cleared for the whole pod in %s — confirmed by a re-scan",
+		return m.footer.Info(fmt.Sprintf("%s cleared for the whole pod in %s — confirmed by a re-scan",
 			strings.Join(msg.Scope.Rules, " and "), msg.File))
 	}
-	return m, m.footer.Info(fmt.Sprintf("%s cleared in %s — confirmed by a re-scan", msg.Rule, msg.File))
+	return m.footer.Info(fmt.Sprintf("%s cleared in %s — confirmed by a re-scan", msg.Rule, msg.File))
 }

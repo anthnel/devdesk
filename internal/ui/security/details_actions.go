@@ -100,16 +100,16 @@ func (m Model) openFindingFile() (tea.Model, tea.Cmd) {
 // root, with every link on it followed too. A part of the path that does not
 // exist is not a link: the existing part is resolved and the rest kept, so a
 // missing file is still for the viewer to report. A path or a root that cannot be
-// resolved for another reason (a permission) is not refused: the viewer cannot
-// read it either.
+// resolved for another reason (a permission, a loop of links) is refused: what is
+// not resolved is not proven to stay inside (DEVDESK-753).
 func staysInside(root, path string) bool {
 	realRoot, err := filepath.EvalSymlinks(filepath.Clean(root))
 	if err != nil {
-		return true
+		return false
 	}
 	realPath, err := evalExisting(path)
 	if err != nil {
-		return true
+		return false
 	}
 	rel, err := filepath.Rel(realRoot, realPath)
 	return err == nil && rel != ".." && !strings.HasPrefix(rel, ".."+string(filepath.Separator))

@@ -174,6 +174,9 @@ func (m Model) status() sharedcomponents.Status {
 		if status, ok := m.verifyingStatus(); ok {
 			return status
 		}
+		if m.previewingStatus() {
+			return sharedcomponents.Status{Text: preparingFooter, Activity: true}
+		}
 		vp := m.detailsViewport
 		return sharedcomponents.Status{Text: scrollPosition(vp.YOffset(), vp.VisibleLineCount(), vp.TotalLineCount())}
 	}

@@ -445,7 +445,7 @@ func TestAMessageThatRepeatsTheTitleOrTheDescriptionIsNotShownAgain(t *testing.T
 
 // blockLabels are the labels of the Fix block and of the sections after it, in
 // the order the detail shows them.
-var blockLabels = []string{"Fix:", "Where:", "Do:", "Run:", "Effect:", "Warning:", "Why:", "Output:", "Refs:"}
+var blockLabels = []string{"Fix:", "Where:", "Do:", "Run:", "Effect:", "Warning:", "Change:", "Why:", "Output:", "Refs:"}
 
 // labelAt is the index of the first line that starts with label, or -1.
 func labelAt(lines []string, label string) int {

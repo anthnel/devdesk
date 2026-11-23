@@ -23,9 +23,15 @@ import (
 func fixDetail(t *testing.T) (Model, string) {
 	t.Helper()
 	m, dir := misconfigModel(t, fixableDockerfile, "AVD-DS-0002")
-	m = feed(t, m, testutil.Key("enter"))
+	m, cmd := step(t, m, testutil.Key("enter"))
 	if m.state != StateDetails || m.selectedFinding == nil {
 		t.Fatal("enter did not open the detail")
+	}
+	// The detail asks for the preview of the change when it opens (DEVDESK-753):
+	// answered here, as the runtime would, so that nothing is left in flight and
+	// the footer has no preparation to announce.
+	if cmd != nil {
+		m = feed(t, m, run(t, cmd))
 	}
 	return m, dir
 }

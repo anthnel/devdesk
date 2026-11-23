@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"os"
 	"os/exec"
 	"sort"
 	"strconv"
@@ -302,11 +303,44 @@ func (w *capWriter) Write(p []byte) (int, error) {
 	return w.buf.Write(p)
 }
 
+// hardening is the configuration a read-only command runs with, ahead of its
+// own arguments: the repository is not trusted, and its .git/config or hooks
+// must not make a read run a program of its choosing (DEVDESK-753). A -c option
+// wins over every configuration file. /dev/null also works for git on Windows,
+// which maps it itself.
+//
+// It stops the two hooks a status reaches without any user action, the file
+// system monitor and the repository's hooks. Other settings that name a program
+// (a filter driver, an external diff) are not covered.
+//
+// Only runReadOnly applies it. Sync, clone, fetch and pull go through
+// runContextMax, which leaves the repository's hooks alone: a post-merge hook
+// such as git-lfs's is part of what the user asked for when syncing.
+func hardening() []string {
+	return []string{"-c", "core.fsmonitor=false", "-c", "core.hooksPath=" + os.DevNull}
+}
+
 // runContextMax is runContext with a ceiling on what stdout may hold.
 func runContextMax(ctx context.Context, repoPath, token string, max int64, args ...string) (string, error) {
+	return runGit(ctx, false, repoPath, token, max, args...)
+}
+
+// runReadOnly runs a command that only reads a repository, with the hardening
+// above and without taking the index lock: a status must not make a concurrent
+// git of the user fail for no reason.
+func runReadOnly(ctx context.Context, repoPath string, args ...string) (string, error) {
+	return runGit(ctx, true, repoPath, "", 0, args...)
+}
+
+func runGit(ctx context.Context, readOnly bool, repoPath, token string, max int64, args ...string) (string, error) {
+	env := nonInteractiveEnv(token)
+	if readOnly {
+		args = append(hardening(), args...)
+		env = append(env, "GIT_OPTIONAL_LOCKS=0")
+	}
 	cmd := exec.CommandContext(ctx, "git", args...)
 	cmd.Dir = repoPath
-	cmd.Env = nonInteractiveEnv(token)
+	cmd.Env = env
 
 	stdout := &capWriter{max: max}
 	var stderr strings.Builder

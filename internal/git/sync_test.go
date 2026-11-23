@@ -4,6 +4,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"testing"
 	"time"
@@ -383,5 +384,29 @@ func assertTagFollowsUpstream(t *testing.T, upstream, working, tag string) {
 	want := strings.TrimSpace(gitIn(t, upstream, "rev-parse", tag))
 	if got := strings.TrimSpace(gitIn(t, working, "rev-parse", tag)); got != want {
 		t.Errorf("local %s = %s, want the upstream's %s", tag, got, want)
+	}
+}
+
+// Sync is not a read of an untrusted repository: the hooks of the working copy
+// are part of what a pull does (git-lfs installs a post-merge hook), so the
+// read-only hardening must not reach it.
+func TestSyncStillRunsThePostMergeHookOfTheRepository(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("the hook is a POSIX shell script")
+	}
+	upstream, working := clonePair(t)
+	marker := filepath.Join(t.TempDir(), "ran")
+	hook := filepath.Join(working, ".git", "hooks", "post-merge")
+	if err := os.WriteFile(hook, []byte("#!/bin/sh\necho ran > '"+marker+"'\n"), 0o700); err != nil {
+		t.Fatal(err)
+	}
+	commitFile(t, upstream, "second.txt", "two\n")
+
+	result, err := Sync(working, SyncOptions{})
+	if err != nil || result.Outcome != SyncUpdated {
+		t.Fatalf("Sync = %v, %v (reason %q); want SyncUpdated", result.Outcome, err, result.Reason)
+	}
+	if _, err := os.Stat(marker); err != nil {
+		t.Errorf("Sync did not run the post-merge hook: %v", err)
 	}
 }

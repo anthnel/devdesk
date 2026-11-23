@@ -309,7 +309,12 @@ func TestFixStatusAndTheShortcutAgree(t *testing.T) {
 			t.Run(f.ID+"/"+string(kind), func(t *testing.T) {
 				m := misconfigModelFor(t, f, kind)
 				enabled := m.canFixMisconfig().Enabled()
-				status := fixStatusOf(f, onDisk)
+				// m.fixStatus is the Fix line of the detail: the same computation plus the
+				// stored preview, of which a results state has none (DEVDESK-753).
+				status := m.fixStatus(f)
+				if want := fixStatusOf(f, onDisk); status != want {
+					t.Errorf("fixStatus = %+v with no stored preview, fixStatusOf = %+v", status, want)
+				}
 				if want := status.State == fixBuiltIn; enabled != want {
 					t.Errorf("canFixMisconfig enabled = %v, fixStatusOf = %+v (%q)", enabled, status, status.Label())
 				}
