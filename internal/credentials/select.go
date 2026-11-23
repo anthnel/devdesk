@@ -189,7 +189,10 @@ func gitHelperUsable() (string, bool) {
 	ctx, cancel := context.WithTimeout(context.Background(), gitConfigTimeout)
 	defer cancel()
 
-	cmd, cleanup, err := gitCommand(ctx, "config", "--get-all", "credential.helper")
+	// --get-regexp also lists the helpers scoped to a URL
+	// (credential.<url>.helper), which --get-all credential.helper does not;
+	// --null keeps a value of spaces apart from an empty one.
+	cmd, cleanup, err := gitCommand(ctx, "config", "--null", "--get-regexp", `^credential\..*helper$`)
 	if err != nil {
 		return "", false
 	}
@@ -203,33 +206,49 @@ func gitHelperUsable() (string, bool) {
 	return pickHelper(activeHelpers(stdout.String()))
 }
 
-// activeHelpers returns the helpers git will call, in order. An empty value
-// resets the list (gitcredentials(7)), so only what follows the last one
-// counts.
-func activeHelpers(output string) []string {
-	var active []string
-	for _, line := range strings.Split(strings.TrimSuffix(output, "\n"), "\n") {
-		line = strings.TrimSpace(line)
-		if line == "" {
-			active = nil
+// activeHelpers returns the helpers git may call, plain then scoped to a URL,
+// from the output of
+// `git config --null --get-regexp` (entries `key\nvalue\x00`).
+//
+// An exactly empty credential.helper resets the list (gitcredentials(7)), so
+// only the plain helpers that follow the last one count. A value of spaces is
+// not a reset: git runs it as a helper and keeps the ones before it. Helpers
+// scoped to a URL (credential.<url>.helper) are all kept, whatever URL they
+// name and whatever reset follows: deciding which ones git would apply to the
+// forge's URL is git's matching logic, and erring on the side of seeing too
+// many only ever refuses git as a backend. A scoped helper is checked for
+// refusal but never chosen: nothing says it applies to the forge's URL, and a
+// helper that does not would make git store nothing while `approve` succeeds.
+func activeHelpers(output string) (plain, scoped []string) {
+	for entry := range strings.SplitSeq(output, "\x00") {
+		key, value, hasValue := strings.Cut(entry, "\n")
+		if key == "" {
 			continue
 		}
-		active = append(active, line)
+		if strings.ToLower(key) != "credential.helper" {
+			scoped = append(scoped, value)
+			continue
+		}
+		if hasValue && value == "" {
+			plain = nil
+			continue
+		}
+		plain = append(plain, value)
 	}
-	return active
+	return plain, scoped
 }
 
-// pickHelper refuses the list when any helper is refused (refusedHelper),
-// and otherwise names the last usable one: git resolves the last helper that
-// answers.
-func pickHelper(helpers []string) (string, bool) {
-	for _, h := range helpers {
+// pickHelper refuses git when any helper, plain or scoped, is refused
+// (refusedHelper), and otherwise names the last usable plain one: git resolves
+// the last helper that answers.
+func pickHelper(plain, scoped []string) (string, bool) {
+	for _, h := range append(plain[:len(plain):len(plain)], scoped...) {
 		if refusedHelper(h) {
 			return "", false
 		}
 	}
-	for i := len(helpers) - 1; i >= 0; i-- {
-		if name, ok := usableHelperName(helpers[i]); ok {
+	for i := len(plain) - 1; i >= 0; i-- {
+		if name, ok := usableHelperName(plain[i]); ok {
 			return name, true
 		}
 	}

@@ -260,6 +260,25 @@ command of that repository's author, which was selected as the backend, handed t
 token on `approve`, and run on every `fill` at launch.
 `TestGitIgnoresTheHelperOfTheWorkingDirectoryRepository` starts from such a repository.
 
+### Which git helpers make git a backend (DEVDESK-745)
+
+`gitHelperUsable` reads `git config --null --get-regexp '^credential\..*helper$'` (from
+the neutral directory above), which lists the helpers scoped to a URL
+(`[credential "https://…"] helper = …`) that `--get-all credential.helper` misses, and
+follows `include.path` as git does (`TestGitHelperUsableFollowsIncludes`). git is
+refused as a backend when any listed helper is `store` (plaintext) or `cache` (memory
+with a timeout: it persists nothing), by name, path or shell command, ignoring case:
+`approve` hands the secret to every helper, not only the one DevDesk names. Only an
+exactly empty `helper =` resets the list; a value of spaces is a helper for git and
+does not hide a `store` before it. A scoped helper is checked but never chosen, since
+nothing says it applies to the forge's URL.
+
+Not covered: a `store` reached by another mechanism than a `credential.helper` key (a
+wrapper script whose name does not say `credential-store`, a helper that writes its
+own plaintext file, `GIT_ASKPASS`, which only answers prompts and is disabled by
+`GIT_TERMINAL_PROMPT=0`). The read-back of the migration (below) protects the YAML copy
+in those cases; it does not stop a helper from also keeping a plaintext copy.
+
 ### Testing code that reaches the secret store
 
 DEVDESK-610. `KeyringStorage` and `KeyringAvailable` call the host store through
