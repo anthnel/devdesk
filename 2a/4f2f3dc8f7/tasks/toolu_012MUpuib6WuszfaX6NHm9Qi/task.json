@@ -1,0 +1,15 @@
+{
+  "tool_use_id": "toolu_012MUpuib6WuszfaX6NHm9Qi",
+  "agent_id": "a5a367c651dbf0bff",
+  "subagent_type": "project-coder",
+  "task_description": "Vert DEVDESK-752",
+  "token_usage": {
+    "input_tokens": 58,
+    "cache_creation_tokens": 143721,
+    "cache_read_tokens": 2998389,
+    "output_tokens": 24527,
+    "api_call_count": 29
+  },
+  "started_at": "2026-11-23T20:53:24.396826133+01:00",
+  "completed_at": "2026-11-23T21:00:21.068503279+01:00"
+}

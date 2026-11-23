@@ -1,0 +1,50 @@
+{
+  "cli_version": "0.13.2",
+  "checkpoint_id": "2a4f2f3dc8f7",
+  "strategy": "manual-commit",
+  "branch": "feat/sec-detail-repro-752",
+  "checkpoints_count": 12,
+  "files_touched": [
+    "internal/ui/security/details_actions.go",
+    "internal/ui/security/details_command_safety_test.go",
+    "internal/ui/security/never_run_guard_test.go"
+  ],
+  "sessions": [
+    {
+      "metadata": "/2a/4f2f3dc8f7/0/metadata.json",
+      "transcript": "/2a/4f2f3dc8f7/0/full.jsonl",
+      "compact_transcript": "/2a/4f2f3dc8f7/0/transcript.jsonl",
+      "content_hash": "/2a/4f2f3dc8f7/0/content_hash.txt",
+      "prompt": "/2a/4f2f3dc8f7/0/prompt.txt"
+    }
+  ],
+  "token_usage": {
+    "input_tokens": 76,
+    "cache_creation_tokens": 87342,
+    "cache_read_tokens": 6908084,
+    "output_tokens": 28016,
+    "api_call_count": 26,
+    "subagent_tokens": {
+      "input_tokens": 736,
+      "cache_creation_tokens": 2346027,
+      "cache_read_tokens": 47999003,
+      "output_tokens": 417278,
+      "api_call_count": 354
+    },
+    "subagent_tokens_complete": true
+  },
+  "redaction": {
+    "replacements": 12,
+    "layers": {
+      "betterleaks": 0,
+      "connection_string": 0,
+      "credential_key": 0,
+      "credential_value": 0,
+      "credentialed_uri": 9,
+      "entropy": 0,
+      "key_context": 3,
+      "provider_token": 0,
+      "shell_stdin": 0
+    }
+  }
+}
