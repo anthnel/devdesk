@@ -147,6 +147,9 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case MisconfigVerifiedMsg:
 		return m.handleMisconfigVerified(msg)
 
+	case ChangePreviewMsg:
+		return m.handleChangePreview(msg)
+
 	case FixCommandCopiedMsg:
 		return m.handleFixCommandCopied(msg)
 

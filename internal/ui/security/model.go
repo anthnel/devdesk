@@ -102,6 +102,12 @@ type Model struct {
 	// is judged by a measurement, never by the catalog's own confidence.
 	misconfigVerifying *misconfigVerify
 
+	// changePreview is the stored answer to "what would the built-in fix change in
+	// the finding on screen" (DEVDESK-753), written by Update only. previewSeq
+	// numbers the requests so a late answer is told from the current one.
+	changePreview changePreview
+	previewSeq    int
+
 	// OriginView is the view to return to when Esc is pressed in StateResults.
 	// Set by the app router when opening this view from workspaces or
 	// oci_resources. Empty when the results were opened from the inventory,
@@ -224,6 +230,9 @@ func (m *Model) setResult(result *scan.Result) {
 	m.targetPath = result.Target
 	m.targetLabel = labelForResult(m.config, result)
 	m.updateFindingsTable()
+	// The file the preview was about has just been rewritten: forget it, the
+	// verdict asks again (restartChangePreview).
+	m.changePreview = changePreview{}
 	// A detail open on the finding the edit dealt with must follow the new
 	// reading, or close with the reason the verdict puts in the footer.
 	m.refreshDetails()

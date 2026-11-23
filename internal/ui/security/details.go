@@ -20,6 +20,7 @@ func (m Model) handleDetailsState(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	// backspace was an alias of esc, and the only one in the application.
 	case "esc":
 		m.state = StateResults
+		m.changePreview = changePreview{}
 		return m, nil
 	case keymap.Web:
 		return m.handleDetailsOpenReference()
@@ -96,7 +97,7 @@ func (m Model) targetOnDisk() bool {
 // buildDetailsContent builds the full scrollable content for the details view.
 //
 // What to do comes before why: the Fix block (status, Where, Do, Run, Effect),
-// then Why, the scanner's Output and the Refs. Each section is emitted only when
+// the Change it would make, then Why, the scanner's Output and the Refs. Each section is emitted only when
 // it has something to say, and sections are joined by exactly one blank line.
 func (m Model) buildDetailsContent() string {
 	if m.selectedFinding == nil {
@@ -110,6 +111,7 @@ func (m Model) buildDetailsContent() string {
 	for _, section := range [][]string{
 		m.detailsHeader(f, t),
 		m.detailsFix(f, t),
+		m.detailsChange(f, t),
 		m.detailsWhy(f, t),
 		m.detailsOutput(f, t),
 		m.detailsReferences(f, t),
@@ -141,7 +143,7 @@ func (m Model) detailsHeader(f scan.Finding, t detailsText) []string {
 // sub-title and the warning colours fall under 4.5:1 on several shipped themes,
 // so the word "Warning:" carries the warning.
 func (m Model) detailsFix(f scan.Finding, t detailsText) []string {
-	status := fixStatusOf(f, m.targetOnDisk())
+	status := m.fixStatus(f)
 	lines := t.field("Fix: ", status.Label(), t.text)
 	lines = append(lines, m.detailsWhere(f, t)...)
 	lines = append(lines, t.list("Do: ", fixSteps(f), f.Resolution, t.text)...)

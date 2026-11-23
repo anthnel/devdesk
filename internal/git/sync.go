@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"os"
 	"os/exec"
 	"sort"
 	"strconv"
@@ -302,11 +303,28 @@ func (w *capWriter) Write(p []byte) (int, error) {
 	return w.buf.Write(p)
 }
 
+// hardening is the configuration every command runs with, ahead of its own
+// arguments: the repository is not trusted, and its .git/config or hooks must
+// not make a read run a program of its choosing (DEVDESK-753). A -c option wins
+// over every configuration file. /dev/null also works for git on Windows, which
+// maps it itself.
+//
+// It stops the two hooks a status or a fetch reaches without any user action,
+// the file system monitor and the repository's hooks. Other settings that name
+// a program (a filter driver, an external diff) are not covered.
+func hardening() []string {
+	return []string{"-c", "core.fsmonitor=false", "-c", "core.hooksPath=" + os.DevNull}
+}
+
 // runContextMax is runContext with a ceiling on what stdout may hold.
 func runContextMax(ctx context.Context, repoPath, token string, max int64, args ...string) (string, error) {
-	cmd := exec.CommandContext(ctx, "git", args...)
+	cmd := exec.CommandContext(ctx, "git", append(hardening(), args...)...)
 	cmd.Dir = repoPath
-	cmd.Env = nonInteractiveEnv(token)
+	cmd.Env = append(nonInteractiveEnv(token),
+		// A read must not take the index lock: it would make a concurrent
+		// git of the user fail for no reason.
+		"GIT_OPTIONAL_LOCKS=0",
+	)
 
 	stdout := &capWriter{max: max}
 	var stderr strings.Builder

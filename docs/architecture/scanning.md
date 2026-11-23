@@ -727,8 +727,8 @@ on each side:
 | 120x40 | 28 | 27 | 116 |
 | 175x50 | 38 | 37 | 171 |
 
-**Order (DEVDESK-751).** What to do comes before why. The header (severity, ID), the
-title on one line, a blank line, then the Fix block, `Why`, `Output` and `Refs`. A
+**Order (DEVDESK-751, DEVDESK-753).** What to do comes before why. The header (severity, ID), the
+title on one line, a blank line, then the Fix block, `Change`, `Why`, `Output` and `Refs`. A
 section is emitted only when it has content, and sections are joined by exactly one
 blank line (never two); the sub-fields of the Fix block follow its first line with no
 blank line. The text width is `detailsTextWidth()` = `min(max(W-4, 1), maxColumnWidth)`,
@@ -750,13 +750,15 @@ Repro: $ kustomize build kustomizations/dev     <- DevDesk's own findings only (
 Effect: <rule.Title | Fixed in X>
 Warning: <rule.Warning>
                                                 <- blank
+Change: <file>                                  <- the diff the built-in fix would write, see "The Change section"
+                                                <- blank
 Why:                                            <- Description, Pod Security, Source, Type
 Output:                                         <- Message, 8 lines at most, then "… N more lines"
 Refs:
 ```
 
 The builders are `detailsFix` (status, `detailsWhere`, `Do` from `fixSteps` and the
-Resolution, `detailsRun`, `detailsRepro`, Effect, Warning), `detailsWhy`, `detailsOutput` and
+Resolution, `detailsRun`, `detailsRepro`, Effect, Warning), `detailsChange`, `detailsWhy`, `detailsOutput` and
 `detailsReferences`, each under 50 lines. The Fix block is written in `ColorText` alone
 and its labels in `theme.DetailLabelStyle` (bold, `ColorText`): `ColorDim`, `ColorSubTitleFg`,
 `ColorTitleFg` and `ColorWarn` fall under 4.5:1 on several shipped themes, so the word
@@ -853,7 +855,7 @@ availabilities reads the disk, so a header redraw does no I/O.
 | Key | Availability | Reasons | Does |
 |---|---|---|---|
 | `enter` | `canOpenFindingFile` (`findingFilePath`) | `reasonNoFile`, `reasonFileOutsideTarget`, `reasonFileNotOnDisk` | in the Cmd, `staysInside` follows the links, then `uiviewer.OpenRequestMsg{Source: viewer.NewFileSource(path)}`; the viewer reports a missing file. A link that leaves the target gives `FindingFileRefusedMsg` and a Warn with `reasonFileLinkOutsideTarget` |
-| `ctrl+o` | `canFixMisconfig` | `reasonNotMisconfigTab`, `reasonFileNotOnDisk`, the `Declines` reason, `noFixReason` | `prepareMisconfigFix`: the Misconfigurations tab's preview, confirmation (default No), write and re-scan |
+| `ctrl+o` | `canFixMisconfig` | `reasonNotMisconfigTab`, `reasonFileNotOnDisk`, the `Declines` reason, `noFixReason`, and from the stored preview the reason it declined with or `reasonPreviewStale` | `prepareMisconfigFix`: the Misconfigurations tab's preview, confirmation (default No), write and re-scan |
 | `Y` | `canCopyFixCommand` (`copyCommand`: `runCommand`, else `reproCommand`) | `reasonNoCommand`, `reasonToolInContainer` | `writeClipboard(command)` in the Cmd, then `FixCommandCopiedMsg` |
 | `X` | `canExclude` | `reasonNotASecret`, `reasonNotGitleaks` | `handleIgnoreSecret`: the confirmation of the results state, byte for byte |
 
@@ -1120,7 +1122,9 @@ without reading the file (Rule 130). It is set only for the seccomp rules, and
 `seccompDeclines` answers only for KSV-0104 with `SeccompOrigin == "unconfined"`,
 with the text of `MissingFor(f)` (DEVDESK-689). Every other refusal needs the
 file, so it shows at the press of the key, in the footer at the Warn level, with
-no modal; the key is lit until then. This is the same split as the host
+no modal; in the finding detail the key is lit until the preview answers
+(DEVDESK-753, "The Change section"), which greys it with the reason of a refusal
+the file settles. This is the same split as the host
 namespaces. Widening `annotateSeccomp` to compute fixability at scan time was
 rejected: a new `Finding` field in the cache and in the MCP `scan_result`, and a
 value stale as soon as the file changes.
@@ -1164,6 +1168,132 @@ Three outcomes, and none of them is silent:
 | the rule is gone | `Info`, and the new result replaces the one on screen — a footer saying "cleared" above a table still listing the rule would contradict itself |
 | the rule survived its own fix | `Warn`. Not a failure: the file was written and the rule still fires, which is what the scan exists to find out |
 | the result cannot be read | `Error`, logged |
+
+### The Change section (DEVDESK-753)
+
+The finding detail shows, under the Fix block and before `Why`, what the built-in fix would write, before
+`ctrl+o` is pressed. The same computation feeds the section and the confirmation of `ctrl+o`, so what is shown
+is what is written.
+
+**One computation.** `computeMisconfigFix(target, finding, scannedAt)` (`misconfig_change.go`) is what
+`prepareMisconfigFixCmd` used to do inline, and both Cmds call it: the preview of the detail
+(`startChangePreview`, `details_change.go`) and the press of `ctrl+o`. Its pure part, `misconfigChangeOf`, takes
+the rule, the relative path and the original bytes and returns `misconfigChange{File, Lines, Updated, Scope}`
+without any I/O: `rule.Fix`, `patch.Rewrite`, `patch.Diff`, `changeLines`, `rule.ScopeOf`. The I/O part checks the
+path lexically then through links, measures the files against the scan, reads the edited file and asks git
+(`git.StateOf`, through `internal/git`, never `os/exec`). `MisconfigFixPreparedMsg.Lines` carries the formatted
+diff next to the existing fields. `changeLines` drops the two header lines of `patch.Diff` (the file is named
+by the label), indents `@@ line N @@` by two spaces so every line starts with `+`, `-` or a space, and runs each
+line through `withoutControlSpace`: no ESC, OSC, bell, bidi mark or carriage return reaches the screen, while
+`Updated` keeps the raw bytes that are written.
+
+**State, kept by `Update` (Rule 110).** `Model.changePreview` holds `{Seq, Target, Finding, State, Prepared,
+Failure}`; `previewSeq` numbers the requests and is never reset. `enter` on a finding calls `startChangePreview`,
+which returns a Cmd only for a catalog rule on a directory that `misconfigFixAvailability` does not refuse
+(never for a CVE, a secret, an image, a rule outside the catalog, or a refusal the finding alone settles) and
+stores the state `previewPending`. The answer is a `ChangePreviewMsg{Seq, Target, Prepared}`; `handleChangePreview`
+drops it unless the number, the target and `sameFinding` with the finding on screen all match, and unless the
+detail is still open. `esc` resets the stored preview to its zero value, so a late answer finds no request. A
+`WindowSizeMsg` starts nothing. The states:
+
+| State | When | Section | `ctrl+o` |
+|---|---|---|---|
+| pending | asked, no answer yet | `Change: preparing the preview...`; footer `Preparing the change preview...` with the activity dot (`previewingStatus`, `WantsBlink` follows `status()`) | lit |
+| ready | the change was computed | `Change: <file>`, the diff, `Git: <advice>` | lit |
+| declined | the rule declines this instance, or the path is refused (outside the target, through a link) | `Change: none: DevDesk cannot write this fix` | greyed with the reason |
+| expired | the file changed after the scan | `Change: stale preview: <file> changed after the scan`, no diff, no Git line | greyed with `reasonPreviewStale` |
+| failed | unreadable, gone, rewrite error | `Change: preview failed: <file> cannot be read` (or `no longer exists`, or `the fix could not be computed — check logs`) | lit |
+
+A failure puts `Could not preview the fix — check logs` in the footer at level Error, logs the cause, and never
+shows `err.Error()` (`previewFailure` words the error). The detail stays usable: `W`, `enter` and scrolling work.
+A failed preview leaves `ctrl+o` lit on purpose (H7): not knowing is not a no (Rule 130); the press computes the
+fix again and reports its own error.
+
+**One verdict, no disk read.** `previewVerdict(f)` is read by `canFixMisconfig` (the header and the handler of
+`ctrl+o`) and by `fixStatus(f)` (the Fix line): for the stored preview of that same finding, expired and
+declined give `Unavailable(reason)`, anything else is enabled. A finding other than the stored one, and any
+state other than the detail, read the catalog alone. `fixStatus` turns a lit `Built-in fix available` into
+`Built-in fix unavailable: <reason>` with the same reason the footer gives, so the Fix line, the grey key and the
+footer after the press are one answer (`TestFixStatusAndTheShortcutAgreeOnAStoredPreview`).
+`TestTheShortcutsAndTheFixLineReadNoDisk` removes the target directory and checks that `GetShortcuts`,
+`canFixMisconfig`, `fixStatus` and the content do not change.
+
+After a fix is written and the re-scan returns, `setResult` forgets the stored preview (the file was rewritten) and
+`handleMisconfigVerified` asks again through `restartChangePreview` (also when the verdict has no result or could not
+read it: the file was rewritten all the same), which also rebuilds the viewport content so the
+section reads `preparing the preview...` rather than a diff of the previous content. `setResult` resets to the zero
+value rather than to "pending": a pending state with no Cmd behind it would wait for ever.
+
+**The section.** `detailsChange` is written in `ColorText` alone, the labels in `DetailLabelStyle`, like the Fix block:
+the markers `+` and `-` carry the meaning, never a red and a green. A ready preview is `Change: <file>` (the file the
+fix edits, which is the `.dockerignore` for the build-context rule), the first 8 rows of the diff each cut by `oneLine`
+to the column, `… N more lines` when there are more (`moreLines`, in `ColorText`), then `Git: <gitAdvice>`, the modal's
+own text. A cut row can hide the only difference (DS-0011 adds a `/` at the end of a long `COPY`); the confirmation
+has the row whole. For a vulnerability with a fixed version the line is `Change: <pkg> <version> -> <fixed>`
+(`versionDelta`: the version `scan.PickFixed` chooses, the whole `FixedIn` when it cannot choose, as the command
+DevDesk offers does), and never a diff: DevDesk does not write lockfiles. Everything else (a CVE with no fixed version,
+a secret, a licence, an image, Helm, kubeconform or render failures, a rule outside the catalog) reads
+`Change: none: DevDesk cannot write this fix`. The first line is in a closed vocabulary
+(`closedChange` in `details_change_test.go`, checked by `TestEveryRuleOfTheCatalogShowsItsChangeAtEveryWidth` and `TestTheSectionOfEachPreviewState`).
+
+**Staleness.** The files the fix reads are measured against the end of the scan: a file whose modification time is
+after `Result.EndTime` is refused with `reasonPreviewStale` (`The file changed after the scan — re-scan to preview the fix`),
+`previewStale` being the comparison. Both the edited file and the finding's own file are checked (they differ for
+the build-context rule). A zero `EndTime`, or no modification time, never makes a file stale. **Decision: `EndTime`, not
+`StartTime`.** The plan (H2) proposed `StartTime` (`EndTime` when it is zero), stricter because a write during the
+scan would count too; the criterion's own wording is the end of the scan, and that is what was built. A file written
+while the scan was running and before it ended is therefore not flagged: a known gap. `patch.WriteIfUnchanged`
+still guarantees that what is written is exactly what the confirmation showed. Limits of a time comparison: a tool
+that restores modification times (`tar`, `rsync -t`), file systems with a one or two second granularity, clock skew on
+a network file system.
+
+**Hypotheses of the plan, as built.**
+
+| | Hypothesis | Built as |
+|---|---|---|
+| H1 | 20 rules, not 22 | `remediation.catalog` has 20 keys (11 Dockerfile, 7 KSV, `BuildContextGitID`, `K8sAPIRemovedID`). `remediation.CatalogIDs()` lists them and the tests walk it, so the count of the criterion does not matter and a rule added without a fixture fails `TestEveryCatalogRuleHasAChangeFixture` |
+| H2 | staleness threshold | see Staleness above: `EndTime`, not the plan's `StartTime` |
+| H3 | the refusal is in the shared computation | so `ctrl+o` from the Misconfigurations tab is refused too, with the same Warn (see below) |
+| H4 | a stale preview shows no diff | a diff computed on content the scan never read, with the scan's line numbers, may be wrong; the section says why, the modal is unreachable (the key is greyed) |
+| H5 | the confirmation shows the same lines | the modal text is the rule's title, the warning, then `Lines` joined, then the file and its git advice; no `---`/`+++` header, `@@ line N @@` indented, ESC and OSC removed. The base-image modal of the Remediation tab is not touched |
+| H6 | no loading state of its own | measured at about 1 ms without git and 4 ms with it (`docs/measurements/2026-11-23-sec-detail-change-preview.md`); the footer announcement was built anyway, since the computation reads the disk and starts `git` |
+| H7 | a failed preview leaves `ctrl+o` lit | see the table above |
+
+**What changes for `ctrl+o` on the Misconfigurations tab.** It goes through `computeMisconfigFix` too, so it gains
+two refusals it did not have: a file whose modification time is after the end of the scan (`reasonPreviewStale`, a
+Warn, nothing computed or written), and a path that reaches outside the target through a link
+(`reasonFileLinkOutsideTarget`; a path that leaves it lexically gives `reasonFileOutsideTarget`). Before, `ctrl+o` could
+write through a symlink that leaves the scanned directory, and on a file changed since the scan. The confirmation
+text also changes format: the same formatted lines as the section, with control characters removed, where the raw
+`patch.Diff` text (with its `---`/`+++` header) used to be shown and could carry an escape sequence from the file.
+
+**What the detail trusts of the scanned tree, and what it does not (DEVDESK-753).** The scanned directory is not
+trusted: the detail reads it when it opens, and `ctrl+o` writes into it.
+
+- *Reading is typed and bounded* (`checkFile`, `readChecked`, `misconfig_change.go`). A file is declined, with a
+  readable reason, when it is not a regular file (`reasonFileNotRegular`: a FIFO, a device, a directory) or is larger
+  than `maxFixFileBytes` (1 MiB, `reasonFileTooLarge`). The check applies to the edited file and to the finding's own
+  file (the build-context rule reads one and edits the other). A decline is a `previewDeclined`, like any refusal of the
+  catalog. The type is checked on the path before anything is opened (opening a FIFO blocks until a writer comes), the
+  file is then opened with `O_NONBLOCK` on Unix (`openNoBlock`, for a FIFO swapped in between), the same checks run on
+  the descriptor, the read goes through `io.LimitReader` (`readBounded`, so a file that grew since the stat is cut), and
+  the descriptor is measured again after the read: a size or modification time that moved is `reasonPreviewStale`.
+  `Original` and `Updated` stay in the message, both for the write, so a preview holds at most twice the cap.
+- *git runs hardened* (`hardening` in `internal/git/sync.go`, used by every command of the package). `-c
+  core.fsmonitor=false -c core.hooksPath=<os.DevNull>` come before the arguments (a `-c` wins over every config file),
+  and `GIT_OPTIONAL_LOCKS=0` is in the environment: opening a detail in a repository with a trapped `.git/config` does
+  not run its fsmonitor program or its hooks, and a read does not take the index lock. `git.StateOf` runs under a 5 s
+  timeout (`stateTimeout`); a timeout is an error, not "untracked". The same hardening reaches `Sync` and the status
+  reads of the workspaces: the hooks of a repository (a `post-merge` of git-lfs, for one) no longer run on `F`. A
+  setting that names another program (a clean/smudge filter, an external diff, `core.sshCommand`) is not covered.
+- *Links are looked at twice.* `staysInside` refuses a path or a root that does not resolve for any reason other than
+  "does not exist" (a loop of links, a permission), where it used to let it through. The write Cmd of `ctrl+o` calls it
+  again right before `patch.WriteIfUnchanged` (`errLeavesTarget`, footer `Nothing was written to <file> — ...`): a link
+  put in place between the confirmation and the write, to a file holding the same bytes, passes the content check and
+  would have been written through. A small window remains between that check and the write itself.
+- *Names and logs.* A file name comes from the repository: `shownName` (`withoutControlSpace`, on one line) is applied to
+  it in the confirmation and in the footers of the write and the verdict. Logs carry the relative path and the cause
+  only (`withoutPath` drops the operation and the absolute path of a `PathError` or `LinkError`).
 
 ### The Pod Security profile of a finding (DEVDESK-686)
 
