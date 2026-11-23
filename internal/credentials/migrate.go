@@ -58,7 +58,7 @@ func MigrateLegacySecrets(sel Selection, contextName string) []string {
 }
 
 // migrateOne stores a single secret and reports whether the file copy may now
-// be deleted.
+// be deleted: only once it reads back from the store.
 //
 // A secret with no URL is dropped rather than stored: the URL is the key it
 // would be filed under, and DevDesk cannot use a token it has no host for. That
@@ -73,6 +73,14 @@ func migrateOne(store Storage, where, url, secret, label string, notes []string)
 	if err := store.Save(url, secret); err != nil {
 		log.Printf("ERROR [credentials/migrate] store %s for %s: %v", label, url, err)
 		return false, append(notes, "The "+label+" is still in plaintext in the configuration file: "+err.Error())
+	}
+
+	// A successful Save proves nothing: `git credential approve` exits 0
+	// whatever its helpers keep. The file copy goes only once the store gives
+	// the same secret back (DEVDESK-745). The values are never logged.
+	if got, err := store.Load(url); err != nil || got != secret {
+		log.Printf("ERROR [credentials/migrate] %s for %s did not read back from %s (err: %v)", label, url, where, err)
+		return false, append(notes, "The "+label+" is still in plaintext in the configuration file: "+where+" accepted it but did not read it back.")
 	}
 
 	log.Printf("credentials/migrate: moved %s for %s out of the configuration file into %s", label, url, where)

@@ -231,6 +231,12 @@ or a restart.
   made that path reachable (an absent store already did). The file is now left as it is
   and the note reads `The plaintext secrets stayed in the configuration file: no
   persistent secret store answered.`; a real move names the store it went to.
+- A successful `Save` is not taken as proof: `git credential approve` exits 0 whatever
+  its helpers keep. Each secret leaves the YAML only once `Load` gives the same value
+  back; otherwise it stays, and the note says the store accepted it but did not read it
+  back (never the value). Each secret is checked on its own, so a token that reads back
+  goes and a registry password that does not stays. `Selection.Persists()` is also
+  false for a selection with no storage (the zero value).
 - An abandoned `Set` may still land later, once the store is unlocked. So a login whose
   save timed out does not say the token was not saved: `session.saveWarning` reads
   `The secret store did not answer; the token may still be saved once it is unlocked.`

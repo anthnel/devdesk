@@ -63,8 +63,9 @@ func (s Selection) StoreName() string {
 }
 
 // Persists reports whether a secret saved here survives the process.
+// A Selection with no storage (the zero value) persists nothing.
 func (s Selection) Persists() bool {
-	return s.Backend != BackendMemory
+	return s.Storage != nil && s.Backend != BackendMemory
 }
 
 // Select resolves the storage for a context.

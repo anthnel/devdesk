@@ -182,3 +182,86 @@ func TestMigrateLegacySecretsKeepsTheFileWhenNoStorePersists(t *testing.T) {
 func persistentMemory() Selection {
 	return Selection{Storage: NewMemoryStorage(), Backend: BackendKeyring}
 }
+
+// forgetfulStorage accepts every Save and keeps only the URLs in keep: what a
+// git helper that persists nothing looks like, since `approve` exits 0.
+type forgetfulStorage struct {
+	keep  map[string]bool
+	saved map[string]string
+}
+
+func newForgetful(keep ...string) *forgetfulStorage {
+	f := &forgetfulStorage{keep: map[string]bool{}, saved: map[string]string{}}
+	for _, u := range keep {
+		f.keep[u] = true
+	}
+	return f
+}
+
+func (f *forgetfulStorage) Save(url, secret string) error {
+	if f.keep[url] {
+		f.saved[url] = secret
+	}
+	return nil
+}
+
+func (f *forgetfulStorage) Load(url string) (string, error) {
+	if s, ok := f.saved[url]; ok {
+		return s, nil
+	}
+	return "", ErrNotFound
+}
+
+func (f *forgetfulStorage) Delete(url string) error { delete(f.saved, url); return nil }
+
+// A Save that succeeds proves nothing: the secret leaves the YAML only once it
+// reads back the same (DEVDESK-745).
+func TestMigrateLegacySecretsKeepsWhatDoesNotReadBack(t *testing.T) {
+	tests := []struct {
+		name         string
+		keep         []string
+		wantToken    bool // the token still in the file
+		wantPassword bool // the registry password still in the file
+	}{
+		{"nothing reads back", nil, true, true},
+		{"only the token reads back", []string{"https://gitlab.example.com"}, false, true},
+		{"both read back", []string{"https://gitlab.example.com", "https://registry.example.com"}, false, false},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			path := legacyContextFile(t, legacyBoth)
+			sel := Selection{Storage: newForgetful(tt.keep...), Backend: BackendGitCredential}
+
+			notes := MigrateLegacySecrets(sel, "default")
+
+			data, err := os.ReadFile(path)
+			if err != nil {
+				t.Fatalf("reading file: %v", err)
+			}
+			body := string(data)
+			if got := strings.Contains(body, "glpat-plaintext"); got != tt.wantToken {
+				t.Errorf("token in file = %v, want %v\n%s", got, tt.wantToken, body)
+			}
+			if got := strings.Contains(body, "hunter2"); got != tt.wantPassword {
+				t.Errorf("password in file = %v, want %v\n%s", got, tt.wantPassword, body)
+			}
+			joined := strings.Join(notes, " ")
+			if strings.Contains(joined, "glpat-plaintext") || strings.Contains(joined, "hunter2") {
+				t.Errorf("a note shows a secret: %v", notes)
+			}
+			if (tt.wantToken || tt.wantPassword) && !strings.Contains(joined, "did not read it back") {
+				t.Errorf("notes = %v, want them to say the store did not give the secret back", notes)
+			}
+		})
+	}
+}
+
+// A zero Selection has no storage: it must not claim to persist.
+func TestTheZeroSelectionDoesNotPersist(t *testing.T) {
+	if (Selection{}).Persists() {
+		t.Error("Selection{}.Persists() = true with no storage")
+	}
+	if (Selection{Backend: BackendKeyring}).Persists() {
+		t.Error("a keyring Selection with no storage claims to persist")
+	}
+}

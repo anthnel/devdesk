@@ -153,7 +153,8 @@ first one holds.
 `gitlab.token` or `registry.password` left in a context file by an older build
 is moved into the store and deleted from the YAML, with the result reported in
 the auth view. It takes the `Selection` and moves nothing when it does not
-persist (memory): the secret stays in the YAML and the note says so (DEVDESK-745).
+persist (memory), and removes a secret from the YAML only once it reads back
+from the store; otherwise it stays and the note says so (DEVDESK-745).
 
 ## Testing
 
