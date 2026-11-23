@@ -1,0 +1,15 @@
+{
+  "tool_use_id": "toolu_01DHwiWchQgXk2JD3EVpQp8T",
+  "agent_id": "a4d4dcf5d934c8080",
+  "subagent_type": "project-coder",
+  "task_description": "Correction revue 750",
+  "token_usage": {
+    "input_tokens": 34,
+    "cache_creation_tokens": 108461,
+    "cache_read_tokens": 1629536,
+    "output_tokens": 8452,
+    "api_call_count": 17
+  },
+  "started_at": "2026-11-23T19:14:34.93047923+01:00",
+  "completed_at": "2026-11-23T19:19:40.238631352+01:00"
+}

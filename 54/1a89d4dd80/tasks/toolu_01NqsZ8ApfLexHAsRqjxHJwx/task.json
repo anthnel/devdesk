@@ -1,0 +1,15 @@
+{
+  "tool_use_id": "toolu_01NqsZ8ApfLexHAsRqjxHJwx",
+  "agent_id": "a983fa195fbf68306",
+  "subagent_type": "project-tester",
+  "task_description": "Tests rouges 750 lot A",
+  "token_usage": {
+    "input_tokens": 54,
+    "cache_creation_tokens": 125133,
+    "cache_read_tokens": 2066966,
+    "output_tokens": 33648,
+    "api_call_count": 26
+  },
+  "started_at": "2026-11-23T18:51:24.666711571+01:00",
+  "completed_at": "2026-11-23T18:55:22.167199227+01:00"
+}
