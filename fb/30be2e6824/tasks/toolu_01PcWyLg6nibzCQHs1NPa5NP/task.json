@@ -1,0 +1,15 @@
+{
+  "tool_use_id": "toolu_01PcWyLg6nibzCQHs1NPa5NP",
+  "agent_id": "ac7759fcd2068d751",
+  "subagent_type": "general-purpose",
+  "task_description": "Spike S-03 processus enfants",
+  "token_usage": {
+    "input_tokens": 90,
+    "cache_creation_tokens": 179892,
+    "cache_read_tokens": 5957518,
+    "output_tokens": 36294,
+    "api_call_count": 44
+  },
+  "started_at": "2026-11-23T11:56:02.221267507+01:00",
+  "completed_at": "2026-11-23T12:02:41.350055203+01:00"
+}
