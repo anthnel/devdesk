@@ -1,5 +1,7 @@
 package command
 
+import "unicode/utf8"
+
 // EntryKind says whether an entry opens a view or runs an action.
 type EntryKind int
 
@@ -29,6 +31,25 @@ func (e Entry) Label() string {
 		return e.Name
 	}
 	return e.Name + " " + e.Arg
+}
+
+// ListAlias is the one alias a listing (the palette) shows for the entry: the
+// first alias of 2 or 3 characters in declaration order, else the longest alias
+// (the first declared on a tie), or "" when the entry has no alias. Lengths are
+// counted in runes. It reads Aliases and changes nothing: the parser and the
+// suggester still accept every alias.
+func (e Entry) ListAlias() string {
+	best := ""
+	for _, a := range e.Aliases {
+		n := utf8.RuneCountInString(a)
+		if n == 2 || n == 3 {
+			return a
+		}
+		if n > utf8.RuneCountInString(best) {
+			best = a
+		}
+	}
+	return best
 }
 
 // TakesArg reports whether the entry expects an argument.

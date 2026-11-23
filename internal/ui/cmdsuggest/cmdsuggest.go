@@ -60,7 +60,6 @@ const (
 	minDescWidth  = 20
 	minAliasWidth = 34 // narrowest terminal that still shows the alias column
 	wideWidth     = 100
-	aliasSep      = " · "
 	currentTag    = "(current)"
 	ellipsis      = "…"
 	// minNoteWidth is the narrowest note column worth drawing; below it the
@@ -274,7 +273,7 @@ func columnsOf(r Row, l Layout, inner int) cells {
 	}
 	c := cells{
 		name:  r.Entry.Label(),
-		alias: strings.Join(r.Entry.Aliases, aliasSep),
+		alias: r.Entry.ListAlias(),
 		desc:  r.Entry.Description,
 	}
 	if r.Current {

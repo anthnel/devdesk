@@ -47,7 +47,8 @@ which values like `https://trivy-server:4954` need.
 The palette is a framed box under the header: your input on top, a list of
 suggestions below. It is titled `Go to`, or `Contexts` once you are choosing a
 context (see below). The view stays visible around it. Opening it shows every
-view and command, with its aliases and a one-line description. Typing narrows
+view and command, with one alias and a one-line description (every alias in the
+table above works when typed). Typing narrows
 the list, best match first, and highlights the first row. The list shows up to
 eight rows; on a short terminal it shows fewer.
 
