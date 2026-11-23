@@ -160,7 +160,7 @@ func TestASocketWithNoPeerShowsTheWildcardForItsFamily(t *testing.T) {
 func TestKillRefusesAnythingThatIsNotAProcessID(t *testing.T) {
 	fake := useFakeOS(t, 100, 99, "linux")
 	for _, pid := range []string{"", "0", "-1", "-812", "sshd", "8 12", "812.0"} {
-		if err := Kill(pid); err == nil {
+		if err := Kill(pid, IdentityForTest(1)); err == nil {
 			t.Errorf("Kill(%q) returned no error", pid)
 		}
 	}
@@ -182,12 +182,19 @@ func TestTheMachinesOwnSocketTableSatisfiesTheRowInvariants(t *testing.T) {
 	if len(sockets) == 0 {
 		t.Skip("no sockets to check")
 	}
+	unreadable := 0
 	for _, s := range sockets {
 		if s.PID != "" {
 			n, err := strconv.Atoi(s.PID)
 			if err != nil || n <= 0 {
 				t.Fatalf("PID %q is not something Kill would accept", s.PID)
 			}
+			if !s.Identity.Verifiable() {
+				unreadable++ // another user's process, or one that ended: refused, not a failure
+			}
+		}
+		if s.PID == "" && s.Identity.Verifiable() {
+			t.Fatalf("a socket with no PID carries the identity %+v: there is no process to verify", s.Identity)
 		}
 		if s.Process != "" && s.PID == "" {
 			t.Fatalf("a socket named a process (%q) with no PID to act on", s.Process)
@@ -199,4 +206,5 @@ func TestTheMachinesOwnSocketTableSatisfiesTheRowInvariants(t *testing.T) {
 			t.Fatalf("local address %q carries no port", s.LocalAddr)
 		}
 	}
+	t.Logf("%d of %d rows have a PID whose identity could not be read", unreadable, len(sockets))
 }

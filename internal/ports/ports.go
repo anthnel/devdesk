@@ -29,7 +29,7 @@ import (
 
 // Socket is one row of the table: a socket, and the process holding it.
 //
-// Every field is a string because every one of them is displayed, and the PID
+// Every field but Identity is a string because it is displayed, and the PID
 // in particular is what the table is keyed on — an int would have to be
 // formatted at each of the sites that compare it.
 type Socket struct {
@@ -39,6 +39,9 @@ type Socket struct {
 	PeerAddr  string
 	PID       string // empty when no process could be attributed
 	Process   string
+	// Identity is not displayed: it is what Kill verifies the PID against. It is
+	// unknown when PID is empty or the process could not be read.
+	Identity Identity
 }
 
 // List returns the machine's TCP and UDP sockets.
@@ -46,6 +49,9 @@ type Socket struct {
 // resolve asks for the addresses to be reported as host names where reverse DNS
 // answers; see resolveAddrs for what that does and does not cover.
 func List(ctx context.Context, resolve bool) ([]Socket, error) {
+	// The instant is taken before the snapshot, never after: on Windows a process
+	// created later than it is not one of the rows (see attachIdentities).
+	listedAt := now()
 	conns, err := gnet.ConnectionsWithContext(ctx, "inet")
 	if err != nil {
 		return nil, fmt.Errorf("reading the socket table: %w", err)
@@ -57,6 +63,7 @@ func List(ctx context.Context, resolve bool) ([]Socket, error) {
 	for _, c := range conns {
 		sockets = append(sockets, toSocket(c, names))
 	}
+	attachIdentities(sockets, listedAt)
 
 	if resolve {
 		resolveAddrs(ctx, sockets)
@@ -101,7 +108,12 @@ func toSocket(c gnet.ConnectionStat, names map[int32]string) Socket {
 // or not in canonical form is refused first, as "not a process id" (parsePID).
 // The protection check comes
 // before the n <= 0 one because PID 0 is a protected process on Windows.
-func Kill(pid string) error {
+//
+// listed is the identity the row carried (DEVDESK-709), after ConfirmIdentity
+// for a deferred one. Anything but a known identity is refused with an
+// *UnverifiableError, and the signal goes only to the process that has it: if
+// the PID is held by another one the answer is an *IdentityChangedError.
+func Kill(pid string, listed Identity) error {
 	n, ok := parsePID(pid)
 	if !ok {
 		return fmt.Errorf("not a process id: %q", pid)
@@ -112,7 +124,10 @@ func Kill(pid string) error {
 	if n <= 0 {
 		return fmt.Errorf("not a process id: %q", pid)
 	}
-	if err := procOS.kill(n); err != nil {
+	if listed.kind != identityKnown {
+		return &UnverifiableError{PID: n}
+	}
+	if err := procOS.kill(n, listed); err != nil {
 		return fmt.Errorf("killing process %s: %w", pid, err)
 	}
 	return nil

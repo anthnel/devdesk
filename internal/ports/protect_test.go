@@ -267,7 +267,7 @@ func TestKillRefusesAProtectedPIDWithoutSignalling(t *testing.T) {
 				fake.createErr[pid] = err
 			}
 
-			err := Kill(tt.pid)
+			err := Kill(tt.pid, IdentityForTest(1))
 			if err == nil {
 				t.Fatalf("Kill(%q) returned nil, want a refusal", tt.pid)
 			}
@@ -323,7 +323,7 @@ func TestKillSignalsWhatIsNotProtected(t *testing.T) {
 				fake.created[pid] = ms
 			}
 
-			if err := Kill(tt.pid); err != nil {
+			if err := Kill(tt.pid, IdentityForTest(1)); err != nil {
 				t.Fatalf("Kill(%q) = %v, want nil", tt.pid, err)
 			}
 			if len(fake.kills) != 1 || fake.kills[0] != tt.want {
@@ -351,7 +351,7 @@ func TestAGrandparentIsNotProtected(t *testing.T) {
 	}
 
 	var pe *ProtectedError
-	if err := Kill(strconv.Itoa(grandparent)); errors.As(err, &pe) {
+	if err := Kill(strconv.Itoa(grandparent), IdentityForTest(1)); errors.As(err, &pe) {
 		t.Errorf("Kill(grandparent) refused: %v", err)
 	}
 	if len(fake.kills) != 1 || fake.kills[0] != grandparent {
@@ -384,7 +384,7 @@ func TestKillOnLinuxKeepsRefusingAnythingThatIsNotAProcessID(t *testing.T) {
 	for _, pid := range []string{"0", "-1", "", "abc"} {
 		t.Run(fmt.Sprintf("%q", pid), func(t *testing.T) {
 			fake := useFakeOS(t, 500, 400, "linux")
-			err := Kill(pid)
+			err := Kill(pid, IdentityForTest(1))
 			if err == nil {
 				t.Fatalf("Kill(%q) returned nil", pid)
 			}
@@ -403,7 +403,7 @@ func TestKillOnLinuxKeepsRefusingAnythingThatIsNotAProcessID(t *testing.T) {
 // system's, or the UI would show "permission denied" for it.
 func TestProtectedErrorIsNotAnOSError(t *testing.T) {
 	useFakeOS(t, 500, 400, "linux")
-	err := Kill("500")
+	err := Kill("500", IdentityForTest(1))
 	if errors.Is(err, os.ErrPermission) || errors.Is(err, os.ErrProcessDone) {
 		t.Errorf("Kill(self) = %v reads as an operating system error", err)
 	}

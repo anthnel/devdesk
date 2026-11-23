@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"log"
 	"os"
+	"strconv"
 	"strings"
 	"time"
 
@@ -30,10 +31,12 @@ type portsDataMsg struct {
 	err   error
 }
 
-// portsKillResultMsg carries the result of a kill.
+// portsKillResultMsg carries the result of a kill. process is the name the
+// target had when the confirmation opened, for the sentence that says another
+// process holds the PID now (DEVDESK-709).
 type portsKillResultMsg struct {
-	pid string
-	err error
+	pid, process string
+	err          error
 }
 
 // statusLine is what the Ports tab derives on every frame. Pausing is a state
@@ -286,6 +289,8 @@ func (pm *PortsModel) update(msg tea.Msg) (*PortsModel, tea.Cmd) {
 		return pm.handleData(msg)
 	case portsKillResultMsg:
 		return pm.handleKillResult(msg)
+	case portsRefreshMsg:
+		return pm, fetchPortsCmd(pm.numericAddrs)
 	case components.ConfirmModalYesMsg:
 		return pm.handleConfirmYes()
 	case components.ConfirmModalNoMsg:
@@ -336,16 +341,52 @@ func (pm *PortsModel) handleKillResult(msg portsKillResultMsg) (*PortsModel, tea
 	// On every outcome: a kill that failed has to let the socket state show
 	// again rather than go on turning.
 	pm.table.ClearBusy(msg.pid)
-	var refused *ports.ProtectedError
-	if errors.As(msg.err, &refused) {
-		// DevDesk's own refusal, a precondition: nothing failed (Rule 128).
-		return pm, pm.footer.Warn(refused.Error())
-	}
 	if msg.err != nil {
-		log.Printf("ERROR [netdiag/ports] ports.Kill pid=%s: %v", msg.pid, msg.err)
-		return pm, pm.footer.Error(killFailureMessage(msg.pid, msg.err))
+		return pm, pm.refusal(msg.pid, msg.process, msg.err)
 	}
 	return pm, pm.footer.Info(fmt.Sprintf("Process %s terminated", msg.pid))
+}
+
+// identityChangedText is what the footer says when the PID is held by another
+// process than the one that was listed: nothing was sent and the table is read
+// again (DEVDESK-709, S-01b criterion 2). A process with no name reads by its
+// PID alone.
+func identityChangedText(process, pid string) string {
+	who := "PID " + pid
+	if process != "" {
+		who = process + " (PID " + pid + ")"
+	}
+	return who + " is no longer the process that was listed — table refreshed"
+}
+
+// refusal is the one place a refused or failed stop becomes a footer line: the
+// press of K (the confirmation's read), Yes (the table compared with the
+// target) and the kill's result all come here, so one error reads the same
+// wherever it surfaces. errors.As comes first: DevDesk's own refusals are
+// typed, and the system's sentinels are read last (killFailureMessage).
+//
+// The three typed refusals are preconditions, a Warn (Rule 128): the action
+// cannot be honored as requested, nothing failed. They print their own
+// Error(), taken from the extracted error so the "killing process N:" prefix
+// ports.Kill adds never reaches the screen.
+func (pm *PortsModel) refusal(pid, process string, err error) tea.Cmd {
+	var protected *ports.ProtectedError
+	var changed *ports.IdentityChangedError
+	var unverifiable *ports.UnverifiableError
+	switch {
+	case errors.As(err, &protected):
+		return pm.footer.Warn(protected.Error())
+	case errors.As(err, &changed):
+		// Another process holds the PID: nothing was sent, and the table is read
+		// again so the row on screen stops being the one that was listed.
+		return tea.Batch(pm.footer.Warn(identityChangedText(process, pid)), requestPortsRefresh())
+	case errors.As(err, &unverifiable):
+		// The cause is the system's, for the log; the screen says DevDesk's.
+		log.Printf("ERROR [netdiag/ports] identity pid=%s: %v (cause: %v)", pid, err, unverifiable.Cause)
+		return pm.footer.Warn(unverifiable.Error())
+	}
+	log.Printf("ERROR [netdiag/ports] ports.Kill pid=%s: %v", pid, err)
+	return pm.footer.Error(killFailureMessage(pid, err))
 }
 
 // killFailureMessage says why the signal did not land.
@@ -365,13 +406,13 @@ func (pm *PortsModel) handleKillResult(msg portsKillResultMsg) (*PortsModel, tea
 // ERROR_ACCESS_DENIED, which syscall.Errno maps onto os.ErrPermission. EPERM
 // maps the same way on Unix.
 //
-// **The "already gone" branch does not fire on Windows**, and that is measured
-// too: a PID that does not exist fails OpenProcess with
-// ERROR_INVALID_PARAMETER, which maps to neither sentinel, so it falls to the
-// generic message. Mapping that code would be a guess — it is what an invalid
-// argument returns as well — and the row disappears on the next two-second
-// refresh anyway. The branch is kept because ESRCH does map to
-// os.ErrProcessDone on Unix.
+// The "already gone" branch fires on Unix, where ESRCH maps to
+// os.ErrProcessDone. On Windows, OpenProcess on a PID that does not exist fails
+// with ERROR_INVALID_PARAMETER, which syscall.Errno maps to neither sentinel;
+// internal/ports (identity_windows.go, procos.go) now maps it to
+// os.ErrProcessDone, but that mapping has not been confirmed on a real Windows
+// host (DEVDESK-727). Until it is, the message may still fall to the generic
+// one there, and the row disappears on the next two-second refresh anyway.
 func killFailureMessage(pid string, err error) string {
 	switch {
 	case errors.Is(err, os.ErrPermission):
@@ -466,10 +507,17 @@ func (pm *PortsModel) confirmKill() (*PortsModel, tea.Cmd) {
 	if pm.table.IsBusy(entry.PID) {
 		return pm, pm.footer.Warn("Already killing PID " + entry.PID)
 	}
+	// A deferred identity (Windows, over the listing budget) is read here, in
+	// Update, one short read at the press of K and never at render. Any refusal
+	// shows now, with no confirmation to answer first (DEVDESK-709).
+	identity, err := pm.ops.confirm(entry.PID, entry.Identity)
+	if err != nil {
+		return pm, pm.refusal(entry.PID, entry.Process, err)
+	}
 	// The target is captured here, once, as values: the table refreshes every
 	// two seconds and the cursor stays on an index, so by the time the user
 	// answers, the selected row can be another process (DEVDESK-714).
-	target := killTarget{PID: entry.PID, Process: entry.Process}
+	target := killTarget{PID: entry.PID, Process: entry.Process, Identity: identity}
 	pm.pendingKill = &target
 	pm.confirmModal = components.NewConfirmModal("Kill Process", killPrompt(target, pm.ops.windows))
 	return pm, nil
@@ -478,8 +526,9 @@ func (pm *PortsModel) confirmKill() (*PortsModel, tea.Cmd) {
 // killTarget is the process a confirmation is about: what the user was shown
 // when it opened, whatever the table does afterwards.
 type killTarget struct {
-	PID     string
-	Process string
+	PID      string
+	Process  string
+	Identity ports.Identity // the one the row was listed with, or read when the confirmation opened (DEVDESK-709)
 }
 
 // killPrompt is the text of the confirmation. Windows has no signal to send:
@@ -502,16 +551,35 @@ func killHelpDescription(windows bool) string {
 	return "Send SIGKILL to the selected process, after confirmation (Ports tab)"
 }
 
-// targetStillListed reports whether the last table received still holds the
-// process: same PID and same name. A reused PID under another name is another
-// process, and signalling it would hit something the user never saw.
-func (pm *PortsModel) targetStillListed(t killTarget) bool {
+// presence says what the last table received holds of a kill target.
+type presence int
+
+const (
+	// present: a row of the target's PID has its name and no conflicting identity.
+	present presence = iota
+	// replaced: a row holds the target's PID under another identity, so another
+	// process has it now and nothing may be sent (DEVDESK-709, criterion 2).
+	replaced
+	// absent: no row holds the PID. The process may be gone, or its PID may
+	// belong to another process under another name (D174).
+	absent
+)
+
+// targetPresence compares the target with the last table received, without a
+// system call. A deferred or unknown identity never conflicts (Conflicts needs
+// both known): the signal itself verifies those against the process it holds.
+func (pm *PortsModel) targetPresence(t killTarget) presence {
+	result := absent
 	for _, s := range pm.table.Items() {
-		if s.PID == t.PID && s.Process == t.Process {
-			return true
+		switch {
+		case s.PID != t.PID:
+		case s.Identity.Conflicts(t.Identity):
+			result = replaced
+		case s.Process == t.Process:
+			return present
 		}
 	}
-	return false
+	return result
 }
 
 // Why K does not apply, written once so the header, the footer and the tests
@@ -519,6 +587,10 @@ func (pm *PortsModel) targetStillListed(t killTarget) bool {
 const (
 	reasonNoSocketRow = "No socket selected"
 	reasonNoPID       = "The system did not say which process holds this socket"
+	// reasonUnverifiable greys K on a row DevDesk could not read an identity for
+	// (DEVDESK-709, S-01b criterion 4): without it a signal could land on
+	// whatever process holds the PID by then.
+	reasonUnverifiable = "Cannot verify which process this is"
 )
 
 // killable reports whether K has a process to signal (Rule 130).
@@ -542,6 +614,12 @@ func (pm *PortsModel) killable() shortcut.Availability {
 	if p := pm.ops.protection(entry.PID); p != ports.Unprotected {
 		return shortcut.Unavailable(p.Reason())
 	}
+	// After the protection, as in ports.Kill: DevDesk's own row says what it
+	// is, not that DevDesk cannot verify it. A deferred identity is verifiable:
+	// it is read when the confirmation opens, never here.
+	if !entry.Identity.Verifiable() {
+		return shortcut.Unavailable(reasonUnverifiable)
+	}
 	return shortcut.Availability{}
 }
 
@@ -554,9 +632,10 @@ func (pm *PortsModel) handleConfirmNo() (*PortsModel, tea.Cmd) {
 
 // handleConfirmYes sends the signal to the target captured when the
 // confirmation opened, never to the row under the cursor. A Yes with no
-// pending target (nothing was opened) does nothing, and a target the last
-// table no longer lists is refused with a warning: it may be gone, or its PID
-// may belong to another process by now.
+// pending target (nothing was opened) does nothing. A target the last table no
+// longer lists is refused with a warning (it may be gone, or its PID may belong
+// to another process by now), and so is one the table lists under another
+// identity, which says so and reads the table again.
 func (pm *PortsModel) handleConfirmYes() (*PortsModel, tea.Cmd) {
 	target := pm.pendingKill
 	pm.confirmModal = nil
@@ -564,7 +643,11 @@ func (pm *PortsModel) handleConfirmYes() (*PortsModel, tea.Cmd) {
 	if target == nil {
 		return pm, nil
 	}
-	if !pm.targetStillListed(*target) {
+	switch pm.targetPresence(*target) {
+	case replaced:
+		pid, _ := strconv.Atoi(target.PID)
+		return pm, pm.refusal(target.PID, target.Process, &ports.IdentityChangedError{PID: pid})
+	case absent:
 		return pm, pm.footer.Warn(fmt.Sprintf("%s (PID %s) is no longer listed — not stopped", target.Process, target.PID))
 	}
 	// The state may have changed since the confirmation opened; the verdict on
@@ -579,7 +662,7 @@ func (pm *PortsModel) handleConfirmYes() (*PortsModel, tea.Cmd) {
 	// at once — which is what happens: the kill takes them all. The table reads
 	// the busy mark at render; the router's frame drives the blink.
 	pm.table.MarkBusy(target.PID, "Killing "+target.Process+" ("+target.PID+")")
-	return pm, killProcessCmd(pm.ops.kill, target.PID)
+	return pm, killProcessCmd(pm.ops.kill, *target)
 }
 
 // view renders the table. An empty table stays a table (Rule 139) — its

@@ -303,6 +303,12 @@ the UI treats these questions differently:
   DevDesk's own rule, not a guess about what the OS would allow. Only the
   direct parent is protected: a terminal or a multiplexer further up is not.
   If DevDesk cannot read when its parent was created, it protects the parent.
+- **Some rows cannot be checked, and the key is disabled on them.** Before it
+  stops anything, DevDesk wants to be sure that a PID still belongs to the
+  process you saw. When it could not read what it needs to tell, the kill
+  shortcut is greyed out and pressing `K` puts `Cannot verify which process
+  this is` in the footer. The row stays visible. DevDesk's own rows keep their
+  own reason (`This is DevDesk itself`).
 - **Whether the OS actually accepts the signal is answered by the attempt,
   not predicted in advance** — a row with a real PID stays enabled even
   when the kill is likely to be refused, since guessing at permissions
@@ -324,6 +330,37 @@ If the process is no longer in the table when you confirm, DevDesk stops
 nothing and the footer says `node (PID 4242) is no longer listed — not stopped`.
 The process may have exited, and its PID may now belong to another process.
 Press `K` again on the row you want.
+
+### What DevDesk checks before it stops anything
+
+A PID is only a number. When a process exits, the system can give its number to
+a new, unrelated process. So DevDesk remembers which process each row was when
+the table was read, and checks, at the moment it sends the signal, that the PID
+still belongs to that process. If it does not, nothing is sent. The footer says:
+
+```text
+node (PID 4242) is no longer the process that was listed — table refreshed
+```
+
+and the table is read again, even if you paused it. Press `K` on the row you
+want from the new table. If the process has no name, the message starts with
+`PID 4242`.
+
+Two other messages come from the same check:
+
+- `Cannot verify which process PID 4242 is — not stopped` means DevDesk lost the
+  means to tell, so it did not guess.
+- `Refused by the system — DevDesk cannot signal PID 4242` means the operating
+  system itself said no. On Windows this can also appear as soon as you press `K`, on a
+  row that was lit: DevDesk then checks that row at that moment instead of when
+  the table was read, and the system may refuse.
+
+On Linux the check and the signal go to the same process handle, so the PID
+cannot change hands between them. On macOS, and on a Linux kernel or sandbox
+without that support, a very short gap remains between the check and the
+signal. On Windows the check compares the process's creation time with the
+moment the table was read, which assumes the computer's clock did not jump
+backwards in between.
 
 On Windows there is no way to ask a process to close cleanly from here. The
 confirmation reads `Terminate node.exe (PID 4412)?` and says that the process

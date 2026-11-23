@@ -3,8 +3,10 @@ package netdiag
 import (
 	"reflect"
 	"runtime"
+	"strconv"
 	"strings"
 	"testing"
+	"time"
 
 	tea "charm.land/bubbletea/v2"
 	"github.com/charmbracelet/x/ansi"
@@ -25,7 +27,16 @@ import (
 // fakeProcs records the PIDs the Ports tab asked to signal.
 type fakeProcs struct {
 	killed []string
-	err    error
+	// killedWith records the identity each signal was asked to verify against
+	// (DEVDESK-709), in the order of killed.
+	killedWith []ports.Identity
+	err        error
+	// confirmed is the identity the confirmation reads for a PID, confirmErr the
+	// error it returns instead, confirmAsked every PID it was asked about. A PID
+	// in neither gets the identity it was listed with (DEVDESK-709).
+	confirmed    map[string]ports.Identity
+	confirmErr   map[string]error
+	confirmAsked []string
 	// protect is the verdict per PID; a PID not in it is Unprotected. asked
 	// records every PID the model asked about, in order (DEVDESK-718).
 	protect map[string]ports.Protection
@@ -38,8 +49,19 @@ func (f *fakeProcs) ops(windows bool) processOps {
 			f.asked = append(f.asked, pid)
 			return f.protect[pid]
 		},
-		kill: func(pid string) error {
+		confirm: func(pid string, listed ports.Identity) (ports.Identity, error) {
+			f.confirmAsked = append(f.confirmAsked, pid)
+			if err := f.confirmErr[pid]; err != nil {
+				return ports.Identity{}, err
+			}
+			if id, ok := f.confirmed[pid]; ok {
+				return id, nil
+			}
+			return listed, nil
+		},
+		kill: func(pid string, listed ports.Identity) error {
 			f.killed = append(f.killed, pid)
+			f.killedWith = append(f.killedWith, listed)
 			return f.err
 		},
 		windows: windows,
@@ -61,11 +83,30 @@ func installProcs(m *Model, windows bool) *fakeProcs {
 	return f
 }
 
+// idOf is the identity the fixtures give the process with this PID: the PID
+// itself, so two rows of one process agree and two processes differ. A row with
+// no PID has none (DEVDESK-709).
+func idOf(pid string) ports.Identity {
+	n, err := strconv.ParseUint(pid, 10, 64)
+	if err != nil {
+		return ports.Identity{}
+	}
+	return ports.IdentityForTest(n)
+}
+
 // sock is a LISTEN socket held by pid; the port follows the PID so rows differ.
+// Its identity is idOf(pid).
 func sock(pid, process string) ports.Socket {
+	return sockWith(pid, process, idOf(pid))
+}
+
+// sockWith is sock with an explicit identity: the zero value for a row DevDesk
+// could not read, a deferred one for a Windows listing over its budget, or the
+// stamp of another process holding the same PID.
+func sockWith(pid, process string, id ports.Identity) ports.Socket {
 	return ports.Socket{
 		Protocol: "tcp", State: "LISTEN", LocalAddr: "0.0.0.0:" + pid, PeerAddr: "0.0.0.0:*",
-		PID: pid, Process: process,
+		PID: pid, Process: process, Identity: id,
 	}
 }
 
@@ -183,7 +224,7 @@ func TestTheKillCommandCarriesValuesNotTheModel(t *testing.T) {
 	m.portsModel.table.SetItems(nodeLast())
 	m.portsModel.table.Table().SetCursor(2)
 	m.portsModel.pendingKill = nil
-	m.portsModel.ops = processOps{kill: func(string) error {
+	m.portsModel.ops = processOps{kill: func(string, ports.Identity) error {
 		panic("the command read the model's processOps after Update returned")
 	}}
 
@@ -197,7 +238,7 @@ func TestTheKillCommandCarriesValuesNotTheModel(t *testing.T) {
 func TestTheConfirmationShowsTheCapturedNameAndPID(t *testing.T) {
 	m, _ := confirmOnNode(t)
 
-	want := killTarget{PID: "4242", Process: "node"}
+	want := killTarget{PID: "4242", Process: "node", Identity: idOf("4242")}
 	if m.portsModel.pendingKill == nil || *m.portsModel.pendingKill != want {
 		t.Fatalf("pendingKill = %+v, want %+v", m.portsModel.pendingKill, want)
 	}
@@ -249,7 +290,7 @@ func TestTheConfirmationDoesNotFollowTheSelection(t *testing.T) {
 			if got := ansi.Strip(m.portsModel.confirmModal.View()); got != before {
 				t.Errorf("the confirmation text changed:\nbefore:\n%s\nafter:\n%s", before, got)
 			}
-			if want := (killTarget{PID: "4242", Process: "node"}); m.portsModel.pendingKill == nil || *m.portsModel.pendingKill != want {
+			if want := (killTarget{PID: "4242", Process: "node", Identity: idOf("4242")}); m.portsModel.pendingKill == nil || *m.portsModel.pendingKill != want {
 				t.Errorf("pendingKill = %+v, want %+v", m.portsModel.pendingKill, want)
 			}
 			if len(procs.killed) != 0 {
@@ -354,26 +395,60 @@ func TestYesOnATargetStillListedSignalsIt(t *testing.T) {
 	}
 }
 
-func TestTargetStillListed(t *testing.T) {
-	m := feed(t, portsModel(t), portsDataMsg{ports: nodeFirst()})
+// classify names the outcome of targetPresence for a failure message without
+// this file naming its type: got is compared with the three constants.
+func classify[T comparable](got, isPresent, isReplaced, isAbsent T) string {
+	switch got {
+	case isPresent:
+		return "present"
+	case isReplaced:
+		return "replaced"
+	case isAbsent:
+		return "absent"
+	}
+	return "unknown"
+}
+
+// targetPresence replaces targetStillListed (DEVDESK-709): the last table holds
+// the target (present), holds that PID under another identity (replaced), or
+// does not hold it (absent).
+func TestTargetPresence(t *testing.T) {
+	m := feed(t, portsModel(t), portsDataMsg{ports: append(nodeFirst(),
+		sockWith("5000", "deferred", ports.DeferredIdentityForTest(time.Unix(1_700_000_000, 0))),
+	)})
 	pm := m.portsModel
 
 	for _, tt := range []struct {
 		name   string
 		target killTarget
-		want   bool
+		want   string
 	}{
-		{"same PID, same name", killTarget{PID: "4242", Process: "node"}, true},
-		{"another listed process", killTarget{PID: "812", Process: "sshd"}, true},
-		{"same PID, another name", killTarget{PID: "4242", Process: "python"}, false},
-		{"unknown PID", killTarget{PID: "9999", Process: "node"}, false},
-		{"name of another row", killTarget{PID: "9999", Process: "sshd"}, false},
+		{"same PID, same name, same identity", killTarget{PID: "4242", Process: "node", Identity: idOf("4242")}, "present"},
+		{"another listed process", killTarget{PID: "812", Process: "sshd", Identity: idOf("812")}, "present"},
+		{"same PID, same name, another identity", killTarget{PID: "4242", Process: "node", Identity: ports.IdentityForTest(99)}, "replaced"},
+		{"the row is deferred: it never conflicts", killTarget{PID: "5000", Process: "deferred", Identity: ports.IdentityForTest(1)}, "present"},
+		{"the target is deferred: it never conflicts", killTarget{PID: "4242", Process: "node", Identity: ports.DeferredIdentityForTest(time.Unix(1_700_000_000, 0))}, "present"},
+		{"same PID, another name, same identity", killTarget{PID: "4242", Process: "python", Identity: idOf("4242")}, "absent"},
+		{"unknown PID", killTarget{PID: "9999", Process: "node", Identity: idOf("9999")}, "absent"},
+		{"name of another row", killTarget{PID: "9999", Process: "sshd", Identity: idOf("9999")}, "absent"},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
-			if got := pm.targetStillListed(tt.target); got != tt.want {
-				t.Errorf("targetStillListed(%+v) = %v, want %v", tt.target, got, tt.want)
+			if got := classify(pm.targetPresence(tt.target), present, replaced, absent); got != tt.want {
+				t.Errorf("targetPresence(%+v) = %s, want %s", tt.target, got, tt.want)
 			}
 		})
+	}
+}
+
+// Two sockets of one process are one process: the last table lists the PID
+// twice and both rows carry the same identity.
+func TestTargetPresenceReadsEveryRowOfThePID(t *testing.T) {
+	m := feed(t, portsModel(t), portsDataMsg{ports: append(nodeLast(), sock("4242", "node"))})
+
+	got := m.portsModel.targetPresence(killTarget{PID: "4242", Process: "node", Identity: idOf("4242")})
+
+	if classify(got, present, replaced, absent) != "present" {
+		t.Errorf("a PID listed twice with one identity is %s, want present", classify(got, present, replaced, absent))
 	}
 }
 
@@ -587,5 +662,11 @@ func TestRealProcessOpsMatchThePlatform(t *testing.T) {
 	}
 	if got, want := reflect.ValueOf(ops.kill).Pointer(), reflect.ValueOf(ports.Kill).Pointer(); got != want {
 		t.Error("realProcessOps().kill is not ports.Kill")
+	}
+	if ops.confirm == nil {
+		t.Fatal("realProcessOps().confirm is nil")
+	}
+	if got, want := reflect.ValueOf(ops.confirm).Pointer(), reflect.ValueOf(ports.ConfirmIdentity).Pointer(); got != want {
+		t.Error("realProcessOps().confirm is not ports.ConfirmIdentity")
 	}
 }

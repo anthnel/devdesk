@@ -32,7 +32,7 @@ func TestARealSignalInATestBinaryPanics(t *testing.T) {
 	if realSignalsAllowed.Load() {
 		t.Fatal("real signals are allowed at the start of a test; a previous test leaked allowRealSignals")
 	}
-	got := recoverPanic(func() { _ = realOS{}.kill(unreachablePID) })
+	got := recoverPanic(func() { _ = realOS{}.kill(unreachablePID, IdentityForTest(1)) })
 	if got == nil {
 		t.Fatal("realOS.kill did not panic in a test binary that did not allow real signals")
 	}
@@ -50,7 +50,7 @@ func TestKillWithoutASubstitutedProcOSHitsTheGuard(t *testing.T) {
 	if _, ok := procOS.(realOS); !ok {
 		t.Fatalf("procOS defaults to %T, want realOS", procOS)
 	}
-	got := recoverPanic(func() { _ = Kill(strconv.Itoa(unreachablePID)) })
+	got := recoverPanic(func() { _ = Kill(strconv.Itoa(unreachablePID), IdentityForTest(1)) })
 	if got == nil {
 		t.Fatal("Kill reached a real signal in a test binary without allowRealSignals")
 	}

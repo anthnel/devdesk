@@ -1319,7 +1319,9 @@ verified: a declared exception.
   terminates a process, after a confirmation. It refuses DevDesk itself, its
   direct parent, PID 1 and, on Windows, PIDs 0 and 4, and it acts on the
   process the confirmation named, captured when it opened (DEVDESK-708,
-  DEVDESK-714). It runs **no container** — see `internal/ports` below. Column 0 is the activity column (DEVDESK-150, below).
+  DEVDESK-714), and it checks at the signal that the PID still belongs to the
+  process that was listed; `K` is greyed on a row whose identity could not be
+  read (DEVDESK-709). It runs **no container** — see `internal/ports` below. Column 0 is the activity column (DEVDESK-150, below).
 - **Interfaces tab** (`interfaces_model.go`): this machine's network interfaces
   — name, state, MTU, MAC, RX/TX error counters, addresses — in a `datatable`.
   It runs **no container**; see `internal/netiface` below. It was the Topology
@@ -1420,7 +1422,9 @@ always `Idle` and an idle row shows an empty cell (a socket has no rest icon).
   `command.ViewNetdiag`; `path_run.go`, which holds the I/O, is not.
 - **Files.** `ports_activity.go` (`ActivityTables()` reports `netdiag/ports`,
   `WantsBlink()`); `ports_commands.go` holds the I/O commands (`fetchPortsCmd`,
-  `portsTickCmd`, `killProcessCmd(kill, pid)`), `processOps` and
+  `portsTickCmd`, `killProcessCmd(kill, target)`, `requestPortsRefresh`, whose
+  `portsRefreshMsg` makes `Update` read the table once, outside the tick chain),
+  `processOps` (`protection`, `confirm`, `kill`, `windows`) and
   `realProcessOps` (see « Seams and the signal guard » below), and `NewPortsDataMsg`, which the activity
   guard's footer seed uses to hand rows to the view without reading the socket
   table. `ports_commands.go` is not scanned by the guard (its refresh tick is
@@ -2560,8 +2564,10 @@ CI: `DEVDESK_NETTRACE_LIVE=1 go test -run TestLiveTraceToCloudflare -v ./interna
 ## The socket table — `internal/ports`
 
 The machine's TCP and UDP sockets, and the process holding each, read **in this
-process**. `List(ctx, resolve)`, `Kill(pid)`, `ProtectionOf(pid)`, `Protection`
-(with `Reason()`) and `ProtectedError` are the whole interface.
+process**. `List(ctx, resolve)`, `Kill(pid, Identity)`, `ConfirmIdentity(pid,
+Identity)`, `Identity`, `ProtectionOf(pid)`, `Protection` (with `Reason()`),
+`ProtectedError`, `UnverifiableError` and `IdentityChangedError` are the whole
+interface (the two `...ForTest` constructors of `Identity` aside).
 
 **It exists because the old one answered for the wrong machine** (D55). The
 Ports tab ran `ss -tupan` inside
@@ -2628,6 +2634,12 @@ what the operating system decides is not:
   the Windows system PIDs are greyed before the keypress, with the reason
   (`Protection.Reason()`) in the footer when `K` is pressed. This is not a guess
   about what the OS would accept: DevDesk refuses by its own rule.
+- **Unverifiable, no key (DEVDESK-709).** A row whose process identity could not
+  be read at listing is greyed with `Cannot verify which process this is`. This
+  is not a guess about what the OS would accept either: without an identity,
+  DevDesk could not tell whether the PID still belongs to the process the user
+  saw, so it has nothing safe to signal. The protected rule is read first, so
+  DevDesk's own row says `This is DevDesk itself`, not `Cannot verify`.
 - **Whether the OS will accept the signal is the attempt's answer**, never the
   header's, so a row with a PID stays lit even when the kill is certain to be
   refused. `killFailureMessage` classifies the failure with `errors.Is` through
@@ -2681,6 +2693,123 @@ Windows names `Windows system process`; on Unix, 0 and negative numbers stay
 DevDesk's own refusal, not the system's. The header and `Kill` read the same
 function, so the greyed key and the refusal cannot disagree (Rule 130).
 
+**Process identity (DEVDESK-709).** A PID names a process only while that
+process lives, and the system may give it to another one. `ports.Identity`
+(`identity.go`) lets DevDesk tell the two apart: the creation stamp of the
+process, in the operating system's own unit. It is **opaque** to the interface,
+which only asks `Verifiable()`; `internal/ports` compares it (`Conflicts`: both
+known and different). The zero value is "unknown", so a caller that forgets the
+identity gets a refusal, not a signal. Three kinds exist: unknown, known, and
+*deferred* (Windows only, below).
+
+| OS | Where it is read | Raw value |
+|---|---|---|
+| Linux | `/proc/<pid>/stat`, field 22 (`starttime`), counted from the last `)` because the command name may contain spaces and parentheses (`parseStartTicks`) | ticks since boot |
+| Windows | `GetProcessTimes`, `CreationTime` (`identity_windows.go`) | FILETIME as one 64-bit value (100 ns since 1601) |
+| macOS | `sysctl kern.proc.pid`, `P_starttime` (`identity_darwin.go`) | seconds and microseconds as one value (`timevalStamp`) |
+| other | nothing: the read returns `errors.ErrUnsupported` | every row unknown, `K` greyed |
+
+- **Read once per distinct PID, at listing.** `List` calls `attachIdentities`
+  after the socket snapshot. It reads each distinct PID once, in ascending
+  order, and gives the value to every row of that PID. A PID that cannot be
+  read leaves its rows unknown. `Socket.Identity` is not displayed.
+  `ProtectionOf` and its `createTime` (milliseconds, from gopsutil) are
+  untouched: the parent rule and the identity are two readings of two sources.
+- **Windows: a budget, then a deferred read.** A creation time on Windows is a
+  wall-clock time, so it can be compared with an instant. `List` takes `listedAt`
+  *before* the snapshot, and a row counts as listed only if the process was
+  created at least `windowsBirthSlack` (100 ms) before it (`judgeBirth`:
+  `bornBefore`, `bornAround`, `bornAfter`); a process born later, or too close to
+  tell, leaves the row unknown. Reading is capped at `windowsIdentityBudget`
+  (100 ms) per refresh: when it runs out, the remaining PIDs get a *deferred*
+  identity that carries `listedAt`, and `K` stays lit on them. The read happens
+  when the confirmation opens (`ConfirmIdentity`, called by `confirmKill` in
+  `Update`, so it is a short read at the press of `K`, never at render), with the
+  same `judgeBirth` test: born before the listing gives a known identity, born
+  after gives `IdentityChangedError`, too close to tell gives
+  `UnverifiableError`. A deferred identity never reaches `Kill`: it is refused
+  there as unverifiable. Linux and macOS have no budget; everything is read at
+  listing.
+- **Verified on the process held, then signalled.** `realOS.kill(pid, want)`
+  opens the process with `os.FindProcess` (a pidfd on Linux 5.4 and later, a
+  handle on Windows), reads the identity through that held process
+  (`heldIdentity`, per OS), compares it with `want` (`verdictAtSignal`, a pure
+  function) and only then calls `p.Kill()`, which signals through the same pidfd
+  or handle. The PID cannot change hands between the comparison and the signal.
+  A failed read never sends. The per-OS files contain no signalling call, so
+  `TestOnlyRealOSSendsASignal` still holds.
+- **Errors.** `UnverifiableError` (`Cannot verify which process PID N is — not
+  stopped`) and `IdentityChangedError` (`PID N is no longer the process that was
+  listed — not stopped`) are DevDesk's own refusals, like `ProtectedError`: they
+  wrap no OS sentinel, so the screen never reads them as `Refused by the
+  system`. `UnverifiableError.Cause` is for the log; `Unwrap` does not return it.
+  An OS refusal (`os.ErrPermission`, for instance a Windows handle that cannot be
+  opened) or a gone process (`os.ErrProcessDone`) stays readable through
+  `errors.Is`, and `killFailureMessage` words it as before.
+- **Order in `Kill`.** Parse, protection, `n <= 0`, then the identity: a
+  non-known identity is an `UnverifiableError` and nothing is sent.
+
+**Reaching the screen.** `PortsModel.refusal(pid, process, err)` is the one
+classifier of every refused or failed stop: the press of `K` (the confirmation's
+read), `Yes` (the table compared with the target) and the kill result all call
+it. `errors.As` runs first for the three typed refusals; anything else goes
+through `killFailureMessage` (`errors.Is`).
+
+| Error | Footer | Level |
+|---|---|---|
+| `ProtectedError` | its own text | Warn |
+| `IdentityChangedError` | `<name> (PID N) is no longer the process that was listed — table refreshed` (`PID N is …` when the name is empty), plus `requestPortsRefresh()` | Warn |
+| `UnverifiableError` | its own text; the cause goes to the log | Warn |
+| anything else | `killFailureMessage`: `Refused by the system — DevDesk cannot signal PID N`, `PID N is no longer running`, or the generic line | Error |
+
+After an identity change the table is read once more, even when the tab is
+paused (as `n` does), because the footer says it was refreshed; the pause stays
+displayed.
+
+**What is guaranteed, and what is not.**
+
+- *Guaranteed*: on Linux with a pidfd, and on Windows within the assumptions
+  below, no signal reaches a process other than the one whose identity was
+  captured (at listing, or when the confirmation opened for a deferred row).
+- *Residual windows, accepted and documented*:
+  - **macOS, and Linux without a pidfd.** No handle on the process exists, so
+    the comparison and the signal are two steps on a PID. `os.FindProcess` falls
+    back to the bare PID, silently, on a kernel without the pidfd calls or where
+    seccomp refuses them. The window is short, but it is there.
+  - **Listing race (Linux, macOS).** The identity is read after the socket
+    snapshot. If the holder exits and its PID is reused between the two, the row
+    carries the newcomer's identity. That takes a full turn of `pid_max` within a
+    few milliseconds. These stamps are not wall-clock times, so nothing compares
+    them with an instant.
+  - **Windows clock.** Anchoring to the listing instant assumes that
+    `CreationTime` and `time.Now` read the same clock, with a granularity under
+    100 ms (not verified). A wall clock set backwards
+    between the listing and the read can make a younger process look older. A
+    coarser granularity only produces cautious refusals (`bornAround`).
+  - **Windows rows over the budget** are not greyed ahead of time when the system
+    would refuse them: the refusal shows at the press of `K`. Reading PIDs in a
+    stable order keeps the cut on the same PIDs from one refresh to the next.
+  - **macOS `EIO`.** For a missing PID the kernel answers `sysctl kern.proc.pid`
+    with no data, which `x/sys` reports as `EIO`. `readIdentity` reads `EIO`,
+    `ESRCH`, `ENOENT` and a record with another `P_pid` as "process done"
+    (not run on macOS).
+- *Not run*: `identity_windows.go` and `identity_darwin.go` are compiled for
+  their OS and read, never executed; no Windows or macOS machine was available.
+  That `OpenProcess` with `PROCESS_QUERY_LIMITED_INFORMATION` and the handle of
+  `os.FindProcess` both allow `GetProcessTimes` is the documented behaviour of
+  the API, not checked here.
+- *Cost on Windows: not measured* (as of 2026-11-23). `windowsIdentityBudget` is
+  the story's starting value, not a measured threshold. To measure it, on a
+  Windows machine **without elevation**, with a busy socket table (the story's
+  case is 189 sockets):
+  `DEVDESK_MEASURE_IDENTITY=1 go test -run TestMeasureIdentityCost -v ./internal/ports`
+  (PowerShell: set `$env:DEVDESK_MEASURE_IDENTITY=1` first). It reads the table
+  and every distinct PID five times with no budget, and logs the sockets and PIDs
+  counted, the failures by kind (permission, gone, other), the min, median and
+  max per round, and the cost of `List`. It never signals. Write the result in a
+  dated note under `docs/measurements/` and adjust the constant if it
+  contradicts the budget (D175). The task is DEVDESK-727.
+
 **The target is captured (DEVDESK-714).** `confirmKill` copies the selected
 row's PID and process name into `pendingKill` (a `killTarget`) in `Update`,
 and builds the text of the confirmation from it. `handleConfirmYes` reads
@@ -2689,21 +2818,28 @@ confirmation and the table's cursor stays on an index, so the selected row can
 be another process by the time the user answers. Before the bug, `Yes` stopped
 that other process. `handleConfirmNo` and `handleConfirmYes` both clear
 `pendingKill` and the modal; a `Yes` with no pending target does nothing.
-`handleConfirmYes` then, in this order:
+The target also carries its `Identity`: the one the row was listed with, or the
+one `ops.confirm` returned when the confirmation opened (a refusal there shows
+at once and opens no modal). `handleConfirmYes` then, in this order:
 
-1. `targetStillListed`: the last table received must still hold a row with the
-   same PID **and** the same name. If not, nothing is sent and the footer
+1. `targetPresence`, which compares the target with the last table received
+   without a system call and has three outcomes. `present`: a row of the same
+   PID has the same name and no conflicting identity. `replaced`: a row of the
+   same PID has a known identity that differs from the target's; nothing is
+   sent, and `refusal` says the PID is no longer the process that was listed and
+   reads the table again. `absent`: no such row; nothing is sent and the footer
    warns `<name> (PID N) is no longer listed — not stopped`. The process may be
    gone, or its PID may belong to another process now; a refusal costs the user
-   one keypress, a wrong signal costs a process.
+   one keypress, a wrong signal costs a process. A deferred or unknown identity
+   never conflicts here (`Conflicts` needs both known); the signal verifies it.
 2. `ops.protection` on the captured PID: a target that became protected since
    the confirmation opened is refused with a warning naming the reason.
-3. The busy mark and `killProcessCmd(ops.kill, pid)`, with `kill` and `pid`
-   copied as values (Rule 110).
+3. The busy mark and `killProcessCmd(ops.kill, target)`, with `kill` and the
+   target copied as values (Rule 110).
 
-A `ProtectedError` that still comes back from `Kill` (the in-depth refusal)
-shows as a footer **warning**, not an error: a precondition was not met, nothing
-failed (Rule 128).
+A `ProtectedError`, an `IdentityChangedError` or an `UnverifiableError` that
+comes back from `Kill` (the in-depth refusal) shows as a footer **warning**, not
+an error: a precondition was not met, nothing failed (Rule 128).
 
 **Windows wording (DEVDESK-710).** Windows has no signal to send: the process
 is ended at once through `TerminateProcess`. The confirmation says so and
@@ -2718,13 +2854,19 @@ promises nothing clean. `processOps.windows` selects the text; everything else
 
 A graceful close (`WM_CLOSE`) is a later story (S-04), not this one.
 
-**Seams and the signal guard (DEVDESK-708).** `internal/ports/procos.go` holds
-the seams the package reads about the host: `selfPID`, `parentPID`, `goos` and
-`procOS` (an `osProcs` with `createTime` and `kill`; production value
-`realOS{}`). In `netdiag`, `processOps` (`protection`, `kill`, `windows`)
-gathers what the tab asks of the system, wired by `realProcessOps()` to
-`ports.ProtectionOf`, `ports.Kill` and `runtime.GOOS == "windows"`; tests
-replace `PortsModel.ops`, so no netdiag test can reach `ports.Kill`.
+**Seams and the signal guard (DEVDESK-708, DEVDESK-709).**
+`internal/ports/procos.go` holds the seams the package reads about the host:
+`selfPID`, `parentPID`, `goos`, `now` (the listing instant and the Windows
+budget) and `procOS` (an `osProcs` with `createTime`, `identity` and
+`kill(pid, want)`; production value `realOS{}`). Per OS, `identity_linux.go`,
+`identity_windows.go`, `identity_darwin.go` and `identity_other.go` hold
+`readIdentity`, `heldIdentity` and `isNoSuchProcess`. In `netdiag`, `processOps`
+(`protection`, `confirm`, `kill`, `windows`) gathers what the tab asks of the
+system, wired by `realProcessOps()` to `ports.ProtectionOf`,
+`ports.ConfirmIdentity`, `ports.Kill` and `runtime.GOOS == "windows"`; tests
+replace `PortsModel.ops`, so no netdiag test can reach `ports.Kill`. A test
+builds an identity with `ports.IdentityForTest(raw)` or
+`ports.DeferredIdentityForTest(listedAt)`; both panic outside a test binary.
 
 `realOS.kill` is the **only** place in the package that sends a signal, and its
 first statement is `refuseRealSignalUnderTest`: in a test binary
@@ -2741,20 +2883,54 @@ tests hold the guard:
   outside `(realOS) kill`, or if the guard is not its first statement. It does
   not see an aliased import, another package or an external binary.
 
-The only real signal in the suite is `TestKillEndsARealChildProcess`: it
-re-runs the test binary as a child (`TestHelperProcessSleeps`), calls
-`allowRealSignals(t)` and kills that child, which it then waits for. Never call
+Two tests send a real signal, each to a child the test started itself:
+`TestKillEndsARealChildProcess` and `TestKillSparesARealChildWhoseIdentityDiffers`
+(the child must survive: the identity differs, so nothing is sent).
+`TestKillOfAnExitedChildSendsNothing` calls `Kill` on a child that already
+exited. They re-run the test binary as a child (`TestHelperProcessSleeps`), call
+`allowRealSignals(t)` and wait for it. Never call
 `allowRealSignals` in a test aimed at anything else. The seams are globals:
 no `t.Parallel` in the package.
 
-**Known limits.** The check and the signal are two steps: a PID can be reused
-between them, or while a confirmation stays open (the capture widens that
-window, and `targetStillListed` closes only the part where the name changed).
-Comparing the process identity at each signal is S-01b (DEVDESK-709). Until
-then, the parent rule's creation-time comparison and `targetStillListed` are
-the only defences. `targetStillListed` trusts the last table received: a paused
-or stale table is trusted as it stands. When `parentPID()` is 0 (PID
-namespace), the parent is not protected.
+**Known limits.** S-01b (DEVDESK-709) closed the PID-reuse window on Linux with
+a pidfd and on Windows with a handle. What stays, said plainly (the guarantees
+and the cost measurement are under « Process identity »):
+
+1. **macOS, and Linux without a pidfd** (kernel older than 5.4, or seccomp
+   filtering `pidfd_open`). `os.FindProcess` silently falls back to the bare
+   PID, so the comparison and the signal are two steps on a PID. The window is a
+   few microseconds, and using it would need a whole turn of `pid_max` at an
+   identical tick: impractical, not impossible.
+2. **Identity read after the snapshot (Linux, macOS).** `attachIdentities` runs
+   after the socket snapshot; a PID that changes hands in those few
+   milliseconds carries the newcomer's identity.
+3. **Windows clock set backwards.** `judgeBirth` compares a creation time with
+   the listing instant (`windowsBirthSlack`, 100 ms). If the clock goes back
+   between the listing and the birth of a process that took the PID, the
+   newcomer can look older than the listing. It applies to both read paths; it
+   matters mostly for a deferred row, where the gap lasts until the
+   confirmation opens.
+4. **`HOST_PROC`.** gopsutil pairs sockets and PIDs under that prefix, but
+   `readIdentity` reads `/proc` as a literal path and the pidfd acts in
+   DevDesk's own PID namespace. If `HOST_PROC` points at another namespace's
+   `/proc`, the check agrees with itself and cannot see the mismatch. This
+   predates S-01b.
+5. **Windows inherited sockets.** A socket inherited by a child can keep the
+   `OwningPid` of a parent that exited, with that PID reused before the listing.
+   The identity is read from the PID as listed, so it matches the newcomer and
+   the row is not caught. This predates S-01b.
+6. **Windows and macOS code never ran.** `identity_windows.go` and
+   `identity_darwin.go` are compiled and vetted, not executed. Unconfirmed
+   assumptions: an unknown PID fails `OpenProcess` (and `os.FindProcess`) with
+   `ERROR_INVALID_PARAMETER` on Windows; a missing PID answers `EIO`, or a record
+   whose `P_pid` differs, on macOS.
+
+Also: the process name in the footer comes from the system and is not
+sanitised (DEVDESK-720). `targetPresence` trusts the last table received: a
+paused or stale table is trusted as it stands, and the signal is what verifies.
+`createTime` (milliseconds) still feeds the parent rule and `Identity` is a
+second source; unifying them would change S-01a and is not done. When
+`parentPID()` is 0 (PID namespace), the parent is not protected.
 
 The platform error never reaches the screen — measured, PID 4 on this machine
 answers `OpenProcess: Accès refusé.`, in the machine's own language, which is

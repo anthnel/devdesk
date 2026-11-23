@@ -725,6 +725,8 @@ func seedNetdiagFooter(t *testing.T, a *App) indicator.State {
 		testutil.Key("tab"), // the Ports tab
 		netdiag.NewPortsDataMsg([]ports.Socket{{
 			Protocol: "tcp", State: "LISTEN", LocalAddr: "127.0.0.1:9", PID: "4194305", Process: "ghost",
+			// K is greyed on a row listed without an identity (DEVDESK-709).
+			Identity: ports.IdentityForTest(1),
 		}}),
 		testutil.Key(keymap.Kill),
 		components.ConfirmModalYesMsg{},

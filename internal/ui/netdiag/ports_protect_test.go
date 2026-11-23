@@ -150,7 +150,7 @@ func TestKillStaysOfferedOnAnOrdinaryProcess(t *testing.T) {
 	if m.portsModel.confirmModal == nil {
 		t.Fatal("K on an unprotected process did not open the confirmation")
 	}
-	if want := (killTarget{PID: "9001", Process: "ordinary"}); m.portsModel.pendingKill == nil || *m.portsModel.pendingKill != want {
+	if want := (killTarget{PID: "9001", Process: "ordinary", Identity: idOf("9001")}); m.portsModel.pendingKill == nil || *m.portsModel.pendingKill != want {
 		t.Errorf("pendingKill = %+v, want %+v", m.portsModel.pendingKill, want)
 	}
 	if len(procs.killed) != 0 {

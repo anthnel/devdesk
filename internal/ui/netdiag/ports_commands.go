@@ -48,8 +48,15 @@ type processOps struct {
 	// protection says whether DevDesk refuses to signal the process with this
 	// PID. It is read in Update and at render, never in a Cmd (Rule 110).
 	protection func(pid string) ports.Protection
-	// kill ends the process with this PID.
-	kill func(pid string) error
+	// confirm settles which process a row is when its confirmation opens: it
+	// hands back the identity the signal will be verified against, or the reason
+	// DevDesk cannot tell. For a row listed with an identity it reads nothing;
+	// only a deferred one (Windows, over the listing budget) costs a system
+	// call, in Update and at the press of K (DEVDESK-709).
+	confirm func(pid string, listed ports.Identity) (ports.Identity, error)
+	// kill ends the process with this PID, provided it still is the process
+	// with the identity the row was listed with.
+	kill func(pid string, listed ports.Identity) error
 	// windows says the platform has no clean stop, which changes the wording
 	// of the confirmation and of the help, nothing else.
 	windows bool
@@ -58,13 +65,28 @@ type processOps struct {
 // realProcessOps is the production wiring: ports.Kill on the platform the
 // binary runs on.
 func realProcessOps() processOps {
-	return processOps{protection: ports.ProtectionOf, kill: ports.Kill, windows: runtime.GOOS == "windows"}
+	return processOps{
+		protection: ports.ProtectionOf,
+		confirm:    ports.ConfirmIdentity,
+		kill:       ports.Kill,
+		windows:    runtime.GOOS == "windows",
+	}
 }
 
-// killProcessCmd signals pid through kill. Both are values captured in
+// killProcessCmd signals the target through kill. Both are values captured in
 // Update (Rule 110): the command never reads the model.
-func killProcessCmd(kill func(string) error, pid string) tea.Cmd {
+func killProcessCmd(kill func(string, ports.Identity) error, t killTarget) tea.Cmd {
 	return func() tea.Msg {
-		return portsKillResultMsg{pid: pid, err: kill(pid)}
+		return portsKillResultMsg{pid: t.PID, process: t.Process, err: kill(t.PID, t.Identity)}
 	}
+}
+
+// portsRefreshMsg asks for one read of the socket table now, outside the tick
+// chain: a second portsTickMsg would start a second chain (DEVDESK-709).
+type portsRefreshMsg struct{}
+
+// requestPortsRefresh returns the command that delivers a portsRefreshMsg. It
+// reads nothing itself; Update turns the message into the read.
+func requestPortsRefresh() tea.Cmd {
+	return func() tea.Msg { return portsRefreshMsg{} }
 }
