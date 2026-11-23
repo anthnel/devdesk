@@ -1321,10 +1321,10 @@ trusted: the detail reads it when it opens, and `ctrl+o` writes into it.
   it in the confirmation and in the footers of the write and the verdict. Logs carry the relative path and the cause
   only (`withoutPath` drops the operation and the absolute path of a `PathError` or `LinkError`).
 
-### Group by fix — `g` on the CVE tab (DEVDESK-754)
+### Group by fix — `g` on the CVE and Misconfigurations tabs (DEVDESK-754)
 
 A scan of an image lists the same cause many times: three CVEs of one package are one move. `g` on the CVE tab
-swaps the body of the results from the findings table to **one row per cause**, and back. It is a display toggle
+(and, since SC2, on the Misconfigurations tab, see below) swaps the body of the results from the findings table to **one row per cause**, and back. It is a display toggle
 (a lowercase letter, declared in `keymap.localToggles` for `security/findings`), not a seventh tab: the tab bar
 keeps its six tabs.
 
@@ -1362,9 +1362,9 @@ result) and keeps the cursor on its group by key, else at the nearest index.
 **Going in and out.** In, the cursor is on the group of the selected finding (`groupIndexOf`). Out, the findings
 cursor goes to the first visible member of the group under the cursor, else the finding that was selected, else the
 same position (`nearestFinding`). The mode is `groupedTabs [tabCount]bool`, held per tab for the life of the view:
-it survives a tab switch and reopening a result from the inventory. Only the CVE tab groups until SC2
-(Misconfigurations): elsewhere `g` is greyed with `Group by fix covers the CVE tab`, and with `No vulnerability to
-group` on a CVE tab with no CVE. In the grouped list it is never greyed, since it is the way back.
+it survives a tab switch and reopening a result from the inventory. Only the CVE and Misconfigurations tabs group:
+elsewhere `g` is greyed with `Group by fix covers the CVE and Misconfigurations tabs`, with `No vulnerability to
+group` on a CVE tab with no CVE and with `No misconfiguration to group` on a Misconfigurations tab with none. In the grouped list it is never greyed, since it is the way back.
 
 **The group level (`StateGroup`).** `enter` on a group opens a level of its own: the group's findings
 (`groupTable`, the findings' columns minus File), all of them, filtered out or not. Four keys: `esc` Back, `enter`
@@ -1398,8 +1398,41 @@ grouped or not; that is a separate bug and is not fixed here, so the width tests
 the info line and the header, not the tab bar. `sameFinding` ignores the line, so two instances with the same
 title and message in one file are one identity for the selection (the nearest finding may be the first of them).
 The group's `Fix` word comes from `fixStatusOf`, the detail's from `m.fixStatus`, which also knows a stale preview:
-a group may say `Built-in fix available` while its detail says unavailable. The Misconfigurations tab (File and rule
-groups) is SC2.
+a group may say `Built-in fix available` while its detail says unavailable.
+
+**The Misconfigurations tab (SC2).** `misconfigGroups(findings, onDisk)` (`fixgroup_misconfig.go`) groups the
+misconfigurations (`scan.Categorize`) by `groupKey{File, Rule, Fix, Reason}`: the raw `File` of the finding,
+`remediation.RuleKey` of its ID (Trivy's `AVD-DS-0002` and `DS002` are one rule), the state of the built-in fix
+(`fixStatusOf(f, onDisk)`, the same computation as the detail's Fix line and the `ctrl+o` greying) and, for a
+declined fix only, its reason. Separate fields, never one joined string, so no file name and rule can collide. So
+one rule in one file is one row however many instances, one rule in two files is two rows, an instance the fix
+declines and one it accepts are two rows, and two instances declined for different reasons are two rows
+(`groupMisconfigs` takes the status function so a test can give it reasons the catalog never produces). On an image
+(`onDisk` false) every row says `Cannot fix here`; its findings name no file, the File column says `(image)`, and
+the rows are per rule. `Subject` is the file as shown (`shortPaths`, `inlineText`), `Rule` the ID of the first
+member (`inlineText`), the severity the worst of the members. Order: worst severity, most findings, file, rule, state
+of the fix; it reads the key, never the order of the scan. `Command` is set only when every member has the same
+`runCommand` (plain words, `scan.PlainWords`); a Misconfigurations group is never `Unfixed` and is not counted in
+`Fixable`. `fixStatus.Label()` renders `Built-in fix unavailable` bare, never with a dangling colon, when the reason
+is empty.
+
+The columns (`misconfigGroupColumns`, each with its `Sizing`): Severity (fixed 10), File (content 14..40, head
+truncated, so the end of a path stays), Rule (content 10..24), Findings (fixed 8, a plain number: `ctrl+o` fixes one
+finding at a time, so nothing says closed, fixed or done) and Fix (content, optional, the rest of the width; the
+declined label carries its reason). `Model.groups` holds the table of the active tab: `ensureGroupsTable` builds it
+again with the tab's columns when the tab it was built for (`groupsTab`) is not the one on screen, on a tab switch and
+on a new result; its sort and cursor start over there, as the findings table's do. `groupedTabs` is per tab, so the two
+tabs group independently. The Pod Security filter (`p`), the severity tokens and the search still drive the findings
+table and the groups follow (`togglePSS` calls `refreshGroups`); the filter is dropped on leaving the tab, and the
+groups with it.
+
+In the grouped list `canFixMisconfig` refuses with `Open the group to act on one finding`: it reads the findings
+table's selection, which is not what the user is looking at. The footer says `3 findings, Built-in fix available`
+(count, then the Fix label). `enter` opens the group level; `enter` there opens the same detail, and `ctrl+o` in it is
+the flat path's: same confirmation, same write, same verification re-scan. `handleMisconfigVerified` swaps the
+result in (`setResult`): the group is rebuilt by key and the detail goes back to the group, or the group disappears
+and the user is back in the grouped list. `Y` copies the group's command when it has one, else is greyed with `This
+group has no command to run`.
 
 ### The Pod Security profile of a finding (DEVDESK-686)
 

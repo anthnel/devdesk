@@ -16,7 +16,7 @@ import (
 	"github.com/anthnel/devdesk/internal/ui/theme"
 )
 
-// DEVDESK-754 (SC1): "Group by fix" on the CVE tab. `g` swaps the body of the
+// DEVDESK-754 (SC1, SC2): "Group by fix" on the CVE and Misconfigurations tabs. `g` swaps the body of the
 // results between the findings table and one row per cause (the grouped list);
 // enter on a group opens StateGroup, the findings of that group, and enter there
 // opens the same detail as from the flat table. The findings table is never
@@ -30,13 +30,14 @@ const groupToggleKey = "g"
 // Why `g`, `Y` and the keys that act on one finding are greyed in the grouped
 // list (Rule 130).
 const (
-	reasonGroupNotHere    = "Group by fix covers the CVE tab"
-	reasonNothingToGroup  = "No vulnerability to group"
-	reasonOpenTheGroup    = "Open the group to act on one finding"
-	reasonNoGroupSelected = "No group selected"
-	reasonNoGroupCommand  = "This group has no command to run"
-	reasonGroupHasNoFix   = "No fix is published for this group"
-	reasonCopyNeedsGroup  = "Copy the command from a group (g), or from a finding's detail"
+	reasonGroupNotHere       = "Group by fix covers the CVE and Misconfigurations tabs"
+	reasonNothingToGroup     = "No vulnerability to group"
+	reasonNoMisconfigToGroup = "No misconfiguration to group"
+	reasonOpenTheGroup       = "Open the group to act on one finding"
+	reasonNoGroupSelected    = "No group selected"
+	reasonNoGroupCommand     = "This group has no command to run"
+	reasonGroupHasNoFix      = "No fix is published for this group"
+	reasonCopyNeedsGroup     = "Copy the command from a group (g), or from a finding's detail"
 )
 
 // The two words of the toggle, named for the display it switches to.
@@ -48,35 +49,68 @@ const (
 // isGrouped reports whether the active tab shows the grouped list.
 func (m Model) isGrouped() bool { return m.groupedTabs[m.activeTab] }
 
+// groupableTab says whether a tab has a grouped list: the CVE tab by package, the
+// Misconfigurations tab by file and fix.
+func groupableTab(tab int) bool { return tab == TabCVE || tab == TabMisconfig }
+
 // canGroup says whether `g` applies here. In the grouped list it always does,
 // even with no group left: it is the way back.
 func (m Model) canGroup() shortcut.Availability {
 	switch {
-	case m.activeTab != TabCVE:
+	case !groupableTab(m.activeTab):
 		return shortcut.Unavailable(reasonGroupNotHere)
 	case m.isGrouped():
 		return shortcut.Availability{}
-	case !m.hasVulnerability():
+	case m.activeTab == TabCVE && !m.hasCategory(scan.CategoryVulnerability):
 		return shortcut.Unavailable(reasonNothingToGroup)
+	case m.activeTab == TabMisconfig && !m.hasCategory(scan.CategoryMisconfiguration):
+		return shortcut.Unavailable(reasonNoMisconfigToGroup)
 	}
 	return shortcut.Availability{}
 }
 
-// hasVulnerability says whether the result holds a CVE at all, whatever the
-// filters hide: a search that matches none does not make them vanish.
-func (m Model) hasVulnerability() bool {
+// hasCategory says whether the result holds a finding of the category at all,
+// whatever the filters hide: a search that matches none does not make them vanish.
+func (m Model) hasCategory(category scan.Category) bool {
 	if m.result == nil {
 		return false
 	}
 	for _, f := range m.result.Findings {
-		if scan.Categorize(f) == scan.CategoryVulnerability {
+		if scan.Categorize(f) == category {
 			return true
 		}
 	}
 	return false
 }
 
-// toggleGroup switches the CVE tab between the findings table and the grouped
+// buildGroups is every group of the active tab in the result on screen.
+func (m Model) buildGroups() []fixGroup {
+	if m.result == nil {
+		return nil
+	}
+	switch m.activeTab {
+	case TabCVE:
+		return cveGroups(m.result.Findings)
+	case TabMisconfig:
+		return misconfigGroups(m.result.Findings, m.targetOnDisk())
+	}
+	return nil
+}
+
+// ensureGroupsTable gives the grouped list the columns of the active tab: the two
+// tabs do not list the same things, so the table is built again when the tab it
+// was built for is not the one on screen. Its sort and cursor start over, like the
+// findings table's on a change of tab.
+func (m *Model) ensureGroupsTable() {
+	if !groupableTab(m.activeTab) || m.groupsTab == m.activeTab {
+		return
+	}
+	m.groups = newGroupsTable(m.activeTab)
+	m.groupsTab = m.activeTab
+	m.groups.Resize(m.width, max(m.height, 5))
+}
+
+// toggleGroup switches the active tab between the findings table and the grouped
 // list, or says why it cannot (Rule 130). Neither way rebuilds the findings
 // table: going in selects the group of the selected finding, coming out puts the
 // findings cursor on the first visible member of the group under the cursor.
@@ -95,8 +129,9 @@ func (m Model) toggleGroup() (tea.Model, tea.Cmd) {
 // enterGroupedList builds the groups from the result and puts the cursor on the
 // group of the selected finding.
 func (m *Model) enterGroupedList() {
-	m.groupedTabs[TabCVE] = true
-	m.groupsAll = cveGroups(m.result.Findings)
+	m.ensureGroupsTable()
+	m.groupedTabs[m.activeTab] = true
+	m.groupsAll = m.buildGroups()
 	m.groups.SetItems(visibleGroups(m.groupsAll, m.findingsTable.Visible()))
 	m.groups.GotoTop()
 	m.groups.Remeasure()
@@ -118,19 +153,20 @@ func (m *Model) leaveGroupedList() {
 	if f, ok := m.findingsTable.Selected(); ok {
 		prev = &f
 	}
-	m.groupedTabs[TabCVE] = false
+	m.groupedTabs[m.activeTab] = false
 	if i := nearestFinding(m.findingsTable.Visible(), group, prev, m.findingsTable.Cursor()); i >= 0 {
 		m.findingsTable.SetCursor(i)
 	}
 }
 
-// groupsFollowResult rebuilds the groups after the result changed. Nothing is
-// built while the CVE tab is flat: the next `g` builds them from the result then
-// on screen.
+// groupsFollowResult rebuilds the groups of the active tab after the result or
+// the tab changed. Nothing is built while the tab is flat: the next `g` builds
+// them from the result then on screen.
 func (m *Model) groupsFollowResult() {
 	m.groupsAll = nil
-	if m.groupedTabs[TabCVE] && m.result != nil {
-		m.groupsAll = cveGroups(m.result.Findings)
+	m.ensureGroupsTable()
+	if m.isGrouped() {
+		m.groupsAll = m.buildGroups()
 	}
 	m.refreshGroups()
 }
@@ -139,7 +175,7 @@ func (m *Model) groupsFollowResult() {
 // keeping the cursor on its group by key, else at the nearest position. It runs
 // after anything that changes what the findings table shows.
 func (m *Model) refreshGroups() {
-	if m.activeTab != TabCVE || !m.isGrouped() {
+	if !m.isGrouped() {
 		return
 	}
 	prev, hadPrev := m.groups.Selected()
@@ -330,8 +366,12 @@ func (m Model) groupToggleLabel() string {
 	return labelGroupByFix
 }
 
-// groupTitle is the group level's title suffix: the cause it lists.
+// groupTitle is the group level's title suffix: the cause it lists, the package
+// and its move, or the file and the rule.
 func groupTitle(g fixGroup) string {
+	if g.Misconfig {
+		return g.Subject + " " + g.Rule
+	}
 	return g.Subject + " " + g.Change
 }
 
@@ -346,6 +386,10 @@ func (m Model) groupStatus() sharedcomponents.Status {
 
 // groupSentence is what the footer says about the selected group.
 func groupSentence(g fixGroup) string {
+	if g.Misconfig {
+		// A count and the Fix in words, never a promise: ctrl+o fixes one finding.
+		return findingCount(len(g.Members)) + ", " + inlineText(g.Status.Label())
+	}
 	count := cveCount(len(g.Members))
 	switch {
 	case g.Key.Unfixed:
@@ -369,10 +413,22 @@ func cveCount(n int) string {
 	return strconv.Itoa(n) + " CVEs"
 }
 
-// newGroupsTable is the grouped list's table.
-func newGroupsTable() datatable.Model[fixGroup] {
+// findingCount is "1 finding" or "N findings".
+func findingCount(n int) string {
+	if n == 1 {
+		return "1 finding"
+	}
+	return strconv.Itoa(n) + " findings"
+}
+
+// newGroupsTable is the grouped list's table for a tab.
+func newGroupsTable(tab int) datatable.Model[fixGroup] {
+	columns := cveGroupColumns()
+	if tab == TabMisconfig {
+		columns = misconfigGroupColumns()
+	}
 	return datatable.New(datatable.Config[fixGroup]{
-		Columns:    cveGroupColumns(),
+		Columns:    columns,
 		SortColumn: -1,
 		SelectedStyles: func(g fixGroup) table.Styles {
 			return theme.TableStylesForSeverity(string(g.Severity))
