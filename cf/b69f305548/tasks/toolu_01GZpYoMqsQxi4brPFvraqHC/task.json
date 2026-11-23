@@ -1,0 +1,15 @@
+{
+  "tool_use_id": "toolu_01GZpYoMqsQxi4brPFvraqHC",
+  "agent_id": "ae74f71d4bffdbd2e",
+  "subagent_type": "dev-team:security-reviewer",
+  "task_description": "Revue sécurité SC2 754",
+  "token_usage": {
+    "input_tokens": 26,
+    "cache_creation_tokens": 73308,
+    "cache_read_tokens": 667047,
+    "output_tokens": 9382,
+    "api_call_count": 13
+  },
+  "started_at": "2026-11-23T23:41:45.67299922+01:00",
+  "completed_at": "2026-11-23T23:43:22.84889049+01:00"
+}

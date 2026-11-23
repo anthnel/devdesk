@@ -1,0 +1,46 @@
+{
+  "cli_version": "0.13.2",
+  "checkpoint_id": "cfb69f305548",
+  "strategy": "manual-commit",
+  "branch": "feat/sec-group-misconfig-754",
+  "checkpoints_count": 3,
+  "files_touched": null,
+  "sessions": [
+    {
+      "metadata": "/cf/b69f305548/0/metadata.json",
+      "transcript": "/cf/b69f305548/0/full.jsonl",
+      "compact_transcript": "/cf/b69f305548/0/transcript.jsonl",
+      "content_hash": "/cf/b69f305548/0/content_hash.txt",
+      "prompt": "/cf/b69f305548/0/prompt.txt"
+    }
+  ],
+  "token_usage": {
+    "input_tokens": 16,
+    "cache_creation_tokens": 14389,
+    "cache_read_tokens": 2176459,
+    "output_tokens": 3969,
+    "api_call_count": 5,
+    "subagent_tokens": {
+      "input_tokens": 102,
+      "cache_creation_tokens": 297481,
+      "cache_read_tokens": 3835580,
+      "output_tokens": 38399,
+      "api_call_count": 50
+    },
+    "subagent_tokens_complete": true
+  },
+  "redaction": {
+    "replacements": 23,
+    "layers": {
+      "betterleaks": 0,
+      "connection_string": 0,
+      "credential_key": 0,
+      "credential_value": 0,
+      "credentialed_uri": 9,
+      "entropy": 5,
+      "key_context": 9,
+      "provider_token": 0,
+      "shell_stdin": 0
+    }
+  }
+}

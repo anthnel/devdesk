@@ -1,0 +1,15 @@
+{
+  "tool_use_id": "toolu_01P7FpzLgfK9Qy427SHuqk7j",
+  "agent_id": "a2f67cb55a4c8ecd1",
+  "subagent_type": "dev-team:reviewer",
+  "task_description": "Revue SC2 DEVDESK-754",
+  "token_usage": {
+    "input_tokens": 36,
+    "cache_creation_tokens": 156392,
+    "cache_read_tokens": 1899070,
+    "output_tokens": 15169,
+    "api_call_count": 17
+  },
+  "started_at": "2026-11-23T23:41:45.685829619+01:00",
+  "completed_at": "2026-11-23T23:44:56.002391634+01:00"
+}
