@@ -9,10 +9,13 @@ import (
 	"time"
 
 	tea "charm.land/bubbletea/v2"
+	"charm.land/lipgloss/v2"
 	"github.com/charmbracelet/colorprofile"
 
 	"github.com/anthnel/devdesk/internal/jobs"
+	"github.com/anthnel/devdesk/internal/ui/components"
 	"github.com/anthnel/devdesk/internal/ui/testutil"
+	"github.com/anthnel/devdesk/internal/ui/theme"
 )
 
 // Measurement of the renderer's output cost (DEVDESK-139, criterion 8). Opt-in:
@@ -189,5 +192,70 @@ func TestMeasureRedrawCost(t *testing.T) {
 				t.Fatalf("no redraw counted: %+v", st)
 			}
 		})
+	}
+}
+
+// Warm cost of one View() (DEVDESK-281, task 281.1). The frame is the one
+// TestMeasureRedrawCost draws: 20 animated rows at 120x40, TrueColor. Each
+// iteration flips the animation phase so the content differs from the last
+// one and nothing can be served from a cache. Run it on one pinned core:
+//
+//	go test ./internal/app -run '^$' -bench 'AppView|RenderBody|PlaceFrame' -benchtime 2s -count 10 -cpu 1
+
+// Sinks keep the compiler from discarding the results.
+var (
+	viewSink  tea.View
+	bodySink  string
+	placeSink string
+)
+
+// benchRouter is the router of the measurement: measuredView, 20 animated
+// rows, 120x40, the colour profile the tea.Program of measureRedraws forces.
+func benchRouter(b *testing.B) (*App, *measuredView) {
+	b.Helper()
+	view := &measuredView{rows: 20, blink: true}
+	a := routerAt(b, view, measureWidth, measureHeight)
+	a.colorProfile = colorprofile.TrueColor
+	return a, view
+}
+
+// BenchmarkAppView measures App.View() as the program calls it after an Update.
+func BenchmarkAppView(b *testing.B) {
+	a, view := benchRouter(b)
+	b.ReportAllocs()
+	for b.Loop() {
+		view.phase = !view.phase
+		viewSink = a.View()
+	}
+}
+
+// BenchmarkRenderBody isolates renderBody, the view's own Render included.
+func BenchmarkRenderBody(b *testing.B) {
+	a, view := benchRouter(b)
+	b.ReportAllocs()
+	for b.Loop() {
+		view.phase = !view.phase
+		bodySink = a.renderBody(false)
+	}
+}
+
+// BenchmarkPlaceFrame isolates the lipgloss.Place of App.Render (the
+// non-overlay path). The two inner frames are the router's, one per phase.
+func BenchmarkPlaceFrame(b *testing.B) {
+	a, view := benchRouter(b)
+	var inner [2]string
+	for i := range inner {
+		view.phase = i == 1
+		header := a.renderHeader() + "\n" + a.renderTitleLine()
+		footer := a.renderViewFooter()
+		barBelow := !a.frameless() && components.OpensWithBarFrame(footer)
+		inner[i] = fitHeight(header, a.renderBody(barBelow), footer, a.height)
+	}
+	whitespace := lipgloss.WithWhitespaceStyle(lipgloss.NewStyle().Background(theme.ColorBackground))
+	b.ReportAllocs()
+	n := 0
+	for b.Loop() {
+		n++
+		placeSink = lipgloss.Place(a.width, a.height, lipgloss.Left, lipgloss.Top, inner[n&1], whitespace)
 	}
 }
