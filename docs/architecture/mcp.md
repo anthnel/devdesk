@@ -184,6 +184,7 @@ everything the fix needs and stay the thing that measures.
 | `status` | what the scanner concluded for the rule on this target |
 | `id` | the AVD id — the rule's stable identity, and what a re-scan is checked against |
 | `resolution`, `references` | the prose fix and the advisory |
+| `steps` | the numbered remediation steps DevDesk wrote for a finding it builds itself (a chart or overlay that does not render, a schema or helm lint message, a secret), one action each, to read before the resolution (DEVDESK-752). Absent (`omitempty`) on a third-party finding and on a result scanned before they were recorded. `repro` and `ran_from`, which the scan also records, are **not** exposed: a command to paste in a shell is not something a caller of this server asked for, and the answer can grow later |
 | `pss_profile` | `baseline` or `restricted`: the Pod Security Standards profile that requires the rule behind a Kubernetes finding (DEVDESK-686). Absent (`omitempty`) when the finding is not a Pod Security one |
 
 **`pss_profile` is the profile DevDesk shows, not Trivy's raw anchor.** It comes

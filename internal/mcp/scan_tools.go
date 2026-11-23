@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"log"
+	"slices"
 	"sort"
 	"strings"
 	"time"
@@ -153,6 +154,7 @@ type finding struct {
 	Ecosystem   string   `json:"ecosystem,omitempty" jsonschema:"the package ecosystem, such as alpine, debian, gomod or npm"`
 	IaCType     string   `json:"iac_type,omitempty" jsonschema:"the dialect a misconfiguration was found in, such as dockerfile, kubernetes, helm or terraform; helm means the file is a template, not the YAML it renders"`
 	Resolution  string   `json:"resolution,omitempty"`
+	Steps       []string `json:"steps,omitempty" jsonschema:"numbered remediation steps DevDesk wrote for this finding, one action each, to read before the resolution; absent on a third-party finding and on a result scanned before they were recorded"`
 	References  []string `json:"references,omitempty"`
 	PSSProfile  string   `json:"pss_profile,omitempty" jsonschema:"the Pod Security Standards profile (baseline or restricted) that requires the rule behind a Kubernetes finding; absent when the finding is not a Pod Security one"`
 }
@@ -358,6 +360,7 @@ func expose(f scan.Finding) finding {
 		Ecosystem:   f.Ecosystem,
 		IaCType:     f.IaCType,
 		Resolution:  f.Resolution,
+		Steps:       slices.Clone(f.Steps),
 		References:  f.References,
 		PSSProfile:  pssProfile,
 	}

@@ -43,6 +43,10 @@ func TestMain(m *testing.M) {
 	// A developer's HTTPS_PROXY must not reach the exact-argv tests: no proxy is
 	// forwarded unless a test installs one (DEVDESK-583).
 	proxyForward = func() netproxy.Forward { return netproxy.Forward{} }
+	// No PATH lookup from a scan test: the helm or the kustomize of the machine
+	// must not decide the program a Repro line names (DEVDESK-752). A test that
+	// wants a hit installs its own with useLookPath.
+	lookPath = func(string) (string, error) { return "", exec.ErrNotFound }
 	// No registry and no cosign from a scan test (§3.82): every base image is
 	// unresolved, which under no rule warns and records nothing. The tests of
 	// the stage install their own.

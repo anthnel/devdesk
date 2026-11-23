@@ -159,9 +159,39 @@ func (v *k8sValidation) validateFiles(ctx context.Context, files []string, progr
 	if err != nil {
 		return err
 	}
+	v.stampSchemaRepro(findings)
 	v.report.Findings = append(v.report.Findings, findings...)
 	v.report.SkippedCustom += skipped
 	return nil
+}
+
+// stampSchemaRepro records on each schema finding of a plain file where
+// kubeconform ran and, when it ran on this machine, the command that checks that
+// file again. DevDesk's own flags (-output json, -cache) are left out, and so are
+// the user's arguments (scan.tools.kubeconform.args), which may hold a secret.
+// K8S-API-REMOVED and K8S-PARSE carry neither (DEVDESK-752).
+func (v *k8sValidation) stampSchemaRepro(findings []Finding) {
+	type reproLineFrom struct {
+		line string
+		from ToolSource
+	}
+	byFile := map[string]reproLineFrom{}
+	for i := range findings {
+		f := &findings[i]
+		if f.ID != K8sSchemaID {
+			continue
+		}
+		r, ok := byFile[f.File]
+		if !ok {
+			args := []string{"-strict"}
+			if v.opts.KubernetesVersion != "" {
+				args = append(args, "-kubernetes-version", v.opts.KubernetesVersion)
+			}
+			r.line, r.from = localRepro(v.kubeconform, "kubeconform", args, f.File)
+			byFile[f.File] = r
+		}
+		f.Repro, f.RanFrom = r.line, r.from
+	}
 }
 
 // kubeconformFailure tells a run that found problems from one that failed.

@@ -210,6 +210,7 @@ func parseTrivyOutput(data []byte) ([]Finding, error) {
 				File:        result.Target,
 				Line:        secret.StartLine,
 				Match:       maskSecret(secret.Match),
+				Steps:       secretSteps(),
 			})
 		}
 

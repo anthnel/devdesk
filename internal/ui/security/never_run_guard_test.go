@@ -21,8 +21,9 @@ import (
 //	R3  a function reachable from the copy path (copyFixCommand, runCommand, the Run
 //	    line) starts a process.
 //
-// "Reads the command" is: the identifier runCommand, a selector .FixCommand, or a
-// FixCommandCopiedMsg. "Starts a process" is a call on exec, teaexec or syscall,
+// "Reads the command" is: the identifier runCommand, reproCommand or copyCommand
+// (DEVDESK-752: the Repro line is the same kind of text), a selector .FixCommand,
+// or a FixCommandCopiedMsg. "Starts a process" is a call on exec, teaexec or syscall,
 // os.StartProcess, or tea.Exec / tea.ExecProcess.
 //
 // Limits, stated: it follows calls by name inside this package, so a call through
@@ -32,7 +33,7 @@ import (
 
 // copyPathRoots are where the copied command lives. They must exist: a rename
 // would otherwise make R3 pass on nothing.
-var copyPathRoots = []string{"copyFixCommand", "runCommand", "detailsRun"}
+var copyPathRoots = []string{"copyFixCommand", "runCommand", "detailsRun", "reproCommand", "copyCommand", "detailsRepro"}
 
 type sourceFile struct {
 	name string
@@ -85,7 +86,7 @@ func readsCommand(n ast.Node) bool {
 	ast.Inspect(n, func(x ast.Node) bool {
 		switch v := x.(type) {
 		case *ast.Ident:
-			if v.Name == "runCommand" || v.Name == "FixCommandCopiedMsg" {
+			if v.Name == "runCommand" || v.Name == "reproCommand" || v.Name == "copyCommand" || v.Name == "FixCommandCopiedMsg" {
 				found = true
 			}
 		case *ast.SelectorExpr:

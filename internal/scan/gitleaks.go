@@ -239,6 +239,7 @@ func parseGitleaksOutput(data []byte) ([]Finding, error) {
 			Line:        gf.StartLine,
 			Match:       maskSecret(gf.Secret),
 			Fingerprint: gf.Fingerprint,
+			Steps:       secretSteps(),
 		})
 	}
 
