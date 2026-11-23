@@ -296,44 +296,23 @@ no line, so it could feed neither the table's jump-to-line nor a fix.
     directory names it back; a symlink is refused). Those git calls run
     without `GIT_DIR`, `GIT_WORK_TREE`, `GIT_COMMON_DIR` and `GIT_CONFIG*`;
     `GIT_CEILING_DIRECTORIES` is kept, since it can only narrow.
-  - **Known limits, out of scope.** The enclosing git repository is mounted
-    as it is: the target's neighbours under the git root become readable, read
-    only, by kustomize and helm in the container. The renderer container keeps
-    the network (no `--network none`). helm follows symlinks inside the
-    mount, so a hostile chart can bring a sibling file's content into its
-    error, as a binary, which sees the whole host, already could.
-  - **An overlay the mount still hides is not blamed.** When it fails in a
-    container on the very reference that `k8s.EscapingReference` finds
-    reaching an existing directory outside the mount (`missedOutside`:
-    kustomize's `accumulating resources from '<ref>'` followed by
-    `evalsymlink failure` or `no such file or directory`), a LOW `K8S-RENDER`
-    "Overlay not validated: references a path outside the scanned directory
-    (`<ref>`)" replaces the HIGH one, the reference stripped of control
-    characters, kustomize's error in the log. A finding rather than
-    `K8sUnrendered`: that list reads "install helm / kustomize", wrong here.
-    Any other failure (a malformed file, a broken patch), a binary run, or a
-    missing reference keeps the HIGH finding and kustomize's whole message.
-  - **What the walk follows.** `resources`, `bases` and `components` only.
-    `patches`, `configMapGenerator`, `generators` and `transformers` name
-    files: under kustomize's default load restrictor a file outside the
-    kustomization's directory fails wherever kustomize runs, so the mount
-    changes nothing for it. With
-    `scan.tools.kustomize.args: [--load-restrictor=LoadRestrictionsNone]` such
-    a file outside the mount does fail only in the container, and is reported
-    HIGH, not LOW: a known gap.
-  - **The walk is bounded**, since the repository is untrusted: each
-    directory once by its real path, each kustomization's references once by
-    cleaned path, at most 256 KiB read per kustomization and 4 MiB in all,
-    1000 distinct references in one kustomization, 64 levels, 1000
-    kustomizations, 10,000 symlink resolutions in all. The scan's context is
-    checked before every resolution, so a cancelled scan stops the walk at the
-    next reference. Reaching any bound, or the cancel, ends the walk with "no
-    escape found", which keeps the HIGH finding and kustomize's message. On
-    the audit's repository (1000 directories sharing one kustomization), a
-    4 MiB file now returns in 0.2 ms (refused by size); at 256 KiB it took
-    57 s and 32 GiB allocated before, 46 ms and 22 MiB after. `readBounded`
-    reads regular files only, so a FIFO named `kustomization.yaml` is refused
-    rather than waited on.
+  - **An overlay that still fails is HIGH**, with kustomize's whole message:
+    DevDesk does not walk the repository to tell a reference its mount hid
+    from a broken one.
+  - **Known limits.** The renderer container keeps the network (no
+    `--network none`). helm follows symlinks inside the mount, so a hostile
+    chart can bring a sibling file's content into its error, as a binary,
+    which sees the whole host, already could. The enclosing git repository is
+    mounted as it is: the target's neighbours under the git root become
+    readable, read only, by kustomize and helm in the container, and a `.git`
+    placed in a parent directory the user owns widens the mount up to it.
+    helm has no fallback for a dependency outside the mount. A submodule
+    always has `core.worktree` set, so it mounts the target alone. With
+    `scan.tools.kustomize.args: [--load-restrictor=LoadRestrictionsNone]`, a
+    file outside the mount fails only in the container, and is HIGH.
+  - `readBounded` (`internal/k8s`) reads regular files only, without blocking
+    on open, so a FIFO named `kustomization.yaml` is refused rather than
+    waited on.
 - **The finding's line comes from the file, not the tool.** kubeconform
   reports a JSON pointer; `k8s.Locate` finds the document by kind and
   `metadata.name`, then walks the pointer through `yaml.v3` nodes. An unknown

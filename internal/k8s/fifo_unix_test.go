@@ -11,8 +11,8 @@ import (
 )
 
 // A FIFO named kustomization.yaml would block a read until a writer comes,
-// which never does: Discover and EscapingReference refuse anything but a
-// regular file (security audit of DEVDESK-742).
+// which never does: Discover refuses anything but a regular file (security
+// audit of DEVDESK-742).
 func TestAFIFOKustomizationDoesNotBlock(t *testing.T) {
 	root, err := filepath.EvalSymlinks(t.TempDir())
 	if err != nil {
@@ -26,6 +26,14 @@ func TestAFIFOKustomizationDoesNotBlock(t *testing.T) {
 		t.Skipf("no FIFO here: %v", err)
 	}
 
-	finishes(t, 3*time.Second, func() { _, _, _ = EscapingReference(t.Context(), root, overlay) })
-	finishes(t, 3*time.Second, func() { _, _ = Discover(root) })
+	done := make(chan struct{})
+	go func() {
+		_, _ = Discover(root)
+		close(done)
+	}()
+	select {
+	case <-done:
+	case <-time.After(3 * time.Second):
+		t.Fatal("Discover still reading a FIFO after 3s")
+	}
 }

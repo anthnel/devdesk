@@ -26,8 +26,9 @@ import (
 //
 // With the git repository mounted, prod builds from deploy/overlays too. When
 // nothing wider than the target can be mounted (here git does not answer),
-// prod is not blamed: it gets a LOW finding saying what it reaches. broken
-// is broken wherever it is built and keeps its HIGH finding.
+// DevDesk cannot tell a reference it hid from a broken one: prod gets the
+// HIGH finding with kustomize's whole message, like broken, which is broken
+// wherever it is built.
 func TestAnOverlayIsNotBlamedForWhatTheMountHides(t *testing.T) {
 	base, err := filepath.EvalSymlinks(t.TempDir())
 	if err != nil {
@@ -70,7 +71,7 @@ func TestAnOverlayIsNotBlamedForWhatTheMountHides(t *testing.T) {
 		{"image, sub-directory of a git repository", sub, image, repo, map[string]SeverityLevel{
 			"prod/kustomization.yaml": "", "broken/kustomization.yaml": SeverityHigh}},
 		{"image, sub-directory and no git", sub, image, "", map[string]SeverityLevel{
-			"prod/kustomization.yaml": SeverityLow, "broken/kustomization.yaml": SeverityHigh}},
+			"prod/kustomization.yaml": SeverityHigh, "broken/kustomization.yaml": SeverityHigh}},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -110,15 +111,12 @@ func TestAnOverlayIsNotBlamedForWhatTheMountHides(t *testing.T) {
 					t.Errorf("%s: %s %q, want %s", file, f.Severity, f.Title, severity)
 				}
 			}
-			if f, ok := got["prod/kustomization.yaml"]; ok && f.Severity == SeverityLow {
-				text := f.Title + "\n" + f.Message
-				if !strings.Contains(f.Title, "references a path outside the scanned directory (../../base)") ||
-					strings.Contains(text, containerScanPath) {
-					t.Errorf("outside-the-mount finding = %q\n%s", f.Title, f.Message)
+			for file, ref := range map[string]string{
+				"prod/kustomization.yaml": "'../../base'", "broken/kustomization.yaml": "'../../missing'",
+			} {
+				if f, ok := got[file]; ok && !strings.Contains(f.Message, "accumulating resources from "+ref) {
+					t.Errorf("%s lost kustomize's message: %q", file, f.Message)
 				}
-			}
-			if f, ok := got["broken/kustomization.yaml"]; ok && !strings.Contains(f.Message, "'../../missing'") {
-				t.Errorf("a broken overlay lost kustomize's message: %q", f.Message)
 			}
 		})
 	}

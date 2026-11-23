@@ -13,7 +13,6 @@ import (
 	"path/filepath"
 	"regexp"
 	"strings"
-	"unicode"
 
 	"gopkg.in/yaml.v3"
 
@@ -70,9 +69,6 @@ func targetOnly(target string) renderScope { return renderScope{target: target, 
 
 // workdir is the target inside the container.
 func (s renderScope) workdir() string { return path.Join(containerScanPath, s.rel) }
-
-// mountedTarget is the target as a path under mount on the host.
-func (s renderScope) mountedTarget() string { return filepath.Join(s.mount, filepath.FromSlash(s.rel)) }
 
 // userHomeDir is the home directory the mount guard keeps out of reach. Tests
 // swap it.
@@ -347,7 +343,8 @@ func (v *k8sValidation) renderKustomizations(ctx context.Context, dirs []string)
 			if ctx.Err() != nil {
 				return ctx.Err()
 			}
-			v.report.Findings = append(v.report.Findings, v.overlayFailure(ctx, tool, dir, file, err))
+			v.report.Findings = append(v.report.Findings,
+				renderFailure(SourceKustomize, "kustomize", file, "Overlay does not build", err))
 			continue
 		}
 		// kustomize adds no origin to what it emits unless the kustomization
@@ -359,88 +356,6 @@ func (v *k8sValidation) renderKustomizations(ctx context.Context, dirs []string)
 		}
 	}
 	return nil
-}
-
-// overlayFailure is the finding for an overlay kustomize did not build. In a
-// container, an overlay whose build failed on the very reference that reaches
-// a directory outside the mount failed because DevDesk could not show it that
-// directory, not because it is broken: it is reported as not validated, LOW,
-// rather than blamed (DEVDESK-742), and kustomize's own error goes to the log.
-// Any other failure keeps the HIGH finding and kustomize's whole message.
-func (v *k8sValidation) overlayFailure(ctx context.Context, tool ToolSpec, dir, file string, err error) Finding {
-	if tool.Source == ToolSourceContainer && strings.Contains(err.Error(), "accumulating resources") {
-		overlay := filepath.Join(v.scope.mountedTarget(), filepath.FromSlash(dir))
-		if from, ref, ok := k8s.EscapingReference(ctx, v.scope.mount, overlay); ok && missedOutside(err, ref) {
-			log.Printf("[scan/k8s] overlay %s not built: %s references %s, outside what the container sees (%s): %v",
-				dir, from, ref, v.scope.mount, err)
-			return outsideMountFinding(file, v.relToTarget(from), dir, ref)
-		}
-	}
-	return renderFailure(SourceKustomize, "kustomize", file, "Overlay does not build", err)
-}
-
-// missedOutside reports whether kustomize failed on ref for want of the path:
-// measured on kustomize v5.8.3, a reference the container cannot see fails as
-// "accumulating resources from '<ref>': evalsymlink failure … no such file or
-// directory", nested under the overlay's own reference when it is a base's.
-// A malformed file or a broken patch in the mount names neither.
-func missedOutside(err error, ref string) bool {
-	msg := err.Error()
-	_, after, found := strings.Cut(msg, "accumulating resources from '"+ref+"'")
-	return found && (strings.Contains(after, "evalsymlink failure") || strings.Contains(after, "no such file or directory"))
-}
-
-// relToTarget is a real host path under the mount, relative to the target
-// with forward slashes. The target is resolved too, as EscapingReference
-// resolves what it returns.
-func (v *k8sValidation) relToTarget(p string) string {
-	target := v.scope.mountedTarget()
-	if real, err := filepath.EvalSymlinks(target); err == nil {
-		target = real
-	}
-	rel, err := filepath.Rel(target, p)
-	if err != nil {
-		return filepath.ToSlash(p)
-	}
-	return filepath.ToSlash(rel)
-}
-
-// outsideMountFinding says an overlay was not validated because it reaches
-// outside the scanned directory. from is the kustomization holding the
-// reference, relative to the target; it is named only when it is not the
-// overlay's own.
-func outsideMountFinding(file, from, dir, ref string) Finding {
-	ref, from = printable(ref), printable(from)
-	where := ref
-	if from != dir {
-		where = ref + ", from " + from
-	}
-	msg := "Overlay not validated: references a path outside the scanned directory (" + where + ")"
-	return Finding{
-		ID:    K8sRenderID,
-		Title: msg,
-		Description: "kustomize runs in a container that sees only the scanned directory, or the git repository " +
-			"holding it, read-only. This overlay reaches beyond it, so it was not built and none of its resources " +
-			"were validated. That says nothing against the overlay itself.",
-		Message: msg,
-		Resolution: "Scan the directory that holds everything the overlay references, or use a kustomize binary " +
-			"(scan.tools.kustomize.source: binary), which sees the whole filesystem.",
-		Severity: SeverityLow,
-		Source:   SourceKustomize,
-		File:     file,
-		IaCType:  "kustomize",
-	}
-}
-
-// printable drops the control characters of a path the repository's author
-// wrote, so no escape sequence or line break reaches a finding.
-func printable(s string) string {
-	return strings.Map(func(r rune) rune {
-		if unicode.IsControl(r) {
-			return -1
-		}
-		return r
-	}, s)
 }
 
 // validateRendered runs kubeconform over rendered YAML and points each
