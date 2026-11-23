@@ -1,0 +1,15 @@
+{
+  "tool_use_id": "toolu_01VwNrxF2Hd5BcCwdtMKAcfB",
+  "agent_id": "abd221ef3947bf9d5",
+  "subagent_type": "dev-team:debugger",
+  "task_description": "Diagnostic DEVDESK-743 dashboard coupé",
+  "token_usage": {
+    "input_tokens": 152,
+    "cache_creation_tokens": 247393,
+    "cache_read_tokens": 12728140,
+    "output_tokens": 64048,
+    "api_call_count": 72
+  },
+  "started_at": "2026-11-23T16:57:21.170348197+01:00",
+  "completed_at": "2026-11-23T17:03:35.838654713+01:00"
+}
