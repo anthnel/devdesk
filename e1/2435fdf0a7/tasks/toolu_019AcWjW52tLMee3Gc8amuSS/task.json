@@ -1,0 +1,15 @@
+{
+  "tool_use_id": "toolu_019AcWjW52tLMee3Gc8amuSS",
+  "agent_id": "a88f68af3eeacc76e",
+  "subagent_type": "dev-team:reviewer",
+  "task_description": "Revue DEVDESK-743 dashboard",
+  "token_usage": {
+    "input_tokens": 44,
+    "cache_creation_tokens": 96272,
+    "cache_read_tokens": 1495869,
+    "output_tokens": 20102,
+    "api_call_count": 22
+  },
+  "started_at": "2026-11-23T17:16:28.137465721+01:00",
+  "completed_at": "2026-11-23T17:21:07.778801248+01:00"
+}

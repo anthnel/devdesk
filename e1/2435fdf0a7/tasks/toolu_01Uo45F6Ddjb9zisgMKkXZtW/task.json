@@ -1,0 +1,15 @@
+{
+  "tool_use_id": "toolu_01Uo45F6Ddjb9zisgMKkXZtW",
+  "agent_id": "a249002667746fbe5",
+  "subagent_type": "dev-team:reviewer",
+  "task_description": "Revue DEVDESK-744 tableau Diagnostics",
+  "token_usage": {
+    "input_tokens": 34,
+    "cache_creation_tokens": 140361,
+    "cache_read_tokens": 1555324,
+    "output_tokens": 12520,
+    "api_call_count": 16
+  },
+  "started_at": "2026-11-23T17:16:28.13238796+01:00",
+  "completed_at": "2026-11-23T17:17:36.478149825+01:00"
+}

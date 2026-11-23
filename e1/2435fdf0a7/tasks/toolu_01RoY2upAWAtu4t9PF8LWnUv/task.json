@@ -1,0 +1,7 @@
+{
+  "tool_use_id": "toolu_01RoY2upAWAtu4t9PF8LWnUv",
+  "agent_id": "a6088714a8f2aeb10",
+  "subagent_type": "dev-team:debugger",
+  "task_description": "Diagnostic et correctif DEVDESK-745 keyring",
+  "started_at": "2026-11-23T17:25:06.08883817+01:00"
+}
