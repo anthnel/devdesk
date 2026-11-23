@@ -3,9 +3,21 @@
 Dated entries, most recent first (AAAA-MM-JJ). Each entry records what was
 decided, why, and which alternative was rejected. Sources live in `docs/product/`.
 
+## 2026-11-23 — Safe process stop: S-01a, S-02a and bug 714 delivered (DEVDESK-708, DEVDESK-710, DEVDESK-714)
+
+Source: `docs/product/safe-process-stop/stories.md`; plan `.claude/plans/DEVDESK-708-plan.md`; `docs/architecture/network.md` (« The socket table — `internal/ports` »). Plane: DEVDESK-708 (S-01a), 710 (S-02a), bug 714; task DEVDESK-719. Decision recorded as D174 in `docs/backlog.md`.
+
+1. **Delivered:** `K` on the Ports tab is greyed, with the reason in the footer, on DevDesk itself, its direct parent, PID 1 and, on Windows, PIDs 0 and 4. `ports.Kill` refuses the same PIDs in depth with a `*ProtectedError` and sends no signal. One function, `ports.ProtectionOf`, serves both.
+2. **Bug 714 fixed:** the confirmation captures its target (`pendingKill`) when it opens, and `Yes` acts on it, not on the row under the cursor. Before, a refresh that reordered the table during the confirmation could stop another row's process.
+3. **Windows (S-02a):** the confirmation says `Terminate <name> (PID <pid>)?` and that the process is ended at once and cannot save anything. Linux and macOS texts are unchanged. The key stays `K`, « Kill ».
+4. **Decided by the user (2026-11-23):** only the direct parent is protected, and only if it was created no later than DevDesk; an unreadable creation time protects it. If the confirmed target is no longer listed, `Yes` sends nothing and warns `<name> (PID N) is no longer listed — not stopped`.
+5. **Decided (design):** a single dispatch point (`realOS.kill`) and a run-time guard that panics on a real signal in a test binary unless the test called `allowRealSignals(t)`, plus a static test of the dispatch points. Rejected: two computations of the protection, a payload in `ConfirmModalYesMsg`, pausing the refresh, OS build tags.
+6. **Limits:** a PID can still be reused between the check and the signal, or while a confirmation stays open, until S-01b compares the process identity at each signal. A dead parent replaced by a sub-reaper is protected too (too much, not too little). `os.Getppid()` is 0 outside DevDesk's PID namespace, so the parent rule never matches there. `targetStillListed` trusts the last table received. Windows and macOS are covered by seams and cross-compilation, not by a CI run.
+7. **Next:** S-01b (DEVDESK-709, identity check at each signal), then S-02b (DEVDESK-711, SIGTERM then wait then SIGKILL confirmation). S-03 and S-04 only on the user's decision.
+
 ## 2026-11-22 — Safe process stop: secure the Ports stop first, process list later (DEVDESK-708 to DEVDESK-714)
 
-Source: `docs/product/safe-process-stop/` (`brief.md`, `stories.md`; untracked by git on 2026-11-22). Plane: module « Arrêt sûr de processus », DEVDESK-708 (S-01a), 709 (S-01b), 710 (S-02a), 711 (S-02b), 712 (S-03, spike), 713 (S-04); bug DEVDESK-714. No `D<n>` number: the decisions are recorded here only.
+Source: `docs/product/safe-process-stop/` (`brief.md`, `research.md`, `stories.md`). Plane: module « Arrêt sûr de processus », DEVDESK-708 (S-01a), 709 (S-01b), 710 (S-02a), 711 (S-02b), 712 (S-03, spike), 713 (S-04); bug DEVDESK-714. No `D<n>` number: the decisions are recorded here only.
 
 1. **Idea explored:** a process list with a stop action. The first ambition, « replace the task manager » (CPU, memory, graceful then forced stop, on Linux, Windows and macOS), was dropped after research and critique.
 2. **Why dropped:** htop, btop, bottom and the Windows Task Manager already do more; scope drift; a clean stop is nearly impossible on Windows. In `internal/ports`, `ports.Kill` does not re-check the PID and does not protect DevDesk or PID 1 (read from the code, not reproduced).

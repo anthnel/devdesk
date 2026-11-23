@@ -1316,8 +1316,10 @@ verified: a declared exception.
   support is a follow-up story, to be created (see D151 in `docs/backlog.md`).
 - **Ports tab** (`ports_model.go`): the machine's own socket table, re-read
   every `ports_refresh_interval`, filtered by protocol, state and text. `K`
-  terminates a process, after a confirmation. It runs **no container** — see
-  `internal/ports` below. Column 0 is the activity column (DEVDESK-150, below).
+  terminates a process, after a confirmation. It refuses DevDesk itself, its
+  direct parent, PID 1 and, on Windows, PIDs 0 and 4, and it acts on the
+  process the confirmation named, captured when it opened (DEVDESK-708,
+  DEVDESK-714). It runs **no container** — see `internal/ports` below. Column 0 is the activity column (DEVDESK-150, below).
 - **Interfaces tab** (`interfaces_model.go`): this machine's network interfaces
   — name, state, MTU, MAC, RX/TX error counters, addresses — in a `datatable`.
   It runs **no container**; see `internal/netiface` below. It was the Topology
@@ -1418,7 +1420,8 @@ always `Idle` and an idle row shows an empty cell (a socket has no rest icon).
   `command.ViewNetdiag`; `path_run.go`, which holds the I/O, is not.
 - **Files.** `ports_activity.go` (`ActivityTables()` reports `netdiag/ports`,
   `WantsBlink()`); `ports_commands.go` holds the I/O commands (`fetchPortsCmd`,
-  `portsTickCmd`, `killProcessCmd`) and `NewPortsDataMsg`, which the activity
+  `portsTickCmd`, `killProcessCmd(kill, pid)`), `processOps` and
+  `realProcessOps` (see « Seams and the signal guard » below), and `NewPortsDataMsg`, which the activity
   guard's footer seed uses to hand rows to the view without reading the socket
   table. `ports_commands.go` is not scanned by the guard (its refresh tick is
   data, not a row animation).
@@ -2557,7 +2560,8 @@ CI: `DEVDESK_NETTRACE_LIVE=1 go test -run TestLiveTraceToCloudflare -v ./interna
 ## The socket table — `internal/ports`
 
 The machine's TCP and UDP sockets, and the process holding each, read **in this
-process**. `List(ctx, resolve)` and `Kill(pid)` are the whole interface.
+process**. `List(ctx, resolve)`, `Kill(pid)`, `ProtectionOf(pid)`, `Protection`
+(with `Reason()`) and `ProtectedError` are the whole interface.
 
 **It exists because the old one answered for the wrong machine** (D55). The
 Ports tab ran `ss -tupan` inside
@@ -2614,18 +2618,143 @@ another user's process, or a service, now comes back refused by the operating
 system instead of succeeding against the wrong machine.
 
 **So the refusal has to be legible, and `K` has to say when it cannot even
-try** (§3.49). Two different questions, and only one of them is answerable
-before the keypress:
+try** (§3.49). What DevDesk itself decides is answerable before the keypress;
+what the operating system decides is not:
 
 - **No PID, no key.** A socket the system declines to attribute carries an empty
   `PID`, and `K` is greyed on that row (Rule 130) — it used to be advertised
   everywhere and warn only once pressed.
+- **Protected, no key.** DevDesk itself, the process that started it, PID 1 and
+  the Windows system PIDs are greyed before the keypress, with the reason
+  (`Protection.Reason()`) in the footer when `K` is pressed. This is not a guess
+  about what the OS would accept: DevDesk refuses by its own rule.
 - **Whether the OS will accept the signal is the attempt's answer**, never the
   header's, so a row with a PID stays lit even when the kill is certain to be
   refused. `killFailureMessage` classifies the failure with `errors.Is` through
   the `%w` wrapping `Kill` applies: `os.ErrPermission` reads *Refused by the
   system*, `os.ErrProcessDone` reads *no longer running*, anything else keeps
   the generic line. `Failed to kill PID N` made those the same sentence.
+
+**Protected processes (DEVDESK-708).** `ports.ProtectionOf(pid)` says whether
+DevDesk refuses to signal a PID, and why (`Protection`: `ProtectedSelf`,
+`ProtectedInit`, `ProtectedWindowsSystem`, `ProtectedParent`; `Unprotected` is
+the zero value). The rule, `protectionFor`, is pure and evaluated in this
+order, so a PID that qualifies twice gets the first reason:
+
+1. DevDesk's own PID: `This is DevDesk itself` (also when DevDesk is PID 1 in a
+   container);
+2. PID 1: `PID 1 is the system's init process`;
+3. PID 0 or 4, when `goos` is `windows`: `Windows system process`;
+4. DevDesk's **direct** parent, only if it was created no later than DevDesk:
+   `This process started DevDesk`.
+
+Rules of the parent check, each a decision (D174):
+
+- **Direct parent only.** Ancestors above it (the terminal, the multiplexer,
+  the login session) are not protected. A warning for them may come later; for
+  now the user is trusted past the first level.
+- **Born first.** `parentStartedFirst` compares the creation times of the parent
+  and of DevDesk through `procOS.createTime`. A parent younger than DevDesk is a
+  process that reused the PID of the real one, so it is not protected.
+- **Unreadable or tied means protected.** If either time cannot be read, or the
+  two are equal, the parent is protected: when in doubt, do not signal.
+- **Lazy read.** The creation time costs a system call (`OpenProcess` on
+  Windows) and `ProtectionOf` runs on every render of the header, so it is read
+  only when the PID asked about is the parent's.
+- **Parent 0 is ignored.** `os.Getppid()` returns 0 when the parent lives
+  outside DevDesk's PID namespace (a container, a sandbox); there is nothing to
+  compare, so the parent rule never matches.
+- **A dead parent can be replaced by a sub-reaper** (`systemd --user`, an init
+  shim) born before DevDesk. It is then shown as `This process started
+  DevDesk`: too much protection, never too little.
+
+`Kill` and `ProtectionOf` share one parser, `parsePID`: a PID outside int32 or
+not in canonical decimal form (`+5`, `007`, spaces) is refused as `not a
+process id` before any protection is looked at, and is `Unprotected` for
+`ProtectionOf`. The kernel keeps 32 bits (`pid_t`, `DWORD`), so `"4294967295"`
+would otherwise become `kill(-1)` and `"4294967297"` PID 1.
+
+`Kill` checks `protectionOf` before the `n <= 0` check, so that `Kill("0")` on
+Windows names `Windows system process`; on Unix, 0 and negative numbers stay
+`not a process id`. A refusal is a `*ProtectedError` (`PID N not stopped:
+<reason>`) and no signal is sent. It does not wrap `os.ErrPermission`: it is
+DevDesk's own refusal, not the system's. The header and `Kill` read the same
+function, so the greyed key and the refusal cannot disagree (Rule 130).
+
+**The target is captured (DEVDESK-714).** `confirmKill` copies the selected
+row's PID and process name into `pendingKill` (a `killTarget`) in `Update`,
+and builds the text of the confirmation from it. `handleConfirmYes` reads
+`pendingKill`, never the table: the refresh keeps running during the
+confirmation and the table's cursor stays on an index, so the selected row can
+be another process by the time the user answers. Before the bug, `Yes` stopped
+that other process. `handleConfirmNo` and `handleConfirmYes` both clear
+`pendingKill` and the modal; a `Yes` with no pending target does nothing.
+`handleConfirmYes` then, in this order:
+
+1. `targetStillListed`: the last table received must still hold a row with the
+   same PID **and** the same name. If not, nothing is sent and the footer
+   warns `<name> (PID N) is no longer listed — not stopped`. The process may be
+   gone, or its PID may belong to another process now; a refusal costs the user
+   one keypress, a wrong signal costs a process.
+2. `ops.protection` on the captured PID: a target that became protected since
+   the confirmation opened is refused with a warning naming the reason.
+3. The busy mark and `killProcessCmd(ops.kill, pid)`, with `kill` and `pid`
+   copied as values (Rule 110).
+
+A `ProtectedError` that still comes back from `Kill` (the in-depth refusal)
+shows as a footer **warning**, not an error: a precondition was not met, nothing
+failed (Rule 128).
+
+**Windows wording (DEVDESK-710).** Windows has no signal to send: the process
+is ended at once through `TerminateProcess`. The confirmation says so and
+promises nothing clean. `processOps.windows` selects the text; everything else
+(title `Kill Process`, key `K`, one confirmation, `Killing <name> (<pid>)`,
+`Process <pid> terminated`) is the same on every platform.
+
+| | Linux, macOS | Windows |
+|---|---|---|
+| Body | `Send SIGKILL to <name> (PID <pid>)?` + `The process gets no chance to shut down cleanly.` | `Terminate <name> (PID <pid>)?` + `Windows has no clean stop for this process: it is ended at once and cannot save anything.` |
+| Help for `K` | `Send SIGKILL to the selected process, after confirmation (Ports tab)` | `End the selected process at once, after confirmation (Ports tab)` |
+
+A graceful close (`WM_CLOSE`) is a later story (S-04), not this one.
+
+**Seams and the signal guard (DEVDESK-708).** `internal/ports/procos.go` holds
+the seams the package reads about the host: `selfPID`, `parentPID`, `goos` and
+`procOS` (an `osProcs` with `createTime` and `kill`; production value
+`realOS{}`). In `netdiag`, `processOps` (`protection`, `kill`, `windows`)
+gathers what the tab asks of the system, wired by `realProcessOps()` to
+`ports.ProtectionOf`, `ports.Kill` and `runtime.GOOS == "windows"`; tests
+replace `PortsModel.ops`, so no netdiag test can reach `ports.Kill`.
+
+`realOS.kill` is the **only** place in the package that sends a signal, and its
+first statement is `refuseRealSignalUnderTest`: in a test binary
+(`testing.Testing()`), a real signal **panics** unless the test called
+`allowRealSignals(t)`. It panics rather than returning an error because an
+error looks like an ordinary failed kill and the test could still pass. Two
+tests hold the guard:
+
+- `TestARealSignalInATestBinaryPanics` and
+  `TestKillWithoutASubstitutedProcOSHitsTheGuard` run the panic.
+- `TestOnlyRealOSSendsASignal` parses the non-test files of `internal/ports`
+  and fails on a signalling call (`os.FindProcess`, `syscall.Kill`,
+  `unix.Kill`, `windows.TerminateProcess`, a `.Kill(` or `.Signal(` method)
+  outside `(realOS) kill`, or if the guard is not its first statement. It does
+  not see an aliased import, another package or an external binary.
+
+The only real signal in the suite is `TestKillEndsARealChildProcess`: it
+re-runs the test binary as a child (`TestHelperProcessSleeps`), calls
+`allowRealSignals(t)` and kills that child, which it then waits for. Never call
+`allowRealSignals` in a test aimed at anything else. The seams are globals:
+no `t.Parallel` in the package.
+
+**Known limits.** The check and the signal are two steps: a PID can be reused
+between them, or while a confirmation stays open (the capture widens that
+window, and `targetStillListed` closes only the part where the name changed).
+Comparing the process identity at each signal is S-01b (DEVDESK-709). Until
+then, the parent rule's creation-time comparison and `targetStillListed` are
+the only defences. `targetStillListed` trusts the last table received: a paused
+or stale table is trusted as it stands. When `parentPID()` is 0 (PID
+namespace), the parent is not protected.
 
 The platform error never reaches the screen — measured, PID 4 on this machine
 answers `OpenProcess: Accès refusé.`, in the machine's own language, which is

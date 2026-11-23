@@ -232,6 +232,19 @@ name, a dynamic import and an external binary; `gitHelperUsable` reads the git c
 unguarded; `Install` and `Fresh` are global, so no `t.Parallel`. See
 `docs/architecture/configuration.md`, "Testing code that reaches the secret store".
 
+**Tests and real signals (DEVDESK-708).** A test must never signal a real process. In
+`internal/ports` the only place that does is `realOS.kill` (`internal/ports/procos.go`),
+reached through the `procOS` seam; `selfPID`, `parentPID` and `goos` are seams too. A test
+substitutes them (`useFakeOS(t, self, parent, goos)` in `seams_test.go`), and in
+`internal/ui/netdiag` it replaces `processOps` on the model, so `ports.Kill` is never reached.
+Two guards enforce it: at run time, a real signal in a test binary panics with `DEVDESK-708`
+unless the test called `allowRealSignals(t)`, which only a test that kills a child it
+started itself may do (`TestKillEndsARealChildProcess`); statically, `TestOnlyRealOSSendsASignal`
+fails on a signalling call (`os.FindProcess`, `syscall.Kill`, `unix.Kill`,
+`windows.TerminateProcess`, `.Kill(` or `.Signal(`) outside `(realOS) kill`. Limits: the static
+guard misses an aliased import, another package and an external binary; the seams are global, so
+no `t.Parallel`. See `docs/architecture/network.md`, "Seams and the signal guard".
+
 **Test input and colour (DEVDESK-199).** Build keys only through
 `internal/ui/testutil` (`Key`, `Keys`, `Type`, `Paste`, `Text`, `IsText`), never a
 literal `tea.KeyPressMsg` or `tea.Key*`. `Key` returns a

@@ -287,13 +287,22 @@ correctly comes back as "refused by the operating system" instead of
 silently succeeding against the wrong machine (as it effectively did when
 run inside a privileged, host-networked container).
 
-Because that refusal is only knowable after the attempt, the UI treats two
-different questions differently:
+Because the operating system's refusal is only knowable after the attempt,
+the UI treats these questions differently:
 
 - **No PID means the action is unavailable before you even try** — a socket
   the OS won't attribute to a process has the kill shortcut visibly
   disabled on that row, rather than appearing available and failing with an
   explanation only after the keypress.
+- **Some processes are protected, and the key is disabled on them too.**
+  DevDesk refuses to stop itself, the process that started it (its direct
+  parent), and PID 1. On Windows it also refuses PIDs 0 and 4. On such a row
+  the kill shortcut is greyed out, and pressing `K` puts the reason in the
+  footer: `This is DevDesk itself`, `This process started DevDesk`,
+  `PID 1 is the system's init process` or `Windows system process`. This is
+  DevDesk's own rule, not a guess about what the OS would allow. Only the
+  direct parent is protected: a terminal or a multiplexer further up is not.
+  If DevDesk cannot read when its parent was created, it protects the parent.
 - **Whether the OS actually accepts the signal is answered by the attempt,
   not predicted in advance** — a row with a real PID stays enabled even
   when the kill is likely to be refused, since guessing at permissions
@@ -302,6 +311,24 @@ different questions differently:
   failure reads as "refused by the system," a process that already exited
   reads as "no longer running," and anything else falls back to a generic
   message.
+
+### What the confirmation stops
+
+The confirmation names a process and its PID, for example
+`Send SIGKILL to node (PID 4242)?`. Confirming stops **that** process, even
+if the table has refreshed and moved since you pressed `K`. The text does not
+change while the confirmation is open, and answering No or pressing `esc` sends
+nothing.
+
+If the process is no longer in the table when you confirm, DevDesk stops
+nothing and the footer says `node (PID 4242) is no longer listed — not stopped`.
+The process may have exited, and its PID may now belong to another process.
+Press `K` again on the row you want.
+
+On Windows there is no way to ask a process to close cleanly from here. The
+confirmation reads `Terminate node.exe (PID 4412)?` and says that the process
+is ended at once and cannot save anything. On Linux and macOS the process gets
+a SIGKILL, which does not let it shut down cleanly either.
 
 ## The Interfaces tab — `internal/netiface`
 
