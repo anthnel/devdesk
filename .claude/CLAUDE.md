@@ -131,7 +131,7 @@ the credential manager *and* in plaintext:
 | Storage | Backend | Notes |
 |---------|---------|-------|
 | `KeyringStorage` | Windows Credential Manager / macOS Keychain / Secret Service | via `zalando/go-keyring`, no cgo. The default. |
-| `GitCredentialStorage` | git's configured credential helper | Only when the helper is not `store`, which writes plaintext. Context-aware. |
+| `GitCredentialStorage` | git's configured credential helper | Only when no configured helper is `store` (by name, path or shell command), which writes plaintext: `approve` reaches every helper. Context-aware. |
 | `MemoryStorage` | this process | Last resort, and deliberately worse: the auth view says nothing was saved. |
 
 `Select(context, preference)` returns a `Selection{Storage, Backend, Detail}`.

@@ -74,7 +74,7 @@ func TestGitHelperUsable(t *testing.T) {
 // git resolves the last helper that answers, so the last usable one in the list
 // is the one whose name should be reported.
 func TestGitHelperUsablePrefersTheLastConfiguredHelper(t *testing.T) {
-	hermeticGitWithHelper(t, "store\n\thelper = manager")
+	hermeticGitWithHelper(t, "osxkeychain\n\thelper = manager")
 
 	got, ok := gitHelperUsable()
 	if !ok {
@@ -82,6 +82,48 @@ func TestGitHelperUsablePrefersTheLastConfiguredHelper(t *testing.T) {
 	}
 	if got != "manager" {
 		t.Errorf("gitHelperUsable() = %q, want manager", got)
+	}
+}
+
+// `git credential approve` hands the secret to every configured helper, not
+// only to the one gitHelperUsable names. A plaintext store anywhere in the list
+// therefore receives the token, so git is refused as a backend (DEVDESK-745,
+// a security fix that predates it). Until then [store, manager] was accepted.
+func TestGitHelperUsableRefusesAPlaintextStoreAnywhereInTheList(t *testing.T) {
+	tests := []struct {
+		name     string
+		helpers  string // the value of the first `helper =` line, others follow
+		wantName string
+		wantOK   bool
+	}{
+		{"store before a safe helper", "store\n\thelper = manager", "", false},
+		{"store after a safe helper", "manager\n\thelper = store", "", false},
+		{"store with a file argument", "manager\n\thelper = store --file=/tmp/creds", "", false},
+		{"the store helper by its full path", "/usr/lib/git-core/git-credential-store", "", false},
+		{"the store helper as a shell command", "!git credential-store --file /tmp/creds", "", false},
+		{"a single safe helper", "manager", "manager", true},
+		{"an empty value resets the list before it", "store\n\thelper =\n\thelper = manager", "manager", true},
+		{"an empty value last leaves no helper", "manager\n\thelper =", "", false},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			hermeticGitWithHelper(t, tt.helpers)
+
+			gotName, gotOK := gitHelperUsable()
+			if gotOK != tt.wantOK || gotName != tt.wantName {
+				t.Errorf("gitHelperUsable() = %q, %v, want %q, %v", gotName, gotOK, tt.wantName, tt.wantOK)
+			}
+		})
+	}
+}
+
+// No helper configured at all: git would have nowhere to put the secret.
+func TestGitHelperUsableWithNoHelper(t *testing.T) {
+	hermeticGitWithHelper(t, "manager")
+	t.Setenv("GIT_CONFIG_GLOBAL", t.TempDir()+"/empty-gitconfig")
+
+	if name, ok := gitHelperUsable(); ok {
+		t.Errorf("gitHelperUsable() = %q, true with no helper configured", name)
 	}
 }
 

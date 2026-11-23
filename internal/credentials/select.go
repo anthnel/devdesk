@@ -171,11 +171,14 @@ func memorySelection(why string) Selection {
 // gitHelperUsable reports whether git has a credential helper configured that
 // is worth delegating to, and names it.
 //
-// `store` is refused by name: it keeps credentials in ~/.git-credentials in
-// plaintext, which is the failure this whole change exists to remove — moving
-// the token from one plaintext file to another is not a fix. An unset helper is
-// refused too, since git would then have nowhere to put the secret and would
-// quietly succeed at storing nothing.
+// `store` is refused: it keeps credentials in ~/.git-credentials in plaintext,
+// which is the failure this whole change exists to remove — moving the token
+// from one plaintext file to another is not a fix. It is refused anywhere in
+// the list, not only as the last helper: `git credential approve` hands the
+// secret to every configured helper, so a `store` before or after a safe one
+// still writes it in plaintext (DEVDESK-745). An unset helper is refused too,
+// since git would then have nowhere to put the secret and would quietly
+// succeed at storing nothing.
 //
 // Every other helper is accepted. There is no list of the good ones to check
 // against: `manager`, `osxkeychain`, `libsecret`, `wincred` and any number of
@@ -192,16 +195,51 @@ func gitHelperUsable() (string, bool) {
 	if err := cmd.Run(); err != nil {
 		return "", false
 	}
+	return pickHelper(activeHelpers(stdout.String()))
+}
 
-	// git resolves the last helper that answers, so read them in that order and
-	// take the first usable one from the end.
-	lines := strings.Split(strings.TrimSpace(stdout.String()), "\n")
-	for i := len(lines) - 1; i >= 0; i-- {
-		if name, ok := usableHelperName(lines[i]); ok {
+// activeHelpers returns the helpers git will call, in order. An empty value
+// resets the list (gitcredentials(7)), so only what follows the last one
+// counts.
+func activeHelpers(output string) []string {
+	var active []string
+	for _, line := range strings.Split(strings.TrimSuffix(output, "\n"), "\n") {
+		line = strings.TrimSpace(line)
+		if line == "" {
+			active = nil
+			continue
+		}
+		active = append(active, line)
+	}
+	return active
+}
+
+// pickHelper refuses the list when any helper writes plaintext, and otherwise
+// names the last usable one: git resolves the last helper that answers.
+func pickHelper(helpers []string) (string, bool) {
+	for _, h := range helpers {
+		if isPlaintextHelper(h) {
+			return "", false
+		}
+	}
+	for i := len(helpers) - 1; i >= 0; i-- {
+		if name, ok := usableHelperName(helpers[i]); ok {
 			return name, true
 		}
 	}
 	return "", false
+}
+
+// isPlaintextHelper reports whether a credential.helper value is git's
+// plaintext store: `store` with or without arguments, the helper by its path
+// (`/usr/lib/git-core/git-credential-store`), or a shell command running it.
+// It errs on the side of refusing: any mention of credential-store counts.
+func isPlaintextHelper(value string) bool {
+	fields := strings.Fields(value)
+	if len(fields) == 0 {
+		return false
+	}
+	return strings.TrimPrefix(fields[0], "!") == "store" || strings.Contains(value, "credential-store")
 }
 
 // usableHelperName extracts the helper name from one credential.helper value
