@@ -153,21 +153,25 @@ func (m Model) detailsFix(f scan.Finding, t detailsText) []string {
 	return append(lines, t.field("Warning: ", status.Warning, t.text)...)
 }
 
-// detailsWhere is the file, then the other facts that place the finding, each on
-// its own line under the first.
+// detailsWhere is the facts that place the finding, one per line: the file under
+// the label Where, then the package, job, script and match under their own. The
+// labels start in one column and the values in another, so a value that wraps
+// hangs under the values. With no file, the first fact takes the label Where.
 func (m Model) detailsWhere(f scan.Finding, t detailsText) []string {
-	const label = "Where: "
 	facts := whereFacts(f, m.scanTarget())
-	if len(facts) == 0 {
-		return nil
+	labels := make([]string, len(facts))
+	room := 0
+	for i, fc := range facts {
+		labels[i] = fc.Label + ": "
+		if i == 0 {
+			labels[i] = "Where: "
+		}
+		room = max(room, ansi.StringWidth(labels[i]))
 	}
-	first := facts[0].Value
-	if facts[0].Label != "File" {
-		first = facts[0].Label + ": " + first
-	}
-	lines := t.field(label, first, t.text)
-	for _, fc := range facts[1:] {
-		lines = append(lines, t.fieldAt(ansi.StringWidth(label), fc.Label+": ", fc.Value, t.text)...)
+	var lines []string
+	for i, fc := range facts {
+		label := labels[i] + strings.Repeat(" ", room-ansi.StringWidth(labels[i]))
+		lines = append(lines, t.field(label, fc.Value, t.text)...)
 	}
 	return lines
 }

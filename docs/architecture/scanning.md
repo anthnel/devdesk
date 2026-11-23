@@ -742,7 +742,7 @@ HIGH KSV-0001
 Container 'api' of Deployment 'web' should…
                                                 <- blank
 Fix: Built-in fix unavailable: <reason>         <- the status, in the closed vocabulary below
-Where: k8s/deploy.yaml:12                       <- File[:Line], then Package, Job, Script, Match
+Where: k8s/deploy.yaml:12                       <- File[:Line]; Package, Job, Script, Match follow, see below
 Do: 1. <MissingFor | "Update x to 1.2">         <- numbered steps, then the Resolution, word for word
     <Resolution, wrapped, hanging>
 Run: $ go get golang.org/x/net@v0.23.0          <- one line, cut with an ellipsis; omitted with no command
@@ -756,6 +756,11 @@ Why:                                            <- Description, Pod Security, So
 Output:                                         <- Message, 8 lines at most, then "… N more lines"
 Refs:
 ```
+
+The facts under `Where` (DEVDESK-762) are one labelled line each: `Where:` carries the File (or,
+with no file, the first fact, value only), then `Package:`, `Job:`, `Script:` and `Match:`. Every
+label starts at column 0 and every value in one column, the width of the longest label present
+(`Where: x` alone, `Where:   x` beside `Package:`); a value that wraps hangs under the values.
 
 The builders are `detailsFix` (status, `detailsWhere`, `Do` from `fixSteps` and the
 Resolution, `detailsRun`, `detailsRepro`, Effect, Warning), `detailsChange`, `detailsWhy`, `detailsOutput` and
