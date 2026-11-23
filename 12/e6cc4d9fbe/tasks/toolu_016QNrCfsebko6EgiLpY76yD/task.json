@@ -1,0 +1,15 @@
+{
+  "tool_use_id": "toolu_016QNrCfsebko6EgiLpY76yD",
+  "agent_id": "aad2dc4a8d9c8c72c",
+  "subagent_type": "project-tester",
+  "task_description": "Tests rouges 754 SC2",
+  "token_usage": {
+    "input_tokens": 108,
+    "cache_creation_tokens": 330260,
+    "cache_read_tokens": 11618303,
+    "output_tokens": 115327,
+    "api_call_count": 53
+  },
+  "started_at": "2026-11-23T23:16:48.08805704+01:00",
+  "completed_at": "2026-11-23T23:32:44.972452454+01:00"
+}
