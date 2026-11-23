@@ -35,8 +35,11 @@ func (m *Model) Init() tea.Cmd {
 // the router asks before it would rebuild the view: dropping it mid-run would
 // discard the run without a word.
 //
-// A path trace counts too, even from another tab: it goes on there.
-func (m *Model) Running() bool { return m.state == StateRunning || m.pathModel.running() }
+// A path trace counts too, even from another tab: it goes on there. So does a
+// stop on the Ports tab, whose wait would be lost with the view (DEVDESK-711).
+func (m *Model) Running() bool {
+	return m.state == StateRunning || m.pathModel.running() || m.portsModel.stopPending()
+}
 
 // InEditMode implements FormView — true when a text input is active, so the
 // router hands the key to the field rather than opening the command line.
@@ -94,7 +97,7 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m.handleStageDone(msg)
 
 	// Ports sub-model messages.
-	case portsTickMsg, portsDataMsg, portsKillResultMsg, portsRefreshMsg:
+	case portsTickMsg, portsDataMsg, portsKillResultMsg, portsTermResultMsg, portsStopProbeMsg, portsRefreshMsg:
 		var cmd tea.Cmd
 		m.portsModel, cmd = m.portsModel.update(msg)
 		return m, cmd

@@ -12,8 +12,14 @@ import (
 // outside a test binary, like credentials.SwapHostStoreForTest; production
 // never calls it.
 func (m *Model) SetCheckEnvForTest(env func(netcheck.Settings) netcheck.Env) {
-	if !testing.Testing() {
-		panic("netdiag: SetCheckEnvForTest called outside a test binary")
-	}
+	requireTestBinary("SetCheckEnvForTest", testing.Testing())
 	m.checkEnv = env
+}
+
+// requireTestBinary panics unless underTest. Callers pass testing.Testing(); the
+// flag is a parameter so a test can check the panic from inside a test binary.
+func requireTestBinary(name string, underTest bool) {
+	if !underTest {
+		panic("netdiag: " + name + " called outside a test binary")
+	}
 }

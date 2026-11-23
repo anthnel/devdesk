@@ -33,8 +33,10 @@ type portsDataMsg struct {
 
 // portsKillResultMsg carries the result of a kill. process is the name the
 // target had when the confirmation opened, for the sentence that says another
-// process holds the PID now (DEVDESK-709).
+// process holds the PID now (DEVDESK-709). gen is the generation of the two-step
+// stop the kill closes (DEVDESK-711), 0 for a Windows kill that has none.
 type portsKillResultMsg struct {
+	gen          uint64
 	pid, process string
 	err          error
 }
@@ -122,6 +124,10 @@ type PortsModel struct {
 	// pendingKill is the process the open confirmation is about, captured when
 	// it opened. Yes acts on it and on nothing else.
 	pendingKill *killTarget
+
+	// stop is the two-step stop in progress on Linux and macOS, nil when there
+	// is none and always on Windows (DEVDESK-711). One at a time.
+	stop *pendingStop
 
 	// ops is what the tab does to processes; tests replace it.
 	ops processOps
@@ -289,6 +295,10 @@ func (pm *PortsModel) update(msg tea.Msg) (*PortsModel, tea.Cmd) {
 		return pm.handleData(msg)
 	case portsKillResultMsg:
 		return pm.handleKillResult(msg)
+	case portsTermResultMsg:
+		return pm.handleTermResult(msg)
+	case portsStopProbeMsg:
+		return pm.handleStopProbe(msg)
 	case portsRefreshMsg:
 		return pm, fetchPortsCmd(pm.numericAddrs)
 	case components.ConfirmModalYesMsg:
@@ -335,16 +345,6 @@ func (pm *PortsModel) handleData(msg portsDataMsg) (*PortsModel, tea.Cmd) {
 	// tableReady dance existed to achieve on a two-second tick.
 	pm.table.SetItems(msg.ports)
 	return pm, nil
-}
-
-func (pm *PortsModel) handleKillResult(msg portsKillResultMsg) (*PortsModel, tea.Cmd) {
-	// On every outcome: a kill that failed has to let the socket state show
-	// again rather than go on turning.
-	pm.table.ClearBusy(msg.pid)
-	if msg.err != nil {
-		return pm, pm.refusal(msg.pid, msg.process, msg.err)
-	}
-	return pm, pm.footer.Info(fmt.Sprintf("Process %s terminated", msg.pid))
 }
 
 // identityChangedText is what the footer says when the PID is held by another
@@ -488,6 +488,8 @@ func (pm *PortsModel) handleKeyNormal(msg tea.KeyPressMsg) (*PortsModel, tea.Cmd
 		pm.table.GotoTop()
 	case keymap.Kill:
 		return pm.confirmKill()
+	case "esc":
+		return pm.cancelWait()
 	}
 	return pm, nil
 }
@@ -519,7 +521,7 @@ func (pm *PortsModel) confirmKill() (*PortsModel, tea.Cmd) {
 	// answers, the selected row can be another process (DEVDESK-714).
 	target := killTarget{PID: entry.PID, Process: entry.Process, Identity: identity}
 	pm.pendingKill = &target
-	pm.confirmModal = components.NewConfirmModal("Kill Process", killPrompt(target, pm.ops.windows))
+	pm.confirmModal = components.NewConfirmModal(confirmTitle(pm.ops.windows), killPrompt(target, pm.ops.windows))
 	return pm, nil
 }
 
@@ -531,16 +533,40 @@ type killTarget struct {
 	Identity ports.Identity // the one the row was listed with, or read when the confirmation opened (DEVDESK-709)
 }
 
-// killPrompt is the text of the confirmation. Windows has no signal to send:
-// the process is ended at once, so the sentence says that instead of naming
-// a SIGKILL that does not exist there.
+// Titles of the first confirmation: Linux and macOS ask for a stop, Windows
+// ends the process at once.
+const (
+	stopTitle  = "Stop Process"
+	forceTitle = "Force Kill"
+	killTitle  = "Kill Process"
+)
+
+func confirmTitle(windows bool) string {
+	if windows {
+		return killTitle
+	}
+	return stopTitle
+}
+
+// killPrompt is the text of the first confirmation. Windows has no signal to
+// send: the process is ended at once, so the sentence says that instead of
+// naming a signal that does not exist there. Linux and macOS ask for a clean
+// stop first (stopPrompt).
 func killPrompt(t killTarget, windows bool) string {
 	if windows {
 		return fmt.Sprintf("Terminate %s (PID %s)?\n\nWindows has no clean stop for this process: it is ended at once and cannot save anything.",
 			t.Process, t.PID)
 	}
-	return fmt.Sprintf("Send SIGKILL to %s (PID %s)?\n\nThe process gets no chance to shut down cleanly.",
-		t.Process, t.PID)
+	return stopPrompt(t)
+}
+
+// killShortcutLabel is the label of K in the header: the gesture asks for a stop
+// on Linux and macOS and forces on Windows.
+func killShortcutLabel(windows bool) string {
+	if windows {
+		return "Kill process"
+	}
+	return "Stop process"
 }
 
 // killHelpDescription is the help line of K on the Ports tab.
@@ -548,8 +574,11 @@ func killHelpDescription(windows bool) string {
 	if windows {
 		return "End the selected process at once, after confirmation (Ports tab)"
 	}
-	return "Send SIGKILL to the selected process, after confirmation (Ports tab)"
+	return "Ask the selected process to stop (SIGTERM), after confirmation; if it still runs 5 s later, offer SIGKILL (Ports tab)"
 }
+
+// escHelpDescription is the help line of esc on the Ports tab (Linux and macOS).
+const escHelpDescription = "Stop waiting for a process to exit; the SIGTERM already sent is not taken back (Ports tab)"
 
 // presence says what the last table received holds of a kill target.
 type presence int
@@ -591,6 +620,10 @@ const (
 	// (DEVDESK-709, S-01b criterion 4): without it a signal could land on
 	// whatever process holds the PID by then.
 	reasonUnverifiable = "Cannot verify which process this is"
+	// reasonAnotherStop and reasonStopPendingHere grey K while a two-step stop is
+	// in progress (DEVDESK-711, criterion 7): one at a time, whatever the row.
+	reasonAnotherStop     = "Another stop is already in progress"
+	reasonStopPendingHere = "This process is already being stopped"
 )
 
 // killable reports whether K has a process to signal (Rule 130).
@@ -620,11 +653,24 @@ func (pm *PortsModel) killable() shortcut.Availability {
 	if !entry.Identity.Verifiable() {
 		return shortcut.Unavailable(reasonUnverifiable)
 	}
+	// A stop in progress greys K on every row, after the reasons that belong to
+	// the row. An exception to "an operation in progress is not a cause of
+	// grey", imposed by the one-at-a-time criterion: it lasts at most the grace
+	// and a modal, and the press says why.
+	if s := pm.stop; s != nil {
+		if s.target.PID == entry.PID {
+			return shortcut.Unavailable(reasonStopPendingHere)
+		}
+		return shortcut.Unavailable(reasonAnotherStop)
+	}
 	return shortcut.Availability{}
 }
 
 // handleConfirmNo closes the confirmation without a signal.
 func (pm *PortsModel) handleConfirmNo() (*PortsModel, tea.Cmd) {
+	if pm.stop != nil && pm.stop.phase == stopAskingForce {
+		return pm.handleForceNo()
+	}
 	pm.confirmModal = nil
 	pm.pendingKill = nil
 	return pm, nil
@@ -637,6 +683,9 @@ func (pm *PortsModel) handleConfirmNo() (*PortsModel, tea.Cmd) {
 // to another process by now), and so is one the table lists under another
 // identity, which says so and reads the table again.
 func (pm *PortsModel) handleConfirmYes() (*PortsModel, tea.Cmd) {
+	if pm.stop != nil && pm.stop.phase == stopAskingForce {
+		return pm.handleForceYes()
+	}
 	target := pm.pendingKill
 	pm.confirmModal = nil
 	pm.pendingKill = nil
@@ -658,11 +707,15 @@ func (pm *PortsModel) handleConfirmYes() (*PortsModel, tea.Cmd) {
 	if pm.table.IsBusy(target.PID) {
 		return pm, nil
 	}
+	// Linux and macOS ask for a clean stop first (DEVDESK-711); Windows has none.
+	if !pm.ops.windows {
+		return pm.startStop(*target)
+	}
 	// Keyed on the PID, so every socket the process holds shows the running dot
 	// at once — which is what happens: the kill takes them all. The table reads
 	// the busy mark at render; the router's frame drives the blink.
 	pm.table.MarkBusy(target.PID, "Killing "+target.Process+" ("+target.PID+")")
-	return pm, killProcessCmd(pm.ops.kill, *target)
+	return pm, killProcessCmd(pm.ops.kill, *target, 0)
 }
 
 // view renders the table. An empty table stays a table (Rule 139) — its

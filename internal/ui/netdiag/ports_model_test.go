@@ -720,22 +720,50 @@ func TestAQuerySpanningColumnsStillMatches(t *testing.T) {
 func TestAFailedKillLiftsTheMarker(t *testing.T) {
 	m := feed(t, portsModel(t), testutil.Key(keymap.Kill), components.ConfirmModalYesMsg{})
 
-	m = feed(t, m, portsKillResultMsg{pid: "812", err: errors.New("operation not permitted")})
+	// On Linux and macOS the first signal is the SIGTERM: its failure lifts the
+	// marker and ends the stop with no wait (S-02b criterion 6).
+	m = feed(t, m, portsTermResultMsg{
+		gen: m.portsModel.stop.gen, pid: "812", process: "sshd", err: errors.New("operation not permitted"),
+	})
 
 	if m.portsModel.table.IsBusy("812") {
-		t.Error("the marker survived a failed kill: the row is busy for good")
+		t.Error("the marker survived a failed stop: the row is busy for good")
+	}
+	if m.portsModel.stop != nil {
+		t.Error("a failed SIGTERM left a stop pending")
 	}
 	if !m.portsModel.footer.IsSet() {
 		t.Error("a failed kill reported nothing")
 	}
 }
 
-func TestASecondKillOfTheSamePIDIsRefused(t *testing.T) {
+func TestASecondStopOfTheSamePIDIsRefused(t *testing.T) {
 	m := feed(t, portsModel(t), testutil.Key(keymap.Kill), components.ConfirmModalYesMsg{})
 
+	m = feed(t, m, testutil.Key(keymap.Kill))
+
+	// K is greyed on the row being stopped (S-02b criterion 7), with the reason of
+	// that row rather than the one of another stop.
+	if got := m.portsModel.footer.Text(); got != "This process is already being stopped" {
+		t.Errorf("footer = %q, want the reason of the row being stopped", got)
+	}
+	if m.portsModel.confirmModal != nil {
+		t.Error("a second confirmation opened on the row being stopped")
+	}
+}
+
+// Windows has no two-step stop and keeps the guard of S-02a: the second K opens
+// no confirmation and says the kill is already running.
+func TestASecondKillOfTheSamePIDIsRefusedOnWindows(t *testing.T) {
+	m, _ := identityModel(t, true, sock("4412", "node.exe"), sock("812", "sshd"))
 	m = feed(t, m, testutil.Key(keymap.Kill), components.ConfirmModalYesMsg{})
 
-	if !strings.Contains(m.portsModel.footer.Text(), "812") {
+	m = feed(t, m, testutil.Key(keymap.Kill))
+
+	if !strings.Contains(m.portsModel.footer.Text(), "4412") {
 		t.Errorf("footer = %q, want it to say the kill is already running", m.portsModel.footer.Text())
+	}
+	if m.portsModel.stop != nil {
+		t.Error("Windows started a two-step stop")
 	}
 }

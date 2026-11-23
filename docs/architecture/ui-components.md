@@ -844,6 +844,26 @@ exempt), `TestGuardInvalidFieldUnderlineHasOneEntryPoint` (no `Underline*`
 outside `StyleInvalidField`), and `TestGuardDetectors` (the scanners fire on a
 faulty fragment).
 
+## A confirmation that opens by itself — `WithoutYesShortcut` and `EndSearch`
+
+`components.ConfirmModal` answers Yes to `y` and `Y`, No to `n`, `N` and `esc`,
+and moves its focus with `←` and `→`; `enter` answers the focused button. A
+modal opened by a key the user just pressed keeps that. A modal opened **by a
+timer** is different: the user may be typing, and a `y` in a word would answer
+Yes. `NewConfirmModal(title, message).WithoutYesShortcut()` turns `y` and `Y`
+off for that one modal (the `noYesKey` field; the zero value keeps the shortcut,
+so no other modal changes). The focus still starts on No, Yes takes `←` or `→`
+and then `enter`, and `n`, `N` and `esc` still answer No. The Ports tab's second
+confirmation (SIGKILL, DEVDESK-711) is the only caller; see `network.md`,
+« Two-step stop ».
+
+`FilterBar.EndSearch()` leaves the search input without touching the query: it
+clears the `searching` mode, keeps the typed text as the applied query (as after
+`enter`) and blurs the input. `ClearSearch` is the other way out and drops the
+text. A view calls `EndSearch` when something else must take the keyboard; the
+Ports tab calls it just before it opens the modal above, so the text stays and
+the table stays narrowed.
+
 ## `PostFooterMsg` — the router's one line
 
 `FooterMessage` belongs to a view, and a view calls `Info`, `Warn` or `Error` on

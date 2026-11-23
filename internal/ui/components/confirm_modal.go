@@ -11,11 +11,12 @@ import (
 
 // ConfirmModal is a confirmation dialog box
 type ConfirmModal struct {
-	title   string
-	message string
-	focused bool // true = Yes, false = No
-	width   int
-	height  int
+	title    string
+	message  string
+	focused  bool // true = Yes, false = No
+	noYesKey bool // y and Y do nothing; Yes takes a move to the button and enter
+	width    int
+	height   int
 }
 
 // NewConfirmModal creates a new confirmation modal
@@ -25,6 +26,16 @@ func NewConfirmModal(title, message string) *ConfirmModal {
 		message: message,
 		focused: false, // Defaults to "No" to avoid accidental deletions
 	}
+}
+
+// WithoutYesShortcut turns off the y and Y shortcut on this modal. It is for a
+// confirmation that opens on its own, while the user may be typing elsewhere: a
+// letter of that text must not answer Yes. Yes then takes a move to the button
+// (left or right) and enter; n, N and esc still answer No. The zero value keeps
+// the shortcut, so every other modal is unchanged.
+func (m *ConfirmModal) WithoutYesShortcut() *ConfirmModal {
+	m.noYesKey = true
+	return m
 }
 
 // ConfirmModalYesMsg is sent when the user confirms
@@ -60,7 +71,10 @@ func (m *ConfirmModal) Update(msg tea.Msg) (*ConfirmModal, tea.Cmd) {
 			}
 
 		case "y", "Y":
-			// Shortcut for Yes
+			// Shortcut for Yes, unless the modal opted out
+			if m.noYesKey {
+				return m, nil
+			}
 			return m, func() tea.Msg {
 				return ConfirmModalYesMsg{}
 			}

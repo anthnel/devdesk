@@ -41,6 +41,27 @@ type fakeProcs struct {
 	// records every PID the model asked about, in order (DEVDESK-718).
 	protect map[string]ports.Protection
 	asked   []string
+
+	// S-02b (DEVDESK-711): the first signal of a stop is SIGTERM, then the table
+	// probes the process, and SIGKILL only follows a second confirmation.
+	// terminated records the PIDs asked to stop (ports.Terminate), terminatedWith
+	// the identity each was verified against; termErr is what terminate returns.
+	terminated     []string
+	terminatedWith []ports.Identity
+	termErr        error
+	// probed records every PID probed and the identity it was compared with.
+	// probeAnswer is the verdict per PID (a PID not in it is ProcessRunning, the
+	// zero value) and probeErr the error every probe returns with it.
+	probed      []string
+	probedWith  []ports.Identity
+	probeAnswer map[string]ports.Liveness
+	probeErr    error
+}
+
+// signals is every PID a signal was asked for, SIGTERM and SIGKILL alike: what a
+// test that expects nothing to leave asserts is empty.
+func (f *fakeProcs) signals() []string {
+	return append(append([]string(nil), f.terminated...), f.killed...)
 }
 
 func (f *fakeProcs) ops(windows bool) processOps {
@@ -58,6 +79,16 @@ func (f *fakeProcs) ops(windows bool) processOps {
 				return id, nil
 			}
 			return listed, nil
+		},
+		terminate: func(pid string, listed ports.Identity) error {
+			f.terminated = append(f.terminated, pid)
+			f.terminatedWith = append(f.terminatedWith, listed)
+			return f.termErr
+		},
+		probe: func(pid string, listed ports.Identity) (ports.Liveness, error) {
+			f.probed = append(f.probed, pid)
+			f.probedWith = append(f.probedWith, listed)
+			return f.probeAnswer[pid], f.probeErr
 		},
 		kill: func(pid string, listed ports.Identity) error {
 			f.killed = append(f.killed, pid)
@@ -152,6 +183,29 @@ func runKill(t *testing.T, cmd tea.Cmd) portsKillResultMsg {
 	return res
 }
 
+// runTerm executes the command a confirmed Yes returned on Linux and macOS: the
+// SIGTERM itself, with no footer timer and no probe tick batched in.
+func runTerm(t *testing.T, cmd tea.Cmd) portsTermResultMsg {
+	t.Helper()
+	if cmd == nil {
+		t.Fatal("Yes returned no command")
+	}
+	res, ok := cmd().(portsTermResultMsg)
+	if !ok {
+		t.Fatalf("the command did not return a portsTermResultMsg")
+	}
+	return res
+}
+
+// killLabel is the label of K on the platform the model is set to: the gesture
+// asks for a stop on Linux and macOS and forces on Windows (S-02b, Q6).
+func killLabel(m *Model) string {
+	if m.portsModel.ops.windows {
+		return "Kill process"
+	}
+	return "Stop process"
+}
+
 // modalLines is the confirmation as rendered, border and padding removed, one
 // entry per content line, stopping before the buttons.
 func modalLines(m *Model) []string {
@@ -184,7 +238,7 @@ func squash(s string) string { return strings.Join(strings.Fields(s), " ") }
 
 // ── S-01a criterion 5 and the DEVDESK-714 bug ────────────────────────────────
 
-func TestYesKillsTheCapturedTargetAfterTheTableReorders(t *testing.T) {
+func TestYesStopsTheCapturedTargetAfterTheTableReorders(t *testing.T) {
 	m, procs := confirmOnNode(t)
 
 	// The refresh lands before the user answers. The cursor stays on index 0,
@@ -195,13 +249,16 @@ func TestYesKillsTheCapturedTargetAfterTheTableReorders(t *testing.T) {
 	}
 
 	m, cmd := step(t, m, components.ConfirmModalYesMsg{})
-	res := runKill(t, cmd)
+	res := runTerm(t, cmd)
 
 	if res.pid != "4242" {
-		t.Errorf("kill result pid = %q, want 4242", res.pid)
+		t.Errorf("stop result pid = %q, want 4242", res.pid)
 	}
-	if len(procs.killed) != 1 || procs.killed[0] != "4242" {
-		t.Errorf("signalled PIDs = %v, want exactly [4242] (never the selected row, 812)", procs.killed)
+	if len(procs.terminated) != 1 || procs.terminated[0] != "4242" {
+		t.Errorf("SIGTERM went to %v, want exactly [4242] (never the selected row, 812)", procs.terminated)
+	}
+	if len(procs.killed) != 0 {
+		t.Errorf("SIGKILL went to %v before any second confirmation", procs.killed)
 	}
 	if !m.portsModel.table.IsBusy("4242") {
 		t.Error("the captured target is not marked busy")
@@ -215,14 +272,35 @@ func TestYesKillsTheCapturedTargetAfterTheTableReorders(t *testing.T) {
 }
 
 // Rule 110: the command receives values, never the model. Whatever happens to
-// the model between Yes and the moment the command runs, the signal goes to the
+// the model between Yes and the moment the command runs, the SIGTERM goes to the
 // PID captured in Update and through the function captured in Update.
-func TestTheKillCommandCarriesValuesNotTheModel(t *testing.T) {
+func TestTheTerminateCommandCarriesValuesNotTheModel(t *testing.T) {
 	m, procs := confirmOnNode(t)
 	m, cmd := step(t, m, components.ConfirmModalYesMsg{})
 
 	m.portsModel.table.SetItems(nodeLast())
 	m.portsModel.table.Table().SetCursor(2)
+	m.portsModel.pendingKill = nil
+	m.portsModel.stop = nil
+	m.portsModel.ops = processOps{terminate: func(string, ports.Identity) error {
+		panic("the command read the model's processOps after Update returned")
+	}}
+
+	res := runTerm(t, cmd)
+
+	if res.pid != "4242" || len(procs.terminated) != 1 || procs.terminated[0] != "4242" {
+		t.Errorf("result pid = %q, signalled = %v, want 4242 through the function captured in Update", res.pid, procs.terminated)
+	}
+}
+
+// The same on Windows, where Yes is the kill itself (S-02a): the command carries
+// values and the result is part of no two-step stop (generation 0).
+func TestTheKillCommandCarriesValuesNotTheModel(t *testing.T) {
+	m, procs := windowsNode(t)
+	m, cmd := step(t, m, components.ConfirmModalYesMsg{})
+
+	m.portsModel.table.SetItems([]ports.Socket{sock("812", "sshd"), sock("4412", "node.exe")})
+	m.portsModel.table.Table().SetCursor(1)
 	m.portsModel.pendingKill = nil
 	m.portsModel.ops = processOps{kill: func(string, ports.Identity) error {
 		panic("the command read the model's processOps after Update returned")
@@ -230,8 +308,11 @@ func TestTheKillCommandCarriesValuesNotTheModel(t *testing.T) {
 
 	res := runKill(t, cmd)
 
-	if res.pid != "4242" || len(procs.killed) != 1 || procs.killed[0] != "4242" {
-		t.Errorf("result pid = %q, signalled = %v, want 4242 through the function captured in Update", res.pid, procs.killed)
+	if res.pid != "4412" || len(procs.killed) != 1 || procs.killed[0] != "4412" {
+		t.Errorf("result pid = %q, signalled = %v, want 4412 through the function captured in Update", res.pid, procs.killed)
+	}
+	if res.gen != 0 {
+		t.Errorf("a Windows kill result carries generation %d, want 0: it is part of no two-step stop", res.gen)
 	}
 }
 
@@ -259,8 +340,8 @@ func TestAStrayYesKillsNothing(t *testing.T) {
 	if cmd != nil {
 		t.Error("a Yes with no confirmation open returned a command")
 	}
-	if len(procs.killed) != 0 {
-		t.Errorf("a stray Yes signalled %v", procs.killed)
+	if len(procs.signals()) != 0 {
+		t.Errorf("a stray Yes signalled %v", procs.signals())
 	}
 	if m.portsModel.table.IsBusy("812") {
 		t.Error("a stray Yes marked the selected row busy")
@@ -293,8 +374,8 @@ func TestTheConfirmationDoesNotFollowTheSelection(t *testing.T) {
 			if want := (killTarget{PID: "4242", Process: "node", Identity: idOf("4242")}); m.portsModel.pendingKill == nil || *m.portsModel.pendingKill != want {
 				t.Errorf("pendingKill = %+v, want %+v", m.portsModel.pendingKill, want)
 			}
-			if len(procs.killed) != 0 {
-				t.Errorf("signalled %v without an answer", procs.killed)
+			if len(procs.signals()) != 0 {
+				t.Errorf("signalled %v without an answer", procs.signals())
 			}
 		})
 	}
@@ -330,8 +411,8 @@ func TestNoAndEscCloseWithoutASignal(t *testing.T) {
 			if cmd != nil {
 				t.Error("closing the confirmation returned a command")
 			}
-			if len(procs.killed) != 0 {
-				t.Errorf("signalled %v", procs.killed)
+			if len(procs.signals()) != 0 {
+				t.Errorf("signalled %v", procs.signals())
 			}
 			if m.portsModel.table.IsBusy("4242") {
 				t.Error("a row was marked busy though nothing was signalled")
@@ -359,8 +440,8 @@ func TestYesOnAVanishedTargetSendsNothing(t *testing.T) {
 
 			m, cmd := step(t, m, components.ConfirmModalYesMsg{})
 
-			if len(procs.killed) != 0 {
-				t.Errorf("signalled %v for a target that is no longer listed", procs.killed)
+			if len(procs.signals()) != 0 {
+				t.Errorf("signalled %v for a target that is no longer listed", procs.signals())
 			}
 			if cmd == nil {
 				t.Error("no command returned, so the footer warning would never clear")
@@ -388,10 +469,10 @@ func TestYesOnATargetStillListedSignalsIt(t *testing.T) {
 	m = feed(t, m, portsDataMsg{ports: append(nodeLast(), sock("4242", "node"))}) // two sockets, same process
 
 	_, cmd := step(t, m, components.ConfirmModalYesMsg{})
-	runKill(t, cmd)
+	runTerm(t, cmd)
 
-	if len(procs.killed) != 1 || procs.killed[0] != "4242" {
-		t.Errorf("signalled %v, want [4242]", procs.killed)
+	if len(procs.terminated) != 1 || procs.terminated[0] != "4242" {
+		t.Errorf("SIGTERM went to %v, want [4242]", procs.terminated)
 	}
 }
 
@@ -478,9 +559,11 @@ func TestTheVanishedTargetWarningFitsAt80Columns(t *testing.T) {
 
 const (
 	windowsPrompt = "Terminate node.exe (PID 4412)? Windows has no clean stop for this process: it is ended at once and cannot save anything."
-	unixBody      = "Send SIGKILL to sshd (PID 812)?\n\nThe process gets no chance to shut down cleanly."
-	unixHelp      = "Send SIGKILL to the selected process, after confirmation (Ports tab)"
 	windowsHelp   = "End the selected process at once, after confirmation (Ports tab)"
+	// S-02b (DEVDESK-711): what Linux and macOS say, written out in full so that a
+	// drift in the production strings fails a test instead of following them.
+	unixStopBody = "Ask sshd (PID 812) to stop?\n\nSends SIGTERM and waits up to 5 s. You can force it afterwards."
+	unixHelp     = "Ask the selected process to stop (SIGTERM), after confirmation; if it still runs 5 s later, offer SIGKILL (Ports tab)"
 )
 
 // windowsNode is a Windows model with the confirmation open on node.exe.
@@ -592,24 +675,41 @@ func TestWindowsLabelsPromiseNoCleanStop(t *testing.T) {
 	}
 }
 
-// The key itself does not move with the platform.
+// The key itself does not move with the platform, and the two lists differ by
+// one entry: esc, which stops the wait of the two-step stop and so exists on
+// Linux and macOS only (S-02b criterion 4).
 func TestTheKillKeyIsTheSameOnEveryPlatform(t *testing.T) {
-	win, _ := windowsNode(t)
-	unix := portsModel(t)
-	installProcs(unix, false)
+	win, _ := identityModel(t, true, sock("4412", "node.exe"), sock("812", "sshd"))
+	unix, _ := identityModel(t, false, sock("4242", "node"), sock("812", "sshd"))
 
 	if keymap.Kill != "K" {
 		t.Fatalf("keymap.Kill = %q, want K", keymap.Kill)
 	}
-	got, want := testutil.ShortcutKeys(win.GetShortcuts()), testutil.ShortcutKeys(unix.GetShortcuts())
-	if strings.Join(got, ",") != strings.Join(want, ",") {
-		t.Errorf("shortcut keys differ between platforms: windows %v, unix %v", got, want)
+	if !testutil.HasShortcut(win.GetShortcuts(), keymap.Kill) || !testutil.HasShortcut(unix.GetShortcuts(), keymap.Kill) {
+		t.Fatal("K is missing on one platform")
+	}
+	var unixKeys []string
+	for _, k := range testutil.ShortcutKeys(unix.GetShortcuts()) {
+		if k != "esc" {
+			unixKeys = append(unixKeys, k)
+		}
+	}
+	if got, want := strings.Join(testutil.ShortcutKeys(win.GetShortcuts()), ","), strings.Join(unixKeys, ","); got != want {
+		t.Errorf("shortcut keys differ beyond esc: windows %v, unix without esc %v", got, want)
+	}
+	if !testutil.HasShortcut(unix.GetShortcuts(), "esc") {
+		t.Error("Linux and macOS lost the esc entry of the two-step stop")
+	}
+	if testutil.HasShortcut(win.GetShortcuts(), "esc") {
+		t.Error("Windows has an esc entry: there is no wait to stop there")
 	}
 }
 
-// S-02a criterion 4: Linux and macOS read exactly what they read before, to the
-// character.
-func TestUnixConfirmationIsUnchanged(t *testing.T) {
+// S-02b criterion 1, replacing S-02a criterion 4 ("Linux and macOS read exactly
+// what they read before"), which is void by construction: the first confirmation
+// no longer offers a SIGKILL. Every string a user reads on the first step is
+// pinned here.
+func TestUnixConfirmationAsksToStop(t *testing.T) {
 	m := portsModel(t)
 	m.portsModel.table.Table().SetCursor(0) // sshd, PID 812
 	installProcs(m, false)
@@ -618,25 +718,28 @@ func TestUnixConfirmationIsUnchanged(t *testing.T) {
 		t.Fatal("K on sshd did not open the confirmation")
 	}
 
-	if got := modalTitle(m); got != "Kill Process" {
-		t.Errorf("title = %q, want %q", got, "Kill Process")
+	if got := modalTitle(m); got != "Stop Process" {
+		t.Errorf("title = %q, want %q", got, "Stop Process")
 	}
-	if got := modalBody(m); got != unixBody {
-		t.Errorf("body = %q, want %q", got, unixBody)
+	if got := modalBody(m); got != unixStopBody {
+		t.Errorf("body = %q, want %q", got, unixStopBody)
 	}
-	if got := killPrompt(killTarget{PID: "812", Process: "sshd"}, false); got != unixBody {
-		t.Errorf("killPrompt(unix) = %q, want %q", got, unixBody)
+	if got := stopPrompt(killTarget{PID: "812", Process: "sshd"}); got != unixStopBody {
+		t.Errorf("stopPrompt = %q, want %q", got, unixStopBody)
+	}
+	if got := killPrompt(killTarget{PID: "812", Process: "sshd"}, false); got != unixStopBody {
+		t.Errorf("killPrompt(unix) = %q, want the stop prompt %q", got, unixStopBody)
 	}
 	if got := helpFor(m); got != unixHelp {
 		t.Errorf("help = %q, want %q", got, unixHelp)
 	}
 	for _, s := range m.GetShortcuts() {
-		if s.Key == keymap.Kill && s.Description != "Kill process" {
-			t.Errorf("shortcut description = %q, want %q", s.Description, "Kill process")
+		if s.Key == keymap.Kill && s.Description != "Stop process" {
+			t.Errorf("shortcut description = %q, want %q", s.Description, "Stop process")
 		}
 	}
-	if label, _ := feed(t, m, components.ConfirmModalYesMsg{}).portsModel.table.BusyLabel("812"); label != "Killing sshd (812)" {
-		t.Errorf("busy label = %q, want %q", label, "Killing sshd (812)")
+	if label, _ := feed(t, m, components.ConfirmModalYesMsg{}).portsModel.table.BusyLabel("812"); label != "Stopping sshd (812)" {
+		t.Errorf("busy label = %q, want %q", label, "Stopping sshd (812)")
 	}
 }
 
@@ -662,6 +765,18 @@ func TestRealProcessOpsMatchThePlatform(t *testing.T) {
 	}
 	if got, want := reflect.ValueOf(ops.kill).Pointer(), reflect.ValueOf(ports.Kill).Pointer(); got != want {
 		t.Error("realProcessOps().kill is not ports.Kill")
+	}
+	if ops.terminate == nil {
+		t.Fatal("realProcessOps().terminate is nil")
+	}
+	if got, want := reflect.ValueOf(ops.terminate).Pointer(), reflect.ValueOf(ports.Terminate).Pointer(); got != want {
+		t.Error("realProcessOps().terminate is not ports.Terminate")
+	}
+	if ops.probe == nil {
+		t.Fatal("realProcessOps().probe is nil")
+	}
+	if got, want := reflect.ValueOf(ops.probe).Pointer(), reflect.ValueOf(ports.Probe).Pointer(); got != want {
+		t.Error("realProcessOps().probe is not ports.Probe")
 	}
 	if ops.confirm == nil {
 		t.Fatal("realProcessOps().confirm is nil")

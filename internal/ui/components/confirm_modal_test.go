@@ -109,6 +109,38 @@ func TestConfirmModalLetterShortcutsIgnoreSelection(t *testing.T) {
 	assertConfirmAnswer(t, cmd, false)
 }
 
+// A modal built without the option keeps y and Y; with it, they do nothing and
+// the answer Yes takes a deliberate move to the button and enter (the force kill
+// of a stop, DEVDESK-711: a letter typed into something else must not answer).
+func TestConfirmModalWithoutYesShortcut(t *testing.T) {
+	for _, key := range []string{"y", "Y"} {
+		m := NewConfirmModal("Force Kill", "Sure?").WithoutYesShortcut()
+		m, cmd := m.Update(testutil.Key(key))
+		if cmd != nil {
+			t.Errorf("%q answered %T on a modal without the Yes shortcut", key, testutil.Msg(cmd))
+		}
+		if m.focused {
+			t.Errorf("%q moved the focus to Yes", key)
+		}
+	}
+
+	m := NewConfirmModal("Force Kill", "Sure?").WithoutYesShortcut()
+	if m.focused {
+		t.Fatal("the modal opens on Yes: the safe default is No")
+	}
+	_, cmd := m.Update(testutil.Key("enter"))
+	assertConfirmAnswer(t, cmd, false)
+
+	m, _ = m.Update(testutil.Key("right"))
+	_, cmd = m.Update(testutil.Key("enter"))
+	assertConfirmAnswer(t, cmd, true)
+
+	for _, key := range []string{"n", "N", "esc"} {
+		_, cmd := NewConfirmModal("Force Kill", "Sure?").WithoutYesShortcut().Update(testutil.Key(key))
+		assertConfirmAnswer(t, cmd, false)
+	}
+}
+
 func TestConfirmModalIgnoresUnhandledKeys(t *testing.T) {
 	m := NewConfirmModal("Delete", "Sure?")
 

@@ -130,8 +130,8 @@ func TestKillIsGreyedWhenTheIdentityIsUnknown(t *testing.T) {
 		t.Error("K is offered on a row DevDesk cannot verify")
 	}
 	for _, s := range m.GetShortcuts() {
-		if s.Key == keymap.Kill && s.Description != "Kill process" {
-			t.Errorf("greyed K reads %q, want its own label %q", s.Description, "Kill process")
+		if s.Key == keymap.Kill && s.Description != killLabel(m) {
+			t.Errorf("greyed K reads %q, want its own label %q", s.Description, killLabel(m))
 		}
 	}
 
@@ -168,8 +168,8 @@ func TestKillIsGreyedWhenTheIdentityIsUnknown(t *testing.T) {
 	if len(procs.confirmAsked) != 0 {
 		t.Errorf("the refused K asked the system to confirm %v", procs.confirmAsked)
 	}
-	if len(procs.killed) != 0 {
-		t.Errorf("signalled %v", procs.killed)
+	if len(procs.signals()) != 0 {
+		t.Errorf("signalled %v", procs.signals())
 	}
 }
 
@@ -260,25 +260,19 @@ func TestYesSignalsWithTheListedIdentity(t *testing.T) {
 		t.Fatalf("pendingKill = %+v, want it to carry the identity of node (PID 4242)", m.portsModel.pendingKill)
 	}
 
-	m, cmd := step(t, m, components.ConfirmModalYesMsg{})
-	res := runKill(t, cmd)
+	_, cmd := step(t, m, components.ConfirmModalYesMsg{})
+	res := runTerm(t, cmd)
 
-	if want := []ports.Identity{idOf("4242")}; !reflect.DeepEqual(procs.killedWith, want) {
-		t.Errorf("signalled with identities %v, want %v", procs.killedWith, want)
+	// The SIGTERM is verified against the identity the row was listed with, like
+	// the SIGKILL that may follow it (S-02b criterion 5).
+	if want := []ports.Identity{idOf("4242")}; !reflect.DeepEqual(procs.terminatedWith, want) {
+		t.Errorf("SIGTERM verified against identities %v, want %v", procs.terminatedWith, want)
+	}
+	if len(procs.killed) != 0 {
+		t.Errorf("SIGKILL went to %v on the first Yes", procs.killed)
 	}
 	if res.pid != "4242" || res.process != "node" {
-		t.Errorf("kill result = (pid %q, process %q), want (4242, node)", res.pid, res.process)
-	}
-
-	m, _ = step(t, m, res)
-	if got := m.portsModel.footer.Text(); got != "Process 4242 terminated" {
-		t.Errorf("footer = %q, want %q", got, "Process 4242 terminated")
-	}
-	if got := m.portsModel.footer.Level(); got != components.LevelInfo {
-		t.Errorf("footer level = %v, want Info", got)
-	}
-	if m.portsModel.table.IsBusy("4242") {
-		t.Error("the row is still busy after the result")
+		t.Errorf("stop result = (pid %q, process %q), want (4242, node)", res.pid, res.process)
 	}
 }
 
@@ -397,8 +391,8 @@ func TestYesOnAPIDNowHeldByAnotherProcessSendsNothing(t *testing.T) {
 	m, cmd := step(t, m, components.ConfirmModalYesMsg{})
 	got := outcomeOf(m, cmd)
 
-	if len(procs.killed) != 0 {
-		t.Errorf("signalled %v for a PID another process holds", procs.killed)
+	if len(procs.signals()) != 0 {
+		t.Errorf("signalled %v for a PID another process holds", procs.signals())
 	}
 	if got.text != changedWarning || got.level != components.LevelWarning {
 		t.Errorf("footer = %q (%v), want %q at Warning", got.text, got.level, changedWarning)
@@ -439,8 +433,8 @@ func TestAnAbsentTargetKeepsTheD174Message(t *testing.T) {
 			if got.refreshes != 0 {
 				t.Errorf("an absent target asked for %d reads of the table, want none", got.refreshes)
 			}
-			if len(procs.killed) != 0 {
-				t.Errorf("signalled %v", procs.killed)
+			if len(procs.signals()) != 0 {
+				t.Errorf("signalled %v", procs.signals())
 			}
 		})
 	}

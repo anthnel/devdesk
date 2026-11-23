@@ -101,27 +101,74 @@ func (e *IdentityChangedError) Error() string {
 	return fmt.Sprintf("PID %d is no longer the process that was listed — not stopped", e.PID)
 }
 
-// parseStartTicks reads the starttime (field 22, ticks since boot) of a
-// /proc/<pid>/stat line. The command name (field 2) sits between parentheses and
-// may hold spaces and parentheses itself, so the fields are counted from the
-// last ")".
-func parseStartTicks(stat []byte) (uint64, error) {
+// parseStat reads the state (field 3) and the starttime (field 22, ticks since
+// boot) of a /proc/<pid>/stat line in one pass. The command name (field 2) sits
+// between parentheses and may hold spaces and parentheses itself, so the fields
+// are counted from the last ")".
+func parseStat(stat []byte) (state byte, start uint64, err error) {
 	end := bytes.LastIndexByte(stat, ')')
 	if end < 0 {
-		return 0, errors.New("no closing parenthesis in the stat line")
+		return 0, 0, errors.New("no closing parenthesis in the stat line")
 	}
-	// Fields 3 onward follow the name: field 22 is the 20th of them.
+	// Fields 3 onward follow the name: the state is the first of them, field 22
+	// the 20th.
 	const startIndex = 22 - 3
 	fields := bytes.Fields(stat[end+1:])
 	if len(fields) <= startIndex {
-		return 0, fmt.Errorf("the stat line stops at field %d, before starttime (22)", len(fields)+2)
+		return 0, 0, fmt.Errorf("the stat line stops at field %d, before starttime (22)", len(fields)+2)
 	}
 	ticks, err := strconv.ParseUint(string(fields[startIndex]), 10, 64)
 	if err != nil {
-		return 0, fmt.Errorf("reading starttime from the stat line: %w", err)
+		return 0, 0, fmt.Errorf("reading starttime from the stat line: %w", err)
 	}
-	return ticks, nil
+	return fields[0][0], ticks, nil
 }
+
+// parseStartTicks reads the starttime of a /proc/<pid>/stat line.
+func parseStartTicks(stat []byte) (uint64, error) {
+	_, ticks, err := parseStat(stat)
+	return ticks, err
+}
+
+// isLinuxZombie reports whether the process has exited, from field 3 of its
+// /proc/<pid>/stat and its thread count. X is dead. Z is the state of the
+// thread-group leader once it has exited, but the leader reads Z as well when
+// only the main thread called pthread_exit and the other threads run on: that
+// process is alive. So Z counts as a zombie only when the leader is the one
+// thread left (threads == 1); a count above 1, or one that could not be read
+// (threads <= 0), says alive, the safe side.
+func isLinuxZombie(state byte, threads int) bool {
+	switch state {
+	case 'X':
+		return true
+	case 'Z':
+		return threads == 1
+	}
+	return false
+}
+
+// parseThreads reads the "Threads:" line of a /proc/<pid>/status.
+func parseThreads(status []byte) (int, error) {
+	for line := range bytes.Lines(status) {
+		value, ok := bytes.CutPrefix(line, []byte("Threads:"))
+		if !ok {
+			continue
+		}
+		n, err := strconv.Atoi(string(bytes.TrimSpace(value)))
+		if err != nil || n < 1 {
+			return 0, fmt.Errorf("reading the Threads line of the status file: %q", bytes.TrimSpace(line))
+		}
+		return n, nil
+	}
+	return 0, errors.New("no Threads line in the status file")
+}
+
+// darwinSZOMB is P_stat of a zombie in <sys/proc.h> (SIDL 1, SRUN 2, SSLEEP 3,
+// SSTOP 4, SZOMB 5); x/sys/unix exports no constant for it.
+const darwinSZOMB = 5
+
+// isDarwinZombie reports whether a kinfo_proc P_stat is SZOMB.
+func isDarwinZombie(pStat int8) bool { return pStat == darwinSZOMB }
 
 // timevalStamp is a macOS process start (seconds and microseconds) as one value.
 func timevalStamp(sec int64, usec int32) uint64 {

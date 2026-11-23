@@ -208,11 +208,15 @@ func TestAConfirmationGoesToTheTabThatAskedForIt(t *testing.T) {
 	m = feed(t, m, forward.ChangedMsg{Forwards: sampleForwards()})
 	m = feed(t, m, testutil.Key(keymap.Kill))
 
-	_, cmd := step(t, m, components.ConfirmModalYesMsg{})
+	m, cmd := step(t, m, components.ConfirmModalYesMsg{})
 	for _, msg := range testutil.Msgs(cmd) {
-		if _, ok := msg.(portsKillResultMsg); ok {
-			t.Fatal("the Forward tab's confirmation reached the Ports tab's kill")
+		switch msg.(type) {
+		case portsKillResultMsg, portsTermResultMsg:
+			t.Fatal("the Forward tab's confirmation reached the Ports tab's stop")
 		}
+	}
+	if m.portsModel.stop != nil {
+		t.Error("the Forward tab's confirmation started a stop on the Ports tab")
 	}
 }
 

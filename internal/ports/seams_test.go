@@ -24,9 +24,14 @@ type fakeOS struct {
 	idErr   map[int]error  // an identity read error per PID
 	idCalls []int          // PIDs identity was called with, in order
 
-	killErr    error      // returned by every kill
-	kills      []int      // PIDs kill was called with, in order
-	killedWith []Identity // the identity kill was called with, in order
+	status     map[int]procStatus // what probe reads per PID; a PID with no entry reads as gone
+	statusErr  map[int]error      // a probe read error per PID
+	probeCalls []int              // PIDs probe was called with, in order
+
+	killErr    error        // returned by every kill
+	kills      []int        // PIDs kill was called with, in order
+	killedWith []Identity   // the identity kill was called with, in order
+	sigs       []stopSignal // the signal kill was asked to send, in order
 
 	clock    time.Time     // what the `now` seam answers
 	readStep time.Duration // how far every identity read moves the clock
@@ -52,9 +57,23 @@ func (f *fakeOS) identity(pid int) (uint64, error) {
 	return raw, nil
 }
 
-func (f *fakeOS) kill(pid int, want Identity) error {
+// probe answers from status and statusErr and, like the real one, sends nothing.
+func (f *fakeOS) probe(pid int) (procStatus, error) {
+	f.probeCalls = append(f.probeCalls, pid)
+	if err, ok := f.statusErr[pid]; ok {
+		return procStatus{}, err
+	}
+	st, ok := f.status[pid]
+	if !ok {
+		return procStatus{}, os.ErrProcessDone
+	}
+	return st, nil
+}
+
+func (f *fakeOS) kill(pid int, want Identity, sig stopSignal) error {
 	f.kills = append(f.kills, pid)
 	f.killedWith = append(f.killedWith, want)
+	f.sigs = append(f.sigs, sig)
 	return f.killErr
 }
 
@@ -72,6 +91,8 @@ func useFakeOS(t *testing.T, self, parent int, goosName string) *fakeOS {
 		createErr: map[int]error{},
 		ids:       map[int]uint64{},
 		idErr:     map[int]error{},
+		status:    map[int]procStatus{},
+		statusErr: map[int]error{},
 		clock:     fakeEpoch,
 	}
 	selfPID = func() int { return self }

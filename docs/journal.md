@@ -3,6 +3,17 @@
 Dated entries, most recent first (AAAA-MM-JJ). Each entry records what was
 decided, why, and which alternative was rejected. Sources live in `docs/product/`.
 
+## 2026-11-23 — Safe process stop: S-02b delivered, ask to stop first, force on a second confirmation (DEVDESK-711)
+
+Source: `docs/product/safe-process-stop/stories.md`; `docs/architecture/network.md` (« Two-step stop »); decision D176 in `docs/backlog.md`. Plane: DEVDESK-711; bug DEVDESK-735.
+
+1. **Delivered (Linux, macOS):** `K` asks `Ask <name> (PID N) to stop?`, sends SIGTERM and watches the process for up to 5 s without blocking the screen. If it leaves (a zombie counts), the footer says `<name> (N) stopped`. If not, a `Force Kill` confirmation offers SIGKILL; nothing is forced without it. `esc` stops waiting and takes nothing back. Windows is unchanged: one confirmation, the process is ended at once.
+2. **Decided (orchestrator, within the autonomy the user granted on 2026-11-23; the user can overrule):** the 5 s is fixed; `K` reads `Stop process` on Linux and macOS and `Kill process` on Windows; a zombie counts as stopped; one stop at a time. The Rule 130 exception (`K` greyed during a stop) is written in D176.
+3. **Also:** results and ticks of a stop reach netdiag when `:net` is off screen (`netdiag.BackgroundMsg`), which fixes a kill result lost the same way.
+4. **Decided after the security audit (two findings):** (a) on Linux a process counts as a zombie only when `/proc/<pid>/status` says `Threads: 1`; a process whose main thread died while other threads run stays "running" (an unreadable count reads as running); (b) the second confirmation ignores `y`/`Y`, opens on No, and needs `←`/`→` then `enter` for Yes, because it opens on a timer and a letter typed in the filter must not answer it; on opening, the filter is left with its text kept and the footer warns `<name> (<pid>) did not exit within 5 s`. Rejected: keeping `y`, and discarding the typed text.
+5. **Limits:** not run on macOS (zombie read unverified); the second confirmation is not visible off the Ports tab; rebuilding the view loses the wait.
+6. **Open:** the process name is shown unsanitised in the new texts (DEVDESK-720); the Windows confirmation of S-02a overflows 80 columns (DEVDESK-735).
+
 ## 2026-11-23 — Safe process stop: S-01b delivered, identity checked at each signal (DEVDESK-709)
 
 Source: `docs/product/safe-process-stop/stories.md`; `docs/architecture/network.md` (« Process identity »); decision D175 in `docs/backlog.md`. Plane: DEVDESK-709.

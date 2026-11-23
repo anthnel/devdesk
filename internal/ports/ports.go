@@ -19,6 +19,7 @@ package ports
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"net"
 	"strconv"
@@ -114,23 +115,62 @@ func toSocket(c gnet.ConnectionStat, names map[int32]string) Socket {
 // *UnverifiableError, and the signal goes only to the process that has it: if
 // the PID is held by another one the answer is an *IdentityChangedError.
 func Kill(pid string, listed Identity) error {
-	n, ok := parsePID(pid)
-	if !ok {
-		return fmt.Errorf("not a process id: %q", pid)
+	n, err := signalTarget(pid, listed)
+	if err != nil {
+		return err
 	}
-	if p := protectionOf(n); p != Unprotected {
-		return &ProtectedError{PID: n, Protection: p}
-	}
-	if n <= 0 {
-		return fmt.Errorf("not a process id: %q", pid)
-	}
-	if listed.kind != identityKnown {
-		return &UnverifiableError{PID: n}
-	}
-	if err := procOS.kill(n, listed); err != nil {
+	if err := procOS.kill(n, listed, signalKill); err != nil {
 		return fmt.Errorf("killing process %s: %w", pid, err)
 	}
 	return nil
+}
+
+// ErrNoCleanStop is what Terminate answers on Windows, which has no SIGTERM: the
+// only way to end a process there is TerminateProcess, which Kill does. It is
+// DevDesk's own answer, not an OS error: it wraps no sentinel.
+var ErrNoCleanStop = errors.New("no clean stop on Windows")
+
+// Terminate asks the process holding a socket to stop, with SIGTERM, and returns
+// as soon as the signal is sent: it waits for nothing (DEVDESK-711). Probe says
+// afterwards whether the process left; Kill is the forced stop.
+//
+// It runs the same checks as Kill, in the same order — protection, then
+// identity, then the signal through the single procOS.kill, which verifies the
+// identity again on the held process — so a graceful stop is never less careful
+// than a forced one. On Windows it answers ErrNoCleanStop after the protection,
+// so the row of DevDesk itself still says what it is.
+func Terminate(pid string, listed Identity) error {
+	n, err := signalTarget(pid, listed)
+	if err != nil {
+		return err
+	}
+	if goos == "windows" {
+		return ErrNoCleanStop
+	}
+	if err := procOS.kill(n, listed, signalTerm); err != nil {
+		return fmt.Errorf("stopping process %s: %w", pid, err)
+	}
+	return nil
+}
+
+// signalTarget is what Kill and Terminate check before anything is sent: the PID
+// is a process id, it is not protected, and the identity is known. It returns
+// the PID as a number.
+func signalTarget(pid string, listed Identity) (int, error) {
+	n, ok := parsePID(pid)
+	if !ok {
+		return 0, fmt.Errorf("not a process id: %q", pid)
+	}
+	if p := protectionOf(n); p != Unprotected {
+		return 0, &ProtectedError{PID: n, Protection: p}
+	}
+	if n <= 0 {
+		return 0, fmt.Errorf("not a process id: %q", pid)
+	}
+	if listed.kind != identityKnown {
+		return 0, &UnverifiableError{PID: n}
+	}
+	return n, nil
 }
 
 // processNames maps PID to process name, from **one** enumeration.
