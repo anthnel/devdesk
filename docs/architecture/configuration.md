@@ -191,7 +191,17 @@ asks the daemon to unlock it, and go-keyring then waits for the unlock prompt's
 `Completed` signal with no timeout (`secret_service.handlePrompt`). In an SSH session
 nobody can answer the prompt, so the launch waited forever on a blank screen, the log
 stopping after the theme line. Removing `DBUS_SESSION_BUS_ADDRESS` does not avoid it:
-godbus falls back to `$XDG_RUNTIME_DIR/bus`, the same bus.
+godbus falls back to `$XDG_RUNTIME_DIR/bus`, the same bus. Observed on the reporting
+machine (2026-11-23), the binary run in a pty that answers terminal queries: without
+the variable, the screen stayed empty for 20 s and the goroutine dump showed the same
+`handlePrompt` wait as with it.
+
+**Accepted cost (decided, DEVDESK-745).** The bound stays at 3 s for every machine. On a
+desktop where the user would unlock the keyring by hand from the prompt, a launch
+that reaches it locked takes the fallback (`unlock it and restart`) and waits 3 s
+before the first frame. The `Selection` is not re-evaluated when the keyring is
+unlocked later in the session: the context keeps its fallback until a context switch
+or a restart.
 
 **What follows a timeout.**
 
