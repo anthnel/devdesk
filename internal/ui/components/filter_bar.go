@@ -110,6 +110,15 @@ func (fb *FilterBar) ActivateSearch() tea.Cmd {
 	return textinput.Blink
 }
 
+// EndSearch leaves the search input without touching the query: the text typed
+// so far stays applied, as if enter had been pressed. A view calls it when
+// something else must take the keyboard.
+func (fb *FilterBar) EndSearch() {
+	fb.searching = false
+	fb.searchQuery = fb.searchInput.Value()
+	fb.searchInput.Blur()
+}
+
 // ClearSearch clears the search query and blurs the input.
 func (fb *FilterBar) ClearSearch() {
 	fb.searching = false

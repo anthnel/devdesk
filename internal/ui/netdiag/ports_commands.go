@@ -54,6 +54,14 @@ type processOps struct {
 	// only a deferred one (Windows, over the listing budget) costs a system
 	// call, in Update and at the press of K (DEVDESK-709).
 	confirm func(pid string, listed ports.Identity) (ports.Identity, error)
+	// terminate asks the process with this PID to stop (SIGTERM), provided it
+	// still is the process with the identity the row was listed with. Linux and
+	// macOS only; Windows never calls it (DEVDESK-711).
+	terminate func(pid string, listed ports.Identity) error
+	// probe reads, without signalling, whether the process the row was listed
+	// with still runs. It is called from the tick of a stop, never from Update or
+	// at render.
+	probe func(pid string, listed ports.Identity) (ports.Liveness, error)
 	// kill ends the process with this PID, provided it still is the process
 	// with the identity the row was listed with.
 	kill func(pid string, listed ports.Identity) error
@@ -62,22 +70,46 @@ type processOps struct {
 	windows bool
 }
 
-// realProcessOps is the production wiring: ports.Kill on the platform the
-// binary runs on.
+// realProcessOps is the production wiring: ports.Terminate, ports.Probe and
+// ports.Kill on the platform the binary runs on.
 func realProcessOps() processOps {
 	return processOps{
 		protection: ports.ProtectionOf,
 		confirm:    ports.ConfirmIdentity,
+		terminate:  ports.Terminate,
+		probe:      ports.Probe,
 		kill:       ports.Kill,
 		windows:    runtime.GOOS == "windows",
 	}
 }
 
-// killProcessCmd signals the target through kill. Both are values captured in
-// Update (Rule 110): the command never reads the model.
-func killProcessCmd(kill func(string, ports.Identity) error, t killTarget) tea.Cmd {
+// terminateCmd sends the SIGTERM of the stop of generation gen. The function and
+// the target are values captured in Update (Rule 110): the command never reads
+// the model. at is read after the call, so the grace runs from the moment the
+// signal returned.
+func terminateCmd(terminate func(string, ports.Identity) error, t killTarget, gen uint64) tea.Cmd {
 	return func() tea.Msg {
-		return portsKillResultMsg{pid: t.PID, process: t.Process, err: kill(t.PID, t.Identity)}
+		err := terminate(t.PID, t.Identity)
+		return portsTermResultMsg{gen: gen, pid: t.PID, process: t.Process, at: time.Now(), err: err}
+	}
+}
+
+// stopProbeCmd waits stopProbeEvery, then probes the target once. It is a
+// tick, not a sleep: the answer carries the tick instant the deadline is
+// compared with. Values only (Rule 110); the probe signals nothing.
+func stopProbeCmd(probe func(string, ports.Identity) (ports.Liveness, error), t killTarget, gen uint64) tea.Cmd {
+	return tea.Tick(stopProbeEvery, func(at time.Time) tea.Msg {
+		l, err := probe(t.PID, t.Identity)
+		return portsStopProbeMsg{gen: gen, at: at, liveness: l, err: err}
+	})
+}
+
+// killProcessCmd signals the target through kill. Both are values captured in
+// Update (Rule 110): the command never reads the model. gen is the generation of
+// the two-step stop the kill closes, or 0 for a Windows kill that has none.
+func killProcessCmd(kill func(string, ports.Identity) error, t killTarget, gen uint64) tea.Cmd {
+	return func() tea.Msg {
+		return portsKillResultMsg{gen: gen, pid: t.PID, process: t.Process, err: kill(t.PID, t.Identity)}
 	}
 }
 

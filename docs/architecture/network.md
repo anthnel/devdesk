@@ -1399,14 +1399,17 @@ always `Idle` and an idle row shows an empty cell (a socket has no rest icon).
   text** (`LISTEN`), dimmed like every busy row. This reverses the letter of
   §3.22 (the State cell used to be replaced by the spinner) and keeps its intent:
   the dim says the value is about to change.
-- **The footer names the kill**: for the selected busy row, `● Killing sshd (812)`
-  (`PortsModel.rowDetail`, from `components.DescribeRow`), before the
-  paused or stale text. At 60 columns, where PID and Process are dropped, this is
+- **The footer names the step**: for the selected busy row, `● Stopping sshd (812)`,
+  `● Waiting for sshd (812) to exit` or `● Killing sshd (812)` (the last one is
+  also the Windows text) (`PortsModel.rowDetail`, from `components.DescribeRow`),
+  before the paused or stale text. At 60 columns, where PID and Process are dropped, this is
   where the process name is readable.
 - **Failure stays in the footer only.** A refused or failed kill is an `Error`
   (`killFailureMessage`) and the row returns to rest: no `⊗`, nothing is
-  remembered, because no registry kind exists for it. `K` stays lit on a busy
-  row (Rule 130); pressing it again warns `Already killing PID N`.
+  remembered, because no registry kind exists for it. On Windows `K` stays lit
+  on a busy row (Rule 130); pressing it again warns `Already killing PID N`. On
+  Linux and macOS `K` is greyed on every row while a two-step stop is in
+  progress: an exception, see « Two-step stop » under « The socket table ».
 - **A periodic refresh never blinks**: `SetItems` leaves `busy` alone, so a
   refresh with nothing busy leaves column 0 empty and `WantsBlink()` false; one
   during a kill keeps the dots and the cursor.
@@ -1422,9 +1425,11 @@ always `Idle` and an idle row shows an empty cell (a socket has no rest icon).
   `command.ViewNetdiag`; `path_run.go`, which holds the I/O, is not.
 - **Files.** `ports_activity.go` (`ActivityTables()` reports `netdiag/ports`,
   `WantsBlink()`); `ports_commands.go` holds the I/O commands (`fetchPortsCmd`,
-  `portsTickCmd`, `killProcessCmd(kill, target)`, `requestPortsRefresh`, whose
+  `portsTickCmd`, `terminateCmd`, `stopProbeCmd`, `killProcessCmd(kill, target,
+  gen)`, `requestPortsRefresh`, whose
   `portsRefreshMsg` makes `Update` read the table once, outside the tick chain),
-  `processOps` (`protection`, `confirm`, `kill`, `windows`) and
+  `processOps` (`protection`, `confirm`, `terminate`, `probe`, `kill`,
+  `windows`) and
   `realProcessOps` (see « Seams and the signal guard » below), and `NewPortsDataMsg`, which the activity
   guard's footer seed uses to hand rows to the view without reading the socket
   table. `ports_commands.go` is not scanned by the guard (its refresh tick is
@@ -2564,10 +2569,11 @@ CI: `DEVDESK_NETTRACE_LIVE=1 go test -run TestLiveTraceToCloudflare -v ./interna
 ## The socket table — `internal/ports`
 
 The machine's TCP and UDP sockets, and the process holding each, read **in this
-process**. `List(ctx, resolve)`, `Kill(pid, Identity)`, `ConfirmIdentity(pid,
-Identity)`, `Identity`, `ProtectionOf(pid)`, `Protection` (with `Reason()`),
-`ProtectedError`, `UnverifiableError` and `IdentityChangedError` are the whole
-interface (the two `...ForTest` constructors of `Identity` aside).
+process**. `List(ctx, resolve)`, `Kill(pid, Identity)`, `Terminate(pid,
+Identity)`, `Probe(pid, Identity)`, `Liveness`, `ErrNoCleanStop`,
+`ConfirmIdentity(pid, Identity)`, `Identity`, `ProtectionOf(pid)`, `Protection`
+(with `Reason()`), `ProtectedError`, `UnverifiableError` and
+`IdentityChangedError` are the whole interface (the two `...ForTest` constructors of `Identity` aside).
 
 **It exists because the old one answered for the wrong machine** (D55). The
 Ports tab ran `ss -tupan` inside
@@ -2704,7 +2710,7 @@ identity gets a refusal, not a signal. Three kinds exist: unknown, known, and
 
 | OS | Where it is read | Raw value |
 |---|---|---|
-| Linux | `/proc/<pid>/stat`, field 22 (`starttime`), counted from the last `)` because the command name may contain spaces and parentheses (`parseStartTicks`) | ticks since boot |
+| Linux | `/proc/<pid>/stat`, field 22 (`starttime`), counted from the last `)` because the command name may contain spaces and parentheses (`parseStat`, which also reads the state, field 3; a `Z` state is then confirmed by the `Threads:` line of `/proc/<pid>/status`) | ticks since boot |
 | Windows | `GetProcessTimes`, `CreationTime` (`identity_windows.go`) | FILETIME as one 64-bit value (100 ns since 1601) |
 | macOS | `sysctl kern.proc.pid`, `P_starttime` (`identity_darwin.go`) | seconds and microseconds as one value (`timevalStamp`) |
 | other | nothing: the read returns `errors.ErrUnsupported` | every row unknown, `K` greyed |
@@ -2730,12 +2736,14 @@ identity gets a refusal, not a signal. Three kinds exist: unknown, known, and
   `UnverifiableError`. A deferred identity never reaches `Kill`: it is refused
   there as unverifiable. Linux and macOS have no budget; everything is read at
   listing.
-- **Verified on the process held, then signalled.** `realOS.kill(pid, want)`
-  opens the process with `os.FindProcess` (a pidfd on Linux 5.4 and later, a
+- **Verified on the process held, then signalled.** `realOS.kill(pid, want, sig)`
+  (`sig` is `signalTerm` or `signalKill`, DEVDESK-711; anything else is refused
+  with `no signal named`) opens the process with `os.FindProcess` (a pidfd on Linux 5.4 and later, a
   handle on Windows), reads the identity through that held process
   (`heldIdentity`, per OS), compares it with `want` (`verdictAtSignal`, a pure
-  function) and only then calls `p.Kill()`, which signals through the same pidfd
-  or handle. The PID cannot change hands between the comparison and the signal.
+  function) and only then calls `p.Signal(syscall.SIGTERM)` or `p.Kill()`, which
+  signal through the same pidfd or handle. SIGTERM and SIGKILL go through the
+  same checks. The PID cannot change hands between the comparison and the signal.
   A failed read never sends. The per-OS files contain no signalling call, so
   `TestOnlyRealOSSendsASignal` still holds.
 - **Errors.** `UnverifiableError` (`Cannot verify which process PID N is — not
@@ -2746,8 +2754,9 @@ identity gets a refusal, not a signal. Three kinds exist: unknown, known, and
   An OS refusal (`os.ErrPermission`, for instance a Windows handle that cannot be
   opened) or a gone process (`os.ErrProcessDone`) stays readable through
   `errors.Is`, and `killFailureMessage` words it as before.
-- **Order in `Kill`.** Parse, protection, `n <= 0`, then the identity: a
-  non-known identity is an `UnverifiableError` and nothing is sent.
+- **Order in `Kill` and `Terminate`.** Both call `signalTarget`: parse,
+  protection, `n <= 0`, then the identity: a non-known identity is an
+  `UnverifiableError` and nothing is sent.
 
 **Reaching the screen.** `PortsModel.refusal(pid, process, err)` is the one
 classifier of every refused or failed stop: the press of `K` (the confirmation's
@@ -2834,41 +2843,182 @@ at once and opens no modal). `handleConfirmYes` then, in this order:
    never conflicts here (`Conflicts` needs both known); the signal verifies it.
 2. `ops.protection` on the captured PID: a target that became protected since
    the confirmation opened is refused with a warning naming the reason.
-3. The busy mark and `killProcessCmd(ops.kill, target)`, with `kill` and the
-   target copied as values (Rule 110).
+3. On Windows, the busy mark and `killProcessCmd(ops.kill, target, 0)`, with
+   `kill` and the target copied as values (Rule 110). On Linux and macOS,
+   `startStop(target)`, the first step of the two-step stop below.
 
 A `ProtectedError`, an `IdentityChangedError` or an `UnverifiableError` that
 comes back from `Kill` (the in-depth refusal) shows as a footer **warning**, not
 an error: a precondition was not met, nothing failed (Rule 128).
 
-**Windows wording (DEVDESK-710).** Windows has no signal to send: the process
-is ended at once through `TerminateProcess`. The confirmation says so and
-promises nothing clean. `processOps.windows` selects the text; everything else
-(title `Kill Process`, key `K`, one confirmation, `Killing <name> (<pid>)`,
-`Process <pid> terminated`) is the same on every platform.
+**Two-step stop (DEVDESK-711, S-02b).** On Linux and macOS `K` asks for a clean
+stop first and forces only after a second confirmation. `internal/ports` holds
+stateless primitives; the state machine lives in `internal/ui/netdiag`
+(`ports_stop.go`), because the wait must not block and `esc` must be able to end
+it (Rule 110).
+
+- **Primitives (`internal/ports`).** `Terminate(pid, Identity)` sends SIGTERM and
+  returns at once; it waits for nothing. `Kill` is unchanged (SIGKILL,
+  `TerminateProcess` on Windows). Both call `signalTarget` and then the single
+  `procOS.kill(pid, want, sig)`, so protection, identity and the held process
+  are the same for both signals. `Terminate` wraps its error `stopping process
+  N: %w`; `refusal` reads it with `errors.As` and `errors.Is`, so the prefix
+  never reaches the screen. On Windows `Terminate` answers `ErrNoCleanStop`,
+  after the protection check; the UI never calls it there.
+- **The probe sends nothing.** `Probe(pid, Identity)` reads the state and the
+  identity stamp in one read (`readStatus`: `/proc/<pid>/stat` on Linux,
+  `sysctl kern.proc.pid` on macOS) and decides in `livenessOf`:
+  `ProcessExited` when no process holds the PID **or when another process does**
+  (the stamp differs from the listed one: the listed process is gone),
+  `ProcessZombie`, else `ProcessRunning`. On Linux `isLinuxZombie` decides: state
+  `X` (dead) is a zombie; state `Z` is one **only if `Threads:` in
+  `/proc/<pid>/status` is 1**. A process whose main thread has exited (state `Z`
+  on the leader) while other threads still run is alive and stays `running`.
+  `readStatus` reads `/proc/<pid>/status` (`readThreads`, `parseThreads`) only
+  when the state is `Z`; a status file that cannot be read or parsed leaves the
+  thread count unknown, and an unknown count reads as alive. A status file that
+  is gone reads as exited. On macOS it is `P_stat == 5` (local constant
+  `darwinSZOMB`, since `x/sys` exports none), unchanged.
+  `Liveness.Stopped()` is true for the first two. A read that fails for another
+  reason returns `ProcessRunning` with the error: an unreadable probe is never
+  taken for a stop. On Windows and other platforms `Probe` returns
+  `errors.ErrUnsupported`. The probe is not a signal, so
+  `TestOnlyRealOSSendsASignal` does not apply to it.
+- **The machine (`PortsModel.stop`, a `*pendingStop`; nil means no stop).**
+
+  ```
+  K, first Yes        SIGTERM result, no error          still running at the deadline
+  signalling  ---------------------------> waiting ------------------------------> askingForce
+     | error: no wait                         | exited or zombie: "stopped"             | Yes
+     v                                        v                                          v
+   (end)                                    (end)                                    forcing --> (end)
+  ```
+
+  `signalling`: `terminateCmd` is in flight, the row shows `Stopping nginx (812)`.
+  `waiting`: the row shows `Waiting for nginx (812) to exit` and `stopProbeCmd`
+  (a `tea.Tick` of `stopProbeEvery`, 250 ms) probes once per tick. `askingForce`:
+  the row's busy mark is lifted and the `Force Kill` modal is open. `forcing`:
+  `killProcessCmd` is in flight, the row shows `Killing nginx (812)`.
+- **The clock.** `stopGrace` is 5 s, fixed (D176). The deadline is the instant
+  `terminateCmd` returned plus `stopGrace` (`portsTermResultMsg.at`); each probe
+  carries its tick instant (`portsStopProbeMsg.at`), and the model compares the
+  two. No clock lives in the model, so tests choose the instants. A probe at or
+  after the deadline that still reads running opens the second confirmation: at
+  most about 21 probes per stop. An unreadable probe is logged
+  (`ERROR [netdiag/ports] probe pid=N`) and counts as running. A zombie is
+  counted as stopped (logged at `INFO`).
+- **Generation.** Each stop takes `nextStopGen()`, a package-level atomic counter,
+  so two netdiag views built one after the other never share one. Every message
+  of a stop carries it. A message whose generation differs from `pm.stop.gen`,
+  that arrives with no stop, or that arrives in a phase that does not expect it,
+  is ignored: a tick that outlives its stop (after `esc`) touches neither the
+  footer nor a stop started since.
+- **Refused SIGTERM.** `portsTermResultMsg.err` ends the stop on the spot, with
+  no wait, through `refusal` (the same classifier as before: `Refused by the
+  system — DevDesk cannot signal PID N`, `PID N is no longer running`, the
+  identity and protection warnings).
+- **The second confirmation.** Opened by the deadline, never by a key, so it can
+  open while the user is typing in the filter (`/`). `askForce` therefore does
+  three things: it calls `FilterBar.EndSearch()` (the filter leaves edit mode and
+  its text stays applied, as after `enter`), it opens the modal with
+  `components.NewConfirmModal(...).WithoutYesShortcut()`, and it sets the Warn
+  footer `nginx (812) did not exit within 5 s`. On this modal `y` and `Y` do
+  nothing: a letter of a search the user was typing must not answer Yes to a
+  SIGKILL. The focus starts on No; Yes takes `←` or `→` to move to the button,
+  then `enter`. `n`, `N` and `esc` answer No. Every other `ConfirmModal` keeps
+  its `y`/`Y` shortcut (opt-in, the zero value is unchanged). No answer
+  forces anything. `No` and `esc` end the stop with the Info `nginx (812) left
+  running — no SIGKILL sent`. `Yes` (`handleForceYes`) acts on the target
+  captured at the first confirmation: a table that lists the PID under another
+  identity (`replaced`) is refused with the identity-changed warning and no
+  system call; a row **absent** from the table does not stop it (a process that
+  is stopping often closes its sockets before it exits, which is the case this
+  step is for), the identity is verified at the signal; the protection is
+  recomputed. Then `kill` runs with the captured identity, the same check as
+  SIGTERM.
+- **The SIGKILL result is always announced.** `portsKillResultMsg.gen` is the
+  generation of the stop it closes (0 for a Windows kill). A result of the
+  current stop clears the busy mark and the stop; a stale one only gets its
+  sentence. `os.ErrProcessDone` on a two-step result reads as Info
+  `nginx (812) stopped` (the process left between the deadline and the `Yes`) and
+  reads the table again; anything else goes through `refusal`; success is Info
+  `Process 812 terminated`.
+- **`esc` while waiting.** `cancelWait` ends the stop and says Info `Stopped
+  waiting for nginx (812) — the stop request was already sent`. It signals
+  nothing and does not take the SIGTERM back. Outside `waiting` it does
+  nothing: during `signalling` and `forcing` there is nothing to cancel, and the
+  modal of `askingForce` takes `esc` itself (as `No`).
+- **One stop at a time.** `killable()` greys `K` on every row while `pm.stop` is
+  set, after the reasons that belong to the row (protection, identity):
+  `Another stop is already in progress`, or `This process is already being
+  stopped` on the row of the stop. **This is an exception to Rule 130** (an
+  operation in progress is not a cause of grey), imposed by the criterion that
+  only one stop waits; it lasts at most the 5 s plus a modal, and pressing `K`
+  puts the reason in the footer (D176). On Windows `K` stays lit on a busy row
+  as before. `esc` is a control, greyed outside the wait (`Stop waiting`), and
+  absent on Windows, so the set of keys on a platform does not change from one
+  state to the next.
+- **During the wait** the table keeps refreshing (its own tick chain; `space`
+  stays the user's choice), every key answers, and the chain of probes is not
+  suspended when the terminal loses focus (it is bounded by 5 s). A refresh does
+  not touch `stop`. `Model.Running()` is true while a stop is pending, so the
+  router does not rebuild a netdiag view opened from another view (`OriginView`)
+  in the middle of one.
+- **Windows is unchanged.** `pm.stop` is never set there: `handleConfirmYes`
+  follows the S-02a path (`MarkBusy("Killing …")`, `killProcessCmd(kill, t, 0)`),
+  selected by `processOps.windows`. No wait, no second confirmation, no new text.
+- **Off screen (`netdiag.BackgroundMsg`).** `portsTermResultMsg`,
+  `portsStopProbeMsg` and `portsKillResultMsg` implement `BackgroundMsg`
+  (`netdiagBackground()`); no other type does
+  (`TestOnlyNetdiagWorkIsBackgroundMessage`). `internal/app` routes them with
+  `routeNetdiagWork`: to the active view if `:net` is on screen, otherwise to
+  the netdiag view the router holds, through `routeToView`, without changing the
+  current view and without creating the view if there is none. Without it the
+  chain would stop when the user leaves `:net`, `K` would stay greyed and the
+  row busy. This also fixes a kill result lost the same way before DEVDESK-711.
+  See `app-shell.md`, « Cross-View Communication ».
+
+**Wording per platform (DEVDESK-710, DEVDESK-711).** Windows has no signal to
+send: the process is ended at once through `TerminateProcess`, and the
+confirmation promises nothing clean. `processOps.windows` selects the texts. The
+key is `K` everywhere.
 
 | | Linux, macOS | Windows |
 |---|---|---|
-| Body | `Send SIGKILL to <name> (PID <pid>)?` + `The process gets no chance to shut down cleanly.` | `Terminate <name> (PID <pid>)?` + `Windows has no clean stop for this process: it is ended at once and cannot save anything.` |
-| Help for `K` | `Send SIGKILL to the selected process, after confirmation (Ports tab)` | `End the selected process at once, after confirmation (Ports tab)` |
+| `K` label in the header | `Stop process` | `Kill process` |
+| Title | `Stop Process` | `Kill Process` |
+| Body | `Ask <name> (PID <pid>) to stop?` + `Sends SIGTERM and waits up to 5 s. You can force it afterwards.` | `Terminate <name> (PID <pid>)?` + `Windows has no clean stop for this process: it is ended at once and cannot save anything.` |
+| Row and footer | `Stopping <name> (<pid>)`, then `Waiting for <name> (<pid>) to exit` | `Killing <name> (<pid>)` |
+| End | `<name> (<pid>) stopped` (it left within 5 s), `Process <pid> terminated` after a forced kill | `Process <pid> terminated` |
+| Second confirmation | title `Force Kill`; `<name> (PID <pid>) did not exit within 5 s.` + `Force kill (SIGKILL)? It gets no chance to shut down cleanly.` | none |
+| Help for `K` | `Ask the selected process to stop (SIGTERM), after confirmation; if it still runs 5 s later, offer SIGKILL (Ports tab)` | `End the selected process at once, after confirmation (Ports tab)` |
+| `esc` | header `Stop waiting`, help `esc (Ports)` | none |
 
-A graceful close (`WM_CLOSE`) is a later story (S-04), not this one.
+In the two Linux/macOS modals the process name is cut to 32 cells
+(`stopNameWidth`), because `ConfirmModal` does not wrap and the lines must fit 80
+columns. A name with no value reads `PID <pid>`. The Windows label stays free of
+the word « Stop » (`TestWindowsLabelsPromiseNoCleanStop`): it must not suggest a
+clean stop. A graceful close (`WM_CLOSE`) is a later story (S-04), not this one.
 
-**Seams and the signal guard (DEVDESK-708, DEVDESK-709).**
+**Seams and the signal guard (DEVDESK-708, DEVDESK-709, DEVDESK-711).**
 `internal/ports/procos.go` holds the seams the package reads about the host:
 `selfPID`, `parentPID`, `goos`, `now` (the listing instant and the Windows
-budget) and `procOS` (an `osProcs` with `createTime`, `identity` and
-`kill(pid, want)`; production value `realOS{}`). Per OS, `identity_linux.go`,
-`identity_windows.go`, `identity_darwin.go` and `identity_other.go` hold
-`readIdentity`, `heldIdentity` and `isNoSuchProcess`. In `netdiag`, `processOps`
-(`protection`, `confirm`, `kill`, `windows`) gathers what the tab asks of the
-system, wired by `realProcessOps()` to `ports.ProtectionOf`,
-`ports.ConfirmIdentity`, `ports.Kill` and `runtime.GOOS == "windows"`; tests
-replace `PortsModel.ops`, so no netdiag test can reach `ports.Kill`. A test
+budget) and `procOS` (an `osProcs` with `createTime`, `identity`, `probe(pid)`
+and `kill(pid, want, sig)`; production value `realOS{}`). Per OS,
+`identity_linux.go`, `identity_windows.go`, `identity_darwin.go` and
+`identity_other.go` hold `readStatus` (`readIdentity` is its start stamp),
+`heldIdentity` and `isNoSuchProcess`; `readStatus` returns
+`errors.ErrUnsupported` on Windows and other platforms. In `netdiag`,
+`processOps` (`protection`, `confirm`, `terminate`, `probe`, `kill`, `windows`)
+gathers what the tab asks of the system, wired by `realProcessOps()` to
+`ports.ProtectionOf`, `ports.ConfirmIdentity`, `ports.Terminate`, `ports.Probe`,
+`ports.Kill` and `runtime.GOOS == "windows"`; tests replace `PortsModel.ops`, so
+no netdiag test can reach `ports.Kill`, `ports.Terminate` or `ports.Probe`. A test
 builds an identity with `ports.IdentityForTest(raw)` or
 `ports.DeferredIdentityForTest(listedAt)`; both panic outside a test binary.
 
-`realOS.kill` is the **only** place in the package that sends a signal, and its
+`realOS.kill` is the **only** place in the package that sends a signal (SIGTERM
+and SIGKILL both, chosen by its `sig` argument), and its
 first statement is `refuseRealSignalUnderTest`: in a test binary
 (`testing.Testing()`), a real signal **panics** unless the test called
 `allowRealSignals(t)`. It panics rather than returning an error because an
@@ -2883,9 +3033,15 @@ tests hold the guard:
   outside `(realOS) kill`, or if the guard is not its first statement. It does
   not see an aliased import, another package or an external binary.
 
-Two tests send a real signal, each to a child the test started itself:
+These tests send a real signal, each to a child the test started itself:
 `TestKillEndsARealChildProcess` and `TestKillSparesARealChildWhoseIdentityDiffers`
-(the child must survive: the identity differs, so nothing is sent).
+(the child must survive: the identity differs, so nothing is sent), and, since
+DEVDESK-711 (`internal/ports/stop_real_test.go`, Linux), `TestTerminateEndsARealChildProcess`,
+`TestTerminateSparesARealChildWhoseIdentityDiffers`,
+`TestTheTwoStepStopOnARealChildThatIgnoresSIGTERM` (a child that ignores SIGTERM
+survives it and dies of the SIGKILL) and `TestKillAfterTerminateSparesAReusedPID`.
+`TestProbeSeesARealZombie` signals nothing: it reads the `/proc` state of a child
+that exited and was not yet waited for.
 `TestKillOfAnExitedChildSendsNothing` calls `Kill` on a child that already
 exited. They re-run the test binary as a child (`TestHelperProcessSleeps`), call
 `allowRealSignals(t)` and wait for it. Never call
@@ -2924,9 +3080,40 @@ and the cost measurement are under « Process identity »):
    assumptions: an unknown PID fails `OpenProcess` (and `os.FindProcess`) with
    `ERROR_INVALID_PARAMETER` on Windows; a missing PID answers `EIO`, or a record
    whose `P_pid` differs, on macOS.
+7. **The two-step stop never ran on macOS** (DEVDESK-711). `readStatus` in
+   `identity_darwin.go` is compiled and vetted, not executed. Not verified:
+   that `sysctl kern.proc.pid` returns a zombie with `P_stat == SZOMB` (5, a
+   constant copied from `<sys/proc.h>`, not from `x/sys`) and its `P_starttime`.
+   If the kernel does not return it, the read means « gone »: the zombie reads as
+   exited, and the stop counts as done either way. SIP may also refuse a SIGTERM
+   (`EPERM`), which shows as `Refused by the system`.
+8. **The second confirmation can wait out of sight.** The deadline can open the
+   `Force Kill` modal while the user is on another tab or another view, since the
+   messages reach netdiag off screen. Nothing is forced without the answer, but
+   nothing says it is waiting; it shows when the user returns to the Ports tab,
+   and `K` stays greyed until then (`Another stop is already in progress`).
+9. **Rebuilding the view loses the wait.** `Running()` protects only a netdiag
+   view opened from another view (`OriginView`). If the router rebuilds the view
+   during a stop (a context switch, for instance), the wait and the second
+   confirmation are lost without a word. The SIGTERM already sent is not taken
+   back.
+10. **PID reuse during the 5 s.** Between two probes the PID can change hands.
+    `Probe` compares the identity stamp, so the listed process reads as exited
+    and the footer says it stopped, which is true of the listed process. The
+    SIGKILL re-verifies the identity at the signal, with the same residual window
+    as any signal (limit 1). The identity is the one captured at the first
+    confirmation, not re-read at the second.
+11. **A row absent from the table can still be forced.** The second `Yes` does not
+    require the row to be listed (a stopping process often closes its sockets
+    first), so it relies on the identity check at the signal alone.
 
-Also: the process name in the footer comes from the system and is not
-sanitised (DEVDESK-720). `targetPresence` trusts the last table received: a
+Also: the process name comes from the system and is not sanitised (DEVDESK-720).
+S-02b adds it to four places: the first confirmation, the second confirmation,
+the row's busy label and the footer lines (including the `did not exit` Warn);
+the cut to 32 cells in the modals bounds the width, not the content.
+The Linux zombie rule depends on `Threads:` being readable: if it is not, a
+zombie reads as running and the second confirmation opens at the deadline
+(the safe side). `targetPresence` trusts the last table received: a
 paused or stale table is trusted as it stands, and the signal is what verifies.
 `createTime` (milliseconds) still feeds the parent rule and `Identity` is a
 second source; unifying them would change S-01a and is not done. When

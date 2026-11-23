@@ -32,6 +32,10 @@ func readIdentity(pid int) (uint64, error) {
 	return creationOf(h)
 }
 
+// readStatus is not implemented on Windows: there is no clean stop to watch
+// (Terminate answers ErrNoCleanStop), so Probe reports the platform unsupported.
+func readStatus(int) (procStatus, error) { return procStatus{}, errors.ErrUnsupported }
+
 // heldIdentity reads the creation time on the handle p holds, the one
 // os.FindProcess opened: the PID cannot be reassigned while it is open.
 func heldIdentity(p *os.Process, _ int) (uint64, error) {

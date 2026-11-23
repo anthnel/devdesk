@@ -98,9 +98,14 @@ func (m *Model) GetShortcuts() shortcut.Shortcuts {
 			{Key: "space", Description: "Pause/Resume"},
 			// A socket the system declines to attribute carries no PID, so
 			// there is nothing to signal (Rule 130).
-			{Key: keymap.Kill, Description: "Kill process", Disabled: !m.portsModel.killable().Enabled()},
-			{Key: "?", Description: "Help"},
+			{Key: keymap.Kill, Description: killShortcutLabel(m.portsModel.ops.windows), Disabled: !m.portsModel.killable().Enabled()},
 		}
+		if !m.portsModel.ops.windows {
+			// A control, greyed outside the wait (Rule 130): the set of keys does
+			// not change from one state to the next.
+			sc = append(sc, shortcut.Shortcut{Key: "esc", Description: "Stop waiting", Disabled: !m.portsModel.waiting()})
+		}
+		sc = append(sc, shortcut.Shortcut{Key: "?", Description: "Help"})
 		return append(tabShortcuts, sc...)
 	}
 
@@ -312,7 +317,7 @@ func (m *Model) statusLine() components.Status {
 
 // GetHelpContent implements help.Provider
 func (m *Model) GetHelpContent() help.Content {
-	return help.Content{
+	content := help.Content{
 		Title:       "Network",
 		Description: "Four-tab view: check whether a host is reachable and its certificate chain sound (Diagnostics), monitor live ports (Ports), inspect this machine's network interfaces (Interfaces), or redirect a local port to a host:port, or give a service a name (Forward). Diagnostics also traces the hops a packet takes to the target (the Trace Path button, or H on the Local route row).",
 		KeyBindings: []help.KeyBinding{
@@ -394,17 +399,23 @@ func (m *Model) GetHelpContent() help.Content {
 				Title: "Ports Tab — How it works",
 				Body: "Reads this machine's TCP and UDP sockets every 2 seconds, in this process — no " +
 					"container, no Docker. Shows the owning process name and PID where the system will " +
-					"name one. K terminates that process, after a confirmation, with the rights DevDesk " +
-					"itself has: another user's process or a service comes back refused rather than " +
-					"silently killed elsewhere. K is greyed on DevDesk itself, on the process that " +
+					"name one. On Linux and macOS, K asks the process to stop: SIGTERM, then DevDesk " +
+					"watches it for up to 5 seconds without blocking the screen. If it exits (a zombie " +
+					"counts), the footer says it stopped. If it is still running, a second confirmation " +
+					"offers SIGKILL, which gives it no chance to shut down cleanly; nothing is forced " +
+					"without it. esc stops the waiting, and the SIGTERM already sent is not taken back. " +
+					"One stop waits at a time. On Windows, K ends the process at once.\n\n" +
+					"Every signal goes out after a confirmation and with the rights DevDesk itself has: " +
+					"another user's process or a service comes back refused rather than silently " +
+					"killed elsewhere. K is greyed on DevDesk itself, on the process that " +
 					"started it, on PID 1, and on PIDs 0 and 4 under Windows; the footer says why.\n\n" +
 					"Before the signal, DevDesk checks that the PID still belongs to the process it " +
 					"listed, and sends nothing if it does not. K is greyed when DevDesk cannot tell " +
 					"which process holds the socket.\n\n" +
 					"n toggles reverse DNS on the addresses. Host names only — port numbers stay " +
 					"numeric, because a service name would be DevDesk's guess and not the system's.\n\n" +
-					"While K is killing a process, the dot on its sockets (" + indicator.Glyph(indicator.Running, true) +
-					") is lit and the footer names the kill.",
+					"While K stops a process, the dot on its sockets (" + indicator.Glyph(indicator.Running, true) +
+					") is lit and the footer names the step: stopping, waiting for it to exit, or killing it.",
 			},
 			{
 				Title: "Forward Tab — How it works",
@@ -519,4 +530,20 @@ func (m *Model) GetHelpContent() help.Content {
 			},
 		},
 	}
+	if !m.portsModel.ops.windows {
+		content.KeyBindings = withEscBinding(content.KeyBindings)
+	}
+	return content
+}
+
+// withEscBinding inserts the esc entry of the Ports tab after K, on Linux and macOS
+// where a stop has a wait to cancel (Rule 114).
+func withEscBinding(kbs []help.KeyBinding) []help.KeyBinding {
+	esc := help.KeyBinding{Key: "esc (Ports)", Description: escHelpDescription}
+	for i, kb := range kbs {
+		if kb.Key == keymap.Kill && kb.Description == killHelpDescription(false) {
+			return append(kbs[:i+1], append([]help.KeyBinding{esc}, kbs[i+1:]...)...)
+		}
+	}
+	return kbs
 }

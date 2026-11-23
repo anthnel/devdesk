@@ -821,9 +821,24 @@ func (a *App) update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case ociresources.FocusImageRequestMsg:
 		return a.handleOCIFocusImage(msg)
 
+	// ── Work netdiag started (a stop on the Ports tab, DEVDESK-711) ──────
+	// Its results and ticks arrive wherever the user is.
+	case netdiag.BackgroundMsg:
+		return a.routeNetdiagWork(msg)
+
 	default:
 		return a, a.forwardToActiveView(msg)
 	}
+}
+
+// routeNetdiagWork hands work netdiag started back to it, on screen or not. On
+// screen it goes through the active view like every message did; off screen it
+// goes to the view the router holds, which is not created for it.
+func (a *App) routeNetdiagWork(msg tea.Msg) (tea.Model, tea.Cmd) {
+	if a.currentView == command.ViewNetdiag {
+		return a, a.forwardToActiveView(msg)
+	}
+	return a.routeToView(command.ViewNetdiag, msg)
 }
 
 // routeToView hands a message to a named view whether or not it is on screen,

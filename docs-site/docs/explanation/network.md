@@ -273,7 +273,7 @@ through failed lookups instead of successful ones.
 
 ### The dot while `K` runs
 
-The leftmost column of the Ports table is empty at rest. After you confirm `K`, every socket of that process shows a blinking dot (`●` / `○`) until the system answers, and the footer reads `Killing sshd (812)` for the selected row. The State cell keeps its text, dimmed. If the system refuses, the footer says so and the dot goes away: a failed kill leaves no mark on the row. The periodic refresh never makes a dot blink. Press `?` for the legend.
+The leftmost column of the Ports table is empty at rest. After you confirm `K`, every socket of that process shows a blinking dot (`●` / `○`) until the stop is over, and the footer names the step for the selected row: `Stopping sshd (812)`, then `Waiting for sshd (812) to exit` (on Windows, `Killing sshd (812)`). The State cell keeps its text, dimmed. If the system refuses, the footer says so and the dot goes away: a failed kill leaves no mark on the row. The periodic refresh never makes a dot blink. Press `?` for the legend.
 
 A network test that fails (TCP refused, invalid TLS) is a result, not a failed operation: it stays in the Verdict column of the Diagnostics tab.
 
@@ -318,10 +318,81 @@ the UI treats these questions differently:
   reads as "no longer running," and anything else falls back to a generic
   message.
 
+### Stopping a process in two steps (Linux and macOS)
+
+`K` first asks the process to stop. It does not kill it.
+
+1. Press `K` on a row. The confirmation reads:
+
+   ```text
+   Ask node (PID 4242) to stop?
+
+   Sends SIGTERM and waits up to 5 s. You can force it afterwards.
+   ```
+
+2. Confirm. DevDesk sends SIGTERM, the request to shut down cleanly. The footer
+   reads `Waiting for node (4242) to exit` and the dot on the row blinks. The
+   screen stays alive: the table keeps refreshing and every key still works.
+3. If the process leaves within 5 seconds, the footer says `node (4242) stopped`.
+   A process that has exited but that its parent has not collected yet (a
+   "zombie") counts as stopped: it runs nothing. On Linux, a process whose main
+   thread has exited but whose other threads still run is not a zombie: it counts
+   as running.
+4. If it is still running after 5 seconds, a second confirmation opens:
+
+   ```text
+   node (PID 4242) did not exit within 5 s.
+
+   Force kill (SIGKILL)? It gets no chance to shut down cleanly.
+   ```
+
+   The footer also reads `node (4242) did not exit within 5 s`. The focus starts
+   on No, and `y` does nothing on this confirmation: it opens by itself, and a
+   letter you were typing in the filter must not answer it. If you were typing in
+   the filter, DevDesk leaves it first and keeps the text you typed. To force the
+   stop, move to Yes with `←` or `→`, then press `enter`. `n` and `esc` answer No.
+   Answer Yes to force it: the footer reads `Killing node (4242)`, then
+   `Process 4242 terminated`. Answer No or press `esc` and nothing more is sent:
+   the footer reads `node (4242) left running — no SIGKILL sent`.
+
+DevDesk never sends SIGKILL without that second confirmation.
+
+While DevDesk waits, press `esc` to stop waiting. The footer reads `Stopped
+waiting for node (4242) — the stop request was already sent`. `esc` does not take
+the request back: SIGTERM has been sent and the process may still exit on its own.
+The `esc` shortcut is greyed when there is nothing to stop waiting for.
+
+Only one stop runs at a time. While one is in progress, `K` is greyed on every row,
+and pressing it says why: `Another stop is already in progress` (or `This process
+is already being stopped` on the row being stopped). It is available again when
+the stop ends.
+
+A few things to know:
+
+- If the system refuses the request (another user's process, for example), there
+  is no wait: the footer says `Refused by the system — DevDesk cannot signal PID 4242`.
+- The 5 seconds are fixed and cannot be configured.
+- If the second confirmation opens while you are on another tab, it is waiting for
+  you on the Ports tab. Nothing is forced until you answer. If you leave the Network
+  view altogether, the wait goes on and the confirmation is there when you come back.
+- If DevDesk rebuilds the Network view during the wait (switching context, for
+  example), it forgets that it was waiting. The request that was sent is not
+  taken back.
+- The tab checks which process holds the PID before each of the two signals (see
+  below). A PID that another process took in the meantime is never signalled.
+- On macOS this was compiled and checked in tests but never run on a Mac, so the
+  detection of a zombie there is not confirmed. If DevDesk cannot see one, it
+  reads the process as gone, and the stop counts all the same.
+
+On Windows there is only one step: the confirmation reads
+`Terminate node.exe (PID 4412)?` and the process is ended at once (see the end of
+this section). The shortcut is labelled `Kill process`, with no wait and no
+second confirmation. On Linux and macOS it is labelled `Stop process`.
+
 ### What the confirmation stops
 
 The confirmation names a process and its PID, for example
-`Send SIGKILL to node (PID 4242)?`. Confirming stops **that** process, even
+`Ask node (PID 4242) to stop?`. Confirming stops **that** process, even
 if the table has refreshed and moved since you pressed `K`. The text does not
 change while the confirmation is open, and answering No or pressing `esc` sends
 nothing.
@@ -330,6 +401,8 @@ If the process is no longer in the table when you confirm, DevDesk stops
 nothing and the footer says `node (PID 4242) is no longer listed — not stopped`.
 The process may have exited, and its PID may now belong to another process.
 Press `K` again on the row you want.
+
+The second confirmation is the exception: the process may have closed its sockets while it was stopping, so its row can be gone from the table and you can still answer Yes. DevDesk then checks at the moment of the signal that the PID still belongs to the process you were asked about.
 
 ### What DevDesk checks before it stops anything
 
@@ -364,8 +437,9 @@ backwards in between.
 
 On Windows there is no way to ask a process to close cleanly from here. The
 confirmation reads `Terminate node.exe (PID 4412)?` and says that the process
-is ended at once and cannot save anything. On Linux and macOS the process gets
-a SIGKILL, which does not let it shut down cleanly either.
+is ended at once and cannot save anything. On Linux and macOS the process is
+asked to stop first; only the second confirmation sends a SIGKILL, which does
+not let it shut down cleanly.
 
 ## The Interfaces tab — `internal/netiface`
 

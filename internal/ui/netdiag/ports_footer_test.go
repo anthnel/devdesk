@@ -20,7 +20,9 @@ import (
 // DEVDESK-150 step 2: the footer of the selected row during a kill (A-05), the
 // legend in the help (Rule 114), and the shortcut set staying put (Rule 130).
 
-const killingSSHDLine = "Killing sshd (812)"
+// killingSSHDLine is the footer detail of a stop in flight on Linux and macOS
+// (S-02b): the first step names the signal, the Windows kill keeps "Killing".
+const killingSSHDLine = "Stopping sshd (812)"
 
 // portsFooter is the rendered footer of the Ports tab, escape sequences removed.
 func portsFooter(m *Model, width int) string { return ansi.Strip(m.RenderFooter(width)) }
@@ -55,7 +57,7 @@ func TestTheFooterOnlyDescribesTheSelectedRow(t *testing.T) {
 	if !m.portsModel.statusLine().Detail.IsZero() {
 		t.Errorf("an idle selected row carries a detail: %+v", m.portsModel.statusLine().Detail)
 	}
-	if line := infoLine(m, 120); hasAnyActivityGlyph(line) || strings.Contains(line, "Killing") {
+	if line := infoLine(m, 120); hasAnyActivityGlyph(line) || strings.Contains(line, "Stopping") {
 		t.Errorf("footer line = %q for a row nothing is happening on", line)
 	}
 }
@@ -102,7 +104,7 @@ func TestAFailedKillStaysAFooterErrorWithoutTheFailedGlyph(t *testing.T) {
 	}
 
 	m = feed(t, m, components.ClearFooterMsg{ID: m.portsModel.footer.ID()})
-	if line := infoLine(m, 120); hasAnyActivityGlyph(line) || strings.Contains(line, "Killing") {
+	if line := infoLine(m, 120); hasAnyActivityGlyph(line) || strings.Contains(line, "Stopping") {
 		t.Errorf("footer line = %q after the error expired, want nothing about the row", line)
 	}
 }
@@ -122,7 +124,10 @@ func TestTheKillDetailKeepsTheFooterOnOneLineAt60Columns(t *testing.T) {
 	}
 }
 
-// Rule 130: an operation in progress is not a reason to grey or reorder.
+// Rule 130: an operation in progress does not reorder or remove an entry. One
+// declared exception, imposed by S-02b criterion 7: while a stop is in progress
+// (at most 5 s, then a modal) K is greyed, on every row, with the reason shown at
+// the press. The set of keys stays the same, which is what this test pins.
 func TestTheShortcutSetIsTheSameBusyIdleOrWithoutAPID(t *testing.T) {
 	busy := killingSSHD(t)
 	idle := feed(t, killingSSHD(t), testutil.Key("down")) // nginx
@@ -133,8 +138,11 @@ func TestTheShortcutSetIsTheSameBusyIdleOrWithoutAPID(t *testing.T) {
 			t.Errorf("%s row advertises %v, idle row %v", name, got, want)
 		}
 	}
-	if !testutil.ShortcutEnabled(busy.GetShortcuts(), keymap.Kill) {
-		t.Error("K is greyed on a row whose kill is in flight")
+	if !testutil.ShortcutDisabled(busy.GetShortcuts(), keymap.Kill) {
+		t.Error("K is lit on the row whose stop is in flight (S-02b criterion 7)")
+	}
+	if !testutil.ShortcutDisabled(idle.GetShortcuts(), keymap.Kill) {
+		t.Error("K is lit on another row while a stop is in flight (S-02b criterion 7: one stop at a time)")
 	}
 	if !testutil.ShortcutDisabled(noPID.GetShortcuts(), keymap.Kill) {
 		t.Error("K is lit on a socket with no PID (control for the no-PID state)")

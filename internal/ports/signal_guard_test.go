@@ -32,15 +32,28 @@ func TestARealSignalInATestBinaryPanics(t *testing.T) {
 	if realSignalsAllowed.Load() {
 		t.Fatal("real signals are allowed at the start of a test; a previous test leaked allowRealSignals")
 	}
-	got := recoverPanic(func() { _ = realOS{}.kill(unreachablePID, IdentityForTest(1)) })
-	if got == nil {
-		t.Fatal("realOS.kill did not panic in a test binary that did not allow real signals")
-	}
-	msg := fmt.Sprint(got)
-	for _, want := range []string{"DEVDESK-708", strconv.Itoa(unreachablePID)} {
-		if !strings.Contains(msg, want) {
-			t.Errorf("panic message %q does not contain %q", msg, want)
-		}
+	// SIGTERM goes through the same single point as SIGKILL (DEVDESK-711), so it
+	// meets the same guard; so does a call that names no signal at all.
+	for _, tc := range []struct {
+		name string
+		sig  stopSignal
+	}{
+		{"SIGKILL", signalKill},
+		{"SIGTERM", signalTerm},
+		{"no signal named", 0},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			got := recoverPanic(func() { _ = realOS{}.kill(unreachablePID, IdentityForTest(1), tc.sig) })
+			if got == nil {
+				t.Fatal("realOS.kill did not panic in a test binary that did not allow real signals")
+			}
+			msg := fmt.Sprint(got)
+			for _, want := range []string{"DEVDESK-708", strconv.Itoa(unreachablePID)} {
+				if !strings.Contains(msg, want) {
+					t.Errorf("panic message %q does not contain %q", msg, want)
+				}
+			}
+		})
 	}
 }
 

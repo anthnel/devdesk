@@ -96,8 +96,8 @@ func TestKillIsGreyedOnAProtectedProcess(t *testing.T) {
 				t.Error("K is offered on a process DevDesk refuses to signal")
 			}
 			for _, s := range m.GetShortcuts() {
-				if s.Key == keymap.Kill && s.Description != "Kill process" {
-					t.Errorf("greyed K reads %q, want its own label %q", s.Description, "Kill process")
+				if s.Key == keymap.Kill && s.Description != killLabel(m) {
+					t.Errorf("greyed K reads %q, want its own label %q", s.Description, killLabel(m))
 				}
 			}
 
@@ -127,8 +127,8 @@ func TestKillIsGreyedOnAProtectedProcess(t *testing.T) {
 			if next.portsModel.InEditMode() {
 				t.Error("the refused K left the view in edit mode")
 			}
-			if len(procs.killed) != 0 {
-				t.Errorf("signalled %v", procs.killed)
+			if len(procs.signals()) != 0 {
+				t.Errorf("signalled %v", procs.signals())
 			}
 		})
 	}
@@ -153,8 +153,8 @@ func TestKillStaysOfferedOnAnOrdinaryProcess(t *testing.T) {
 	if want := (killTarget{PID: "9001", Process: "ordinary", Identity: idOf("9001")}); m.portsModel.pendingKill == nil || *m.portsModel.pendingKill != want {
 		t.Errorf("pendingKill = %+v, want %+v", m.portsModel.pendingKill, want)
 	}
-	if len(procs.killed) != 0 {
-		t.Errorf("signalled %v before an answer", procs.killed)
+	if len(procs.signals()) != 0 {
+		t.Errorf("signalled %v before an answer", procs.signals())
 	}
 }
 
@@ -199,8 +199,8 @@ func TestYesRechecksTheCapturedTarget(t *testing.T) {
 
 		m, cmd := step(t, m, components.ConfirmModalYesMsg{})
 
-		if len(procs.killed) != 0 {
-			t.Errorf("signalled %v: a PID that became protected between K and Yes", procs.killed)
+		if len(procs.signals()) != 0 {
+			t.Errorf("signalled %v: a PID that became protected between K and Yes", procs.signals())
 		}
 		if cmd == nil {
 			t.Error("no command returned, so the footer warning would never clear")
@@ -225,10 +225,10 @@ func TestYesRechecksTheCapturedTarget(t *testing.T) {
 		procs.protectAs("812", ports.ProtectedParent)   // the selection is protected; the target is not
 
 		_, cmd := step(t, m, components.ConfirmModalYesMsg{})
-		runKill(t, cmd)
+		runTerm(t, cmd)
 
-		if len(procs.killed) != 1 || procs.killed[0] != "4242" {
-			t.Errorf("signalled %v, want [4242]: the verdict on the selected row must not decide", procs.killed)
+		if len(procs.terminated) != 1 || procs.terminated[0] != "4242" {
+			t.Errorf("SIGTERM went to %v, want [4242]: the verdict on the selected row must not decide", procs.terminated)
 		}
 	})
 
@@ -239,8 +239,8 @@ func TestYesRechecksTheCapturedTarget(t *testing.T) {
 
 		m, _ = step(t, m, components.ConfirmModalYesMsg{})
 
-		if len(procs.killed) != 0 {
-			t.Errorf("signalled %v", procs.killed)
+		if len(procs.signals()) != 0 {
+			t.Errorf("signalled %v", procs.signals())
 		}
 		if got := m.portsModel.footer.Text(); !strings.Contains(got, reasonSelfText) {
 			t.Errorf("footer = %q, want it to carry %q", got, reasonSelfText)
@@ -251,10 +251,10 @@ func TestYesRechecksTheCapturedTarget(t *testing.T) {
 		m, procs := confirmOnNode(t)
 
 		_, cmd := step(t, m, components.ConfirmModalYesMsg{})
-		runKill(t, cmd)
+		runTerm(t, cmd)
 
-		if len(procs.killed) != 1 || procs.killed[0] != "4242" {
-			t.Errorf("signalled %v, want [4242]", procs.killed)
+		if len(procs.terminated) != 1 || procs.terminated[0] != "4242" {
+			t.Errorf("SIGTERM went to %v, want [4242]", procs.terminated)
 		}
 	})
 }
@@ -317,14 +317,15 @@ func TestAProtectedErrorNamesItsReason(t *testing.T) {
 	}
 }
 
-// End to end: the view's own check said Unprotected, Kill refused anyway, and
-// that refusal reaches the footer as a warning with nothing marked as killed.
-func TestAKillRefusedByThePackageEndsAsAWarning(t *testing.T) {
+// End to end: the view's own check said Unprotected, the SIGTERM was refused
+// anyway, and that refusal reaches the footer as a warning with nothing marked as
+// stopping and no wait started (S-02b criterion 6).
+func TestAStopRefusedByThePackageEndsAsAWarning(t *testing.T) {
 	m, procs := confirmOnNode(t)
-	procs.err = &ports.ProtectedError{PID: 4242, Protection: ports.ProtectedSelf}
+	procs.termErr = &ports.ProtectedError{PID: 4242, Protection: ports.ProtectedSelf}
 
 	m, cmd := step(t, m, components.ConfirmModalYesMsg{})
-	res := runKill(t, cmd)
+	res := runTerm(t, cmd)
 	m, _ = step(t, m, res)
 
 	if got := m.portsModel.footer.Text(); got != protectedSelfWarning {
@@ -334,6 +335,25 @@ func TestAKillRefusedByThePackageEndsAsAWarning(t *testing.T) {
 		t.Errorf("footer level = %v, want Warning", got)
 	}
 	if m.portsModel.table.IsBusy("4242") {
+		t.Error("the row is still marked busy after the refusal")
+	}
+	if m.portsModel.stop != nil {
+		t.Error("a refused SIGTERM left a stop pending")
+	}
+}
+
+// The same refusal on Windows, where Yes is the kill: nothing changes (S-02a).
+func TestAKillRefusedByThePackageEndsAsAWarningOnWindows(t *testing.T) {
+	m, procs := windowsNode(t)
+	procs.err = &ports.ProtectedError{PID: 4412, Protection: ports.ProtectedWindowsSystem}
+
+	m, cmd := step(t, m, components.ConfirmModalYesMsg{})
+	m, _ = step(t, m, runKill(t, cmd))
+
+	if got, want := m.portsModel.footer.Text(), "PID 4412 not stopped: "+reasonWindowsText; got != want {
+		t.Errorf("footer = %q, want %q", got, want)
+	}
+	if m.portsModel.table.IsBusy("4412") {
 		t.Error("the row is still marked busy after the refusal")
 	}
 }
@@ -376,7 +396,7 @@ func TestTheKillCommandNeverEvaluatesTheProtection(t *testing.T) {
 	}
 
 	procs.asked = nil
-	runKill(t, cmd)
+	runTerm(t, cmd)
 	if len(procs.asked) != 0 {
 		t.Errorf("the kill command asked about %v: the verdict must be read in Update (Rule 110)", procs.asked)
 	}
@@ -459,7 +479,8 @@ func TestTheRealProtectionGreysDevDeskItself(t *testing.T) {
 	m.portsModel.table.Table().SetCursor(0)
 	procs := &fakeProcs{}
 	ops := realProcessOps()
-	ops.kill = procs.ops(false).kill
+	fake := procs.ops(false)
+	ops.terminate, ops.probe, ops.kill = fake.terminate, fake.probe, fake.kill
 	m.portsModel.ops = ops
 
 	if !testutil.ShortcutDisabled(m.GetShortcuts(), keymap.Kill) {
@@ -472,8 +493,8 @@ func TestTheRealProtectionGreysDevDeskItself(t *testing.T) {
 	if got := next.portsModel.footer.Text(); got != reasonSelfText {
 		t.Errorf("footer = %q, want %q", got, reasonSelfText)
 	}
-	if len(procs.killed) != 0 {
-		t.Errorf("signalled %v", procs.killed)
+	if len(procs.signals()) != 0 {
+		t.Errorf("signalled %v", procs.signals())
 	}
 }
 

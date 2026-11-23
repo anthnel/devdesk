@@ -527,7 +527,7 @@ naming file, line and rule. A convention nothing verifies is what produced the
 | **UPPERCASE** | an action, global to the application | `TestNoViewBindsAnUndeclaredUppercaseKey` |
 | lowercase | a filter or display toggle, local but **declared** per surface | `TestEveryLowercaseBindingIsDeclared` |
 | `Ctrl` | only `ctrl+c`, `ctrl+r`, `ctrl+p` survive | `TestOnlyThreeCtrlCombinationsSurvive` |
-| a modal's `y`/`n` | a *mode*, not a case — it takes every key before the view | declared in `modalKeys` |
+| a modal's `y`/`n` | a *mode*, not a case — it takes every key before the view. One modal opts out of `y`/`Y`: the second confirmation of the Ports stop (`ConfirmModal.WithoutYesShortcut()`, see `ui-components.md`) | declared in `modalKeys` |
 
 `Shift` carries the actions because the other families are amputated: `Ctrl`
 encodes only ASCII 0x40–0x5F and the tty confiscates four of them, `Alt` is not
@@ -939,6 +939,34 @@ asks for a resize.
 Making the marker survive re-entry is what makes the routing safe: `setEntries`
 deliberately does not touch `scanningPaths`, so the reload `Init` triggers on
 the way back in leaves in-flight work alone.
+
+### Work a view started in itself: `netdiag.BackgroundMsg`
+
+`routeToView` is for work the router knows by name. A stop on the Ports tab
+(DEVDESK-711) is a chain of messages that a view sends to itself: the SIGTERM
+result, one probe per 250 ms tick, the SIGKILL result. They must reach netdiag
+whether or not `:net` is on screen, or the chain stops when the user leaves, `K`
+stays greyed and the row stays busy.
+
+The rule: a message type that belongs to such a chain implements
+`netdiag.BackgroundMsg` (an interface with one unexported method, so only
+netdiag's own types can). `App.update` has one case for it, before `default`, and
+`routeNetdiagWork` does the rest:
+
+| `:net` is | The message goes to |
+|---|---|
+| on screen | the active view, as any other message (`forwardToActiveView`) |
+| off screen | the netdiag view the router holds, through `routeToView`: `currentView` is untouched and the layout is not re-measured |
+| not open at all | nowhere: no view is created for it |
+
+Only netdiag's own types implement the interface
+(`TestOnlyNetdiagWorkIsBackgroundMessage` checks that a key, a resize, a ports
+read and an unrelated message do not), so no message the router already routes by
+another rule is redirected. A view that uses this road must also report
+`Running()` while the chain lives; netdiag does while a stop is pending, so
+naming it again from the command line does not rebuild it
+(`TestNamingNetdiagDoesNotDropAStopInFlight`). What the stop does is in
+`network.md`, « Two-step stop ».
 
 ### The jobs registry — `internal/jobs`
 

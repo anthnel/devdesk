@@ -60,7 +60,7 @@ while an action (stop, restart, pause, resume, delete) is running on it.
 | OCI resources (`:oci`): Images, Networks, Volumes, Registries, registry browser | A scan, pull, removal, login or logout on the row. |
 | Forge explorer (`:ge`) and clone list | A create or delete on a row; the state of each clone. |
 | Templates (`:tpl`) | A sync or scan on a template. |
-| Ports tab of `:net` | A kill in flight. |
+| Ports tab of `:net` | A stop in flight: the signal, the wait for the process to exit, or the forced kill. |
 | `:agent-usage` | The state of each agent: running, idle after 5 minutes, done, unknown. |
 | Containers (`:ct`) | The container's state and any action running on it. |
 
