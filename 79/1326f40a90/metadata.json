@@ -1,0 +1,46 @@
+{
+  "cli_version": "0.13.2",
+  "checkpoint_id": "791326f40a90",
+  "strategy": "manual-commit",
+  "branch": "feat/devdesk-747-palette-one-alias",
+  "checkpoints_count": 8,
+  "files_touched": null,
+  "sessions": [
+    {
+      "metadata": "/79/1326f40a90/0/metadata.json",
+      "transcript": "/79/1326f40a90/0/full.jsonl",
+      "compact_transcript": "/79/1326f40a90/0/transcript.jsonl",
+      "content_hash": "/79/1326f40a90/0/content_hash.txt",
+      "prompt": "/79/1326f40a90/0/prompt.txt"
+    }
+  ],
+  "token_usage": {
+    "input_tokens": 90,
+    "cache_creation_tokens": 80218,
+    "cache_read_tokens": 17672213,
+    "output_tokens": 38793,
+    "api_call_count": 32,
+    "subagent_tokens": {
+      "input_tokens": 376,
+      "cache_creation_tokens": 1133494,
+      "cache_read_tokens": 20057414,
+      "output_tokens": 156618,
+      "api_call_count": 181
+    },
+    "subagent_tokens_complete": true
+  },
+  "redaction": {
+    "replacements": 12,
+    "layers": {
+      "betterleaks": 0,
+      "connection_string": 0,
+      "credential_key": 0,
+      "credential_value": 0,
+      "credentialed_uri": 0,
+      "entropy": 0,
+      "key_context": 12,
+      "provider_token": 0,
+      "shell_stdin": 0
+    }
+  }
+}

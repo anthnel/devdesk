@@ -1,0 +1,15 @@
+{
+  "tool_use_id": "toolu_01MJTxuBHwnpoRJYvMuUDbRN",
+  "agent_id": "a583a35ab11b572cf",
+  "subagent_type": "dev-team:devops",
+  "task_description": "Rebase et PR DEVDESK-745",
+  "token_usage": {
+    "input_tokens": 12,
+    "cache_creation_tokens": 46170,
+    "cache_read_tokens": 231657,
+    "output_tokens": 2793,
+    "api_call_count": 6
+  },
+  "started_at": "2026-11-23T17:59:05.877575066+01:00",
+  "completed_at": "2026-11-23T17:59:58.485307858+01:00"
+}
