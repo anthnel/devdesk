@@ -17,7 +17,7 @@ func TestHelmLintBecomesFindings(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	findings, recognised := parseHelmLint(out, "charts/broken", "/repo")
+	findings, recognised := parseHelmLint(out, "charts/broken", targetOnly("/repo"))
 
 	if !recognised {
 		t.Fatal("helm lint's own output was not recognised")
@@ -45,7 +45,7 @@ func TestHelmLintPathsComeBackRelativeToTheRepository(t *testing.T) {
 		"/scan/charts/api":              "charts/api",
 		filepath.Join(repo, "charts/x"): "charts/x",
 	} {
-		if got := helmLintPath(in, "charts/api", repo); got != want {
+		if got := helmLintPath(in, "charts/api", targetOnly(repo)); got != want {
 			t.Errorf("helmLintPath(%q) = %q, want %q", in, got, want)
 		}
 	}

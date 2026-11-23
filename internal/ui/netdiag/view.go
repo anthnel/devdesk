@@ -253,10 +253,13 @@ func section(width int, title, body string) []string {
 	return lines
 }
 
-// rebuildChecksTable refills the table from the filtered results.
+// rebuildChecksTable refills the table from the filtered results. m.height is
+// already the viewport's content height: the router has taken the header, the
+// title line, the border and the footer off it (Rule 124), so the table takes
+// all of it, as the Ports, Interfaces and Forward tables do (DEVDESK-744).
 func (m *Model) rebuildChecksTable() {
 	m.checksTable.SetItems(m.visibleChecks())
-	m.checksTable.Resize(m.width, max(m.height-13, 3))
+	m.checksTable.Resize(m.width, max(m.height, 3))
 }
 
 func (m *Model) resizeInputs() {
@@ -269,8 +272,9 @@ func (m *Model) resizeInputs() {
 }
 
 func (m *Model) resizeDetailsViewport() {
-	// Header ~9 lines + tab footer 3 lines + viewport border 2 lines = 14 overhead
-	m.detailsViewport = viewport.New(viewport.WithWidth(max(m.width-4, 20)), viewport.WithHeight(max(m.height-13, 3)))
+	// m.height is the viewport's content height (Rule 124): nothing more to
+	// take off it (DEVDESK-744).
+	m.detailsViewport = viewport.New(viewport.WithWidth(max(m.width-4, 20)), viewport.WithHeight(max(m.height, 3)))
 	m.detailsViewport.Style = lipgloss.NewStyle().Background(theme.ColorBackground)
 }
 
