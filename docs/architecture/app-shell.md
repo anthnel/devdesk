@@ -414,7 +414,8 @@ surplus off the bottom of the viewport first, then cuts the stack to `H` lines;
 `padFrame` then fills it to `W` x `H` with the background. It leaves the cells
 `lipgloss.Place` left (`TestPadFrameMatchesPlaceOnTheFrames`) but stops measuring at the
 first line as wide as the screen, the header's, where Place measured them all
-(DEVDESK-281). At
+(DEVDESK-281); a frame holding a tab or a CR is handed to `lipgloss.Place` itself,
+which rewrites those before measuring. At
 13 lines or fewer the FilterBar's top edge can disappear with the viewport, and
 while the palette is open on a very short terminal it may cover the footer (the
 view's footer is back on close). The notice lasts until the next key, with no timer.

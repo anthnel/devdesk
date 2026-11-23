@@ -226,11 +226,18 @@ func TestPadFrameMatchesPlaceOnRaggedBlocks(t *testing.T) {
 	}
 }
 
-// The net of the track: on the frames of the cell goldens (framed, frameless,
-// overflow, a short frame, rows ending on a reset, ...) and on the same view at
-// other sizes, padFrame leaves the cells lipgloss.Place left. A case whose
-// frame is an overlay (help) never reaches the padding pass and is skipped; the
-// palette case is the same frame with the palette drawn after the padding.
+// The net of the track, on real frames. Most frames of the cell goldens and of
+// the other sizes are already width x height with a full-width header line, so
+// for them padFrame returns inner and the comparison with Place is inner against
+// itself: it guards that nothing is added, not that padding is right. Two things
+// make it bite: the short-frame golden (a stacked frame a row short, which only
+// the padding pass completes), and the frames of the framed view stacked at 120x40
+// then padded for a bigger screen, where both columns and rows are missing. The
+// test counts the frames that really need filling, so the corpus cannot drift
+// into the first kind only.
+//
+// A case whose frame is an overlay (help) never reaches the padding pass and is
+// skipped; the palette case is the same frame with the palette drawn after it.
 func TestPadFrameMatchesPlaceOnTheFrames(t *testing.T) {
 	useDefaultTheme(t)
 	type corpusFrame struct {
@@ -246,7 +253,7 @@ func TestPadFrameMatchesPlaceOnTheFrames(t *testing.T) {
 		corpus = append(corpus, corpusFrame{"framed at " + sizeLabel(size[0], size[1]), a})
 	}
 
-	checked := 0
+	checked, filled := 0, 0
 	for _, c := range corpus {
 		if c.app.activeOverlay() != "" {
 			continue
@@ -255,6 +262,9 @@ func TestPadFrameMatchesPlaceOnTheFrames(t *testing.T) {
 		want := placeFrame(inner, c.app.width, c.app.height)
 		got := padFrame(inner, c.app.width, c.app.height)
 		requireSameCells(t, c.name, want, got)
+		if got != inner {
+			filled++
+		}
 
 		// The helper must be what Render stacks: with no palette the frame
 		// Render returns is the padded one.
@@ -265,5 +275,21 @@ func TestPadFrameMatchesPlaceOnTheFrames(t *testing.T) {
 	}
 	if checked < 8 {
 		t.Errorf("only %d frames checked: the corpus shrank", checked)
+	}
+
+	// A real frame shorter than the screen: the framed view stacked for 120x40,
+	// then padded for a screen with more rows, more columns, or both.
+	inner := innerFrame(trueColorRouter(t, framedView(), framesWidth, framesHeight))
+	for _, size := range [][2]int{{framesWidth, framesHeight + 4}, {framesWidth + 10, framesHeight}, {framesWidth + 10, framesHeight + 4}} {
+		w, h := size[0], size[1]
+		got := padFrame(inner, w, h)
+		requireSameCells(t, "framed frame padded to "+sizeLabel(w, h), placeFrame(inner, w, h), got)
+		if got == inner {
+			t.Errorf("padFrame left a %dx%d frame as it was for a %s screen", framesWidth, framesHeight, sizeLabel(w, h))
+		}
+		filled++
+	}
+	if filled < 4 {
+		t.Errorf("only %d frames needed filling: the test no longer exercises the padding", filled)
 	}
 }

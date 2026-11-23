@@ -13,7 +13,6 @@ import (
 	"github.com/charmbracelet/colorprofile"
 
 	"github.com/anthnel/devdesk/internal/jobs"
-	"github.com/anthnel/devdesk/internal/ui/components"
 	"github.com/anthnel/devdesk/internal/ui/testutil"
 	"github.com/anthnel/devdesk/internal/ui/theme"
 )
@@ -265,10 +264,7 @@ func BenchmarkPlaceFrame(b *testing.B) {
 	var inner [2]string
 	for i := range inner {
 		view.phase = i == 1
-		header := a.renderHeader() + "\n" + a.renderTitleLine()
-		footer := a.renderViewFooter()
-		barBelow := !a.frameless() && components.OpensWithBarFrame(footer)
-		inner[i] = fitHeight(header, a.renderBody(barBelow), footer, a.height)
+		inner[i] = innerFrame(a)
 	}
 	whitespace := lipgloss.WithWhitespaceStyle(lipgloss.NewStyle().Background(theme.ColorBackground))
 	b.ReportAllocs()
@@ -282,8 +278,10 @@ func BenchmarkPlaceFrame(b *testing.B) {
 // BenchmarkPadFrame is BenchmarkPlaceFrame for padFrame, on the same inner
 // frames: what App.Render now calls where it used to call lipgloss.Place. Like
 // Place's, the frame is already width x height, so this is the cost of
-// deciding that nothing needs filling (one measure per line), not of a real
-// fill.
+// deciding that nothing needs filling, not of a real fill: padFrame measures the
+// first line only (the header's, full width, ends the search at once) where
+// Place measures every line, and fillFrame, the filling pass, is not measured
+// at all.
 func BenchmarkPadFrame(b *testing.B) {
 	a, view := benchRouter(b)
 	var inner [2]string
