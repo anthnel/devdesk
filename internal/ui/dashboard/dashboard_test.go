@@ -494,8 +494,9 @@ func TestAnUnmeasuredValueIsNotZero(t *testing.T) {
 }
 
 // routerOverhead is what the router keeps for itself out of the terminal's
-// rows: header (9), title line (1), footer with a tab bar (3).
-const routerOverhead = 9 + 1 + 3
+// rows: header with its blank line (8), no title line on the dashboard
+// (DEVDESK-743), footer with a tab bar (3).
+const routerOverhead = 8 + 0 + 3
 
 // TestTheOverviewFitsAtTheHeightItNeeds — the router's viewport **does not
 // scroll**: nothing forwards a key to it, so whatever overflows is silently

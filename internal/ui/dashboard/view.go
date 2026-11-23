@@ -44,9 +44,9 @@ func (m Model) Render() string {
 	gap := theme.EmptyLineBg(columnGap)
 	blank := theme.EmptyLineBg(colWidth)
 
-	// A blank line separates the title rule from the first row: without it,
-	// the boxes' top border touches the title's and the two read as a single
-	// frame.
+	// A blank line opens the grid (leadingBlank). It was written to keep the
+	// boxes off the title rule; the dashboard has none since DEVDESK-743, and
+	// the line is kept under the header's own blank line.
 	lines := make([]string, 0, height+1)
 	lines = append(lines, theme.EmptyLineBg(m.width))
 	for i := range height {
@@ -240,6 +240,14 @@ func countStatuses(components []status.ComponentStatus) (ok, down, errCount int)
 // dashboard is the only view that doesn't frame a single object — see
 // View().
 func (m Model) Frameless() bool {
+	return true
+}
+
+// Titleless tells the router to draw no title line above the dashboard
+// (DEVDESK-743): every box carries its own title and the window title names
+// the screen, so the "Dashboard" rule only cost a row the grid needs.
+// GetTitle() stays: the window title and the help read it.
+func (m Model) Titleless() bool {
 	return true
 }
 

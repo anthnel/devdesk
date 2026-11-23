@@ -35,6 +35,17 @@ type FramelessView interface {
 	Frameless() bool
 }
 
+// TitlelessView is implemented by a view that wants no title line above its
+// content: no top border, no titled rule. Its line goes to the view. The
+// default, a title line, is kept by every view that does not implement it.
+//
+// Only the dashboard implements it (DEVDESK-743): it is the landing screen,
+// its boxes carry their own titles, and the rule only repeated a name the
+// window title already shows. GetTitle() is still read (window title, help).
+type TitlelessView interface {
+	Titleless() bool
+}
+
 // FrameTrailView is implemented by a view that adds a trail (a breadcrumb, an
 // identifier) to the viewport's top border, in parentheses right after the
 // title. The router passes the width the trail may take; the view returns an

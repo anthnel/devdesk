@@ -27,7 +27,8 @@ const (
 // genuinely taller.
 //
 // Height is in *content* lines, not terminal lines: the view receives what
-// the router leaves it — header 9, title line 1, footer 3.
+// the router leaves it — header 8 (its rows and the blank line under them),
+// no title line (DEVDESK-743), footer 3 with the tab bar, 2 without.
 const (
 	standardMinWidth = 100
 	wideMinWidth     = 180
@@ -58,7 +59,9 @@ func (m Model) gridHeight(t tier) int {
 	return total
 }
 
-// leadingBlank is the empty line between the title rule and the first row.
+// leadingBlank is the empty line above the first row of boxes. It used to
+// separate them from the title rule, which the dashboard no longer has
+// (DEVDESK-743); it is kept, under the header's own blank line.
 const leadingBlank = 1
 
 // trailingBlank is the empty line every box keeps under its last fact.

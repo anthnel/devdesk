@@ -697,6 +697,19 @@ less. With no trail the line is byte-identical to `RenderBorderTitle`. A
 `agentusageview` implements it, at the agents level:
 `┌─ 󰚩 Agent usage › app (Sessions › ~/w/app › 1a2b3c4d) ───┐`.
 
+**`TitlelessView` is optional too (DEVDESK-743).** A view that implements
+`Titleless() bool` returning true gets no title line at all: `App.Render`
+stacks the header and the body directly, and `layoutOnce` hands the line to the
+viewport (`App.titleLineHeight()` is 0 instead of 1). Only the dashboard
+implements it: its boxes carry their own titles and the window title names the
+screen, so the `── Dashboard ──` rule only cost a row its grid needs. The
+dashboard stays a `FramelessView`; any other frameless view keeps its titled
+rule. `GetTitle()` is still implemented and read (window title, help). Removing
+the rule gives the dashboard one row; it does not make the grid fit at every
+height: the two-column overview needs 27 content lines (a 38-row terminal) and
+the stacked one 48, and below that the viewport, which does not scroll, still
+cuts the last rows (`TestTheDashboardClosesEveryBoxAtEveryRealisticSize`).
+
 There are **three** name lists, and each answers a different question:
 
 | | Answers | Read by |
