@@ -3,6 +3,23 @@
 Dated entries, most recent first (AAAA-MM-JJ). Each entry records what was
 decided, why, and which alternative was rejected. Sources live in `docs/product/`.
 
+## 2026-11-22 — Safe process stop: secure the Ports stop first, process list later (DEVDESK-708 to DEVDESK-714)
+
+Source: `docs/product/safe-process-stop/` (`brief.md`, `stories.md`; untracked by git on 2026-11-22). Plane: module « Arrêt sûr de processus », DEVDESK-708 (S-01a), 709 (S-01b), 710 (S-02a), 711 (S-02b), 712 (S-03, spike), 713 (S-04); bug DEVDESK-714. No `D<n>` number: the decisions are recorded here only.
+
+1. **Idea explored:** a process list with a stop action. The first ambition, « replace the task manager » (CPU, memory, graceful then forced stop, on Linux, Windows and macOS), was dropped after research and critique.
+2. **Why dropped:** htop, btop, bottom and the Windows Task Manager already do more; scope drift; a clean stop is nearly impossible on Windows. In `internal/ports`, `ports.Kill` does not re-check the PID and does not protect DevDesk or PID 1 (read from the code, not reproduced).
+3. **Decided by the user:** first secure the stop in the Ports tab (`K`). A process view limited to processes linked to DevDesk comes only after a spike (S-03, Could), with a go/no-go by the user after S-01 and S-02. A full task manager is Won't.
+4. **Identity check (S-01b):** the creation time of each PID with a socket is read at listing, with a fallback to reading at confirmation if the Windows cost (189 sockets) exceeds a threshold measured in S-01b. The identity is re-checked before each signal. If it cannot be read, `K` is greyed out with `Cannot verify which process this is`, and `ports` refuses the signal in depth.
+5. **Protected targets (S-01a):** DevDesk itself, its direct parent if born before DevDesk, PID 1; PID 0 and 4 on Windows. The target is captured when the confirmation opens. This also fixes bug DEVDESK-714 (the confirmation re-reads the selected row at `Yes`, which can stop another row's process).
+6. **Residual window accepted:** without pidfd (macOS, Linux < 5.4), a few microseconds between the check and the signal. To be documented in `docs/architecture/network.md`. The guarantee is full on Linux >= 5.4 and Windows.
+7. **Windows (S-02a):** immediate forced stop with an honest label. No clean stop is promised. `WM_CLOSE` moves to S-04 (Could, possibly Won't).
+8. **Linux and macOS (S-02b):** SIGTERM, then up to 5 s of waiting without freezing the UI, then a SIGKILL confirmation. Never a SIGKILL without that confirmation.
+9. **Not chosen:** sending the signal anyway when the identity is unreadable; protecting ancestors above the direct parent (later, Q1); automatic privilege elevation; choice of signals.
+10. **Delivery order:** S-01a with S-02a, then S-01b, then S-02b. S-03 and S-04 only on the user's decision. All items are in Backlog.
+11. **Not yet validated (hypotheses):** the Windows message `Refused by the system` when the handle is refused (D-D, architect's recommendation); the fixed 5 s wait (Q2); the `K` label Kill → Stop (Q6); a zombie counted as stopped and one pending stop at a time (S-02b); the user's own judgment as the only success measure (Q8).
+12. **Limits:** DevDesk keeps no PID today (S-03 measures this); WSL2 sees only the VM's Linux processes; no telemetry is known.
+
 ## 2026-11-22 — Kyverno policies: measure before any implementation (DEVDESK-10, spike DEVDESK-685)
 
 Source: `docs/product/kyverno-policies/` (`brief.md`, `research.md`, `stories.md`); `docs/measurements/2026-11-22-kyverno-apply.md`. Plane: DEVDESK-10 (epic, Backlog), spike S0 = DEVDESK-685. No `D<n>` number: the decision is recorded here only.
