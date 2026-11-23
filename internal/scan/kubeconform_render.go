@@ -308,7 +308,7 @@ func (v *k8sValidation) renderCharts(ctx context.Context, charts []string) error
 			// say. The render failure is the fallback, not a second copy.
 			if !hasError(lint) {
 				v.report.Findings = append(v.report.Findings,
-					renderFailure(SourceHelm, "helm", path.Join(chart, "Chart.yaml"), "Chart does not render", err))
+					renderFailure(SourceHelm, "helm", path.Join(chart, "Chart.yaml"), "Chart does not render", tool.Source, err))
 			}
 			continue
 		}
@@ -344,7 +344,7 @@ func (v *k8sValidation) renderKustomizations(ctx context.Context, dirs []string)
 				return ctx.Err()
 			}
 			v.report.Findings = append(v.report.Findings,
-				renderFailure(SourceKustomize, "kustomize", file, "Overlay does not build", err))
+				renderFailure(SourceKustomize, "kustomize", file, "Overlay does not build", tool.Source, err))
 			continue
 		}
 		// kustomize adds no origin to what it emits unless the kustomization
@@ -484,7 +484,7 @@ func hasError(findings []Finding) bool {
 // renderFailure is a chart or an overlay that could not be rendered: nothing
 // in it was validated, and `helm install` or `kubectl apply -k` would fail the
 // same way.
-func renderFailure(source, dialect, file, title string, err error) Finding {
+func renderFailure(source, dialect, file, title string, from ToolSource, err error) Finding {
 	detail := err.Error()
 	var exitErr *exitError
 	if errors.As(err, &exitErr) && exitErr.Stderr != "" {
@@ -496,7 +496,7 @@ func renderFailure(source, dialect, file, title string, err error) Finding {
 		Title:       title + ": " + first,
 		Description: "The directory could not be rendered, so none of its resources were validated.",
 		Message:     detail,
-		Resolution:  renderResolution(source, detail),
+		Resolution:  renderResolution(source, from, detail),
 		Severity:    SeverityHigh,
 		Source:      source,
 		File:        file,
@@ -520,16 +520,29 @@ const (
 		"scan.tools.kustomize.args: [--load-restrictor=LoadRestrictionsNone]."
 )
 
-// renderResolution picks the advice for a render failure from the renderer
-// and what it printed.
-func renderResolution(source, detail string) string {
+// mountResolution is added for a kustomize image that could not find a path:
+// the container sees only what DevDesk mounts (renderScope), and DevDesk does
+// not walk the repository to tell a hidden reference from a broken one.
+// ToolConfig's `source` key takes auto, binary or image.
+const mountResolution = "If this reference points outside the directory DevDesk mounts into the container " +
+	"(the scanned directory, or its git repository when it has one), scan the enclosing directory, " +
+	"or set scan.tools.kustomize.source: binary (the binary sees the whole file system)."
+
+// renderResolution picks the advice for a render failure from the renderer,
+// where it ran and what it printed.
+func renderResolution(source string, from ToolSource, detail string) string {
 	if source != SourceKustomize {
 		return helmRenderResolution
 	}
+	advice := kustomizeRenderResolution
 	if strings.Contains(detail, "security; file") && strings.Contains(detail, "is not in or below") {
-		return loadRestrictorResolution
+		advice = loadRestrictorResolution
 	}
-	return kustomizeRenderResolution
+	if from == ToolSourceContainer &&
+		(strings.Contains(detail, "evalsymlink failure") || strings.Contains(detail, "no such file or directory")) {
+		advice += " " + mountResolution
+	}
+	return advice
 }
 
 // helmOrigins maps each rendered resource, by kind and name, to the template

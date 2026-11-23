@@ -298,7 +298,11 @@ no line, so it could feed neither the table's jump-to-line nor a fix.
     `GIT_CEILING_DIRECTORIES` is kept, since it can only narrow.
   - **An overlay that still fails is HIGH**, with kustomize's whole message:
     DevDesk does not walk the repository to tell a reference its mount hid
-    from a broken one.
+    from a broken one. When a kustomize image reports `evalsymlink failure`
+    or `no such file or directory`, the Resolution adds that the reference
+    may point outside what DevDesk mounts, and suggests scanning the
+    enclosing directory or `scan.tools.kustomize.source: binary`
+    (`mountResolution`); a binary never gets that sentence.
   - **Known limits.** The renderer container keeps the network (no
     `--network none`). helm follows symlinks inside the mount, so a hostile
     chart can bring a sibling file's content into its error, as a binary,
