@@ -1,0 +1,61 @@
+{
+  "cli_version": "0.13.2",
+  "checkpoint_id": "6a135a861804",
+  "strategy": "manual-commit",
+  "branch": "feat/safe-process-stop-s01a",
+  "checkpoints_count": 3,
+  "files_touched": [
+    "docs-site/docs/explanation/network.md",
+    "docs/architecture/network.md",
+    "docs/backlog.md",
+    "docs/journal.md",
+    "internal/ports/ports.go",
+    "internal/ports/ports_test.go",
+    "internal/ports/protect.go",
+    "internal/ports/protect_test.go",
+    "internal/ui/netdiag/header.go",
+    "internal/ui/netdiag/netdiag_test.go",
+    "internal/ui/netdiag/ports_commands.go",
+    "internal/ui/netdiag/ports_model.go",
+    "internal/ui/netdiag/ports_protect_test.go",
+    "internal/ui/netdiag/ports_target_test.go"
+  ],
+  "sessions": [
+    {
+      "metadata": "/6a/135a861804/0/metadata.json",
+      "transcript": "/6a/135a861804/0/full.jsonl",
+      "compact_transcript": "/6a/135a861804/0/transcript.jsonl",
+      "content_hash": "/6a/135a861804/0/content_hash.txt",
+      "prompt": "/6a/135a861804/0/prompt.txt"
+    }
+  ],
+  "token_usage": {
+    "input_tokens": 84,
+    "cache_creation_tokens": 128462,
+    "cache_read_tokens": 3893787,
+    "output_tokens": 43666,
+    "api_call_count": 27,
+    "subagent_tokens": {
+      "input_tokens": 378,
+      "cache_creation_tokens": 1566252,
+      "cache_read_tokens": 13638771,
+      "output_tokens": 209533,
+      "api_call_count": 178
+    },
+    "subagent_tokens_complete": true
+  },
+  "redaction": {
+    "replacements": 51,
+    "layers": {
+      "betterleaks": 0,
+      "connection_string": 0,
+      "credential_key": 0,
+      "credential_value": 0,
+      "credentialed_uri": 0,
+      "entropy": 16,
+      "key_context": 35,
+      "provider_token": 0,
+      "shell_stdin": 0
+    }
+  }
+}
