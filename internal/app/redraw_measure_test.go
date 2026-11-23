@@ -198,9 +198,14 @@ func TestMeasureRedrawCost(t *testing.T) {
 // Warm cost of one View() (DEVDESK-281, task 281.1). The frame is the one
 // TestMeasureRedrawCost draws: 20 animated rows at 120x40, TrueColor. Each
 // iteration flips the animation phase so the content differs from the last
-// one and nothing can be served from a cache. Run it on one pinned core:
+// one and nothing can be served from a cache. -cpu 1 runs it with GOMAXPROCS=1;
+// it pins no core. Prefix the command with `taskset -c N` to pin one:
 //
 //	go test ./internal/app -run '^$' -bench 'AppView|RenderBody|PlaceFrame' -benchtime 2s -count 10 -cpu 1
+//
+// BenchmarkAppView draws the plain frame: no command palette is open and no
+// overlay (help, modal) is composed over it, so it does not include the cost of
+// either.
 
 // Sinks keep the compiler from discarding the results.
 var (
@@ -250,6 +255,11 @@ func BenchmarkRenderBody(b *testing.B) {
 
 // BenchmarkPlaceFrame isolates the lipgloss.Place of App.Render (the
 // non-overlay path). The two inner frames are the router's, one per phase.
+//
+// Read its result (about 73-79 microseconds and one allocation per call) as
+// mostly measurement, not as the cost of a real fill: the inner frame is already
+// width x height, so Place has nothing to pad and only walks and copies it. The
+// figure is not what Place costs when it really fills a short frame.
 func BenchmarkPlaceFrame(b *testing.B) {
 	a, view := benchRouter(b)
 	var inner [2]string
