@@ -298,12 +298,17 @@ no line, so it could feed neither the table's jump-to-line nor a fix.
   container keeps the network (no `--network none`), and helm follows symlinks
   inside the mount, so a hostile chart can bring a sibling file's content into
   its error, as a binary, which sees the whole host, already could. When an overlay
-  still fails in a container and `k8s.EscapingReference` finds it pulls in an
-  existing directory outside the mount, it is not blamed: a LOW `K8S-RENDER`
-  "Overlay not validated: references a path outside the scanned directory
-  (`<ref>`)" replaces the HIGH one. A finding rather than `K8sUnrendered`:
-  that list reads "install helm / kustomize", wrong here. A broken overlay
-  keeps the HIGH finding and kustomize's whole message. The walk visits each
+  still fails in a container with `accumulating resources` and
+  `k8s.EscapingReference` finds it pulls in an existing directory outside the
+  mount, it is not blamed: a LOW `K8S-RENDER` "Overlay not validated:
+  references a path outside the scanned directory (`<ref>`)" replaces the HIGH
+  one, the reference stripped of control characters, kustomize's error in the
+  log. A finding rather than `K8sUnrendered`: that list reads "install helm /
+  kustomize", wrong here. Any other failure, a binary run, or a missing
+  reference keeps the HIGH finding and kustomize's whole message. The walk
+  follows `resources`, `bases` and `components` only: `patches`,
+  `configMapGenerator`, `generators` and `transformers` name files, which the
+  load restrictor refuses outside the kustomization's directory anyway. The walk visits each
   directory once by its real path (two symlinks to `.` used to make it
   exponential), stops at 64 levels, 1000 kustomizations or a cancelled
   context, and `readBounded` reads regular files only, so a FIFO named

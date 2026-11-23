@@ -13,6 +13,7 @@ import (
 	"path/filepath"
 	"regexp"
 	"strings"
+	"unicode"
 
 	"gopkg.in/yaml.v3"
 
@@ -360,15 +361,17 @@ func (v *k8sValidation) renderKustomizations(ctx context.Context, dirs []string)
 }
 
 // overlayFailure is the finding for an overlay kustomize did not build. In a
-// container, an overlay that reaches a directory outside the mount failed
-// because DevDesk could not show it that directory, not because it is broken:
-// it is reported as not validated, LOW, rather than blamed (DEVDESK-742).
+// container, an overlay that failed to accumulate its resources and reaches a
+// directory outside the mount failed because DevDesk could not show it that
+// directory, not because it is broken: it is reported as not validated, LOW,
+// rather than blamed (DEVDESK-742), and kustomize's own error goes to the log.
+// Any other failure keeps the HIGH finding and kustomize's whole message.
 func (v *k8sValidation) overlayFailure(ctx context.Context, tool ToolSpec, dir, file string, err error) Finding {
-	if tool.Source == ToolSourceContainer {
+	if tool.Source == ToolSourceContainer && strings.Contains(err.Error(), "accumulating resources") {
 		overlay := filepath.Join(v.scope.mountedTarget(), filepath.FromSlash(dir))
 		if from, ref, ok := k8s.EscapingReference(ctx, v.scope.mount, overlay); ok {
-			log.Printf("[scan/k8s] overlay %s not built: %s references %s, outside what the container sees (%s)",
-				dir, from, ref, v.scope.mount)
+			log.Printf("[scan/k8s] overlay %s not built: %s references %s, outside what the container sees (%s): %v",
+				dir, from, ref, v.scope.mount, err)
 			return outsideMountFinding(file, v.relToTarget(from), dir, ref)
 		}
 	}
@@ -395,6 +398,7 @@ func (v *k8sValidation) relToTarget(p string) string {
 // reference, relative to the target; it is named only when it is not the
 // overlay's own.
 func outsideMountFinding(file, from, dir, ref string) Finding {
+	ref, from = printable(ref), printable(from)
 	where := ref
 	if from != dir {
 		where = ref + ", from " + from
@@ -414,6 +418,17 @@ func outsideMountFinding(file, from, dir, ref string) Finding {
 		File:     file,
 		IaCType:  "kustomize",
 	}
+}
+
+// printable drops the control characters of a path the repository's author
+// wrote, so no escape sequence or line break reaches a finding.
+func printable(s string) string {
+	return strings.Map(func(r rune) rune {
+		if unicode.IsControl(r) {
+			return -1
+		}
+		return r
+	}, s)
 }
 
 // validateRendered runs kubeconform over rendered YAML and points each
