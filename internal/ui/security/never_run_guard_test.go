@@ -23,7 +23,8 @@ import (
 //
 // "Reads the command" is: the identifier runCommand, reproCommand or copyCommand
 // (DEVDESK-752: the Repro line is the same kind of text), a selector .FixCommand,
-// or a FixCommandCopiedMsg. "Starts a process" is a call on exec, teaexec or syscall,
+// a selector .Command on anything but exec (fixGroup.Command and
+// remediation.Fix.Command, DEVDESK-754), or a FixCommandCopiedMsg. "Starts a process" is a call on exec, teaexec or syscall,
 // os.StartProcess, or tea.Exec / tea.ExecProcess.
 //
 // Limits, stated: it follows calls by name inside this package, so a call through
@@ -33,7 +34,7 @@ import (
 
 // copyPathRoots are where the copied command lives. They must exist: a rename
 // would otherwise make R3 pass on nothing.
-var copyPathRoots = []string{"copyFixCommand", "runCommand", "detailsRun", "reproCommand", "copyCommand", "detailsRepro"}
+var copyPathRoots = []string{"copyFixCommand", "runCommand", "detailsRun", "reproCommand", "copyCommand", "detailsRepro", "copyGroupCommand"}
 
 type sourceFile struct {
 	name string
@@ -91,6 +92,11 @@ func readsCommand(n ast.Node) bool {
 			}
 		case *ast.SelectorExpr:
 			if v.Sel.Name == "FixCommand" {
+				found = true
+			}
+			// .Command is the group's command; exec.Command and teaexec.Command
+			// build a process and are what startsProcess looks for.
+			if pkg, isPkg := v.X.(*ast.Ident); v.Sel.Name == "Command" && (!isPkg || (pkg.Name != "exec" && pkg.Name != "teaexec")) {
 				found = true
 			}
 		}
@@ -237,6 +243,16 @@ func copyFixCommand() { helper() }
 func helper() { exec.Command("ls").Run() }`, []string{"copyFixCommand"}, "(R3)"},
 		{"the copy path hands the command to the terminal", `package security
 func copyFixCommand(f Finding) { tea.ExecProcess(nil, nil) ; _ = f.FixCommand }`, []string{"copyFixCommand"}, "(R2)"},
+		{"the group's command handed to exec", header + `
+func a(g fixGroup) { exec.Command("sh", "-c", g.Command).Run() }`, nil, "(R2)"},
+		{"a remediation fix's command handed to the terminal", `package security
+func a(fx remediation.Fix) { tea.ExecProcess(nil, nil) ; _ = fx.Command }`, nil, "(R2)"},
+		{"a file that imports exec and reads the group's command elsewhere", header + `
+func a(g fixGroup) string { return g.Command }
+func b() { exec.Command("ls").Run() }`, nil, "(R1)"},
+		{"the group copy path starts a process", `package security
+import "os/exec"
+func copyGroupCommand() { exec.Command("ls").Run() }`, []string{"copyGroupCommand"}, "(R3)"},
 	}
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {

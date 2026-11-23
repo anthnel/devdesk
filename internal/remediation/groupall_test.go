@@ -317,6 +317,39 @@ func TestFixKey(t *testing.T) {
 			t.Errorf("a fixed and an unfixed row share a key: %+v", viewsOf(fixes))
 		}
 	})
+	t.Run("two CVEs with no package and the same ID, two keys", func(t *testing.T) {
+		a := scan.Finding{ID: "CVE-9", Source: scan.SourceTrivy, Ecosystem: "npm", Version: "1.0", Severity: scan.SeverityHigh}
+		b := a
+		b.File = "other/package-lock.json"
+		fixes := GroupAll([]scan.Finding{a, b})
+		if len(fixes) != 2 || fixes[0].Key() == fixes[1].Key() {
+			t.Errorf("two vulnerabilities with no package share a key: %+v", viewsOf(fixes))
+		}
+	})
+	t.Run("a CVE with no package and a package named like its ID, two keys", func(t *testing.T) {
+		bare := scan.Finding{ID: "CVE-9", Source: scan.SourceTrivy, Ecosystem: "npm", Version: "1.0", Severity: scan.SeverityHigh}
+		named := vuln("CVE-1", "CVE-9", "npm", scan.ClassLangPackages, "1.0", "", scan.SeverityHigh)
+		fixes := GroupAll([]scan.Finding{bare, named})
+		if len(fixes) != 2 || fixes[0].Key() == fixes[1].Key() {
+			t.Errorf("a bare vulnerability and a package named like it share a key: %+v", viewsOf(fixes))
+		}
+	})
+	t.Run("the key of a bare row does not move when an unrelated CVE joins", func(t *testing.T) {
+		bare := scan.Finding{ID: "CVE-9", Source: scan.SourceTrivy, Ecosystem: "npm", Version: "1.0", Severity: scan.SeverityHigh}
+		other := scan.Finding{ID: "CVE-8", Source: scan.SourceTrivy, Ecosystem: "npm", Version: "1.0", Severity: scan.SeverityHigh}
+		find := func(findings ...scan.Finding) FixKey {
+			for _, f := range GroupAll(findings) {
+				if f.Package == "CVE-9" {
+					return f.Key()
+				}
+			}
+			t.Fatal("no CVE-9 row")
+			return FixKey{}
+		}
+		if before, after := find(bare), find(other, bare); before != after {
+			t.Errorf("key changed from %+v to %+v", before, after)
+		}
+	})
 }
 
 // invariantSets feed the invariant test and seed the fuzz target.
@@ -420,4 +453,25 @@ func FuzzGroupAllInvariant(f *testing.F) {
 		}
 		assertInvariant(t, findings)
 	})
+}
+
+// DEVDESK-754, review: "2.0b" is a PEP 440 pre-release, older than "2.0", so a
+// pip package whose CVEs need both has no single target; an OpenSSL-style letter
+// still orders.
+func TestGroupAllDoesNotOrderALoneLetterOfAPythonPackage(t *testing.T) {
+	lang := scan.ClassLangPackages
+	pip := GroupAll([]scan.Finding{
+		vuln("CVE-1", "requests", "pip", lang, "1.0", "2.0", scan.SeverityHigh),
+		vuln("CVE-2", "requests", "pip", lang, "1.0", "2.0b", scan.SeverityHigh),
+	})
+	if len(pip) != 1 || pip[0].Target != "" || pip[0].Command != "" {
+		t.Errorf("pip row = %+v, want no target and no command", viewsOf(pip))
+	}
+	alpine := GroupAll([]scan.Finding{
+		vuln("CVE-1", "openssl", "alpine", scan.ClassOSPackages, "1.1.1k", "1.1.1l", scan.SeverityHigh),
+		vuln("CVE-2", "openssl", "alpine", scan.ClassOSPackages, "1.1.1k", "1.1.1w", scan.SeverityHigh),
+	})
+	if len(alpine) != 1 || alpine[0].Target != "1.1.1w" {
+		t.Errorf("alpine row = %+v, want the target 1.1.1w", viewsOf(alpine))
+	}
 }

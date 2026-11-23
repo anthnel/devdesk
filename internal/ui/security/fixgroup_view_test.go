@@ -456,6 +456,20 @@ func TestSearchStillDrivesTheFindingsTableAndKeepsItsKeyboard(t *testing.T) {
 	}
 }
 
+// A paste into the search bar changes what the findings table shows, so the
+// grouped list follows at once, as it does for a typed query.
+func TestPastingInTheSearchFiltersTheGroupedListAtOnce(t *testing.T) {
+	m := groupedModel(t, 160)
+	m = feed(t, m, testutil.Key("/"))
+	m = feed(t, m, testutil.Paste("zlib"))
+	if !m.isGrouped() {
+		t.Fatal("a paste left the grouped list")
+	}
+	if want := []string{"zlib"}; !reflect.DeepEqual(groupSubjects(m), want) {
+		t.Errorf("groups after pasting zlib = %v, want %v", groupSubjects(m), want)
+	}
+}
+
 func TestDotSortsTheGroupsAndLeavesTheFindingsSortAlone(t *testing.T) {
 	m := groupedModel(t, 160)
 	findingsCol, findingsDesc := m.findingsTable.SortState()

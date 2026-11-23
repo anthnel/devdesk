@@ -93,3 +93,43 @@ func TestPickFixed(t *testing.T) {
 		}
 	}
 }
+
+// DEVDESK-754, review: a lone letter after the digits is a release letter for
+// OpenSSL and an alpha/beta pre-release for PEP 440 ("2.0b" < "2.0"), so the
+// Python ecosystems do not read it as an increasing order.
+func TestCompareVersionsInReadsALoneLetterByEcosystem(t *testing.T) {
+	tests := []struct {
+		eco, a, b string
+		want      int
+		ok        bool
+	}{
+		{"alpine", "1.1.1l", "1.1.1w", -1, true},
+		{"debian", "1.1.1l", "1.1.1w", -1, true},
+		{"", "1.1.1l", "1.1.1w", -1, true},
+		{"npm", "1.1.1", "1.1.1a", -1, true},
+		{"pip", "2.0", "2.0b", 0, false},
+		{"pip", "2.0b", "2.0", 0, false},
+		{"pipenv", "2.0a", "2.0b", 0, false},
+		{"poetry", "2.0b", "2.0", 0, false},
+		{"python-pkg", "2.0b", "2.0", 0, false},
+		// What does not use a lone letter is unchanged.
+		{"pip", "2.0.1", "2.0", 1, true},
+		{"pip", "2.0rc1", "2.0rc2", 0, true},
+		{"pip", "2.0-1", "2.0", -1, true},
+	}
+	for _, tc := range tests {
+		got, ok := CompareVersionsIn(tc.eco, tc.a, tc.b)
+		if got != tc.want || ok != tc.ok {
+			t.Errorf("CompareVersionsIn(%q, %q, %q) = %d, %v; want %d, %v", tc.eco, tc.a, tc.b, got, ok, tc.want, tc.ok)
+		}
+	}
+}
+
+func TestPickFixedInDoesNotChooseBetweenPythonPreReleaseLetters(t *testing.T) {
+	if got := PickFixedIn("alpine", "1.1.1k", "1.1.1w, 1.1.1l"); got != "1.1.1l" {
+		t.Errorf("alpine: PickFixedIn = %q, want 1.1.1l", got)
+	}
+	if got := PickFixedIn("pip", "1.0", "2.0b, 2.0"); got != "" {
+		t.Errorf("pip: PickFixedIn = %q, want no choice between 2.0b and 2.0", got)
+	}
+}

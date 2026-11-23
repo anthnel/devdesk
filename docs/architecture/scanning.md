@@ -654,7 +654,11 @@ numeric ordering, not semver. A single release letter right after the digits
 target of a group fixed by `1.1.1l` and `1.1.1w` is `1.1.1w`; before, two such
 versions compared equal and the first in lexical order was kept. A word (`rc1`)
 or a letter followed by a number (`a1`) is not a release letter and still compares
-equal, and the order of versions that were already ranked does not move.
+equal, and the order of versions that were already ranked does not move. The letter is a pre-release in PEP 440
+(`2.0b` is older than `2.0`), so `scan.CompareVersionsIn(ecosystem, ...)` and `scan.PickFixedIn(ecosystem, ...)`
+(what `Trivy`'s fix command, `remediation` and the detail's delta call, with the finding's ecosystem) do not read it
+as an order for `pip`, `pipenv`, `poetry` and `python-pkg`: such a version cannot be compared, so a group fixed by
+`2.0` and `2.0b` has no single target. `CompareVersions` and `PickFixed` keep the letter order (no ecosystem).
 
 `internal/remediation` is pure — no I/O — and has three entry points:
 `Summarize` (the header's `Fixable`: a count split into base image,
@@ -1331,9 +1335,12 @@ version, fixed or not, with its `Members`; `cveGroups` (`fixgroup.go`) turns the
 `Target`, `Status` (the closed vocabulary of `fixStatusOf`: `Manual` for a fixable CVE, `No fix published`
 otherwise), `Command` and `Members`. `Command` is the `Fix.Command` only when `scan.PlainWords` accepts it, the
 same gate as the detail's `Run` line: a group with a command that is not plain words has none, and `Y` says so.
-The key of a group (`groupKey`: ecosystem, package, installed version, unfixed) is what a re-scan finds the row
-again by. A vulnerability with no package is its own group (assumption: a CVE with no package name is its own
-cause). Rows are ordered by worst severity, then number of CVEs, then package, then change.
+The key of a group (`groupKey`: ecosystem, package, installed version, unfixed, position) is what a re-scan finds the
+row again by. A vulnerability with no package is its own group (assumption: a CVE with no package name is its own
+cause); `Fix.Position` (0 for a named package, else 1, 2, ... among the bare vulnerabilities of one ID, ecosystem and
+version) keeps two of them, or one and a package named like its ID, from sharing a key. The scan's text shown in a
+group (package, versions, candidates) goes through `inlineText` (`withoutControlSpace` on one line) when `cveGroups`
+builds the row, so the title, the footer sentence and the cells carry no escape sequence, control or bidi mark. Rows are ordered by worst severity, then number of CVEs, then package, then change.
 
 **Fixable and the groups.** The header's `Fixable` is still `remediation.Summarize(...).Fixable()`, grouped or
 not. The CVEs of the groups that are not `Unfixed` add up to it, and the CVEs of the `Unfixed` groups (`No fix
@@ -1349,7 +1356,7 @@ which calls `GotoTop`, is not called): its severity tokens, search query, sort a
 Severity tokens, the search (`/`), the tabs and `p` keep driving the findings table; the groups listed are the ones
 with **at least one member the findings table shows** (`visibleGroups`), and each row's count is the whole group,
 hidden members included, since one move closes them all. `.` and the cursor keys drive the groups table.
-`refreshGroups` runs after every change of what the findings table shows (a token, the search, a tab switch, a
+`refreshGroups` runs after every change of what the findings table shows (a token, the search typed or pasted, a tab switch, a
 result) and keeps the cursor on its group by key, else at the nearest index.
 
 **Going in and out.** In, the cursor is on the group of the selected finding (`groupIndexOf`). Out, the findings
@@ -1373,7 +1380,7 @@ moves out of them); its word is `Group by fix`, `List by finding` once on. `Y` i
 with `Copy the command from a group (g), or from a finding's detail` in the flat list. In the grouped list and the
 group level it copies the group's command (`apk upgrade openssl`, `go get ...`) through `writeClipboard`, whole, from
 the Cmd (Rule 110), as the detail's `Y` does: DevDesk never runs it (`never_run_guard_test.go` covers the new
-function by its use of `FixCommandCopiedMsg`). It is greyed `No fix is published for this group` for an unfixed
+function: `copyGroupCommand` is a root of the copy path and `.Command` on a group or a `remediation.Fix` counts as reading the command). It is greyed `No fix is published for this group` for an unfixed
 group, `This group has no command to run` for one with several candidate versions or a command that is not plain
 words. `space`, `ctrl+o` and `S` act on one finding, so in the grouped list they are greyed and say `Open the group
 to act on one finding`. The footer says what the selected group does, derived on every frame: `3 CVEs closed by one

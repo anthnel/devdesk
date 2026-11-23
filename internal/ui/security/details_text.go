@@ -155,6 +155,12 @@ func withoutControlSpace(text string) string {
 	return b.String()
 }
 
+// inlineText is withoutControlSpace for a text that sits on one line (a package
+// name, a version): a line feed becomes a space and the ends are trimmed.
+func inlineText(text string) string {
+	return strings.TrimSpace(strings.ReplaceAll(withoutControlSpace(text), "\n", " "))
+}
+
 // normalizeText makes a scanner's text safe to lay out: a tab or a carriage
 // return has no width the viewport and the terminal agree on, trailing spaces
 // are noise, and a run of blank lines is one blank line. dropBlank removes the

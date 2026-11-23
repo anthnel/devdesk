@@ -78,6 +78,10 @@ type Fix struct {
 	// (DEVDESK-754). Target, Options and Command are empty then. Group never
 	// returns one.
 	Unfixed bool
+	// Position tells apart the vulnerabilities that name no package and share an
+	// ID, an ecosystem and an installed version: it is 1 for the first of them,
+	// 2 for the next one, and 0 for a row that names a package.
+	Position int
 	// Members are the findings behind the fix, in the order they were given. Its
 	// length is len(CVEs).
 	Members []scan.Finding
@@ -89,11 +93,14 @@ type Fix struct {
 type FixKey struct {
 	Ecosystem, Package, Installed string
 	Unfixed                       bool
+	// Position is Fix.Position: without it a vulnerability with no package
+	// would share its key with a package named like its ID.
+	Position int
 }
 
 // Key is the identity of f.
 func (f Fix) Key() FixKey {
-	return FixKey{Ecosystem: f.Ecosystem, Package: f.Package, Installed: f.Installed, Unfixed: f.Unfixed}
+	return FixKey{Ecosystem: f.Ecosystem, Package: f.Package, Installed: f.Installed, Unfixed: f.Unfixed, Position: f.Position}
 }
 
 // GroupAll is Group plus what Group leaves out: one Unfixed Fix per (ecosystem,
@@ -122,7 +129,7 @@ func fixLess(a, b Fix) bool {
 		return a.Package < b.Package
 	}
 	if a.Installed != b.Installed {
-		if c, ok := scan.CompareVersions(a.Installed, b.Installed); ok && c != 0 {
+		if c, ok := scan.CompareVersionsIn(a.Ecosystem, a.Installed, b.Installed); ok && c != 0 {
 			return c < 0
 		}
 		return a.Installed < b.Installed
@@ -165,6 +172,7 @@ func Group(findings []scan.Finding) []Fix {
 func build(findings []scan.Finding, all bool) []Fix {
 	byKey := map[fixKey]*group{}
 	var order []fixKey
+	bareSeen := map[fixKey]int{}
 
 	for i, f := range findings {
 		if scan.Categorize(f) != scan.CategoryVulnerability {
@@ -175,14 +183,18 @@ func build(findings []scan.Finding, all bool) []Fix {
 			continue
 		}
 		key := fixKey{ecosystem: f.Ecosystem, pkg: f.PkgName, installed: f.Version, unfixed: unfixed}
+		position := 0
 		if bare {
 			key.pkg, key.n = f.ID, i+1
+			same := fixKey{ecosystem: key.ecosystem, pkg: key.pkg, installed: key.installed, unfixed: unfixed}
+			bareSeen[same]++
+			position = bareSeen[same]
 		}
 		g, seen := byKey[key]
 		if !seen {
 			g = &group{bare: bare, fix: Fix{
 				Class: f.Class, Ecosystem: f.Ecosystem, Package: key.pkg,
-				Installed: f.Version, Severity: f.Severity, Unfixed: unfixed,
+				Installed: f.Version, Severity: f.Severity, Unfixed: unfixed, Position: position,
 			}}
 			byKey[key] = g
 			order = append(order, key)
@@ -207,7 +219,7 @@ func (g *group) add(f scan.Finding) {
 	if g.fix.Unfixed {
 		return
 	}
-	need := scan.PickFixed(f.Version, f.FixedIn)
+	need := scan.PickFixedIn(f.Ecosystem, f.Version, f.FixedIn)
 	if need == "" {
 		// Several fixed versions and no way to choose: keep the raw list so
 		// the reader sees it, and give up on a single target.
@@ -228,7 +240,7 @@ func (g *group) done() Fix {
 	}
 	sort.Strings(fix.Options)
 	if !g.ambiguous {
-		fix.Target = highest(fix.Options)
+		fix.Target = highest(fix.Ecosystem, fix.Options)
 	}
 	if fix.Target != "" && !g.bare {
 		fix.Command, _ = scan.FixCommand(fix.Ecosystem, fix.Package, fix.Target)
@@ -238,10 +250,10 @@ func (g *group) done() Fix {
 
 // highest returns the greatest of versions, or "" if two of them cannot be
 // ordered. A lone version is returned as is, orderable or not.
-func highest(versions []string) string {
+func highest(ecosystem string, versions []string) string {
 	best := versions[0]
 	for _, v := range versions[1:] {
-		c, ok := scan.CompareVersions(v, best)
+		c, ok := scan.CompareVersionsIn(ecosystem, v, best)
 		if !ok {
 			return ""
 		}

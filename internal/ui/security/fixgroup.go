@@ -21,6 +21,9 @@ import (
 type groupKey struct {
 	Ecosystem, Subject, Installed string
 	Unfixed                       bool
+	// Position is remediation.Fix.Position: it keeps two vulnerabilities that
+	// name no package from sharing a key.
+	Position int
 }
 
 // fixGroup is one row of the grouped list.
@@ -53,8 +56,10 @@ func cveGroups(findings []scan.Finding) []fixGroup {
 		if len(fx.Members) == 0 {
 			continue
 		}
+		key := groupKey{Ecosystem: fx.Ecosystem, Subject: fx.Package, Installed: fx.Installed, Unfixed: fx.Unfixed, Position: fx.Position}
+		fx = displaySafe(fx)
 		g := fixGroup{
-			Key:      groupKey{Ecosystem: fx.Ecosystem, Subject: fx.Package, Installed: fx.Installed, Unfixed: fx.Unfixed},
+			Key:      key,
 			Severity: fx.Severity,
 			Subject:  fx.Package,
 			Change:   fixChange(fx),
@@ -81,6 +86,21 @@ func cveGroups(findings []scan.Finding) []fixGroup {
 		return a.Change < b.Change
 	})
 	return groups
+}
+
+// displaySafe is fx with the scan's text made safe for the terminal: the package,
+// the versions and the candidates are shown as they are in the title, the footer
+// and the cells, so none may carry an escape sequence, a control or a bidi mark.
+func displaySafe(fx remediation.Fix) remediation.Fix {
+	fx.Package = inlineText(fx.Package)
+	fx.Installed = inlineText(fx.Installed)
+	fx.Target = inlineText(fx.Target)
+	options := make([]string, len(fx.Options))
+	for i, o := range fx.Options {
+		options[i] = inlineText(o)
+	}
+	fx.Options = options
+	return fx
 }
 
 // fixChange is the delta of a fix: the installed version, an arrow and what it
@@ -178,17 +198,20 @@ func nearestFinding(visible []scan.Finding, g *fixGroup, prev *scan.Finding, pre
 		return -1
 	}
 	if g != nil && len(g.Members) > 0 {
+		members := make(map[findingIdentity]struct{}, len(g.Members))
+		for _, member := range g.Members {
+			members[identityOf(member)] = struct{}{}
+		}
 		for i, f := range visible {
-			for _, member := range g.Members {
-				if sameFinding(member, f) {
-					return i
-				}
+			if _, ok := members[identityOf(f)]; ok {
+				return i
 			}
 		}
 	}
 	if prev != nil {
+		want := identityOf(*prev)
 		for i, f := range visible {
-			if sameFinding(*prev, f) {
+			if identityOf(f) == want {
 				return i
 			}
 		}

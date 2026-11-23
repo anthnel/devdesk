@@ -234,7 +234,7 @@ func versionDelta(f scan.Finding) (string, bool) {
 	if f.PkgName == "" || f.Version == "" || f.FixedIn == "" {
 		return "", false
 	}
-	fixed := scan.PickFixed(f.Version, f.FixedIn)
+	fixed := scan.PickFixedIn(f.Ecosystem, f.Version, f.FixedIn)
 	if fixed == "" {
 		fixed = f.FixedIn
 	}
