@@ -273,7 +273,13 @@ no line, so it could feed neither the table's jump-to-line nor a fix.
   it is `helm template` that fails — so the render failure is reported unless
   lint already raised an ERROR. `helm lint` also names that chart by its
   **absolute** path (`/scan/charts/x` in a container), which `helmLintPath`
-  brings back to the repository.
+  brings back to the repository. The finding's Resolution is in the
+  renderer's terms (`renderResolution`): helm's speaks of dependencies,
+  kustomize's of `kustomize build`; a file kustomize's load restrictor refuses
+  (`security; file … is not in or below …`, as `kubectl apply -k` would) gets a
+  directory with its own kustomization or, when the deployment tool does the
+  same, `scan.tools.kustomize.args: [--load-restrictor=LoadRestrictionsNone]`.
+  The finding stays HIGH (DEVDESK-742).
 - **The finding's line comes from the file, not the tool.** kubeconform
   reports a JSON pointer; `k8s.Locate` finds the document by kind and
   `metadata.name`, then walks the pointer through `yaml.v3` nodes. An unknown

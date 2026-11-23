@@ -326,12 +326,40 @@ func renderFailure(source, dialect, file, title string, err error) Finding {
 		Title:       title + ": " + first,
 		Description: "The directory could not be rendered, so none of its resources were validated.",
 		Message:     detail,
-		Resolution:  "Render it locally and fix what the tool reports; a chart's dependencies must be vendored in charts/ or fetched with helm dependency build.",
+		Resolution:  renderResolution(source, detail),
 		Severity:    SeverityHigh,
 		Source:      source,
 		File:        file,
 		IaCType:     dialect,
 	}
+}
+
+// How to fix a chart or an overlay that does not render, in the renderer's own
+// terms.
+const (
+	helmRenderResolution = "Render it locally with helm template and fix what it reports; " +
+		"a chart's dependencies must be vendored in charts/ or fetched with helm dependency build."
+	kustomizeRenderResolution = "Build it locally with kustomize build (or kubectl kustomize) and fix what it reports."
+	// kustomize's load restrictor (LoadRestrictionsRootOnly, its default)
+	// refuses a file outside the kustomization's directory, with this message.
+	// The flag is not reserved (ToolKustomize.ReservedArgs) and lands after
+	// `build` (afterSubcommand), where kustomize accepts it.
+	loadRestrictorResolution = "kustomize refuses by default a file outside the overlay directory " +
+		"(same as kubectl apply -k). Reference a directory with its own kustomization instead, " +
+		"or, if your deployment tool allows it, set " +
+		"scan.tools.kustomize.args: [--load-restrictor=LoadRestrictionsNone]."
+)
+
+// renderResolution picks the advice for a render failure from the renderer
+// and what it printed.
+func renderResolution(source, detail string) string {
+	if source != SourceKustomize {
+		return helmRenderResolution
+	}
+	if strings.Contains(detail, "security; file") && strings.Contains(detail, "is not in or below") {
+		return loadRestrictorResolution
+	}
+	return kustomizeRenderResolution
 }
 
 // helmOrigins maps each rendered resource, by kind and name, to the template
