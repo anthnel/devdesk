@@ -214,9 +214,18 @@ var (
 func benchRouter(b *testing.B) (*App, *measuredView) {
 	b.Helper()
 	view := &measuredView{rows: 20, blink: true}
-	a := routerAt(b, view, measureWidth, measureHeight)
+	return trueColorRouter(b, view, measureWidth, measureHeight), view
+}
+
+// trueColorRouter is routerAt with the TrueColor profile the router would learn
+// from a real terminal. It lives here because this file and profile_test.go
+// are the only ones allowed to name colorprofile (source_guard_test.go in
+// internal/ui/testutil).
+func trueColorRouter(t testing.TB, view Screen, width, height int) *App {
+	t.Helper()
+	a := routerAt(t, view, width, height)
 	a.colorProfile = colorprofile.TrueColor
-	return a, view
+	return a
 }
 
 // BenchmarkAppView measures App.View() as the program calls it after an Update.
