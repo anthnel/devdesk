@@ -21,7 +21,6 @@ import (
 	"context"
 	"fmt"
 	"net"
-	"os"
 	"strconv"
 
 	gnet "github.com/shirou/gopsutil/v4/net"
@@ -92,16 +91,28 @@ func toSocket(c gnet.ConnectionStat, names map[int32]string) Socket {
 // knowing is that DevDesk now signals with the rights it actually has: another
 // user's process, or a service, comes back as a refusal from the operating
 // system rather than as a success against the wrong machine.
+//
+// The signal leaves through procOS.kill, the single point of the package that
+// sends one; in a test binary it panics unless the test substituted procOS
+// (DEVDESK-708).
+//
+// DevDesk itself, its direct parent, PID 1 and, on Windows, PIDs 0 and 4 are
+// refused with a *ProtectedError before anything is sent. A pid outside int32
+// or not in canonical form is refused first, as "not a process id" (parsePID).
+// The protection check comes
+// before the n <= 0 one because PID 0 is a protected process on Windows.
 func Kill(pid string) error {
-	n, err := strconv.Atoi(pid)
-	if err != nil || n <= 0 {
+	n, ok := parsePID(pid)
+	if !ok {
 		return fmt.Errorf("not a process id: %q", pid)
 	}
-	p, err := os.FindProcess(n)
-	if err != nil {
-		return fmt.Errorf("process %s: %w", pid, err)
+	if p := protectionOf(n); p != Unprotected {
+		return &ProtectedError{PID: n, Protection: p}
 	}
-	if err := p.Kill(); err != nil {
+	if n <= 0 {
+		return fmt.Errorf("not a process id: %q", pid)
+	}
+	if err := procOS.kill(n); err != nil {
 		return fmt.Errorf("killing process %s: %w", pid, err)
 	}
 	return nil

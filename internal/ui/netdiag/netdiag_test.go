@@ -32,7 +32,12 @@ func testConfig() *config.Config {
 // newTestModel returns a laid-out model on the diagnostics tab.
 func newTestModel(t *testing.T) *Model {
 	t.Helper()
-	return feed(t, New(testConfig()), tea.WindowSizeMsg{Width: 120, Height: 40})
+	m := New(testConfig())
+	// No test of this package may reach ports.Kill: the Ports tab signals through
+	// a recording fake (DEVDESK-708). A test that wants to read the PIDs calls
+	// installProcs again to get its own.
+	installProcs(m, false)
+	return feed(t, m, tea.WindowSizeMsg{Width: 120, Height: 40})
 }
 
 // typeInto types s into the target field.

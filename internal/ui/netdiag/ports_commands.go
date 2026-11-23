@@ -2,6 +2,7 @@ package netdiag
 
 import (
 	"context"
+	"runtime"
 	"time"
 
 	tea "charm.land/bubbletea/v2"
@@ -41,8 +42,29 @@ func fetchPortsCmd(numeric bool) tea.Cmd {
 	}
 }
 
-func killProcessCmd(pid string) tea.Cmd {
+// processOps is what the Ports tab does to the machine's processes, held in
+// one value so a test can replace it and no test signals a real process.
+type processOps struct {
+	// protection says whether DevDesk refuses to signal the process with this
+	// PID. It is read in Update and at render, never in a Cmd (Rule 110).
+	protection func(pid string) ports.Protection
+	// kill ends the process with this PID.
+	kill func(pid string) error
+	// windows says the platform has no clean stop, which changes the wording
+	// of the confirmation and of the help, nothing else.
+	windows bool
+}
+
+// realProcessOps is the production wiring: ports.Kill on the platform the
+// binary runs on.
+func realProcessOps() processOps {
+	return processOps{protection: ports.ProtectionOf, kill: ports.Kill, windows: runtime.GOOS == "windows"}
+}
+
+// killProcessCmd signals pid through kill. Both are values captured in
+// Update (Rule 110): the command never reads the model.
+func killProcessCmd(kill func(string) error, pid string) tea.Cmd {
 	return func() tea.Msg {
-		return portsKillResultMsg{pid: pid, err: ports.Kill(pid)}
+		return portsKillResultMsg{pid: pid, err: kill(pid)}
 	}
 }

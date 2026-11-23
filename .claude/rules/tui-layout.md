@@ -382,7 +382,12 @@ case keymap.Scan:
 
 The reasons are **named constants** of the view's package (`reasonNoScanner`,
 `reasonInsideGroup`, …): the header, the footer, and the tests all read them
-from the same place, so none of them can drift on the wording.
+from the same place, so none of them can drift on the wording. A reason can
+also come from another package, when that package is the one that refuses: `K`
+on the Ports tab is greyed on DevDesk itself, its direct parent, PID 1 and, on
+Windows, PIDs 0 and 4, with `ports.Protection.Reason()` as the text, read by
+the header and by `ports.Kill` alike (DEVDESK-708). That is not a guess about
+what the OS would accept: DevDesk's own rule decides.
 
 #### An action justifies itself, a control does not
 

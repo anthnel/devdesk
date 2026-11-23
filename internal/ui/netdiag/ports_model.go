@@ -116,6 +116,13 @@ type PortsModel struct {
 	// confirmation and had none.
 	confirmModal *components.ConfirmModal
 
+	// pendingKill is the process the open confirmation is about, captured when
+	// it opened. Yes acts on it and on nothing else.
+	pendingKill *killTarget
+
+	// ops is what the tab does to processes; tests replace it.
+	ops processOps
+
 	// lastOK is when the table last received real data, and stale says the most
 	// recent fetch failed.
 	//
@@ -224,6 +231,7 @@ func matchesActive(value string, active map[string]bool, labels ...string) bool 
 func newPortsModel(refresh time.Duration) *PortsModel {
 	return &PortsModel{
 		refresh:      refresh,
+		ops:          realProcessOps(),
 		numericAddrs: true,
 		table: datatable.New(datatable.Config[ports.Socket]{
 			Columns:    portsColumns(),
@@ -279,11 +287,9 @@ func (pm *PortsModel) update(msg tea.Msg) (*PortsModel, tea.Cmd) {
 	case portsKillResultMsg:
 		return pm.handleKillResult(msg)
 	case components.ConfirmModalYesMsg:
-		pm.confirmModal = nil
-		return pm.killSelected()
+		return pm.handleConfirmYes()
 	case components.ConfirmModalNoMsg:
-		pm.confirmModal = nil
-		return pm, nil
+		return pm.handleConfirmNo()
 	case tea.KeyPressMsg:
 		return pm.handleKey(msg)
 	case tea.PasteMsg:
@@ -330,6 +336,11 @@ func (pm *PortsModel) handleKillResult(msg portsKillResultMsg) (*PortsModel, tea
 	// On every outcome: a kill that failed has to let the socket state show
 	// again rather than go on turning.
 	pm.table.ClearBusy(msg.pid)
+	var refused *ports.ProtectedError
+	if errors.As(msg.err, &refused) {
+		// DevDesk's own refusal, a precondition: nothing failed (Rule 128).
+		return pm, pm.footer.Warn(refused.Error())
+	}
 	if msg.err != nil {
 		log.Printf("ERROR [netdiag/ports] ports.Kill pid=%s: %v", msg.pid, msg.err)
 		return pm, pm.footer.Error(killFailureMessage(msg.pid, msg.err))
@@ -455,12 +466,52 @@ func (pm *PortsModel) confirmKill() (*PortsModel, tea.Cmd) {
 	if pm.table.IsBusy(entry.PID) {
 		return pm, pm.footer.Warn("Already killing PID " + entry.PID)
 	}
-	pm.confirmModal = components.NewConfirmModal(
-		"Kill Process",
-		fmt.Sprintf("Send SIGKILL to %s (PID %s)?\n\nThe process gets no chance to shut down cleanly.",
-			entry.Process, entry.PID),
-	)
+	// The target is captured here, once, as values: the table refreshes every
+	// two seconds and the cursor stays on an index, so by the time the user
+	// answers, the selected row can be another process (DEVDESK-714).
+	target := killTarget{PID: entry.PID, Process: entry.Process}
+	pm.pendingKill = &target
+	pm.confirmModal = components.NewConfirmModal("Kill Process", killPrompt(target, pm.ops.windows))
 	return pm, nil
+}
+
+// killTarget is the process a confirmation is about: what the user was shown
+// when it opened, whatever the table does afterwards.
+type killTarget struct {
+	PID     string
+	Process string
+}
+
+// killPrompt is the text of the confirmation. Windows has no signal to send:
+// the process is ended at once, so the sentence says that instead of naming
+// a SIGKILL that does not exist there.
+func killPrompt(t killTarget, windows bool) string {
+	if windows {
+		return fmt.Sprintf("Terminate %s (PID %s)?\n\nWindows has no clean stop for this process: it is ended at once and cannot save anything.",
+			t.Process, t.PID)
+	}
+	return fmt.Sprintf("Send SIGKILL to %s (PID %s)?\n\nThe process gets no chance to shut down cleanly.",
+		t.Process, t.PID)
+}
+
+// killHelpDescription is the help line of K on the Ports tab.
+func killHelpDescription(windows bool) string {
+	if windows {
+		return "End the selected process at once, after confirmation (Ports tab)"
+	}
+	return "Send SIGKILL to the selected process, after confirmation (Ports tab)"
+}
+
+// targetStillListed reports whether the last table received still holds the
+// process: same PID and same name. A reused PID under another name is another
+// process, and signalling it would hit something the user never saw.
+func (pm *PortsModel) targetStillListed(t killTarget) bool {
+	for _, s := range pm.table.Items() {
+		if s.PID == t.PID && s.Process == t.Process {
+			return true
+		}
+	}
+	return false
 }
 
 // Why K does not apply, written once so the header, the footer and the tests
@@ -471,6 +522,9 @@ const (
 )
 
 // killable reports whether K has a process to signal (Rule 130).
+//
+// A protected process (DevDesk itself, the process that started it, PID 1, the
+// Windows system processes) is greyed with the reason ports.Protection gives.
 //
 // A socket the system declines to attribute carries no PID — `List` blanks a
 // PID of zero rather than printing it, because process 0 is a whole process
@@ -485,23 +539,47 @@ func (pm *PortsModel) killable() shortcut.Availability {
 	case entry.PID == "":
 		return shortcut.Unavailable(reasonNoPID)
 	}
+	if p := pm.ops.protection(entry.PID); p != ports.Unprotected {
+		return shortcut.Unavailable(p.Reason())
+	}
 	return shortcut.Availability{}
 }
 
-// killSelected sends the signal, once confirmed.
-func (pm *PortsModel) killSelected() (*PortsModel, tea.Cmd) {
-	entry, ok := pm.table.Selected()
-	if !ok {
+// handleConfirmNo closes the confirmation without a signal.
+func (pm *PortsModel) handleConfirmNo() (*PortsModel, tea.Cmd) {
+	pm.confirmModal = nil
+	pm.pendingKill = nil
+	return pm, nil
+}
+
+// handleConfirmYes sends the signal to the target captured when the
+// confirmation opened, never to the row under the cursor. A Yes with no
+// pending target (nothing was opened) does nothing, and a target the last
+// table no longer lists is refused with a warning: it may be gone, or its PID
+// may belong to another process by now.
+func (pm *PortsModel) handleConfirmYes() (*PortsModel, tea.Cmd) {
+	target := pm.pendingKill
+	pm.confirmModal = nil
+	pm.pendingKill = nil
+	if target == nil {
 		return pm, nil
 	}
-	if entry.PID == "" || pm.table.IsBusy(entry.PID) {
+	if !pm.targetStillListed(*target) {
+		return pm, pm.footer.Warn(fmt.Sprintf("%s (PID %s) is no longer listed — not stopped", target.Process, target.PID))
+	}
+	// The state may have changed since the confirmation opened; the verdict on
+	// the captured target decides, not the row under the cursor.
+	if p := pm.ops.protection(target.PID); p != ports.Unprotected {
+		return pm, pm.footer.Warn(fmt.Sprintf("PID %s not stopped: %s", target.PID, p.Reason()))
+	}
+	if pm.table.IsBusy(target.PID) {
 		return pm, nil
 	}
 	// Keyed on the PID, so every socket the process holds shows the running dot
 	// at once — which is what happens: the kill takes them all. The table reads
 	// the busy mark at render; the router's frame drives the blink.
-	pm.table.MarkBusy(entry.PID, "Killing "+entry.Process+" ("+entry.PID+")")
-	return pm, killProcessCmd(entry.PID)
+	pm.table.MarkBusy(target.PID, "Killing "+target.Process+" ("+target.PID+")")
+	return pm, killProcessCmd(pm.ops.kill, target.PID)
 }
 
 // view renders the table. An empty table stays a table (Rule 139) — its

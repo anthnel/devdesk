@@ -158,10 +158,14 @@ func TestASocketWithNoPeerShowsTheWildcardForItsFamily(t *testing.T) {
 // number is a whole group; an empty string is a row the system attributed to
 // nobody, which is exactly the row a user is most likely to press K on.
 func TestKillRefusesAnythingThatIsNotAProcessID(t *testing.T) {
+	fake := useFakeOS(t, 100, 99, "linux")
 	for _, pid := range []string{"", "0", "-1", "-812", "sshd", "8 12", "812.0"} {
 		if err := Kill(pid); err == nil {
 			t.Errorf("Kill(%q) returned no error", pid)
 		}
+	}
+	if len(fake.kills) != 0 {
+		t.Errorf("procOS.kill was called with %v for input that is not a process id", fake.kills)
 	}
 }
 

@@ -340,7 +340,7 @@ func (m *Model) GetHelpContent() help.Content {
 			{Key: "z", Description: "Reset all active filters (Ports tab)"},
 			{Key: "/", Description: "Search ports by address, process or PID (Ports tab)"},
 			{Key: "space (Ports)", Description: "Pause / resume auto-refresh (Ports tab)"},
-			{Key: keymap.Kill, Description: "Send SIGKILL to the selected process, after confirmation (Ports tab)"},
+			{Key: keymap.Kill, Description: killHelpDescription(m.portsModel.ops.windows)},
 			// Interfaces tab
 			{Key: "/", Description: "Search interfaces by name, MAC or address (Interfaces tab)"},
 			{Key: ".", Description: "Cycle the sort column (Interfaces tab)"},
@@ -396,7 +396,8 @@ func (m *Model) GetHelpContent() help.Content {
 					"container, no Docker. Shows the owning process name and PID where the system will " +
 					"name one. K terminates that process, after a confirmation, with the rights DevDesk " +
 					"itself has: another user's process or a service comes back refused rather than " +
-					"silently killed elsewhere.\n\n" +
+					"silently killed elsewhere. K is greyed on DevDesk itself, on the process that " +
+					"started it, on PID 1, and on PIDs 0 and 4 under Windows; the footer says why.\n\n" +
 					"n toggles reverse DNS on the addresses. Host names only — port numbers stay " +
 					"numeric, because a service name would be DevDesk's guess and not the system's.\n\n" +
 					"While K is killing a process, the dot on its sockets (" + indicator.Glyph(indicator.Running, true) +
