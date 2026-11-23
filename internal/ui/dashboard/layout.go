@@ -1,7 +1,5 @@
 package dashboard
 
-import "github.com/anthnel/devdesk/internal/ui/theme"
-
 // tier is the dashboard's layout tier. A terminal doesn't know it's 4K: it
 // knows columns and rows, and two font sizes on the same screen make two
 // terminals. The tier is therefore computed from tea.WindowSizeMsg, and on
@@ -27,7 +25,8 @@ const (
 // genuinely taller.
 //
 // Height is in *content* lines, not terminal lines: the view receives what
-// the router leaves it — header 9, title line 1, footer 3.
+// the router leaves it — header 8 (its rows and the blank line under them),
+// no title line (DEVDESK-743), footer 3 with the tab bar, 2 without.
 const (
 	standardMinWidth = 100
 	wideMinWidth     = 180
@@ -49,17 +48,12 @@ const (
 // stale the moment a line is added, and that happened three times in two
 // days — the certificate deadline, the trees, the blank line under each
 // chart.
+//
+// It is measured at the model's density (roomy unless set): layout() is what
+// chooses one for the frame.
 func (m Model) gridHeight(t tier) int {
-	columns := m.columnsFor(t)
-	total := leadingBlank
-	for _, height := range m.innerHeights(columns, t.columnWidth(m.width), t) {
-		total += height + theme.BoxChrome
-	}
-	return total
+	return m.stackHeight(m.innerHeights(m.columnsFor(t), t.columnWidth(m.width), t))
 }
-
-// leadingBlank is the empty line between the title rule and the first row.
-const leadingBlank = 1
 
 // trailingBlank is the empty line every box keeps under its last fact.
 //
@@ -70,12 +64,16 @@ const leadingBlank = 1
 // else.
 //
 // Without it, the tallest box's last value touches its bottom border — and
-// that's precisely the box the eye reads first.
+// that's precisely the box the eye reads first. It is still the first blank
+// line the grid gives up when it does not fit (densityNoTrailing): touching
+// the border beats losing it (DEVDESK-743).
 const trailingBlank = 1
 
 // Box geometry. Stacked boxes are not separated by a blank line: their
-// borders take care of that, and at 30 lines the budget is exactly two boxes
-// (2 × (6 + 2) = 16).
+// borders take care of that. The two-column overview takes 26 content lines
+// with every blank line (a 37-row terminal with the router's 8 rows above and
+// 3 below) and 20 at densityTight (31 rows); one column takes 47 and 36
+// (DEVDESK-743, measured with the report's data).
 //
 // nominalInnerHeight only serves to express the tier thresholds: a box's
 // actual height is *derived from the sections on screen* (see innerHeight in

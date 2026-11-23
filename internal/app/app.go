@@ -400,7 +400,8 @@ func (a *App) layoutOnce(width, height int) (changed bool) {
 	a.lastHeaderHeight = headerHeight
 	availableHeight := height - headerHeight - footerHeight
 	a.viewport.SetWidth(width)
-	a.viewport.SetHeight(availableHeight - 1) // -1 for the custom title border line
+	titleHeight := a.titleLineHeight() // the custom title border line, none for a TitlelessView
+	a.viewport.SetHeight(availableHeight - titleHeight)
 
 	// Propagate to the active view. The viewport has 1 border (bottom only),
 	// the view must know the inner height. A frameless view has none and
@@ -411,7 +412,7 @@ func (a *App) layoutOnce(width, height int) (changed bool) {
 		viewportBorderHeight = 0
 		a.viewport.Style = framelessViewportStyle()
 	}
-	contentHeight := max((availableHeight-1)-viewportBorderHeight, 1)
+	contentHeight := max((availableHeight-titleHeight)-viewportBorderHeight, 1)
 	if view, ok := a.views[a.currentView]; ok {
 		updatedView, _ := view.Update(tea.WindowSizeMsg{Width: width, Height: contentHeight})
 		a.setView(a.currentView, updatedView)

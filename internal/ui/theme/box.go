@@ -12,14 +12,22 @@ import (
 //
 // The content is separated from the side borders by one column of space on
 // each side (BoxPadding), so the usable width is BoxContentWidth(width). The
-// padding is **horizontal only**: a blank line at top and bottom would cost
-// four lines per row of boxes, and on a 30-line terminal the budget is worth
-// exactly two.
+// padding is **horizontal only**, apart from the one line under the title
+// (BoxTopPadding): more would cost lines on every row of boxes, and the
+// dashboard counts them (DEVDESK-743).
 //
 // Each line carries an explicit background (Rule 115) and is exactly `width`
 // cells wide (Rule 116): the content is padded, and truncated if it
 // overflows — a frame whose line overflows breaks every column to its right.
 func RenderTitledBox(title string, lines []string, width int) []string {
+	return RenderTitledBoxPadded(title, lines, width, BoxTopPadding)
+}
+
+// RenderTitledBoxPadded is RenderTitledBox with topPadding blank lines, instead
+// of BoxTopPadding, between the titled border and the first content line. The dashboard passes 0 when its
+// grid would not fit otherwise (DEVDESK-743): a first line that touches the
+// title reads worse than a box that loses its bottom border.
+func RenderTitledBoxPadded(title string, lines []string, width, topPadding int) []string {
 	if width < minBoxWidth {
 		width = minBoxWidth
 	}
@@ -32,9 +40,10 @@ func RenderTitledBox(title string, lines []string, width int) []string {
 	side := borderStyle.Render(border.Left)
 	pad := EmptyLineBg(BoxPadding)
 
-	out := make([]string, 0, len(lines)+2+BoxTopPadding)
+	topPadding = max(topPadding, 0)
+	out := make([]string, 0, len(lines)+2+topPadding)
 	out = append(out, RenderBorderTitle(title, width))
-	for range BoxTopPadding {
+	for range topPadding {
 		out = append(out, side+EmptyLineBg(width-2)+side)
 	}
 	for _, line := range lines {
@@ -51,7 +60,7 @@ func RenderTitledBox(title string, lines []string, width int) []string {
 // line would read as a continuation of the title.
 //
 // There is no bottom padding: the title is only at the top, and one more
-// line would cost two lines per row of boxes on a budget that counts 17.
+// line would cost one line per box on a budget the dashboard counts.
 const (
 	BoxPadding    = 1
 	BoxTopPadding = 1

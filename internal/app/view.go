@@ -34,7 +34,10 @@ func (a *App) Render() string {
 			lipgloss.WithWhitespaceStyle(lipgloss.NewStyle().Background(theme.ColorBackground)))
 	}
 
-	header := a.renderHeader() + "\n" + a.renderTitleLine()
+	header := a.renderHeader()
+	if !a.titleless() {
+		header += "\n" + a.renderTitleLine()
+	}
 	// The footer is rendered first: whether a bar opens it decides how the
 	// viewport closes its bottom edge.
 	footer := a.renderViewFooter()
@@ -263,6 +266,26 @@ func (a *App) frameless() bool {
 	}
 	fv, implements := view.(FramelessView)
 	return implements && fv.Frameless()
+}
+
+// titleless reports whether the active view draws no title line (see
+// TitlelessView). The default is a title line.
+func (a *App) titleless() bool {
+	view, ok := a.views[a.currentView]
+	if !ok {
+		return false
+	}
+	tv, implements := view.(TitlelessView)
+	return implements && tv.Titleless()
+}
+
+// titleLineHeight is the number of rows the title line takes: 1, or 0 for a
+// TitlelessView.
+func (a *App) titleLineHeight() int {
+	if a.titleless() {
+		return 0
+	}
+	return 1
 }
 
 // renderViewFooter returns the active view's footer, or "" when it has none.
