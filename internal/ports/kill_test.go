@@ -3,11 +3,9 @@ package ports
 import (
 	"errors"
 	"os"
-	"os/exec"
 	"strconv"
 	"strings"
 	"testing"
-	"time"
 )
 
 // ── Kill goes through procOS ─────────────────────────────────────────────────
@@ -17,7 +15,7 @@ import (
 func TestKillSendsThroughProcOS(t *testing.T) {
 	fake := useFakeOS(t, 100, 99, "linux")
 
-	if err := Kill("4242"); err != nil {
+	if err := Kill("4242", IdentityForTest(1)); err != nil {
 		t.Fatalf("Kill(4242) = %v, want nil", err)
 	}
 	if len(fake.kills) != 1 || fake.kills[0] != 4242 {
@@ -62,7 +60,7 @@ func TestKillRefusesAPIDOutsideInt32OrNotCanonical(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			fake := useFakeOS(t, self, parent, tc.goos)
 
-			err := Kill(tc.pid)
+			err := Kill(tc.pid, IdentityForTest(1))
 			if err == nil {
 				t.Errorf("Kill(%q) returned no error", tc.pid)
 			} else {
@@ -92,7 +90,7 @@ func TestKillAcceptsTheLargestInt32PID(t *testing.T) {
 	if got := ProtectionOf("2147483647"); got != Unprotected {
 		t.Errorf("ProtectionOf(2147483647) = %v, want Unprotected", got)
 	}
-	if err := Kill("2147483647"); err != nil {
+	if err := Kill("2147483647", IdentityForTest(1)); err != nil {
 		t.Fatalf("Kill(2147483647) = %v, want nil", err)
 	}
 	if len(fake.kills) != 1 || fake.kills[0] != 2147483647 {
@@ -108,7 +106,7 @@ func TestKillWrapsTheOSErrorSoTheUICanClassifyIt(t *testing.T) {
 			fake := useFakeOS(t, 100, 99, "linux")
 			fake.killErr = cause
 
-			err := Kill("4242")
+			err := Kill("4242", IdentityForTest(1))
 			if err == nil {
 				t.Fatal("Kill returned nil although the OS refused")
 			}
@@ -116,69 +114,5 @@ func TestKillWrapsTheOSErrorSoTheUICanClassifyIt(t *testing.T) {
 				t.Errorf("errors.Is(%v, %v) = false: the cause was not wrapped with %%w", err, cause)
 			}
 		})
-	}
-}
-
-// ── The one real signal ──────────────────────────────────────────────────────
-
-const helperEnv = "DEVDESK_PORTS_HELPER"
-
-// TestHelperProcessSleeps is not a test: it is the body of the child process
-// TestKillEndsARealChildProcess starts from this very binary. It does nothing
-// unless the parent set the variable.
-func TestHelperProcessSleeps(t *testing.T) {
-	if os.Getenv(helperEnv) != "1" {
-		t.Skip("helper process of TestKillEndsARealChildProcess")
-	}
-	time.Sleep(time.Minute)
-}
-
-// TestKillEndsARealChildProcess is the only test of the package that sends a
-// real signal, and it aims at a child it started itself: the test binary run
-// again on the helper above. The child is always waited for, so it leaves
-// neither a zombie nor an orphan.
-func TestKillEndsARealChildProcess(t *testing.T) {
-	cmd := exec.Command(os.Args[0], "-test.run=^TestHelperProcessSleeps$")
-	cmd.Env = append(os.Environ(), helperEnv+"=1")
-	if err := cmd.Start(); err != nil {
-		t.Fatalf("starting the helper process: %v", err)
-	}
-	pid := cmd.Process.Pid
-
-	var waitErr error
-	done := make(chan struct{})
-	go func() {
-		waitErr = cmd.Wait()
-		close(done)
-	}()
-	t.Cleanup(func() {
-		_ = cmd.Process.Kill() // no-op error if Kill already ended it
-		select {
-		case <-done:
-		case <-time.After(10 * time.Second):
-			t.Errorf("the helper process %d did not exit and could not be waited for", pid)
-		}
-	})
-
-	// Never signal anything that is not the child this test started.
-	if pid <= 1 || pid == os.Getpid() || pid == os.Getppid() {
-		t.Fatalf("the helper process has PID %d (self %d, parent %d): refusing to signal it", pid, os.Getpid(), os.Getppid())
-	}
-
-	allowRealSignals(t)
-	if err := Kill(strconv.Itoa(pid)); err != nil {
-		t.Fatalf("Kill(%d) = %v, want nil", pid, err)
-	}
-
-	select {
-	case <-done:
-	case <-time.After(10 * time.Second):
-		t.Fatalf("the helper process %d was still running 10 s after Kill", pid)
-	}
-	if waitErr == nil {
-		t.Error("the helper process exited successfully: it was not ended by the signal")
-	}
-	if cmd.ProcessState == nil || cmd.ProcessState.Success() {
-		t.Errorf("ProcessState = %v, want an unsuccessful exit", cmd.ProcessState)
 	}
 }

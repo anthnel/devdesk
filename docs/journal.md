@@ -3,6 +3,16 @@
 Dated entries, most recent first (AAAA-MM-JJ). Each entry records what was
 decided, why, and which alternative was rejected. Sources live in `docs/product/`.
 
+## 2026-11-23 — Safe process stop: S-01b delivered, identity checked at each signal (DEVDESK-709)
+
+Source: `docs/product/safe-process-stop/stories.md`; `docs/architecture/network.md` (« Process identity »); decision D175 in `docs/backlog.md`. Plane: DEVDESK-709.
+
+1. **Delivered:** each row of the Ports tab carries the creation stamp of its process, read once per distinct PID at listing. At the signal, `ports.Kill` holds the process (pidfd on Linux, handle on Windows), compares the stamp and signals only on a match. If another process holds the PID, nothing is sent, the footer says `<name> (PID N) is no longer the process that was listed — table refreshed` and the table is read once more. `K` is greyed with `Cannot verify which process this is` when the stamp could not be read.
+2. **Windows:** reading is capped at 100 ms per refresh; the PIDs left over are read when the confirmation opens. The cost was not measured, since no Windows machine was available. Default: DEVDESK-709 closes at merge and the measurement task DEVDESK-727 stays open (`TestMeasureIdentityCost`, non-elevated Windows). Rejected: keeping 709 in review until then, and a constant fallback to the confirmation.
+3. **Decided (orchestrator, within the autonomy the user granted on 2026-11-23; the user can overrule):** the greyed reason does not name the cause; one extra table read on an identity change, even when paused.
+4. **Limits:** macOS and Linux without a pidfd keep a short window between check and signal; Linux and macOS read the stamp after the socket snapshot; the Windows check assumes the clock did not go backwards; the Windows and macOS code is compiled, never run; macOS `EIO` is read as « process done » without a run.
+5. **Next:** the measurement task (DEVDESK-727), then S-02b (DEVDESK-711, SIGTERM then wait then SIGKILL confirmation).
+
 ## 2026-11-23 — Safe process stop: S-01a, S-02a and bug 714 delivered (DEVDESK-708, DEVDESK-710, DEVDESK-714)
 
 Source: `docs/product/safe-process-stop/stories.md`; plan `.claude/plans/DEVDESK-708-plan.md`; `docs/architecture/network.md` (« The socket table — `internal/ports` »). Plane: DEVDESK-708 (S-01a), 710 (S-02a), bug 714; task DEVDESK-719. Decision recorded as D174 in `docs/backlog.md`.

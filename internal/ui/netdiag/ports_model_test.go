@@ -22,12 +22,18 @@ import (
 // portFixtures cover both protocols and both states, plus one entry with no PID
 // (kernel sockets have none) and one with a hostname rather than an address.
 func portFixtures() []ports.Socket {
-	return []ports.Socket{
+	rows := []ports.Socket{
 		{Protocol: "tcp", State: "LISTEN", LocalAddr: "0.0.0.0:22", PeerAddr: "0.0.0.0:*", PID: "812", Process: "sshd"},
 		{Protocol: "tcp", State: "ESTAB", LocalAddr: "10.0.0.5:443", PeerAddr: "93.184.216.34:52344", PID: "1204", Process: "nginx"},
 		{Protocol: "udp", State: "UNCONN", LocalAddr: "0.0.0.0:53", PeerAddr: "0.0.0.0:*", PID: "440", Process: "dnsmasq"},
 		{Protocol: "udp", State: "ESTAB", LocalAddr: "localhost:123", PeerAddr: "ntp.example.com:123", PID: "", Process: "kernel"},
 	}
+	// Every row with a PID is listed with an identity, as List does: K is greyed
+	// on one without (DEVDESK-709).
+	for i := range rows {
+		rows[i].Identity = idOf(rows[i].PID)
+	}
+	return rows
 }
 
 // portsModel returns the parent model on the ports tab, with data loaded.

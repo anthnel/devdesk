@@ -17,8 +17,10 @@ import (
 // the wrong machine.
 //
 // `internal/ports` reads the socket table in this process. There is no container
-// to start, nothing is signalled, and the read costs two system calls — so the
-// argument that kept the tool out is gone with the container.
+// to start, nothing is signalled, and the read costs two system calls plus one
+// identity read per distinct PID (DEVDESK-709, ignored here: this tool shows
+// no identity) — so the argument that kept the tool out is gone with the
+// container.
 //
 // **No reverse DNS here.** The Ports tab offers it behind `n`; this tool never
 // asks. `net_check` is the one tool that touches the network, deliberately and

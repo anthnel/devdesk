@@ -398,6 +398,9 @@ func (m *Model) GetHelpContent() help.Content {
 					"itself has: another user's process or a service comes back refused rather than " +
 					"silently killed elsewhere. K is greyed on DevDesk itself, on the process that " +
 					"started it, on PID 1, and on PIDs 0 and 4 under Windows; the footer says why.\n\n" +
+					"Before the signal, DevDesk checks that the PID still belongs to the process it " +
+					"listed, and sends nothing if it does not. K is greyed when DevDesk cannot tell " +
+					"which process holds the socket.\n\n" +
 					"n toggles reverse DNS on the addresses. Host names only — port numbers stay " +
 					"numeric, because a service name would be DevDesk's guess and not the system's.\n\n" +
 					"While K is killing a process, the dot on its sockets (" + indicator.Glyph(indicator.Running, true) +

@@ -123,7 +123,7 @@ func TestAKillShowsTheRunningDotOnItsRowOnly(t *testing.T) {
 
 func TestAKillMarksEveryRowOfThatProcess(t *testing.T) {
 	shared := append(portFixtures(),
-		ports.Socket{Protocol: "tcp", State: "LISTEN", LocalAddr: "0.0.0.0:2222", PID: "812", Process: "sshd"},
+		ports.Socket{Protocol: "tcp", State: "LISTEN", LocalAddr: "0.0.0.0:2222", PID: "812", Process: "sshd", Identity: idOf("812")},
 	)
 	m := feed(t, newTestModel(t), testutil.Key("tab"))
 	m = feed(t, m, portsDataMsg{ports: shared})
@@ -256,7 +256,7 @@ func TestARefreshWhileAKillRunsKeepsEveryRowOfThePIDDottedAndTheCursor(t *testin
 	m = feed(t, m, testutil.Key("down"))
 	cur := m.portsModel.table.Cursor()
 	fresh := append(portFixtures(),
-		ports.Socket{Protocol: "tcp", State: "LISTEN", LocalAddr: "0.0.0.0:2222", PID: "812", Process: "sshd"})
+		ports.Socket{Protocol: "tcp", State: "LISTEN", LocalAddr: "0.0.0.0:2222", PID: "812", Process: "sshd", Identity: idOf("812")})
 
 	m = feed(t, m, NewPortsDataMsg(fresh))
 

@@ -94,7 +94,7 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m.handleStageDone(msg)
 
 	// Ports sub-model messages.
-	case portsTickMsg, portsDataMsg, portsKillResultMsg:
+	case portsTickMsg, portsDataMsg, portsKillResultMsg, portsRefreshMsg:
 		var cmd tea.Cmd
 		m.portsModel, cmd = m.portsModel.update(msg)
 		return m, cmd
