@@ -1279,13 +1279,17 @@ trusted: the detail reads it when it opens, and `ctrl+o` writes into it.
   the descriptor, the read goes through `io.LimitReader` (`readBounded`, so a file that grew since the stat is cut), and
   the descriptor is measured again after the read: a size or modification time that moved is `reasonPreviewStale`.
   `Original` and `Updated` stay in the message, both for the write, so a preview holds at most twice the cap.
-- *git runs hardened* (`hardening` in `internal/git/sync.go`, used by every command of the package). `-c
+- *git reads run hardened* (`hardening` and `runReadOnly` in `internal/git/sync.go`, used by `git.StateOf` only). `-c
   core.fsmonitor=false -c core.hooksPath=<os.DevNull>` come before the arguments (a `-c` wins over every config file),
   and `GIT_OPTIONAL_LOCKS=0` is in the environment: opening a detail in a repository with a trapped `.git/config` does
   not run its fsmonitor program or its hooks, and a read does not take the index lock. `git.StateOf` runs under a 5 s
-  timeout (`stateTimeout`); a timeout is an error, not "untracked". The same hardening reaches `Sync` and the status
-  reads of the workspaces: the hooks of a repository (a `post-merge` of git-lfs, for one) no longer run on `F`. A
-  setting that names another program (a clean/smudge filter, an external diff, `core.sshCommand`) is not covered.
+  timeout (`stateTimeout`); a timeout is an error, not "untracked". The hardening is not in the shared `runContextMax`:
+  `Sync`, `Clone`, the fetches and the status reads of the workspaces go through `run` and keep the hooks of the
+  repository (a `post-merge` of git-lfs, for one, still runs on `F`), as they did before DEVDESK-753
+  (`TestRunKeepsTheHooksOfTheRepository`, `TestSyncStillRunsThePostMergeHookOfTheRepository`;
+  `TestRunReadOnlyDoesNotRunTheHooksOfTheRepository` and `TestStateOfDoesNotRunTheFsmonitorOfTheRepository` for the
+  other side). A setting that names another program (a clean/smudge filter, an external diff, `core.sshCommand`) is not
+  covered.
 - *Links are looked at twice.* `staysInside` refuses a path or a root that does not resolve for any reason other than
   "does not exist" (a loop of links, a permission), where it used to let it through. The write Cmd of `ctrl+o` calls it
   again right before `patch.WriteIfUnchanged` (`errLeavesTarget`, footer `Nothing was written to <file> — ...`): a link

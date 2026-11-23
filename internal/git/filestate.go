@@ -45,20 +45,20 @@ func StateOf(path string) (FileState, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), stateTimeout)
 	defer cancel()
 
-	if _, err := runContext(ctx, dir, "", "rev-parse", "--git-dir"); err != nil {
+	if _, err := runReadOnly(ctx, dir, "rev-parse", "--git-dir"); err != nil {
 		if isNotARepository(err) {
 			return FileOutsideRepo, nil
 		}
 		return FileOutsideRepo, err
 	}
-	if _, err := runContext(ctx, dir, "", "ls-files", "--error-unmatch", "--", name); err != nil {
+	if _, err := runReadOnly(ctx, dir, "ls-files", "--error-unmatch", "--", name); err != nil {
 		if ctx.Err() != nil {
 			return FileOutsideRepo, ctx.Err()
 		}
 		// A path git does not track is a failure of the command, by design.
 		return FileUntracked, nil
 	}
-	out, err := runContext(ctx, dir, "", "status", "--porcelain", "--", name)
+	out, err := runReadOnly(ctx, dir, "status", "--porcelain", "--", name)
 	if err != nil {
 		return FileClean, err
 	}

@@ -41,7 +41,7 @@ not a performance claim.
 
 ## Addendum, same day: after the git hardening
 
-`git` now runs with `-c core.fsmonitor=false -c core.hooksPath=<null>` and `GIT_OPTIONAL_LOCKS=0` (see
+`git.StateOf` now runs with `-c core.fsmonitor=false -c core.hooksPath=<null>` and `GIT_OPTIONAL_LOCKS=0` (see
 `docs/architecture/scanning.md`, "The Change section"). Same machine, same fixture and same method (101 calls in a
 throwaway test): tracked and clean file in a git repository, median 3.68 ms, p95 4.22 ms, max 4.95 ms; the benchmark
 without git, 1.02 ms and 469 allocs per call (the file is now opened and measured on its descriptor). The change is

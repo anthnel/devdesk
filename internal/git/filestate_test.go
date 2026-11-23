@@ -132,17 +132,31 @@ func TestStateOfDoesNotRunTheFsmonitorOfTheRepository(t *testing.T) {
 	}
 }
 
-// Every git command goes through run, so its hardening is tested there too: an
-// index write fires post-index-change, a hook of the repository.
-func TestRunDoesNotRunTheHooksOfTheRepository(t *testing.T) {
+// A read-only command is hardened: an index write fires post-index-change, a
+// hook of the repository.
+func TestRunReadOnlyDoesNotRunTheHooksOfTheRepository(t *testing.T) {
 	repo, marker := trapRepo(t)
 	time.Sleep(10 * time.Millisecond)
 	write(t, filepath.Join(repo, "Dockerfile"), "FROM alpine:3.18\n")
 
 	// It exits 1 on a modified file; only its side effects matter here.
-	_, _ = run(repo, "", "update-index", "--refresh")
+	_, _ = runReadOnly(context.Background(), repo, "update-index", "--refresh")
 	if _, err := os.Stat(marker); err == nil {
 		t.Error("a hook of the repository ran")
+	}
+}
+
+// The hardening is for the read-only paths only. The same command through run,
+// which Sync, pull and fetch use, still fires the hook: this also proves the
+// trap above can fire at all.
+func TestRunKeepsTheHooksOfTheRepository(t *testing.T) {
+	repo, marker := trapRepo(t)
+	time.Sleep(10 * time.Millisecond)
+	write(t, filepath.Join(repo, "Dockerfile"), "FROM alpine:3.18\n")
+
+	_, _ = run(repo, "", "update-index", "--refresh")
+	if _, err := os.Stat(marker); err != nil {
+		t.Errorf("run disabled the hooks of the repository: %v", err)
 	}
 }
 
