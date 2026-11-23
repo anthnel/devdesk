@@ -43,6 +43,7 @@ func TestAnOverlayIsNotBlamedForWhatTheMountHides(t *testing.T) {
 			t.Fatal(err)
 		}
 	}
+	mkdirs(t, filepath.Join(repo, ".git"))
 	write("deploy/base/kustomization.yaml", "resources:\n- cm.yaml\n")
 	write("deploy/base/cm.yaml", "apiVersion: v1\nkind: ConfigMap\nmetadata:\n  name: base\n")
 	write("deploy/overlays/prod/kustomization.yaml", "resources:\n- ../../base\n")
@@ -75,6 +76,9 @@ func TestAnOverlayIsNotBlamedForWhatTheMountHides(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			useRunner(t, &scriptedRunner{reply: func(tc toolCmd) ([]byte, error) {
 				if tc.Name == "git" {
+					if len(tc.Args) > 0 && tc.Args[0] == "config" {
+						return nil, &exitError{Code: 1} // core.worktree is not set
+					}
 					if tt.gitRoot == "" {
 						return nil, &exitError{Code: 128, Stderr: "fatal: not a git repository"}
 					}

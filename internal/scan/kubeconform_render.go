@@ -78,11 +78,24 @@ func (s renderScope) mountedTarget() string { return filepath.Join(s.mount, file
 var userHomeDir = os.UserHomeDir
 
 // resolveRenderScope asks git, in the target, for the repository holding it.
-// Without an answer (no git, not a repository) the target alone is mounted.
+// Without an answer (no git, not a repository), or when the repository's
+// configuration moves its work tree elsewhere (core.worktree, which a cloned
+// .git file can bring along), the target alone is mounted.
 func resolveRenderScope(ctx context.Context, target string) renderScope {
-	out, err := runner.Run(ctx, toolCmd{Name: "git", Args: []string{"rev-parse", "--show-toplevel"}, Dir: target}, nil)
+	git := func(args ...string) ([]byte, error) {
+		return runner.Run(ctx, toolCmd{Name: "git", Args: args, Dir: target, Env: gitEnviron(os.Environ())}, nil)
+	}
+	out, err := git("rev-parse", "--show-toplevel")
 	if err != nil {
 		log.Printf("[scan/k8s] %s: no git repository to mount, the renderers see the target only: %v", target, err)
+		return targetOnly(target)
+	}
+	worktree, err := git("config", "--get", "core.worktree")
+	var exitErr *exitError
+	unset := errors.As(err, &exitErr) && exitErr.Code == 1 && len(bytes.TrimSpace(worktree)) == 0
+	if !unset {
+		log.Printf("[scan/k8s] %s: core.worktree is set or unreadable (%q, %v), the renderers see the target only",
+			target, strings.TrimSpace(string(worktree)), err)
 		return targetOnly(target)
 	}
 	scope, ok := widerScope(target, strings.TrimSpace(string(out)))
@@ -93,10 +106,28 @@ func resolveRenderScope(ctx context.Context, target string) renderScope {
 	return scope
 }
 
+// gitEnviron is env without the variables that point git at another
+// repository, work tree or configuration: the mount is decided by the target
+// alone.
+func gitEnviron(env []string) []string {
+	out := make([]string, 0, len(env))
+	for _, kv := range env {
+		name, _, _ := strings.Cut(kv, "=")
+		switch {
+		case name == "GIT_DIR", name == "GIT_WORK_TREE", name == "GIT_COMMON_DIR",
+			name == "GIT_CEILING_DIRECTORIES", strings.HasPrefix(name, "GIT_CONFIG"):
+			continue
+		}
+		out = append(out, kv)
+	}
+	return out
+}
+
 // widerScope mounts top, the repository git named, when it is safe to: top is
-// a strict ancestor of the target once symlinks are resolved, and neither the
-// filesystem root nor the home directory nor anything above it. Anything else,
-// an unknown home included, keeps the target alone.
+// a strict ancestor of the target once symlinks are resolved, neither the
+// filesystem root nor the home directory nor anything above it, and it holds
+// the repository's .git itself (gitDirIsHere). Anything else, an unknown home
+// included, keeps the target alone.
 func widerScope(target, top string) (renderScope, bool) {
 	if top == "" || !filepath.IsAbs(top) {
 		return renderScope{}, false
@@ -127,7 +158,64 @@ func widerScope(target, top string) (renderScope, bool) {
 		(r == "." || (r != ".." && !strings.HasPrefix(r, ".."+string(filepath.Separator)))) {
 		return renderScope{}, false
 	}
+	if !gitDirIsHere(root) {
+		return renderScope{}, false
+	}
 	return renderScope{target: target, mount: root, rel: filepath.ToSlash(rel)}, true
+}
+
+// maxGitFile bounds what is read of a .git file or a worktree's gitdir file:
+// one line, a path.
+const maxGitFile = 4096
+
+// gitDirIsHere reports whether root holds its repository's .git: a directory,
+// or the file of a linked worktree ("gitdir: <dir>") whose git directory names
+// root's .git back in its own gitdir file. A symlink, a file that says
+// anything else, or a git directory that does not point back is refused: git
+// was then told where the work tree is, rather than finding it.
+func gitDirIsHere(root string) bool {
+	dotGit := filepath.Join(root, ".git")
+	info, err := os.Lstat(dotGit)
+	if err != nil {
+		return false
+	}
+	if info.IsDir() {
+		return true
+	}
+	if !info.Mode().IsRegular() {
+		return false
+	}
+	line, ok := readGitFile(dotGit)
+	gitDir, found := strings.CutPrefix(line, "gitdir: ")
+	if !ok || !found {
+		return false
+	}
+	if !filepath.IsAbs(gitDir) {
+		gitDir = filepath.Join(root, gitDir)
+	}
+	back, ok := readGitFile(filepath.Join(gitDir, "gitdir"))
+	if !ok {
+		return false
+	}
+	if !filepath.IsAbs(back) {
+		back = filepath.Join(gitDir, back)
+	}
+	a, errA := filepath.EvalSymlinks(back)
+	b, errB := filepath.EvalSymlinks(dotGit)
+	return errA == nil && errB == nil && a == b
+}
+
+// readGitFile reads the one line of a small regular file.
+func readGitFile(p string) (string, bool) {
+	info, err := os.Lstat(p)
+	if err != nil || !info.Mode().IsRegular() || info.Size() > maxGitFile {
+		return "", false
+	}
+	data, err := os.ReadFile(p) //nolint:gosec // a .git file of the repository being scanned
+	if err != nil {
+		return "", false
+	}
+	return strings.TrimSpace(string(data)), true
 }
 
 // renderer runs one tool in the repository, the way every other tool runs:
