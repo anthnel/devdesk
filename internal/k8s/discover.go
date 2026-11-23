@@ -262,12 +262,20 @@ func fileExists(path string) bool {
 // FIFO, so a FIFO or a device named like a manifest or a kustomization is
 // refused rather than waited on.
 func readBounded(path string) ([]byte, error) {
+	return readLimited(path, maxManifestSize)
+}
+
+// errTooLarge is a file over the limit it was read with.
+var errTooLarge = errors.New("too large to be a hand-written manifest")
+
+// readLimited is readBounded with its own limit.
+func readLimited(path string, limit int64) ([]byte, error) {
 	f, err := os.OpenFile(path, os.O_RDONLY|nonBlock, 0) //nolint:gosec // a file of the repository being scanned
 	if err != nil {
 		return nil, err
 	}
 	defer func() { _ = f.Close() }()
-	return readRegular(f)
+	return readRegular(f, limit)
 }
 
 // ReadManifestIn reads a file of root, which it cannot leave (a ".." or a
@@ -283,13 +291,13 @@ func ReadManifestIn(root *os.Root, name string) ([]byte, error) {
 		return nil, err
 	}
 	defer func() { _ = f.Close() }()
-	return readRegular(f)
+	return readRegular(f, maxManifestSize)
 }
 
 // readRegular reads an open file, refusing anything but a regular file and
-// reading no more than maxManifestSize, so a file that grows after the check
+// reading no more than limit bytes, so a file that grows after the check
 // cannot be read whole.
-func readRegular(f *os.File) ([]byte, error) {
+func readRegular(f *os.File, limit int64) ([]byte, error) {
 	info, err := f.Stat()
 	if err != nil {
 		return nil, err
@@ -297,12 +305,12 @@ func readRegular(f *os.File) ([]byte, error) {
 	if !info.Mode().IsRegular() {
 		return nil, errors.New("not a regular file")
 	}
-	data, err := io.ReadAll(io.LimitReader(f, maxManifestSize+1))
+	data, err := io.ReadAll(io.LimitReader(f, limit+1))
 	if err != nil {
 		return nil, err
 	}
-	if len(data) > maxManifestSize {
-		return nil, errors.New("too large to be a hand-written manifest")
+	if int64(len(data)) > limit {
+		return nil, errTooLarge
 	}
 	return data, nil
 }

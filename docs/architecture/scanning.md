@@ -308,11 +308,18 @@ no line, so it could feed neither the table's jump-to-line nor a fix.
   reference keeps the HIGH finding and kustomize's whole message. The walk
   follows `resources`, `bases` and `components` only: `patches`,
   `configMapGenerator`, `generators` and `transformers` name files, which the
-  load restrictor refuses outside the kustomization's directory anyway. The walk visits each
-  directory once by its real path (two symlinks to `.` used to make it
-  exponential), stops at 64 levels, 1000 kustomizations or a cancelled
-  context, and `readBounded` reads regular files only, so a FIFO named
-  `kustomization.yaml` is refused rather than waited on.
+  load restrictor refuses outside the kustomization's directory anyway. 
+  The walk is bounded, since the repository is untrusted: each directory once
+  by its real path, each kustomization's references once by cleaned path, at
+  most 256 KiB read per kustomization and 4 MiB in all, 1000 distinct
+  references in one kustomization, 64
+  levels, 1000 kustomizations, 10,000 symlink resolutions in all, and the
+  scan's context checked before every resolution. Reaching any bound stops
+  the walk with "no escape found", which keeps the HIGH finding and
+  kustomize's message (the audit's 4 MiB repository took minutes and GiBs
+  before, now under a millisecond; at 256 KiB, 57 s and 32 GiB allocated
+  before, 46 ms and 22 MiB after). `readBounded` reads regular files only,
+  so a FIFO named `kustomization.yaml` is refused rather than waited on.
 - **The finding's line comes from the file, not the tool.** kubeconform
   reports a JSON pointer; `k8s.Locate` finds the document by kind and
   `metadata.name`, then walks the pointer through `yaml.v3` nodes. An unknown
