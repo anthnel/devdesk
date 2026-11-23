@@ -1371,7 +1371,8 @@ group` on a CVE tab with no CVE and with `No misconfiguration to group` on a Mis
 Details, `Y` Copy cmd, `?` Help. `enter` there opens the same finding detail as from the flat table through
 `openDetail(f, parent)`, which every way in uses and which sets `detailsParent`; `esc` in the detail, and
 `refreshDetails` when a re-scan clears the finding, go back to `detailsParent` (the group, or the results). Tabs,
-filters, the sort and the other actions do nothing one level down. The title names the group
+filters, the sort and the other actions do nothing one level down; `ctrl+o`, `space` and `S`, which act on one finding,
+say `Open a finding's details to act on it` in the footer (Warn) instead of staying silent. The title names the group
 (`Security Scanner (target) › openssl 1.1.1k -> 1.1.1w`); the header keeps its figures and in the grouped list also
 says `View: Group by fix`.
 
@@ -1409,8 +1410,9 @@ one rule in one file is one row however many instances, one rule in two files is
 declines and one it accepts are two rows, and two instances declined for different reasons are two rows
 (`groupMisconfigs` takes the status function so a test can give it reasons the catalog never produces). On an image
 (`onDisk` false) every row says `Cannot fix here`; its findings name no file, the File column says `(image)`, and
-the rows are per rule. `Subject` is the file as shown (`shortPaths`, `inlineText`), `Rule` the ID of the first
-member (`inlineText`), the severity the worst of the members. Order: worst severity, most findings, file, rule, state
+the rows are per rule. A finding with no file on a directory target says `(no file)`: `(image)` is said of images only
+(`fileSubject(file, onDisk)`). `Subject` is the file as shown (`shortPaths`, `inlineText`), `Rule` the smallest ID
+among the members (`inlineText`; one group can mix `AVD-DS-0002` and `DS002`, and the scan order must not pick), the severity the worst of the members. Order: worst severity, most findings, file, rule, state
 of the fix; it reads the key, never the order of the scan. `Command` is set only when every member has the same
 `runCommand` (plain words, `scan.PlainWords`); a Misconfigurations group is never `Unfixed` and is not counted in
 `Fixable`. `fixStatus.Label()` renders `Built-in fix unavailable` bare, never with a dangling colon, when the reason

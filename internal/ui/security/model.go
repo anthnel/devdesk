@@ -113,8 +113,11 @@ type Model struct {
 	// for the life of the view; the CVE and Misconfigurations tabs group.
 	groupedTabs [tabCount]bool
 	// groupsTab is the tab groups was built for, the CVE tab at construction: the
-	// two tabs have their own columns.
-	groupsTab int
+	// two tabs have their own columns. The table of the other grouped tab is
+	// parked in groupsParked, so a tour of the tabs keeps its sort and its cursor.
+	groupsTab      int
+	groupsParked   [tabCount]datatable.Model[fixGroup]
+	groupsHasParks [tabCount]bool
 	// groupsAll is every group of the result on screen, whatever the filters
 	// say: a group is what one move closes, not what the table shows. It is
 	// derived from the result, never stored as an outcome, and rebuilt whenever

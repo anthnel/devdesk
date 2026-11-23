@@ -19,20 +19,24 @@ import (
 // number of findings and nothing more: ctrl+o fixes one finding at a time, so a
 // group never promises to close anything.
 
-// noFileSubject is what the File column says for a finding that names no file,
-// which is what an image's misconfigurations do.
-const noFileSubject = "(image)"
+// What the File column says for a finding that names no file: an image's
+// misconfigurations name none, and on a directory it is a gap in the scan, not an
+// image.
+const (
+	noFileImage     = "(image)"
+	noFileDirectory = "(no file)"
+)
 
 // misconfigGroups groups the misconfigurations of findings by file and by fix: one
 // group per (file, rule, state of the built-in fix). Worst severity first, then
 // the most findings, then the file, the rule and the state of the fix.
 func misconfigGroups(findings []scan.Finding, onDisk bool) []fixGroup {
-	return groupMisconfigs(findings, func(f scan.Finding) fixStatus { return fixStatusOf(f, onDisk) })
+	return groupMisconfigs(findings, onDisk, func(f scan.Finding) fixStatus { return fixStatusOf(f, onDisk) })
 }
 
 // groupMisconfigs is misconfigGroups with the status of a finding given, so that
 // a test can give two findings of one rule reasons the catalog never produces.
-func groupMisconfigs(findings []scan.Finding, statusOf func(scan.Finding) fixStatus) []fixGroup {
+func groupMisconfigs(findings []scan.Finding, onDisk bool, statusOf func(scan.Finding) fixStatus) []fixGroup {
 	byKey := map[groupKey]*fixGroup{}
 	var order []groupKey
 	for _, f := range findings {
@@ -50,12 +54,17 @@ func groupMisconfigs(findings []scan.Finding, statusOf func(scan.Finding) fixSta
 				Key:       key,
 				Misconfig: true,
 				Severity:  f.Severity,
-				Subject:   fileSubject(f.File),
+				Subject:   fileSubject(f.File, onDisk),
 				Rule:      inlineText(f.ID),
 				Status:    status,
 			}
 			byKey[key] = g
 			order = append(order, key)
+		}
+		// Two spellings of one rule share a group: show the smallest, not the first
+		// scanned.
+		if id := inlineText(f.ID); id < g.Rule {
+			g.Rule = id
 		}
 		if severityRank(f.Severity) > severityRank(g.Severity) {
 			g.Severity = f.Severity
@@ -73,10 +82,14 @@ func groupMisconfigs(findings []scan.Finding, statusOf func(scan.Finding) fixSta
 }
 
 // fileSubject is the file as the row shows it: relative to the scanned directory,
-// on one line, with no control or bidi character from the scan.
-func fileSubject(file string) string {
+// on one line, with no control or bidi character from the scan. A finding with no
+// file is "(image)" on an image and "(no file)" on a directory.
+func fileSubject(file string, onDisk bool) string {
 	if file == "" {
-		return noFileSubject
+		if onDisk {
+			return noFileDirectory
+		}
+		return noFileImage
 	}
 	return inlineText(shortPaths(file, ""))
 }

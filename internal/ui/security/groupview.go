@@ -34,6 +34,7 @@ const (
 	reasonNothingToGroup     = "No vulnerability to group"
 	reasonNoMisconfigToGroup = "No misconfiguration to group"
 	reasonOpenTheGroup       = "Open the group to act on one finding"
+	reasonOpenAFinding       = "Open a finding's details to act on it"
 	reasonNoGroupSelected    = "No group selected"
 	reasonNoGroupCommand     = "This group has no command to run"
 	reasonGroupHasNoFix      = "No fix is published for this group"
@@ -97,15 +98,21 @@ func (m Model) buildGroups() []fixGroup {
 	return nil
 }
 
-// ensureGroupsTable gives the grouped list the columns of the active tab: the two
-// tabs do not list the same things, so the table is built again when the tab it
-// was built for is not the one on screen. Its sort and cursor start over, like the
-// findings table's on a change of tab.
+// ensureGroupsTable gives the grouped list the table of the active tab: the two
+// tabs do not list the same things, so each has its own, with its own sort and
+// cursor. The one that leaves the screen is parked and comes back as it was, the
+// way the findings table keeps its state; a tab never grouped gets a new one.
 func (m *Model) ensureGroupsTable() {
 	if !groupableTab(m.activeTab) || m.groupsTab == m.activeTab {
 		return
 	}
-	m.groups = newGroupsTable(m.activeTab)
+	m.groupsParked[m.groupsTab] = m.groups
+	m.groupsHasParks[m.groupsTab] = true
+	if m.groupsHasParks[m.activeTab] {
+		m.groups = m.groupsParked[m.activeTab]
+	} else {
+		m.groups = newGroupsTable(m.activeTab)
+	}
 	m.groupsTab = m.activeTab
 	m.groups.Resize(m.width, max(m.height, 5))
 }
@@ -297,6 +304,9 @@ func (m Model) handleGroupState(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 		return m.openDetail(f, StateGroup)
 	case keymap.Copy:
 		return m.copyGroupCommand()
+	case keymap.Space, writeRemediationKey, keymap.Scan:
+		// They act on one finding: its detail is where they work.
+		return m, m.footer.Warn(reasonOpenAFinding)
 	case "up", "down", "pgup", "pgdown", "home", "end":
 		return m, m.groupTable.Update(msg)
 	}

@@ -17,7 +17,7 @@ func TestAGroupHoldsOnlyFindingsTheFixDeclinesForTheSameReason(t *testing.T) {
 		mgFinding("KSV-0104", "pod.yaml", "c", mgHigh),
 	}
 	reasons := map[string]string{"a": "first reason", "b": "second reason", "c": "first reason"}
-	groups := groupMisconfigs(findings, func(f scan.Finding) fixStatus {
+	groups := groupMisconfigs(findings, true, func(f scan.Finding) fixStatus {
 		return fixStatus{State: fixBuiltInDeclined, Reason: reasons[f.Message]}
 	})
 	if len(groups) != 2 {
