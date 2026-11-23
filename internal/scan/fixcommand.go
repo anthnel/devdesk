@@ -101,12 +101,45 @@ func parseVersion(v string) (nums []int, rest string, ok bool) {
 	return nums, rest, true
 }
 
+// suffixLetter returns the lowercase letter that directly follows the digits of
+// a version when it is a release letter (OpenSSL style: 1.1.1w), 0 otherwise.
+// The letter has to be alone: it is followed by nothing or by "-", "+" or "~",
+// so a word ("rc1") or a letter and a number ("a1") is not one.
+func suffixLetter(rest string) byte {
+	if rest == "" {
+		return 0
+	}
+	c := rest[0]
+	if (c < 'a' || c > 'z') && (c < 'A' || c > 'Z') {
+		return 0
+	}
+	if len(rest) > 1 && strings.IndexByte("-+~", rest[1]) < 0 {
+		return 0
+	}
+	return c | 0x20
+}
+
 // CompareVersions orders two versions numerically, returning -1, 0 or 1 and
 // true, or false when either has no leading number — a distro epoch such as
 // "1:1.1.1n", a commit hash, a name. A missing component reads as zero
 // (1.2 == 1.2.0), and a version with a "-" suffix sorts below the bare one
-// (1.2.3-rc1 < 1.2.3). The result is a lenient ordering, not semver.
+// (1.2.3-rc1 < 1.2.3). A single release letter right after the digits is an
+// order too, as OpenSSL writes it: 1.1.1 < 1.1.1l < 1.1.1w. The result is a
+// lenient ordering, not semver. CompareVersions knows no ecosystem: use
+// CompareVersionsIn when the versions belong to one.
 func CompareVersions(a, b string) (int, bool) {
+	return CompareVersionsIn("", a, b)
+}
+
+// pep440 are the Trivy ecosystems whose versions follow PEP 440.
+var pep440 = map[string]bool{"pip": true, "pipenv": true, "poetry": true, "python-pkg": true}
+
+// CompareVersionsIn is CompareVersions for versions of ecosystem (Trivy's
+// Result.Type). A lone letter after the digits is an increasing release letter
+// in most of them (OpenSSL: 1.1.1l < 1.1.1w) but a pre-release in PEP 440
+// ("2.0b" is older than "2.0"): there it is not an order, and a version that
+// carries one cannot be compared (false).
+func CompareVersionsIn(ecosystem, a, b string) (int, bool) {
 	an, ar, aok := parseVersion(a)
 	bn, br, bok := parseVersion(b)
 	if !aok || !bok {
@@ -127,6 +160,16 @@ func CompareVersions(a, b string) (int, bool) {
 			return 1, true
 		}
 	}
+	al, bl := suffixLetter(ar), suffixLetter(br)
+	if pep440[ecosystem] && (al != 0 || bl != 0) {
+		return 0, false
+	}
+	if al != bl {
+		if al < bl {
+			return -1, true
+		}
+		return 1, true
+	}
 	aPre, bPre := strings.HasPrefix(ar, "-"), strings.HasPrefix(br, "-")
 	switch {
 	case aPre && !bPre:
@@ -145,6 +188,12 @@ func CompareVersions(a, b string) (int, bool) {
 // not; several that cannot be compared give "", because picking one of them
 // would be a guess.
 func PickFixed(installed, fixedIn string) string {
+	return PickFixedIn("", installed, fixedIn)
+}
+
+// PickFixedIn is PickFixed for a vulnerability of ecosystem, ordering the
+// candidates with CompareVersionsIn.
+func PickFixedIn(ecosystem, installed, fixedIn string) string {
 	var options []string
 	for _, v := range strings.Split(fixedIn, ",") {
 		if v = strings.TrimSpace(v); v != "" {
@@ -170,7 +219,11 @@ func PickFixed(installed, fixedIn string) string {
 		case best == "":
 		case same && !bestSameMajor:
 		case same == bestSameMajor:
-			if c, _ := CompareVersions(opt, best); c >= 0 {
+			c, ok := CompareVersionsIn(ecosystem, opt, best)
+			if !ok {
+				return ""
+			}
+			if c >= 0 {
 				continue
 			}
 		default:

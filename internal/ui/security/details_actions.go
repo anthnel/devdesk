@@ -174,7 +174,7 @@ func (m *Model) refreshDetails() bool {
 			}
 		}
 	}
-	m.state = StateResults
+	m.state = m.detailsReturnState()
 	m.selectedFinding = nil
 	return false
 }

@@ -132,7 +132,7 @@ func runTrivy(ctx context.Context, tc toolCmd, progressFn func(string)) ([]Findi
 // ecosystem with no known command, the plain instruction the finding always
 // carried. Empty when Trivy knows of no fixed version.
 func trivyFixCommand(ecosystem string, vuln TrivyVulnerability) string {
-	target := PickFixed(vuln.InstalledVersion, vuln.FixedVersion)
+	target := PickFixedIn(ecosystem, vuln.InstalledVersion, vuln.FixedVersion)
 	if target == "" {
 		if vuln.FixedVersion == "" {
 			return ""

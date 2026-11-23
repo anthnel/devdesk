@@ -245,6 +245,9 @@ func (m Model) handleInventoryResultLoaded(msg InventoryResultLoadedMsg) (tea.Mo
 	m.activeTab = TabCVE
 	m.resetRemediation()
 	m.updateFindingsTable()
+	// A result of its own: nothing of the group level of the last one carries over.
+	m.openGroup = nil
+	m.groupsFollowResult()
 	return m, nil
 }
 

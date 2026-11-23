@@ -178,7 +178,10 @@ func (m Model) handlePaste(msg tea.PasteMsg) (tea.Model, tea.Cmd) {
 	case m.state == StateInventory && m.inventory.InEditMode():
 		return m, m.inventory.Update(msg)
 	case m.state == StateResults && m.findingsTable.InEditMode():
-		return m, m.findingsTable.Update(msg)
+		cmd := m.findingsTable.Update(msg)
+		// The query changed what the findings table shows: the groups follow.
+		m.refreshGroups()
+		return m, cmd
 	}
 	return m, nil
 }
@@ -192,6 +195,8 @@ func (m Model) handleKeyMsg(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 		return m.handleResultsState(msg)
 	case StateDetails:
 		return m.handleDetailsState(msg)
+	case StateGroup:
+		return m.handleGroupState(msg)
 	}
 	return m, nil
 }

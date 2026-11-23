@@ -102,6 +102,14 @@ once.
   - `r` (OCI browser): registry shown.
   - `c` `h` `m` `l` (security): severities, **cumulative** — `c`+`h` asks for
     "CRITICAL **or** HIGH", which a single threshold cannot express.
+  - `p` `g` (security): `p` is the Pod Security filter (Misconfigurations tab);
+    `g` is **Group by fix** on the CVE tab (DEVDESK-754), a display toggle that
+    swaps the findings table for one row per cause and back. It is a display
+    toggle, not navigation, and it changes nothing about the findings table
+    behind it. `g` also means go-to or find in the viewer, workspaces and the
+    forge explorer (Rule 101: the same letter is "find or go to" there); each
+    surface declares its own, and `security/findings` is the only one where it
+    groups.
 
 - **Five exceptions, declared** in `keymap.DeclaredExceptions()`: `o` (open
   the pipeline the forge resolves, security/results/ci-tab), `ctrl+y` (copy

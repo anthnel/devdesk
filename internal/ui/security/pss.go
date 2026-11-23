@@ -129,7 +129,7 @@ func (m *Model) enterPSSTab() tea.Cmd {
 // state of the filter, and what it hides. Absent under all and under a value
 // that is not in force.
 func (m Model) pssHeader() (shortcut.HeaderInfo, bool) {
-	if (m.state != StateResults && m.state != StateDetails) || m.result == nil || m.activeTab != TabMisconfig {
+	if !m.showsResult() || m.result == nil || m.activeTab != TabMisconfig {
 		return shortcut.HeaderInfo{}, false
 	}
 	target := m.config.Scan.EffectivePSSProfile()

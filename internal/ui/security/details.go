@@ -19,7 +19,7 @@ func (m Model) handleDetailsState(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	switch msg.String() {
 	// backspace was an alias of esc, and the only one in the application.
 	case "esc":
-		m.state = StateResults
+		m.state = m.detailsReturnState()
 		m.changePreview = changePreview{}
 		return m, nil
 	case keymap.Web:
@@ -46,6 +46,15 @@ func (m Model) handleDetailsState(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 		m.detailsViewport.GotoBottom()
 	}
 	return m, nil
+}
+
+// detailsReturnState is the level the detail was opened from: a group's list of
+// findings when the group is still open, the results otherwise.
+func (m Model) detailsReturnState() ViewState {
+	if m.detailsParent == StateGroup && m.openGroup != nil {
+		return StateGroup
+	}
+	return StateResults
 }
 
 // handleDetailsOpenReference opens the first reference URL in the default browser.

@@ -101,7 +101,7 @@ WSL1), and the footer gives the reason.
 
 Lowercase letters never modify anything; they're local and can repeat
 across views. Examples: `r`/`p`/`s`/`t`/`z` in Containers are cumulative
-state filters; `c`/`h`/`m`/`l` in Security are cumulative severity filters, and `p` on the Misconfigurations tab hides the Kubernetes findings that the profile in `scan.pss_profile` does not require (greyed while that setting is `all`);
+state filters; `c`/`h`/`m`/`l` in Security are cumulative severity filters, and `p` on the Misconfigurations tab hides the Kubernetes findings that the profile in `scan.pss_profile` does not require (greyed while that setting is `all`) and `g` on the CVE tab groups the list by fix, one row per cause, and back (a display toggle: the findings table, its filter and its search stay as they are);
 `t`/`u`/`l`/`e`/`n`/`z` in Network Diagnostics filter protocol/state (Ports tab); `g` in
 Workspaces opens fuzzy-find navigation (jump to any directory under the
 workspaces root by typing part of its path; `tab` in the prompt switches
