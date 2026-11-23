@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"context"
 	"errors"
-	"os/exec"
 	"strings"
 	"time"
 )
@@ -188,7 +187,11 @@ func gitHelperUsable() (string, bool) {
 	ctx, cancel := context.WithTimeout(context.Background(), gitConfigTimeout)
 	defer cancel()
 
-	cmd := exec.CommandContext(ctx, "git", "config", "--get-all", "credential.helper")
+	cmd, cleanup, err := gitCommand(ctx, "config", "--get-all", "credential.helper")
+	if err != nil {
+		return "", false
+	}
+	defer cleanup()
 	var stdout bytes.Buffer
 	cmd.Stdout = &stdout
 	cmd.WaitDelay = credentialWaitDelay

@@ -5,7 +5,6 @@ import (
 	"context"
 	"fmt"
 	"net/url"
-	"os/exec"
 	"strings"
 	"time"
 )
@@ -109,6 +108,9 @@ func parsePassword(output string) (string, bool) {
 // the user's config instead would change how git resolves credentials for every
 // repository on the machine, so it is passed per call.
 //
+// git runs from a neutral directory (gitCommand), so the repository DevDesk
+// was started in cannot add a helper of its own (DEVDESK-745).
+//
 // Interactive prompts are disabled: a helper waiting on a terminal DevDesk does
 // not own would hang, and the timeout would be the only thing left to catch it.
 func runCredential(op, description string) (string, error) {
@@ -116,18 +118,22 @@ func runCredential(op, description string) (string, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), credentialTimeout)
 	defer cancel()
 
-	cmd := exec.CommandContext(ctx, "git", "-c", "credential.useHttpPath=true", "credential", op)
+	cmd, cleanup, err := gitCommand(ctx, "-c", "credential.useHttpPath=true", "credential", op)
+	if err != nil {
+		return "", fmt.Errorf("git credential %s: %w", op, err)
+	}
+	defer cleanup()
 	cmd.Stdin = strings.NewReader(description)
 	var stdout, stderr bytes.Buffer
 	cmd.Stdout = &stdout
 	cmd.Stderr = &stderr
 	cmd.WaitDelay = credentialWaitDelay
-	cmd.Env = append(cmd.Environ(),
+	cmd.Env = append(cmd.Env,
 		"GIT_TERMINAL_PROMPT=0", // Disables interactive prompts
 		"GCM_INTERACTIVE=never", // Git Credential Manager in non-interactive mode
 	)
 
-	err := cmd.Run()
+	err = cmd.Run()
 	if ctx.Err() != nil {
 		return "", fmt.Errorf("git credential %s timed out (not configured or waiting for input)", op)
 	}

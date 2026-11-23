@@ -247,6 +247,19 @@ The 3 s bound is a fixed value, not a setting; the tests of `internal/credential
 shorten it (`shortKeyringTimeout`), except `TestSelectDoesNotWaitForAHostStoreThatNeverAnswers`,
 which keeps it.
 
+### git calls do not depend on the working directory (DEVDESK-745)
+
+Every git call of `internal/credentials` (the helper detection and `git credential
+fill/approve/reject`) runs through `gitCommand` (`internal/credentials/git_exec.go`):
+from an empty directory created for the call and removed after it, with that
+directory's parent appended to `GIT_CEILING_DIRECTORIES` (a value the user set is
+kept). git then finds no repository and reads only the system, global, include and
+environment scopes. Before, git ran in DevDesk's working directory: the `.git/config`
+of the repository DevDesk was started in could add a `credential.helper`, a shell
+command of that repository's author, which was selected as the backend, handed the
+token on `approve`, and run on every `fill` at launch.
+`TestGitIgnoresTheHelperOfTheWorkingDirectoryRepository` starts from such a repository.
+
 ### Testing code that reaches the secret store
 
 DEVDESK-610. `KeyringStorage` and `KeyringAvailable` call the host store through
