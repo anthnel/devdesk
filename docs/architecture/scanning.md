@@ -294,7 +294,11 @@ no line, so it could feed neither the table's jump-to-line nor a fix.
   "Overlay not validated: references a path outside the scanned directory
   (`<ref>`)" replaces the HIGH one. A finding rather than `K8sUnrendered`:
   that list reads "install helm / kustomize", wrong here. A broken overlay
-  keeps the HIGH finding and kustomize's whole message.
+  keeps the HIGH finding and kustomize's whole message. The walk visits each
+  directory once by its real path (two symlinks to `.` used to make it
+  exponential), stops at 64 levels, 1000 kustomizations or a cancelled
+  context, and `readBounded` reads regular files only, so a FIFO named
+  `kustomization.yaml` is refused rather than waited on.
 - **The finding's line comes from the file, not the tool.** kubeconform
   reports a JSON pointer; `k8s.Locate` finds the document by kind and
   `metadata.name`, then walks the pointer through `yaml.v3` nodes. An unknown

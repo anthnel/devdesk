@@ -257,7 +257,7 @@ func (v *k8sValidation) renderKustomizations(ctx context.Context, dirs []string)
 			if ctx.Err() != nil {
 				return ctx.Err()
 			}
-			v.report.Findings = append(v.report.Findings, v.overlayFailure(tool, dir, file, err))
+			v.report.Findings = append(v.report.Findings, v.overlayFailure(ctx, tool, dir, file, err))
 			continue
 		}
 		// kustomize adds no origin to what it emits unless the kustomization
@@ -275,10 +275,10 @@ func (v *k8sValidation) renderKustomizations(ctx context.Context, dirs []string)
 // container, an overlay that reaches a directory outside the mount failed
 // because DevDesk could not show it that directory, not because it is broken:
 // it is reported as not validated, LOW, rather than blamed (DEVDESK-742).
-func (v *k8sValidation) overlayFailure(tool ToolSpec, dir, file string, err error) Finding {
+func (v *k8sValidation) overlayFailure(ctx context.Context, tool ToolSpec, dir, file string, err error) Finding {
 	if tool.Source == ToolSourceContainer {
 		overlay := filepath.Join(v.scope.mountedTarget(), filepath.FromSlash(dir))
-		if from, ref, ok := k8s.EscapingReference(v.scope.mount, overlay); ok {
+		if from, ref, ok := k8s.EscapingReference(ctx, v.scope.mount, overlay); ok {
 			log.Printf("[scan/k8s] overlay %s not built: %s references %s, outside what the container sees (%s)",
 				dir, from, ref, v.scope.mount)
 			return outsideMountFinding(file, v.relToTarget(from), dir, ref)
@@ -287,10 +287,15 @@ func (v *k8sValidation) overlayFailure(tool ToolSpec, dir, file string, err erro
 	return renderFailure(SourceKustomize, "kustomize", file, "Overlay does not build", err)
 }
 
-// relToTarget is a host path under the mount, relative to the target with
-// forward slashes.
+// relToTarget is a real host path under the mount, relative to the target
+// with forward slashes. The target is resolved too, as EscapingReference
+// resolves what it returns.
 func (v *k8sValidation) relToTarget(p string) string {
-	rel, err := filepath.Rel(v.scope.mountedTarget(), p)
+	target := v.scope.mountedTarget()
+	if real, err := filepath.EvalSymlinks(target); err == nil {
+		target = real
+	}
+	rel, err := filepath.Rel(target, p)
 	if err != nil {
 		return filepath.ToSlash(p)
 	}
