@@ -366,7 +366,7 @@ line, the bordered viewport and the footer: the viewport has two more lines than
 with the old command line. Open, `View()` is built the same way (so opening or
 closing changes no height, sends no `WindowSizeMsg`, and `esc` leaves the view
 byte-identical), then `View` composes the palette over the final `H` lines, after
-`fitHeight` and `lipgloss.Place` (`withPalette`, `view.go`). The frame sits right
+`fitHeight` and `padFrame` (`withPalette`, `view.go`). The frame sits right
 under the header's blank line (`y = headerLines`), centered, `min(W-4, 80)` cells
 wide, the whole line when `W < 54`. With `V = H - headerLines - footerLines` free
 lines, it has `n = clamp(min(8, V-4), 0, 8)` suggestion rows and is `n+4` lines
@@ -410,7 +410,11 @@ rule and the palette stays open. **The refusal is never silent:** the frame alwa
 has a bottom rule, so the former declared exception to Rule 130 is gone.
 `enter` is greyed or lit by `runnableText` (`command_line.go`), the one function
 `commandLineShortcuts` and `runCommand` both read. `fitHeight` (`view.go`) takes the
-surplus off the bottom of the viewport first, then cuts the stack to `H` lines. At
+surplus off the bottom of the viewport first, then cuts the stack to `H` lines;
+`padFrame` then fills it to `W` x `H` with the background. It leaves the cells
+`lipgloss.Place` left (`TestPadFrameMatchesPlaceOnTheFrames`) but stops measuring at the
+first line as wide as the screen, the header's, where Place measured them all
+(DEVDESK-281). At
 13 lines or fewer the FilterBar's top edge can disappear with the viewport, and
 while the palette is open on a very short terminal it may cover the footer (the
 view's footer is back on close). The notice lasts until the next key, with no timer.

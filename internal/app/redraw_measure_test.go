@@ -278,3 +278,23 @@ func BenchmarkPlaceFrame(b *testing.B) {
 		placeSink = lipgloss.Place(a.width, a.height, lipgloss.Left, lipgloss.Top, inner[n&1], whitespace)
 	}
 }
+
+// BenchmarkPadFrame is BenchmarkPlaceFrame for padFrame, on the same inner
+// frames: what App.Render now calls where it used to call lipgloss.Place. Like
+// Place's, the frame is already width x height, so this is the cost of
+// deciding that nothing needs filling (one measure per line), not of a real
+// fill.
+func BenchmarkPadFrame(b *testing.B) {
+	a, view := benchRouter(b)
+	var inner [2]string
+	for i := range inner {
+		view.phase = i == 1
+		inner[i] = innerFrame(a)
+	}
+	b.ReportAllocs()
+	n := 0
+	for b.Loop() {
+		n++
+		placeSink = padFrame(inner[n&1], a.width, a.height)
+	}
+}
