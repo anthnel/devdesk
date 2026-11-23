@@ -54,6 +54,8 @@ func TestCellsColours(t *testing.T) {
 		{"a later colour wins", "\x1b[31m\x1b[32mx", "ansi:2", ""},
 		{"reverse swaps", "\x1b[38;2;1;2;3;48;2;4;5;6;7mx", "#040506", "#010203"},
 		{"reverse of a default foreground is not the terminal background", "\x1b[48;2;4;5;6;7mx", "#040506", "default-fg"},
+		{"reverse with a default background", "\x1b[38;2;1;2;3;7mx", "default-bg", "#010203"},
+		{"reverse with both defaults", "\x1b[7mx", "default-bg", "default-fg"},
 		{"27 undoes reverse", "\x1b[38;2;1;2;3;48;2;4;5;6;7;27mx", "#010203", "#040506"},
 		{"an unknown attribute changes nothing", "\x1b[1;4;3;9;31mx", "ansi:1", ""},
 		{"a truncated 38;2 is ignored, not a panic", "\x1b[38;2;1mx", "", ""},
@@ -156,6 +158,48 @@ func TestCellsEmojiVS16(t *testing.T) {
 	}
 	if rows[0][1].BG != "#010203" {
 		t.Errorf("the continuation cell lost its background: %+v", rows[0][1])
+	}
+}
+
+// A grapheme cluster built from several code points is one glyph over the cells
+// its width says, the first holding the glyph and the others only the colours.
+func TestCellsMultiCodePointGraphemes(t *testing.T) {
+	tests := []struct {
+		name, glyph string
+	}{
+		{"ZWJ family", "\U0001F468\u200D\U0001F469\u200D\U0001F467"},
+		{"regional-indicator flag", "\U0001F1EB\U0001F1F7"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			width := ansi.StringWidth(tt.glyph)
+			if width != 2 {
+				t.Fatalf("ansi.StringWidth(%q) = %d; the premise of this test changed", tt.glyph, width)
+			}
+			row := Cells("\x1b[48;2;1;2;3m\x1b[38;2;9;9;9m" + tt.glyph + "z")[0]
+			want := []Cell{
+				{tt.glyph, "#090909", "#010203"},
+				{"", "#090909", "#010203"},
+				{"z", "#090909", "#010203"},
+			}
+			if !reflect.DeepEqual(row, want) {
+				t.Fatalf("Cells = %#v, want %#v", row, want)
+			}
+		})
+	}
+}
+
+// A frame cut in the middle of a sequence paints nothing for the stub and does
+// not panic: the cells before it stay as they were.
+func TestCellsTruncatedSequenceAtEndOfFrame(t *testing.T) {
+	for _, tail := range []string{"\x1b", "\x1b[", "\x1b[38", "\x1b[38;2;1", "\x1b[48;2;1;2;3", "\x1b]0;a title", "\x1b]8;;https://example.com"} {
+		t.Run(strings.NewReplacer("\x1b", `\e`).Replace(tail), func(t *testing.T) {
+			rows := Cells("\x1b[48;2;1;2;3mab" + tail)
+			want := []Cell{{"a", "", "#010203"}, {"b", "", "#010203"}}
+			if len(rows) != 1 || !reflect.DeepEqual(rows[0], want) {
+				t.Fatalf("Cells = %#v, want %#v", rows, want)
+			}
+		})
 	}
 }
 
