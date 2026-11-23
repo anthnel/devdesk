@@ -273,7 +273,50 @@ no line, so it could feed neither the table's jump-to-line nor a fix.
   it is `helm template` that fails — so the render failure is reported unless
   lint already raised an ERROR. `helm lint` also names that chart by its
   **absolute** path (`/scan/charts/x` in a container), which `helmLintPath`
-  brings back to the repository.
+  brings back to the repository. The finding's Resolution is in the
+  renderer's terms (`renderResolution`): helm's speaks of dependencies,
+  kustomize's of `kustomize build`; a file kustomize's load restrictor refuses
+  (`security; file … is not in or below …`, as `kubectl apply -k` would) gets a
+  directory with its own kustomization or, when the deployment tool does the
+  same, `scan.tools.kustomize.args: [--load-restrictor=LoadRestrictionsNone]`.
+  The finding stays HIGH (DEVDESK-742).
+- **A renderer in a container sees the target's git repository**
+  (`renderScope`, DEVDESK-742): `git rev-parse --show-toplevel`, run in the
+  target through the runner, names the root mounted read-only at `/scan`, and
+  `-w /scan/<target relative to it>` keeps every argument and finding path
+  relative to the target, so an overlay's `../../base` or a chart's
+  `file://../lib` outside the target builds as with a binary.
+  - **Guards.** `widerScope` keeps the target alone when git fails or is
+    absent, when the root is `/`, the home directory or above it (or the home
+    is unknown), or when the root, symlinks resolved, is not a strict
+    ancestor of the target. It also keeps the target alone when git was
+    redirected, which a cloned repository can do: `git config --get
+    core.worktree` set or unreadable, or a root that does not hold the `.git`
+    itself (`gitDirIsHere`: a directory, or a worktree's `.git` file whose git
+    directory names it back; a symlink is refused). Those git calls run
+    without `GIT_DIR`, `GIT_WORK_TREE`, `GIT_COMMON_DIR` and `GIT_CONFIG*`;
+    `GIT_CEILING_DIRECTORIES` is kept, since it can only narrow.
+  - **An overlay that still fails is HIGH**, with kustomize's whole message:
+    DevDesk does not walk the repository to tell a reference its mount hid
+    from a broken one. When a kustomize image reports `evalsymlink failure`
+    or `no such file or directory`, the Resolution adds that the reference
+    may point outside what DevDesk mounts, and suggests scanning the
+    enclosing directory or `scan.tools.kustomize.source: binary`
+    (`mountResolution`); a binary never gets that sentence.
+  - **Known limits.** The renderer container keeps the network (no
+    `--network none`). helm follows symlinks inside the mount, so a hostile
+    chart can bring a sibling file's content into its error, as a binary,
+    which sees the whole host, already could. The enclosing git repository is
+    mounted as it is: the target's neighbours under the git root become
+    readable, read only, by kustomize and helm in the container, and a `.git`
+    placed in a parent directory the user owns widens the mount up to it.
+    helm has no fallback for a dependency outside the mount. A submodule
+    always has `core.worktree` set, so it mounts the target alone. With
+    `scan.tools.kustomize.args: [--load-restrictor=LoadRestrictionsNone]`, a
+    file outside the mount fails only in the container, and is HIGH.
+  - `readBounded` (`internal/k8s`) reads regular files only, without blocking
+    on open, so a FIFO named `kustomization.yaml` is refused rather than
+    waited on.
 - **The finding's line comes from the file, not the tool.** kubeconform
   reports a JSON pointer; `k8s.Locate` finds the document by kind and
   `metadata.name`, then walks the pointer through `yaml.v3` nodes. An unknown
