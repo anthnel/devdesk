@@ -1,0 +1,51 @@
+{
+  "cli_version": "0.13.2",
+  "checkpoint_id": "b880fdadf3ee",
+  "strategy": "manual-commit",
+  "branch": "docs/safe-process-stop",
+  "checkpoints_count": 7,
+  "files_touched": [
+    "docs/journal.md",
+    "docs/product/safe-process-stop/brief.md",
+    "docs/product/safe-process-stop/research.md",
+    "docs/product/safe-process-stop/stories.md"
+  ],
+  "sessions": [
+    {
+      "metadata": "/b8/80fdadf3ee/0/metadata.json",
+      "transcript": "/b8/80fdadf3ee/0/full.jsonl",
+      "compact_transcript": "/b8/80fdadf3ee/0/transcript.jsonl",
+      "content_hash": "/b8/80fdadf3ee/0/content_hash.txt",
+      "prompt": "/b8/80fdadf3ee/0/prompt.txt"
+    }
+  ],
+  "token_usage": {
+    "input_tokens": 64,
+    "cache_creation_tokens": 109330,
+    "cache_read_tokens": 5173779,
+    "output_tokens": 16912,
+    "api_call_count": 21,
+    "subagent_tokens": {
+      "input_tokens": 68,
+      "cache_creation_tokens": 332571,
+      "cache_read_tokens": 1730830,
+      "output_tokens": 47477,
+      "api_call_count": 33
+    },
+    "subagent_tokens_complete": true
+  },
+  "redaction": {
+    "replacements": 49,
+    "layers": {
+      "betterleaks": 0,
+      "connection_string": 0,
+      "credential_key": 0,
+      "credential_value": 0,
+      "credentialed_uri": 0,
+      "entropy": 16,
+      "key_context": 33,
+      "provider_token": 0,
+      "shell_stdin": 0
+    }
+  }
+}

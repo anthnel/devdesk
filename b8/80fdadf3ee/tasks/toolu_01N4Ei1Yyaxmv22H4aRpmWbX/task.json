@@ -1,0 +1,19 @@
+{
+  "tool_use_id": "toolu_01N4Ei1Yyaxmv22H4aRpmWbX",
+  "agent_id": "a051c8f4e2ed7bd3e",
+  "subagent_type": "product-team:pm",
+  "task_description": "Backlog Plane arrêt sûr de processus",
+  "files": [
+    "docs/product/safe-process-stop/brief.md",
+    "docs/product/safe-process-stop/stories.md"
+  ],
+  "token_usage": {
+    "input_tokens": 22,
+    "cache_creation_tokens": 126164,
+    "cache_read_tokens": 944627,
+    "output_tokens": 30347,
+    "api_call_count": 11
+  },
+  "started_at": "2026-11-22T22:37:48.161795833+01:00",
+  "completed_at": "2026-11-22T22:37:48.162459354+01:00"
+}
