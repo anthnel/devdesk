@@ -87,10 +87,22 @@ func (k *KeyringStorage) Delete(url string) error {
 // `security` binary, an OS with no provider compiled in.
 //
 // It is a read, so it can never leave anything behind if it is called on a
-// machine where the store turns out to be unusable.
+// machine where the store turns out to be unusable. Like every host store
+// call it is bounded by keyringTimeout: a store that does not answer, such as
+// a locked Secret Service waiting on an unlock prompt, counts as unavailable.
 func KeyringAvailable() bool {
+	return keyringProbe() == nil
+}
+
+// keyringProbe is KeyringAvailable with the reason: nil when the store
+// answered, ErrKeyringUnresponsive when it did not answer in time, the
+// backend's error otherwise.
+func keyringProbe() error {
 	_, err := currentHost().Get(keyringService, keyringProbeAccount)
-	return err == nil || errors.Is(err, ErrNotFound)
+	if err == nil || errors.Is(err, ErrNotFound) {
+		return nil
+	}
+	return err
 }
 
 // KeyringName is what the host calls its secret store, for messages the user

@@ -2,6 +2,7 @@ package auth
 
 import (
 	"errors"
+	"fmt"
 	"io"
 	"log"
 	"os"
@@ -39,6 +40,7 @@ type fakeStorage struct {
 	loadErr   error
 	saved     map[string]string
 	deleted   []string
+	deleteErr error
 	loadCalls []string
 }
 
@@ -58,7 +60,7 @@ func (f *fakeStorage) Load(url string) (string, error) {
 
 func (f *fakeStorage) Delete(url string) error {
 	f.deleted = append(f.deleted, url)
-	return nil
+	return f.deleteErr
 }
 
 // persisted wraps a storage in a Selection that claims to survive the session,
@@ -574,6 +576,35 @@ func TestLogoutDeletesFromTheStore(t *testing.T) {
 
 	if len(storage.deleted) != 1 || storage.deleted[0] != "https://gitlab.example.com" {
 		t.Errorf("deleted = %v, want the configured URL once", storage.deleted)
+	}
+}
+
+// A Delete the store refused (or did not answer, DEVDESK-745) leaves the token
+// where it was: the logout still ends the session, but the user is told the
+// token may remain in the store instead of the error being dropped.
+func TestLogoutThatCouldNotDeleteWarnsTheTokenMayRemain(t *testing.T) {
+	storage := newFakeStorage()
+	storage.deleteErr = fmt.Errorf("Secret Service: %w", credentials.ErrKeyringUnresponsive)
+	m := newTestModel(t, testConfig(), storage)
+	setConfigURL(m, "https://gitlab.example.com")
+	m = feed(t, m, AuthResultMsg{User: testUser()})
+
+	msg := m.logout()()
+	done, ok := msg.(LogoutCompleteMsg)
+	if !ok || done.Err == nil {
+		t.Fatalf("logout() = %#v, want a LogoutCompleteMsg carrying the Delete error", msg)
+	}
+	m = feed(t, m, done)
+
+	if m.authenticated {
+		t.Error("the session survived the logout")
+	}
+	footer := ansi.Strip(m.RenderFooter(200))
+	if !strings.Contains(footer, "token may remain in") {
+		t.Errorf("footer = %q, want it to say the token may remain in the store", footer)
+	}
+	if strings.Contains(footer, "did not answer in time") {
+		t.Errorf("footer = %q, shows the raw error (Rule 128)", footer)
 	}
 }
 

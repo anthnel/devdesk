@@ -113,7 +113,7 @@ func loadContext(contextName string, op contextOp, created bool) tea.Msg {
 	// context because the configuration file is, and the secrets are keyed
 	// by context so two of them pointing at the same host stay separate.
 	secrets := credentials.Select(contextName, cfg.App.SecretBackend)
-	notices := credentials.MigrateLegacySecrets(secrets.Storage, contextName)
+	notices := credentials.MigrateLegacySecrets(secrets, contextName)
 
 	backend, user := autoLoginForContext(contextName, cfg, secrets.Storage)
 

@@ -2,6 +2,8 @@ package credentials
 
 import (
 	"errors"
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 
@@ -25,6 +27,15 @@ func TestUsableHelperName(t *testing.T) {
 		// the token from one plaintext file to another is not a fix.
 		{"store is refused", "store", "", false},
 		{"store with a file argument is refused", "store --file=/tmp/creds", "", false},
+
+		// `cache` keeps credentials in a daemon's memory for a while: nothing
+		// survives it, so it is no more a persistent store than memory is.
+		{"cache is refused", "cache", "", false},
+		{"cache with a timeout is refused", "cache --timeout=1", "", false},
+		{"the cache helper by its full path is refused", "/usr/lib/git-core/git-credential-cache", "", false},
+		{"the cache helper as a shell command is refused", "!git credential-cache --timeout 60", "", false},
+		{"store in another case is refused", "Store", "", false},
+		{"the store helper by its full path is refused", "/usr/lib/git-core/git-credential-store", "", false},
 
 		// An unset helper means git has nowhere to put the secret, and would
 		// quietly succeed at storing nothing.
@@ -74,7 +85,7 @@ func TestGitHelperUsable(t *testing.T) {
 // git resolves the last helper that answers, so the last usable one in the list
 // is the one whose name should be reported.
 func TestGitHelperUsablePrefersTheLastConfiguredHelper(t *testing.T) {
-	hermeticGitWithHelper(t, "store\n\thelper = manager")
+	hermeticGitWithHelper(t, "osxkeychain\n\thelper = manager")
 
 	got, ok := gitHelperUsable()
 	if !ok {
@@ -82,6 +93,50 @@ func TestGitHelperUsablePrefersTheLastConfiguredHelper(t *testing.T) {
 	}
 	if got != "manager" {
 		t.Errorf("gitHelperUsable() = %q, want manager", got)
+	}
+}
+
+// `git credential approve` hands the secret to every configured helper, not
+// only to the one gitHelperUsable names. A plaintext store anywhere in the list
+// therefore receives the token, so git is refused as a backend (DEVDESK-745,
+// a security fix that predates it). Until then [store, manager] was accepted.
+func TestGitHelperUsableRefusesAPlaintextStoreAnywhereInTheList(t *testing.T) {
+	tests := []struct {
+		name     string
+		helpers  string // the value of the first `helper =` line, others follow
+		wantName string
+		wantOK   bool
+	}{
+		{"store before a safe helper", "store\n\thelper = manager", "", false},
+		{"store after a safe helper", "manager\n\thelper = store", "", false},
+		{"store with a file argument", "manager\n\thelper = store --file=/tmp/creds", "", false},
+		{"the store helper by its full path", "/usr/lib/git-core/git-credential-store", "", false},
+		{"the store helper as a shell command", "!git credential-store --file /tmp/creds", "", false},
+		{"cache before a safe helper", "cache --timeout=1\n\thelper = manager", "", false},
+		{"cache alone", "cache --timeout=1", "", false},
+		{"a single safe helper", "manager", "manager", true},
+		{"an empty value resets the list before it", "store\n\thelper =\n\thelper = manager", "manager", true},
+		{"an empty value last leaves no helper", "manager\n\thelper =", "", false},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			hermeticGitWithHelper(t, tt.helpers)
+
+			gotName, gotOK := gitHelperUsable()
+			if gotOK != tt.wantOK || gotName != tt.wantName {
+				t.Errorf("gitHelperUsable() = %q, %v, want %q, %v", gotName, gotOK, tt.wantName, tt.wantOK)
+			}
+		})
+	}
+}
+
+// No helper configured at all: git would have nowhere to put the secret.
+func TestGitHelperUsableWithNoHelper(t *testing.T) {
+	hermeticGitWithHelper(t, "manager")
+	t.Setenv("GIT_CONFIG_GLOBAL", t.TempDir()+"/empty-gitconfig")
+
+	if name, ok := gitHelperUsable(); ok {
+		t.Errorf("gitHelperUsable() = %q, true with no helper configured", name)
 	}
 }
 
@@ -217,4 +272,62 @@ func unreachableKeyring(t *testing.T) {
 	t.Helper()
 	keyring.MockInitWithError(errors.New("no D-Bus session"))
 	t.Cleanup(keyring.MockInit)
+}
+
+// hermeticGitConfig is hermeticGitWithHelper with the whole global file given,
+// for the shapes a single `helper =` line cannot express.
+func hermeticGitConfig(t *testing.T, body string) string {
+	t.Helper()
+	hermeticGitWithHelper(t, "unused")
+	dir := t.TempDir()
+	cfg := filepath.Join(dir, "gitconfig")
+	if err := os.WriteFile(cfg, []byte(body), 0o600); err != nil {
+		t.Fatalf("writing git config: %v", err)
+	}
+	t.Setenv("GIT_CONFIG_GLOBAL", cfg)
+	return dir
+}
+
+// Two shapes `git config --get-all credential.helper` misreads (DEVDESK-745):
+// a helper scoped to a URL, which it does not list at all, and a value of
+// spaces, which is a helper for git and not a reset of the list.
+func TestGitHelperUsableSeesEveryHelperGitRuns(t *testing.T) {
+	tests := []struct {
+		name     string
+		body     string
+		wantName string
+		wantOK   bool
+	}{
+		{"a store scoped to the forge URL", "[credential]\n\thelper = manager\n[credential \"https://gitlab.example.com\"]\n\thelper = store\n", "", false},
+		{"a cache scoped to a URL", "[credential]\n\thelper = manager\n[credential \"https://other.example.com\"]\n\thelper = cache --timeout=1\n", "", false},
+		// Nothing says a scoped helper applies to the forge's URL: it is
+		// checked, never chosen.
+		{"a safe helper scoped to a URL is not chosen", "[credential \"https://gitlab.example.com\"]\n\thelper = manager\n", "", false},
+		{"spaces are not a reset", "[credential]\n\thelper = store\n\thelper = \" \"\n\thelper = manager\n", "", false},
+		{"an exactly empty value is a reset", "[credential]\n\thelper = store\n\thelper =\n\thelper = manager\n", "manager", true},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			hermeticGitConfig(t, tt.body)
+
+			gotName, gotOK := gitHelperUsable()
+			if gotOK != tt.wantOK || gotName != tt.wantName {
+				t.Errorf("gitHelperUsable() = %q, %v, want %q, %v", gotName, gotOK, tt.wantName, tt.wantOK)
+			}
+		})
+	}
+}
+
+// A store pulled in by include.path is seen, as git itself would run it.
+func TestGitHelperUsableFollowsIncludes(t *testing.T) {
+	dir := t.TempDir()
+	inc := filepath.Join(dir, "inc")
+	if err := os.WriteFile(inc, []byte("[credential]\n\thelper = store\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	hermeticGitConfig(t, "[include]\n\tpath = "+inc+"\n[credential]\n\thelper = manager\n")
+
+	if name, ok := gitHelperUsable(); ok {
+		t.Errorf("gitHelperUsable() = %q, true with a store included from %s", name, inc)
+	}
 }

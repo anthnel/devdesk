@@ -13,6 +13,7 @@ package session
 
 import (
 	"context"
+	"errors"
 	"fmt"
 
 	"github.com/anthnel/devdesk/internal/config"
@@ -67,11 +68,22 @@ func (a *Auth) Authenticate(ctx context.Context, forgeType, url, token string) (
 
 	if a.storage != nil {
 		if err := a.storage.Save(url, token); err != nil {
-			result.SaveWarning = fmt.Sprintf("The token was not saved: %v. You will have to enter it again next launch.", err)
+			result.SaveWarning = saveWarning(err)
 		}
 	}
 
 	return result, nil
+}
+
+// saveWarning words a failed save. A save the host store did not answer in
+// time was abandoned, not refused, and may still land once the store is
+// unlocked (DEVDESK-745): saying the token was not saved would be false.
+func saveWarning(err error) string {
+	if errors.Is(err, credentials.ErrKeyringUnresponsive) {
+		return "The secret store did not answer; the token may still be saved once it is unlocked. " +
+			"If it is not, you will have to enter it again next launch."
+	}
+	return fmt.Sprintf("The token was not saved: %v. You will have to enter it again next launch.", err)
 }
 
 // AuthenticateOnly opens a session and writes nothing. It is the auto-login

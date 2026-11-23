@@ -259,7 +259,7 @@ func New(cfg *config.Config) *App {
 // reaches for the machine's keyring is one tests cannot run twice the same way.
 func (a *App) useSecrets(sel credentials.Selection) {
 	a.sharedState.Secrets = sel
-	a.sharedState.SecretNotices = credentials.MigrateLegacySecrets(sel.Storage, a.currentContext)
+	a.sharedState.SecretNotices = credentials.MigrateLegacySecrets(sel, a.currentContext)
 	log.Printf("Secret backend for context %q: %s", a.currentContext, sel.Backend)
 
 	// The auth view holds the storage it was built with, so rebuild it if it

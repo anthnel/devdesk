@@ -178,6 +178,116 @@ is still resolved.
 Credentials Management). Do not add a secret-bearing field back — the schema is
 what makes the guarantee checkable.
 
+### A host store that does not answer (DEVDESK-745)
+
+Every call to the host store is bounded: `currentHost()` wraps the store in use in
+`boundedHost` (`internal/credentials/hoststore_bound.go`), which runs the call in a
+goroutine and gives up after `keyringTimeout`, 3 s, with `ErrKeyringUnresponsive`.
+That covers the probe (`KeyringAvailable`, run by `Select` before the first frame)
+and `KeyringStorage.Save`, `Load` and `Delete`.
+
+**Why.** go-keyring has no deadline. Reading from a locked Secret Service collection
+asks the daemon to unlock it, and go-keyring then waits for the unlock prompt's
+`Completed` signal with no timeout (`secret_service.handlePrompt`). In an SSH session
+nobody can answer the prompt, so the launch waited forever on a blank screen, the log
+stopping after the theme line. Removing `DBUS_SESSION_BUS_ADDRESS` does not avoid it:
+godbus falls back to `$XDG_RUNTIME_DIR/bus`, the same bus. Observed on the reporting
+machine (2026-11-23), the binary run in a pty that answers terminal queries: without
+the variable, the screen stayed empty for 20 s and the goroutine dump showed the same
+`handlePrompt` wait as with it.
+
+**Accepted cost (decided, DEVDESK-745).** The bound stays at 3 s for every machine. On a
+desktop where the user would unlock the keyring by hand from the prompt, a launch
+that reaches it locked takes the fallback (`unlock it and restart`) and waits 3 s
+before the first frame. The `Selection` is not re-evaluated when the keyring is
+unlocked later in the session: the context keeps its fallback until a context switch
+or a restart.
+
+**What follows a timeout.**
+
+- `Select` skips the store as if it were absent: `auto` goes on to the git credential
+  helper, then memory; a pinned `keyring` falls to memory, as for an unreachable store.
+  `Detail` says the store did not answer, that it is probably locked, and the way out
+  (unlock it and restart DevDesk, or set `app.secret_backend`); the auth view and
+  `dk setup` show `Detail` as before. An absent store keeps its own message.
+- The call is abandoned, not cancelled: the `HostStore` interface has no context and
+  go-keyring cannot stop the wait, so its goroutine stays blocked until the store
+  answers, possibly for the rest of the process (one goroutine, one D-Bus connection).
+- Calls enter the store one at a time (`hostBox.inside`, a one-token channel taken
+  before the goroutine starts): twenty callers arriving together at a store that has
+  just gone silent leave one goroutine blocked, not twenty; the others give up at their
+  own deadline without entering it.
+- While such a call is pending, every new call fails at once with
+  `ErrKeyringUnresponsive`: a context switch or a later `Load` does not wait another
+  3 s, and no further goroutine is leaked. The flag is per store (`hostBox.stuck`); it
+  clears when the stuck call returns (the user unlocked the store), and the store is
+  then asked again. The `Selection` already resolved for the context is kept,
+  per the one-`Selection`-per-context rule; the next `Select` (context switch, restart)
+  finds the store again.
+- `MigrateLegacySecrets` takes the `Selection` and migrates nothing to one that does not
+  persist. Before, a `MemoryStorage.Save` always succeeded, so the plaintext token and
+  registry password were deleted from the YAML and lived in memory only, with a note
+  saying they had moved into the secret store. A silent store with no usable git helper
+  made that path reachable (an absent store already did). The file is now left as it is
+  and the note reads `The plaintext secrets stayed in the configuration file: no
+  persistent secret store answered.`; a real move names the store it went to.
+- A successful `Save` is not taken as proof: `git credential approve` exits 0 whatever
+  its helpers keep. Each secret leaves the YAML only once `Load` gives the same value
+  back; otherwise it stays, and the note says the store accepted it but did not read it
+  back (never the value). Each secret is checked on its own, so a token that reads back
+  goes and a registry password that does not stays. `Selection.Persists()` is also
+  false for a selection with no storage (the zero value).
+- An abandoned `Set` may still land later, once the store is unlocked. So a login whose
+  save timed out does not say the token was not saved: `session.saveWarning` reads
+  `The secret store did not answer; the token may still be saved once it is unlocked.`
+  Any other failed save keeps `The token was not saved: …`.
+- Logging out while a call is stuck: `Delete` is refused without being tried, and a
+  `Set` still pending may write the token back after the logout. The session ends
+  anyway, but the error is no longer dropped: `LogoutCompleteMsg.Err` reaches the auth
+  view, which warns in the footer `Logged out, but the token may remain in <store>`. A
+  refused `Delete` is not retried later (out of scope).
+- A panic in the call (the DEVDESK-610 guard below) is carried back to the caller's
+  goroutine, so it still fails the test that reached the store. Limit (tests only): a panic raised in a goroutine whose
+  call was already abandoned at the deadline has no caller left to receive it and is
+  lost. The guard panics at once, before any wait, so this needs a fake store that
+  blocks and then panics.
+
+The 3 s bound is a fixed value, not a setting; the tests of `internal/credentials`
+shorten it (`shortKeyringTimeout`), except `TestSelectDoesNotWaitForAHostStoreThatNeverAnswers`,
+which keeps it.
+
+### git calls do not depend on the working directory (DEVDESK-745)
+
+Every git call of `internal/credentials` (the helper detection and `git credential
+fill/approve/reject`) runs through `gitCommand` (`internal/credentials/git_exec.go`):
+from an empty directory created for the call and removed after it, with that
+directory's parent appended to `GIT_CEILING_DIRECTORIES` (a value the user set is
+kept). git then finds no repository and reads only the system, global, include and
+environment scopes. Before, git ran in DevDesk's working directory: the `.git/config`
+of the repository DevDesk was started in could add a `credential.helper`, a shell
+command of that repository's author, which was selected as the backend, handed the
+token on `approve`, and run on every `fill` at launch.
+`TestGitIgnoresTheHelperOfTheWorkingDirectoryRepository` starts from such a repository.
+
+### Which git helpers make git a backend (DEVDESK-745)
+
+`gitHelperUsable` reads `git config --null --get-regexp '^credential\..*helper$'` (from
+the neutral directory above), which lists the helpers scoped to a URL
+(`[credential "https://…"] helper = …`) that `--get-all credential.helper` misses, and
+follows `include.path` as git does (`TestGitHelperUsableFollowsIncludes`). git is
+refused as a backend when any listed helper is `store` (plaintext) or `cache` (memory
+with a timeout: it persists nothing), by name, path or shell command, ignoring case:
+`approve` hands the secret to every helper, not only the one DevDesk names. Only an
+exactly empty `helper =` resets the list; a value of spaces is a helper for git and
+does not hide a `store` before it. A scoped helper is checked but never chosen, since
+nothing says it applies to the forge's URL.
+
+Not covered: a `store` reached by another mechanism than a `credential.helper` key (a
+wrapper script whose name does not say `credential-store`, a helper that writes its
+own plaintext file, `GIT_ASKPASS`, which only answers prompts and is disabled by
+`GIT_TERMINAL_PROMPT=0`). The read-back of the migration (below) protects the YAML copy
+in those cases; it does not stop a helper from also keeping a plaintext copy.
+
 ### Testing code that reaches the secret store
 
 DEVDESK-610. `KeyringStorage` and `KeyringAvailable` call the host store through
@@ -186,8 +296,8 @@ production implementation and the only caller of go-keyring.
 
 **The trap.** Without isolation, a test that calls `credentials.Select`,
 `KeyringAvailable` or a router that does reaches the machine's real keyring. On a
-developer machine with a locked Secret Service, the call blocks until the D-Bus
-timeout, in every test that does it.
+developer machine with a locked Secret Service, the call waits for an unlock prompt;
+since DEVDESK-745 it gives up after 3 s, in every test that does it.
 
 **Isolating.** Use `internal/testutil/fakekeyring`, an in-memory `HostStore`:
 

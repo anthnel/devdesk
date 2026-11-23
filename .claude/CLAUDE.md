@@ -131,14 +131,18 @@ the credential manager *and* in plaintext:
 | Storage | Backend | Notes |
 |---------|---------|-------|
 | `KeyringStorage` | Windows Credential Manager / macOS Keychain / Secret Service | via `zalando/go-keyring`, no cgo. The default. |
-| `GitCredentialStorage` | git's configured credential helper | Only when the helper is not `store`, which writes plaintext. Context-aware. |
+| `GitCredentialStorage` | git's configured credential helper | Only when no configured helper is `store` (plaintext) or `cache` (memory with a timeout), by name, path or shell command: `approve` reaches every helper. Context-aware. |
 | `MemoryStorage` | this process | Last resort, and deliberately worse: the auth view says nothing was saved. |
 
 `Select(context, preference)` returns a `Selection{Storage, Backend, Detail}`.
 The order is keyring → git credential → memory; `app.secret_backend` in the
 context config pins the head of it (`auto`, `keyring`, `git-credential`). A
 pinned backend that is unreachable falls through to memory rather than silently
-to the other one.
+to the other one. Every host store operation (the probe, `Save`, `Load`,
+`Delete`) is bounded to 3 s: a store that does not answer, such as a locked
+Secret Service waiting on an unlock prompt over SSH, is skipped like an absent
+one, `Detail` says so, and it is not asked again while that call is stuck
+(`internal/credentials/hoststore_bound.go`, DEVDESK-745).
 
 The router resolves one `Selection` per context and keeps it in
 `shared.State.Secrets`. It must be reused for the lifetime of the context — a
@@ -148,7 +152,9 @@ first one holds.
 `MigrateLegacySecrets` runs at startup and on every context switch: a
 `gitlab.token` or `registry.password` left in a context file by an older build
 is moved into the store and deleted from the YAML, with the result reported in
-the auth view.
+the auth view. It takes the `Selection` and moves nothing when it does not
+persist (memory), and removes a secret from the YAML only once it reads back
+from the store; otherwise it stays and the note says so (DEVDESK-745).
 
 ## Testing
 

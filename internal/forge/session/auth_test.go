@@ -3,10 +3,13 @@ package session
 import (
 	"context"
 	"errors"
+	"fmt"
 	"net/http"
+	"strings"
 	"testing"
 
 	"github.com/anthnel/devdesk/internal/config"
+	"github.com/anthnel/devdesk/internal/credentials"
 )
 
 // memStore is a credentials.Storage that lives in the test. It records what was
@@ -88,6 +91,41 @@ func TestAStoreThatRefusesTheTokenStillOpensTheSession(t *testing.T) {
 	}
 	if result.SaveWarning == "" {
 		t.Error("SaveWarning is empty, so nothing tells the user the token was not kept")
+	}
+}
+
+// A save the host store did not answer in time was abandoned, not refused: it
+// may still land once the store is unlocked, so the warning must not say the
+// token was not saved (DEVDESK-745).
+func TestASilentStoreDoesNotClaimTheTokenWasNotSaved(t *testing.T) {
+	fake := newFakeForge(t, userHandler)
+	store := newMemStore()
+	store.saveErr = fmt.Errorf("Secret Service: %w", credentials.ErrKeyringUnresponsive)
+
+	result, err := NewAuth(store).Authenticate(context.Background(), config.ForgeGitLab, fake.server.URL, "glpat-x")
+	if err != nil {
+		t.Fatalf("Authenticate() error = %v, want the session to open anyway", err)
+	}
+	w := result.SaveWarning
+	if strings.Contains(w, "was not saved") {
+		t.Errorf("SaveWarning = %q, claims nothing was saved although the save may still land", w)
+	}
+	for _, want := range []string{"did not answer", "may still be saved", "unlocked"} {
+		if !strings.Contains(w, want) {
+			t.Errorf("SaveWarning = %q, want it to contain %q", w, want)
+		}
+	}
+}
+
+// Any other failure keeps the plain statement.
+func TestARefusedSaveStillSaysTheTokenWasNotSaved(t *testing.T) {
+	fake := newFakeForge(t, userHandler)
+	store := newMemStore()
+	store.saveErr = errors.New("permission denied")
+
+	result, _ := NewAuth(store).Authenticate(context.Background(), config.ForgeGitLab, fake.server.URL, "glpat-x")
+	if result == nil || !strings.Contains(result.SaveWarning, "The token was not saved") {
+		t.Errorf("result = %+v, want the plain not-saved warning", result)
 	}
 }
 
