@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"io"
 	"log"
+	"os"
 	"path"
 	"path/filepath"
 	"regexp"
@@ -50,10 +51,89 @@ var helmLintLine = regexp.MustCompile(`^\[(ERROR|WARNING|INFO|UNKNOWN)\] ([^:]*)
 // naming the template it came from: `# Source: <chart name>/templates/x.yaml`.
 var helmSourceLine = regexp.MustCompile(`^# Source: (\S+)`)
 
+// renderScope is where a renderer runs. A binary runs in the target and sees
+// the whole host. A container sees only mount, read-only at /scan, and works in
+// the target inside it: mount is the target itself, or the git repository
+// holding it, so an overlay or a chart can reach a sibling of the target as it
+// does on the host (DEVDESK-742).
+type renderScope struct {
+	target string
+	mount  string
+	// rel is the target relative to mount, with forward slashes; "" when the
+	// target is what is mounted.
+	rel string
+}
+
+// targetOnly mounts the target and nothing else.
+func targetOnly(target string) renderScope { return renderScope{target: target, mount: target} }
+
+// workdir is the target inside the container.
+func (s renderScope) workdir() string { return path.Join(containerScanPath, s.rel) }
+
+// mountedTarget is the target as a path under mount on the host.
+func (s renderScope) mountedTarget() string { return filepath.Join(s.mount, filepath.FromSlash(s.rel)) }
+
+// userHomeDir is the home directory the mount guard keeps out of reach. Tests
+// swap it.
+var userHomeDir = os.UserHomeDir
+
+// resolveRenderScope asks git, in the target, for the repository holding it.
+// Without an answer (no git, not a repository) the target alone is mounted.
+func resolveRenderScope(ctx context.Context, target string) renderScope {
+	out, err := runner.Run(ctx, toolCmd{Name: "git", Args: []string{"rev-parse", "--show-toplevel"}, Dir: target}, nil)
+	if err != nil {
+		log.Printf("[scan/k8s] %s: no git repository to mount, the renderers see the target only: %v", target, err)
+		return targetOnly(target)
+	}
+	scope, ok := widerScope(target, strings.TrimSpace(string(out)))
+	if !ok {
+		return targetOnly(target)
+	}
+	log.Printf("[scan/k8s] renderers in a container mount %s, the repository holding %s", scope.mount, target)
+	return scope
+}
+
+// widerScope mounts top, the repository git named, when it is safe to: top is
+// a strict ancestor of the target once symlinks are resolved, and neither the
+// filesystem root nor the home directory nor anything above it. Anything else,
+// an unknown home included, keeps the target alone.
+func widerScope(target, top string) (renderScope, bool) {
+	if top == "" || !filepath.IsAbs(top) {
+		return renderScope{}, false
+	}
+	root, err := filepath.EvalSymlinks(top)
+	if err != nil {
+		return renderScope{}, false
+	}
+	real, err := filepath.EvalSymlinks(target)
+	if err != nil {
+		return renderScope{}, false
+	}
+	rel, err := filepath.Rel(root, real)
+	if err != nil || rel == "." || rel == ".." || strings.HasPrefix(rel, ".."+string(filepath.Separator)) {
+		return renderScope{}, false
+	}
+	if filepath.Dir(root) == root {
+		return renderScope{}, false
+	}
+	home, err := userHomeDir()
+	if err != nil || home == "" {
+		return renderScope{}, false
+	}
+	if h, err := filepath.EvalSymlinks(home); err == nil {
+		home = h
+	}
+	if r, err := filepath.Rel(root, filepath.Clean(home)); err == nil &&
+		(r == "." || (r != ".." && !strings.HasPrefix(r, ".."+string(filepath.Separator)))) {
+		return renderScope{}, false
+	}
+	return renderScope{target: target, mount: root, rel: filepath.ToSlash(rel)}, true
+}
+
 // renderer runs one tool in the repository, the way every other tool runs:
-// in the repository for a binary, with the repository mounted read-only at
-// /scan and as the working directory for an image.
-func renderer(target string, tool ToolSpec, defaultImage, binary string, args ...string) toolCmd {
+// in the target for a binary; for an image, with the scope's mount read-only
+// at /scan and the target inside it as the working directory.
+func renderer(scope renderScope, tool ToolSpec, defaultImage, binary string, args ...string) toolCmd {
 	// helm gets them on lint and on template alike: only the flags the two
 	// share (--values, --set…) make sense there.
 	args = afterSubcommand(args, tool.Args)
@@ -62,10 +142,10 @@ func renderer(target string, tool ToolSpec, defaultImage, binary string, args ..
 		if name == "" {
 			name = binary
 		}
-		return toolCmd{Name: name, Args: args, Dir: target}
+		return toolCmd{Name: name, Args: args, Dir: scope.target}
 	}
 	return containerRun{
-		Flags: []string{"-v", target + ":" + containerScanPath + ":ro", "-w", containerScanPath},
+		Flags: []string{"-v", scope.mount + ":" + containerScanPath + ":ro", "-w", scope.workdir()},
 		Image: orDefault(tool.Image, defaultImage),
 		Argv:  args,
 	}.cmd()
@@ -78,12 +158,12 @@ func orDefault(v, def string) string {
 	return v
 }
 
-func helmArgs(target, chart string, tool ToolSpec, sub string) toolCmd {
-	return renderer(target, tool, DefaultHelmImage, "helm", sub, chart)
+func helmArgs(scope renderScope, chart string, tool ToolSpec, sub string) toolCmd {
+	return renderer(scope, tool, DefaultHelmImage, "helm", sub, chart)
 }
 
-func kustomizeArgs(target, dir string, tool ToolSpec) toolCmd {
-	return renderer(target, tool, DefaultKustomizeImage, "kustomize", "build", dir)
+func kustomizeArgs(scope renderScope, dir string, tool ToolSpec) toolCmd {
+	return renderer(scope, tool, DefaultKustomizeImage, "kustomize", "build", dir)
 }
 
 // kubeconformStdinArgs validates what arrives on stdin. A container gets -i
@@ -105,7 +185,9 @@ func kubeconformStdinArgs(rendered []byte, tool ToolSpec, opts KubeconformOption
 // k8sValidation is one schema stage over one repository: the tools it has,
 // what it validates against, and the report it fills in.
 type k8sValidation struct {
-	target      string
+	target string
+	// scope is where helm and kustomize run, resolved once per stage.
+	scope       renderScope
 	kubeconform ToolSpec
 	opts        KubeconformOptions
 	report      *KubeconformReport
@@ -125,10 +207,10 @@ func (v *k8sValidation) renderCharts(ctx context.Context, charts []string) error
 			v.report.Unrendered = append(v.report.Unrendered, chart)
 			continue
 		}
-		lint := helmLint(ctx, v.target, chart, tool)
+		lint := helmLint(ctx, v.scope, chart, tool)
 		v.report.Findings = append(v.report.Findings, lint...)
 
-		cmd := helmArgs(v.target, chart, tool, "template")
+		cmd := helmArgs(v.scope, chart, tool, "template")
 		log.Printf("Running: %s", cmd)
 		rendered, err := runner.Run(ctx, cmd, nil)
 		if err != nil {
@@ -168,15 +250,14 @@ func (v *k8sValidation) renderKustomizations(ctx context.Context, dirs []string)
 			continue
 		}
 		file := path.Join(dir, k8s.KustomizationFile(filepath.Join(v.target, filepath.FromSlash(dir))))
-		cmd := kustomizeArgs(v.target, dir, tool)
+		cmd := kustomizeArgs(v.scope, dir, tool)
 		log.Printf("Running: %s", cmd)
 		rendered, err := runner.Run(ctx, cmd, nil)
 		if err != nil {
 			if ctx.Err() != nil {
 				return ctx.Err()
 			}
-			v.report.Findings = append(v.report.Findings,
-				renderFailure(SourceKustomize, "kustomize", file, "Overlay does not build", err))
+			v.report.Findings = append(v.report.Findings, v.overlayFailure(tool, dir, file, err))
 			continue
 		}
 		// kustomize adds no origin to what it emits unless the kustomization
@@ -188,6 +269,58 @@ func (v *k8sValidation) renderKustomizations(ctx context.Context, dirs []string)
 		}
 	}
 	return nil
+}
+
+// overlayFailure is the finding for an overlay kustomize did not build. In a
+// container, an overlay that reaches a directory outside the mount failed
+// because DevDesk could not show it that directory, not because it is broken:
+// it is reported as not validated, LOW, rather than blamed (DEVDESK-742).
+func (v *k8sValidation) overlayFailure(tool ToolSpec, dir, file string, err error) Finding {
+	if tool.Source == ToolSourceContainer {
+		overlay := filepath.Join(v.scope.mountedTarget(), filepath.FromSlash(dir))
+		if from, ref, ok := k8s.EscapingReference(v.scope.mount, overlay); ok {
+			log.Printf("[scan/k8s] overlay %s not built: %s references %s, outside what the container sees (%s)",
+				dir, from, ref, v.scope.mount)
+			return outsideMountFinding(file, v.relToTarget(from), dir, ref)
+		}
+	}
+	return renderFailure(SourceKustomize, "kustomize", file, "Overlay does not build", err)
+}
+
+// relToTarget is a host path under the mount, relative to the target with
+// forward slashes.
+func (v *k8sValidation) relToTarget(p string) string {
+	rel, err := filepath.Rel(v.scope.mountedTarget(), p)
+	if err != nil {
+		return filepath.ToSlash(p)
+	}
+	return filepath.ToSlash(rel)
+}
+
+// outsideMountFinding says an overlay was not validated because it reaches
+// outside the scanned directory. from is the kustomization holding the
+// reference, relative to the target; it is named only when it is not the
+// overlay's own.
+func outsideMountFinding(file, from, dir, ref string) Finding {
+	where := ref
+	if from != dir {
+		where = ref + ", from " + from
+	}
+	msg := "Overlay not validated: references a path outside the scanned directory (" + where + ")"
+	return Finding{
+		ID:    K8sRenderID,
+		Title: msg,
+		Description: "kustomize runs in a container that sees only the scanned directory, or the git repository " +
+			"holding it, read-only. This overlay reaches beyond it, so it was not built and none of its resources " +
+			"were validated. That says nothing against the overlay itself.",
+		Message: msg,
+		Resolution: "Scan the directory that holds everything the overlay references, or use a kustomize binary " +
+			"(scan.tools.kustomize.source: binary), which sees the whole filesystem.",
+		Severity: SeverityLow,
+		Source:   SourceKustomize,
+		File:     file,
+		IaCType:  "kustomize",
+	}
 }
 
 // validateRendered runs kubeconform over rendered YAML and points each
@@ -220,11 +353,11 @@ func (v *k8sValidation) validateRendered(ctx context.Context, rendered []byte, d
 // when a chart fails; its messages are still the answer. A run that printed
 // nothing parseable is logged and yields nothing — the render that follows
 // will say whether the chart is usable.
-func helmLint(ctx context.Context, target, chart string, tool ToolSpec) []Finding {
-	cmd := helmArgs(target, chart, tool, "lint")
+func helmLint(ctx context.Context, scope renderScope, chart string, tool ToolSpec) []Finding {
+	cmd := helmArgs(scope, chart, tool, "lint")
 	log.Printf("Running: %s", cmd)
 	out, err := runner.Run(ctx, cmd, nil)
-	findings, recognised := parseHelmLint(out, chart, target)
+	findings, recognised := parseHelmLint(out, chart, scope)
 	if err != nil && !recognised {
 		log.Printf("ERROR [scan/helm] lint %s: %v", chart, err)
 	}
@@ -237,9 +370,9 @@ func helmLint(ctx context.Context, target, chart string, tool ToolSpec) []Findin
 // A message's path is usually relative to the chart ("templates/cm.yaml"),
 // but not always: the missing-dependency warning names the chart directory
 // absolutely — "/scan/charts/broken" in a container, measured on helm 4.3.0.
-// Both are brought back to a path relative to the repository.
-func parseHelmLint(out []byte, chart, target string) ([]Finding, bool) {
-	file := func(p string) string { return helmLintPath(p, chart, target) }
+// Both are brought back to a path relative to the target.
+func parseHelmLint(out []byte, chart string, scope renderScope) ([]Finding, bool) {
+	file := func(p string) string { return helmLintPath(p, chart, scope) }
 	var findings []Finding
 	recognised := false
 	sc := bufio.NewScanner(bytes.NewReader(out))
@@ -271,16 +404,18 @@ func parseHelmLint(out []byte, chart, target string) ([]Finding, bool) {
 }
 
 // helmLintPath resolves a path helm lint printed to one relative to the
-// repository.
-func helmLintPath(p, chart, target string) string {
+// target. In a container the target is the scope's working directory, which is
+// /scan itself unless the git repository around the target is mounted.
+func helmLintPath(p, chart string, scope renderScope) string {
 	p = strings.TrimSuffix(p, "/")
 	switch {
-	case p == containerScanPath:
-		return "."
-	case strings.HasPrefix(p, containerScanPath+"/"):
-		return strings.TrimPrefix(p, containerScanPath+"/")
+	case p == containerScanPath || strings.HasPrefix(p, containerScanPath+"/"):
+		if rel, err := filepath.Rel(filepath.FromSlash(scope.workdir()), filepath.FromSlash(p)); err == nil {
+			return filepath.ToSlash(rel)
+		}
+		return p
 	case filepath.IsAbs(p):
-		if rel, err := filepath.Rel(target, p); err == nil && !strings.HasPrefix(rel, "..") {
+		if rel, err := filepath.Rel(scope.target, p); err == nil && !strings.HasPrefix(rel, "..") {
 			return filepath.ToSlash(rel)
 		}
 		return filepath.ToSlash(p)

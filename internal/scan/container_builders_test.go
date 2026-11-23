@@ -229,15 +229,15 @@ func containerBuilders() []builderCase {
 				"-output json -strict -cache /cache -",
 			stdin: "rendered"},
 		{name: "helm template",
-			build: func() toolCmd { return helmArgs("/repo", "charts/app", tool, "template") },
+			build: func() toolCmd { return helmArgs(targetOnly("/repo"), "charts/app", tool, "template") },
 			args:  "run --rm -v /repo:/scan:ro -w /scan alpine/helm template charts/app"},
 		{name: "helm lint with user args",
 			build: func() toolCmd {
-				return helmArgs("/repo", "charts/app", ToolSpec{Source: ToolSourceContainer, Args: []string{"--set", "a=b"}}, "lint")
+				return helmArgs(targetOnly("/repo"), "charts/app", ToolSpec{Source: ToolSourceContainer, Args: []string{"--set", "a=b"}}, "lint")
 			},
 			args: "run --rm -v /repo:/scan:ro -w /scan alpine/helm lint --set a=b charts/app"},
 		{name: "kustomize build",
-			build: func() toolCmd { return kustomizeArgs("/repo", "overlays/prod", tool) },
+			build: func() toolCmd { return kustomizeArgs(targetOnly("/repo"), "overlays/prod", tool) },
 			args: "run --rm -v /repo:/scan:ro -w /scan registry.k8s.io/kustomize/kustomize:v5.8.1 " +
 				"build overlays/prod"},
 

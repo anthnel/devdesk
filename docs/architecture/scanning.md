@@ -280,6 +280,21 @@ no line, so it could feed neither the table's jump-to-line nor a fix.
   directory with its own kustomization or, when the deployment tool does the
   same, `scan.tools.kustomize.args: [--load-restrictor=LoadRestrictionsNone]`.
   The finding stays HIGH (DEVDESK-742).
+- **A renderer in a container sees the target's git repository**
+  (`renderScope`, DEVDESK-742): `git rev-parse --show-toplevel`, run in the
+  target through the runner, names the root mounted read-only at `/scan`, and
+  `-w /scan/<target relative to it>` keeps every argument and finding path
+  relative to the target, so an overlay's `../../base` or a chart's
+  `file://../lib` outside the target builds as with a binary. `widerScope`
+  keeps the target alone when git fails or is absent, when the root is `/`,
+  the home directory or above it (or the home is unknown), or when the root,
+  symlinks resolved, is not a strict ancestor of the target. When an overlay
+  still fails in a container and `k8s.EscapingReference` finds it pulls in an
+  existing directory outside the mount, it is not blamed: a LOW `K8S-RENDER`
+  "Overlay not validated: references a path outside the scanned directory
+  (`<ref>`)" replaces the HIGH one. A finding rather than `K8sUnrendered`:
+  that list reads "install helm / kustomize", wrong here. A broken overlay
+  keeps the HIGH finding and kustomize's whole message.
 - **The finding's line comes from the file, not the tool.** kubeconform
   reports a JSON pointer; `k8s.Locate` finds the document by kind and
   `metadata.name`, then walks the pointer through `yaml.v3` nodes. An unknown
