@@ -1,0 +1,57 @@
+{
+  "cli_version": "0.13.2",
+  "checkpoint_id": "ec008ca0a611",
+  "strategy": "manual-commit",
+  "branch": "fix/devdesk-742-kustomize-overlay-render",
+  "checkpoints_count": 1,
+  "files_touched": [
+    "internal/k8s/discover.go",
+    "internal/k8s/escape.go",
+    "internal/k8s/escape_bounds_test.go",
+    "internal/k8s/escape_test.go",
+    "internal/k8s/fifo_unix_test.go",
+    "internal/k8s/race_off_test.go",
+    "internal/k8s/race_on_test.go",
+    "internal/scan/kubeconform_render.go",
+    "internal/scan/kustomize_scope_test.go",
+    "internal/scan/overlay_failure_test.go"
+  ],
+  "sessions": [
+    {
+      "metadata": "/ec/008ca0a611/0/metadata.json",
+      "transcript": "/ec/008ca0a611/0/full.jsonl",
+      "compact_transcript": "/ec/008ca0a611/0/transcript.jsonl",
+      "content_hash": "/ec/008ca0a611/0/content_hash.txt",
+      "prompt": "/ec/008ca0a611/0/prompt.txt"
+    }
+  ],
+  "token_usage": {
+    "input_tokens": 38,
+    "cache_creation_tokens": 63400,
+    "cache_read_tokens": 4878546,
+    "output_tokens": 25024,
+    "api_call_count": 15,
+    "subagent_tokens": {
+      "input_tokens": 214,
+      "cache_creation_tokens": 992212,
+      "cache_read_tokens": 13167768,
+      "output_tokens": 110448,
+      "api_call_count": 105
+    },
+    "subagent_tokens_complete": true
+  },
+  "redaction": {
+    "replacements": 2,
+    "layers": {
+      "betterleaks": 0,
+      "connection_string": 0,
+      "credential_key": 0,
+      "credential_value": 0,
+      "credentialed_uri": 0,
+      "entropy": 0,
+      "key_context": 2,
+      "provider_token": 0,
+      "shell_stdin": 0
+    }
+  }
+}
