@@ -21,6 +21,9 @@ import (
 func dashboardAt(t *testing.T, width, height int) *App {
 	t.Helper()
 	a := routerAt(t, &fakeView{}, width, height)
+	// A fixed path: the default sits under the test's temporary HOME, which
+	// would make every rendering differ from the golden one.
+	a.config.App.WorkspacesDir = "~/workspaces"
 	var m tea.Model = dashboard.New(a.config, a.sharedState)
 	for _, msg := range []tea.Msg{
 		dashboard.StatusCheckMsg{Result: status.MonitorResult{Timestamp: time.Now()}},
