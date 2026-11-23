@@ -42,6 +42,12 @@ func TestMain(m *testing.M) {
 	// Nor the developer's own HTTPS_PROXY, which would add a footer warning to
 	// every remediation scan (DEVDESK-583).
 	containerForward = func() netproxy.Forward { return netproxy.Forward{} }
+	// Nor the machine's clipboard, through the detail's Y (DEVDESK-751). A test
+	// that copies installs its own recorder with stubClipboard; reaching this
+	// one means a key wrote to the real clipboard.
+	writeClipboard = func(text string) error {
+		panic("DEVDESK-751: a test wrote to the real clipboard: " + text)
+	}
 
 	home, err := os.MkdirTemp("", "devdesk-security-test")
 	if err != nil {

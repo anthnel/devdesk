@@ -37,7 +37,7 @@ import (
 // ── Reasons (Rule 130) ───────────────────────────────────────────────────────
 
 const (
-	reasonNotMisconfigTab = "Built-in fixes belong to the Misconfigurations tab"
+	reasonNotMisconfigTab = "Only misconfigurations have a built-in fix"
 	reasonFileNotOnDisk   = "This target is an image — its files are inside it, not on disk"
 )
 
@@ -97,11 +97,11 @@ func (m Model) canFixMisconfig() shortcut.Availability {
 	if m.activeTab != TabMisconfig {
 		return shortcut.Unavailable(reasonNotMisconfigTab)
 	}
-	f, ok := m.findingsTable.Selected()
+	f, ok := m.subjectFinding()
 	if !ok {
 		return shortcut.Unavailable(reasonNoFinding)
 	}
-	_, a := misconfigFixAvailability(f, m.result != nil && m.result.TargetType == scan.TargetDirectory)
+	_, a := misconfigFixAvailability(f, m.targetOnDisk())
 	return a
 }
 
@@ -153,7 +153,7 @@ func (m Model) prepareMisconfigFix() (tea.Model, tea.Cmd) {
 	if a := m.canFixMisconfig(); !a.Enabled() {
 		return m, m.footer.Warn(a.Reason)
 	}
-	f, _ := m.findingsTable.Selected()
+	f, _ := m.subjectFinding()
 	return m, prepareMisconfigFixCmd(m.targetPath, f)
 }
 
@@ -296,6 +296,24 @@ func (m Model) handleMisconfigFixWritten(msg MisconfigFixWrittenMsg) (tea.Model,
 	scan := m.startMisconfigVerification(v)
 	footer := m.footer.Info(fmt.Sprintf("Fixed %s — re-scanning to confirm %s is gone", msg.File, msg.Rule))
 	return m, tea.Batch(scan, footer)
+}
+
+// handleScanFinishedForFix is handleInventoryScanFinished, plus what a fix
+// waiting on that scan needs. A scan of the target a fix is waiting on answers
+// that fix, whoever started it: the verification does not need to be the run
+// that reports. A scan that failed or was stopped never reaches the verdict, so
+// the pending state ends here, or the detail would say "Re-scanning" for ever.
+func (m Model) handleScanFinishedForFix(msg InventoryScanFinishedMsg) (tea.Model, tea.Cmd) {
+	v := m.misconfigVerifying
+	if v == nil || v.Target != msg.Name {
+		return m.handleInventoryScanFinished(msg)
+	}
+	if msg.Err != nil {
+		m.misconfigVerifying = nil
+		return m.handleInventoryScanFinished(msg)
+	}
+	next, cmd := m.handleInventoryScanFinished(msg)
+	return next, tea.Batch(cmd, verifyMisconfigCmd(*v))
 }
 
 // reportFailedFix sets the footer on the model it is called on, which is why it

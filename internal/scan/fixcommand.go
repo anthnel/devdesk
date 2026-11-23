@@ -21,8 +21,12 @@ const (
 // ecosystem (Trivy's Result.Type), and false when no command is known — an
 // ecosystem outside the table, or nothing to move to. It never invents one:
 // "no command" is a real answer, and the caller shows the target version alone.
+//
+// pkg and version come from a scan, so from whoever published the package: a
+// command is built only from values that pass plainToken, and none otherwise.
+// The command is meant to be pasted into a shell.
 func FixCommand(ecosystem, pkg, version string) (string, bool) {
-	if pkg == "" || version == "" {
+	if !plainToken(pkg) || !plainToken(version) {
 		return "", false
 	}
 	switch ecosystem {
@@ -46,6 +50,27 @@ func FixCommand(ecosystem, pkg, version string) (string, bool) {
 		return "apt-get install --only-upgrade " + pkg, true
 	}
 	return "", false
+}
+
+// plainToken reports whether s is a package name or a version a command can be
+// built from: one or more of A-Z a-z 0-9 @ / . _ + ~ : = ^ , -, and not an
+// option (no leading "-"). That is every spelling the ecosystems above produce
+// (scoped names, Go module paths, Debian epochs and revisions, "+build"
+// metadata); a space, a quote or any shell metacharacter is not one of them.
+func plainToken(s string) bool {
+	if s == "" || s[0] == '-' {
+		return false
+	}
+	for i := 0; i < len(s); i++ {
+		c := s[i]
+		switch {
+		case c >= 'a' && c <= 'z', c >= 'A' && c <= 'Z', c >= '0' && c <= '9':
+		case strings.IndexByte("@/._+~:=^,-", c) >= 0:
+		default:
+			return false
+		}
+	}
+	return true
 }
 
 // versionNumbers matches the leading dotted number of a version, ignoring a

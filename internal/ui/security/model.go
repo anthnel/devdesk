@@ -224,6 +224,9 @@ func (m *Model) setResult(result *scan.Result) {
 	m.targetPath = result.Target
 	m.targetLabel = labelForResult(m.config, result)
 	m.updateFindingsTable()
+	// A detail open on the finding the edit dealt with must follow the new
+	// reading, or close with the reason the verdict puts in the footer.
+	m.refreshDetails()
 }
 
 // Init initializes the model

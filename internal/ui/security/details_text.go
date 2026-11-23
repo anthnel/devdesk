@@ -5,6 +5,7 @@ import (
 	"path/filepath"
 	"regexp"
 	"strings"
+	"unicode"
 
 	"charm.land/lipgloss/v2"
 	"github.com/charmbracelet/x/ansi"
@@ -15,9 +16,13 @@ import (
 // Caps on the Message section of a finding detail (DEVDESK-750): a scanner can
 // hand back a whole stderr, and the detail shows the start of it.
 const (
-	maxMessageWidth = 110
+	maxMessageWidth = maxColumnWidth
 	maxMessageLines = 8
 )
+
+// maxColumnWidth is the widest the detail's text column gets (DEVDESK-751): a
+// line longer than this is harder to read than to scroll.
+const maxColumnWidth = 110
 
 // scanMount is where a scanned directory is mounted inside a scanner container
 // (scan.containerScanPath, unexported there).
@@ -124,10 +129,30 @@ func scrollPosition(offset, visible, total int) string {
 	return fmt.Sprintf("Lines %d-%d of %d", offset+1, min(offset+visible, total), total)
 }
 
-// withoutControlSpace drops carriage returns and turns a tab into four spaces,
-// which is how the renderer lays it out.
+// withoutControlSpace makes a scanner's text safe for the terminal: an escape
+// sequence (CSI, OSC) is removed whole, a tab becomes four spaces, which is how
+// the renderer lays it out, and every other control character (C0, C1, a carriage
+// return) is dropped, as are the characters with no visible form that reorder or
+// hide text (bidi and zero-width marks, line and paragraph separators). A line
+// feed stays: the callers decide what a line is.
 func withoutControlSpace(text string) string {
-	return strings.ReplaceAll(strings.ReplaceAll(text, "\r", ""), "\t", "    ")
+	text = ansi.Strip(text)
+	var b strings.Builder
+	b.Grow(len(text))
+	for _, r := range text {
+		switch {
+		case r == '\t':
+			b.WriteString("    ")
+		case r == '\n':
+			b.WriteRune(r)
+		case unicode.IsControl(r), unicode.In(r, unicode.Zl, unicode.Zp):
+		case unicode.Is(unicode.Cf, r) && r != '\u200c' && r != '\u200d':
+			// The joiners stay: emoji sequences need them.
+		default:
+			b.WriteRune(r)
+		}
+	}
+	return b.String()
 }
 
 // normalizeText makes a scanner's text safe to lay out: a tab or a carriage
@@ -183,38 +208,95 @@ func (t detailsText) indented(prefix, text string, style lipgloss.Style) []strin
 	if text == "" {
 		return nil
 	}
-	room := max(t.width-ansi.StringWidth(prefix), 1)
 	var lines []string
-	for _, line := range strings.Split(ansi.Wrap(text, room, ""), "\n") {
-		line = strings.TrimRight(line, " ")
+	for _, line := range t.wrapped(text, t.width-ansi.StringWidth(prefix)) {
 		if line == "" {
 			lines = append(lines, "")
 			continue
 		}
-		lines = append(lines, theme.Bg(prefix)+style.Render(line))
+		lines = append(lines, margin(ansi.StringWidth(prefix))+style.Render(line))
 	}
 	return lines
+}
+
+// wrapped is text broken into lines of at most room cells, trailing spaces gone.
+func (t detailsText) wrapped(text string, room int) []string {
+	lines := strings.Split(ansi.Wrap(text, max(room, 1), ""), "\n")
+	for i, line := range lines {
+		lines[i] = strings.TrimRight(line, " ")
+	}
+	return lines
+}
+
+// margin is n cells of the theme background, "" for none.
+func margin(n int) string {
+	if n <= 0 {
+		return ""
+	}
+	return theme.Bg(strings.Repeat(" ", n))
+}
+
+// heading is a label on a line of its own.
+func (t detailsText) heading(label string) string {
+	return theme.DetailLabelStyle.Render(label)
 }
 
 // field is a label and its value, the value wrapped under itself. When the label
 // leaves too little room for the value, the value goes on the lines below.
 func (t detailsText) field(label, value string, style lipgloss.Style) []string {
+	return t.fieldAt(0, label, value, style)
+}
+
+// fieldAt is field after indent cells of margin.
+func (t detailsText) fieldAt(indent int, label, value string, style lipgloss.Style) []string {
 	value = normalizeText(value, false)
 	if value == "" {
 		return nil
 	}
-	labelWidth := ansi.StringWidth(label)
+	labelWidth := indent + ansi.StringWidth(label)
 	if t.width-labelWidth < minFieldValueWidth {
-		return append([]string{theme.SubTitleStyle.Render(strings.TrimRight(label, " "))}, t.block(value, style)...)
+		head := margin(indent) + t.heading(strings.TrimRight(label, " "))
+		return append([]string{head}, t.indented(strings.Repeat(" ", indent), value, style)...)
 	}
-	lines := strings.Split(ansi.Wrap(value, t.width-labelWidth, ""), "\n")
+	lines := t.wrapped(value, t.width-labelWidth)
 	out := make([]string, 0, len(lines))
 	for i, line := range lines {
-		line = style.Render(strings.TrimRight(line, " "))
+		line = style.Render(line)
 		if i == 0 {
-			out = append(out, theme.SubTitleStyle.Render(label)+line)
+			out = append(out, margin(indent)+t.heading(label)+line)
 		} else {
-			out = append(out, theme.Bg(strings.Repeat(" ", labelWidth))+line)
+			out = append(out, margin(labelWidth)+line)
+		}
+	}
+	return out
+}
+
+// list is a label, then numbered steps that hang under their own text, then a
+// paragraph, all after the label's width. A step or paragraph with nothing to
+// say is skipped; the label shares the first line.
+func (t detailsText) list(label string, steps []string, paragraph string, style lipgloss.Style) []string {
+	room := t.width - ansi.StringWidth(label)
+	var body []string
+	for i, step := range steps {
+		number := fmt.Sprintf("%d. ", i+1)
+		for j, line := range t.wrapped(normalizeText(step, true), room-len(number)) {
+			if j > 0 {
+				line = strings.Repeat(" ", len(number)) + line
+			} else {
+				line = number + line
+			}
+			body = append(body, line)
+		}
+	}
+	if text := dropBlankLines(paragraph); text != "" {
+		body = append(body, t.wrapped(text, room)...)
+	}
+	out := make([]string, 0, len(body))
+	for i, line := range body {
+		if i == 0 {
+			out = append(out, t.heading(label)+style.Render(line))
+		} else {
+			out = append(out, margin(ansi.StringWidth(label))+style.Render(line))
 		}
 	}
 	return out

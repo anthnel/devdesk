@@ -282,6 +282,10 @@ func TestTheDetailsNameThePodSecurityProfile(t *testing.T) {
 	if !strings.Contains(got, "Pod Security") || !strings.Contains(got, "baseline") {
 		t.Errorf("details of KSV-0017 lack the profile:\n%s", got)
 	}
+	// DEVDESK-751: the profile is a reason, so it sits under Why, after the Fix block.
+	if why, pod := strings.Index(got, "Why:"), strings.Index(got, "Pod Security"); why < 0 || pod < why {
+		t.Errorf("the Pod Security label (at %d) must be under Why (at %d):\n%s", pod, why, got)
+	}
 	if got := content(byKey["KSV-9999@deploy.yaml"]); !strings.Contains(got, "restricted") || !strings.Contains(got, "from Trivy, no fix") {
 		t.Errorf("details of KSV-9999 lack the profile or its origin:\n%s", got)
 	}

@@ -58,6 +58,14 @@ var (
 			Background(ColorBackground).
 			Foreground(ColorSubTitleFg).
 			Bold(true)
+
+	// DetailLabelStyle is the label of a finding detail (DEVDESK-751): bold in
+	// ColorText, the one foreground that reaches 4.5:1 on every shipped theme,
+	// which ColorSubTitleFg does not.
+	DetailLabelStyle = lipgloss.NewStyle().
+				Background(ColorBackground).
+				Foreground(ColorText).
+				Bold(true)
 )
 
 // Status styles
@@ -706,6 +714,11 @@ func RefreshStyles() {
 	SubTitleStyle = lipgloss.NewStyle().
 		Background(ColorBackground).
 		Foreground(ColorSubTitleFg).
+		Bold(true)
+
+	DetailLabelStyle = lipgloss.NewStyle().
+		Background(ColorBackground).
+		Foreground(ColorText).
 		Bold(true)
 
 	StatusOKStyle = lipgloss.NewStyle().

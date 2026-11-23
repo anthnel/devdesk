@@ -1,7 +1,6 @@
 package security
 
 import (
-	"fmt"
 	"log"
 	"strings"
 
@@ -24,6 +23,14 @@ func (m Model) handleDetailsState(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 		return m, nil
 	case keymap.Web:
 		return m.handleDetailsOpenReference()
+	case "enter":
+		return m.openFindingFile()
+	case writeRemediationKey:
+		return m.prepareMisconfigFix()
+	case keymap.Copy:
+		return m.copyFixCommand()
+	case keymap.Exclude:
+		return m.handleIgnoreSecret()
 	case "up":
 		m.detailsViewport.ScrollUp(1)
 	case "down":
@@ -67,8 +74,9 @@ func (m *Model) sizeDetails() {
 	m.detailsViewport.SetHeight(m.height)
 }
 
-// detailsTextWidth is how many cells a line of the detail text may span.
-func (m Model) detailsTextWidth() int { return max(m.width-4, 1) }
+// detailsTextWidth is how many cells a line of the detail text may span: one
+// column, never wider than maxColumnWidth.
+func (m Model) detailsTextWidth() int { return min(max(m.width-4, 1), maxColumnWidth) }
 
 // scanTarget is the scanned path, for display only: it is what shortPaths cuts
 // off a path, and an image reference there is ignored.
@@ -87,9 +95,9 @@ func (m Model) targetOnDisk() bool {
 
 // buildDetailsContent builds the full scrollable content for the details view.
 //
-// What to do comes before what it is: the fix status and the remediation, then
-// the scanner's message, then the facts. Each section is emitted only when it has
-// something to say, and sections are joined by exactly one blank line.
+// What to do comes before why: the Fix block (status, Where, Do, Run, Effect),
+// then Why, the scanner's Output and the Refs. Each section is emitted only when
+// it has something to say, and sections are joined by exactly one blank line.
 func (m Model) buildDetailsContent() string {
 	if m.selectedFinding == nil {
 		return theme.Bg("No finding selected")
@@ -102,10 +110,8 @@ func (m Model) buildDetailsContent() string {
 	for _, section := range [][]string{
 		m.detailsHeader(f, t),
 		m.detailsFix(f, t),
-		m.detailsMessage(f, t),
-		m.detailsDescription(f, t),
-		m.detailsFacts(f, t),
-		m.detailsScript(f, t),
+		m.detailsWhy(f, t),
+		m.detailsOutput(f, t),
 		m.detailsReferences(f, t),
 	} {
 		if len(section) > 0 {
@@ -129,35 +135,71 @@ func (m Model) detailsHeader(f scan.Finding, t detailsText) []string {
 	return []string{header, t.text.Render(title)}
 }
 
-// detailsFix is the fix status in words, then the remediation: the Resolution
-// and either the command to run or, for a sentence such as "Update pkg to 1.2",
-// the instruction as text.
+// detailsFix is the Fix block: the status in words, then, with no blank line
+// between them, where the finding is, what to do, the command to run and what the
+// fix does. It is written in ColorText alone (DEVDESK-751, AC7): ColorDim, the
+// sub-title and the warning colours fall under 4.5:1 on several shipped themes,
+// so the word "Warning:" carries the warning.
 func (m Model) detailsFix(f scan.Finding, t detailsText) []string {
-	var lines []string
 	status := fixStatusOf(f, m.targetOnDisk())
-	if status.Label != "" {
-		lines = append(lines, t.field("Fix status: ", status.Label, t.text)...)
-		lines = append(lines, t.block(status.Detail, t.dim)...)
-		if status.Warning != "" {
-			lines = append(lines, t.field("Warning: ", status.Warning, theme.StatusWarningStyle)...)
-		}
-	}
-	label, action := fixAction(f)
-	if f.Resolution == "" && action == "" {
-		return lines
-	}
-	lines = append(lines, theme.SubTitleStyle.Render("Remediation:"))
-	lines = append(lines, t.block(f.Resolution, t.text)...)
-	if label != "" {
-		return append(lines, t.field(label+": ", action, t.text)...)
-	}
-	return append(lines, t.block(action, t.text)...)
+	lines := t.field("Fix: ", status.Label(), t.text)
+	lines = append(lines, m.detailsWhere(f, t)...)
+	lines = append(lines, t.list("Do: ", fixSteps(f), f.Resolution, t.text)...)
+	lines = append(lines, detailsRun(f, t)...)
+	lines = append(lines, t.field("Effect: ", status.Effect, t.text)...)
+	return append(lines, t.field("Warning: ", status.Warning, t.text)...)
 }
 
-// detailsMessage is what the scanner said about this instance, capped: the start
+// detailsWhere is the file, then the other facts that place the finding, each on
+// its own line under the first.
+func (m Model) detailsWhere(f scan.Finding, t detailsText) []string {
+	const label = "Where: "
+	facts := whereFacts(f, m.scanTarget())
+	if len(facts) == 0 {
+		return nil
+	}
+	first := facts[0].Value
+	if facts[0].Label != "File" {
+		first = facts[0].Label + ": " + first
+	}
+	lines := t.field(label, first, t.text)
+	for _, fc := range facts[1:] {
+		lines = append(lines, t.fieldAt(ansi.StringWidth(label), fc.Label+": ", fc.Value, t.text)...)
+	}
+	return lines
+}
+
+// detailsRun is the command on one line, cut when it is wider than the column:
+// the copy key puts the whole of it on the clipboard.
+func detailsRun(f scan.Finding, t detailsText) []string {
+	const label = "Run: "
+	cmd, ok := runCommand(f)
+	if !ok {
+		return nil
+	}
+	return []string{t.heading(label) + t.text.Render(oneLine("$ "+cmd, t.width-ansi.StringWidth(label)))}
+}
+
+// detailsWhy is the reason the finding matters: the scanner's description, the
+// Pod Security profile, where the finding comes from and its type.
+func (m Model) detailsWhy(f scan.Finding, t detailsText) []string {
+	var lines []string
+	if strings.TrimSpace(f.Description) != "" {
+		lines = t.block(f.Description, t.text)
+	}
+	lines = append(lines, t.field("Pod Security: ", pssLabel(f), t.text)...)
+	lines = append(lines, t.field("Source: ", f.Source, t.text)...)
+	lines = append(lines, t.field("Type: ", f.IaCType, t.text)...)
+	if len(lines) == 0 {
+		return nil
+	}
+	return append([]string{t.heading("Why:")}, lines...)
+}
+
+// detailsOutput is what the scanner said about this instance, capped: the start
 // of it is what tells two findings of one rule apart, and the rest is in the log.
 // A message that only repeats the title or the description adds nothing.
-func (m Model) detailsMessage(f scan.Finding, t detailsText) []string {
+func (m Model) detailsOutput(f scan.Finding, t detailsText) []string {
 	msg := strings.TrimSpace(f.Message)
 	if msg == "" || msg == strings.TrimSpace(f.Title) || msg == strings.TrimSpace(f.Description) {
 		return nil
@@ -166,7 +208,7 @@ func (m Model) detailsMessage(f scan.Finding, t detailsText) []string {
 	if len(lines) == 0 {
 		return nil
 	}
-	out := []string{theme.SubTitleStyle.Render("Message:")}
+	out := []string{t.heading("Output:")}
 	for _, line := range lines {
 		out = append(out, t.text.Render(line))
 	}
@@ -176,54 +218,12 @@ func (m Model) detailsMessage(f scan.Finding, t detailsText) []string {
 	return out
 }
 
-func (m Model) detailsDescription(f scan.Finding, t detailsText) []string {
-	if strings.TrimSpace(f.Description) == "" {
-		return nil
-	}
-	return append([]string{theme.SubTitleStyle.Render("Description:")}, t.block(f.Description, t.text)...)
-}
-
-// detailsFacts are the labelled values, each wrapped under its label.
-func (m Model) detailsFacts(f scan.Finding, t detailsText) []string {
-	var lines []string
-	add := func(label, value string, style lipgloss.Style) {
-		if value != "" {
-			lines = append(lines, t.field(label+": ", value, style)...)
-		}
-	}
-	add("Source", f.Source, t.text)
-	add("Type", f.IaCType, t.text)
-	add("Pod Security", pssLabel(f), t.text)
-	add("File", shortPaths(f.File, m.scanTarget()), t.text)
-	if f.Line > 0 {
-		add("Line", fmt.Sprintf("%d", f.Line), t.text)
-	}
-	if f.PkgName != "" {
-		add("Package", f.PkgName, t.text)
-		add("Kind", packageKind(f.Class), t.text)
-		add("Version", f.Version, t.text)
-		add("Fixed In", f.FixedIn, theme.StatusOKStyle)
-	}
-	add("Match", f.Match, t.text)
-	return lines
-}
-
-// detailsScript is the offending line of a CI finding, wrapped: it is a shell
-// command and can be long. It is the only thing plumber says about *where inside
-// a job* a control fired — the File names the `include:` entry that brought the
-// job in, which is the include responsible rather than the fault.
-func (m Model) detailsScript(f scan.Finding, t detailsText) []string {
-	if strings.TrimSpace(f.ScriptLine) == "" {
-		return nil
-	}
-	return append([]string{theme.SubTitleStyle.Render("Script:")}, t.block(f.ScriptLine, t.text)...)
-}
-
+// detailsReferences are the reference URLs, one per line.
 func (m Model) detailsReferences(f scan.Finding, t detailsText) []string {
 	if len(f.References) == 0 {
 		return nil
 	}
-	lines := []string{theme.SubTitleStyle.Render("References:")}
+	lines := []string{t.heading("Refs:")}
 	for _, ref := range f.References {
 		lines = append(lines, t.indented("  ", ref, t.text)...)
 	}

@@ -591,7 +591,14 @@ and gone at the next scan. Nothing migrates the cache.
 
 `scan.FixCommand(ecosystem, pkg, version)` is a table, and answers `false`
 rather than inventing a command for an ecosystem outside it; the parser then
-keeps the older plain sentence (`Update pkg to X`). Trivy lists one fixed
+keeps the older plain sentence (`Update pkg to X`). It also answers `false` when
+`pkg` or `version` is not a plain token (`plainToken`: only `A-Za-z0-9@/._+~:=^,-`, not
+empty, no leading `-`), because both come from the scan, so from whoever published the
+package, and the command is pasted into a shell (DEVDESK-751). Every spelling the table
+produces (scoped npm names, Go module paths, Debian epochs and revisions, `+build`
+metadata) passes unchanged, so a cached command keeps its bytes
+(`TestFixCommandKeepsThePlainNamesAndVersionsByteForByte`); a refused value gets the
+sentence, which is text and never a `Run` line. Trivy lists one fixed
 version per maintained branch (`"5.7.2, 6.3.1, 7.5.2"`), so the command uses
 `scan.PickFixed`: the lowest one on the installed major line, the smallest
 change that clears the CVE. Versions that cannot be ordered — a Debian epoch,
@@ -642,7 +649,7 @@ thing to a calling agent through `scan_result` and stay the thing that measures
 the result — see `mcp.md`. A finite catalog of fixes for the recurring Dockerfile
 rules is phase B of §3.78 and does not exist yet.
 
-### The finding detail (DEVDESK-750)
+### The finding detail (DEVDESK-750, DEVDESK-751)
 
 `Enter` on a finding opens a scrollable detail (`internal/ui/security/details.go`).
 It used to overflow the viewport (the text width had a floor of 40 cells, `Match`,
@@ -664,14 +671,42 @@ on each side:
 | 120x40 | 28 | 27 | 116 |
 | 175x50 | 38 | 37 | 171 |
 
-**Order.** The header (severity, ID), the title on one line, then the fix status
-and the remediation, the `Message`, the `Description`, the facts (Source, Type,
-Pod Security, File, Line, Package, Kind, Version, Fixed In, Match), the `Script`
-of a CI finding and the `References`. A section is emitted only when it has
-content, and sections are joined by exactly one blank line (never two). Every
-value is wrapped at the text width, hanging under its label (`detailsText`,
-`details_text.go`); a tab and a run of blank lines are normalised first. At 80x24
-the status is on the fifth text line.
+**Order (DEVDESK-751).** What to do comes before why. The header (severity, ID), the
+title on one line, a blank line, then the Fix block, `Why`, `Output` and `Refs`. A
+section is emitted only when it has content, and sections are joined by exactly one
+blank line (never two); the sub-fields of the Fix block follow its first line with no
+blank line. The text width is `detailsTextWidth()` = `min(max(W-4, 1), maxColumnWidth)`,
+`maxColumnWidth` being 110: 76, 110 and 110 cells at 80, 120 and 175 columns. Every value
+is wrapped at that width, hanging under its label (`detailsText`, `details_text.go`); a
+tab and a run of blank lines are normalised first. At 80x24 `Fix:` is on the fourth text
+line and `Where:` on the fifth, both inside the 11 visible lines.
+
+```
+HIGH KSV-0001
+Container 'api' of Deployment 'web' should…
+                                                <- blank
+Fix: Built-in fix unavailable: <reason>         <- the status, in the closed vocabulary below
+Where: k8s/deploy.yaml:12                       <- File[:Line], then Package, Job, Script, Match
+Do: 1. <MissingFor | "Update x to 1.2">         <- numbered steps, then the Resolution, word for word
+    <Resolution, wrapped, hanging>
+Run: $ go get golang.org/x/net@v0.23.0          <- one line, cut with an ellipsis; omitted with no command
+Effect: <rule.Title | Fixed in X>
+Warning: <rule.Warning>
+                                                <- blank
+Why:                                            <- Description, Pod Security, Source, Type
+Output:                                         <- Message, 8 lines at most, then "… N more lines"
+Refs:
+```
+
+The builders are `detailsFix` (status, `detailsWhere`, `Do` from `fixSteps` and the
+Resolution, `detailsRun`, Effect, Warning), `detailsWhy`, `detailsOutput` and
+`detailsReferences`, each under 50 lines. The Fix block is written in `ColorText` alone
+and its labels in `theme.DetailLabelStyle` (bold, `ColorText`): `ColorDim`, `ColorSubTitleFg`,
+`ColorTitleFg` and `ColorWarn` fall under 4.5:1 on several shipped themes, so the word
+`Warning:` carries the warning, not a colour. The measure is frozen in
+`docs/measurements/2026-11-23-sec-detail-contrast.md`; retuning the palette is a separate story.
+`DetailLabelStyle` is declared twice in `theme/styles.go` (the var and the rebuild in
+`ApplyTheme`), like every style, or it keeps the default theme's colours.
 
 **Display only.** `shortPaths(text, target)` removes `<target>/` and the container
 mount `/scan/` from the title, the Message and the File, folds a path under HOME to
@@ -683,27 +718,123 @@ lines` (wrapped lines, not source lines). A Message equal to the title or to the
 description is not repeated. Widths are measured with `x/ansi`, as the viewport
 does, never with the `runewidth`-based `theme` helpers.
 
-**The fix status.** `fixStatusOf(f, onDisk)` (`details_fix.go`) says it in words,
-never in a colour or a key name (Rules 130, 134):
+**The fix status.** `fixStatusOf(f, onDisk)` (`details_fix.go`) says it in words, in a closed
+vocabulary, never in a colour or a key name (Rules 130, 134). Every label is one of the five
+constants, or `Built-in fix unavailable: ` followed by a non-empty reason
+(`TestEveryFixLabelIsInTheClosedVocabulary`):
 
-| Finding | Label |
-|---|---|
-| vulnerability with `FixedIn` | `Fix available` (`Fixed in <version>`) |
-| vulnerability without | `No fix available` |
-| misconfiguration, catalog rule, directory, no refusal | `Built-in fix available` (the rule's title, and its warning) |
-| misconfiguration, the rule declines this instance | `No built-in fix for this instance` (the reason) |
-| misconfiguration on an image | `No built-in fix here` |
-| misconfiguration with no catalog rule | `No built-in fix` (the missing text, or the generic reason) |
-| secret, license, CI | no status line |
+| Finding | Label | Detail |
+|---|---|---|
+| misconfiguration, the target is an image (catalog rule or not) | `Cannot fix here` | `reasonFileNotOnDisk`, in the footer on `ctrl+o` |
+| misconfiguration, catalog rule, the rule declines this instance | `Built-in fix unavailable: <reason>` | the `Declines` reason |
+| misconfiguration, catalog rule, directory, no refusal | `Built-in fix available` | Effect = `rule.Title`, Warning = `rule.Warning` |
+| misconfiguration, no catalog rule, some guidance (`MissingFor`, Resolution or FixCommand) | `Manual` | Do = the missing text, then the Resolution |
+| misconfiguration, no catalog rule, no guidance | `No guidance available` | |
+| vulnerability with `FixedIn` | `Manual` | Effect = `Fixed in <version>` |
+| vulnerability without | `No fix published` | |
+| secret, license, CI | `Manual` with guidance, else `No guidance available` | |
 
-A misconfiguration's status reads `misconfigFixAvailability`, extracted from
-`canFixMisconfig`, so the shortcut in the header and the detail are one
-computation (`TestFixStatusAndTheShortcutAgree`).
+A misconfiguration's status reads `misconfigFixAvailability` (extracted from `canFixMisconfig`),
+so the status line, the `ctrl+o` shortcut and the footer refusal are one computation. The
+invariants are tested: `Built-in fix available` holds exactly when `ctrl+o` is enabled in the
+detail, and for `Built-in fix unavailable: R` and `Cannot fix here` the footer after `ctrl+o` is
+exactly `R` and `reasonFileNotOnDisk` (`TestFixStatusAndTheShortcutAgree`,
+`TestTheFooterAfterCtrlOSaysTheReasonOfTheFixLine`). A vulnerability with a `FixedIn` is
+`Manual` because the vocabulary has no "fix available"; DEVDESK-750's `Fix available`,
+`No fix available`, `No built-in fix`, `No built-in fix here` and `No built-in fix for this instance`
+are gone.
 
 **Command or sentence.** `scan.IsFixInstruction(f)` says whether `FixCommand` is the
 `Update <pkg> to <version>` sentence written for an ecosystem with no known command
 (`fixInstruction`, same bytes as before: the cache is unchanged). `fixAction` shows a
-command as `Run: <cmd>` and a sentence as plain text under Remediation.
+command as `Run: <cmd>` and a sentence as a step under `Do`. `runCommand(f)` is the one
+computation behind the `Run` line and `Y`: the trimmed `FixCommand` when `fixAction` says `Run`
+and it is plain words (`plainWords`), `("", false)` otherwise. It refuses a line break, any control
+character (`unicode.IsControl`: an escape sequence, a tab, a carriage return, a NUL), any character
+with no visible form or a blank other than a single space (`!unicode.IsPrint`: no-break space,
+zero-width and right-to-left marks, line separator) and any shell metacharacter
+(`shellMeta`: `; | & $ ` < > ( ) \ ' " { } * ? ! #`). The list is a second defense for a command that
+did not come through `scan.FixCommand`, such as one read from a cache written by another build;
+`TestRunCommandRefusesWhatAShellOrATerminalReadsAsMoreThanWords` holds its cases. A refused command
+is not lost: `fixSteps` puts its text under `Do` like a sentence (control characters removed, see
+below), `Y` is greyed with `reasonNoCommand`, and there is no `Run` line. The screen cuts the `Run`
+line to the width of the column while `Y` copies all of it, which is why a tail could hide there
+before this check.
+
+**Scanner text on screen.** `normalizeText` and `oneLine` (`details_text.go`) go through
+`withoutControlSpace`: an escape sequence (CSI, OSC) is removed whole with `ansi.Strip`, a tab
+becomes four spaces, and every other control character (C0, C1, `\r`), line and paragraph separator
+and format character (bidi and zero-width marks; the two joiners stay for emoji) is dropped. The line
+feed stays for `normalizeText`. Nothing a scanner wrote can set the window title or reorder the text
+(`TestNoScannerFieldReachesTheScreenWithAnEscapeSequence`).
+
+**Actions from the detail (DEVDESK-751).** Six keys, the same for every finding, in this order:
+`esc Back`, `W Open ref`, `enter Open file`, `ctrl+o Apply fix`, `Y Copy cmd`, `X Exclude`
+(`detailsShortcuts`, `header.go`). The descriptions are at most ten cells: at 80 columns the
+shortcut column is `78 - 19 (info) - 40 (logo) = 19` cells wide, `<ctrl+o>` takes nine of them, and
+seven rows leave room for six entries beside `ctrl+p Commands` (`TestTheDetailHeaderHoldsItsSixKeysAtEveryWidth`
+in `internal/app`). There is no `O`: `enter` opens the viewer, which has it. Each key is greyed,
+never removed (Rule 130), by one `shortcut.Availability` that the header and the handler both read,
+and a refused key puts its reason in the footer at level Warn and opens nothing. None of the
+availabilities reads the disk, so a header redraw does no I/O.
+
+| Key | Availability | Reasons | Does |
+|---|---|---|---|
+| `enter` | `canOpenFindingFile` (`findingFilePath`) | `reasonNoFile`, `reasonFileOutsideTarget`, `reasonFileNotOnDisk` | in the Cmd, `staysInside` follows the links, then `uiviewer.OpenRequestMsg{Source: viewer.NewFileSource(path)}`; the viewer reports a missing file. A link that leaves the target gives `FindingFileRefusedMsg` and a Warn with `reasonFileLinkOutsideTarget` |
+| `ctrl+o` | `canFixMisconfig` | `reasonNotMisconfigTab`, `reasonFileNotOnDisk`, the `Declines` reason, `noFixReason` | `prepareMisconfigFix`: the Misconfigurations tab's preview, confirmation (default No), write and re-scan |
+| `Y` | `canCopyFixCommand` (`runCommand`) | `reasonNoCommand` | `writeClipboard(command)` in the Cmd, then `FixCommandCopiedMsg` |
+| `X` | `canExclude` | `reasonNotASecret`, `reasonNotGitleaks` | `handleIgnoreSecret`: the confirmation of the results state, byte for byte |
+
+`subjectFinding()` is what these actions act on: the finding on screen in the details state
+(`selectedFinding`), the selected row in the results state. The detail never goes back through
+`findingsTable.Selected()`, because a re-scan puts the table back at the top
+(`setResult` runs `updateFindingsTable`, which runs `GotoTop`). In the detail the active tab is
+the one the finding was opened from, so the tab checks of `canFixMisconfig` and `canExclude` stay
+true to it. `ctrl+o` is a declared exception on the surface `security/details` (`app-shell.md`).
+`reasonNotMisconfigTab` reads `Only misconfigurations have a built-in fix`, a wording that holds in
+the detail as well as on a tab.
+
+**Links.** `findingFilePath` is lexical (no I/O, so the header can call it on every frame): a
+parent segment or an absolute path elsewhere is refused there. A link inside the target that points
+outside it is only found by looking at the disk, so the Cmd of `enter` does it: `staysInside` applies
+`filepath.EvalSymlinks` to the path and to the target and tests the relation again. A part of the
+path that does not exist is resolved from its longest existing prefix, so a missing file still goes
+to the viewer to report; a path that cannot be resolved for another reason (a permission) is not
+refused, since the viewer cannot read it either. The viewer receives the finding's own path, not the
+resolved one, so there is a window between the check and the open in which the link could be
+swapped; closing it would need the viewer to open through a handle, which it does not.
+`TestEnterRefusesAFileReachedThroughALinkThatLeavesTheTarget` holds the cases.
+
+**`Y` copies and DevDesk never runs.** `Y` writes exactly `runCommand(f)` (no `$`, no newline, never
+cut) through the `writeClipboard` seam in the Cmd, which takes a copy of the command (Rule 110). The
+result is `FixCommandCopiedMsg{Command, Err}`: Info `Command copied to the clipboard`, or Error
+`Failed to copy the command — check logs` with the cause only in the log (Rule 128). The seam is a
+package variable that `TestMain` replaces with a function that panics; a test that copies installs its
+recorder with `stubClipboard`, so no `t.Parallel` in the package. `TestTheCopiedCommandIsNeverRun`
+(`never_run_guard_test.go`) parses the package's non-test files and fails on an `exec.Command*` whose
+arguments mention `FixCommand` or `runCommand`, and on `os/exec` imported by the detail's files; its
+limits are those of a static scan (an aliased import, a call through another package).
+
+**After `ctrl+o`: re-scan and refresh.** Once the write succeeds the verification re-scan starts as a
+job (`:jobs`, stoppable). While `misconfigVerifying.Target` is the target on screen, `status()` in the
+details state returns `verifyingStatus()` (`Re-scanning to confirm the fix...`, `Activity: true`)
+ahead of the scroll position, and `WantsBlink` follows it; the fix preparation (a file read and
+`git status`) is not announced. The status ends with the verification: the verdict clears
+`misconfigVerifying`, and so does an `InventoryScanFinishedMsg` with an error for that target
+(`handleScanFinishedForFix`), which is how a re-scan that failed or was stopped with `K` reaches the
+view, since it never reaches `verifyMisconfigCmd`. The failure itself is the footer error the inventory
+already sets. A re-scan stopped while still queued, before it has a worker, sends no message and
+leaves the status up; stopping the run in `:jobs` has the same effect. This is a known gap. `setResult` ends with `refreshDetails()`: the same finding
+(`sameFinding`: Source, rule key, File, package, version, `instanceOf`; not the line, which the fix
+moves) is shown again as the re-scan read it, or, when it is gone, the details close to the results.
+`sameFinding` has two limits. Two findings of the same rule, file, package, version, `Title` and
+`Message` cannot be told apart, so the detail follows the first one the re-scan lists. And the
+`Message` is part of the identity (`instanceOf`): a fix that changes the scanner's wording of the same
+finding makes it look gone, and the detail closes with the footer's verdict rather than showing the
+reworded finding.
+The reason is the footer message `handleMisconfigVerified` already sets: `... cleared in ...` (Info)
+when the verdict is `Cleared`, `... still reported in ...` (Warn) otherwise. A verdict for another
+target changes nothing. Everything happens in `Update` (Rule 110).
 
 **The scroll position.** In the details state `status()` returns `Lines a-b of N`
 (`scrollPosition`) when the content is taller than the viewport, read from the viewport on
