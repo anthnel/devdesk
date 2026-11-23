@@ -1,0 +1,15 @@
+{
+  "tool_use_id": "toolu_01TcMcNKfWMfxq3CyFLKdwGT",
+  "agent_id": "a778a5e1fabafba26",
+  "subagent_type": "dev-team:architect",
+  "task_description": "Plan DEVDESK-754",
+  "token_usage": {
+    "input_tokens": 70,
+    "cache_creation_tokens": 204888,
+    "cache_read_tokens": 5124860,
+    "output_tokens": 33036,
+    "api_call_count": 34
+  },
+  "started_at": "2026-11-23T21:32:40.630935358+01:00",
+  "completed_at": "2026-11-23T21:38:22.504702374+01:00"
+}

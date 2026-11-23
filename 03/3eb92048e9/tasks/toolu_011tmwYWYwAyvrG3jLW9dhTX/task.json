@@ -1,0 +1,15 @@
+{
+  "tool_use_id": "toolu_011tmwYWYwAyvrG3jLW9dhTX",
+  "agent_id": "a9efb36ba67d1a096",
+  "subagent_type": "project-coder",
+  "task_description": "Rebase 753 sur main",
+  "token_usage": {
+    "input_tokens": 48,
+    "cache_creation_tokens": 52497,
+    "cache_read_tokens": 1018990,
+    "output_tokens": 11648,
+    "api_call_count": 24
+  },
+  "started_at": "2026-11-23T21:27:11.617364894+01:00",
+  "completed_at": "2026-11-23T21:32:13.120802101+01:00"
+}
