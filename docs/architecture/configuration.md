@@ -247,7 +247,10 @@ or a restart.
   view, which warns in the footer `Logged out, but the token may remain in <store>`. A
   refused `Delete` is not retried later (out of scope).
 - A panic in the call (the DEVDESK-610 guard below) is carried back to the caller's
-  goroutine, so it still fails the test that reached the store.
+  goroutine, so it still fails the test that reached the store. Limit (tests only): a panic raised in a goroutine whose
+  call was already abandoned at the deadline has no caller left to receive it and is
+  lost. The guard panics at once, before any wait, so this needs a fake store that
+  blocks and then panics.
 
 The 3 s bound is a fixed value, not a setting; the tests of `internal/credentials`
 shorten it (`shortKeyringTimeout`), except `TestSelectDoesNotWaitForAHostStoreThatNeverAnswers`,
