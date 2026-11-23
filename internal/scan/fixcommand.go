@@ -101,11 +101,31 @@ func parseVersion(v string) (nums []int, rest string, ok bool) {
 	return nums, rest, true
 }
 
+// suffixLetter returns the lowercase letter that directly follows the digits of
+// a version when it is a release letter (OpenSSL style: 1.1.1w), 0 otherwise.
+// The letter has to be alone: it is followed by nothing or by "-", "+" or "~",
+// so a word ("rc1") or a letter and a number ("a1") is not one.
+func suffixLetter(rest string) byte {
+	if rest == "" {
+		return 0
+	}
+	c := rest[0]
+	if (c < 'a' || c > 'z') && (c < 'A' || c > 'Z') {
+		return 0
+	}
+	if len(rest) > 1 && strings.IndexByte("-+~", rest[1]) < 0 {
+		return 0
+	}
+	return c | 0x20
+}
+
 // CompareVersions orders two versions numerically, returning -1, 0 or 1 and
 // true, or false when either has no leading number — a distro epoch such as
 // "1:1.1.1n", a commit hash, a name. A missing component reads as zero
 // (1.2 == 1.2.0), and a version with a "-" suffix sorts below the bare one
-// (1.2.3-rc1 < 1.2.3). The result is a lenient ordering, not semver.
+// (1.2.3-rc1 < 1.2.3). A single release letter right after the digits is an
+// order too, as OpenSSL writes it: 1.1.1 < 1.1.1l < 1.1.1w. The result is a
+// lenient ordering, not semver.
 func CompareVersions(a, b string) (int, bool) {
 	an, ar, aok := parseVersion(a)
 	bn, br, bok := parseVersion(b)
@@ -126,6 +146,12 @@ func CompareVersions(a, b string) (int, bool) {
 			}
 			return 1, true
 		}
+	}
+	if al, bl := suffixLetter(ar), suffixLetter(br); al != bl {
+		if al < bl {
+			return -1, true
+		}
+		return 1, true
 	}
 	aPre, bPre := strings.HasPrefix(ar, "-"), strings.HasPrefix(br, "-")
 	switch {

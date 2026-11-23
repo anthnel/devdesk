@@ -92,19 +92,51 @@ type FixKey struct {
 }
 
 // Key is the identity of f.
-//
-// SKELETON (DEVDESK-754, red phase): returns the zero key.
-func (f Fix) Key() FixKey { return FixKey{} }
+func (f Fix) Key() FixKey {
+	return FixKey{Ecosystem: f.Ecosystem, Package: f.Package, Installed: f.Installed, Unfixed: f.Unfixed}
+}
 
 // GroupAll is Group plus what Group leaves out: one Unfixed Fix per (ecosystem,
 // package, installed) with no fixed version, and one Fix per vulnerability that
-// names no package (Package = its ID). The sum of len(CVEs) over the fixes that
-// are not Unfixed is Summarize(findings).Fixable().
+// names no package (Package = its ID, no Command). The sum of len(CVEs) over the
+// fixes that are not Unfixed is Summarize(findings).Fixable().
 //
-// SKELETON (DEVDESK-754, red phase): returns nothing.
-func GroupAll(findings []scan.Finding) []Fix { return nil }
+// Worst severity first, then the most CVEs, then package, then installed
+// version, the fixable row before the unfixed one: the order does not depend on
+// the order of findings.
+func GroupAll(findings []scan.Finding) []Fix {
+	fixes := build(findings, true)
+	sort.SliceStable(fixes, func(i, j int) bool { return fixLess(fixes[i], fixes[j]) })
+	return fixes
+}
 
-type fixKey struct{ ecosystem, pkg, installed string }
+// fixLess is the total order of GroupAll.
+func fixLess(a, b Fix) bool {
+	if ra, rb := severityRank(a.Severity), severityRank(b.Severity); ra != rb {
+		return ra > rb
+	}
+	if len(a.CVEs) != len(b.CVEs) {
+		return len(a.CVEs) > len(b.CVEs)
+	}
+	if a.Package != b.Package {
+		return a.Package < b.Package
+	}
+	if a.Installed != b.Installed {
+		if c, ok := scan.CompareVersions(a.Installed, b.Installed); ok && c != 0 {
+			return c < 0
+		}
+		return a.Installed < b.Installed
+	}
+	return !a.Unfixed && b.Unfixed
+}
+
+type fixKey struct {
+	ecosystem, pkg, installed string
+	unfixed                   bool
+	// n is the 1-based position of a vulnerability that names no package, so
+	// each one stays its own row; 0 for a named package.
+	n int
+}
 
 // group is a Fix being built, plus what only the building needs.
 type group struct {
@@ -112,25 +144,45 @@ type group struct {
 	// ambiguous is set when one CVE listed several fixed versions that
 	// scan.PickFixed could not choose between.
 	ambiguous bool
+	// bare is set on a vulnerability that names no package: there is no
+	// package to name in a command.
+	bare bool
 }
 
 // Group collects the fixable vulnerabilities into one Fix per (ecosystem,
 // package, installed version), worst severity first. A package installed in
 // two versions is two fixes: each has its own target.
 func Group(findings []scan.Finding) []Fix {
+	fixes := build(findings, false)
+	sort.SliceStable(fixes, func(i, j int) bool {
+		return severityRank(fixes[i].Severity) > severityRank(fixes[j].Severity)
+	})
+	return fixes
+}
+
+// build collects the vulnerabilities into fixes, in the order they first
+// appear. With all unset it keeps only the fixable ones that name a package.
+func build(findings []scan.Finding, all bool) []Fix {
 	byKey := map[fixKey]*group{}
 	var order []fixKey
 
-	for _, f := range findings {
-		if scan.Categorize(f) != scan.CategoryVulnerability || f.FixedIn == "" || f.PkgName == "" {
+	for i, f := range findings {
+		if scan.Categorize(f) != scan.CategoryVulnerability {
 			continue
 		}
-		key := fixKey{f.Ecosystem, f.PkgName, f.Version}
+		unfixed, bare := f.FixedIn == "", f.PkgName == ""
+		if !all && (unfixed || bare) {
+			continue
+		}
+		key := fixKey{ecosystem: f.Ecosystem, pkg: f.PkgName, installed: f.Version, unfixed: unfixed}
+		if bare {
+			key.pkg, key.n = f.ID, i+1
+		}
 		g, seen := byKey[key]
 		if !seen {
-			g = &group{fix: Fix{
-				Class: f.Class, Ecosystem: f.Ecosystem, Package: f.PkgName,
-				Installed: f.Version, Severity: f.Severity,
+			g = &group{bare: bare, fix: Fix{
+				Class: f.Class, Ecosystem: f.Ecosystem, Package: key.pkg,
+				Installed: f.Version, Severity: f.Severity, Unfixed: unfixed,
 			}}
 			byKey[key] = g
 			order = append(order, key)
@@ -142,17 +194,18 @@ func Group(findings []scan.Finding) []Fix {
 	for _, key := range order {
 		fixes = append(fixes, byKey[key].done())
 	}
-	sort.SliceStable(fixes, func(i, j int) bool {
-		return severityRank(fixes[i].Severity) > severityRank(fixes[j].Severity)
-	})
 	return fixes
 }
 
 // add records one vulnerability: its ID, its severity, and the version it needs.
 func (g *group) add(f scan.Finding) {
 	g.fix.CVEs = append(g.fix.CVEs, f.ID)
+	g.fix.Members = append(g.fix.Members, f)
 	if severityRank(f.Severity) > severityRank(g.fix.Severity) {
 		g.fix.Severity = f.Severity
+	}
+	if g.fix.Unfixed {
+		return
 	}
 	need := scan.PickFixed(f.Version, f.FixedIn)
 	if need == "" {
@@ -170,11 +223,14 @@ func (g *group) add(f scan.Finding) {
 // bump clears them all — provided the versions can be ordered.
 func (g *group) done() Fix {
 	fix := g.fix
+	if fix.Unfixed {
+		return fix
+	}
 	sort.Strings(fix.Options)
 	if !g.ambiguous {
 		fix.Target = highest(fix.Options)
 	}
-	if fix.Target != "" {
+	if fix.Target != "" && !g.bare {
 		fix.Command, _ = scan.FixCommand(fix.Ecosystem, fix.Package, fix.Target)
 	}
 	return fix

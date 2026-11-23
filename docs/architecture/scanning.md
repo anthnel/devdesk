@@ -649,13 +649,26 @@ version per maintained branch (`"5.7.2, 6.3.1, 7.5.2"`), so the command uses
 `scan.PickFixed`: the lowest one on the installed major line, the smallest
 change that clears the CVE. Versions that cannot be ordered — a Debian epoch,
 a name — give no target rather than a guess; `scan.CompareVersions` is a lenient
-numeric ordering, not semver.
+numeric ordering, not semver. A single release letter right after the digits
+(OpenSSL style) is an order too (DEVDESK-754): `1.1.1 < 1.1.1l < 1.1.1w`, so the
+target of a group fixed by `1.1.1l` and `1.1.1w` is `1.1.1w`; before, two such
+versions compared equal and the first in lexical order was kept. A word (`rc1`)
+or a letter followed by a number (`a1`) is not a release letter and still compares
+equal, and the order of versions that were already ranked does not move.
 
-`internal/remediation` is pure — no I/O — and has two entry points:
+`internal/remediation` is pure — no I/O — and has three entry points:
 `Summarize` (the header's `Fixable`: a count split into base image,
-dependencies and unclassified) and `Group` (one `Fix` per ecosystem, package
+dependencies and unclassified), `Group` (one `Fix` per ecosystem, package
 and installed version, carrying the highest version any of its CVEs needs, so
-one bump clears them all). Whether a proposed bump *actually* clears the CVEs
+one bump clears them all) and `GroupAll` (DEVDESK-754: `Group` plus one
+`Unfixed` `Fix` per package and installed version with no fixed version, and one
+`Fix` per vulnerability that names no package, `Package` being its ID and with no
+command; every `Fix` lists its `Members`, and `Key()` identifies it across two
+scans). The CVEs of the rows that are not `Unfixed` add up to
+`Summarize(...).Fixable()`, and those of the `Unfixed` rows to its `Unfixed`
+(`TestGroupAllFixableCountIsSummarizeFixable`, `FuzzGroupAllInvariant`). The
+UI side is `internal/ui/security/fixgroup.go` (`cveGroups`, `visibleGroups`,
+`nearestFinding`, `cveGroupColumns`), pure as well. Whether a proposed bump *actually* clears the CVEs
 is not decided there: that is measured by re-scanning, and it is what the next
 phases of §3.2 add.
 

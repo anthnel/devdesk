@@ -48,6 +48,19 @@ func TestCompareVersions(t *testing.T) {
 		{"1.2.3-rc1", "1.2.3", -1, true},
 		{"3.0.11-r0", "3.0.9-r0", 1, true},
 		{"1:1.1.1n", "1.1.1", 0, false},
+		// A letter right after the digits is an order (OpenSSL style), not a
+		// pre-release: 1.1.1l < 1.1.1w, and the bare 1.1.1 is below both.
+		{"1.1.1l", "1.1.1w", -1, true},
+		{"1.1.1w", "1.1.1l", 1, true},
+		{"1.1.1w", "1.1.1w", 0, true},
+		{"1.1.1", "1.1.1a", -1, true},
+		{"1.1.1w-r0", "1.1.1l-r0", 1, true},
+		{"1.1.1l-r0", "1.1.1w", -1, true},
+		{"1.1.2", "1.1.1w", 1, true},
+		{"1.1.1w", "1.1.2", -1, true},
+		// A word after the digits is not a letter suffix: neither moves.
+		{"1.2.3rc1", "1.2.3rc2", 0, true},
+		{"1.2.3a1", "1.2.3b1", 0, true},
 		{"abc", "1.0.0", 0, false},
 		{"", "1.0.0", 0, false},
 	}
@@ -72,6 +85,7 @@ func TestPickFixed(t *testing.T) {
 		{"unorderable options", "1.0.0", "abc, 1.0.1", ""},
 		{"unknown installed version", "", "1.0.1, 2.0.0", "1.0.1"},
 		{"spaces and empty entries", "1.0.0", " 1.0.2 , ,1.1.0", "1.0.2"},
+		{"letter suffixes are ordered", "1.1.1k", "1.1.1w, 1.1.1l", "1.1.1l"},
 	}
 	for _, tc := range tests {
 		if got := PickFixed(tc.installed, tc.fixedIn); got != tc.want {

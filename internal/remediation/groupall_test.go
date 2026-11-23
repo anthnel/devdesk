@@ -69,6 +69,17 @@ func TestGroupAllRows(t *testing.T) {
 			}},
 		},
 		{
+			name: "versions that differ by a letter suffix are ordered: the target is the later letter",
+			findings: []scan.Finding{
+				vuln("CVE-1", "openssl", "alpine", os, "1.1.1k", "1.1.1l", high),
+				vuln("CVE-2", "openssl", "alpine", os, "1.1.1k", "1.1.1w", high),
+			},
+			want: []fixView{{
+				Package: "openssl", Installed: "1.1.1k", Target: "1.1.1w", Command: "apk upgrade openssl",
+				CVEs: []string{"CVE-1", "CVE-2"}, Options: []string{"1.1.1l", "1.1.1w"}, Severity: high,
+			}},
+		},
+		{
 			name: "an OS package gives its command and its delta",
 			findings: []scan.Finding{
 				vuln("CVE-1", "openssl", "alpine", os, "3.1.0", "3.1.4", crit),
