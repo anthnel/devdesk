@@ -109,14 +109,15 @@ func resolveRenderScope(ctx context.Context, target string) renderScope {
 
 // gitEnviron is env without the variables that point git at another
 // repository, work tree or configuration: the mount is decided by the target
-// alone.
+// alone. GIT_CEILING_DIRECTORIES stays: it can only stop git's search for the
+// repository earlier, and dropping it would widen what the user limited.
 func gitEnviron(env []string) []string {
 	out := make([]string, 0, len(env))
 	for _, kv := range env {
 		name, _, _ := strings.Cut(kv, "=")
 		switch {
 		case name == "GIT_DIR", name == "GIT_WORK_TREE", name == "GIT_COMMON_DIR",
-			name == "GIT_CEILING_DIRECTORIES", strings.HasPrefix(name, "GIT_CONFIG"):
+			strings.HasPrefix(name, "GIT_CONFIG"):
 			continue
 		}
 		out = append(out, kv)

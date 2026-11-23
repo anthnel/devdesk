@@ -179,15 +179,17 @@ func TestGitDecidesTheMount(t *testing.T) {
 
 // The variables that point git at another repository, another work tree or
 // another configuration are not passed to the git DevDesk asks about the
-// mount: the answer has to come from the target itself.
+// mount: the answer has to come from the target itself. GIT_CEILING_DIRECTORIES
+// is kept: it can only stop git's search earlier, and a user who set it on
+// /mnt/share must not see DevDesk mount /mnt/share anyway.
 func TestGitIsAskedWithoutRedirectingVariables(t *testing.T) {
 	redirecting := []string{"GIT_DIR", "GIT_WORK_TREE", "GIT_COMMON_DIR", "GIT_CONFIG_GLOBAL",
-		"GIT_CONFIG_COUNT", "GIT_CONFIG_KEY_0", "GIT_CONFIG_VALUE_0", "GIT_CONFIG_PARAMETERS",
-		"GIT_CEILING_DIRECTORIES"}
+		"GIT_CONFIG_COUNT", "GIT_CONFIG_KEY_0", "GIT_CONFIG_VALUE_0", "GIT_CONFIG_PARAMETERS"}
 	for _, name := range redirecting {
 		t.Setenv(name, "/redirected")
 	}
 	t.Setenv("DEVDESK_KEPT", "1")
+	t.Setenv("GIT_CEILING_DIRECTORIES", "/mnt/share")
 	target := t.TempDir()
 	r := &scriptedRunner{reply: func(toolCmd) ([]byte, error) { return nil, &exitError{Code: 128} }}
 	useRunner(t, r)
@@ -207,8 +209,10 @@ func TestGitIsAskedWithoutRedirectingVariables(t *testing.T) {
 				t.Errorf("%s reaches %s", name, tc)
 			}
 		}
-		if !strings.Contains("\n"+env, "\nDEVDESK_KEPT=1") {
-			t.Errorf("the rest of the environment was dropped from %s", tc)
+		for _, kept := range []string{"DEVDESK_KEPT=1", "GIT_CEILING_DIRECTORIES=/mnt/share"} {
+			if !strings.Contains("\n"+env, "\n"+kept) {
+				t.Errorf("%s was dropped from %s", kept, tc)
+			}
 		}
 	}
 }

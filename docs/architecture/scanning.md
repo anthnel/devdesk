@@ -293,8 +293,8 @@ no line, so it could feed neither the table's jump-to-line nor a fix.
   `git config --get core.worktree` set or unreadable, or a root that does not
   hold the `.git` itself (`gitDirIsHere`: a directory, or a worktree's `.git`
   file whose git directory names it back; a symlink is refused). Those git
-  calls run without `GIT_DIR`, `GIT_WORK_TREE`, `GIT_COMMON_DIR`, `GIT_CONFIG*`
-  and `GIT_CEILING_DIRECTORIES`. Two known limits, out of scope: the renderer
+  calls run without `GIT_DIR`, `GIT_WORK_TREE`, `GIT_COMMON_DIR` and
+  `GIT_CONFIG*`; `GIT_CEILING_DIRECTORIES` is kept, since it can only narrow. Two known limits, out of scope: the renderer
   container keeps the network (no `--network none`), and helm follows symlinks
   inside the mount, so a hostile chart can bring a sibling file's content into
   its error, as a binary, which sees the whole host, already could. When an overlay
