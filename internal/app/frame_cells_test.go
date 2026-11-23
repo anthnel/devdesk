@@ -259,6 +259,28 @@ func TestFrameHasNoBareCell(t *testing.T) {
 	}
 }
 
+// The decoder reads the sequence Lip Gloss really writes for an invalid field
+// (Rule 140: curly underline plus an underline colour, SGR 58): the cells keep
+// the background and the foreground the style gave them.
+func TestCellsDecodeTheInvalidFieldUnderline(t *testing.T) {
+	useDefaultTheme(t)
+	base := lipgloss.NewStyle().Background(theme.ColorBackground).Foreground(theme.ColorText)
+	out := theme.StyleInvalidField(base).Render("bad")
+	if !strings.Contains(out, "58;") {
+		t.Fatalf("premise changed: no SGR 58 in %q", out)
+	}
+	wantBG, wantFG := theme.Hex(theme.ColorBackground), theme.Hex(theme.ColorText)
+	rows := testutil.Cells(out)
+	if len(rows) != 1 || len(rows[0]) != 3 {
+		t.Fatalf("Cells(%q) = %#v, want 3 cells", out, rows)
+	}
+	for i, c := range rows[0] {
+		if c.BG != wantBG || c.FG != wantFG {
+			t.Errorf("cell %d = %+v, want fg %s bg %s", i, c, wantFG, wantBG)
+		}
+	}
+}
+
 // describeBare summarises bare cells by row: the row, how many, and the columns
 // of the first and last.
 func describeBare(bare []testutil.Pos) string {

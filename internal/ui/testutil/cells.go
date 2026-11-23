@@ -18,8 +18,9 @@ import (
 // The decoder walks the frame with x/ansi's sequence decoder (the same
 // grapheme clustering and widths Lip Gloss and the viewport measure with) and
 // follows the SGR state. It tracks the foreground, the background and reverse
-// video, nothing else: bold, underline and the like do not change which colour
-// a cell has, which is what the Rule 115 check and the golden compare. Every
+// video, nothing else: bold, underline (and the underline colour, SGR 58 and 59,
+// whose parameters are consumed and dropped) and the like do not change which
+// colour a cell has, which is what the Rule 115 check and the golden compare. Every
 // sequence that is not an SGR (cursor moves, erases, OSC titles, hyperlinks,
 // progress) is skipped and paints nothing.
 
@@ -162,7 +163,7 @@ func (s *sgrState) apply(params ansi.Params) {
 	}
 	for i := 0; i < len(params); {
 		v := params[i].Param(0)
-		if params[i].HasMore() && v != 38 && v != 48 {
+		if params[i].HasMore() && v != 38 && v != 48 && v != 58 {
 			// A sub-parameter chain such as 4:3 (curly underline): none of it is
 			// a colour attribute, and a 0 inside it must not reset anything.
 			for i < len(params) && params[i].HasMore() {
@@ -190,19 +191,26 @@ func (s *sgrState) apply(params ansi.Params) {
 			s.fg = paletteName(v - 90 + 8)
 		case v >= 100 && v <= 107:
 			s.bg = paletteName(v - 100 + 8)
-		case v == 38 || v == 48:
+		case v == 38 || v == 48 || v == 58:
 			var c color.Color
 			n := ansi.ReadStyleColor(params[i:], &c)
 			if n == 0 {
 				return
 			}
-			if v == 38 {
+			switch v {
+			case 38:
 				s.fg = colourName(c)
-			} else {
+			case 48:
 				s.bg = colourName(c)
 			}
+			// 58 is the underline colour (Lip Gloss writes 58;2;r;g;b and 58;5;n
+			// for an invalid field, Rule 140). It is read to consume its
+			// parameters, which are not attributes of their own, and not tracked:
+			// it changes no cell's foreground or background.
 			i += n
 			continue
+		case v == 59:
+			// Resets the underline colour, which is not tracked: nothing to do.
 		}
 		i++
 	}

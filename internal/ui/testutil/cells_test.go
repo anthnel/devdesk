@@ -57,6 +57,25 @@ func TestCellsColours(t *testing.T) {
 		{"27 undoes reverse", "\x1b[38;2;1;2;3;48;2;4;5;6;7;27mx", "#010203", "#040506"},
 		{"an unknown attribute changes nothing", "\x1b[1;4;3;9;31mx", "ansi:1", ""},
 		{"a truncated 38;2 is ignored, not a panic", "\x1b[38;2;1mx", "", ""},
+
+		// SGR 58 is the underline colour (Rule 140 emits it). It is consumed like
+		// 38 and 48 and not tracked: its parameters are never attributes of their
+		// own, whatever their values (a 0 resets, a 7 is reverse video).
+		{"58;2 with a zero red does not reset", "\x1b[48;2;1;2;3m\x1b[4:3;58;2;0;5;9mx", "", "#010203"},
+		{"58;2 with a red of 7 is not reverse", "\x1b[48;2;1;2;3m\x1b[4:3;58;2;7;0;9mx", "", "#010203"},
+		{"58;2 with every component an attribute", "\x1b[31;48;2;1;2;3;58;2;7;7;7mx", "ansi:1", "#010203"},
+		{"58;5 with an index of 7 is not reverse", "\x1b[31;48;2;1;2;3;58;5;7mx", "ansi:1", "#010203"},
+		{"58;5 with an index of 0 does not reset", "\x1b[31;48;2;1;2;3;58;5;0mx", "ansi:1", "#010203"},
+		{"58;5 with an index of 31 is not a foreground", "\x1b[48;2;1;2;3;58;5;31mx", "", "#010203"},
+		{"58 with colons, no colour space id", "\x1b[48;2;1;2;3;58:2::7:0:9mx", "", "#010203"},
+		{"58 with colons and a colour space id", "\x1b[48;2;1;2;3;58:2:0:7:0:9mx", "", "#010203"},
+		{"58 with colons, palette", "\x1b[48;2;1;2;3;58:5:7mx", "", "#010203"},
+		{"attributes after a 58 still apply", "\x1b[58;2;7;0;9;31;42mx", "ansi:1", "ansi:2"},
+		{"attributes before and after a 58", "\x1b[31;58;5;7;42mx", "ansi:1", "ansi:2"},
+		{"a 58 does not undo a reverse", "\x1b[38;2;1;2;3;48;2;4;5;6;7;58;2;0;0;0mx", "#040506", "#010203"},
+		{"a truncated 58;2 is ignored, not a panic", "\x1b[58;2;1mx", "", ""},
+		{"59 resets the underline colour only", "\x1b[31;42;59mx", "ansi:1", "ansi:2"},
+		{"59 between colours", "\x1b[31;58;2;1;2;3;59;42mx", "ansi:1", "ansi:2"},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
