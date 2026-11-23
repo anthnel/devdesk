@@ -26,6 +26,15 @@ func TestUsableHelperName(t *testing.T) {
 		{"store is refused", "store", "", false},
 		{"store with a file argument is refused", "store --file=/tmp/creds", "", false},
 
+		// `cache` keeps credentials in a daemon's memory for a while: nothing
+		// survives it, so it is no more a persistent store than memory is.
+		{"cache is refused", "cache", "", false},
+		{"cache with a timeout is refused", "cache --timeout=1", "", false},
+		{"the cache helper by its full path is refused", "/usr/lib/git-core/git-credential-cache", "", false},
+		{"the cache helper as a shell command is refused", "!git credential-cache --timeout 60", "", false},
+		{"store in another case is refused", "Store", "", false},
+		{"the store helper by its full path is refused", "/usr/lib/git-core/git-credential-store", "", false},
+
 		// An unset helper means git has nowhere to put the secret, and would
 		// quietly succeed at storing nothing.
 		{"empty is refused", "", "", false},
@@ -101,6 +110,8 @@ func TestGitHelperUsableRefusesAPlaintextStoreAnywhereInTheList(t *testing.T) {
 		{"store with a file argument", "manager\n\thelper = store --file=/tmp/creds", "", false},
 		{"the store helper by its full path", "/usr/lib/git-core/git-credential-store", "", false},
 		{"the store helper as a shell command", "!git credential-store --file /tmp/creds", "", false},
+		{"cache before a safe helper", "cache --timeout=1\n\thelper = manager", "", false},
+		{"cache alone", "cache --timeout=1", "", false},
 		{"a single safe helper", "manager", "manager", true},
 		{"an empty value resets the list before it", "store\n\thelper =\n\thelper = manager", "manager", true},
 		{"an empty value last leaves no helper", "manager\n\thelper =", "", false},

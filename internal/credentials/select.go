@@ -172,7 +172,9 @@ func memorySelection(why string) Selection {
 //
 // `store` is refused: it keeps credentials in ~/.git-credentials in plaintext,
 // which is the failure this whole change exists to remove — moving the token
-// from one plaintext file to another is not a fix. It is refused anywhere in
+// from one plaintext file to another is not a fix. `cache` is refused too: it
+// keeps them in a daemon's memory for a timeout, which persists nothing
+// (refusedHelper). Both are refused anywhere in
 // the list, not only as the last helper: `git credential approve` hands the
 // secret to every configured helper, so a `store` before or after a safe one
 // still writes it in plaintext (DEVDESK-745). An unset helper is refused too,
@@ -217,11 +219,12 @@ func activeHelpers(output string) []string {
 	return active
 }
 
-// pickHelper refuses the list when any helper writes plaintext, and otherwise
-// names the last usable one: git resolves the last helper that answers.
+// pickHelper refuses the list when any helper is refused (refusedHelper),
+// and otherwise names the last usable one: git resolves the last helper that
+// answers.
 func pickHelper(helpers []string) (string, bool) {
 	for _, h := range helpers {
-		if isPlaintextHelper(h) {
+		if refusedHelper(h) {
 			return "", false
 		}
 	}
@@ -233,31 +236,41 @@ func pickHelper(helpers []string) (string, bool) {
 	return "", false
 }
 
-// isPlaintextHelper reports whether a credential.helper value is git's
-// plaintext store: `store` with or without arguments, the helper by its path
-// (`/usr/lib/git-core/git-credential-store`), or a shell command running it.
-// It errs on the side of refusing: any mention of credential-store counts.
-func isPlaintextHelper(value string) bool {
-	fields := strings.Fields(value)
+// refusedHelpers are git's two built-in helpers that are not a persistent,
+// non-plaintext store: `store` writes ~/.git-credentials in plaintext, and
+// `cache` keeps credentials in a daemon's memory for a timeout, so a secret
+// handed to it is lost like one kept in DevDesk's memory (DEVDESK-745).
+var refusedHelpers = []string{"store", "cache"}
+
+// refusedHelper reports whether a credential.helper value runs one of
+// refusedHelpers: by name with or without arguments (`cache --timeout=1`), by
+// path (`/usr/lib/git-core/git-credential-store`), or from a shell command
+// (`!git credential-cache`). It errs on the side of refusing: the comparison
+// ignores case (a case-insensitive file system runs `Store` as `store`) and
+// any mention of credential-store or credential-cache counts.
+func refusedHelper(value string) bool {
+	fields := strings.Fields(strings.ToLower(value))
 	if len(fields) == 0 {
 		return false
 	}
-	return strings.TrimPrefix(fields[0], "!") == "store" || strings.Contains(value, "credential-store")
+	first := strings.TrimPrefix(fields[0], "!")
+	for _, name := range refusedHelpers {
+		if first == name || strings.Contains(strings.ToLower(value), "credential-"+name) {
+			return true
+		}
+	}
+	return false
 }
 
 // usableHelperName extracts the helper name from one credential.helper value
-// and reports whether it stores secrets somewhere other than a plaintext file.
+// and reports whether it is a helper worth delegating to (not refusedHelper).
 func usableHelperName(value string) (string, bool) {
 	value = strings.TrimSpace(value)
-	if value == "" {
+	if value == "" || refusedHelper(value) {
 		return "", false
 	}
 
-	// A value may carry arguments (`store --file=/path`), and a leading `!`
+	// A value may carry arguments (`libsecret --timeout 5`), and a leading `!`
 	// marks a shell command. Only the first word names the helper.
-	name := strings.TrimPrefix(strings.Fields(value)[0], "!")
-	if name == "store" {
-		return "", false
-	}
-	return name, true
+	return strings.TrimPrefix(strings.Fields(value)[0], "!"), true
 }
