@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"io"
 	"log"
+	"os"
 	"path"
 	"path/filepath"
 	"regexp"
@@ -50,10 +51,175 @@ var helmLintLine = regexp.MustCompile(`^\[(ERROR|WARNING|INFO|UNKNOWN)\] ([^:]*)
 // naming the template it came from: `# Source: <chart name>/templates/x.yaml`.
 var helmSourceLine = regexp.MustCompile(`^# Source: (\S+)`)
 
+// renderScope is where a renderer runs. A binary runs in the target and sees
+// the whole host. A container sees only mount, read-only at /scan, and works in
+// the target inside it: mount is the target itself, or the git repository
+// holding it, so an overlay or a chart can reach a sibling of the target as it
+// does on the host (DEVDESK-742).
+type renderScope struct {
+	target string
+	mount  string
+	// rel is the target relative to mount, with forward slashes; "" when the
+	// target is what is mounted.
+	rel string
+}
+
+// targetOnly mounts the target and nothing else.
+func targetOnly(target string) renderScope { return renderScope{target: target, mount: target} }
+
+// workdir is the target inside the container.
+func (s renderScope) workdir() string { return path.Join(containerScanPath, s.rel) }
+
+// userHomeDir is the home directory the mount guard keeps out of reach. Tests
+// swap it.
+var userHomeDir = os.UserHomeDir
+
+// resolveRenderScope asks git, in the target, for the repository holding it.
+// Without an answer (no git, not a repository), or when the repository's
+// configuration moves its work tree elsewhere (core.worktree, which a cloned
+// .git file can bring along), the target alone is mounted.
+func resolveRenderScope(ctx context.Context, target string) renderScope {
+	git := func(args ...string) ([]byte, error) {
+		return runner.Run(ctx, toolCmd{Name: "git", Args: args, Dir: target, Env: gitEnviron(os.Environ())}, nil)
+	}
+	out, err := git("rev-parse", "--show-toplevel")
+	if err != nil {
+		log.Printf("[scan/k8s] %s: no git repository to mount, the renderers see the target only: %v", target, err)
+		return targetOnly(target)
+	}
+	worktree, err := git("config", "--get", "core.worktree")
+	var exitErr *exitError
+	unset := errors.As(err, &exitErr) && exitErr.Code == 1 && len(bytes.TrimSpace(worktree)) == 0
+	if !unset {
+		log.Printf("[scan/k8s] %s: core.worktree is set or unreadable (%q, %v), the renderers see the target only",
+			target, strings.TrimSpace(string(worktree)), err)
+		return targetOnly(target)
+	}
+	scope, ok := widerScope(target, strings.TrimSpace(string(out)))
+	if !ok {
+		return targetOnly(target)
+	}
+	log.Printf("[scan/k8s] renderers in a container mount %s, the repository holding %s", scope.mount, target)
+	return scope
+}
+
+// gitEnviron is env without the variables that point git at another
+// repository, work tree or configuration: the mount is decided by the target
+// alone. GIT_CEILING_DIRECTORIES stays: it can only stop git's search for the
+// repository earlier, and dropping it would widen what the user limited.
+func gitEnviron(env []string) []string {
+	out := make([]string, 0, len(env))
+	for _, kv := range env {
+		name, _, _ := strings.Cut(kv, "=")
+		switch {
+		case name == "GIT_DIR", name == "GIT_WORK_TREE", name == "GIT_COMMON_DIR",
+			strings.HasPrefix(name, "GIT_CONFIG"):
+			continue
+		}
+		out = append(out, kv)
+	}
+	return out
+}
+
+// widerScope mounts top, the repository git named, when it is safe to: top is
+// a strict ancestor of the target once symlinks are resolved, neither the
+// filesystem root nor the home directory nor anything above it, and it holds
+// the repository's .git itself (gitDirIsHere). Anything else, an unknown home
+// included, keeps the target alone.
+func widerScope(target, top string) (renderScope, bool) {
+	if top == "" || !filepath.IsAbs(top) {
+		return renderScope{}, false
+	}
+	root, err := filepath.EvalSymlinks(top)
+	if err != nil {
+		return renderScope{}, false
+	}
+	real, err := filepath.EvalSymlinks(target)
+	if err != nil {
+		return renderScope{}, false
+	}
+	rel, err := filepath.Rel(root, real)
+	if err != nil || rel == "." || rel == ".." || strings.HasPrefix(rel, ".."+string(filepath.Separator)) {
+		return renderScope{}, false
+	}
+	if filepath.Dir(root) == root {
+		return renderScope{}, false
+	}
+	home, err := userHomeDir()
+	if err != nil || home == "" {
+		return renderScope{}, false
+	}
+	if h, err := filepath.EvalSymlinks(home); err == nil {
+		home = h
+	}
+	if r, err := filepath.Rel(root, filepath.Clean(home)); err == nil &&
+		(r == "." || (r != ".." && !strings.HasPrefix(r, ".."+string(filepath.Separator)))) {
+		return renderScope{}, false
+	}
+	if !gitDirIsHere(root) {
+		return renderScope{}, false
+	}
+	return renderScope{target: target, mount: root, rel: filepath.ToSlash(rel)}, true
+}
+
+// maxGitFile bounds what is read of a .git file or a worktree's gitdir file:
+// one line, a path.
+const maxGitFile = 4096
+
+// gitDirIsHere reports whether root holds its repository's .git: a directory,
+// or the file of a linked worktree ("gitdir: <dir>") whose git directory names
+// root's .git back in its own gitdir file. A symlink, a file that says
+// anything else, or a git directory that does not point back is refused: git
+// was then told where the work tree is, rather than finding it.
+func gitDirIsHere(root string) bool {
+	dotGit := filepath.Join(root, ".git")
+	info, err := os.Lstat(dotGit)
+	if err != nil {
+		return false
+	}
+	if info.IsDir() {
+		return true
+	}
+	if !info.Mode().IsRegular() {
+		return false
+	}
+	line, ok := readGitFile(dotGit)
+	gitDir, found := strings.CutPrefix(line, "gitdir: ")
+	if !ok || !found {
+		return false
+	}
+	if !filepath.IsAbs(gitDir) {
+		gitDir = filepath.Join(root, gitDir)
+	}
+	back, ok := readGitFile(filepath.Join(gitDir, "gitdir"))
+	if !ok {
+		return false
+	}
+	if !filepath.IsAbs(back) {
+		back = filepath.Join(gitDir, back)
+	}
+	a, errA := filepath.EvalSymlinks(back)
+	b, errB := filepath.EvalSymlinks(dotGit)
+	return errA == nil && errB == nil && a == b
+}
+
+// readGitFile reads the one line of a small regular file.
+func readGitFile(p string) (string, bool) {
+	info, err := os.Lstat(p)
+	if err != nil || !info.Mode().IsRegular() || info.Size() > maxGitFile {
+		return "", false
+	}
+	data, err := os.ReadFile(p) //nolint:gosec // a .git file of the repository being scanned
+	if err != nil {
+		return "", false
+	}
+	return strings.TrimSpace(string(data)), true
+}
+
 // renderer runs one tool in the repository, the way every other tool runs:
-// in the repository for a binary, with the repository mounted read-only at
-// /scan and as the working directory for an image.
-func renderer(target string, tool ToolSpec, defaultImage, binary string, args ...string) toolCmd {
+// in the target for a binary; for an image, with the scope's mount read-only
+// at /scan and the target inside it as the working directory.
+func renderer(scope renderScope, tool ToolSpec, defaultImage, binary string, args ...string) toolCmd {
 	// helm gets them on lint and on template alike: only the flags the two
 	// share (--values, --set…) make sense there.
 	args = afterSubcommand(args, tool.Args)
@@ -62,10 +228,10 @@ func renderer(target string, tool ToolSpec, defaultImage, binary string, args ..
 		if name == "" {
 			name = binary
 		}
-		return toolCmd{Name: name, Args: args, Dir: target}
+		return toolCmd{Name: name, Args: args, Dir: scope.target}
 	}
 	return containerRun{
-		Flags: []string{"-v", target + ":" + containerScanPath + ":ro", "-w", containerScanPath},
+		Flags: []string{"-v", scope.mount + ":" + containerScanPath + ":ro", "-w", scope.workdir()},
 		Image: orDefault(tool.Image, defaultImage),
 		Argv:  args,
 	}.cmd()
@@ -78,12 +244,12 @@ func orDefault(v, def string) string {
 	return v
 }
 
-func helmArgs(target, chart string, tool ToolSpec, sub string) toolCmd {
-	return renderer(target, tool, DefaultHelmImage, "helm", sub, chart)
+func helmArgs(scope renderScope, chart string, tool ToolSpec, sub string) toolCmd {
+	return renderer(scope, tool, DefaultHelmImage, "helm", sub, chart)
 }
 
-func kustomizeArgs(target, dir string, tool ToolSpec) toolCmd {
-	return renderer(target, tool, DefaultKustomizeImage, "kustomize", "build", dir)
+func kustomizeArgs(scope renderScope, dir string, tool ToolSpec) toolCmd {
+	return renderer(scope, tool, DefaultKustomizeImage, "kustomize", "build", dir)
 }
 
 // kubeconformStdinArgs validates what arrives on stdin. A container gets -i
@@ -105,7 +271,9 @@ func kubeconformStdinArgs(rendered []byte, tool ToolSpec, opts KubeconformOption
 // k8sValidation is one schema stage over one repository: the tools it has,
 // what it validates against, and the report it fills in.
 type k8sValidation struct {
-	target      string
+	target string
+	// scope is where helm and kustomize run, resolved once per stage.
+	scope       renderScope
 	kubeconform ToolSpec
 	opts        KubeconformOptions
 	report      *KubeconformReport
@@ -125,10 +293,10 @@ func (v *k8sValidation) renderCharts(ctx context.Context, charts []string) error
 			v.report.Unrendered = append(v.report.Unrendered, chart)
 			continue
 		}
-		lint := helmLint(ctx, v.target, chart, tool)
+		lint := helmLint(ctx, v.scope, chart, tool)
 		v.report.Findings = append(v.report.Findings, lint...)
 
-		cmd := helmArgs(v.target, chart, tool, "template")
+		cmd := helmArgs(v.scope, chart, tool, "template")
 		log.Printf("Running: %s", cmd)
 		rendered, err := runner.Run(ctx, cmd, nil)
 		if err != nil {
@@ -140,7 +308,7 @@ func (v *k8sValidation) renderCharts(ctx context.Context, charts []string) error
 			// say. The render failure is the fallback, not a second copy.
 			if !hasError(lint) {
 				v.report.Findings = append(v.report.Findings,
-					renderFailure(SourceHelm, "helm", path.Join(chart, "Chart.yaml"), "Chart does not render", err))
+					renderFailure(SourceHelm, "helm", path.Join(chart, "Chart.yaml"), "Chart does not render", tool.Source, err))
 			}
 			continue
 		}
@@ -168,7 +336,7 @@ func (v *k8sValidation) renderKustomizations(ctx context.Context, dirs []string)
 			continue
 		}
 		file := path.Join(dir, k8s.KustomizationFile(filepath.Join(v.target, filepath.FromSlash(dir))))
-		cmd := kustomizeArgs(v.target, dir, tool)
+		cmd := kustomizeArgs(v.scope, dir, tool)
 		log.Printf("Running: %s", cmd)
 		rendered, err := runner.Run(ctx, cmd, nil)
 		if err != nil {
@@ -176,7 +344,7 @@ func (v *k8sValidation) renderKustomizations(ctx context.Context, dirs []string)
 				return ctx.Err()
 			}
 			v.report.Findings = append(v.report.Findings,
-				renderFailure(SourceKustomize, "kustomize", file, "Overlay does not build", err))
+				renderFailure(SourceKustomize, "kustomize", file, "Overlay does not build", tool.Source, err))
 			continue
 		}
 		// kustomize adds no origin to what it emits unless the kustomization
@@ -220,11 +388,11 @@ func (v *k8sValidation) validateRendered(ctx context.Context, rendered []byte, d
 // when a chart fails; its messages are still the answer. A run that printed
 // nothing parseable is logged and yields nothing — the render that follows
 // will say whether the chart is usable.
-func helmLint(ctx context.Context, target, chart string, tool ToolSpec) []Finding {
-	cmd := helmArgs(target, chart, tool, "lint")
+func helmLint(ctx context.Context, scope renderScope, chart string, tool ToolSpec) []Finding {
+	cmd := helmArgs(scope, chart, tool, "lint")
 	log.Printf("Running: %s", cmd)
 	out, err := runner.Run(ctx, cmd, nil)
-	findings, recognised := parseHelmLint(out, chart, target)
+	findings, recognised := parseHelmLint(out, chart, scope)
 	if err != nil && !recognised {
 		log.Printf("ERROR [scan/helm] lint %s: %v", chart, err)
 	}
@@ -237,9 +405,9 @@ func helmLint(ctx context.Context, target, chart string, tool ToolSpec) []Findin
 // A message's path is usually relative to the chart ("templates/cm.yaml"),
 // but not always: the missing-dependency warning names the chart directory
 // absolutely — "/scan/charts/broken" in a container, measured on helm 4.3.0.
-// Both are brought back to a path relative to the repository.
-func parseHelmLint(out []byte, chart, target string) ([]Finding, bool) {
-	file := func(p string) string { return helmLintPath(p, chart, target) }
+// Both are brought back to a path relative to the target.
+func parseHelmLint(out []byte, chart string, scope renderScope) ([]Finding, bool) {
+	file := func(p string) string { return helmLintPath(p, chart, scope) }
 	var findings []Finding
 	recognised := false
 	sc := bufio.NewScanner(bytes.NewReader(out))
@@ -271,16 +439,18 @@ func parseHelmLint(out []byte, chart, target string) ([]Finding, bool) {
 }
 
 // helmLintPath resolves a path helm lint printed to one relative to the
-// repository.
-func helmLintPath(p, chart, target string) string {
+// target. In a container the target is the scope's working directory, which is
+// /scan itself unless the git repository around the target is mounted.
+func helmLintPath(p, chart string, scope renderScope) string {
 	p = strings.TrimSuffix(p, "/")
 	switch {
-	case p == containerScanPath:
-		return "."
-	case strings.HasPrefix(p, containerScanPath+"/"):
-		return strings.TrimPrefix(p, containerScanPath+"/")
+	case p == containerScanPath || strings.HasPrefix(p, containerScanPath+"/"):
+		if rel, err := filepath.Rel(filepath.FromSlash(scope.workdir()), filepath.FromSlash(p)); err == nil {
+			return filepath.ToSlash(rel)
+		}
+		return p
 	case filepath.IsAbs(p):
-		if rel, err := filepath.Rel(target, p); err == nil && !strings.HasPrefix(rel, "..") {
+		if rel, err := filepath.Rel(scope.target, p); err == nil && !strings.HasPrefix(rel, "..") {
 			return filepath.ToSlash(rel)
 		}
 		return filepath.ToSlash(p)
@@ -314,7 +484,7 @@ func hasError(findings []Finding) bool {
 // renderFailure is a chart or an overlay that could not be rendered: nothing
 // in it was validated, and `helm install` or `kubectl apply -k` would fail the
 // same way.
-func renderFailure(source, dialect, file, title string, err error) Finding {
+func renderFailure(source, dialect, file, title string, from ToolSource, err error) Finding {
 	detail := err.Error()
 	var exitErr *exitError
 	if errors.As(err, &exitErr) && exitErr.Stderr != "" {
@@ -326,12 +496,53 @@ func renderFailure(source, dialect, file, title string, err error) Finding {
 		Title:       title + ": " + first,
 		Description: "The directory could not be rendered, so none of its resources were validated.",
 		Message:     detail,
-		Resolution:  "Render it locally and fix what the tool reports; a chart's dependencies must be vendored in charts/ or fetched with helm dependency build.",
+		Resolution:  renderResolution(source, from, detail),
 		Severity:    SeverityHigh,
 		Source:      source,
 		File:        file,
 		IaCType:     dialect,
 	}
+}
+
+// How to fix a chart or an overlay that does not render, in the renderer's own
+// terms.
+const (
+	helmRenderResolution = "Render it locally with helm template and fix what it reports; " +
+		"a chart's dependencies must be vendored in charts/ or fetched with helm dependency build."
+	kustomizeRenderResolution = "Build it locally with kustomize build (or kubectl kustomize) and fix what it reports."
+	// kustomize's load restrictor (LoadRestrictionsRootOnly, its default)
+	// refuses a file outside the kustomization's directory, with this message.
+	// The flag is not reserved (ToolKustomize.ReservedArgs) and lands after
+	// `build` (afterSubcommand), where kustomize accepts it.
+	loadRestrictorResolution = "kustomize refuses by default a file outside the overlay directory " +
+		"(same as kubectl apply -k). Reference a directory with its own kustomization instead, " +
+		"or, if your deployment tool allows it, set " +
+		"scan.tools.kustomize.args: [--load-restrictor=LoadRestrictionsNone]."
+)
+
+// mountResolution is added for a kustomize image that could not find a path:
+// the container sees only what DevDesk mounts (renderScope), and DevDesk does
+// not walk the repository to tell a hidden reference from a broken one.
+// ToolConfig's `source` key takes auto, binary or image.
+const mountResolution = "If this reference points outside the directory DevDesk mounts into the container " +
+	"(the scanned directory, or its git repository when it has one), scan the enclosing directory, " +
+	"or set scan.tools.kustomize.source: binary (the binary sees the whole file system)."
+
+// renderResolution picks the advice for a render failure from the renderer,
+// where it ran and what it printed.
+func renderResolution(source string, from ToolSource, detail string) string {
+	if source != SourceKustomize {
+		return helmRenderResolution
+	}
+	advice := kustomizeRenderResolution
+	if strings.Contains(detail, "security; file") && strings.Contains(detail, "is not in or below") {
+		advice = loadRestrictorResolution
+	}
+	if from == ToolSourceContainer &&
+		(strings.Contains(detail, "evalsymlink failure") || strings.Contains(detail, "no such file or directory")) {
+		advice += " " + mountResolution
+	}
+	return advice
 }
 
 // helmOrigins maps each rendered resource, by kind and name, to the template

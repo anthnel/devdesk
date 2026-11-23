@@ -123,8 +123,14 @@ func RunKubeconform(ctx context.Context, target string, tool ToolSpec, opts Kube
 			opts.CacheDir = ""
 		}
 	}
-	v := &k8sValidation{target: target, kubeconform: tool, opts: opts,
+	v := &k8sValidation{target: target, scope: targetOnly(target), kubeconform: tool, opts: opts,
 		report: &KubeconformReport{Validated: len(layout.Manifests)}}
+	// Only a renderer in a container needs more than the target mounted, and
+	// git is asked only when one is about to run.
+	if (len(layout.Charts) > 0 && opts.Helm.Source == ToolSourceContainer) ||
+		(len(layout.Kustomizations) > 0 && opts.Kustomize.Source == ToolSourceContainer) {
+		v.scope = resolveRenderScope(ctx, target)
+	}
 
 	if len(layout.Manifests) > 0 {
 		if err := v.validateFiles(ctx, layout.Manifests, progressFn); err != nil {
