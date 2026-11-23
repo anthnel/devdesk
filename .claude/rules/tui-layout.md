@@ -308,6 +308,13 @@ if showTabs { footerHeight = 3 }
 viewportHeight := windowHeight - 7 - 1 - footerHeight // the title line is inside it
 ```
 
+**Declared exception: the dashboard has no title line (DEVDESK-743).** It
+implements `TitlelessView` (`Titleless() bool`, `internal/app/app_header.go`):
+the header is followed directly by its grid, and the title line's row goes to
+its viewport. Its boxes carry their own titles and the window title names the
+screen. Every other view, frameless or not, keeps its title line. `GetTitle()`
+stays implemented (window title, help).
+
 There is no command line row (DEVDESK-109): the command palette is an overlay
 composed over the final screen (`overlay.Compose`), so opening or closing it never
 changes a height. The header's last row carries a permanent hint, `ctrl+p Commands`.
