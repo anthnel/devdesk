@@ -1,0 +1,68 @@
+{
+  "cli_version": "0.13.2",
+  "checkpoint_id": "d91856ff004d",
+  "strategy": "manual-commit",
+  "branch": "main",
+  "checkpoints_count": 12,
+  "files_touched": [
+    "docs/product/agent-usage-prices/stories.md",
+    "docs/product/ci-tests-rapides/journal-entry.md",
+    "docs/product/dagger-ci-release/brief.md",
+    "docs/product/dagger-ci-release/research.md",
+    "docs/product/dagger-ci-release/stories.md",
+    "docs/product/default-registries/brief.md",
+    "docs/product/default-registries/research.md",
+    "docs/product/default-registries/stories.md",
+    "docs/product/image-search/brief.md",
+    "docs/product/image-search/feasibility.md",
+    "docs/product/image-search/research.md",
+    "docs/product/image-search/stories.md",
+    "docs/product/network-map/brief.local.md",
+    "docs/product/network-map/feasibility.local.md",
+    "docs/product/network-map/research.md",
+    "docs/product/network-map/stories.md",
+    "docs/product/nexus-support/stories.md",
+    "docs/ux/bubbletea-v2-improvements.md",
+    "docs/ux/command-suggestions.md",
+    "docs/ux/context-switch.md",
+    "docs/ux/footer-activity-indicator.md"
+  ],
+  "sessions": [
+    {
+      "metadata": "/d9/1856ff004d/0/metadata.json",
+      "transcript": "/d9/1856ff004d/0/full.jsonl",
+      "compact_transcript": "/d9/1856ff004d/0/transcript.jsonl",
+      "content_hash": "/d9/1856ff004d/0/content_hash.txt",
+      "prompt": "/d9/1856ff004d/0/prompt.txt"
+    }
+  ],
+  "token_usage": {
+    "input_tokens": 80,
+    "cache_creation_tokens": 431281,
+    "cache_read_tokens": 9110820,
+    "output_tokens": 15089,
+    "api_call_count": 25,
+    "subagent_tokens": {
+      "input_tokens": 140,
+      "cache_creation_tokens": 338153,
+      "cache_read_tokens": 3371752,
+      "output_tokens": 38328,
+      "api_call_count": 68
+    },
+    "subagent_tokens_complete": true
+  },
+  "redaction": {
+    "replacements": 49,
+    "layers": {
+      "betterleaks": 0,
+      "connection_string": 0,
+      "credential_key": 0,
+      "credential_value": 0,
+      "credentialed_uri": 0,
+      "entropy": 24,
+      "key_context": 25,
+      "provider_token": 0,
+      "shell_stdin": 0
+    }
+  }
+}
