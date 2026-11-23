@@ -1,0 +1,15 @@
+{
+  "tool_use_id": "toolu_01HG1LTgYJqCU1pjHrAKh3Yn",
+  "agent_id": "a6dc40bf173d7eff5",
+  "subagent_type": "team-core:archivist",
+  "task_description": "Instructions .claude arrêt sûr",
+  "token_usage": {
+    "input_tokens": 34,
+    "cache_creation_tokens": 90273,
+    "cache_read_tokens": 899920,
+    "output_tokens": 23508,
+    "api_call_count": 15
+  },
+  "started_at": "2026-11-23T13:24:18.552276925+01:00",
+  "completed_at": "2026-11-23T13:25:41.985370247+01:00"
+}
