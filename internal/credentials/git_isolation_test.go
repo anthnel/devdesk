@@ -4,6 +4,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strings"
 	"testing"
 )
 
@@ -89,5 +90,22 @@ func TestGitEnvironmentKeepsTheUserCeiling(t *testing.T) {
 	}
 	if !found {
 		t.Errorf("environment does not carry %q", want)
+	}
+}
+
+// git writes what it could not parse to stderr, and a helper may too: the
+// error of a git credential call must never carry it, since it ends up in
+// notes and logs. A token with a newline makes git echo its second half
+// ("invalid credential line: ...").
+func TestGitCredentialErrorsNeverCarryTheSecret(t *testing.T) {
+	hermeticGitWithHelper(t, safeHelper(t))
+	const secretPart = "SECRETPART-n4"
+
+	err := NewGitCredentialStorageWithContext("work").Save("https://gitlab.example.com", "glpat-abc\n"+secretPart)
+	if err == nil {
+		t.Fatal("Save() of a token with a newline succeeded; the test no longer reaches the failure path")
+	}
+	if strings.Contains(err.Error(), secretPart) {
+		t.Errorf("Save() error = %q, carries the secret", err)
 	}
 }

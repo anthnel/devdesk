@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"fmt"
+	"io"
 	"net/url"
 	"strings"
 	"time"
@@ -124,9 +125,12 @@ func runCredential(op, description string) (string, error) {
 	}
 	defer cleanup()
 	cmd.Stdin = strings.NewReader(description)
-	var stdout, stderr bytes.Buffer
+	var stdout bytes.Buffer
 	cmd.Stdout = &stdout
-	cmd.Stderr = &stderr
+	// git's stderr is discarded, not reported: git echoes an input line it
+	// cannot parse, and a helper may print its input, so it can hold the
+	// secret, and the error ends up in notes and logs (DEVDESK-745).
+	cmd.Stderr = io.Discard
 	cmd.WaitDelay = credentialWaitDelay
 	cmd.Env = append(cmd.Env,
 		"GIT_TERMINAL_PROMPT=0", // Disables interactive prompts
@@ -138,7 +142,7 @@ func runCredential(op, description string) (string, error) {
 		return "", fmt.Errorf("git credential %s timed out (not configured or waiting for input)", op)
 	}
 	if err != nil {
-		return "", fmt.Errorf("git credential %s failed: %v: %s", op, err, strings.TrimSpace(stderr.String()))
+		return "", fmt.Errorf("git credential %s failed: %v", op, err)
 	}
 	return stdout.String(), nil
 }
