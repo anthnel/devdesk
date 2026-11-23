@@ -1,0 +1,7 @@
+{
+  "tool_use_id": "toolu_011tmwYWYwAyvrG3jLW9dhTX",
+  "agent_id": "a9efb36ba67d1a096",
+  "subagent_type": "project-coder",
+  "task_description": "Rebase 753 sur main",
+  "started_at": "2026-11-23T21:27:11.617364894+01:00"
+}
