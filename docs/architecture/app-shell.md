@@ -345,6 +345,17 @@ The pieces:
 - `command.Entries()` (`internal/command/registry.go`) is the one ordered
   registry — name, aliases, description, argument placeholder, kind. The parser,
   the listings and the suggestions all derive from it.
+- `Entry.ListAlias()` is what the palette list shows in its alias column, one
+  alias per entry (DEVDESK-747): the first alias of 2 or 3 characters in
+  declaration order, else the longest (the first declared on a tie), else
+  nothing. It is pure: `Aliases` and `Entries()` are unchanged, so the parser,
+  `GetAliases`, `FullNames` and the suggester's matching still accept and find
+  every alias, hidden ones included (typing `config` still lists
+  `configuration`, with `cfg` in the alias column). Five entries narrow:
+  `configuration` shows `cfg` (not `config`), `containers` `ct`, `workspaces`
+  `ws`, `context` `ctx`, `dashboard` `dash`; the twelve others have one alias
+  and render as before. The column widths are unchanged. The list of every
+  alias stays in `docs-site/docs/reference/commands.md`.
 - `command.Suggester` (`internal/command/suggest.go`) ranks the registry for the
   input: exact name or alias, then name prefix, then alias prefix. Once the first
   word names a command that takes an argument and a space follows, it switches to
