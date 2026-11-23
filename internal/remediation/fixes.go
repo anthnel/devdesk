@@ -74,7 +74,35 @@ type Fix struct {
 	Command  string
 	CVEs     []string
 	Severity scan.SeverityLevel
+	// Unfixed is set on a GroupAll fix whose members have no fixed version
+	// (DEVDESK-754). Target, Options and Command are empty then. Group never
+	// returns one.
+	Unfixed bool
+	// Members are the findings behind the fix, in the order they were given. Its
+	// length is len(CVEs).
+	Members []scan.Finding
 }
+
+// FixKey identifies a Fix across two scans: what it is about, never what it
+// would move to, so a re-scan that changes the target or the members finds the
+// same row again (DEVDESK-754).
+type FixKey struct {
+	Ecosystem, Package, Installed string
+	Unfixed                       bool
+}
+
+// Key is the identity of f.
+//
+// SKELETON (DEVDESK-754, red phase): returns the zero key.
+func (f Fix) Key() FixKey { return FixKey{} }
+
+// GroupAll is Group plus what Group leaves out: one Unfixed Fix per (ecosystem,
+// package, installed) with no fixed version, and one Fix per vulnerability that
+// names no package (Package = its ID). The sum of len(CVEs) over the fixes that
+// are not Unfixed is Summarize(findings).Fixable().
+//
+// SKELETON (DEVDESK-754, red phase): returns nothing.
+func GroupAll(findings []scan.Finding) []Fix { return nil }
 
 type fixKey struct{ ecosystem, pkg, installed string }
 
