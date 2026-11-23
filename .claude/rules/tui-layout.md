@@ -340,11 +340,21 @@ view:
 | **Mode** — form, confirmation, selection | the **entire list** is replaced | it is not the same vocabulary; greying out `enter → Create` while inside a table would show the union of every mode |
 | **State** within a mode — selected row, missing tool | the entry **stays**, `Disabled: true` | the column is read out of the corner of the eye, and a list that reorganizes itself under the reader's gaze stops being readable |
 
-Two causes of greying out, and only two: the state of the **selected row**,
+Two causes of greying out, and only two (the bounded exception below is the one
+other case): the state of the **selected row**,
 and a **global** unavailability (a tool the machine does not have). An
 operation in progress is not one of these: it changes on every tick, the row
 already says so with its activity dot, and a blinking entry says the opposite of
-what this rule is after.
+what this rule is after. A row whose process identity DevDesk cannot read is a
+state of the selected row: `K` reads `Cannot verify which process this is`, which
+does not name the cause (DEVDESK-709).
+
+**Exception (D176, bounded).** While a two-step stop on the Ports tab is in
+progress, `K` is greyed on every row: `Another stop is already in progress`, or
+`This process is already being stopped` on the row being stopped. It is required
+by the one-at-a-time criterion of the stop, not a general licence for an operation
+in progress to grey a key. It lasts at most the 5 s grace and the second
+confirmation, and pressing `K` puts the reason in the footer.
 
 #### Rendering
 
