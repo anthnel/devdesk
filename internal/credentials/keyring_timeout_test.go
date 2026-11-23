@@ -215,8 +215,8 @@ func TestAHostStoreThatAnswersLateIsUsedAgain(t *testing.T) {
 }
 
 // A store that answers just after the bound is not counted as stuck forever:
-// the stuck count goes back to zero once the late call returns.
-func TestTheStuckCountReturnsToZero(t *testing.T) {
+// the stuck flag clears once the late call returns.
+func TestTheStuckFlagClearsWhenTheStoreAnswers(t *testing.T) {
 	shortKeyringTimeout(t)
 	_, release := useHangingHost(t)
 	box := currentStore.Load()
@@ -224,15 +224,44 @@ func TestTheStuckCountReturnsToZero(t *testing.T) {
 	for range 3 {
 		_ = KeyringAvailable()
 	}
-	if got := box.stuck.Load(); got != 1 {
-		t.Fatalf("stuck = %d after one timed-out call and two refused ones, want 1", got)
+	if got := box.stuck.Load(); !got {
+		t.Fatal("stuck = false after a timed-out call, want true")
 	}
 	release()
 	deadline := time.Now().Add(watchdog)
-	for box.stuck.Load() != 0 {
+	for box.stuck.Load() {
 		if time.Now().After(deadline) {
-			t.Fatalf("stuck = %d after the store answered, want 0", box.stuck.Load())
+			t.Fatal("stuck = true after the store answered, want false")
 		}
 		time.Sleep(5 * time.Millisecond)
+	}
+}
+
+// Concurrent first calls to a store that has just gone silent must not each
+// start a goroutine that blocks in it: at most one call is ever inside the
+// store, the others give up at their deadline without entering it.
+func TestConcurrentFirstCallsLeaveAtMostOneCallBlocked(t *testing.T) {
+	shortKeyringTimeout(t)
+	h, _ := useHangingHost(t)
+
+	const callers = 20
+	var wg sync.WaitGroup
+	var available atomic.Int32
+	for range callers {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			if KeyringAvailable() {
+				available.Add(1)
+			}
+		}()
+	}
+	returnsWithin(t, watchdog, func() struct{} { wg.Wait(); return struct{}{} })
+
+	if got := available.Load(); got != 0 {
+		t.Errorf("%d callers saw a silent store as available", got)
+	}
+	if got := h.calls.Load(); got != 1 {
+		t.Errorf("%d calls entered the store, want 1", got)
 	}
 }

@@ -26,13 +26,20 @@ var ErrKeyringUnresponsive = errors.New("the host secret store did not answer in
 
 // boundedHost runs each call of the store in box with a deadline.
 //
+// Calls enter the store one at a time: a caller first takes box.inside, then
+// runs the call in a goroutine that gives the token back when the store
+// returns. A caller that cannot take the token, or whose call does not return,
+// before keyringTimeout gives up with ErrKeyringUnresponsive. Go-keyring opens
+// a D-Bus connection per call and answers in milliseconds, so serializing
+// costs nothing measurable, and it means a silent store never holds more than
+// one goroutine, however many callers arrive at once.
+//
 // A call that misses the deadline is abandoned, not cancelled: the HostStore
 // interface has no context and go-keyring offers no way to stop a wait, so the
 // goroutine running it stays blocked until the store answers, possibly for the
-// rest of the process (one goroutine and one D-Bus connection). While such a
-// call is pending, every new call fails at once with ErrKeyringUnresponsive
-// instead of waiting again and leaking another goroutine: a store judged mute
-// is not probed again until it has answered the call that was stuck.
+// rest of the process (one goroutine and one D-Bus connection). While it is
+// stuck, every new call fails at once instead of waiting for the token: a
+// store judged mute is not asked again until it has answered.
 type boundedHost struct{ box *hostBox }
 
 func (h boundedHost) Get(service, account string) (string, error) {
@@ -67,7 +74,15 @@ func (r hostResult) unwrap() (string, error) {
 
 func (h boundedHost) call(op func(HostStore) (string, error)) (string, error) {
 	box := h.box
-	if box.stuck.Load() > 0 {
+	if box.stuck.Load() {
+		return "", ErrKeyringUnresponsive
+	}
+
+	timer := time.NewTimer(keyringTimeout)
+	defer timer.Stop()
+	select {
+	case box.inside <- struct{}{}:
+	case <-timer.C:
 		return "", ErrKeyringUnresponsive
 	}
 
@@ -81,19 +96,18 @@ func (h boundedHost) call(op func(HostStore) (string, error)) (string, error) {
 				r.panicked = p
 			}
 			// The result is delivered under the lock, so the caller either
-			// sees it or has already counted this call as stuck, never neither.
+			// sees it or has already marked this call stuck, never neither.
 			mu.Lock()
 			defer mu.Unlock()
 			if abandoned {
-				box.stuck.Add(-1)
+				box.stuck.Store(false)
 			}
+			<-box.inside
 			done <- r
 		}()
 		r.secret, r.err = op(box.store)
 	}()
 
-	timer := time.NewTimer(keyringTimeout)
-	defer timer.Stop()
 	select {
 	case r := <-done:
 		return r.unwrap()
@@ -108,6 +122,6 @@ func (h boundedHost) call(op func(HostStore) (string, error)) (string, error) {
 	default:
 	}
 	abandoned = true
-	box.stuck.Add(1)
+	box.stuck.Store(true)
 	return "", ErrKeyringUnresponsive
 }

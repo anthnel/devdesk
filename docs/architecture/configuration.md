@@ -203,11 +203,15 @@ godbus falls back to `$XDG_RUNTIME_DIR/bus`, the same bus.
 - The call is abandoned, not cancelled: the `HostStore` interface has no context and
   go-keyring cannot stop the wait, so its goroutine stays blocked until the store
   answers, possibly for the rest of the process (one goroutine, one D-Bus connection).
+- Calls enter the store one at a time (`hostBox.inside`, a one-token channel taken
+  before the goroutine starts): twenty callers arriving together at a store that has
+  just gone silent leave one goroutine blocked, not twenty; the others give up at their
+  own deadline without entering it.
 - While such a call is pending, every new call fails at once with
   `ErrKeyringUnresponsive`: a context switch or a later `Load` does not wait another
-  3 s, and no further goroutine is leaked. The count is per store (`hostBox.stuck`); it
-  returns to zero when the stuck call returns (the user unlocked the store), and the
-  store is then asked again. The `Selection` already resolved for the context is kept,
+  3 s, and no further goroutine is leaked. The flag is per store (`hostBox.stuck`); it
+  clears when the stuck call returns (the user unlocked the store), and the store is
+  then asked again. The `Selection` already resolved for the context is kept,
   per the one-`Selection`-per-context rule; the next `Select` (context switch, restart)
   finds the store again.
 - `MigrateLegacySecrets` takes the `Selection` and migrates nothing to one that does not

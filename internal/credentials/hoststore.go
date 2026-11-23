@@ -32,18 +32,28 @@ type HostStore interface {
 
 // hostBox lets an atomic.Pointer hold an interface value, so a Cmd reading the
 // current store while a t.Cleanup restores the previous one is not a data race.
-// It also carries the count of calls to that store that outlived
-// keyringTimeout (see boundedHost): a swap starts a fresh count.
+// It also carries what boundedHost needs to keep at most one call inside the
+// store: a swap starts afresh.
 type hostBox struct {
 	store HostStore
-	stuck atomic.Int32
+
+	// inside holds a token while a call is inside the store, so calls run one
+	// at a time and a silent store never holds more than one goroutine.
+	inside chan struct{}
+
+	// stuck is set while a call that outlived keyringTimeout has not returned.
+	stuck atomic.Bool
+}
+
+func newHostBox(s HostStore) *hostBox {
+	return &hostBox{store: s, inside: make(chan struct{}, 1)}
 }
 
 var currentStore atomic.Pointer[hostBox]
 
 // defaultBox holds the production store when no test swapped it. It is a
-// single value so that its stuck count lasts for the whole process.
-var defaultBox = &hostBox{store: goKeyring{}}
+// single value so that its stuck flag lasts for the whole process.
+var defaultBox = newHostBox(goKeyring{})
 
 // hostReachableUnderTest is set only by the TestMain of this package, whose
 // tests mock go-keyring themselves and run git against a hermetic config. In
@@ -69,7 +79,7 @@ func SwapHostStoreForTest(s HostStore) HostStore {
 	if s == nil {
 		panic("credentials: SwapHostStoreForTest called with a nil HostStore; pass the store to restore, as returned by the previous call")
 	}
-	if prev := currentStore.Swap(&hostBox{store: s}); prev != nil {
+	if prev := currentStore.Swap(newHostBox(s)); prev != nil {
 		return prev.store
 	}
 	return goKeyring{}
