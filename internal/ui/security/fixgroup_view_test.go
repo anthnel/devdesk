@@ -25,7 +25,8 @@ import (
 // the switch: its filter, its sort, its query and its cursor are what the user
 // left (AC4). Footer timers are never run: the footer is read through Text and
 // Level. User decisions pinned here: `g` is the third key of the results column;
-// the mode is held per tab for the life of the view; only the CVE tab groups.
+// the mode is held per tab for the life of the view; the CVE tab and, since SC2,
+// the Misconfigurations tab group.
 
 // ── Fixtures ─────────────────────────────────────────────────────────────────
 
@@ -252,10 +253,11 @@ func TestTheResultsColumnHoldsTheSameKeysOnEveryTabGroupedOrNot(t *testing.T) {
 	}
 }
 
-// g belongs to the CVE tab until SC2 (Misconfigurations): everywhere else it is
-// greyed, and pressing it says why. The six tabs stay six.
-func TestGroupIsGreyedWithItsReasonOutsideTheCVETab(t *testing.T) {
-	for _, tab := range []int{TabSecrets, TabLicense, TabMisconfig, TabCIScore, TabRemediation} {
+// g covers the CVE tab and, since SC2, the Misconfigurations tab
+// (fixgroup_misconfig_view_test.go): everywhere else it is greyed, and pressing it
+// says why. The six tabs stay six.
+func TestGroupIsGreyedWithItsReasonOutsideTheCVEAndMisconfigTabs(t *testing.T) {
+	for _, tab := range []int{TabSecrets, TabLicense, TabCIScore, TabRemediation} {
 		t.Run(fmt.Sprintf("tab %d", tab), func(t *testing.T) {
 			m := onTab(t, groupModel(t, 160), tab)
 			if !testutil.HasShortcut(m.GetShortcuts(), groupToggleKey) {

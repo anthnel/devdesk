@@ -285,7 +285,8 @@ func (m *Model) switchTab(tab int) {
 	m.resizeFindings()
 	m.footer.Clear()
 	m.updateFindingsTable()
-	m.refreshGroups()
+	// The grouped list of the tab just reached, built again from the result.
+	m.groupsFollowResult()
 }
 
 // handleIgnoreSecret prompts confirmation to ignore a secret finding.

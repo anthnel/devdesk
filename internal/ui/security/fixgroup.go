@@ -24,6 +24,14 @@ type groupKey struct {
 	// Position is remediation.Fix.Position: it keeps two vulnerabilities that
 	// name no package from sharing a key.
 	Position int
+	// The Misconfigurations tab's key (SC2). File is the raw path of the finding,
+	// Rule is remediation.RuleKey of its ID, Fix is the state of the built-in fix and
+	// Reason is the reason a declined fix gives, so that two instances the fix
+	// declines for different reasons are two rows. Separate fields, never one joined
+	// string, so that no two groups can share a key.
+	File, Rule string
+	Fix        fixState
+	Reason     string
 }
 
 // fixGroup is one row of the grouped list.
@@ -44,6 +52,11 @@ type fixGroup struct {
 	Command string
 	// Members are every finding of the group, not only the visible ones.
 	Members []scan.Finding
+	// Misconfig marks a group of the Misconfigurations tab (SC2): Subject is then
+	// the file as shown, Rule the ID of its first member, Change is empty and
+	// Status is the state of the built-in fix its members share.
+	Misconfig bool
+	Rule      string
 }
 
 // cveGroups groups the vulnerabilities of findings by the cause that clears

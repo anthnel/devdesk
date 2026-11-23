@@ -99,6 +99,11 @@ func (m Model) canFixMisconfig() shortcut.Availability {
 	if m.activeTab != TabMisconfig {
 		return shortcut.Unavailable(reasonNotMisconfigTab)
 	}
+	// In the grouped list the findings table behind it still has a selection, and a
+	// group is not one finding: the fix waits for a finding's detail.
+	if m.state == StateResults && m.isGrouped() {
+		return shortcut.Unavailable(reasonOpenTheGroup)
+	}
 	f, ok := m.subjectFinding()
 	if !ok {
 		return shortcut.Unavailable(reasonNoFinding)

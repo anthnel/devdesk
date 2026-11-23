@@ -113,6 +113,7 @@ func (m Model) togglePSS() (tea.Model, tea.Cmd) {
 	}
 	m.findingsTable.SetTokenActive(pssToken, !m.findingsTable.IsTokenActive(pssToken))
 	m.findingsTable.GotoTop()
+	m.refreshGroups()
 	return m, nil
 }
 

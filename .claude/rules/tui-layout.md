@@ -103,7 +103,7 @@ once.
   - `c` `h` `m` `l` (security): severities, **cumulative** — `c`+`h` asks for
     "CRITICAL **or** HIGH", which a single threshold cannot express.
   - `p` `g` (security): `p` is the Pod Security filter (Misconfigurations tab);
-    `g` is **Group by fix** on the CVE tab (DEVDESK-754), a display toggle that
+    `g` is **Group by fix** on the CVE and Misconfigurations tabs (DEVDESK-754), a display toggle that
     swaps the findings table for one row per cause and back. It is a display
     toggle, not navigation, and it changes nothing about the findings table
     behind it. `g` also means go-to or find in the viewer, workspaces and the

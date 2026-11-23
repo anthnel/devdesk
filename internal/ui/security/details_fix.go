@@ -57,6 +57,10 @@ func (s fixStatus) Label() string {
 	case fixBuiltIn:
 		return labelBuiltInAvailable
 	case fixBuiltInDeclined:
+		// A declined fix with no reason says the bare word, never a dangling colon.
+		if s.Reason == "" {
+			return labelBuiltInUnavailable
+		}
 		return labelBuiltInUnavailable + ": " + s.Reason
 	case fixManual:
 		return labelManual
