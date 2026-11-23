@@ -1,0 +1,15 @@
+{
+  "tool_use_id": "toolu_01WMDAFL3e3KdQW5ihNGAtPm",
+  "agent_id": "ad8b7d97db7bfafd0",
+  "subagent_type": "dev-team:security-reviewer",
+  "task_description": "Audit sécurité S-01b",
+  "token_usage": {
+    "input_tokens": 18,
+    "cache_creation_tokens": 75359,
+    "cache_read_tokens": 426426,
+    "output_tokens": 15291,
+    "api_call_count": 9
+  },
+  "started_at": "2026-11-23T11:27:22.932124717+01:00",
+  "completed_at": "2026-11-23T11:29:50.526000553+01:00"
+}
