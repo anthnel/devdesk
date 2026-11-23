@@ -1,0 +1,15 @@
+{
+  "tool_use_id": "toolu_01FrmZrixAR43wyzTkBzDsB6",
+  "agent_id": "ae027e6ac160eda06",
+  "subagent_type": "dev-team:devops",
+  "task_description": "Merge PR 473 et nettoyer",
+  "token_usage": {
+    "input_tokens": 8,
+    "cache_creation_tokens": 35375,
+    "cache_read_tokens": 118404,
+    "output_tokens": 1129,
+    "api_call_count": 4
+  },
+  "started_at": "2026-11-23T12:11:51.236083112+01:00",
+  "completed_at": "2026-11-23T12:12:15.99397444+01:00"
+}

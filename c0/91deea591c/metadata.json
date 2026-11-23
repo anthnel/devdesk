@@ -1,0 +1,63 @@
+{
+  "cli_version": "0.13.2",
+  "checkpoint_id": "c091deea591c",
+  "strategy": "manual-commit",
+  "branch": "feat/safe-process-stop-s02b",
+  "checkpoints_count": 14,
+  "files_touched": [
+    "docs-site/docs/explanation/network.md",
+    "docs/architecture/network.md",
+    "docs/backlog.md",
+    "docs/journal.md",
+    "internal/ports/identity.go",
+    "internal/ports/identity_darwin.go",
+    "internal/ports/identity_linux.go",
+    "internal/ports/identity_other.go",
+    "internal/ports/identity_windows.go",
+    "internal/ports/ports.go",
+    "internal/ui/netdiag/header.go",
+    "internal/ui/netdiag/ports_commands.go",
+    "internal/ui/netdiag/ports_identity_test.go",
+    "internal/ui/netdiag/ports_model.go",
+    "internal/ui/netdiag/ports_protect_test.go",
+    "internal/ui/netdiag/ports_target_test.go"
+  ],
+  "sessions": [
+    {
+      "metadata": "/c0/91deea591c/0/metadata.json",
+      "transcript": "/c0/91deea591c/0/full.jsonl",
+      "compact_transcript": "/c0/91deea591c/0/transcript.jsonl",
+      "content_hash": "/c0/91deea591c/0/content_hash.txt",
+      "prompt": "/c0/91deea591c/0/prompt.txt"
+    }
+  ],
+  "token_usage": {
+    "input_tokens": 84,
+    "cache_creation_tokens": 89355,
+    "cache_read_tokens": 7880544,
+    "output_tokens": 31166,
+    "api_call_count": 29,
+    "subagent_tokens": {
+      "input_tokens": 502,
+      "cache_creation_tokens": 1718202,
+      "cache_read_tokens": 30179050,
+      "output_tokens": 316315,
+      "api_call_count": 244
+    },
+    "subagent_tokens_complete": true
+  },
+  "redaction": {
+    "replacements": 57,
+    "layers": {
+      "betterleaks": 0,
+      "connection_string": 0,
+      "credential_key": 0,
+      "credential_value": 0,
+      "credentialed_uri": 0,
+      "entropy": 16,
+      "key_context": 41,
+      "provider_token": 0,
+      "shell_stdin": 0
+    }
+  }
+}

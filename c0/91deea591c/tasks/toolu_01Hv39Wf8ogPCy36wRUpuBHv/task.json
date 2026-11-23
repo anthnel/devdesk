@@ -1,0 +1,15 @@
+{
+  "tool_use_id": "toolu_01Hv39Wf8ogPCy36wRUpuBHv",
+  "agent_id": "ab78325f01e8ebf9e",
+  "subagent_type": "dev-team:tester",
+  "task_description": "Vérification finale S-02b",
+  "token_usage": {
+    "input_tokens": 14,
+    "cache_creation_tokens": 64024,
+    "cache_read_tokens": 236041,
+    "output_tokens": 5636,
+    "api_call_count": 6
+  },
+  "started_at": "2026-11-23T12:42:45.275822316+01:00",
+  "completed_at": "2026-11-23T12:46:18.880966718+01:00"
+}

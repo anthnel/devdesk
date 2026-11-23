@@ -1,0 +1,15 @@
+{
+  "tool_use_id": "toolu_01U6zSrmVejjgp93sSLufdpC",
+  "agent_id": "a59d1b8474d1056ee",
+  "subagent_type": "team-core:tech-writer",
+  "task_description": "Docs S-02b mise à jour",
+  "token_usage": {
+    "input_tokens": 16,
+    "cache_creation_tokens": 126334,
+    "cache_read_tokens": 708081,
+    "output_tokens": 6797,
+    "api_call_count": 8
+  },
+  "started_at": "2026-11-23T12:38:46.408173066+01:00",
+  "completed_at": "2026-11-23T12:39:41.726331753+01:00"
+}
