@@ -415,17 +415,7 @@ surplus off the bottom of the viewport first, then cuts the stack to `H` lines;
 `lipgloss.Place` left (`TestPadFrameMatchesPlaceOnTheFrames`) but stops measuring at the
 first line as wide as the screen, the header's, where Place measured them all
 (DEVDESK-281); a frame holding a tab or a CR is handed to `lipgloss.Place` itself,
-which rewrites those before measuring. Upstream of `fitHeight`, `renderBody` paints
-the view's content on the background and pads each line to the inner width through
-`styleBody` (`body_pad.go`): it is the old `Style.Width(w).Render(content)`, byte for
-byte, and `padBody` takes its place on the content that call would leave as it is,
-which is nearly always the case: every line at most `w` cells wide, only printable
-characters and CSI sequences (no tab, CR, OSC, other control byte), and the pen back
-at its default at the end of each line (the last SGR is `ESC[m` or `ESC[0m`, since
-lipgloss's wrap writer re-opens a style left open on the next line). Anything else,
-an overflowing line included (lipgloss wraps it, the viewport alone would cut it),
-goes to the lipgloss call. `TestPadBody*` compare the two on a table, on refusals,
-and on generated content, and the cell goldens hold the frames (DEVDESK-281). At
+which rewrites those before measuring. At
 13 lines or fewer the FilterBar's top edge can disappear with the viewport, and
 while the palette is open on a very short terminal it may cover the footer (the
 view's footer is back on close). The notice lasts until the next key, with no timer.

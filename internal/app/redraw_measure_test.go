@@ -296,15 +296,3 @@ func BenchmarkPadFrame(b *testing.B) {
 		placeSink = padFrame(inner[n&1], a.width, a.height)
 	}
 }
-
-// BenchmarkAppViewStyled is BenchmarkAppView on a body made of styled rows (the
-// cell goldens' framed view: colour runs, padding, wide and icon glyphs), where
-// measuredView's rows are plain text. It tells how much of BenchmarkAppView's
-// figure holds when the content carries escape sequences.
-func BenchmarkAppViewStyled(b *testing.B) {
-	a := trueColorRouter(b, framedView(), measureWidth, measureHeight)
-	b.ReportAllocs()
-	for b.Loop() {
-		viewSink = a.View()
-	}
-}
