@@ -1,0 +1,51 @@
+{
+  "cli_version": "0.13.2",
+  "checkpoint_id": "616de65a8eb6",
+  "strategy": "manual-commit",
+  "branch": "perf/devdesk-281-view-cost",
+  "checkpoints_count": 1,
+  "files_touched": [
+    "docs/architecture/app-shell.md",
+    "internal/app/pad_frame_test.go",
+    "internal/app/redraw_measure_test.go",
+    "internal/app/view.go"
+  ],
+  "sessions": [
+    {
+      "metadata": "/61/6de65a8eb6/0/metadata.json",
+      "transcript": "/61/6de65a8eb6/0/full.jsonl",
+      "compact_transcript": "/61/6de65a8eb6/0/transcript.jsonl",
+      "content_hash": "/61/6de65a8eb6/0/content_hash.txt",
+      "prompt": "/61/6de65a8eb6/0/prompt.txt"
+    }
+  ],
+  "token_usage": {
+    "input_tokens": 6,
+    "cache_creation_tokens": 5462,
+    "cache_read_tokens": 339707,
+    "output_tokens": 3718,
+    "api_call_count": 2,
+    "subagent_tokens": {
+      "input_tokens": 56,
+      "cache_creation_tokens": 133302,
+      "cache_read_tokens": 3096143,
+      "output_tokens": 20547,
+      "api_call_count": 28
+    },
+    "subagent_tokens_complete": true
+  },
+  "redaction": {
+    "replacements": 2,
+    "layers": {
+      "betterleaks": 0,
+      "connection_string": 0,
+      "credential_key": 0,
+      "credential_value": 0,
+      "credentialed_uri": 0,
+      "entropy": 0,
+      "key_context": 2,
+      "provider_token": 0,
+      "shell_stdin": 0
+    }
+  }
+}
