@@ -115,7 +115,7 @@ func allLayouts() map[string][]Column[string] {
 func TestTheRenderedLineAlwaysSpansTheViewportInterior(t *testing.T) {
 	for name, columns := range allLayouts() {
 		for width := 0; width <= 250; width++ {
-			widths := solveWidths(columns, width, nil)
+			widths := solveWidths(columns, width, nil, nil)
 			span, kept := renderedSpan(widths)
 
 			if kept > 0 && span != width-borderWidth {
@@ -140,7 +140,7 @@ func TestTheRenderedLineAlwaysSpansTheViewportInterior(t *testing.T) {
 func TestAColumnIsRemovedRatherThanEmptied(t *testing.T) {
 	for name, columns := range allLayouts() {
 		for width := 0; width <= 200; width++ {
-			widths := solveWidths(columns, width, nil)
+			widths := solveWidths(columns, width, nil, nil)
 			if _, kept := renderedSpan(widths); kept < 2 {
 				continue // the last column left may go under anything
 			}
@@ -163,7 +163,7 @@ func TestAColumnIsRemovedRatherThanEmptied(t *testing.T) {
 func TestAContentColumnFollowsItsWidestValue(t *testing.T) {
 	columns := []Column[string]{content(26, 0), content(10, 1)}
 
-	widths := solveWidths(columns, 100, []int{45, 11})
+	widths := solveWidths(columns, 100, []int{45, 11}, nil)
 
 	if widths[0] != 45 {
 		t.Errorf("the content column is %d wide, want its measured 45 (%v)", widths[0], widths)
@@ -175,7 +175,7 @@ func TestAContentColumnFollowsItsWidestValue(t *testing.T) {
 
 // A fixed column is fixed: one long value in it does not stretch it.
 func TestAFixedColumnIgnoresTheMeasurement(t *testing.T) {
-	widths := solveWidths([]Column[string]{fixed(6), content(10, 1)}, 100, []int{40, 12})
+	widths := solveWidths([]Column[string]{fixed(6), content(10, 1)}, 100, []int{40, 12}, nil)
 
 	if widths[0] != 6 {
 		t.Errorf("the fixed column is %d wide, want the 6 it declared (%v)", widths[0], widths)
@@ -187,7 +187,7 @@ func TestMaxWidthCapsTheContent(t *testing.T) {
 	capped := content(10, 0)
 	capped.MaxWidth = 20
 
-	widths := solveWidths([]Column[string]{capped, content(10, 1)}, 120, []int{80, 10})
+	widths := solveWidths([]Column[string]{capped, content(10, 1)}, 120, []int{80, 10}, nil)
 
 	if widths[0] != 20 {
 		t.Errorf("the capped column is %d wide, want 20 (%v)", widths[0], widths)
@@ -200,7 +200,7 @@ func TestACeilingUnderTheFloorLosesToTheFloor(t *testing.T) {
 	silly := content(12, 0)
 	silly.MaxWidth = 4
 
-	widths := solveWidths([]Column[string]{silly, content(10, 1)}, 120, []int{80, 10})
+	widths := solveWidths([]Column[string]{silly, content(10, 1)}, 120, []int{80, 10}, nil)
 
 	if widths[0] != 12 {
 		t.Errorf("the column is %d wide, want its floor of 12 (%v)", widths[0], widths)
@@ -210,7 +210,7 @@ func TestACeilingUnderTheFloorLosesToTheFloor(t *testing.T) {
 // An unmeasured content column is not a zero-width one: it falls back to what
 // it declared, which is what a table renders before its first measurement.
 func TestAnUnmeasuredContentColumnKeepsItsMinimum(t *testing.T) {
-	widths := solveWidths([]Column[string]{content(20, 0), fixed(10)}, 60, nil)
+	widths := solveWidths([]Column[string]{content(20, 0), fixed(10)}, 60, nil, nil)
 
 	if widths[0] != 20 {
 		t.Errorf("the unmeasured column is %d wide, want its declared 20 (%v)", widths[0], widths)
@@ -222,7 +222,7 @@ func TestAnUnmeasuredContentColumnKeepsItsMinimum(t *testing.T) {
 func TestTheShortfallComesOutOfTheContentColumnsFirst(t *testing.T) {
 	columns := []Column[string]{content(10, 1), fixed(10)}
 
-	widths := solveWidths(columns, 40, []int{30, 0}) // wants 30+10, has 34
+	widths := solveWidths(columns, 40, []int{30, 0}, nil) // wants 30+10, has 34
 
 	if widths[1] != 10 {
 		t.Errorf("the fixed column lost %d while a content one still had slack", 10-widths[1])
@@ -238,7 +238,7 @@ func TestTheShortfallComesOutOfTheContentColumnsFirst(t *testing.T) {
 func TestTheOptionalColumnsGoFirst(t *testing.T) {
 	columns := []Column[string]{content(20, 1), optional(fixed(8)), fixed(12)}
 
-	widths := solveWidths(columns, 40, nil)
+	widths := solveWidths(columns, 40, nil, nil)
 
 	if widths[1] != 0 {
 		t.Fatalf("widths = %v, want the optional column dropped", widths)
@@ -259,7 +259,7 @@ func TestADropFirstColumnGoesBeforeTheOptionalOnesToItsRight(t *testing.T) {
 	}
 	columns := []Column[string]{content(20, 1), dropFirst(fixed(6)), optional(fixed(9)), fixed(12)}
 
-	widths := solveWidths(columns, 50, nil)
+	widths := solveWidths(columns, 50, nil, nil)
 
 	if widths[1] != 0 {
 		t.Fatalf("widths = %v, want the DropFirst column dropped first", widths)
@@ -278,7 +278,7 @@ func TestOnceTheDropFirstColumnsAreGoneTheOrdinaryOrderResumes(t *testing.T) {
 	}
 	columns := []Column[string]{content(20, 1), dropFirst(fixed(6)), optional(fixed(9)), optional(fixed(9))}
 
-	widths := solveWidths(columns, 40, nil)
+	widths := solveWidths(columns, 40, nil, nil)
 
 	if widths[1] != 0 || widths[3] != 0 {
 		t.Fatalf("widths = %v, want the DropFirst column then the rightmost optional one dropped", widths)
@@ -294,7 +294,7 @@ func TestARemovedColumnHandsBackItsPadding(t *testing.T) {
 	columns := []Column[string]{content(20, 1), optional(fixed(8)), fixed(12)}
 	const width = 40
 
-	widths := solveWidths(columns, width, nil)
+	widths := solveWidths(columns, width, nil, nil)
 
 	span, kept := renderedSpan(widths)
 	if kept != 2 {
@@ -312,7 +312,7 @@ func TestARemovedColumnHandsBackItsPadding(t *testing.T) {
 func TestTheColumnsNobodyMarkedOptionalGoTooRatherThanLie(t *testing.T) {
 	columns := []Column[string]{fixed(20), fixed(20), fixed(20)}
 
-	widths := solveWidths(columns, 24, nil)
+	widths := solveWidths(columns, 24, nil, nil)
 
 	if widths[0] != 20 || widths[1] != 0 || widths[2] != 0 {
 		t.Errorf("widths = %v, want the rightmost columns removed and the first kept whole", widths)
@@ -322,7 +322,7 @@ func TestTheColumnsNobodyMarkedOptionalGoTooRatherThanLie(t *testing.T) {
 // The first column is never removed: a table with no columns at all is not a
 // narrower table, it is a blank one.
 func TestTheFirstColumnIsNeverRemoved(t *testing.T) {
-	widths := solveWidths([]Column[string]{optional(fixed(20)), optional(fixed(20))}, 12, nil)
+	widths := solveWidths([]Column[string]{optional(fixed(20)), optional(fixed(20))}, 12, nil, nil)
 
 	if widths[0] == 0 {
 		t.Errorf("widths = %v, want the first column kept whatever it costs", widths)
@@ -332,7 +332,7 @@ func TestTheFirstColumnIsNeverRemoved(t *testing.T) {
 // A terminal too narrow for the borders and the padding alone has no room to
 // give, and the answer has to be zeros rather than negative widths.
 func TestNoRoomAtAllGivesZeroWidths(t *testing.T) {
-	widths := solveWidths([]Column[string]{content(10, 1), fixed(10)}, 3, nil)
+	widths := solveWidths([]Column[string]{content(10, 1), fixed(10)}, 3, nil, nil)
 
 	if sum(widths) != 0 {
 		t.Errorf("widths = %v, want all zero", widths)
@@ -340,8 +340,8 @@ func TestNoRoomAtAllGivesZeroWidths(t *testing.T) {
 }
 
 func TestNoColumnsIsNotACrash(t *testing.T) {
-	if got := solveWidths[string](nil, 80, nil); len(got) != 0 {
-		t.Errorf("solveWidths(nil) = %v", got)
+	if got := solveWidths[string](nil, 80, nil, nil); len(got) != 0 {
+		t.Errorf("solveWidths(nil, nil) = %v", got)
 	}
 }
 
@@ -349,7 +349,7 @@ func TestNoColumnsIsNotACrash(t *testing.T) {
 func TestTheSurplusIsSharedByWeight(t *testing.T) {
 	columns := []Column[string]{content(10, 1), content(10, 3), fixed(10)}
 
-	widths := solveWidths(columns, 78, nil) // 30 asked for, 40 to share
+	widths := solveWidths(columns, 78, nil, nil) // 30 asked for, 40 to share
 
 	if widths[2] != 10 {
 		t.Errorf("the fixed column is %d wide, want its %d", widths[2], 10)
@@ -362,7 +362,7 @@ func TestTheSurplusIsSharedByWeight(t *testing.T) {
 // With nothing flexible the last column absorbs the remainder, which is what
 // every view did by hand and what keeps the selected row reaching the border.
 func TestWithNothingFlexibleTheLastColumnAbsorbs(t *testing.T) {
-	widths := solveWidths([]Column[string]{fixed(10), fixed(10)}, 41, nil)
+	widths := solveWidths([]Column[string]{fixed(10), fixed(10)}, 41, nil, nil)
 
 	if widths[0] != 10 || widths[1] != 25 {
 		t.Errorf("widths = %v, want the remainder on the last column", widths)
@@ -374,7 +374,7 @@ func TestWithNothingFlexibleTheLastColumnAbsorbs(t *testing.T) {
 func TestShrinkingLevelsTheColumnsRatherThanEmptyingOne(t *testing.T) {
 	columns := []Column[string]{content(4, 1), content(4, 1)}
 
-	widths := solveWidths(columns, 30, []int{40, 10}) // 50 wanted, 24 available
+	widths := solveWidths(columns, 30, []int{40, 10}, nil) // 50 wanted, 24 available
 
 	if widths[1] < 10 {
 		t.Errorf("widths = %v, want the long column to give way before the short one is cut", widths)
@@ -391,7 +391,7 @@ func TestANegativeMinimumIsReadAsOneCell(t *testing.T) {
 	columns := []Column[string]{fixed(-5), content(10, 1)}
 	const width = 40
 
-	widths := solveWidths(columns, width, nil)
+	widths := solveWidths(columns, width, nil, nil)
 
 	if widths[0] != 1 {
 		t.Errorf("widths = %v, want the negative minimum read as one cell", widths)

@@ -101,25 +101,36 @@ func (m Model) canFixMisconfig() shortcut.Availability {
 	if !ok {
 		return shortcut.Unavailable(reasonNoFinding)
 	}
-	if m.result == nil || m.result.TargetType != scan.TargetDirectory {
-		return shortcut.Unavailable(reasonFileNotOnDisk)
-	}
+	_, a := misconfigFixAvailability(f, m.result != nil && m.result.TargetType == scan.TargetDirectory)
+	return a
+}
+
+// misconfigFixAvailability is what canFixMisconfig answers for a finding once a
+// row exists, and what the finding detail reads for its fix status, so the two
+// cannot disagree (Rule 130). onDisk says whether the target is a directory:
+// an image's files are inside it, where nothing can be written. It also returns
+// the catalog rule, whenever the catalog has one, so a caller can say what the
+// fix would do even where it cannot run.
+func misconfigFixAvailability(f scan.Finding, onDisk bool) (remediation.Rule, shortcut.Availability) {
 	rule, ok := remediation.FixFor(f)
+	if !onDisk {
+		return rule, shortcut.Unavailable(reasonFileNotOnDisk)
+	}
 	if !ok {
-		return shortcut.Unavailable(noFixReason(f))
+		return rule, shortcut.Unavailable(noFixReason(f))
 	}
 	// A refusal the finding alone settles (DEVDESK-688): greyed in advance, with
 	// the reason the press of the key would give.
 	if rule.Declines != nil {
 		if reason := rule.Declines(f); reason != "" {
-			return shortcut.Unavailable(reason)
+			return rule, shortcut.Unavailable(reason)
 		}
 	}
 	// Reading the file here would be I/O on a path the header calls every
 	// frame, so the declines that need the content are left to the Cmd and
 	// reach the footer. What is settled here is everything the finding alone
 	// can answer.
-	return shortcut.Availability{}
+	return rule, shortcut.Availability{}
 }
 
 // noFixReason is why a finding with no fix in the catalog is refused: for a Pod

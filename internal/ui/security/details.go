@@ -7,6 +7,7 @@ import (
 
 	tea "charm.land/bubbletea/v2"
 	"charm.land/lipgloss/v2"
+	"github.com/charmbracelet/x/ansi"
 
 	"github.com/anthnel/devdesk/internal/browser"
 	"github.com/anthnel/devdesk/internal/scan"
@@ -57,103 +58,176 @@ func (m Model) handleDetailsOpenReference() (tea.Model, tea.Cmd) {
 	}
 }
 
+// sizeDetails gives the details viewport the room the router leaves it: the
+// view's width less the two border cells the viewport frame takes, so a line
+// never reaches under the right border. The padding takes one more cell on each
+// side, which is the text width (detailsTextWidth).
+func (m *Model) sizeDetails() {
+	m.detailsViewport.SetWidth(max(m.width-2, 1))
+	m.detailsViewport.SetHeight(m.height)
+}
+
+// detailsTextWidth is how many cells a line of the detail text may span.
+func (m Model) detailsTextWidth() int { return max(m.width-4, 1) }
+
+// scanTarget is the scanned path, for display only: it is what shortPaths cuts
+// off a path, and an image reference there is ignored.
+func (m Model) scanTarget() string {
+	if m.result == nil {
+		return ""
+	}
+	return m.result.Target
+}
+
+// targetOnDisk says whether the scanned target is a directory, whose files a
+// built-in fix can write.
+func (m Model) targetOnDisk() bool {
+	return m.result != nil && m.result.TargetType == scan.TargetDirectory
+}
+
 // buildDetailsContent builds the full scrollable content for the details view.
+//
+// What to do comes before what it is: the fix status and the remediation, then
+// the scanner's message, then the facts. Each section is emitted only when it has
+// something to say, and sections are joined by exactly one blank line.
 func (m Model) buildDetailsContent() string {
 	if m.selectedFinding == nil {
 		return theme.Bg("No finding selected")
 	}
 
 	f := *m.selectedFinding
-	var b strings.Builder
+	t := newDetailsText(m.detailsTextWidth())
 
-	// Available width inside padding (1 left + 1 right)
-	contentWidth := max(m.width-6, 40)
-	textStyle := lipgloss.NewStyle().Background(theme.ColorBackground).Foreground(theme.ColorText)
-	wrapStyle := textStyle.Width(contentWidth)
-
-	// Header: severity + ID on same line with proper background
-	severityStyle := m.getSeverityStyle(f.Severity)
-	b.WriteString(severityStyle.Render(string(f.Severity)) + theme.Bg(" ") + theme.TitleStyle.Render(f.ID) + "\n\n")
-
-	// Title with wrapping
-	b.WriteString(theme.SubTitleStyle.Render("Title:") + "\n")
-	b.WriteString(wrapStyle.Render(f.Title) + "\n\n")
-
-	// Description with wrapping
-	if f.Description != "" {
-		b.WriteString(theme.SubTitleStyle.Render("Description:") + "\n")
-		b.WriteString(wrapStyle.Render(f.Description) + "\n\n")
-	}
-
-	b.WriteString(theme.SubTitleStyle.Render("Source: ") + textStyle.Render(f.Source) + "\n")
-	if f.IaCType != "" {
-		b.WriteString(theme.SubTitleStyle.Render("Type: ") + textStyle.Render(f.IaCType) + "\n")
-	}
-
-	if label := pssLabel(f); label != "" {
-		b.WriteString(theme.SubTitleStyle.Render("Pod Security: ") + textStyle.Render(label) + "\n")
-	}
-
-	// File path with wrapping (can be long)
-	if f.File != "" {
-		b.WriteString(theme.SubTitleStyle.Render("File: ") + textStyle.Width(contentWidth-6).Render(f.File) + "\n")
-	}
-
-	if f.Line > 0 {
-		b.WriteString(theme.SubTitleStyle.Render("Line: ") + textStyle.Render(fmt.Sprintf("%d", f.Line)) + "\n")
-	}
-
-	if f.PkgName != "" {
-		b.WriteString(theme.SubTitleStyle.Render("Package: ") + textStyle.Render(f.PkgName) + "\n")
-		if kind := packageKind(f.Class); kind != "" {
-			b.WriteString(theme.SubTitleStyle.Render("Kind: ") + textStyle.Render(kind) + "\n")
-		}
-		if f.Version != "" {
-			b.WriteString(theme.SubTitleStyle.Render("Version: ") + textStyle.Render(f.Version) + "\n")
-		}
-		if f.FixedIn != "" {
-			b.WriteString(theme.SubTitleStyle.Render("Fixed In: ") + theme.StatusOKStyle.Render(f.FixedIn) + "\n")
-		}
-	}
-
-	if f.Match != "" {
-		b.WriteString(theme.SubTitleStyle.Render("Match: ") + textStyle.Render(f.Match) + "\n")
-	}
-
-	// The offending line of a CI finding, wrapped: it is a shell command and
-	// can be long. It is the only thing plumber says about *where inside a job*
-	// a control fired — the File above names the `include:` entry that brought
-	// the job in, which is the include responsible rather than the fault.
-	if f.ScriptLine != "" {
-		b.WriteString(theme.SubTitleStyle.Render("Script:") + "\n")
-		b.WriteString(wrapStyle.Render(f.ScriptLine) + "\n")
-	}
-
-	// Remediation section
-	if f.Resolution != "" || f.FixCommand != "" {
-		b.WriteString("\n")
-		b.WriteString(theme.SubTitleStyle.Render("Remediation:") + "\n")
-		if f.Resolution != "" {
-			b.WriteString(wrapStyle.Render(f.Resolution) + "\n")
-		}
-		if f.FixCommand != "" {
-			b.WriteString(theme.DimStyle.Render("Run: ") + textStyle.Render(f.FixCommand) + "\n")
-		}
-	}
-
-	// References section
-	if len(f.References) > 0 {
-		b.WriteString("\n")
-		b.WriteString(theme.SubTitleStyle.Render("References:") + "\n")
-		for _, ref := range f.References {
-			b.WriteString(textStyle.Width(contentWidth-2).Render("  "+ref) + "\n")
+	var sections []string
+	for _, section := range [][]string{
+		m.detailsHeader(f, t),
+		m.detailsFix(f, t),
+		m.detailsMessage(f, t),
+		m.detailsDescription(f, t),
+		m.detailsFacts(f, t),
+		m.detailsScript(f, t),
+		m.detailsReferences(f, t),
+	} {
+		if len(section) > 0 {
+			sections = append(sections, strings.Join(section, "\n"))
 		}
 	}
 
 	return lipgloss.NewStyle().
 		Padding(1).
 		Background(theme.ColorBackground).
-		Render(b.String())
+		Render(strings.Join(sections, "\n\n"))
+}
+
+// detailsHeader is the severity and ID, then the title on one line: a title can
+// carry a whole stderr line, and the Message below has the rest.
+func (m Model) detailsHeader(f scan.Finding, t detailsText) []string {
+	sev := string(f.Severity)
+	header := m.getSeverityStyle(f.Severity).Render(sev) + theme.Bg(" ") +
+		theme.TitleStyle.Render(oneLine(f.ID, t.width-ansi.StringWidth(sev)-1))
+	title := oneLine(shortPaths(f.Title, m.scanTarget()), t.width)
+	return []string{header, t.text.Render(title)}
+}
+
+// detailsFix is the fix status in words, then the remediation: the Resolution
+// and either the command to run or, for a sentence such as "Update pkg to 1.2",
+// the instruction as text.
+func (m Model) detailsFix(f scan.Finding, t detailsText) []string {
+	var lines []string
+	status := fixStatusOf(f, m.targetOnDisk())
+	if status.Label != "" {
+		lines = append(lines, t.field("Fix status: ", status.Label, t.text)...)
+		lines = append(lines, t.block(status.Detail, t.dim)...)
+		if status.Warning != "" {
+			lines = append(lines, t.field("Warning: ", status.Warning, theme.StatusWarningStyle)...)
+		}
+	}
+	label, action := fixAction(f)
+	if f.Resolution == "" && action == "" {
+		return lines
+	}
+	lines = append(lines, theme.SubTitleStyle.Render("Remediation:"))
+	lines = append(lines, t.block(f.Resolution, t.text)...)
+	if label != "" {
+		return append(lines, t.field(label+": ", action, t.text)...)
+	}
+	return append(lines, t.block(action, t.text)...)
+}
+
+// detailsMessage is what the scanner said about this instance, capped: the start
+// of it is what tells two findings of one rule apart, and the rest is in the log.
+// A message that only repeats the title or the description adds nothing.
+func (m Model) detailsMessage(f scan.Finding, t detailsText) []string {
+	msg := strings.TrimSpace(f.Message)
+	if msg == "" || msg == strings.TrimSpace(f.Title) || msg == strings.TrimSpace(f.Description) {
+		return nil
+	}
+	lines, hidden := cappedLines(dropBlankLines(shortPaths(msg, m.scanTarget())), t.width, maxMessageLines)
+	if len(lines) == 0 {
+		return nil
+	}
+	out := []string{theme.SubTitleStyle.Render("Message:")}
+	for _, line := range lines {
+		out = append(out, t.text.Render(line))
+	}
+	if more := moreLines(hidden); more != "" {
+		out = append(out, theme.DimStyle.Render(more))
+	}
+	return out
+}
+
+func (m Model) detailsDescription(f scan.Finding, t detailsText) []string {
+	if strings.TrimSpace(f.Description) == "" {
+		return nil
+	}
+	return append([]string{theme.SubTitleStyle.Render("Description:")}, t.block(f.Description, t.text)...)
+}
+
+// detailsFacts are the labelled values, each wrapped under its label.
+func (m Model) detailsFacts(f scan.Finding, t detailsText) []string {
+	var lines []string
+	add := func(label, value string, style lipgloss.Style) {
+		if value != "" {
+			lines = append(lines, t.field(label+": ", value, style)...)
+		}
+	}
+	add("Source", f.Source, t.text)
+	add("Type", f.IaCType, t.text)
+	add("Pod Security", pssLabel(f), t.text)
+	add("File", shortPaths(f.File, m.scanTarget()), t.text)
+	if f.Line > 0 {
+		add("Line", fmt.Sprintf("%d", f.Line), t.text)
+	}
+	if f.PkgName != "" {
+		add("Package", f.PkgName, t.text)
+		add("Kind", packageKind(f.Class), t.text)
+		add("Version", f.Version, t.text)
+		add("Fixed In", f.FixedIn, theme.StatusOKStyle)
+	}
+	add("Match", f.Match, t.text)
+	return lines
+}
+
+// detailsScript is the offending line of a CI finding, wrapped: it is a shell
+// command and can be long. It is the only thing plumber says about *where inside
+// a job* a control fired — the File names the `include:` entry that brought the
+// job in, which is the include responsible rather than the fault.
+func (m Model) detailsScript(f scan.Finding, t detailsText) []string {
+	if strings.TrimSpace(f.ScriptLine) == "" {
+		return nil
+	}
+	return append([]string{theme.SubTitleStyle.Render("Script:")}, t.block(f.ScriptLine, t.text)...)
+}
+
+func (m Model) detailsReferences(f scan.Finding, t detailsText) []string {
+	if len(f.References) == 0 {
+		return nil
+	}
+	lines := []string{theme.SubTitleStyle.Render("References:")}
+	for _, ref := range f.References {
+		lines = append(lines, t.indented("  ", ref, t.text)...)
+	}
+	return lines
 }
 
 // renderDetailsView renders the scrollable details viewport.

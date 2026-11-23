@@ -142,7 +142,7 @@ func trivyFixCommand(ecosystem string, vuln TrivyVulnerability) string {
 	if cmd, ok := FixCommand(ecosystem, vuln.PkgName, target); ok {
 		return cmd
 	}
-	return fmt.Sprintf("Update %s to %s", vuln.PkgName, target)
+	return fixInstruction(vuln.PkgName, target)
 }
 
 // mergeRefs is the reference list of a finding: primary first, then the other

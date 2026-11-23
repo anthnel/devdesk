@@ -279,6 +279,9 @@ type Model[T any] struct {
 	blinkOn bool
 	// indicatorAt is the index of the column with an Indicator, -1 if none.
 	indicatorAt int
+	// hidden marks the columns taken out of the layout by SetColumnHidden. It
+	// is nil until the first call.
+	hidden []bool
 
 	// natural is the widest text each column produces over the visible rows,
 	// header included. rebuild refreshes it because it is already walking every
@@ -462,7 +465,7 @@ func (m *Model[T]) Blur() {
 func (m *Model[T]) Resize(width, height int) {
 	m.width = width
 	m.promote()
-	widths := solveWidths(m.cfg.Columns, width, m.measured)
+	widths := solveWidths(m.cfg.Columns, width, m.measured, m.hidden)
 
 	cols := m.table.Columns()
 	for i := range cols {
@@ -538,11 +541,37 @@ func (m *Model[T]) nextSortable(sortable []int) int {
 func (m *Model[T]) sortableColumns() []int {
 	var out []int
 	for i, c := range m.cfg.Columns {
-		if c.Less != nil {
+		if c.Less != nil && !m.isHidden(i) {
 			out = append(out, i)
 		}
 	}
 	return out
+}
+
+// isHidden reports whether column i was taken out of the layout.
+func (m *Model[T]) isHidden(i int) bool { return i < len(m.hidden) && m.hidden[i] }
+
+// SetColumnHidden takes column i out of the layout (width 0, no header, no
+// cell, its padding handed back to the others) until it is shown again. The
+// column stays in the configuration, so a view can own one column and show it
+// on one tab only. The first column cannot be hidden, and an index out of range
+// changes nothing.
+//
+// CycleSort skips a hidden column, and hiding the sorted column resets the sort
+// to none: a sort the header cannot show would be an order nobody can explain.
+// The caller resizes afterwards, as for any change of width.
+func (m *Model[T]) SetColumnHidden(i int, hidden bool) {
+	if i <= 0 || i >= len(m.cfg.Columns) || m.isHidden(i) == hidden {
+		return
+	}
+	if m.hidden == nil {
+		m.hidden = make([]bool, len(m.cfg.Columns))
+	}
+	m.hidden[i] = hidden
+	if hidden && m.sortColumn == i {
+		m.sortColumn, m.sortDesc = -1, false
+		m.rebuild()
+	}
 }
 
 // SortState reports the column sorted by and its direction, for tests and for
@@ -558,7 +587,7 @@ func (m *Model[T]) SortState() (column int, desc bool) { return m.sortColumn, m.
 // silently sorted by something else — the same invariant New settles, so that
 // nothing downstream has to re-check it.
 func (m *Model[T]) SetSort(column int, desc bool) {
-	if column < 0 || column >= len(m.cfg.Columns) || m.cfg.Columns[column].Less == nil {
+	if column < 0 || column >= len(m.cfg.Columns) || m.cfg.Columns[column].Less == nil || m.isHidden(column) {
 		column, desc = -1, false
 	}
 	m.sortColumn, m.sortDesc = column, desc

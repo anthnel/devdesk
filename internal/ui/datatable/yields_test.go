@@ -25,7 +25,7 @@ func dropFirst(c Column[string]) Column[string] {
 func TestAYieldingColumnGoesBeforeRequiredContentIsCut(t *testing.T) {
 	columns := []Column[string]{content(10, 1), yields(fixed(8)), fixed(5)}
 
-	got := solveWidths(columns, 47, []int{30})
+	got := solveWidths(columns, 47, []int{30}, nil)
 
 	if want := []int{36, 0, 5}; !slices.Equal(got, want) {
 		t.Errorf("widths = %v, want %v (the content keeps its 30 cells, the surplus goes to it)", got, want)
@@ -35,7 +35,7 @@ func TestAYieldingColumnGoesBeforeRequiredContentIsCut(t *testing.T) {
 func TestWithoutYieldsToContentTheContentIsCutFirst(t *testing.T) {
 	columns := []Column[string]{content(10, 1), optional(fixed(8)), fixed(5)}
 
-	got := solveWidths(columns, 47, []int{30})
+	got := solveWidths(columns, 47, []int{30}, nil)
 
 	if want := []int{26, 8, 5}; !slices.Equal(got, want) {
 		t.Errorf("widths = %v, want %v", got, want)
@@ -56,7 +56,7 @@ func TestOptionalContentIsCutBeforeAYieldingColumnGoes(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got := solveWidths(columns, tt.width, []int{20, 20})
+			got := solveWidths(columns, tt.width, []int{20, 20}, nil)
 			if !slices.Equal(got, tt.want) {
 				t.Errorf("widths at %d = %v, want %v", tt.width, got, tt.want)
 			}
@@ -75,7 +75,7 @@ func TestYieldingStopsAtTheFirstColumnThatDoesNotYield(t *testing.T) {
 	}
 	checked := 0
 	for _, tt := range tests {
-		got := solveWidths(columns, tt.width, []int{30})
+		got := solveWidths(columns, tt.width, []int{30}, nil)
 		if !slices.Equal(got, tt.want) {
 			t.Errorf("widths at %d = %v, want %v", tt.width, got, tt.want)
 		}
@@ -91,7 +91,7 @@ func TestAYieldingColumnThatIsNotNextHasNoEffect(t *testing.T) {
 	// on the earlier column is not reached (prefix rule) and the content is cut.
 	columns := []Column[string]{content(10, 1), yields(fixed(8)), optional(fixed(6)), fixed(5)}
 
-	got := solveWidths(columns, 55, []int{30})
+	got := solveWidths(columns, 55, []int{30}, nil)
 
 	if want := []int{26, 8, 6, 5}; !slices.Equal(got, want) {
 		t.Errorf("widths = %v, want %v", got, want)
@@ -103,7 +103,7 @@ func TestYieldsToContentWithoutOptionalIsIgnored(t *testing.T) {
 	flagged.YieldsToContent = true
 	columns := []Column[string]{content(10, 1), flagged, fixed(5)}
 
-	got := solveWidths(columns, 47, []int{30})
+	got := solveWidths(columns, 47, []int{30}, nil)
 
 	if want := []int{26, 8, 5}; !slices.Equal(got, want) {
 		t.Errorf("widths = %v, want %v", got, want)
@@ -114,7 +114,7 @@ func TestDropFirstOrderDecidesWhichColumnYields(t *testing.T) {
 	// The DropFirst column sits left of the plain yielding one but goes first.
 	columns := []Column[string]{content(10, 1), dropFirst(yields(fixed(8))), yields(fixed(6)), fixed(5)}
 
-	got := solveWidths(columns, 55, []int{30})
+	got := solveWidths(columns, 55, []int{30}, nil)
 
 	// avail 45, wants 49: the DropFirst column (index 1) yields; 3 columns have
 	// 47, wants 41, surplus 6 to the content.
@@ -140,7 +140,7 @@ func TestFlagOffKeepsTodaysLayouts(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			if got := solveWidths(tt.columns, tt.width, tt.meas); !slices.Equal(got, tt.want) {
+			if got := solveWidths(tt.columns, tt.width, tt.meas, nil); !slices.Equal(got, tt.want) {
 				t.Errorf("widths = %v, want %v", got, tt.want)
 			}
 		})
@@ -159,7 +159,7 @@ func TestFlagWithoutOptionalChangesNothingAtAnyWidth(t *testing.T) {
 		}
 		for width := 0; width <= 200; width++ {
 			for _, meas := range [][]int{nil, {40, 40, 40, 40, 40, 40, 40, 40}} {
-				if a, b := solveWidths(columns, width, meas), solveWidths(flagged, width, meas); !slices.Equal(a, b) {
+				if a, b := solveWidths(columns, width, meas, nil), solveWidths(flagged, width, meas, nil); !slices.Equal(a, b) {
 					t.Fatalf("%s at %d: %v with the flag, %v without", name, width, b, a)
 				}
 				compared++
@@ -219,7 +219,7 @@ func TestTheDropOrderIsTheSameWithAndWithoutTheFlag(t *testing.T) {
 	for _, flag := range []bool{false, true} {
 		checked := 0
 		for width := 50; width <= 230; width++ {
-			widths := solveWidths(agentsLikeShape(flag), width, []int{33, 8})
+			widths := solveWidths(agentsLikeShape(flag), width, []int{33, 8}, nil)
 			if !removedOnly(widths) {
 				t.Fatalf("flag=%v width %d: removed columns are not a prefix of the drop order: %v", flag, width, widths)
 			}
@@ -235,7 +235,7 @@ func TestTheDropOrderIsTheSameWithAndWithoutTheFlag(t *testing.T) {
 func goneAt(flag bool) map[int]int {
 	out := map[int]int{}
 	for width := 50; width <= 230; width++ {
-		for i, w := range solveWidths(agentsLikeShape(flag), width, []int{33, 8}) {
+		for i, w := range solveWidths(agentsLikeShape(flag), width, []int{33, 8}, nil) {
 			if w == 0 {
 				out[i] = width
 			}
@@ -274,7 +274,7 @@ func TestRule116HoldsWithYieldingColumns(t *testing.T) {
 	checked, kept9 := 0, 0
 	for _, meas := range [][]int{nil, {14, 4}, {18, 8}, {24, 8}, {33, 8}, {60, 20}} {
 		for width := 50; width <= 230; width++ {
-			widths := solveWidths(agentsLikeShape(true), width, meas)
+			widths := solveWidths(agentsLikeShape(true), width, meas, nil)
 			span, kept := renderedSpan(widths)
 			if span != width-borderWidth {
 				t.Fatalf("measured %v, width %d: the line spans %d, want %d (%v)", meas, width, span, width-borderWidth, widths)
@@ -297,7 +297,7 @@ func TestRule116HoldsWithYieldingColumns(t *testing.T) {
 func TestTheContentIsNotCutWhileAYieldingColumnRemains(t *testing.T) {
 	checked := 0
 	for width := 50; width <= 230; width++ {
-		widths := solveWidths(agentsLikeShape(true), width, []int{33, 8})
+		widths := solveWidths(agentsLikeShape(true), width, []int{33, 8}, nil)
 		yieldingLeft := false
 		for _, i := range []int{8, 2, 7, 6, 5} {
 			if widths[i] > 0 {
