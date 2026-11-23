@@ -217,7 +217,10 @@ var localToggles = []Surface{
 	{"netdiag/ports", "ui/netdiag/ports_model.go", []string{"t", "u", "l", "e", "n", "z"}},
 	{"netdiag/checks", "ui/netdiag/", []string{"p"}},
 	{"oci/browser", "ui/oci_resources/browser_", []string{"r"}},
-	{"security/findings", "ui/security/", []string{"c", "h", "m", "l", "p"}},
+	// g is "Group by fix" here (DEVDESK-754): it switches the CVE list between one
+	// row per finding and one row per cause. The key means go-to or find in the
+	// viewer, workspaces and the explorer; each surface declares its own.
+	{"security/findings", "ui/security/", []string{"c", "h", "m", "l", "p", "g"}},
 	// g opens the fuzzy-find prompt across the whole workspaces tree. Same
 	// justification as the viewer's g: the jump takes an argument (the typed
 	// query), which is not a role home/end/G could ever cover.

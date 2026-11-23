@@ -285,6 +285,7 @@ func (m *Model) switchTab(tab int) {
 	m.resizeFindings()
 	m.footer.Clear()
 	m.updateFindingsTable()
+	m.refreshGroups()
 }
 
 // handleIgnoreSecret prompts confirmation to ignore a secret finding.
@@ -407,10 +408,18 @@ func (m Model) canExclude() shortcut.Availability {
 // the day the severity floor became tokens, and never got the guard with it.
 func (m Model) handleResultsState(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	if m.findingsTable.InEditMode() {
-		return m, m.findingsTable.Update(msg)
+		cmd := m.findingsTable.Update(msg)
+		// The search changes what the findings table shows, and the groups follow.
+		m.refreshGroups()
+		return m, cmd
 	}
 	if m.activeTab == TabRemediation {
 		if next, cmd, handled := m.handleRemediationKey(msg); handled {
+			return next, cmd
+		}
+	}
+	if m.isGrouped() {
+		if next, cmd, handled := m.handleGroupedKey(msg); handled {
 			return next, cmd
 		}
 	}
@@ -423,19 +432,11 @@ func (m Model) handleResultsState(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 		}
 		return m, func() tea.Msg { return BackToOriginMsg{Origin: m.OriginView} }
 	case "enter":
-		var preview tea.Cmd
-		if finding, ok := m.findingsTable.Selected(); ok {
-			// The details view is about a finding, not about a row index — an
-			// index would name a different one the moment the list changed
-			// under it, which is how workspaces got D24.
-			m.selectedFinding = &finding
-			m.state = StateDetails
-			m.sizeDetails()
-			preview = m.startChangePreview()
-			m.detailsViewport.SetContent(m.buildDetailsContent())
-			m.detailsViewport.GotoTop()
+		finding, ok := m.findingsTable.Selected()
+		if !ok {
+			return m, nil
 		}
-		return m, preview
+		return m.openDetail(finding, StateResults)
 	case "ctrl+r":
 		m.activeTab = TabCVE
 		return m.goHome()
@@ -454,6 +455,11 @@ func (m Model) handleResultsState(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 		return m.toggleSeverity(msg.String())
 	case pssFilterKey:
 		return m.togglePSS()
+	case groupToggleKey:
+		return m.toggleGroup()
+	case keymap.Copy:
+		// Y has a command to copy in a group only; elsewhere it says where it works.
+		return m.copyGroupCommand()
 	case keymap.Exclude:
 		return m.handleIgnoreSecret()
 	case openPipelineKey:
@@ -476,12 +482,29 @@ func (m Model) handleResultsState(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	return m, m.findingsTable.Update(msg)
 }
 
+// openDetail opens the detail of a finding, reached from parent: the details
+// view is about a finding, not about a row index — an index would name a
+// different one the moment the list changed under it, which is how workspaces got
+// D24. The parent is where esc, and a re-scan that clears the finding, come back
+// to; it is set here on every way in and never kept from an earlier visit.
+func (m Model) openDetail(f scan.Finding, parent ViewState) (Model, tea.Cmd) {
+	m.selectedFinding = &f
+	m.detailsParent = parent
+	m.state = StateDetails
+	m.sizeDetails()
+	preview := m.startChangePreview()
+	m.detailsViewport.SetContent(m.buildDetailsContent())
+	m.detailsViewport.GotoTop()
+	return m, preview
+}
+
 // toggleSeverity flips one severity token. Cumulative: c and h together ask for
 // "CRITICAL or HIGH", which is the question a threshold cycle could not put.
 func (m Model) toggleSeverity(key string) (tea.Model, tea.Cmd) {
 	label := map[string]string{"c": "critical", "h": "high", "m": "medium", "l": "low"}[key]
 	m.findingsTable.SetTokenActive(label, !m.findingsTable.IsTokenActive(label))
 	m.findingsTable.GotoTop()
+	m.refreshGroups()
 	return m, nil
 }
 
@@ -496,5 +519,7 @@ func (m *Model) resizeFindings() {
 	// disagree.
 	m.findingsTable.SetColumnHidden(fileColumn, m.activeTab != TabMisconfig)
 	m.findingsTable.Resize(m.width, max(m.height, 5))
+	m.groups.Resize(m.width, max(m.height, 5))
+	m.groupTable.Resize(m.width, max(m.height, 5))
 	m.remediation.table.Resize(m.width, max(m.height, 5))
 }

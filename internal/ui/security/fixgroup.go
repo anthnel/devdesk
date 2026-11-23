@@ -31,6 +31,9 @@ type fixGroup struct {
 	Subject string
 	// Change is the delta shown in the table, "1.1.1k -> 1.1.1w".
 	Change string
+	// Target is the one version the group moves to, "" when the versions could
+	// not be ordered (several candidates) or none is published.
+	Target string
 	// Status is the Fix column, from fixStatusOf.
 	Status fixStatus
 	// Command is the group's command, "" when none is known or it is not plain
@@ -55,6 +58,7 @@ func cveGroups(findings []scan.Finding) []fixGroup {
 			Severity: fx.Severity,
 			Subject:  fx.Package,
 			Change:   fixChange(fx),
+			Target:   fx.Target,
 			Status:   fixStatusOf(fx.Members[0], false),
 			Members:  fx.Members,
 		}

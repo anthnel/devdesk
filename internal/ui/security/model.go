@@ -25,6 +25,7 @@ const (
 	StateInventory ViewState = iota // What this context has scanned, read from the caches
 	StateResults                    // Displaying results summary
 	StateDetails                    // Showing detailed findings
+	StateGroup                      // The findings of one group of the grouped list (DEVDESK-754)
 )
 
 // Model represents the security scanner view
@@ -108,6 +109,26 @@ type Model struct {
 	changePreview changePreview
 	previewSeq    int
 
+	// "Group by fix" (DEVDESK-754). groupedTabs is the display mode, held per tab
+	// for the life of the view; only the CVE tab groups until SC2.
+	groupedTabs [tabCount]bool
+	// groupsAll is every group of the result on screen, whatever the filters
+	// say: a group is what one move closes, not what the table shows. It is
+	// derived from the result, never stored as an outcome, and rebuilt whenever
+	// the result changes.
+	groupsAll []fixGroup
+	// groups is the grouped list that replaces the findings table's body: the
+	// groups with at least one member the findings table shows.
+	groups datatable.Model[fixGroup]
+	// openGroup is the group StateGroup shows, by key; nil outside it and the
+	// details opened from it.
+	openGroup *groupKey
+	// groupTable lists the findings of openGroup, with the findings' columns.
+	groupTable datatable.Model[scan.Finding]
+	// detailsParent is the level esc returns to from the detail, set on the way
+	// in by openDetail and never kept from an earlier visit.
+	detailsParent ViewState
+
 	// OriginView is the view to return to when Esc is pressed in StateResults.
 	// Set by the app router when opening this view from workspaces or
 	// oci_resources. Empty when the results were opened from the inventory,
@@ -156,6 +177,9 @@ func New(cfg *config.Config, secrets credentials.Storage) Model {
 		inventoryLoading: true,
 		findingsTable:    t,
 		remediation:      newRemediationState(),
+		// Built here so the zero value of a table is never read.
+		groups:     newGroupsTable(),
+		groupTable: newGroupFindingsTable(cfg),
 	}
 }
 
@@ -219,6 +243,7 @@ func NewWithPreloadedResult(cfg *config.Config, secrets credentials.Storage, res
 	// not depend on the width any more, so nothing was gained by deferring and
 	// the table was empty until the terminal happened to report its size.
 	m.updateFindingsTable()
+	m.groupsFollowResult()
 	return m
 }
 
@@ -230,6 +255,10 @@ func (m *Model) setResult(result *scan.Result) {
 	m.targetPath = result.Target
 	m.targetLabel = labelForResult(m.config, result)
 	m.updateFindingsTable()
+	// The groups are rebuilt from the new reading, then the group level the user
+	// may be in, then the detail: each one under the one that holds it.
+	m.groupsFollowResult()
+	m.refreshGroupLevel()
 	// The file the preview was about has just been rewritten: forget it, the
 	// verdict asks again (restartChangePreview).
 	m.changePreview = changePreview{}

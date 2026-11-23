@@ -38,6 +38,8 @@ func (m Model) Render() string {
 		return m.renderResultsView()
 	case StateDetails:
 		return m.renderDetailsView()
+	case StateGroup:
+		return m.groupTable.View()
 	}
 	return ""
 }
@@ -71,6 +73,11 @@ func (m Model) renderResultsView() string {
 	// value already on the previous screen, is not a trade worth making.
 	if m.activeTab == TabRemediation {
 		return m.remediation.table.View()
+	}
+	// The grouped list is a second table in the findings table's place: the
+	// body is a table either way (Rule 139).
+	if m.isGrouped() {
+		return m.groups.View()
 	}
 	return m.findingsTable.View()
 }
@@ -185,13 +192,16 @@ func (m Model) status() sharedcomponents.Status {
 	if status, ok := m.remediationStatus(); ok {
 		return status
 	}
-	if m.state != StateResults || m.result == nil || len(m.result.Errors) == 0 {
+	if m.state != StateResults && m.state != StateGroup || m.result == nil {
 		return sharedcomponents.Status{}
 	}
-	return sharedcomponents.Status{
-		Text:  failedStages(m.result.Errors) + " — check logs",
-		Level: sharedcomponents.LevelError,
+	if len(m.result.Errors) > 0 {
+		return sharedcomponents.Status{
+			Text:  failedStages(m.result.Errors) + " — check logs",
+			Level: sharedcomponents.LevelError,
+		}
 	}
+	return m.groupStatus()
 }
 
 // inventoryStatus is the inventory footer: the selected row's own activity

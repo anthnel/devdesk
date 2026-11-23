@@ -22,6 +22,8 @@ func (m Model) GetShortcuts() shortcut.Shortcuts {
 		return m.resultsShortcuts()
 	case StateDetails:
 		return m.detailsShortcuts()
+	case StateGroup:
+		return m.groupShortcuts()
 	}
 	return nil
 }
@@ -70,6 +72,9 @@ func (m Model) resultsShortcuts() shortcut.Shortcuts {
 	// Enter opens the selected finding, or on the Remediation tab the diff of the
 	// chosen bases: one key, the same place in the column, a different verb.
 	enter := shortcut.Shortcut{Key: "enter", Description: "Details", Disabled: !m.canOpenFinding().Enabled()}
+	if m.isGrouped() {
+		enter = shortcut.Shortcut{Key: "enter", Description: "Open group", Disabled: !m.canOpenGroup().Enabled()}
+	}
 	if notFindings {
 		enter = shortcut.Shortcut{Key: "enter", Description: "Show diff", Disabled: !m.canPreviewRemediation().Enabled()}
 	}
@@ -83,6 +88,8 @@ func (m Model) resultsShortcuts() shortcut.Shortcuts {
 	return []shortcut.Shortcut{
 		{Key: "tab", Description: "Switch tab"},
 		enter,
+		// Third, so that it is among the seven entries that show at 80 columns.
+		{Key: groupToggleKey, Description: m.groupToggleLabel(), Disabled: !m.canGroup().Enabled()},
 		{Key: "space", Description: "Choose candidate", Disabled: !m.canSelectCandidate().Enabled()},
 		writeShortcut,
 		{Key: keymap.Scan, Description: "Scan candidates", Disabled: !m.canScanCandidates().Enabled()},
@@ -94,6 +101,7 @@ func (m Model) resultsShortcuts() shortcut.Shortcuts {
 		{Key: "/", Description: "Search", Disabled: notFindings},
 		{Key: ".", Description: "Sort", Disabled: notFindings},
 		{Key: keymap.Exclude, Description: "Exclude", Disabled: !m.canExclude().Enabled()},
+		{Key: keymap.Copy, Description: "Copy cmd", Disabled: !m.canCopyGroupCommand().Enabled()},
 		{Key: openPipelineKey, Description: "Open resolved pipeline", Disabled: !m.canOpenPipeline().Enabled()},
 		{Key: "ctrl+r", Description: "New scan"},
 		{Key: "?", Description: "Help"},
@@ -133,6 +141,9 @@ func (m Model) GetTitle() string {
 			Foreground(theme.ColorSecondary).
 			Background(theme.ColorBackground).
 			Render("(" + m.targetLabel + ")")
+		if g, ok := m.currentGroup(); ok && m.state == StateGroup {
+			return base + " " + annotation + " " + theme.IconChevronRight + " " + groupTitle(g)
+		}
 		return base + " " + annotation
 	}
 	return base
@@ -170,6 +181,9 @@ func (m Model) GetHeaderInfo(context string) []shortcut.HeaderInfo {
 	if key, value, ok := m.headerCount(); ok {
 		info = append(info, shortcut.HeaderInfo{Key: key, Value: value, Style: theme.HeaderValueStyle})
 	}
+	if mode, ok := m.groupModeHeader(); ok {
+		info = append(info, mode)
+	}
 	if pss, ok := m.pssHeader(); ok {
 		info = append(info, pss)
 	}
@@ -185,13 +199,23 @@ func (m Model) GetHeaderInfo(context string) []shortcut.HeaderInfo {
 	return info
 }
 
+// groupModeHeader names the grouped display in the info column, whole where the
+// column has room for it. The shortcut column says the way back; this says where
+// the user is.
+func (m Model) groupModeHeader() (shortcut.HeaderInfo, bool) {
+	if m.state != StateResults || !m.isGrouped() {
+		return shortcut.HeaderInfo{}, false
+	}
+	return shortcut.HeaderInfo{Key: "View", Value: labelGroupByFix, Style: theme.HeaderValueStyle}, true
+}
+
 // headerUnrendered is how many Helm charts and Kustomize overlays the schema
 // stage could not look at, for want of helm or kustomize (§3.80). Without it a
 // repository of charts would read as schema-clean when nothing was checked.
 // Absent when there are none — it is not a count of findings, and a "0" on
 // every result would be noise about a stage most repositories do not need.
 func (m Model) headerUnrendered() (string, bool) {
-	if (m.state != StateResults && m.state != StateDetails) || m.result == nil || len(m.result.K8sUnrendered) == 0 {
+	if !m.showsResult() || m.result == nil || len(m.result.K8sUnrendered) == 0 {
 		return "", false
 	}
 	return strconv.Itoa(len(m.result.K8sUnrendered)) + " (install helm / kustomize)", true
@@ -204,7 +228,7 @@ func (m Model) headerUnrendered() (string, bool) {
 // on both sides of the results/details step so the header does not change
 // under the reader (Rule 130).
 func (m Model) headerFixable() (string, lipgloss.Style, bool) {
-	if (m.state != StateResults && m.state != StateDetails) || m.result == nil {
+	if !m.showsResult() || m.result == nil {
 		return "", lipgloss.Style{}, false
 	}
 	s := remediation.Summarize(m.result.Findings)
@@ -224,6 +248,12 @@ func (m Model) headerFixable() (string, lipgloss.Style, bool) {
 	return strconv.Itoa(s.Fixable()) + " (" + strings.Join(parts, ", ") + ")", theme.HeaderValueStyle, true
 }
 
+// showsResult reports whether the state is about the result on screen: the
+// results, the findings of one group, or one finding.
+func (m Model) showsResult() bool {
+	return m.state == StateResults || m.state == StateDetails || m.state == StateGroup
+}
+
 // headerCount is the one number the header shows, named for whatever the state
 // is actually a list of. The form and the scanning screen are lists of nothing,
 // and report no count rather than a zero.
@@ -231,7 +261,7 @@ func (m Model) headerCount() (key, value string, ok bool) {
 	switch m.state {
 	case StateInventory:
 		return "Targets", strconv.Itoa(len(m.inventory.Items())), true
-	case StateResults, StateDetails:
+	case StateResults, StateDetails, StateGroup:
 		if m.result == nil {
 			return "", "", false
 		}
@@ -252,13 +282,15 @@ func (m Model) GetHelpContent() help.Content {
 			{Key: "ctrl+r", Description: "Reload the inventory from the scan caches"},
 			{Key: "/", Description: "Search — the inventory by target name, the findings by ID, title, package or file"},
 			{Key: ".", Description: "Cycle the sort column — the findings table opens on the order the scanner reported, and the cycle leads back to it"},
-			{Key: "enter", Description: "Open the details of the selected finding (results)"},
+			{Key: "enter", Description: "Open the details of the selected finding (results). In the grouped list, open the findings of the selected group, then enter again for one finding's details"},
+			{Key: groupToggleKey, Description: "Group the CVE tab by fix: one row per package and installed version, with the move that clears its CVEs, or back to one row per finding (CVE tab)"},
 			{Key: "space", Description: "Choose the candidate under the cursor for its stage — only a scanned one (Remediation tab)"},
 			{Key: "enter", Description: "Show what the chosen bases would change, as a diff (Remediation tab)"},
 			{Key: writeRemediationKey, Description: "Write the chosen bases into the Dockerfiles, after a confirmation that defaults to No (Remediation tab)"},
 			{Key: writeRemediationKey, Description: "Apply the built-in fix for the selected rule, after a confirmation showing the diff and defaulting to No. Only a few rules have one — some Dockerfile rules, privileged and allowPrivilegeEscalation on a plain Kubernetes manifest, an apiVersion whose replacement is a rename, and .git added to an existing .dockerignore; the rest are handed to an agent through the MCP server (Misconfigurations tab, and the detail of a finding)"},
 			{Key: "enter", Description: "Open the finding's file in the viewer, which has O for the IDE and esc to come back to the detail (detail)"},
 			{Key: keymap.Copy, Description: "Copy the command under Run to the clipboard, whole. DevDesk never runs it (detail)"},
+			{Key: keymap.Copy, Description: "Copy the command of the selected group to the clipboard, whole, when the group has one. DevDesk never runs it (grouped list and group)"},
 			{Key: keymap.Scan, Description: "Measure the base images and their candidates by scanning them from their registries (Remediation tab)"},
 			{Key: keymap.Exclude, Description: "Exclude a secret — add it to .gitleaksignore (Secrets tab and the detail of a Gitleaks finding)"},
 			{Key: keymap.Web, Description: "Open first reference URL in the default browser (detail view)"},
@@ -303,6 +335,12 @@ func (m Model) GetHelpContent() help.Content {
 					"The detail has six keys, the same for every finding, each greyed with its reason in the footer when it has nothing to act on. Esc goes back. W opens the first reference. Enter opens the finding's file in the viewer (O there opens the IDE, esc comes back to the detail); whether the file exists is for the viewer to say, and a path outside the scanned directory, a file reached through a link that leaves it, or a target that is an image, is refused. Ctrl+O applies the built-in fix of this finding, with the same preview, the same confirmation that defaults to No, the same write and the same re-scan as the Misconfigurations tab; while the re-scan runs the footer says so, and when it ends the detail shows the finding as the re-scan read it, or closes if the finding is gone, with the verdict in the footer. Y copies the command under Run, or else the Repro line, to the clipboard, whole even when the screen cuts it; DevDesk never runs a command. X adds a Gitleaks secret to .gitleaksignore, after a confirmation. Each acts on the finding on screen, not on the row behind it.\n" +
 					"Paths in the title, Where and Output are shown relative to the scanned directory (an absolute path under your home directory starts with ~); the finding itself is not changed.\n" +
 					"When the detail is taller than the viewport, the footer says which lines are on screen: 'Lines a-b of N'. A long detail scrolls with the arrows, page keys, Home and End.",
+			},
+			{
+				Title: "Group by fix",
+				Body: "On the CVE tab, g replaces the table of findings with one row per cause: a package at one installed version, the move that clears its CVEs (1.1.1k -> 1.1.1w), how many CVEs that is, and the fix status. The worst severity comes first, then the group with the most CVEs. A group is listed when at least one of its CVEs passes the severity filters and the search, and its count is the whole group, since one move clears all of it. g again brings the findings table back, with its filters, sort and search as they were, on the first finding of the group you left.\n" +
+					"Fixable in the header still counts findings with a fixed version; a group with no fixed version says 'No fix published' and is not counted in it. When several candidate versions cannot be ordered, the row lists them and none is preferred. Nothing is marked as done: the list is built from the last scan, and a re-scan after a fix is the only thing that shrinks a row or removes it.\n" +
+					"Enter opens the group's CVEs, the filtered-out ones included, and enter there opens a finding's detail, the same detail as from the table. Esc goes back one level at a time. Y copies the group's command (for example apk upgrade openssl) to the clipboard, whole; DevDesk never runs it. Y is greyed for a group with no fix published or no plain command. S, space and ctrl+o act on one finding and are greyed in the list: open the group first. The tab bar keeps its six tabs; the mode is held per tab for as long as the view lives, and the header says View: Group by fix while it is on.",
 			},
 			{
 				Title: "Pod Security",

@@ -192,6 +192,8 @@ func (m Model) handleKeyMsg(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 		return m.handleResultsState(msg)
 	case StateDetails:
 		return m.handleDetailsState(msg)
+	case StateGroup:
+		return m.handleGroupState(msg)
 	}
 	return m, nil
 }

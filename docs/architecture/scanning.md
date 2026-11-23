@@ -1317,6 +1317,83 @@ trusted: the detail reads it when it opens, and `ctrl+o` writes into it.
   it in the confirmation and in the footers of the write and the verdict. Logs carry the relative path and the cause
   only (`withoutPath` drops the operation and the absolute path of a `PathError` or `LinkError`).
 
+### Group by fix — `g` on the CVE tab (DEVDESK-754)
+
+A scan of an image lists the same cause many times: three CVEs of one package are one move. `g` on the CVE tab
+swaps the body of the results from the findings table to **one row per cause**, and back. It is a display toggle
+(a lowercase letter, declared in `keymap.localToggles` for `security/findings`), not a seventh tab: the tab bar
+keeps its six tabs.
+
+**The model.** `remediation.GroupAll` (pure, see "What can be fixed") returns one `Fix` per package and installed
+version, fixed or not, with its `Members`; `cveGroups` (`fixgroup.go`) turns them into `fixGroup` rows: severity
+(the worst of the members), `Subject` (the package, or the ID of a vulnerability that names no package),
+`Change` (`1.1.1k -> 1.1.1w`; `1.2 -> abc or def` when the versions could not be ordered; `1.2 -> none`),
+`Target`, `Status` (the closed vocabulary of `fixStatusOf`: `Manual` for a fixable CVE, `No fix published`
+otherwise), `Command` and `Members`. `Command` is the `Fix.Command` only when `scan.PlainWords` accepts it, the
+same gate as the detail's `Run` line: a group with a command that is not plain words has none, and `Y` says so.
+The key of a group (`groupKey`: ecosystem, package, installed version, unfixed) is what a re-scan finds the row
+again by. A vulnerability with no package is its own group (assumption: a CVE with no package name is its own
+cause). Rows are ordered by worst severity, then number of CVEs, then package, then change.
+
+**Fixable and the groups.** The header's `Fixable` is still `remediation.Summarize(...).Fixable()`, grouped or
+not. The CVEs of the groups that are not `Unfixed` add up to it, and the CVEs of the `Unfixed` groups (`No fix
+published`) to its `Unfixed` count: a group nobody can fix is said in words and never counted as fixable. Nothing
+is ever marked done: a `fixGroup` has no such field, and a row shrinks or goes away only because a re-scan says
+so.
+
+**One table in the place of another.** `Model.groups` is a second `datatable.Model[fixGroup]` (`cveGroupColumns`:
+Severity, Package, Change, CVEs, Fix, each with its `Sizing`; cells are plain text, only Severity is coloured and
+it is also its word). `renderResultsView` returns `m.groups.View()` while `isGrouped()`, so the body is a table
+with a header whatever it holds (Rule 139). The findings table is never touched by the switch (`updateFindingsTable`,
+which calls `GotoTop`, is not called): its severity tokens, search query, sort and cursor are what the user left.
+Severity tokens, the search (`/`), the tabs and `p` keep driving the findings table; the groups listed are the ones
+with **at least one member the findings table shows** (`visibleGroups`), and each row's count is the whole group,
+hidden members included, since one move closes them all. `.` and the cursor keys drive the groups table.
+`refreshGroups` runs after every change of what the findings table shows (a token, the search, a tab switch, a
+result) and keeps the cursor on its group by key, else at the nearest index.
+
+**Going in and out.** In, the cursor is on the group of the selected finding (`groupIndexOf`). Out, the findings
+cursor goes to the first visible member of the group under the cursor, else the finding that was selected, else the
+same position (`nearestFinding`). The mode is `groupedTabs [tabCount]bool`, held per tab for the life of the view:
+it survives a tab switch and reopening a result from the inventory. Only the CVE tab groups until SC2
+(Misconfigurations): elsewhere `g` is greyed with `Group by fix covers the CVE tab`, and with `No vulnerability to
+group` on a CVE tab with no CVE. In the grouped list it is never greyed, since it is the way back.
+
+**The group level (`StateGroup`).** `enter` on a group opens a level of its own: the group's findings
+(`groupTable`, the findings' columns minus File), all of them, filtered out or not. Four keys: `esc` Back, `enter`
+Details, `Y` Copy cmd, `?` Help. `enter` there opens the same finding detail as from the flat table through
+`openDetail(f, parent)`, which every way in uses and which sets `detailsParent`; `esc` in the detail, and
+`refreshDetails` when a re-scan clears the finding, go back to `detailsParent` (the group, or the results). Tabs,
+filters, the sort and the other actions do nothing one level down. The title names the group
+(`Security Scanner (target) › openssl 1.1.1k -> 1.1.1w`); the header keeps its figures and in the grouped list also
+says `View: Group by fix`.
+
+**Keys.** `g` is the third entry of the results column (so it is among the seven that show at 80 columns, and `h`
+moves out of them); its word is `Group by fix`, `List by finding` once on. `Y` is in the column on every tab, greyed
+with `Copy the command from a group (g), or from a finding's detail` in the flat list. In the grouped list and the
+group level it copies the group's command (`apk upgrade openssl`, `go get ...`) through `writeClipboard`, whole, from
+the Cmd (Rule 110), as the detail's `Y` does: DevDesk never runs it (`never_run_guard_test.go` covers the new
+function by its use of `FixCommandCopiedMsg`). It is greyed `No fix is published for this group` for an unfixed
+group, `This group has no command to run` for one with several candidate versions or a command that is not plain
+words. `space`, `ctrl+o` and `S` act on one finding, so in the grouped list they are greyed and say `Open the group
+to act on one finding`. The footer says what the selected group does, derived on every frame: `3 CVEs closed by one
+move to 1.1.1w`, `No fix published for 2 CVEs`, or the count and the candidate versions when none is preferred; a
+failed stage's error takes precedence.
+
+**A re-scan is the only truth (AC5, AC7).** `setResult` (what a verification re-scan hands back) rebuilds the groups
+from the new result (`groupsFollowResult`), then the group level by key (`refreshGroupLevel`: members read again, the
+cursor kept on the finding the user was on; a group that is gone steps back to the grouped list), then the detail
+(`refreshDetails`, which returns to the group or to the results). A result opened from the inventory starts with no
+group level but keeps the mode.
+
+**Limits.** The tab bar (`CVE (n)  Secrets (n) ...`) is wider than 80 columns as soon as counts have two digits,
+grouped or not; that is a separate bug and is not fixed here, so the width tests measure the table, the filter bar,
+the info line and the header, not the tab bar. `sameFinding` ignores the line, so two instances with the same
+title and message in one file are one identity for the selection (the nearest finding may be the first of them).
+The group's `Fix` word comes from `fixStatusOf`, the detail's from `m.fixStatus`, which also knows a stale preview:
+a group may say `Built-in fix available` while its detail says unavailable. The Misconfigurations tab (File and rule
+groups) is SC2.
+
 ### The Pod Security profile of a finding (DEVDESK-686)
 
 Trivy anchors the Kubernetes rules that implement the Pod Security Standards
