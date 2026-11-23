@@ -5,12 +5,14 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"reflect"
 	"strings"
 	"testing"
 
 	tea "charm.land/bubbletea/v2"
 	"charm.land/lipgloss/v2"
 
+	"github.com/anthnel/devdesk/internal/command"
 	"github.com/anthnel/devdesk/internal/ui/help"
 	"github.com/anthnel/devdesk/internal/ui/testutil"
 	"github.com/anthnel/devdesk/internal/ui/theme"
@@ -214,12 +216,38 @@ func frameCases() []frameCase {
 		{name: "palette", build: func(t *testing.T) *App {
 			a := atSize(t, framedView())
 			press(t, a, "ctrl+p")
+			a.suggestions = fixedPaletteSuggestions(a)
+			a.sugCursor, a.sugOffset = -1, 0
 			if len(a.paletteLines()) == 0 {
 				t.Fatal("the palette did not open")
 			}
 			return a
 		}},
 	}
+}
+
+// fixedPaletteSuggestions is the list the palette case draws: a fixed set of
+// entries instead of command.Entries(), so adding, renaming or re-describing a
+// real command does not change this golden. Twelve rows against the eight the
+// palette shows at this size keep the "more" indicator in the frame; one row is
+// the open view (the "(current)" mark is the router's, from a.currentView), one
+// takes an argument, and one description is long enough to be cut.
+func fixedPaletteSuggestions(a *App) command.Suggestions {
+	entries := []command.Entry{
+		{Name: "alpha", Aliases: []string{"a"}, Description: "First fixed view"},
+		{Name: "bravo", Aliases: []string{"b", "brv"}, Description: "Second fixed view, two aliases"},
+		{Name: string(a.currentView), Aliases: []string{"cur"}, Description: "Long description, cut by the current mark"},
+		{Name: "delta", Description: "A view with no alias"},
+		{Name: "echo", Aliases: []string{"e", "ech", "ecc"}, Description: "Three aliases, joined by a dot"},
+		{Name: "foxtrot", Aliases: []string{"f"}, Description: "One more fixed view"},
+		{Name: "golf", Aliases: []string{"g"}, Description: "Seventh fixed view"},
+		{Name: "hotel", Aliases: []string{"h"}, Description: "Eighth fixed view"},
+		{Name: "india", Aliases: []string{"i"}, Description: "Ninth fixed view, below the fold"},
+		{Name: "juliet", Aliases: []string{"j"}, Description: "Tenth fixed view, below the fold"},
+		{Name: "kilo", Arg: "<name>", Kind: command.KindAction, Description: "An action that takes an argument"},
+		{Name: "lima", Kind: command.KindAction, Description: "An action with no argument"},
+	}
+	return command.Suggestions{Stage: command.StageCommand, Entries: entries, Total: len(entries)}
 }
 
 // useDefaultTheme makes the frame independent of the theme an earlier test left.
@@ -244,6 +272,18 @@ func TestFrameHasNoBareCell(t *testing.T) {
 					t.Errorf("row %d has %d cells, want %d", r, len(row), framesWidth)
 					break
 				}
+			}
+
+			// BareCells sees a default background only. A reversed cell whose
+			// foreground was the terminal's default has "default-fg" as its
+			// background, and one reversed over a default background has
+			// "default-bg": neither is DefaultColor, and both leave the cell's
+			// fill to the terminal's palette. No case has one today (the
+			// palette's input cursor is reversed too, but over ColorText: its
+			// background is #rrggbb and only its foreground is "default-bg"), so
+			// none is allowed; a case that needs one lists it here with a reason.
+			if got := reversedDefaultBackgrounds(rows); len(got) > 0 {
+				t.Errorf("%d cells whose background is a reversed terminal default (default-fg or default-bg)\n%s", len(got), describeBare(got))
 			}
 
 			bare := testutil.BareCells(frame)
@@ -279,6 +319,21 @@ func TestCellsDecodeTheInvalidFieldUnderline(t *testing.T) {
 			t.Errorf("cell %d = %+v, want fg %s bg %s", i, c, wantFG, wantBG)
 		}
 	}
+}
+
+// reversedDefaultBackgrounds returns the position of every cell whose
+// background is testutil.ReversedDefaultFG or testutil.ReversedDefaultBG, in
+// reading order.
+func reversedDefaultBackgrounds(rows [][]testutil.Cell) []testutil.Pos {
+	var out []testutil.Pos
+	for r, row := range rows {
+		for c, cell := range row {
+			if cell.BG == testutil.ReversedDefaultFG || cell.BG == testutil.ReversedDefaultBG {
+				out = append(out, testutil.Pos{Row: r, Col: c})
+			}
+		}
+	}
+	return out
 }
 
 // describeBare summarises bare cells by row: the row, how many, and the columns
@@ -361,4 +416,17 @@ func firstDifferences(want, got string, limit int) string {
 		}
 	}
 	return b.String()
+}
+
+// The check above is only worth having if it can fail: a reversed default
+// foreground (ESC[7m over a plain cell) is not a bare cell for BareCells.
+func TestReversedDefaultBackgroundsSeesWhatBareCellsMisses(t *testing.T) {
+	frame := "\x1b[48;2;1;2;3mab\x1b[7;49m \x1b[m"
+	if got := testutil.BareCells(frame); len(got) != 0 {
+		t.Fatalf("premise changed: BareCells = %v, want none for a reversed cell", got)
+	}
+	want := []testutil.Pos{{Row: 0, Col: 2}}
+	if got := reversedDefaultBackgrounds(testutil.Cells(frame)); !reflect.DeepEqual(got, want) {
+		t.Fatalf("reversedDefaultBackgrounds = %v, want %v", got, want)
+	}
 }
