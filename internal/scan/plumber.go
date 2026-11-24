@@ -108,12 +108,24 @@ func plumberArgs(target string, tool ToolSpec, opts PlumberOptions, outPath stri
 		flags = append(flags, plumberSafeDirectory...)
 		flags = append(flags, plumberTokenEnv(opts)...)
 		flags = append(flags, "-w", containerScanPath)
-		return containerRun{Flags: flags, Image: plumberImage(tool.Image), Argv: options}.cmd()
+		cmd := containerRun{Flags: flags, Image: plumberImage(tool.Image), Argv: options}.cmd()
+		cmd.Verbatim = plumberVerbatim
+		return cmd
 	}
 
 	// Dir, not an argument: `analyze` works on the current directory and takes
 	// no path. The container gets the same thing through -w.
-	return toolCmd{Name: plumberBinary(tool), Args: options, Dir: target}
+	return toolCmd{Name: plumberBinary(tool), Args: options, Dir: target, Verbatim: plumberVerbatim}
+}
+
+// plumberVerbatim is what DevDesk writes in plumber's argv with a key=value
+// shape: the log keeps it readable, whereas the token variable next to it
+// (`-e GH_TOKEN=...`) is masked.
+var plumberVerbatim = []string{
+	"--print=false",
+	"GIT_CONFIG_COUNT=1",
+	"GIT_CONFIG_KEY_0=safe.directory",
+	"GIT_CONFIG_VALUE_0=" + containerScanPath,
 }
 
 // plumberTokenEnv passes the context's token to a containerised plumber.
@@ -266,6 +278,12 @@ func checkPlumberConfig(path string) error {
 // logging. Built by the same builder as the executed one, so the two cannot
 // drift apart — and with the token left out, because this string is logged.
 func GetPlumberCommand(target string, tool ToolSpec, opts PlumberOptions) string {
+	return plumberCommand(target, tool, opts).String()
+}
+
+// plumberCommand is GetPlumberCommand as a value, for the log. The token is
+// left out, as it is for the display.
+func plumberCommand(target string, tool ToolSpec, opts PlumberOptions) toolCmd {
 	opts.Token = ""
-	return plumberArgs(target, tool, opts, "<report>").String()
+	return plumberArgs(target, tool, opts, "<report>")
 }

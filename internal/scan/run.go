@@ -7,7 +7,12 @@ import (
 	"errors"
 	"fmt"
 	"os/exec"
+	"regexp"
+	"slices"
+	"strconv"
 	"strings"
+	"unicode"
+	"unicode/utf8"
 )
 
 // toolCmd is one subprocess invocation: the binary and the arguments handed to
@@ -45,6 +50,12 @@ type toolCmd struct {
 	// second mount for a containerised kubeconform. A container reading it
 	// must be run with -i.
 	Stdin []byte
+
+	// Verbatim lists the arguments DevDesk wrote itself that have the shape
+	// key=value (`--print=false`, `-e GIT_CONFIG_COUNT=1`), exact strings.
+	// Loggable leaves them readable and masks every other key=value, since
+	// the rest of argv may come from scan.tools.*.args (DEVDESK-768).
+	Verbatim []string
 }
 
 // String renders the invocation as a shell command line, for logs and for the
@@ -61,6 +72,78 @@ func (c toolCmd) String() string {
 		return "cd " + c.Dir + " && " + line
 	}
 	return line
+}
+
+// Loggable renders the invocation for the log (DEVDESK-768). It is String()
+// with three differences, and the same line when none applies:
+//
+//   - the value of a key=value argument is masked (`password=***`): the
+//     arguments come from scan.tools.*.args, which the user writes and which
+//     may hold a secret. An argument listed in Verbatim is DevDesk's own and
+//     stays readable;
+//   - the credentials of a URL are removed (`https://user:token@host/x`);
+//   - a word that holds a control character, such as a newline in a folder
+//     name from the scanned repository, is quoted with %q so the entry stays
+//     on one log line.
+//
+// Limit: a secret passed as a bare positional argument has no shape to
+// recognise and is not masked.
+func (c toolCmd) Loggable() string {
+	if c.Name == "" {
+		return ""
+	}
+	words := []string{logWord(c.Name)}
+	for _, arg := range c.Args {
+		if !slices.Contains(c.Verbatim, arg) {
+			arg = maskArg(arg)
+		}
+		words = append(words, logWord(arg))
+	}
+	line := strings.Join(words, " ")
+	if c.Dir != "" {
+		return "cd " + logWord(c.Dir) + " && " + line
+	}
+	return line
+}
+
+var (
+	// urlUserinfo is everything up to the last "@" before the first "/", "?"
+	// or "#" of a URL: greedy, so a password holding an "@" leaves no rest.
+	urlUserinfo = regexp.MustCompile(`([A-Za-z][A-Za-z0-9+.-]*://)[^/?#\s]*@`)
+	// urlQueryValue is the value of a query parameter, masked in any word that
+	// holds "://".
+	urlQueryValue = regexp.MustCompile(`([?&][^=&#]+=)[^&#]*`)
+	// keyValueArg is an argument of the form key=value or --key=value. The key
+	// is any run of characters but a space, "=", "/" and ":" (helm keys carry
+	// brackets, braces, dots, commas and backslashes: secrets[0].password,
+	// a\.b), and does not start with "." or "/" so a path is not one. A key
+	// with a "/" (auth/token=x) is left readable: it cannot be told from a
+	// relative path.
+	keyValueArg = regexp.MustCompile(`^([^\s=/:.][^\s=/:]*)=`)
+)
+
+// maskArg removes the credentials and the query values of a URL and hides the
+// value of a key=value argument.
+func maskArg(arg string) string {
+	if strings.Contains(arg, "://") {
+		arg = urlUserinfo.ReplaceAllString(arg, "$1")
+		arg = urlQueryValue.ReplaceAllString(arg, "${1}***")
+	}
+	if m := keyValueArg.FindStringSubmatch(arg); m != nil {
+		return m[1] + "=***"
+	}
+	return arg
+}
+
+// logWord is word as one token of a log line: bare, unless it is not valid
+// UTF-8 or holds a rune that does not print (a newline would split the entry
+// in two; U+2028, U+202E or a C1 byte would fake or reorder it). Printable
+// unicode names stay bare.
+func logWord(word string) string {
+	if !utf8.ValidString(word) || strings.ContainsFunc(word, func(r rune) bool { return !unicode.IsPrint(r) }) {
+		return strconv.Quote(word)
+	}
+	return word
 }
 
 // exitError reports a tool that ran and exited non-zero. The code matters:

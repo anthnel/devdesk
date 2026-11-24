@@ -270,11 +270,46 @@ no line, so it could feed neither the table's jump-to-line nor a fix.
   `-` (`afterOptions`; kubeconform reports the file under the name it was
   given), and nothing else changes for it. The `./` is only in the argument:
   findings, steps and file paths carry the folder's own name, and the Repro
-  still refuses it (`reproLine`). The Steps still write the bare name in their
-  command text (`Run helm template -x ...`). Tests: `TestEveryRelativeFolderIsPassedWithADotSlash`
+  still refuses it (`reproLine`). The Steps write the bare name too, except where it is the
+  argument of a command to copy and the bare name would not work (DEVDESK-768):
+  a folder starting with `-` is shown as `./<folder>` (`typedDir`: `helm lint -x`
+  fails, `helm lint ./-x` works), and for `kustomize build` so is a relative
+  folder whose first segment holds a `.`, a `:` or an `@`
+  (`typedKustomizeDir`, which calls `asPathArg`: `./github.com/org/repo`). An
+  ordinary folder (`charts/app`, `kustomizations/dev`) stays bare, and a sentence
+  or a title that names the folder keeps its own name. Tests: `TestEveryRelativeFolderIsPassedWithADotSlash`
   (argv of `helmArgs` and `kustomizeArgs`, native and container, with and
   without the user's arguments), `TestADashFolderIsRenderedAndReportedUnderItsOwnName`.
-  Not covered here: the user's own arguments appear in the `Running:` log.
+- **The `Running:` log masks the user's values and quotes odd paths** (DEVDESK-768).
+  Every `Running:` line of the scanners and the renderers goes through
+  `toolCmd.Loggable()`, not `String()` (the public `Get*Command` functions
+  still use `String()`; nothing outside tests calls them). `scan.tools.*.args`
+  may hold a secret, so `Loggable` writes `key=***` for every one-word
+  `key=value` argument (`--token=x`, `secrets[0].password=x`, `a\.b=x`, `a,b=1`
+  goes whole): a key is any run of characters but a space, `=`, `/` and `:`, and
+  does not start with `.` or `/`. **A key with a `/` (`auth/token=x`) is left
+  readable on purpose**: it cannot be told from a relative path
+  (`charts/a=b`); helm keys use dots. In a word holding `://`, everything up to
+  the last `@` before the first `/`, `?` or `#` is removed (`user:p@ss@host`
+  leaves no rest) and the value of each query parameter becomes `***`. The
+  arguments DevDesk wrote itself with the `key=value` shape are listed in
+  `toolCmd.Verbatim` and stay readable (plumber's `--print=false` and
+  `GIT_CONFIG_*`), so the token variable plumber's container gets,
+  `-e GH_TOKEN=...`, is masked. A DevDesk argument of that shape that is not
+  listed (`key=some/relative/path`) would be logged `key=***`: readability
+  only. A word that is not valid UTF-8 or holds a rune that does not print
+  (newline, U+2028/2029, U+202E, a C1 control, ESC) is written with `%q`, the
+  working directory included, so an entry stays on one line and cannot be faked;
+  printable unicode names stay bare. The same `logWord` quotes the chart in the
+  `ERROR [scan/helm] lint` line. A command with nothing to mask and no such word
+  is the `String()` line (`--severity HIGH` is untouched). **Limits, none
+  recognised by shape:** a secret given as a bare positional argument; the
+  two-word forms `--password x` and `--registry-token x`; a
+  `--header "Authorization: Bearer ..."`; the scp form `user:pass@host:repo`; a
+  URL password that breaks RFC 3986 (an unescaped `/`, `?` or `#`). Other log
+  lines still write a path as it is (`kubeconform_render.go`, `kubeconform.go`,
+  `buildcontext.go`, `seccomp_origin.go`, `signature.go`, `scanner.go`). Tests:
+  `scan_log_text_test.go`.
 - **The renderers run with the network cut** (DEVDESK-767, D180). The folder name was
   the first hole; the second is the content: a `kustomization.yaml` that lists
   `git@host:o/r` or `https://host/m.yaml` makes kustomize fetch it, with the
