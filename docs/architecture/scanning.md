@@ -1401,8 +1401,10 @@ The key of a group (`groupKey`: ecosystem, package, installed version, unfixed, 
 row again by. A vulnerability with no package is its own group (assumption: a CVE with no package name is its own
 cause); `Fix.Position` (0 for a named package, else 1, 2, ... among the bare vulnerabilities of one ID, ecosystem and
 version) keeps two of them, or one and a package named like its ID, from sharing a key. The scan's text shown in a
-group (package, versions, candidates) goes through `inlineText` (`withoutControlSpace` on one line) when `cveGroups`
-builds the row, so the title, the footer sentence and the cells carry no escape sequence, control or bidi mark. Rows are ordered by worst severity, then number of CVEs, then package, then change.
+group (package, versions, candidates) goes through `visibleText` (`withoutControlSpace` on one line, DEVDESK-766) when
+`cveGroups` builds the row, so the title, the footer sentence and the cells carry no escape sequence, control or bidi
+mark, and each character removed is shown as `?` (`open?ssl`, `1.1.1?k -> 1.1.1w`): two packages that differ only by
+an invisible character are two rows that do not look alike. The key keeps the raw name. Rows are ordered by worst severity, then number of CVEs, then package, then change.
 
 **Fixable and the groups.** The header's `Fixable` is still `remediation.Summarize(...).Fixable()`, grouped or
 not. The CVEs of the groups that are not `Unfixed` add up to it, and the CVEs of the `Unfixed` groups (`No fix
@@ -1473,12 +1475,27 @@ declines and one it accepts are two rows, and two instances declined for differe
 (`groupMisconfigs` takes the status function so a test can give it reasons the catalog never produces). On an image
 (`onDisk` false) every row says `Cannot fix here`; its findings name no file, the File column says `(image)`, and
 the rows are per rule. A finding with no file on a directory target says `(no file)`: `(image)` is said of images only
-(`fileSubject(file, onDisk)`). `Subject` is the file as shown (`shortPaths`, `inlineText`), `Rule` the smallest ID
-among the members (`inlineText`; one group can mix `AVD-DS-0002` and `DS002`, and the scan order must not pick), the severity the worst of the members. Order: worst severity, most findings, file, rule, state
+(`fileSubject(file, onDisk)`). `Subject` is the file as shown (`shortPaths`, `visibleText`), `Rule` the smallest ID
+among the members (`visibleText`; one group can mix `AVD-DS-0002` and `DS002`, and the scan order must not pick), the severity the worst of the members. Order: worst severity, most findings, file, rule, state
 of the fix; it reads the key, never the order of the scan. `Command` is set only when every member has the same
 `runCommand` (plain words, `scan.PlainWords`); a Misconfigurations group is never `Unfixed` and is not counted in
 `Fixable`. `fixStatus.Label()` renders `Built-in fix unavailable` bare, never with a dangling colon, when the reason
 is empty.
+
+**Names that look alike (DEVDESK-766).** The key holds the raw file, the row shows a cleaned one, so two files could
+show the same name. `visibleText` (`details_text.go`, a pure function) is `inlineText` that puts `?` in place of every
+character the cleaning removes: a bidi mark (U+202E), a zero-width mark (U+200B), any other format, control or
+line-separator character, and an escape sequence (one `?` for the whole sequence); `Docker\u200bfile` shows as
+`Docker?file`, with or without a neighbor. The joiners U+200C and U+200D stay, a tab or a line feed is whitespace and not
+a removed character, and a name that needed no cleaning is shown exactly as before (no mark, same width). The mark
+is display only: `Subject` and `Rule` carry it, the key and `Members` keep the raw name, so a re-scan finds the group by
+the raw name and `enter` opens the right one. Two files that still show the same `Subject` (paths folded to one name by
+`shortPaths`, such as `Dockerfile` and `/scan/Dockerfile`; two names whose removed characters all became `?`) are told
+apart by `numberAlikeSubjects`: the file whose raw name is the shown name keeps it, the others get ` (2)`, ` (3)` in raw
+name order, so a reversed scan lists the same rows. Several rules in one file are one file and take no suffix. The CVE
+list uses the same `visibleText` through `displaySafe`; it has no suffix: its `Change`, `Target` and the CVE count are
+what tell two packages apart, and two ecosystems with the same package name, version and target still show alike
+(not covered).
 
 The columns (`misconfigGroupColumns`, each with its `Sizing`): Severity (fixed 10), File (content 14..40, head
 truncated, so the end of a path stays), Rule (content 10..24), Findings (fixed 8, a plain number: `ctrl+o` fixes one
