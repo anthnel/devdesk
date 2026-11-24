@@ -136,7 +136,16 @@ func scrollPosition(offset, visible, total int) string {
 // hide text (bidi and zero-width marks, line and paragraph separators). A line
 // feed stays: the callers decide what a line is.
 func withoutControlSpace(text string) string {
-	text = ansi.Strip(text)
+	return cleanText(ansi.Strip(text), "")
+}
+
+// removedMark is what visibleText shows in place of each character the cleaning
+// removed, so a name that lost one never looks like one that never had it.
+const removedMark = "?"
+
+// cleanText is the rune filter of withoutControlSpace, on a text whose escape
+// sequences are already gone. A removed rune is replaced by mark ("" drops it).
+func cleanText(text, mark string) string {
 	var b strings.Builder
 	b.Grow(len(text))
 	for _, r := range text {
@@ -146,8 +155,10 @@ func withoutControlSpace(text string) string {
 		case r == '\n':
 			b.WriteRune(r)
 		case unicode.IsControl(r), unicode.In(r, unicode.Zl, unicode.Zp):
+			b.WriteString(mark)
 		case unicode.Is(unicode.Cf, r) && r != '\u200c' && r != '\u200d':
 			// The joiners stay: emoji sequences need them.
+			b.WriteString(mark)
 		default:
 			b.WriteRune(r)
 		}
@@ -310,3 +321,25 @@ func (t detailsText) list(label string, steps []string, paragraph string, style 
 
 // minFieldValueWidth is the least room a value needs beside its label.
 const minFieldValueWidth = 12
+
+// visibleText is inlineText for a name that identifies something (a file, a
+// package, a version): every character the cleaning removes (an escape sequence
+// counts as one) is shown as "?", so two names that differ only by an invisible
+// character or a bidi mark never look alike. A name the cleaning leaves alone
+// comes out exactly as inlineText gives it. Display only: a key or a lookup keeps
+// the raw name.
+func visibleText(text string) string {
+	var b strings.Builder
+	var parser *ansi.Parser
+	var state byte
+	for rest := text; rest != ""; {
+		seq, _, n, next := ansi.DecodeSequence(rest, state, parser)
+		state, rest = next, rest[n:]
+		if ansi.Strip(seq) == "" {
+			b.WriteString(removedMark)
+			continue
+		}
+		b.WriteString(cleanText(seq, removedMark))
+	}
+	return strings.TrimSpace(strings.ReplaceAll(b.String(), "\n", " "))
+}

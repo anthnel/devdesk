@@ -104,13 +104,15 @@ func cveGroups(findings []scan.Finding) []fixGroup {
 // displaySafe is fx with the scan's text made safe for the terminal: the package,
 // the versions and the candidates are shown as they are in the title, the footer
 // and the cells, so none may carry an escape sequence, a control or a bidi mark.
+// Each one removed is shown as "?" (visibleText, DEVDESK-766), so two packages
+// that differ only by such a character do not look alike.
 func displaySafe(fx remediation.Fix) remediation.Fix {
-	fx.Package = inlineText(fx.Package)
-	fx.Installed = inlineText(fx.Installed)
-	fx.Target = inlineText(fx.Target)
+	fx.Package = visibleText(fx.Package)
+	fx.Installed = visibleText(fx.Installed)
+	fx.Target = visibleText(fx.Target)
 	options := make([]string, len(fx.Options))
 	for i, o := range fx.Options {
-		options[i] = inlineText(o)
+		options[i] = visibleText(o)
 	}
 	fx.Options = options
 	return fx

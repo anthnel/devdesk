@@ -2,6 +2,7 @@ package security
 
 import (
 	"cmp"
+	"slices"
 	"sort"
 	"strconv"
 
@@ -55,7 +56,7 @@ func groupMisconfigs(findings []scan.Finding, onDisk bool, statusOf func(scan.Fi
 				Misconfig: true,
 				Severity:  f.Severity,
 				Subject:   fileSubject(f.File, onDisk),
-				Rule:      inlineText(f.ID),
+				Rule:      visibleText(f.ID),
 				Status:    status,
 			}
 			byKey[key] = g
@@ -63,7 +64,7 @@ func groupMisconfigs(findings []scan.Finding, onDisk bool, statusOf func(scan.Fi
 		}
 		// Two spellings of one rule share a group: show the smallest, not the first
 		// scanned.
-		if id := inlineText(f.ID); id < g.Rule {
+		if id := visibleText(f.ID); id < g.Rule {
 			g.Rule = id
 		}
 		if severityRank(f.Severity) > severityRank(g.Severity) {
@@ -77,13 +78,15 @@ func groupMisconfigs(findings []scan.Finding, onDisk bool, statusOf func(scan.Fi
 		g.Command = sharedCommand(g.Members)
 		groups = append(groups, g)
 	}
+	numberAlikeSubjects(groups)
 	sort.SliceStable(groups, func(i, j int) bool { return misconfigGroupLess(groups[i], groups[j]) })
 	return groups
 }
 
 // fileSubject is the file as the row shows it: relative to the scanned directory,
-// on one line, with no control or bidi character from the scan. A finding with no
-// file is "(image)" on an image and "(no file)" on a directory.
+// on one line, with no control or bidi character from the scan, each one removed
+// shown as "?" (DEVDESK-766). A finding with no file is "(image)" on an image and
+// "(no file)" on a directory.
 func fileSubject(file string, onDisk bool) string {
 	if file == "" {
 		if onDisk {
@@ -91,7 +94,46 @@ func fileSubject(file string, onDisk bool) string {
 		}
 		return noFileImage
 	}
-	return inlineText(shortPaths(file, ""))
+	return visibleText(shortPaths(file, ""))
+}
+
+// numberAlikeSubjects tells apart groups of different files that show the same
+// name (DEVDESK-766): paths folded to one name by shortPaths, or names whose
+// removed characters all became "?". The file whose raw name is the shown name
+// comes first, then the others by raw name; the first keeps the plain name and the
+// next ones get " (2)", " (3)": a suffix only where two files would otherwise look
+// alike. Several rules in one file are one
+// file and take no suffix. Display only: the key keeps the raw name.
+func numberAlikeSubjects(groups []fixGroup) {
+	filesBySubject := map[string][]string{}
+	for _, g := range groups {
+		files := filesBySubject[g.Subject]
+		if !slices.Contains(files, g.Key.File) {
+			filesBySubject[g.Subject] = append(files, g.Key.File)
+		}
+	}
+	for subject, files := range filesBySubject {
+		if len(files) > 1 {
+			slices.SortFunc(files, func(a, b string) int {
+				return cmp.Or(cmp.Compare(boolRank(a != subject), boolRank(b != subject)), cmp.Compare(a, b))
+			})
+			filesBySubject[subject] = files
+		}
+	}
+	for i, g := range groups {
+		files := filesBySubject[g.Subject]
+		if at := slices.Index(files, g.Key.File); at > 0 {
+			groups[i].Subject = g.Subject + " (" + strconv.Itoa(at+1) + ")"
+		}
+	}
+}
+
+// boolRank is 0 for false and 1 for true, for cmp.Or chains.
+func boolRank(b bool) int {
+	if b {
+		return 1
+	}
+	return 0
 }
 
 // sharedCommand is the command every member agrees on, "" when one has none, when
