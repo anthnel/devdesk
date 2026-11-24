@@ -1,0 +1,15 @@
+{
+  "tool_use_id": "toolu_01HyZ6aPt6Zw6kDS1qotkmdY",
+  "agent_id": "ac1baa305761afbc2",
+  "subagent_type": "project-tester",
+  "task_description": "Prep 770-B red tests plan",
+  "token_usage": {
+    "input_tokens": 28,
+    "cache_creation_tokens": 125101,
+    "cache_read_tokens": 1047138,
+    "output_tokens": 13914,
+    "api_call_count": 13
+  },
+  "started_at": "2026-11-24T22:14:30.63456686+01:00",
+  "completed_at": "2026-11-24T22:16:43.656645843+01:00"
+}
