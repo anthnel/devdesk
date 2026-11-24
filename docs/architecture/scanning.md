@@ -712,15 +712,39 @@ thing to a calling agent through `scan_result` and stay the thing that measures
 the result — see `mcp.md`. A finite catalog of fixes for the recurring Dockerfile
 rules is phase B of §3.78 and does not exist yet.
 
-### Writing a Resolution, Steps and Repro for a new finding (proposed, to be confirmed)
+### Writing a Resolution, Steps and Repro for a new finding (adopted)
 
-Proposed, not decided: the parser that builds a finding in `internal/scan` writes, beside its
-constructor, a `Resolution` (one paragraph) and, when the fix has distinct actions, `Steps`
-(imperative English US sentences, one action each, alternatives as separate steps, no key name,
-the tool or Kubernetes version when it decides the answer), and a `Repro` built only through
-`localRepro` (never assembled by hand, so the `PlainWords` refusal and the container rule always
-apply). Text written by a third party (Trivy, plumber) is never restructured: it stays in
-`Resolution` as the scanner wrote it. To be confirmed by the owner of the scan area.
+The parser that builds a finding in `internal/scan` writes, beside its constructor, a `Resolution`
+(one paragraph) and, when the fix has distinct actions, `Steps`: imperative English US sentences, one
+action each, alternatives as separate steps, no key name (the same fix is read in the detail, in
+`scan_result` and in the README, and a key is true in only one of them), and the tool or the
+Kubernetes version named when it decides the answer. A `Repro` is built only through `localRepro`
+(or a wrapper of it such as `renderRepro`), never assembled by hand, so the `PlainWords` refusal, the
+"no line from a container" rule and the "never copy `scan.tools.*.args`" rule always apply. Text written
+by a third party (Trivy, plumber) is never restructured: it stays in `Resolution` as the scanner wrote
+it.
+
+The reviewer checks this like the other rules; the techwriter is called in only to rewrite a text in
+depth. Two tests in `internal/scan` hold what a machine can hold:
+
+- `steps_guard_test.go` reads every list a `*Steps` function of `steps.go` returns (inputs for each
+  branch, in `stepSamples`; `TestEveryStepsFunctionHasASample` finds the functions by parsing
+  `steps.go`, so a new one that has no sample fails) and fails on a key name (a `ctrl+`, `alt+`,
+  `shift+` or `cmd+` chord, `esc`, `ctrl`, a letter between angle brackets, `F1` to `F12`, "enter key" and
+  its kin, the words press, hit, keystroke, keybinding, shortcut), an empty or multi-line step, a step
+  that does not start with a capital letter or end with a period, and a duplicate. The one exception is
+  the two-step alternative of a load restrictor failure, where a step ending in ", or" is followed by a
+  lowercase one. Not checked, for lack of a reliable check: that the first word is an imperative verb,
+  that a step holds one action, that the English is US; a bare "enter" or "tab" is not flagged (also a verb or a noun).
+- `provenance_guard_test.go` parses the non-test sources of `internal/scan` and fails when a `Repro` of a
+  `Finding` is set from anything but `localRepro` or a wrapper the guard finds by itself (a function whose
+  every return is a call to a producer), and when a `Steps` is set from anything but a `*Steps` function.
+  A site is `Repro: x`, `f.Repro = x` or `f.Repro, f.RanFrom = a, b`; `x` must be a producer call, a name only a
+  producer defined in the function, or a parameter that every caller in the package feeds that way. Each
+  rule has a synthetic source that breaks it and must be flagged, so the detector can fail. Limits: it matches
+  names, not types (any struct with a `Repro` or `Steps` field is held to it); an alias, a function value, a
+  pointer to the field, reflection and a `Finding` built by another package are out of its sight; flow inside a
+  function is ignored (a name also assigned from something else is refused); functions are keyed by name.
 
 ### The finding detail (DEVDESK-750, DEVDESK-751)
 

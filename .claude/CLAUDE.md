@@ -305,6 +305,7 @@ Go 1.27 (`go 1.27.3` in `go.mod`). Key libraries (versions as in `go.mod`):
 - All colors defined in `theme/colors.go`, all styles in `theme/styles.go`
 - Message naming: `[ComponentName][Action]Msg` (e.g., `ComponentFormSubmitMsg`)
 - Context names: the rule exists twice (`config.ValidateContextName`, `contextcmd.ValidName`); change both or neither (`TestContextNameRulesAgree`). Creation refuses `-`, `new`, `list` (`config.ValidateNewContextName`); loading does not (D91)
+- Finding text: any new `Resolution`, `Steps` or `Repro` of a scan finding follows the convention in `docs/architecture/scanning.md` ("Writing a Resolution, Steps and Repro for a new finding"); `Repro` only through `localRepro`, `Steps` only from a `*Steps` function (guards in `internal/scan`)
 
 ## Critical Bubble Tea Rules
 
