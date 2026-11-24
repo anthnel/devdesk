@@ -14,7 +14,7 @@ import (
 // (the convention proposed in the plan, Q-a).
 
 func TestRenderStepsForTheLoadRestrictor(t *testing.T) {
-	got := renderSteps(SourceKustomize, "kustomizations/dev", ToolSourceBinary, loadRestrictorStderr)
+	got := renderSteps(SourceKustomize, "kustomizations/dev", ToolSourceBinary, loadRestrictorStderr, false)
 
 	want := []string{
 		"Reference a directory that has its own kustomization.yaml, or",
@@ -29,10 +29,10 @@ func TestRenderStepsForAnyOtherKustomizeFailure(t *testing.T) {
 	const stderr = "Error: no matches for Id Deployment.v1.apps/web.[noNs]; failed to find unique target for patch"
 	want := []string{"Run kustomize build kustomizations/dev and fix the first error it reports."}
 
-	if got := renderSteps(SourceKustomize, "kustomizations/dev", ToolSourceBinary, stderr); !reflect.DeepEqual(got, want) {
+	if got := renderSteps(SourceKustomize, "kustomizations/dev", ToolSourceBinary, stderr, false); !reflect.DeepEqual(got, want) {
 		t.Errorf("binary: steps = %q, want %q", got, want)
 	}
-	if got := renderSteps(SourceKustomize, "kustomizations/dev", ToolSourceContainer, stderr); !reflect.DeepEqual(got, want) {
+	if got := renderSteps(SourceKustomize, "kustomizations/dev", ToolSourceContainer, stderr, false); !reflect.DeepEqual(got, want) {
 		t.Errorf("container, nothing about a missing path: steps = %q, want %q", got, want)
 	}
 }
@@ -43,18 +43,18 @@ func TestRenderStepsForAnyOtherKustomizeFailure(t *testing.T) {
 func TestRenderStepsAddTheMountStepOnlyInAContainer(t *testing.T) {
 	const stderr = "Error: open /scan/x/patch.yaml: no such file or directory"
 
-	inContainer := renderSteps(SourceKustomize, "kustomizations/dev", ToolSourceContainer, stderr)
+	inContainer := renderSteps(SourceKustomize, "kustomizations/dev", ToolSourceContainer, stderr, false)
 	if len(inContainer) != 2 || !strings.HasPrefix(inContainer[0], "Run kustomize build kustomizations/dev") ||
 		!strings.Contains(inContainer[1], "scan.tools.kustomize.source: binary") {
 		t.Errorf("container: steps = %q, want the build step then the mount step", inContainer)
 	}
-	if onHost := renderSteps(SourceKustomize, "kustomizations/dev", ToolSourceBinary, stderr); len(onHost) != 1 {
+	if onHost := renderSteps(SourceKustomize, "kustomizations/dev", ToolSourceBinary, stderr, false); len(onHost) != 1 {
 		t.Errorf("binary: steps = %q, want the build step alone", onHost)
 	}
 }
 
 func TestRenderStepsForAChart(t *testing.T) {
-	got := renderSteps(SourceHelm, "charts/api", ToolSourceBinary, "Error: found in Chart.yaml, but missing in charts/ directory: redis")
+	got := renderSteps(SourceHelm, "charts/api", ToolSourceBinary, "Error: found in Chart.yaml, but missing in charts/ directory: redis", false)
 
 	want := []string{
 		"Run helm template charts/api and fix the first error it reports.",

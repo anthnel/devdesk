@@ -758,7 +758,7 @@ func Default() *Config {
 				Plumber:     ToolConfig{Source: ToolSourceAuto},
 				Kubeconform: KubeconformConfig{ToolConfig: ToolConfig{Source: ToolSourceAuto}, KubernetesVersion: DefaultKubernetesVersion},
 				Helm:        ToolConfig{Source: ToolSourceAuto},
-				Kustomize:   ToolConfig{Source: ToolSourceAuto},
+				Kustomize:   KustomizeConfig{ToolConfig: ToolConfig{Source: ToolSourceAuto}},
 			},
 			CacheDir:           filepath.Join(homeDir, ".devdesk", "cache", "scans"),
 			MaxCachedReports:   50,

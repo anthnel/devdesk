@@ -92,6 +92,14 @@ type KubeconformConfig struct {
 	KubernetesVersion string `yaml:"kubernetes_version"`
 }
 
+// KustomizeConfig adds whether an overlay may fetch a remote base (a git URL or
+// an https resource) while it is built. Off by default: a repository that is
+// scanned is not trusted, so the render runs with the network cut (DEVDESK-767).
+type KustomizeConfig struct {
+	ToolConfig       `yaml:",inline"`
+	AllowRemoteBases bool `yaml:"allow_remote_bases,omitempty"`
+}
+
 // ScanTools is every scanner's settings, one block per tool.
 type ScanTools struct {
 	Trivy       TrivyConfig       `yaml:"trivy"`
@@ -99,7 +107,7 @@ type ScanTools struct {
 	Plumber     ToolConfig        `yaml:"plumber"`
 	Kubeconform KubeconformConfig `yaml:"kubeconform"`
 	Helm        ToolConfig        `yaml:"helm"`
-	Kustomize   ToolConfig        `yaml:"kustomize"`
+	Kustomize   KustomizeConfig   `yaml:"kustomize"`
 	Cosign      ToolConfig        `yaml:"cosign"`
 }
 
@@ -119,7 +127,7 @@ func (t *ScanTools) Tool(id string) *ToolConfig {
 	case ToolHelm:
 		return &t.Helm
 	case ToolKustomize:
-		return &t.Kustomize
+		return &t.Kustomize.ToolConfig
 	case ToolCosign:
 		return &t.Cosign
 	}

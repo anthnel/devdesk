@@ -65,7 +65,7 @@ func migrateScanSection(s *ScanConfig) {
 	carryTool(&t.Plumber, l.PlumberSource, l.PlumberPath, l.PlumberImage, l.PlumberConfig)
 	carryTool(&t.Kubeconform.ToolConfig, l.KubeconformSource, l.KubeconformPath, l.KubeconformImage, "")
 	carryTool(&t.Helm, l.HelmSource, l.HelmPath, l.HelmImage, "")
-	carryTool(&t.Kustomize, l.KustomizeSource, l.KustomizePath, l.KustomizeImage, "")
+	carryTool(&t.Kustomize.ToolConfig, l.KustomizeSource, l.KustomizePath, l.KustomizeImage, "")
 
 	t.Trivy.Server.Enabled = t.Trivy.Server.Enabled || l.UseTrivyServer
 	carry(&t.Trivy.Server.URL, l.TrivyServer)

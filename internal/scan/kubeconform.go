@@ -44,6 +44,9 @@ type KubeconformOptions struct {
 	// rendered unvalidated and says so in the report.
 	Helm      ToolSpec
 	Kustomize ToolSpec
+	// AllowRemoteBases lets kustomize fetch a remote base. Off by default:
+	// the render runs with the network cut (DEVDESK-767).
+	AllowRemoteBases bool
 }
 
 // KubeconformReport is what one run found, beyond its findings.
@@ -294,7 +297,11 @@ func ValidateKubernetesVersion(v string) error {
 // kubeconformOptions is what this scanner validates against, and the
 // renderers it has — an unavailable one is handed over unresolved.
 func (s *Scanner) kubeconformOptions() KubeconformOptions {
-	opts := KubeconformOptions{KubernetesVersion: s.options.Tools.Kubeconform.KubernetesVersion, CacheDir: KubeconformCacheDir()}
+	opts := KubeconformOptions{
+		KubernetesVersion: s.options.Tools.Kubeconform.KubernetesVersion,
+		CacheDir:          KubeconformCacheDir(),
+		AllowRemoteBases:  s.options.Tools.Kustomize.AllowRemoteBases,
+	}
 	// A renderer serves only when it is ticked: installed and unticked, it is
 	// not used (§3.86), and its charts or overlays are reported as not rendered.
 	if s.runs(CategoryIDMisconfig, ToolHelm, TargetDirectory) {

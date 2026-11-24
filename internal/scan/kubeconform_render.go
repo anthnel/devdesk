@@ -35,6 +35,11 @@ const (
 	DefaultKustomizeImage = "registry.k8s.io/kustomize/kustomize:v5.8.1"
 )
 
+// remoteBlockedHeadline is the title of a K8S-RENDER finding whose remote base the
+// cut network refused. It replaces the generic one, which would end with
+// kustomize's own first line: the message keeps the whole text.
+const remoteBlockedHeadline = "Overlay does not build: remote base blocked"
+
 // IDs of the findings the renderers themselves produce.
 const (
 	// HelmLintID is a message helm lint reported, at WARNING or ERROR.
@@ -62,6 +67,15 @@ type renderScope struct {
 	// rel is the target relative to mount, with forward slashes; "" when the
 	// target is what is mounted.
 	rel string
+	// offline runs the renderer with the network cut (DEVDESK-767): a binary
+	// gets offlineEnviron, an image `--network none` and no proxy.
+	offline bool
+}
+
+// cut is the scope with the network cut for the renderer that runs in it.
+func (s renderScope) cut() renderScope {
+	s.offline = true
+	return s
 }
 
 // targetOnly mounts the target and nothing else.
@@ -228,12 +242,17 @@ func renderer(scope renderScope, tool ToolSpec, defaultImage, binary string, arg
 		if name == "" {
 			name = binary
 		}
-		return toolCmd{Name: name, Args: args, Dir: scope.target}
+		cmd := toolCmd{Name: name, Args: args, Dir: scope.target}
+		if scope.offline {
+			cmd.Env = offlineEnviron(os.Environ())
+		}
+		return cmd
 	}
 	return containerRun{
-		Flags: []string{"-v", scope.mount + ":" + containerScanPath + ":ro", "-w", scope.workdir()},
-		Image: orDefault(tool.Image, defaultImage),
-		Argv:  args,
+		Flags:   []string{"-v", scope.mount + ":" + containerScanPath + ":ro", "-w", scope.workdir()},
+		Image:   orDefault(tool.Image, defaultImage),
+		Argv:    args,
+		Offline: scope.offline,
 	}.cmd()
 }
 
@@ -318,10 +337,12 @@ func (v *k8sValidation) renderCharts(ctx context.Context, charts []string) error
 			v.report.Unrendered = append(v.report.Unrendered, chart)
 			continue
 		}
-		lint := helmLint(ctx, v.scope, chart, tool)
+		// helm reads no remote base, so it never has the network.
+		scope := v.scope.cut()
+		lint := helmLint(ctx, scope, chart, tool)
 		v.report.Findings = append(v.report.Findings, lint...)
 
-		cmd := helmArgs(v.scope, chart, tool, "template")
+		cmd := helmArgs(scope, chart, tool, "template")
 		log.Printf("Running: %s", cmd)
 		rendered, err := runner.Run(ctx, cmd, nil)
 		if err != nil {
@@ -335,7 +356,7 @@ func (v *k8sValidation) renderCharts(ctx context.Context, charts []string) error
 				repro, from := renderRepro(tool, "helm", "template", chart)
 				v.report.Findings = append(v.report.Findings,
 					renderFailure(SourceHelm, "helm", path.Join(chart, "Chart.yaml"), "Chart does not render", from,
-						renderSteps(SourceHelm, chart, from, failureDetail(err)), repro, err))
+						renderSteps(SourceHelm, chart, from, failureDetail(err), false), repro, err))
 			}
 			continue
 		}
@@ -363,7 +384,11 @@ func (v *k8sValidation) renderKustomizations(ctx context.Context, dirs []string)
 			continue
 		}
 		file := path.Join(dir, k8s.KustomizationFile(filepath.Join(v.target, filepath.FromSlash(dir))))
-		cmd := kustomizeArgs(v.scope, dir, tool)
+		scope := v.scope
+		if !v.opts.AllowRemoteBases {
+			scope = scope.cut()
+		}
+		cmd := kustomizeArgs(scope, dir, tool)
 		log.Printf("Running: %s", cmd)
 		rendered, err := runner.Run(ctx, cmd, nil)
 		if err != nil {
@@ -371,9 +396,18 @@ func (v *k8sValidation) renderKustomizations(ctx context.Context, dirs []string)
 				return ctx.Err()
 			}
 			repro, from := renderRepro(tool, "kustomize", "build", dir)
-			v.report.Findings = append(v.report.Findings,
-				renderFailure(SourceKustomize, "kustomize", file, "Overlay does not build", from,
-					renderSteps(SourceKustomize, dir, from, failureDetail(err)), repro, err))
+			detail := failureDetail(err)
+			blocked := scope.offline && remoteBlocked(detail, from)
+			f := renderFailure(SourceKustomize, "kustomize", file, "Overlay does not build", from,
+				renderSteps(SourceKustomize, dir, from, detail, blocked), repro, err)
+			if blocked {
+				f.Title = remoteBlockedHeadline
+				f.Resolution = remoteBlockedResolution
+				// A copied `kustomize build` would run the refused fetch again, with
+				// the user's ssh agent and proxy, on a repository that is not trusted.
+				f.Repro = ""
+			}
+			v.report.Findings = append(v.report.Findings, f)
 			continue
 		}
 		// kustomize adds no origin to what it emits unless the kustomization
@@ -554,6 +588,12 @@ func failureDetail(err error) string {
 const (
 	helmRenderResolution = "Render it locally with helm template and fix what it reports; " +
 		"a chart's dependencies must be vendored in charts/ or fetched with helm dependency build."
+	// remoteBlockedResolution is for an overlay whose remote base was refused
+	// because the render runs with the network cut (DEVDESK-767).
+	remoteBlockedResolution = "The overlay names a remote base (a git URL or an https resource) and DevDesk " +
+		"renders a repository it does not trust with the network cut. Copy the base into the repository " +
+		"and reference it by a relative path, or, for a repository you trust, set " +
+		"scan.tools.kustomize.allow_remote_bases: true."
 	kustomizeRenderResolution = "Build it locally with kustomize build (or kubectl kustomize) and fix what it reports."
 	// kustomize's load restrictor (LoadRestrictionsRootOnly, its default)
 	// refuses a file outside the kustomization's directory, with this message.

@@ -24,8 +24,10 @@ func isLoadRestrictor(detail string) bool {
 
 // renderSteps are the steps for a chart or an overlay that did not render.
 // target is the overlay directory or the chart, relative to the scanned
-// directory; detail is what the tool printed.
-func renderSteps(source, target string, from ToolSource, detail string) []string {
+// directory; detail is what the tool printed. blocked says the failure is a
+// remote base the cut network refused (the caller's remoteBlocked, asked only of
+// an offline run): it gets steps of its own.
+func renderSteps(source, target string, from ToolSource, detail string, blocked bool) []string {
 	if source != SourceKustomize {
 		return []string{
 			fmt.Sprintf("Run helm template %s and fix the first error it reports.", target),
@@ -33,12 +35,18 @@ func renderSteps(source, target string, from ToolSource, detail string) []string
 		}
 	}
 	var steps []string
-	if isLoadRestrictor(detail) {
+	switch {
+	case blocked:
+		return []string{
+			fmt.Sprintf("Copy the remote base that %s names into the repository and reference it by a relative path.", target),
+			"Or set scan.tools.kustomize.allow_remote_bases: true if you trust this repository.",
+		}
+	case isLoadRestrictor(detail):
 		steps = []string{
 			"Reference a directory that has its own kustomization.yaml, or",
 			fmt.Sprintf("move the file below %s.", target),
 		}
-	} else {
+	default:
 		steps = []string{fmt.Sprintf("Run kustomize build %s and fix the first error it reports.", target)}
 	}
 	if from == ToolSourceContainer &&

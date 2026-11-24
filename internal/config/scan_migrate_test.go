@@ -78,7 +78,7 @@ func TestEveryLegacyScanKeyIsCarriedOver(t *testing.T) {
 	check("plumber", tools.Plumber, ToolConfig{Source: "image", Binary: "/opt/plumber", Image: "mirror/plumber", Config: "/etc/plumber.yaml"})
 	check("kubeconform", tools.Kubeconform.ToolConfig, ToolConfig{Source: "binary", Binary: "/opt/kubeconform", Image: "mirror/kubeconform", Config: ""})
 	check("helm", tools.Helm, ToolConfig{Source: "image", Binary: "/opt/helm", Image: "mirror/helm", Config: ""})
-	check("kustomize", tools.Kustomize, ToolConfig{Source: "binary", Binary: "/opt/kustomize", Image: "mirror/kustomize", Config: ""})
+	check("kustomize", tools.Kustomize.ToolConfig, ToolConfig{Source: "binary", Binary: "/opt/kustomize", Image: "mirror/kustomize", Config: ""})
 
 	if tools.Trivy.Server != (TrivyServerConfig{Enabled: true, URL: "https://trivy:4954"}) {
 		t.Errorf("trivy server = %+v", tools.Trivy.Server)

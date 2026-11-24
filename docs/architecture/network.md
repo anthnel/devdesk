@@ -1958,6 +1958,16 @@ forwards the proxy itself.
 - **A `Forward` never prints a value.** `String` and `GoString` show the display
   form (`netproxy.Display`); the values sit behind a function so `fmt` finds
   nothing to print, with any verb.
+- **The renderers get no proxy and no network** (DEVDESK-767, D180). A
+  `containerRun{Offline: true}` writes `run --rm <Flags> --network none <Image>
+  <Argv>`: no `-e NAME`, an empty `Forward`, and `Env` nil unless the caller has
+  variables of its own. helm always runs this way and kustomize too, unless
+  `scan.tools.kustomize.allow_remote_bases` is on; kubeconform does not (it
+  downloads schemas). The renderers run natively with `offlineEnviron`
+  instead (a dead proxy and a `GIT_ALLOW_PROTOCOL` that names no transport). No new `"run"` literal:
+  `Offline` is a branch of the same `cmd()`, so `TestContainerGuard*` is unchanged.
+  The loopback proxy warning (`scan.ContainerProxyWarning`) is unchanged and still
+  names kubeconform and the other containers. See `scanning.md`.
 - **The trust model.** The proxy and its credentials go to every scanner image,
   including one the user set through `tool.Image` (see `scanning.md`).
 - **Stderr is redacted.** `cliRunner.Run` redacts each stderr line before it goes

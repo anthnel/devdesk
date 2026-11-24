@@ -288,9 +288,14 @@ var ownSettings = map[scan.ToolID]func() []field{
 			"x.y.z or master — decides which apiVersions count as removed",
 			scan.ValidateKubernetesVersion)}
 	},
-	scan.ToolHelm:      func() []field { return nil },
-	scan.ToolKustomize: func() []field { return nil },
-	scan.ToolCosign:    func() []field { return nil },
+	scan.ToolHelm: func() []field { return nil },
+	scan.ToolKustomize: func() []field {
+		remote := toggle("Allow remote bases", func(c *config.Config) *bool { return &c.Scan.Tools.Kustomize.AllowRemoteBases }, "")
+		remote.hintOn = "A remote base (git or https) is fetched while an overlay builds — only for a repository you trust"
+		remote.hintOff = "The overlay builds with the network cut: a remote base is refused"
+		return []field{remote}
+	},
+	scan.ToolCosign: func() []field { return nil },
 }
 
 // The two Trivy server rows are named once: tests and the footer find them by
