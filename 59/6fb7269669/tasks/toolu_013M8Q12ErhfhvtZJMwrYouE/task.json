@@ -1,0 +1,15 @@
+{
+  "tool_use_id": "toolu_013M8Q12ErhfhvtZJMwrYouE",
+  "agent_id": "aa9d4608611babe2a",
+  "subagent_type": "project-coder",
+  "task_description": "DEVDESK-764 contraste thèmes",
+  "token_usage": {
+    "input_tokens": 132,
+    "cache_creation_tokens": 235246,
+    "cache_read_tokens": 11208215,
+    "output_tokens": 68216,
+    "api_call_count": 66
+  },
+  "started_at": "2026-11-24T18:09:35.956947664+01:00",
+  "completed_at": "2026-11-24T18:24:20.474649521+01:00"
+}
