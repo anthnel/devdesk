@@ -104,6 +104,17 @@ cleared so they leave the file on the next save. Two points of its own:
 A category's `tools` list is a slice, so a `Config` copied by value shares it:
 `CategoryConfig.With` always builds a new one rather than editing in place.
 
+**`scan.tools.kustomize.allow_remote_bases`** (DEVDESK-767, D180) is a bool,
+default `false` and `omitempty`, so an absent key stays absent on save. Off, an
+overlay is built with the network cut and a remote base (a git URL or an https
+resource in a `kustomization.yaml`) is refused with a finding of its own; on, it
+is fetched as before, with the user's proxy and git credentials. It is only for a
+repository the user trusts. `ScanTools.Kustomize` is a `KustomizeConfig`
+(`ToolConfig` inlined, plus this key); `ScanTools.Tool("kustomize")` still returns
+the `ToolConfig`. The configuration view shows it as the checkbox "Allow remote
+bases" in Kustomize's group of the tools tab (`space` flips it, saved at once). See
+`scanning.md`, "The renderers run with the network cut".
+
 **`app.gauge_glyph`** picks the fill of the containers load gauges and of the
 netdiag waterfall: `shade` (the default — `░` for fill and track alike, told
 apart by colour) or `block` (`█` over a `░` track). `block` is an opt-in because

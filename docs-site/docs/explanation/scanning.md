@@ -170,7 +170,16 @@ reported as an invalid resource. Helm charts and Kustomize overlays are
 validated once rendered, when `helm` or `kustomize` is available: the chart is
 linted and rendered, the overlay built, and each finding points at the
 template or the kustomization it came from. Without them, those directories
-are left unvalidated and the log says so. Custom resources are skipped: their schema is
+are left unvalidated and the log says so. helm and kustomize run with the
+network cut, because the repository being scanned is not trusted: an overlay
+that names a remote base (`git@host:o/r`, `https://host/m.yaml`) would otherwise
+make kustomize fetch it with your ssh agent and proxy. Such an overlay gets a
+`remote base blocked` finding; copy the base into the repository, or set
+`scan.tools.kustomize.allow_remote_bases: true` for repositories you trust (one
+value for every repository scanned in the context, read only from your
+`~/.devdesk` configuration). A service on this machine's loopback can still be
+reached by a kustomize binary; running kustomize from an image closes that.
+Custom resources are skipped: their schema is
 in a CRD kubeconform does not read. Nothing ever connects to a cluster.
 
 ## Pod Security profile of a finding

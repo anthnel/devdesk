@@ -178,12 +178,15 @@ func stepSamples() map[string][][]string {
 	resource := kubeconformResource{Kind: "Deployment", Version: "apps/v1"}
 	return map[string][][]string{
 		"renderSteps": {
-			renderSteps(SourceHelm, "charts/api", ToolSourceBinary, "boom"),
-			renderSteps(SourceKustomize, "overlays/dev", ToolSourceBinary, "boom"),
-			renderSteps(SourceKustomize, "overlays/dev", ToolSourceBinary, restrictor),
-			renderSteps(SourceKustomize, "overlays/dev", ToolSourceContainer, restrictor),
-			renderSteps(SourceKustomize, "overlays/dev", ToolSourceContainer, "no such file or directory"),
-			renderSteps(SourceKustomize, "overlays/dev", ToolSourceContainer, "evalsymlink failure"),
+			renderSteps(SourceHelm, "charts/api", ToolSourceBinary, "boom", false),
+			renderSteps(SourceKustomize, "overlays/dev", ToolSourceBinary, "boom", false),
+			renderSteps(SourceKustomize, "overlays/dev", ToolSourceBinary, restrictor, false),
+			renderSteps(SourceKustomize, "overlays/dev", ToolSourceContainer, restrictor, false),
+			renderSteps(SourceKustomize, "overlays/dev", ToolSourceContainer, "no such file or directory", false),
+			renderSteps(SourceKustomize, "overlays/dev", ToolSourceContainer, "evalsymlink failure", false),
+			// DEVDESK-767: a remote base the cut network refused.
+			renderSteps(SourceKustomize, "overlays/dev", ToolSourceBinary, sshBlockedStderr, true),
+			renderSteps(SourceKustomize, "overlays/dev", ToolSourceContainer, containerNoSuchHostStderr, true),
 		},
 		"helmLintSteps": {helmLintSteps("templates/deployment.yaml", "charts/api")},
 		"schemaSteps": {

@@ -24,6 +24,10 @@ type containerRun struct {
 	// It never reaches argv.
 	Env   []string
 	Stdin []byte
+	// Offline cuts the container's network (`--network none`) and forwards no
+	// proxy variable: a renderer reads a repository that is not trusted
+	// (DEVDESK-767).
+	Offline bool
 }
 
 // cmd builds `run --rm <Flags> [-e NAME]... <Image> <Argv>`. The proxy variables
@@ -31,11 +35,20 @@ type containerRun struct {
 // child's environment, never in argv, so neither the process list nor the
 // command shown in the UI carries them. Env is nil when there is neither a proxy
 // to forward nor an extra variable.
+//
+// An Offline run adds `--network none` after the flags and forwards no proxy at
+// all, so Env is nil unless the caller has variables of its own.
 func (r containerRun) cmd() toolCmd {
 	fwd := proxyForward()
+	if r.Offline {
+		fwd = netproxy.Forward{}
+	}
 	args := append([]string{"run", "--rm"}, r.Flags...)
 	for _, name := range fwd.Names() {
 		args = append(args, "-e", name)
+	}
+	if r.Offline {
+		args = append(args, "--network", "none")
 	}
 	args = append(append(args, r.Image), r.Argv...)
 

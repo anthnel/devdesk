@@ -74,7 +74,7 @@ scan:
     plumber:     { source: auto, binary: "", image: "", config: "" }
     kubeconform: { source: auto, binary: "", image: "", kubernetes_version: 1.36.0 }
     helm:        { source: auto, binary: "", image: "" }
-    kustomize:   { source: auto, binary: "", image: "" }
+    kustomize:   { source: auto, binary: "", image: "", allow_remote_bases: false }
 ```
 
 ### `scan.categories.<category>`
@@ -115,6 +115,7 @@ is never required, installed or not.
 | `trivy.ignore_eol` | bool | `false` | Drop findings for end-of-life packages |
 | `gitleaks.history` | bool | `false` | Scan full git history, not just the working tree |
 | `kubeconform.kubernetes_version` | string | `1.36.0` | Release to validate against: `x.y.z` or `master` |
+| `kustomize.allow_remote_bases` | bool | `false` | Let kustomize fetch a remote base (a git URL or an https resource named in a `kustomization.yaml`) while it builds an overlay. Off, helm and kustomize run with the network cut and such an overlay gets a `remote base blocked` finding. The value holds for every repository scanned in this context and is read only from `~/.devdesk`; turn it on only for repositories you trust |
 
 Default images: `aquasec/trivy`, `zricethezav/gitleaks`, `getplumber/plumber`,
 `ghcr.io/yannh/kubeconform`, `alpine/helm`,

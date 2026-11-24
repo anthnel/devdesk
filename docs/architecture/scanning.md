@@ -274,9 +274,58 @@ no line, so it could feed neither the table's jump-to-line nor a fix.
   command text (`Run helm template -x ...`). Tests: `TestEveryRelativeFolderIsPassedWithADotSlash`
   (argv of `helmArgs` and `kustomizeArgs`, native and container, with and
   without the user's arguments), `TestADashFolderIsRenderedAndReportedUnderItsOwnName`.
-  Not covered here: the renderers still have network access (a remote base
-  written inside a `kustomization.yaml` is fetched), and the user's own
-  arguments appear in the `Running:` log.
+  Not covered here: the user's own arguments appear in the `Running:` log.
+- **The renderers run with the network cut** (DEVDESK-767, D180). The folder name was
+  the first hole; the second is the content: a `kustomization.yaml` that lists
+  `git@host:o/r` or `https://host/m.yaml` makes kustomize fetch it, with the
+  user's ssh agent, proxy and credentials, before anything was validated. So
+  helm and kustomize run offline: **natively**, `renderer` gives the child
+  `offlineEnviron(os.Environ())` (`render_network.go`): the host's proxy
+  variables, `REQUEST_METHOD`, `SSH_AUTH_SOCK`, `GIT_SSH`, `GIT_SSH_COMMAND`,
+  `GIT_PROXY_COMMAND`, `GIT_TERMINAL_PROMPT`, any `GIT_ALLOW_PROTOCOL` and `LC_ALL`
+  are removed, then `GIT_ALLOW_PROTOCOL=devdesk-none` (a list naming no transport,
+  so git refuses ssh, https **and file**: `transport 'file' not allowed`; `file`
+  would have let an overlay read any git repository of this machine),
+  `GIT_TERMINAL_PROMPT=0`, `HTTP(S)_PROXY` and the lower case pair set to
+  the dead `http://127.0.0.1:0`, `NO_PROXY=` and `LC_ALL=C` are added; **from
+  an image**, `containerRun.Offline` adds `--network none` and forwards no proxy
+  (`renderScope.offline`, set by `cut()`). helm is always offline (it reads no
+  remote base; `helm lint` and `template` need no network, so a chart that was
+  fetched with `--dependency-update` in `scan.tools.helm.args` now fails: vendor
+  the dependency in `charts/` instead). kustomize is offline unless
+  `scan.tools.kustomize.allow_remote_bases: true` (default false, the
+  configuration view's "Allow remote bases" under Kustomize). kubeconform keeps
+  its network: it downloads the schemas it validates against.
+  A fetch that was refused is a K8S-RENDER finding of its own, `Overlay does not
+  build: remote base blocked` (`remoteBlocked`, `remoteBlockedResolution`; Steps
+  from `renderSteps`), still HIGH and carrying kustomize's whole message, so that
+  nobody reads a cut network as a broken overlay. The Resolution says the network
+  is cut for a repository that is not trusted and offers two ways out: copy the
+  base into the repository, or set `allow_remote_bases: true`. With the switch on
+  nothing was cut, so a failed fetch is an ordinary "does not build".
+  Markers, **native, measured** on kustomize v5.8.3 and git 2.47.3 with
+  `offlineEnviron`'s environment (`TestARealKustomizeIsRefusedItsRemoteBases`, which
+  skips when either tool is missing or kustomize is older): `transport '<x>' not
+  allowed` and `proxyconnect tcp: dial tcp 127.0.0.1:0`. **Container, not
+  measured** (no engine was reachable): `accumulating resources from` together
+  with `no such host`, `Could not resolve host`, `network is unreachable` or
+  `no 'git' program`; to be recorded on a machine with an engine.
+  Limits: (1) a native base on the loopback, `http://127.0.0.1:8080/x.yaml`,
+  still reaches that service, because Go never applies a proxy to the loopback
+  and `GIT_ALLOW_PROTOCOL` only governs git: it is a GET only (kustomize sends
+  no body, no custom method), and nothing the service answers is run; `--network
+  none` closes it for an image, so `scan.tools.kustomize.source: image` closes
+  this limit. (2) The scan cache serves a result computed
+  before this change until the next rescan: an overlay that used to build with
+  a remote base keeps its old result until then. (3) Windows is not measured:
+  `GIT_ALLOW_PROTOCOL` and the proxy variables are read there too, but the
+  markers were not recorded. (4) A user's own arguments (`scan.tools.*.args`)
+  are not filtered: `--enable-helm` or similar flags are theirs. (5) The
+  finding `remote base blocked` carries no `Repro`: a copied `kustomize build`
+  would run the refused fetch again, with the user's ssh agent and proxy, on a
+  repository that is not trusted. (6) `allow_remote_bases` is one boolean per
+  context: it holds for every repository scanned in that context, and it is read
+  only from `~/.devdesk` (never from the scanned repository).
 - **Charts and Kustomize roots are set apart.** A template is not YAML until
   helm renders it, and a Kustomize patch is a fragment that fails the schema
   on its own. Their files are never validated raw. Only the **outermost**
@@ -382,8 +431,8 @@ no line, so it could feed neither the table's jump-to-line nor a fix.
     may point outside what DevDesk mounts, and suggests scanning the
     enclosing directory or `scan.tools.kustomize.source: binary`
     (`mountResolution`); a binary never gets that sentence.
-  - **Known limits.** The renderer container keeps the network (no
-    `--network none`). helm follows symlinks inside the mount, so a hostile
+  - **Known limits.** The renderer container has no network (`--network none`,
+    DEVDESK-767), except kustomize with `allow_remote_bases`. helm follows symlinks inside the mount, so a hostile
     chart can bring a sibling file's content into its error, as a binary,
     which sees the whole host, already could. The enclosing git repository is
     mounted as it is: the target's neighbours under the git root become
