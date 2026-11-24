@@ -921,10 +921,23 @@ the same hex as `ColorDim` on nine themes; under focus the two colours swap, so 
 (`TestTheDisabledButtonDiffersFromAnEnabledOneByMoreThanColour`, `TestTheDisabledButtonLabelReachesTextContrastOnEveryTheme`).
 The inactive tab label follows `ColorDim` on every theme (`tab_inactive_fg`, Rule 118).
 
-`ColorSeverityLow` no longer follows `ColorDim` in the shipped themes: it is also the LOW badge background, which
-`ColorSeverityLow`'s `_fg` has to read on. A theme that omits `severity_low` falls back to `ColorCmdLineBg`, not `ColorDim`, so the
-`ColorText` fallback of the badge stays readable (`TestAThemeWithoutSeverityLowKeepsAReadableLowBadge`, D177). `token_cache_read` moved away from the new dim tone on nine themes
-(`TestTokenColorsAreNotSeverityOrGaugeColours`).
+**The severity badges (DEVDESK-770 part B, D181).** A badge is the selected row of a finding of that level
+(`TableStylesForSeverity(level).Selected`): its text is `ColorBackground` on every level and every theme
+(`TestSeverityBadgeTextIsTheAppBackgroundOnEveryTheme`) and reaches 4.5:1 on the badge background
+(`TestEverySeverityBadgeReachesTextContrastOnEveryTheme`). `severity_high` is raised on five themes (latte,
+one-dark, solarized-dark, nord, solarized-light) by the smallest lightness step; CRITICAL and HIGH keep a CIE76
+distance of at least 8 (`TestSeverityHighAndCriticalStayApart`), and the word on the badge is the other carrier
+(`TestTheSeverityCellSpellsTheLevelOut`). `severity_low` is `color_dim` on the eight dark themes, so the LOW badge
+becomes a light badge with dark text. A theme that omits the LOW keys falls back to `ColorDim` under
+`ColorBackground` (`TestAThemeWithoutSeverityLowFallsBackOnDimAndBackground`). D177 had `ColorCmdLineBg` and
+`ColorText`; D181 replaces it.
+
+**The gauge rail is the frame border** (`GaugeTrackStyle()` is `ColorViewportBorder`, `TestTheGaugeTrackIsTheViewportBorderOnEveryTheme`),
+not `ColorSeverityLow`: raising that colour to `ColorDim`'s tone would have made every empty gauge cell as bright as
+a label. The cost is stated: the border is under 3:1 against the selected row on 11 of 13 themes, so under the cursor
+the rail is faint (the number beside the gauge carries the value). Four token colours moved away from the border
+(`TestTokenColorsAreNotSeverityOrGaugeColours`, `token_cache_read` on latte, github-light and solarized-light,
+`token_input` on nord); figures in `docs/measurements/2026-11-24-theme-text-contrast-3.md`.
 
 ## Breadcrumb trails that fit — `theme.RenderTrail` (DEVDESK-769)
 
@@ -960,7 +973,7 @@ background), and the frame border `ColorViewportBorder` (3:1 on the background, 
 active tab, the focused primary button, the unfocused primary and secondary buttons, the inactive command line
 (`cmd_line_inactive_fg`, aligned on `color_dim`). `internal/ui/theme/tune_test.go` proposes the smallest move
 (`DEVDESK_THEME_TUNE=1 go test ./internal/ui/theme/ -run TestSuggestTones -v`). Figures and what is still under the
-bar (the `Yes` and success buttons, the LOW and HIGH badges, the gauge rail) are in
+bar when it was written (the `Yes` and success buttons; the LOW and HIGH badges and the gauge rail are part B above) are in
 `docs/measurements/2026-11-24-theme-text-contrast-2.md`; the border decision is D179 in `docs/backlog.md`.
 
 ## Dashboard clocks and terminal focus (DEVDESK-210)

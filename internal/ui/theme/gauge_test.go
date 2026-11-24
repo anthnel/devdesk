@@ -113,11 +113,35 @@ func TestLoadTextStyleTakesItsColourFromTheLevel(t *testing.T) {
 }
 
 // The track's colour is fixed and takes no argument — the whole point being
-// that it never changes with the level next to it.
+// that it never changes with the level next to it. Since D181 it is the frame
+// border: a rail is a line drawn inside the frame, and the border is the tone
+// the application already draws its lines in.
 func TestGaugeTrackStyleIsFixed(t *testing.T) {
-	if got := GaugeTrackStyle().GetForeground(); got != ColorSeverityLow {
-		t.Errorf("GaugeTrackStyle foreground = %v, want %v", got, ColorSeverityLow)
+	if got := GaugeTrackStyle().GetForeground(); got != ColorViewportBorder {
+		t.Errorf("GaugeTrackStyle foreground = %v, want %v", got, ColorViewportBorder)
 	}
+}
+
+// DEVDESK-770 part B (D181). The rail is the frame border on every theme, and it
+// is visible: it differs from the application background and from the selected
+// row, on which a gauge is repainted under the cursor. No contrast threshold is
+// held here, on purpose: the border sits under 3:1 against the selected row on
+// most themes and a rail is not a carrier of information (the fill and the
+// number beside it are). The comparison is on the hex, since two colours that
+// print alike are the same rail.
+func TestTheGaugeTrackIsTheViewportBorderOnEveryTheme(t *testing.T) {
+	eachShippedTheme(t, func(t *testing.T, name string) {
+		track := GaugeTrackStyle().GetForeground()
+		if Hex(track) != Hex(ColorViewportBorder) {
+			t.Errorf("theme %s: gauge track is %s, want the frame border %s", name, Hex(track), Hex(ColorViewportBorder))
+		}
+		if Hex(track) == Hex(ColorBackground) {
+			t.Errorf("theme %s: gauge track %s is the background: the rail would vanish", name, Hex(track))
+		}
+		if Hex(track) == Hex(ColorTableLineSelected) {
+			t.Errorf("theme %s: gauge track %s is the selected row: the rail would vanish under the cursor", name, Hex(track))
+		}
+	})
 }
 
 // The gauge glyph is pinned here rather than in a comment: swapping it for a

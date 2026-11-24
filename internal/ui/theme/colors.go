@@ -49,9 +49,8 @@ var (
 	// ColorTableLineSelected is the background a datatable's plain "normal"
 	// selected row paints per cell (§3.72) — DefaultTableStyles' s.Selected,
 	// and render.go's cellStyle/runStyle selected branches (preserveColumnColors).
-	// It used to alias ColorSeverityLow directly; a dedicated key lets a theme
-	// tune the selection independently of the severity palette, which is what
-	// SeverityLow now is — see its own doc below.
+	// It is its own key, not an alias of ColorSeverityLow, so a theme can tune the
+	// selection independently of the severity palette.
 	ColorTableLineSelected color.Color
 
 	ColorCmdLineFg         color.Color
@@ -182,11 +181,11 @@ var (
 
 	// Severity colors (background + foreground pairs)
 	//
-	// ColorSeverityLow falls back to ColorCmdLineBg when a theme omits
-	// severity_low (a dark tone, so that the ColorText fallback of
-	// SeverityLowFg reads on it). It is the LOW badge background, so it is not
-	// ColorDim: DEVDESK-764 raised ColorDim to 4.5:1 as a text colour, which
-	// makes it a light tone. The shipped themes set severity_low themselves.
+	// A badge's text is ColorBackground on every level (D181), so the badge
+	// background is held to 4.5:1 on the background: it is also the pair a badge
+	// reads as under the cursor. ColorSeverityLow falls back to ColorDim, and
+	// ColorSeverityLowFg to ColorBackground, when a theme omits the keys; the
+	// shipped dark themes set severity_low to their color_dim.
 	ColorSeverityCritical   color.Color
 	ColorSeverityCriticalFg color.Color
 	ColorSeverityHigh       color.Color

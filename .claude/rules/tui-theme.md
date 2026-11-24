@@ -13,7 +13,7 @@ paths:
 - Never hardcode colors directly in views
 - Reusable styles must be defined in `internal/ui/theme/styles.go`
 - Use the theme package's constants (ColorPrimary, ColorError, etc.)
-- A text colour reaches 4.5:1 (`theme.ContrastRatio`) on the surface it is painted on, on each shipped theme: `ColorText`, `ColorDim`, `ColorSubTitleFg`, `ColorWarn`, `ColorFooterWarn`, `ColorFooterError` (`TestEveryTextColourReachesItsContrastOnEveryTheme`, DEVDESK-764), and, from DEVDESK-770, `ColorSecondary` (4.5:1 on the background, 3:1 on the selected row), `ColorTableHeaderFg`, `ColorPrimary`, `ColorTitleFg`, `ColorAppTitleFg`, plus the pairs of the active tab, the focused primary button, the unfocused primary and secondary buttons and the inactive command line (`TestEveryTextPairReachesItsContrastOnEveryTheme`); the frame border `ColorViewportBorder` reaches 3:1 on the background (a non-text object, WCAG 1.4.11, D179). What tells "greyed" or "secondary" apart is not always the shade, and the code holds exactly this: the disabled button is italic (`TestTheDisabledButtonDiffersFromAnEnabledOneByMoreThanColour`); a greyed shortcut keeps its key without bold or a vivid colour; secondary text (`DimStyle`) gets its hierarchy from position and weight, not from italics. On solarized-dark, solarized-light and catppuccin-latte `ColorDim` and `ColorText` are nearly the same tone (delta E 5.6, 0.8 and 4.6), a known limit measured in `docs/measurements/2026-11-24-theme-text-contrast.md` (Rule 130)
+- A text colour reaches 4.5:1 (`theme.ContrastRatio`) on the surface it is painted on, on each shipped theme: `ColorText`, `ColorDim`, `ColorSubTitleFg`, `ColorWarn`, `ColorFooterWarn`, `ColorFooterError` (`TestEveryTextColourReachesItsContrastOnEveryTheme`, DEVDESK-764), and, from DEVDESK-770, `ColorSecondary` (4.5:1 on the background, 3:1 on the selected row), `ColorTableHeaderFg`, `ColorPrimary`, `ColorTitleFg`, `ColorAppTitleFg`, `ColorSeverityHigh` and `ColorSeverityLow` (4.5:1 on the background, 3:1 on the selected row; the badge text is `ColorBackground`, D181), plus the pairs of the active tab, the focused primary button, the unfocused primary and secondary buttons and the inactive command line (`TestEveryTextPairReachesItsContrastOnEveryTheme`) and the four severity badges (`TestEverySeverityBadgeReachesTextContrastOnEveryTheme`); the frame border `ColorViewportBorder` reaches 3:1 on the background (a non-text object, WCAG 1.4.11, D179), and it is also the gauge rail (D181), faint under the cursor. What tells "greyed" or "secondary" apart is not always the shade, and the code holds exactly this: the disabled button is italic (`TestTheDisabledButtonDiffersFromAnEnabledOneByMoreThanColour`); a greyed shortcut keeps its key without bold or a vivid colour; secondary text (`DimStyle`) gets its hierarchy from position and weight, not from italics. On solarized-dark, solarized-light and catppuccin-latte `ColorDim` and `ColorText` are nearly the same tone (delta E 5.6, 0.8 and 4.6), a known limit measured in `docs/measurements/2026-11-24-theme-text-contrast.md` (Rule 130)
 
 ### Rule 105 : Help message format
 
@@ -102,13 +102,13 @@ keeping the per-cell foreground safe instead of a return of the defect.
 means "this whole row is in that state," which per-cell colour would fight.
 
 `ColorTableLineSelected` (`table_line_selected` in a theme file) is its own
-key rather than an alias of `ColorSeverityLow`, on purpose: `ColorSeverityLow`
-was set to the same tone as `ColorDim` (D177 replaces that: `ColorDim` is now a
-light text tone at 4.5:1, and `ColorSeverityLow` is also the LOW badge background,
-so it kept the old darker tone) — so a theme tuning "how muted is a LOW finding"
-no longer also retunes the selection highlight by coincidence. Both keys default to the same hex the "normal"
-selection has always used, so nothing changes on screen from this split by
-itself.
+key rather than an alias of `ColorSeverityLow`, on purpose, so a theme tuning
+"how muted is a LOW finding" no longer also retunes the selection highlight by
+coincidence. Since DEVDESK-770 part B (D181) `ColorSeverityLow` is `ColorDim` on
+the dark themes and the LOW badge text is `ColorBackground` on every level
+(`TestSeverityBadgeTextIsTheAppBackgroundOnEveryTheme`): a badge is the
+selected row of a finding, held to 4.5:1 (`TestEverySeverityBadgeReachesTextContrastOnEveryTheme`).
+A theme that omits the two LOW keys gets `ColorDim` under `ColorBackground`.
 
 Mandatory centralized functions:
 - `theme.DefaultTableStyles()` — base style

@@ -86,6 +86,14 @@ func textInks() []textInk {
 			[]surfaceNeed{onBackground(textMinContrast)}},
 		{"ColorAppTitleFg", "app_title_fg", func() color.Color { return ColorAppTitleFg },
 			[]surfaceNeed{onBackground(textMinContrast)}},
+		// DEVDESK-770 part B (D181): the HIGH and LOW badge backgrounds. As a
+		// colour they are painted on the background and, under the cursor, on the
+		// selected row, where a glyph is held to 3:1 (Rule 118). The badge text is
+		// ColorBackground, so the 4.5:1 here is also the badge's own ratio.
+		{"ColorSeverityHigh", "severity_high", func() color.Color { return ColorSeverityHigh },
+			[]surfaceNeed{onBackground(textMinContrast), onSelectedRow(glyphMinContrast)}},
+		{"ColorSeverityLow", "severity_low", func() color.Color { return ColorSeverityLow },
+			[]surfaceNeed{onBackground(textMinContrast), onSelectedRow(glyphMinContrast)}},
 		{"ColorViewportBorder (frame border, non-text)", "viewport_border", func() color.Color { return ColorViewportBorder },
 			[]surfaceNeed{onBackground(glyphMinContrast)}},
 	}
@@ -107,8 +115,8 @@ func styleColours(focused bool, variant string) func() (color.Color, color.Color
 	}
 }
 
-// DEVDESK-770 part A. The LOW and HIGH badges and the gauge rail are part B and
-// not held here.
+// DEVDESK-770 part A. The four severity badges are held by
+// TestEverySeverityBadgeReachesTextContrastOnEveryTheme (part B).
 func textPairs() []textPair {
 	return []textPair{
 		{"active tab (ColorTabActiveFg on ColorTabActiveBg)", "tab_active_fg", "tab_active_bg", textMinContrast,
@@ -215,18 +223,40 @@ func TestTheInactiveTabLabelReachesTextContrastOnEveryTheme(t *testing.T) {
 	})
 }
 
-// ColorFooterError and ColorFooterWarn alias the CRITICAL and MEDIUM badge
-// backgrounds, so the badge foregrounds have to read on them too.
-func TestTheCriticalAndMediumBadgesReachTextContrastOnEveryTheme(t *testing.T) {
+// severityLevels are the four levels a badge exists for. INFO and UNKNOWN share
+// a muted badge that is not part of this decision (D179, "Not decided here").
+var severityLevels = []string{"CRITICAL", "HIGH", "MEDIUM", "LOW"}
+
+// DEVDESK-770 part B (D181). A severity badge is the selected row of a finding
+// of that level: TableStylesForSeverity(level).Selected paints the level's
+// foreground on the level's background. The ratio is read from the style the
+// table really uses, so a badge cannot pass on a pair the screen never shows.
+// Each failure names the theme, the level, both colours and the ratio.
+func TestEverySeverityBadgeReachesTextContrastOnEveryTheme(t *testing.T) {
 	eachShippedTheme(t, func(t *testing.T, name string) {
-		pairs := []struct {
+		for _, level := range severityLevels {
+			sel := TableStylesForSeverity(level).Selected
+			fg, bg := sel.GetForeground(), sel.GetBackground()
+			ratio, err := ContrastRatio(fg, bg)
+			if err != nil {
+				t.Errorf("theme %s: %s badge: %v", name, level, err)
+				continue
+			}
+			if ratio < textMinContrast {
+				t.Errorf("theme %s: %s badge, %s on %s is %.2f:1, want >= %.1f:1",
+					name, level, Hex(fg), Hex(bg), ratio, textMinContrast)
+			}
+		}
+		// ColorFooterError and ColorFooterWarn alias the CRITICAL and MEDIUM badge
+		// backgrounds, so the badge foregrounds have to read on them too.
+		aliased := []struct {
 			what   string
 			fg, bg color.Color
 		}{
 			{"CRITICAL badge (ColorSeverityCriticalFg on ColorFooterError)", ColorSeverityCriticalFg, ColorFooterError},
 			{"MEDIUM badge (ColorSeverityMediumFg on ColorFooterWarn)", ColorSeverityMediumFg, ColorFooterWarn},
 		}
-		for _, p := range pairs {
+		for _, p := range aliased {
 			ratio, err := ContrastRatio(p.fg, p.bg)
 			if err != nil {
 				t.Errorf("theme %s: %s: %v", name, p.what, err)
@@ -240,9 +270,61 @@ func TestTheCriticalAndMediumBadgesReachTextContrastOnEveryTheme(t *testing.T) {
 	})
 }
 
+// The text of a badge is the application background, on every level and every
+// theme: a light badge carries dark text and a dark one light text, which is
+// what CRITICAL and MEDIUM already do. It makes the foreground follow the
+// theme's own surface instead of a tone nobody holds to a ratio, and it leaves
+// one number to move per badge (its background). INFO is left out: its badge is
+// not part of D181.
+func TestSeverityBadgeTextIsTheAppBackgroundOnEveryTheme(t *testing.T) {
+	eachShippedTheme(t, func(t *testing.T, name string) {
+		badges := []struct {
+			level string
+			fg    color.Color
+		}{
+			{"CRITICAL", ColorSeverityCriticalFg},
+			{"HIGH", ColorSeverityHighFg},
+			{"MEDIUM", ColorSeverityMediumFg},
+			{"LOW", ColorSeverityLowFg},
+		}
+		for _, b := range badges {
+			if Hex(b.fg) != Hex(ColorBackground) {
+				t.Errorf("theme %s: %s badge text is %s, want ColorBackground %s",
+					name, b.level, Hex(b.fg), Hex(ColorBackground))
+			}
+		}
+	})
+}
+
+// minSeverityGap is the smallest CIE76 distance CRITICAL and HIGH keep on a
+// shipped theme. Measured on 2026-11-24 before part B: the closest pair is
+// catppuccin-macchiato at 8.9 (frappe 11.3, latte 11.7, mocha and default
+// 14.1); raising HIGH to 4.5:1 moves latte from 11.7 to 9.0 and leaves the
+// others within 1.6 of their value. The bar is 8, a little under the tightest
+// measured pair: it catches a HIGH pulled onto CRITICAL to reach a contrast,
+// not the palettes' own closeness, and the word on the badge (see
+// TestTheSeverityCellSpellsTheLevelOut) is the other carrier.
+const minSeverityGap = 8.0
+
+func TestSeverityHighAndCriticalStayApart(t *testing.T) {
+	eachShippedTheme(t, func(t *testing.T, name string) {
+		d, err := ColorDistance(ColorSeverityCritical, ColorSeverityHigh)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if d < minSeverityGap {
+			t.Errorf("theme %s: CRITICAL %s and HIGH %s are delta E %.1f apart, want >= %.1f",
+				name, Hex(ColorSeverityCritical), Hex(ColorSeverityHigh), d, minSeverityGap)
+		}
+	})
+}
+
 // A theme written before severity_low existed, or by hand, may leave both LOW
-// keys out. The fallback pair has to stay readable: ColorDim is a light text
-// tone since DEVDESK-764 and would give ColorText on ColorDim, about 2:1.
+// keys out. The fallback pair has to stay readable. Since D181 the fallbacks are
+// ColorDim for the background and ColorBackground for the text, the same pair a
+// shipped dark theme sets: ColorDim is held to 4.5:1 on the background, so the
+// pair reads on every theme. (D177 had ColorCmdLineBg and ColorText, because
+// ColorDim was then a light text tone under a light ColorText, about 2:1.)
 func TestAThemeWithoutSeverityLowKeepsAReadableLowBadge(t *testing.T) {
 	for name, th := range shippedThemes(t) {
 		t.Run(name, func(t *testing.T) {
@@ -256,6 +338,26 @@ func TestAThemeWithoutSeverityLowKeepsAReadableLowBadge(t *testing.T) {
 			if ratio < textMinContrast {
 				t.Errorf("theme %s without severity_low: %s on %s is %.2f:1, want >= %.1f:1",
 					name, Hex(ColorSeverityLowFg), Hex(ColorSeverityLow), ratio, textMinContrast)
+			}
+		})
+	}
+}
+
+// The fallbacks themselves: a theme that omits the two LOW keys gets ColorDim
+// under ColorBackground, not the pre-D181 ColorCmdLineBg under ColorText.
+func TestAThemeWithoutSeverityLowFallsBackOnDimAndBackground(t *testing.T) {
+	for name, th := range shippedThemes(t) {
+		t.Run(name, func(t *testing.T) {
+			bare := *th
+			bare.SeverityLow, bare.SeverityLowFg = "", ""
+			withTheme(t, &bare)
+			if Hex(ColorSeverityLow) != Hex(ColorDim) {
+				t.Errorf("theme %s without severity_low: LOW badge is %s, want ColorDim %s",
+					name, Hex(ColorSeverityLow), Hex(ColorDim))
+			}
+			if Hex(ColorSeverityLowFg) != Hex(ColorBackground) {
+				t.Errorf("theme %s without severity_low_fg: LOW badge text is %s, want ColorBackground %s",
+					name, Hex(ColorSeverityLowFg), Hex(ColorBackground))
 			}
 		})
 	}
