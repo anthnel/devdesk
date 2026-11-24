@@ -244,6 +244,39 @@ no line, so it could feed neither the table's jump-to-line nor a fix.
   directories, `node_modules` and `vendor` are skipped. A repository with no
   manifest runs nothing — kubeconform with no file argument reads stdin and
   would wait there.
+- **A folder or a file whose name starts with `-` is kept, and every chart
+  and overlay folder is passed as `./<folder>`** (DEVDESK-763). The names come
+  from the scanned repository, so `--load-restrictor=LoadRestrictionsNone/kustomization.yaml`
+  or `-x/Chart.yaml` must not become an option. Discovery keeps them (only
+  `.`-hidden directories, `node_modules` and `vendor` are skipped;
+  `TestDiscoverKeepsAFolderWhoseNameStartsWithADash`), dropping one would leave
+  a chart unvalidated without a word. A second hole is not about dashes:
+  `kustomize build` reads some ordinary names as a **remote git base** and runs
+  `git fetch` even when the folder exists. Measured on kustomize 5.8.3: a
+  folder `github.com/org/repo` ran `git fetch --depth=1 https://github.com/org/repo HEAD`,
+  and `git@evil.example:o/r` (the `:` is legal on Linux and macOS) ran a fetch
+  over SSH to that host, so the repository being scanned chose a host the scan
+  contacts. With `./` in front (`./github.com/org/repo`, `./git@evil.example:o/r`)
+  both are read as local folders and build with no network. helm read
+  `oci:/`, `https:/` and `file:/` names locally without it, and `./` changes
+  nothing for it (checked on helm 4.3.1, `lint` and `template`). So `helmArgs`
+  and `kustomizeArgs` go through `asPathArg`, which puts `./` before **every
+  relative folder**, a dash below the first segment (`charts/-x`) and an
+  ordinary one (`charts/app` becomes `./charts/app`) included. `.`, a name
+  already starting with `./` and an absolute path are left as they are: never
+  `././x`, never `./` plus an absolute path. The container variants keep
+  `-w /scan/<rel>` and get the same relative argument, resolved from that
+  directory. `kubeconformArgs` puts `--` before its files when one starts with
+  `-` (`afterOptions`; kubeconform reports the file under the name it was
+  given), and nothing else changes for it. The `./` is only in the argument:
+  findings, steps and file paths carry the folder's own name, and the Repro
+  still refuses it (`reproLine`). The Steps still write the bare name in their
+  command text (`Run helm template -x ...`). Tests: `TestEveryRelativeFolderIsPassedWithADotSlash`
+  (argv of `helmArgs` and `kustomizeArgs`, native and container, with and
+  without the user's arguments), `TestADashFolderIsRenderedAndReportedUnderItsOwnName`.
+  Not covered here: the renderers still have network access (a remote base
+  written inside a `kustomization.yaml` is fetched), and the user's own
+  arguments appear in the `Running:` log.
 - **Charts and Kustomize roots are set apart.** A template is not YAML until
   helm renders it, and a Kustomize patch is a fragment that fails the schema
   on its own. Their files are never validated raw. Only the **outermost**
@@ -1369,8 +1402,10 @@ The key of a group (`groupKey`: ecosystem, package, installed version, unfixed, 
 row again by. A vulnerability with no package is its own group (assumption: a CVE with no package name is its own
 cause); `Fix.Position` (0 for a named package, else 1, 2, ... among the bare vulnerabilities of one ID, ecosystem and
 version) keeps two of them, or one and a package named like its ID, from sharing a key. The scan's text shown in a
-group (package, versions, candidates) goes through `inlineText` (`withoutControlSpace` on one line) when `cveGroups`
-builds the row, so the title, the footer sentence and the cells carry no escape sequence, control or bidi mark. Rows are ordered by worst severity, then number of CVEs, then package, then change.
+group (package, versions, candidates) goes through `visibleText` (`withoutControlSpace` on one line, DEVDESK-766) when
+`cveGroups` builds the row, so the title, the footer sentence and the cells carry no escape sequence, control or bidi
+mark, and each character removed is shown as `?` (`open?ssl`, `1.1.1?k -> 1.1.1w`): two packages that differ only by
+an invisible character are two rows that do not look alike. The key keeps the raw name. Rows are ordered by worst severity, then number of CVEs, then package, then change.
 
 **Fixable and the groups.** The header's `Fixable` is still `remediation.Summarize(...).Fixable()`, grouped or
 not. The CVEs of the groups that are not `Unfixed` add up to it, and the CVEs of the `Unfixed` groups (`No fix
@@ -1424,9 +1459,7 @@ cursor kept on the finding the user was on; a group that is gone steps back to t
 (`refreshDetails`, which returns to the group or to the results). A result opened from the inventory starts with no
 group level but keeps the mode.
 
-**Limits.** The tab bar (`CVE (n)  Secrets (n) ...`) is wider than 80 columns as soon as counts have two digits,
-grouped or not; that is a separate bug and is not fixed here, so the width tests measure the table, the filter bar,
-the info line and the header, not the tab bar. `sameFinding` ignores the line, so two instances with the same
+**Limits.** `sameFinding` ignores the line, so two instances with the same
 title and message in one file are one identity for the selection (the nearest finding may be the first of them).
 The group's `Fix` word comes from `fixStatusOf`, the detail's from `m.fixStatus`, which also knows a stale preview:
 a group may say `Built-in fix available` while its detail says unavailable.
@@ -1441,12 +1474,27 @@ declines and one it accepts are two rows, and two instances declined for differe
 (`groupMisconfigs` takes the status function so a test can give it reasons the catalog never produces). On an image
 (`onDisk` false) every row says `Cannot fix here`; its findings name no file, the File column says `(image)`, and
 the rows are per rule. A finding with no file on a directory target says `(no file)`: `(image)` is said of images only
-(`fileSubject(file, onDisk)`). `Subject` is the file as shown (`shortPaths`, `inlineText`), `Rule` the smallest ID
-among the members (`inlineText`; one group can mix `AVD-DS-0002` and `DS002`, and the scan order must not pick), the severity the worst of the members. Order: worst severity, most findings, file, rule, state
+(`fileSubject(file, onDisk)`). `Subject` is the file as shown (`shortPaths`, `visibleText`), `Rule` the smallest ID
+among the members (`visibleText`; one group can mix `AVD-DS-0002` and `DS002`, and the scan order must not pick), the severity the worst of the members. Order: worst severity, most findings, file, rule, state
 of the fix; it reads the key, never the order of the scan. `Command` is set only when every member has the same
 `runCommand` (plain words, `scan.PlainWords`); a Misconfigurations group is never `Unfixed` and is not counted in
 `Fixable`. `fixStatus.Label()` renders `Built-in fix unavailable` bare, never with a dangling colon, when the reason
 is empty.
+
+**Names that look alike (DEVDESK-766).** The key holds the raw file, the row shows a cleaned one, so two files could
+show the same name. `visibleText` (`details_text.go`, a pure function) is `inlineText` that puts `?` in place of every
+character the cleaning removes: a bidi mark (U+202E), a zero-width mark (U+200B), any other format, control or
+line-separator character, and an escape sequence (one `?` for the whole sequence); `Docker\u200bfile` shows as
+`Docker?file`, with or without a neighbor. The joiners U+200C and U+200D stay, a tab or a line feed is whitespace and not
+a removed character, and a name that needed no cleaning is shown exactly as before (no mark, same width). The mark
+is display only: `Subject` and `Rule` carry it, the key and `Members` keep the raw name, so a re-scan finds the group by
+the raw name and `enter` opens the right one. Two files that still show the same `Subject` (paths folded to one name by
+`shortPaths`, such as `Dockerfile` and `/scan/Dockerfile`; two names whose removed characters all became `?`) are told
+apart by `numberAlikeSubjects`: the file whose raw name is the shown name keeps it, the others get ` (2)`, ` (3)` in raw
+name order, so a reversed scan lists the same rows. Several rules in one file are one file and take no suffix. The CVE
+list uses the same `visibleText` through `displaySafe`; it has no suffix: its `Change`, `Target` and the CVE count are
+what tell two packages apart, and two ecosystems with the same package name, version and target still show alike
+(not covered).
 
 The columns (`misconfigGroupColumns`, each with its `Sizing`): Severity (fixed 10), File (content 14..40, head
 truncated, so the end of a path stays), Rule (content 10..24), Findings (fixed 8, a plain number: `ctrl+o` fixes one
@@ -1622,6 +1670,44 @@ modal, no file touched, the same set of keys.
 - Rules with a fix (KSV-0017, 0001, 0008 to 0010) and anything that is not Pod
   Security give `("", false)`: the confirmation diff, or the generic refusal for
   another KSV rule, is what the user gets.
+
+### The tab bar fits its window (DEVDESK-765)
+
+The results view's six tabs (`CVE`, `Secrets`, `Licenses`, `Misconfig`, `CI`, `Remediation`) sit in one footer line,
+`Model.renderTabs(width)`. Nothing downstream cuts that line: `theme.PadWithBg` only pads, and the router
+(`App.Render`, `padFrame`) never crops, and one line as wide as the screen leaves every other line unpadded. The bar
+therefore decides its own width. With every count it measures 82 cells at one digit (the Remediation count included
+once the Dockerfiles are read), 88 at two and 94 at three; the window's floor is 80.
+
+- **Room enough** (120, 175 columns): every tab carries its count, as before.
+- **Room short** (the compact form): the counts of the tabs that are not open go, the names stay in full, the
+  open tab keeps its count if it has one and takes a text marker, `>` (`compactOpenMarker`, an ASCII character
+  on purpose: no font gap, one cell). The marker is there because the open tab may have no count to show:
+  Remediation open before the Dockerfiles are discovered, at 80 columns with two-digit counts, gives a bar with
+  no count at all, where bold and colour alone would mark the tab. The marker is local to the compact form
+  (`theme.RenderTabs`, shared, is untouched) and the full bar has none. The widest compact bar is 66 cells, margin
+  included, with a three-digit count, so there is no step that shortens a name.
+- **Side effect at 80 columns.** The full bar is 79 cells while the Remediation tab has no count and 82 once
+  discovery ends (`remediationTabCount`). With one-digit counts the bar therefore goes from full to compact at that
+  moment at 80 columns: the inactive counts disappear at once and the marker appears. Accepted: the alternative is a
+  bar wider than the window.
+- There are always six tabs. `TestTheTabBarFitsTheWindow`, `TestTheTabBarKeepsSixNamedTabsAndTheOpenCount` and
+  `TestTheTabBarHidesTheInactiveCountsWhenRoomIsShort`, `TestTheCompactTabBarMarksTheOpenTabWithoutStyle` and
+  `TestTheCompactTabBarMarkerIsOnTheOpenTabOnly` (`tabbar_width_test.go`) measure the line at 80, 120 and 175
+  columns with counts of 1, 12 and 123 on every tab; `TestGroupedViewFitsAtEveryWidth` and
+  `TestMisconfigGroupedViewFitsAtEveryWidth` measure it again with the rest of the footer.
+
+**The other tab rows and trails, not covered (possible overflow at 80 columns).** Only the `:sec` results bar
+decides its own width. The rows below go through `theme.RenderTabs` with no width check; the first four are
+variable-length trails and can overflow at 80 columns. None is fixed here: each is a separate story to open.
+
+| Where | Row | Length |
+|---|---|---|
+| `internal/ui/workspaces/view.go` (`renderTabBar`, ~171-185) | breadcrumb: `home`, `navigationStack`, current directory | variable (depth and folder names); possible overflow |
+| `internal/ui/forge/explorer/view.go` (`renderTabBar`) | breadcrumb: `home`, `navigationStack`, current group | variable (group names); possible overflow |
+| `internal/ui/jobsview/view.go` (`renderBreadcrumb`) | `Runs`, run kind and label | variable (run label); possible overflow |
+| `internal/ui/oci_resources/view.go` (`renderRegistryBreadcrumb`) | `Registries`, group alias | variable (alias); possible overflow |
+| `internal/ui/oci_resources/view.go` (`renderTabBar`) | four fixed tabs | constant, well under 80 |
 
 ### The Remediation tab — base images, and the tags they could move to (§3.2, phase B)
 

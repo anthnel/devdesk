@@ -252,11 +252,29 @@ func renderRepro(tool ToolSpec, name, sub, target string) (string, ToolSource) {
 }
 
 func helmArgs(scope renderScope, chart string, tool ToolSpec, sub string) toolCmd {
-	return renderer(scope, tool, DefaultHelmImage, "helm", sub, chart)
+	return renderer(scope, tool, DefaultHelmImage, "helm", sub, asPathArg(chart))
 }
 
 func kustomizeArgs(scope renderScope, dir string, tool ToolSpec) toolCmd {
-	return renderer(scope, tool, DefaultKustomizeImage, "kustomize", "build", dir)
+	return renderer(scope, tool, DefaultKustomizeImage, "kustomize", "build", asPathArg(dir))
+}
+
+// asPathArg is dir as a positional argument of helm or kustomize. The folder's
+// name comes from the repository being scanned, and two kinds of name are not
+// read as the local folder it is (DEVDESK-763): one that starts with "-"
+// (--load-restrictor=LoadRestrictionsNone, -x) is read as an option, and
+// kustomize reads an ordinary one such as github.com/org/repo or
+// git@host:o/r as a remote git base and runs git fetch even when the folder
+// exists. "./" makes every relative folder a local path whatever the tool and
+// wherever the user's own arguments land. "." and an absolute path already are
+// one, and a name that already starts with "./" is left alone. Only the
+// argument is changed: the findings, their steps and the Repro keep the
+// folder's own name.
+func asPathArg(dir string) string {
+	if dir == "." || strings.HasPrefix(dir, "./") || filepath.IsAbs(dir) || strings.HasPrefix(dir, "/") {
+		return dir
+	}
+	return "./" + dir
 }
 
 // kubeconformStdinArgs validates what arrives on stdin. A container gets -i

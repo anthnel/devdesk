@@ -778,8 +778,7 @@ func TestHelpDocumentsGroupByFix(t *testing.T) {
 // ── Width (Rule 116, Rule 124, AC6) ──────────────────────────────────────────
 
 // Every line the grouped view draws fits the window: the table, the filter bar,
-// the info line. The tab bar is out of scope here (a separate bug: it already
-// passes 80 columns with two-digit counts).
+// the info line, the tab bar (DEVDESK-765).
 func TestGroupedViewFitsAtEveryWidth(t *testing.T) {
 	for _, width := range []int{80, 120, 175} {
 		t.Run(fmt.Sprintf("width %d", width), func(t *testing.T) {
@@ -803,12 +802,7 @@ func TestGroupedViewFitsAtEveryWidth(t *testing.T) {
 			if len(footer) != m.GetFooterHeight() {
 				t.Errorf("the footer is %d lines, GetFooterHeight says %d (Rule 124)", len(footer), m.GetFooterHeight())
 			}
-			// The last line is the info line, the one before the blank; the tab
-			// bar sits above them.
 			for i, line := range footer {
-				if i == len(footer)-3 && m.showsResultTabs() {
-					continue
-				}
 				if w := ansi.StringWidth(line); w > width {
 					t.Errorf("footer line %d is %d cells wide, the window holds %d: %q", i, w, width, ansi.Strip(line))
 				}
