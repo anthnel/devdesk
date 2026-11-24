@@ -31,11 +31,10 @@ func TestADashFolderIsPassedToTheRenderersAsAPath(t *testing.T) {
 			[]string{"template", "--set", "a=b", "./-x"}},
 		{"kustomize build", kustomizeArgs(scope, dashOverlay, binary),
 			[]string{"build", "./--load-restrictor=LoadRestrictionsNone"}},
-		// Only the first segment can be read as an option.
-		{"a dash below the first segment", helmArgs(scope, "charts/-x", binary, "lint"), []string{"lint", "charts/-x"}},
-		// The names that need nothing keep their argv, byte for byte.
-		{"helm ordinary", helmArgs(scope, "charts/app", binary, "template"), []string{"template", "charts/app"}},
-		{"kustomize ordinary", kustomizeArgs(scope, "kustomizations/dev", binary), []string{"build", "kustomizations/dev"}},
+		// Every relative folder gets the ./, a dash below the first segment too.
+		{"a dash below the first segment", helmArgs(scope, "charts/-x", binary, "lint"), []string{"lint", "./charts/-x"}},
+		{"helm ordinary", helmArgs(scope, "charts/app", binary, "template"), []string{"template", "./charts/app"}},
+		{"kustomize ordinary", kustomizeArgs(scope, "kustomizations/dev", binary), []string{"build", "./kustomizations/dev"}},
 	}
 	for _, tt := range tests {
 		if !reflect.DeepEqual(tt.got.Args, tt.want) {
@@ -57,6 +56,72 @@ func TestADashFolderReachesAContainerRenderingAsAPath(t *testing.T) {
 		if !strings.HasPrefix(last, "./-") {
 			t.Errorf("%s: last argument %q of %q is not a path", name, last, tc.Args)
 		}
+	}
+}
+
+// DEVDESK-763: kustomize reads some ordinary folder names as a remote git base
+// and runs git fetch even when the folder exists. A "./" in front of every
+// relative folder makes it a local path.
+func TestEveryRelativeFolderIsPassedWithADotSlash(t *testing.T) {
+	cases := []struct{ dir, want string }{
+		{"github.com/org/repo", "./github.com/org/repo"},
+		{"git@evil.example:o/r", "./git@evil.example:o/r"},
+		{"https:/host/r", "./https:/host/r"},
+		{"oci:/host/r", "./oci:/host/r"},
+		{"file:/host/r", "./file:/host/r"},
+		{"kustomizations/dev", "./kustomizations/dev"},
+		{"charts/app", "./charts/app"},
+		{"app", "./app"},
+		{"-x", "./-x"},
+		{"..", "./.."},
+		// Already a local path: nothing is added.
+		{".", "."},
+		{"./app", "./app"},
+		{"/abs/charts/app", "/abs/charts/app"},
+	}
+	binary := ToolSpec{Source: ToolSourceBinary}
+	withArgs := ToolSpec{Source: ToolSourceBinary, Args: []string{"--set", "a=b"}}
+	box := ToolSpec{Source: ToolSourceContainer, Image: "img:1"}
+	boxArgs := ToolSpec{Source: ToolSourceContainer, Image: "img:1", Args: []string{"--set", "a=b"}}
+	scope := targetOnly("/repo")
+
+	for _, c := range cases {
+		for _, sub := range []string{"lint", "template"} {
+			if got := helmArgs(scope, c.dir, binary, sub).Args; !reflect.DeepEqual(got, []string{sub, c.want}) {
+				t.Errorf("helm %s %q: args = %q, want the folder as %q", sub, c.dir, got, c.want)
+			}
+			if got := helmArgs(scope, c.dir, withArgs, sub).Args; !reflect.DeepEqual(got, []string{sub, "--set", "a=b", c.want}) {
+				t.Errorf("helm %s %q with arguments: args = %q, want the folder as %q", sub, c.dir, got, c.want)
+			}
+		}
+		if got := kustomizeArgs(scope, c.dir, binary).Args; !reflect.DeepEqual(got, []string{"build", c.want}) {
+			t.Errorf("kustomize %q: args = %q, want the folder as %q", c.dir, got, c.want)
+		}
+		if got := kustomizeArgs(scope, c.dir, withArgs).Args; !reflect.DeepEqual(got, []string{"build", "--set", "a=b", c.want}) {
+			t.Errorf("kustomize %q with arguments: args = %q, want the folder as %q", c.dir, got, c.want)
+		}
+
+		// In a container the last argument of the image is the same path, and
+		// the folder is still resolved from the working directory.
+		for _, tc := range []toolCmd{
+			helmArgs(scope, c.dir, box, "lint"), helmArgs(scope, c.dir, boxArgs, "template"),
+			kustomizeArgs(scope, c.dir, box), kustomizeArgs(scope, c.dir, boxArgs),
+		} {
+			if last := tc.Args[len(tc.Args)-1]; last != c.want {
+				t.Errorf("container %q: last argument %q, want %q (args %q)", c.dir, last, c.want, tc.Args)
+			}
+			if i := indexOf(tc.Args, "-w"); i < 0 || tc.Args[i+1] != "/scan" {
+				t.Errorf("container %q: working directory in %q", c.dir, tc.Args)
+			}
+		}
+	}
+
+	// From a subdirectory of the mount the working directory carries the
+	// relative part, the folder argument stays relative to it.
+	sub := renderScope{target: "/repo/deploy", mount: "/repo", rel: "deploy"}
+	tc := kustomizeArgs(sub, "github.com/org/repo", box)
+	if i := indexOf(tc.Args, "-w"); i < 0 || tc.Args[i+1] != "/scan/deploy" || tc.Args[len(tc.Args)-1] != "./github.com/org/repo" {
+		t.Errorf("container from a subdirectory: %q", tc.Args)
 	}
 }
 
