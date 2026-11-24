@@ -1,0 +1,58 @@
+{
+  "cli_version": "0.13.2",
+  "checkpoint_id": "034824b0e37e",
+  "strategy": "manual-commit",
+  "branch": "fix/devdesk-768-scan-log-and-steps",
+  "checkpoints_count": 1,
+  "files_touched": [
+    "docs/architecture/scanning.md",
+    "internal/scan/dash_folder_test.go",
+    "internal/scan/gitleaks.go",
+    "internal/scan/kubeconform.go",
+    "internal/scan/kubeconform_render.go",
+    "internal/scan/plumber.go",
+    "internal/scan/run.go",
+    "internal/scan/scan_log_text_test.go",
+    "internal/scan/scanner.go",
+    "internal/scan/steps.go",
+    "internal/scan/trivy.go"
+  ],
+  "sessions": [
+    {
+      "metadata": "/03/4824b0e37e/0/metadata.json",
+      "transcript": "/03/4824b0e37e/0/full.jsonl",
+      "compact_transcript": "/03/4824b0e37e/0/transcript.jsonl",
+      "content_hash": "/03/4824b0e37e/0/content_hash.txt",
+      "prompt": "/03/4824b0e37e/0/prompt.txt"
+    }
+  ],
+  "token_usage": {
+    "input_tokens": 12,
+    "cache_creation_tokens": 16767,
+    "cache_read_tokens": 1179632,
+    "output_tokens": 5952,
+    "api_call_count": 4,
+    "subagent_tokens": {
+      "input_tokens": 102,
+      "cache_creation_tokens": 314708,
+      "cache_read_tokens": 2946560,
+      "output_tokens": 40916,
+      "api_call_count": 50
+    },
+    "subagent_tokens_complete": true
+  },
+  "redaction": {
+    "replacements": 80,
+    "layers": {
+      "betterleaks": 0,
+      "connection_string": 0,
+      "credential_key": 0,
+      "credential_value": 17,
+      "credentialed_uri": 51,
+      "entropy": 11,
+      "key_context": 1,
+      "provider_token": 0,
+      "shell_stdin": 0
+    }
+  }
+}
