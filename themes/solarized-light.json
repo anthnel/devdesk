@@ -31,16 +31,16 @@
   "viewport_border": "#819292",
   "severity_critical": "#da2825",
   "severity_critical_fg": "#fdf6e3",
-  "severity_high": "#cb4b16",
+  "severity_high": "#c44815",
   "severity_high_fg": "#fdf6e3",
   "severity_medium": "#8f6c00",
   "severity_medium_fg": "#fdf6e3",
   "severity_low": "#586e75",
-  "severity_low_fg": "#657b83",
+  "severity_low_fg": "#fdf6e3",
   "severity_info": "#2aa198",
   "severity_info_fg": "#fdf6e3",
   "token_input": "#1788d3",
   "token_output": "#7070c2",
   "token_cache_write": "#b8670a",
-  "token_cache_read": "#87836e"
+  "token_cache_read": "#878163"
 }

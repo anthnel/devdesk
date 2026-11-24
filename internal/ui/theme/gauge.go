@@ -14,8 +14,8 @@ import (
 //
 // By default every cell is the same glyph — `░` — used or not. What used to
 // tell a filled cell from an empty one by shape then does it by colour alone:
-// LoadTextStyle on the fill, GaugeTrackStyle on the track, split by
-// datatable.Column.Cut after the text is already measured (Rule 122). A value
+// LoadTextStyle on the fill, GaugeTrackStyle (the frame border) on the track,
+// split by datatable.Column.Cut after the text is already measured (Rule 122). A value
 // survives the row disappearing under the cursor only through the number
 // beside the gauge — Style is not consulted on the selected row, and with one
 // glyph the bar itself has nothing left to say once its colour is gone.
@@ -168,13 +168,16 @@ func TimingFillStyle() lipgloss.Style {
 
 // GaugeTrackStyle is the colour a gauge's *empty* cells take — fixed,
 // whatever the level, including a gauge that is entirely empty: the cell is
-// still `░`, still coloured, never blank. It aliases ColorSeverityLow rather
-// than DimStyle directly: DimStyle is this application's word for *absent*
-// (a `-`, a zero, a placeholder), and an empty gauge cell is not absent — it
-// is measured and low. ColorSeverityLow used to be the same tone as ColorDim;
-// DEVDESK-764 raised ColorDim to 4.5:1 text contrast and left the severity
-// where it was (it is also a badge background). A theme that retunes "low
-// severity" moves the track with it rather than with "nothing found".
+// still `░`, still coloured, never blank. It is the frame border,
+// ColorViewportBorder (D181): a rail is a line drawn inside the frame, and the
+// border is the tone the application already draws its lines in. It is not
+// DimStyle, the word for *absent* (a `-`, a zero, a placeholder): an empty
+// gauge cell is measured and low. Until D181 it aliased ColorSeverityLow, which
+// DEVDESK-770 part B raised to ColorDim's tone so the LOW badge reads at 4.5:1;
+// that would have made the rail as bright as a label. The cost, accepted and
+// written in D181: the border is under 3:1 against the selected row on most
+// themes, so under the cursor the rail is faint. The number beside the gauge
+// carries the value.
 func GaugeTrackStyle() lipgloss.Style {
-	return lipgloss.NewStyle().Background(ColorBackground).Foreground(ColorSeverityLow)
+	return lipgloss.NewStyle().Background(ColorBackground).Foreground(ColorViewportBorder)
 }

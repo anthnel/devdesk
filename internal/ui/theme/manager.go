@@ -122,10 +122,8 @@ func DefaultTheme() *Theme {
 		TabInactiveFg:    "#979aad",
 		TabInactiveBg:    "#313244",
 		TableHeaderFg:    "#b4befe",
-		// Same value the "normal" selection background used to get by
-		// aliasing SeverityLow directly, before SeverityLow itself moved to
-		// ColorDim's tone below — kept here so the selection's look does not
-		// change with it.
+		// The "normal" selection background: its own key, not an alias of
+		// SeverityLow (DEVDESK-764, D177).
 		TableLineSelected:  "#313244",
 		CmdLineFg:          "#f9e2af",
 		CmdLineBg:          "#313244",
@@ -137,12 +135,10 @@ func DefaultTheme() *Theme {
 		SeverityHighFg:     "#1e1e2e",
 		SeverityMedium:     "#fab387",
 		SeverityMediumFg:   "#1e1e2e",
-		// Was the same tone as ColorDim. DEVDESK-764 raised ColorDim to 4.5:1 and
-		// left this one where it was: it is also the LOW badge's background, which
-		// SeverityLowFg has to read on. The two are separate keys now; a "0" count
-		// in the :sec inventory still uses DimStyle.
-		SeverityLow:    "#585b70",
-		SeverityLowFg:  "#cdd6f4",
+		// The LOW badge: ColorDim under ColorBackground, as on the shipped dark
+		// themes (DEVDESK-770 part B, D181). Both clear 4.5:1.
+		SeverityLow:    "#979aad",
+		SeverityLowFg:  "#1e1e2e",
 		SeverityInfo:   "#45475a",
 		SeverityInfoFg: "#cdd6f4",
 		// Token-mix bar: blue, mauve, yellow, and a light neutral for cache read
@@ -314,12 +310,12 @@ func ApplyTheme(t *Theme) {
 	ColorCmdLineFg = applyColor(t.CmdLineFg, ColorHighlight)
 	ColorCmdLineBg = applyColor(t.CmdLineBg, ColorCmdLineBg)
 
-	// Falls back to ColorCmdLineBg, not to ColorSeverityLow: assigned after
-	// ColorCmdLineBg above rather than beside the other Table* colors, since
-	// a fallback read before ColorCmdLineBg's own assignment this pass would
-	// see last theme's value instead of this one's — the same ordering
-	// ColorChartBg below depends on. Any theme file predating this key omits
-	// it, so this fallback is what most installs actually render with.
+	// Falls back to ColorCmdLineBg: assigned after ColorCmdLineBg above rather
+	// than beside the other Table* colors, since a fallback read before
+	// ColorCmdLineBg's own assignment this pass would see last theme's value
+	// instead of this one's, the same ordering ColorChartBg below depends on.
+	// Any theme file predating this key omits it, so this fallback is what most
+	// installs actually render with.
 	ColorTableLineSelected = applyColor(t.TableLineSelected, ColorCmdLineBg)
 
 	// A chart's background is that of the command line: it's the surface
@@ -368,12 +364,12 @@ func ApplyTheme(t *Theme) {
 	ColorSeverityHighFg = applyColor(t.SeverityHighFg, ColorBlack)
 	ColorSeverityMedium = applyColor(t.SeverityMedium, ColorWarn)
 	ColorSeverityMediumFg = applyColor(t.SeverityMediumFg, ColorBlack)
-	// Falls back to ColorCmdLineBg, the low tone before DEVDESK-764, not to
-	// ColorDim: this colour is the LOW badge background, which the ColorText
-	// fallback of SeverityLowFg has to read on, and ColorDim is now a light text
-	// tone (4.5:1 on the background), about 2:1 under ColorText.
-	ColorSeverityLow = applyColor(t.SeverityLow, ColorCmdLineBg)
-	ColorSeverityLowFg = applyColor(t.SeverityLowFg, ColorText)
+	// A theme that omits the two LOW keys gets ColorDim under ColorBackground,
+	// the pair the shipped dark themes set (D181). ColorDim is held to 4.5:1 on
+	// the background on every theme, so the pair reads on dark and light alike.
+	// Both fallbacks read ColorDim and ColorBackground, assigned above.
+	ColorSeverityLow = applyColor(t.SeverityLow, ColorDim)
+	ColorSeverityLowFg = applyColor(t.SeverityLowFg, ColorBackground)
 	ColorSeverityInfo = applyColor(t.SeverityInfo, ColorSeverityInfo)
 	ColorSeverityInfoFg = applyColor(t.SeverityInfoFg, ColorText)
 

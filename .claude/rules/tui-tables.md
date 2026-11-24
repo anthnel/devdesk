@@ -195,9 +195,11 @@ repaint `ColorTableLineSelected` and bold themselves (`runStyle`'s
 `selected` branch), so a reset between the two runs never uncovers anything
 but that shared background either — a load gauge keeps its fill/track split
 under the cursor instead of collapsing to `Style`'s single fill colour. The
-track becomes a visible rail rather than an invisible one: its own colour
-(`ColorSeverityLow`) and the selection background (`ColorTableLineSelected`)
-are two distinct keys, not one aliased to the other.
+track stays a rail rather than an invisible run: its colour (the frame border,
+`ColorViewportBorder`, D181) and the selection background
+(`ColorTableLineSelected`) are two distinct keys, not one aliased to the other.
+The border is under 3:1 against the selected row on most themes, so under the
+cursor the rail is faint; the number beside the gauge carries the value.
 
 #### Background
 
@@ -237,14 +239,17 @@ filled or empty exclusively by which color it carries.
 - The *fill* is green below 75%, orange, then red, on Rule 128's ground:
   one alphabet of severity across the application, so a nearly-full gauge
   reads like a CRITICAL finding without reading the number beside it.
-- The *track* — `theme.GaugeTrackStyle()`, aliasing `ColorSeverityLow` — is
-  fixed, whatever the fill's own level is. Without it, an idle row's `░` and
-  a critical row's `░` would carry whatever color `Style` had picked for
-  that row's *fill*, which would read as the level bleeding into cells that
-  were never filled. `ColorSeverityLow` defaults to the same tone as
-  `ColorDim` (the counter zeroes above): the rail reads as unremarkable for
-  the same reason a `0` does, which is the argument this bullet already
-  makes generalised to a bar instead of a digit.
+- The *track* — `theme.GaugeTrackStyle()`, which is `ColorViewportBorder`, the
+  frame border (D181) — is fixed, whatever the fill's own level is. Without
+  it, an idle row's `░` and a critical row's `░` would carry whatever color
+  `Style` had picked for that row's *fill*, which would read as the level
+  bleeding into cells that were never filled. A rail is a line drawn inside
+  the frame, and the border is the tone the application already draws its
+  lines in: it reads as unremarkable for the same reason a `0` does, which is
+  the argument this bullet already makes generalised to a bar instead of a
+  digit. It used to alias `ColorSeverityLow`; DEVDESK-770 part B raised that
+  colour to `ColorDim`'s tone (the LOW badge background, 4.5:1), which would
+  have made the rail as bright as a label (D181 amends D177).
 
 This is close to the CI column's own criterion (an idle gauge, entirely
 track-colored, *is* what "no load" looks like) but reaches further: the CI
