@@ -129,7 +129,7 @@ func DefaultTheme() *Theme {
 		TableLineSelected:  "#313244",
 		CmdLineFg:          "#f9e2af",
 		CmdLineBg:          "#313244",
-		CmdLineInactiveFg:  "#585b70",
+		CmdLineInactiveFg:  "#979aad",
 		ViewportBorder:     "#6c7086",
 		SeverityCritical:   "#f38ba8",
 		SeverityCriticalFg: "#1e1e2e",

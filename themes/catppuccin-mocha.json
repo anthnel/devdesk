@@ -27,7 +27,7 @@
   "table_line_selected": "#313244",
   "cmd_line_fg": "#f9e2af",
   "cmd_line_bg": "#313244",
-  "cmd_line_inactive_fg": "#585b70",
+  "cmd_line_inactive_fg": "#979aad",
   "viewport_border": "#6c7086",
   "severity_critical": "#f38ba8",
   "severity_critical_fg": "#1e1e2e",

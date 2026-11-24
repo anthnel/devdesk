@@ -951,6 +951,18 @@ Limits: `x/ansi` counts a Nerd Font glyph (private use area) as one cell, and th
 trail full of icons can overshoot by one cell per icon on such a terminal (the same gap as Rule 125's icon column). A
 pill that is already one of the labels `…` is not told apart from the head pill.
 
+### Part A of DEVDESK-770
+
+The same test holds, on the same surfaces, `ColorSecondary` (4.5:1 on the background, 3:1 on the selected row, where
+it is the dot and the icons), `ColorTableHeaderFg`, `ColorPrimary`, `ColorTitleFg` and `ColorAppTitleFg` (4.5:1 on the
+background), and the frame border `ColorViewportBorder` (3:1 on the background, a non-text object). A second test,
+`TestEveryTextPairReachesItsContrastOnEveryTheme`, holds the pairs that are painted on a background of their own: the
+active tab, the focused primary button, the unfocused primary and secondary buttons, the inactive command line
+(`cmd_line_inactive_fg`, aligned on `color_dim`). `internal/ui/theme/tune_test.go` proposes the smallest move
+(`DEVDESK_THEME_TUNE=1 go test ./internal/ui/theme/ -run TestSuggestTones -v`). Figures and what is still under the
+bar (the `Yes` and success buttons, the LOW and HIGH badges, the gauge rail) are in
+`docs/measurements/2026-11-24-theme-text-contrast-2.md`; the border decision is D179 in `docs/backlog.md`.
+
 ## Dashboard clocks and terminal focus (DEVDESK-210)
 
 The dashboard runs three independent clocks (`internal/ui/dashboard/model.go`):

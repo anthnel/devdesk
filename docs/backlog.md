@@ -105,6 +105,12 @@ decided together and fixed in one pass; see [§1.2](#12-the-five-parked-defects)
 3. **Rejected.** Shrinking every label (no segment stays readable), keeping the first pill as an anchor (it costs cells the current segment needs), and a scrolling trail (a second navigation to learn on a row that is not navigable, Rule 123).
 4. **Where.** `theme.FitTrail` and `theme.RenderTrail`; see `docs/architecture/ui-components.md`, "Breadcrumb trails that fit".
 
+**D179 — DEVDESK-770 part A: the frame border reaches 3:1 on all 13 shipped themes, a departure from the third-party palettes. Decided (user, 2026-11-24).**
+
+1. **Decided.** `ColorViewportBorder` reaches 3:1 (WCAG 1.4.11, a non-text object) against `ColorBackground` on every shipped theme (`TestEveryTextColourReachesItsContrastOnEveryTheme`). It lightens on the dark themes and darkens on the light ones; `color_border` follows `viewport_border` (the same hex on every theme). Ten themes move (github-dark `#30363d` to `#56616e` and github-light `#d0d7de` to `#8597a9` the most, delta E 18.7 and 25.1); default, mocha and macchiato already held.
+2. **Why it departs from the palettes.** The shipped border tones were below 3:1 on ten themes (1.69:1 on nord, 2.30:1 on latte). The other colours of this part (`ColorSecondary`, `ColorPrimary` and their followers, the active tab, the inactive buttons) are retuned as in DEVDESK-764: same hue and saturation, the smallest lightness step; `cmd_line_inactive_fg` is aligned on `color_dim` instead. Figures: `docs/measurements/2026-11-24-theme-text-contrast-2.md`.
+3. **Not decided here.** The LOW and HIGH badges and the gauge rail (part B), the non-chromatic signal of secondary text on solarized and latte (out of scope by decision of the user), the `Yes` and success buttons, INFO and UNKNOWN: "Not done here" of that note. 
+
 **D177 — DEVDESK-764: `severity_low` no longer takes the tone of `ColorDim`; it keeps the darker tone it had before. Replaces the decision of §3.73 ("`severity_low` prend le ton de `ColorDim`"). Decided (orchestrator, 2026-11-24, after the review of DEVDESK-764; the user can overrule).**
 
 1. **Replaced decision.** §3.73 made the default of `severity_low` equal to `color_dim` (`#585b70` on the default theme), and made the fallback of `ColorSeverityLow` in `ApplyTheme` `ColorDim`, so that a LOW finding read like a "0" count in the `:sec` inventory.

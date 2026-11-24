@@ -30,7 +30,10 @@ const (
 
 type textInk struct {
 	what string
-	fg   func() color.Color
+	// key is the theme-file key that sets the colour ("" for a closed alias),
+	// read by TestSuggestTones only.
+	key string
+	fg  func() color.Color
 	// on lists the surfaces the colour is painted on and the ratio each needs.
 	on []surfaceNeed
 }
@@ -53,20 +56,68 @@ var (
 	}
 )
 
+// DEVDESK-770 part A: the colours the 2026-11-24 measure left under the bar.
+// ColorSecondary is the header keys, the table header, the active-tab background
+// and the activity dot, the update mark and the icons (a glyph, 3:1 on the
+// selected row); ColorTableHeaderFg, ColorPrimary, ColorTitleFg and
+// ColorAppTitleFg are text on the background. ColorViewportBorder is the frame
+// border: a non-text object, 3:1 (WCAG 1.4.11) on the background it is drawn on
+// (it falls back to ColorBorder, which is never painted on its own).
 func textInks() []textInk {
+	allSurfaces := []surfaceNeed{onBackground(textMinContrast), onSelectedRow(textMinContrast), onRaised(textMinContrast)}
 	return []textInk{
-		{"ColorText", func() color.Color { return ColorText },
-			[]surfaceNeed{onBackground(textMinContrast), onSelectedRow(textMinContrast), onRaised(textMinContrast)}},
-		{"ColorDim", func() color.Color { return ColorDim },
-			[]surfaceNeed{onBackground(textMinContrast), onSelectedRow(textMinContrast), onRaised(textMinContrast)}},
-		{"ColorSubTitleFg", func() color.Color { return ColorSubTitleFg },
+		{"ColorText", "color_text", func() color.Color { return ColorText }, allSurfaces},
+		{"ColorDim", "color_dim", func() color.Color { return ColorDim }, allSurfaces},
+		{"ColorSubTitleFg", "subtitle_fg", func() color.Color { return ColorSubTitleFg },
 			[]surfaceNeed{onBackground(textMinContrast)}},
-		{"ColorWarn", func() color.Color { return ColorWarn },
+		{"ColorWarn", "color_warn", func() color.Color { return ColorWarn },
 			[]surfaceNeed{onBackground(textMinContrast), onSelectedRow(textMinContrast)}},
-		{"ColorFooterWarn", func() color.Color { return ColorFooterWarn },
+		{"ColorFooterWarn", "severity_medium", func() color.Color { return ColorFooterWarn },
 			[]surfaceNeed{onBackground(textMinContrast), onSelectedRow(glyphMinContrast)}},
-		{"ColorFooterError", func() color.Color { return ColorFooterError },
+		{"ColorFooterError", "severity_critical", func() color.Color { return ColorFooterError },
 			[]surfaceNeed{onBackground(textMinContrast), onSelectedRow(glyphMinContrast)}},
+		{"ColorSecondary", "color_secondary", func() color.Color { return ColorSecondary },
+			[]surfaceNeed{onBackground(textMinContrast), onSelectedRow(glyphMinContrast)}},
+		{"ColorTableHeaderFg", "table_header_fg", func() color.Color { return ColorTableHeaderFg },
+			[]surfaceNeed{onBackground(textMinContrast)}},
+		{"ColorPrimary", "color_primary", func() color.Color { return ColorPrimary },
+			[]surfaceNeed{onBackground(textMinContrast)}},
+		{"ColorTitleFg", "title_fg", func() color.Color { return ColorTitleFg },
+			[]surfaceNeed{onBackground(textMinContrast)}},
+		{"ColorAppTitleFg", "app_title_fg", func() color.Color { return ColorAppTitleFg },
+			[]surfaceNeed{onBackground(textMinContrast)}},
+		{"ColorViewportBorder (frame border, non-text)", "viewport_border", func() color.Color { return ColorViewportBorder },
+			[]surfaceNeed{onBackground(glyphMinContrast)}},
+	}
+}
+
+// textPair is a foreground painted on a background that is not one of the
+// shared surfaces: both come from the same component.
+type textPair struct {
+	what         string
+	fgKey, bgKey string
+	min          float64
+	get          func() (fg, bg color.Color)
+}
+
+func styleColours(focused bool, variant string) func() (color.Color, color.Color) {
+	return func() (color.Color, color.Color) {
+		s := ButtonStyle(focused, variant)
+		return s.GetForeground(), s.GetBackground()
+	}
+}
+
+// DEVDESK-770 part A. The LOW and HIGH badges and the gauge rail are part B and
+// not held here.
+func textPairs() []textPair {
+	return []textPair{
+		{"active tab (ColorTabActiveFg on ColorTabActiveBg)", "tab_active_fg", "tab_active_bg", textMinContrast,
+			func() (color.Color, color.Color) { return ColorTabActiveFg, ColorTabActiveBg }},
+		{"primary button, focused", "button_fg", "button_bg", textMinContrast, styleColours(true, "primary")},
+		{"primary button, unfocused", "button_inactive_fg", "button_inactive_bg", textMinContrast, styleColours(false, "primary")},
+		{"secondary button, unfocused", "button_inactive_fg", "button_inactive_bg", textMinContrast, styleColours(false, "secondary")},
+		{"command line, inactive (ColorCmdLineInactiveFg on ColorCmdLineBg)", "cmd_line_inactive_fg", "cmd_line_bg", textMinContrast,
+			func() (color.Color, color.Color) { return ColorCmdLineInactiveFg, ColorCmdLineBg }},
 	}
 }
 
@@ -85,6 +136,24 @@ func TestEveryTextColourReachesItsContrastOnEveryTheme(t *testing.T) {
 					t.Errorf("theme %s: %s %s on %s %s is %.2f:1, want >= %.1f:1",
 						name, ink.what, Hex(fg), need.surface, Hex(bg), ratio, need.min)
 				}
+			}
+		}
+	})
+}
+
+// Each failure names the theme, the pair, both colours and the measured ratio.
+func TestEveryTextPairReachesItsContrastOnEveryTheme(t *testing.T) {
+	eachShippedTheme(t, func(t *testing.T, name string) {
+		for _, p := range textPairs() {
+			fg, bg := p.get()
+			ratio, err := ContrastRatio(fg, bg)
+			if err != nil {
+				t.Errorf("theme %s: %s: %v", name, p.what, err)
+				continue
+			}
+			if ratio < p.min {
+				t.Errorf("theme %s: %s, %s on %s is %.2f:1, want >= %.1f:1",
+					name, p.what, Hex(fg), Hex(bg), ratio, p.min)
 			}
 		}
 	})
