@@ -244,6 +244,39 @@ no line, so it could feed neither the table's jump-to-line nor a fix.
   directories, `node_modules` and `vendor` are skipped. A repository with no
   manifest runs nothing — kubeconform with no file argument reads stdin and
   would wait there.
+- **A folder or a file whose name starts with `-` is kept, and every chart
+  and overlay folder is passed as `./<folder>`** (DEVDESK-763). The names come
+  from the scanned repository, so `--load-restrictor=LoadRestrictionsNone/kustomization.yaml`
+  or `-x/Chart.yaml` must not become an option. Discovery keeps them (only
+  `.`-hidden directories, `node_modules` and `vendor` are skipped;
+  `TestDiscoverKeepsAFolderWhoseNameStartsWithADash`), dropping one would leave
+  a chart unvalidated without a word. A second hole is not about dashes:
+  `kustomize build` reads some ordinary names as a **remote git base** and runs
+  `git fetch` even when the folder exists. Measured on kustomize 5.8.3: a
+  folder `github.com/org/repo` ran `git fetch --depth=1 https://github.com/org/repo HEAD`,
+  and `git@evil.example:o/r` (the `:` is legal on Linux and macOS) ran a fetch
+  over SSH to that host, so the repository being scanned chose a host the scan
+  contacts. With `./` in front (`./github.com/org/repo`, `./git@evil.example:o/r`)
+  both are read as local folders and build with no network. helm read
+  `oci:/`, `https:/` and `file:/` names locally without it, and `./` changes
+  nothing for it (checked on helm 4.3.1, `lint` and `template`). So `helmArgs`
+  and `kustomizeArgs` go through `asPathArg`, which puts `./` before **every
+  relative folder**, a dash below the first segment (`charts/-x`) and an
+  ordinary one (`charts/app` becomes `./charts/app`) included. `.`, a name
+  already starting with `./` and an absolute path are left as they are: never
+  `././x`, never `./` plus an absolute path. The container variants keep
+  `-w /scan/<rel>` and get the same relative argument, resolved from that
+  directory. `kubeconformArgs` puts `--` before its files when one starts with
+  `-` (`afterOptions`; kubeconform reports the file under the name it was
+  given), and nothing else changes for it. The `./` is only in the argument:
+  findings, steps and file paths carry the folder's own name, and the Repro
+  still refuses it (`reproLine`). The Steps still write the bare name in their
+  command text (`Run helm template -x ...`). Tests: `TestEveryRelativeFolderIsPassedWithADotSlash`
+  (argv of `helmArgs` and `kustomizeArgs`, native and container, with and
+  without the user's arguments), `TestADashFolderIsRenderedAndReportedUnderItsOwnName`.
+  Not covered here: the renderers still have network access (a remote base
+  written inside a `kustomization.yaml` is fetched), and the user's own
+  arguments appear in the `Running:` log.
 - **Charts and Kustomize roots are set apart.** A template is not YAML until
   helm renders it, and a Kustomize patch is a fragment that fails the schema
   on its own. Their files are never validated raw. Only the **outermost**
@@ -1368,8 +1401,10 @@ The key of a group (`groupKey`: ecosystem, package, installed version, unfixed, 
 row again by. A vulnerability with no package is its own group (assumption: a CVE with no package name is its own
 cause); `Fix.Position` (0 for a named package, else 1, 2, ... among the bare vulnerabilities of one ID, ecosystem and
 version) keeps two of them, or one and a package named like its ID, from sharing a key. The scan's text shown in a
-group (package, versions, candidates) goes through `inlineText` (`withoutControlSpace` on one line) when `cveGroups`
-builds the row, so the title, the footer sentence and the cells carry no escape sequence, control or bidi mark. Rows are ordered by worst severity, then number of CVEs, then package, then change.
+group (package, versions, candidates) goes through `visibleText` (`withoutControlSpace` on one line, DEVDESK-766) when
+`cveGroups` builds the row, so the title, the footer sentence and the cells carry no escape sequence, control or bidi
+mark, and each character removed is shown as `?` (`open?ssl`, `1.1.1?k -> 1.1.1w`): two packages that differ only by
+an invisible character are two rows that do not look alike. The key keeps the raw name. Rows are ordered by worst severity, then number of CVEs, then package, then change.
 
 **Fixable and the groups.** The header's `Fixable` is still `remediation.Summarize(...).Fixable()`, grouped or
 not. The CVEs of the groups that are not `Unfixed` add up to it, and the CVEs of the `Unfixed` groups (`No fix
@@ -1438,12 +1473,27 @@ declines and one it accepts are two rows, and two instances declined for differe
 (`groupMisconfigs` takes the status function so a test can give it reasons the catalog never produces). On an image
 (`onDisk` false) every row says `Cannot fix here`; its findings name no file, the File column says `(image)`, and
 the rows are per rule. A finding with no file on a directory target says `(no file)`: `(image)` is said of images only
-(`fileSubject(file, onDisk)`). `Subject` is the file as shown (`shortPaths`, `inlineText`), `Rule` the smallest ID
-among the members (`inlineText`; one group can mix `AVD-DS-0002` and `DS002`, and the scan order must not pick), the severity the worst of the members. Order: worst severity, most findings, file, rule, state
+(`fileSubject(file, onDisk)`). `Subject` is the file as shown (`shortPaths`, `visibleText`), `Rule` the smallest ID
+among the members (`visibleText`; one group can mix `AVD-DS-0002` and `DS002`, and the scan order must not pick), the severity the worst of the members. Order: worst severity, most findings, file, rule, state
 of the fix; it reads the key, never the order of the scan. `Command` is set only when every member has the same
 `runCommand` (plain words, `scan.PlainWords`); a Misconfigurations group is never `Unfixed` and is not counted in
 `Fixable`. `fixStatus.Label()` renders `Built-in fix unavailable` bare, never with a dangling colon, when the reason
 is empty.
+
+**Names that look alike (DEVDESK-766).** The key holds the raw file, the row shows a cleaned one, so two files could
+show the same name. `visibleText` (`details_text.go`, a pure function) is `inlineText` that puts `?` in place of every
+character the cleaning removes: a bidi mark (U+202E), a zero-width mark (U+200B), any other format, control or
+line-separator character, and an escape sequence (one `?` for the whole sequence); `Docker\u200bfile` shows as
+`Docker?file`, with or without a neighbor. The joiners U+200C and U+200D stay, a tab or a line feed is whitespace and not
+a removed character, and a name that needed no cleaning is shown exactly as before (no mark, same width). The mark
+is display only: `Subject` and `Rule` carry it, the key and `Members` keep the raw name, so a re-scan finds the group by
+the raw name and `enter` opens the right one. Two files that still show the same `Subject` (paths folded to one name by
+`shortPaths`, such as `Dockerfile` and `/scan/Dockerfile`; two names whose removed characters all became `?`) are told
+apart by `numberAlikeSubjects`: the file whose raw name is the shown name keeps it, the others get ` (2)`, ` (3)` in raw
+name order, so a reversed scan lists the same rows. Several rules in one file are one file and take no suffix. The CVE
+list uses the same `visibleText` through `displaySafe`; it has no suffix: its `Change`, `Target` and the CVE count are
+what tell two packages apart, and two ecosystems with the same package name, version and target still show alike
+(not covered).
 
 The columns (`misconfigGroupColumns`, each with its `Sizing`): Severity (fixed 10), File (content 14..40, head
 truncated, so the end of a path stays), Rule (content 10..24), Findings (fixed 8, a plain number: `ctrl+o` fixes one
