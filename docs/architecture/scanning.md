@@ -1423,9 +1423,7 @@ cursor kept on the finding the user was on; a group that is gone steps back to t
 (`refreshDetails`, which returns to the group or to the results). A result opened from the inventory starts with no
 group level but keeps the mode.
 
-**Limits.** The tab bar (`CVE (n)  Secrets (n) ...`) is wider than 80 columns as soon as counts have two digits,
-grouped or not; that is a separate bug and is not fixed here, so the width tests measure the table, the filter bar,
-the info line and the header, not the tab bar. `sameFinding` ignores the line, so two instances with the same
+**Limits.** `sameFinding` ignores the line, so two instances with the same
 title and message in one file are one identity for the selection (the nearest finding may be the first of them).
 The group's `Fix` word comes from `fixStatusOf`, the detail's from `m.fixStatus`, which also knows a stale preview:
 a group may say `Built-in fix available` while its detail says unavailable.
@@ -1621,6 +1619,24 @@ modal, no file touched, the same set of keys.
 - Rules with a fix (KSV-0017, 0001, 0008 to 0010) and anything that is not Pod
   Security give `("", false)`: the confirmation diff, or the generic refusal for
   another KSV rule, is what the user gets.
+
+### The tab bar fits its window (DEVDESK-765)
+
+The results view's six tabs (`CVE`, `Secrets`, `Licenses`, `Misconfig`, `CI`, `Remediation`) sit in one footer line,
+`Model.renderTabs(width)`. Nothing downstream cuts that line: `theme.PadWithBg` only pads, and the router
+(`App.Render`, `padFrame`) never crops, and one line as wide as the screen leaves every other line unpadded. The bar
+therefore decides its own width. With every count it measures 82 cells at one digit (the Remediation count included
+once the Dockerfiles are read), 88 at two and 94 at three; the window's floor is 80.
+
+- **Room enough** (120, 175 columns): every tab carries its count, as before.
+- **Room short**: the counts of the tabs that are not open go, the names stay in full, the open tab keeps its
+  count (a `Remediation` tab with no count yet shows none anyway). The narrowest bar that leaves is 64 cells with a
+  three-digit count, so there is no step that shortens a name. The open tab is told apart without colour by its
+  bold and, once the counts are hidden, by being the only one with a count.
+- There are always six tabs. `TestTheTabBarFitsTheWindow`, `TestTheTabBarKeepsSixNamedTabsAndTheOpenCount` and
+  `TestTheTabBarHidesTheInactiveCountsWhenRoomIsShort` (`tabbar_width_test.go`) measure the line at 80, 120 and 175
+  columns with counts of 1, 12 and 123 on every tab; `TestGroupedViewFitsAtEveryWidth` and
+  `TestMisconfigGroupedViewFitsAtEveryWidth` measure it again with the rest of the footer.
 
 ### The Remediation tab — base images, and the tags they could move to (§3.2, phase B)
 

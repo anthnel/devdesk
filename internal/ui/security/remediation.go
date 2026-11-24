@@ -581,8 +581,18 @@ func (m Model) remediationStatus() (sharedcomponents.Status, bool) {
 
 // remediationTabLabel counts the base images once they are known.
 func (m Model) remediationTabLabel() string {
-	if m.remediation.phase != phaseReady {
+	count, known := m.remediationTabCount()
+	if !known {
 		return "Remediation"
+	}
+	return fmt.Sprintf("Remediation (%d)", count)
+}
+
+// remediationTabCount is the number of base images the tab lists, and whether
+// it is known yet: the tab bar can show the name without the count.
+func (m Model) remediationTabCount() (int, bool) {
+	if m.remediation.phase != phaseReady {
+		return 0, false
 	}
 	n := 0
 	for _, e := range m.remediation.entries {
@@ -590,5 +600,5 @@ func (m Model) remediationTabLabel() string {
 			n++
 		}
 	}
-	return fmt.Sprintf("Remediation (%d)", n)
+	return n, true
 }

@@ -6,6 +6,7 @@ import (
 
 	tea "charm.land/bubbletea/v2"
 	"charm.land/lipgloss/v2"
+	"github.com/charmbracelet/x/ansi"
 
 	"github.com/anthnel/devdesk/internal/command"
 	"github.com/anthnel/devdesk/internal/jobs"
@@ -111,7 +112,7 @@ func (m Model) RenderFooter(width int) string {
 		parts = append(parts, bar.View())
 	}
 	if m.showsResultTabs() {
-		parts = append(parts, theme.PadWithBg(theme.Bg(" ")+m.renderTabs(), width))
+		parts = append(parts, theme.PadWithBg(theme.Bg(" ")+m.renderTabs(width), width))
 	}
 	parts = append(parts, theme.EmptyLineBg(width), m.renderInfoLine(width))
 	return strings.Join(parts, "\n")
@@ -241,19 +242,57 @@ func failedStages(errs []string) string {
 	return strings.Join(stages, ", ") + " failed"
 }
 
-// renderTabs renders the tab bar
-func (m Model) renderTabs() string {
-	cve, secrets, licenses, misconfigs, ci := m.countFindingsByTab()
+// tabBarMargin is the cell left of the first tab (RenderFooter).
+const tabBarMargin = 1
 
-	return theme.RenderTabs([]theme.TabItem{
-		{Label: fmt.Sprintf("CVE (%d)", cve)},
-		{Label: fmt.Sprintf("Secrets (%d)", secrets)},
-		{Label: fmt.Sprintf("Licenses (%d)", licenses)},
-		{Label: fmt.Sprintf("Misconfig (%d)", misconfigs)},
-		// The count, like its four neighbours — not the letter. A letter in a
-		// column of counts would break the only thing the tab bar keeps
-		// aligned, and the grade already has a line of its own below.
-		{Label: fmt.Sprintf("CI (%d)", ci)},
-		{Label: m.remediationTabLabel()},
-	}, m.activeTab)
+// tabCell is one tab of the bar: its name, and its count when it has one.
+type tabCell struct {
+	name  string
+	count int
+	known bool
+}
+
+// label is the tab as written when its count is shown.
+func (c tabCell) label(withCount bool) string {
+	if withCount && c.known {
+		return fmt.Sprintf("%s (%d)", c.name, c.count)
+	}
+	return c.name
+}
+
+// renderTabs renders the tab bar within width cells, margin included.
+//
+// Nothing downstream cuts it: PadWithBg only pads and the router never crops,
+// and a line as wide as the screen even leaves every other line unpadded. So the
+// bar fits by itself (DEVDESK-765). When every label with its count is too wide
+// the counts of the tabs that are not open go, the names stay in full and the
+// open tab keeps its count, which with its bold marks it without colour. The
+// narrowest bar that leaves is 64 cells wide with a three-digit count, so there
+// is no step that shortens a name: the 80-column floor never asks for one.
+func (m Model) renderTabs(width int) string {
+	cve, secrets, licenses, misconfigs, ci := m.countFindingsByTab()
+	remediation, remediationKnown := m.remediationTabCount()
+
+	// The count sits in the CI tab like in its four neighbours — not the
+	// letter. A letter in a column of counts would break the only thing the
+	// tab bar keeps aligned, and the grade already has a line of its own below.
+	cells := []tabCell{
+		{"CVE", cve, true},
+		{"Secrets", secrets, true},
+		{"Licenses", licenses, true},
+		{"Misconfig", misconfigs, true},
+		{"CI", ci, true},
+		{"Remediation", remediation, remediationKnown},
+	}
+	build := func(onlyOpen bool) string {
+		tabs := make([]theme.TabItem, len(cells))
+		for i, c := range cells {
+			tabs[i] = theme.TabItem{Label: c.label(!onlyOpen || i == m.activeTab)}
+		}
+		return theme.RenderTabs(tabs, m.activeTab)
+	}
+	if full := build(false); tabBarMargin+ansi.StringWidth(full) <= width {
+		return full
+	}
+	return build(true)
 }
