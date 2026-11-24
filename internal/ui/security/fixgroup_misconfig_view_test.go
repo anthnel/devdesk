@@ -866,9 +866,6 @@ func TestMisconfigGroupedViewFitsAtEveryWidth(t *testing.T) {
 				t.Errorf("the footer is %d lines, GetFooterHeight says %d (Rule 124)", len(footer), m.GetFooterHeight())
 			}
 			for i, line := range footer {
-				if i == len(footer)-3 && m.showsResultTabs() {
-					continue // the tab bar: a separate bug past 80 columns
-				}
 				if w := ansi.StringWidth(line); w > width {
 					t.Errorf("footer line %d is %d cells wide, the window holds %d: %q", i, w, width, ansi.Strip(line))
 				}

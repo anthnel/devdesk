@@ -76,7 +76,7 @@ func TestTheCITabLabelCarriesACountRatherThanTheLetter(t *testing.T) {
 		r.CIScanned, r.CIScore = true, "C"
 	}))
 
-	tabs := plain(m.renderTabs())
+	tabs := plain(m.renderTabs(160))
 	if !strings.Contains(tabs, "CI (1)") {
 		t.Errorf("the tab bar does not carry the CI count: %q", tabs)
 	}

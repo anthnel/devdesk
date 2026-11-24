@@ -1458,9 +1458,7 @@ cursor kept on the finding the user was on; a group that is gone steps back to t
 (`refreshDetails`, which returns to the group or to the results). A result opened from the inventory starts with no
 group level but keeps the mode.
 
-**Limits.** The tab bar (`CVE (n)  Secrets (n) ...`) is wider than 80 columns as soon as counts have two digits,
-grouped or not; that is a separate bug and is not fixed here, so the width tests measure the table, the filter bar,
-the info line and the header, not the tab bar. `sameFinding` ignores the line, so two instances with the same
+**Limits.** `sameFinding` ignores the line, so two instances with the same
 title and message in one file are one identity for the selection (the nearest finding may be the first of them).
 The group's `Fix` word comes from `fixStatusOf`, the detail's from `m.fixStatus`, which also knows a stale preview:
 a group may say `Built-in fix available` while its detail says unavailable.
@@ -1671,6 +1669,44 @@ modal, no file touched, the same set of keys.
 - Rules with a fix (KSV-0017, 0001, 0008 to 0010) and anything that is not Pod
   Security give `("", false)`: the confirmation diff, or the generic refusal for
   another KSV rule, is what the user gets.
+
+### The tab bar fits its window (DEVDESK-765)
+
+The results view's six tabs (`CVE`, `Secrets`, `Licenses`, `Misconfig`, `CI`, `Remediation`) sit in one footer line,
+`Model.renderTabs(width)`. Nothing downstream cuts that line: `theme.PadWithBg` only pads, and the router
+(`App.Render`, `padFrame`) never crops, and one line as wide as the screen leaves every other line unpadded. The bar
+therefore decides its own width. With every count it measures 82 cells at one digit (the Remediation count included
+once the Dockerfiles are read), 88 at two and 94 at three; the window's floor is 80.
+
+- **Room enough** (120, 175 columns): every tab carries its count, as before.
+- **Room short** (the compact form): the counts of the tabs that are not open go, the names stay in full, the
+  open tab keeps its count if it has one and takes a text marker, `>` (`compactOpenMarker`, an ASCII character
+  on purpose: no font gap, one cell). The marker is there because the open tab may have no count to show:
+  Remediation open before the Dockerfiles are discovered, at 80 columns with two-digit counts, gives a bar with
+  no count at all, where bold and colour alone would mark the tab. The marker is local to the compact form
+  (`theme.RenderTabs`, shared, is untouched) and the full bar has none. The widest compact bar is 66 cells, margin
+  included, with a three-digit count, so there is no step that shortens a name.
+- **Side effect at 80 columns.** The full bar is 79 cells while the Remediation tab has no count and 82 once
+  discovery ends (`remediationTabCount`). With one-digit counts the bar therefore goes from full to compact at that
+  moment at 80 columns: the inactive counts disappear at once and the marker appears. Accepted: the alternative is a
+  bar wider than the window.
+- There are always six tabs. `TestTheTabBarFitsTheWindow`, `TestTheTabBarKeepsSixNamedTabsAndTheOpenCount` and
+  `TestTheTabBarHidesTheInactiveCountsWhenRoomIsShort`, `TestTheCompactTabBarMarksTheOpenTabWithoutStyle` and
+  `TestTheCompactTabBarMarkerIsOnTheOpenTabOnly` (`tabbar_width_test.go`) measure the line at 80, 120 and 175
+  columns with counts of 1, 12 and 123 on every tab; `TestGroupedViewFitsAtEveryWidth` and
+  `TestMisconfigGroupedViewFitsAtEveryWidth` measure it again with the rest of the footer.
+
+**The other tab rows and trails, not covered (possible overflow at 80 columns).** Only the `:sec` results bar
+decides its own width. The rows below go through `theme.RenderTabs` with no width check; the first four are
+variable-length trails and can overflow at 80 columns. None is fixed here: each is a separate story to open.
+
+| Where | Row | Length |
+|---|---|---|
+| `internal/ui/workspaces/view.go` (`renderTabBar`, ~171-185) | breadcrumb: `home`, `navigationStack`, current directory | variable (depth and folder names); possible overflow |
+| `internal/ui/forge/explorer/view.go` (`renderTabBar`) | breadcrumb: `home`, `navigationStack`, current group | variable (group names); possible overflow |
+| `internal/ui/jobsview/view.go` (`renderBreadcrumb`) | `Runs`, run kind and label | variable (run label); possible overflow |
+| `internal/ui/oci_resources/view.go` (`renderRegistryBreadcrumb`) | `Registries`, group alias | variable (alias); possible overflow |
+| `internal/ui/oci_resources/view.go` (`renderTabBar`) | four fixed tabs | constant, well under 80 |
 
 ### The Remediation tab — base images, and the tags they could move to (§3.2, phase B)
 
