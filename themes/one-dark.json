@@ -7,7 +7,7 @@
     "color_secondary": "#61afef",
     "color_border": "#4b5263",
     "color_text": "#abb2bf",
-    "color_dim": "#5c6370",
+    "color_dim": "#9299a5",
     "color_highlight": "#d19a66",
     "color_white": "#abb2bf",
     "color_black": "#282c34",
@@ -21,7 +21,7 @@
     "button_inactive_bg": "#5c6370",
     "tab_active_fg": "#282c34",
     "tab_active_bg": "#61afef",
-    "tab_inactive_fg": "#5c6370",
+    "tab_inactive_fg": "#9299a5",
     "tab_inactive_bg": "#2c313c",
     "table_header_fg": "#61afef",
     "table_line_selected": "#2c313c",
@@ -29,7 +29,7 @@
     "cmd_line_bg": "#2c313c",
     "cmd_line_inactive_fg": "#5c6370",
     "viewport_border": "#4b5263",
-    "severity_critical": "#e06c75",
+    "severity_critical": "#e17079",
     "severity_critical_fg": "#282c34",
     "severity_high": "#be5046",
     "severity_high_fg": "#282c34",
@@ -42,5 +42,5 @@
     "token_input": "#63adee",
     "token_output": "#cb7cde",
     "token_cache_write": "#ceab8d",
-    "token_cache_read": "#8f9aa3"
+    "token_cache_read": "#cacfd3"
 }

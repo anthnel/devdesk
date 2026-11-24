@@ -13,6 +13,7 @@ paths:
 - Never hardcode colors directly in views
 - Reusable styles must be defined in `internal/ui/theme/styles.go`
 - Use the theme package's constants (ColorPrimary, ColorError, etc.)
+- A text colour reaches 4.5:1 (`theme.ContrastRatio`) on the surface it is painted on, on each shipped theme: `ColorText`, `ColorDim`, `ColorSubTitleFg`, `ColorWarn`, `ColorFooterWarn`, `ColorFooterError` (`TestEveryTextColourReachesItsContrastOnEveryTheme`, DEVDESK-764). A greyed label is never told apart by its shade alone: weight or italics too (Rule 130)
 
 ### Rule 105 : Help message format
 

@@ -171,11 +171,10 @@ func TimingFillStyle() lipgloss.Style {
 // still `░`, still coloured, never blank. It aliases ColorSeverityLow rather
 // than DimStyle directly: DimStyle is this application's word for *absent*
 // (a `-`, a zero, a placeholder), and an empty gauge cell is not absent — it
-// is measured and low. ColorSeverityLow's own default now happens to be the
-// same tone as ColorDim (a LOW finding reads as unremarkable as a "0" count,
-// see colors.go) — the two coincide in colour without coinciding in name, so
-// a theme separating "low severity" from "nothing found" moves the track
-// with the former rather than the latter.
+// is measured and low. ColorSeverityLow used to be the same tone as ColorDim;
+// DEVDESK-764 raised ColorDim to 4.5:1 text contrast and left the severity
+// where it was (it is also a badge background). A theme that retunes "low
+// severity" moves the track with it rather than with "nothing found".
 func GaugeTrackStyle() lipgloss.Style {
 	return lipgloss.NewStyle().Background(ColorBackground).Foreground(ColorSeverityLow)
 }

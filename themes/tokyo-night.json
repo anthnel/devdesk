@@ -7,7 +7,7 @@
     "color_secondary": "#7aa2f7",
     "color_border": "#414868",
     "color_text": "#c0caf5",
-    "color_dim": "#565f89",
+    "color_dim": "#7982ab",
     "color_highlight": "#7dcfff",
     "color_white": "#c0caf5",
     "color_black": "#15161e",
@@ -21,7 +21,7 @@
     "button_inactive_bg": "#414868",
     "tab_active_fg": "#1a1b26",
     "tab_active_bg": "#7aa2f7",
-    "tab_inactive_fg": "#565f89",
+    "tab_inactive_fg": "#7982ab",
     "tab_inactive_bg": "#15161e",
     "table_header_fg": "#7aa2f7",
     "table_line_selected": "#15161e",
@@ -42,5 +42,5 @@
     "token_input": "#77a2f8",
     "token_output": "#bd9efa",
     "token_cache_write": "#a6a159",
-    "token_cache_read": "#9391b6"
+    "token_cache_read": "#b1b0ca"
 }

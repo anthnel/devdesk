@@ -14,9 +14,12 @@ var (
 
 // UI colors (populated by ApplyTheme from DefaultTheme)
 var (
-	ColorPrimary    color.Color
-	ColorSecondary  color.Color
-	ColorBorder     color.Color
+	ColorPrimary   color.Color
+	ColorSecondary color.Color
+	ColorBorder    color.Color
+	// ColorText, ColorDim, ColorSubTitleFg, ColorWarn, ColorFooterWarn and
+	// ColorFooterError are the text colours held to 4.5:1 on the surface they are
+	// painted on, on every shipped theme (text_contrast_test.go, DEVDESK-764).
 	ColorText       color.Color
 	ColorDim        color.Color
 	ColorHighlight  color.Color
@@ -179,12 +182,11 @@ var (
 
 	// Severity colors (background + foreground pairs)
 	//
-	// ColorSeverityLow's default now equals ColorDim's — the tone the :sec
-	// inventory already uses for a "0" count (inventory_table.go, countColumn):
-	// a LOW finding is, by the same reasoning that grades a count column,
-	// barely worth a glance next to CRITICAL/HIGH/MEDIUM. A theme may still
-	// separate the two; the default treats "low severity" and "nothing found"
-	// as the same shade of unremarkable.
+	// ColorSeverityLow falls back to ColorDim when a theme omits severity_low:
+	// a LOW finding is barely worth a glance next to CRITICAL/HIGH/MEDIUM, like
+	// a "0" count (inventory_table.go, countColumn). The shipped themes set it
+	// themselves since DEVDESK-764 raised ColorDim to 4.5:1 text contrast: the
+	// LOW badge background has to stay dark enough for SeverityLowFg.
 	ColorSeverityCritical   color.Color
 	ColorSeverityCriticalFg color.Color
 	ColorSeverityHigh       color.Color

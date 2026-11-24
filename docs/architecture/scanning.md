@@ -812,9 +812,10 @@ The builders are `detailsFix` (status, `detailsWhere`, `Do` from `fixSteps` and 
 Resolution, `detailsRun`, `detailsRepro`, Effect, Warning), `detailsChange`, `detailsWhy`, `detailsOutput` and
 `detailsReferences`, each under 50 lines. The Fix block is written in `ColorText` alone
 and its labels in `theme.DetailLabelStyle` (bold, `ColorText`): `ColorDim`, `ColorSubTitleFg`,
-`ColorTitleFg` and `ColorWarn` fall under 4.5:1 on several shipped themes, so the word
+`ColorTitleFg` and `ColorWarn` fell under 4.5:1 on several shipped themes, so the word
 `Warning:` carries the warning, not a colour. The measure is frozen in
-`docs/measurements/2026-11-23-sec-detail-contrast.md`; retuning the palette is a separate story.
+`docs/measurements/2026-11-23-sec-detail-contrast.md`; DEVDESK-764 then raised `ColorDim`, `ColorSubTitleFg` and
+`ColorWarn` to 4.5:1 (`docs/measurements/2026-11-24-theme-text-contrast.md`), `ColorTitleFg` still falls under on four.
 `DetailLabelStyle` is declared twice in `theme/styles.go` (the var and the rebuild in
 `ApplyTheme`), like every style, or it keeps the default theme's colours.
 

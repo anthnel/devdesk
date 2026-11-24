@@ -105,7 +105,7 @@ func DefaultTheme() *Theme {
 		ColorSecondary:   "#b4befe",
 		ColorBorder:      "#6c7086",
 		ColorText:        "#cdd6f4",
-		ColorDim:         "#585b70",
+		ColorDim:         "#979aad",
 		ColorHighlight:   "#f9e2af",
 		ColorWhite:       "#cdd6f4",
 		ColorBlack:       "#1e1e2e",
@@ -119,7 +119,7 @@ func DefaultTheme() *Theme {
 		ButtonInactiveBg: "#585b70",
 		TabActiveFg:      "#1e1e2e",
 		TabActiveBg:      "#b4befe",
-		TabInactiveFg:    "#585b70",
+		TabInactiveFg:    "#979aad",
 		TabInactiveBg:    "#313244",
 		TableHeaderFg:    "#b4befe",
 		// Same value the "normal" selection background used to get by
@@ -137,18 +137,21 @@ func DefaultTheme() *Theme {
 		SeverityHighFg:     "#1e1e2e",
 		SeverityMedium:     "#fab387",
 		SeverityMediumFg:   "#1e1e2e",
-		// Same tone as ColorDim — the :sec inventory's colour for a "0" count
-		// (inventory_table.go, countColumn). A LOW finding reads as barely
-		// more remarkable than nothing found.
+		// Was the same tone as ColorDim. DEVDESK-764 raised ColorDim to 4.5:1 and
+		// left this one where it was: it is also the LOW badge's background, which
+		// SeverityLowFg has to read on. The two are separate keys now; a "0" count
+		// in the :sec inventory still uses DimStyle.
 		SeverityLow:    "#585b70",
 		SeverityLowFg:  "#cdd6f4",
 		SeverityInfo:   "#45475a",
 		SeverityInfoFg: "#cdd6f4",
-		// Token-mix bar: blue, mauve, yellow, overlay2 (Catppuccin Mocha).
+		// Token-mix bar: blue, mauve, yellow, and a light neutral for cache read
+		// (Catppuccin Mocha's overlay2 sat 3.5 from the dim tone once DEVDESK-764
+		// raised it to 4.5:1, so the bar's grey moved to the lighter side).
 		TokenInput:      "#89b4fa",
 		TokenOutput:     "#cba6f7",
 		TokenCacheWrite: "#f9e2af",
-		TokenCacheRead:  "#9399b2",
+		TokenCacheRead:  "#cdd0db",
 	}
 }
 
