@@ -98,6 +98,13 @@ decided together and fixed in one pass; see [§1.2](#12-the-five-parked-defects)
 
 ### 1.1 Fixed
 
+**D178 — DEVDESK-769: a breadcrumb trail that is too long for its line drops its head and cuts its current segment, through `theme.RenderTrail`; the pills stay. Decided (architect and user, 2026-11-24; the user can overrule).**
+
+1. **Defect.** The four breadcrumb rows (`ws`, the forge explorer, `:jobs`, the registry level of OCI resources) drew every pill with `PadWithBg(Bg(" ")+RenderTabs(...), width)`. Past the width the line overflowed, and the terminal wrapped it onto the next row.
+2. **Decided.** The pills `" label "`, one cell apart, are kept. The current segment is always the last one. No "home" anchor is kept: when the trail does not fit, the head becomes one `…` pill and the largest tail that fits stays; if the current segment alone does not fit, it is cut at its end with `…`. Under 8 cells of room only the cut segment is drawn, under 3 nothing.
+3. **Rejected.** Shrinking every label (no segment stays readable), keeping the first pill as an anchor (it costs cells the current segment needs), and a scrolling trail (a second navigation to learn on a row that is not navigable, Rule 123).
+4. **Where.** `theme.FitTrail` and `theme.RenderTrail`; see `docs/architecture/ui-components.md`, "Breadcrumb trails that fit".
+
 **D177 — DEVDESK-764: `severity_low` no longer takes the tone of `ColorDim`; it keeps the darker tone it had before. Replaces the decision of §3.73 ("`severity_low` prend le ton de `ColorDim`"). Decided (orchestrator, 2026-11-24, after the review of DEVDESK-764; the user can overrule).**
 
 1. **Replaced decision.** §3.73 made the default of `severity_low` equal to `color_dim` (`#585b70` on the default theme), and made the fallback of `ColorSeverityLow` in `ApplyTheme` `ColorDim`, so that a LOW finding read like a "0" count in the `:sec` inventory.

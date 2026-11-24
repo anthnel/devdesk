@@ -99,7 +99,7 @@ func (m Model) renderBreadcrumb(width int) string {
 		{Label: "Runs"},
 		{Label: string(run.Kind) + " " + theme.IconChevronRight + " " + run.Label},
 	}
-	return theme.PadWithBg(theme.Bg(" ")+theme.RenderTabs(tabs, 1), width)
+	return theme.RenderTrail(tabs, width)
 }
 
 // status is the derived line, with no timer (Rule 128).

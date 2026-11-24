@@ -926,6 +926,31 @@ The inactive tab label follows `ColorDim` on every theme (`tab_inactive_fg`, Rul
 `ColorText` fallback of the badge stays readable (`TestAThemeWithoutSeverityLowKeepsAReadableLowBadge`, D177). `token_cache_read` moved away from the new dim tone on nine themes
 (`TestTokenColorsAreNotSeverityOrGaugeColours`).
 
+## Breadcrumb trails that fit — `theme.RenderTrail` (DEVDESK-769)
+
+A breadcrumb row (Rule 123) is a row of pills, `" label "` each, one cell apart. Its length follows the data (folder
+depth, a job label), so it used to overflow the line and wrap. `theme.RenderTrail(tabs, width)` is the one way to draw
+one: `PadWithBg(Bg(" ")+RenderTabs(FitTrail(labels, width-1), last), width)`, a line of exactly `width` cells (empty at
+width 0, before the first `tea.WindowSizeMsg`). The four callers are `ws`, the forge explorer, `:jobs` (item level) and
+the registry level of OCI resources. A navigable tab bar (the OCI resource tabs) is not a trail and keeps `RenderTabs`.
+
+`FitTrail(labels, room)` measures the plain text with `ansi.StringWidth` before any style is applied (Rule 122): a
+pill costs `width+2`, a gap 1, and `TestRenderTabsWidthIsTheTrailCost` checks that figure against what `RenderTabs`
+draws. The current segment is always the last label, and there is no "home" anchor. In order:
+
+1. The trail fits: the same slice comes back, and the line is byte for byte what it was.
+2. Otherwise `["…"] + the k last labels`, the largest `k >= 1` that fits (the `…` pill costs 3, plus its gap).
+3. Otherwise the head pill and the current segment cut at its end with `ansi.Truncate(last, room-6, "…")`.
+4. Under 8 cells of room (fewer than 2 cells of label beside the head pill), or when there is a single segment, only
+   the cut segment: `ansi.Truncate(last, room-2, "…")`, so a `…` head never stands for nothing. Under 3 cells, no pill.
+
+The label is cut at its end, on a grapheme boundary: a wide character is never split, and the cut loses at most one
+cell. `theme.TrailEllipsis` is the one-cell `…` (U+2026), not `theme.Ellipsis` (`...`). The input is never modified.
+
+Limits: `x/ansi` counts a Nerd Font glyph (private use area) as one cell, and the terminal may draw it in two, so a
+trail full of icons can overshoot by one cell per icon on such a terminal (the same gap as Rule 125's icon column). A
+pill that is already one of the labels `…` is not told apart from the head pill.
+
 ## Dashboard clocks and terminal focus (DEVDESK-210)
 
 The dashboard runs three independent clocks (`internal/ui/dashboard/model.go`):

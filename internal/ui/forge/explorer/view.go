@@ -213,7 +213,7 @@ func (m Model) renderTabBar() string {
 	if m.currentGroupNode != nil {
 		tabs = append(tabs, theme.TabItem{Label: m.currentGroupNode.Name})
 	}
-	return theme.PadWithBg(theme.Bg(" ")+theme.RenderTabs(tabs, m.activeTabIndex), m.width)
+	return theme.RenderTrail(tabs, m.width)
 }
 
 // nodeTypeLabel returns the type label for a tree node, in the forge's own
