@@ -74,7 +74,7 @@ func kubeconformArgs(target string, files []string, tool ToolSpec, opts Kubeconf
 	flags := kubeconformFlags(tool, opts)
 
 	if !docker {
-		args := append(flags, nativePaths(files)...)
+		args := append(flags, afterOptions(nativePaths(files))...)
 		return toolCmd{Name: kubeconformBinary(tool), Args: args, Dir: target}
 	}
 
@@ -84,7 +84,21 @@ func kubeconformArgs(target string, files []string, tool ToolSpec, opts Kubeconf
 	}
 	engineArgs = append(engineArgs, "-w", containerScanPath)
 	// Inside the container the paths are Linux ones, whatever the host is.
-	return containerRun{Flags: engineArgs, Image: kubeconformImage(tool.Image), Argv: append(flags, files...)}.cmd()
+	return containerRun{Flags: engineArgs, Image: kubeconformImage(tool.Image), Argv: append(flags, afterOptions(files)...)}.cmd()
+}
+
+// afterOptions is files, preceded by the end of the options ("--", which Go's
+// flag package honors) when one of them starts with "-": a file named
+// -cache=x.yaml would otherwise be read as an option (DEVDESK-763). kubeconform
+// reports a file under the name it was given, so the findings keep it. Ordinary
+// names get no "--".
+func afterOptions(files []string) []string {
+	for _, f := range files {
+		if strings.HasPrefix(f, "-") {
+			return append([]string{"--"}, files...)
+		}
+	}
+	return files
 }
 
 // kubeconformFlags are the options every validation run shares, raw files or
