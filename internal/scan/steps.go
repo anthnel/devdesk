@@ -22,6 +22,30 @@ func isLoadRestrictor(detail string) bool {
 	return strings.Contains(detail, "security; file") && strings.Contains(detail, "is not in or below")
 }
 
+// typedDir is a folder as the user is told to type it after helm
+// (DEVDESK-768). A name that starts with "-" would be read as an option, so it
+// gets the "./" the scan itself uses (asPathArg); any other folder keeps its
+// plain name, which the same command accepts. Only the command's argument goes
+// through it: a title, a file or a sentence names the folder as it is.
+func typedDir(dir string) string {
+	if strings.HasPrefix(dir, "-") {
+		return "./" + dir
+	}
+	return dir
+}
+
+// typedKustomizeDir is typedDir for kustomize, which also reads a relative name
+// as a remote git base when its first segment holds a ".", a ":" or an "@"
+// (github.com/org/repo, git@host:o/r, DEVDESK-763). Those get the "./" of
+// asPathArg too; an ordinary folder stays bare.
+func typedKustomizeDir(dir string) string {
+	first, _, _ := strings.Cut(dir, "/")
+	if (first != "." && first != ".." && strings.ContainsAny(first, ".:@")) || strings.HasPrefix(dir, "-") {
+		return asPathArg(dir)
+	}
+	return dir
+}
+
 // renderSteps are the steps for a chart or an overlay that did not render.
 // target is the overlay directory or the chart, relative to the scanned
 // directory; detail is what the tool printed. blocked says the failure is a
@@ -30,8 +54,8 @@ func isLoadRestrictor(detail string) bool {
 func renderSteps(source, target string, from ToolSource, detail string, blocked bool) []string {
 	if source != SourceKustomize {
 		return []string{
-			fmt.Sprintf("Run helm template %s and fix the first error it reports.", target),
-			fmt.Sprintf("If a dependency is missing, run helm dependency build %s.", target),
+			fmt.Sprintf("Run helm template %s and fix the first error it reports.", typedDir(target)),
+			fmt.Sprintf("If a dependency is missing, run helm dependency build %s.", typedDir(target)),
 		}
 	}
 	var steps []string
@@ -47,7 +71,7 @@ func renderSteps(source, target string, from ToolSource, detail string, blocked 
 			fmt.Sprintf("move the file below %s.", target),
 		}
 	default:
-		steps = []string{fmt.Sprintf("Run kustomize build %s and fix the first error it reports.", target)}
+		steps = []string{fmt.Sprintf("Run kustomize build %s and fix the first error it reports.", typedKustomizeDir(target))}
 	}
 	if from == ToolSourceContainer &&
 		(strings.Contains(detail, "evalsymlink failure") || strings.Contains(detail, "no such file or directory")) {
@@ -61,7 +85,7 @@ func renderSteps(source, target string, from ToolSource, detail string, blocked 
 func helmLintSteps(file, chart string) []string {
 	return []string{
 		fmt.Sprintf("Fix what helm lint reports in %s.", file),
-		fmt.Sprintf("Run helm lint %s again to confirm.", chart),
+		fmt.Sprintf("Run helm lint %s again to confirm.", typedDir(chart)),
 	}
 }
 

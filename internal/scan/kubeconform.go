@@ -167,7 +167,7 @@ func RunKubeconform(ctx context.Context, target string, tool ToolSpec, opts Kube
 // line its pointer designates.
 func (v *k8sValidation) validateFiles(ctx context.Context, files []string, progressFn func(string)) error {
 	cmd := kubeconformArgs(v.target, files, v.kubeconform, v.opts)
-	log.Printf("Running: %s", cmd)
+	log.Printf("Running: %s", cmd.Loggable())
 	out, err := runner.Run(ctx, cmd, progressFn)
 	if err := kubeconformFailure(out, err); err != nil {
 		return err

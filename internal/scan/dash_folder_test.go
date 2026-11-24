@@ -2,6 +2,7 @@ package scan
 
 import (
 	"reflect"
+	"slices"
 	"strings"
 	"testing"
 )
@@ -201,8 +202,45 @@ func TestADashFolderIsRenderedAndReportedUnderItsOwnName(t *testing.T) {
 		if top, _, _ := strings.Cut(f.File, "/"); top != dashChart && top != dashOverlay {
 			t.Errorf("%s: file %q is not under the folder's own name", f.ID, f.File)
 		}
-		if strings.Contains(f.Title+" "+strings.Join(f.Steps, " "), "./") {
-			t.Errorf("%s: the readable text carries ./: %q %q", f.ID, f.Title, f.Steps)
+		// DEVDESK-763 asked for no "./" in the text of a finding, so that the
+		// folder is shown under its own name; DEVDESK-768 refines it, because
+		// the text has two kinds of content. What NAMES the folder (the title
+		// and the file) keeps its own name, "./" never appears there. What the
+		// user is told to TYPE (a step "Run helm lint ... again") is a command
+		// that is copied, and for a folder starting with "-" the bare name is
+		// read by helm and kustomize as an option: `helm lint -x` fails where
+		// `helm lint ./-x` works. So the "./" is allowed in a step, and only as
+		// the folder argument of the command, in the form asPathArg gives the
+		// tool. The text around it is checked to be free of "./".
+		if strings.Contains(f.Title, "./") {
+			t.Errorf("%s: the title carries the ./ of the argument: %q", f.ID, f.Title)
+		}
+		var typed []string // the commands the steps tell the user to run
+		for _, step := range f.Steps {
+			for _, folder := range []string{dashChart, dashOverlay} {
+				for _, cmd := range []string{"helm lint ", "helm template ", "helm dependency build ", "kustomize build "} {
+					if strings.Contains(step, cmd+folder) {
+						t.Errorf("%s: step %q writes `%s%s`, which the tool reads as an option", f.ID, step, cmd, folder)
+					}
+					if strings.Contains(step, cmd+asPathArg(folder)) {
+						typed = append(typed, cmd+asPathArg(folder))
+						step = strings.ReplaceAll(step, asPathArg(folder), "")
+					}
+				}
+			}
+			if strings.Contains(step, "./") {
+				t.Errorf("%s: step %q carries a ./ outside the command's folder argument", f.ID, step)
+			}
+		}
+		switch f.ID {
+		case HelmLintID:
+			if !slices.Contains(typed, "helm lint "+asPathArg(dashChart)) {
+				t.Errorf("%s: no step tells the user to run `helm lint %s`: %q", f.ID, asPathArg(dashChart), f.Steps)
+			}
+		case K8sRenderID:
+			if !slices.Contains(typed, "kustomize build "+asPathArg(dashOverlay)) {
+				t.Errorf("%s: no step tells the user to run `kustomize build %s`: %q", f.ID, asPathArg(dashOverlay), f.Steps)
+			}
 		}
 		if f.Repro != "" {
 			t.Errorf("%s: repro %q for a folder that cannot be typed as a plain word", f.ID, f.Repro)

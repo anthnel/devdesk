@@ -256,6 +256,11 @@ func GetGitleaksCommand(target string, tool ToolSpec, history bool, configPath s
 	return gitleaksArgs(target, tool, history, configPath, "").String()
 }
 
+// gitleaksCommand is GetGitleaksCommand as a value, for the log.
+func gitleaksCommand(target string, tool ToolSpec, history bool, configPath string) toolCmd {
+	return gitleaksArgs(target, tool, history, configPath, "")
+}
+
 // AddToGitleaksIgnore adds a finding to the .gitleaksignore file in the target directory
 // Returns nil if already present (silently skips duplicates)
 func AddToGitleaksIgnore(targetDir string, finding Finding) (err error) {

@@ -608,7 +608,7 @@ func (s *Scanner) ScanRemoteImage(ctx context.Context, image string) (*Result, e
 	if err != nil {
 		return nil, err
 	}
-	log.Printf("Running: %s", tc.String())
+	log.Printf("Running: %s", tc.Loggable())
 	findings, err := runTrivy(ctx, tc, nil)
 	if err != nil {
 		return nil, err
@@ -654,8 +654,8 @@ func (s *Scanner) Scan(ctx context.Context, target string, targetType TargetType
 			progressFn := func(detail string) {
 				notify(ProgressUpdate{Stage: "vuln", Label: "Vulnerabilities", Status: StageRunning, Detail: detail})
 			}
-			cmd := GetTrivyCommand(target, targetType, false, s.spec(ToolTrivy), s.options.TrivyServer, s.options.Tools.Trivy.IgnoreUnfixed, s.options.Tools.Trivy.IgnoreEOL)
-			log.Printf("Running: %s", cmd)
+			cmd := trivyCommand(target, targetType, false, s.spec(ToolTrivy), s.options.TrivyServer, s.options.Tools.Trivy.IgnoreUnfixed, s.options.Tools.Trivy.IgnoreEOL)
+			log.Printf("Running: %s", cmd.Loggable())
 			findings, err := RunTrivy(egCtx, target, targetType, false, s.spec(ToolTrivy), s.options.TrivyServer, s.options.Tools.Trivy.IgnoreUnfixed, s.options.Tools.Trivy.IgnoreEOL, progressFn)
 			mu.Lock()
 			defer mu.Unlock()
@@ -677,8 +677,8 @@ func (s *Scanner) Scan(ctx context.Context, target string, targetType TargetType
 			progressFn := func(detail string) {
 				notify(ProgressUpdate{Stage: "license", Label: "Licenses", Status: StageRunning, Detail: detail})
 			}
-			cmd := GetTrivyCommand(target, targetType, true, s.spec(ToolTrivy), s.options.TrivyServer, s.options.Tools.Trivy.IgnoreUnfixed, s.options.Tools.Trivy.IgnoreEOL)
-			log.Printf("Running: %s", cmd)
+			cmd := trivyCommand(target, targetType, true, s.spec(ToolTrivy), s.options.TrivyServer, s.options.Tools.Trivy.IgnoreUnfixed, s.options.Tools.Trivy.IgnoreEOL)
+			log.Printf("Running: %s", cmd.Loggable())
 			findings, err := RunTrivy(egCtx, target, targetType, true, s.spec(ToolTrivy), s.options.TrivyServer, s.options.Tools.Trivy.IgnoreUnfixed, s.options.Tools.Trivy.IgnoreEOL, progressFn)
 			mu.Lock()
 			defer mu.Unlock()
@@ -705,7 +705,7 @@ func (s *Scanner) Scan(ctx context.Context, target string, targetType TargetType
 			progressFn := func(detail string) {
 				notify(ProgressUpdate{Stage: "ci", Label: "CI score", Status: StageRunning, Detail: detail})
 			}
-			log.Printf("Running: %s", GetPlumberCommand(target, s.spec(ToolPlumber), opts))
+			log.Printf("Running: %s", plumberCommand(target, s.spec(ToolPlumber), opts).Loggable())
 			report, err := RunPlumber(egCtx, target, s.spec(ToolPlumber), opts, progressFn)
 			mu.Lock()
 			defer mu.Unlock()
@@ -798,8 +798,8 @@ func (s *Scanner) Scan(ctx context.Context, target string, targetType TargetType
 			progressFn := func(detail string) {
 				notify(ProgressUpdate{Stage: "secret", Label: "Secrets (Gitleaks)", Status: StageRunning, Detail: detail})
 			}
-			cmd := GetGitleaksCommand(target, s.spec(ToolGitleaks), s.options.Tools.Gitleaks.History, s.options.Tools.Gitleaks.Config)
-			log.Printf("Running: %s", cmd)
+			cmd := gitleaksCommand(target, s.spec(ToolGitleaks), s.options.Tools.Gitleaks.History, s.options.Tools.Gitleaks.Config)
+			log.Printf("Running: %s", cmd.Loggable())
 			findings, err := RunGitleaks(egCtx, target, s.spec(ToolGitleaks), s.options.Tools.Gitleaks.History, s.options.Tools.Gitleaks.Config, progressFn)
 			mu.Lock()
 			defer mu.Unlock()
@@ -825,8 +825,8 @@ func (s *Scanner) Scan(ctx context.Context, target string, targetType TargetType
 			progressFn := func(detail string) {
 				notify(ProgressUpdate{Stage: "trivy-secret", Label: "Secrets (Trivy)", Status: StageRunning, Detail: detail})
 			}
-			cmd := GetTrivySecretCommand(target, targetType, s.spec(ToolTrivy), s.options.TrivyServer)
-			log.Printf("Running: %s", cmd)
+			cmd := trivySecretCommand(target, targetType, s.spec(ToolTrivy), s.options.TrivyServer)
+			log.Printf("Running: %s", cmd.Loggable())
 			findings, err := RunTrivySecret(egCtx, target, targetType, s.spec(ToolTrivy), s.options.TrivyServer, progressFn)
 			mu.Lock()
 			defer mu.Unlock()

@@ -343,7 +343,7 @@ func (v *k8sValidation) renderCharts(ctx context.Context, charts []string) error
 		v.report.Findings = append(v.report.Findings, lint...)
 
 		cmd := helmArgs(scope, chart, tool, "template")
-		log.Printf("Running: %s", cmd)
+		log.Printf("Running: %s", cmd.Loggable())
 		rendered, err := runner.Run(ctx, cmd, nil)
 		if err != nil {
 			if ctx.Err() != nil {
@@ -389,7 +389,7 @@ func (v *k8sValidation) renderKustomizations(ctx context.Context, dirs []string)
 			scope = scope.cut()
 		}
 		cmd := kustomizeArgs(scope, dir, tool)
-		log.Printf("Running: %s", cmd)
+		log.Printf("Running: %s", cmd.Loggable())
 		rendered, err := runner.Run(ctx, cmd, nil)
 		if err != nil {
 			if ctx.Err() != nil {
@@ -429,7 +429,7 @@ func (v *k8sValidation) validateRendered(ctx context.Context, rendered []byte, d
 		return nil
 	}
 	cmd := kubeconformStdinArgs(rendered, v.kubeconform, v.opts)
-	log.Printf("Running: %s", cmd)
+	log.Printf("Running: %s", cmd.Loggable())
 	out, err := runner.Run(ctx, cmd, nil)
 	if err := kubeconformFailure(out, err); err != nil {
 		return err
@@ -453,11 +453,11 @@ func (v *k8sValidation) validateRendered(ctx context.Context, rendered []byte, d
 // will say whether the chart is usable.
 func helmLint(ctx context.Context, scope renderScope, chart string, tool ToolSpec) []Finding {
 	cmd := helmArgs(scope, chart, tool, "lint")
-	log.Printf("Running: %s", cmd)
+	log.Printf("Running: %s", cmd.Loggable())
 	out, err := runner.Run(ctx, cmd, nil)
 	findings, recognised := parseHelmLint(out, chart, scope)
 	if err != nil && !recognised {
-		log.Printf("ERROR [scan/helm] lint %s: %v", chart, err)
+		log.Printf("ERROR [scan/helm] lint %s: %v", logWord(chart), err)
 	}
 	repro, from := renderRepro(tool, "helm", "lint", chart)
 	for i := range findings {

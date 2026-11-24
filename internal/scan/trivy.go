@@ -295,20 +295,32 @@ func maskSecret(s string) string {
 // logging. It is built by the same builder as the executed command, so the two
 // cannot drift apart.
 func GetTrivyCommand(target string, targetType TargetType, licenseMode bool, tool ToolSpec, server string, ignoreUnfixed bool, ignoreEOL bool) string {
+	return trivyCommand(target, targetType, licenseMode, tool, server, ignoreUnfixed, ignoreEOL).String()
+}
+
+// trivyCommand is the invocation GetTrivyCommand displays, as a value the log
+// can render through Loggable. It is the zero value when the target is not
+// supported.
+func trivyCommand(target string, targetType TargetType, licenseMode bool, tool ToolSpec, server string, ignoreUnfixed bool, ignoreEOL bool) toolCmd {
 	tc, err := trivyArgs(target, targetType, licenseMode, tool, server, ignoreUnfixed, ignoreEOL)
 	if err != nil {
-		return ""
+		return toolCmd{}
 	}
-	return tc.String()
+	return tc
 }
 
 // GetTrivySecretCommand returns the secret scan command for display.
 func GetTrivySecretCommand(target string, targetType TargetType, tool ToolSpec, server string) string {
+	return trivySecretCommand(target, targetType, tool, server).String()
+}
+
+// trivySecretCommand is GetTrivySecretCommand as a value, for the log.
+func trivySecretCommand(target string, targetType TargetType, tool ToolSpec, server string) toolCmd {
 	tc, err := trivySecretArgs(target, targetType, tool, server)
 	if err != nil {
-		return ""
+		return toolCmd{}
 	}
-	return tc.String()
+	return tc
 }
 
 // RunTrivySecret executes Trivy with --scanners secret and returns findings.
