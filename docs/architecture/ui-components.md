@@ -922,7 +922,8 @@ the same hex as `ColorDim` on nine themes; under focus the two colours swap, so 
 The inactive tab label follows `ColorDim` on every theme (`tab_inactive_fg`, Rule 118).
 
 `ColorSeverityLow` no longer follows `ColorDim` in the shipped themes: it is also the LOW badge background, which
-`ColorSeverityLow`'s `_fg` has to read on. `token_cache_read` moved away from the new dim tone on nine themes
+`ColorSeverityLow`'s `_fg` has to read on. A theme that omits `severity_low` falls back to `ColorCmdLineBg`, not `ColorDim`, so the
+`ColorText` fallback of the badge stays readable (`TestAThemeWithoutSeverityLowKeepsAReadableLowBadge`, D177). `token_cache_read` moved away from the new dim tone on nine themes
 (`TestTokenColorsAreNotSeverityOrGaugeColours`).
 
 ## Dashboard clocks and terminal focus (DEVDESK-210)

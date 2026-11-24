@@ -368,12 +368,11 @@ func ApplyTheme(t *Theme) {
 	ColorSeverityHighFg = applyColor(t.SeverityHighFg, ColorBlack)
 	ColorSeverityMedium = applyColor(t.SeverityMedium, ColorWarn)
 	ColorSeverityMediumFg = applyColor(t.SeverityMediumFg, ColorBlack)
-	// Falls back to ColorDim rather than ColorCmdLineBg: a theme predating
-	// this recolouring that still sets severity_low explicitly keeps its own
-	// choice, but one that leaves it unset gets the new intent — "low
-	// severity" reading as unremarkable as a "0" count — rather than the old
-	// near-background tone by coincidence.
-	ColorSeverityLow = applyColor(t.SeverityLow, ColorDim)
+	// Falls back to ColorCmdLineBg, the low tone before DEVDESK-764, not to
+	// ColorDim: this colour is the LOW badge background, which the ColorText
+	// fallback of SeverityLowFg has to read on, and ColorDim is now a light text
+	// tone (4.5:1 on the background), about 2:1 under ColorText.
+	ColorSeverityLow = applyColor(t.SeverityLow, ColorCmdLineBg)
 	ColorSeverityLowFg = applyColor(t.SeverityLowFg, ColorText)
 	ColorSeverityInfo = applyColor(t.SeverityInfo, ColorSeverityInfo)
 	ColorSeverityInfoFg = applyColor(t.SeverityInfoFg, ColorText)

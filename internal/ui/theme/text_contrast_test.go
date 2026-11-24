@@ -145,3 +145,49 @@ func TestTheInactiveTabLabelReachesTextContrastOnEveryTheme(t *testing.T) {
 		}
 	})
 }
+
+// ColorFooterError and ColorFooterWarn alias the CRITICAL and MEDIUM badge
+// backgrounds, so the badge foregrounds have to read on them too.
+func TestTheCriticalAndMediumBadgesReachTextContrastOnEveryTheme(t *testing.T) {
+	eachShippedTheme(t, func(t *testing.T, name string) {
+		pairs := []struct {
+			what   string
+			fg, bg color.Color
+		}{
+			{"CRITICAL badge (ColorSeverityCriticalFg on ColorFooterError)", ColorSeverityCriticalFg, ColorFooterError},
+			{"MEDIUM badge (ColorSeverityMediumFg on ColorFooterWarn)", ColorSeverityMediumFg, ColorFooterWarn},
+		}
+		for _, p := range pairs {
+			ratio, err := ContrastRatio(p.fg, p.bg)
+			if err != nil {
+				t.Errorf("theme %s: %s: %v", name, p.what, err)
+				continue
+			}
+			if ratio < textMinContrast {
+				t.Errorf("theme %s: %s, %s on %s is %.2f:1, want >= %.1f:1",
+					name, p.what, Hex(p.fg), Hex(p.bg), ratio, textMinContrast)
+			}
+		}
+	})
+}
+
+// A theme written before severity_low existed, or by hand, may leave both LOW
+// keys out. The fallback pair has to stay readable: ColorDim is a light text
+// tone since DEVDESK-764 and would give ColorText on ColorDim, about 2:1.
+func TestAThemeWithoutSeverityLowKeepsAReadableLowBadge(t *testing.T) {
+	for name, th := range shippedThemes(t) {
+		t.Run(name, func(t *testing.T) {
+			bare := *th
+			bare.SeverityLow, bare.SeverityLowFg = "", ""
+			withTheme(t, &bare)
+			ratio, err := ContrastRatio(ColorSeverityLowFg, ColorSeverityLow)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if ratio < textMinContrast {
+				t.Errorf("theme %s without severity_low: %s on %s is %.2f:1, want >= %.1f:1",
+					name, Hex(ColorSeverityLowFg), Hex(ColorSeverityLow), ratio, textMinContrast)
+			}
+		})
+	}
+}

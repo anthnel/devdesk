@@ -145,3 +145,7 @@ header, active tab background: latte 4.34, dark-plus 3.43, solarized-dark 4.08, 
 3.43, solarized-light 4.06), `ColorSeverityLow` as a text colour (it kept the old dim tone, because it is also the LOW
 badge background), `button_inactive_fg` on `button_inactive_bg` (solarized-light 2.09), and the frame border (1.69 on
 nord, 2.30 on latte, under the 3:1 non-text threshold).
+
+Also left, found in review of this change: `cmd_line_inactive_fg` on `cmd_line_bg` (1.36 to 2.4:1), the foreground of the
+LOW badge (`severity_low_fg` on `severity_low`, 1.2 to 3.6:1) and of the HIGH badge (one-dark 2.95, solarized-dark 3.26,
+catppuccin-latte 3.48:1).

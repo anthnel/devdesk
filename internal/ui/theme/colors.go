@@ -182,11 +182,11 @@ var (
 
 	// Severity colors (background + foreground pairs)
 	//
-	// ColorSeverityLow falls back to ColorDim when a theme omits severity_low:
-	// a LOW finding is barely worth a glance next to CRITICAL/HIGH/MEDIUM, like
-	// a "0" count (inventory_table.go, countColumn). The shipped themes set it
-	// themselves since DEVDESK-764 raised ColorDim to 4.5:1 text contrast: the
-	// LOW badge background has to stay dark enough for SeverityLowFg.
+	// ColorSeverityLow falls back to ColorCmdLineBg when a theme omits
+	// severity_low (a dark tone, so that the ColorText fallback of
+	// SeverityLowFg reads on it). It is the LOW badge background, so it is not
+	// ColorDim: DEVDESK-764 raised ColorDim to 4.5:1 as a text colour, which
+	// makes it a light tone. The shipped themes set severity_low themselves.
 	ColorSeverityCritical   color.Color
 	ColorSeverityCriticalFg color.Color
 	ColorSeverityHigh       color.Color

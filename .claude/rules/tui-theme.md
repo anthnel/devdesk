@@ -13,7 +13,7 @@ paths:
 - Never hardcode colors directly in views
 - Reusable styles must be defined in `internal/ui/theme/styles.go`
 - Use the theme package's constants (ColorPrimary, ColorError, etc.)
-- A text colour reaches 4.5:1 (`theme.ContrastRatio`) on the surface it is painted on, on each shipped theme: `ColorText`, `ColorDim`, `ColorSubTitleFg`, `ColorWarn`, `ColorFooterWarn`, `ColorFooterError` (`TestEveryTextColourReachesItsContrastOnEveryTheme`, DEVDESK-764). A greyed label is never told apart by its shade alone: weight or italics too (Rule 130)
+- A text colour reaches 4.5:1 (`theme.ContrastRatio`) on the surface it is painted on, on each shipped theme: `ColorText`, `ColorDim`, `ColorSubTitleFg`, `ColorWarn`, `ColorFooterWarn`, `ColorFooterError` (`TestEveryTextColourReachesItsContrastOnEveryTheme`, DEVDESK-764). What tells "greyed" or "secondary" apart is not always the shade, and the code holds exactly this: the disabled button is italic (`TestTheDisabledButtonDiffersFromAnEnabledOneByMoreThanColour`); a greyed shortcut keeps its key without bold or a vivid colour; secondary text (`DimStyle`) gets its hierarchy from position and weight, not from italics. On solarized-dark, solarized-light and catppuccin-latte `ColorDim` and `ColorText` are nearly the same tone (delta E 5.6, 0.8 and 4.6), a known limit measured in `docs/measurements/2026-11-24-theme-text-contrast.md` (Rule 130)
 
 ### Rule 105 : Help message format
 
@@ -103,10 +103,10 @@ means "this whole row is in that state," which per-cell colour would fight.
 
 `ColorTableLineSelected` (`table_line_selected` in a theme file) is its own
 key rather than an alias of `ColorSeverityLow`, on purpose: `ColorSeverityLow`
-now points at the same tone as `ColorDim` — the colour the `:sec` inventory
-already uses for a "0" count (Rule 122's "Color discipline") — so a theme
-tuning "how muted is a LOW finding" no longer also retunes the selection
-highlight by coincidence. Both keys default to the same hex the "normal"
+was set to the same tone as `ColorDim` (D177 replaces that: `ColorDim` is now a
+light text tone at 4.5:1, and `ColorSeverityLow` is also the LOW badge background,
+so it kept the old darker tone) — so a theme tuning "how muted is a LOW finding"
+no longer also retunes the selection highlight by coincidence. Both keys default to the same hex the "normal"
 selection has always used, so nothing changes on screen from this split by
 itself.
 
