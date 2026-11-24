@@ -244,6 +244,21 @@ no line, so it could feed neither the table's jump-to-line nor a fix.
   directories, `node_modules` and `vendor` are skipped. A repository with no
   manifest runs nothing — kubeconform with no file argument reads stdin and
   would wait there.
+- **A folder or a file whose name starts with `-` is kept, and passed as a
+  path** (DEVDESK-763). The names come from the scanned repository, so
+  `--load-restrictor=LoadRestrictionsNone/kustomization.yaml` or `-x/Chart.yaml`
+  must not become an option. Discovery keeps them (only `.`-hidden directories,
+  `node_modules` and `vendor` are skipped; `TestDiscoverKeepsAFolderWhoseNameStartsWithADash`),
+  dropping one would leave a chart unvalidated without a word. `helmArgs` and
+  `kustomizeArgs` pass such a folder as `./<name>` (`asPathArg`; `--` was
+  measured to work on helm 4.3.1 and kustomize 5.8.3 too, but `./` does not
+  depend on where the user's own arguments land), and `kubeconformArgs` puts
+  `--` before its files when one starts with `-` (`afterOptions`; kubeconform
+  reports the file under the name it was given). Every other name, nested ones
+  such as `charts/-x` included, keeps its exact argv. The `./` is only in the
+  argument: findings, steps and file paths carry the folder's own name, and the
+  Repro still refuses it (`reproLine`). The Steps still write the bare name in
+  their command text (`Run helm template -x ...`).
 - **Charts and Kustomize roots are set apart.** A template is not YAML until
   helm renders it, and a Kustomize patch is a fragment that fails the schema
   on its own. Their files are never validated raw. Only the **outermost**

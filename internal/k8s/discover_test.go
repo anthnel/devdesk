@@ -99,3 +99,30 @@ func TestDiscoverRendersOnlyTheKustomizeLeaves(t *testing.T) {
 		t.Errorf("Manifests = %v, want none: every file is under a Kustomize root", layout.Manifests)
 	}
 }
+
+// DEVDESK-763: a folder named like an option is a folder of the repository like
+// any other. Discovery keeps it, under its own name, and the scan passes it to
+// the renderers as a path (internal/scan, TestADashFolder*): dropping it would
+// leave the chart or the overlay unvalidated without a word.
+func TestDiscoverKeepsAFolderWhoseNameStartsWithADash(t *testing.T) {
+	root := writeTree(t, map[string]string{
+		"--load-restrictor=LoadRestrictionsNone/kustomization.yaml": "resources: []\n",
+		"-x/Chart.yaml":      "apiVersion: v2\nname: x\nversion: 0.1.0\n",
+		"-plain/deploy.yaml": deployment,
+		"-m.yaml":            deployment,
+	})
+
+	layout, err := Discover(root)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	want := Layout{
+		Manifests:      []string{"-m.yaml", "-plain/deploy.yaml"},
+		Charts:         []string{"-x"},
+		Kustomizations: []string{"--load-restrictor=LoadRestrictionsNone"},
+	}
+	if !reflect.DeepEqual(layout, want) {
+		t.Errorf("layout = %+v, want %+v", layout, want)
+	}
+}

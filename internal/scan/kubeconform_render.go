@@ -252,11 +252,24 @@ func renderRepro(tool ToolSpec, name, sub, target string) (string, ToolSource) {
 }
 
 func helmArgs(scope renderScope, chart string, tool ToolSpec, sub string) toolCmd {
-	return renderer(scope, tool, DefaultHelmImage, "helm", sub, chart)
+	return renderer(scope, tool, DefaultHelmImage, "helm", sub, asPathArg(chart))
 }
 
 func kustomizeArgs(scope renderScope, dir string, tool ToolSpec) toolCmd {
-	return renderer(scope, tool, DefaultKustomizeImage, "kustomize", "build", dir)
+	return renderer(scope, tool, DefaultKustomizeImage, "kustomize", "build", asPathArg(dir))
+}
+
+// asPathArg is dir as a positional argument of helm or kustomize. The folder's
+// name comes from the repository being scanned, and one that starts with "-"
+// (--load-restrictor=LoadRestrictionsNone, -x) would be read as an option
+// (DEVDESK-763). "./" makes it a path whatever the tool and wherever the user's
+// own arguments land; every other name is passed as it is. Only the argument is
+// changed: the findings, their steps and the Repro keep the folder's own name.
+func asPathArg(dir string) string {
+	if strings.HasPrefix(dir, "-") {
+		return "./" + dir
+	}
+	return dir
 }
 
 // kubeconformStdinArgs validates what arrives on stdin. A container gets -i
