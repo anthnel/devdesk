@@ -1,0 +1,68 @@
+{
+  "cli_version": "0.13.2",
+  "checkpoint_id": "4090f7453359",
+  "strategy": "manual-commit",
+  "branch": "fix/devdesk-767-offline-render",
+  "checkpoints_count": 1,
+  "files_touched": [
+    "docs-site/docs/explanation/scanning.md",
+    "docs-site/docs/reference/configuration.md",
+    "docs/architecture/configuration.md",
+    "docs/architecture/network.md",
+    "docs/architecture/scanning.md",
+    "docs/backlog.md",
+    "internal/config/config.go",
+    "internal/config/scan_kustomize_test.go",
+    "internal/config/scan_migrate.go",
+    "internal/config/scan_migrate_test.go",
+    "internal/config/scan_tools.go",
+    "internal/scan/container_run.go",
+    "internal/scan/kubeconform.go",
+    "internal/scan/kubeconform_render.go",
+    "internal/scan/render_network.go",
+    "internal/scan/render_network_test.go",
+    "internal/scan/steps.go",
+    "internal/scan/steps_guard_test.go",
+    "internal/scan/steps_test.go",
+    "internal/ui/configuration/kustomize_remote_bases_test.go",
+    "internal/ui/configuration/scan_fields.go"
+  ],
+  "sessions": [
+    {
+      "metadata": "/40/90f7453359/0/metadata.json",
+      "transcript": "/40/90f7453359/0/full.jsonl",
+      "compact_transcript": "/40/90f7453359/0/transcript.jsonl",
+      "content_hash": "/40/90f7453359/0/content_hash.txt",
+      "prompt": "/40/90f7453359/0/prompt.txt"
+    }
+  ],
+  "token_usage": {
+    "input_tokens": 16,
+    "cache_creation_tokens": 12858,
+    "cache_read_tokens": 1281515,
+    "output_tokens": 5741,
+    "api_call_count": 5,
+    "subagent_tokens": {
+      "input_tokens": 110,
+      "cache_creation_tokens": 456298,
+      "cache_read_tokens": 4586169,
+      "output_tokens": 32614,
+      "api_call_count": 52
+    },
+    "subagent_tokens_complete": true
+  },
+  "redaction": {
+    "replacements": 15,
+    "layers": {
+      "betterleaks": 0,
+      "connection_string": 0,
+      "credential_key": 0,
+      "credential_value": 0,
+      "credentialed_uri": 3,
+      "entropy": 11,
+      "key_context": 1,
+      "provider_token": 0,
+      "shell_stdin": 0
+    }
+  }
+}
