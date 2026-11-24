@@ -1,0 +1,15 @@
+{
+  "tool_use_id": "toolu_01NivU9jbUfEAug4X4Sbrz9H",
+  "agent_id": "aa64ed93dbd98f618",
+  "subagent_type": "dev-team:security-reviewer",
+  "task_description": "Audit sécurité DEVDESK-763",
+  "token_usage": {
+    "input_tokens": 40,
+    "cache_creation_tokens": 70585,
+    "cache_read_tokens": 1069110,
+    "output_tokens": 12981,
+    "api_call_count": 20
+  },
+  "started_at": "2026-11-24T18:16:40.301576403+01:00",
+  "completed_at": "2026-11-24T18:19:05.944865541+01:00"
+}

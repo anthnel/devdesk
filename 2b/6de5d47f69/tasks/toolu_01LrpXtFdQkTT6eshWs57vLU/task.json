@@ -1,0 +1,15 @@
+{
+  "tool_use_id": "toolu_01LrpXtFdQkTT6eshWs57vLU",
+  "agent_id": "af6ca22ef958f7209",
+  "subagent_type": "project-coder",
+  "task_description": "DEVDESK-765 barre d'onglets",
+  "token_usage": {
+    "input_tokens": 70,
+    "cache_creation_tokens": 83595,
+    "cache_read_tokens": 2040742,
+    "output_tokens": 20388,
+    "api_call_count": 35
+  },
+  "started_at": "2026-11-24T18:09:35.952439013+01:00",
+  "completed_at": "2026-11-24T18:18:24.508332223+01:00"
+}
