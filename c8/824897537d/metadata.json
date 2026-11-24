@@ -1,0 +1,65 @@
+{
+  "cli_version": "0.13.2",
+  "checkpoint_id": "c8824897537d",
+  "strategy": "manual-commit",
+  "branch": "fix/devdesk-770-theme-text-contrast",
+  "checkpoints_count": 1,
+  "files_touched": [
+    "docs/architecture/ui-components.md",
+    "docs/backlog.md",
+    "docs/measurements/2026-11-24-theme-text-contrast-2.md",
+    "internal/ui/theme/manager.go",
+    "internal/ui/theme/text_contrast_test.go",
+    "internal/ui/theme/tune_test.go",
+    "themes/catppuccin-frappe.json",
+    "themes/catppuccin-latte.json",
+    "themes/catppuccin-macchiato.json",
+    "themes/catppuccin-mocha.json",
+    "themes/dark-plus.json",
+    "themes/github-dark.json",
+    "themes/github-light.json",
+    "themes/nord.json",
+    "themes/one-dark.json",
+    "themes/solarized-dark.json",
+    "themes/solarized-light.json",
+    "themes/tokyo-night.json"
+  ],
+  "sessions": [
+    {
+      "metadata": "/c8/824897537d/0/metadata.json",
+      "transcript": "/c8/824897537d/0/full.jsonl",
+      "compact_transcript": "/c8/824897537d/0/transcript.jsonl",
+      "content_hash": "/c8/824897537d/0/content_hash.txt",
+      "prompt": "/c8/824897537d/0/prompt.txt"
+    }
+  ],
+  "token_usage": {
+    "input_tokens": 8,
+    "cache_creation_tokens": 15672,
+    "cache_read_tokens": 713246,
+    "output_tokens": 5796,
+    "api_call_count": 3,
+    "subagent_tokens": {
+      "input_tokens": 72,
+      "cache_creation_tokens": 224123,
+      "cache_read_tokens": 3888842,
+      "output_tokens": 22392,
+      "api_call_count": 36
+    },
+    "subagent_tokens_complete": true
+  },
+  "redaction": {
+    "replacements": 4,
+    "layers": {
+      "betterleaks": 0,
+      "connection_string": 0,
+      "credential_key": 0,
+      "credential_value": 0,
+      "credentialed_uri": 3,
+      "entropy": 0,
+      "key_context": 1,
+      "provider_token": 0,
+      "shell_stdin": 0
+    }
+  }
+}
