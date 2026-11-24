@@ -897,6 +897,35 @@ A view must not use it. Going through here would be a second way to do what a
 field already does, and the message would be adopted by whatever view is active
 rather than by the one that meant it.
 
+## Text contrast on the shipped themes (DEVDESK-764)
+
+Six text colours (`ColorText`, `ColorDim`, `ColorSubTitleFg`, `ColorWarn`, `ColorFooterWarn`,
+`ColorFooterError`) reach 4.5:1 (`theme.ContrastRatio`) on the surface they are painted on, on each of the 13
+shipped themes. `TestEveryTextColourReachesItsContrastOnEveryTheme`
+(`internal/ui/theme/text_contrast_test.go`) names the theme, the colour, the surface and the measured ratio when one
+does not. The surfaces and the figures are in `docs/measurements/2026-11-24-theme-text-contrast.md`:
+
+- `ColorBackground` for all six;
+- `ColorTableLineSelected` (a selected row keeps each cell's foreground, Rule 118) for `ColorText`, `ColorDim` and
+  `ColorWarn` at 4.5:1, and for the two footer colours at 3:1 (there they are a dot or an icon);
+- `ColorCmdLineBg` (palette, chart, disabled button) for `ColorText` and `ColorDim`.
+
+A theme file departs from its official palette for a faulty text colour only, by the smallest lightness step in the
+same hue. A new theme, or a retuned key, fails the test until it reaches the threshold.
+
+**An inactive component is told apart by more than colour.** Raising `ColorDim` brings a greyed label closer to
+`ColorText`, so the signal never rests on the shade. A greyed header shortcut loses its colour and its weight (bold
+key against a regular one, Rule 130). A disabled button (`theme.ButtonStyle(focused, "disabled")`) is italic, which no
+enabled button is, and it sits on the raised surface (`ColorCmdLineBg`) instead of `ColorButtonInactiveBg`, which is
+the same hex as `ColorDim` on nine themes; under focus the two colours swap, so the width does not change
+(`TestTheDisabledButtonDiffersFromAnEnabledOneByMoreThanColour`, `TestTheDisabledButtonLabelReachesTextContrastOnEveryTheme`).
+The inactive tab label follows `ColorDim` on every theme (`tab_inactive_fg`, Rule 118).
+
+`ColorSeverityLow` no longer follows `ColorDim` in the shipped themes: it is also the LOW badge background, which
+`ColorSeverityLow`'s `_fg` has to read on. A theme that omits `severity_low` falls back to `ColorCmdLineBg`, not `ColorDim`, so the
+`ColorText` fallback of the badge stays readable (`TestAThemeWithoutSeverityLowKeepsAReadableLowBadge`, D177). `token_cache_read` moved away from the new dim tone on nine themes
+(`TestTokenColorsAreNotSeverityOrGaugeColours`).
+
 ## Dashboard clocks and terminal focus (DEVDESK-210)
 
 The dashboard runs three independent clocks (`internal/ui/dashboard/model.go`):

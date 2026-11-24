@@ -451,14 +451,18 @@ func ButtonStyle(focused bool, variant string) lipgloss.Style {
 	style := lipgloss.NewStyle().
 		Padding(0, 2)
 
-	// A disabled button is advertised but cannot act (Rule 130): dim text on
-	// the inactive background; under focus the background switches to the
-	// focused one (text stays dim) so the cursor is visible at the same width.
+	// A disabled button is advertised but cannot act (Rule 130): dim italic text
+	// on the raised surface (ColorCmdLineBg). It does not use the inactive button
+	// background, which is the same hex as ColorDim on most themes and left the
+	// label unreadable (DEVDESK-764). Italic is the signal that is not a colour:
+	// no enabled button is italic. Under focus the two colours swap, so the
+	// cursor is visible at the same width and the pair keeps its 4.5:1.
 	if variant == "disabled" {
+		style = style.Italic(true)
 		if focused {
-			return style.Background(ColorButtonBg).Foreground(ColorDim)
+			return style.Background(ColorDim).Foreground(ColorCmdLineBg)
 		}
-		return style.Background(ColorButtonInactiveBg).Foreground(ColorDim)
+		return style.Background(ColorCmdLineBg).Foreground(ColorDim)
 	}
 
 	if focused {

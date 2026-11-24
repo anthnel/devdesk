@@ -2,12 +2,12 @@
   "name": "catppuccin-frappe",
   "color_ok": "#a6d189",
   "color_error": "#e78284",
-  "color_warn": "#ef9f76",
+  "color_warn": "#efa178",
   "color_primary": "#ca9ee6",
   "color_secondary": "#babbf1",
   "color_border": "#737994",
   "color_text": "#c6d0f5",
-  "color_dim": "#626880",
+  "color_dim": "#afb3c2",
   "color_highlight": "#e5c890",
   "color_white": "#c6d0f5",
   "color_black": "#303446",
@@ -21,7 +21,7 @@
   "button_inactive_bg": "#626880",
   "tab_active_fg": "#303446",
   "tab_active_bg": "#babbf1",
-  "tab_inactive_fg": "#626880",
+  "tab_inactive_fg": "#afb3c2",
   "tab_inactive_bg": "#414559",
   "table_header_fg": "#babbf1",
   "table_line_selected": "#414559",
@@ -42,5 +42,5 @@
   "token_input": "#86a7ea",
   "token_output": "#c99de7",
   "token_cache_write": "#e2c68d",
-  "token_cache_read": "#979eba"
+  "token_cache_read": "#e8eaf0"
 }

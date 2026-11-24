@@ -8,8 +8,8 @@ import (
 )
 
 // DEVDESK-470 step 1: a "disabled" button variant, for a button that is
-// advertised but cannot act (Rule 130). Dim text on the inactive background,
-// the focused background (still dim text) when it holds focus.
+// advertised but cannot act (Rule 130). Dim italic text on the raised surface,
+// the two colours swapped when it holds focus (DEVDESK-764).
 
 func sameColor(a, b color.Color) bool {
 	if a == nil || b == nil {
@@ -21,21 +21,22 @@ func sameColor(a, b color.Color) bool {
 }
 
 func TestButtonDisabledColors(t *testing.T) {
+	// DEVDESK-764: dim italic on the raised surface; under focus the two swap.
 	for _, tc := range []struct {
 		name    string
 		focused bool
-		bg      color.Color
+		fg, bg  func() color.Color
 	}{
-		{"unfocused", false, ColorButtonInactiveBg},
-		{"focused", true, ColorButtonBg},
+		{"unfocused", false, func() color.Color { return ColorDim }, func() color.Color { return ColorCmdLineBg }},
+		{"focused", true, func() color.Color { return ColorCmdLineBg }, func() color.Color { return ColorDim }},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			s := ButtonStyle(tc.focused, "disabled")
-			if got := s.GetForeground(); !sameColor(got, ColorDim) {
-				t.Errorf("foreground = %v, want ColorDim", got)
+			if got := s.GetForeground(); !sameColor(got, tc.fg()) {
+				t.Errorf("foreground = %v, want %v", got, tc.fg())
 			}
-			if got := s.GetBackground(); !sameColor(got, tc.bg) {
-				t.Errorf("background = %v, want %v", got, tc.bg)
+			if got := s.GetBackground(); !sameColor(got, tc.bg()) {
+				t.Errorf("background = %v, want %v", got, tc.bg())
 			}
 		})
 	}
