@@ -19,15 +19,17 @@ import (
 // stepProblems checks what can be checked without judging prose:
 //
 //	S1  no key name: a modifier chord (ctrl+, alt+, shift+, cmd+), `esc` or `ctrl`
-//	    on their own, a letter between angle brackets (<Y>, <Enter>), a function key
-//	    (F1 to F12), "<name> key" for a usual key name, and the words press, hit,
-//	    keystroke, keybinding and shortcut;
+//	    on their own, a usual key name or a capital letter between angle brackets
+//	    (<Y>, <Enter>; a placeholder such as <chart> is fine), a function key
+//	    (F1 to F12), "<name> key" for a usual key name, "hit the key" or "hit the
+//	    button", and the words press, keystroke, keybinding and shortcut;
 //	S2  no step is empty, padded with blanks, or spread over several lines;
-//	S3  a step starts with a capital letter, except right after a step that ends in
-//	    ", or" (the two-step alternative of a load restrictor failure, written that
-//	    way before the convention; its test pins the exact text);
-//	S4  a step ends with a period, except one that ends in ", or" and is followed by
-//	    its alternative;
+//	S3  a step starts with a capital letter, except the "move the file below ..." step
+//	    right after the exact legacy step below;
+//	S4  a step ends with a period, except the legacy step "Reference a directory that
+//	    has its own kustomization.yaml, or" when "move the file below ..." follows it
+//	    (the two-step alternative of a load restrictor failure, written before the
+//	    convention and pinned by several tests and the cache: inherited, not a model);
 //	S5  no step appears twice in the list.
 //
 // What it does not check, because no reliable check exists: that the first word is an
@@ -37,13 +39,39 @@ import (
 var keyNamePatterns = []*regexp.Regexp{
 	regexp.MustCompile(`(?i)\b(?:ctrl|alt|shift|cmd|super)\+`),
 	regexp.MustCompile(`(?i)\b(?:ctrl|esc)\b`),
-	regexp.MustCompile(`<[A-Za-z][A-Za-z0-9]*>`),
+	regexp.MustCompile(`<(?:Enter|Esc|Tab|Space|Ctrl|Alt|Shift|[A-Z])>`),
 	regexp.MustCompile(`\bF(?:[1-9]|1[0-2])\b`),
 	regexp.MustCompile(`(?i)\b(?:enter|return|esc|escape|tab|space|backspace|delete|arrow|up|down|left|right)\s+key\b`),
-	regexp.MustCompile(`(?i)\b(?:press|presses|pressed|pressing|hit|keystrokes?|keybindings?|shortcuts?)\b`),
+	regexp.MustCompile(`(?i)\b(?:press|presses|pressed|pressing|keystrokes?|keybindings?|shortcuts?)\b`),
+	regexp.MustCompile(`(?i)\bhit\s+(?:the\s+)?(?:key|button)\b`),
 }
 
-const alternativeEnd = ", or"
+const loadRestrictorAlternative = "Reference a directory that has its own kustomization.yaml, or"
+
+// legacyAlternativeStep and legacyAlternativePartner are the one two-step alternative
+// that predates the convention: the text of a load restrictor failure in steps.go,
+// pinned by several tests and by the scan cache. It is inherited, not a model: a new
+// alternative is two sentences that each end with a period.
+const legacyAlternativePartner = "move the file below "
+
+// stepsFunctionsOutsideStepsGo lists the *Steps functions (and methods) defined in a
+// file other than steps.go. TestEveryStepsFunctionHasASample reads steps.go only, so
+// the provenance rule P2 (a Steps comes from a *Steps function) is only sound if no
+// such function lives elsewhere.
+func stepsFunctionsOutsideStepsGo(sources []guardSource) []string {
+	var out []string
+	for _, src := range sources {
+		if src.name == "steps.go" {
+			continue
+		}
+		for _, d := range src.file.Decls {
+			if fd, ok := d.(*ast.FuncDecl); ok && strings.HasSuffix(fd.Name.Name, "Steps") {
+				out = append(out, pos(src, fd)+": "+fd.Name.Name+" is a *Steps function outside steps.go: move it there so stepSamples covers it")
+			}
+		}
+	}
+	return out
+}
 
 func stepProblems(steps []string) []string {
 	var problems []string
@@ -62,7 +90,7 @@ func stepProblems(steps []string) []string {
 				problems = append(problems, fmt.Sprintf("%s: names a key (%q)", label, m))
 			}
 		}
-		afterAlternative := i > 0 && strings.HasSuffix(steps[i-1], alternativeEnd)
+		afterAlternative := i > 0 && steps[i-1] == loadRestrictorAlternative && strings.HasPrefix(s, legacyAlternativePartner)
 		first, _ := utf8.DecodeRuneInString(s)
 		if !unicode.IsUpper(first) && !afterAlternative {
 			problems = append(problems, label+": does not start with a capital letter")
@@ -70,7 +98,7 @@ func stepProblems(steps []string) []string {
 		last := i == len(steps)-1
 		switch {
 		case strings.HasSuffix(s, "."):
-		case strings.HasSuffix(s, alternativeEnd) && !last:
+		case s == loadRestrictorAlternative && !last && strings.HasPrefix(steps[i+1], legacyAlternativePartner):
 		default:
 			problems = append(problems, label+": does not end with a period")
 		}
@@ -101,11 +129,28 @@ func TestTheStepGuardCatchesWhatTheConventionForbids(t *testing.T) {
 		{"a duplicate", []string{"Run it.", "Run it."}, "twice"},
 		{"a dangling alternative", []string{"Do this, or"}, "period"},
 		{"a lowercase step after a plain one", []string{"Do this.", "do that."}, "capital letter"},
+		{"an angle key, named", []string{"Open the menu with <Enter>."}, "names a key"},
+		{"hit the key", []string{"Hit the key shown in the footer."}, "names a key"},
+		{"another alternative ending in or", []string{"Do this, or", "Do that."}, "period"},
+		{"a lowercase step after another alternative", []string{"Do this, or", "do that."}, "capital letter"},
+		{"the legacy alternative without its partner", []string{loadRestrictorAlternative, "Do that."}, "period"},
 	}
 	for _, c := range cases {
 		got := strings.Join(stepProblems(c.steps), "\n")
 		if !strings.Contains(got, c.want) {
 			t.Errorf("%s: problems = %q, want one mentioning %q", c.name, got, c.want)
+		}
+	}
+}
+
+func TestTheStepGuardIgnoresPlaceholdersAndCacheHits(t *testing.T) {
+	for _, steps := range [][]string{
+		{"Run helm template <chart> and fix the first error it reports."},
+		{"Check the cache hit rate in the report."},
+		{"Clear the <cache-dir> directory."},
+	} {
+		if problems := stepProblems(steps); len(problems) > 0 {
+			t.Errorf("%q flagged: %v", steps, problems)
 		}
 	}
 }
@@ -174,6 +219,26 @@ func TestEveryStepsFunctionHasASample(t *testing.T) {
 		if !slices.Contains(discovered, name) {
 			t.Errorf("stepSamples has %s, which steps.go no longer defines", name)
 		}
+	}
+}
+
+func TestAStepsFunctionOutsideStepsGoIsRefused(t *testing.T) {
+	sources := parseGuardSources(t, map[string]string{
+		"steps.go": "package scan\nfunc okSteps() []string { return nil }\n",
+		"other.go": "package scan\nfunc fooSteps() []string { return []string{\"free text\"} }\n",
+	})
+	got := stepsFunctionsOutsideStepsGo(sources)
+	if len(got) != 1 || !strings.Contains(got[0], "fooSteps") {
+		t.Errorf("stepsFunctionsOutsideStepsGo = %q, want only fooSteps", got)
+	}
+	if got := stepsFunctionsOutsideStepsGo(sources[1:]); len(got) != 0 {
+		t.Errorf("a function of steps.go flagged: %q", got)
+	}
+}
+
+func TestEveryStepsFunctionOfThePackageIsDefinedInStepsGo(t *testing.T) {
+	for _, v := range stepsFunctionsOutsideStepsGo(parseGuardSources(t, packageGuardSources(t))) {
+		t.Error(v)
 	}
 }
 

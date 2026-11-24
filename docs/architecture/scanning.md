@@ -730,15 +730,20 @@ depth. Two tests in `internal/scan` hold what a machine can hold:
 - `steps_guard_test.go` reads every list a `*Steps` function of `steps.go` returns (inputs for each
   branch, in `stepSamples`; `TestEveryStepsFunctionHasASample` finds the functions by parsing
   `steps.go`, so a new one that has no sample fails) and fails on a key name (a `ctrl+`, `alt+`,
-  `shift+` or `cmd+` chord, `esc`, `ctrl`, a letter between angle brackets, `F1` to `F12`, "enter key" and
-  its kin, the words press, hit, keystroke, keybinding, shortcut), an empty or multi-line step, a step
+  `shift+` or `cmd+` chord, `esc`, `ctrl`, a usual key name or a capital letter between angle brackets
+  (`<Enter>`, `<Y>`; a placeholder such as `<chart>` is fine), `F1` to `F12`, "enter key" and its kin,
+  "hit the key", the words press, keystroke, keybinding, shortcut), an empty or multi-line step, a step
   that does not start with a capital letter or end with a period, and a duplicate. The one exception is
-  the two-step alternative of a load restrictor failure, where a step ending in ", or" is followed by a
-  lowercase one. Not checked, for lack of a reliable check: that the first word is an imperative verb,
+  inherited, and must not serve as a model: the exact two-step alternative of a load restrictor failure
+  ("Reference a directory that has its own kustomization.yaml, or" then "move the file below ..."), whose
+  text is frozen by several tests and the scan cache. Any other step ending in ", or" is refused; write
+  alternatives as separate sentences that each end with a period. Not checked, for lack of a reliable check: that the first word is an imperative verb,
   that a step holds one action, that the English is US; a bare "enter" or "tab" is not flagged (also a verb or a noun).
 - `provenance_guard_test.go` parses the non-test sources of `internal/scan` and fails when a `Repro` of a
   `Finding` is set from anything but `localRepro` or a wrapper the guard finds by itself (a function whose
-  every return is a call to a producer), and when a `Steps` is set from anything but a `*Steps` function.
+  every return is a call to a producer), and when a `Steps` is set from anything but a `*Steps` function; a second test fails on any `*Steps`
+  function defined outside `steps.go` (the only file `stepSamples` covers), so a free-text producer cannot
+  hide behind the name.
   A site is `Repro: x`, `f.Repro = x` or `f.Repro, f.RanFrom = a, b`; `x` must be a producer call, a name only a
   producer defined in the function, or a parameter that every caller in the package feeds that way. Each
   rule has a synthetic source that breaks it and must be flagged, so the detector can fail. Limits: it matches

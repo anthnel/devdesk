@@ -22,9 +22,11 @@ import (
 //	    producer) returned, so the PlainWords refusal, the "no line from a
 //	    container" rule and the "never copy the user's arguments" rule always
 //	    apply. The empty string is allowed.
-//	P2  a Steps of a Finding is only ever a value a *Steps function returned (the
-//	    functions of steps.go), so the content guard of steps_guard_test.go sees
-//	    every step a finding can carry. nil is allowed.
+//	P2  a Steps of a Finding is only ever a value a *Steps function returned, and
+//	    every *Steps function of the package is defined in steps.go
+//	    (stepsFunctionsOutsideStepsGo), the only file the content guard of
+//	    steps_guard_test.go samples, so it sees every step a finding can carry.
+//	    nil is allowed.
 //
 // A site is `Repro: x` in a composite literal, `y.Repro = x`, or the tuple form
 // `y.Repro, y.RanFrom = a, b`. x is accepted when it is a call to a producer, a
