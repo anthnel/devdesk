@@ -1554,7 +1554,7 @@ behind it to be unavailable.
 Two levels (D2): the runs, and `→` on one of them for its targets. A level
 rather than a pair of tabs — the second table is *about* a row of the first, so
 it is reached the way every drill-down in the application is (Rule 111), and the
-trail is a breadcrumb below the table (Rule 123).
+trail is a breadcrumb below the table (Rule 123). It goes through `theme.RenderTrail`, so a long run label is cut to the line instead of wrapping (DEVDESK-769, `ui-components.md`).
 
 | | Columns |
 |---|---|

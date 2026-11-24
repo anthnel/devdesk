@@ -182,7 +182,7 @@ func (m Model) renderTabBar() string {
 		tabs = append(tabs, theme.TabItem{Label: theme.IconDirectory + " " + pathBaseName(m.currentPath)})
 	}
 
-	return theme.PadWithBg(theme.Bg(" ")+theme.RenderTabs(tabs, m.activeTabIndex), m.width)
+	return theme.RenderTrail(tabs, m.width)
 }
 
 // pathBaseName returns the last component of a filesystem path.

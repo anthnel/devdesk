@@ -273,8 +273,10 @@ func (m Model) Render() string {
 
 **Mandatory left padding** (1 character to align with the viewport):
 ```go
-// ✅ CORRECT
+// ✅ CORRECT: a navigable tab bar (fixed labels)
 return theme.PadWithBg(theme.Bg(" ") + theme.RenderTabs(tabs, activeIdx), width)
+// ✅ CORRECT: a breadcrumb trail (variable labels) adds the margin and fits the width itself
+return theme.RenderTrail(tabs, width)
 // ❌ WRONG: tabs stuck to the left edge
 return theme.PadWithBg(theme.RenderTabs(tabs, activeIdx), width)
 ```
@@ -289,6 +291,8 @@ parentheses right after the title (`FrameTrailView`, see `app-shell.md`):
 
 The Agents/Breakdown tab row stays under the table, with its one-cell margin.
 `:jobs` keeps its breadcrumb under the table (not migrated).
+
+**A trail of variable length goes through `theme.RenderTrail(tabs, width)`** (DEVDESK-769), never through a hand-written `PadWithBg(Bg(" ")+RenderTabs(...))`: when it does not fit, the head becomes a `…` pill, the current (last) segment stays and is cut at its end if it must be (`docs/architecture/ui-components.md`). A navigable tab bar of fixed labels keeps `RenderTabs`.
 
 Forbidden:
 - ❌ Tabs ABOVE the table

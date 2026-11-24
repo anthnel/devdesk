@@ -221,7 +221,7 @@ func (m Model) renderRegistryBreadcrumb(width int) string {
 		{Label: "Registries"},
 		{Label: browserAlias(*group)},
 	}
-	return theme.PadWithBg(theme.Bg(" ")+theme.RenderTabs(tabs, 1), width)
+	return theme.RenderTrail(tabs, width)
 }
 
 // renderTabBar renders the tab bar below the viewport (Rule 123)
