@@ -1,0 +1,46 @@
+{
+  "cli_version": "0.13.2",
+  "checkpoint_id": "9b25b6314537",
+  "strategy": "manual-commit",
+  "branch": "docs/finding-text-convention",
+  "checkpoints_count": 2,
+  "files_touched": null,
+  "sessions": [
+    {
+      "metadata": "/9b/25b6314537/0/metadata.json",
+      "transcript": "/9b/25b6314537/0/full.jsonl",
+      "compact_transcript": "/9b/25b6314537/0/transcript.jsonl",
+      "content_hash": "/9b/25b6314537/0/content_hash.txt",
+      "prompt": "/9b/25b6314537/0/prompt.txt"
+    }
+  ],
+  "token_usage": {
+    "input_tokens": 12,
+    "cache_creation_tokens": 8603,
+    "cache_read_tokens": 1875327,
+    "output_tokens": 2320,
+    "api_call_count": 4,
+    "subagent_tokens": {
+      "input_tokens": 36,
+      "cache_creation_tokens": 147539,
+      "cache_read_tokens": 957460,
+      "output_tokens": 14744,
+      "api_call_count": 17
+    },
+    "subagent_tokens_complete": true
+  },
+  "redaction": {
+    "replacements": 29,
+    "layers": {
+      "betterleaks": 0,
+      "connection_string": 0,
+      "credential_key": 0,
+      "credential_value": 0,
+      "credentialed_uri": 9,
+      "entropy": 5,
+      "key_context": 15,
+      "provider_token": 0,
+      "shell_stdin": 0
+    }
+  }
+}

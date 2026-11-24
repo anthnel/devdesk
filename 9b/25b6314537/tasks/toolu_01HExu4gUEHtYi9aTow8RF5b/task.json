@@ -1,0 +1,15 @@
+{
+  "tool_use_id": "toolu_01HExu4gUEHtYi9aTow8RF5b",
+  "agent_id": "adc0a3f49bf1fe23c",
+  "subagent_type": "dev-team:reviewer",
+  "task_description": "Revue de la convention et des gardes",
+  "token_usage": {
+    "input_tokens": 14,
+    "cache_creation_tokens": 79608,
+    "cache_read_tokens": 305670,
+    "output_tokens": 4864,
+    "api_call_count": 6
+  },
+  "started_at": "2026-11-24T17:40:35.121173845+01:00",
+  "completed_at": "2026-11-24T17:41:22.050859891+01:00"
+}
