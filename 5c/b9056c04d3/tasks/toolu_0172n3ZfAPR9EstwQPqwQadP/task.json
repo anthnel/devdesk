@@ -1,0 +1,15 @@
+{
+  "tool_use_id": "toolu_0172n3ZfAPR9EstwQPqwQadP",
+  "agent_id": "a321de1e1f54ec2b4",
+  "subagent_type": "project-coder",
+  "task_description": "Green DEVDESK-770 B",
+  "token_usage": {
+    "input_tokens": 122,
+    "cache_creation_tokens": 221099,
+    "cache_read_tokens": 9561870,
+    "output_tokens": 46500,
+    "api_call_count": 59
+  },
+  "started_at": "2026-11-24T22:29:36.728271092+01:00",
+  "completed_at": "2026-11-24T22:39:55.714001388+01:00"
+}
