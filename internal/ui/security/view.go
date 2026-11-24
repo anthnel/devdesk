@@ -112,7 +112,7 @@ func (m Model) RenderFooter(width int) string {
 		parts = append(parts, bar.View())
 	}
 	if m.showsResultTabs() {
-		parts = append(parts, theme.PadWithBg(theme.Bg(" ")+m.renderTabs(width), width))
+		parts = append(parts, theme.PadWithBg(theme.Bg(strings.Repeat(" ", tabBarMargin))+m.renderTabs(width), width))
 	}
 	parts = append(parts, theme.EmptyLineBg(width), m.renderInfoLine(width))
 	return strings.Join(parts, "\n")
@@ -245,6 +245,11 @@ func failedStages(errs []string) string {
 // tabBarMargin is the cell left of the first tab (RenderFooter).
 const tabBarMargin = 1
 
+// compactOpenMarker precedes the open tab's label in the compact bar, where
+// the open tab may be the only way left to tell it apart: with no count shown
+// it would otherwise differ from the others by bold and colour alone.
+const compactOpenMarker = ">"
+
 // tabCell is one tab of the bar: its name, and its count when it has one.
 type tabCell struct {
 	name  string
@@ -266,9 +271,11 @@ func (c tabCell) label(withCount bool) string {
 // and a line as wide as the screen even leaves every other line unpadded. So the
 // bar fits by itself (DEVDESK-765). When every label with its count is too wide
 // the counts of the tabs that are not open go, the names stay in full and the
-// open tab keeps its count, which with its bold marks it without colour. The
-// narrowest bar that leaves is 64 cells wide with a three-digit count, so there
-// is no step that shortens a name: the 80-column floor never asks for one.
+// open tab keeps its count and takes a text marker, because its count may be
+// unknown (Remediation before its discovery) and bold and colour alone never
+// carry the open tab. The widest bar that leaves is 66 cells, margin included,
+// with a three-digit count, so there is no step that shortens a name: the
+// 80-column floor never asks for one.
 func (m Model) renderTabs(width int) string {
 	cve, secrets, licenses, misconfigs, ci := m.countFindingsByTab()
 	remediation, remediationKnown := m.remediationTabCount()
@@ -287,7 +294,11 @@ func (m Model) renderTabs(width int) string {
 	build := func(onlyOpen bool) string {
 		tabs := make([]theme.TabItem, len(cells))
 		for i, c := range cells {
-			tabs[i] = theme.TabItem{Label: c.label(!onlyOpen || i == m.activeTab)}
+			label := c.label(!onlyOpen || i == m.activeTab)
+			if onlyOpen && i == m.activeTab {
+				label = compactOpenMarker + " " + label
+			}
+			tabs[i] = theme.TabItem{Label: label}
 		}
 		return theme.RenderTabs(tabs, m.activeTab)
 	}

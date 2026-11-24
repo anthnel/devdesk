@@ -124,3 +124,55 @@ func TestTheTabBarHidesTheInactiveCountsWhenRoomIsShort(t *testing.T) {
 		}
 	}
 }
+
+// The compact bar can leave no count at all, when the open tab is Remediation
+// before its discovery has finished. The open tab is then marked by a text
+// marker, so it is never told apart by bold and colour alone.
+func TestTheCompactTabBarMarksTheOpenTabWithoutStyle(t *testing.T) {
+	m := tabBarModel(t, 12, false)
+	m.activeTab = TabRemediation
+	line := tabBarLine(t, m, 80)
+	got := ansi.Strip(line)
+	if strings.Contains(got, "(") {
+		t.Fatalf("this case is meant to have no count at all: %q", got)
+	}
+	if !strings.Contains(got, compactOpenMarker+" Remediation ") {
+		t.Errorf("the open tab is not marked in the compact bar: %q", got)
+	}
+	if n := strings.Count(got, compactOpenMarker); n != 1 {
+		t.Errorf("%d markers, want one: %q", n, got)
+	}
+}
+
+// Every tab, open in turn, gets exactly one marker when the bar is compact and
+// none when the full bar fits; the compact bar stays within the window.
+func TestTheCompactTabBarMarkerIsOnTheOpenTabOnly(t *testing.T) {
+	for _, width := range []int{80, 120, 175} {
+		for _, n := range []int{1, 12, 123} {
+			for _, discovered := range []bool{false, true} {
+				m := tabBarModel(t, n, discovered)
+				for tab := TabCVE; tab <= TabRemediation; tab++ {
+					m.activeTab = tab
+					t.Run(fmt.Sprintf("width %d count %d discovered %v tab %d", width, n, discovered, tab), func(t *testing.T) {
+						line := tabBarLine(t, m, width)
+						got := ansi.Strip(line)
+						if w := ansi.StringWidth(line); w > width {
+							t.Errorf("the bar is %d cells wide, the window holds %d: %q", w, width, got)
+						}
+						markers := strings.Count(got, compactOpenMarker)
+						compact := strings.Count(got, "(") <= 1 // the full bar shows five counts or more
+						if compact && markers != 1 {
+							t.Errorf("%d markers in a compact bar, want one: %q", markers, got)
+						}
+						if markers == 1 && !strings.Contains(got, compactOpenMarker+" "+tabBarNames[tab]+" ") {
+							t.Errorf("the marker is not on the open tab %q: %q", tabBarNames[tab], got)
+						}
+						if markers > 1 {
+							t.Errorf("%d markers: %q", markers, got)
+						}
+					})
+				}
+			}
+		}
+	}
+}

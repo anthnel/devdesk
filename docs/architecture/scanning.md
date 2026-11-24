@@ -1629,14 +1629,34 @@ therefore decides its own width. With every count it measures 82 cells at one di
 once the Dockerfiles are read), 88 at two and 94 at three; the window's floor is 80.
 
 - **Room enough** (120, 175 columns): every tab carries its count, as before.
-- **Room short**: the counts of the tabs that are not open go, the names stay in full, the open tab keeps its
-  count (a `Remediation` tab with no count yet shows none anyway). The narrowest bar that leaves is 64 cells with a
-  three-digit count, so there is no step that shortens a name. The open tab is told apart without colour by its
-  bold and, once the counts are hidden, by being the only one with a count.
+- **Room short** (the compact form): the counts of the tabs that are not open go, the names stay in full, the
+  open tab keeps its count if it has one and takes a text marker, `>` (`compactOpenMarker`, an ASCII character
+  on purpose: no font gap, one cell). The marker is there because the open tab may have no count to show:
+  Remediation open before the Dockerfiles are discovered, at 80 columns with two-digit counts, gives a bar with
+  no count at all, where bold and colour alone would mark the tab. The marker is local to the compact form
+  (`theme.RenderTabs`, shared, is untouched) and the full bar has none. The widest compact bar is 66 cells, margin
+  included, with a three-digit count, so there is no step that shortens a name.
+- **Side effect at 80 columns.** The full bar is 79 cells while the Remediation tab has no count and 82 once
+  discovery ends (`remediationTabCount`). With one-digit counts the bar therefore goes from full to compact at that
+  moment at 80 columns: the inactive counts disappear at once and the marker appears. Accepted: the alternative is a
+  bar wider than the window.
 - There are always six tabs. `TestTheTabBarFitsTheWindow`, `TestTheTabBarKeepsSixNamedTabsAndTheOpenCount` and
-  `TestTheTabBarHidesTheInactiveCountsWhenRoomIsShort` (`tabbar_width_test.go`) measure the line at 80, 120 and 175
+  `TestTheTabBarHidesTheInactiveCountsWhenRoomIsShort`, `TestTheCompactTabBarMarksTheOpenTabWithoutStyle` and
+  `TestTheCompactTabBarMarkerIsOnTheOpenTabOnly` (`tabbar_width_test.go`) measure the line at 80, 120 and 175
   columns with counts of 1, 12 and 123 on every tab; `TestGroupedViewFitsAtEveryWidth` and
   `TestMisconfigGroupedViewFitsAtEveryWidth` measure it again with the rest of the footer.
+
+**The other tab rows and trails, not covered (possible overflow at 80 columns).** Only the `:sec` results bar
+decides its own width. The rows below go through `theme.RenderTabs` with no width check; the first four are
+variable-length trails and can overflow at 80 columns. None is fixed here: each is a separate story to open.
+
+| Where | Row | Length |
+|---|---|---|
+| `internal/ui/workspaces/view.go` (`renderTabBar`, ~171-185) | breadcrumb: `home`, `navigationStack`, current directory | variable (depth and folder names); possible overflow |
+| `internal/ui/forge/explorer/view.go` (`renderTabBar`) | breadcrumb: `home`, `navigationStack`, current group | variable (group names); possible overflow |
+| `internal/ui/jobsview/view.go` (`renderBreadcrumb`) | `Runs`, run kind and label | variable (run label); possible overflow |
+| `internal/ui/oci_resources/view.go` (`renderRegistryBreadcrumb`) | `Registries`, group alias | variable (alias); possible overflow |
+| `internal/ui/oci_resources/view.go` (`renderTabBar`) | four fixed tabs | constant, well under 80 |
 
 ### The Remediation tab — base images, and the tags they could move to (§3.2, phase B)
 
