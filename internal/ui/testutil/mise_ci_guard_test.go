@@ -389,14 +389,16 @@ func TestCITestJobHasNoNeeds(t *testing.T) {
 	}
 }
 
+// kubeconform is the one other tool: TestARealKustomizeIsNotStartedOnAPluginDirectory
+// skips without it (DEVDESK-771 follow-up).
 func TestCITestJobInstallsOnlyGo(t *testing.T) {
 	job := testJob(t)
 	i := stepUsing(job, "jdx/mise-action")
 	if i < 0 {
 		t.Fatalf("job %q has no jdx/mise-action step: mise is what runs `mise run test-race`", testJobName)
 	}
-	if got := withString(job.Steps[i], "install_args"); got != "go" {
-		t.Errorf("job %q mise-action install_args = %q, want \"go\": no golangci-lint, goreleaser or uv in the test job", testJobName, got)
+	if got := withString(job.Steps[i], "install_args"); got != "go kubeconform" {
+		t.Errorf("job %q mise-action install_args = %q, want \"go kubeconform\": no golangci-lint, goreleaser or uv in the test job", testJobName, got)
 	}
 }
 
