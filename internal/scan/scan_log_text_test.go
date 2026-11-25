@@ -296,7 +296,7 @@ func TestTheStepsWriteACopiedCommandThatWorksForADashFolder(t *testing.T) {
 		{"helm lint", helmLintSteps("-x/templates/a.yaml", "-x"), "Run helm lint ", "-x", "./-x"},
 		{"helm template", renderSteps(SourceHelm, "-x", ToolSourceBinary, "boom", false), "Run helm template ", "-x", "./-x"},
 		{"helm dependency build", renderSteps(SourceHelm, "-x", ToolSourceBinary, "boom", false), "run helm dependency build ", "-x", "./-x"},
-		{"kustomize build", renderSteps(SourceKustomize, overlay, ToolSourceBinary, "boom", false), "Run kustomize build ", overlay, "./" + overlay},
+		{"kustomize build", renderSteps(SourceKustomize, overlay, ToolSourceBinary, "boom", false), "Run kustomize build ", overlay, "'./" + overlay + "'"}, // "=" is quoted since DEVDESK-772 (zsh magic_equal_subst)
 		{"a dash below the first segment", helmLintSteps("charts/-x/a.yaml", "charts/-x"), "Run helm lint ", "charts/-x", "charts/-x"},
 		// kustomize reads these as a remote git base (DEVDESK-763): the typed
 		// command gets the ./ the scan itself uses. helm reads them locally.
