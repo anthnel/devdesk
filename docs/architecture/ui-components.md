@@ -976,6 +976,44 @@ active tab, the focused primary button, the unfocused primary and secondary butt
 bar when it was written (the `Yes` and success buttons; the LOW and HIGH badges and the gauge rail are part B above) are in
 `docs/measurements/2026-11-24-theme-text-contrast-2.md`; the border decision is D179 in `docs/backlog.md`.
 
+## Secondary text and primary text: a known gap on three themes (DEVDESK-773, D182)
+
+On three themes `ColorDim` (secondary text) stays close to `ColorText` (body text). The CIE76 delta E between them is
+5.6 on solarized-dark, 0.8 on solarized-light and 4.6 on catppuccin-latte
+(`docs/measurements/2026-11-24-theme-text-contrast-2.md`, "Not done here"). Both colours still reach 4.5:1
+(WCAG 1.4.3), so the gap is not a contrast failure. It remains a breach of WCAG 1.4.1 (Use of Color) on three themes,
+assumed and accepted, not zero. Nothing is re-rendered (D182 in `docs/backlog.md`).
+
+**What carries the distinction instead:**
+
+- Position: the Key and Value columns, breadcrumb trails, subtitles.
+- Weight: `DimStyle` is not bold, while titles and keys are, and the active breadcrumb segment is bold.
+- Italic: `HelpStyle` and the disabled button (`TestTheDisabledButtonDiffersFromAnEnabledOneByMoreThanColour`).
+- Glyph or label: `IconLock` on a locked checkbox (`theme.RenderCheckboxLocked`), `-` or `0` for an absence, the
+  severity labels, the reasons in the footer.
+- Background: the active tab against an inactive one.
+
+**Design rule: information never rests on Dim versus Text alone.** `ColorDim` reinforces a hierarchy that something
+else already carries; it never carries a state by itself. **No test checks this rule.** The UX review does.
+
+**Known residual gaps** (they follow from D182, point 5):
+
+- `OptionConfirmModal.View()` (`internal/ui/components/option_confirm_modal.go`): a locked checkbox is drawn in
+  `ColorDim` with no lock glyph and no label, so colour alone tells it from an available, unfocused checkbox. This is
+  an open gap. A separate story fixes it, and that story changes the rendering, so it reopens the decision.
+- Placeholders are `ColorDim` against a typed value in `ColorText` (`theme.StyleTextInput`, `styleTextInput` in
+  `internal/ui/setup/styles.go`, `WrappedInput.View()` in `internal/ui/components/wrapped_input.go`). The cursor, the
+  label, and the placeholder vanishing on input offset it.
+- `ColorSyntaxComment` and `ColorSyntaxPunct` are aliases of `ColorDim` (`internal/ui/theme/manager.go`). The `#` or
+  `//` marker carries the meaning.
+
+The list is not exhaustive: the `Suggestion` style of the textinput, for one, is not examined here.
+
+**Limits.** The delta E values are computed, and no terminal was looked at. No test holds the design rule.
+
+**What reopens the decision:** another theme with a delta E below 3, or a component that uses only `Dim` to show a
+state.
+
 ## Dashboard clocks and terminal focus (DEVDESK-210)
 
 The dashboard runs three independent clocks (`internal/ui/dashboard/model.go`):
