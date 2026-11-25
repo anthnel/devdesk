@@ -407,7 +407,7 @@ func (v *k8sValidation) renderKustomizations(ctx context.Context, dirs []string)
 				if ctx.Err() != nil {
 					return ctx.Err()
 				}
-				log.Printf("[scan/k8s] overlay %q not built: %s, %q", dir, verdict.Kind, verdict.Reason)
+				log.Printf("[scan/k8s] overlay %q not built: %s, %q", dir, logWord(verdict.Kind.String()), verdict.Reason)
 				v.report.Findings = append(v.report.Findings, gateFinding(dir, file, verdict, tool.Source))
 				continue
 			}
