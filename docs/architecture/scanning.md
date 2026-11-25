@@ -450,9 +450,9 @@ no line, so it could feed neither the table's jump-to-line nor a fix.
   gate learns it. Redo the match between the gate's lists and the kustomize
   types at every version bump (the lists are in `kustomize_gate.go`; a list in
   `testdata` with a concordance test is recommended, not written). (2) `ci.yml` does not install kustomize, but the `ubuntu-latest` image carries
-  5.8.3, so the `TestARealKustomize*` tests run in CI, except
-  `TestARealKustomizeIsNotStartedOnAPluginDirectory`, which skips without
-  `kubeconform` (follow-up: install `kubeconform` in CI so that test runs there too). (2b) No time limit surrounds the run of kustomize:
+  5.8.3, and the `Test` job installs `kubeconform` 0.8.0 through mise, so the
+  `TestARealKustomize*` tests all run in CI, including
+  `TestARealKustomizeIsNotStartedOnAPluginDirectory`; a dedicated step fails on any skip. (2b) No time limit surrounds the run of kustomize:
   a plugin or a special file the gate does not cover can block the render
   (follow-up). (2c) TOCTOU:
   the repository is assumed not to change between the read of the gate and the

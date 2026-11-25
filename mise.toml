@@ -24,6 +24,11 @@ goreleaser = "2.18.0"
 # (which has an entry point) in an ephemeral environment with mkdocs-material
 # injected alongside it.
 uv = "0.12.10"
+# Pinned for the same reason. It is installed in the `Test` job so that
+# TestARealKustomizeIsNotStartedOnAPluginDirectory (internal/scan), which skips
+# without kubeconform on PATH, runs there (DEVDESK-771 follow-up). mise verifies
+# the release checksum through its aqua registry.
+kubeconform = "0.8.0"
 
 [tasks.build]
 description = "Build the binary to bin/dk"
