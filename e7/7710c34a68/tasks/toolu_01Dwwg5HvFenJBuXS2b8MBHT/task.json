@@ -1,0 +1,15 @@
+{
+  "tool_use_id": "toolu_01Dwwg5HvFenJBuXS2b8MBHT",
+  "agent_id": "aa661349ccf2844ff",
+  "subagent_type": "dev-team:reviewer",
+  "task_description": "Review 774 parts A+B diff",
+  "token_usage": {
+    "input_tokens": 28,
+    "cache_creation_tokens": 83376,
+    "cache_read_tokens": 854146,
+    "output_tokens": 11571,
+    "api_call_count": 14
+  },
+  "started_at": "2026-11-25T09:53:13.762048919+01:00",
+  "completed_at": "2026-11-25T09:55:29.528136527+01:00"
+}

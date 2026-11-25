@@ -1,0 +1,7 @@
+{
+  "tool_use_id": "toolu_017hSni2EYjijahjJY7xBaaE",
+  "agent_id": "a3f26c3cef94431b0",
+  "subagent_type": "dev-team:reviewer",
+  "task_description": "Review 771 diff",
+  "started_at": "2026-11-25T09:52:27.472371534+01:00"
+}

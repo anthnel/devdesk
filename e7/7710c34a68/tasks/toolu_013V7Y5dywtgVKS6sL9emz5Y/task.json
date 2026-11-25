@@ -1,0 +1,15 @@
+{
+  "tool_use_id": "toolu_013V7Y5dywtgVKS6sL9emz5Y",
+  "agent_id": "a35898720947dc28b",
+  "subagent_type": "team-core:tech-writer",
+  "task_description": "Document 771 gate in docs",
+  "token_usage": {
+    "input_tokens": 12,
+    "cache_creation_tokens": 44223,
+    "cache_read_tokens": 156924,
+    "output_tokens": 6543,
+    "api_call_count": 6
+  },
+  "started_at": "2026-11-25T09:52:27.493580865+01:00",
+  "completed_at": "2026-11-25T09:53:13.680826409+01:00"
+}
