@@ -1,0 +1,25 @@
+dans le module de migration charm-v2 qu'est-ce qu'il reste
+
+---
+
+explique moi la 212
+
+---
+
+laisse en backlog explique moi la 293 et 294
+
+---
+
+est ce que je peux lancer une commande dans wt pour tester le support
+
+---
+
+j'ai essayé dans wt et cosmic terminal, rien
+
+---
+
+ok cloture la story 293
+
+---
+
+on ne fait pas la 212 , on va faire le spike sur la 294
