@@ -278,8 +278,16 @@ func helmArgs(scope renderScope, chart string, tool ToolSpec, sub string) toolCm
 	return renderer(scope, tool, DefaultHelmImage, "helm", sub, asPathArg(chart))
 }
 
-func kustomizeArgs(scope renderScope, dir string, tool ToolSpec) toolCmd {
-	return renderer(scope, tool, DefaultKustomizeImage, "kustomize", "build", asPathArg(dir))
+// kustomizeArgs is `kustomize build dir`. loadAnywhere adds
+// --load-restrictor=LoadRestrictionsNone after the user's arguments, as Flux's
+// kustomize-controller builds (DEVDESK-783); a restrictor the user chose is theirs
+// and nothing is added next to it.
+func kustomizeArgs(scope renderScope, dir string, tool ToolSpec, loadAnywhere bool) toolCmd {
+	args := []string{"build"}
+	if loadAnywhere && !userSetsLoadRestrictor(tool.Args) {
+		args = append(args, loadRestrictorNoneFlag)
+	}
+	return renderer(scope, tool, DefaultKustomizeImage, "kustomize", append(args, asPathArg(dir))...)
 }
 
 // asPathArg is dir as a positional argument of helm or kustomize. The folder's
@@ -412,22 +420,18 @@ func (v *k8sValidation) renderKustomizations(ctx context.Context, dirs []string)
 				continue
 			}
 		}
-		cmd := kustomizeArgs(scope, dir, tool)
+		cmd := kustomizeArgs(scope, dir, tool, false)
 		log.Printf("Running: %s", cmd.Loggable())
 		rendered, err := runner.Run(ctx, cmd, nil)
+		how := fluxNotTried
+		if err != nil && ctx.Err() == nil {
+			rendered, how, err = v.retryAsFlux(ctx, tool, scope, dir, err)
+		}
 		if err != nil {
 			if ctx.Err() != nil {
 				return ctx.Err()
 			}
-			repro, from := renderRepro(tool, "kustomize", "build", dir)
-			detail := failureDetail(err)
-			blocked := scope.offline && remoteBlocked(detail, from)
-			f := renderFailure(SourceKustomize, "kustomize", file, "Overlay does not build", from,
-				renderSteps(SourceKustomize, dir, from, detail, blocked), repro, err)
-			if blocked {
-				markRemoteBlocked(&f)
-			}
-			v.report.Findings = append(v.report.Findings, f)
+			v.report.Findings = append(v.report.Findings, kustomizeFailure(tool, scope, dir, file, how, err))
 			continue
 		}
 		// kustomize adds no origin to what it emits unless the kustomization
@@ -439,6 +443,81 @@ func (v *k8sValidation) renderKustomizations(ctx context.Context, dirs []string)
 		}
 	}
 	return nil
+}
+
+// fluxRetry says what became of the Flux build of an overlay that kustomize
+// refused for its load restrictor (DEVDESK-783).
+type fluxRetry int
+
+const (
+	// fluxNotTried: the overlay was built once.
+	fluxNotTried fluxRetry = iota
+	// fluxBuiltAgain: it was built a second time without the restrictor, and the
+	// result (an error or not) is that of the second build.
+	fluxBuiltAgain
+	// fluxKept: it is a Flux overlay, and the restriction was kept because
+	// allow_remote_bases turns the gate off: there is only one build.
+	fluxKept
+)
+
+// retryAsFlux builds the overlay again, as Flux's kustomize-controller does,
+// when first, the error of the build that just ran, is the load restrictor's and
+// the overlay is a Flux one (fluxOverlay). The gate of DEVDESK-771 has already
+// run before the first build and is not run again: the second build reads
+// nothing the first could not, the restriction left aside, and the paths are
+// bounded to the root the gate and the mount use.
+//
+// A native kustomize with allow_remote_bases is not gated, so DevDesk cannot
+// tell what the overlay would read: it keeps the restriction. It returns the
+// result of the build that holds, the outcome, and the error to report.
+func (v *k8sValidation) retryAsFlux(ctx context.Context, tool ToolSpec, scope renderScope, dir string, first error) ([]byte, fluxRetry, error) {
+	if userSetsLoadRestrictor(tool.Args) || !isLoadRestrictor(failureDetail(first)) {
+		return nil, fluxNotTried, first
+	}
+	root := scope.mount
+	native := tool.Source != ToolSourceContainer
+	if native {
+		root, _ = v.gateScope(ctx)
+	}
+	if !fluxOverlay(root, filepath.Join(v.target, filepath.FromSlash(dir)), defaultGateLimits) {
+		return nil, fluxNotTried, first
+	}
+	if native && v.opts.AllowRemoteBases {
+		return nil, fluxKept, first
+	}
+	log.Printf("[scan/k8s] overlay %q: Flux repository detected, built without the load restrictor (bounded to the repository)", dir)
+	cmd := kustomizeArgs(scope, dir, tool, true)
+	log.Printf("Running: %s", cmd.Loggable())
+	rendered, err := runner.Run(ctx, cmd, nil)
+	return rendered, fluxBuiltAgain, err
+}
+
+// kustomizeFailure is the K8S-RENDER finding of an overlay that does not build.
+// err is the error of the build that holds: the second one when how says the
+// overlay was built as Flux builds it, and the finding then says so and its Repro
+// is that second command.
+func kustomizeFailure(tool ToolSpec, scope renderScope, dir, file string, how fluxRetry, err error) Finding {
+	repro, from := renderRepro(tool, "kustomize", "build", dir)
+	if how == fluxBuiltAgain {
+		repro, from = localRepro(tool, "kustomize", []string{"build", loadRestrictorNoneFlag}, dir)
+	}
+	detail := failureDetail(err)
+	blocked := scope.offline && remoteBlocked(detail, from)
+	steps := renderSteps(SourceKustomize, dir, from, detail, blocked)
+	if how == fluxBuiltAgain {
+		steps = fluxRenderSteps(dir, from, detail, blocked)
+	}
+	f := renderFailure(SourceKustomize, "kustomize", file, "Overlay does not build", from, steps, repro, err)
+	if blocked {
+		markRemoteBlocked(&f)
+	}
+	switch how {
+	case fluxBuiltAgain:
+		f.Description += " " + fluxBuiltNote
+	case fluxKept:
+		f.Description += " " + fluxKeptNote
+	}
+	return f
 }
 
 // gateScope is the limit of the paths the kustomize gate follows, the git

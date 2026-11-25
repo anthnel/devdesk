@@ -145,6 +145,19 @@ func renderSteps(source, target string, from ToolSource, detail string, blocked 
 	return steps
 }
 
+// fluxRenderSteps are renderSteps for an overlay that was built as Flux builds it
+// (DEVDESK-783) and still failed: the generic step runs the same command, with
+// the flag, so that the error a person reads is the one DevDesk reported and not
+// the load restrictor's.
+func fluxRenderSteps(target string, from ToolSource, detail string, blocked bool) []string {
+	steps := renderSteps(SourceKustomize, target, from, detail, blocked)
+	generic := fmt.Sprintf("Run kustomize build %s and fix the first error it reports.", typedKustomizeDir(target))
+	if len(steps) > 0 && !blocked && quotable(target) && steps[0] == generic {
+		steps[0] = fmt.Sprintf("Run kustomize build --load-restrictor=LoadRestrictionsNone %s and fix the first error it reports.", typedKustomizeDir(target))
+	}
+	return steps
+}
+
 // uncheckedOverlaySteps are the steps for an overlay that was not built because
 // DevDesk could not check its references (DEVDESK-771): dir is the overlay
 // directory and reason what stopped the check.

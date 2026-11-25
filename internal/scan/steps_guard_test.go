@@ -188,6 +188,12 @@ func stepSamples() map[string][][]string {
 			renderSteps(SourceKustomize, "overlays/dev", ToolSourceBinary, sshBlockedStderr, true),
 			renderSteps(SourceKustomize, "overlays/dev", ToolSourceContainer, containerNoSuchHostStderr, true),
 		},
+		// DEVDESK-783: an overlay built as Flux builds it that still failed.
+		"fluxRenderSteps": {
+			fluxRenderSteps("overlays/dev", ToolSourceBinary, "boom", false),
+			fluxRenderSteps("overlays/dev", ToolSourceContainer, "no such file or directory", false),
+			fluxRenderSteps("overlays/dev", ToolSourceBinary, sshBlockedStderr, true),
+		},
 		"uncheckedOverlaySteps": {uncheckedOverlaySteps("overlays/dev", "an anchor in kustomization.yaml")},
 		"helmLintSteps":         {helmLintSteps("templates/deployment.yaml", "charts/api")},
 		"schemaSteps": {
