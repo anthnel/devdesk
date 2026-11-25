@@ -224,7 +224,7 @@ func TestAWidenedMountKeepsTheTargetAsTheWorkingDirectory(t *testing.T) {
 	tool := ToolSpec{Source: ToolSourceContainer}
 
 	for name, tc := range map[string]toolCmd{
-		"kustomize": kustomizeArgs(scope, "overlays/prod", tool),
+		"kustomize": kustomizeArgs(scope, "overlays/prod", tool, false),
 		"helm":      helmArgs(scope, "charts/api", tool, "template"),
 	} {
 		got := strings.Join(tc.Args, " ")
@@ -232,7 +232,7 @@ func TestAWidenedMountKeepsTheTargetAsTheWorkingDirectory(t *testing.T) {
 			t.Errorf("%s: %q, want the repository mounted and /scan/deploy as the working directory", name, got)
 		}
 	}
-	binary := kustomizeArgs(scope, "overlays/prod", ToolSpec{Source: ToolSourceBinary})
+	binary := kustomizeArgs(scope, "overlays/prod", ToolSpec{Source: ToolSourceBinary}, false)
 	if binary.Dir != "/src/repo/deploy" {
 		t.Errorf("a binary runs in %q, want the target", binary.Dir)
 	}

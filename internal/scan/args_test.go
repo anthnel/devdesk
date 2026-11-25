@@ -36,7 +36,7 @@ func TestExtraArgumentsFollowTheSubcommand(t *testing.T) {
 		after(t, gitleaksArgs("/repo", tool, false, "", "").Args, "detect", extra...)
 		after(t, plumberArgs("/repo", tool, PlumberOptions{}, "/out.json").Args, "analyze", extra...)
 		after(t, helmArgs(targetOnly("/repo"), "charts/api", tool, "template").Args, "template", extra...)
-		after(t, kustomizeArgs(targetOnly("/repo"), "k8s/prod", tool).Args, "build", extra...)
+		after(t, kustomizeArgs(targetOnly("/repo"), "k8s/prod", tool, false).Args, "build", extra...)
 	}
 }
 

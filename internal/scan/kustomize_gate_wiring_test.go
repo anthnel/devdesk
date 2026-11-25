@@ -263,7 +263,7 @@ func TestAnOverlayWithOnlyLocalReferencesIsBuiltAsBefore(t *testing.T) {
 				t.Fatalf("%d builds, want one per overlay %v: %q", len(got), layout.Kustomizations, got)
 			}
 			for i, dir := range layout.Kustomizations {
-				want := kustomizeArgs(targetOnly(repo).cut(), dir, tc.tool)
+				want := kustomizeArgs(targetOnly(repo).cut(), dir, tc.tool, false)
 				if got[i].Name != want.Name || !slices.Equal(got[i].Args, want.Args) || got[i].Dir != want.Dir {
 					t.Errorf("%s: ran %s %q in %q, want %s %q in %q", dir, got[i].Name, got[i].Args, got[i].Dir, want.Name, want.Args, want.Dir)
 				}
@@ -295,7 +295,7 @@ func TestAllowRemoteBasesDoesNotAskTheGate(t *testing.T) {
 	if len(got) != 1 {
 		t.Fatalf("%d builds, want 1: %q", len(got), got)
 	}
-	want := kustomizeArgs(targetOnly(repo), "overlay", nativeKustomize)
+	want := kustomizeArgs(targetOnly(repo), "overlay", nativeKustomize, false)
 	if got[0].Name != want.Name || !slices.Equal(got[0].Args, want.Args) || got[0].Dir != want.Dir {
 		t.Errorf("ran %s %q in %q, want %s %q in %q", got[0].Name, got[0].Args, got[0].Dir, want.Name, want.Args, want.Dir)
 	}
@@ -327,7 +327,7 @@ func TestAnImageKustomizeIsNotGated(t *testing.T) {
 		if len(got) != 1 {
 			t.Fatalf("%d builds, want 1: %q", len(got), got)
 		}
-		want := kustomizeArgs(targetOnly(repo).cut(), "overlay", image)
+		want := kustomizeArgs(targetOnly(repo).cut(), "overlay", image, false)
 		if got[0].Name != want.Name || !slices.Equal(got[0].Args, want.Args) || !slices.Equal(got[0].Env, want.Env) {
 			t.Errorf("ran %s %q, want %s %q", got[0].Name, got[0].Args, want.Name, want.Args)
 		}

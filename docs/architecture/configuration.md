@@ -117,6 +117,15 @@ the `ToolConfig`. The configuration view shows it as the checkbox "Allow remote
 bases" in Kustomize's group of the tools tab (`space` flips it, saved at once). See
 `scanning.md`, "The renderers run with the network cut".
 
+**`scan.tools.kustomize.args` and the load restrictor** (DEVDESK-783, D184). The
+arguments are inserted right after `build`. On a Flux overlay that kustomize
+refused for its load restrictor, DevDesk builds once more with
+`--load-restrictor=LoadRestrictionsNone` after them; an argument of the user that
+sets `--load-restrictor` (`--load-restrictor=X` or `--load-restrictor X`) has the
+priority: DevDesk adds nothing next to it and does not build again. With
+`allow_remote_bases: true` a native kustomize is never built again this way. See
+`scanning.md`, "Flux repositories".
+
 **`app.gauge_glyph`** picks the fill of the containers load gauges and of the
 netdiag waterfall: `shade` (the default — `░` for fill and track alike, told
 apart by colour) or `block` (`█` over a `░` track). `block` is an opt-in because

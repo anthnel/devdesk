@@ -237,7 +237,7 @@ func containerBuilders() []builderCase {
 			},
 			args: "run --rm -v /repo:/scan:ro -w /scan alpine/helm lint --set a=b ./charts/app"},
 		{name: "kustomize build",
-			build: func() toolCmd { return kustomizeArgs(targetOnly("/repo"), "overlays/prod", tool) },
+			build: func() toolCmd { return kustomizeArgs(targetOnly("/repo"), "overlays/prod", tool, false) },
 			args: "run --rm -v /repo:/scan:ro -w /scan registry.k8s.io/kustomize/kustomize:v5.8.1 " +
 				"build ./overlays/prod"},
 

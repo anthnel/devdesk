@@ -471,6 +471,79 @@ no line, so it could feed neither the table's jump-to-line nor a fix.
   repository that is not trusted. (11) `allow_remote_bases` is one boolean per
   context: it holds for every repository scanned in that context, and it is read
   only from `~/.devdesk` (never from the scanned repository).
+
+  **Flux repositories** (DEVDESK-783, D184; `kustomize_flux.go`, `retryAsFlux`
+  in `kubeconform_render.go`). In a Flux repository an aggregator overlay such as
+  `kustomizations/dev` lists, as `resources`, Flux `Kustomization` FILES of
+  neighbouring folders. kustomize's default load restrictor refuses them, and
+  the scan reported a K8S-RENDER HIGH for something Flux builds: the
+  kustomize-controller builds with `LoadRestrictionsNone`, bounded to the root of
+  the artifact (the root of the git repository).
+  - **Detection, per overlay** (`fluxOverlay(root, overlay, lim)`). The overlay
+    is Flux's when its kustomization lists, in `resources` or `bases`, at least
+    one FILE with a YAML document whose `apiVersion` group is exactly
+    `<name>.toolkit.fluxcd.io` (`x.toolkit.fluxcd.io.evil.com` is not). Several
+    documents and a leading `---` are fine. It reads with the gate's rules: a
+    reference must pass `localRef`, stay inside the root once symbolic links are
+    resolved, name a regular file (a named pipe is never opened) of at most 1 MiB
+    (`defaultGateLimits`); a folder is not followed, even one with its own
+    kustomization, and `components` and `patches` are not looked at. Anything it
+    cannot read counts as not Flux.
+  - **Build again, once.** kustomize runs as it always did, after the gate, which
+    is unchanged and still comes first. Only when it was refused for the restrictor
+    (`isLoadRestrictor(detail)`) AND the overlay is a Flux one is it run one more
+    time with `--load-restrictor=LoadRestrictionsNone` added after `build` and the
+    user's arguments (`kustomizeArgs(..., loadAnywhere)`). The second run keeps the
+    cut network (`offlineEnviron`, `--network none`). The root of the bound is the
+    one the gate and the mount use: the git root, or the scanned folder without
+    git; from an image, what is mounted, so a neighbour above a target with no git
+    repository is out of reach and the finding is what it was. One log line:
+    `[scan/k8s] overlay "<dir>": Flux repository detected, built without the load
+    restrictor (bounded to the repository)`. No new report field and no LOW finding.
+  - **What does not change.** An overlay that is not Flux's is built once and its
+    finding, Resolution and Steps are byte for byte DEVDESK-742's. A user who set
+    `--load-restrictor` (`userSetsLoadRestrictor`: `=` or separate value) has
+    chosen: nothing is added and nothing is built again.
+  - **If the second build fails**, the finding is a HIGH of what the second build
+    said (`Message`), its `Description` ends with `Built as Flux's
+    kustomize-controller does: files outside the overlay folder allowed, within the
+    repository.`, its Repro is `kustomize build --load-restrictor=LoadRestrictionsNone
+    <dir>` (through `localRepro`; none from an image) and its Steps name that
+    command (`fluxRenderSteps`).
+  - **`allow_remote_bases: true` with a native kustomize**: the gate does not run,
+    so DevDesk cannot tell what the overlay would read, and the restriction is
+    kept (user decision). The HIGH stays, and its `Description` says that the
+    overlay lists Flux resources and that `allow_remote_bases` is why the
+    restriction stays. From an image the build again does happen (the engine's mount
+    is the limit).
+  - **Limits.** (1) No detection through `spec.path` of a Flux Kustomization
+    (candidate C of the story): an application overlay that lists no Flux resource
+    is not recognised, so it stays refused. (2) The flux CRDs are not validated by
+    kubeconform; the rendered Flux documents are counted in `SkippedCustom`
+    (`TestARealKustomizeBuildsAFluxAggregatorOverlay` asserts at least 7 with the
+    repository as target and 4 with a folder of it, today exactly those numbers: a
+    schema catalog that knows Flux would lower them). (3) The scan cache serves a
+    result computed before this change: the old HIGH stays until the next scan.
+    (4) The markers of `isLoadRestrictor` (`security; file`, `is not in or below`)
+    are those of kustomize v5.8.x; check them at every kustomize bump, since a
+    changed message means no overlay is built again.
+    (5) The detection can be forged: a hostile repository can declare an
+    `apiVersion: x.toolkit.fluxcd.io/v1` to lift the restriction on its own
+    overlay. The bound holds (the gate of DEVDESK-771 runs before, an image sees
+    only its mount), but once the restriction is lifted the build again reads
+    whatever the gate accepts, that is the WHOLE git root (the `.git` folder and
+    untracked files such as `.env` included), not only the overlay folder. Audit
+    proof: `configMapGenerator.files: [../../.git/config]` in a subfolder is
+    refused on the first pass and read on the build again. The content goes to
+    kubeconform locally with the network cut, and no way out was found (kustomize
+    does not copy file content into its errors). It is also Flux's own bound (the
+    root of the artifact). (6) TOCTOU: the window between the gate and the build
+    again (a symbolic link replaced in between is read without the restriction)
+    adds to the limit 771 already accepts (the repository does not change during
+    the scan); until now the first pass served as a second barrier for that case.
+    (7) When the build again succeeds, only the log line says so: nothing is
+    visible in the TUI (user decision: a log and a note on the finding, no report
+    field).
 - **Charts and Kustomize roots are set apart.** A template is not YAML until
   helm renders it, and a Kustomize patch is a fragment that fails the schema
   on its own. Their files are never validated raw. Only the **outermost**

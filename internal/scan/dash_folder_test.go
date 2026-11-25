@@ -30,12 +30,12 @@ func TestADashFolderIsPassedToTheRenderersAsAPath(t *testing.T) {
 		{"helm template", helmArgs(scope, dashChart, binary, "template"), []string{"template", "./-x"}},
 		{"helm template with the user's flags", helmArgs(scope, dashChart, withArgs, "template"),
 			[]string{"template", "--set", "a=b", "./-x"}},
-		{"kustomize build", kustomizeArgs(scope, dashOverlay, binary),
+		{"kustomize build", kustomizeArgs(scope, dashOverlay, binary, false),
 			[]string{"build", "./--load-restrictor=LoadRestrictionsNone"}},
 		// Every relative folder gets the ./, a dash below the first segment too.
 		{"a dash below the first segment", helmArgs(scope, "charts/-x", binary, "lint"), []string{"lint", "./charts/-x"}},
 		{"helm ordinary", helmArgs(scope, "charts/app", binary, "template"), []string{"template", "./charts/app"}},
-		{"kustomize ordinary", kustomizeArgs(scope, "kustomizations/dev", binary), []string{"build", "./kustomizations/dev"}},
+		{"kustomize ordinary", kustomizeArgs(scope, "kustomizations/dev", binary, false), []string{"build", "./kustomizations/dev"}},
 	}
 	for _, tt := range tests {
 		if !reflect.DeepEqual(tt.got.Args, tt.want) {
@@ -51,7 +51,7 @@ func TestADashFolderReachesAContainerRenderingAsAPath(t *testing.T) {
 	tool := ToolSpec{Source: ToolSourceContainer, Image: "img:1"}
 	for name, tc := range map[string]toolCmd{
 		"helm":      helmArgs(targetOnly("/repo"), dashChart, tool, "lint"),
-		"kustomize": kustomizeArgs(targetOnly("/repo"), dashOverlay, tool),
+		"kustomize": kustomizeArgs(targetOnly("/repo"), dashOverlay, tool, false),
 	} {
 		last := tc.Args[len(tc.Args)-1]
 		if !strings.HasPrefix(last, "./-") {
@@ -95,10 +95,10 @@ func TestEveryRelativeFolderIsPassedWithADotSlash(t *testing.T) {
 				t.Errorf("helm %s %q with arguments: args = %q, want the folder as %q", sub, c.dir, got, c.want)
 			}
 		}
-		if got := kustomizeArgs(scope, c.dir, binary).Args; !reflect.DeepEqual(got, []string{"build", c.want}) {
+		if got := kustomizeArgs(scope, c.dir, binary, false).Args; !reflect.DeepEqual(got, []string{"build", c.want}) {
 			t.Errorf("kustomize %q: args = %q, want the folder as %q", c.dir, got, c.want)
 		}
-		if got := kustomizeArgs(scope, c.dir, withArgs).Args; !reflect.DeepEqual(got, []string{"build", "--set", "a=b", c.want}) {
+		if got := kustomizeArgs(scope, c.dir, withArgs, false).Args; !reflect.DeepEqual(got, []string{"build", "--set", "a=b", c.want}) {
 			t.Errorf("kustomize %q with arguments: args = %q, want the folder as %q", c.dir, got, c.want)
 		}
 
@@ -106,7 +106,7 @@ func TestEveryRelativeFolderIsPassedWithADotSlash(t *testing.T) {
 		// the folder is still resolved from the working directory.
 		for _, tc := range []toolCmd{
 			helmArgs(scope, c.dir, box, "lint"), helmArgs(scope, c.dir, boxArgs, "template"),
-			kustomizeArgs(scope, c.dir, box), kustomizeArgs(scope, c.dir, boxArgs),
+			kustomizeArgs(scope, c.dir, box, false), kustomizeArgs(scope, c.dir, boxArgs, false),
 		} {
 			if last := tc.Args[len(tc.Args)-1]; last != c.want {
 				t.Errorf("container %q: last argument %q, want %q (args %q)", c.dir, last, c.want, tc.Args)
@@ -120,7 +120,7 @@ func TestEveryRelativeFolderIsPassedWithADotSlash(t *testing.T) {
 	// From a subdirectory of the mount the working directory carries the
 	// relative part, the folder argument stays relative to it.
 	sub := renderScope{target: "/repo/deploy", mount: "/repo", rel: "deploy"}
-	tc := kustomizeArgs(sub, "github.com/org/repo", box)
+	tc := kustomizeArgs(sub, "github.com/org/repo", box, false)
 	if i := indexOf(tc.Args, "-w"); i < 0 || tc.Args[i+1] != "/scan/deploy" || tc.Args[len(tc.Args)-1] != "./github.com/org/repo" {
 		t.Errorf("container from a subdirectory: %q", tc.Args)
 	}
