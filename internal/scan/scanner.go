@@ -372,7 +372,7 @@ func WorseSeverity(a, b SeverityLevel) SeverityLevel {
 // screen, in a panel that replaced the findings. The footer now says to look in
 // the log, and this is what makes that true.
 func recordStageError(result *Result, stage string, err error) {
-	log.Printf("ERROR [scan/%s] stage failed: %v", stage, err)
+	log.Printf("ERROR [scan/%s] stage failed: %v", logWord(stage), logErr(err))
 	result.Errors = append(result.Errors, fmt.Sprintf("%s: %v", stage, err))
 }
 

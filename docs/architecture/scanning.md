@@ -306,10 +306,24 @@ no line, so it could feed neither the table's jump-to-line nor a fix.
   recognised by shape:** a secret given as a bare positional argument; the
   two-word forms `--password x` and `--registry-token x`; a
   `--header "Authorization: Bearer ..."`; the scp form `user:pass@host:repo`; a
-  URL password that breaks RFC 3986 (an unescaped `/`, `?` or `#`). Other log
-  lines still write a path as it is (`kubeconform_render.go`, `kubeconform.go`,
-  `buildcontext.go`, `seccomp_origin.go`, `signature.go`, `scanner.go`). Tests:
+  URL password that breaks RFC 3986 (an unescaped `/`, `?` or `#`). Tests:
   `scan_log_text_test.go`.
+- **Every log call of `internal/scan` quotes what the scanned repository can
+  name** (DEVDESK-775). A path or a name goes through `logWord`; an error,
+  whose text holds the path the system was given (a `*fs.PathError`), goes
+  through `logErr`: `err.Error()` unchanged when it is valid UTF-8 and prints,
+  the whole text quoted on one line otherwise, and `<nil>` for a nil error. A
+  multi-line error or one with a tab, such as the stderr of a tool that an
+  `exitError` carries, is therefore quoted in full on a single line; an error
+  that prints on one line is logged byte for byte as before. `TestLogGuard*`
+  (`log_guard_test.go`) fails on any argument of a `log.Print*`, `Fatal*` or
+  `Panic*` call that is not a literal, an integer, written by `%q`, a call to
+  `logWord` or `logErr`, or a `Loggable()`. **Limits:** the guard does not see
+  an aliased `log` import, a logger from `log.New`, `log.Output`,
+  `fmt.Fprint*(os.Stderr, ...)`, a method value, `log/slog`, a `%d` applied to
+  an expression that is not an integer, or a helper of the allowed names that
+  does not quote. Only the log is covered: `result.Errors` keeps the raw error
+  text, shown on screen.
 - **The renderers run with the network cut** (DEVDESK-767, D180). The folder name was
   the first hole; the second is the content: a `kustomization.yaml` that lists
   `git@host:o/r` or `https://host/m.yaml` makes kustomize fetch it, with the

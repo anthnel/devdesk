@@ -331,10 +331,10 @@ func (s *Scanner) runKubeconformStage(ctx context.Context, target string, result
 		return
 	}
 	if report.SkippedCustom > 0 {
-		log.Printf("[scan/kubeconform] %s: %d custom resources not validated (their schema is in a CRD)", target, report.SkippedCustom)
+		log.Printf("[scan/kubeconform] %s: %d custom resources not validated (their schema is in a CRD)", logWord(target), report.SkippedCustom)
 	}
 	if len(report.Unrendered) > 0 {
-		log.Printf("[scan/kubeconform] %s: not rendered, so not validated: %s", target, strings.Join(report.Unrendered, ", "))
+		log.Printf("[scan/kubeconform] %s: not rendered, so not validated: %s", logWord(target), logWord(strings.Join(report.Unrendered, ", ")))
 	}
 	result.K8sUnrendered = report.Unrendered
 	result.Findings = append(result.Findings, report.Findings...)

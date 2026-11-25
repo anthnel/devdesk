@@ -98,7 +98,7 @@ func resolveRenderScope(ctx context.Context, target string) renderScope {
 	}
 	out, err := git("rev-parse", "--show-toplevel")
 	if err != nil {
-		log.Printf("[scan/k8s] %s: no git repository to mount, the renderers see the target only: %v", target, err)
+		log.Printf("[scan/k8s] %s: no git repository to mount, the renderers see the target only: %v", logWord(target), logErr(err))
 		return targetOnly(target)
 	}
 	worktree, err := git("config", "--get", "core.worktree")
@@ -106,14 +106,14 @@ func resolveRenderScope(ctx context.Context, target string) renderScope {
 	unset := errors.As(err, &exitErr) && exitErr.Code == 1 && len(bytes.TrimSpace(worktree)) == 0
 	if !unset {
 		log.Printf("[scan/k8s] %s: core.worktree is set or unreadable (%q, %v), the renderers see the target only",
-			target, strings.TrimSpace(string(worktree)), err)
+			logWord(target), strings.TrimSpace(string(worktree)), logErr(err))
 		return targetOnly(target)
 	}
 	scope, ok := widerScope(target, strings.TrimSpace(string(out)))
 	if !ok {
 		return targetOnly(target)
 	}
-	log.Printf("[scan/k8s] renderers in a container mount %s, the repository holding %s", scope.mount, target)
+	log.Printf("[scan/k8s] renderers in a container mount %s, the repository holding %s", logWord(scope.mount), logWord(target))
 	return scope
 }
 
@@ -457,7 +457,7 @@ func helmLint(ctx context.Context, scope renderScope, chart string, tool ToolSpe
 	out, err := runner.Run(ctx, cmd, nil)
 	findings, recognised := parseHelmLint(out, chart, scope)
 	if err != nil && !recognised {
-		log.Printf("ERROR [scan/helm] lint %s: %v", logWord(chart), err)
+		log.Printf("ERROR [scan/helm] lint %s: %v", logWord(chart), logErr(err))
 	}
 	repro, from := renderRepro(tool, "helm", "lint", chart)
 	for i := range findings {
