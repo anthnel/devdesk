@@ -1,6 +1,7 @@
 package app
 
 import (
+	"fmt"
 	"io"
 	"reflect"
 	"sync/atomic"
@@ -301,10 +302,14 @@ func TestAKeyWhileBlurredCountsAsFocus(t *testing.T) {
 	}
 }
 
-// countingModel counts the animation ticks the router handles.
+// countingModel counts the animation ticks the router handles and publishes,
+// after each Update, whether the router's chain is alive. Both are written on
+// the program's goroutine only, from Update (Rule 110), and read by the test
+// through atomics.
 type countingModel struct {
 	programModel
-	ticks *atomic.Int64
+	ticks   *atomic.Int64
+	ticking *atomic.Bool
 }
 
 func (m countingModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
@@ -312,51 +317,91 @@ func (m countingModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.ticks.Add(1)
 	}
 	_, cmd := m.programModel.Update(msg)
+	m.ticking.Store(m.app.anim.ticking)
 	return m, cmd
 }
 
+// realProgramDeadline bounds every wait on the real program: a condition that
+// does not hold by then is a failure, not a slow runner.
+const realProgramDeadline = 5 * time.Second
+
+// waitFor polls cond until it holds or realProgramDeadline passes, and reports
+// whether it held.
+func waitFor(cond func() bool) bool {
+	deadline := time.Now().Add(realProgramDeadline)
+	for !cond() {
+		if time.Now().After(deadline) {
+			return false
+		}
+		time.Sleep(time.Millisecond)
+	}
+	return true
+}
+
 // -race: a blur and a focus under a real tea.Program.
+//
+// Each step waits for the state it needs rather than sampling after a fixed
+// sleep: on a loaded two-core runner under -race, the first tick was measured
+// landing 60 to 190 ms after the key, past the 60 ms the test used to allow
+// (DEVDESK-784).
 func TestTheChainStopsOnBlurAndResumesOnFocusUnderARealProgram(t *testing.T) {
 	testutil.FastTimers(t, &animationBlinkInterval)
 
 	a := router(t, &blinkView{wants: true})
 	var ticks atomic.Int64
-	p := tea.NewProgram(countingModel{programModel{app: a}, &ticks},
+	var ticking atomic.Bool
+	p := tea.NewProgram(countingModel{programModel{app: a}, &ticks, &ticking},
 		tea.WithInput(nil), tea.WithOutput(io.Discard), tea.WithoutSignalHandler())
 
-	var running, blurredN, idle, resumed int64
-	go func() {
-		p.Send(testutil.Key("down")) // gives the router one Update, which starts the chain
-		time.Sleep(60 * time.Millisecond)
-		running = ticks.Load()
-		p.Send(tea.BlurMsg{})
-		time.Sleep(60 * time.Millisecond) // the in-flight tick lands
-		blurredN = ticks.Load()
-		time.Sleep(60 * time.Millisecond)
-		idle = ticks.Load()
-		p.Send(tea.FocusMsg{})
-		time.Sleep(60 * time.Millisecond)
-		resumed = ticks.Load()
-		p.Quit()
-	}()
 	done := make(chan error, 1)
 	go func() { _, err := p.Run(); done <- err }()
-	select {
-	case err := <-done:
-		if err != nil {
-			t.Fatalf("program: %v", err)
+	// stop quits the program, kills it if Run has not returned by the
+	// deadline, and returns what went wrong, if anything.
+	stop := func() error {
+		p.Quit()
+		select {
+		case err := <-done:
+			if err != nil {
+				return fmt.Errorf("program: %w", err)
+			}
+			return nil
+		case <-time.After(realProgramDeadline):
+			p.Kill()
+			return fmt.Errorf("the program did not exit on Quit and was killed (Run: %v)", <-done)
 		}
-	case <-time.After(5 * time.Second):
-		t.Fatal("the program did not exit")
+	}
+	fail := func(msg string) {
+		t.Helper()
+		if err := stop(); err != nil {
+			t.Fatalf("%s (and stopping it: %v)", msg, err)
+		}
+		t.Fatal(msg)
 	}
 
-	if running == 0 {
-		t.Fatal("setup: the chain never ticked")
+	p.Send(testutil.Key("down")) // gives the router one Update, which starts the chain
+	if !waitFor(func() bool { return ticks.Load() > 0 }) {
+		fail("setup: the chain never ticked")
 	}
+
+	p.Send(tea.BlurMsg{})
+	// The chain stops when its in-flight tick lands and is not renewed.
+	if !waitFor(func() bool { return !ticking.Load() }) {
+		fail("the chain was still alive after the blur")
+	}
+	blurredN := ticks.Load()
+	// A window in which a live 1 ms chain would tick dozens of times. A slow
+	// runner can only shorten what it observes, never fail a correct chain.
+	time.Sleep(60 * time.Millisecond)
+	idle := ticks.Load()
 	if idle != blurredN {
 		t.Errorf("%d ticks while blurred, want 0", idle-blurredN)
 	}
-	if resumed <= idle {
-		t.Error("the chain did not resume after the focus")
+
+	p.Send(tea.FocusMsg{})
+	if !waitFor(func() bool { return ticks.Load() > idle }) {
+		fail("the chain did not resume after the focus")
+	}
+	if err := stop(); err != nil {
+		t.Fatal(err)
 	}
 }
