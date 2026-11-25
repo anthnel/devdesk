@@ -40,6 +40,10 @@ const (
 // kustomize's own first line: the message keeps the whole text.
 const remoteBlockedHeadline = "Overlay does not build: remote base blocked"
 
+// uncheckedOverlayHeadline is the title of a K8S-RENDER finding for an overlay the gate
+// could not judge, so that a native kustomize was not started on it (DEVDESK-771).
+const uncheckedOverlayHeadline = "Overlay not built: its references could not be checked"
+
 // IDs of the findings the renderers themselves produce.
 const (
 	// HelmLintID is a message helm lint reported, at WARNING or ERROR.
@@ -317,7 +321,11 @@ func kubeconformStdinArgs(rendered []byte, tool ToolSpec, opts KubeconformOption
 type k8sValidation struct {
 	target string
 	// scope is where helm and kustomize run, resolved once per stage.
-	scope       renderScope
+	scope renderScope
+	// gateRoot is the limit of the paths the native kustomize gate follows,
+	// resolved once and only when a native kustomize is about to be gated.
+	gateRoot    string
+	gateRun     gateRun
 	kubeconform ToolSpec
 	opts        KubeconformOptions
 	report      *KubeconformReport
@@ -388,6 +396,22 @@ func (v *k8sValidation) renderKustomizations(ctx context.Context, dirs []string)
 		if !v.opts.AllowRemoteBases {
 			scope = scope.cut()
 		}
+		// Go never applies a proxy to the loopback, so a native kustomize with the
+		// network cut can still reach a service of this machine: the overlay is
+		// read first and kustomize is not started unless every reference is local
+		// (DEVDESK-771). From an image the engine cuts the network.
+		if scope.offline && tool.Source != ToolSourceContainer {
+			root, run := v.gateScope(ctx)
+			verdict := vetOverlayIn(ctx, root, filepath.Join(v.target, filepath.FromSlash(dir)), defaultGateLimits, run)
+			if verdict.Kind != gateOK {
+				if ctx.Err() != nil {
+					return ctx.Err()
+				}
+				log.Printf("[scan/k8s] overlay %q not built: %s, %q", dir, logWord(verdict.Kind.String()), verdict.Reason)
+				v.report.Findings = append(v.report.Findings, gateFinding(dir, file, verdict, tool.Source))
+				continue
+			}
+		}
 		cmd := kustomizeArgs(scope, dir, tool)
 		log.Printf("Running: %s", cmd.Loggable())
 		rendered, err := runner.Run(ctx, cmd, nil)
@@ -401,11 +425,7 @@ func (v *k8sValidation) renderKustomizations(ctx context.Context, dirs []string)
 			f := renderFailure(SourceKustomize, "kustomize", file, "Overlay does not build", from,
 				renderSteps(SourceKustomize, dir, from, detail, blocked), repro, err)
 			if blocked {
-				f.Title = remoteBlockedHeadline
-				f.Resolution = remoteBlockedResolution
-				// A copied `kustomize build` would run the refused fetch again, with
-				// the user's ssh agent and proxy, on a repository that is not trusted.
-				f.Repro = ""
+				markRemoteBlocked(&f)
 			}
 			v.report.Findings = append(v.report.Findings, f)
 			continue
@@ -419,6 +439,68 @@ func (v *k8sValidation) renderKustomizations(ctx context.Context, dirs []string)
 		}
 	}
 	return nil
+}
+
+// gateScope is the limit of the paths the kustomize gate follows, the git
+// repository holding the target or the target itself without one, and what the
+// gate remembers across the overlays of this scan. git is asked once, the first
+// time a native kustomize is gated.
+func (v *k8sValidation) gateScope(ctx context.Context) (string, gateRun) {
+	if v.gateRoot == "" {
+		scope := resolveRenderScope(ctx, v.target)
+		v.gateRoot = scope.mount
+		v.gateRun = gateRun{cache: &gateCache{}, limit: "the repository"}
+		if scope.rel == "" {
+			v.gateRun.limit = "the scanned folder"
+		}
+	}
+	return v.gateRoot, v.gateRun
+}
+
+// markRemoteBlocked gives a K8S-RENDER finding the words of a remote base the
+// cut network refused, whether kustomize said so or the gate did. A copied
+// `kustomize build` would run the refused fetch again, with the user's ssh agent
+// and proxy, on a repository that is not trusted, so there is no Repro.
+func markRemoteBlocked(f *Finding) {
+	f.Title = remoteBlockedHeadline
+	f.Resolution = remoteBlockedResolution
+	f.Repro = ""
+}
+
+// gateFinding is the K8S-RENDER finding of an overlay the gate refused, so that
+// kustomize was not started: a reference that is not local gets the finding of a
+// blocked remote base, an overlay that could not be judged one of its own.
+func gateFinding(dir, file string, v gateVerdict, from ToolSource) Finding {
+	if v.Kind == gateRemote {
+		f := renderFailure(SourceKustomize, "kustomize", file, "Overlay does not build", from,
+			renderSteps(SourceKustomize, dir, from, "", true), "", errors.New(remoteMessage(v)))
+		markRemoteBlocked(&f)
+		return f
+	}
+	f := renderFailure(SourceKustomize, "kustomize", file, "Overlay not built", from,
+		uncheckedOverlaySteps(dir, v.Reason), "", errors.New(uncheckedMessage(dir, v)))
+	f.Title = uncheckedOverlayHeadline
+	f.Resolution = uncheckedResolution
+	return f
+}
+
+// remoteMessage says where the reference is, what it is and why it is refused,
+// each name as %q: the text is the repository's own.
+func remoteMessage(v gateVerdict) string {
+	return fmt.Sprintf("DevDesk did not run kustomize: the field %q of %q holds %q, which is not a path of this repository (%s).",
+		clip(v.Field), clip(v.File), clip(v.Ref), clip(v.Reason))
+}
+
+// uncheckedMessage says what could not be checked, in which file and field.
+func uncheckedMessage(dir string, v gateVerdict) string {
+	msg := fmt.Sprintf("DevDesk did not run kustomize: the references of the overlay %q could not be checked", clip(dir))
+	if v.File != "" {
+		msg += fmt.Sprintf(", in %q", clip(v.File))
+	}
+	if v.Field != "" {
+		msg += fmt.Sprintf(" (field %q)", clip(v.Field))
+	}
+	return msg + ": " + clip(v.Reason) + "."
 }
 
 // validateRendered runs kubeconform over rendered YAML and points each
@@ -593,7 +675,16 @@ const (
 	remoteBlockedResolution = "The overlay names a remote base (a git URL or an https resource) and DevDesk " +
 		"renders a repository it does not trust with the network cut. Copy the base into the repository " +
 		"and reference it by a relative path, or, for a repository you trust, set " +
-		"scan.tools.kustomize.allow_remote_bases: true."
+		"scan.tools.kustomize.allow_remote_bases: true, which also lets the overlay reach the services of " +
+		"this machine (its loopback)."
+	// uncheckedResolution is for an overlay DevDesk did not build because it could
+	// not check every reference in it (DEVDESK-771): kustomize is not started on
+	// what it cannot judge.
+	uncheckedResolution = "DevDesk reads an overlay before building it and builds it only when every reference " +
+		"in it, and in what it pulls in, is a path of the repository. Remove what it could not read, or build " +
+		"the overlay in a container (scan.tools.kustomize.source: image), which has no network, or, for a " +
+		"repository you trust, set scan.tools.kustomize.allow_remote_bases: true, which also lets the overlay " +
+		"reach the services of this machine (its loopback)."
 	kustomizeRenderResolution = "Build it locally with kustomize build (or kubectl kustomize) and fix what it reports."
 	// kustomize's load restrictor (LoadRestrictionsRootOnly, its default)
 	// refuses a file outside the kustomization's directory, with this message.

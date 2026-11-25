@@ -188,7 +188,8 @@ func stepSamples() map[string][][]string {
 			renderSteps(SourceKustomize, "overlays/dev", ToolSourceBinary, sshBlockedStderr, true),
 			renderSteps(SourceKustomize, "overlays/dev", ToolSourceContainer, containerNoSuchHostStderr, true),
 		},
-		"helmLintSteps": {helmLintSteps("templates/deployment.yaml", "charts/api")},
+		"uncheckedOverlaySteps": {uncheckedOverlaySteps("overlays/dev", "an anchor in kustomization.yaml")},
+		"helmLintSteps":         {helmLintSteps("templates/deployment.yaml", "charts/api")},
 		"schemaSteps": {
 			schemaSteps(resource, problem, "1.36.0", ""),
 			schemaSteps(resource, problem, "", ""),

@@ -107,9 +107,11 @@ A category's `tools` list is a slice, so a `Config` copied by value shares it:
 **`scan.tools.kustomize.allow_remote_bases`** (DEVDESK-767, D180) is a bool,
 default `false` and `omitempty`, so an absent key stays absent on save. Off, an
 overlay is built with the network cut and a remote base (a git URL or an https
-resource in a `kustomization.yaml`) is refused with a finding of its own; on, it
-is fetched as before, with the user's proxy and git credentials. It is only for a
-repository the user trusts. `ScanTools.Kustomize` is a `KustomizeConfig`
+resource in a `kustomization.yaml`) is refused with a finding of its own; a
+native kustomize is also started only on an overlay whose references all name a
+path of the repository (DEVDESK-771). On, it is fetched as before, with the
+user's proxy and git credentials, and the overlay may also reach the services of
+this machine (its loopback). It is only for a repository the user trusts. `ScanTools.Kustomize` is a `KustomizeConfig`
 (`ToolConfig` inlined, plus this key); `ScanTools.Tool("kustomize")` still returns
 the `ToolConfig`. The configuration view shows it as the checkbox "Allow remote
 bases" in Kustomize's group of the tools tab (`space` flips it, saved at once). See

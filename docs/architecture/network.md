@@ -1964,7 +1964,9 @@ forwards the proxy itself.
   variables of its own. helm always runs this way and kustomize too, unless
   `scan.tools.kustomize.allow_remote_bases` is on; kubeconform does not (it
   downloads schemas). The renderers run natively with `offlineEnviron`
-  instead (a dead proxy and a `GIT_ALLOW_PROTOCOL` that names no transport). No new `"run"` literal:
+  instead (a dead proxy and a `GIT_ALLOW_PROTOCOL` that names no transport), and a
+  native kustomize is started only after the gate of DEVDESK-771 has read the
+  overlay, because Go never proxies the loopback. No new `"run"` literal:
   `Offline` is a branch of the same `cmd()`, so `TestContainerGuard*` is unchanged.
   The loopback proxy warning (`scan.ContainerProxyWarning`) is unchanged and still
   names kubeconform and the other containers. See `scanning.md`.

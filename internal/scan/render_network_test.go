@@ -1,12 +1,18 @@
 package scan
 
 import (
+	"fmt"
+	"net"
+	"net/http"
+	"net/http/httptest"
+	"os"
 	"os/exec"
 	"path/filepath"
 	"regexp"
 	"slices"
 	"strconv"
 	"strings"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -750,26 +756,71 @@ func kustomizeWithGit(t *testing.T) string {
 	return path
 }
 
-// With the real kustomize and git, an overlay that names a remote base fails
-// at once, with a message that says the transport was refused, and never with
-// a name lookup: nothing left the machine.
-func TestARealKustomizeIsRefusedItsRemoteBases(t *testing.T) {
-	kustomize := kustomizeWithGit(t)
-	isolateHome(t)
-	for _, c := range []struct{ name, resource string }{
+// remoteBaseCases are the references the real tools are asked about: what a
+// kustomize that was let through would be told to fetch.
+func remoteBaseCases(t *testing.T) []struct{ name, resource string } {
+	t.Helper()
+	// A git repository of this machine, which a transport of `file` would read.
+	local := t.TempDir()
+	if out, err := exec.CommandContext(t.Context(), "git", "init", "-q", local).CombinedOutput(); err != nil { //nolint:gosec // git on PATH, a fresh temp directory
+		t.Skipf("git init: %v: %s", err, out)
+	}
+	return []struct{ name, resource string }{
 		{"ssh", "git@unreachable.invalid:o/r"},
 		{"https git", "https://unreachable.invalid/o/r.git"},
 		{"https resource", "https://unreachable.invalid/m.yaml"},
-		{"file", "file://FILEREPO"},
-	} {
+		{"file", "file://" + filepath.ToSlash(local)},
+	}
+}
+
+// The second barrier. DEVDESK-771 puts a gate in front of a native kustomize, so
+// a run that reaches kustomize with a remote base is no longer what a scan does;
+// this test starts kustomize itself, as it would be started if the gate had let
+// the overlay through, with the environment of a cut network. With the real
+// kustomize and git, a remote base fails at once, with a message that says the
+// transport was refused, and never with a name lookup: nothing left the machine.
+func TestARealKustomizeIsRefusedItsRemoteBases(t *testing.T) {
+	kustomize := kustomizeWithGit(t)
+	isolateHome(t)
+	for _, c := range remoteBaseCases(t) {
 		t.Run(c.name, func(t *testing.T) {
-			// A git repository of this machine, which a transport of `file` would read.
-			local := t.TempDir()
-			if out, err := exec.CommandContext(t.Context(), "git", "init", "-q", local).CombinedOutput(); err != nil { //nolint:gosec // git on PATH, a fresh temp directory
-				t.Skipf("git init: %v: %s", err, out)
+			repo := writeRepo(t, map[string]string{"overlay/kustomization.yaml": "resources:\n  - " + q(c.resource) + "\n"})
+			cmd := exec.CommandContext(t.Context(), kustomize, "build", "./overlay") //nolint:gosec // the kustomize found on PATH, a fresh temp directory
+			cmd.Dir = repo
+			cmd.Env = offlineEnviron(os.Environ())
+
+			start := time.Now()
+			out, err := cmd.CombinedOutput()
+			elapsed := time.Since(start)
+
+			if err == nil {
+				t.Fatalf("kustomize built an overlay whose base is %s:\n%s", c.resource, out)
 			}
-			resource := strings.ReplaceAll(c.resource, "FILEREPO", filepath.ToSlash(local))
-			repo := writeRepo(t, map[string]string{"overlay/kustomization.yaml": "resources:\n  - " + resource + "\n"})
+			if elapsed.Seconds() >= 5 {
+				t.Errorf("took %s: something waited on the network", elapsed)
+			}
+			if strings.Contains(string(out), "lookup unreachable.invalid") {
+				t.Errorf("the host was looked up, so the network was not cut:\n%s", out)
+			}
+			if !strings.Contains(string(out), "not allowed") && !strings.Contains(string(out), "proxyconnect tcp: dial tcp 127.0.0.1:0") {
+				t.Errorf("no sign of a refused transport or of the dead proxy in:\n%s", out)
+			}
+			if !remoteBlocked(string(out), ToolSourceBinary) {
+				t.Errorf("remoteBlocked does not recognise what the real kustomize printed:\n%s", out)
+			}
+		})
+	}
+}
+
+// End to end, with the real kustomize: the gate refuses the overlay and kustomize
+// is not launched, so the finding is the gate's own (it names the file, the
+// field and the reference) and carries none of kustomize's words.
+func TestARealKustomizeIsNeverLaunchedOnAnOverlayThatNamesARemoteBase(t *testing.T) {
+	kustomize := kustomizeWithGit(t)
+	isolateHome(t)
+	for _, c := range remoteBaseCases(t) {
+		t.Run(c.name, func(t *testing.T) {
+			repo := writeRepo(t, map[string]string{"overlay/kustomization.yaml": "resources:\n  - " + q(c.resource) + "\n"})
 
 			start := time.Now()
 			report, err := RunKubeconform(t.Context(), repo, ToolSpec{Source: ToolSourceBinary, Binary: "kubeconform"},
@@ -782,26 +833,118 @@ func TestARealKustomizeIsRefusedItsRemoteBases(t *testing.T) {
 			if elapsed.Seconds() >= 5 {
 				t.Errorf("took %s: something waited on the network", elapsed)
 			}
-			var render *Finding
-			for i, f := range report.Findings {
-				if f.ID == K8sRenderID {
-					render = &report.Findings[i]
+			found := renderFindings(report)
+			if len(found) != 1 {
+				t.Fatalf("%d render findings, want 1: %+v", len(found), report.Findings)
+			}
+			f := found[0]
+			if f.Title != remoteBlockedHeadline {
+				t.Errorf("title = %q, want %q", f.Title, remoteBlockedHeadline)
+			}
+			for _, want := range []string{"overlay/kustomization.yaml", "resources[0]", c.resource} {
+				if !strings.Contains(f.Message, fmt.Sprintf("%q", want)) {
+					t.Errorf("the message does not name %q:\n%s", want, f.Message)
 				}
 			}
-			if render == nil {
-				t.Fatalf("no render finding among %+v", report.Findings)
+			// kustomize did not run: nothing of what it prints is in the message.
+			for _, marker := range []string{"accumulating resources", "not allowed", "proxyconnect", "evalsymlink"} {
+				if strings.Contains(f.Message, marker) {
+					t.Errorf("the message holds %q, which only kustomize writes: it was launched\n%s", marker, f.Message)
+				}
 			}
-			if strings.Contains(render.Message, "lookup unreachable.invalid") {
-				t.Errorf("the host was looked up, so the network was not cut:\n%s", render.Message)
+			if f.Repro != "" {
+				t.Errorf("repro = %q, want none", f.Repro)
 			}
-			if !strings.Contains(render.Message, "not allowed") && !strings.Contains(render.Message, "proxyconnect tcp: dial tcp 127.0.0.1:0") {
-				t.Errorf("no sign of a refused transport or of the dead proxy in:\n%s", render.Message)
+		})
+	}
+}
+
+// countingServer answers 404 to everything and counts the requests, on addr (a
+// listener kept open for the whole test: no port is read then closed). A test that
+// cannot listen there is skipped.
+func countingServer(t *testing.T, addr string) (hits *atomic.Int64, port int) {
+	t.Helper()
+	l, err := net.Listen("tcp", addr)
+	if err != nil {
+		t.Skipf("cannot listen on %s: %v", addr, err)
+	}
+	hits = new(atomic.Int64)
+	srv := httptest.NewUnstartedServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		hits.Add(1)
+		w.WriteHeader(http.StatusNotFound)
+	}))
+	_ = srv.Listener.Close()
+	srv.Listener = l
+	srv.Start()
+	t.Cleanup(srv.Close)
+	return hits, l.Addr().(*net.TCPAddr).Port
+}
+
+// DEVDESK-771, acceptance. Go never applies a proxy to the loopback, so a native
+// kustomize that reads `resources: [http://127.0.0.1:PORT/x.yaml]` sends a GET to
+// a service of this machine whatever offlineEnviron says. With the gate it sends
+// nothing, for every spelling of the loopback; the witness run, with
+// allow_remote_bases, shows the server would have seen a request.
+func TestARealKustomizeNeverReachesAServiceOfTheLoopback(t *testing.T) {
+	kustomize := kustomizeWithGit(t)
+	isolateHome(t)
+	// The witness run inherits this process's environment: a proxy of the host
+	// would take a name Go does not treat as the loopback (x.localhost).
+	for _, name := range []string{"HTTP_PROXY", "http_proxy", "HTTPS_PROXY", "https_proxy", "ALL_PROXY", "all_proxy"} {
+		t.Setenv(name, "")
+	}
+	t.Setenv("NO_PROXY", "*")
+	t.Setenv("no_proxy", "*")
+
+	tests := []struct {
+		name   string
+		listen string // where the server is
+		host   string // what the overlay names
+		skip   func(t *testing.T)
+	}{
+		{name: "127.0.0.1", listen: "127.0.0.1:0", host: "127.0.0.1"},
+		{name: "localhost", listen: "127.0.0.1:0", host: "localhost"},
+		{name: "[::1]", listen: "[::1]:0", host: "[::1]"},
+		{name: "127.0.0.2", listen: "127.0.0.2:0", host: "127.0.0.2"},
+		{name: "a name under .localhost", listen: "127.0.0.1:0", host: "x.localhost", skip: func(t *testing.T) {
+			addrs, err := net.LookupHost("x.localhost")
+			if err != nil || !slices.ContainsFunc(addrs, func(a string) bool { ip := net.ParseIP(a); return ip != nil && ip.IsLoopback() }) {
+				t.Skipf("x.localhost does not resolve to the loopback here: %v %v", addrs, err)
 			}
-			if !remoteBlocked(render.Message, ToolSourceBinary) {
-				t.Errorf("remoteBlocked does not recognise what the real kustomize printed:\n%s", render.Message)
+		}},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if tt.skip != nil {
+				tt.skip(t)
 			}
-			if !strings.Contains(render.Title, "remote base blocked") {
-				t.Errorf("title = %q, want it to say the remote base was blocked", render.Title)
+			hits, port := countingServer(t, tt.listen)
+			url := "http://" + tt.host + ":" + strconv.Itoa(port) + "/m.yaml"
+			repo := writeRepo(t, map[string]string{"overlay/kustomization.yaml": "resources:\n  - " + q(url) + "\n"})
+			run := func(allow bool) *KubeconformReport {
+				report, err := RunKubeconform(t.Context(), repo, ToolSpec{Source: ToolSourceBinary, Binary: "kubeconform"},
+					KubeconformOptions{Kustomize: ToolSpec{Source: ToolSourceBinary, Binary: kustomize}, AllowRemoteBases: allow}, nil)
+				if err != nil {
+					t.Fatalf("RunKubeconform: %v", err)
+				}
+				return report
+			}
+
+			blocked := run(false)
+
+			if n := hits.Load(); n != 0 {
+				t.Errorf("the server of %s got %d request(s) with the network cut, want 0", url, n)
+			}
+			found := renderFindings(blocked)
+			if len(found) != 1 || found[0].Title != remoteBlockedHeadline || !strings.Contains(found[0].Message, fmt.Sprintf("%q", url)) {
+				t.Errorf("findings = %+v, want one %q that names %q", found, remoteBlockedHeadline, url)
+			}
+
+			// The witness: the same overlay, allowed, does reach the server. Without it a
+			// run of 0 would prove nothing (a server nobody can reach looks the same).
+			run(true)
+			if hits.Load() < 1 {
+				t.Fatalf("with allow_remote_bases kustomize did not reach %s either: this test cannot see a request here", url)
 			}
 		})
 	}
