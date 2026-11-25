@@ -128,7 +128,7 @@ func checkBaseImageSignatures(ctx context.Context, target string, deps trust.Che
 	for _, rel := range files {
 		content, err := os.ReadFile(filepath.Join(target, filepath.FromSlash(rel))) //nolint:gosec // a Dockerfile of the directory being scanned
 		if err != nil {
-			log.Printf("ERROR [scan/signature] read %s: %v", rel, err)
+			log.Printf("ERROR [scan/signature] read %s: %v", logWord(rel), logErr(err))
 			continue
 		}
 		for _, st := range dockerfile.Parse(content).Stages {

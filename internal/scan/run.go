@@ -146,6 +146,17 @@ func logWord(word string) string {
 	return word
 }
 
+// logErr is the text of err as one token of a log line: err.Error() as it is
+// when it prints, quoted like logWord otherwise. An error from the file system
+// carries the path as it was given (a *fs.PathError), which comes from the
+// scanned repository. A nil error is "<nil>", what %v printed.
+func logErr(err error) string {
+	if err == nil {
+		return "<nil>"
+	}
+	return logWord(err.Error())
+}
+
 // exitError reports a tool that ran and exited non-zero. The code matters:
 // both scanners use a non-zero exit to mean "I found something" rather than
 // "I failed" — trivy for vulnerabilities, gitleaks for secrets — so callers

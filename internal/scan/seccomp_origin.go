@@ -63,7 +63,7 @@ func annotateSeccompContext(ctx context.Context, root string, findings []Finding
 	}
 	dir, err := os.OpenRoot(root)
 	if err != nil {
-		log.Printf("WARN [scan] seccomp origin: cannot open %s: %v", root, err)
+		log.Printf("WARN [scan] seccomp origin: cannot open %s: %v", logWord(root), logErr(err))
 		return
 	}
 	defer func() { _ = dir.Close() }()
@@ -74,12 +74,12 @@ func annotateSeccompContext(ctx context.Context, root string, findings []Finding
 		}
 		name := filepath.FromSlash(file)
 		if !filepath.IsLocal(name) {
-			log.Printf("WARN [scan] seccomp origin: %s is outside the scanned directory", file)
+			log.Printf("WARN [scan] seccomp origin: %s is outside the scanned directory", logWord(file))
 			continue
 		}
 		content, err := k8s.ReadManifestIn(dir, name)
 		if err != nil {
-			log.Printf("WARN [scan] seccomp origin: cannot read %s: %v", file, err)
+			log.Printf("WARN [scan] seccomp origin: cannot read %s: %v", logWord(file), logErr(err))
 			continue
 		}
 		documents := indexDocuments(content)

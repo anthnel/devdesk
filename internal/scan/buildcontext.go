@@ -119,7 +119,7 @@ func CheckBuildContext(root string) ([]Finding, error) {
 		}
 		cp, ok, err := wholeContextCopy(filepath.Join(root, e.Name()))
 		if err != nil {
-			log.Printf("ERROR [scan/build-context] read %s: %v", e.Name(), err)
+			log.Printf("ERROR [scan/build-context] read %s: %v", logWord(e.Name()), logErr(err))
 			continue
 		}
 		if !ok {
@@ -208,7 +208,7 @@ func contextFilter(root, name string) (sent func(rel string, tree bool) bool, ok
 	for _, rel := range dockerfile.IgnoreFiles(root, name) {
 		content, err := os.ReadFile(filepath.Join(root, filepath.FromSlash(rel))) //nolint:gosec // an ignore file of the directory being scanned
 		if err != nil {
-			log.Printf("ERROR [scan/build-context] read %s: %v", rel, err)
+			log.Printf("ERROR [scan/build-context] read %s: %v", logWord(rel), logErr(err))
 			return nil, false
 		}
 		ignores = append(ignores, dockerfile.ParseIgnore(content))
@@ -270,7 +270,7 @@ func logUncheckedDockerfiles(root string) {
 			continue
 		}
 		if _, ok, _ := wholeContextCopy(filepath.Join(root, filepath.FromSlash(rel))); ok {
-			log.Printf("[scan/build-context] %s: %s not checked — a Dockerfile outside the root does not say where its build context is", root, rel)
+			log.Printf("[scan/build-context] %s: %s not checked — a Dockerfile outside the root does not say where its build context is", logWord(root), logWord(rel))
 		}
 	}
 }
