@@ -1,0 +1,15 @@
+{
+  "tool_use_id": "toolu_01MjDwoDcAWbcd48P3xqdzuf",
+  "agent_id": "a381b41957ab5cda1",
+  "subagent_type": "dev-team:reviewer",
+  "task_description": "Review flaky-tests fix",
+  "token_usage": {
+    "input_tokens": 14,
+    "cache_creation_tokens": 61722,
+    "cache_read_tokens": 294628,
+    "output_tokens": 7235,
+    "api_call_count": 7
+  },
+  "started_at": "2026-11-25T13:28:29.337962264+01:00",
+  "completed_at": "2026-11-25T13:29:34.767884739+01:00"
+}

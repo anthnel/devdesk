@@ -1,0 +1,15 @@
+{
+  "tool_use_id": "toolu_013RbxZJhsh2dkr7mQCcYAu7",
+  "agent_id": "a356680a8a7b6b54a",
+  "subagent_type": "dev-team:debugger",
+  "task_description": "Fix two flaky CI tests",
+  "token_usage": {
+    "input_tokens": 92,
+    "cache_creation_tokens": 457127,
+    "cache_read_tokens": 4890682,
+    "output_tokens": 27162,
+    "api_call_count": 43
+  },
+  "started_at": "2026-11-25T13:00:44.816850956+01:00",
+  "completed_at": "2026-11-25T13:28:13.598232975+01:00"
+}

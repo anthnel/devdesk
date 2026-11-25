@@ -1,0 +1,46 @@
+{
+  "cli_version": "0.13.2",
+  "checkpoint_id": "3964b2abc94a",
+  "strategy": "manual-commit",
+  "branch": "fix/flaky-ci-tests",
+  "checkpoints_count": 4,
+  "files_touched": null,
+  "sessions": [
+    {
+      "metadata": "/39/64b2abc94a/0/metadata.json",
+      "transcript": "/39/64b2abc94a/0/full.jsonl",
+      "compact_transcript": "/39/64b2abc94a/0/transcript.jsonl",
+      "content_hash": "/39/64b2abc94a/0/content_hash.txt",
+      "prompt": "/39/64b2abc94a/0/prompt.txt"
+    }
+  ],
+  "token_usage": {
+    "input_tokens": 30,
+    "cache_creation_tokens": 20233,
+    "cache_read_tokens": 3969328,
+    "output_tokens": 9016,
+    "api_call_count": 10,
+    "subagent_tokens": {
+      "input_tokens": 136,
+      "cache_creation_tokens": 675017,
+      "cache_read_tokens": 5777107,
+      "output_tokens": 38996,
+      "api_call_count": 65
+    },
+    "subagent_tokens_complete": true
+  },
+  "redaction": {
+    "replacements": 55,
+    "layers": {
+      "betterleaks": 0,
+      "connection_string": 0,
+      "credential_key": 0,
+      "credential_value": 0,
+      "credentialed_uri": 23,
+      "entropy": 25,
+      "key_context": 7,
+      "provider_token": 0,
+      "shell_stdin": 0
+    }
+  }
+}
