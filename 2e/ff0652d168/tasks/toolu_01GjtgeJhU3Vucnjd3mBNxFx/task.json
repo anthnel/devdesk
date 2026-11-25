@@ -1,0 +1,15 @@
+{
+  "tool_use_id": "toolu_01GjtgeJhU3Vucnjd3mBNxFx",
+  "agent_id": "ad3ee199c60051744",
+  "subagent_type": "project-tester",
+  "task_description": "TDD red tests for 783 Flux",
+  "token_usage": {
+    "input_tokens": 88,
+    "cache_creation_tokens": 444878,
+    "cache_read_tokens": 6280607,
+    "output_tokens": 75635,
+    "api_call_count": 42
+  },
+  "started_at": "2026-11-25T12:18:44.160115557+01:00",
+  "completed_at": "2026-11-25T12:27:22.196287472+01:00"
+}

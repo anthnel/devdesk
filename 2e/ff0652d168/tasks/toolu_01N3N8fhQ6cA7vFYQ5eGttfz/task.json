@@ -1,0 +1,15 @@
+{
+  "tool_use_id": "toolu_01N3N8fhQ6cA7vFYQ5eGttfz",
+  "agent_id": "a478a50199c0b5e66",
+  "subagent_type": "dev-team:architect",
+  "task_description": "Research Flux restrictor, design",
+  "token_usage": {
+    "input_tokens": 38,
+    "cache_creation_tokens": 126031,
+    "cache_read_tokens": 1771462,
+    "output_tokens": 20598,
+    "api_call_count": 19
+  },
+  "started_at": "2026-11-25T12:05:54.100131759+01:00",
+  "completed_at": "2026-11-25T12:09:56.646625898+01:00"
+}

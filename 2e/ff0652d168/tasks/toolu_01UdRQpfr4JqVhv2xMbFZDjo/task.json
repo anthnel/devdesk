@@ -1,0 +1,15 @@
+{
+  "tool_use_id": "toolu_01UdRQpfr4JqVhv2xMbFZDjo",
+  "agent_id": "ac2a05b81db4fef7d",
+  "subagent_type": "dev-team:security-reviewer",
+  "task_description": "Security review 783 Flux",
+  "token_usage": {
+    "input_tokens": 24,
+    "cache_creation_tokens": 107586,
+    "cache_read_tokens": 727917,
+    "output_tokens": 18073,
+    "api_call_count": 11
+  },
+  "started_at": "2026-11-25T12:32:38.332921092+01:00",
+  "completed_at": "2026-11-25T12:35:33.900580074+01:00"
+}

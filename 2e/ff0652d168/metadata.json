@@ -1,0 +1,46 @@
+{
+  "cli_version": "0.13.2",
+  "checkpoint_id": "2eff0652d168",
+  "strategy": "manual-commit",
+  "branch": "fix/devdesk-783-flux-load-restrictor",
+  "checkpoints_count": 10,
+  "files_touched": null,
+  "sessions": [
+    {
+      "metadata": "/2e/ff0652d168/0/metadata.json",
+      "transcript": "/2e/ff0652d168/0/full.jsonl",
+      "compact_transcript": "/2e/ff0652d168/0/transcript.jsonl",
+      "content_hash": "/2e/ff0652d168/0/content_hash.txt",
+      "prompt": "/2e/ff0652d168/0/prompt.txt"
+    }
+  ],
+  "token_usage": {
+    "input_tokens": 72,
+    "cache_creation_tokens": 59624,
+    "cache_read_tokens": 8194612,
+    "output_tokens": 26350,
+    "api_call_count": 23,
+    "subagent_tokens": {
+      "input_tokens": 274,
+      "cache_creation_tokens": 1150353,
+      "cache_read_tokens": 13815577,
+      "output_tokens": 168916,
+      "api_call_count": 132
+    },
+    "subagent_tokens_complete": true
+  },
+  "redaction": {
+    "replacements": 42,
+    "layers": {
+      "betterleaks": 0,
+      "connection_string": 0,
+      "credential_key": 0,
+      "credential_value": 0,
+      "credentialed_uri": 20,
+      "entropy": 16,
+      "key_context": 6,
+      "provider_token": 0,
+      "shell_stdin": 0
+    }
+  }
+}
