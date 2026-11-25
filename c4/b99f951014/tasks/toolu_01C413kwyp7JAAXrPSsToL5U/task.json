@@ -1,0 +1,15 @@
+{
+  "tool_use_id": "toolu_01C413kwyp7JAAXrPSsToL5U",
+  "agent_id": "ab90911a332971de7",
+  "subagent_type": "dev-team:security-reviewer",
+  "task_description": "Re-audit 771 gate fix",
+  "token_usage": {
+    "input_tokens": 78,
+    "cache_creation_tokens": 136829,
+    "cache_read_tokens": 3922295,
+    "output_tokens": 41459,
+    "api_call_count": 38
+  },
+  "started_at": "2026-11-25T10:11:01.235996685+01:00",
+  "completed_at": "2026-11-25T10:20:13.600355751+01:00"
+}
