@@ -1,0 +1,46 @@
+{
+  "cli_version": "0.13.2",
+  "checkpoint_id": "98425f43356a",
+  "strategy": "manual-commit",
+  "branch": "ci/install-kubeconform",
+  "checkpoints_count": 3,
+  "files_touched": null,
+  "sessions": [
+    {
+      "metadata": "/98/425f43356a/0/metadata.json",
+      "transcript": "/98/425f43356a/0/full.jsonl",
+      "compact_transcript": "/98/425f43356a/0/transcript.jsonl",
+      "content_hash": "/98/425f43356a/0/content_hash.txt",
+      "prompt": "/98/425f43356a/0/prompt.txt"
+    }
+  ],
+  "token_usage": {
+    "input_tokens": 28,
+    "cache_creation_tokens": 13420,
+    "cache_read_tokens": 2523381,
+    "output_tokens": 6853,
+    "api_call_count": 8,
+    "subagent_tokens": {
+      "input_tokens": 48,
+      "cache_creation_tokens": 189418,
+      "cache_read_tokens": 962447,
+      "output_tokens": 7191,
+      "api_call_count": 24
+    },
+    "subagent_tokens_complete": true
+  },
+  "redaction": {
+    "replacements": 2,
+    "layers": {
+      "betterleaks": 0,
+      "connection_string": 0,
+      "credential_key": 0,
+      "credential_value": 0,
+      "credentialed_uri": 0,
+      "entropy": 0,
+      "key_context": 2,
+      "provider_token": 0,
+      "shell_stdin": 0
+    }
+  }
+}
