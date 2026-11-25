@@ -449,9 +449,10 @@ no line, so it could feed neither the table's jump-to-line nor a fix.
   top-level field has that overlay refused as "could not be checked" until the
   gate learns it. Redo the match between the gate's lists and the kustomize
   types at every version bump (the lists are in `kustomize_gate.go`; a list in
-  `testdata` with a concordance test is recommended, not written). (2) The CI installs only Go (`ci.yml`; `mise.toml` has no kustomize), so
-  the `TestARealKustomize*` tests skip there without a sound: in CI only the
-  unit tests guard the gate. (2b) No time limit surrounds the run of kustomize:
+  `testdata` with a concordance test is recommended, not written). (2) `ci.yml` does not install kustomize, but the `ubuntu-latest` image carries
+  5.8.3, so the `TestARealKustomize*` tests run in CI, except
+  `TestARealKustomizeIsNotStartedOnAPluginDirectory`, which skips without
+  `kubeconform` (follow-up: install `kubeconform` in CI so that test runs there too). (2b) No time limit surrounds the run of kustomize:
   a plugin or a special file the gate does not cover can block the render
   (follow-up). (2c) TOCTOU:
   the repository is assumed not to change between the read of the gate and the
