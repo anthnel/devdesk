@@ -402,7 +402,13 @@ func TestTheSchemaStageIsToldWhetherRemoteBasesAreAllowed(t *testing.T) {
 // process holds.
 func TestNativeRenderersRunWithTheNetworkCut(t *testing.T) {
 	isolateHome(t)
-	t.Setenv("HTTPS_PROXY", "http://alice:s3cr3tpw@proxy.example:3128")
+	// The pieces of the host's proxy value, matched as they stand in a proxy
+	// URL. The environment checked below is this process's own, where HOME,
+	// USERPROFILE and TMPDIR carry the random digits of a t.TempDir name: a
+	// bare port number would match them (DEVDESK-784).
+	const hostProxy = "http://alice:s3cr3tpw@proxy.example:3128"
+	hostProxyPieces := []string{hostProxy, "alice:", "s3cr3tpw", "proxy.example", ":3128"}
+	t.Setenv("HTTPS_PROXY", hostProxy)
 	t.Setenv("GIT_ALLOW_PROTOCOL", "https:ssh")
 	t.Setenv("LC_ALL", "fr_FR.UTF-8")
 	r := networkRunner(t, "")
@@ -421,10 +427,7 @@ func TestNativeRenderersRunWithTheNetworkCut(t *testing.T) {
 			}
 			checkOffline(t, call.Env)
 			for _, kv := range call.Env {
-				checkNoLeak(t, "Env entry", kv)
-				if strings.Contains(kv, "s3cr3tpw") {
-					t.Errorf("Env carries the host's proxy: %q", kv)
-				}
+				checkNoneOf(t, "Env entry", kv, hostProxyPieces)
 			}
 			if call.Dir == "" {
 				t.Error("the renderer no longer runs in the scanned directory")

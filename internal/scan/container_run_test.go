@@ -26,10 +26,13 @@ const (
 
 // fwdLeaks is everything that must never appear in an argv or in a displayed
 // command: the raw values and the pieces a credential or a host is made of.
+// The port is matched as it stands in a proxy URL, ":3128": the bare digits
+// also occur in the random name t.TempDir gives a directory, which reaches an
+// argv or an environment through a mount or HOME (DEVDESK-784).
 var fwdLeaks = []string{
 	fwdHTTPValue, fwdHTTPSValue, fwdNoValue,
 	"s3cr3tpw", "hunter2pw", "alice-user", "bob-user",
-	"proxy.example.com", "3128", "internal.example.net", "corp.example.net",
+	"proxy.example.com", ":3128", "internal.example.net", "corp.example.net",
 }
 
 // fullProxy is the three pairs, each given in its upper case name only.
@@ -96,7 +99,13 @@ func withNamesBeforeImage(t *testing.T, args []string, names []string) []string 
 // checkNoLeak fails when s contains any proxy value or piece of one.
 func checkNoLeak(t *testing.T, what, s string) {
 	t.Helper()
-	for _, leak := range fwdLeaks {
+	checkNoneOf(t, what, s, fwdLeaks)
+}
+
+// checkNoneOf fails when s contains any of leaks.
+func checkNoneOf(t *testing.T, what, s string, leaks []string) {
+	t.Helper()
+	for _, leak := range leaks {
 		if strings.Contains(s, leak) {
 			t.Errorf("%s contains %q: %s", what, leak, s)
 		}
