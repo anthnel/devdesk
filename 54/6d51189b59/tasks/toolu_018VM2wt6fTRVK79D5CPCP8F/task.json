@@ -1,0 +1,15 @@
+{
+  "tool_use_id": "toolu_018VM2wt6fTRVK79D5CPCP8F",
+  "agent_id": "ae70577489d20fe18",
+  "subagent_type": "dev-team:security-reviewer",
+  "task_description": "Security review 772 diff",
+  "token_usage": {
+    "input_tokens": 22,
+    "cache_creation_tokens": 55056,
+    "cache_read_tokens": 471281,
+    "output_tokens": 10085,
+    "api_call_count": 11
+  },
+  "started_at": "2026-11-25T09:25:22.827972936+01:00",
+  "completed_at": "2026-11-25T09:28:27.48402117+01:00"
+}

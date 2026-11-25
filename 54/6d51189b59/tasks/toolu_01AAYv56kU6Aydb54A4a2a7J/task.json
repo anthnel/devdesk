@@ -1,0 +1,15 @@
+{
+  "tool_use_id": "toolu_01AAYv56kU6Aydb54A4a2a7J",
+  "agent_id": "a0076909e9309a699",
+  "subagent_type": "project-coder",
+  "task_description": "Green phase 772 quoting",
+  "token_usage": {
+    "input_tokens": 34,
+    "cache_creation_tokens": 150348,
+    "cache_read_tokens": 932228,
+    "output_tokens": 13687,
+    "api_call_count": 17
+  },
+  "started_at": "2026-11-25T09:17:48.456516686+01:00",
+  "completed_at": "2026-11-25T09:19:39.219443106+01:00"
+}

@@ -1,0 +1,15 @@
+{
+  "tool_use_id": "toolu_015Y2EUjL3bQ1GdNvW2bNm2W",
+  "agent_id": "ad8a00c46e94a8948",
+  "subagent_type": "dev-team:reviewer",
+  "task_description": "Review 775 diff",
+  "token_usage": {
+    "input_tokens": 34,
+    "cache_creation_tokens": 76252,
+    "cache_read_tokens": 978891,
+    "output_tokens": 10677,
+    "api_call_count": 17
+  },
+  "started_at": "2026-11-25T09:26:26.325863791+01:00",
+  "completed_at": "2026-11-25T09:28:05.962584052+01:00"
+}
