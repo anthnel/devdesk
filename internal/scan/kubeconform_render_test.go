@@ -109,6 +109,11 @@ func renderRunner(t *testing.T, helmTemplate stageReply) *scriptedRunner {
 	  "status":"statusInvalid","validationErrors":[{"path":"/spec/replicas","msg":"got string, want null or integer"}]}]}`
 	r := &scriptedRunner{}
 	r.reply = func(tc toolCmd) ([]byte, error) {
+		// A native kustomize is gated first (DEVDESK-771), and the gate asks git
+		// for the limit of the paths it follows: there is no repository here.
+		if tc.Name == "git" {
+			return nil, &exitError{Code: 128, Stderr: "fatal: not a git repository"}
+		}
 		args := strings.Join(tc.Args, " ")
 		switch {
 		case strings.HasPrefix(args, "lint "):

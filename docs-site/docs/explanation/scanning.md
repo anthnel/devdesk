@@ -177,8 +177,12 @@ make kustomize fetch it with your ssh agent and proxy. Such an overlay gets a
 `remote base blocked` finding; copy the base into the repository, or set
 `scan.tools.kustomize.allow_remote_bases: true` for repositories you trust (one
 value for every repository scanned in the context, read only from your
-`~/.devdesk` configuration). A service on this machine's loopback can still be
-reached by a kustomize binary; running kustomize from an image closes that.
+`~/.devdesk` configuration). Before it runs a kustomize binary, DevDesk reads
+the overlay and starts kustomize only if every reference is a path of the
+repository; an overlay it cannot check gets an `Overlay not built: its
+references could not be checked` finding. With `allow_remote_bases: true` the
+overlay can also reach services of this machine (its loopback). Running
+kustomize from an image has no network at all.
 Custom resources are skipped: their schema is
 in a CRD kubeconform does not read. Nothing ever connects to a cluster.
 

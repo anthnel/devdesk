@@ -223,7 +223,7 @@ guard it.
 The renderers (helm, kustomize) run with the network cut (DEVDESK-767, D180):
 `containerRun.Offline` (`--network none`, no proxy) from an image, `offlineEnviron` from a binary,
 except kustomize with `scan.tools.kustomize.allow_remote_bases: true`; a refused remote base is the
-K8S-RENDER finding `Overlay does not build: remote base blocked` (`remoteBlocked`).
+K8S-RENDER finding `Overlay does not build: remote base blocked` (`remoteBlocked`). A native kustomize is first gated (`internal/scan/kustomize_gate.go`, DEVDESK-771): only local-path references pass, else that finding or `Overlay not built: its references could not be checked`, and kustomize is not started.
 
 **Tests and the host secret store (DEVDESK-610).** By default `credentials.Select` and
 `KeyringAvailable` reach the real keyring of the machine (Secret Service over D-Bus on

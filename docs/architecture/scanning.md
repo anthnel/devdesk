@@ -379,7 +379,7 @@ no line, so it could feed neither the table's jump-to-line nor a fix.
   its network: it downloads the schemas it validates against.
   A fetch that was refused is a K8S-RENDER finding of its own, `Overlay does not
   build: remote base blocked` (`remoteBlocked`, `remoteBlockedResolution`; Steps
-  from `renderSteps`), still HIGH and carrying kustomize's whole message, so that
+  from `renderSteps`; also raised by the gate below), still HIGH and carrying kustomize's whole message, so that
   nobody reads a cut network as a broken overlay. The Resolution says the network
   is cut for a repository that is not trusted and offers two ways out: copy the
   base into the repository, or set `allow_remote_bases: true`. With the switch on
@@ -391,20 +391,83 @@ no line, so it could feed neither the table's jump-to-line nor a fix.
   measured** (no engine was reachable): `accumulating resources from` together
   with `no such host`, `Could not resolve host`, `network is unreachable` or
   `no 'git' program`; to be recorded on a machine with an engine.
-  Limits: (1) a native base on the loopback, `http://127.0.0.1:8080/x.yaml`,
-  still reaches that service, because Go never applies a proxy to the loopback
-  and `GIT_ALLOW_PROTOCOL` only governs git: it is a GET only (kustomize sends
-  no body, no custom method), and nothing the service answers is run; `--network
-  none` closes it for an image, so `scan.tools.kustomize.source: image` closes
-  this limit. (2) The scan cache serves a result computed
-  before this change until the next rescan: an overlay that used to build with
-  a remote base keeps its old result until then. (3) Windows is not measured:
-  `GIT_ALLOW_PROTOCOL` and the proxy variables are read there too, but the
-  markers were not recorded. (4) A user's own arguments (`scan.tools.*.args`)
-  are not filtered: `--enable-helm` or similar flags are theirs. (5) The
+  **The native kustomize gate** (DEVDESK-771, `kustomize_gate.go`; the hook is
+  in `renderKustomizations`, `kubeconform_render.go`). Go never applies a proxy
+  to the loopback, and `GIT_ALLOW_PROTOCOL` only governs git, so a native
+  kustomize with the network cut would still send a GET to
+  `http://127.0.0.1:8080/x.yaml`. When `allow_remote_bases` is false and the
+  source is not a container, `vetOverlay` therefore reads the overlay first and
+  kustomize is started only if it says OK. It follows local bases and
+  resources: `kustomization.yaml` files, depth 16, 256 kustomizations visited,
+  1 MiB per file, 8 MiB in all for one overlay (`defaultGateLimits`). The YAML
+  of a kustomization is released before its bases are read, and a verdict OK
+  is memoised for the pass of one scan (`gateCache`, kept only once the whole
+  overlay is OK), so overlays that share a base read it once. Problems are
+  reported in reading order: the parent before its bases. The rule is a
+  closed whitelist, not a list of what to refuse:
+  - **A reference is accepted** (`localRef`) only if it is non-empty, has no
+    control character, no `:` (scheme, port, drive), `@` (ssh user) or `?`
+    (query), is not absolute and does not start with `/` or `\`, and its first
+    segment is not `github.com` (kustomize reads it as a git repository even
+    when such a folder exists). It must also stay inside the limit: the root
+    of the git repository holding the target, or the scanned target without one
+    (`gateLimit`), symbolic links and `..` included.
+  - **The YAML is read the closed way** (`readGateYAML`): no anchor or alias,
+    no `<<`, no explicit tag, no duplicate key, no second document, no
+    non-regular file; an empty kustomization is "could not be checked" (`the
+    kustomization file is empty`); an existing reference that is neither a
+    regular file nor a directory (FIFO, socket, device) is "could not be
+    checked" too, while a path that does not exist is accepted, kustomize
+    reports the error. Every top-level key must be one the gate knows
+    (the fields of `types.Kustomization`, with the ones that name a file or an
+    address marked as such). A plugin must be of `apiVersion: builtin` and of a
+    known kind (`builtinPlugins`); the file fields of an inline or file plugin
+    configuration are checked like the others. An entry of `generators`,
+    `transformers` or `validators` that names a **directory** is refused as
+    "could not be checked" (`a plugin directory cannot be checked`), not
+    followed: kustomize reads the resources of such a directory's kustomization
+    as plugin configurations and runs what they say, where the gate would read
+    them as plain resources, so they would escape it.
+  - **Two K8S-RENDER findings, HIGH, kustomize not started** (`gateFinding`).
+    A reference that is not a local path gives `Overlay does not build: remote
+    base blocked`, the same title and Resolution as a fetch refused by
+    kustomize (`markRemoteBlocked`, no `Repro`), with a message naming the
+    field, the file and the reference (reference, field, file, kind and
+    apiVersion are cut to about 200 characters in a message, `clip`). What the gate cannot judge, or cannot
+    read, gives `Overlay not built: its references could not be checked`
+    (`uncheckedOverlayHeadline`, `uncheckedResolution`; Steps from
+    `uncheckedOverlaySteps`: remove what stops the check, build from an image,
+    or set `allow_remote_bases: true`).
+  - **`offlineEnviron` stays as the second barrier.** From an image nothing
+    changes: `--network none` closes the loopback and the gate is not run.
+    With `allow_remote_bases: true` nothing changes either, and the switch now
+    includes, in its text (configuration view hint, Resolution, Steps), the
+    services of this machine (its loopback).
+
+  Limits: (1) The list of top-level fields and of plugin kinds was taken from
+  kustomize **v5.8.3**. The list is closed: a newer kustomize that adds a
+  top-level field has that overlay refused as "could not be checked" until the
+  gate learns it. Redo the match between the gate's lists and the kustomize
+  types at every version bump (the lists are in `kustomize_gate.go`; a list in
+  `testdata` with a concordance test is recommended, not written). (2) The CI installs only Go (`ci.yml`; `mise.toml` has no kustomize), so
+  the `TestARealKustomize*` tests skip there without a sound: in CI only the
+  unit tests guard the gate. (2b) No time limit surrounds the run of kustomize:
+  a plugin or a special file the gate does not cover can block the render
+  (follow-up). (2c) TOCTOU:
+  the repository is assumed not to change between the read of the gate and the
+  run of kustomize. (3) A file name that holds `:`, `@` or `?` is refused, even
+  if local. (4) A single-line inline JSON `kustomization.yaml` is refused (a
+  rare false positive). (5) A plugin that is not builtin is refused, so
+  `--enable-alpha-plugins` and `--enable-exec` in `scan.tools.kustomize.args`
+  no longer serve. (6) With `--enable-helm`, the dependencies of a chart are not
+  measured. (7) The scan cache serves a result computed before this change
+  until the next rescan: an overlay that used to build with a remote base keeps
+  its old result until then. (8) Windows is not measured: `GIT_ALLOW_PROTOCOL`,
+  the proxy variables and the gate's path rules were not recorded there. (9) A
+  user's own arguments (`scan.tools.*.args`) are not filtered. (10) The
   finding `remote base blocked` carries no `Repro`: a copied `kustomize build`
   would run the refused fetch again, with the user's ssh agent and proxy, on a
-  repository that is not trusted. (6) `allow_remote_bases` is one boolean per
+  repository that is not trusted. (11) `allow_remote_bases` is one boolean per
   context: it holds for every repository scanned in that context, and it is read
   only from `~/.devdesk` (never from the scanned repository).
 - **Charts and Kustomize roots are set apart.** A template is not YAML until
@@ -513,7 +576,7 @@ no line, so it could feed neither the table's jump-to-line nor a fix.
     enclosing directory or `scan.tools.kustomize.source: binary`
     (`mountResolution`); a binary never gets that sentence.
   - **Known limits.** The renderer container has no network (`--network none`,
-    DEVDESK-767), except kustomize with `allow_remote_bases`. helm follows symlinks inside the mount, so a hostile
+    DEVDESK-767), except kustomize with `allow_remote_bases`; a native kustomize is also gated first (DEVDESK-771). helm follows symlinks inside the mount, so a hostile
     chart can bring a sibling file's content into its error, as a binary,
     which sees the whole host, already could. The enclosing git repository is
     mounted as it is: the target's neighbours under the git root become

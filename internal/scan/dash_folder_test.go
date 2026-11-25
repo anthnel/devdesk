@@ -165,6 +165,9 @@ func TestADashFolderIsRenderedAndReportedUnderItsOwnName(t *testing.T) {
 		dashChart + "/Chart.yaml":           "apiVersion: v2\nname: x\nversion: 0.1.0\n",
 	})
 	r := &scriptedRunner{reply: func(tc toolCmd) ([]byte, error) {
+		if tc.Name == "git" { // the gate of a native kustomize asks for the limit of its paths (DEVDESK-771)
+			return nil, &exitError{Code: 128, Stderr: "fatal: not a git repository"}
+		}
 		switch subcommandOf(tc) {
 		case "lint":
 			return []byte("==> Linting ./-x\n[ERROR] templates/: directory does not exist\n"), &exitError{Code: 1}

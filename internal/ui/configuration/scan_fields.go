@@ -291,7 +291,7 @@ var ownSettings = map[scan.ToolID]func() []field{
 	scan.ToolHelm: func() []field { return nil },
 	scan.ToolKustomize: func() []field {
 		remote := toggle("Allow remote bases", func(c *config.Config) *bool { return &c.Scan.Tools.Kustomize.AllowRemoteBases }, "")
-		remote.hintOn = "A remote base (git or https) is fetched while an overlay builds — only for a repository you trust"
+		remote.hintOn = "A remote base (git or https) is fetched and the overlay may reach services of this machine (loopback) while it builds — only for a repository you trust"
 		remote.hintOff = "The overlay builds with the network cut: a remote base is refused"
 		return []field{remote}
 	},

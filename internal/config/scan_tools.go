@@ -94,7 +94,10 @@ type KubeconformConfig struct {
 
 // KustomizeConfig adds whether an overlay may fetch a remote base (a git URL or
 // an https resource) while it is built. Off by default: a repository that is
-// scanned is not trusted, so the render runs with the network cut (DEVDESK-767).
+// scanned is not trusted, so the render runs with the network cut (DEVDESK-767),
+// and a native kustomize is started only on an overlay whose references all
+// name a path of the repository (DEVDESK-771). On, the overlay also reaches the
+// services of this machine (its loopback), which no proxy setting stops.
 type KustomizeConfig struct {
 	ToolConfig       `yaml:",inline"`
 	AllowRemoteBases bool `yaml:"allow_remote_bases,omitempty"`

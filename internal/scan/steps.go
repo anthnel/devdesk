@@ -145,6 +145,17 @@ func renderSteps(source, target string, from ToolSource, detail string, blocked 
 	return steps
 }
 
+// uncheckedOverlaySteps are the steps for an overlay that was not built because
+// DevDesk could not check its references (DEVDESK-771): dir is the overlay
+// directory and reason what stopped the check.
+func uncheckedOverlaySteps(dir, reason string) []string {
+	return []string{
+		fmt.Sprintf("Remove what stops DevDesk from checking the references of %s: %s.", dir, reason),
+		"Or set scan.tools.kustomize.source: image to build the overlay in a container without a network.",
+		"Or set scan.tools.kustomize.allow_remote_bases: true if you trust this repository and the services of this machine.",
+	}
+}
+
 // helmLintSteps are the steps for one message of helm lint: file is the finding's
 // file and chart the chart directory.
 func helmLintSteps(file, chart string) []string {
