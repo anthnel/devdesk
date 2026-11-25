@@ -1,5 +1,57 @@
 # Changelog
 
+## [2.2.0](https://github.com/anthnel/devdesk/compare/v2.1.0...v2.2.0) (2026-11-25)
+
+
+### Features
+
+* **command:** show one alias per entry in the ctrl+p palette (DEVDESK-747) ([a0344e5](https://github.com/anthnel/devdesk/commit/a0344e589949b8a667b4e573d09757ff8daefd70))
+* **config:** write the Docker Hub registry in a new context (DEVDESK-663) ([f1685ef](https://github.com/anthnel/devdesk/commit/f1685ef32a249899006506efdeeb1496ea59a0b3))
+* **fuzzy:** switch the g prompt between fuzzy and exact matching (DEVDESK-678) ([#464](https://github.com/anthnel/devdesk/issues/464)) ([6a50fc2](https://github.com/anthnel/devdesk/commit/6a50fc2df84faf2a1d43fabb4228f16c63ba0505))
+* **oci:** explain why a Docker Hub search or tag listing failed (DEVDESK-667) ([#461](https://github.com/anthnel/devdesk/issues/461)) ([938fb30](https://github.com/anthnel/devdesk/commit/938fb3034ffa14caa882bfce1c72a5ed88aa035b))
+* **ports:** refuse to stop DevDesk, its parent and init, and stop the confirmed row (DEVDESK-708, DEVDESK-710, DEVDESK-714) ([#471](https://github.com/anthnel/devdesk/issues/471)) ([0317788](https://github.com/anthnel/devdesk/commit/0317788d2a7aa88bac8e2783a41b81c132e4e619))
+* **ports:** stop a process in two steps, SIGTERM first then a confirmed SIGKILL (DEVDESK-711) ([#474](https://github.com/anthnel/devdesk/issues/474)) ([769cf10](https://github.com/anthnel/devdesk/commit/769cf1006027157522287f3966a5f54f23c74087))
+* **ports:** verify the process identity at every signal (DEVDESK-709) ([ec45718](https://github.com/anthnel/devdesk/commit/ec4571840b0fdeb2cf5ad3f3e0b137615df757f0))
+* **remediation:** offer to set seccomp RuntimeDefault on a pod that has none (DEVDESK-688) ([#469](https://github.com/anthnel/devdesk/issues/469)) ([6d38c21](https://github.com/anthnel/devdesk/commit/6d38c218510cbf5cb61ee8fcfc9ca87a00455aba))
+* **remediation:** offer to turn hostNetwork, hostPID and hostIPC off (DEVDESK-687) ([#467](https://github.com/anthnel/devdesk/issues/467)) ([01a31c6](https://github.com/anthnel/devdesk/commit/01a31c6a5bc451eff2dcf52593d1410cc0211f3f))
+* **remediation:** say what is missing when a Pod Security finding has no safe fix (DEVDESK-689) ([#468](https://github.com/anthnel/devdesk/issues/468)) ([b3a0b67](https://github.com/anthnel/devdesk/commit/b3a0b677e34cf0fe0d04480f3d937c8fa3d4ffb2))
+* **scan:** label the Pod Security profile of each finding and filter by it (DEVDESK-686) ([#466](https://github.com/anthnel/devdesk/issues/466)) ([c4b07de](https://github.com/anthnel/devdesk/commit/c4b07de1de753e1ac40634f7d3a491ad288b62df))
+* **security:** before/after Change preview in the finding detail (DEVDESK-753) ([#485](https://github.com/anthnel/devdesk/issues/485)) ([9e2086e](https://github.com/anthnel/devdesk/commit/9e2086e8315afdf458500b9e513cae166197709d))
+* **security:** group the CVE to-do list by fix with g (DEVDESK-754) ([#487](https://github.com/anthnel/devdesk/issues/487)) ([534b373](https://github.com/anthnel/devdesk/commit/534b37360195849d704d29ca4e1b17b1ad671f11))
+* **security:** group the Misconfigurations list by fix with g (DEVDESK-754) ([#488](https://github.com/anthnel/devdesk/issues/488)) ([42ed0b8](https://github.com/anthnel/devdesk/commit/42ed0b8b28073abfcf4bd927d16d6b8054d159d5))
+* **security:** readable finding detail (DEVDESK-750) ([#482](https://github.com/anthnel/devdesk/issues/482)) ([07a1e84](https://github.com/anthnel/devdesk/commit/07a1e84e7b09cb72ad1594e22d5de48aadf5c2c5))
+* **security:** structured Fix block and detail actions (enter, ctrl+o, Y, X) (DEVDESK-751) ([#483](https://github.com/anthnel/devdesk/issues/483)) ([ce9555a](https://github.com/anthnel/devdesk/commit/ce9555ae6284dcc63eb968f25b55649284205965))
+* **security:** structured Steps and local Repro for findings DevDesk writes (DEVDESK-752) ([#484](https://github.com/anthnel/devdesk/issues/484)) ([0800ae5](https://github.com/anthnel/devdesk/commit/0800ae5b65786048ceb7acfe019b2e4c56ba9186))
+* **setup:** write the Docker Hub registry from dk setup (DEVDESK-664) ([#460](https://github.com/anthnel/devdesk/issues/460)) ([2aa2c9b](https://github.com/anthnel/devdesk/commit/2aa2c9b1c516b5f0f11c7531589f218f299b894d))
+
+
+### Bug Fixes
+
+* **credentials:** bound every secret-store call so a locked keyring cannot hang startup (DEVDESK-745) ([#480](https://github.com/anthnel/devdesk/issues/480)) ([32290ce](https://github.com/anthnel/devdesk/commit/32290ce532c0e0af95f84f98e8276036d1b4840e))
+* **dashboard:** never cut a box on a short terminal and drop the dashboard title line (DEVDESK-743) ([#479](https://github.com/anthnel/devdesk/issues/479)) ([fa5091c](https://github.com/anthnel/devdesk/commit/fa5091c031e93fad23f4e320d850b67bb87a3c0c))
+* **netdiag:** let the Diagnostics table fill the viewport height (DEVDESK-744) ([#478](https://github.com/anthnel/devdesk/issues/478)) ([e3c95e7](https://github.com/anthnel/devdesk/commit/e3c95e7fb0cf181d2fc5d34b14bb1a52fc2d52e1))
+* **scan:** build a Flux overlay again without the load restrictor when kustomize refused it, bounded to the repository (DEVDESK-783) ([#506](https://github.com/anthnel/devdesk/issues/506)) ([cddc97f](https://github.com/anthnel/devdesk/commit/cddc97f0c884799dd46deffd693df9bbbefb3e60))
+* **scan:** cut the network of the kustomize and helm renderers so an untrusted repo triggers no connection (DEVDESK-767) ([#496](https://github.com/anthnel/devdesk/issues/496)) ([dd6c667](https://github.com/anthnel/devdesk/commit/dd6c66726ec49f38fe0cad55f104587bccb07a9c))
+* **scan:** mask user argument values in the Running log, quote control characters in paths and write ./-x in the Steps (DEVDESK-768) ([#498](https://github.com/anthnel/devdesk/issues/498)) ([9793cec](https://github.com/anthnel/devdesk/commit/9793cec007e41accc5cf3238f752b643afd809ea))
+* **scan:** pass chart and overlay folders as paths so a folder name is never an option or a remote base (DEVDESK-763) ([#491](https://github.com/anthnel/devdesk/issues/491)) ([514f666](https://github.com/anthnel/devdesk/commit/514f6665589d0da8f0d8d48999bb0483cd5b35a4))
+* **scan:** quote repo paths, names and errors in the remaining scan logs and guard them (DEVDESK-775) ([#500](https://github.com/anthnel/devdesk/issues/500)) ([9092898](https://github.com/anthnel/devdesk/commit/90928985a31fea2ed42dd282d0b9847e8f44158b))
+* **scan:** refuse any non-local reference in a native kustomize overlay before it runs (DEVDESK-771) ([#503](https://github.com/anthnel/devdesk/issues/503)) ([7045a24](https://github.com/anthnel/devdesk/commit/7045a24f4d7f4be7e85acdc01fedcfb53de4a186))
+* **scan:** render kustomize and helm overlays from the git root and explain what kustomize refuses (DEVDESK-742) ([#477](https://github.com/anthnel/devdesk/issues/477)) ([bb73c3a](https://github.com/anthnel/devdesk/commit/bb73c3ac9e0b6838699302ef41d1a888854e1b22))
+* **scan:** single-quote folder names in the finding Steps for a POSIX shell and fall back to text for unquotable names (DEVDESK-772) ([#501](https://github.com/anthnel/devdesk/issues/501)) ([9888f77](https://github.com/anthnel/devdesk/commit/9888f7752101b2d6c6b26fb51a591b4a37761979))
+* **security:** align the facts under Where in the finding detail (DEVDESK-762) ([#486](https://github.com/anthnel/devdesk/issues/486)) ([a8b0f82](https://github.com/anthnel/devdesk/commit/a8b0f827212ba0346d8442a73206af3c38f63491))
+* **security:** make the tab bar fit in 80 columns (DEVDESK-765) ([#492](https://github.com/anthnel/devdesk/issues/492)) ([d211ba5](https://github.com/anthnel/devdesk/commit/d211ba5d64a6cc327b692930264be727929c8431))
+* **security:** mark invisible characters in grouped file names so two groups never look alike (DEVDESK-766) ([#490](https://github.com/anthnel/devdesk/issues/490)) ([4fd3d1e](https://github.com/anthnel/devdesk/commit/4fd3d1eb9fc510e09ca7ecc6f0d444a2c278052f))
+* **theme:** raise every text colour to 4.5:1 on the 13 themes (DEVDESK-764) ([#493](https://github.com/anthnel/devdesk/issues/493)) ([c959acb](https://github.com/anthnel/devdesk/commit/c959acb22794c68a815b48723aa43b654f582cae))
+* **theme:** reach 4.5:1 for the remaining text colours and 3:1 for the frame border on the 13 themes (DEVDESK-770, part A) ([#495](https://github.com/anthnel/devdesk/issues/495)) ([317805f](https://github.com/anthnel/devdesk/commit/317805ff42cb444803fb9ed385d15a9545da079f))
+* **theme:** reach 4.5:1 on the focused and unfocused Yes/success buttons, the INFO and UNKNOWN badges and the error row on the 13 themes (DEVDESK-774) ([#502](https://github.com/anthnel/devdesk/issues/502)) ([3e9fbc7](https://github.com/anthnel/devdesk/commit/3e9fbc7bad0a04c4848645210d916495c3aae88f))
+* **theme:** reach 4.5:1 on the HIGH and LOW severity badges and tie the gauge rail to the frame border (DEVDESK-770, part B) ([#497](https://github.com/anthnel/devdesk/issues/497)) ([30c3d13](https://github.com/anthnel/devdesk/commit/30c3d13e79fb42fc21ef130a6cf96885bba77542))
+* **ui:** make the variable-length breadcrumb trails fit the terminal width (DEVDESK-769) ([#494](https://github.com/anthnel/devdesk/issues/494)) ([3a9ff19](https://github.com/anthnel/devdesk/commit/3a9ff19b928e0153218b4b97058cfbad42e09e4c))
+
+
+### Performance
+
+* **app:** pad the frame in one pass and record the View() cost tracks (DEVDESK-281) ([#476](https://github.com/anthnel/devdesk/issues/476)) ([7cadafd](https://github.com/anthnel/devdesk/commit/7cadafd35c159aeb3f17b67cf34483f3fd626089))
+
 ## [2.1.0](https://github.com/anthnel/devdesk/compare/v2.0.0...v2.1.0) (2026-11-21)
 
 
