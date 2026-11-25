@@ -56,8 +56,8 @@ jobs:
   # Runs the whole suite under the race detector (`-race` covers what a plain
   # `go test` does) on every pull request and every push to main. The 15 minute
   # timeout turns a stuck test into a red check instead of a run that never ends.
-  # No `needs`: this job runs in parallel with `Lint and build`. Only Go is
-  # installed through mise; the job receives no secret. The Go build and module
+  # No `needs`: this job runs in parallel with `Lint and build`. Only Go and
+  # kubeconform are installed through mise; the job receives no secret. The Go build and module
   # caches are restored on every run and saved only on a push to main, so pull
   # requests never fill the repository cache quota. The save step runs only after
   # the tests passed and only when the exact key was not restored, so a failed run
@@ -75,7 +75,7 @@ jobs:
           persist-credentials: false
       - uses: jdx/mise-action@v4
         with:
-          install_args: go
+          install_args: go kubeconform
       - id: goenv
         run: |
           {
@@ -97,6 +97,15 @@ jobs:
       - run: mise run test-race
         env:
           GOFLAGS: -count=1
+      # Proves the end-to-end kustomize tests ran: they skip silently without
+      # kubeconform, so the step fails on any SKIP or on a missing PASS.
+      - name: Real-kustomize tests are not skipped
+        run: |
+          go test -race -count=1 -run 'TestARealKustomize' -v ./internal/scan | tee "$RUNNER_TEMP/rk.log"
+          ! grep -E -- '--- SKIP' "$RUNNER_TEMP/rk.log"
+          grep -q -- '--- PASS: TestARealKustomizeIsNotStartedOnAPluginDirectory' "$RUNNER_TEMP/rk.log"
+        env:
+          CGO_ENABLED: "1"
       - if: github.ref == 'refs/heads/main' && steps.gocache.outputs.cache-hit != 'true'
         uses: actions/cache/save@v5
         with:
