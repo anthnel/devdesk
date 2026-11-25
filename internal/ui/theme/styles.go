@@ -482,9 +482,9 @@ func ButtonStyle(focused bool, variant string) lipgloss.Style {
 	case "primary":
 		return style.Background(ColorButtonInactiveBg).Foreground(ColorButtonInactiveFg)
 	case "danger":
-		return style.Background(ColorButtonInactiveBg).Foreground(ColorError)
+		return style.Background(ColorButtonInactiveBg).Foreground(ColorButtonDangerFg)
 	case "success":
-		return style.Background(ColorButtonInactiveBg).Foreground(ColorOK)
+		return style.Background(ColorButtonInactiveBg).Foreground(ColorButtonSuccessFg)
 	case "secondary":
 		return style.Background(ColorButtonInactiveBg).Foreground(ColorButtonInactiveFg)
 	default:

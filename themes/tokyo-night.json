@@ -19,6 +19,7 @@
     "button_bg": "#bb9af7",
     "button_inactive_fg": "#c0caf5",
     "button_inactive_bg": "#414868",
+    "button_danger_fg": "#f99fb0",
     "tab_active_fg": "#1a1b26",
     "tab_active_bg": "#7aa2f7",
     "tab_inactive_fg": "#7982ab",

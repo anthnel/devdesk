@@ -1,7 +1,7 @@
 {
   "name": "nord",
   "color_ok": "#a3be8c",
-  "color_error": "#bf616a",
+  "color_error": "#cf898f",
   "color_warn": "#ebcb8b",
   "color_primary": "#b691af",
   "color_secondary": "#81a1c1",
@@ -19,6 +19,8 @@
   "button_bg": "#b691af",
   "button_inactive_fg": "#d8dee9",
   "button_inactive_bg": "#4c566a",
+  "button_danger_fg": "#e7c3c6",
+  "button_success_fg": "#bed1ae",
   "tab_active_fg": "#2e3440",
   "tab_active_bg": "#81a1c1",
   "tab_inactive_fg": "#a6aebf",

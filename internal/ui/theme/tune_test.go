@@ -186,6 +186,27 @@ func minimalPair(fg, bg color.Color, min float64) (color.Color, color.Color, flo
 	}
 }
 
+// textOnlyPairs names (by textPair.what) the pairs whose background is shared
+// with other controls and may not move: the unfocused danger and success buttons
+// sit on button_inactive_bg, which the primary and secondary buttons share
+// (DEVDESK-774 part B). It is a set rather than a textPair field so that the
+// unkeyed literals of textPairs() stay as they are; a field would do as well.
+var textOnlyPairs = map[string]bool{
+	"danger button, unfocused":  true,
+	"success button, unfocused": true,
+}
+
+// suggestForPair proposes the move for a failing textPair. A text-only pair keeps
+// its background and moves the text; any other pair moves whichever side costs
+// the smaller delta E (minimalPair).
+func suggestForPair(p textPair, fg, bg color.Color) (color.Color, color.Color, float64, error) {
+	if textOnlyPairs[p.what] {
+		nf, de, err := minimalTone(fg, []color.Color{bg}, p.min)
+		return nf, bg, de, err
+	}
+	return minimalPair(fg, bg, p.min)
+}
+
 // hueGap is the circular distance in degrees between two hues.
 func hueGap(a, b float64) float64 {
 	d := math.Abs(a - b)
@@ -365,7 +386,7 @@ func TestSuggestTones(t *testing.T) {
 			if r, err := ContrastRatio(fg, bg); err == nil && r >= p.min {
 				continue
 			}
-			nf, nb, de, err := minimalPair(fg, bg, p.min)
+			nf, nb, de, err := suggestForPair(p, fg, bg)
 			if err != nil {
 				t.Logf("TUNE | %s | %s | %s on %s | NO SOLUTION: %v", name, p.what, Hex(fg), Hex(bg), err)
 				continue
@@ -377,4 +398,59 @@ func TestSuggestTones(t *testing.T) {
 			}
 		}
 	})
+}
+
+// DEVDESK-774 part B. The unfocused danger and success buttons sit on
+// button_inactive_bg, which the primary and secondary buttons share: minimalPair
+// may propose to move that background when it is cheaper than the text, and
+// copying such a line into themes/*.json would retune two other buttons. A
+// text-only pair gets a text-only suggestion.
+func TestTextOnlyPairsSuggestOnlyTheText(t *testing.T) {
+	var found int
+	for _, p := range textPairs() {
+		if textOnlyPairs[p.what] {
+			found++
+		}
+	}
+	if found != len(textOnlyPairs) {
+		t.Fatalf("%d of the %d text-only pairs are in textPairs(): a name drifted", found, len(textOnlyPairs))
+	}
+	var minimalPairMovedABackground bool
+	eachShippedTheme(t, func(t *testing.T, name string) {
+		for _, p := range textPairs() {
+			if !textOnlyPairs[p.what] {
+				continue
+			}
+			fg, bg := p.get()
+			// Sentinel: the pair as it was before part B (ColorError or ColorOK on
+			// ColorButtonInactiveBg) is one minimalPair would fix by moving the
+			// background on most themes. Once the pairs are corrected they pass and
+			// minimalPair has nothing to move, so the sentinel reads the old pair.
+			// It therefore depends on the current values of color_error, color_ok
+			// and button_inactive_bg (measured 24 of 26 cases on 2026-11-25): a
+			// future retune that makes every original pair pass must realign it, or
+			// make it theme-independent with a synthetic 2:1 pair.
+			old := ColorError
+			if strings.Contains(p.what, "success") {
+				old = ColorOK
+			}
+			if _, nb, _, err := minimalPair(old, ColorButtonInactiveBg, p.min); err == nil && Hex(nb) != Hex(ColorButtonInactiveBg) {
+				minimalPairMovedABackground = true
+			}
+			nf, nb, _, err := suggestForPair(p, fg, bg)
+			if err != nil {
+				continue // no lightness of that hue reaches 4.5:1: reported by TestSuggestTones
+			}
+			if Hex(nb) != Hex(bg) {
+				t.Errorf("theme %s: %s: the suggestion moves the background %s to %s, it must move the text only",
+					name, p.what, Hex(bg), Hex(nb))
+			}
+			if r, _ := ContrastRatio(nf, nb); r < p.min {
+				t.Errorf("theme %s: %s: the suggested text %s on %s is %.2f:1, want >= %.1f:1", name, p.what, Hex(nf), Hex(nb), r, p.min)
+			}
+		}
+	})
+	if !minimalPairMovedABackground {
+		t.Error("minimalPair never moved the background of the pre-part-B pair (ColorError or ColorOK on ColorButtonInactiveBg): the text-only rule guards nothing")
+	}
 }

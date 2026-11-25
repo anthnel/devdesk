@@ -1,7 +1,7 @@
 {
   "name": "solarized-dark",
   "color_ok": "#859900",
-  "color_error": "#dc322f",
+  "color_error": "#e46562",
   "color_warn": "#c09100",
   "color_primary": "#8488cd",
   "color_secondary": "#3094da",
@@ -19,6 +19,8 @@
   "button_bg": "#8488cd",
   "button_inactive_fg": "#fdf6e3",
   "button_inactive_bg": "#586e75",
+  "button_danger_fg": "#fbe7e6",
+  "button_success_fg": "#d9fa00",
   "tab_active_fg": "#002b36",
   "tab_active_bg": "#3094da",
   "tab_inactive_fg": "#869ca4",

@@ -47,6 +47,8 @@ type Theme struct {
 	ButtonBg         string `json:"button_bg,omitempty"`
 	ButtonInactiveFg string `json:"button_inactive_fg,omitempty"`
 	ButtonInactiveBg string `json:"button_inactive_bg,omitempty"`
+	ButtonDangerFg   string `json:"button_danger_fg,omitempty"`
+	ButtonSuccessFg  string `json:"button_success_fg,omitempty"`
 
 	TabActiveFg   string `json:"tab_active_fg,omitempty"`
 	TabActiveBg   string `json:"tab_active_bg,omitempty"`
@@ -117,6 +119,8 @@ func DefaultTheme() *Theme {
 		ButtonBg:         "#cba6f7",
 		ButtonInactiveFg: "#cdd6f4",
 		ButtonInactiveBg: "#585b70",
+		ButtonDangerFg:   "#f9c7d5",
+		ButtonSuccessFg:  "#a8e4a3",
 		TabActiveFg:      "#1e1e2e",
 		TabActiveBg:      "#b4befe",
 		TabInactiveFg:    "#979aad",
@@ -299,6 +303,8 @@ func ApplyTheme(t *Theme) {
 	ColorButtonBg = applyColor(t.ButtonBg, ColorPrimary)
 	ColorButtonInactiveFg = applyColor(t.ButtonInactiveFg, ColorWhite)
 	ColorButtonInactiveBg = applyColor(t.ButtonInactiveBg, ColorDim)
+	ColorButtonDangerFg = applyColor(t.ButtonDangerFg, ColorError)
+	ColorButtonSuccessFg = applyColor(t.ButtonSuccessFg, ColorOK)
 
 	ColorTabActiveFg = applyColor(t.TabActiveFg, ColorBlack)
 	ColorTabActiveBg = applyColor(t.TabActiveBg, ColorSecondary)

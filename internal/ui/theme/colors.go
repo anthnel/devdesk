@@ -38,6 +38,10 @@ var (
 	ColorButtonBg         color.Color
 	ColorButtonInactiveFg color.Color
 	ColorButtonInactiveBg color.Color
+	// The label of the unfocused danger and success buttons, on ColorButtonInactiveBg
+	// (DEVDESK-774, D183).
+	ColorButtonDangerFg  color.Color
+	ColorButtonSuccessFg color.Color
 
 	ColorTabActiveFg   color.Color
 	ColorTabActiveBg   color.Color
