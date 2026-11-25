@@ -1,7 +1,7 @@
 {
   "name": "dark-plus",
   "color_ok": "#0dbc79",
-  "color_error": "#cd3131",
+  "color_error": "#d85e5e",
   "color_warn": "#e5e510",
   "color_primary": "#c85ac8",
   "color_secondary": "#3c88dc",
@@ -19,6 +19,8 @@
   "button_bg": "#c85ac8",
   "button_inactive_fg": "#e4e4e4",
   "button_inactive_bg": "#666666",
+  "button_danger_fg": "#f7dfdf",
+  "button_success_fg": "#93f8d1",
   "tab_active_fg": "#1e1e1e",
   "tab_active_bg": "#3c88dc",
   "tab_inactive_fg": "#858585",

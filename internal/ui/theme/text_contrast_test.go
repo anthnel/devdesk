@@ -115,8 +115,21 @@ func styleColours(focused bool, variant string) func() (color.Color, color.Color
 	}
 }
 
+// errorRowColours reads the pair of an error row where the table paints it: the
+// selected style of TableStylesForState("error") (Rule 118).
+func errorRowColours() (color.Color, color.Color) {
+	sel := TableStylesForState("error").Selected
+	return sel.GetForeground(), sel.GetBackground()
+}
+
 // DEVDESK-770 part A. The four severity badges are held by
 // TestEverySeverityBadgeReachesTextContrastOnEveryTheme (part B).
+//
+// DEVDESK-774 part A adds the pairs the 2026-11-24 measures never read: the
+// focused danger and success buttons (ButtonStyle) and the error row
+// (TableStylesForState("error").Selected). Each is read from the style the screen
+// uses, so a pair cannot pass on colours nothing paints. The correction moves the
+// background (color_error, color_ok), not the text.
 func textPairs() []textPair {
 	return []textPair{
 		{"active tab (ColorTabActiveFg on ColorTabActiveBg)", "tab_active_fg", "tab_active_bg", textMinContrast,
@@ -126,6 +139,17 @@ func textPairs() []textPair {
 		{"secondary button, unfocused", "button_inactive_fg", "button_inactive_bg", textMinContrast, styleColours(false, "secondary")},
 		{"command line, inactive (ColorCmdLineInactiveFg on ColorCmdLineBg)", "cmd_line_inactive_fg", "cmd_line_bg", textMinContrast,
 			func() (color.Color, color.Color) { return ColorCmdLineInactiveFg, ColorCmdLineBg }},
+		{"danger button, focused", "button_fg", "color_error", textMinContrast, styleColours(true, "danger")},
+		{"success button, focused", "color_black", "color_ok", textMinContrast, styleColours(true, "success")},
+		{"error row (selected)", "color_black", "color_error", textMinContrast, errorRowColours},
+		// DEVDESK-774 part B (D183): the unfocused danger and success buttons paint
+		// ColorError and ColorOK on button_inactive_bg, which was 1.55:1 to 4.89:1
+		// (13 themes of 13 for danger, 11 of 13 for success). The background is
+		// shared with the primary and secondary buttons and does not move: the label
+		// takes its own keys, button_danger_fg and button_success_fg (see textOnlyPairs
+		// in tune_test.go: TestSuggestTones moves their text only).
+		{"danger button, unfocused", "button_danger_fg", "button_inactive_bg", textMinContrast, styleColours(false, "danger")},
+		{"success button, unfocused", "button_success_fg", "button_inactive_bg", textMinContrast, styleColours(false, "success")},
 	}
 }
 
@@ -160,8 +184,8 @@ func TestEveryTextPairReachesItsContrastOnEveryTheme(t *testing.T) {
 				continue
 			}
 			if ratio < p.min {
-				t.Errorf("theme %s: %s, %s on %s is %.2f:1, want >= %.1f:1",
-					name, p.what, Hex(fg), Hex(bg), ratio, p.min)
+				t.Errorf("theme %s: %s, %s (%s) on %s (%s) is %.2f:1, want >= %.1f:1",
+					name, p.what, Hex(fg), p.fgKey, Hex(bg), p.bgKey, ratio, p.min)
 			}
 		}
 	})
@@ -223,15 +247,27 @@ func TestTheInactiveTabLabelReachesTextContrastOnEveryTheme(t *testing.T) {
 	})
 }
 
-// severityLevels are the four levels a badge exists for. INFO and UNKNOWN share
-// a muted badge that is not part of this decision (D179, "Not decided here").
-var severityLevels = []string{"CRITICAL", "HIGH", "MEDIUM", "LOW"}
+// severityLevels are the levels a badge exists for. INFO and UNKNOWN share one
+// badge (severity_info_fg on severity_info); it was left out of D181 and is held
+// from DEVDESK-774 part A, once the correction moved its colours.
+var severityLevels = []string{"CRITICAL", "HIGH", "MEDIUM", "LOW", "INFO", "UNKNOWN"}
+
+// severityBadgeKeys names the theme keys of a badge, for the failure message.
+var severityBadgeKeys = map[string][2]string{
+	"CRITICAL": {"severity_critical_fg", "severity_critical"},
+	"HIGH":     {"severity_high_fg", "severity_high"},
+	"MEDIUM":   {"severity_medium_fg", "severity_medium"},
+	"LOW":      {"severity_low_fg", "severity_low"},
+	"INFO":     {"severity_info_fg", "severity_info"},
+	"UNKNOWN":  {"severity_info_fg", "severity_info"},
+}
 
 // DEVDESK-770 part B (D181). A severity badge is the selected row of a finding
 // of that level: TableStylesForSeverity(level).Selected paints the level's
 // foreground on the level's background. The ratio is read from the style the
 // table really uses, so a badge cannot pass on a pair the screen never shows.
-// Each failure names the theme, the level, both colours and the ratio.
+// Each failure names the theme, the level, both colours with their theme keys
+// and the ratio.
 func TestEverySeverityBadgeReachesTextContrastOnEveryTheme(t *testing.T) {
 	eachShippedTheme(t, func(t *testing.T, name string) {
 		for _, level := range severityLevels {
@@ -243,8 +279,9 @@ func TestEverySeverityBadgeReachesTextContrastOnEveryTheme(t *testing.T) {
 				continue
 			}
 			if ratio < textMinContrast {
-				t.Errorf("theme %s: %s badge, %s on %s is %.2f:1, want >= %.1f:1",
-					name, level, Hex(fg), Hex(bg), ratio, textMinContrast)
+				keys := severityBadgeKeys[level]
+				t.Errorf("theme %s: %s badge, %s (%s) on %s (%s) is %.2f:1, want >= %.1f:1",
+					name, level, Hex(fg), keys[0], Hex(bg), keys[1], ratio, textMinContrast)
 			}
 		}
 		// ColorFooterError and ColorFooterWarn alias the CRITICAL and MEDIUM badge
@@ -360,5 +397,103 @@ func TestAThemeWithoutSeverityLowFallsBackOnDimAndBackground(t *testing.T) {
 					name, Hex(ColorSeverityLowFg), Hex(ColorBackground))
 			}
 		})
+	}
+}
+
+// DEVDESK-774 part A moves the BACKGROUND of the focused danger and success
+// buttons, of the error row and of the INFO badge (color_error, color_ok,
+// severity_info), not their text. Those colours are also painted as text, an
+// icon or a button on the application background, so the move must not make them
+// harder to see there: this test holds the ratio each had before the change as a
+// floor, on every theme.
+//
+// Measured on 2026-11-25 on the unmodified tree (commit 9793cec0, before any
+// theme file moved), by ContrastRatio on ColorBackground after
+// ApplyTheme(DefaultTheme()) then ApplyTheme(<theme>). Columns: ColorError,
+// ColorOK, the focused primary button background (ColorButtonBg) and the unfocused
+// one (ColorButtonInactiveBg), each on ColorBackground.
+//
+//	theme                  error  ok     button  inactive
+//	catppuccin-frappe      4.65   7.10   5.60    2.23
+//	catppuccin-latte       4.80   2.96   4.79    1.91
+//	catppuccin-macchiato   5.96   9.17   6.84    2.38
+//	catppuccin-mocha       7.08   11.03  8.07    2.46
+//	dark-plus              3.24   6.74   4.57    2.90
+//	default                7.08   11.03  8.07    2.46
+//	github-dark            5.65   7.45   5.64    1.55
+//	github-light           5.36   5.08   5.05    1.45
+//	nord                   3.05   6.13   4.55    1.69
+//	one-dark               4.38   6.94   4.75    2.32
+//	solarized-dark         3.25   4.69   4.56    2.79
+//	solarized-light        4.29   2.97   4.56    2.48
+//	tokyo-night            6.46   9.35   7.39    1.91
+//
+// The values are rounded to two decimals, so the floor is the figure minus half a
+// hundredth. The pairs that fail 4.5:1 today (dark-plus, nord, solarized-dark,
+// solarized-light error; latte and solarized-light ok) are listed too: the floor
+// says the correction may only raise them, and the 4.5:1 bar of
+// TestEveryTextPairReachesItsContrastOnEveryTheme says by how much.
+type surfaceRatios struct{ errorRed, ok, button, buttonInactive float64 }
+
+var onBackgroundBefore774 = map[string]surfaceRatios{
+	"catppuccin-frappe":    {4.65, 7.10, 5.60, 2.23},
+	"catppuccin-latte":     {4.80, 2.96, 4.79, 1.91},
+	"catppuccin-macchiato": {5.96, 9.17, 6.84, 2.38},
+	"catppuccin-mocha":     {7.08, 11.03, 8.07, 2.46},
+	"dark-plus":            {3.24, 6.74, 4.57, 2.90},
+	"default":              {7.08, 11.03, 8.07, 2.46},
+	"github-dark":          {5.65, 7.45, 5.64, 1.55},
+	"github-light":         {5.36, 5.08, 5.05, 1.45},
+	"nord":                 {3.05, 6.13, 4.55, 1.69},
+	"one-dark":             {4.38, 6.94, 4.75, 2.32},
+	"solarized-dark":       {3.25, 4.69, 4.56, 2.79},
+	"solarized-light":      {4.29, 2.97, 4.56, 2.48},
+	"tokyo-night":          {6.46, 9.35, 7.39, 1.91},
+}
+
+// roundingSlack is half of the last digit of the figures above.
+const roundingSlack = 0.005
+
+func TestErrorOkAndButtonsKeepTheirRatioOnTheBackground(t *testing.T) {
+	eachShippedTheme(t, func(t *testing.T, name string) {
+		before, ok := onBackgroundBefore774[name]
+		if !ok {
+			t.Fatalf("theme %s has no 2026-11-25 measure in onBackgroundBefore774: measure it on the tree before the DEVDESK-774 change, or add the floor it ships with", name)
+		}
+		for _, c := range []struct {
+			what, key string
+			fg        color.Color
+			floor     float64
+		}{
+			{"ColorError", "color_error", ColorError, before.errorRed},
+			{"ColorOK", "color_ok", ColorOK, before.ok},
+			{"focused button background (ColorButtonBg)", "button_bg", ColorButtonBg, before.button},
+			{"unfocused button background (ColorButtonInactiveBg)", "button_inactive_bg", ColorButtonInactiveBg, before.buttonInactive},
+		} {
+			ratio, err := ContrastRatio(c.fg, ColorBackground)
+			if err != nil {
+				t.Errorf("theme %s: %s: %v", name, c.what, err)
+				continue
+			}
+			if ratio < c.floor-roundingSlack {
+				t.Errorf("theme %s: %s %s (%s) on ColorBackground %s is %.2f:1, it was %.2f:1 before DEVDESK-774 and must not drop",
+					name, c.what, Hex(c.fg), c.key, Hex(ColorBackground), ratio, c.floor)
+			}
+		}
+	})
+}
+
+// A new shipped theme must come with its floor, or the table above silently
+// stops guarding it.
+func TestEveryShippedThemeHasABeforeMeasure774(t *testing.T) {
+	for name := range shippedThemes(t) {
+		if _, ok := onBackgroundBefore774[name]; !ok {
+			t.Errorf("theme %s has no entry in onBackgroundBefore774", name)
+		}
+	}
+	for name := range onBackgroundBefore774 {
+		if _, ok := shippedThemes(t)[name]; !ok {
+			t.Errorf("onBackgroundBefore774 lists %s, which is no shipped theme", name)
+		}
 	}
 }

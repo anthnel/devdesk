@@ -1,7 +1,7 @@
 {
     "name": "one-dark",
     "color_ok": "#98c379",
-    "color_error": "#e06c75",
+    "color_error": "#e17079",
     "color_warn": "#e5c07b",
     "color_primary": "#c678dd",
     "color_secondary": "#61afef",
@@ -19,6 +19,8 @@
     "button_bg": "#c678dd",
     "button_inactive_fg": "#dcdfe4",
     "button_inactive_bg": "#5c6370",
+    "button_danger_fg": "#f7d7da",
+    "button_success_fg": "#d2e5c5",
     "tab_active_fg": "#282c34",
     "tab_active_bg": "#61afef",
     "tab_inactive_fg": "#9299a5",
