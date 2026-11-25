@@ -89,7 +89,9 @@ func TestARealKustomizeIsNotStartedOnAPluginDirectory(t *testing.T) {
 	run := func(allow bool) *KubeconformReport {
 		report, err := RunKubeconform(t.Context(), repo, ToolSpec{Source: ToolSourceBinary, Binary: "kubeconform"},
 			KubeconformOptions{Kustomize: ToolSpec{Source: ToolSourceBinary, Binary: kustomize}, AllowRemoteBases: allow}, nil)
-		if err != nil {
+		// The witness run may fail to start kubeconform (absent on CI) after
+		// kustomize already reached the server: only the gated run must succeed.
+		if err != nil && !allow {
 			t.Fatalf("RunKubeconform: %v", err)
 		}
 		return report
