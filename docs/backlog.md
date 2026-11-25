@@ -1,6 +1,6 @@
 # DevDesk Backlog
 
-**Last Updated:** 2026-11-24
+**Last Updated:** 2026-11-25
 
 Open work for DevDesk: known defects, technical debt, and planned features.
 Replaces the former `todo.md` at the repository root. Items completed there
@@ -97,6 +97,19 @@ so they needed a deliberate call rather than a drive-by fix. All five were then
 decided together and fixed in one pass; see [§1.2](#12-the-five-parked-defects).
 
 ### 1.1 Fixed
+
+**D182 — DEVDESK-773: on solarized-dark, solarized-light and catppuccin-latte, secondary text (`ColorDim`) stays close to the body text (`ColorText`). The gap is documented and accepted: no non-chromatic signal is added and nothing is re-rendered. Decided (user, 2026-11-25; the user can overrule).**
+
+1. **Decided, option (2).** The gap is recorded and accepted. No non-chromatic signal is added to secondary text, and no rendering changes. Measured as CIE76 delta E between `ColorDim` and `ColorText`: 5.6 (solarized-dark), 0.8 (solarized-light), 4.6 (catppuccin-latte) (`docs/measurements/2026-11-24-theme-text-contrast-2.md`, "Not done here"). The 4.5:1 contrasts of DEVDESK-770 are unchanged. Precedents: D179 point 3 left this open, and D181 does not take it up. Rule 102 of `.claude/rules/tui-theme.md` already states the gap.
+2. **UX opinion (ux role, translated from English).** "Documenting the gap is acceptable. Secondary text never carries information alone: Dim is a visual reinforcement and the hierarchy is doubled by position, weight, italic or a glyph. 4.5:1 is held (WCAG 1.4.3) and states already carry a label or glyph. The gap mostly affects solarized-light, a theme chosen explicitly. Adding a non-chromatic signal would cost visual noise on all 13 themes for a gain limited to 3. Acceptance is conditional on Dim never carrying a state on its own."
+3. **Assumed, explicitly.** This remains a breach of WCAG 1.4.1 (Use of Color) on three themes. It is accepted, and it is not zero.
+4. **What carries the distinction instead.** Position (the Key and Value columns, breadcrumb trails, subtitles). Weight (`DimStyle` is not bold, while titles and keys are; the active segment is bold). Italic (`HelpStyle`, the disabled button, `TestTheDisabledButtonDiffersFromAnEnabledOneByMoreThanColour`). Glyphs and labels (`IconLock` on locked checkboxes in `theme.RenderCheckboxLocked`, `-` or `0` for an absence, severity labels, footer reasons). Background (active tab against inactive).
+5. **Known residual gaps.** The claim "Dim never carries a state on its own" is checked by the UX review, not by a test.
+   (a) `OptionConfirmModal.View()` in `internal/ui/components/option_confirm_modal.go`: a locked checkbox is drawn in `ColorDim` with no lock glyph and no label. It is told apart from an available unfocused checkbox by hue alone. Fixing it changes the rendering, so it is out of scope here and goes to a separate story.
+   (b) Placeholders, in `ColorDim` against a typed value in `ColorText`: `StyleTextInput` in `internal/ui/theme/styles.go`, `styleTextInput` in `internal/ui/setup/styles.go`, and `WrappedInput.View()` in `internal/ui/components/wrapped_input.go`. They are offset by the cursor, the label, and the placeholder disappearing on input. The `Suggestion` style of the same textinput (also `ColorDim` in `StyleTextInput`) is in the same case. The list is not exhaustive: any other `ColorDim` use is checked against rule 7 when it is found.
+   (c) `ColorSyntaxComment` and `ColorSyntaxPunct`, aliases of `ColorDim` in `internal/ui/theme/manager.go`. The `#` or `//` marker carries the meaning.
+6. **Limits.** The values are computed. No terminal was looked at. No test holds the rule "information never rests on Dim against Text alone".
+7. **What would reopen it.** Another theme with a delta E below 3, or a component that uses only `Dim` to show a state.
 
 **D181 — DEVDESK-770 part B: the severity badges reach 4.5:1 on the 13 themes, with their text set to the application background, and the gauge rail goes back to the frame border. Amends points 3 and 4 of D177. Decided (orchestrator, 2026-11-24, within the autonomy the user granted; the user can overrule).**
 
