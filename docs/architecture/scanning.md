@@ -280,6 +280,38 @@ no line, so it could feed neither the table's jump-to-line nor a fix.
   or a title that names the folder keeps its own name. Tests: `TestEveryRelativeFolderIsPassedWithADotSlash`
   (argv of `helmArgs` and `kustomizeArgs`, native and container, with and
   without the user's arguments), `TestADashFolderIsRenderedAndReportedUnderItsOwnName`.
+- **A folder name in a step is quoted for a POSIX shell, or the step is a text**
+  (DEVDESK-772). The name comes from a repository DevDesk does not trust, and a
+  step the user copies is read by a shell. `shellQuote` (steps.go) leaves a name
+  made of `A-Za-z0-9` and `- _ . + @ : , /` as it is (an `=` is quoted: with zsh's
+  `magic_equal_subst`, a bare `x==ls` is read as `x=/usr/bin/ls`) and wraps any other in single quotes, an apostrophe written `'\''`
+  (`'a'\''b'`); `typedDir` and `typedKustomizeDir` add the `./` first, then quote
+  (`'./-x $(id)'`), and kustomize keeps the `./` of a dotted first segment
+  (`'./github.com/o r'`). `shellQuote` is a local helper: the one in
+  `internal/ui/oci_resources` quotes only what a deny list names (a `*`, a `~`, a `#`
+  or a newline stay bare), is unexported and belongs to a UI package, so scan does not
+  import it. A name that is not valid UTF-8 or holds a rune `unicode.IsPrint` refuses
+  (line break, control character, format character such as U+202E or U+2028, U+0085,
+  U+00A0) is not `quotable`: no quote protects it, a terminal reads those before the
+  shell. The command step is then one line starting `Folder name needs quoting: rename
+  the folder, then ...` (`needsQuotingStep`): no name, no `run <program>`, so nothing to
+  copy, and the two helm steps stay distinct. A sentence that names the folder
+  (`Fix what helm lint reports in ...`, `move the file below ...`, `Copy the remote
+  base that ... names`, and the field, kind and version of `schemaSteps`, which come from the
+  manifest) writes it through `logWord`, so it never holds a control
+  character. The finding's `File`, its title and its Repro are untouched (`reproLine`
+  refuses a name that is not `PlainWords`). **Limit: POSIX shells only.** PowerShell
+  and cmd read the single quotes differently, and there is no form per platform, by
+  decision. A finding cached before this change keeps its old step text until the next
+  scan: the caches carry no version for a finding's text and nothing migrates them.
+  Tests: `steps_quoting_test.go` (pastes each step into `sh -c` through
+  `internal/testutil/stepshell` and checks the one argument and the absence of a
+  second command), `internal/mcp/scan_steps_quoting_test.go` (the same through
+  `scan_result`), `steps_quoting_guard_test.go` (a `fmt.Sprintf` or a `+` of
+  `steps.go` whose text holds `run <program>` takes only literals and protectors).
+  The guard matches names and the phrase `run <program>` (programs in
+  `stepsCommandPrograms`), reads `steps.go` only, and does not see a step worded
+  `Type ...` or a prose step; the behavior tests are what run the result.
 - **The `Running:` log masks the user's values and quotes odd paths** (DEVDESK-768).
   Every `Running:` line of the scanners and the renderers goes through
   `toolCmd.Loggable()`, not `String()` (the public `Get*Command` functions

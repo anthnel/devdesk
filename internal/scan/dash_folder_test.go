@@ -222,9 +222,15 @@ func TestADashFolderIsRenderedAndReportedUnderItsOwnName(t *testing.T) {
 					if strings.Contains(step, cmd+folder) {
 						t.Errorf("%s: step %q writes `%s%s`, which the tool reads as an option", f.ID, step, cmd, folder)
 					}
-					if strings.Contains(step, cmd+asPathArg(folder)) {
-						typed = append(typed, cmd+asPathArg(folder))
-						step = strings.ReplaceAll(step, asPathArg(folder), "")
+					// DEVDESK-772: a name with "=" is shown quoted, ./ inside the quotes
+					// (zsh reads a bare x==ls as x=/usr/bin/ls). Either way it is the
+					// command's folder argument, and the command is the same.
+					for _, arg := range []string{asPathArg(folder), "'" + asPathArg(folder) + "'"} {
+						if strings.Contains(step, cmd+arg) {
+							typed = append(typed, cmd+asPathArg(folder))
+							step = strings.ReplaceAll(step, arg, "")
+							break
+						}
 					}
 				}
 			}
