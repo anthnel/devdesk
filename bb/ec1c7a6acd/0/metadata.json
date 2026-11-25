@@ -1,0 +1,168 @@
+{
+  "cli_version": "0.13.2",
+  "checkpoint_id": "bbec1c7a6acd",
+  "session_id": "3a99cb10-3a86-493f-a9b7-21cc69be3313",
+  "strategy": "manual-commit",
+  "created_at": "2026-11-25T08:44:39.166580863Z",
+  "branch": "fix/devdesk-772-steps-shell-quoting",
+  "checkpoints_count": 3,
+  "files_touched": [
+    "docs/architecture/scanning.md",
+    "internal/mcp/scan_steps_quoting_test.go",
+    "internal/scan/dash_folder_test.go",
+    "internal/scan/scan_log_text_test.go",
+    "internal/scan/steps.go",
+    "internal/scan/steps_quoting_guard_test.go",
+    "internal/scan/steps_quoting_test.go",
+    "internal/testutil/stepshell/stepshell.go"
+  ],
+  "agent": "Claude Code",
+  "model": "claude-sonnet-5-5",
+  "turn_id": "364a6e955b07",
+  "checkpoint_transcript_start": 576,
+  "transcript_lines_at_start": 576,
+  "compact_transcript_start": 49,
+  "token_usage": {
+    "input_tokens": 22,
+    "cache_creation_tokens": 34048,
+    "cache_read_tokens": 1895166,
+    "output_tokens": 11900,
+    "api_call_count": 8,
+    "subagent_tokens": {
+      "input_tokens": 248,
+      "cache_creation_tokens": 898939,
+      "cache_read_tokens": 14847122,
+      "output_tokens": 174456,
+      "api_call_count": 122
+    },
+    "subagent_tokens_complete": true
+  },
+  "session_token_usage": {
+    "input_tokens": 112,
+    "cache_creation_tokens": 249162,
+    "cache_read_tokens": 6772761,
+    "output_tokens": 60958,
+    "api_call_count": 42,
+    "subagent_tokens": {
+      "input_tokens": 898,
+      "cache_creation_tokens": 2997475,
+      "cache_read_tokens": 39728510,
+      "output_tokens": 498287,
+      "api_call_count": 433
+    },
+    "subagent_tokens_complete": true
+  },
+  "redaction": {
+    "replacements": 1,
+    "layers": {
+      "betterleaks": 0,
+      "connection_string": 0,
+      "credential_key": 0,
+      "credential_value": 0,
+      "credentialed_uri": 0,
+      "entropy": 0,
+      "key_context": 1,
+      "provider_token": 0,
+      "shell_stdin": 0
+    }
+  },
+  "skill_events_version": 1,
+  "skill_events": [
+    {
+      "id": "claude-skill-toolu_01GUbewu5kUyYrao8uN2J7DB",
+      "event_type": "tool_invocation",
+      "skill": {
+        "name": "team-core:resume-work"
+      },
+      "source": {
+        "agent": "claude-code",
+        "signal": "skill_tool_use",
+        "confidence": "explicit"
+      },
+      "turn_id": "573808535171",
+      "transcript_anchor": {
+        "unit": "line",
+        "start": 32,
+        "end": 33,
+        "entry_ids": [
+          "e6e4ae38-df2b-4346-a094-df8332bf7e2c"
+        ],
+        "tool_use_id": "toolu_01GUbewu5kUyYrao8uN2J7DB"
+      },
+      "native": {
+        "tool_name": "Skill",
+        "tool_use_id": "toolu_01GUbewu5kUyYrao8uN2J7DB"
+      },
+      "collapse": {
+        "target": "tool_pair",
+        "label": "Skill: team-core:resume-work",
+        "default_collapsed": true
+      }
+    },
+    {
+      "id": "claude-skill-toolu_019kvgm2sxpMfqsCu1uuVCpS",
+      "event_type": "tool_invocation",
+      "skill": {
+        "name": "plane-integration:plane-conventions"
+      },
+      "source": {
+        "agent": "claude-code",
+        "signal": "skill_tool_use",
+        "confidence": "explicit"
+      },
+      "turn_id": "573808535171",
+      "transcript_anchor": {
+        "unit": "line",
+        "start": 36,
+        "end": 37,
+        "entry_ids": [
+          "049039c1-9578-4422-9f00-1a41549c8aa5"
+        ],
+        "tool_use_id": "toolu_019kvgm2sxpMfqsCu1uuVCpS"
+      },
+      "native": {
+        "tool_name": "Skill",
+        "tool_use_id": "toolu_019kvgm2sxpMfqsCu1uuVCpS"
+      },
+      "collapse": {
+        "target": "tool_pair",
+        "label": "Skill: plane-integration:plane-conventions",
+        "default_collapsed": true
+      }
+    },
+    {
+      "id": "claude-skill-toolu_01Mwcqnj5uG35hufDvdEtK6m",
+      "event_type": "tool_invocation",
+      "skill": {
+        "name": "release-flow"
+      },
+      "source": {
+        "agent": "claude-code",
+        "signal": "skill_tool_use",
+        "confidence": "explicit"
+      },
+      "turn_id": "364a6e955b07",
+      "transcript_anchor": {
+        "unit": "line",
+        "start": 632,
+        "end": 633,
+        "entry_ids": [
+          "cd19c71c-c3ba-48d5-a147-32a19d186bec"
+        ],
+        "tool_use_id": "toolu_01Mwcqnj5uG35hufDvdEtK6m"
+      },
+      "native": {
+        "tool_name": "Skill",
+        "tool_use_id": "toolu_01Mwcqnj5uG35hufDvdEtK6m"
+      },
+      "collapse": {
+        "target": "tool_pair",
+        "label": "Skill: release-flow",
+        "default_collapsed": true
+      }
+    }
+  ],
+  "session_metrics": {
+    "turn_count": 10
+  }
+}

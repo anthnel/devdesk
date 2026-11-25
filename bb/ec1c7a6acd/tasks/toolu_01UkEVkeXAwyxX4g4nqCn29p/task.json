@@ -1,0 +1,15 @@
+{
+  "tool_use_id": "toolu_01UkEVkeXAwyxX4g4nqCn29p",
+  "agent_id": "a354bd3baf0e06a4f",
+  "subagent_type": "dev-team:reviewer",
+  "task_description": "Review 774 part A diff",
+  "token_usage": {
+    "input_tokens": 26,
+    "cache_creation_tokens": 83706,
+    "cache_read_tokens": 763035,
+    "output_tokens": 14040,
+    "api_call_count": 13
+  },
+  "started_at": "2026-11-25T09:39:49.348426233+01:00",
+  "completed_at": "2026-11-25T09:41:55.236468513+01:00"
+}

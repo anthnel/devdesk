@@ -1,0 +1,15 @@
+{
+  "tool_use_id": "toolu_01FSxQowgAKzDKrW1Mhqxssj",
+  "agent_id": "a82aac16b95fb8278",
+  "subagent_type": "project-tester",
+  "task_description": "TDD red tests for 771",
+  "token_usage": {
+    "input_tokens": 78,
+    "cache_creation_tokens": 253054,
+    "cache_read_tokens": 6033181,
+    "output_tokens": 102587,
+    "api_call_count": 38
+  },
+  "started_at": "2026-11-25T09:25:22.829931842+01:00",
+  "completed_at": "2026-11-25T09:37:17.162719941+01:00"
+}
