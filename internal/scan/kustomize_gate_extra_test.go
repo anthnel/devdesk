@@ -2,6 +2,7 @@ package scan
 
 import (
 	"os"
+	"os/exec"
 	"path/filepath"
 	"strconv"
 	"strings"
@@ -79,6 +80,9 @@ func TestVetOverlayDoesNotFollowAPluginDirectory(t *testing.T) {
 // server would have been reached.
 func TestARealKustomizeIsNotStartedOnAPluginDirectory(t *testing.T) {
 	kustomize := kustomizeWithGit(t)
+	if _, err := exec.LookPath("kubeconform"); err != nil {
+		t.Skip("no kubeconform on PATH")
+	}
 	isolateHome(t)
 	for _, name := range []string{"HTTP_PROXY", "http_proxy", "HTTPS_PROXY", "https_proxy", "ALL_PROXY", "all_proxy"} {
 		t.Setenv(name, "")
