@@ -136,3 +136,30 @@ func repeatKey(name string, n int) []string {
 	}
 	return keys
 }
+
+// A resize that leaves the width as it was must not move the view: the router
+// resizes on events that do not change the size, and a long line whose cursor
+// sits in the middle of its window would scroll for no reason.
+func TestPaletteResizeWithoutWidthChangeKeepsTheView(t *testing.T) {
+	a := routerAt(t, &fakeView{body: "body"}, 40, 16)
+	press(t, a, "ctrl+p")
+	typeCommand(t, a, paletteLongText)
+	// Back to the start, then a few steps right: the window shows the head of
+	// the line and the cursor sits inside it, not at an edge. A re-seat would
+	// rebuild the window from the end of the line and scroll it.
+	press(t, a, "home")
+	press(t, a, repeatKey("right", 6)...)
+	width, pos, before := a.commandInput.Width(), a.commandInput.Position(), a.commandInput.View()
+
+	resizeTo(t, a, 40, 16)
+
+	if got := a.commandInput.Width(); got != width {
+		t.Fatalf("setup: the width went from %d to %d", width, got)
+	}
+	if got := a.commandInput.Position(); got != pos {
+		t.Errorf("the resize moved the cursor from %d to %d", pos, got)
+	}
+	if got := a.commandInput.View(); got != before {
+		t.Errorf("a resize without width change moved the view:\n got %q\nwant %q", ansi.Strip(got), ansi.Strip(before))
+	}
+}

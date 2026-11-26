@@ -869,8 +869,14 @@ whenever the cursor is still inside it.
 `SetValue("")`, `SetValue(value)` and `SetCursor(pos)`, then restores `Err`
 (`SetValue` clears it when the field has no validator). Suggestions, `CharLimit`
 and focus are left alone. Call it right after any `SetWidth` that can shrink a
-field, from `Update` only (Rule 110). The command palette does it in
-`sizePaletteInput`, on every resize (`TestPaletteFieldFitsItsFrameAfterResize`).
+field, from `Update` only (Rule 110), and only when the width changed: it
+rebuilds the window from the end of the line, so on an unchanged width it would
+scroll a long line whose cursor sits in the middle of its window. With a
+validator, `SetValue` runs it twice more (with `""`, then with the value), so it
+must be cheap and free of side effects; `Err` is restored either way. The
+command palette does it in `sizePaletteInput` when the width changes
+(`TestPaletteFieldFitsItsFrameAfterResize`); a resize that keeps the width leaves
+the view alone (`TestPaletteResizeWithoutWidthChangeKeepsTheView`).
 
 **Removal signal.** `TestShrinkWithoutReseatLeavesTheCursorOutside` pins the
 defect without `ReseatInput`. It goes red the day bubbles refreshes its window in
