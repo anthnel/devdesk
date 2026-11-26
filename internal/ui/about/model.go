@@ -10,17 +10,34 @@
 package about
 
 import (
+	"log"
 	"path/filepath"
 	"time"
 
 	tea "charm.land/bubbletea/v2"
+	"github.com/anthnel/devdesk/internal/browser"
 	"github.com/anthnel/devdesk/internal/config"
 	sharedcomponents "github.com/anthnel/devdesk/internal/ui/components"
+	"github.com/anthnel/devdesk/internal/ui/keymap"
 	"github.com/anthnel/devdesk/internal/version"
 )
 
 // SourceURL is where this project is developed.
 const SourceURL = "https://github.com/anthnel/devdesk"
+
+// HelpURL is the online documentation, opened by `W`.
+const HelpURL = "https://anthnel.github.io/devdesk/"
+
+// openBrowser is the one place this package reaches the real browser. Tests
+// replace it; a source guard fails on any other call to browser.Open.
+var openBrowser = browser.Open
+
+// BrowserOpenedMsg reports the outcome of opening the online help. Update
+// turns it into a footer message; the command that opens the browser never
+// touches the model (Rule 110).
+type BrowserOpenedMsg struct {
+	Error error
+}
 
 // field is one label/value line. An empty Value is rendered as "unknown"
 // rather than as a blank, so a missing answer reads as a missing answer.
@@ -36,7 +53,8 @@ type section struct {
 }
 
 // Model is the about screen. It holds no live state: the sections are computed
-// once in New and never change, so Update only ever moves the scroll offset.
+// once in New and never change. Update moves the scroll offset, starts the
+// opener on `W` and turns its outcome into a footer message.
 type Model struct {
 	width, height int
 	offset        int
@@ -62,7 +80,10 @@ func sections(info version.Info, cfg *config.Config) []section {
 	return []section{
 		{Title: "Build", Fields: build},
 		{Title: "Paths", Fields: paths(cfg)},
-		{Title: "Project", Fields: []field{{Label: "Source", Value: SourceURL}}},
+		{Title: "Project", Fields: []field{
+			{Label: "Source", Value: SourceURL},
+			{Label: "Documentation", Value: HelpURL},
+		}},
 	}
 }
 
@@ -119,7 +140,7 @@ func paths(cfg *config.Config) []field {
 // Init implements tea.Model. Nothing is fetched, so there is no command.
 func (m Model) Init() tea.Cmd { return nil }
 
-// Update handles resizing and scrolling, and nothing else.
+// Update handles resizing, scrolling and the outcome of opening the online help.
 func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
 	case tea.WindowSizeMsg:
@@ -129,6 +150,8 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, nil
 	case tea.KeyPressMsg:
 		return m.handleKey(msg)
+	case BrowserOpenedMsg:
+		return m.handleBrowserOpened(msg)
 	}
 	// The component consumes the expiration addressed to it (Rule 128). This
 	// screen never posts a message itself; it receives one through the
@@ -138,9 +161,34 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	return m, nil
 }
 
-// handleKey moves the scroll offset. The viewport is driven by hand rather
-// than by bubbles/viewport, whose default KeyMap carries the vim aliases this
-// project removed (Rule 111).
+// handleBrowserOpened reports in the footer how opening the online help went.
+// A failure repeats the address, so it can be typed by hand where no browser
+// can be started (SSH, no desktop).
+func (m Model) handleBrowserOpened(msg BrowserOpenedMsg) (tea.Model, tea.Cmd) {
+	if msg.Error != nil {
+		log.Printf("ERROR [about] open browser: %v", msg.Error)
+		return m, m.footer.Error("Could not open the browser, go to " + HelpURL)
+	}
+	return m, m.footer.Info("Opening the online help in your browser")
+}
+
+// openHelp is the command behind `W`. It only calls the opener and reports
+// the result as a message.
+//
+// Limit: browser.Open reports only that the opener could not be started. With
+// an opener that starts and then fails (xdg-open over SSH or in a container),
+// the result is nil and nothing opens, which is why the success message says
+// "Opening" rather than "Opened". The Documentation line stays on screen so
+// the address can always be copied. Reading the opener's real outcome would
+// be a change to internal/browser, outside this screen.
+func openHelp() tea.Msg {
+	return BrowserOpenedMsg{Error: openBrowser(HelpURL)}
+}
+
+// handleKey moves the scroll offset, and opens the online help on `W`.
+//
+// The viewport is driven by hand rather than by bubbles/viewport, whose
+// default KeyMap carries the vim aliases this project removed (Rule 111).
 func (m Model) handleKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	switch msg.String() {
 	case "up":
@@ -155,6 +203,8 @@ func (m Model) handleKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 		m.offset = 0
 	case "end":
 		m.offset = m.clampOffset(len(m.lines()))
+	case keymap.Web:
+		return m, openHelp
 	}
 	return m, nil
 }

@@ -18,7 +18,7 @@ palette, then type any of these. The header always shows the hint
 | `netdiag` | `net` | Network Diagnostics (Diagnostics, Ports, Interfaces and Forward tabs) |
 | `configuration` | `config`, `cfg` | Configuration |
 | `jobs` | `j` | Jobs |
-| `about` | `version` | Build info |
+| `about` | `version` | Build info; `W` opens the online help at https://anthnel.github.io/devdesk/ in your browser |
 | `context <name>` | `ctx <name>` | Switch to the existing context `<name>` (it never creates one) |
 | `context -` | `ctx -` | Return to the previous context of this session |
 | `context new <name>` | `ctx new <name>` | Create context `<name>` and switch to it |

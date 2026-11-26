@@ -27,7 +27,7 @@ resource action, and there are no vim-style `hjkl` aliases.
 | `S` | Scan | `A` | Scan all |
 | `F` | Sync / refresh (*fetch*) | `C` | Clone selector |
 | `T` | Terminal | `O` | Open in IDE |
-| `W` | Open in browser | `L` | Logs |
+| `W` | Open in browser (in `:about`, the online help) | `L` | Logs |
 | `V` | Pager | `K` | Stop / kill |
 | `P` | Prune | `B` | Registry browser |
 | `G` | Pull (*get*) | `U` | Login / logout |
