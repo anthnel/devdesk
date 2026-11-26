@@ -340,9 +340,8 @@ func blankFG(rows [][]testutil.Cell) [][]testutil.Cell {
 }
 
 // A query that fits keeps the cells it had before the field got a width. This
-// passes today and guards the change; a tokens-while-editing case is left out on
-// purpose (see the report of DEVDESK-789: a textinput with a width pads itself,
-// which would move the tokens).
+// passes today and guards the change. The editing cases with active tokens hold
+// the tokens in place while typing: the field draws no trailing padding.
 func TestFilterBarShortQueryLooksAsBefore(t *testing.T) {
 	tests := []struct {
 		name   string
@@ -355,6 +354,8 @@ func TestFilterBarShortQueryLooksAsBefore(t *testing.T) {
 		{"placeholder with an active token", "placeholder", "", []string{"tcp"}},
 		{"typing a short query", "editing", "web", nil},
 		{"typing nothing yet", "editing", "", nil},
+		{"typing a short query with active tokens", "editing", "web", []string{"tcp", "LISTEN"}},
+		{"typing nothing yet with an active token", "editing", "", []string{"tcp"}},
 	}
 	for _, width := range []int{40, 80} {
 		for _, tc := range tests {

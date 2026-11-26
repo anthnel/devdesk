@@ -5,6 +5,7 @@ import (
 
 	"charm.land/bubbles/v2/textinput"
 	tea "charm.land/bubbletea/v2"
+	"github.com/charmbracelet/x/ansi"
 
 	"github.com/anthnel/devdesk/internal/ui/theme"
 )
@@ -87,9 +88,81 @@ func (fb *FilterBar) ExtraHeight() int {
 	return 0
 }
 
-// Resize updates the display width used when rendering.
+// Resize updates the display width used when rendering and fits the search
+// field to it.
 func (fb *FilterBar) Resize(width int) {
 	fb.width = width
+	fb.fitField()
+}
+
+// barChrome is what the bar spends on the frame and the lead-in around the
+// query: "│" and "│" (2), the leading space (1) and "/ " (2).
+const barChrome = 5
+
+// tokensText returns the right-hand part of the bar: two spaces and the active
+// token labels joined by a dim dot. It is empty when no token is active.
+func (fb *FilterBar) tokensText() string {
+	var active []string
+	for _, t := range fb.tokens {
+		if t.Active {
+			active = append(active, theme.KeyStyle.Render(t.Label))
+		}
+	}
+	if len(active) == 0 {
+		return ""
+	}
+	return "  " + strings.Join(active, theme.DimStyle.Render("  ·  "))
+}
+
+// queryRoom is how many cells the query may use on the content line: what the
+// frame, the lead-in and the active tokens leave. A bar still at width 0 is
+// drawn 80 cells wide by BarFrame, so the same default applies here. A bar
+// narrower than its own tokens gets 1: its line may then overrun the width,
+// which is out of scope (BarFrame itself panics below a width of 2).
+func (fb *FilterBar) queryRoom() int {
+	width := fb.width
+	if width == 0 {
+		width = 80
+	}
+	return max(width-barChrome-ansi.StringWidth(fb.tokensText()), 1)
+}
+
+// fieldWidth is the width of the search field: the room of the query minus the
+// cell the cursor takes after the last character, with a floor of 1.
+func (fb *FilterBar) fieldWidth() int {
+	return max(fb.queryRoom()-1, 1)
+}
+
+// fitField hands the field its width. The scroll window is re-seated only when
+// the width changed, so a resize that keeps the field's size does not scroll a
+// line that did not need it (components.ReseatInput).
+func (fb *FilterBar) fitField() {
+	before := fb.searchInput.Width()
+	fb.searchInput.SetWidth(fb.fieldWidth())
+	if fb.searchInput.Width() != before {
+		ReseatInput(&fb.searchInput)
+	}
+}
+
+// cutQuery shortens query to at most room cells, from its end, with an ellipsis
+// in the last cell. It walks grapheme clusters, so a wide glyph that does not
+// fit is dropped whole (the line is then one cell short and the frame pads it).
+func cutQuery(query string, room int) string {
+	if ansi.StringWidth(query) <= room {
+		return query
+	}
+	var b strings.Builder
+	used := 0
+	for rest := query; rest != ""; {
+		cluster, w := ansi.FirstGraphemeCluster(rest, ansi.GraphemeWidth)
+		if cluster == "" || used+w > room-1 {
+			break
+		}
+		b.WriteString(cluster)
+		used += w
+		rest = rest[len(cluster):]
+	}
+	return b.String() + "…"
 }
 
 // InEditMode returns true when the search input is focused.
@@ -106,6 +179,7 @@ func (fb *FilterBar) SearchQuery() string {
 // ActivateSearch focuses the search input and returns the blink command.
 func (fb *FilterBar) ActivateSearch() tea.Cmd {
 	fb.searching = true
+	fb.fitField()
 	fb.searchInput.Focus()
 	return textinput.Blink
 }
@@ -142,6 +216,7 @@ func (fb *FilterBar) SetTokenActive(label string, active bool) {
 	for i, t := range fb.tokens {
 		if t.Label == label {
 			fb.tokens[i].Active = active
+			fb.fitField()
 			return
 		}
 	}
@@ -163,6 +238,7 @@ func (fb *FilterBar) SetTokens(tokens []FilterToken) {
 			fb.tokens[i].Active = true
 		}
 	}
+	fb.fitField()
 }
 
 // Update handles key messages when the bar is in search mode.
@@ -209,25 +285,19 @@ func (fb *FilterBar) Update(msg tea.Msg) (FilterBar, tea.Cmd) {
 // Line 1 (content): │  / cursor...   [tcp] · [LISTEN]  │
 // Line 2 (bottom):  └──────────────────────────────────┘
 func (fb *FilterBar) View() string {
-	var right string
-	if len(fb.tokens) > 0 {
-		var activeTokens []string
-		for _, t := range fb.tokens {
-			if t.Active {
-				activeTokens = append(activeTokens, theme.KeyStyle.Render(t.Label))
-			}
-		}
-		if len(activeTokens) > 0 {
-			right = "  " + strings.Join(activeTokens, theme.DimStyle.Render("  ·  "))
-		}
-	}
+	right := fb.tokensText()
 
 	var left string
 	if fb.searching {
-		left = theme.KeyStyle.Render("/") + theme.Bg(" ") + fb.searchInput.View()
+		// The field is drawn from a copy without a width: with one, the
+		// textinput pads its value up to it and the tokens would jump while
+		// the user types. The cursor cell stays; BarFrame fills the line.
+		field := fb.searchInput
+		field.SetWidth(0)
+		left = theme.KeyStyle.Render("/") + theme.Bg(" ") + field.View()
 	} else {
 		if fb.searchQuery != "" {
-			left = theme.DimStyle.Render("/ ") + theme.KeyStyle.Render(fb.searchQuery)
+			left = theme.DimStyle.Render("/ ") + theme.KeyStyle.Render(cutQuery(fb.searchQuery, fb.queryRoom()))
 		} else {
 			left = theme.DimStyle.Render("/ search...")
 		}

@@ -882,6 +882,27 @@ the view alone (`TestPaletteResizeWithoutWidthChangeKeepsTheView`).
 defect without `ReseatInput`. It goes red the day bubbles refreshes its window in
 `SetWidth`; then drop `ReseatInput` and its callers rather than relax the test.
 
+## FilterBar field width (DEVDESK-789)
+
+`FilterBar` gives its search `textinput` a width, so a long query scrolls inside
+the frame instead of overflowing it. `fieldWidth()` is `width - 2` (the `│ │`
+sides) `- 1` (leading space) `- 2` (`"/ "`) `- ansi.StringWidth(right) - 1` (the
+cursor cell), floored at 1, where `right` is `"  "` plus the active token labels
+joined by `"  ·  "`. A bar at width 0 counts as 80, as `BarFrame` draws it.
+`Resize`, `SetTokenActive`, `SetTokens` and `ActivateSearch` apply it through
+`SetWidth`, and call `ReseatInput` only when the field's width changed (a
+resize that keeps it must not scroll the line). A bar narrower than its own
+tokens keeps the field at 1 and its line may overrun; that case is out of scope,
+like `BarFrame` below a width of 2.
+
+A confirmed query is cut from its end with `…` by a grapheme walk
+(`ansi.FirstGraphemeCluster` with `ansi.GraphemeWidth`, not `ansi.Truncate`); a
+wide glyph that does not fit is dropped and `BarFrame` pads the line, which stays
+exactly `width` cells. The textinput pads its value up to its width, which would
+move the tokens while typing, so `View` draws the field from a copy with width 0:
+the cursor cell stays, there is no trailing padding, and a short query looks as it
+did before (`TestFilterBarShortQueryLooksAsBefore`).
+
 ## A confirmation that opens by itself — `WithoutYesShortcut` and `EndSearch`
 
 `components.ConfirmModal` answers Yes to `y` and `Y`, No to `n`, `N` and `esc`,
