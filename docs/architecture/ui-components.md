@@ -865,16 +865,18 @@ holds and the cursor cell can land beyond it. This holds in bubbles v2.2.1 and
 v2.2.2. `SetCursor(Position())` is not enough, since it keeps the old window
 whenever the cursor is still inside it.
 
-`ReseatInput(&in)` saves `Value()`, `Position()` and `Err`, calls
-`SetValue("")`, `SetValue(value)` and `SetCursor(pos)`, then restores `Err`
-(`SetValue` clears it when the field has no validator). Suggestions, `CharLimit`
-and focus are left alone. Call it right after any `SetWidth` that can shrink a
-field, from `Update` only (Rule 110), and only when the width changed: it
-rebuilds the window from the end of the line, so on an unchanged width it would
-scroll a long line whose cursor sits in the middle of its window. With a
-validator, `SetValue` runs it twice more (with `""`, then with the value), so it
-must be cheap and free of side effects; `Err` is restored either way. The
-command palette does it in `sizePaletteInput` when the width changes
+`ReseatInput(&in)` reads `Position()`, calls `CursorEnd()` and then
+`SetCursor(pos)`. `CursorEnd` always rebuilds the window from the end of the line
+for the current width; `SetCursor` brings the cursor back and scrolls left only if
+it is left of that window. It never calls `SetValue`, so `Err`, the validator and
+the suggestions (the current one included: since bubbles v2.2.2 `SetValue`
+refreshes the suggestions and resets the current index to 0,
+`TestReseatKeepsTheSuggestions`) are left alone, as are `CharLimit` and focus.
+Call it right after any `SetWidth` that can shrink a field, from `Update` only
+(Rule 110), and only when the width changed: it rebuilds the window from the end
+of the line, so on an unchanged width it would scroll a long line whose cursor
+sits in the middle of its window. The command palette does it in
+`sizePaletteInput` when the width changes
 (`TestPaletteFieldFitsItsFrameAfterResize`); a resize that keeps the width leaves
 the view alone (`TestPaletteResizeWithoutWidthChangeKeepsTheView`).
 
