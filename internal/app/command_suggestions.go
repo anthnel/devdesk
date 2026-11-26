@@ -8,6 +8,7 @@ import (
 
 	"github.com/anthnel/devdesk/internal/command"
 	"github.com/anthnel/devdesk/internal/ui/cmdsuggest"
+	"github.com/anthnel/devdesk/internal/ui/components"
 	"github.com/anthnel/devdesk/internal/ui/theme"
 )
 
@@ -182,18 +183,25 @@ func (a *App) paletteTitle() string {
 
 // sizePaletteInput gives the command input the width of the open frame minus
 // borders, margins, the prompt and the cursor cell the input draws after its
-// Width when the line scrolls, and re-seats the cursor so the scroll window
-// follows. Called from Update paths only (resize), never from View.
+// Width when the line scrolls. When the width changed it re-seats the field so
+// the scroll window follows (components.ReseatInput); when it did not, the
+// window is left alone, so a resize that keeps the size does not scroll a long
+// line. Called from Update paths only (resize), never from View.
 func (a *App) sizePaletteInput() {
 	prompt := lipgloss.Width(a.commandInput.Prompt)
+	before := a.commandInput.Width()
 	a.commandInput.SetWidth(max(a.paletteRect().Width-paletteInputChrome-prompt-1, 1))
-	a.commandInput.SetCursor(a.commandInput.Position())
+	if a.commandInput.Width() != before {
+		components.ReseatInput(&a.commandInput)
+	}
 }
 
 // paletteInputView renders a styled copy of the command input. Styling a copy
 // in View() mutates nothing (Rule 110) and follows a theme applied at run
 // time. The prompt is the border colour, the text is ColorText, every segment
-// carries an explicit background.
+// carries an explicit background. The line is clamped to the prompt, the field
+// and the cursor cell (components.ClampField): bubbles' scroll window counts an
+// emoji with U+FE0F for 1 cell, the renderer for 2.
 func paletteInputView(in textinput.Model) string {
 	bg := lipgloss.NewStyle().Background(theme.ColorBackground)
 	state := textinput.StyleState{
@@ -206,7 +214,11 @@ func paletteInputView(in textinput.Model) string {
 	styles.Blurred = state
 	styles.Cursor.Color = theme.ColorText
 	in.SetStyles(styles)
-	return in.View()
+	view := in.View()
+	if in.Width() <= 0 {
+		return view
+	}
+	return components.ClampField(view, lipgloss.Width(in.Prompt)+in.Width()+1)
 }
 
 // entryRows renders the command-stage suggestions as list rows.

@@ -855,6 +855,100 @@ exempt), `TestGuardInvalidFieldUnderlineHasOneEntryPoint` (no `Underline*`
 outside `StyleInvalidField`), and `TestGuardDetectors` (the scanners fire on a
 faulty fragment).
 
+## Re-seating a text input after a shrink — `components.ReseatInput` (DEVDESK-788)
+
+bubbles scrolls a `textinput` through two internal offsets (`offset`,
+`offsetRight`) that only `SetCursor`, `SetValue` and `Update` refresh, not
+`SetWidth`. After a `SetWidth` that shrinks the field, a cursor still inside the
+old window keeps that too wide window: the view draws more cells than its box
+holds and the cursor cell can land beyond it. This holds in bubbles v2.2.1 and
+v2.2.2. `SetCursor(Position())` is not enough, since it keeps the old window
+whenever the cursor is still inside it.
+
+`ReseatInput(&in)` reads `Position()`, calls `CursorEnd()` and then
+`SetCursor(pos)`. `CursorEnd` always rebuilds the window from the end of the line
+for the current width; `SetCursor` brings the cursor back and scrolls left only if
+it is left of that window. It never calls `SetValue`, so `Err`, the validator and
+the suggestions (the current one included: since bubbles v2.2.2 `SetValue`
+refreshes the suggestions and resets the current index to 0,
+`TestReseatKeepsTheSuggestions`) are left alone, as are `CharLimit` and focus.
+Call it right after any `SetWidth` that can shrink a field, from `Update` only
+(Rule 110), and only when the width changed: it rebuilds the window from the end
+of the line, so on an unchanged width it would scroll a long line whose cursor
+sits in the middle of its window. The command palette does it in
+`sizePaletteInput` when the width changes
+(`TestPaletteFieldFitsItsFrameAfterResize`); a resize that keeps the width leaves
+the view alone (`TestPaletteResizeWithoutWidthChangeKeepsTheView`).
+
+**Removal signal.** `TestShrinkWithoutReseatLeavesTheCursorOutside` pins the
+defect without `ReseatInput`. It goes red the day bubbles refreshes its window in
+`SetWidth`; then drop `ReseatInput` and its callers rather than relax the test.
+
+## FilterBar field width (DEVDESK-789)
+
+`FilterBar` gives its search `textinput` a width, so a long query scrolls inside
+the frame instead of overflowing it. `fieldWidth()` is `width - 2` (the `│ │`
+sides) `- 1` (leading space) `- 2` (`"/ "`) `- ansi.StringWidth(right) - 1` (the
+cursor cell), floored at 1, where `right` is `"  "` plus the active token labels
+joined by `"  ·  "`. A bar at width 0 counts as 80, as `BarFrame` draws it.
+`Resize`, `SetTokenActive`, `SetTokens` and `ActivateSearch` apply it through
+`SetWidth`, and call `ReseatInput` only when the field's width changed (a
+resize that keeps it must not scroll the line). A bar narrower than its own
+tokens keeps the field at 1 and its line may overrun; that case is out of scope,
+like `BarFrame` below a width of 2.
+
+A confirmed query is cut from its end with `…` by a grapheme walk
+(`ansi.FirstGraphemeCluster` with `ansi.GraphemeWidth`, not `ansi.Truncate`); a
+wide glyph that does not fit is dropped and `BarFrame` pads the line, which stays
+exactly `width` cells. The textinput pads its value up to its width, which would
+move the tokens while typing, so `View` draws the field from a copy with width 0:
+the cursor cell stays, there is no trailing padding, and a short query looks as it
+did before (`TestFilterBarShortQueryLooksAsBefore`).
+
+The line is exactly `width` cells in confirmed mode, and in edit mode as long as
+the field's text is counted the way the renderer counts it. In edit mode the field
+is then bounded by `ClampField` (next section) to `queryRoom()`, so a query with
+emoji that carry U+FE0F cannot push the tokens or the right border out of the
+frame; `BarFrame` fills what the clamp leaves
+(`TestFilterBarScrollingQueryWithTokensIsExactlyTheBarWidth`,
+`TestFilterBarFieldWithVS16StaysInTheBar`).
+
+## `ClampField` — one-line fields and emoji with U+FE0F (DEVDESK-790)
+
+`components.ClampField(rendered, width)` cuts the rendered line of a one-line
+field to `width` cells. It walks the text by grapheme cluster
+(`ansi.FirstGraphemeCluster` with `ansi.GraphemeWidth`, the measure the renderer
+uses), keeps style sequences whole, never pads, returns a line that fits
+unchanged, and closes a style the cut left open. A VS16 emoji, a keycap, a flag,
+a CJK glyph and a ZWJ sequence are never split.
+
+Why: bubbles v2.2.1 and v2.2.2 decide whether a `textinput` scrolls with uniseg (clusters)
+but builds its scroll window with runewidth per rune, where `❤️` (U+2764 U+FE0F)
+is 1 cell and U+FE0F 0, while the renderer draws it in 2. A field full of such
+emoji draws up to twice what its box holds. Use `ClampField` on the `View()` of a
+`textinput` that has a width and sits in a fixed box. Two callers today:
+`paletteInputView` (prompt, field and cursor cell, `paletteInputChrome` apart) and
+`FilterBar.View` in edit mode (`queryRoom()`). Form fields are not clamped yet.
+
+Removal signal: `TestTextInputWindowIsMeasuredWithRunewidth` fails the day bubbles
+measures its window in clusters (v2.2.2 does not). Then drop `field_clamp.go`, its tests and both
+call sites. The upstream ticket text is in annex 1 of the DEVDESK-785 plan.
+
+Limits, deliberately kept (no mechanism of our own on top of bubbles):
+
+- The clamp cuts on the right, and what it removes is the surplus: if the window
+  draws k cells too many because of its VS16 emoji, the k cells at the right end
+  go. The cursor cell is among them when it sits at the end of the line, and so
+  are the last typed characters (measured on the bar at 40 columns: 6 hearts
+  typed at the end of the line, 3 visible). The field shows the start of its
+  window, not its end, until the text fits again. This is acceptable here: before
+  the clamp the field overflowed its frame. The tests ask for at most one cursor
+  cell, inside the frame, and that holds. A follow-up is to cut on the left
+  when the cursor is at the end of the line, done by the caller.
+- The window can begin on a lone U+FE0F (it was cut from its emoji by runewidth);
+  `ClampField` cuts the end of a line, it does not repair its start, so a lone
+  U+FE0F is left where bubbles put it.
+
 ## A confirmation that opens by itself — `WithoutYesShortcut` and `EndSearch`
 
 `components.ConfirmModal` answers Yes to `y` and `Y`, No to `n`, `N` and `esc`,
