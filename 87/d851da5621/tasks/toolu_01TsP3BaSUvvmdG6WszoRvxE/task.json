@@ -1,0 +1,15 @@
+{
+  "tool_use_id": "toolu_01TsP3BaSUvvmdG6WszoRvxE",
+  "agent_id": "ac60439bd8c2236e2",
+  "subagent_type": "project-coder",
+  "task_description": "Corrections revue 764",
+  "token_usage": {
+    "input_tokens": 34,
+    "cache_creation_tokens": 54032,
+    "cache_read_tokens": 756163,
+    "output_tokens": 10512,
+    "api_call_count": 17
+  },
+  "started_at": "2026-11-24T18:27:52.267349475+01:00",
+  "completed_at": "2026-11-24T18:32:27.657309274+01:00"
+}

@@ -1,0 +1,15 @@
+{
+  "tool_use_id": "toolu_017y3aTxJHKqjmBYbpoUnPy8",
+  "agent_id": "a9f469600a810d5a3",
+  "subagent_type": "product-team:pm",
+  "task_description": "Créer les stories de suivi",
+  "token_usage": {
+    "input_tokens": 14,
+    "cache_creation_tokens": 100720,
+    "cache_read_tokens": 456303,
+    "output_tokens": 13176,
+    "api_call_count": 7
+  },
+  "started_at": "2026-11-24T19:32:52.748622781+01:00",
+  "completed_at": "2026-11-24T19:34:29.636662969+01:00"
+}
