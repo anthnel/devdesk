@@ -343,7 +343,12 @@ without confirmation. `browser.Open` runs in a Cmd through the single seam `open
 (a source guard allows no other call in the package) and comes back as
 `about.BrowserOpenedMsg`: success is an Info footer, failure an Error footer that repeats
 the address, plus an `ERROR [about] open browser:` log line. The header lists the key next
-to `?`, always enabled.
+to `?`, always enabled. Limit: `browser.Open` only reports that the opener could not be
+started. An opener that starts and then fails (`xdg-open` over SSH or in a container)
+gives a nil error, so the success message says "Opening the online help in your browser",
+not "Opened", and the Documentation line stays on screen to copy the address in every
+case. Reading the opener's real outcome would be a change to `internal/browser`, outside
+this story.
 
 **The command palette (DEVDESK-109, after DEVDESK-89).** There is no permanent
 command line any more. `ctrl+p` or `:` (`:` stays a character inside a field being

@@ -53,7 +53,8 @@ type section struct {
 }
 
 // Model is the about screen. It holds no live state: the sections are computed
-// once in New and never change, so Update only ever moves the scroll offset.
+// once in New and never change. Update moves the scroll offset, starts the
+// opener on `W` and turns its outcome into a footer message.
 type Model struct {
 	width, height int
 	offset        int
@@ -168,18 +169,26 @@ func (m Model) handleBrowserOpened(msg BrowserOpenedMsg) (tea.Model, tea.Cmd) {
 		log.Printf("ERROR [about] open browser: %v", msg.Error)
 		return m, m.footer.Error("Could not open the browser, go to " + HelpURL)
 	}
-	return m, m.footer.Info("Opened the online help in your browser")
+	return m, m.footer.Info("Opening the online help in your browser")
 }
 
 // openHelp is the command behind `W`. It only calls the opener and reports
 // the result as a message.
+//
+// Limit: browser.Open reports only that the opener could not be started. With
+// an opener that starts and then fails (xdg-open over SSH or in a container),
+// the result is nil and nothing opens, which is why the success message says
+// "Opening" rather than "Opened". The Documentation line stays on screen so
+// the address can always be copied. Reading the opener's real outcome would
+// be a change to internal/browser, outside this screen.
 func openHelp() tea.Msg {
 	return BrowserOpenedMsg{Error: openBrowser(HelpURL)}
 }
 
-// handleKey moves the scroll offset, and opens the online help on `W`. The viewport is driven by hand rather
-// than by bubbles/viewport, whose default KeyMap carries the vim aliases this
-// project removed (Rule 111).
+// handleKey moves the scroll offset, and opens the online help on `W`.
+//
+// The viewport is driven by hand rather than by bubbles/viewport, whose
+// default KeyMap carries the vim aliases this project removed (Rule 111).
 func (m Model) handleKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	switch msg.String() {
 	case "up":
