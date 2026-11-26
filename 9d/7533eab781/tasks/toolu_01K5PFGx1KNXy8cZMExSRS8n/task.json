@@ -1,0 +1,15 @@
+{
+  "tool_use_id": "toolu_01K5PFGx1KNXy8cZMExSRS8n",
+  "agent_id": "a2588320c843bda8b",
+  "subagent_type": "project-coder",
+  "task_description": "Coder 792 raccourci W About",
+  "token_usage": {
+    "input_tokens": 54,
+    "cache_creation_tokens": 126470,
+    "cache_read_tokens": 1389303,
+    "output_tokens": 11092,
+    "api_call_count": 26
+  },
+  "started_at": "2026-11-26T19:36:05.896980567+01:00",
+  "completed_at": "2026-11-26T19:43:51.277382796+01:00"
+}
