@@ -6,6 +6,7 @@ import (
 
 	sharedcomponents "github.com/anthnel/devdesk/internal/ui/components"
 	"github.com/anthnel/devdesk/internal/ui/help"
+	"github.com/anthnel/devdesk/internal/ui/keymap"
 	"github.com/anthnel/devdesk/internal/ui/shortcut"
 	"github.com/anthnel/devdesk/internal/ui/theme"
 	"github.com/anthnel/devdesk/internal/version"
@@ -48,6 +49,7 @@ func (m Model) GetHeaderInfo(_ string) []shortcut.HeaderInfo {
 func (m Model) GetShortcuts() shortcut.Shortcuts {
 	return []shortcut.Shortcut{
 		{Key: "?", Description: "Help"},
+		{Key: keymap.Web, Description: "Open online help"},
 	}
 }
 
@@ -159,6 +161,7 @@ func (m Model) GetHelpContent() help.Content {
 			{Key: "↑/↓", Description: "Scroll"},
 			{Key: "ctrl+p", Description: "Open command mode"},
 			{Key: "?", Description: "Show this help"},
+			{Key: keymap.Web, Description: "Open the online help (" + HelpURL + ") in the browser"},
 		},
 		Sections: []help.Section{
 			{
