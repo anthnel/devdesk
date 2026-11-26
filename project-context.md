@@ -29,7 +29,7 @@ _This file contains critical rules and patterns that AI agents must follow when 
 
 - **Language**: Go 1.27.3
 - **TUI Framework**: Bubble Tea (charm.land/bubbletea/v2 v2.1.1)
-- **UI Components**: Bubbles (charm.land/bubbles/v2 v2.2.1)
+- **UI Components**: Bubbles (charm.land/bubbles/v2 v2.2.2)
 - **Styling**: Lip Gloss (charm.land/lipgloss/v2 v2.0.6)
 - **API Clients**: GitLab (gitlab.com/gitlab-org/api/client-go v1.10.0) **and**
   GitHub (github.com/google/go-github/v68) — `internal/forge` abstracts both;

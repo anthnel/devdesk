@@ -3,7 +3,7 @@ module github.com/anthnel/devdesk
 go 1.27.3
 
 require (
-	charm.land/bubbles/v2 v2.2.1
+	charm.land/bubbles/v2 v2.2.2
 	charm.land/bubbletea/v2 v2.1.1
 	charm.land/lipgloss/v2 v2.0.6
 	github.com/NimbleMarkets/ntcharts/v2 v2.9.0
@@ -46,7 +46,7 @@ require (
 	github.com/lufia/plan9stats v0.0.0-20211012122336-39d0f177ccd0 // indirect
 	github.com/muesli/cancelreader v0.2.2 // indirect
 	github.com/power-devops/perfstat v0.0.0-20240221224432-82ca36839d55 // indirect
-	github.com/rivo/uniseg v0.4.7 // indirect
+	github.com/rivo/uniseg v0.4.8-0.20261110175422-3a370411ca06 // indirect
 	github.com/segmentio/asm v1.1.3 // indirect
 	github.com/segmentio/encoding v0.5.4 // indirect
 	github.com/tklauser/go-sysconf v0.3.16 // indirect
