@@ -1,0 +1,15 @@
+{
+  "tool_use_id": "toolu_01T58Yk75CYTqAGUahW7BEzX",
+  "agent_id": "a05c7ffc18e5f3126",
+  "subagent_type": "dev-team:devops",
+  "task_description": "Merge release PR and follow publish",
+  "token_usage": {
+    "input_tokens": 14,
+    "cache_creation_tokens": 45888,
+    "cache_read_tokens": 255149,
+    "output_tokens": 2291,
+    "api_call_count": 7
+  },
+  "started_at": "2026-11-25T14:53:29.089189217+01:00",
+  "completed_at": "2026-11-25T14:58:45.536155042+01:00"
+}
