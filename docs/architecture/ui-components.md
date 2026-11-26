@@ -903,6 +903,45 @@ move the tokens while typing, so `View` draws the field from a copy with width 0
 the cursor cell stays, there is no trailing padding, and a short query looks as it
 did before (`TestFilterBarShortQueryLooksAsBefore`).
 
+The line is exactly `width` cells in confirmed mode, and in edit mode as long as
+the field's text is counted the way the renderer counts it. In edit mode the field
+is then bounded by `ClampField` (next section) to `queryRoom()`, so a query with
+emoji that carry U+FE0F cannot push the tokens or the right border out of the
+frame; `BarFrame` fills what the clamp leaves
+(`TestFilterBarScrollingQueryWithTokensIsExactlyTheBarWidth`,
+`TestFilterBarFieldWithVS16StaysInTheBar`).
+
+## `ClampField` — one-line fields and emoji with U+FE0F (DEVDESK-790)
+
+`components.ClampField(rendered, width)` cuts the rendered line of a one-line
+field to `width` cells. It walks the text by grapheme cluster
+(`ansi.FirstGraphemeCluster` with `ansi.GraphemeWidth`, the measure the renderer
+uses), keeps style sequences whole, never pads, returns a line that fits
+unchanged, and closes a style the cut left open. A VS16 emoji, a keycap, a flag,
+a CJK glyph and a ZWJ sequence are never split.
+
+Why: bubbles v2.2.1 decides whether a `textinput` scrolls with uniseg (clusters)
+but builds its scroll window with runewidth per rune, where `❤️` (U+2764 U+FE0F)
+is 1 cell and U+FE0F 0, while the renderer draws it in 2. A field full of such
+emoji draws up to twice what its box holds. Use `ClampField` on the `View()` of a
+`textinput` that has a width and sits in a fixed box. Two callers today:
+`paletteInputView` (prompt, field and cursor cell, `paletteInputChrome` apart) and
+`FilterBar.View` in edit mode (`queryRoom()`). Form fields are not clamped yet.
+
+Removal signal: `TestTextInputWindowIsMeasuredWithRunewidth` fails the day bubbles
+measures its window in clusters. Then drop `field_clamp.go`, its tests and both
+call sites. The upstream ticket text is in annex 1 of the DEVDESK-785 plan.
+
+Limits, deliberately kept (no mechanism of our own on top of bubbles):
+
+- The clamp cuts on the right. When the window overflows and the cursor sits at
+  the end of the line, the cursor cell is in the cut part and not drawn: the field
+  shows the start of the window, not its end, until the text fits again. The tests
+  ask for at most one cursor cell, inside the frame, and that holds.
+- The window can begin on a lone U+FE0F (it was cut from its emoji by runewidth);
+  `ClampField` cuts the end of a line, it does not repair its start, so a lone
+  U+FE0F is left where bubbles put it.
+
 ## A confirmation that opens by itself — `WithoutYesShortcut` and `EndSearch`
 
 `components.ConfirmModal` answers Yes to `y` and `Y`, No to `n`, `N` and `esc`,

@@ -199,7 +199,9 @@ func (a *App) sizePaletteInput() {
 // paletteInputView renders a styled copy of the command input. Styling a copy
 // in View() mutates nothing (Rule 110) and follows a theme applied at run
 // time. The prompt is the border colour, the text is ColorText, every segment
-// carries an explicit background.
+// carries an explicit background. The line is clamped to the prompt, the field
+// and the cursor cell (components.ClampField): bubbles' scroll window counts an
+// emoji with U+FE0F for 1 cell, the renderer for 2.
 func paletteInputView(in textinput.Model) string {
 	bg := lipgloss.NewStyle().Background(theme.ColorBackground)
 	state := textinput.StyleState{
@@ -212,7 +214,11 @@ func paletteInputView(in textinput.Model) string {
 	styles.Blurred = state
 	styles.Cursor.Color = theme.ColorText
 	in.SetStyles(styles)
-	return in.View()
+	view := in.View()
+	if in.Width() <= 0 {
+		return view
+	}
+	return components.ClampField(view, lipgloss.Width(in.Prompt)+in.Width()+1)
 }
 
 // entryRows renders the command-stage suggestions as list rows.

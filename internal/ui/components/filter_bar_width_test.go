@@ -231,6 +231,29 @@ func TestFilterBarFieldShrinksWithActiveTokens(t *testing.T) {
 	}
 }
 
+// A query that scrolls, with active tokens, in edit mode: the line is exactly
+// the width of the bar (the field is clamped to its room by ClampField, which
+// never pads, and BarFrame fills the rest), the tokens stay on the line, and
+// the cursor cell is the one after the last character.
+func TestFilterBarScrollingQueryWithTokensIsExactlyTheBarWidth(t *testing.T) {
+	active := []string{"tcp", "LISTEN"}
+	for _, width := range []int{30, 40, 60, 80} {
+		t.Run(fmt.Sprintf("width %d", width), func(t *testing.T) {
+			fb := searchingBar(width, active...)
+			feedFilterBar(&fb, testutil.Type(barQuery(barTextRunes))...)
+
+			line := barFrameLine(t, fb.View(), width)
+			barCursorOn(t, line, width, " ")
+			if plain := ansi.Strip(line); !strings.Contains(plain, "  tcp  ·  LISTEN") {
+				t.Errorf("the tokens are not on the line: %q", plain)
+			}
+			if got, room := barVisibleQueryRunes(line), fb.queryRoom()-1; got != room {
+				t.Errorf("%d runes of the query on screen, want the %d the field holds", got, room)
+			}
+		})
+	}
+}
+
 func TestFilterBarConfirmedQueryIsCutToTheBar(t *testing.T) {
 	cjk := strings.Repeat("日本語の検索", 10) // 60 runes, 120 cells
 	tests := []struct {

@@ -292,9 +292,11 @@ func (fb *FilterBar) View() string {
 		// The field is drawn from a copy without a width: with one, the
 		// textinput pads its value up to it and the tokens would jump while
 		// the user types. The cursor cell stays; BarFrame fills the line.
+		// ClampField keeps the field in the room of the query when the
+		// textinput's window is wider than its box (emoji with U+FE0F).
 		field := fb.searchInput
 		field.SetWidth(0)
-		left = theme.KeyStyle.Render("/") + theme.Bg(" ") + field.View()
+		left = theme.KeyStyle.Render("/") + theme.Bg(" ") + ClampField(field.View(), fb.queryRoom())
 	} else {
 		if fb.searchQuery != "" {
 			left = theme.DimStyle.Render("/ ") + theme.KeyStyle.Render(cutQuery(fb.searchQuery, fb.queryRoom()))
