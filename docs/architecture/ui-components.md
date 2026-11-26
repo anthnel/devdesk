@@ -855,6 +855,27 @@ exempt), `TestGuardInvalidFieldUnderlineHasOneEntryPoint` (no `Underline*`
 outside `StyleInvalidField`), and `TestGuardDetectors` (the scanners fire on a
 faulty fragment).
 
+## Re-seating a text input after a shrink — `components.ReseatInput` (DEVDESK-788)
+
+bubbles scrolls a `textinput` through two internal offsets (`offset`,
+`offsetRight`) that only `SetCursor`, `SetValue` and `Update` refresh, not
+`SetWidth`. After a `SetWidth` that shrinks the field, a cursor still inside the
+old window keeps that too wide window: the view draws more cells than its box
+holds and the cursor cell can land beyond it. This holds in bubbles v2.2.1 and
+v2.2.2. `SetCursor(Position())` is not enough, since it keeps the old window
+whenever the cursor is still inside it.
+
+`ReseatInput(&in)` saves `Value()`, `Position()` and `Err`, calls
+`SetValue("")`, `SetValue(value)` and `SetCursor(pos)`, then restores `Err`
+(`SetValue` clears it when the field has no validator). Suggestions, `CharLimit`
+and focus are left alone. Call it right after any `SetWidth` that can shrink a
+field, from `Update` only (Rule 110). The command palette does it in
+`sizePaletteInput`, on every resize (`TestPaletteFieldFitsItsFrameAfterResize`).
+
+**Removal signal.** `TestShrinkWithoutReseatLeavesTheCursorOutside` pins the
+defect without `ReseatInput`. It goes red the day bubbles refreshes its window in
+`SetWidth`; then drop `ReseatInput` and its callers rather than relax the test.
+
 ## A confirmation that opens by itself — `WithoutYesShortcut` and `EndSearch`
 
 `components.ConfirmModal` answers Yes to `y` and `Y`, No to `n`, `N` and `esc`,

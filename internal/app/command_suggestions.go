@@ -8,6 +8,7 @@ import (
 
 	"github.com/anthnel/devdesk/internal/command"
 	"github.com/anthnel/devdesk/internal/ui/cmdsuggest"
+	"github.com/anthnel/devdesk/internal/ui/components"
 	"github.com/anthnel/devdesk/internal/ui/theme"
 )
 
@@ -182,12 +183,12 @@ func (a *App) paletteTitle() string {
 
 // sizePaletteInput gives the command input the width of the open frame minus
 // borders, margins, the prompt and the cursor cell the input draws after its
-// Width when the line scrolls, and re-seats the cursor so the scroll window
-// follows. Called from Update paths only (resize), never from View.
+// Width when the line scrolls, and re-seats the field so the scroll window
+// follows (components.ReseatInput). Called from Update paths only (resize), never from View.
 func (a *App) sizePaletteInput() {
 	prompt := lipgloss.Width(a.commandInput.Prompt)
 	a.commandInput.SetWidth(max(a.paletteRect().Width-paletteInputChrome-prompt-1, 1))
-	a.commandInput.SetCursor(a.commandInput.Position())
+	components.ReseatInput(&a.commandInput)
 }
 
 // paletteInputView renders a styled copy of the command input. Styling a copy
