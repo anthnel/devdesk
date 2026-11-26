@@ -1,0 +1,15 @@
+{
+  "tool_use_id": "toolu_01MwZnzB3o6NyEVHrwAAH61q",
+  "agent_id": "aa5c230020aa34634",
+  "subagent_type": "project-tester",
+  "task_description": "Tests rouges 791 About aide W",
+  "token_usage": {
+    "input_tokens": 44,
+    "cache_creation_tokens": 138728,
+    "cache_read_tokens": 1642597,
+    "output_tokens": 27425,
+    "api_call_count": 21
+  },
+  "started_at": "2026-11-26T19:26:41.969901296+01:00",
+  "completed_at": "2026-11-26T19:30:19.373387772+01:00"
+}
