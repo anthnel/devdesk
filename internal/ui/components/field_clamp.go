@@ -11,10 +11,16 @@ import (
 // (ansi.GraphemeWidth). Style sequences are kept whole; it never pads, and a
 // line that already fits comes back unchanged. When it cuts, it closes a style
 // the cut left open, so the colour does not bleed onto what follows the field.
-// What follows the cut is dropped, the cursor cell of a field scrolled to its
-// end included: see the limit in docs/architecture/ui-components.md.
+// What follows the cut is dropped: when the window overflows, the cut removes
+// the surplus from the right, so the cursor cell and the last characters typed
+// go with it (see the limits in docs/architecture/ui-components.md).
 //
-// Why: bubbles v2.2.1 decides whether a textinput scrolls with uniseg (clusters)
+// The input is expected to be text plus SGR, CSI or OSC sequences, as a
+// textinput renders it. An exotic escape (such as ESC SP X) can make
+// ansi.DecodeSequence swallow the rest of the string, and the result may then
+// exceed width; a textinput value is sanitized, so it cannot reach this.
+//
+// Why: bubbles v2.2.1 and v2.2.2 decide whether a textinput scrolls with uniseg (clusters)
 // but builds its scroll window with runewidth per rune, where "❤️" (U+2764
 // U+FE0F) is 1 cell and its U+FE0F 0, while the renderer draws it in 2. A field
 // that holds such emoji overflows its box by up to twice its width, and its
@@ -22,7 +28,7 @@ import (
 // DEVDESK-785 plan.
 //
 // Removal signal: TestTextInputWindowIsMeasuredWithRunewidth fails the day
-// bubbles measures its window in clusters. Then drop this file, its tests and
+// bubbles measures its window in clusters (v2.2.2 does not). Then drop this file, its tests and
 // its two call sites (paletteInputView, FilterBar.View).
 func ClampField(rendered string, width int) string {
 	width = max(width, 0)

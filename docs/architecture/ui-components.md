@@ -922,7 +922,7 @@ uses), keeps style sequences whole, never pads, returns a line that fits
 unchanged, and closes a style the cut left open. A VS16 emoji, a keycap, a flag,
 a CJK glyph and a ZWJ sequence are never split.
 
-Why: bubbles v2.2.1 decides whether a `textinput` scrolls with uniseg (clusters)
+Why: bubbles v2.2.1 and v2.2.2 decide whether a `textinput` scrolls with uniseg (clusters)
 but builds its scroll window with runewidth per rune, where `❤️` (U+2764 U+FE0F)
 is 1 cell and U+FE0F 0, while the renderer draws it in 2. A field full of such
 emoji draws up to twice what its box holds. Use `ClampField` on the `View()` of a
@@ -931,15 +931,20 @@ emoji draws up to twice what its box holds. Use `ClampField` on the `View()` of 
 `FilterBar.View` in edit mode (`queryRoom()`). Form fields are not clamped yet.
 
 Removal signal: `TestTextInputWindowIsMeasuredWithRunewidth` fails the day bubbles
-measures its window in clusters. Then drop `field_clamp.go`, its tests and both
+measures its window in clusters (v2.2.2 does not). Then drop `field_clamp.go`, its tests and both
 call sites. The upstream ticket text is in annex 1 of the DEVDESK-785 plan.
 
 Limits, deliberately kept (no mechanism of our own on top of bubbles):
 
-- The clamp cuts on the right. When the window overflows and the cursor sits at
-  the end of the line, the cursor cell is in the cut part and not drawn: the field
-  shows the start of the window, not its end, until the text fits again. The tests
-  ask for at most one cursor cell, inside the frame, and that holds.
+- The clamp cuts on the right, and what it removes is the surplus: if the window
+  draws k cells too many because of its VS16 emoji, the k cells at the right end
+  go. The cursor cell is among them when it sits at the end of the line, and so
+  are the last typed characters (measured on the bar at 40 columns: 6 hearts
+  typed at the end of the line, 3 visible). The field shows the start of its
+  window, not its end, until the text fits again. This is acceptable here: before
+  the clamp the field overflowed its frame. The tests ask for at most one cursor
+  cell, inside the frame, and that holds. A follow-up is to cut on the left
+  when the cursor is at the end of the line, done by the caller.
 - The window can begin on a lone U+FE0F (it was cut from its emoji by runewidth);
   `ClampField` cuts the end of a line, it does not repair its start, so a lone
   U+FE0F is left where bubbles put it.
