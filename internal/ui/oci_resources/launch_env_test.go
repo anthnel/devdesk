@@ -225,20 +225,26 @@ func TestLaunchFormEnvironmentErrorJoinsThePortErrors(t *testing.T) {
 
 // Criterion 7: a name restored from the cache (OC-17) with no value raises nothing
 // when the form opens. The refusal belongs to the submit, and only while the value
-// is still empty. Both spellings of "a name without a value" are covered because
-// OC-17 has not fixed how the cache prefills them.
+// is still empty. The cache keeps names only, so a name comes back as `NAME=`.
 func TestACachedNameWithNoValueIsNotAnErrorUntilTheSubmit(t *testing.T) {
-	for _, env := range []string{"API_TOKEN=", "API_TOKEN", "REGION=eu, API_TOKEN="} {
-		t.Run(env, func(t *testing.T) {
+	for _, tt := range []struct {
+		name  string
+		names []string
+		want  string
+	}{
+		{"one name", []string{"API_TOKEN"}, "API_TOKEN="},
+		{"two names", []string{"REGION", "API_TOKEN"}, "REGION=, API_TOKEN="},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
 			m := launchingModel(t, "80/tcp")
 
 			m = feed(t, m, LaunchOptionsCacheLoadedMsg{
 				ImageName: "api:v1",
-				Entry:     &cache.LaunchOptionsEntry{Env: env, Detach: true},
+				Entry:     &cache.LaunchOptionsEntry{EnvNames: tt.names, Detach: true},
 			})
 
-			if got := m.launchForm.envInput.Value(); got != env {
-				t.Fatalf("Environment = %q, want the cached %q", got, env)
+			if got := m.launchForm.envInput.Value(); got != tt.want {
+				t.Fatalf("Environment = %q, want the cached names %q", got, tt.want)
 			}
 			if st := m.formStatus(); st.Text != "" {
 				t.Errorf("formStatus() = %q when the form opens, want no error", st.Text)
@@ -265,7 +271,7 @@ func TestACachedNameWithNoValueIsNotAnErrorUntilTheSubmit(t *testing.T) {
 func TestACachedNameRetypedWithItsValueIsLaunched(t *testing.T) {
 	m := launchingModel(t, "80/tcp")
 	m = feed(t, m, LaunchOptionsCacheLoadedMsg{
-		ImageName: "api:v1", Entry: &cache.LaunchOptionsEntry{Env: "API_TOKEN=", Detach: true},
+		ImageName: "api:v1", Entry: &cache.LaunchOptionsEntry{EnvNames: []string{"API_TOKEN"}, Detach: true},
 	})
 	if _, ok := submitOpts(m.launchForm); ok {
 		t.Fatal("precondition: the empty value must be refused")

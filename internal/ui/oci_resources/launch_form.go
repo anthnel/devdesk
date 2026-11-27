@@ -85,6 +85,7 @@ type LaunchForm struct {
 	extraPortsInput      textinput.Model // free-form extra port mappings (comma-separated host:container)
 	entrypointInput      textinput.Model
 	envInput             textinput.Model
+	envRestored          bool // the field was filled from the cache, which keeps names only (OC-17)
 	volInput             textinput.Model
 	userInput            textinput.Model // --user UID:GID or username (optional)
 	networks             []string        // available Docker network names
@@ -173,6 +174,7 @@ func NewLaunchForm(imageName string, exposedPorts []string, networks []docker.Ne
 
 // ToCacheEntry extracts the current form field values into a LaunchOptionsEntry for caching.
 // The container name is intentionally excluded (must be unique per container).
+// Environment variables go in by name: no value is cached (OC-17, S9).
 func (f *LaunchForm) ToCacheEntry() cache.LaunchOptionsEntry {
 	portMappings := make(map[string]cache.PortMappingEntry, len(f.ports))
 	for _, p := range f.ports {
@@ -188,7 +190,7 @@ func (f *LaunchForm) ToCacheEntry() cache.LaunchOptionsEntry {
 	return cache.LaunchOptionsEntry{
 		Entrypoint:   f.entrypointInput.Value(),
 		ExtraPorts:   f.extraPortsInput.Value(),
-		Env:          f.envInput.Value(),
+		EnvNames:     cache.EnvNames(f.envEntries()),
 		Volumes:      f.volInput.Value(),
 		User:         f.userInput.Value(),
 		Network:      network,
@@ -200,11 +202,15 @@ func (f *LaunchForm) ToCacheEntry() cache.LaunchOptionsEntry {
 }
 
 // ApplyCached pre-fills the form fields from a cached launch options entry.
+// The cache holds Environment names only: each comes back as `NAME=` with an
+// empty value, and envRestored makes the field say the values are to be typed
+// again. Nothing is validated here (OC-14 criterion 7); the submit refuses an
+// empty value, a reserved name or an invalid one.
 func (f *LaunchForm) ApplyCached(entry cache.LaunchOptionsEntry) {
 	f.entrypointInput.SetValue(entry.Entrypoint)
 	f.lastEntrypoint = entry.Entrypoint
 	f.extraPortsInput.SetValue(entry.ExtraPorts)
-	f.envInput.SetValue(entry.Env)
+	f.restoreEnvNames(entry.EnvNames)
 	f.volInput.SetValue(entry.Volumes)
 	f.userInput.SetValue(entry.User)
 	f.optionRemove = entry.Remove
@@ -441,6 +447,7 @@ func (f *LaunchForm) updateActiveInput(msg tea.Msg) (*LaunchForm, tea.Cmd) {
 		}
 	case f.focusedField == f.fieldEnv():
 		f.envInput, cmd = f.envInput.Update(msg)
+		f.releaseRestoredEnv()
 		f.revalidate()
 	case f.focusedField == f.fieldVolumes():
 		f.volInput, cmd = f.volInput.Update(msg)
@@ -557,6 +564,43 @@ func envFault(entries []string) (string, bool) {
 		}
 	}
 	return "", false
+}
+
+// restoreEnvNames fills the Environment field with `NAME=` for each cached name.
+func (f *LaunchForm) restoreEnvNames(names []string) {
+	entries := make([]string, 0, len(names))
+	for _, n := range names {
+		if n = strings.TrimSpace(n); n != "" {
+			entries = append(entries, n+"=")
+		}
+	}
+	f.envInput.SetValue(strings.Join(entries, ", "))
+	f.envRestored = len(entries) > 0
+}
+
+// releaseRestoredEnv ends the restored state once an edit leaves no entry
+// without a value: from then on an empty value is the user's own, and the hint
+// does not come back.
+func (f *LaunchForm) releaseRestoredEnv() {
+	if f.envRestored && !f.hasEmptyEnvValue() {
+		f.envRestored = false
+	}
+}
+
+// hasEmptyEnvValue reports whether an Environment entry has no value.
+func (f *LaunchForm) hasEmptyEnvValue() bool {
+	for _, e := range f.envEntries() {
+		if _, value, _ := strings.Cut(e, "="); value == "" {
+			return true
+		}
+	}
+	return false
+}
+
+// envNeedsValues reports whether the field came back from the cache and still
+// holds an entry with no value: the hint of the field, not an error (Rule 140).
+func (f *LaunchForm) envNeedsValues() bool {
+	return f.envRestored && f.hasEmptyEnvValue()
 }
 
 // envEntries returns the non-blank, trimmed entries of the Environment field.

@@ -548,7 +548,7 @@ func TestLaunchOptionsSurviveASaveAndReload(t *testing.T) {
 	entry := cache.LaunchOptionsEntry{
 		Entrypoint:   "/bin/sh",
 		Network:      "devdesk",
-		Env:          "LOG_LEVEL=debug",
+		EnvNames:     []string{"LOG_LEVEL"},
 		Detach:       true,
 		PortMappings: map[string]cache.PortMappingEntry{"80/tcp": {HostPort: "8080", Enabled: true}},
 	}

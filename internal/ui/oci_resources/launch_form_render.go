@@ -16,6 +16,10 @@ func shellQuote(v string) string {
 	return v
 }
 
+// envRestoredHint replaces the Environment hint while a name restored from the
+// cache still has no value: the cache keeps names only (OC-17).
+const envRestoredHint = "Values are not saved: type them again"
+
 // invalidEnvMarker stands in the preview for an Environment entry that is not
 // NAME=VALUE with a valid name (see envEntryName). The entry may be a secret typed
 // in the name position, so it is never repeated. In a POSIX shell the marker is a
@@ -182,9 +186,12 @@ func (f *LaunchForm) renderFormContent() string {
 	b.WriteString("\n\n")
 
 	// Environment variables
+	envHint := "NAME=VALUE pairs separated by commas (no comma in a value)"
+	if f.envNeedsValues() {
+		envHint = envRestoredHint
+	}
 	b.WriteString(f.renderTextFieldWithHint(
-		"Environment", f.envInput.View(), f.fieldEnv(),
-		"NAME=VALUE pairs separated by commas (no comma in a value)",
+		"Environment", f.envInput.View(), f.fieldEnv(), envHint,
 	))
 	b.WriteString("\n\n")
 

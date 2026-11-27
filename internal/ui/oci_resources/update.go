@@ -22,6 +22,7 @@ func (m Model) Init() tea.Cmd {
 		fetchNetworks(),
 		fetchVolumes(),
 		checkTrustPolicyCmd(),
+		migrateLaunchOptionsCmd(),
 	)
 }
 
