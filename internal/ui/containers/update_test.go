@@ -1309,8 +1309,8 @@ func TestInspectRejectsAMalformedContainerID(t *testing.T) {
 
 // ── Shell in a new window ────────────────────────────────────────────────────
 
-// Only the early return is exercised: the success path calls detectShell, which
-// shells out to `docker exec` synchronously.
+// The inert case: nothing is detected, nothing is launched. The detection itself
+// is covered in engine_calls_unix_test.go.
 func TestShellInNewWindowIsInertOnANonRunningContainer(t *testing.T) {
 	m := loadedModel(t) // api, exited
 

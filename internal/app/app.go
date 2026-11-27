@@ -21,6 +21,7 @@ import (
 	"github.com/anthnel/devdesk/internal/jobs"
 	"github.com/anthnel/devdesk/internal/shared"
 	"github.com/anthnel/devdesk/internal/ui/configuration"
+	"github.com/anthnel/devdesk/internal/ui/containers"
 	"github.com/anthnel/devdesk/internal/ui/filebrowser"
 	"github.com/anthnel/devdesk/internal/ui/forge/auth"
 	"github.com/anthnel/devdesk/internal/ui/forge/explorer"
@@ -827,9 +828,30 @@ func (a *App) update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case netdiag.BackgroundMsg:
 		return a.routeNetdiagWork(msg)
 
+	// ── The shell detection `T` started in containers (OC-04) ────────────
+	// Its answer arrives wherever the user is, and the view must hear it to end
+	// its wait.
+	case containers.ShellDetectedMsg:
+		return a.routeShellDetected(msg)
+
 	default:
 		return a, a.forwardToActiveView(msg)
 	}
+}
+
+// routeShellDetected hands the answer of a shell detection back to the
+// containers view. On screen it goes through the active view and the shell
+// starts. Off screen the view still hears it, so its pending state ends, but the
+// message is marked abandoned and nothing is launched: a shell that took over
+// the terminal while the user was in another view would be a surprise, and
+// without this the answer reached the wrong view and the footer stayed on
+// "Opening shell…" for good.
+func (a *App) routeShellDetected(msg containers.ShellDetectedMsg) (tea.Model, tea.Cmd) {
+	if a.currentView == command.ViewContainers {
+		return a, a.forwardToActiveView(msg)
+	}
+	msg.Abandoned = true
+	return a.routeToView(command.ViewContainers, msg)
 }
 
 // routeNetdiagWork hands work netdiag started back to it, on screen or not. On

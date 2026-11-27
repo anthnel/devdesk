@@ -11,7 +11,6 @@ import (
 
 	tea "charm.land/bubbletea/v2"
 	"github.com/anthnel/devdesk/internal/docker"
-	"github.com/anthnel/devdesk/internal/engine"
 	"github.com/anthnel/devdesk/internal/shared"
 	sharedcomponents "github.com/anthnel/devdesk/internal/ui/components"
 	"github.com/anthnel/devdesk/internal/ui/keymap"
@@ -102,6 +101,9 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	case ContainerPruneMsg:
 		return m.handlePruneComplete(msg)
+
+	case ShellDetectedMsg:
+		return m.handleShellDetected(msg)
 
 	case ShellWindowOpenedMsg:
 		if msg.Err != nil {
@@ -373,52 +375,56 @@ func (m Model) pruneContainers() (tea.Model, tea.Cmd) {
 	return m, nil
 }
 
-// detectShell returns "/bin/bash" if bash is available in the container, else "/bin/sh".
-// The check is synchronous (~20-50ms) since the container is already running.
-func detectShell(containerID string) string {
-	err := exec.Command(engine.Current().Binary, "exec", containerID, "which", "bash").Run() //nolint:gosec // the binary is a declared engine name or a configured path
-	if err == nil {
-		return "/bin/bash"
-	}
-	return "/bin/sh"
-}
-
 // shellSelectedContainer opens a shell in the selected container, in place or
 // in a window of its own depending on app.terminal_new_window.
 //
 // Prefers /bin/bash when available, falls back to /bin/sh. The two used to be
 // `s` and `S`, spending a second letter on a choice that belongs to the
 // environment: there is no window to open under WSL or through SSH (§3.26).
+//
+// Asking the container which shell it has waits on the daemon, so Update only
+// marks the detection pending and returns the Cmd that does it; the answer
+// (ShellDetectedMsg) starts the shell (OC-04, DEVDESK-800).
 func (m Model) shellSelectedContainer() (tea.Model, tea.Cmd) {
 	c := m.getSelectedContainer()
 	if c == nil || c.State != "running" {
 		return m, nil
 	}
-	if m.config.App.TerminalNewWindow {
-		return m.shellSelectedContainerInNewWindow()
+	if m.shellDetecting {
+		return m, m.footer.Warn("Already opening a shell")
 	}
+	m.shellDetecting = true
+	return m, detectShellCmd(c.ID)
+}
 
-	shell := detectShell(c.ID)
-	shellCmd := exec.Command(engine.Current().Binary, "exec", "-it", c.ID, shell) //nolint:gosec // same
+// detectShellCmd asks the container which shell it has, off the Update loop.
+func detectShellCmd(containerID string) tea.Cmd {
+	return func() tea.Msg {
+		return ShellDetectedMsg{ID: containerID, Shell: docker.DetectShell(containerID)}
+	}
+}
+
+// handleShellDetected starts the shell the container answered with.
+func (m Model) handleShellDetected(msg ShellDetectedMsg) (tea.Model, tea.Cmd) {
+	m.shellDetecting = false
+	if msg.Abandoned {
+		return m, nil
+	}
+	shellCmd := docker.ShellCmd(msg.ID, msg.Shell)
+	if m.config.App.TerminalNewWindow {
+		return m.openShellWindow(shellCmd.Args)
+	}
 	return m, teaexec.Process(shellCmd, func(err error) tea.Msg {
 		return PagerExitMsg{Err: err}
 	})
 }
 
-// shellSelectedContainerInNewWindow opens a shell in the selected container in a new
-// terminal window using the auto-detected terminal emulator (non-blocking).
-func (m Model) shellSelectedContainerInNewWindow() (tea.Model, tea.Cmd) {
-	c := m.getSelectedContainer()
-	if c == nil || c.State != "running" {
-		return m, nil
-	}
-
-	shell := detectShell(c.ID)
-	innerArgs := []string{engine.Current().Binary, "exec", "-it", c.ID, shell}
-
+// openShellWindow runs the shell's argv in a new terminal window using the
+// auto-detected terminal emulator (non-blocking).
+func (m Model) openShellWindow(innerArgs []string) (tea.Model, tea.Cmd) {
 	bin, args, ok := uiterminal.ForCmd(innerArgs)
 	if !ok {
-		return m, m.footer.Warn("Terminal not detected — use [s] for in-place shell")
+		return m, m.footer.Warn("Terminal not detected — turn off app.terminal_new_window for an in-place shell")
 	}
 
 	return m, func() tea.Msg {

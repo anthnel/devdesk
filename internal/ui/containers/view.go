@@ -62,7 +62,7 @@ func (m Model) status() sharedcomponents.Status {
 	if m.loading && len(m.containerTable.Items()) == 0 {
 		return sharedcomponents.Status{Text: "Loading containers...", Activity: true}
 	}
-	return sharedcomponents.Status{Detail: m.selectedDetail(), Text: m.progressLine()}
+	return sharedcomponents.Status{Detail: m.selectedDetail(), Text: m.progressLine(), Activity: m.shellDetecting}
 }
 
 // progressLine names what is running, in words. It is rendered from the current
@@ -75,6 +75,9 @@ func (m Model) status() sharedcomponents.Status {
 func (m Model) progressLine() string {
 	if m.pruning {
 		return "Pruning containers…"
+	}
+	if m.shellDetecting {
+		return "Opening shell…"
 	}
 	labels := m.containerTable.BusyLabels()
 	switch len(labels) {

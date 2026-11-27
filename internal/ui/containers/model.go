@@ -55,8 +55,12 @@ type Model struct {
 	// pruning is the one action that belongs to no row: it acts on the whole
 	// list, so marking every row would say something false. It gets a footer
 	// line of its own instead.
-	pruning       bool
-	width, height int
+	pruning bool
+	// shellDetecting is true from `T` until the container has said which shell
+	// it has: the daemon is asked off the Update loop, and the footer shows the
+	// wait (status). One detection at a time.
+	shellDetecting bool
+	width, height  int
 }
 
 // Messages
@@ -106,6 +110,17 @@ type ContainerPruneMsg struct {
 // PagerExitMsg signals return from a pager (less) or shell process
 type PagerExitMsg struct {
 	Err error
+}
+
+// ShellDetectedMsg is the answer to the shell detection `T` starts: the shell
+// the container has, "/bin/bash" or "/bin/sh".
+//
+// Abandoned is set by the router when the user left the view while the daemon was
+// answering: the pending state ends and no shell is started.
+type ShellDetectedMsg struct {
+	ID        string
+	Shell     string
+	Abandoned bool
 }
 
 // ShellWindowOpenedMsg signals the result of launching a shell in a new terminal window

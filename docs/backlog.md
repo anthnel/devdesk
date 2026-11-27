@@ -4236,13 +4236,14 @@ bars, the doubled `Fatal error / run error:` wrapping — is the whole feature,
 and the fallback that shows the raw text rather than an empty panel is what
 stops a novel log format leaving the user with nothing.
 
-Two handlers are deliberately left uncovered in `containers`: `s` and `S` call
-`detectShell`, which runs `docker exec` synchronously *inside* `Update`. The
-tests drive those keys only in states that return before reaching it. The same
-shape appears in `status.reloadConfigAndCheck`, which calls `config.Load()` from
-`Update`. Neither is a Rule 110 violation — nothing mutates the model from a
-`Cmd` — but I/O in `Update` blocks the event loop and is untestable without a
-seam. Worth a look when phase 5 gets to the router.
+`containers`' `T` used to call `detectShell` synchronously *inside* `Update` and was
+left untested for that reason. Fixed by OC-04 (DEVDESK-800): the detection is
+`docker.DetectShell`, run in a `tea.Cmd` with a timeout, and the key is covered
+against a fake engine script (`internal/ui/containers/engine_calls_unix_test.go`).
+The same shape still appears in `status.reloadConfigAndCheck`, which calls
+`config.Load()` from `Update`. It is not a Rule 110 violation — nothing mutates
+the model from a `Cmd` — but I/O in `Update` blocks the event loop and is
+untestable without a seam. Worth a look when phase 5 gets to the router.
 
 `internal/credentials` needed no seam either. `git credential` is steerable
 through the environment, so the tests redirect `HOME`, `GIT_CONFIG_GLOBAL` and

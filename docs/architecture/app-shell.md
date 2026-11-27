@@ -1054,6 +1054,23 @@ naming it again from the command line does not rebuild it
 (`TestNamingNetdiagDoesNotDropAStopInFlight`). What the stop does is in
 `network.md`, « Two-step stop ».
 
+### The shell detection of `containers` (OC-04, DEVDESK-800)
+
+`T` in `containers` asks the container which shell it has in a `tea.Cmd`, and the
+answer (`containers.ShellDetectedMsg`) is not a message the router knows by view:
+left to `default`, it went to whichever view was active, so `T` then `enter`
+(inspect opens the viewer) left `containers` waiting for good, the footer on
+`Opening shell…` and every later `T` refused. `App.update` has one case for it,
+and `routeShellDetected` does the rest:
+
+| `containers` is | The message goes to |
+|---|---|
+| on screen | the active view (`forwardToActiveView`); the shell starts |
+| off screen | the view the router holds, through `routeToView`, with `Abandoned` set: the wait ends and nothing is launched (a shell that takes the terminal while the user is elsewhere would be a surprise) |
+| not open at all | nowhere |
+
+Covered by `internal/app/containers_shell_test.go`.
+
 ### The jobs registry — `internal/jobs`
 
 One bookkeeping of everything long-running, owned by the router

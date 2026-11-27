@@ -2,8 +2,10 @@ package docker
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"log"
+	"os/exec"
 	"strconv"
 	"strings"
 )
@@ -308,9 +310,17 @@ func InspectContainer(id string) ([]byte, error) {
 	if !IsContainerID(id) {
 		return nil, fmt.Errorf("%s failed: %q is not a container ID", cmdLabel("inspect"), id)
 	}
-	output, err := dockerCombined("inspect", id)
+	// Stdout only: a warning the engine writes on stderr (a deprecation notice,
+	// a cgroup remark) would otherwise land inside the JSON document the viewer
+	// shows. A failure keeps the engine's own diagnostic, which cliRunner
+	// leaves on the *exec.ExitError (OC-04, DEVDESK-800).
+	output, err := dockerOutput("inspect", id)
 	if err != nil {
-		return nil, errWithOutput(cmdLabel("inspect"), output)
+		var exitErr *exec.ExitError
+		if errors.As(err, &exitErr) && len(exitErr.Stderr) > 0 {
+			return nil, errWithOutput(cmdLabel("inspect"), exitErr.Stderr)
+		}
+		return nil, errWithOutput(cmdLabel("inspect"), []byte(err.Error()))
 	}
 	return output, nil
 }
