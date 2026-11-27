@@ -3,8 +3,7 @@
 package containers
 
 import (
-	"os"
-	"path/filepath"
+	"slices"
 	"strings"
 	"testing"
 	"time"
@@ -12,6 +11,7 @@ import (
 	tea "charm.land/bubbletea/v2"
 	"github.com/charmbracelet/x/ansi"
 
+	"github.com/anthnel/devdesk/internal/testutil/fakecli"
 	"github.com/anthnel/devdesk/internal/ui/keymap"
 	"github.com/anthnel/devdesk/internal/ui/testutil"
 )
@@ -123,7 +123,7 @@ func TestShellPrefersBashAndFallsBackToSh(t *testing.T) {
 			if tt.noBash {
 				t.Setenv("FAKE_ENGINE_NO_BASH", "1")
 			}
-			terminalLog := fakeTerminal(t)
+			terminalLines := fakeTerminal(t)
 			m := runningWeb(t, true)
 
 			m, cmd := updateWithin(t, m, testutil.Key(keymap.Terminal), 5*time.Second)
@@ -140,40 +140,36 @@ func TestShellPrefersBashAndFallsBackToSh(t *testing.T) {
 			}
 
 			want := "-- " + fe.bin + " exec -it " + webID + " " + tt.shell
-			if !waitForLine(t, terminalLog, want, 3*time.Second) {
-				t.Errorf("terminal was not started with %q; saw %q", want, readLines(t, terminalLog))
+			if !waitForLine(terminalLines, want, 3*time.Second) {
+				t.Errorf("terminal was not started with %q; saw %q", want, terminalLines())
 			}
 		})
 	}
 }
 
-// fakeTerminal puts a `kitty` script first on PATH and announces KITTY_WINDOW_ID,
-// which is how uiterminal.ForCmd detects a terminal. The script logs its argv.
-func fakeTerminal(t *testing.T) (logPath string) {
+// fakeTerminal installs a `kitty` through fakecli and announces KITTY_WINDOW_ID,
+// which is how uiterminal.ForCmd detects a terminal. It returns a reader of the
+// terminal's journal: one space-joined argv line per run.
+func fakeTerminal(t *testing.T) (lines func() []string) {
 	t.Helper()
-	dir := t.TempDir()
-	logPath = filepath.Join(dir, "terminal.log")
-	script := "#!/bin/sh\nprintf '%s\\n' \"$*\" >> " + shellQuote(logPath) + "\n"
-	if err := os.WriteFile(filepath.Join(dir, "kitty"), []byte(script), 0o755); err != nil { //nolint:gosec // a test executable
-		t.Fatal(err)
-	}
-	t.Setenv("PATH", dir)
+	fake := fakecli.Install(t, fakecli.Scenario{{Tool: "kitty", Prefix: true}}, "kitty")
 	t.Setenv("WT_SESSION", "")
 	t.Setenv("KITTY_WINDOW_ID", "1")
-	return logPath
+	return func() []string {
+		var out []string
+		for _, inv := range fake.Invocations() {
+			out = append(out, strings.Join(inv.Args, " "))
+		}
+		return out
+	}
 }
 
-func shellQuote(s string) string { return "'" + strings.ReplaceAll(s, "'", `'\''`) + "'" }
-
-// waitForLine polls a log file until it holds the line, within d.
-func waitForLine(t *testing.T, path, line string, d time.Duration) bool {
-	t.Helper()
+// waitForLine polls the terminal's journal until it holds the line, within d.
+func waitForLine(lines func() []string, line string, d time.Duration) bool {
 	deadline := time.Now().Add(d)
 	for {
-		for _, l := range readLines(t, path) {
-			if l == line {
-				return true
-			}
+		if slices.Contains(lines(), line) {
+			return true
 		}
 		if time.Now().After(deadline) {
 			return false
