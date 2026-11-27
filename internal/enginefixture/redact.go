@@ -29,6 +29,11 @@ type Redaction struct {
 	// ("anon-2"), ...; one beyond the number is left, and UnknownEngineIDs refuses it. 0
 	// (the default) replaces nothing.
 	Anonymous int
+	// FixedTimestamps and FixedDurations ask Redact to replace, in stdout and stderr (never the
+	// argv), every timestamp and every duration an engine printed by a fixed one of the same form
+	// (normalize.go), for a scenario whose output carries the day of the recording and how long ago
+	// things happened. Off by default: nothing is fixed unless a scenario says so.
+	FixedTimestamps, FixedDurations bool
 }
 
 // PlaceholderID is the fixed id a role stands for in a fixture: 64 lower-case
@@ -54,7 +59,9 @@ func PlaceholderID(role string) string {
 //     label of such a host is replaced on its own;
 //  6. the user name, by PlaceholderUser, as a whole word;
 //  7. with r.Anonymous above 0, each id nobody owns, up to that many distinct ones, by
-//     PlaceholderID("anon-<n>") in the order they appear (anonymize).
+//     PlaceholderID("anon-<n>") in the order they appear (anonymize);
+//  8. with r.FixedTimestamps and r.FixedDurations, each timestamp and each duration of stdout
+//     and stderr by a fixed one of the same form (normalize.go), never in the argv.
 //
 // The host and the user are replaced only when LocalIdentityTerms keeps them: a
 // name of two characters (dd, the lab user) or on the stop list (root) is not told
@@ -85,6 +92,12 @@ func Redact(ex Exchange, r Redaction) (Exchange, string) {
 	out.Stderr = apply(bytes.Clone(ex.Stderr))
 	if r.Anonymous > 0 && anonymize(&out, r) {
 		used["ids"] = true
+	}
+	if r.FixedTimestamps {
+		fixStreams(&out, fixTimestamps, used, "timestamps")
+	}
+	if r.FixedDurations {
+		fixStreams(&out, fixDurations, used, "durations")
 	}
 
 	names := make([]string, 0, len(used))
@@ -270,4 +283,14 @@ func looseWord(before, after []byte) bool {
 		}
 	}
 	return true
+}
+
+// fixStreams applies fix to stdout and stderr and notes the category when something changed.
+func fixStreams(out *Exchange, fix func([]byte) []byte, used map[string]bool, category string) {
+	for _, stream := range []*[]byte{&out.Stdout, &out.Stderr} {
+		if fixed := fix(*stream); !bytes.Equal(fixed, *stream) {
+			*stream = fixed
+			used[category] = true
+		}
+	}
 }

@@ -1106,6 +1106,20 @@ the synthetic files of `internal/enginefixture/testdata/synthetic/*.cli`, each m
   prefix of a public id, the container's is the run's), `containers/rm-running`, `launch/name-taken` (the container of the run). **Limit:** a
   scenario that declares a number accepts any unknown word of 12 or 64 characters up to it, including one that is not an id (a 12-digit number);
   keep the number as low as what was observed, and the other docker and podman versions are confirmed only by a recording.
+- **Fixed timestamps and durations** (OC-09b2, DEVDESK-807, `normalize.go`). The CreatedAt column of a `ps` holds the date of the recording to the
+  nanosecond and its status how long ago the container started, so a second recording would write another file. A scenario that declares it
+  with `c.normalize(enginecontract.Durations, enginecontract.Timestamps)` (`ps-health` today; `volumes/ls` prints no clock, and `network ls` is not
+  recorded) gets `Redaction.FixedTimestamps` / `FixedDurations` **in a recording only**: in stdout and stderr, never in the argv, every timestamp
+  becomes `2026-01-01 00:00:00 +0000 UTC` (`2026-01-01T00:00:00Z` for an RFC 3339 one) and every duration `5 seconds` (`Up 3 minutes`, `Up Less
+  than a second` and `Created About an hour ago` give `Up 5 seconds` and `Created 5 seconds ago`), and the `redacted:` header names `durations` and
+  `timestamps`. Nothing is fixed unless declared, and `Health` is judged, never fixed (`normalize` refuses it). The patterns are
+  `enginefixture.TimestampPattern` and `DurationPattern`, the ones `Tolerating` reads, so verifying the fixed fixture against a real output of another
+  day passes with `Tolerating(Durations, Timestamps)`, which the contract passes to `exchangeListing`; that comparer still sees a state, a health
+  marker and a name. **The sentinel row of the `ps` is accepted:** its id and name are already redacted to the role `sentinel`, so the fixture of
+  `containers/ps-health` depends on the lab (a container with no label next to the one of the run), not on the run.
+- **`volumes/prune-unused` records what each engine does (OC-09b2).** The volume prune differs by engine and version, and the fixture is the truth of each
+  configuration: podman 5.8.11 removes the unused named volume and reports it on stdout, podman 6.2.1 reports nothing and keeps it (empty stdout), docker 28 and
+  29 keep it (`Total reclaimed space: 0B`). The contract requires only that the report and the state agree (`volumePruneAgrees`).
 - **`Import`** (OC-09a3, `importer.go`). `Import(ImportOptions{From, Into, Supported, Deny, Local}) (ImportReport, error)` is what
   the workstation runs on the directory the recorder wrote, before anything reaches `fixtures/`; it trusts nothing the VM did and
   is **all or nothing**. `From` holds only regular files `<campaign>/<name>.cli` (campaign `^[a-z0-9-]+$`): a link (also as a

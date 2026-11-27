@@ -56,6 +56,9 @@ type contract struct {
 	// anonymousIDs is how many ids nobody owns the scenario of this contract accepts to
 	// replace (Redaction.Anonymous); 0 unless the contract declared it (anonymous).
 	anonymousIDs int
+	// fixedTimestamps and fixedDurations are what normalize declared: a recording fixes the
+	// timestamps and the durations of the output (Redaction.FixedTimestamps, FixedDurations).
+	fixedTimestamps, fixedDurations bool
 	// imageUsers maps the id of an image usedImage returned to the containers of this
 	// run made from it: expectRmiRefusal sends an rmi only for an image listed here.
 	imageUsers map[string][]string
@@ -298,6 +301,9 @@ func (c *contract) redaction() enginefixture.Redaction {
 		if fullID.MatchString(ref) {
 			r.IDs[ref] = role
 		}
+	}
+	if c.s.Mode == enginecontract.Record {
+		r.FixedTimestamps, r.FixedDurations = c.fixedTimestamps, c.fixedDurations
 	}
 	id := os.Getenv(enginecontract.SentinelEnv)
 	if id == "" && c.s.Mode == enginecontract.Record {
@@ -1636,6 +1642,29 @@ func (c *contract) anonymous(n int) {
 		c.t.Fatalf("anonymous(%d): declare between 1 and %d unknown ids, the most this scenario's message may name", n, maxAnonymous)
 	}
 	c.anonymousIDs = n
+}
+
+// normalize declares that the output of this contract carries timestamps (enginecontract.Timestamps)
+// and/or durations (enginecontract.Durations) that a recording fixes, so the fixture does not change
+// at every recording: the CreatedAt of a `ps` holds the date of the recording to the nanosecond and
+// its status how long ago the container started. Only a recording applies it, and only to what the
+// contract declares (never global, never the argv); verifying compares the real output to the fixed
+// fixture through a Comparer, so the contract passes the same kinds to exchangeWith or exchangeListing
+// (Tolerating(Durations, Timestamps)). Health is judged, not fixed: any other kind ends the contract.
+func (c *contract) normalize(kinds ...enginecontract.Tolerance) {
+	c.t.Helper()
+	if len(kinds) == 0 {
+		c.t.Fatalf("normalize declares nothing: name enginecontract.Timestamps, enginecontract.Durations or both")
+	}
+	for _, k := range kinds {
+		if k != enginecontract.Timestamps && k != enginecontract.Durations {
+			c.t.Fatalf("normalize(%d): only enginecontract.Timestamps and enginecontract.Durations are fixed; a health marker is judged, never fixed", k)
+		}
+	}
+	for _, k := range kinds {
+		c.fixedTimestamps = c.fixedTimestamps || k == enginecontract.Timestamps
+		c.fixedDurations = c.fixedDurations || k == enginecontract.Durations
+	}
 }
 
 // public declares ids a fixture may keep (Redaction.Public): the id of the pinned
