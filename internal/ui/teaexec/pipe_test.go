@@ -58,7 +58,7 @@ func TestPipeHelperProcess(t *testing.T) {
 		_, _ = fmt.Fprintln(os.Stderr, "err-1")
 		_, _ = fmt.Fprintln(os.Stdout, "out-2")
 	case "hang": // one line, then nothing for a minute
-		fmt.Fprintln(os.Stdout, "first line")
+		_, _ = fmt.Fprintln(os.Stdout, "first line")
 		time.Sleep(time.Minute)
 	case "hang-silent": // nothing at all for a minute
 		time.Sleep(time.Minute)
