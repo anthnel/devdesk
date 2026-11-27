@@ -60,14 +60,14 @@ func TestCachedOptionsAreAppliedToTheForm(t *testing.T) {
 	m = feed(t, m, LaunchOptionsCacheLoadedMsg{
 		ImageName: "api:v1",
 		Entry: &cache.LaunchOptionsEntry{
-			Env:     "LOG_LEVEL=debug",
-			Network: "devdesk",
-			Detach:  true,
+			EnvNames: []string{"LOG_LEVEL"},
+			Network:  "devdesk",
+			Detach:   true,
 		},
 	})
 
-	if m.launchForm.envInput.Value() != "LOG_LEVEL=debug" {
-		t.Errorf("env = %q, want the cached value", m.launchForm.envInput.Value())
+	if m.launchForm.envInput.Value() != "LOG_LEVEL=" {
+		t.Errorf("env = %q, want the cached name with an empty value", m.launchForm.envInput.Value())
 	}
 	if !m.launchForm.optionDetach {
 		t.Error("the cached detach option was not applied")
@@ -79,7 +79,7 @@ func TestCachedOptionsAreAppliedToTheForm(t *testing.T) {
 // form the user is already filling in.
 func TestStaleCachedOptionsAreDiscarded(t *testing.T) {
 	m := launchingModel(t, "80/tcp")
-	entry := &cache.LaunchOptionsEntry{Env: "FROM=elsewhere"}
+	entry := &cache.LaunchOptionsEntry{EnvNames: []string{"FROM"}}
 
 	m = feed(t, m, LaunchOptionsCacheLoadedMsg{ImageName: "other:v9", Entry: entry})
 	if m.launchForm.envInput.Value() != "" {

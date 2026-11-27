@@ -208,10 +208,10 @@ func TestLaunchFormReservedNameIsNotFlaggedBeforeTheFirstRefusedSubmit(t *testin
 	m := launchingModel(t, "80/tcp")
 	m = feed(t, m, LaunchOptionsCacheLoadedMsg{
 		ImageName: "api:v1",
-		Entry:     &cache.LaunchOptionsEntry{Env: "DOCKER_HOST=tcp://other:2375", Detach: true},
+		Entry:     &cache.LaunchOptionsEntry{EnvNames: []string{"DOCKER_HOST"}, Detach: true},
 	})
 	f := m.launchForm
-	if got := f.envInput.Value(); got != "DOCKER_HOST=tcp://other:2375" {
+	if got := f.envInput.Value(); got != "DOCKER_HOST=" {
 		t.Fatalf("Environment = %q, want the cached reserved entry", got)
 	}
 	focusLaunchField(f, f.fieldEnv())

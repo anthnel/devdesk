@@ -115,7 +115,7 @@ Two things about the engine are worth knowing before changing this code:
     carries a fixed sentence at level Error derived on every render, and
     `updateActiveInput` revalidates while the field is edited. Opening the form and
     `ApplyCached` validate nothing: a name restored from the cache with no value
-    is refused at the submit only.
+    is refused at the submit only (see "The launch cache" below).
   - **Limits.** A value cannot hold a comma (the field is split on commas). With
     duplicates (`A=1, A=2`) the argv holds `-e A` twice and the last value wins in
     the child.
@@ -249,8 +249,36 @@ Two things about the engine are worth knowing before changing this code:
     the same (Launch Form section). The only place the value is still drawn is the
     Environment input the user types in. Tests:
     `internal/ui/oci_resources/launch_preview_names_test.go`.
-  - **Still to do.** OC-17 (`launch-options.json` still stores the values:
-    `ToCacheEntry`). The scanner
+  - **The launch cache (OC-17, DEVDESK-815, S9).**
+    `~/.devdesk/cache/launch-options.json` keeps the names of the Environment
+    variables and never a value. `LaunchOptionsEntry.EnvNames` (`env_names`)
+    replaced the `Env` string; `ToCacheEntry` fills it through `cache.EnvNames`
+    (the part before the first `=` of each entry; an entry with no `=`, no name or a
+    value made only of `=` is dropped, since what sits there is the secret itself,
+    a token pasted into the field), and `Set` cuts anything after a `=` again, so no
+    caller can write a value. The file is written through `writeFileAtomic` (a
+    temporary file, `chmod 0600`, rename), so an existing file with a wider mode
+    comes back 0600; a cache directory DevDesk creates is 0700 (an existing one is
+    not touched). **Migration:** the file has no version field (a bare map); an
+    entry still carrying the old `env` key is read as the legacy shape
+    (`legacyLaunchEntry`), its names are kept through `cache.EnvNames`, the values
+    are dropped, and `NewLaunchOptionsCache` rewrites the file at once. An old entry
+    with `"env": ""` holds no value and is left as it is until the next save. A
+    **corrupt** file is ignored (the form opens empty) and logs the fixed line
+    `cache file is not valid JSON, ignored`: never a byte of the file, its path or
+    the parser's error, which quotes the byte it stopped on; the file stays until the
+    next launch replaces it. **The form:** `ApplyCached` writes each name as `NAME=`
+    (joined with `, `) and sets `envRestored`; while one of those entries still has no
+    value the Environment hint reads `Values are not saved: type them again`
+    (`envRestoredHint`, a hint, not an error: nothing is underlined and the footer
+    stays empty at opening, Rule 140). A reserved or invalid name stays in the field
+    and is refused at the submit like any other. Tests:
+    `internal/cache/launch_options_names_test.go`,
+    `internal/ui/oci_resources/launch_cache_names_test.go`. Limits: a legacy
+    `"env"` of the form `ghp_x=y` keeps `ghp_x` as a "name" (a secret written with
+    a `=` cannot be told from a name); a corrupt legacy file keeps its content on
+    disk until the next save.
+  - **Elsewhere.** The scanner
     `internal/scan/plumber.go` put `-e GH_TOKEN=<token>` in an argv: fixed by
     DEVDESK-945 (`-e GH_TOKEN`, the value in `containerRun.Env`), with the static guard S9 below.
 

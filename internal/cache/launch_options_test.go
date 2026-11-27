@@ -29,7 +29,7 @@ func TestLaunchOptionsCache_SetAndGet(t *testing.T) {
 	entry := LaunchOptionsEntry{
 		Entrypoint:  "/bin/sh",
 		ExtraPorts:  "8080:8080",
-		Env:         "APP_ENV=prod",
+		EnvNames:    []string{"APP_ENV"},
 		Volumes:     "data:/data",
 		User:        "1000:1000",
 		Network:     "bridge",
@@ -113,7 +113,7 @@ func TestLaunchOptionsCache_FilePermissions(t *testing.T) {
 		t.Skip("Unix file permissions not applicable on Windows")
 	}
 	c := newTestLaunchOptionsCache(t)
-	if err := c.Set("test:latest", LaunchOptionsEntry{Env: "X=1"}); err != nil {
+	if err := c.Set("test:latest", LaunchOptionsEntry{EnvNames: []string{"X"}}); err != nil {
 		t.Fatalf("Set: %v", err)
 	}
 	info, err := os.Stat(c.path)
