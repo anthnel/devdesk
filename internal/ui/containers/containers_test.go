@@ -13,6 +13,7 @@ import (
 	"github.com/anthnel/devdesk/internal/config"
 	"github.com/anthnel/devdesk/internal/docker"
 	"github.com/anthnel/devdesk/internal/imageupdate"
+	"github.com/anthnel/devdesk/internal/testutil/fakecli"
 	sharedcomponents "github.com/anthnel/devdesk/internal/ui/components"
 	"github.com/anthnel/devdesk/internal/ui/datatable"
 	"github.com/anthnel/devdesk/internal/ui/keymap"
@@ -32,6 +33,11 @@ import (
 // The view logs every Docker failure it is handed, and several fixtures are
 // failures on purpose.
 func TestMain(m *testing.M) {
+	// The fake terminal of engine_calls_unix_test.go is this binary started under
+	// the name kitty (internal/testutil/fakecli).
+	if code, ok := fakecli.AsTool(); ok {
+		os.Exit(code)
+	}
 	log.SetOutput(io.Discard)
 	// No engine and no registry is reached from a test (§3.88).
 	containerImageDigests = func([]string) map[string][]string { return nil }
