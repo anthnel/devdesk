@@ -32,7 +32,10 @@ const (
 )
 
 // e1Allowed are the directories whose non-test files may import the package.
-var e1Allowed = []string{"internal/enginefixture", "internal/testutil/fakecli"}
+// internal/testutil/enginecontract (OC-09a1, DEVDESK-806) reads the supported
+// versions and the engine mode through it; it imports "testing" and is itself
+// reachable from _test.go files only (guard C1, TestOnlyTestsImportEngineContract).
+var e1Allowed = []string{"internal/enginefixture", "internal/testutil/fakecli", "internal/testutil/enginecontract"}
 
 // e1Excluded directories are skipped at any depth below the root.
 var e1Excluded = []string{".worktrees", ".git", "vendor", "testdata", "docs-site", "node_modules"}
@@ -159,6 +162,9 @@ func TestE1DetectorOnSources(t *testing.T) {
 		{"a _test.go file", "internal/docker/replay_test.go", "package docker\n\n" + imp + "\n", nil},
 		{"fakecli, which imports testing itself", "internal/testutil/fakecli/fixtures.go", "package fakecli\n\n" + imp + "\n", nil},
 		{"enginefixture itself", "internal/enginefixture/load.go", "package enginefixture\n\n" + imp + "\n", nil},
+		{"enginecontract, the contract helpers (C1 keeps them out of production)", "internal/testutil/enginecontract/engine.go", "package enginecontract\n\n" + imp + "\n", nil},
+		{"a file of a subdirectory of enginecontract", "internal/testutil/enginecontract/x/y.go", "package y\n\n" + imp + "\n", nil},
+		{"a sibling directory of enginecontract", "internal/testutil/enginecontract2/x.go", "package x\n\n" + imp + "\n", []int{3}},
 		{"another package whose name starts the same", "internal/x/x.go",
 			"package x\n\nimport \"github.com/anthnel/devdesk/internal/enginefixture2\"\n", nil},
 		{"a sibling directory of fakecli", "internal/testutil/fakecli2/x.go", "package x\n\n" + imp + "\n", []int{3}},

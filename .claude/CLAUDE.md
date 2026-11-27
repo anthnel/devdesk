@@ -91,7 +91,7 @@ touching, and update it in the same commit as the code.
 | [`viewer.md`](../docs/architecture/viewer.md) | `internal/viewer` + `internal/ui/viewer` — kinds, displays, colouring, search, follow |
 | [`scanning.md`](../docs/architecture/scanning.md) | Trivy, Gitleaks, plumber, `scan.Categorize`, the `:sec` inventory, the two scan caches, image signatures (`internal/trust`, the cosign verifier) |
 | [`registries.md`](../docs/architecture/registries.md) | the registry/group model and the discovered-members cache |
-| [`network.md`](../docs/architecture/network.md) | `internal/docker` and `internal/oci` (typed `StatusError`, `...Context` variants), `internal/netproxy` (the proxy entry point every HTTP and TLS connection goes through, and its guard test, DEVDESK-581), the proxy passed to scanner containers (`netproxy.Forward`, `scan.containerRun.cmd`, the `TestContainerGuard*` guard, DEVDESK-583), `internal/imagesearch` and the registry browser's image search level, image updates (`internal/imageupdate`, the Update column), verified pulls (`internal/imagepull`), the recorded engine fixtures and their replay (`internal/enginefixture`, `fakecli.Fixtures`, DEVDESK-805), the netdiag view, `internal/ports` (the signal seam `realOS.kill`, the process identity check, DEVDESK-709, DEVDESK-711), `internal/netiface`, `internal/nettrace` (the path trace: unprivileged UDP + `IP_RECVERR` on Linux, ICMP echo through `iphlpapi` on native Windows) |
+| [`network.md`](../docs/architecture/network.md) | `internal/docker` and `internal/oci` (typed `StatusError`, `...Context` variants), `internal/netproxy` (the proxy entry point every HTTP and TLS connection goes through, and its guard test, DEVDESK-581), the proxy passed to scanner containers (`netproxy.Forward`, `scan.containerRun.cmd`, the `TestContainerGuard*` guard, DEVDESK-583), `internal/imagesearch` and the registry browser's image search level, image updates (`internal/imageupdate`, the Update column), verified pulls (`internal/imagepull`), the recorded engine fixtures and their replay (`internal/enginefixture`, `fakecli.Fixtures`, DEVDESK-805), the engine contract tests (`requireEngine`, `internal/testutil/enginecontract`, guard G5, `mise run engine-contract`, DEVDESK-806), the netdiag view, `internal/ports` (the signal seam `realOS.kill`, the process identity check, DEVDESK-709, DEVDESK-711), `internal/netiface`, `internal/nettrace` (the path trace: unprivileged UDP + `IP_RECVERR` on Linux, ICMP echo through `iphlpapi` on native Windows) |
 | [`mcp.md`](../docs/architecture/mcp.md) | the MCP server the TUI serves over HTTP |
 | [`templates.md`](../docs/architecture/templates.md) | `internal/template` + `internal/ui/templates` — the repository-template catalog, its three sources, how files are fetched, and the `:templates` view |
 | [`ui-components.md`](../docs/architecture/ui-components.md) | `components.FooterMessage`, `internal/ui/datatable`, and the activity indicator column (`internal/ui/indicator`, `datatable.IndicatorColumn`, the row sentences `components.DescribeRow`) |
@@ -329,6 +329,24 @@ browser and MCP `image_pull_start`, via `ImagePullRequestedMsg`) and `G` (`updat
 `imagepull.Pull` pull the tag as before, kind's pulls (OC-71) and the `skopeo copy` of `internal/nexusbench` (a development tool) are out of scope,
 a `[]string{"git", "pull"}` or the two-word `"--pull", "never"` is reported (words, not programs), and a verb from a variable, an argv built word by word, a shell line and a function value are
 not seen. See `docs/architecture/network.md`, "Guard G8".
+
+**Tests and engine contracts (DEVDESK-806, OC-09a1).** A contract is a `TestContract*` function of a
+`*_contract_test.go` file of the package it contracts (today `internal/docker/engine_contract_test.go`); it reaches a real
+docker or podman, outside CI, in the test VMs: `DEVDESK_ENGINE_CONTRACT=1 mise run engine-contract -- <docker|podman> <n|n1>
+[--mode rootful|rootless] [--no-reset]` (`tools/engine-vms/contract.sh verify`, which acts on the Incus host; run by hand, never
+by a test). The task never sets the variable, the user exports it. The gate is `enginecontract.Decide`
+(`internal/testutil/enginecontract`): the variable not `1` skips, `CI` set refuses (even with the variable), then the tool
+(`DEVDESK_ENGINE_CONTRACT_TOOL`, docker or podman, no default); a plain `go test` skips every contract. Every contract starts
+with `requireEngine(t)` (defined in `contract_support_test.go`, its first statement `enginecontract.Require(t, probeEngine)`):
+gate, `AllowRealEngine`, probe, N and N-1 check, banner. Do not call `engineguard.AllowRealEngine` yourself. Guards: G5
+`TestGuardContractTestsCallRequireEngine` (`internal/engineguard/contract_guard_test.go`: R1 first statement, R2 only
+`TestContract*` functions and no `t.Parallel` in a contract file, R3 where `requireEngine` and `AllowRealEngine` may be
+called, R4 the definition starts with `enginecontract.Require(`; `contractExceptions` is empty), C1
+`TestOnlyTestsImportEngineContract` (only `_test.go` files import `enginecontract`), `TestNothingOpensTheContractGate`
+(`mise.toml` and the workflows never set the variable) and the child-process test
+`TestEveryContractIsSkippedOrRefusedOutsideAContractRun`. The production function that reports a missing binary is
+`engineAvailable()` (it was `requireEngine()`). The probe templates are the plan's, **to be confirmed on the test VMs**; labels
+and cleanup (OC-09a2) and recording (OC-09a3) are not there yet. See `docs/architecture/network.md`, "Engine contracts".
 
 **Tests and recorded CLI exchanges (DEVDESK-805, OC-08a).** `internal/enginefixture` holds what a docker or podman
 answered to one argv, one `.cli` text file per exchange (`# key: value` headers in a fixed order, stdout and stderr of

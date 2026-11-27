@@ -175,7 +175,7 @@ func TestIsolateKeepsADeliberateReachOutOfTheSuiteRecord(t *testing.T) {
 	}
 }
 
-func TestContractGate(t *testing.T) {
+func TestTheContractGateFollowsItsTwoVariables(t *testing.T) {
 	tests := []struct {
 		name    string
 		env     map[string]string

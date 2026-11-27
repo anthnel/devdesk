@@ -75,6 +75,38 @@ do the same but is not set, so nothing depends on a hidden default.
 
 Run the campaigns inside the VM, restore with `reset.sh` afterwards.
 
+## Contract runs
+
+OC-09a1 (DEVDESK-806). `contract.sh` runs the engine contract tests (the `*_contract_test.go` files, see
+`docs/architecture/network.md`, "Engine contracts") against the engine of a VM:
+
+```bash
+export DEVDESK_ENGINE_CONTRACT=1            # by hand, in your own shell; no task sets it
+mise run engine-contract -- docker n        # Docker line N, rootful
+mise run engine-contract -- podman n1 --mode rootless
+mise run engine-contract -- podman n --mode rootful --no-reset
+```
+
+Usage: `contract.sh verify <docker|podman> <n|n1> [--mode rootful|rootless] [--no-reset]`.
+
+- **The gate comes first and applies on your machine.** Without `DEVDESK_ENGINE_CONTRACT=1` it prints `skipped` and
+  exits 0; with `CI` set it prints `refused` and exits 1, even with the variable; invalid arguments exit 2. None of
+  these reaches the VM host. The Go tests apply the same gate again inside the VM.
+- **Steps.** It builds one `linux/amd64` test binary per package that has a contract (`-trimpath`; only files known to
+  git count), restores the VM's clean snapshot on the requested line (skipped with `--no-reset`, the line installed
+  in the VM must still match), copies the binaries and `versions.env` to `/tmp/ddc-<run>`, runs
+  `-test.run '^TestContract'` with an explicit environment (`env -i`), and removes the directory, also on failure.
+  Nothing is copied back; the exit code is the contracts'.
+- **Mode.** Docker is rootful only (`--mode rootless` with docker is refused). Podman defaults to rootless, the
+  mode the user `dd` runs; `--mode rootful` runs it as root. Rootless runs go through the user session of `dd`.
+- **Acts on the Incus host** (`DD_ENGINE_VMS_HOST`, `DD_ENGINE_VMS_PROJECT`, as above): never run it against a host
+  you do not own. It touches only the VM of the requested engine.
+- The probe templates the contracts use (`version` and `info` formats) were written from the plan and have **not been
+  confirmed on the VMs yet**: the first run on Docker 29.10.1 / 28.5.2 and Podman 6.2.1 / 5.8.11 is that
+  confirmation, and a template an engine rejects fails the contract with the engine's own message.
+- Not there yet: the resources a contract creates and their cleanup (OC-09a2), recording fixtures and
+  `engine-contract:record` (OC-09a3).
+
 ## Threat model and limits
 
 - The VMs are disposable and hold no secret: no registry credential, no token. Do
