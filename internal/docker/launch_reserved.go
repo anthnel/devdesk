@@ -24,6 +24,10 @@ var reservedEnvNames = map[string]struct{}{
 	"DOCKER_TLS_VERIFY":  {},
 	"DOCKER_CERT_PATH":   {},
 	"DOCKER_API_VERSION": {},
+	// docker CLI: TLS switched on without verification, and custom HTTP headers
+	// added to every request to the daemon.
+	"DOCKER_TLS":            {},
+	"DOCKER_CUSTOM_HEADERS": {},
 	// podman: the remote service (and remote mode), the three configuration
 	// files it loads, and the registry credentials file it reads and writes.
 	"CONTAINER_HOST":             {},
@@ -32,10 +36,16 @@ var reservedEnvNames = map[string]struct{}{
 	"CONTAINERS_STORAGE_CONF":    {},
 	"CONTAINERS_REGISTRIES_CONF": {},
 	"REGISTRY_AUTH_FILE":         {},
+	// podman: the config file loaded last, the SSH identity of a remote service,
+	// and the file that stores its connections.
+	"CONTAINERS_CONF_OVERRIDE": {},
+	"CONTAINER_SSHKEY":         {},
+	"PODMAN_CONNECTIONS_CONF":  {},
 	// Rootless podman and the docker CLI resolve sockets and configuration
 	// from these.
 	"XDG_RUNTIME_DIR": {},
 	"XDG_CONFIG_HOME": {},
+	"XDG_DATA_HOME":   {},
 	// ~/.docker, ~/.config/containers and ~/.ssh hang off HOME; PATH decides
 	// which helper, credential helper or ssh the client starts; SSH_AUTH_SOCK is
 	// the agent used by `ssh://` hosts.

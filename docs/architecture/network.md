@@ -149,13 +149,21 @@ Two things about the engine are worth knowing before changing this code:
       `docker`): `DOCKER_HOST` (the daemon), `DOCKER_CONFIG` (client
       configuration and credentials directory), `DOCKER_CONTEXT` (selected
       context, overrides `DOCKER_HOST`), `DOCKER_TLS_VERIFY` and
-      `DOCKER_CERT_PATH` (TLS to the daemon), `DOCKER_API_VERSION` (pinned API).
+      `DOCKER_CERT_PATH` (TLS to the daemon), `DOCKER_API_VERSION` (pinned API),
+      `DOCKER_TLS` (TLS switched on by any non-empty value) and
+      `DOCKER_CUSTOM_HEADERS` (HTTP headers added to every request; experimental).
     - **podman client** (podman's manual): `CONTAINER_HOST` and
       `CONTAINER_CONNECTION` (the remote service, and they turn remote mode on),
       `CONTAINERS_CONF`, `CONTAINERS_STORAGE_CONF` and
-      `CONTAINERS_REGISTRIES_CONF` (the files it loads), `REGISTRY_AUTH_FILE`
-      (registry credentials), `XDG_RUNTIME_DIR` and `XDG_CONFIG_HOME` (rootless
-      sockets and configuration; also how the docker CLI finds a rootless socket).
+      `CONTAINERS_REGISTRIES_CONF` (the files it loads), `CONTAINERS_CONF_OVERRIDE`
+      (a config file loaded last, containers.conf(5)), `CONTAINER_SSHKEY` (the SSH
+      identity for a remote service), `PODMAN_CONNECTIONS_CONF` (the file holding
+      the system connections), `REGISTRY_AUTH_FILE` (registry credentials),
+      `XDG_RUNTIME_DIR`, `XDG_CONFIG_HOME` and `XDG_DATA_HOME` (rootless sockets,
+      configuration and image storage; `XDG_RUNTIME_DIR` is also how the docker CLI
+      finds a rootless socket). Confirmed in the docker CLI reference, the podman
+      manual and containers.conf(5), except `REGISTRY_AUTH_FILE`, `HOME`, `PATH`
+      and `SSH_AUTH_SOCK`, kept by reasoning (they are not in the pages read).
     - **what both resolve things through**: `HOME` (`~/.docker`,
       `~/.config/containers`, `~/.ssh`), `PATH` (which credential helper,
       `ssh` or compose plugin is started), `SSH_AUTH_SOCK` (the agent an
@@ -167,17 +175,16 @@ Two things about the engine are worth knowing before changing this code:
       CLI's own connections (daemon, registry) would go through the proxy typed.
       Not `PROXY` alone, not `MY_PROXYX`.
     - Not reserved, on purpose: `DOCKER_HOSTNAME`, `MY_PATH`, `PATHS`,
-      `HOMEPAGE`, `CONTAINERS_X_Y`, `LDAP_URL`, `XDG_DATA_HOME`. A name that
+      `HOMEPAGE`, `CONTAINERS_X_Y`, `LDAP_URL`, `XDG_DATA_DIRS`. A name that
       merely looks like one is an ordinary variable of the container. Tests:
       `internal/docker/launch_reserved_test.go` (the table, both engines, a
       strict stub that fails on any engine call for a refusal, a fuzz target whose
       seeds run in `go test`) and
       `internal/ui/oci_resources/launch_reserved_test.go`.
     - **Limits.** It is a deny list: a name outside it that drives an exotic
-      client setting is not seen. Known and left out for now: `DOCKER_TLS`,
-      `DOCKER_CUSTOM_HEADERS`, `DOCKER_DEFAULT_PLATFORM`, `CONTAINER_SSHKEY`,
-      `CONTAINER_PASSPHRASE`, `PODMAN_CONNECTIONS_CONF`, `CONTAINERS_CONF_OVERRIDE`,
-      `STORAGE_DRIVER`, `STORAGE_OPTS`, `TMPDIR`, `XDG_DATA_HOME`, `BUILDKIT_*`.
+      client setting is not seen. Known and left out: `DOCKER_DEFAULT_PLATFORM`,
+      `CONTAINER_PASSPHRASE`, `STORAGE_DRIVER`, `STORAGE_OPTS`, `TMPDIR`,
+      `BUILDKIT_*`.
       Names are compared as typed; non-ASCII names are already refused by
       `ValidEnvName`. A name cached by an older build and restored into the form is
       refused at the submit like any other.
