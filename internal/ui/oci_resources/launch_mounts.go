@@ -89,12 +89,12 @@ func isMountToken(tok string) bool {
 	return true
 }
 
-// printable replaces the control and format characters of a typed path (escape
-// sequences, bidirectional marks) so that the modal never draws what the user did
-// not see typed.
+// printable replaces the control, format and line-separator characters of a typed
+// path (escape sequences, bidirectional marks, U+2028 and U+2029) so that the
+// modal never draws what the user did not see typed, nor a break it did not type.
 func printable(s string) string {
 	return strings.Map(func(r rune) rune {
-		if unicode.IsControl(r) || unicode.Is(unicode.Cf, r) {
+		if unicode.IsControl(r) || unicode.Is(unicode.Cf, r) || unicode.Is(unicode.Zl, r) || unicode.Is(unicode.Zp, r) {
 			return '?'
 		}
 		return r
@@ -132,7 +132,7 @@ func newMountModal(mounts []docker.SensitiveMount, width int) *sharedcomponents.
 	}
 	b.WriteString(wrapText("This launch mounts sensitive parts of this host:", limit, 0))
 	for _, m := range mounts {
-		b.WriteString("\n\n" + wrapPath(printable(m.Path), limit, 2) + "\n" + wrapText(m.Reason, limit, 4))
+		b.WriteString("\n\n" + wrapPath(printable(m.Path), limit) + "\n" + wrapText(m.Reason, limit, 2))
 	}
 	return sharedcomponents.NewChoiceModal(title, b.String(), action)
 }
@@ -147,12 +147,14 @@ func wrapText(s string, limit, indent int) string {
 }
 
 // wrapPath hard-wraps a path to limit columns: it has no word boundary to break
-// at, and every character of it must stay on screen.
-func wrapPath(s string, limit, indent int) string {
+// at, and every character of it must stay on screen. It is not indented, on any
+// line: a space of the path at the start of a continuation line would not be
+// told from an indentation.
+func wrapPath(s string, limit int) string {
 	if limit > 0 {
-		s = ansi.Hardwrap(s, max(limit-indent, 8), true)
+		s = ansi.Hardwrap(s, max(limit, 8), true)
 	}
-	return indentLines(s, indent)
+	return s
 }
 
 func indentLines(s string, indent int) string {

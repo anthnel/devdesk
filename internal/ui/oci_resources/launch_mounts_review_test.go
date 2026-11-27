@@ -152,3 +152,37 @@ func (r *mountRig) assertFitsAndReadable(t *testing.T, width int, want docker.Se
 		t.Errorf("the reason is cut at %d columns:\n%s", width, screen)
 	}
 }
+
+// OC-20 re-review, B4: a typed path is drawn without what could pass for the
+// layout of the modal.
+func TestPrintableReplacesEveryLineSeparator(t *testing.T) {
+	got := printable("/a\u2028b\u2029c\x1b[31md\ne\u200ff")
+	for _, r := range got {
+		if r == '\u2028' || r == '\u2029' || r == '\x1b' || r == '\n' || r == '\u200f' {
+			t.Errorf("printable left %U in %q", r, got)
+		}
+	}
+	if got != "/a?b?c?[31md?e?f" {
+		t.Errorf("printable = %q, want every separator, control and format character replaced by ?", got)
+	}
+}
+
+// A real space of a path at the start of a wrapped line must not be read as the
+// indentation of the modal: the continuation lines carry nothing but the path.
+func TestAWrappedPathCarriesNothingButItself(t *testing.T) {
+	const p = "/srv/with some  spaces/in it/.ssh"
+	for _, limit := range []int{8, 10, 16} {
+		out := wrapPath(p, limit)
+		if got := strings.Join(strings.Split(out, "\n"), ""); got != p {
+			t.Errorf("limit %d: the wrapped path joined is %q, want %q", limit, got, p)
+		}
+		for _, line := range strings.Split(out, "\n") {
+			if ansi.StringWidth(line) > limit {
+				t.Errorf("limit %d: line %q is wider", limit, line)
+			}
+		}
+	}
+	if got := wrapPath(p, 0); got != p {
+		t.Errorf("no limit: wrapPath = %q, want the path untouched", got)
+	}
+}

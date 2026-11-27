@@ -6,7 +6,7 @@ import (
 	"os"
 	"os/user"
 	"path"
-	"regexp"
+	"path/filepath"
 	"runtime"
 	"slices"
 	"strconv"
@@ -39,7 +39,7 @@ type SensitiveMount struct {
 	Path         string        // the host path after expansion, normalization and symlink resolution
 	Category     MountCategory // why it is sensitive
 	Reason       string        // one sentence, fixed per category, never built from what was typed
-	EngineSocket bool          // true exactly for MountEngineSocket
+	EngineSocket bool          // true for MountEngineSocket and for MountRoot, which holds every socket: the launch asks for the named choice
 }
 
 // mountReasons holds the sentence of each category. They are fixed on purpose:
@@ -94,7 +94,7 @@ func SensitiveMounts(opts ContainerLaunchOptions) []SensitiveMount {
 	for _, v := range opts.Volumes {
 		spec := strings.TrimSpace(v)
 		if source, ok := volumeSource(spec); ok {
-			if m, flagged := h.check(spec, source); flagged {
+			if m, flagged := h.checkSource(spec, mountSource{path: source}); flagged {
 				found = append(found, m)
 			}
 		}
@@ -102,7 +102,7 @@ func SensitiveMounts(opts ContainerLaunchOptions) []SensitiveMount {
 	for _, v := range opts.Mounts {
 		spec := strings.TrimSpace(v)
 		for _, source := range mountSources(spec) {
-			if m, flagged := h.check(spec, source); flagged {
+			if m, flagged := h.checkSource(spec, source); flagged {
 				found = append(found, m)
 				break
 			}
@@ -125,7 +125,7 @@ func volumeSource(spec string) (string, bool) {
 // source (or src); type=volume, or no type, binds each volume-opt=device=<path>
 // (the local driver's bind in disguise). The target (target, dst, destination)
 // is the container's and never read.
-func mountSources(spec string) []string {
+func mountSources(spec string) []mountSource {
 	var typ, source string
 	var devices []string
 	for tok := range strings.SplitSeq(spec, ",") {
@@ -145,20 +145,27 @@ func mountSources(spec string) []string {
 			}
 		}
 	}
-	var out []string
+	var out []mountSource
 	switch typ {
 	case "bind", "glob":
 		if isHostPath(source) {
-			out = append(out, source)
+			out = append(out, mountSource{path: source, glob: typ == "glob"})
 		}
 	case "", "volume":
 		for _, d := range devices {
 			if isHostPath(d) {
-				out = append(out, d)
+				out = append(out, mountSource{path: d})
 			}
 		}
 	}
 	return out
+}
+
+// mountSource is the host side of a bind. A glob (Podman's type=glob) is a
+// pattern the engine expands to every match.
+type mountSource struct {
+	path string
+	glob bool
 }
 
 // isHostPath reports whether a bind source names a host path rather than a
@@ -168,11 +175,13 @@ func isHostPath(source string) bool {
 	return strings.HasPrefix(source, "/") || strings.HasPrefix(source, ".") || strings.HasPrefix(source, "~")
 }
 
-// procHostRoot matches /proc/<pid>/root and /proc/<pid>/cwd (also self and
-// thread-self) and what is under them: the root and the working directory of a
-// process are reached through its /proc entry, and the root of PID 1 is the
-// host's whatever the permissions say.
-var procHostRoot = regexp.MustCompile(`^/proc/(?:[0-9]+|self|thread-self)/(?:root|cwd)(?:/|$)`)
+// underProc reports whether p is /proc or under it: the root and the working
+// directory of every process are reached through its /proc entry, and the root of
+// PID 1 is the host's whatever the permissions say, so all of /proc is read as
+// the root of the host.
+func underProc(p string) bool {
+	return p == "/proc" || strings.HasPrefix(p, "/proc/")
+}
 
 // mountTarget is a sensitive path and the category of what it holds.
 type mountTarget struct {
@@ -305,26 +314,80 @@ func (h mountHost) absolute(source string) (string, bool) {
 	return h.cwd + "/" + source, true
 }
 
-// check classifies one bind source. The candidates are the paths it can lead to:
+// maxGlobMatches bounds the matches of a glob that are classified one by one.
+const maxGlobMatches = 1000
+
+// checkSource classifies one bind source: a path (see checkAbs) or a glob.
+func (h mountHost) checkSource(spec string, src mountSource) (SensitiveMount, bool) {
+	abs, ok := h.absolute(src.path)
+	if !ok {
+		return SensitiveMount{}, false
+	}
+	if !src.glob || !strings.ContainsAny(abs, "*?[") {
+		return h.checkAbs(spec, src.path, abs)
+	}
+	return h.checkGlob(spec, src.path, abs)
+}
+
+// checkGlob expands a pattern and classifies each match (the first sensitive one
+// is reported). When the pattern matches nothing, is not valid or matches too
+// much, the directory its literal prefix names says what it is about (not "/":
+// a wildcard in the first component names no directory); a pattern that could
+// not be expanded and says nothing sensitive is flagged unverified.
+func (h mountHost) checkGlob(spec, source, abs string) (SensitiveMount, bool) {
+	matches, err := filepath.Glob(abs)
+	unverified := err != nil
+	if len(matches) > maxGlobMatches {
+		matches, unverified = matches[:maxGlobMatches], true
+	}
+	for _, match := range matches {
+		if m, flagged := h.checkAbs(spec, source, match); flagged {
+			return m, true
+		}
+	}
+	if len(matches) > 0 && !unverified {
+		return SensitiveMount{}, false
+	}
+	if prefix := globPrefix(abs); prefix != "/" {
+		if m, flagged := h.checkAbs(spec, source, prefix); flagged {
+			return m, true
+		}
+	}
+	if unverified {
+		return SensitiveMount{
+			Spec: spec, Source: source, Path: path.Clean(abs), Category: MountUnverified,
+			Reason: mountReasons[MountUnverified],
+		}, true
+	}
+	return SensitiveMount{}, false
+}
+
+// globPrefix returns the directory of the literal part of a pattern, before its
+// first wildcard: "/etc/ss*" is "/etc", "/e?c" is "/".
+func globPrefix(pattern string) string {
+	literal := pattern[:strings.IndexAny(pattern, "*?[")]
+	if i := strings.LastIndex(literal, "/"); i > 0 {
+		return literal[:i]
+	}
+	return "/"
+}
+
+// checkAbs classifies one absolute bind source. The candidates are the paths it can lead to:
 // for each reading of a ".." after a link (the link followed first, as the kernel
 // does, and the path cleaned first, as the Docker CLI does) the path as resolved
 // when it resolves in full, otherwise as written and then as resolved so far (a
 // link into /etc followed by a name that does not exist yet is /etc's). The
 // first candidate that is equal to or under a sensitive path wins, then the
 // first that holds one, then a path that could not be read.
-func (h mountHost) check(spec, source string) (SensitiveMount, bool) {
-	abs, ok := h.absolute(source)
-	if !ok {
-		return SensitiveMount{}, false
-	}
+func (h mountHost) checkAbs(spec, source, abs string) (SensitiveMount, bool) {
 	clean := path.Clean(abs)
 	flag := func(p string, cat MountCategory) (SensitiveMount, bool) {
 		return SensitiveMount{
-			Spec: spec, Source: source, Path: p, Category: cat,
-			Reason: mountReasons[cat], EngineSocket: cat == MountEngineSocket,
+			Spec: spec, Source: source, Path: p, Category: cat, Reason: mountReasons[cat],
+			EngineSocket: cat == MountEngineSocket || cat == MountRoot,
 		}, true
 	}
-	if procHostRoot.MatchString(clean) {
+	if underProc(clean) {
 		return flag(clean, MountRoot)
 	}
 	var candidates []string
@@ -360,7 +423,7 @@ func (h mountHost) classify(p string) (MountCategory, bool) {
 	switch {
 	case h.sockets[p]:
 		return MountEngineSocket, true
-	case p == "/":
+	case p == "/" || underProc(p):
 		return MountRoot, true
 	case underAny(p, h.etc):
 		return MountSystemConfig, true

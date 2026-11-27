@@ -31,7 +31,7 @@ import (
 //	    Path         string        // the host path after expansion, normalisation and symlink resolution
 //	    Category     MountCategory
 //	    Reason       string        // one sentence, English US, fixed per category, never the typed text
-//	    EngineSocket bool          // true exactly for MountEngineSocket
+//	    EngineSocket bool          // true for MountEngineSocket, and for MountRoot, which holds the sockets (OC-20 re-review)
 //	}
 //
 //	func SensitiveMounts(opts ContainerLaunchOptions) []SensitiveMount
@@ -151,8 +151,8 @@ func TestSensitiveMountsClassifiesTheVolumeForm(t *testing.T) {
 		want    []wantMount
 	}{
 		// Criterion 1: the listed paths, equal.
-		{"the root", []string{"/:/host"}, []wantMount{{"/", MountRoot, false}}},
-		{"the root, read-only", []string{"/:/host:ro"}, []wantMount{{"/", MountRoot, false}}},
+		{"the root", []string{"/:/host"}, []wantMount{{"/", MountRoot, true}}},
+		{"the root, read-only", []string{"/:/host:ro"}, []wantMount{{"/", MountRoot, true}}},
 		{"/etc", []string{"/etc:/host-etc:ro"}, []wantMount{{"/etc", MountSystemConfig, false}}},
 		{"HOME itself", []string{"{home}:/h"}, []wantMount{{"{home}", MountHome, false}}},
 		{"~/.ssh", []string{"{home}/.ssh:/root/.ssh:ro"}, []wantMount{{"{home}/.ssh", MountSSH, false}}},
@@ -253,14 +253,14 @@ func TestSensitiveMountsClassifiesTheMountForm(t *testing.T) {
 		{"src and dst, readonly", []string{"type=bind,src=/etc,dst=/x,readonly"}, []wantMount{{"/etc", MountSystemConfig, false}}},
 		{"src and destination, ro", []string{"type=bind,src=/etc,destination=/x,ro"}, []wantMount{{"/etc", MountSystemConfig, false}}},
 		{"readonly=true", []string{"type=bind,source=/etc,target=/x,readonly=true"}, []wantMount{{"/etc", MountSystemConfig, false}}},
-		{"keys in another order", []string{"target=/x,source=/,type=bind"}, []wantMount{{"/", MountRoot, false}}},
+		{"keys in another order", []string{"target=/x,source=/,type=bind"}, []wantMount{{"/", MountRoot, true}}},
 		{"source first", []string{"source={home}/.ssh,target=/root/.ssh,type=bind,readonly"}, []wantMount{{"{home}/.ssh", MountSSH, false}}},
 		{"under /etc", []string{"type=bind,source=/etc/ssl,target=/x"}, []wantMount{{"/etc/ssl", MountSystemConfig, false}}},
 		{"HOME", []string{"type=bind,source={home},target=/h"}, []wantMount{{"{home}", MountHome, false}}},
 		{"~/.devdesk", []string{"type=bind,source=~/.devdesk,target=/d"}, []wantMount{{"{home}/.devdesk", MountDevDesk, false}}},
 		{"normalised", []string{"type=bind,source=/tmp/../etc,target=/x"}, []wantMount{{"/etc", MountSystemConfig, false}}},
 		{"two entries", []string{"type=bind,source=/etc,target=/a", "type=bind,source=/,target=/b"}, []wantMount{
-			{"/etc", MountSystemConfig, false}, {"/", MountRoot, false},
+			{"/etc", MountSystemConfig, false}, {"/", MountRoot, true},
 		}},
 
 		// Not a host path, or not a bind.
@@ -296,7 +296,7 @@ func TestSensitiveMountsReadsBothFormsOfOneRequest(t *testing.T) {
 	})
 	checkMounts(t, got, []wantMount{
 		{"/etc", MountSystemConfig, false},
-		{"/", MountRoot, false},
+		{"/", MountRoot, true},
 	}, e)
 	if got[0].Spec != "/etc:/a" || got[0].Source != "/etc" {
 		t.Errorf("-v: Spec = %q, Source = %q, want the entry and its host side as typed", got[0].Spec, got[0].Source)

@@ -6,6 +6,7 @@ import (
 	"os/user"
 	"path/filepath"
 	"strconv"
+	"strings"
 	"testing"
 )
 
@@ -183,7 +184,7 @@ func TestSensitiveMountsReadsAVolumeDeviceAndAGlob(t *testing.T) {
 		{"a device that is not a path", "type=volume,source=v,target=/t,volume-opt=device=tmpfs", nil},
 		{"another option", "type=volume,source=v,target=/t,volume-opt=o=bind", nil},
 		{"a harmless device", "type=volume,source=v,target=/t,volume-opt=device={home}/projects", nil},
-		{"glob", "type=glob,source=/etc/ss*,target=/t", []wantMount{{"/etc/ss*", MountSystemConfig, false}}},
+		{"glob", "type=glob,source=/etc/zz-no-such-file*,target=/t", []wantMount{{"/etc", MountSystemConfig, false}}},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -322,4 +323,118 @@ func TestSensitiveMountsFlagsTheSocketOfContainerHost(t *testing.T) {
 	got := SensitiveMounts(ContainerLaunchOptions{Image: "img", Volumes: []string{e.tmp + "/podman-remote.sock:/x"}})
 
 	checkMounts(t, got, []wantMount{{e.tmp + "/podman-remote.sock", MountEngineSocket, true}}, e)
+}
+
+// OC-20 re-review.
+
+// M1: a glob is expanded, each match classified, and the literal prefix too.
+func TestSensitiveMountsExpandsAGlob(t *testing.T) {
+	t.Run("a wildcard that reaches /etc", func(t *testing.T) {
+		e := newMountEnv(t)
+		got := SensitiveMounts(ContainerLaunchOptions{Image: "img", Mounts: []string{"type=glob,source=/e?c,target=/x"}})
+		checkMounts(t, got, []wantMount{{"/etc", MountSystemConfig, false}}, e)
+	})
+	t.Run("a wildcard under /etc", func(t *testing.T) {
+		newMountEnv(t)
+		got := SensitiveMounts(ContainerLaunchOptions{Image: "img", Mounts: []string{"type=glob,source=/etc/s*,target=/x"}})
+		if len(got) != 1 || got[0].Category != MountSystemConfig || !strings.HasPrefix(got[0].Path, "/etc") {
+			t.Errorf("got %+v, want one system-config mount under /etc", got)
+		}
+	})
+	t.Run("everything at the root", func(t *testing.T) {
+		newMountEnv(t)
+		got := SensitiveMounts(ContainerLaunchOptions{Image: "img", Mounts: []string{"type=glob,source=/*,target=/x"}})
+		if len(got) != 1 || got[0].Path == "" {
+			t.Errorf("got %+v, want one mount: /* reaches /etc and the sockets", got)
+		}
+	})
+	t.Run("a wildcard for the user of a home", func(t *testing.T) {
+		e := newMountEnv(t)
+		alice := filepath.Join(e.tmp, "homes", "alice")
+		if err := os.MkdirAll(filepath.Join(alice, ".ssh"), 0o700); err != nil {
+			t.Fatal(err)
+		}
+		t.Setenv("HOME", alice)
+		t.Setenv("USERPROFILE", alice)
+		got := SensitiveMounts(ContainerLaunchOptions{Image: "img", Mounts: []string{"type=glob,source=" + e.tmp + "/homes/*/.ssh,target=/x"}})
+		checkMounts(t, got, []wantMount{{alice + "/.ssh", MountSSH, false}}, e)
+	})
+	t.Run("no match under a sensitive prefix", func(t *testing.T) {
+		e := newMountEnv(t)
+		got := SensitiveMounts(ContainerLaunchOptions{Image: "img", Mounts: []string{"type=glob,source=/etc/zz-no-such-file*,target=/x"}})
+		checkMounts(t, got, []wantMount{{"/etc", MountSystemConfig, false}}, e)
+	})
+	t.Run("no match anywhere", func(t *testing.T) {
+		e := newMountEnv(t)
+		got := SensitiveMounts(ContainerLaunchOptions{Image: "img", Mounts: []string{
+			"type=glob,source=" + e.tmp + "/nothing*,target=/x", "type=glob,source=/zz?no-such-root-entry,target=/y",
+		}})
+		checkMounts(t, got, nil, e)
+	})
+	t.Run("a bad pattern cannot be checked", func(t *testing.T) {
+		e := newMountEnv(t)
+		got := SensitiveMounts(ContainerLaunchOptions{Image: "img", Mounts: []string{"type=glob,source=" + e.tmp + "/[,target=/x"}})
+		checkMounts(t, got, []wantMount{{e.tmp + "/[", MountUnverified, false}}, e)
+	})
+	t.Run("a bad pattern under a sensitive prefix keeps its category", func(t *testing.T) {
+		e := newMountEnv(t)
+		got := SensitiveMounts(ContainerLaunchOptions{Image: "img", Mounts: []string{"type=glob,source=/etc/[,target=/x"}})
+		checkMounts(t, got, []wantMount{{"/etc", MountSystemConfig, false}}, e)
+	})
+	t.Run("a bind is not a glob", func(t *testing.T) {
+		e := newMountEnv(t)
+		got := SensitiveMounts(ContainerLaunchOptions{Image: "img", Mounts: []string{"type=bind,source=/e?c,target=/x"}})
+		checkMounts(t, got, nil, e)
+	})
+}
+
+// M2: /proc is the root of the host through its processes.
+func TestSensitiveMountsTreatsProcAsTheRoot(t *testing.T) {
+	for _, p := range []string{"/proc", "/proc/1", "/proc/self", "/proc/self/environ", "/proc/thread-self", "/proc/sys/kernel"} {
+		t.Run(p, func(t *testing.T) {
+			newMountEnv(t)
+			if _, err := os.Lstat("/proc/self"); err != nil {
+				t.Skip("no /proc")
+			}
+			got := SensitiveMounts(ContainerLaunchOptions{Image: "img", Volumes: []string{p + ":/x"}})
+			if len(got) != 1 || got[0].Category != MountRoot {
+				t.Errorf("%s: got %+v, want one root mount", p, got)
+			}
+		})
+	}
+	t.Run("a link into /proc", func(t *testing.T) {
+		e := newMountEnv(t)
+		if _, err := os.Lstat("/proc/self"); err != nil {
+			t.Skip("no /proc")
+		}
+		if err := os.Symlink("/proc/sys", filepath.Join(e.tmp, "p")); err != nil {
+			t.Fatal(err)
+		}
+		got := SensitiveMounts(ContainerLaunchOptions{Image: "img", Volumes: []string{e.tmp + "/p:/x"}})
+		if len(got) != 1 || got[0].Category != MountRoot {
+			t.Errorf("got %+v, want one root mount", got)
+		}
+	})
+}
+
+// B2: the root holds every engine socket, so it asks for the named choice; the
+// other categories keep their own, a socket under them included.
+func TestSensitiveMountsTheRootCarriesTheEngineSocketFlag(t *testing.T) {
+	e := newMountEnv(t)
+	for _, tt := range []struct {
+		volume string
+		cat    MountCategory
+		socket bool
+	}{
+		{"/:/a", MountRoot, true},
+		{"/etc:/b", MountSystemConfig, false},
+		{e.home + ":/c", MountHome, false},
+		{e.home + "/.ssh:/d", MountSSH, false},
+		{e.home + "/.devdesk:/e", MountDevDesk, false},
+	} {
+		got := SensitiveMounts(ContainerLaunchOptions{Image: "img", Volumes: []string{tt.volume}})
+		if len(got) != 1 || got[0].Category != tt.cat || got[0].EngineSocket != tt.socket {
+			t.Errorf("%s: got %+v, want %q with EngineSocket %v", tt.volume, got, tt.cat, tt.socket)
+		}
+	}
 }

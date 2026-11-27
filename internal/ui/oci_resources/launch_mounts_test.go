@@ -215,7 +215,6 @@ func forEachLaunchEngine(t *testing.T, fn func(t *testing.T, name string)) {
 // ── Criterion 1: a sensitive path asks first ─────────────────────────────────
 
 var sensitivePathCases = []struct{ name, volumes string }{
-	{"the root", "/:/host:ro"},
 	{"/etc", "/etc:/host-etc:ro"},
 	{"under /etc", "/etc/ssl/certs:/certs"},
 	{"HOME", "{home}:/h"},
@@ -439,6 +438,9 @@ var engineSocketCases = []struct {
 	{"the rootless podman socket", "{xdg}/podman/podman.sock:/x", ""},
 	{"the socket of DOCKER_HOST", "{host}/engine.sock:/x", "unix://{host}/engine.sock"},
 	{"docker.sock through --mount", "type=bind,source=/var/run/docker.sock,target=/var/run/docker.sock", ""},
+	// The root holds every socket: it asks for the named choice too (OC-20 re-review).
+	{"the root", "/:/host:ro", ""},
+	{"the root through --mount", "type=bind,source=/,target=/host", ""},
 }
 
 // socketRig also resolves the {xdg} and {host} placeholders of a socket case.

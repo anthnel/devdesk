@@ -327,8 +327,12 @@ Two things about the engine are worth knowing before changing this code:
   given (`TestLaunchContainerDoesNotSecondGuessASensitiveMount`): the confirmation
   is the form's.
   - **What is sensitive** (`MountCategory`), the source being equal to, under, or
-    an ancestor of it: `root` (`/`, and `/proc/<pid>/root` or `/proc/<pid>/cwd`,
-    `self` and `thread-self` included, with what is under them),
+    an ancestor of it: `root` (`/`, and `/proc` with everything under it: the root
+    and the working directory of any process, `/proc/<pid>/root` of PID 1 being the
+    host's, are reached through it). **`root` also sets `EngineSocket`**: it holds
+    every engine socket, so mounting `/` (or `/proc`) gets the named choice, the
+    Error footer and the engine-socket text, like `/var`; the other categories keep
+    their own, a socket under `/etc` or `~/.ssh` included,
     `system-config` (`/etc`), `home` (`$HOME` itself, not what is under it),
     `ssh` (`~/.ssh`), `devdesk` (`~/.devdesk`), and `engine-socket`: the Docker,
     Podman and containerd sockets at their usual places (`/var/run/docker.sock`,
@@ -367,7 +371,14 @@ Two things about the engine are worth knowing before changing this code:
     path when it starts with `/`, `.` or `~` (the Docker CLI makes any
     `.`-prefixed source absolute, so `.ssh` is `./.ssh`); a named volume, an
     anonymous volume (`/etc` alone), `type=tmpfs`, a device that is not a path and a
-    value with no bind type are not checked. A leading `~` (alone or `~/`) is expanded
+    value with no bind type are not checked. **A glob** (`type=glob`, Podman) is
+    expanded with `filepath.Glob` and each match classified, the first sensitive
+    one reported (`/e?c` is `/etc`, `/home/*/.ssh` is the `.ssh` of each home). When
+    it matches nothing, is not a valid pattern or matches more than 1000 paths, the
+    directory of its literal prefix is classified instead (`/etc/zz*` is `/etc`;
+    `/` is never classified for a wildcard in the first component), and a pattern
+    that could not be expanded and says nothing sensitive is `unverified`. A
+    `type=bind` source is never a pattern. A leading `~` (alone or `~/`) is expanded
     with `HOME` although the engine would not do it (the hint is read the way it
     was meant); with `HOME` unset or not absolute it is not expanded and flags
     nothing. A relative source is taken from DevDesk's working directory.
@@ -428,7 +439,18 @@ Two things about the engine are worth knowing before changing this code:
     engine resolves differently from the file system DevDesk sees (a remote
     engine: `DOCKER_HOST` over `tcp://` or `ssh://`: the paths are the remote
     host's, and the check reads this machine's). A bind-mounted parent that holds
-    no known sensitive path by name is not flagged.
+    no known sensitive path by name is not flagged. A glob only sees what
+    `filepath.Glob` lists: a directory it cannot read is skipped, not reported.
+    **Follow-up story** (not in OC-20): the classification runs in `Update`, and
+    reads the file system synchronously (a hung NFS or autofs mount, or
+    `user.Current()`, would freeze the view): to move into a `Cmd` with a timeout;
+    an unknown socket (an ssh-agent outside `~/.ssh`) gets the engine reason, a
+    distinct one is wanted; and the paths outside the perimeter, `~/.docker`,
+    `~/.kube`, `~/.gnupg`, `/var/lib/docker`, `/dev` and `/sys`, are not flagged.
+    A typed path is drawn through `printable` (control, format, and the line
+    separators U+2028 and U+2029 become `?`), and wrapped without any indentation
+    (`wrapPath`), so that a space of the path at the start of a wrapped line is not
+    taken for the layout of the modal; the reason of each mount is the indented line.
     Tests: `internal/docker/launch_mounts_test.go`,
     `internal/docker/launch_mounts_argv_test.go`,
     `internal/ui/oci_resources/launch_mounts_test.go`.
