@@ -28,6 +28,10 @@ type dockerCmd struct {
 	// this package makes that `K` is offered on (jobs.KindPull.Cancellable).
 	// A nil Ctx builds exactly the command it built before.
 	Ctx context.Context
+	// Env is the whole environment of the child when non-nil (os/exec's
+	// Cmd.Env); nil leaves it the environment of DevDesk. A launch sets it to
+	// carry the values of `-e NAME` without putting them in argv (OC-14).
+	Env []string
 }
 
 // dockerRunner is the seam every CLI invocation in this package passes through.
@@ -89,6 +93,9 @@ func (cliRunner) Run(dc dockerCmd) ([]byte, error) {
 	cmd := exec.Command(name, dc.Args...) //nolint:gosec // helper name comes from the engine's own auth file
 	if dc.Ctx != nil {
 		cmd = exec.CommandContext(dc.Ctx, name, dc.Args...) //nolint:gosec // same argument as above
+	}
+	if dc.Env != nil {
+		cmd.Env = dc.Env
 	}
 	if dc.Stdin != "" {
 		cmd.Stdin = strings.NewReader(dc.Stdin)

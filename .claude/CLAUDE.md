@@ -330,6 +330,15 @@ browser and MCP `image_pull_start`, via `ImagePullRequestedMsg`) and `G` (`updat
 a `[]string{"git", "pull"}` or the two-word `"--pull", "never"` is reported (words, not programs), and a verb from a variable, an argv built word by word, a shell line and a function value are
 not seen. See `docs/architecture/network.md`, "Guard G8".
 
+**Tests and launch environment values (DEVDESK-812, OC-14, S9).** A value typed in the launch form never enters argv:
+`buildLaunchArgs` emits `-e NAME`, and `LaunchContainer` / `BuildLaunchCmd` give the child `os.Environ()` plus the typed
+entries (`dockerCmd.Env`, `cmd.Env`). A test of a launch asserts the argv with `fakecli` (`Invocation.Args`) **and** the
+child's environment (`Invocation.Env`), on both engines, never `-e KEY=VALUE`; an entry with no `=` or a name `docker.ValidEnvName`
+refuses makes both functions return `docker.ErrInvalidLaunchEnv` and start nothing (`internal/docker/launch_env_test.go`; the
+form half is `internal/ui/oci_resources/launch_env_test.go`). A launch log line takes `docker.LaunchLogText(err)`, never the engine's
+output. Still open: the preview and `ctrl+y` (OC-16), the cache (OC-17), the reserved names (OC-15). See
+`docs/architecture/network.md`, "A launch passes environment values to the child".
+
 **Tests and engine contracts (DEVDESK-806, OC-09a1).** A contract is a `TestContract*` function of a
 `*_contract_test.go` file of the package it contracts (today `internal/docker/engine_contract_test.go`); it reaches a real
 docker or podman, outside CI, in the test VMs: `DEVDESK_ENGINE_CONTRACT=1 mise run engine-contract -- <docker|podman> <n|n1>

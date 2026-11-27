@@ -3,6 +3,7 @@ package ociresources
 import (
 	"fmt"
 	"path/filepath"
+	"slices"
 	"strconv"
 	"strings"
 
@@ -441,6 +442,7 @@ func (f *LaunchForm) updateActiveInput(msg tea.Msg) (*LaunchForm, tea.Cmd) {
 		}
 	case f.focusedField == f.fieldEnv():
 		f.envInput, cmd = f.envInput.Update(msg)
+		f.revalidate()
 	case f.focusedField == f.fieldVolumes():
 		f.volInput, cmd = f.volInput.Update(msg)
 	case f.focusedField == f.fieldUser():
@@ -502,8 +504,37 @@ func validHostPort(s string) bool {
 	return ok
 }
 
+// envKey is the validation key of the Environment field.
+const envKey = "env"
+
+// envEntryValid reports whether one Environment entry (trimmed, not blank) is
+// NAME=VALUE with a name docker.ValidEnvName accepts and a value. An empty value
+// is refused: a variable left empty is almost always one that was not filled in,
+// and a bare `-e NAME` would make the engine copy DevDesk's own variable (OC-14).
+// The launcher accepts `NAME=` itself (docker.LaunchContainer); only the form
+// asks for a value. A value holding a comma cannot be typed: the field is split
+// on commas.
+func envEntryValid(entry string) bool {
+	name, value, ok := strings.Cut(entry, "=")
+	return ok && value != "" && docker.ValidEnvName(name)
+}
+
+// envEntries returns the non-blank, trimmed entries of the Environment field.
+func (f *LaunchForm) envEntries() []string {
+	var entries []string
+	for e := range strings.SplitSeq(f.envInput.Value(), ",") {
+		if e = strings.TrimSpace(e); e != "" {
+			entries = append(entries, e)
+		}
+	}
+	return entries
+}
+
 // validate returns the invalid host ports of the ticked EXPOSE ports, in
-// display order. Additional ports and Environment stay free-form.
+// display order, then the Environment field when an entry is not NAME=VALUE.
+// Additional ports stay free-form. Nothing runs at opening or on ApplyCached: a
+// name restored from the cache with no value is refused at the submit only.
+// The text never repeats what was typed: a value may be a secret.
 func (f *LaunchForm) validate() []sharedcomponents.FieldError {
 	var errs []sharedcomponents.FieldError
 	for i := range f.ports {
@@ -513,6 +544,12 @@ func (f *LaunchForm) validate() []sharedcomponents.FieldError {
 				Text: "Host port for " + f.ports[i].containerPort + " must be a number between 1 and 65535",
 			})
 		}
+	}
+	if slices.ContainsFunc(f.envEntries(), func(e string) bool { return !envEntryValid(e) }) {
+		errs = append(errs, sharedcomponents.FieldError{
+			Key:  envKey,
+			Text: "Each environment variable needs a valid name and a value",
+		})
 	}
 	return errs
 }
@@ -524,12 +561,13 @@ func (f *LaunchForm) revalidate() {
 	f.applyInvalid()
 }
 
-// applyInvalid underlines the host ports that currently fail validation,
-// restyling only those whose state changed.
+// applyInvalid underlines the host ports and the Environment field that
+// currently fail validation, restyling only those whose state changed.
 func (f *LaunchForm) applyInvalid() {
 	for i := range f.ports {
 		f.marks.Sync(portKey(i), &f.ports[i].hostPortInput, f.validation.Invalid(portKey(i)))
 	}
+	f.marks.Sync(envKey, &f.envInput, f.validation.Invalid(envKey))
 }
 
 // ValidationStatus is the footer line for the form, derived on every call (no
@@ -585,12 +623,8 @@ func (f *LaunchForm) submit() (*LaunchForm, tea.Cmd) {
 			opts.Ports = append(opts.Ports, p)
 		}
 	}
-	// Env vars: comma-separated KEY=VALUE entries
-	for e := range strings.SplitSeq(f.envInput.Value(), ",") {
-		if e = strings.TrimSpace(e); e != "" {
-			opts.Env = append(opts.Env, e)
-		}
-	}
+	// Env vars: comma-separated NAME=VALUE entries, validated above
+	opts.Env = f.envEntries()
 	// Volume mounts: comma-separated vol:/path entries
 	for v := range strings.SplitSeq(f.volInput.Value(), ",") {
 		if v = strings.TrimSpace(v); v != "" {

@@ -141,16 +141,17 @@ func TestLaunchFormTickingAnInvalidPortRevalidates(t *testing.T) {
 	}
 }
 
-func TestLaunchFormAdditionalPortsAndEnvironmentAreNeverRefused(t *testing.T) {
+// Environment stopped being free-form with OC-14 (launch_env_test.go): a name
+// with no value, or an invalid name, is refused.
+func TestLaunchFormAdditionalPortsAreNeverRefused(t *testing.T) {
 	f := newValidationForm()
 	f.extraPortsInput.SetValue("not a port, 99999:abc")
-	f.envInput.SetValue("%%%, =, 1BAD")
 	f, submitted := submitLaunch(f)
 	if !submitted {
-		t.Error("free-form Additional ports / Environment values were refused")
+		t.Error("free-form Additional ports values were refused")
 	}
 	if strings.Contains(f.View(), curlyUnderline) || footerStatus(f).Text != "" {
-		t.Error("Additional ports / Environment are flagged invalid")
+		t.Error("Additional ports are flagged invalid")
 	}
 }
 
