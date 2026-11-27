@@ -107,7 +107,9 @@ Usage: `contract.sh verify <docker|podman> <n|n1> [--mode rootful|rootless] [--n
   the multi-arch index; the date and the source are in the comment, trust on first use like the other sums) is the
   only image the contracts start. After the reset `contract.sh` pulls it into the VM, once, as the user of the mode
   (`vm_as_mode`); this script is the only place anything is pulled, the contracts run with `--pull=never` and the Go
-  code never pulls. The contracts get it as `DEVDESK_ENGINE_CONTRACT_IMAGE`. Bumping it means reading the digest of
+  code never pulls. The script requires exactly `docker.io/library/alpine@sha256:<64 hex>` (and fails
+  at once otherwise); the contracts get it as `DEVDESK_ENGINE_CONTRACT_IMAGE`, and their Go side accepts any
+  `repository@sha256:<64 hex>`. Bumping it means reading the digest of
   the new index again from the registry and updating the comment.
 - **The lab mark.** A contract that creates or removes a resource refuses to run unless
   `DEVDESK_ENGINE_CONTRACT_RUN` is set (the script sets it) and `/etc/dd/current` exists and holds `n` or `n1`:
@@ -117,7 +119,12 @@ Usage: `contract.sh verify <docker|podman> <n|n1> [--mode rootful|rootless] [--n
   store the contracts use (the user's for rootless podman, root's otherwise). The contracts label what they create
   with `devdesk.test=<run>` and remove only that. When they are done, pass or fail, the script inspects the sentinel:
   if it is gone the cleanup touched something without the label, and the run fails with that message. It then removes
-  the sentinel by its id. It removes nothing else in the engine, and never prunes.
+  the sentinel by its id. It removes nothing else in the engine, and never prunes. If the engine does not answer after
+  the contracts the failure says so, instead of blaming the cleanup; if the sentinel's creation printed no id, the
+  script removes it by name before it stops. The sentinel is a container only: no sentinel network or volume.
+- **The engine of the shell.** A contract run by hand refuses `DOCKER_HOST`, `DOCKER_CONTEXT`, `CONTAINER_HOST` and
+  `CONTAINER_CONNECTION`; the contracts of `contract.sh` run under `env -i`. The current context of
+  `~/.docker/config.json` and podman's system connections are not checked.
 - **Mode.** Docker is rootful only (`--mode rootless` with docker is refused). Podman defaults to rootless, the
   mode the user `dd` runs; `--mode rootful` runs it as root. Rootless runs go through the user session of `dd`.
 - **Acts on the Incus host** (`DD_ENGINE_VMS_HOST`, `DD_ENGINE_VMS_PROJECT`, as above): never run it against a host

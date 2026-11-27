@@ -24,7 +24,8 @@ var bannerOnce sync.Once
 // first (guard G5). In order: the gate (a closed gate skips t, a refusal fails
 // it, and nothing has touched the engine yet), engineguard.AllowRealEngine (the
 // same gate checked a second time, independently, which also lets the guard G1
-// pass this test's reaches for its length), the run id, the probe (a failure is
+// pass this test's reaches for its length), the check that no variable points
+// the engine elsewhere (CheckEngineEnv), the run id, the probe (a failure is
 // fatal: the engine does not answer), the version check (recording: a version
 // outside N and N-1 is fatal; verifying: skipped, no fixture can exist for it),
 // then the banner, in t.Logf and once per process on stderr.
@@ -38,6 +39,9 @@ func Require(t testing.TB, probe Probe) *Session {
 		t.Fatal(d.Refuse)
 	}
 	engineguard.AllowRealEngine(t)
+	if err := CheckEngineEnv(os.Getenv); err != nil {
+		t.Fatal(err)
+	}
 
 	runID, err := ProcessRunID(os.Getenv)
 	if err != nil {

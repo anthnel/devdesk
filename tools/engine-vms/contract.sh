@@ -71,6 +71,11 @@ fi
 . "$(dirname "${BASH_SOURCE[0]}")/lib.sh"
 root=$(cd "$DD_DIR/../.." && pwd)
 
+# The one image of the contracts is alpine from Docker Hub, pinned by the digest of its index: nothing else
+# is started, and nothing that moves. Checked before anything is built or sent to the VM.
+[[ ${CONTRACT_IMAGE:-} =~ ^docker\.io/library/alpine@sha256:[0-9a-f]{64}$ ]] ||
+  die "CONTRACT_IMAGE in versions.env must be docker.io/library/alpine@sha256:<64 hex>, it is '${CONTRACT_IMAGE:-}'"
+
 # Same shape as NewRunID in enginecontract: the day in UTC, then four random bytes.
 run=$(date -u +%Y%m%d)-$(od -An -N4 -tx1 /dev/urandom | tr -d ' \n')
 vmdir=/tmp/ddc-$run
@@ -131,8 +136,15 @@ vm_as_mode "$engine" pull "$CONTRACT_IMAGE" >/dev/null
 
 # The sentinel: a container created without the label, the negative control of the cleanup. It is
 # checked after the contracts and must still be there.
-sentinel=$(vm_as_mode "$engine" run -d --pull=never --name "ddc-sentinel-$run" "$CONTRACT_IMAGE" sleep 3600)
-[[ $sentinel =~ ^[0-9a-f]{12,64}$ ]] || die "the sentinel was not created: $engine printed ${sentinel:-nothing}"
+sentinel=$(vm_as_mode "$engine" run -d --pull=never --name "ddc-sentinel-$run" "$CONTRACT_IMAGE" sleep 3600) || sentinel=""
+if [[ ! $sentinel =~ ^[0-9a-f]{12,64}$ ]]; then
+  # The engine may have made the container all the same: remove it by its name before giving up.
+  printed=$sentinel
+  sentinel="ddc-sentinel-$run"
+  vm_as_mode "$engine" rm -f "$sentinel" >/dev/null 2>&1 || true
+  sentinel=""
+  die "the sentinel was not created: $engine printed ${printed:-nothing}"
+fi
 
 # Explicit environment: nothing of the VM's own (a CI variable, a proxy) reaches a contract.
 vars=(
@@ -161,7 +173,13 @@ done
 # The sentinel check. Whatever the contracts did, it comes next: nothing between them and it can leave
 # the script, so a failed run still says whether the cleanup stayed within its label.
 if ! vm_as_mode "$engine" inspect "$sentinel" >/dev/null 2>&1; then
-  log "engine-contract: FAILED: the cleanup touched a container without the label (sentinel $sentinel, run $run)"
+  # Two different failures: the engine does not answer (the sentinel could not be checked), or it answers
+  # and the sentinel is not there (the cleanup went beyond its label).
+  if vm_as_mode "$engine" version >/dev/null 2>&1; then
+    log "engine-contract: FAILED: the cleanup touched a container without the label (sentinel $sentinel, run $run)"
+  else
+    log "engine-contract: FAILED: $engine did not answer after the contracts, the sentinel $sentinel could not be checked (run $run)"
+  fi
   status=1
 fi
 vm_as_mode "$engine" rm -f "$sentinel" >/dev/null 2>&1 || true

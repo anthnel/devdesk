@@ -130,6 +130,10 @@ func (c *contract) container(role string, cmd ...string) string {
 		c.t.Fatalf("%s is empty: contract.sh sets it from CONTRACT_IMAGE in tools/engine-vms/versions.env, "+
 			"and a contract never pulls an image", enginecontract.ImageEnv)
 	}
+	if !enginecontract.ValidImage(image) {
+		c.t.Fatalf("%s=%q is not a repository pinned by digest (repository@sha256:<64 hex>): a tag moves, and a contract never pulls",
+			enginecontract.ImageEnv, image)
+	}
 	if len(cmd) == 0 {
 		cmd = []string{"sleep", "600"}
 	}
@@ -536,28 +540,49 @@ func parseEngineMode(tool enginefixture.Tool, out string) (enginefixture.Mode, e
 
 // contractArgvRule is the allow list of what a contract may ask the engine. It is
 // pure: runID and the ours callback (what the contract created, or listed and
-// verified) are all it knows. A verb it does not know is refused, so a new one is
-// added here, with its reason, rather than worked around.
+// verified) are all it knows. A verb or an option it does not know is refused, so a
+// new one is added here, with its reason, rather than worked around.
 //
 //   - Reads are allowed on anything: the cleanup inspects candidates it does not
 //     own yet, to find out whose they are.
-//   - A creation (run, create, volume create, network create, pod create) must
-//     carry the exact label of the run; run and create must also say --pull=never.
+//   - A creation is checked option by option against an allow list, up to the image
+//     (the words after it are the container's command and are not read):
+//     run and create take -d/--detach, --rm, --name (which must start with
+//     ddc-<run>-), --label (one must be exactly the label of the run), --pull
+//     (every one never, at least one), -e/--env KEY=value, --network (the default
+//     bridge, none, or a network of this run), -v/--volume (a named volume of this run,
+//     never a path), --entrypoint, -u/--user and -w/--workdir. Everything else is
+//     refused, and the ones that would reach the host name their reason:
+//     --privileged, --replace, --mount, --cap-add, --device, --security-opt, --pid,
+//     --ipc, --uts, --userns, --volumes-from, --env-file. volume create and network
+//     create take only --label and one name that starts with ddc-<run>-. pod create is
+//     refused: no cleanup of pods exists.
 //   - Destruction and state changes (rm, kill, stop, start, restart, pause,
 //     unpause, volume rm, network rm, network connect and disconnect) may name only
-//     resources of this run, by exact reference. -a, --all, --latest, --filter and
-//     --cidfile are refused: they pick targets the rule cannot see.
+//     resources of this run, by exact reference, and take only the options of the
+//     verb: rm -f, -v, -t; stop and kill -t and -s; restart -t; volume rm, network rm,
+//     start, pause, unpause, connect and disconnect none (so no --force, --all,
+//     --latest, --filter, --depend or --cidfile).
 //   - Refused as a whole: every prune (a prune acts on the whole store; OC-09b may
 //     allow one under a precondition), system, pull, push, load, import, build,
 //     commit, tag, login, logout, exec, cp, save, export, and rmi (an image is never
 //     made by a contract, contract.sh pulls the one it uses).
+//   - The options that point the CLI at another engine or store (--url, --connection,
+//     --remote, --root, --runroot, --storage-driver, --host, -H, --context) are
+//     refused at any position of the argv.
 //
-// Limit: a --label that sits after the image of a `run` is seen as the label of
-// the run, though the engine would pass it to the container's command.
+// Limit: the options of the other verbs (a read) are not checked, and an option
+// value that is a secret is not recognised: a contract passes none.
 func contractArgvRule(runID string, ours func(ref string) bool) func(argv []string) error {
 	return func(argv []string) error {
 		if len(argv) == 0 || strings.HasPrefix(argv[0], "-") {
 			return errUnknownVerb(argv)
+		}
+		for _, a := range argv[1:] {
+			if g := globalOption(a); g != "" {
+				return fmt.Errorf("%s is refused at any position: it would send the call to another engine or store; "+
+					"contractArgvRule never allows it", a)
+			}
 		}
 		verb, rest := argv[0], argv[1:]
 		switch verb {
@@ -566,6 +591,20 @@ func contractArgvRule(runID string, ours func(ref string) bool) func(argv []stri
 		}
 		return checkVerbArgv(runID, ours, verb, rest)
 	}
+}
+
+// globalEngineOptions point the CLI at another engine, connection, store or root.
+var globalEngineOptions = []string{"--url", "--connection", "--remote", "--root", "--runroot", "--storage-driver", "--host", "-H", "--context"}
+
+// globalOption returns the option of globalEngineOptions that arg is, as `--host
+// x`, `--host=x` or `-Hx`, or "".
+func globalOption(arg string) string {
+	for _, g := range globalEngineOptions {
+		if arg == g || strings.HasPrefix(arg, g+"=") || (g == "-H" && strings.HasPrefix(arg, g)) {
+			return g
+		}
+	}
+	return ""
 }
 
 // errUnknownVerb is the refusal of an argv the rule has no entry for.
@@ -633,24 +672,22 @@ func checkGroupArgv(runID string, ours func(string) bool, group string, rest []s
 		case "ls", "inspect":
 			return nil
 		case "create":
-			return checkCreateArgv(runID, group+" "+sub, args, false)
+			return checkNamedCreateArgv(runID, "volume create", args)
 		case "rm":
-			return checkTargetsArgv(ours, group+" "+sub, args, false)
+			return checkTargetsArgv(ours, "volume rm", args, false)
 		}
 	case "network":
 		switch sub {
 		case "ls", "inspect":
 			return nil
 		case "create":
-			return checkCreateArgv(runID, group+" "+sub, args, false)
-		case "rm":
-			return checkTargetsArgv(ours, group+" "+sub, args, false)
-		case "connect", "disconnect":
-			return checkTargetsArgv(ours, group+" "+sub, args, true)
+			return checkNamedCreateArgv(runID, "network create", args)
+		case "rm", "connect", "disconnect":
+			return checkTargetsArgv(ours, "network "+sub, args, sub != "rm")
 		}
 	case "pod":
 		if sub == "create" {
-			return checkCreateArgv(runID, group+" "+sub, args, false)
+			return errors.New("pod create is refused: no cleanup of pods exists, so a pod a contract made would stay in the store")
 		}
 	}
 	return errUnknownVerb(append([]string{group, sub}, args...))
@@ -670,7 +707,7 @@ func checkVerbArgv(runID string, ours func(string) bool, verb string, args []str
 		}
 		return nil
 	case "run", "create":
-		return checkCreateArgv(runID, verb, args, true)
+		return checkRunArgv(runID, ours, verb, args)
 	case "rm", "kill", "stop", "start", "restart", "pause", "unpause":
 		return checkTargetsArgv(ours, verb, args, false)
 	case "rmi":
@@ -683,75 +720,214 @@ func errImagesAreNeverOurs(args []string) error {
 	return fmt.Errorf("rmi %s is refused: a contract never makes an image, contract.sh pulls the one it uses", strings.Join(args, " "))
 }
 
-// checkCreateArgv requires the label of the run on a creation and, when needPull,
-// --pull=never on every --pull the argv carries (and at least one).
-func checkCreateArgv(runID, verb string, args []string, needPull bool) error {
-	want := enginecontract.Label(runID)
-	if !hasLabelArg(args, want) {
-		return fmt.Errorf("%s without the label %s: every resource of a contract carries the label of its run", verb, want)
+// optSpec is the options a verb accepts: the ones without a value and the ones
+// with one, spelled as they appear (`-f`, `--force`).
+type optSpec struct {
+	bools  []string
+	valued []string
+}
+
+// option is one parsed option; value is "" for an option without one.
+type option struct{ name, value string }
+
+// dangerousOptions are refused with their reason; any other option that is not in
+// the spec is refused as not listed.
+var dangerousOptions = map[string]string{
+	"--privileged":   "it gives the container the capabilities and devices of the host",
+	"--replace":      "it removes an existing container of the same name, which may not be of this run",
+	"--mount":        "it can bind a path of the host, the engine socket included",
+	"--cap-add":      "it widens the capabilities of the container",
+	"--device":       "it gives the container a device of the host",
+	"--security-opt": "it relaxes the confinement of the container",
+	"--pid":          "it can join a namespace of the host",
+	"--ipc":          "it can join a namespace of the host",
+	"--uts":          "it can join a namespace of the host",
+	"--userns":       "it can join a namespace of the host",
+	"--volumes-from": "it mounts what another container mounts",
+	"--env-file":     "it reads a file of the host",
+	"--all":          "it picks its targets where the rule cannot see them",
+	"--latest":       "it picks its targets where the rule cannot see them",
+	"--filter":       "it picks its targets where the rule cannot see them",
+	"--cidfile":      "it reads its targets from a file",
+	"--depend":       "it removes what depends on the target",
+	"--force":        "",
+	"-a":             "it picks its targets where the rule cannot see them",
+	"-l":             "it picks its targets where the rule cannot see them",
+}
+
+// errOption is the refusal of an option a verb does not allow.
+func errOption(verb, arg string) error {
+	name, _, _ := strings.Cut(arg, "=")
+	if reason := dangerousOptions[name]; reason != "" {
+		return fmt.Errorf("%s %s is refused: %s (contractArgvRule)", verb, arg, reason)
 	}
-	if needPull && !pullsNever(args) {
+	return fmt.Errorf("%s option %s is not in the allow list of contractArgvRule "+
+		"(internal/docker/contract_support_test.go): add it there with its reason", verb, arg)
+}
+
+// parseOptions splits args into the options spec allows and the positional words.
+// With stopAtFirst, the first positional word ends the options and everything after
+// it is returned as positional (run and create: the image, then its command).
+func parseOptions(verb string, args []string, spec optSpec, stopAtFirst bool) ([]option, []string, error) {
+	var opts []option
+	var positional []string
+	for i := 0; i < len(args); i++ {
+		a := args[i]
+		if !strings.HasPrefix(a, "-") || a == "-" {
+			if stopAtFirst {
+				return opts, args[i:], nil
+			}
+			positional = append(positional, a)
+			continue
+		}
+		name, value, hasValue := a, "", false
+		if strings.HasPrefix(a, "--") {
+			name, value, hasValue = strings.Cut(a, "=")
+		}
+		switch {
+		case slices.Contains(spec.valued, name):
+			if !hasValue {
+				if i+1 >= len(args) {
+					return nil, nil, fmt.Errorf("%s option %s has no value", verb, a)
+				}
+				i++
+				value = args[i]
+			}
+			opts = append(opts, option{name, value})
+		case slices.Contains(spec.bools, name) && !hasValue:
+			opts = append(opts, option{name: name})
+		case !strings.HasPrefix(a, "--") && len(a) > 2 && groupOf(a, spec.bools):
+			for _, c := range a[1:] {
+				opts = append(opts, option{name: "-" + string(c)})
+			}
+		default:
+			return nil, nil, errOption(verb, a)
+		}
+	}
+	return opts, positional, nil
+}
+
+// groupOf reports whether arg is a group of short options without values, `-fv`.
+func groupOf(arg string, bools []string) bool {
+	for _, c := range arg[1:] {
+		if !slices.Contains(bools, "-"+string(c)) {
+			return false
+		}
+	}
+	return true
+}
+
+var (
+	runSpec = optSpec{
+		bools: []string{"-d", "--detach", "--rm"},
+		valued: []string{"--name", "--label", "-l", "--pull", "-e", "--env", "--network", "--net",
+			"-v", "--volume", "--entrypoint", "-u", "--user", "-w", "--workdir"},
+	}
+	namedCreateSpec = optSpec{valued: []string{"--label"}}
+	// destructiveSpecs are the options of each destructive verb. Nothing else: a
+	// --force, --all or --depend changes what the verb reaches.
+	destructiveSpecs = map[string]optSpec{
+		"rm":                 {bools: []string{"-f", "--force", "-v", "--volumes"}, valued: []string{"-t", "--time"}},
+		"stop":               {valued: []string{"-t", "--time", "-s", "--signal"}},
+		"kill":               {valued: []string{"-t", "--time", "-s", "--signal"}},
+		"restart":            {valued: []string{"-t", "--time"}},
+		"start":              {},
+		"pause":              {},
+		"unpause":            {},
+		"volume rm":          {},
+		"network rm":         {},
+		"network connect":    {},
+		"network disconnect": {},
+	}
+	// defaultNetworks are the networks of the engines a contract may join: no
+	// network of the host.
+	defaultNetworks = []string{"bridge", "none", "podman"}
+)
+
+// checkRunArgv checks a run or create: the options (see contractArgvRule) up to
+// the image, and the image itself.
+func checkRunArgv(runID string, ours func(string) bool, verb string, args []string) error {
+	opts, positional, err := parseOptions(verb, args, runSpec, true)
+	if err != nil {
+		return err
+	}
+	prefix := enginecontract.NamePrefix + runID + "-"
+	label, pulls, never := false, 0, 0
+	for _, o := range opts {
+		switch o.name {
+		case "--name":
+			if !strings.HasPrefix(o.value, prefix) {
+				return fmt.Errorf("%s --name %s: a name must start with %s, so a name of another run cannot be reused", verb, o.value, prefix)
+			}
+		case "--label", "-l":
+			label = label || o.value == enginecontract.Label(runID)
+		case "--pull":
+			pulls++
+			if o.value == "never" {
+				never++
+			}
+		case "-e", "--env":
+			if key, _, ok := strings.Cut(o.value, "="); !ok || key == "" {
+				return fmt.Errorf("%s %s %s: an environment variable needs an explicit KEY=value, a bare name would pass the host's", verb, o.name, o.value)
+			}
+		case "--network", "--net":
+			if !slices.Contains(defaultNetworks, o.value) && !ours(o.value) {
+				return fmt.Errorf("%s %s %s: a contract joins a default network or a network of this run, not the host's or another's", verb, o.name, o.value)
+			}
+		case "-v", "--volume":
+			if err := checkVolumeArg(verb, o.value, ours); err != nil {
+				return err
+			}
+		}
+	}
+	if !label {
+		return fmt.Errorf("%s without the label %s: every resource of a contract carries the label of its run", verb, enginecontract.Label(runID))
+	}
+	if pulls == 0 || never != pulls {
 		return fmt.Errorf("%s without --pull=never: a contract never pulls, contract.sh pulls the image", verb)
+	}
+	if len(positional) == 0 {
+		return fmt.Errorf("%s names no image", verb)
 	}
 	return nil
 }
 
-// hasLabelArg reports whether args hold the exact label, as `--label X`,
-// `--label=X` or `-l X`.
-func hasLabelArg(args []string, want string) bool {
-	for i, a := range args {
-		switch {
-		case a == "--label="+want:
-			return true
-		case (a == "--label" || a == "-l") && i+1 < len(args) && args[i+1] == want:
-			return true
-		}
+// checkVolumeArg accepts `-v name:/path[:options]` where name is a volume of this
+// run; a path (a bind mount, the engine socket included) and an anonymous volume
+// are refused.
+func checkVolumeArg(verb, value string, ours func(string) bool) error {
+	source, _, ok := strings.Cut(value, ":")
+	if !ok || !IsVolumeName(source) || !ours(source) {
+		return fmt.Errorf("%s -v %s: a contract mounts only a named volume of its run, never a path of the host", verb, value)
 	}
-	return false
+	return nil
 }
 
-// pullsNever reports whether every --pull of args says never, and there is one.
-func pullsNever(args []string) bool {
-	found := false
-	for i, a := range args {
-		var value string
-		switch {
-		case strings.HasPrefix(a, "--pull="):
-			value = strings.TrimPrefix(a, "--pull=")
-		case a == "--pull" && i+1 < len(args):
-			value = args[i+1]
-		default:
-			continue
-		}
-		if value != "never" {
-			return false
-		}
-		found = true
+// checkNamedCreateArgv checks a volume create or a network create: the label of the
+// run, one name that starts with ddc-<run>-, and no other option.
+func checkNamedCreateArgv(runID, verb string, args []string) error {
+	opts, positional, err := parseOptions(verb, args, namedCreateSpec, false)
+	if err != nil {
+		return err
 	}
-	return found
+	if !slices.ContainsFunc(opts, func(o option) bool { return o.value == enginecontract.Label(runID) }) {
+		return fmt.Errorf("%s without the label %s: every resource of a contract carries the label of its run", verb, enginecontract.Label(runID))
+	}
+	prefix := enginecontract.NamePrefix + runID + "-"
+	if len(positional) != 1 || !strings.HasPrefix(positional[0], prefix) {
+		return fmt.Errorf("%s %q: want exactly one name, starting with %s", verb, positional, prefix)
+	}
+	return nil
 }
 
 // checkTargetsArgv requires that every target of a destructive verb be a resource
-// of the run. With lastOnly (network connect and disconnect) only the last
-// positional, the container, is checked: the network may be a built-in one.
+// of the run, and that its options be the ones of the verb. With lastOnly (network
+// connect and disconnect) only the last positional, the container, is checked: the
+// network may be a built-in one.
 func checkTargetsArgv(ours func(string) bool, verb string, args []string, lastOnly bool) error {
-	var targets []string
-	for i := 0; i < len(args); i++ {
-		a := args[i]
-		switch {
-		case a == "-t" || a == "--time" || a == "-s" || a == "--signal":
-			i++ // its value is not a target
-		case a == "--all" || a == "--latest" || strings.HasPrefix(a, "--filter") || strings.HasPrefix(a, "--cidfile"):
-			return fmt.Errorf("%s %s is refused: it picks its targets where the rule cannot see them", verb, a)
-		case strings.HasPrefix(a, "--"):
-			// another long option: --force, --volumes, --time=5
-		case strings.HasPrefix(a, "-"):
-			if strings.ContainsAny(a[1:], "al") {
-				return fmt.Errorf("%s %s is refused: -a and -l pick their targets where the rule cannot see them", verb, a)
-			}
-		default:
-			targets = append(targets, a)
-		}
+	_, targets, err := parseOptions(verb, args, destructiveSpecs[verb], false)
+	if err != nil {
+		return err
 	}
 	if lastOnly && len(targets) > 0 {
 		targets = targets[len(targets)-1:]

@@ -268,8 +268,9 @@ func TestArgvRule(t *testing.T) {
 		{"volume create without the label", words("volume create " + name("v1")), "label"},
 		{"network create with the label", words("network create --label " + label + " " + name("n1")), ""},
 		{"network create without the label", words("network create " + name("n1")), "label"},
-		{"pod create without the label", words("pod create --name p"), "label"},
-		{"pod create with the label", words("pod create --label " + label + " p"), ""},
+		// OC-09a2 hardening: no cleanup of pods exists, so a pod is refused, label or not.
+		{"pod create without the label", words("pod create --name p"), "pod create"},
+		{"pod create with the label", words("pod create --label " + label + " p"), "no cleanup of pods"},
 
 		// Destruction and state changes reach only what this run created.
 		{"rm -f of ours", words("rm -f " + idA), ""},

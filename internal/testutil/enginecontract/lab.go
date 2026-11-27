@@ -62,6 +62,16 @@ func SetLabMarkerForTest(t testing.TB, path string) {
 // Limit: root on a developer machine can create LabMarkerFile. The mark stops an
 // accident, not an adversary.
 func CheckLab(getenv func(string) string, readFile func(name string) ([]byte, error)) error {
+	return checkLab(getenv, LabMarkerFile, readFile)
+}
+
+// checkLab is CheckLab for the marker at path: the messages cite the path that was
+// read, and name LabMarkerFile as well when a test moved it.
+func checkLab(getenv func(string) string, path string, readFile func(name string) ([]byte, error)) error {
+	shown := path
+	if path != LabMarkerFile {
+		shown = fmt.Sprintf("%s (%s in a test VM)", path, LabMarkerFile)
+	}
 	var missing []string
 	switch run := getenv(RunEnv); {
 	case run == "":
@@ -69,15 +79,15 @@ func CheckLab(getenv func(string) string, readFile func(name string) ([]byte, er
 	case !ValidRunID(run):
 		missing = append(missing, fmt.Sprintf("%s=%q is not a valid run id", RunEnv, run))
 	}
-	data, err := readFile(LabMarkerFile)
+	data, err := readFile(path)
 	switch {
 	case errors.Is(err, os.ErrNotExist):
-		missing = append(missing, LabMarkerFile+" does not exist (dd-use.sh writes it in each test VM; this is not one)")
+		missing = append(missing, shown+" does not exist (dd-use.sh writes it in each test VM; this is not one)")
 	case err != nil:
-		missing = append(missing, fmt.Sprintf("%s cannot be read: %v", LabMarkerFile, err))
+		missing = append(missing, fmt.Sprintf("%s cannot be read: %v", shown, err))
 	default:
 		if line := strings.TrimSuffix(string(data), "\n"); line != "n" && line != "n1" {
-			missing = append(missing, fmt.Sprintf(`%s must hold exactly "n" or "n1" (the line of the VM), not %q`, LabMarkerFile, string(data)))
+			missing = append(missing, fmt.Sprintf(`%s must hold exactly "n" or "n1" (the line of the VM), not %q`, shown, string(data)))
 		}
 	}
 	if len(missing) == 0 {
@@ -93,8 +103,7 @@ func CheckLab(getenv func(string) string, readFile func(name string) ([]byte, er
 // creates or removes the least resource.
 func (s *Session) RequireLab(t testing.TB) {
 	t.Helper()
-	read := func(string) ([]byte, error) { return os.ReadFile(LabMarker()) }
-	if err := CheckLab(os.Getenv, read); err != nil {
+	if err := checkLab(os.Getenv, LabMarker(), os.ReadFile); err != nil {
 		t.Fatal(err)
 	}
 }
