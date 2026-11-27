@@ -1,0 +1,15 @@
+{
+  "tool_use_id": "toolu_01XzPzhEwTyXkTu6xA4AQiUz",
+  "agent_id": "aaed8e9cfea4c4c9b",
+  "subagent_type": "dev-team:security-reviewer",
+  "task_description": "Re-revue sécurité delta OC-20",
+  "token_usage": {
+    "input_tokens": 42,
+    "cache_creation_tokens": 132829,
+    "cache_read_tokens": 1976107,
+    "output_tokens": 22066,
+    "api_call_count": 20
+  },
+  "started_at": "2026-11-27T23:34:19.897835434+01:00",
+  "completed_at": "2026-11-27T23:38:06.972986551+01:00"
+}
