@@ -1,0 +1,49 @@
+{
+  "cli_version": "0.13.2",
+  "checkpoint_id": "9ea589ae9b6c",
+  "strategy": "manual-commit",
+  "branch": "feat/oc-05-engine-launch-guard",
+  "checkpoints_count": 4,
+  "files_touched": [
+    "docs/architecture/network.md",
+    "internal/engineguard/launch_guard_test.go"
+  ],
+  "sessions": [
+    {
+      "metadata": "/9e/a589ae9b6c/0/metadata.json",
+      "transcript": "/9e/a589ae9b6c/0/full.jsonl",
+      "compact_transcript": "/9e/a589ae9b6c/0/transcript.jsonl",
+      "content_hash": "/9e/a589ae9b6c/0/content_hash.txt",
+      "prompt": "/9e/a589ae9b6c/0/prompt.txt"
+    }
+  ],
+  "token_usage": {
+    "input_tokens": 50,
+    "cache_creation_tokens": 24058,
+    "cache_read_tokens": 3731726,
+    "output_tokens": 10045,
+    "api_call_count": 17,
+    "subagent_tokens": {
+      "input_tokens": 118,
+      "cache_creation_tokens": 362598,
+      "cache_read_tokens": 3593337,
+      "output_tokens": 56511,
+      "api_call_count": 57
+    },
+    "subagent_tokens_complete": true
+  },
+  "redaction": {
+    "replacements": 14,
+    "layers": {
+      "betterleaks": 0,
+      "connection_string": 0,
+      "credential_key": 0,
+      "credential_value": 0,
+      "credentialed_uri": 0,
+      "entropy": 0,
+      "key_context": 14,
+      "provider_token": 0,
+      "shell_stdin": 0
+    }
+  }
+}
