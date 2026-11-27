@@ -143,13 +143,101 @@ func TestAValueWithAnEqualsSignIsNotRepeated(t *testing.T) {
 	}
 }
 
-// Entries the form has not validated: the preview survives and repeats nothing
-// that a name could not be.
-func TestAnEntryWithAValidNameAndNoEqualsSignIsNamed(t *testing.T) {
-	f := envPreviewForm(120, " API_TOKEN ")
+// An entry with no "=" is never named, whatever it looks like: it may be a token
+// pasted into the field, and the launch refuses it. Only NAME=VALUE is named.
+func TestAnEntryWithNoEqualsSignIsNeverNamed(t *testing.T) {
+	for _, env := range []string{" API_TOKEN ", "API_TOKEN", "ghp_abcdef123456", "glpat-xxxxxxxxxxxx"} {
+		t.Run(env, func(t *testing.T) {
+			f := envPreviewForm(120, env)
 
-	if !hasLine(f.buildCommandLines(), "-e API_TOKEN") {
-		t.Errorf("the preview lacks the cleaned name:\n%s", strings.Join(f.buildCommandLines(), "\n"))
+			if !hasLine(f.buildCommandLines(), "-e <invalid>") {
+				t.Errorf("the preview lacks the marker:\n%s", strings.Join(f.buildCommandLines(), "\n"))
+			}
+			fragment := strings.TrimSpace(env)
+			for _, text := range []string{strings.Join(f.buildCommandLines(), "\n"), f.buildCommandString()} {
+				if strings.Contains(text, fragment) {
+					t.Errorf("preview or copy repeats %q: %q", fragment, text)
+				}
+			}
+		})
+	}
+}
+
+// An entry with an empty value (or only "=" after the name) is refused by the
+// form, so it is not named: a base64 token ends with "=" and its "name" would be
+// the token itself.
+func TestAnEntryWithAnEmptyValueIsNeverNamed(t *testing.T) {
+	for _, env := range []string{"abcdef==", "abcdef=", "API_TOKEN=", "API_TOKEN=="} {
+		t.Run(env, func(t *testing.T) {
+			f := envPreviewForm(120, env)
+
+			if !hasLine(f.buildCommandLines(), "-e <invalid>") {
+				t.Errorf("the preview lacks the marker:\n%s", strings.Join(f.buildCommandLines(), "\n"))
+			}
+			if got := f.buildCommandString(); strings.Contains(got, "abcdef") || strings.Contains(got, "API_TOKEN") {
+				t.Errorf("copy repeats the entry: %q", got)
+			}
+		})
+	}
+}
+
+// The preview names a variable only if the launch would accept the entry: the
+// name is not trimmed, as in the form's validation (one rule, envEntryName).
+func TestThePreviewAndTheValidationAgreeOnWhichEntriesAreNamed(t *testing.T) {
+	for _, entry := range []string{
+		"API_TOKEN=canary", "LOG_LEVEL=info", "API_TOKEN =canary", " =canary", "A B=c",
+		"API_TOKEN=", "API_TOKEN", "=x", "-A=x", "caf\u00e9=x", "A.B-C=x", "9A=x",
+	} {
+		t.Run(entry, func(t *testing.T) {
+			named := previewEnvName(entry) != invalidEnvMarker
+			if named != envEntryValid(entry) {
+				t.Errorf("preview names %q = %v, validation accepts it = %v", entry, named, envEntryValid(entry))
+			}
+		})
+	}
+	f := envPreviewForm(120, "API_TOKEN ="+previewCanary)
+	if strings.Contains(f.buildCommandString(), "-e API_TOKEN ") || strings.Contains(f.buildCommandString(), previewCanary) {
+		t.Errorf("a refused entry is named: %q", f.buildCommandString())
+	}
+}
+
+// Whatever is typed and is not NAME=VALUE leaves no fragment in the wide
+// preview, the copy or the footer after ctrl+y.
+func TestThePreviewRepeatsNothingOfEntriesTheFormHasNotValidated(t *testing.T) {
+	tests := []struct{ env, fragment string }{
+		{"ghp_abcdef123456", "ghp_abcdef"},
+		{"glpat-xxxxxxxxxxxx", "glpat"},
+		{"abcdef==", "abcdef"},
+		{"API_TOKEN", "API_TOKEN"},
+		{"API_TOKEN=", "API_TOKEN"},
+		{"API TOKEN=c", "API TOKEN"},
+		{"=x,,", "=x"},
+	}
+	withClipboard(t)
+	for _, tt := range tests {
+		t.Run(tt.env, func(t *testing.T) {
+			m := launchingModel(t)
+			m.launchForm.SetWidth(120)
+			setEnv(m.launchForm, tt.env)
+
+			if m.launchForm.buildCommandString() == "" || len(m.launchForm.commandPreviewLines()) == 0 {
+				t.Fatalf("no preview for Environment %q", tt.env)
+			}
+			m, cmd := step(t, m, testutil.Key("ctrl+y"))
+			m, _ = step(t, m, run(t, cmd))
+
+			texts := []string{
+				strings.Join(m.launchForm.buildCommandLines(), "\n"),
+				m.launchForm.buildCommandString(),
+				ansi.Strip(strings.Join(m.launchForm.commandPreviewLines(), "\n")),
+				m.footer.Text(),
+			}
+			for _, text := range texts {
+				if strings.Contains(text, tt.fragment) {
+					t.Errorf("%q repeats %q", text, tt.fragment)
+				}
+			}
+		})
 	}
 }
 
@@ -195,21 +283,6 @@ func TestAReservedNameIsNamedWithoutItsValue(t *testing.T) {
 	got := f.buildCommandString()
 	if !strings.Contains(" "+got+" ", " -e PATH ") || strings.Contains(got, previewCanary) {
 		t.Errorf("copy = %q, want -e PATH and no value", got)
-	}
-}
-
-func TestThePreviewRepeatsNothingOfEntriesTheFormHasNotValidated(t *testing.T) {
-	for _, env := range []string{"API_TOKEN", "=x", "API_TOKEN=", "A B=c", ",,", " , ", "="} {
-		t.Run(env, func(t *testing.T) {
-			f := envPreviewForm(120, env)
-
-			if f.buildCommandString() == "" || len(f.commandPreviewLines()) == 0 {
-				t.Fatalf("no preview for Environment %q", env)
-			}
-			if strings.Contains(f.buildCommandString(), "=") {
-				t.Errorf("the copy of %q holds an equals sign: %q", env, f.buildCommandString())
-			}
-		})
 	}
 }
 

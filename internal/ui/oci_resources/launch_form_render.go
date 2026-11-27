@@ -16,24 +16,24 @@ func shellQuote(v string) string {
 	return v
 }
 
-// invalidEnvMarker stands in the preview for an Environment entry whose name
-// docker.ValidEnvName refuses. The entry may be a secret typed in the name
-// position, so it is never repeated. In a shell the marker is a redirection, so a
-// pasted command fails instead of running without the variable.
+// invalidEnvMarker stands in the preview for an Environment entry that is not
+// NAME=VALUE with a valid name (see envEntryName). The entry may be a secret typed
+// in the name position, so it is never repeated. In a POSIX shell the marker is a
+// redirection and PowerShell refuses `<`, so a pasted command fails instead of
+// running without the variable.
 const invalidEnvMarker = "<invalid>"
 
 // previewEnvName returns what the preview and the ctrl+y copy show for one
 // Environment entry: the name alone, as the launcher passes it (`-e NAME`, the
 // value travels in the child's environment, OC-14), whatever the variable is.
-// An entry with no "=" is shown by its name when it is a valid one; a name
-// ValidEnvName refuses is replaced by invalidEnvMarker.
+// Only a well-formed entry (envEntryName: NAME=VALUE, a valid name, a value) is
+// named. Anything else is shown as invalidEnvMarker, because it may be a secret
+// pasted into the field (`ghp_...`, `abc==`) and the launch refuses it anyway.
 func previewEnvName(entry string) string {
-	name, _, _ := strings.Cut(entry, "=")
-	name = strings.TrimSpace(name)
-	if !docker.ValidEnvName(name) {
-		return invalidEnvMarker
+	if name, ok := envEntryName(entry); ok {
+		return name
 	}
-	return name
+	return invalidEnvMarker
 }
 
 // buildCommandLines returns the docker run command split into continuation lines.
