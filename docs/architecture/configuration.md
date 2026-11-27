@@ -386,7 +386,8 @@ reads as `on` (D12) — and only `off` turns it off, so a typo verifies.
 **`containers.sensitive_env` — which environment variables are sensitive (OC-12, DEVDESK-810).**
 `internal/config/sensitive_env.go` and `internal/secretenv`. `secretenv` only
 classifies a variable *name* (`Matcher.Sensitive`); masking is the caller's job
-(OC-13, OC-14).
+(the container inspect since OC-13, `docs/architecture/viewer.md`; the launch
+preview, OC-14).
 
 ```yaml
 containers:

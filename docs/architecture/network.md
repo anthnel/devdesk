@@ -81,6 +81,16 @@ Two things about the engine are worth knowing before changing this code:
   rule gets 127.0.0.1 when it is read. A non-loopback specific address is neither
   rewritten nor warned about.
 
+- **The inspect hides the values of sensitive variables (OC-13, DEVDESK-811,
+  requirement S9).** `inspectSource` is `viewer.Maskable`: the viewer hands it the
+  bytes of `docker.InspectContainer` and the `secretenv.Matcher` built from
+  `containers.sensitive_env` (OC-12), and `maskInspectEnv`
+  (`internal/ui/containers/inspect_mask.go`) replaces the value of each sensitive
+  `Config.Env` entry with `********` in place, leaving the rest of the document
+  byte for byte. Output that is not JSON is refused, never shown raw. The raw bytes stay in the viewer's memory so
+  `m` can reveal them; the display, the search and `Y` only ever see the masked
+  text. `Cmd` and the labels are not masked. See `docs/architecture/viewer.md`.
+
 - **A launch passes environment values to the child, never in argv (OC-14,
   DEVDESK-812, requirement S9).** `ContainerLaunchOptions.Env` stays a list of
   `NAME=VALUE`. `buildLaunchArgs` emits `-e NAME` only (an entry that is not

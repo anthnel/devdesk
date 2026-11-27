@@ -65,11 +65,51 @@ interfaces, probed by type assertion like `FooterView`:
 | `Timestamped` | `t` | `logsSource` |
 | `Followable` | `F` | `logsSource` |
 | `Pageable` | `V` | `logsSource` |
+| `Maskable` | `m` | `inspectSource` |
 
 One method each on purpose: `HeaderView`'s warning is about a view supplying two
 of four and satisfying none in silence — a one-method interface has no
 half-satisfied state. `WithTimestamps` returns a *new* source rather than
 mutating one, so nothing is shared with a command in flight (Rule 110).
+
+**`m` masks the values of an inspect (OC-13, DEVDESK-811, S9).** `Maskable` is
+`Mask(raw, *secretenv.Matcher) ([]byte, int, error)`: the viewer keeps the bytes
+`Load` returned (`Model.raw`, in memory only) and builds the document from what
+`Mask` makes of them, so **what is drawn, searched (`/`) and copied (`Y`) is one
+text** (`doc.Text`), and `/ canary` finds nothing while the values are hidden.
+`revealed` is a field of the model and zero is masked: a reopened inspect starts
+masked, and no configuration or cache file carries the state. `m` re-opens the
+document from `raw` through `reshow`, which keeps the tree's cursor and
+expansion and the scroll position (masking changes values, not shape) and
+fetches nothing; `ctrl+r` and a follow tick read the source again and apply the
+current state (`handleDocumentLoaded`). A `Mask` error (output that is not
+JSON) is treated like a failed load: the footer says so, nothing is shown, the
+raw bytes are never a fallback. The matcher is
+`config.Containers.SensitiveEnvMatcher()` (a nil config applies the defaults, a
+bad entry is logged and the matcher still carries the defaults).
+
+- **The inspect's mask.** `internal/ui/containers/inspect_mask.go`,
+  `maskInspectEnv`: walks the JSON tokens and replaces, **in place** (the
+  engine's layout and key order are kept byte for byte), each string of
+  `Config.Env` whose name `secretenv` calls sensitive with `NAME=********`
+  (`maskedValue`, eight ASCII asterisks whatever the secret's length; an empty
+  value is masked like any other). An entry with no `=` has nothing to hide; the
+  value starts after the first `=`. `Cmd`, the labels and any other `Env` are
+  out of scope (the logs are OC-37), and the logs source is not `Maskable`.
+- **Header and footer.** The header shows `Env masked` or `Env revealed` (warning
+  colour). Opening, reloading and `m` set an Info footer message: `N environment
+  values masked — masking can miss secrets, m reveals them`, or `Environment
+  values revealed — m masks them again`. After `Y` on a masked document the
+  footer adds `— values masked`.
+- **The key.** `m` is declared for the `viewer` surface in
+  `keymap.localToggles` (it also means medium severity in `security`, each
+  surface declares its own; `TestViewerDeclaresTheMaskToggle`). It is offered
+  (`Reveal values` / `Mask values`, never greyed) only when the source is
+  `Maskable`, and is ignored while the search bar or the go-to prompt holds the
+  keyboard. The clipboard write is the `writeClipboard` seam of
+  `internal/ui/viewer/update.go`.
+- **Limit.** The rule is by name, so a secret under an ordinary name is shown
+  and `KEYBOARD_LAYOUT` is hidden: the footer says so every time.
 
 **`F` follows in the pane, and `Followable` returns an interval rather than a
 command.** It used to return an `*exec.Cmd` run through `tea.ExecProcess`, on
