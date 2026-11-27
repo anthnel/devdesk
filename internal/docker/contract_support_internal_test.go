@@ -260,6 +260,9 @@ func TestRequireEnginePinsTheEngineOfTheRunForTheLengthOfTheTest(t *testing.T) {
 			t.Setenv(enginecontract.RunEnv, "20261127-a1b2c3d4")
 			t.Setenv(enginecontract.VersionsEnv, versionsFile(t))
 			t.Setenv(enginecontract.RecordingEnv, "")
+			for _, name := range enginecontract.EngineEnvVars {
+				t.Setenv(name, "") // the developer's own engine variables are refused by Require
+			}
 			previous := engine.Current()
 			t.Cleanup(func() { engine.SetCurrent(previous) })
 

@@ -77,7 +77,7 @@ Run the campaigns inside the VM, restore with `reset.sh` afterwards.
 
 ## Contract runs
 
-OC-09a1 (DEVDESK-806). `contract.sh` runs the engine contract tests (the `*_contract_test.go` files, see
+OC-09a1 (DEVDESK-806), labels and cleanup OC-09a2 (DEVDESK-943). `contract.sh` runs the engine contract tests (the `*_contract_test.go` files, see
 `docs/architecture/network.md`, "Engine contracts") against the engine of a VM:
 
 ```bash
@@ -103,6 +103,28 @@ Usage: `contract.sh verify <docker|podman> <n|n1> [--mode rootful|rootless] [--n
   Nothing is copied back; the exit code is the contracts'. It prints how many contracts passed, were skipped and
   failed; when none passed (an engine outside N and N-1 is skipped in verify mode) the exit code stays 0 and it says
   `nothing was verified`.
+- **The image.** `CONTRACT_IMAGE` in `versions.env` (`docker.io/library/alpine@sha256:...`, pinned by the digest of
+  the multi-arch index; the date and the source are in the comment, trust on first use like the other sums) is the
+  only image the contracts start. After the reset `contract.sh` pulls it into the VM, once, as the user of the mode
+  (`vm_as_mode`); this script is the only place anything is pulled, the contracts run with `--pull=never` and the Go
+  code never pulls. The script requires exactly `docker.io/library/alpine@sha256:<64 hex>` (and fails
+  at once otherwise); the contracts get it as `DEVDESK_ENGINE_CONTRACT_IMAGE`, and their Go side accepts any
+  `repository@sha256:<64 hex>`. Bumping it means reading the digest of
+  the new index again from the registry and updating the comment.
+- **The lab mark.** A contract that creates or removes a resource refuses to run unless
+  `DEVDESK_ENGINE_CONTRACT_RUN` is set (the script sets it) and `/etc/dd/current` exists and holds `n` or `n1`:
+  the file `dd-use.sh` writes in each VM. It keeps a contract that creates something from running on your own
+  engine by accident. It is not a defence against someone who creates that file as root on their own machine.
+- **The sentinel.** After the pull the script starts a container named `ddc-sentinel-<run>` with **no label**, in the
+  store the contracts use (the user's for rootless podman, root's otherwise). The contracts label what they create
+  with `devdesk.test=<run>` and remove only that. When they are done, pass or fail, the script inspects the sentinel:
+  if it is gone the cleanup touched something without the label, and the run fails with that message. It then removes
+  the sentinel by its id. It removes nothing else in the engine, and never prunes. If the engine does not answer after
+  the contracts the failure says so, instead of blaming the cleanup; if the sentinel's creation printed no id, the
+  script removes it by name before it stops. The sentinel is a container only: no sentinel network or volume.
+- **The engine of the shell.** A contract run by hand refuses `DOCKER_HOST`, `DOCKER_CONTEXT`, `CONTAINER_HOST` and
+  `CONTAINER_CONNECTION`; the contracts of `contract.sh` run under `env -i`. The current context of
+  `~/.docker/config.json` and podman's system connections are not checked.
 - **Mode.** Docker is rootful only (`--mode rootless` with docker is refused). Podman defaults to rootless, the
   mode the user `dd` runs; `--mode rootful` runs it as root. Rootless runs go through the user session of `dd`.
 - **Acts on the Incus host** (`DD_ENGINE_VMS_HOST`, `DD_ENGINE_VMS_PROJECT`, as above): never run it against a host
@@ -110,8 +132,8 @@ Usage: `contract.sh verify <docker|podman> <n|n1> [--mode rootful|rootless] [--n
 - The probe templates the contracts use (`version` and `info` formats) were written from the plan and have **not been
   confirmed on the VMs yet**: the first run on Docker 29.10.1 / 28.5.2 and Podman 6.2.1 / 5.8.11 is that
   confirmation, and a template an engine rejects fails the contract with the engine's own message.
-- Not there yet: the resources a contract creates and their cleanup (OC-09a2), recording fixtures and
-  `engine-contract:record` (OC-09a3).
+- The label filters and the `inspect` templates of the cleanup are, like the probe, **not confirmed on the VMs yet**.
+- Not there yet: recording fixtures and `engine-contract:record` (OC-09a3).
 
 ## Threat model and limits
 

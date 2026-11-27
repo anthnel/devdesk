@@ -328,13 +328,15 @@ information, and reports each site with file, line and enclosing function:
   registry (a development tool). `--pull=never` was measured on Docker 29.7.2 and a Podman of 2026-09-25
   (exit 125 on a missing image), not on the N and N-1 versions of `docs/measurements/2026-11-27-engines.md`.
 
-### Engine contracts — `requireEngine`, `internal/testutil/enginecontract` (OC-09a1, DEVDESK-806)
+### Engine contracts — `requireEngine`, `internal/testutil/enginecontract` (OC-09a1, DEVDESK-806; OC-09a2, DEVDESK-943)
 
 A contract test calls the functions of a package against a real docker or podman, outside CI, in the disposable VMs
-of `tools/engine-vms`. Nothing here records a fixture yet (OC-09a3) and no contract creates a resource yet (OC-09a2);
-the first story gives the gate, the entry point every contract starts with, the guard that holds contracts to it,
-and the task that runs them. The one contract there is, `TestContractEngineAnswersItsVersion`
-(`internal/docker/engine_contract_test.go`), asks the engine its version and lists containers.
+of `tools/engine-vms`. Nothing here records a fixture yet (OC-09a3). The first story gives the gate, the entry point
+every contract starts with, the guard that holds contracts to it, and the task that runs them; the second gives the
+resources a contract creates (labelled, named), the argv rule every call goes through, the cleanup that removes only
+what carries the label of the run, the mark of a test VM, and the sentinel. The contracts there are
+`TestContractEngineAnswersItsVersion` (`engine_contract_test.go`, read-only), `TestContractRemovingARunningContainerIsRefused`
+and `TestContractCleanupTouchesOnlyThisRun` (`containers_contract_test.go`), all in `internal/docker`.
 
 - **Where a contract lives.** In the package it contracts, as a `*_contract_test.go` file of that package, so it can
   call the unexported runner and record the argv DevDesk really builds. The decision is the environment, not a
@@ -360,8 +362,12 @@ and the task that runs them. The one contract there is, `TestContractEngineAnswe
   id, the probe (the engine does not answer: fatal), the version check against `tools/engine-vms/versions.env`
   (recording: a version outside N and N-1 is fatal; verifying: a skip, no fixture can exist for it), then the banner
   `engine-contract: podman 6.2.1 rootless, run 20261127-a1b2c3d4, mode verify` on stderr (once per process) and in
-  `t.Logf`. It then pins the engine of the run with `useEngine` and puts the previous one back at cleanup. The gate
-  decides before the probe: the probe is never called with the gate closed.
+  `t.Logf`. It then starts the contract (`startContract`): the engine of the run is pinned, the recorder of the
+  contract becomes the `runner` of the package, and two cleanups are registered, in this order, "put the runner and
+  the engine back" and then the cleanup of the run (`t.Cleanup` is last in, first out, so the cleanup of the run
+  goes first, also when the test failed, and still has the recorder). The gate decides before the probe: the probe
+  is never called with the gate closed. The probe goes through `cliRunner` (the recorder comes after it), so it
+  needs no resource and no lab mark.
 - **The probe** asks two questions with the engine's own templates (`probeArgs`): docker
   `version --format {{.Client.Version}} {{.Server.Version}}` (the two must be equal) and
   `info --format {{json .SecurityOptions}}` (`name=rootless` listed means rootless); podman
@@ -369,8 +375,8 @@ and the task that runs them. The one contract there is, `TestContractEngineAnswe
   parsing is two pure functions, `parseEngineVersion` and `parseEngineMode`, tested without an engine, and the
   argv are held by `TestProbeEngineAsksExactlyTheTwoQuestionsOfItsEngine`. **The templates are the plan's and are
   still to be confirmed on the test VMs**, for N and N-1 of both engines: only a real engine can say.
-- **The run id and the names.** `devdesk.test=<run id>` is the label of every resource a contract creates (a2) and
-  `ddc-<run id>-<role>` its name; `^[a-z0-9][a-z0-9-]{5,31}$` is the alphabet of a run id, which also keeps an
+- **The run id and the names.** `devdesk.test=<run id>` is the label of every resource a contract creates and
+  `ddc-<run id>-<role>` its name (`role` is 1 to 16 lower case letters or digits); `^[a-z0-9][a-z0-9-]{5,31}$` is the alphabet of a run id, which also keeps an
   empty id from making a label filter match every run. `contract.sh` generates it and passes it as
   `DEVDESK_ENGINE_CONTRACT_RUN`; without it one id is made per process.
 - **`internal/testutil/enginecontract`** holds what needs no engine: the gate, the run id, `Label`,
@@ -414,16 +420,108 @@ and the task that runs them. The one contract there is, `TestContractEngineAnswe
   them with an explicit environment (`env -i`), as root for rootful or as the unprivileged user for rootless
   (podman defaults to rootless, docker is rootful only), and removes the directory afterwards. The directory is made
   with `mkdir -m 0755` and no `-p`, so an existing path (a planted link, another run) fails the run instead of being
-  reused, and only a directory the script made is removed. Nothing is copied back. The run counts the top-level
+  reused, and only a directory the script made is removed. Nothing is copied back. Since OC-09a2 it also pulls
+  `CONTRACT_IMAGE` into the VM and starts the sentinel before the contracts, and checks it after them (below). The run counts the top-level
   `--- PASS`, `--- SKIP` and `--- FAIL` lines: when no contract passed (verify mode skips an engine outside N and
   N-1, and a contract with no fixture) the exit code stays 0 and it prints `nothing was verified`. It acts on the Incus host (`DD_ENGINE_VMS_HOST`).
-- **Contracts on the developer's own machine.** A developer who sets the variable and the tool by hand (not
-  exported) and runs `go test -run '^TestContract' ./internal/docker` reaches their own engine. That is permitted and not
-  encouraged: the only contract today reads, and the resource rules (labels, cleanup, an argv allow-list) arrive
-  with OC-09a2.
+- **The lab mark (OC-09a2, security decision M1).** Before a contract creates or removes the least resource
+  (`c.container`, `c.volume`, `c.network`, `c.cleanupNow`; `c.requireLab()`, `Session.RequireLab`), the run must prove
+  it is in a test VM, on top of the gate: `DEVDESK_ENGINE_CONTRACT_RUN` is set and is a valid run id (`contract.sh`
+  sets it; without it `Require` makes up one id per process, which suits a read) **and** `/etc/dd/current` exists and
+  holds exactly `n` or `n1` (`enginecontract.CheckLab`, a pure function of the environment and a file reader; the file
+  is the one `tools/engine-vms/vm/dd-use.sh` writes in each VM, which `verify.sh` and `contract.sh` already read
+  back, so no new file is needed). An empty file, another word or two lines is refused. A read-only contract
+  (`TestContractEngineAnswersItsVersion`) asks for neither and still runs outside a VM, in verify mode.
+  `SetLabMarkerForTest` swaps the path for one test (it panics outside a test binary). **Limit: root on a developer
+  machine can create `/etc/dd/current`. The mark stops an accident (an exported variable and a `go test`), not an
+  adversary.**
+- **Resources.** `c.container(role, cmd...)` runs
+  `run -d --pull=never --label devdesk.test=<run> --name ddc-<run>-<role> <image> sleep 600` (the image is
+  `DEVDESK_ENGINE_CONTRACT_IMAGE`; empty fails the contract, a contract never pulls), `c.volume(role)` and
+  `c.network(role)` run `volume create` and `network create` with the label and the name. Each returns what the
+  engine printed (checked to be an identifier) and registers the id and the name in `ours`. `tried` is set before
+  the engine answers: a creation that failed may still have made the resource.
+- **The argv rule (`contractArgvRule`)** is an allow list the recorder (`recordingRunner`) asks before anything
+  starts; a refusal is reported to the test (`Errorf`) and returned as `errNotContracted`, and nothing runs. It
+  reads **options**, not only verbs (review findings M1, M2, B1, B2):
+  - Reads are allowed on anything (`version`, `info`, `ps`, `inspect`, `logs`, `port`, `top`, `images`, `stats
+    --no-stream`, and `ls` or `inspect` of `image`, `volume`, `network`), because the cleanup inspects candidates it
+    does not own yet; their options are not read.
+  - `run` and `create` (also under `container`): the options up to the image are checked against a list, and the
+    words after the image (the container's command) are not read. Allowed: `-d`/`--detach`, `--rm`, `--name` (must
+    start with `ddc-<run>-`, so a name of another run cannot be reused), `--label`/`-l` (one must be exactly
+    `devdesk.test=<run>`), `--pull` (every one `never`, at least one), `-e`/`--env` with an explicit `KEY=value` (a
+    bare name would pass the host's; the value must not be a secret, a contract has none), `--network` (`bridge`,
+    `none`, `podman` or a network of the run: never `host` or `container:`), `-v`/`--volume` (`name:/path[:opts]`
+    where name is a volume of the run: never a path, so no bind mount and no engine socket), `--entrypoint`,
+    `-u`/`--user`, `-w`/`--workdir`. Everything else is refused with a message that cites `contractArgvRule`, and
+    these say why: `--privileged`, `--replace`, `--mount`, `--cap-add`, `--device`, `--security-opt`, `--pid`, `--ipc`,
+    `--uts`, `--userns`, `--volumes-from`, `--env-file`. No published port: the contracts use none. A run with no
+    `--name` is allowed (the engine names it); one with a `--name` outside the prefix is not.
+  - `volume create` and `network create`: `--label` and exactly one name starting with `ddc-<run>-`; no `--opt`
+    (a device option binds a host path), no driver. **`pod create` is refused** (label or not): no cleanup of pods
+    exists, so one would stay in the store.
+  - `rm`, `kill`, `stop`, `start`, `restart`, `pause`, `unpause`, `volume rm`, `network rm`, `network connect` and
+    `disconnect` may name only resources of this run, by exact reference (`ours`; connect and disconnect check the
+    container, the last name), and take **only the options of the verb**: `rm` `-f`/`--force`, `-v`/`--volumes`,
+    `-t`/`--time`; `stop` and `kill` `-t`/`--time` and `-s`/`--signal`; `restart` `-t`; `volume rm`, `network rm`,
+    `start`, `pause`, `unpause`, `connect` and `disconnect` none. So `--depend`, `--all`, `--latest`, `--filter`,
+    `--cidfile`, `--ignore` and a `-f` on a network or a volume are refused.
+  - Refused as a whole: every `prune` (the functions of DevDesk have no label filter, so a prune touches the whole
+    store; OC-09b may allow one under a precondition), `system`, `pull`, `push`, `load`, `import`, `build`, `commit`,
+    `tag`, `login`, `logout`, `exec`, `cp`, `save`, `export` and `rmi`.
+  - `--url`, `--connection`, `--remote`, `--root`, `--runroot`, `--storage-driver`, `--host`, `-H` and `--context` are
+    refused **at any position** of the argv (the command after an image included), and an argv that starts with an
+    option is an unknown verb. A verb the rule does not know and an empty argv are refused with a message that names
+    `contractArgvRule`: a verb is added there with its reason.
+
+  The recorder also refuses a credential helper, standard input, a context and an interactive command. Everything it
+  runs goes through `cliRunner.Build`, the one path to the engine (G1); the journal (`exchangeLog`) keeps argv, exit
+  code, stdout and stderr apart. Limits: with `Combined` the bytes are stdout then stderr, not the terminal's
+  interleaving (the refusals measured write on stderr only); the options of a read are not checked; an environment
+  value is not tested for being a secret.
+- **The engine environment and the image (review findings B3 and B4).** `Require` refuses, after the gate and before
+  the probe, an environment in which `DOCKER_HOST`, `DOCKER_CONTEXT`, `CONTAINER_HOST` or `CONTAINER_CONNECTION` is
+  set (`enginecontract.CheckEngineEnv`, `EngineEnvVars`): the engine commands of a contract must reach the engine of
+  the test VM, and the VM's contracts run under `env -i` anyway. **Not covered:** the current context in
+  `~/.docker/config.json` (`currentContext`), podman's system connections in `containers.conf`, `DOCKER_CONFIG`. The
+  image is checked twice: `contract.sh` requires exactly `docker.io/library/alpine@sha256:<64 hex>` in
+  `CONTRACT_IMAGE` (it is the value it pulls and the only image the contracts start), and the Go side
+  (`enginecontract.ValidImage`, where `DEVDESK_ENGINE_CONTRACT_IMAGE` is read) accepts any `repository@sha256:<64 hex>`,
+  a digest and never a tag, because a contract may need another image one day and the digest is what matters.
+- **The cleanup** (`cleanupNow`, registered as `cleanup`, which does nothing unless a creation was tried) removes
+  what carries the label of the run, and only that, in this order: containers, networks, volumes. For each kind it
+  lists with the filter of the engine (`ps -a -q --no-trunc --filter label=devdesk.test=<run>`, `network ls ...`,
+  `volume ls -q ...`), then **inspects every candidate and reads its label again** (`{{index .Config.Labels
+  "devdesk.test"}}` for a container, `{{index .Labels "devdesk.test"}}` for a network or a volume): only a label
+  equal to the run id is kept. A candidate with another label or none is reported (`Errorf`) and never touched.
+  Removal goes through `RemoveContainer(id, true)`, `RemoveNetwork` and `RemoveVolume`, which validate the identifier
+  (G3), and the references removed are returned. When at least one verified candidate existed it lists again, and a
+  leftover is reported. A listing or an inspect that fails removes nothing, is reported, and the cleanup goes on with
+  the other kinds. An invalid run id (an empty one would make `label=devdesk.test=` match every run) makes it refuse
+  to list. Without an engine, `TestCleanupNeverTouchesWhatDoesNotCarryTheLabelOfTheRun` simulates a filter that
+  lets a stranger's and an unlabelled resource through and fails on any removal that names them. A process killed
+  before its cleanup leaves labelled resources in the VM; `reset.sh` (the default of `contract.sh`) clears them.
+- **The sentinel and `CONTRACT_IMAGE`.** The real negative control runs on the VM. `contract.sh`, after the reset,
+  pulls `CONTRACT_IMAGE` (`tools/engine-vms/versions.env`: `docker.io/library/alpine@sha256:<digest of the multi-arch
+  index>`, with its date and source in the comment, trust on first use like the other sums) as the user of the mode
+  (`vm_as_mode`: `vm_user` for rootless, `vm_root` otherwise, so the sentinel lives in the store the contracts
+  use); this is the only pull anywhere, and it is the script's, not Go code (G8). It then starts a container named
+  `ddc-sentinel-<run>` **with no label**, passes `DEVDESK_ENGINE_CONTRACT_RUN` and `DEVDESK_ENGINE_CONTRACT_IMAGE` to the
+  contracts, and after them (whatever their result: nothing between can leave the script) inspects the sentinel. If it
+  is gone the run fails with "the cleanup touched a container without the label"; if the engine does not answer it
+  fails with another message ("did not answer after the contracts"), which does not blame the cleanup. If the creation
+  prints no id the script removes the container by its name before it gives up. It is removed by its id, and
+  nothing else the script removes in the engine. The tests in `script_sentinel_test.go` read the script's text for the order and
+  the shape of those steps, and `TestVersionsEnvPinsTheContractImageByDigest` the pin; that the sentinel survives with each engine is verified only on the Incus host.
+- **Contracts on the developer's own machine.** A read-only contract can run there, in verify mode, with the
+  variable and the tool set by hand (not exported): `go test -run '^TestContractEngineAnswers' ./internal/docker`. One
+  that creates or removes a resource is refused without the lab mark (above): outside a test VM it fails with a
+  message that points to `mise run engine-contract`.
 - **Only verifiable on the Incus host.** The probe templates above on the four versions; `contract.sh` end to end
-  (cross-compilation, the copy, `vm_user` rootless, the cleanup trap); the real behavior of the pilot contract.
-  None of this ran in CI or in the session that wrote it.
+  (cross-compilation, the copy, `vm_user` rootless, the cleanup trap); the real behavior of the pilot contract; the
+  label filter and the `inspect` label templates of the cleanup on the four versions; that the sentinel survives a
+  real cleanup; the pull of `CONTRACT_IMAGE` into the VM. None of this ran in CI or in the session that wrote it.
 - **Limits.** R2 refuses any package-level `var` or `const` in a contract file (its initializer would run in every test binary
   before `requireEngine`, e.g. `var _ = exec.Command(...).Run()`); a `var` that calls `requireEngine` elsewhere is an
   R3 site. G5 misses a function value (`re := requireEngine`), an aliased import of
@@ -432,11 +530,19 @@ and the task that runs them. The one contract there is, `TestContractEngineAnswe
   `mise.toml` and workflow guard cannot see: a name assembled at run time, and a script a task or a workflow calls
   (`contract.sh` passes the variable to the VM on purpose and applies the gate itself). The gate is the environment:
   whoever exports the variable and unsets every CI marker opens it. `mise run test-race` and `ci` never set it.
-  **For OC-09a2, before any contract creates or removes a resource:** the gate must also require a marker of the test
-  VM itself (for example a non-empty `DEVDESK_ENGINE_CONTRACT_RUN` plus a marker file that only the VMs of
-  `tools/engine-vms` carry), so that a contract refuses to run outside a test VM. Today the only contract reads, and
-  the environment alone opens the gate on a developer's own machine; that stops being acceptable once a contract
-  writes. Not implemented here.
+  What resources add to the limits: the lab mark can be forged by root, and the argv rule and the cleanup rest on
+  the engine's own label filter and `inspect` template, which are to be confirmed on N and N-1 of both engines (a
+  template an engine rejects fails the contract, or the cleanup reports and removes nothing). Also:
+  - **What the code under test creates through the recorder is not cleaned and not gated.** Only `c.container`,
+    `c.volume` and `c.network` ask for the lab mark and register what they make. A creation the function under
+    contract makes (for example `LaunchContainer`) goes through the recorder and its rule, so it must carry the
+    label to be allowed at all, but it is neither registered nor cleaned unless the cleanup's label filter finds it.
+  - **The sentinel is one container.** There is no sentinel network or volume: the negative control of the
+    cleanup on the VM covers containers only. Networks and volumes are covered without an engine, by the stub test.
+  - **inspect, then rm.** The cleanup removes a volume by name after reading its label; in between, another
+    process could replace a volume of that name. A test VM has no other process; a developer machine has the lab
+    mark as its only protection.
+  - The call of `contract.sh` is a script: its text is tested, its behavior is verified on the Incus host only.
 
 ### Recorded fixtures — `internal/enginefixture` (OC-08a and OC-08b, DEVDESK-805, DEVDESK-942)
 
