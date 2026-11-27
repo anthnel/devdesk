@@ -73,6 +73,25 @@ description = "Run tests with race detector (requires a C toolchain: gcc/clang)"
 env = { CGO_ENABLED = "1" }
 run = "go test -race ./..."
 
+[tasks.engine-survey]
+description = "List the tests that reach a real container engine (guard G1, survey mode, DEVDESK-798): runs the whole suite once, which is heavy, and prints each (test, operation, binary) outside a fakecli directory; never part of ci, check or test"
+shell = "bash -c"
+# A failing package must not hide the list, so the list is printed whatever the
+# status of go test; the task then exits with that status, and says the list is
+# incomplete (a package that does not compile records nothing). The file is
+# temporary and removed whatever happens.
+run = """
+survey="$(mktemp)"
+trap 'rm -f "$survey"' EXIT
+DEVDESK_ENGINE_SURVEY="$survey" go test -count=1 ./...
+st=$?
+if [ "$st" -ne 0 ]; then
+  echo "engine-survey: go test failed (status $st): the list below is INCOMPLETE, a package that failed may have reached an engine; a 'none' is not reliable" >&2
+fi
+go run ./internal/engineguard/cmd/engine-survey "$survey"
+exit "$st"
+"""
+
 [tasks.cover]
 description = "Run tests and report coverage per package"
 run = "go test -cover ./..."

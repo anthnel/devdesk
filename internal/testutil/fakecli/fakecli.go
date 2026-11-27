@@ -29,6 +29,8 @@ import (
 	"strings"
 	"sync/atomic"
 	"testing"
+
+	"github.com/anthnel/devdesk/internal/engineguard"
 )
 
 const (
@@ -174,6 +176,7 @@ func Install(t testing.TB, src Source, tools ...string) *Fake {
 		}
 	}
 
+	AllowFakeCLIDir(t, dir)
 	t.Setenv("PATH", dir)
 	t.Setenv(envState, state)
 	t.Setenv(envTools, strings.Join(tools, string(os.PathListSeparator)))
@@ -203,8 +206,18 @@ func (f *Fake) InstallAt(t testing.TB, dir, name string) string {
 	if err := link(self, path); err != nil {
 		t.Fatalf("fakecli: installing %s: %v", path, err)
 	}
+	AllowFakeCLIDir(t, dir)
 	t.Setenv(envTools, os.Getenv(envTools)+string(os.PathListSeparator)+name)
 	return path
+}
+
+// AllowFakeCLIDir declares dir, exactly, as holding fake tools for the length of
+// t: the engine guard (internal/engineguard) records a binary resolved anywhere
+// else as a test reaching a real engine. Install and InstallAt call it on their
+// directory; a test that writes a fake of its own by another means calls it too.
+func AllowFakeCLIDir(t testing.TB, dir string) {
+	t.Helper()
+	engineguard.AllowDir(t, dir)
 }
 
 // toolFile is the file name a tool is installed under.
