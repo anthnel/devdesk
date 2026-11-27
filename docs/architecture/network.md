@@ -441,7 +441,7 @@ Two things about the engine are worth knowing before changing this code:
     host's, and the check reads this machine's). A bind-mounted parent that holds
     no known sensitive path by name is not flagged. A glob only sees what
     `filepath.Glob` lists: a directory it cannot read is skipped, not reported.
-    **Follow-up story** (not in OC-20): the classification runs in `Update`, and
+    **DEVDESK-948** (not in OC-20): the classification runs in `Update`, and
     reads the file system synchronously (a hung NFS or autofs mount, or
     `user.Current()`, would freeze the view): to move into a `Cmd` with a timeout;
     an unknown socket (an ssh-agent outside `~/.ssh`) gets the engine reason, a
