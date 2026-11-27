@@ -1,0 +1,46 @@
+{
+  "cli_version": "0.13.2",
+  "checkpoint_id": "24825006c3d6",
+  "strategy": "manual-commit",
+  "branch": "feat/oc-13-inspect-env-mask",
+  "checkpoints_count": 3,
+  "files_touched": null,
+  "sessions": [
+    {
+      "metadata": "/24/825006c3d6/0/metadata.json",
+      "transcript": "/24/825006c3d6/0/full.jsonl",
+      "compact_transcript": "/24/825006c3d6/0/transcript.jsonl",
+      "content_hash": "/24/825006c3d6/0/content_hash.txt",
+      "prompt": "/24/825006c3d6/0/prompt.txt"
+    }
+  ],
+  "token_usage": {
+    "input_tokens": 40,
+    "cache_creation_tokens": 30969,
+    "cache_read_tokens": 11960800,
+    "output_tokens": 13222,
+    "api_call_count": 13,
+    "subagent_tokens": {
+      "input_tokens": 120,
+      "cache_creation_tokens": 298525,
+      "cache_read_tokens": 4419549,
+      "output_tokens": 66197,
+      "api_call_count": 59
+    },
+    "subagent_tokens_complete": true
+  },
+  "redaction": {
+    "replacements": 441,
+    "layers": {
+      "betterleaks": 98,
+      "connection_string": 0,
+      "credential_key": 0,
+      "credential_value": 277,
+      "credentialed_uri": 14,
+      "entropy": 12,
+      "key_context": 54,
+      "provider_token": 0,
+      "shell_stdin": 0
+    }
+  }
+}
