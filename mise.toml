@@ -335,3 +335,26 @@ env = { DEVDESK_NEXUS_BENCH = "1" }
 # -timeout 60m: go test stops at 10 minutes by default and the lifecycle test
 # (DEVDESK_NEXUS_BENCH_LIFECYCLE=1) refuses to start with less than 45 left.
 run = "go test -timeout 60m -count=1 -run Integration ./internal/nexusbench/..."
+
+# The engine-vms:* tasks (OC-85, DEVDESK-795, tools/engine-vms/README.md) drive
+# throwaway Incus VMs on the Incus host (default jakku.home.arpa, over SSH) in
+# the dedicated project devdesk-engine-tests. They act on that host, are NOT part
+# of ci, check, test or test-race, and nothing depends on them. Arguments go
+# after `--`, e.g. `mise run engine-vms:reset -- podman n1`. The host, project,
+# pool and network come from the DD_ENGINE_VMS_* variables (see lib.sh).
+
+[tasks."engine-vms:create"]
+description = "Create the Docker and Podman test VMs in the Incus project devdesk-engine-tests and take their clean snapshots (idempotent; acts on the Incus host)"
+run = "bash tools/engine-vms/create.sh"
+
+[tasks."engine-vms:verify"]
+description = "Print the engine, kind and kubectl versions in the test VMs and fail if they differ from tools/engine-vms/versions.env (--smoke runs a container and a kind cluster)"
+run = "bash tools/engine-vms/verify.sh"
+
+[tasks."engine-vms:reset"]
+description = "Restore a test VM to its clean snapshot, n or n1 (acts on the Incus host)"
+run = "bash tools/engine-vms/reset.sh"
+
+[tasks."engine-vms:destroy"]
+description = "Delete the test VMs and the Incus project devdesk-engine-tests (asks first; acts on the Incus host)"
+run = "bash tools/engine-vms/destroy.sh"
