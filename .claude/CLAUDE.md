@@ -294,6 +294,17 @@ a constant from another file, a dot import of `engine`, a function value, `sysca
 and an external script are not seen; a runner is exempt as a whole; `_test.go` files are not scanned (they are G1's, at run
 time). See `docs/architecture/network.md`, "Tests and the real engine".
 
+**Tests and destructive verbs (DEVDESK-803, OC-06, G3).** Guard G3 is static and run-time.
+`TestDestructiveVerbsStayInTheirPackage` (`internal/engineguard/destructive_guard_test.go`) fails, with file and line,
+on a literal or a call that builds the argv of a destructive subcommand (`rm`, `stop`, `kill`, `rmi`, `prune`,
+`volume rm`, `network rm`, `system prune`, kind `delete cluster`...) outside `internal/docker` and `internal/kind`;
+`TestNoExportedDockerFunctionTakesAnArgv` keeps any exported `internal/docker` function from taking an argv. Other
+packages call `docker.RemoveContainer(id)` and its siblings, which validate the identifier first (`IsContainerID`,
+`IsImageID`, `IsVolumeName`, `IsNetworkRef`, each with its `ErrInvalid...` sentinel) and build nothing for a malformed
+one (`internal/docker/destructive_ids_test.go`). A test passing an ID to these functions uses a valid one (12 to 64
+lowercase hex for a container, image or network, not `abc`). Limits: an argv built word by word, a verb from a variable
+and a shell line are not seen; `ShellCmd` does not validate yet (DEVDESK-939). See `docs/architecture/network.md`, "Guard G3".
+
 **Test input and colour (DEVDESK-199).** Build keys only through
 `internal/ui/testutil` (`Key`, `Keys`, `Type`, `Paste`, `Text`, `IsText`), never a
 literal `tea.KeyPressMsg` or `tea.Key*`. `Key` returns a

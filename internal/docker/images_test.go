@@ -183,15 +183,15 @@ func TestRemoveImageForceFlag(t *testing.T) {
 		force    bool
 		wantArgs []string
 	}{
-		{"without force", false, []string{"rmi", "abc"}},
-		{"with force", true, []string{"rmi", "-f", "abc"}},
+		{"without force", false, []string{"rmi", "0123456789ab"}},
+		{"with force", true, []string{"rmi", "-f", "0123456789ab"}},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			s := stub(t, &stubRunner{})
 
-			if err := RemoveImage("abc", tt.force); err != nil {
+			if err := RemoveImage("0123456789ab", tt.force); err != nil {
 				t.Fatalf("RemoveImage() error = %v", err)
 			}
 			if !slices.Equal(s.lastArgs(), tt.wantArgs) {
@@ -239,7 +239,7 @@ func TestPullImageStillPulls(t *testing.T) {
 func TestOtherMutationsCarryNoContext(t *testing.T) {
 	s := stub(t, &stubRunner{})
 
-	if err := RemoveImage("abc", false); err != nil {
+	if err := RemoveImage("0123456789ab", false); err != nil {
 		t.Fatalf("RemoveImage() error = %v", err)
 	}
 	if call := s.calls[len(s.calls)-1]; call.Ctx != nil {

@@ -40,12 +40,12 @@ func TestTheMissingBinaryIsNamedAfterTheConfiguredEngine(t *testing.T) {
 func TestAFailureIsReportedUnderTheConfiguredEngine(t *testing.T) {
 	forEachEngine(t, func(t *testing.T, shape engine.Shape) {
 		stubStrict(t, reply{
-			argv: []string{"stop", "nope"},
+			argv: []string{"stop", "0123456789ab"},
 			out:  "Error: no such container\n",
 			err:  errExit,
 		})
 
-		err := StopContainer("nope")
+		err := StopContainer("0123456789ab")
 
 		if err == nil {
 			t.Fatal("StopContainer() returned nil on a failing invocation")

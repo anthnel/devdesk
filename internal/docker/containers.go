@@ -253,26 +253,41 @@ func aggregate(metrics map[string]Container, capacity Capacity) Aggregate {
 
 // StopContainer stops a container by ID
 func StopContainer(id string) error {
+	if err := requireContainerID("stop", id); err != nil {
+		return err
+	}
 	return mutate(cmdLabel("stop"), "stop", id)
 }
 
 // RestartContainer restarts a container by ID
 func RestartContainer(id string) error {
+	if err := requireContainerID("restart", id); err != nil {
+		return err
+	}
 	return mutate(cmdLabel("restart"), "restart", id)
 }
 
 // PauseContainer pauses a running container by ID
 func PauseContainer(id string) error {
+	if err := requireContainerID("pause", id); err != nil {
+		return err
+	}
 	return mutate(cmdLabel("pause"), "pause", id)
 }
 
 // UnpauseContainer resumes a paused container by ID
 func UnpauseContainer(id string) error {
+	if err := requireContainerID("unpause", id); err != nil {
+		return err
+	}
 	return mutate(cmdLabel("unpause"), "unpause", id)
 }
 
 // RemoveContainer removes a container by ID. If force is true, uses -f flag.
 func RemoveContainer(id string, force bool) error {
+	if err := requireContainerID("rm", id); err != nil {
+		return err
+	}
 	args := []string{"rm", id}
 	if force {
 		args = []string{"rm", "-f", id}

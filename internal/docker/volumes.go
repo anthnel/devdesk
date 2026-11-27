@@ -1,6 +1,9 @@
 package docker
 
-import "strings"
+import (
+	"fmt"
+	"strings"
+)
 
 // Volume represents a Docker volume
 type Volume struct {
@@ -47,6 +50,9 @@ func CreateVolume(name, driver string) error {
 
 // RemoveVolume removes a Docker volume by name
 func RemoveVolume(name string) error {
+	if !IsVolumeName(name) {
+		return fmt.Errorf("%s: %q is not a volume name: %w", cmdLabel("volume rm"), name, ErrInvalidVolumeName)
+	}
 	return mutate(cmdLabel("volume rm"), "volume", "rm", name)
 }
 

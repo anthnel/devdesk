@@ -68,7 +68,7 @@ func TestFetchImagesReportsAnAbsentDocker(t *testing.T) {
 func TestRemoveImageReportsBothTheIDAndTheName(t *testing.T) {
 	installFakeDocker(t, fakeScript{"docker rmi": {}})
 
-	msg := run(t, removeImageCmd("sha256:aaa1111", "api:v1")).(ImageActionMsg)
+	msg := run(t, removeImageCmd("sha256:aaa111111111", "api:v1")).(ImageActionMsg)
 
 	if msg.Action != "remove" {
 		t.Errorf("Action = %q, want remove", msg.Action)
@@ -76,7 +76,7 @@ func TestRemoveImageReportsBothTheIDAndTheName(t *testing.T) {
 	if msg.Name != "api:v1" {
 		t.Errorf("Name = %q, want the display name", msg.Name)
 	}
-	if msg.ID != "sha256:aaa1111" {
+	if msg.ID != "sha256:aaa111111111" {
 		t.Errorf("ID = %q, want the ID the marker is keyed on", msg.ID)
 	}
 	if msg.Err != nil {
@@ -91,7 +91,7 @@ func TestRemoveImageKeepsDockersOwnDiagnostic(t *testing.T) {
 		"docker rmi": {Stderr: "image is being used by running container 9f2c", Exit: 1},
 	})
 
-	msg := run(t, removeImageCmd("aaa1111", "api:v1")).(ImageActionMsg)
+	msg := run(t, removeImageCmd("aaa111111111", "api:v1")).(ImageActionMsg)
 
 	if msg.Err == nil {
 		t.Fatal("a refused removal was reported as a success")

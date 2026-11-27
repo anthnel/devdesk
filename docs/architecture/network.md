@@ -227,6 +227,38 @@ information, and reports each site with file, line and enclosing function:
   `syscall.Exec`, `os.StartProcess`, an `exec.Cmd` literal with a `Path`; a shell line, a script, the CI;
   `internal/nexusbench`, which has its own kubectl runner and guard. `_test.go` files are not scanned.
 
+**Guard G3, the destructive verbs (OC-06, DEVDESK-803, requirements S1 and S2).** Two halves.
+
+- *Static*: `internal/engineguard/destructive_guard_test.go` (`TestDestructiveVerbsStayInTheirPackage`, a test of
+  the whole module, reusing G2's helpers) parses every non-test `.go` file and fails, with file, line and
+  enclosing function, on a site that builds the argv of a destructive subcommand (`kill`, `rm`, `stop`, `rmi`,
+  `prune` alone; `container|image|volume|network|system|builder|pod|machine` followed by `kill`, `rm`, `remove`,
+  `stop` or `prune`; `system reset`; kind's `delete cluster`) outside `internal/docker` and `internal/kind`. A
+  site is a `[]string` literal that spells the verb, or a call to `exec.Command(Context)` or to an argv helper
+  (`Build`, `mutate`, `mutateContext`, `prune`, `dockerOutput`, `dockerCombined`) with such a run of words.
+  `TestNoExportedDockerFunctionTakesAnArgv` pins that no exported function of `internal/docker` takes an argv, so
+  that "the verbs are built only in the package" is enough: other packages reach them through
+  `docker.RemoveContainer(id)` and its siblings, which validate the ID.
+- *Run time*: `internal/docker/destructive_ids_test.go` checks, under both engines and through the strict stub,
+  that `StopContainer`, `RemoveContainer`, `RemoveImage`, `RemoveVolume` and `RemoveNetwork` refuse a malformed
+  identifier before any argv is built (`TestDestructiveFunctionsRefuseAMalformedID`), return an error wrapping the
+  sentinel and quoting the value (`%q`, shown in the footer, Rule 128), and pass a valid one as one argv element,
+  last (`TestDestructiveFunctionsPassAValidIDAsOneArgvElement`). `TestEveryDestructiveFunctionIsCovered` fails on
+  an exported function of the package that spells a destructive word and is in neither table. The `Prune*`
+  functions take no identifier; their argv is pinned. `RestartContainer`, `PauseContainer` and
+  `UnpauseContainer` validate the container ID the same way (`lifecycle_ids_test.go`).
+- Formats (`internal/docker/identifier.go`), taken from what the callers pass, which is always a value read from
+  `ps`, `image ls`, `volume ls` or `network ls`: container `IsContainerID` (`ErrInvalidContainerID`, lowercase
+  hex, 12 to 64); image `IsImageID` (`ErrInvalidImageID`, the same hex with an optional `sha256:` prefix, never a
+  `repo:tag`: `oci_resources` removes by `Image.ID`); volume `IsVolumeName` (`ErrInvalidVolumeName`,
+  `[A-Za-z0-9][A-Za-z0-9_.-]*`, so an anonymous 64-hex volume passes); network `IsNetworkRef`
+  (`ErrInvalidNetworkID`, a name of the volume alphabet or an ID: `Network.ID`, which is what the table passes).
+  `ShellCmd` and `DetectShell` do not validate yet (DEVDESK-939).
+- Limits, listed in the test header: an argv assembled word by word, a verb read from a variable, field or
+  function result, a constant from another file, a shell line or script, a function value; the check is on words,
+  so a `[]string{"rm", path}` for `/bin/rm` is reported too; restart, pause, unpause and `compose down` are not
+  verbs of this guard; a package home is exempt as a whole, file by file.
+
 ## OCI registries — `internal/oci`
 
 `internal/oci/oci.go` — an OCI **registry** HTTP client: list tags,

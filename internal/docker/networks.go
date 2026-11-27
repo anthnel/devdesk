@@ -55,6 +55,9 @@ func CreateNetwork(name, driver string) error {
 
 // RemoveNetwork removes a Docker network by ID or name
 func RemoveNetwork(id string) error {
+	if !IsNetworkRef(id) {
+		return fmt.Errorf("%s: %q is not a network ID or name: %w", cmdLabel("network rm"), id, ErrInvalidNetworkID)
+	}
 	return mutate(cmdLabel("network rm"), "network", "rm", id)
 }
 
