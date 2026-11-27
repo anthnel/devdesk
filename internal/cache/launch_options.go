@@ -2,12 +2,15 @@ package cache
 
 import (
 	"encoding/json"
+	"io"
 	"log"
 	"os"
 	"path/filepath"
 	"slices"
 	"strings"
 	"sync"
+
+	"github.com/anthnel/devdesk/internal/docker"
 )
 
 // PortMappingEntry holds the cached host port and enabled state for a single container port.
@@ -40,6 +43,10 @@ type LaunchOptionsCache struct {
 	entries map[string]LaunchOptionsEntry // keyed by "name:tag"
 }
 
+// maxLaunchCacheBytes bounds the read of the cache file; a larger one is
+// treated as corrupt.
+const maxLaunchCacheBytes = 1 << 20
+
 // legacyLaunchEntry is an entry as it is read from disk: the current shape plus
 // the "env" field of the builds before OC-17, which held the whole Environment
 // field, values included. It exists to read that field once and drop it.
@@ -62,6 +69,34 @@ func EnvNames(entries []string) []string {
 			continue
 		}
 		names = appendName(names, name)
+	}
+	return names
+}
+
+// maxMigratedNameLen bounds a name kept from an older cache.
+const maxMigratedNameLen = 128
+
+// tokenPrefixes are the starts of well-known credentials (GitHub, GitLab, Slack,
+// AWS). A name that starts with one is a token pasted in the name position, not a
+// variable name, and the migration drops it.
+var tokenPrefixes = []string{"ghp_", "gho_", "ghu_", "ghs_", "github_pat_", "glpat-", "xoxb-", "xoxp-", "AKIA"}
+
+// legacyEnvNames reads the "env" field of an older cache: the Environment field
+// as it was typed, values included. It keeps the names a launch could have used
+// (docker.ValidEnvName, 128 bytes at most, no token prefix; a reserved name stays,
+// the form refuses it at the submit) and drops the rest. Limit: the field is split
+// on commas, so the piece after a comma inside a value (`TOKEN=a,b=c` gives `b=c`)
+// cannot be told from an entry and its name stays.
+func legacyEnvNames(env string) []string {
+	var names []string
+	for _, name := range EnvNames(strings.Split(env, ",")) {
+		if len(name) > maxMigratedNameLen || !docker.ValidEnvName(name) {
+			continue
+		}
+		if slices.ContainsFunc(tokenPrefixes, func(p string) bool { return strings.HasPrefix(name, p) }) {
+			continue
+		}
+		names = append(names, name)
 	}
 	return names
 }
@@ -112,25 +147,39 @@ func NewLaunchOptionsCache() (*LaunchOptionsCache, error) {
 
 // load reads the cache file from disk and reports whether it read values left
 // by an earlier build: they are dropped here and the caller writes the file back
-// without them. A file that is not valid JSON is ignored, and the log never
-// holds its content nor the parser's error, which quotes the byte it stopped on.
+// without them. A file that is not valid JSON, or larger than
+// maxLaunchCacheBytes, is removed: the cache is regenerable and the file may hold
+// values an older build wrote. The log is a fixed line: never the content, the
+// path or the parser's error, which quotes the byte it stopped on.
 func (c *LaunchOptionsCache) load() (migrated bool) {
-	data, err := os.ReadFile(c.path)
+	f, err := os.Open(c.path)
+	if err != nil {
+		return false
+	}
+	data, err := io.ReadAll(io.LimitReader(f, maxLaunchCacheBytes+1))
+	_ = f.Close()
 	if err != nil {
 		return false
 	}
 	var onDisk map[string]legacyLaunchEntry
-	if err := json.Unmarshal(data, &onDisk); err != nil {
-		log.Printf("ERROR [cache/launch_options] cache file is not valid JSON, ignored")
+	if len(data) > maxLaunchCacheBytes || json.Unmarshal(data, &onDisk) != nil {
+		log.Printf("ERROR [cache/launch_options] cache file is not valid JSON or too large, removed")
+		if err := os.Remove(c.path); err != nil {
+			log.Printf("ERROR [cache/launch_options] remove the unreadable cache file: %v", err)
+		}
 		return false
 	}
 	for key, e := range onDisk {
 		entry := e.LaunchOptionsEntry
-		entry.EnvNames = nameOnly(entry.EnvNames)
+		names := nameOnly(entry.EnvNames)
+		if !slices.Equal(names, entry.EnvNames) {
+			migrated = true // a value written by hand in env_names
+		}
 		if e.LegacyEnv != "" {
 			migrated = true
-			entry.EnvNames = nameOnly(append(entry.EnvNames, EnvNames(strings.Split(e.LegacyEnv, ","))...))
+			names = nameOnly(append(names, legacyEnvNames(e.LegacyEnv)...))
 		}
+		entry.EnvNames = names
 		c.entries[key] = entry
 	}
 	return migrated

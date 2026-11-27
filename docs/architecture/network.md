@@ -259,25 +259,44 @@ Two things about the engine are worth knowing before changing this code:
     caller can write a value. The file is written through `writeFileAtomic` (a
     temporary file, `chmod 0600`, rename), so an existing file with a wider mode
     comes back 0600; a cache directory DevDesk creates is 0700 (an existing one is
-    not touched). **Migration:** the file has no version field (a bare map); an
+    not touched). On Windows `chmod 0600` only drops the read-only attribute: the
+    protection there comes from the ACL the file inherits from the user profile.
+    **Migration:** the file has no version field (a bare map); an
     entry still carrying the old `env` key is read as the legacy shape
-    (`legacyLaunchEntry`), its names are kept through `cache.EnvNames`, the values
-    are dropped, and `NewLaunchOptionsCache` rewrites the file at once. An old entry
-    with `"env": ""` holds no value and is left as it is until the next save. A
-    **corrupt** file is ignored (the form opens empty) and logs the fixed line
-    `cache file is not valid JSON, ignored`: never a byte of the file, its path or
-    the parser's error, which quotes the byte it stopped on; the file stays until the
-    next launch replaces it. **The form:** `ApplyCached` writes each name as `NAME=`
+    (`legacyLaunchEntry`), its names are kept, the values are dropped, and
+    `NewLaunchOptionsCache` rewrites the file at once (also when `env_names` itself
+    held a `NAME=VALUE` written by hand). The names kept from a legacy field are the
+    ones the form accepts (`docker.ValidEnvName`: ASCII, no space, no `*`, no
+    invisible character), at most 128 bytes, and not starting with a known token
+    prefix (`ghp_`, `gho_`, `ghu_`, `ghs_`, `github_pat_`, `glpat-`, `xoxb-`,
+    `xoxp-`, `AKIA`); a reserved name (OC-15) is kept and refused at the submit. New
+    writes are not filtered again (the submit validated them). The migration runs
+    when the OCI view starts (`Init` batches `migrateLaunchOptionsCmd`, which only
+    opens the cache and returns no message) and again whenever the cache is
+    opened. An old entry with `"env": ""` holds no value and is left as it is until
+    the next save. A file that is **corrupt** (not valid JSON, a mistyped field) or
+    **larger than 1 MiB** (`maxLaunchCacheBytes`, the read is bounded) is
+    **removed** on the open, since the cache is regenerable and the file may hold
+    values an older build wrote (the old `os.WriteFile` was not atomic); the form
+    opens empty and the log is the fixed line `cache file is not valid JSON or too
+    large, removed`: never a byte of the file, its path or the parser's error, which
+    quotes the byte it stopped on. **The form:** `ApplyCached` writes each name as `NAME=`
     (joined with `, `) and sets `envRestored`; while one of those entries still has no
     value the Environment hint reads `Values are not saved: type them again`
     (`envRestoredHint`, a hint, not an error: nothing is underlined and the footer
-    stays empty at opening, Rule 140). A reserved or invalid name stays in the field
-    and is refused at the submit like any other. Tests:
+    stays empty at opening, Rule 140). An edit that leaves no entry without a value
+    ends the restored state (`releaseRestoredEnv`): the hint does not come back for
+    a value the user emptied. A reserved or invalid name (from a current-format file)
+    stays in the field and is refused at the submit like any other. Tests:
     `internal/cache/launch_options_names_test.go`,
-    `internal/ui/oci_resources/launch_cache_names_test.go`. Limits: a legacy
-    `"env"` of the form `ghp_x=y` keeps `ghp_x` as a "name" (a secret written with
-    a `=` cannot be told from a name); a corrupt legacy file keeps its content on
-    disk until the next save.
+    `internal/cache/launch_options_hardening_test.go`,
+    `internal/ui/oci_resources/launch_cache_names_test.go`,
+    `internal/ui/oci_resources/launch_cache_hardening_test.go`. Limits: a legacy
+    `"env"` such as `TOKEN=a,b=c` keeps `b` as a name (the field is split on commas,
+    so the piece after a comma of a value cannot be told from an entry), and
+    `ghp_x=y` style secrets that pass the checks above keep their prefix as a
+    "name"; a name accepted by the form that merely looks like a token cannot be
+    told from a variable.
   - **Elsewhere.** The scanner
     `internal/scan/plumber.go` put `-e GH_TOKEN=<token>` in an argv: fixed by
     DEVDESK-945 (`-e GH_TOKEN`, the value in `containerRun.Env`), with the static guard S9 below.

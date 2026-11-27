@@ -186,7 +186,8 @@ func TestTheSubmitRefusesAnEnvironmentNameRestoredWithoutItsValue(t *testing.T) 
 // at the submit as before, flagged at no other time.
 func TestAReservedOrInvalidNameRestoredFromTheCacheIsKeptAndRefusedAtTheSubmit(t *testing.T) {
 	file := cacheHome(t)
-	writeLegacyLaunchCache(t, file, `{"api:v1": {"env": "DOCKER_HOST=tcp://other:2375, BAD NAME=x", "detach": true}}`)
+	// A current-format file: the migration of an older one drops a name the form would refuse.
+	writeLegacyLaunchCache(t, file, `{"api:v1": {"env_names": ["DOCKER_HOST", "BAD NAME"], "detach": true}}`)
 
 	m := reopened(t)
 

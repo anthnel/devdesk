@@ -447,6 +447,7 @@ func (f *LaunchForm) updateActiveInput(msg tea.Msg) (*LaunchForm, tea.Cmd) {
 		}
 	case f.focusedField == f.fieldEnv():
 		f.envInput, cmd = f.envInput.Update(msg)
+		f.releaseRestoredEnv()
 		f.revalidate()
 	case f.focusedField == f.fieldVolumes():
 		f.volInput, cmd = f.volInput.Update(msg)
@@ -577,18 +578,29 @@ func (f *LaunchForm) restoreEnvNames(names []string) {
 	f.envRestored = len(entries) > 0
 }
 
-// envNeedsValues reports whether the field came back from the cache and still
-// holds an entry with no value: the hint of the field, not an error (Rule 140).
-func (f *LaunchForm) envNeedsValues() bool {
-	if !f.envRestored {
-		return false
+// releaseRestoredEnv ends the restored state once an edit leaves no entry
+// without a value: from then on an empty value is the user's own, and the hint
+// does not come back.
+func (f *LaunchForm) releaseRestoredEnv() {
+	if f.envRestored && !f.hasEmptyEnvValue() {
+		f.envRestored = false
 	}
+}
+
+// hasEmptyEnvValue reports whether an Environment entry has no value.
+func (f *LaunchForm) hasEmptyEnvValue() bool {
 	for _, e := range f.envEntries() {
 		if _, value, _ := strings.Cut(e, "="); value == "" {
 			return true
 		}
 	}
 	return false
+}
+
+// envNeedsValues reports whether the field came back from the cache and still
+// holds an entry with no value: the hint of the field, not an error (Rule 140).
+func (f *LaunchForm) envNeedsValues() bool {
+	return f.envRestored && f.hasEmptyEnvValue()
 }
 
 // envEntries returns the non-blank, trimmed entries of the Environment field.

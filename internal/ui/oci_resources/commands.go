@@ -322,6 +322,18 @@ func loadLaunchOptionsCmd(imageKey string) tea.Cmd {
 	}
 }
 
+// migrateLaunchOptionsCmd opens the launch options cache once, so a file written
+// by an older build loses its environment values at startup and not only when a
+// launch form opens (OC-17). It returns no message (Rule 110: I/O only).
+func migrateLaunchOptionsCmd() tea.Cmd {
+	return func() tea.Msg {
+		if _, err := cache.NewLaunchOptionsCache(); err != nil {
+			log.Printf("ERROR [oci_resources] open launch options cache: %v", err)
+		}
+		return nil
+	}
+}
+
 // saveLaunchOptionsCmd saves launch options for an image to disk (fire-and-forget).
 func saveLaunchOptionsCmd(imageKey string, entry cache.LaunchOptionsEntry) tea.Cmd {
 	return func() tea.Msg {
