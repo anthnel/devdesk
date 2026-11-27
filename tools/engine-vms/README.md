@@ -80,3 +80,11 @@ Run the campaigns inside the VM, restore with `reset.sh` afterwards.
 - Docker's rate limits on anonymous pulls apply to the shared host address.
 - Other `incus` users on the host can see and delete these VMs; they have no
   further protection than the project.
+
+## Known behavior
+
+- The first `kind create cluster` after a snapshot restore often fails once (cold
+  disk cache, kubeadm times out) and works on the second try; `verify.sh --smoke`
+  retries once. Run one campaign at a time per VM: the VMs have 2 vCPU and 3 GiB.
+- Verified on 2026-11-27 with `verify.sh --smoke --matrix`: both engines, lines N
+  and N-1, a kind cluster created and deleted in each (rootless for Podman).

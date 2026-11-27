@@ -53,8 +53,16 @@ check_vm() { # engine
   else vm_user "$e" podman run --rm quay.io/podman/hello | grep -qi hello || bad "podman rootless run"; fi
   local name=dd-smoke
   log "kind smoke ($provider, node ${node%%@*})"
-  local out
-  out=$("$run" "$e" env "${kenv[@]}" kind create cluster --name "$name" --image "$node" --wait 240s 2>&1) || { bad "kind create on $provider"; printf '%s\n' "$out" | tail -8 >&2; }
+  # The first start after a snapshot restore is slow (cold disk cache) and can make
+  # kubeadm time out; one retry on a warm VM is enough.
+  local out try
+  local ok=0
+  for try in 1 2; do
+    if out=$("$run" "$e" env "${kenv[@]}" kind create cluster --name "$name" --image "$node" --wait 240s 2>&1); then ok=1; break; fi
+    log "kind create attempt $try failed on $provider"
+    "$run" "$e" env "${kenv[@]}" kind delete cluster --name "$name" >/dev/null 2>&1 || true
+  done
+  ((ok)) || { bad "kind create on $provider"; printf '%s\n' "$out" | grep -E '^(ERROR|error)' | head -4 >&2; }
   "$run" "$e" env "${kenv[@]}" kubectl --context "kind-$name" get nodes --no-headers >&2 || bad "kubectl get nodes"
   "$run" "$e" env "${kenv[@]}" kind delete cluster --name "$name" >/dev/null 2>&1 || bad "kind delete on $provider"
 }

@@ -21,6 +21,9 @@ for e in "${todo[@]}"; do
   inc snapshot restore "$vm" clean
   inc start "$vm"
   wait_agent "$e"
+  # A restored VM resumes with the clock of the snapshot; kubeadm fails on that skew.
+  vm_root "$e" date -u -s "@$(host_run date +%s)" >/dev/null
+  vm_root "$e" systemctl restart systemd-timesyncd >/dev/null 2>&1 || true
   if [[ $version == n1 ]]; then vm_root "$e" dd-use n1; fi
   if ((stop)); then inc stop "$vm"; log "$vm left stopped"; fi
 done
