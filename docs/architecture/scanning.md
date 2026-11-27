@@ -211,7 +211,9 @@ records, at all six sites.
 
 Two smaller things it needed: `toolCmd` gained an `Env` so the token reaches
 plumber through the environment rather than argv, which is readable from the
-process list; and the security view gained the secret store, because a rescan
+process list (a containerised plumber used to get `-e GH_TOKEN=<value>` in argv
+anyway; since DEVDESK-945 argv holds `-e GH_TOKEN` and the value is in
+`containerRun.Env`, see "The plumber token" under the proxy section); and the security view gained the secret store, because a rescan
 from `:sec` must grade what the same rescan from `ws` grades.
 
 `--score` is not optional: an issue carries no severity of its own, it lives in
@@ -326,8 +328,9 @@ no line, so it could feed neither the table's jump-to-line nor a fix.
   leaves no rest) and the value of each query parameter becomes `***`. The
   arguments DevDesk wrote itself with the `key=value` shape are listed in
   `toolCmd.Verbatim` and stay readable (plumber's `--print=false` and
-  `GIT_CONFIG_*`), so the token variable plumber's container gets,
-  `-e GH_TOKEN=...`, is masked. A DevDesk argument of that shape that is not
+  `GIT_CONFIG_*`). plumber's token is not an argument of that shape any more
+  (DEVDESK-945): argv names the variable (`-e GH_TOKEN`) and holds no value. A
+  DevDesk argument of that shape that is not
   listed (`key=some/relative/path`) would be logged `key=***`: readability
   only. A word that is not valid UTF-8 or holds a rune that does not print
   (newline, U+2028/2029, U+202E, a C1 control, ESC) is written with `%q`, the
@@ -2214,9 +2217,22 @@ the loopback warning and the guard. What matters for scanning:
   - a secret split over two lines (redaction works line by line when streamed);
   - a token the tool prints in a query string it built itself;
   - a `Proxy-Authorization` header the tool prints encoded (base64).
-- **The plumber token is outside this change.** plumber's `GITLAB_TOKEN` is still
-  passed as `-e GITLAB_TOKEN=<value>` and so is in argv. This predates DEVDESK-583
-  and is not part of it.
+- **The plumber token (DEVDESK-945, S9).** plumber's forge token (`GH_TOKEN`, or
+  `GITLAB_TOKEN` on the GitLab path, `plumberTokenName`) used to be passed as
+  `-e GH_TOKEN=<value>`, so it was readable by any local user through `ps` or
+  `/proc/<pid>/cmdline` for the whole scan, and could reach audit logs. It now
+  follows the proxy variables: `plumberArgs` writes `-e NAME` in `Flags` and
+  `plumberTokenEnv` gives `containerRun.Env` the `NAME=value` entry, which
+  `containerRun.cmd` appends to the child's environment. Neither argv, `String()`,
+  `Loggable()`, `GetPlumberCommand` nor `plumberVerbatim` holds the value; an empty
+  token declares nothing, and the shown command carries `-e GH_TOKEN` (a name is
+  not a secret) without any value. A native plumber binary already got it through
+  `cmd.Env` only (`plumberBinaryEnv`). Tests: `plumber_token_env_test.go`
+  (canary token, exact argv and environment on Docker and Podman, the child's
+  environment as the fake engine's journal records it). The static guard
+  `TestNoSecretIsPutInAnArgv` (`internal/engineguard/secret_argv_guard_test.go`,
+  `docs/architecture/network.md`, "Guard S9") keeps any other word list from
+  carrying a `NAME=value` after `-e`.
 - A loopback proxy cannot be reached from the container: DevDesk warns in the
   footer and forwards it unchanged.
 

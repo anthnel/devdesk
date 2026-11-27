@@ -7,6 +7,7 @@ import (
 	"log"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"testing"
 
@@ -184,7 +185,7 @@ func TestTheTokenIsNeverInTheInvocation(t *testing.T) {
 
 	// It does reach a container, through the environment.
 	cmd := plumberArgs("/repos", ToolSpec{Source: ToolSourceContainer}, opts, "/dev/stdout")
-	if !strings.Contains(strings.Join(cmd.Args, " "), "GH_TOKEN=ghp_secretsecretsecret") {
+	if !slices.Contains(cmd.Env, "GH_TOKEN=ghp_secretsecretsecret") {
 		t.Error("the token did not reach the container at all")
 	}
 }
