@@ -1598,6 +1598,7 @@ fixtures. See "What is not recorded yet" below.
 | Path | Role |
 |---|---|
 | `internal/nexusfixture/` | format, parser and writer (`format.go`), embedded loader (`load.go`), `Redact` (`redact.go`), `CheckLeaks` (`leaks.go`). No `testing` import: the recorder imports it. |
+| `internal/fixtureleak/` | the text detectors `CheckLeaks` and `Redact` share with `internal/enginefixture` (OC-08b, DEVDESK-942): see "Detectors shared with the engine fixtures" below. |
 | `internal/nexusfixture/fixtures/<campaign>/*.http` | the fixtures, embedded with `go:embed`. Three campaigns today: `catalog` (75 files), `cachedonly` (17 files, NX-04) and `access` (43 files, NX-05). |
 | `internal/nexusfixture/fakenexus/` | the replay server. Imports `testing`: import it from `_test.go` files only. |
 | `internal/nexusbench/record.go`, `cmd/nexus-bench/record.go` | the recorder and its command. |
@@ -1892,6 +1893,21 @@ Known limits: the rules are fixed patterns, so a name that matches none of them
 is only caught by the external deny list, which nobody runs by default; an exotic
 encoding of a term (other than JSON and URL escaping, case folding, and the
 Basic encoding of the recorder's passwords) is not looked for.
+
+**Detectors shared with the engine fixtures (OC-08b, DEVDESK-942).** The stateless text
+detectors of `CheckLeaks` no longer live in `internal/nexusfixture`: they moved, unchanged,
+to `internal/fixtureleak` (standard library only, no `testing`, neither fixture package
+imported): `SecretFormat`, `JWTLike`, `URLAuthorities`, `AllowedAuthority` and `AllowedHost`
+(against the list the caller passes: for Nexus, `AllowedHosts`), `LocalAddresses`,
+`IsLocalAddress` and `AddressSpans` (also used by `Redact` for the address rule),
+`InternalHostNames`, `ExactVariants`, and the external deny list (`DenylistEnv`,
+`ParseDenylist`, `DenylistSummary`, `ReadDenylist`). `internal/nexusfixture/leaks.go` keeps what
+is Nexus: the automaton over the request and response sections, the header and query rules,
+`AllowedHosts`, the local path rule. Same rule names, same lines: no test of `nexusfixture`
+changed (`TestDetectorsAreDeclaredOnce` in `internal/fixtureleak` fails if either fixture package
+declares a detector again). `internal/enginefixture` uses the same detectors for its own rules
+(`network.md`, "Recorded fixtures"). The Nexus tests still read the deny list through their own
+test helper; the engine fixtures read it through `fixtureleak.ReadDenylist`.
 
 ### The fake Nexus (`fakenexus`)
 

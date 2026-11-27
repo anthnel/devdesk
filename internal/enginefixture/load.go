@@ -101,14 +101,21 @@ func All() ([]Fixture, error) {
 	return all, nil
 }
 
-// ForConfig keeps the fixtures of one engine configuration, in their order. The
-// input is not modified. Version is compared whole: "29.10" is not "29.10.1".
+// ForConfig keeps the fixtures of one engine configuration, in their order. A
+// skipped fixture is left out: it stays in the tree for the leak and stale checks
+// and is never selected for a replay. The input is not modified. Version is
+// compared whole: "29.10" is not "29.10.1".
 func ForConfig(fixtures []Fixture, tool Tool, version string, mode Mode) []Fixture {
 	var out []Fixture
 	for _, f := range fixtures {
-		if f.Meta.Tool == tool && f.Meta.Version == version && f.Meta.Mode == mode {
+		if f.Meta.Tool == tool && f.Meta.Version == version && f.Meta.Mode == mode && !isSkipped(f) {
 			out = append(out, f)
 		}
 	}
 	return out
+}
+
+// isSkipped reports a fixture marked "record: skip: <reason>".
+func isSkipped(f Fixture) bool {
+	return strings.HasPrefix(f.Meta.Record, recordSkipPrefix)
 }

@@ -110,6 +110,12 @@ func Parse(campaign, fileName string, data []byte) (Fixture, error) {
 	if !ok {
 		return Fixture{}, fail(fileName, "the file name must end in %q", fileSuffix)
 	}
+	return parse(campaign, fileName, stem, data, true)
+}
+
+// parse is Parse; checkName asks that the name say what the headers say. The leak
+// check reads a file under any name and passes false.
+func parse(campaign, fileName, stem string, data []byte, checkName bool) (Fixture, error) {
 	if i := bytes.IndexByte(data, '\r'); i >= 0 {
 		return Fixture{}, fail(fileName, "carriage return at byte %d: a fixture uses LF only", i)
 	}
@@ -122,8 +128,10 @@ func Parse(campaign, fileName string, data []byte) (Fixture, error) {
 	if f.Meta, err = metaOf(fileName, values); err != nil {
 		return Fixture{}, err
 	}
-	if f.Scenario, err = scenarioOf(fileName, stem, f.Meta); err != nil {
-		return Fixture{}, err
+	if checkName {
+		if f.Scenario, err = scenarioOf(fileName, stem, f.Meta); err != nil {
+			return Fixture{}, err
+		}
 	}
 	if f.Exchange.Argv, err = parseArgv(fileName, values["argv"]); err != nil {
 		return Fixture{}, err

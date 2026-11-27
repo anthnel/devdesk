@@ -7,6 +7,8 @@ import (
 	"regexp"
 	"strconv"
 	"strings"
+
+	"github.com/anthnel/devdesk/internal/fixtureleak"
 )
 
 // redacted is what replaces a credential or a secret value in a fixture.
@@ -354,9 +356,9 @@ func hideAddresses(value string) string {
 	}
 	var b strings.Builder
 	last := 0
-	for _, m := range ipv4Like.FindAllStringSubmatchIndex(value, -1) {
-		start, end := m[2], m[3]
-		if !isLocalAddress(value[start:end]) {
+	for _, span := range fixtureleak.AddressSpans(value) {
+		start, end := span[0], span[1]
+		if !fixtureleak.IsLocalAddress(value[start:end]) {
 			continue
 		}
 		b.WriteString(value[last:start])

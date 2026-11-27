@@ -21,7 +21,8 @@ type Replay struct {
 	used  map[string]bool
 }
 
-// NewReplay builds a Replay. It refuses an empty selection, a pending fixture and
+// NewReplay builds a Replay. It refuses an empty selection, a pending fixture, a
+// skipped one ("record: skip: <reason>", kept in the tree but never replayed) and
 // two fixtures with the same tool and argv, and its error names them.
 func NewReplay(fixtures ...Fixture) (*Replay, error) {
 	if len(fixtures) == 0 {
@@ -31,6 +32,9 @@ func NewReplay(fixtures ...Fixture) (*Replay, error) {
 	for _, f := range fixtures {
 		if f.Meta.Record == RecordPending {
 			return nil, fmt.Errorf("enginefixture: fixture %s is pending (no recorded answer)", label(f))
+		}
+		if isSkipped(f) {
+			return nil, fmt.Errorf("enginefixture: fixture %s is skipped (%s) and is never replayed", label(f), f.Meta.Record)
 		}
 		key := keyOf(f.Meta.Tool, f.Exchange.Argv)
 		if twin, ok := r.byKey[key]; ok {

@@ -308,7 +308,7 @@ information, and reports each site with file, line and enclosing function:
   registry (a development tool). `--pull=never` was measured on Docker 29.7.2 and a Podman of 2026-09-25
   (exit 125 on a missing image), not on the N and N-1 versions of `docs/measurements/2026-11-27-engines.md`.
 
-### Recorded fixtures — `internal/enginefixture` (OC-08a, DEVDESK-805)
+### Recorded fixtures — `internal/enginefixture` (OC-08a and OC-08b, DEVDESK-805, DEVDESK-942)
 
 What an engine answered to one argv, kept as a text file and replayed byte for byte. `internal/enginefixture`
 is production code that starts nothing and never imports `testing` (`TestProductionCodeDoesNotImportTesting`);
@@ -345,8 +345,9 @@ the synthetic files of `internal/enginefixture/testdata/synthetic/*.cli`, each m
 - **Loading.** `Load(campaign)` (embedded) and `LoadFS(fsys, campaign)` read `<campaign>/*.cli`, sorted by name, ignoring
   other files and sub directories; an unknown campaign is an error that names it. `Campaigns()` lists the embedded
   campaigns that hold a `.cli` file, sorted; `All()` loads them. `ForConfig(fixtures, tool, version, mode)` keeps one
-  configuration (whole version: `29.10` is not `29.10.1`), without touching its input.
-- **Replay.** `NewReplay(fixtures...)` refuses no fixture, a pending one, and two with the same key; the key is the
+  configuration (whole version: `29.10` is not `29.10.1`) and **leaves a skipped fixture out**, without touching its input.
+- **Replay.** `NewReplay(fixtures...)` refuses no fixture, a pending one, a skipped one (`record: skip: <reason>`, below) and
+  two with the same key; the key is the
   **tool and the argv, exact, element by element**, in order (no flag is reordered); version and mode are not in it,
   so a test **chooses** its configuration (`ForConfig`) and two fixtures that differ only by them collide, and the error
   names both. The same argv under `docker` and `podman` are two keys. `Answer(tool, argv)` returns a **copy**
@@ -386,11 +387,71 @@ the synthetic files of `internal/enginefixture/testdata/synthetic/*.cli`, each m
 - **Limits**: with `Combined` the replay writes stdout then stderr, as `fakecli` does; a real engine may interleave them.
   Go truncates a real `ExitError.Stderr` above 64 KiB (head and tail), the replay does not. stdin is ignored. A
   non-UTF-8 argv is refused by `Parse`.
-- **What OC-08b adds** (not here): the leak check (`CheckLeaks`, the shared detectors of `internal/fixtureleak`, the
-  placeholders `fixture-user` and `fixture-host`), `versions.env` as the single source of the N and N-1 versions
-  and the stale test, `TestNoPendingFixtureIsVersioned` and the refusal of `DEVDESK_FIXTURE_RECORDING` in CI. Until it
-  lands, nothing scans a `.cli` file for a user name, a host or a secret: no real fixture is versioned, so there is
-  nothing to scan. The recorder and the first real fixtures are OC-09a and OC-09b.
+- **`record: skip: <reason>`** (OC-08b). A skipped fixture is a recorded exchange kept in the tree that no test replays
+  (an answer that depends on the clock, the machine or an ordering). `Parse`, `Format`, `Load`, `LoadFS` and `All` keep it,
+  so the leak and stale checks read it like any other; `ForConfig` leaves it out; `NewReplay` refuses it with an error that
+  names the fixture and says it is skipped, so `fakecli.Fixtures` refuses it too. A test that hands one over gets a failure,
+  not a silent miss.
+- **The leak check** (OC-08b, `internal/enginefixture/leaks.go`). A fixture is a text file read in review and kept in the git
+  history for good, so nothing of the recording machine may be in it. `CheckLeaks(name, data, exact) []Leak` and
+  `CheckLeaksAs(name, data, exact, local)` return `Leak{Fixture, Line, Rule}`: **never the text found**, and each rule once
+  per line. A valid file is read by its parts (the headers, the `argv` included, so a `pending` file is checked; each stream
+  **decoded**, so base64 hides nothing; a leak in a base64 stream is reported at the line of its `# stdout:` or `# stderr:`
+  header); an invalid file is read as raw text, line by line (a broken file is no way round). Rules:
+
+  | Rule | Refuses | Admitted |
+  |---|---|---|
+  | `secret-token-format`, `jwt-like-value` | the formats of `fixtureleak` (GitHub and GitLab tokens, AWS key ids, a PEM private key; `eyJ` and 10 base64url characters) | |
+  | `host-not-allowed` | the authority of an `http(s)` URL outside `AllowedHosts` (`127.0.0.1`, `localhost`, `index.docker.io`, `registry-1.docker.io`, `docker.io`, `quay.io`), or with `user@` | |
+  | `private-or-link-local-address` | a private, link-local, CGNAT or unique-local address | `EngineBridgeNets`: `172.17.0.0/16` to `172.31.0.0/16` (the Docker pools) and `10.88.0.0/16`, `10.89.0.0/16` (Podman). `192.168.0.0/16`, `172.16.0.0/16` and a `10.x` lab bridge are refused |
+  | `internal-name` | a name in `.home.arpa`, `.lan`, `.internal`, `.local` | |
+  | `personal-path` | `/home/<x>`, `/var/home/<x>`, `/Users/<x>`, `/root`, `C:\Users\<x>` (raw or JSON-escaped), at the start of a line or after a blank or one of `" ' = : , \| ( [` | `<x>` is `fixture-user` (`PlaceholderUser`) or a key of `ImageHomes` (a home an image keeps, such as `/home/node`; empty at first, each entry with its reason) |
+  | `lab-identity` | `LabTerms`: the names already public in `tools/engine-vms/README.md` (the lab hosts and the lab user) | |
+  | `local-identity` | the host name and the user name of the machine that runs the test, **handed over by the test** (`MachineIdentities`, filtered by `LocalIdentityTerms`: three characters at least, not `root`, `user`, `admin`, `runner`, `ubuntu`, `docker`, `podman`, `ci`, `build`, `test`, not `fixture-*`) | |
+  | `exact-term` | each term of the external deny list (`DEVDESK_FIXTURE_DENYLIST`, one term per line, never in the repository) | |
+  | `sensitive-env-value` | `NAME=value` where `secretenv.Default().Sensitive(NAME)` holds | an empty value or `<redacted>` |
+  | `invisible-character` | U+200B to U+200F, U+202A to U+202E, U+2060, U+2066 to U+2069, U+FEFF: valid text that a reviewer cannot see (the stream encoding lets it through). The line is also read without them, so a split name is seen | |
+
+  The three name rules (`lab-identity`, `local-identity`, `exact-term`) match **at the word, ignoring the case, also
+  JSON-escaped and URL-escaped** (`fixtureleak.ExactVariants`): a boundary is any character that is not a letter, a digit or
+  an underscore, so `-`, `/`, `@` and **`.`** are boundaries and `zedbox` is seen in `zedbox.corp.example`, in
+  `srv.zedbox.example` and before the dot that ends a sentence, but not in `zedboxes` or `ddm-run`. `CheckLeaks` is
+  `CheckLeaksAs` without local identities: the test adds them, the check never reads the machine itself.
+  The detectors without state (formats, URL authorities, addresses, internal names, exact variants, the deny list reader)
+  are **`internal/fixtureleak`**, shared with `internal/nexusfixture` (the same code, moved unchanged; `TestDetectorsAreDeclaredOnce`
+  fails if either fixture package declares them again); the HTTP automaton of Nexus and the CLI format stay apart.
+  `TestFixturesLeakNothing` runs it on every `.cli` file of the tree (`fixtures/*/*.cli` and `testdata/*/*.cli`, pending files
+  included) with the deny list and the machine identities, and logs how many terms it applied (a missing, empty or
+  comment-only deny list says so: it never passes for an applied list).
+  **Limits**: a host name that is arbitrary, outside every internal zone, the lab and the local machine, is seen only through
+  the external deny list; a **short name** is seen only if the machine reports it (`MachineIdentities` keeps the host name
+  as `os.Hostname` returns it: when that is an FQDN, its first label is not a term of its own); a local network that is
+  `172.17.x` passes (it is an engine network); `ImageHomes` is kept by hand; a name that is not at a word boundary (`xzedbox`)
+  is not seen; the rule `sensitive-env-value` is as blunt as `secretenv` (a `KEY` in `KEYBOARD=...` is reported); a leak
+  hidden by an encoding other than base64 (an escape such as `\u0064\u0064` inside text) is not seen.
+- **Versions: N and N-1** (OC-08b, `internal/enginefixture/versions.go`). `tools/engine-vms/versions.env` is the single source
+  (the VMs of OC-85 and the measure of OC-01 read it too); `ParseVersions` reads `DOCKER_N_VERSION`, `DOCKER_N1_VERSION`,
+  `PODMAN_N_VERSION`, `PODMAN_N1_VERSION` (plain `NAME=value`, `#` comments including at the end of a line, other keys ignored;
+  a missing key, an empty value or a value that is not a dotted version is an error that names the key) into a
+  `Supported` (`map[Tool][]string`, N first). Currently Docker 29.10.1 and 28.5.2, Podman 6.2.1 and 5.8.11: the numbers in
+  this file are copied by hand, and a bump edits `versions.env`, `versions_test.go` and this section in the same change.
+  `TestFixturesAreNotStale` (`stale_test.go`, the comparison lives in the test file as in Nexus) fails when a versioned fixture
+  was recorded from an engine that is neither N nor N-1 of its tool, naming each file, its version, the supported ones and the
+  way out (record again, `tools/engine-vms/README.md` until the task `engine-contract:record` exists); a pending fixture has no
+  answer to be stale, a skipped one is checked. While nothing is versioned, **`minVersionedFixtures = 0`** (the log line says
+  so instead of passing in silence), the same function runs on `testdata/synthetic`, and `TestSyntheticFixturesCoverBothVersionsOfBothTools`
+  keeps N and N-1 of both tools exercised. OC-09b raises the floor to what it versions; it never goes down. A Go list of the supported
+  versions for the run time (OC-83) will add its own test against `versions.env`.
+- **`record: pending` and the recording session** (OC-08b, `pending_test.go`). A pending file is the recorder's request without an
+  answer: `Load` refuses it, so a campaign that holds one is out of the replay, stale and round-trip checks while it stays.
+  `TestNoPendingFixtureIsVersioned` fails on one under `fixtures/` and names it, unless `DEVDESK_FIXTURE_RECORDING=1` and `CI` is
+  empty (a local recording session, with a note). `DEVDESK_FIXTURE_RECORDING=1` with `CI` set is **an error even without a pending
+  file** (the verdict is a pure function of `getenv` and the file list, `recordingVerdict`); only the value `1` opens a session.
+  `TestRecordingSessionIsNeverSetByTheStandardChecks` reads `mise.toml` and `.github/workflows/*.y*ml`: none names the variable
+  outside a recorder task (`engine-contract:record`, `nexus-bench:record`), so no standard check can turn the guard off. The leak
+  check still reads the pending files.
+- Not here: the recorder, `Redact` (it must produce what `CheckLeaks` lets through: a test "Redact then Check is clean" is
+  OC-09a's) and the first real fixtures with the raised floor (OC-09b).
 
 ## OCI registries — `internal/oci`
 

@@ -1,13 +1,13 @@
 package nexusfixture
 
 import (
-	"net"
 	"net/http"
-	"net/netip"
 	"net/url"
 	"regexp"
 	"sort"
 	"strings"
+
+	"github.com/anthnel/devdesk/internal/fixtureleak"
 )
 
 // Leak is one finding of CheckLeaks. It names where and which rule, never what
@@ -47,29 +47,11 @@ const (
 const sessionKV = "NXSESSIONID"
 
 var (
-	jwtLike = regexp.MustCompile(`eyJ[A-Za-z0-9_-]{10,}`)
-	// secretFormat matches well-known secret formats: GitHub and GitLab tokens,
-	// AWS access key ids, and the first line of a PEM private key.
-	secretFormat = regexp.MustCompile(
-		`gh[pousr]_[A-Za-z0-9]{36,}|glpat-[A-Za-z0-9_-]{20,}|(?:AKIA|ASIA)[0-9A-Z]{16}|-----BEGIN [A-Z ]*PRIVATE KEY-----`)
-	// urlAuth reads the authority of a URL, also when its slashes are JSON-escaped.
-	urlAuth = regexp.MustCompile(`(?i)https?:\\?/\\?/([^\s/"'<>?#\\,;)]+)`)
-	// ipv4Like needs a non-numeric character before the address, not a word boundary:
-	// "ip10.1.2.3" holds one.
-	ipv4Like = regexp.MustCompile(`(?:^|[^0-9])(\d{1,3}(?:\.\d{1,3}){3})`)
-	// ipv6Local starts a unique-local (fc00::/7) or link-local (fe80::/10) address.
-	ipv6Local = regexp.MustCompile(`(?i)(?:^|[^0-9a-f])(?:f[cd][0-9a-f]{2}|fe[89ab][0-9a-f]):`)
-	// bareHost is a host name in an internal zone; the group is the name.
-	bareHost = regexp.MustCompile(`(?i)([a-z0-9_-]+(?:\.[a-z0-9_-]+)*\.(?:home\.arpa|lan|internal|local))(?:$|[^a-z0-9_-])`)
-	// percentEscape is a URL escape, a separator for bareHost.
-	percentEscape = regexp.MustCompile(`%[0-9A-Fa-f]{2}`)
 	// localPath is a user's home directory anchored at the start of a value (after
 	// a quote, a blank or "="): "/home/" inside an image path is legitimate.
 	// winProfile is a Windows profile path, raw or JSON-escaped.
 	localPath  = regexp.MustCompile(`(?:^|["\s=])/(?:root|home|Users)/`)
 	winProfile = regexp.MustCompile(`(?i)[a-z]:\\+users`)
-
-	cgnat = netip.MustParsePrefix("100.64.0.0/10")
 
 	sessionHeaders = []string{"cookie", "set-cookie", "x-nexus-ui"}
 	// internalNames are matched ignoring case.
@@ -84,8 +66,6 @@ var (
 	// probeHeaders are the request headers of the realm probe, besides Host,
 	// Authorization and Accept; their value goes through probeValueAllowed.
 	probeHeaders = []string{"X-Forwarded-Host", "X-Forwarded-Proto"}
-	// jsonEscaper writes a term as it sits inside a JSON string.
-	jsonEscaper = strings.NewReplacer(`\`, `\\`, `"`, `\"`, `/`, `\/`)
 )
 
 // lineState is where a line sits in the file: the commented header, or one of
@@ -117,7 +97,7 @@ const (
 // empty term matches nothing. The text is scanned as written, not parsed: a file
 // that does not parse is still checked.
 func CheckLeaks(fixture string, data []byte, exact []string) []Leak {
-	c := &leakScan{fixture: fixture, seen: map[leakKey]bool{}, exact: exactVariants(exact)}
+	c := &leakScan{fixture: fixture, seen: map[leakKey]bool{}, exact: fixtureleak.ExactVariants(exact)}
 	text := string(data)
 	state := stMeta
 	for i, line := range strings.Split(text, "\n") {
@@ -126,21 +106,6 @@ func CheckLeaks(fixture string, data []byte, exact []string) []Leak {
 	c.scanJSONSecrets(text)
 	sort.SliceStable(c.leaks, func(i, j int) bool { return c.leaks[i].Line < c.leaks[j].Line })
 	return c.leaks
-}
-
-// exactVariants lists, lower-cased, the forms of each term that can sit in a
-// fixture: as given, JSON-escaped, URL-escaped as a query value and as a path.
-func exactVariants(terms []string) []string {
-	var out []string
-	for _, term := range terms {
-		if term == "" {
-			continue
-		}
-		for _, v := range []string{term, jsonEscaper.Replace(term), url.QueryEscape(term), url.PathEscape(term)} {
-			out = append(out, strings.ToLower(v))
-		}
-	}
-	return out
 }
 
 type leakKey struct {
@@ -235,7 +200,7 @@ func (c *leakScan) scanService(n int, value string) {
 	if err != nil {
 		decoded = value
 	}
-	if !urlAuth.MatchString(decoded) && !allowedAuthority(decoded) {
+	if len(fixtureleak.URLAuthorities(decoded)) == 0 && !allowedAuthority(decoded) {
 		c.add(n, ruleHost)
 	}
 	if decoded != value {
@@ -310,17 +275,15 @@ func (c *leakScan) scanText(n int, line string) {
 	if strings.Contains(lower, strings.ToLower(sessionKV)) {
 		c.add(n, ruleSession)
 	}
-	if jwtLike.MatchString(line) {
+	if fixtureleak.JWTLike(line) {
 		c.add(n, ruleJWT)
 	}
-	if secretFormat.MatchString(line) {
+	if fixtureleak.SecretFormat(line) {
 		c.add(n, ruleSecretFormat)
 	}
-	if strings.Contains(lower, "http") {
-		for _, m := range urlAuth.FindAllStringSubmatch(line, -1) {
-			if !allowedAuthority(m[1]) {
-				c.add(n, ruleHost)
-			}
+	for _, authority := range fixtureleak.URLAuthorities(line) {
+		if !allowedAuthority(authority) {
+			c.add(n, ruleHost)
 		}
 	}
 	c.scanAddresses(n, line)
@@ -334,23 +297,9 @@ func (c *leakScan) scanText(n int, line string) {
 
 // scanAddresses reports private, link-local, CGNAT and unique-local addresses.
 func (c *leakScan) scanAddresses(n int, line string) {
-	// The cheap tests keep the regular expressions off the lines that cannot match.
-	if strings.Contains(line, ".") {
-		for _, m := range ipv4Like.FindAllStringSubmatch(line, -1) {
-			if addr, err := netip.ParseAddr(m[1]); err == nil && (addr.IsPrivate() || addr.IsLinkLocalUnicast() || cgnat.Contains(addr)) {
-				c.add(n, rulePrivateAddress)
-			}
-		}
-	}
-	if strings.Count(line, ":") > 1 && ipv6Local.MatchString(line) {
+	if fixtureleak.LocalAddresses(line, nil) {
 		c.add(n, rulePrivateAddress)
 	}
-}
-
-// isLocalAddress reports whether s is a private, link-local or CGNAT address.
-func isLocalAddress(s string) bool {
-	addr, err := netip.ParseAddr(s)
-	return err == nil && (addr.IsPrivate() || addr.IsLinkLocalUnicast() || cgnat.Contains(addr))
 }
 
 // scanInternal reports internal names, bare internal host names and local paths.
@@ -360,22 +309,9 @@ func (c *leakScan) scanInternal(n int, line, lower string) {
 			c.add(n, ruleInternalName)
 		}
 	}
-	if strings.Contains(line, ".") {
-		// A URL-encoded separator ("%2F") would otherwise join the name before it
-		// ("2Fbench-upstream..."), and decoding can make a match disappear
-		// ("nexus.home.arpa%2Dmirror" becomes one longer name, "x.lan%41" too). So the
-		// line is scanned decoded and with each escape turned into a separator, and
-		// any match of either is a leak.
-		texts := []string{percentEscape.ReplaceAllString(line, " ")}
-		if decoded, err := url.PathUnescape(line); err == nil && decoded != line {
-			texts = append(texts, decoded)
-		}
-		for _, text := range texts {
-			for _, m := range bareHost.FindAllStringSubmatch(text, -1) {
-				if !contains(AllowedHosts, strings.ToLower(m[1])) {
-					c.add(n, ruleInternalName)
-				}
-			}
+	for _, name := range fixtureleak.InternalHostNames(line) {
+		if !contains(AllowedHosts, strings.ToLower(name)) {
+			c.add(n, ruleInternalName)
 		}
 	}
 	if (strings.Contains(line, "/") && localPath.MatchString(line)) || (strings.Contains(line, `\`) && winProfile.MatchString(line)) {
@@ -406,18 +342,10 @@ func (c *leakScan) scanJSONSecrets(text string) {
 // allowedAuthority checks the authority of a URL: no user info, and a host in
 // AllowedHosts.
 func allowedAuthority(authority string) bool {
-	if strings.Contains(authority, "@") {
-		return false
-	}
-	return allowedHost(authority)
+	return fixtureleak.AllowedAuthority(authority, AllowedHosts)
 }
 
 // allowedHost checks a host with or without a port.
 func allowedHost(hostPort string) bool {
-	host := hostPort
-	if h, _, err := net.SplitHostPort(hostPort); err == nil {
-		host = h
-	}
-	host = strings.Trim(strings.ToLower(host), "[]")
-	return contains(AllowedHosts, host)
+	return fixtureleak.AllowedHost(hostPort, AllowedHosts)
 }

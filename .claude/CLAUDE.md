@@ -337,8 +337,24 @@ through `interface{ ExitCode() int }`, not `ExitError.ExitCode()`, which is -1 t
 `fakecli.Install(t, fakecli.Fixtures(t, f...), "docker")`, and `fixture_equivalence_test.go` holds the two paths equal.
 `fakecli` carries the bytes of a `Reply` unchanged. Only `_test.go` files and `internal/testutil/fakecli` import
 `enginefixture` (guard E1, `TestOnlyTestsImportEngineFixture`). **No real fixture is versioned before OC-09b**: the
-mechanisms run on `internal/enginefixture/testdata/synthetic` (`recorded-by: synthetic`). The leak check, the N / N-1
-stale test and the pending-file test are OC-08b. See `docs/architecture/network.md`, "Recorded fixtures".
+mechanisms run on `internal/enginefixture/testdata/synthetic` (`recorded-by: synthetic`). See `docs/architecture/network.md`,
+"Recorded fixtures".
+
+**Guards on recorded fixtures (DEVDESK-942, OC-08b).** `TestFixturesLeakNothing` runs `enginefixture.CheckLeaksAs` on every
+`.cli` file of the tree (`fixtures/*/*.cli`, `testdata/*/*.cli`, pending files included), with the external deny list
+(`DEVDESK_FIXTURE_DENYLIST`, a file outside the repository, one term per line) and the identities of the machine
+(`MachineIdentities`); a failure names file, line and rule, never the text found. Rules: `secret-token-format`,
+`jwt-like-value`, `host-not-allowed`, `private-or-link-local-address` (the engines' default networks are allowed),
+`internal-name`, `personal-path` (`fixture-user` and `ImageHomes` allowed), `lab-identity`, `local-identity`, `exact-term`,
+`sensitive-env-value`, `invisible-character`; names are matched at the word, a dot included as a boundary. The detectors
+are shared with Nexus in `internal/fixtureleak` (do not declare one again in either fixture package). `TestFixturesAreNotStale`
+reads N and N-1 from `tools/engine-vms/versions.env` (`ParseVersions`): a bump edits that file, `versions_test.go` and
+`network.md`, then records again; `minVersionedFixtures` is 0 until OC-09b raises it. `TestNoPendingFixtureIsVersioned`
+refuses a `record: pending` file under `fixtures/`, and `DEVDESK_FIXTURE_RECORDING=1` when `CI` is set (a local session
+only); `TestRecordingSessionIsNeverSetByTheStandardChecks` keeps that variable out of `mise.toml` (outside the recorder
+tasks) and out of `.github/workflows`. A `record: skip: <reason>` fixture is kept and checked, left out of `ForConfig`
+and refused by `NewReplay`. Limits: an arbitrary host name is seen only through the deny list, a local network in `172.17.x`
+passes, `ImageHomes` is kept by hand. See `docs/architecture/network.md`, "Recorded fixtures".
 
 **Test input and colour (DEVDESK-199).** Build keys only through
 `internal/ui/testutil` (`Key`, `Keys`, `Type`, `Paste`, `Text`, `IsText`), never a
