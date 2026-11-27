@@ -525,12 +525,18 @@ func (m Model) sensitiveMatcher() *secretenv.Matcher {
 }
 
 // maskedReading is what the document is built from: the raw bytes once the
-// values are revealed, the source's masked reading of them otherwise.
+// values are revealed, the source's masked reading of them otherwise. The count
+// is the number of sensitive values either way, so the header can keep it while
+// they are shown.
 func (m Model) maskedReading(src viewer.Maskable, raw []byte) ([]byte, int, error) {
-	if m.revealed {
-		return raw, 0, nil
+	masked, count, err := src.Mask(raw, m.sensitiveMatcher())
+	if err != nil {
+		return nil, 0, err
 	}
-	return src.Mask(raw, m.sensitiveMatcher())
+	if m.revealed {
+		return raw, count, nil
+	}
+	return masked, count, nil
 }
 
 // maskFailed reports a source whose content could not be masked. Nothing is
@@ -558,7 +564,8 @@ func (m *Model) maskNotice() tea.Cmd {
 
 // toggleMask is `m`. It shows the same document the other way from the bytes
 // already held: nothing is read again, and the reader stays where they were
-// since masking changes values and not the shape of the document.
+// since masking changes values and not the shape of the document. Masking again
+// drops the search, which may hold what was just hidden.
 func (m Model) toggleMask() (tea.Model, tea.Cmd) {
 	src, ok := m.maskable()
 	if !ok || m.raw == nil || !m.hasDocument() {
@@ -571,6 +578,10 @@ func (m Model) toggleMask() (tea.Model, tea.Cmd) {
 		return m.maskFailed(m.doc.Name, err)
 	}
 	m.masked = count
+	if !m.revealed {
+		// A query typed while the values were shown may be the secret itself.
+		m.bar.ClearSearch()
+	}
 	m.reshow(viewer.Open(m.doc.Name, src.Kind(), shown))
 	cmd := m.maskNotice()
 	return m, cmd

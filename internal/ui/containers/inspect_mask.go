@@ -26,6 +26,7 @@ type jsonFrame struct {
 	object    bool
 	key       string // the key whose value is being read, for an object
 	expectKey bool   // the next string of an object is a key
+	afterFlag bool   // array only: the previous element was -e or --env
 }
 
 // textEdit replaces raw[start:end].
@@ -34,13 +35,24 @@ type textEdit struct {
 	replacement string
 }
 
-// maskInspectEnv replaces the value of every sensitive entry of Config.Env in
-// the output of `docker inspect`, and returns how many it replaced.
+// maskInspectEnv replaces the value of every sensitive variable of Config.Env,
+// and of the -e and --env options of Config.CreateCommand, in the output of
+// `docker inspect` or `podman inspect`, and returns how many it replaced.
+//
+// CreateCommand is the argv of the `podman run` that made the container, so a
+// value given with -e is there as well as in Env. The elements masked are the
+// one after `-e` or `--env`, and the glued forms `--env=NAME=VALUE` and
+// `-eNAME=VALUE`; `--env-file` and its path are left alone, a path is not a
+// value. Everything else in the array (the image, the names, the other
+// options) is untouched. An argument of the container's own command that looks
+// like `-e NAME=VALUE` is masked too: a false positive hides a harmless value.
 //
 // The document is edited where it stands rather than decoded and encoded again:
 // a map would reorder the keys, and the reader is looking at the engine's own
 // layout. Only the span of each sensitive string changes, so what is left is
-// byte for byte the engine's output. Cmd, the labels and everything else are out
+// byte for byte the engine's output. The rewritten string is encoded again, so
+// a name or a value that was written with escapes (\u00e9, a surrogate pair)
+// comes back as the characters themselves. Cmd, the labels and everything else are out
 // of scope (OC-37 for the logs).
 //
 // An entry is NAME=VALUE, cut at the first "=": an entry with no "=" has no
@@ -83,8 +95,8 @@ func maskInspectEnv(raw []byte, matcher *secretenv.Matcher) ([]byte, int, error)
 			stack[n-1].key, stack[n-1].expectKey = text, false
 			continue
 		}
-		if isString && inConfigEnv(stack) {
-			edit, ok, err := maskEntry(raw, int(dec.InputOffset()), text, matcher)
+		if array := inConfigArray(stack); array != "" {
+			edit, ok, err := maskElement(array, &stack[len(stack)-1], raw, int(dec.InputOffset()), text, isString, matcher)
 			if err != nil {
 				return nil, 0, err
 			}
@@ -120,26 +132,61 @@ func valueDone(stack []jsonFrame) {
 	}
 }
 
-// inConfigEnv reports whether the token being read is an element of
-// Config.Env of a container: an array held under "Env" of the object held under
-// "Config", whose own parent is the top-level array (or the document itself).
-func inConfigEnv(stack []jsonFrame) bool {
+// inConfigArray says which of the two arrays of a container's Config the token
+// being read is an element of: "Env", "CreateCommand", or "" for anywhere else.
+// The array is held under that key of the object held under "Config", whose own
+// parent is the top-level array (or the document itself).
+func inConfigArray(stack []jsonFrame) string {
 	n := len(stack)
 	if n != 3 && n != 4 {
-		return false
+		return ""
 	}
 	if n == 4 && stack[0].object {
-		return false
+		return ""
 	}
-	return !stack[n-1].object &&
-		stack[n-2].object && stack[n-2].key == "Env" &&
-		stack[n-3].object && stack[n-3].key == "Config"
+	if stack[n-1].object || !stack[n-2].object || !stack[n-3].object || stack[n-3].key != "Config" {
+		return ""
+	}
+	switch stack[n-2].key {
+	case "Env", "CreateCommand":
+		return stack[n-2].key
+	}
+	return ""
 }
 
-// maskEntry builds the edit for one Env entry that ends at offset end in raw,
-// or reports that there is nothing to hide in it. A sensitive entry whose span
-// cannot be located is an error, never a pass-through.
-func maskEntry(raw []byte, end int, entry string, matcher *secretenv.Matcher) (textEdit, bool, error) {
+// maskElement handles one element of Config.Env or Config.CreateCommand.
+func maskElement(array string, frame *jsonFrame, raw []byte, end int, text string, isString bool, matcher *secretenv.Matcher) (textEdit, bool, error) {
+	if array == "Env" {
+		if !isString {
+			return textEdit{}, false, nil
+		}
+		return maskEntry(raw, end, "", text, matcher)
+	}
+	// CreateCommand: the element after a bare -e or --env is the entry itself,
+	// the glued forms carry it after their option, and nothing else is one.
+	afterFlag := frame.afterFlag
+	frame.afterFlag = false
+	if !isString {
+		return textEdit{}, false, nil
+	}
+	switch {
+	case afterFlag:
+		return maskEntry(raw, end, "", text, matcher)
+	case text == "-e" || text == "--env":
+		frame.afterFlag = true
+	case strings.HasPrefix(text, "--env="):
+		return maskEntry(raw, end, "--env=", strings.TrimPrefix(text, "--env="), matcher)
+	case strings.HasPrefix(text, "-e") && !strings.HasPrefix(text, "--"):
+		return maskEntry(raw, end, "-e", strings.TrimPrefix(text, "-e"), matcher)
+	}
+	return textEdit{}, false, nil
+}
+
+// maskEntry builds the edit for one NAME=VALUE entry that ends at offset end in
+// raw, written after prefix (an option glued to it, or nothing), or reports that
+// there is nothing to hide in it. A sensitive entry whose span cannot be located
+// is an error, never a pass-through.
+func maskEntry(raw []byte, end int, prefix, entry string, matcher *secretenv.Matcher) (textEdit, bool, error) {
 	name, _, hasValue := strings.Cut(entry, "=")
 	if !hasValue || !matcher.Sensitive(name) {
 		return textEdit{}, false, nil
@@ -151,7 +198,7 @@ func maskEntry(raw []byte, end int, entry string, matcher *secretenv.Matcher) (t
 	var literal bytes.Buffer
 	enc := json.NewEncoder(&literal)
 	enc.SetEscapeHTML(false)
-	if err := enc.Encode(name + "=" + maskedValue); err != nil {
+	if err := enc.Encode(prefix + name + "=" + maskedValue); err != nil {
 		return textEdit{}, false, err
 	}
 	return textEdit{start: start, end: end, replacement: strings.TrimSuffix(literal.String(), "\n")}, true, nil

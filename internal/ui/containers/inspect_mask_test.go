@@ -170,7 +170,7 @@ func TestMaskEdgeCases(t *testing.T) {
 		{"several =", `[{"Config":{"Env":["API_TOKEN=a=b=c"]}}]`, `[{"Config":{"Env":["API_TOKEN=********"]}}]`, 1},
 		{"an empty value is masked like any other", `[{"Config":{"Env":["API_TOKEN="]}}]`, `[{"Config":{"Env":["API_TOKEN=********"]}}]`, 1},
 		{"an escaped value", `[{"Config":{"Env":["API_TOKEN=a\"b\\cé"]}}]`, `[{"Config":{"Env":["API_TOKEN=********"]}}]`, 1},
-		{"an escaped name", `[{"Config":{"Env":["MY_TOKEN=x"]}}]`, `[{"Config":{"Env":["MY_TOKEN=********"]}}]`, 1},
+		{"an escaped name", `[{"Config":{"Env":["\u0054OKEN=x"]}}]`, `[{"Config":{"Env":["TOKEN=********"]}}]`, 1},
 		{"a non-string entry is left alone", `[{"Config":{"Env":[1,null,"API_TOKEN=x"]}}]`, `[{"Config":{"Env":[1,null,"API_TOKEN=********"]}}]`, 1},
 		{"several containers", `[{"Config":{"Env":["A_TOKEN=1"]}},{"Config":{"Env":["B_SECRET=2","C=3"]}}]`,
 			`[{"Config":{"Env":["A_TOKEN=********"]}},{"Config":{"Env":["B_SECRET=********","C=3"]}}]`, 2},

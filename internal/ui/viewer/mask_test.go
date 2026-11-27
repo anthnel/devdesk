@@ -178,16 +178,16 @@ func TestNothingToMaskStillWarnsThatMaskingCanMissSecrets(t *testing.T) {
 func TestMRevealsAndMasksAgain(t *testing.T) {
 	m := inTextDisplay(t, open(t, newMaskable(maskFixture)))
 
-	if got, _ := envHeader(m, "Env"); got != "masked" {
-		t.Errorf("header Env = %q while masked, want masked", got)
+	if got, _ := envHeader(m, "Env"); got != "masked (1)" {
+		t.Errorf("header Env = %q while masked, want masked (1)", got)
 	}
 
 	m = feed(t, m, testutil.Key("m"))
 	if !strings.Contains(shownText(m), "API_TOKEN=canary") {
 		t.Errorf("m did not reveal the value:\n%s", shownText(m))
 	}
-	if got, _ := envHeader(m, "Env"); got != "revealed" {
-		t.Errorf("header Env = %q after m, want revealed", got)
+	if got, _ := envHeader(m, "Env"); got != "revealed (1)" {
+		t.Errorf("header Env = %q after m, want revealed (1)", got)
 	}
 	if !strings.Contains(m.footer.Text(), "revealed") {
 		t.Errorf("footer = %q, want it to say the values are revealed", m.footer.Text())
@@ -197,8 +197,8 @@ func TestMRevealsAndMasksAgain(t *testing.T) {
 	if strings.Contains(shownText(m), "canary") {
 		t.Errorf("a second m did not mask again:\n%s", shownText(m))
 	}
-	if got, _ := envHeader(m, "Env"); got != "masked" {
-		t.Errorf("header Env = %q after a second m, want masked", got)
+	if got, _ := envHeader(m, "Env"); got != "masked (1)" {
+		t.Errorf("header Env = %q after a second m, want masked (1)", got)
 	}
 }
 
@@ -229,35 +229,38 @@ func TestReopeningAfterRevealingIsMaskedAgain(t *testing.T) {
 	if strings.Contains(shownText(second), "canary") {
 		t.Errorf("a reopened inspect shows the secret:\n%s", shownText(second))
 	}
-	if got, _ := envHeader(second, "Env"); got != "masked" {
-		t.Errorf("header Env = %q on a reopened inspect, want masked", got)
+	if got, _ := envHeader(second, "Env"); got != "masked (1)" {
+		t.Errorf("header Env = %q on a reopened inspect, want masked (1)", got)
 	}
 }
 
 // The state is in the model only: nothing is written under HOME, so no
 // configuration or cache file can carry it.
 func TestRevealingWritesNothing(t *testing.T) {
-	home := t.TempDir()
+	home, cwd := t.TempDir(), t.TempDir()
 	t.Setenv("HOME", home)
 	t.Setenv("USERPROFILE", home)
+	t.Chdir(cwd)
 
 	m := open(t, newMaskable(maskFixture))
 	m = feed(t, m, testutil.Key("m"), testutil.Key("m"), testutil.Key("m"))
 	m = feed(t, m, testutil.Key("ctrl+r"))
 	_ = m
 
-	var files []string
-	err := filepath.WalkDir(home, func(path string, d fs.DirEntry, err error) error {
-		if err == nil && !d.IsDir() {
-			files = append(files, path)
+	for name, dir := range map[string]string{"HOME": home, "the working directory": cwd} {
+		var entries []string
+		err := filepath.WalkDir(dir, func(path string, d fs.DirEntry, err error) error {
+			if err == nil && path != dir {
+				entries = append(entries, path)
+			}
+			return err
+		})
+		if err != nil {
+			t.Fatal(err)
 		}
-		return err
-	})
-	if err != nil {
-		t.Fatal(err)
-	}
-	if len(files) != 0 {
-		t.Errorf("the viewer wrote %v under HOME", files)
+		if len(entries) != 0 {
+			t.Errorf("the viewer wrote %v under %s", entries, name)
+		}
 	}
 }
 

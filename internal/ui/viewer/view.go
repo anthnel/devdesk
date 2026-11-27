@@ -118,13 +118,15 @@ func (m Model) GetHeaderInfo(context string) []shortcut.HeaderInfo {
 			Key: "Lines", Value: m.lineCount(), Style: theme.HeaderValueStyle,
 		})
 	}
-	// The state of the values, for a document that has some to hide. Revealed
-	// is the one that is flagged: it is the state in which a screenshot leaks.
+	// The state of the values and how many are concerned, for a document that
+	// can hide some: the footer says it for three seconds, this keeps it.
+	// Revealed is the one that is flagged: it is the state in which a screenshot
+	// leaks.
 	if _, ok := m.maskable(); ok {
 		if m.revealed {
-			return append(info, shortcut.HeaderInfo{Key: "Env", Value: "revealed", Style: theme.HeaderWarnValueStyle()})
+			return append(info, shortcut.HeaderInfo{Key: "Env", Value: fmt.Sprintf("revealed (%d)", m.masked), Style: theme.HeaderWarnValueStyle()})
 		}
-		return append(info, shortcut.HeaderInfo{Key: "Env", Value: "masked", Style: theme.HeaderValueStyle})
+		return append(info, shortcut.HeaderInfo{Key: "Env", Value: fmt.Sprintf("masked (%d)", m.masked), Style: theme.HeaderValueStyle})
 	}
 	return info
 }
@@ -257,7 +259,7 @@ func (m Model) GetHelpContent() help.Content {
 			{Key: "←/h", Description: "Collapse the selected node (tree)"},
 			{Key: "f", Description: "Switch between the derived view — tree, or rendered Markdown — and the source"},
 			{Key: "c", Description: "Turn syntax coloring on or off"},
-			{Key: "m", Description: "Mask or reveal the environment values of a container inspect (masked when it opens)"},
+			{Key: "m", Description: "Mask or reveal the environment values of a container inspect — Config.Env and Config.CreateCommand (masked when it opens)"},
 			{Key: keymap.Copy, Description: "Copy the document's content to the clipboard"},
 			{Key: keymap.IDE, Description: "Open the file in the configured IDE (files only)"},
 			{Key: "w", Description: "Soft-wrap long lines (text)"},
@@ -341,12 +343,14 @@ func (m Model) GetHelpContent() help.Content {
 			{
 				Title: "Masked values",
 				Body: "A container inspect opens with the values of its sensitive environment variables " +
-					"(Config.Env) hidden behind ********, a mask of the same length whatever the secret's. A " +
+					"(Config.Env, and under Podman the -e and --env options of Config.CreateCommand, which repeat " +
+					"them) hidden behind ********, a mask of the same length whatever the secret's. A " +
 					"variable is sensitive when its name contains TOKEN, SECRET, PASSWORD, KEY or CREDENTIAL, or " +
 					"matches a pattern of containers.sensitive_env; KEYBOARD_LAYOUT is hidden too, on purpose. " +
-					"The footer says how many were hidden. The rule is by name only, so masking can miss secrets: " +
+					"The footer says how many were hidden for a few seconds, and the header keeps the state and the count. The rule is by name only, so masking can miss secrets: " +
 					"a secret under an ordinary name is shown, and so are the command and the labels. m reveals " +
-					"the values and the header says Env revealed; m again hides them. What is shown is what a " +
+					"the values and the header says Env revealed; m again hides them and drops the search, which " +
+					"may hold what was just hidden. What is shown is what a " +
 					"search looks through and what Y copies. Reload keeps the state; closing the inspect and " +
 					"opening it again starts masked, and nothing is saved.",
 			},
