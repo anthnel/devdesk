@@ -15,7 +15,8 @@ type ContainerLaunchOptions struct {
 	Entrypoint  string   // override default entrypoint (optional)
 	Ports       []string // "hostPort:containerPort", "ip:hostPort:containerPort" or "containerPort", each with an optional "/proto"; LoopbackPort is applied to each
 	Env         []string // "NAME=VALUE"; the value reaches the child's environment, never argv (OC-14)
-	Volumes     []string // "name:/path"
+	Volumes     []string // "name:/path" or "/host/path:/path[:ro]", each passed as -v
+	Mounts      []string // the value of each --mount: "type=bind,source=/host/path,target=/path[,readonly]"
 	Network     string   // network name
 	User        string   // user to run as (--user UID:GID or username, optional)
 	Detach      bool     // run in background (-d)
@@ -200,6 +201,11 @@ func buildLaunchArgs(opts ContainerLaunchOptions) []string {
 	for _, v := range opts.Volumes {
 		if v != "" {
 			args = append(args, "-v", v)
+		}
+	}
+	for _, m := range opts.Mounts {
+		if m != "" {
+			args = append(args, "--mount", m)
 		}
 	}
 	if opts.Network != "" {

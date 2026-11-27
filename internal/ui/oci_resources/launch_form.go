@@ -706,12 +706,8 @@ func (f *LaunchForm) submit() (*LaunchForm, tea.Cmd) {
 	}
 	// Env vars: comma-separated NAME=VALUE entries, validated above
 	opts.Env = f.envEntries()
-	// Volume mounts: comma-separated vol:/path entries
-	for v := range strings.SplitSeq(f.volInput.Value(), ",") {
-		if v = strings.TrimSpace(v); v != "" {
-			opts.Volumes = append(opts.Volumes, v)
-		}
-	}
+	// Volume mounts: -v entries and --mount values, split by splitVolumeField
+	opts.Volumes, opts.Mounts = splitVolumeField(f.volInput.Value())
 	if len(f.networks) > 0 {
 		opts.Network = f.networks[f.networkIdx]
 	}

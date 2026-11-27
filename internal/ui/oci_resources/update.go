@@ -158,6 +158,12 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case ResourceFormSubmitMsg:
 		return m.handleResourceFormSubmit(msg)
 
+	case sharedcomponents.ChoiceModalPickedMsg:
+		return m.handleMountChoicePicked()
+
+	case sharedcomponents.ChoiceModalCancelledMsg:
+		return m.handleMountChoiceCancelled()
+
 	case sharedcomponents.ConfirmModalYesMsg:
 		return m.handleConfirmYes()
 
@@ -299,6 +305,12 @@ func (m Model) delegateUpdate(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 // handleKeyMsg processes keyboard input with priority chain
 func (m Model) handleKeyMsg(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
+	// Priority -1: the sensitive-mount modal sits over the launch form and has the keyboard
+	if m.mountModal != nil {
+		var cmd tea.Cmd
+		m.mountModal, cmd = m.mountModal.Update(msg)
+		return m, cmd
+	}
 	// Priority 0: registry browser
 	if m.registryBrowser != nil {
 		var cmd tea.Cmd
@@ -352,6 +364,7 @@ func (m Model) handleKeyMsg(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 func (m Model) handlePaste(msg tea.PasteMsg) (tea.Model, tea.Cmd) {
 	var cmd tea.Cmd
 	switch {
+	case m.mountModal != nil: // a modal drops a paste
 	case m.registryBrowser != nil:
 		m.registryBrowser, cmd = m.registryBrowser.Update(msg)
 	case m.launchForm != nil:

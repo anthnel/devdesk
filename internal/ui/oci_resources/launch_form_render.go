@@ -73,10 +73,12 @@ func (f *LaunchForm) buildCommandLines() []string {
 	for _, e := range f.envEntries() {
 		args = append(args, "-e "+previewEnvName(e))
 	}
-	for v := range strings.SplitSeq(f.volInput.Value(), ",") {
-		if v = strings.TrimSpace(v); v != "" {
-			args = append(args, "-v "+shellQuote(v))
-		}
+	volumes, mounts := splitVolumeField(f.volInput.Value())
+	for _, v := range volumes {
+		args = append(args, "-v "+shellQuote(v))
+	}
+	for _, v := range mounts {
+		args = append(args, "--mount "+shellQuote(v))
 	}
 	if len(f.networks) > 0 {
 		args = append(args, "--network "+shellQuote(f.networks[f.networkIdx]))
@@ -198,7 +200,7 @@ func (f *LaunchForm) renderFormContent() string {
 	// Volume mounts
 	b.WriteString(f.renderTextFieldWithHint(
 		"Volumes", f.volInput.View(), f.fieldVolumes(),
-		"vol:/container/path pairs separated by commas",
+		"vol:/path pairs or --mount values (type=bind,source=,target=)",
 	))
 	b.WriteString("\n\n")
 

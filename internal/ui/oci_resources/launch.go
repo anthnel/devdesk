@@ -65,10 +65,18 @@ func (m Model) handleClipboardCopy(msg ClipboardCopyMsg) (tea.Model, tea.Cmd) {
 	return m, m.footer.Info(commandCopiedText)
 }
 
-// handleLaunchFormSubmit dispatches the container launch.
-// handleLaunchFormSubmitWithCache snapshots form state into the pending save
-// fields before delegating to handleLaunchFormSubmit.
+// handleLaunchFormSubmitWithCache holds the launch for a confirmation when it
+// mounts something sensitive of the host (OC-20), and starts it otherwise.
 func (m Model) handleLaunchFormSubmitWithCache(msg LaunchFormSubmitMsg) (tea.Model, tea.Cmd) {
+	if held, ok := m.holdForSensitiveMounts(msg); ok {
+		return held, nil
+	}
+	return m.startLaunch(msg)
+}
+
+// startLaunch snapshots form state into the pending save fields before
+// delegating to handleLaunchFormSubmit.
+func (m Model) startLaunch(msg LaunchFormSubmitMsg) (tea.Model, tea.Cmd) {
 	if m.launchForm != nil {
 		entry := m.launchForm.ToCacheEntry()
 		m.lastLaunchOpts = &entry

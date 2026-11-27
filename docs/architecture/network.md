@@ -315,6 +315,146 @@ Two things about the engine are worth knowing before changing this code:
     `internal/scan/plumber.go` put `-e GH_TOKEN=<token>` in an argv: fixed by
     DEVDESK-945 (`-e GH_TOKEN`, the value in `containerRun.Env`), with the static guard S9 below.
 
+- **A launch asks before it mounts something sensitive of the host (OC-20,
+  DEVDESK-818, requirement S4).** `docker.SensitiveMounts(opts)`
+  (`internal/docker/launch_mounts.go`) is a reader: it classifies the bind mounts
+  of `ContainerLaunchOptions.Volumes` (`-v`) and the new `Mounts` (`--mount`, the
+  value of each, emitted by `buildLaunchArgs` as one `--mount VALUE` pair right
+  after the `-v` pairs), volumes first, in the order given, and returns one
+  `SensitiveMount{Spec, Source, Path, Category, Reason, EngineSocket}` per
+  sensitive one (nil when none). It starts nothing, creates nothing and never fails;
+  `LaunchContainer` and `BuildLaunchCmd` do not call it and launch what they are
+  given (`TestLaunchContainerDoesNotSecondGuessASensitiveMount`): the confirmation
+  is the form's.
+  - **What is sensitive** (`MountCategory`), the source being equal to, under, or
+    an ancestor of it: `root` (`/`, and `/proc` with everything under it: the root
+    and the working directory of any process, `/proc/<pid>/root` of PID 1 being the
+    host's, are reached through it). **`root` also sets `EngineSocket`**: it holds
+    every engine socket, so mounting `/` (or `/proc`) gets the named choice, the
+    Error footer and the engine-socket text, like `/var`; the other categories keep
+    their own, a socket under `/etc` or `~/.ssh` included,
+    `system-config` (`/etc`), `home` (`$HOME` itself, not what is under it),
+    `ssh` (`~/.ssh`), `devdesk` (`~/.devdesk`), and `engine-socket`: the Docker,
+    Podman and containerd sockets at their usual places (`/var/run/docker.sock`,
+    `/run/docker.sock`, `/run/podman/podman.sock`, `/var/run/podman/podman.sock`,
+    `/run/containerd/containerd.sock`), `$XDG_RUNTIME_DIR/docker.sock` and
+    `$XDG_RUNTIME_DIR/podman/podman.sock` (the rootless ones, under
+    `/run/user/<uid>` when `XDG_RUNTIME_DIR` is unset), the `unix://` path of
+    `DOCKER_HOST` or `CONTAINER_HOST` (a `tcp://` or `ssh://` host names no file),
+    and **any source that is a socket file** (`os.Stat` says `ModeSocket`: a link to
+    a socket, a copy of one, whatever its name; a socket under `/etc`, `~/.ssh` or
+    `~/.devdesk` keeps that category). An **ancestor** is flagged with the category
+    of the sensitive path it holds (review of OC-20, a decision of the orchestrator
+    on the security review: the criterion "equal or under" was extended): `/run`,
+    `/var/run` and `/var` are `engine-socket`, the parent of `$HOME` is `home`; a
+    path that is neither equal, under nor an ancestor (`./data`,
+    `$HOME/projects/app`) is not flagged. The comparison is by whole components
+    (`/etcetera` is not `/etc`). Each category has one fixed `Reason` sentence,
+    never built from what was typed (the modal and the log print it). The home
+    categories use `HOME`, or the user database (`os.UserHomeDir`, then
+    `user.Current`) when it is unset or not absolute; `~` is expanded with `HOME`
+    only. `~/.ssh` and `~/.devdesk` are resolved too (they are often links: stow,
+    a dotfiles manager), and the target of the link is as sensitive as the link.
+  - **`unverified`.** A path DevDesk cannot read for a reason other than "does not
+    exist" (permission denied on a parent, an unreadable link, as `/root/...` seen
+    by a user) cannot be proven harmless: it is flagged with the category
+    `unverified` and the reason `DevDesk could not check where this path leads, so
+    it may expose this host.`, unless it is sensitive anyway. A missing path, a file
+    read as a directory and a loop of links are not flagged for that.
+  - **What is a bind source.** `-v`: the part before the first `:`; `--mount`: the
+    `source`/`src` of a value whose `type` is `bind` or Podman's `glob` (any order
+    of keys; `target`, `dst`, `destination` are the container's and never read).
+    The keys and the value of `type` are read in any case (`TYPE=BIND`, `Src=`):
+    the engine lowercases them, and Podman is read the same way. A `type=volume`
+    value (or one with no type) is also a bind when it has
+    `volume-opt=device=<path>` (the local driver's bind in disguise). A source is a
+    path when it starts with `/`, `.` or `~` (the Docker CLI makes any
+    `.`-prefixed source absolute, so `.ssh` is `./.ssh`); a named volume, an
+    anonymous volume (`/etc` alone), `type=tmpfs`, a device that is not a path and a
+    value with no bind type are not checked. **A glob** (`type=glob`, Podman) is
+    expanded with `filepath.Glob` and each match classified, the first sensitive
+    one reported (`/e?c` is `/etc`, `/home/*/.ssh` is the `.ssh` of each home). When
+    it matches nothing, is not a valid pattern or matches more than 1000 paths, the
+    directory of its literal prefix is classified instead (`/etc/zz*` is `/etc`;
+    `/` is never classified for a wildcard in the first component), and a pattern
+    that could not be expanded and says nothing sensitive is `unverified`. A
+    `type=bind` source is never a pattern. A leading `~` (alone or `~/`) is expanded
+    with `HOME` although the engine would not do it (the hint is read the way it
+    was meant); with `HOME` unset or not absolute it is not expanded and flags
+    nothing. A relative source is taken from DevDesk's working directory.
+  - **Resolution.** The path is resolved before the comparison, component by
+    component (`resolvePath`): a link is followed where it stands, so a `..` after
+    a link applies to the link's target, as the kernel does
+    (`TestSensitiveMountsResolvesLinksBeforeNormalising`). The Docker CLI cleans the
+    path first (`..` applied to the link's name), so **both readings are evaluated**
+    and the source is flagged when either is sensitive
+    (`TestSensitiveMountsReadsABothWaysAfterALink`).
+    At most 40 links are followed (a loop ends and the path is kept as written).
+    `HOME`, `/etc` and the engine sockets are resolved too, so `/var/run/docker.sock`
+    is the socket when `/var/run` is a link to `/run`. A path that does not resolve
+    in full (a missing component, a dangling link) is compared as written after
+    normalization and then as resolved so far, and `Path` is the first of the two
+    that is sensitive: a missing `/var/run/docker.sock` is reported as typed. A
+    reading that holds a sensitive path (an ancestor) is only looked at after every
+    candidate has been compared for equal or under.
+  - **The form** (`internal/ui/oci_resources/launch_mounts.go`). The check runs when
+    the launch is submitted (`handleLaunchFormSubmitWithCache`), before anything is
+    started or handed to the terminal, `-it` launches included. The Volumes field
+    takes `--mount` values too: it is split on commas (`splitVolumeField`), except
+    that a value starting with `type=` runs on over its own `key=value` tokens and
+    the bare `readonly` and `ro`, until the next `type=` token or the first other
+    token (a `-v` entry). A `--mount` value that does not start with `type=` is not
+    recognized; any other bare flag (`volume-nocopy`) ends the value; a `-v` entry
+    that looks like `key=value` right after a mount is read as part of the mount.
+    The preview and `ctrl+y` show `--mount VALUE`. When the classification is not
+    empty a `components.ChoiceModal` opens over the form (`Model.mountModal`, the
+    held launch in `mountPending`); `launchForm` stays open, so Cancel gives the
+    form back with its values and its focus on Launch. The modal has the keyboard
+    (`handleKeyMsg` first, pastes dropped) and `Render()` draws it instead of the
+    form. It names the resolved `Path` (control and format characters replaced
+    by `?`) and the `Reason` of every sensitive mount, one action and Cancel,
+    **Cancel being the default**: `enter`, `esc` and a second `right` cancel; the
+    way to the action is `left` then `enter`, and no letter (`y` included) answers.
+    The text is wrapped to the terminal (`ansi.Wrap` for the sentences, `ansi.Hardwrap`
+    for a path, so nothing of it is cut off) and wrapped again, with the focus
+    back on Cancel, when the terminal is resized while the modal is open. The modal
+    opens whatever the state of the form: a `LaunchFormSubmitMsg` that arrives after
+    `esc` closed the form (the message was in flight) is held like any other,
+    and Cancel copes with a form that is gone, so nothing sensitive starts unasked.
+    The action is `Mount anyway`, or `Mount the engine socket` when any mount is an
+    engine socket, even among others; in that case the modal says the container
+    gets control of the engine, and the footer says it at level Error
+    (`mountStatus`, derived in `formStatus` on every render, no timer, Rule 128).
+    Confirming runs the launch exactly as before (`startLaunch`: cache snapshot,
+    detached or handed to the terminal). The log line names the categories, never
+    a path. Typing a sensitive path is not an error of the form (Rule 140).
+  - **Limits (not done, known).** **Time of check, time of use**: DevDesk resolves
+    the path when the form is submitted and the engine resolves it again when it
+    starts the container, so a link changed in between is not seen. Windows has no
+    guard: `SensitiveMounts` returns nil there (the paths and the engine's named
+    pipe differ). macOS reads the Linux layout, so Docker Desktop's VM-side paths
+    are not known, and its file system is case-insensitive by default, so `~/.SSH`
+    is not seen as `~/.ssh`. Not seen: a `--mount` value in CSV quotes, a mount
+    made by `--volumes-from`, a device (`--device`), a compose file, and a path the
+    engine resolves differently from the file system DevDesk sees (a remote
+    engine: `DOCKER_HOST` over `tcp://` or `ssh://`: the paths are the remote
+    host's, and the check reads this machine's). A bind-mounted parent that holds
+    no known sensitive path by name is not flagged. A glob only sees what
+    `filepath.Glob` lists: a directory it cannot read is skipped, not reported.
+    **DEVDESK-948** (not in OC-20): the classification runs in `Update`, and
+    reads the file system synchronously (a hung NFS or autofs mount, or
+    `user.Current()`, would freeze the view): to move into a `Cmd` with a timeout;
+    an unknown socket (an ssh-agent outside `~/.ssh`) gets the engine reason, a
+    distinct one is wanted; and the paths outside the perimeter, `~/.docker`,
+    `~/.kube`, `~/.gnupg`, `/var/lib/docker`, `/dev` and `/sys`, are not flagged.
+    A typed path is drawn through `printable` (control, format, and the line
+    separators U+2028 and U+2029 become `?`), and wrapped without any indentation
+    (`wrapPath`), so that a space of the path at the start of a wrapped line is not
+    taken for the layout of the modal; the reason of each mount is the indented line.
+    Tests: `internal/docker/launch_mounts_test.go`,
+    `internal/docker/launch_mounts_argv_test.go`,
+    `internal/ui/oci_resources/launch_mounts_test.go`.
+
 - **Four typed, read-only reads for the path trace** (`container_network.go`,
   DEVDESK-330, DEVDESK-331), each with a `context.Context` that kills the
   invocation: `InspectContainerNetworking(ctx, id)`, `ListContainersContext(ctx,

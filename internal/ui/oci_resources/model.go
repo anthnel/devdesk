@@ -119,6 +119,8 @@ type Model struct {
 	lastLaunchOpts  *cache.LaunchOptionsEntry
 	// Forms (viewport-based, Rule 112)
 	launchForm         *LaunchForm
+	mountModal         *sharedcomponents.ChoiceModal // OC-20: asks about the sensitive mounts of a submitted launch; the form stays under it
+	mountPending       *mountCheck                   // the launch the modal holds back
 	resourceForm       *ResourceCreateForm
 	networkInspectForm *NetworkInspectForm
 	// pruning names what a prune is working on, empty when none is. A prune
