@@ -1,0 +1,17 @@
+# tool: podman
+# version: 6.2.1
+# mode: rootless
+# recorded: 2026-11-27
+# scenario: rm of a running container is refused
+# redacted: ids
+# recorded-by: engine-contract:record
+# argv: ["rm","c6fb2d45647efd80cdf694c554e07f5eafee91aaedbeb2b654fba8c4f27cd66f"]
+# exit: 2
+# stdout: 0 bytes, text
+# stderr: 202 bytes, text
+
+--- stdout
+
+--- stderr
+Error: cannot remove container c6fb2d45647efd80cdf694c554e07f5eafee91aaedbeb2b654fba8c4f27cd66f as it is running - running or paused containers cannot be removed without force: container state improper
+

@@ -25,18 +25,18 @@ const (
 	// contract is about** (ps-health does not). It is for an output where the health only
 	// happens to be printed and has not settled.
 	Health
+	// ContainerIDs: the id of a container right after "container " or "used by", 12 or 64
+	// hexadecimal characters, as the refusal of an rmi names one of the containers that use the
+	// image and the engine picks which. Nothing else is tolerated (the image id in the same message,
+	// the words around it, an id after another phrase).
+	ContainerIDs
 
-	allTolerances = Durations | Timestamps | Health
+	allTolerances = Durations | Timestamps | Health | ContainerIDs
 )
 
 var (
-	// durationWord is what the engines print for a duration: a number and a unit, in the
-	// singular or the plural, or one of their three phrases. Words, not abbreviations.
-	durationWord = regexp.MustCompile(`\b(?:Less than a second|About an? (?:second|minute|hour|day|week|month|year)|\d+ (?:second|minute|hour|day|week|month|year)s?)\b`)
-	// timestampWord is a date and a time of day, as RFC 3339 writes them or as Go's
-	// time.Time prints them (a fraction, an offset, a zone name, a monotonic reading).
-	timestampWord = regexp.MustCompile(`\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?(?:Z|[+-]\d{2}:\d{2})` +
-		`|\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}(?:\.\d+)? [+-]\d{4}(?: (?:[A-Z]{2,5}|[+-]\d{2,4}))?(?: m=[+-]\d+(?:\.\d+)?)?`)
+	// containerIDWord is an id of a container after the two phrases the engines name it with; the phrase is kept.
+	containerIDWord = regexp.MustCompile(`\b(container |used by )(?:[0-9a-f]{64}|[0-9a-f]{12})\b`)
 	// healthWord is the marker of a status, with its parentheses.
 	healthWord = regexp.MustCompile(`\((?:health: )?(?:starting|healthy|unhealthy)\)`)
 )
@@ -79,18 +79,24 @@ func SameUpToDurations() Comparer { return Tolerating(Durations) }
 // SameUpToDurationsAndHealth is Tolerating(Durations, Health).
 func SameUpToDurationsAndHealth() Comparer { return Tolerating(Durations, Health) }
 
+// SameUpToContainerIDs is Tolerating(ContainerIDs): for a refusal that names one of several containers.
+func SameUpToContainerIDs() Comparer { return Tolerating(ContainerIDs) }
+
 // normalized is stream with each tolerated kind replaced by its placeholder. The
 // timestamps go first, so the numbers of a date are not read as the start of a duration.
 func normalized(stream []byte, set Tolerance) string {
 	text := string(stream)
 	if set&Timestamps != 0 {
-		text = timestampWord.ReplaceAllString(text, "<timestamp>")
+		text = enginefixture.TimestampPattern.ReplaceAllString(text, "<timestamp>")
 	}
 	if set&Durations != 0 {
-		text = durationWord.ReplaceAllString(text, "<duration>")
+		text = enginefixture.DurationPattern.ReplaceAllString(text, "<duration>")
 	}
 	if set&Health != 0 {
 		text = healthWord.ReplaceAllString(text, "(<health>)")
+	}
+	if set&ContainerIDs != 0 {
+		text = containerIDWord.ReplaceAllString(text, "${1}<container>")
 	}
 	return text
 }

@@ -16,7 +16,7 @@ for e in "${todo[@]}"; do
   vm=$(vm_name "$e")
   vm_exists "$e" || die "$vm does not exist; run create.sh"
   has_snapshot "$e" clean || die "$vm has no clean snapshot; run create.sh"
-  log "$vm: restoring clean (line n)"
+  log "$vm: restoring clean (line $version)"
   inc stop "$vm" --force >/dev/null 2>&1 || true
   inc snapshot restore "$vm" clean
   inc start "$vm"

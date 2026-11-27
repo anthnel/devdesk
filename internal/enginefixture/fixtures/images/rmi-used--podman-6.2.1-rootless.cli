@@ -1,0 +1,17 @@
+# tool: podman
+# version: 6.2.1
+# mode: rootless
+# recorded: 2026-11-27
+# scenario: rmi of an image a container uses is refused
+# redacted: ids
+# recorded-by: engine-contract:record
+# argv: ["rmi","3ea06e4cb95e726ea6c6cc4377570ac4c4050d78710004cbd631ca809daf7e8e"]
+# exit: 2
+# stdout: 0 bytes, text
+# stderr: 181 bytes, text
+
+--- stdout
+
+--- stderr
+Error: image used by c6fb2d45647efd80cdf694c554e07f5eafee91aaedbeb2b654fba8c4f27cd66f: image is in use by a container: consider listing external containers and force-removing image
+

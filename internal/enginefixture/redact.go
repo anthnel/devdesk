@@ -21,8 +21,19 @@ type Redaction struct {
 	IDs              map[string]string // real 64-hex id -> role ("c1")
 	Home, User, Host string            // of the recording user and machine
 	// Public lists the 64-hex ids that may stay in a fixture (the digest of the pinned
-	// image, an image id). Redact does not read it: UnknownEngineIDs does.
+	// image, an image id). Redact leaves them alone, and UnknownEngineIDs does not count them.
 	Public []string
+	// Anonymous is the most distinct ids nobody owns that this scenario accepts to
+	// replace: the network endpoint a refusal of docker names, which is new at every
+	// run. Redact replaces them, in the order they appear, by PlaceholderID("anon-1"),
+	// ("anon-2"), ...; one beyond the number is left, and UnknownEngineIDs refuses it. 0
+	// (the default) replaces nothing.
+	Anonymous int
+	// FixedTimestamps and FixedDurations ask Redact to replace, in stdout and stderr (never the
+	// argv), every timestamp and every duration an engine printed by a fixed one of the same form
+	// (normalize.go), for a scenario whose output carries the day of the recording and how long ago
+	// things happened. Off by default: nothing is fixed unless a scenario says so.
+	FixedTimestamps, FixedDurations bool
 }
 
 // PlaceholderID is the fixed id a role stands for in a fixture: 64 lower-case
@@ -46,7 +57,11 @@ func PlaceholderID(role string) string {
 //     fully qualified name loses its internal suffix too (.home.arpa, .lan, .local,
 //     .internal), or internal-name would refuse "fixture-host.lan", and the first
 //     label of such a host is replaced on its own;
-//  6. the user name, by PlaceholderUser, as a whole word.
+//  6. the user name, by PlaceholderUser, as a whole word;
+//  7. with r.Anonymous above 0, each id nobody owns, up to that many distinct ones, by
+//     PlaceholderID("anon-<n>") in the order they appear (anonymize);
+//  8. with r.FixedTimestamps and r.FixedDurations, each timestamp and each duration of stdout
+//     and stderr by a fixed one of the same form (normalize.go), never in the argv.
 //
 // The host and the user are replaced only when LocalIdentityTerms keeps them: a
 // name of two characters (dd, the lab user) or on the stop list (root) is not told
@@ -75,6 +90,15 @@ func Redact(ex Exchange, r Redaction) (Exchange, string) {
 	}
 	out.Stdout = apply(bytes.Clone(ex.Stdout))
 	out.Stderr = apply(bytes.Clone(ex.Stderr))
+	if r.Anonymous > 0 && anonymize(&out, r) {
+		used["ids"] = true
+	}
+	if r.FixedTimestamps {
+		fixStreams(&out, fixTimestamps, used, "timestamps")
+	}
+	if r.FixedDurations {
+		fixStreams(&out, fixDurations, used, "durations")
+	}
 
 	names := make([]string, 0, len(used))
 	for name := range used {
@@ -259,4 +283,14 @@ func looseWord(before, after []byte) bool {
 		}
 	}
 	return true
+}
+
+// fixStreams applies fix to stdout and stderr and notes the category when something changed.
+func fixStreams(out *Exchange, fix func([]byte) []byte, used map[string]bool, category string) {
+	for _, stream := range []*[]byte{&out.Stdout, &out.Stderr} {
+		if fixed := fix(*stream); !bytes.Equal(fixed, *stream) {
+			*stream = fixed
+			used[category] = true
+		}
+	}
 }

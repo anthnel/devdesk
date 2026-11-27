@@ -1,0 +1,17 @@
+# tool: docker
+# version: 28.5.2
+# mode: rootful
+# recorded: 2026-11-27
+# scenario: rmi of an image a container uses is refused
+# redacted: ids
+# recorded-by: engine-contract:record
+# argv: ["rmi","3ea06e4cb95e726ea6c6cc4377570ac4c4050d78710004cbd631ca809daf7e8e"]
+# exit: 1
+# stdout: 0 bytes, text
+# stderr: 143 bytes, text
+
+--- stdout
+
+--- stderr
+Error response from daemon: conflict: unable to delete 3ea06e4cb95e (cannot be forced) - image is being used by running container 3a84144b327a
+

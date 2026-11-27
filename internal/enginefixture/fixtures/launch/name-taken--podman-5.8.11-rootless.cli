@@ -1,0 +1,17 @@
+# tool: podman
+# version: 5.8.11
+# mode: rootless
+# recorded: 2026-11-27
+# scenario: a launch with the name of a container that exists is refused
+# redacted: ids, run
+# recorded-by: engine-contract:record
+# argv: ["run","--pull=never","-d","--name","ddc-fixture-run-c1","docker.io/library/alpine@sha256:f59abe656b692d901e184be3445e084786602108599d2a51d229c0f5a48c71bf"]
+# exit: 125
+# stdout: 0 bytes, text
+# stderr: 302 bytes, text
+
+--- stdout
+
+--- stderr
+Error: creating container storage: the container name "ddc-fixture-run-c1" is already in use by c6fb2d45647efd80cdf694c554e07f5eafee91aaedbeb2b654fba8c4f27cd66f. You have to remove that container to be able to reuse that name: that name is already in use, or use --replace to instruct Podman to do so.
+

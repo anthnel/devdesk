@@ -93,6 +93,9 @@ func TestContractPsReportsTheHealthOfAContainer(t *testing.T) {
 	id := c.healthContainer("h1")
 	c.waitHealthy(id)
 	c.publicImageID() // ps may print the id of the image instead of its reference
+	// The CreatedAt column and the status hold the day of the recording and how long ago: a recording
+	// fixes them, and verifying compares the real output through the same two kinds.
+	c.normalize(enginecontract.Durations, enginecontract.Timestamps)
 
 	var (
 		list []Container

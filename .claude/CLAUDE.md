@@ -367,8 +367,8 @@ Recording (OC-09a3, DEVDESK-944): `DEVDESK_ENGINE_CONTRACT=1 mise run engine-con
 `c.exchange` redacts and writes through `Session.Record` (lab mark required, leak check before the write), and the one output directory comes back by
 a tar that is **listed and refused when an entry is not `<campaign>/<name>.cli`, then extracted strictly** (new `mktemp -d`, no `--same-owner`)
 before `engine-fixture-import --require-denylist` checks it all again (a recording needs `DEVDESK_FIXTURE_DENYLIST` with at least one term; the
-strict extraction is `tools/engine-vms/unpack_recorded.sh`, with a 16 MiB cap on the archive and on the sizes it announces). In verify mode `Session.Verify` with fixtures for the engine but none for the scenario fails, and with **no** recorded fixture at all logs and goes on (no skip: a skip ends
-the contract; OC-09b makes it a failure once fixtures are versioned). See `docs/architecture/network.md`, "Engine contracts" (Recording).
+strict extraction is `tools/engine-vms/unpack_recorded.sh`, with a 16 MiB cap on the archive and on the sizes it announces). In verify mode `Session.Verify` with fixtures for the engine but none for the scenario fails, and with **no** recorded fixture at all fails (`enginecontract.RequireFixtures` is true since OC-09b2; it used to log and go on, never skip: a skip ends
+the contract). See `docs/architecture/network.md`, "Engine contracts" (Recording).
 Resources (OC-09a2, DEVDESK-943): everything a contract creates carries the label `devdesk.test=<run id>` and the name
 `ddc-<run id>-<role>` (`c.container`, `c.volume`, `c.network`, from `DEVDESK_ENGINE_CONTRACT_IMAGE`, never pulled), and every call
 goes through the recorder of the contract and its allow list `contractArgvRule`, which reads options and not only verbs (`run` and
@@ -393,8 +393,10 @@ store is this run's), `expectRefusal` (one `run` that names the window's name an
 behind under that name is removed by id) and `expectRmiRefusal` (`rmi <id>` only after the ancestor filter shows a container of the run uses the image). Comparers
 `enginecontract.Tolerating(Durations, Timestamps, Health)`, `SameUpToDurations` and `SameUpToDurationsAndHealth` leave the values that move with the clock out
 of a comparison; `contract.sh` passes the sentinel's id as `DEVDESK_ENGINE_CONTRACT_SENTINEL` and the recorder redacts it to the role `sentinel`.
-No fixture is versioned yet (OC-09b2 records the four configurations; `minVersionedFixtures` and `RequireFixtures` stay as they are). To confirm on the VMs: the
-wording of the refusals, the `inspect` of a missing container, podman's health state, docker with the containerd image store, the form of `CreatedAt`.
+Their fixtures are versioned since OC-09b2 (40 files, ten scenarios, docker 29.10.1 and 28.5.2, podman 6.2.1 and 5.8.11; `minVersionedFixtures = 40`,
+`RequireFixtures = true`): the verify mode compares. Recording adds `Redaction.Anonymous` (`c.anonymous(n)`: the endpoint ids of docker's refusals, replaced in
+order of appearance, a word beyond n still refused), `FixedTimestamps`/`FixedDurations` (`c.normalize(...)`: fixed values in a recording only, `ps-health`) and the
+comparer `SameUpToContainerIDs` (`rmi-used` names the sentinel or the container of the run). Never edit a `.cli` by hand: record again.
 
 **Tests and recorded CLI exchanges (DEVDESK-805, OC-08a).** `internal/enginefixture` holds what a docker or podman
 answered to one argv, one `.cli` text file per exchange (`# key: value` headers in a fixed order, stdout and stderr of
@@ -405,8 +407,8 @@ a test calls `useFixtures(t, f...)` (`fixture_runner_test.go`, in memory; a non-
 through `interface{ ExitCode() int }`, not `ExitError.ExitCode()`, which is -1 there); a view test calls
 `fakecli.Install(t, fakecli.Fixtures(t, f...), "docker")`, and `fixture_equivalence_test.go` holds the two paths equal.
 `fakecli` carries the bytes of a `Reply` unchanged. Only `_test.go` files and `internal/testutil/fakecli` import
-`enginefixture` (guard E1, `TestOnlyTestsImportEngineFixture`). **No real fixture is versioned before OC-09b**: the
-mechanisms run on `internal/enginefixture/testdata/synthetic` (`recorded-by: synthetic`). The recorder (OC-09a3, DEVDESK-944) is
+`enginefixture` (guard E1, `TestOnlyTestsImportEngineFixture`). **Real fixtures are versioned since OC-09b2** (`fixtures/<campaign>/`, 40 files): the
+mechanisms also run on `internal/enginefixture/testdata/synthetic` (`recorded-by: synthetic`). The recorder (OC-09a3, DEVDESK-944) is
 `enginefixture.Redact` (ids, home, run id, host, user to placeholders; a short user such as `dd` is left for `CheckLeaks` to refuse),
 `enginecontract.Session.Record`/`Verify` and `enginefixture.Import`, run on the workstation by `internal/enginefixture/cmd/engine-fixture-import`
 (all or nothing, one configuration, N and N-1, leak check with `DEVDESK_FIXTURE_DENYLIST`; an unchanged fixture is not rewritten, a `skip` one is
@@ -422,7 +424,7 @@ kept, nothing is deleted); `mise run engine-contract:record` runs the whole chai
 (`fixture-user` and `ImageHomes` allowed), `lab-identity`, `local-identity`, `exact-term`, `sensitive-env-value`, `invisible-character`; names are matched at the word, a dot included as a boundary. The detectors
 are shared with Nexus in `internal/fixtureleak` (do not declare one again in either fixture package). `TestFixturesAreNotStale`
 reads N and N-1 from `tools/engine-vms/versions.env` (`ParseVersions`): a bump edits that file, `versions_test.go` and
-`network.md`, then records again; `minVersionedFixtures` is 0 until OC-09b raises it. `TestNoPendingFixtureIsVersioned`
+`network.md`, then records again; `minVersionedFixtures` is 40 (OC-09b2) and never goes down. `TestNoPendingFixtureIsVersioned`
 refuses a `record: pending` file under `fixtures/`, and `DEVDESK_FIXTURE_RECORDING=1` when `CI` is set (a local session
 only); `TestRecordingSessionIsNeverSetByTheStandardChecks` keeps that variable out of `mise.toml` (outside the recorder
 tasks) and out of `.github/workflows`. A `record: skip: <reason>` fixture is kept and checked, left out of `ForConfig`

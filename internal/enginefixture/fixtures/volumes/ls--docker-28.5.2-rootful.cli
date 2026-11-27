@@ -1,0 +1,17 @@
+# tool: docker
+# version: 28.5.2
+# mode: rootful
+# recorded: 2026-11-27
+# scenario: volume ls shows the volume of the run
+# redacted: run
+# recorded-by: engine-contract:record
+# argv: ["volume","ls","--format","{{.Name}}\t{{.Driver}}\t{{.Mountpoint}}"]
+# exit: 0
+# stdout: 74 bytes, text
+# stderr: 0 bytes, text
+
+--- stdout
+ddc-fixture-run-v1	local	/var/lib/docker/volumes/ddc-fixture-run-v1/_data
+
+--- stderr
+

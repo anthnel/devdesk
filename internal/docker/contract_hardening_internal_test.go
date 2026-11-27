@@ -157,7 +157,7 @@ func TestExchangeListingWhenVerifyingOnlyLogsAStranger(t *testing.T) {
 		called := false
 
 		mustReachTheEnd(t, ct, func() {
-			c.exchangeListing("volume", nil, "volumes", "ls", "a list", func() { called = true; call() })
+			c.exchangeListing("volume", nil, "unrecorded-campaign", "ls", "a list", func() { called = true; call() })
 		})
 
 		if !called || len(ct.errs) != 0 {

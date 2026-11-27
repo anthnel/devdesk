@@ -1,0 +1,20 @@
+# tool: docker
+# version: 29.10.1
+# mode: rootful
+# recorded: 2026-11-27
+# scenario: a launch that publishes a port another container holds is refused
+# redacted: ids, run
+# recorded-by: engine-contract:record
+# argv: ["run","--pull=never","-d","--name","ddc-fixture-run-c2","-p","127.0.0.1:18080:80","docker.io/library/alpine@sha256:f59abe656b692d901e184be3445e084786602108599d2a51d229c0f5a48c71bf"]
+# exit: 125
+# stdout: 65 bytes, text
+# stderr: 327 bytes, text
+
+--- stdout
+df7c2de949f55489024060621b410d3db130bc4889305b484a27ee4e2e519e00
+
+--- stderr
+docker: Error response from daemon: failed to set up container networking: driver failed programming external connectivity on endpoint ddc-fixture-run-c2 (822651da65109dc1d20be1818e91c30227be6f181a4045afafec952bc2edf276): Bind for 127.0.0.1:18080 failed: port is already allocated
+
+Run 'docker run --help' for more information
+

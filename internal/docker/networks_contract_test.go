@@ -12,6 +12,9 @@ import (
 func TestContractRemovingANetworkInUseIsRefused(t *testing.T) {
 	c := requireEngine(t)
 	network, _ := c.usedNetwork("n1", "c1")
+	// Docker's refusal names the endpoint of the container on the network, `id:"<12 hex>"`: the id of
+	// the endpoint, not of the container, new at every run. The recording replaces that one id.
+	c.anonymous(1)
 
 	var err error
 	ex := c.exchange("networks", "rm-used", "rm of a network a container is connected to is refused", func() {

@@ -1,0 +1,17 @@
+# tool: podman
+# version: 6.2.1
+# mode: rootless
+# recorded: 2026-11-27
+# scenario: volume ls shows the volume of the run
+# redacted: home, run
+# recorded-by: engine-contract:record
+# argv: ["volume","ls","--format","{{.Name}}\t{{.Driver}}\t{{.Mountpoint}}"]
+# exit: 0
+# stdout: 109 bytes, text
+# stderr: 0 bytes, text
+
+--- stdout
+ddc-fixture-run-v1	local	/home/fixture-user/.local/share/containers/storage/volumes/ddc-fixture-run-v1/_data
+
+--- stderr
+

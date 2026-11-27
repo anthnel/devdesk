@@ -53,6 +53,12 @@ type contract struct {
 	sleep func(time.Duration)
 	// publicIDs are the ids of 64 hexadecimal characters a fixture may keep (public).
 	publicIDs []string
+	// anonymousIDs is how many ids nobody owns the scenario of this contract accepts to
+	// replace (Redaction.Anonymous); 0 unless the contract declared it (anonymous).
+	anonymousIDs int
+	// fixedTimestamps and fixedDurations are what normalize declared: a recording fixes the
+	// timestamps and the durations of the output (Redaction.FixedTimestamps, FixedDurations).
+	fixedTimestamps, fixedDurations bool
 	// imageUsers maps the id of an image usedImage returned to the containers of this
 	// run made from it: expectRmiRefusal sends an rmi only for an image listed here.
 	imageUsers map[string][]string
@@ -290,11 +296,14 @@ const sentinelRole = "sentinel"
 // field empty, and the leak check is the net for what that lets through). The ids
 // public() declared are kept as they are.
 func (c *contract) redaction() enginefixture.Redaction {
-	r := enginefixture.Redaction{RunID: c.s.RunID, IDs: map[string]string{}, Public: slices.Clone(c.publicIDs)}
+	r := enginefixture.Redaction{RunID: c.s.RunID, IDs: map[string]string{}, Public: slices.Clone(c.publicIDs), Anonymous: c.anonymousIDs}
 	for ref, role := range c.ours {
 		if fullID.MatchString(ref) {
 			r.IDs[ref] = role
 		}
+	}
+	if c.s.Mode == enginecontract.Record {
+		r.FixedTimestamps, r.FixedDurations = c.fixedTimestamps, c.fixedDurations
 	}
 	id := os.Getenv(enginecontract.SentinelEnv)
 	if id == "" && c.s.Mode == enginecontract.Record {
@@ -1472,6 +1481,14 @@ func rmiWindowRule(imageID string) func(argv []string) error {
 // container ends the contract before any rmi. An rmi the engine accepted is reported.
 func (c *contract) expectRmiRefusal(campaign, scenario, text, imageID string, call func()) enginefixture.Exchange {
 	c.t.Helper()
+	return c.expectRmiRefusalWith(nil, campaign, scenario, text, imageID, call)
+}
+
+// expectRmiRefusalWith is expectRmiRefusal with a Comparer for the streams when verifying: the refusal
+// names one of the containers that use the image (the sentinel or the one of the run), so a contract passes
+// enginecontract.SameUpToContainerIDs().
+func (c *contract) expectRmiRefusalWith(cmp enginecontract.Comparer, campaign, scenario, text, imageID string, call func()) enginefixture.Exchange {
+	c.t.Helper()
 	c.requireLab()
 	users := c.imageUsers[imageID]
 	if len(users) == 0 {
@@ -1480,7 +1497,7 @@ func (c *contract) expectRmiRefusal(campaign, scenario, text, imageID string, ca
 	}
 	c.requireImageInUse(imageID, users)
 	var ex enginefixture.Exchange
-	c.withWindow(rmiWindowRule(imageID), func() { ex = c.exchange(campaign, scenario, text, call) })
+	c.withWindow(rmiWindowRule(imageID), func() { ex = c.exchangeWith(cmp, campaign, scenario, text, call) })
 	if ex.Exit == 0 {
 		c.t.Errorf("%s/%s: the image %s was removed, so the pinned image is gone for the next contract: pull it again with contract.sh",
 			campaign, scenario, imageID)
@@ -1615,6 +1632,47 @@ func (c *contract) publicImageID() string {
 	}
 	c.public(id)
 	return id
+}
+
+// maxAnonymous bounds what a contract may declare: a message that names more ids than that is
+// not the refusal of one resource, and the recording is better refused.
+const maxAnonymous = 8
+
+// anonymous declares how many ids nobody owns the exchange of this contract may hold and
+// the recording replaces, in the order they appear, by stable placeholders (Redaction.Anonymous):
+// the network endpoint docker names when it refuses a port or a removal, a new id at every run
+// that no resource of the run owns. It is a maximum, never a default: one more id than declared
+// is refused by the recorder (rule unknown-engine-id), and a contract that has no such id does not
+// call it. The declaration holds for the contract, so a contract that declares it makes one scenario.
+func (c *contract) anonymous(n int) {
+	c.t.Helper()
+	if n < 1 || n > maxAnonymous {
+		c.t.Fatalf("anonymous(%d): declare between 1 and %d unknown ids, the most this scenario's message may name", n, maxAnonymous)
+	}
+	c.anonymousIDs = n
+}
+
+// normalize declares that the output of this contract carries timestamps (enginecontract.Timestamps)
+// and/or durations (enginecontract.Durations) that a recording fixes, so the fixture does not change
+// at every recording: the CreatedAt of a `ps` holds the date of the recording to the nanosecond and
+// its status how long ago the container started. Only a recording applies it, and only to what the
+// contract declares (never global, never the argv); verifying compares the real output to the fixed
+// fixture through a Comparer, so the contract passes the same kinds to exchangeWith or exchangeListing
+// (Tolerating(Durations, Timestamps)). Health is judged, not fixed: any other kind ends the contract.
+func (c *contract) normalize(kinds ...enginecontract.Tolerance) {
+	c.t.Helper()
+	if len(kinds) == 0 {
+		c.t.Fatalf("normalize declares nothing: name enginecontract.Timestamps, enginecontract.Durations or both")
+	}
+	for _, k := range kinds {
+		if k != enginecontract.Timestamps && k != enginecontract.Durations {
+			c.t.Fatalf("normalize(%d): only enginecontract.Timestamps and enginecontract.Durations are fixed; a health marker is judged, never fixed", k)
+		}
+	}
+	for _, k := range kinds {
+		c.fixedTimestamps = c.fixedTimestamps || k == enginecontract.Timestamps
+		c.fixedDurations = c.fixedDurations || k == enginecontract.Durations
+	}
 }
 
 // public declares ids a fixture may keep (Redaction.Public): the id of the pinned
