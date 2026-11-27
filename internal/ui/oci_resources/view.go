@@ -33,7 +33,7 @@ func (m Model) modalView() string {
 // InEditMode returns true when a form, modal or filter is active
 func (m Model) InEditMode() bool {
 	return m.launchForm != nil || m.resourceForm != nil || m.registryForm != nil ||
-		m.networkInspectForm != nil ||
+		m.networkInspectForm != nil || m.mountModal != nil ||
 		m.confirmModal != nil || m.scanAllModal != nil ||
 		(m.activeTab == tabImages && m.imageTable.InEditMode()) ||
 		m.registryBrowser != nil
@@ -147,6 +147,9 @@ func (m Model) inlineSecretLine() string {
 // tables behind them are not on screen, so their loads say nothing here; the
 // browser's own search does.
 func (m Model) formStatus() sharedcomponents.Status {
+	if st, ok := m.mountStatus(); ok {
+		return st
+	}
 	if m.registryBrowser != nil {
 		if text, ok := m.registryBrowser.LoadingLabel(); ok {
 			return sharedcomponents.Status{Text: text, Activity: true}
@@ -385,6 +388,14 @@ func (m Model) GetShortcuts() shortcut.Shortcuts {
 			}
 		}
 	}
+	if m.mountModal != nil {
+		// The modal answers to these keys only: no letter, y included, stands for a choice.
+		return []shortcut.Shortcut{
+			{Key: "←→", Description: "Choose"},
+			{Key: "enter", Description: "Confirm"},
+			{Key: "esc", Description: "Cancel"},
+		}
+	}
 	if m.launchForm != nil {
 		lf := m.launchForm
 		isCheckbox := lf.isPortField(lf.focusedField) ||
@@ -494,6 +505,10 @@ func (m Model) View() tea.View { return tea.NewView(m.Render()) }
 
 // Render renders the view (Rule 112: forms in viewport, modals centered)
 func (m Model) Render() string {
+	// Priority -1: the sensitive-mount modal, drawn instead of the form it sits over
+	if m.mountModal != nil {
+		return m.placeModal(m.mountModal.View())
+	}
 	// Priority 0: registry browser (viewport)
 	if m.registryBrowser != nil {
 		return m.registryBrowser.View()
@@ -512,12 +527,7 @@ func (m Model) Render() string {
 	}
 	// Priority 4: whichever modal is open (centered)
 	if modal := m.modalView(); modal != "" {
-		return lipgloss.Place(
-			m.width, m.height,
-			lipgloss.Center, lipgloss.Center,
-			modal,
-			lipgloss.WithWhitespaceStyle(lipgloss.NewStyle().Background(theme.ColorBackground)),
-		)
+		return m.placeModal(modal)
 	}
 	// Priority 5: network inspect form (viewport)
 	if m.networkInspectForm != nil {
@@ -525,6 +535,16 @@ func (m Model) Render() string {
 	}
 	// Priority 6: normal view by active tab
 	return m.renderNormalView()
+}
+
+// placeModal centers a modal in the viewport, on the application background.
+func (m Model) placeModal(modal string) string {
+	return lipgloss.Place(
+		m.width, m.height,
+		lipgloss.Center, lipgloss.Center,
+		modal,
+		lipgloss.WithWhitespaceStyle(lipgloss.NewStyle().Background(theme.ColorBackground)),
+	)
 }
 
 // renderNormalView renders the active tab's content
@@ -580,7 +600,7 @@ func (m Model) GetHelpContent() help.Content {
 		KeyBindings: []help.KeyBinding{
 			{Key: "tab / shift+tab", Description: "Switch between Images, Networks, Volumes, and Registries tabs"},
 			{Key: "enter (Images)", Description: "View scan details for the selected image (loads from cache; falls back to scan if not yet scanned)"},
-			{Key: "N (Images)", Description: "Launch a container from the selected image"},
+			{Key: "N (Images)", Description: "Launch a container from the selected image — a launch that mounts a sensitive part of the host (the root, /etc, your home, ~/.ssh, ~/.devdesk, the engine socket) asks first, Cancel by default"},
 			{Key: "S (Images)", Description: "Launch a scan for the selected image"},
 			{Key: "G (Images)", Description: "Update the selected image to what its Update column shows — the newer patch tag, or the same tag's new build — then remove the image it replaces. Refused while any container, running or stopped, was created from it; the footer names them"},
 			{Key: "A (Images)", Description: "Scan every image. The confirmation carries a checkbox to purge the cached results first — unchecked, only what has never been scanned is scanned"},
@@ -659,7 +679,7 @@ func (m Model) GetHelpContent() help.Content {
 			},
 			{
 				Title: "Launch Form",
-				Body:  "When launching a container, ports are pre-filled from the image's EXPOSE metadata. Fill in environment variables and volume mounts as comma-separated lists. Each environment variable is NAME=VALUE, with a valid name and a value, and a value cannot hold a comma: the value goes to the engine through its environment, never in its command line, so it does not show in the process list. The preview on the right and the command Ctrl+Y copies show each variable as -e NAME, the same words the launch puts in the command line: values are not copied, whatever the variable is, and an entry that is not a valid NAME=VALUE shows as -e <invalid>. The options of a launch are remembered for the next one of the same image, but only the names of the environment variables: a value is never saved, so the form comes back with NAME= and asks you to type each value again. Ports are published on 127.0.0.1 only: a port without an address (8080:80, or 80 alone) is reachable from this machine and not from the network, and the preview and the copied command (Ctrl+Y) show the 127.0.0.1 form. To expose one on the network, type the address yourself in Additional ports (0.0.0.0:8080:80): the launch is allowed and the footer warns that the port is published on all interfaces. Only 0.0.0.0: or [::]: exposes a port on all interfaces; an empty host address (:8080:80) gives 127.0.0.1. Another address (192.168.1.10:8080:80) is kept as typed. The container runs detached (-d) by default. An image that is not present locally is not pulled.",
+				Body:  "When launching a container, ports are pre-filled from the image's EXPOSE metadata. Fill in environment variables and volume mounts as comma-separated lists. Each environment variable is NAME=VALUE, with a valid name and a value, and a value cannot hold a comma: the value goes to the engine through its environment, never in its command line, so it does not show in the process list. The preview on the right and the command Ctrl+Y copies show each variable as -e NAME, the same words the launch puts in the command line: values are not copied, whatever the variable is, and an entry that is not a valid NAME=VALUE shows as -e <invalid>. The options of a launch are remembered for the next one of the same image, but only the names of the environment variables: a value is never saved, so the form comes back with NAME= and asks you to type each value again. Ports are published on 127.0.0.1 only: a port without an address (8080:80, or 80 alone) is reachable from this machine and not from the network, and the preview and the copied command (Ctrl+Y) show the 127.0.0.1 form. To expose one on the network, type the address yourself in Additional ports (0.0.0.0:8080:80): the launch is allowed and the footer warns that the port is published on all interfaces. Only 0.0.0.0: or [::]: exposes a port on all interfaces; an empty host address (:8080:80) gives 127.0.0.1. Another address (192.168.1.10:8080:80) is kept as typed. The Volumes field takes -v entries (myvolume:/data, ./src:/src:ro) and --mount values: a value starts with type= and runs on over its key=value pieces and the bare flags readonly and ro (type=bind,source=./src,target=/src,readonly), so the commas inside it do not split it. A launch that mounts a sensitive part of this host (the root, /etc, your home directory, ~/.ssh, ~/.devdesk, or the socket of the container engine) asks first: a modal names each resolved path and why it matters, Cancel is the default (enter and esc cancel), and left then enter chooses Mount anyway. The engine socket gives the container control of the engine and so of this host: its action reads Mount the engine socket and the footer warns at level Error. A path under HOME, a named volume, a tmpfs and the container side of a mount are not checked. The container runs detached (-d) by default. An image that is not present locally is not pulled.",
 			},
 		},
 	}
