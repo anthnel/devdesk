@@ -1,0 +1,49 @@
+{
+  "cli_version": "0.13.2",
+  "checkpoint_id": "a7fc0ccc9d16",
+  "strategy": "manual-commit",
+  "branch": "fix/faketerminal-guard",
+  "checkpoints_count": 8,
+  "files_touched": [
+    "internal/ui/containers/containers_test.go",
+    "internal/ui/containers/engine_calls_unix_test.go"
+  ],
+  "sessions": [
+    {
+      "metadata": "/a7/fc0ccc9d16/0/metadata.json",
+      "transcript": "/a7/fc0ccc9d16/0/full.jsonl",
+      "compact_transcript": "/a7/fc0ccc9d16/0/transcript.jsonl",
+      "content_hash": "/a7/fc0ccc9d16/0/content_hash.txt",
+      "prompt": "/a7/fc0ccc9d16/0/prompt.txt"
+    }
+  ],
+  "token_usage": {
+    "input_tokens": 98,
+    "cache_creation_tokens": 51383,
+    "cache_read_tokens": 5523191,
+    "output_tokens": 17654,
+    "api_call_count": 38,
+    "subagent_tokens": {
+      "input_tokens": 158,
+      "cache_creation_tokens": 494504,
+      "cache_read_tokens": 4249775,
+      "output_tokens": 55006,
+      "api_call_count": 76
+    },
+    "subagent_tokens_complete": true
+  },
+  "redaction": {
+    "replacements": 5,
+    "layers": {
+      "betterleaks": 0,
+      "connection_string": 0,
+      "credential_key": 0,
+      "credential_value": 0,
+      "credentialed_uri": 0,
+      "entropy": 0,
+      "key_context": 5,
+      "provider_token": 0,
+      "shell_stdin": 0
+    }
+  }
+}
