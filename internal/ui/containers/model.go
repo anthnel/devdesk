@@ -115,11 +115,14 @@ type PagerExitMsg struct {
 // ShellDetectedMsg is the answer to the shell detection `T` starts: the shell
 // the container has, "/bin/bash" or "/bin/sh".
 //
+// Err is set when the detection refused the container ID; no shell is started.
+//
 // Abandoned is set by the router when the user left the view while the daemon was
 // answering: the pending state ends and no shell is started.
 type ShellDetectedMsg struct {
 	ID        string
 	Shell     string
+	Err       error
 	Abandoned bool
 }
 

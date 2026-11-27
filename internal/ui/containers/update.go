@@ -393,6 +393,10 @@ func (m Model) shellSelectedContainer() (tea.Model, tea.Cmd) {
 	if m.shellDetecting {
 		return m, m.footer.Warn("Already opening a shell")
 	}
+	if !docker.IsContainerID(c.ID) {
+		cmd := m.refuseShell(c.ID)
+		return m, cmd
+	}
 	m.shellDetecting = true
 	return m, detectShellCmd(c.ID)
 }
@@ -400,8 +404,23 @@ func (m Model) shellSelectedContainer() (tea.Model, tea.Cmd) {
 // detectShellCmd asks the container which shell it has, off the Update loop.
 func detectShellCmd(containerID string) tea.Cmd {
 	return func() tea.Msg {
-		return ShellDetectedMsg{ID: containerID, Shell: docker.DetectShell(containerID)}
+		shell, err := docker.DetectShell(containerID)
+		return ShellDetectedMsg{ID: containerID, Shell: shell, Err: err}
 	}
+}
+
+// maxLoggedIDLen bounds a refused ID in the log: it comes from outside and may be
+// of any length.
+const maxLoggedIDLen = 80
+
+// refuseShell tells the user a shell was not opened because the container ID is
+// not one. The refused value goes to the log, quoted, never to the footer.
+func (m *Model) refuseShell(id string) tea.Cmd {
+	if len(id) > maxLoggedIDLen {
+		id = id[:maxLoggedIDLen] + "…"
+	}
+	log.Printf("ERROR [containers] shell: rejected malformed container ID %q", id)
+	return m.footer.Error("Cannot open a shell — container ID refused")
 }
 
 // handleShellDetected starts the shell the container answered with.
@@ -410,13 +429,25 @@ func (m Model) handleShellDetected(msg ShellDetectedMsg) (tea.Model, tea.Cmd) {
 	if msg.Abandoned {
 		return m, nil
 	}
-	shellCmd := docker.ShellCmd(msg.ID, msg.Shell)
+	shellCmd, err := m.shellCmdFor(msg)
+	if err != nil {
+		cmd := m.refuseShell(msg.ID)
+		return m, cmd
+	}
 	if m.config.App.TerminalNewWindow {
 		return m.openShellWindow(shellCmd.Args)
 	}
 	return m, teaexec.Process(shellCmd, func(err error) tea.Msg {
 		return PagerExitMsg{Err: err}
 	})
+}
+
+// shellCmdFor builds the session the detection answered for, or refuses it.
+func (m Model) shellCmdFor(msg ShellDetectedMsg) (*exec.Cmd, error) {
+	if msg.Err != nil {
+		return nil, msg.Err
+	}
+	return docker.ShellCmd(msg.ID, msg.Shell)
 }
 
 // openShellWindow runs the shell's argv in a new terminal window using the

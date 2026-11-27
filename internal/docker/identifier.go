@@ -30,11 +30,10 @@ var (
 // argv element to the engine. The paths that validate them first, which keeps an
 // option such as `-f`, or any other stray text, out of that argv even if the
 // parsing ever drifts, are: LogsCmd, GetContainerLogs, InspectContainer, the
-// container network reads, and the lifecycle verbs StopContainer,
-// RestartContainer, PauseContainer, UnpauseContainer and RemoveContainer
-// (DEVDESK-803, guard G3). RemoveImage, RemoveVolume and RemoveNetwork validate
+// container network reads, the shell in a container (DetectShell and ShellCmd,
+// OC-18) and the lifecycle verbs StopContainer, RestartContainer,
+// PauseContainer, UnpauseContainer and RemoveContainer (DEVDESK-803, guard G3). RemoveImage, RemoveVolume and RemoveNetwork validate
 // their own identifier the same way (IsImageID, IsVolumeName, IsNetworkRef).
-// Not every caller does yet: the shell in a container (ShellCmd) does not.
 func IsContainerID(s string) bool {
 	return isLowerHexID(s)
 }
