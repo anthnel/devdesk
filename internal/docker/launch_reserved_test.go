@@ -3,6 +3,7 @@ package docker
 import (
 	"errors"
 	"os"
+	"slices"
 	"strings"
 	"testing"
 
@@ -52,6 +53,54 @@ var reservedNameCases = []struct {
 	{"PODMAN_CONNECTIONS", "PODMAN_CONNECTIONS", false},
 	{"CONTAINER_SSHKEYS", "CONTAINER_SSHKEYS", false},
 	{"XDG_DATA_DIRS", "XDG_DATA_DIRS", false},
+	// Third list: Windows, storage, ssh/TLS/Go, telemetry and trust, directories.
+	{"USERPROFILE", "USERPROFILE", true},
+	{"APPDATA", "APPDATA", true},
+	{"LOCALAPPDATA", "LOCALAPPDATA", true},
+	{"PATHEXT", "PATHEXT", true},
+	{"SYSTEMROOT", "SYSTEMROOT", true},
+	{"WINDIR", "WINDIR", true},
+	{"COMSPEC", "COMSPEC", true},
+	{"STORAGE_OPTS", "STORAGE_OPTS", true},
+	{"STORAGE_DRIVER", "STORAGE_DRIVER", true},
+	{"CONTAINERS_HELPER_BINARY_DIR", "CONTAINERS_HELPER_BINARY_DIR", true},
+	{"CONTAINER_PASSPHRASE", "CONTAINER_PASSPHRASE", true},
+	{"SSH_ASKPASS", "SSH_ASKPASS", true},
+	{"SSH_ASKPASS_REQUIRE", "SSH_ASKPASS_REQUIRE", true},
+	{"GODEBUG", "GODEBUG", true},
+	{"SSL_CERT_FILE", "SSL_CERT_FILE", true},
+	{"SSL_CERT_DIR", "SSL_CERT_DIR", true},
+	{"DOCKER_CLI_OTEL_EXPORTER_OTLP_ENDPOINT", "DOCKER_CLI_OTEL_EXPORTER_OTLP_ENDPOINT", true},
+	{"DOCKER_CONTENT_TRUST", "DOCKER_CONTENT_TRUST", true},
+	{"DOCKER_CONTENT_TRUST_SERVER", "DOCKER_CONTENT_TRUST_SERVER", true},
+	{"NOTIFY_SOCKET", "NOTIFY_SOCKET", true},
+	{"TMPDIR", "TMPDIR", true},
+	{"DOCKER_DEFAULT_PLATFORM", "DOCKER_DEFAULT_PLATFORM", true},
+	{"DOCKER_AUTH_CONFIG", "DOCKER_AUTH_CONFIG", true},
+	{"XDG_CACHE_HOME", "XDG_CACHE_HOME", true},
+	{"XDG_STATE_HOME", "XDG_STATE_HOME", true},
+	{"lower case userprofile", "userprofile", true},
+	{"mixed case Ssl_Cert_File", "Ssl_Cert_File", true},
+	{"the OTEL_ prefix", "OTEL_EXPORTER_OTLP_ENDPOINT", true},
+	{"the OTEL_ prefix, lower case", "otel_sdk_disabled", true},
+	{"the _CONTAINERS_ prefix", "_CONTAINERS_USERNS_CONFIGURED", true},
+	{"the _CONTAINERS_ prefix, lower case", "_containers_x", true},
+	{"TMPDIRS", "TMPDIRS", false},
+	{"SSH_ASKPASS_X", "SSH_ASKPASS_X", false},
+	{"OTELX", "OTELX", false},
+	{"MY_OTEL_X", "MY_OTEL_X", false},
+	{"CONTAINERS_X", "CONTAINERS_X", false},
+	{"_CONTAINERSX", "_CONTAINERSX", false},
+	{"STORAGE_X", "STORAGE_X", false},
+	{"GODEBUGX", "GODEBUGX", false},
+	{"WINDIRS", "WINDIRS", false},
+	{"USER", "USER", false},
+	{"DOCKER_BUILDKIT is not reserved", "DOCKER_BUILDKIT", false},
+	{"BUILDKIT_PROGRESS is not reserved", "BUILDKIT_PROGRESS", false},
+	{"COMPOSE_PROJECT_NAME is not reserved", "COMPOSE_PROJECT_NAME", false},
+	{"GIT_SSH_COMMAND is not reserved", "GIT_SSH_COMMAND", false},
+	{"LANG is not reserved", "LANG", false},
+	{"LC_ALL is not reserved", "LC_ALL", false},
 	// Exact names the podman client reads.
 	{"CONTAINER_HOST", "CONTAINER_HOST", true},
 	{"CONTAINER_CONNECTION", "CONTAINER_CONNECTION", true},
@@ -228,11 +277,23 @@ func FuzzLaunchEnvNeverCarriesAReservedName(f *testing.F) {
 		base := os.Environ()
 
 		cmd, err := BuildLaunchCmd(ContainerLaunchOptions{Image: "img", Env: []string{entry}})
+		// The refusal must not rely on the filtering of launchEnviron and
+		// buildLaunchArgs: a well-formed entry with a reserved name is refused.
+		if name, _, ok := strings.Cut(entry, "="); ok && ValidEnvName(name) && ReservedEnvName(name) {
+			if !errors.Is(err, ErrReservedLaunchEnv) || cmd != nil {
+				t.Errorf("entry %q has the reserved name %q: BuildLaunchCmd() = %v, %v, want ErrReservedLaunchEnv and no command", entry, name, cmd, err)
+			}
+		}
 		if err != nil {
 			if cmd != nil {
 				t.Errorf("a refused launch built a command")
 			}
 			return
+		}
+		for i, arg := range cmd.Args {
+			if arg == "-e" && i+1 < len(cmd.Args) && ReservedEnvName(cmd.Args[i+1]) {
+				t.Errorf("entry %q put -e %s in argv", entry, cmd.Args[i+1])
+			}
 		}
 		if len(cmd.Env) < len(base) {
 			t.Fatalf("cmd.Env is shorter than DevDesk's environment")
@@ -244,4 +305,21 @@ func FuzzLaunchEnvNeverCarriesAReservedName(f *testing.F) {
 			}
 		}
 	})
+}
+
+// The two builders hold the line on their own, even when a caller skips the
+// validation: a reserved entry is neither named in argv nor put in the child's
+// environment.
+func TestTheBuildersDropAReservedEntryEvenWithoutTheValidation(t *testing.T) {
+	opts := ContainerLaunchOptions{Image: "img", Env: []string{"DOCKER_HOST=tcp://other:2375", "REGION=eu", "http_proxy=x"}}
+
+	args := buildLaunchArgs(opts)
+	if want := wantEnvArgv([]string{"REGION"}); !slices.Equal(args, want) {
+		t.Errorf("buildLaunchArgs() = %q, want %q", args, want)
+	}
+	for _, e := range launchEnviron(opts.Env)[len(os.Environ()):] {
+		if name, _, _ := strings.Cut(e, "="); ReservedEnvName(name) {
+			t.Errorf("launchEnviron() appended the reserved entry for %q", name)
+		}
+	}
 }

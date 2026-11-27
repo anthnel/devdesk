@@ -52,12 +52,54 @@ var reservedEnvNames = map[string]struct{}{
 	"HOME":          {},
 	"PATH":          {},
 	"SSH_AUTH_SOCK": {},
+	// Windows: where the client finds the profile, its configuration and the
+	// helpers it starts. Reserved on every platform: a name is refused by what it
+	// is, not by where DevDesk runs.
+	"USERPROFILE":  {}, // %USERPROFILE%\.docker, the Windows HOME
+	"APPDATA":      {}, // roaming configuration
+	"LOCALAPPDATA": {}, // local configuration and data
+	"PATHEXT":      {}, // which extensions a helper may have
+	"SYSTEMROOT":   {}, // loaded DLLs and system tools
+	"WINDIR":       {}, // the same, older spelling
+	"COMSPEC":      {}, // the command interpreter cmd.exe starts
+	// containers/storage and podman: storage driver and its options, where podman
+	// looks for its helper binaries, the passphrase of the SSH identity.
+	"STORAGE_DRIVER":               {},
+	"STORAGE_OPTS":                 {},
+	"CONTAINERS_HELPER_BINARY_DIR": {},
+	"CONTAINER_PASSPHRASE":         {},
+	// ssh (`ssh://` hosts), Go's runtime and TLS stack: a program to ask for a
+	// passphrase, runtime debug settings, and the trust roots of every TLS
+	// connection the client makes.
+	"SSH_ASKPASS":         {},
+	"SSH_ASKPASS_REQUIRE": {},
+	"GODEBUG":             {},
+	"SSL_CERT_FILE":       {},
+	"SSL_CERT_DIR":        {},
+	// docker CLI: where its telemetry goes, content trust and its notary server,
+	// the systemd notification socket, the default platform, and credentials
+	// given inline.
+	"DOCKER_CLI_OTEL_EXPORTER_OTLP_ENDPOINT": {},
+	"DOCKER_CONTENT_TRUST":                   {},
+	"DOCKER_CONTENT_TRUST_SERVER":            {},
+	"NOTIFY_SOCKET":                          {},
+	"DOCKER_DEFAULT_PLATFORM":                {},
+	"DOCKER_AUTH_CONFIG":                     {},
+	// Temporary files, cache and state directories of the client.
+	"TMPDIR":         {},
+	"XDG_CACHE_HOME": {},
+	"XDG_STATE_HOME": {},
 }
 
 // reservedEnvPrefixes are the prefixes (upper case) of the dynamic loader
 // variables (`LD_PRELOAD`, `LD_LIBRARY_PATH`, `DYLD_INSERT_LIBRARIES`): they run
-// code of the typed library inside the engine CLI.
-var reservedEnvPrefixes = []string{"LD_", "DYLD_"}
+// code of the typed library inside the engine CLI. `OTEL_` is the OpenTelemetry
+// SDK family (endpoint, headers, exporter), which the docker CLI's telemetry
+// reads; `_CONTAINERS_` is podman's internal family (`_CONTAINERS_USERNS_CONFIGURED`
+// and friends), set by podman itself between its own processes. No `DOCKER_`,
+// `CONTAINER_`, `CONTAINERS_` or `PODMAN_` prefix: `DOCKER_HOSTNAME` must stay
+// accepted, and those names are listed one by one above.
+var reservedEnvPrefixes = []string{"LD_", "DYLD_", "OTEL_", "_CONTAINERS_"}
 
 // reservedEnvSuffix is the suffix of the proxy variables (`HTTP_PROXY`,
 // `NO_PROXY`, `MY_PROXY`): the client's own connections would go through the
@@ -65,8 +107,8 @@ var reservedEnvPrefixes = []string{"LD_", "DYLD_"}
 const reservedEnvSuffix = "_PROXY"
 
 // ReservedEnvName reports whether name is one the launch form may not set: an
-// exact name of reservedEnvNames, a name starting with `LD_` or `DYLD_`, or a
-// name ending in `_PROXY`, whatever the case. `DOCKER_HOSTNAME`, `MY_PATH`,
+// exact name of reservedEnvNames, a name starting with one of
+// reservedEnvPrefixes, or a name ending in `_PROXY`, whatever the case. `DOCKER_HOSTNAME`, `MY_PATH`,
 // `PATHS`, `HOMEPAGE`, `PROXY` and `MY_PROXYX` are not reserved. The launch form
 // and the launcher both call it, after ValidEnvName.
 func ReservedEnvName(name string) bool {

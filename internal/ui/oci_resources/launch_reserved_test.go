@@ -5,6 +5,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/anthnel/devdesk/internal/cache"
 	sharedcomponents "github.com/anthnel/devdesk/internal/ui/components"
 	"github.com/anthnel/devdesk/internal/ui/testutil"
 )
@@ -38,6 +39,14 @@ var reservedFormInputs = []struct {
 	{"PODMAN_CONNECTIONS_CONF", "PODMAN_CONNECTIONS_CONF=/tmp/c.json"},
 	{"CONTAINERS_CONF_OVERRIDE", "CONTAINERS_CONF_OVERRIDE=/tmp/o.conf"},
 	{"XDG_DATA_HOME", "XDG_DATA_HOME=/tmp/data"},
+	{"USERPROFILE", "USERPROFILE=C:\\x"},
+	{"STORAGE_OPTS", "STORAGE_OPTS=x"},
+	{"SSL_CERT_FILE", "SSL_CERT_FILE=/tmp/ca.pem"},
+	{"GODEBUG", "GODEBUG=x=1"},
+	{"TMPDIR", "TMPDIR=/tmp/x"},
+	{"DOCKER_CONTENT_TRUST_SERVER", "DOCKER_CONTENT_TRUST_SERVER=https://evil"},
+	{"the OTEL_ prefix", "OTEL_EXPORTER_OTLP_ENDPOINT=http://evil"},
+	{"the _CONTAINERS_ prefix", "_CONTAINERS_X=1"},
 	{"HOME", "HOME=/tmp/home"},
 	{"PATH", "PATH=/tmp/bin"},
 	{"SSH_AUTH_SOCK", "SSH_AUTH_SOCK=/tmp/agent"},
@@ -48,7 +57,6 @@ var reservedFormInputs = []struct {
 	{"a custom proxy name", "MY_PROXY=x"},
 	{"NO_PROXY", "NO_PROXY=*"},
 	{"among valid entries", "LOG_LEVEL=info, DOCKER_HOST=tcp://other:2375, REGION=eu"},
-	{"a reserved name with no value", "DOCKER_HOST"},
 	{"a reserved name with an empty value", "HOME="},
 }
 
@@ -171,19 +179,57 @@ func TestLaunchFormReservedNameErrorFollowsEditsAfterARefusal(t *testing.T) {
 	}
 }
 
+// A malformed entry is not called reserved: `PATH` with no "=", or a name that
+// only reads as a reserved one once case-folded (a long s, U+017F, folds to S) is
+// refused with the generic sentence. Both are still refused and underlined.
+func TestLaunchFormDoesNotCallAMalformedEntryReserved(t *testing.T) {
+	for _, input := range []string{"PATH", "DOCKER_HOST", "docker_ho\u017ft=x", "DOCKER_HOST =x", "=PATH"} {
+		t.Run(input, func(t *testing.T) {
+			f := newEnvForm()
+			setEnv(f, input)
+
+			if _, ok := submitOpts(f); ok {
+				t.Fatalf("Environment %q was accepted", input)
+			}
+			if in, _ := envUnderlined(f); !in {
+				t.Error("the field is not underlined")
+			}
+			if st := footerStatus(f); st.Level != sharedcomponents.LevelError || st.Text == "" || strings.Contains(st.Text, reservedEnvFooter) {
+				t.Errorf("footer = {%q, %v}, want the generic Environment sentence", st.Text, st.Level)
+			}
+		})
+	}
+}
+
 // Nothing is flagged before the first refused submit (OC-14 criterion 7): a
-// reserved name restored from the cache is refused at the submit only.
+// reserved name restored from the cache is refused at the submit only, however
+// the form is edited first.
 func TestLaunchFormReservedNameIsNotFlaggedBeforeTheFirstRefusedSubmit(t *testing.T) {
-	f := newEnvForm()
-	setEnv(f, "DOCKER_HOS=tcp://other:2375")
+	m := launchingModel(t, "80/tcp")
+	m = feed(t, m, LaunchOptionsCacheLoadedMsg{
+		ImageName: "api:v1",
+		Entry:     &cache.LaunchOptionsEntry{Env: "DOCKER_HOST=tcp://other:2375", Detach: true},
+	})
+	f := m.launchForm
+	if got := f.envInput.Value(); got != "DOCKER_HOST=tcp://other:2375" {
+		t.Fatalf("Environment = %q, want the cached reserved entry", got)
+	}
 	focusLaunchField(f, f.fieldEnv())
 	f.envInput.CursorEnd()
-	f, _ = f.Update(testutil.Key("x")) // DOCKER_HOS... then a keystroke: still before any submit
+	f, _ = f.Update(testutil.Key("0")) // a keystroke, no submit yet
 
 	if input, rendered := envUnderlined(f); input || rendered {
-		t.Error("the field is underlined before any submit")
+		t.Error("the cached reserved name is underlined before any submit")
 	}
 	if st := footerStatus(f); st.Text != "" {
 		t.Errorf("footer = %q before any submit, want empty", st.Text)
+	}
+
+	// The first submit refuses it.
+	if _, ok := submitOpts(f); ok {
+		t.Fatal("the submit went through with a reserved name")
+	}
+	if st := footerStatus(f); !strings.Contains(st.Text, reservedEnvFooter) {
+		t.Errorf("footer = %q after the refused submit, want the reserved-name sentence", st.Text)
 	}
 }

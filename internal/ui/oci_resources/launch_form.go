@@ -528,12 +528,15 @@ func envEntryValid(entry string) bool {
 
 // envFault returns the sentence for the first faulty Environment entry: a
 // reserved name (docker.ReservedEnvName, the launcher's rule) or an entry that
-// is not NAME=VALUE. Neither sentence repeats the name or the value.
+// is not NAME=VALUE. The reserved sentence is for a well-formed entry only (a
+// "=" and a name ValidEnvName accepts, as the launcher checks them): `PATH` with
+// no "=" or a name that is not ASCII is merely malformed. Neither sentence
+// repeats the name or the value.
 func envFault(entries []string) (string, bool) {
 	for _, e := range entries {
-		name, _, _ := strings.Cut(e, "=")
+		name, _, hasValue := strings.Cut(e, "=")
 		switch {
-		case docker.ReservedEnvName(name):
+		case hasValue && docker.ValidEnvName(name) && docker.ReservedEnvName(name):
 			return envReservedText, true
 		case !envEntryValid(e):
 			return envInvalidText, true

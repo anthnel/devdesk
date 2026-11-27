@@ -168,26 +168,66 @@ Two things about the engine are worth knowing before changing this code:
       `~/.config/containers`, `~/.ssh`), `PATH` (which credential helper,
       `ssh` or compose plugin is started), `SSH_AUTH_SOCK` (the agent an
       `ssh://` host uses).
+    - **Windows** (reserved on every platform: a name is refused by what it is,
+      not by where DevDesk runs; all by reasoning, not read in the docker or
+      podman pages): `USERPROFILE` (the Windows `HOME`, `%USERPROFILE%\.docker`),
+      `APPDATA` and `LOCALAPPDATA` (configuration and data), `PATHEXT` (which
+      extensions a helper may have), `SYSTEMROOT` and `WINDIR` (system DLLs and
+      tools), `COMSPEC` (the interpreter `cmd.exe` starts).
+    - **storage and podman**: `STORAGE_DRIVER` and `STORAGE_OPTS` (the storage
+      driver and its options, in the podman manual), `CONTAINERS_HELPER_BINARY_DIR`
+      (where podman finds its helper binaries, by reasoning), `CONTAINER_PASSPHRASE`
+      (the passphrase of the SSH identity; by reasoning, absent from the manual
+      page read).
+    - **ssh, TLS, Go** (by reasoning): `SSH_ASKPASS` and `SSH_ASKPASS_REQUIRE`
+      (a program ssh runs to ask for a passphrase, for `ssh://` hosts), `GODEBUG`
+      (Go runtime settings of the CLI, including TLS ones), `SSL_CERT_FILE` and
+      `SSL_CERT_DIR` (the trust roots of every TLS connection the CLI makes).
+    - **telemetry, trust, platform** (by reasoning, except
+      `DOCKER_DEFAULT_PLATFORM`, in the docker CLI reference):
+      `DOCKER_CLI_OTEL_EXPORTER_OTLP_ENDPOINT` (where the CLI sends its
+      telemetry), `DOCKER_CONTENT_TRUST` and `DOCKER_CONTENT_TRUST_SERVER` (content
+      trust and its notary server), `NOTIFY_SOCKET` (the systemd notification
+      socket), `DOCKER_DEFAULT_PLATFORM` (the platform `run` asks for),
+      `DOCKER_AUTH_CONFIG` (registry credentials given inline).
+    - **directories**: `TMPDIR` (in the podman manual), `XDG_CACHE_HOME` and
+      `XDG_STATE_HOME` (by reasoning, like `XDG_DATA_HOME`: the XDG base
+      directories of the client).
     - **prefixes** `LD_` and `DYLD_` (`LD_PRELOAD`, `LD_LIBRARY_PATH`,
       `DYLD_INSERT_LIBRARIES`): the dynamic loader runs the typed library inside
-      the CLI.
+      the CLI. `OTEL_` (the OpenTelemetry SDK family: endpoint, headers,
+      exporter; by reasoning) and `_CONTAINERS_` (podman's internal variables
+      between its own processes; by reasoning). No `DOCKER_`, `CONTAINER_`,
+      `CONTAINERS_` or `PODMAN_` prefix: `DOCKER_HOSTNAME` must stay accepted
+      (criterion 2), so those names are listed one by one.
     - **suffix** `_PROXY` (`HTTP_PROXY`, `NO_PROXY`, `MY_PROXY`, any case): the
       CLI's own connections (daemon, registry) would go through the proxy typed.
       Not `PROXY` alone, not `MY_PROXYX`.
     - Not reserved, on purpose: `DOCKER_HOSTNAME`, `MY_PATH`, `PATHS`,
-      `HOMEPAGE`, `CONTAINERS_X_Y`, `LDAP_URL`, `XDG_DATA_DIRS`. A name that
-      merely looks like one is an ordinary variable of the container. Tests:
-      `internal/docker/launch_reserved_test.go` (the table, both engines, a
-      strict stub that fails on any engine call for a refusal, a fuzz target whose
-      seeds run in `go test`) and
-      `internal/ui/oci_resources/launch_reserved_test.go`.
+      `HOMEPAGE`, `CONTAINERS_X_Y`, `LDAP_URL`, `XDG_DATA_DIRS`, `TMPDIRS`,
+      `SSH_ASKPASS_X`, `OTELX`, `MY_OTEL_X`, `STORAGE_X`, `GODEBUGX`; and, with no
+      effect on `run`, `BUILDKIT_*`, `DOCKER_BUILDKIT`, `COMPOSE_*`, `GIT_SSH*`,
+      `LANG`, `LC_*`. A name that merely looks like a reserved one is an ordinary
+      variable of the container. Tests: `internal/docker/launch_reserved_test.go`
+      (the table, both engines, a strict stub that fails on any engine call for a
+      refusal, a fuzz target whose seeds run in `go test`; it checks the refusal
+      itself and also `cmd.Args` and `cmd.Env`, so it does not rest on the
+      filtering of `launchEnviron`) and
+      `internal/ui/oci_resources/launch_reserved_test.go`. The form says
+      `reserved` only for a well-formed entry (a `=` and a valid name): `PATH`
+      with no `=`, or a non-ASCII name that case-folds to a reserved one, gets the
+      generic sentence.
     - **Limits.** It is a deny list: a name outside it that drives an exotic
-      client setting is not seen. Known and left out: `DOCKER_DEFAULT_PLATFORM`,
-      `CONTAINER_PASSPHRASE`, `STORAGE_DRIVER`, `STORAGE_OPTS`, `TMPDIR`,
-      `BUILDKIT_*`.
-      Names are compared as typed; non-ASCII names are already refused by
+      client setting is not seen. Not covered: `BUILDKIT_*`, `COMPOSE_*`,
+      `GIT_SSH*` and any other `DOCKER_`, `CONTAINER_`, `CONTAINERS_` or
+      `PODMAN_` name that is not listed above (a client that grows a variable
+      reads it before this list does). Names are compared case-insensitively, with
+      no other normalization; non-ASCII names are already refused by
       `ValidEnvName`. A name cached by an older build and restored into the form is
-      refused at the submit like any other.
+      refused at the submit like any other. Passing the values through
+      `--env-file /dev/fd/3` instead, which would keep a name from reaching the
+      CLI's own environment, was set aside by decision D13 of the OC plan (not the backlog's D13): DevDesk refuses, it
+      does not use an `--env-file`.
   - **Still to do.** OC-16 (the command preview and `ctrl+y`
     still show `-e NAME=VALUE`: `buildCommandString` / `buildCommandLines`), OC-17
     (`launch-options.json` still stores the values: `ToCacheEntry`). The scanner
