@@ -334,8 +334,8 @@ not seen. See `docs/architecture/network.md`, "Guard G8".
 `*_contract_test.go` file of the package it contracts (today `internal/docker/engine_contract_test.go`); it reaches a real
 docker or podman, outside CI, in the test VMs: `DEVDESK_ENGINE_CONTRACT=1 mise run engine-contract -- <docker|podman> <n|n1>
 [--mode rootful|rootless] [--no-reset]` (`tools/engine-vms/contract.sh verify`, which acts on the Incus host; run by hand, never
-by a test). The task never sets the variable, the user exports it. The gate is `enginecontract.Decide`
-(`internal/testutil/enginecontract`): the variable not `1` skips, `CI` set refuses (even with the variable), then the tool
+by a test). The task never sets the variable; the user sets it for the one command and never exports it (an exported variable opens the gate for every later `go test`). The gate is `enginecontract.Decide`
+(`internal/testutil/enginecontract`): the variable not `1` skips, `CI` (or `GITHUB_ACTIONS`, `GITLAB_CI`, `BUILDKITE`, `TF_BUILD`) set refuses (even with the variable), then the tool
 (`DEVDESK_ENGINE_CONTRACT_TOOL`, docker or podman, no default); a plain `go test` skips every contract. Every contract starts
 with `requireEngine(t)` (defined in `contract_support_test.go`, its first statement `enginecontract.Require(t, probeEngine)`):
 gate, `AllowRealEngine`, probe, N and N-1 check, banner. Do not call `engineguard.AllowRealEngine` yourself. Guards: G5

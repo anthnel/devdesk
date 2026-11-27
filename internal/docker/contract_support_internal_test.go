@@ -253,7 +253,9 @@ func TestRequireEnginePinsTheEngineOfTheRunForTheLengthOfTheTest(t *testing.T) {
 				{Tool: string(tt.tool), Args: modeArgv, Reply: fakecli.Reply{Stdout: tt.mode}},
 			}, string(tt.tool))
 			t.Setenv(engineguard.ContractEnv, "1")
-			t.Setenv("CI", "")
+			for _, name := range engineguard.CIMarkers() {
+				t.Setenv(name, "")
+			}
 			t.Setenv(enginecontract.ToolEnv, string(tt.tool))
 			t.Setenv(enginecontract.RunEnv, "20261127-a1b2c3d4")
 			t.Setenv(enginecontract.VersionsEnv, versionsFile(t))

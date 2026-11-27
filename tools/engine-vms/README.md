@@ -81,22 +81,28 @@ OC-09a1 (DEVDESK-806). `contract.sh` runs the engine contract tests (the `*_cont
 `docs/architecture/network.md`, "Engine contracts") against the engine of a VM:
 
 ```bash
-export DEVDESK_ENGINE_CONTRACT=1            # by hand, in your own shell; no task sets it
-mise run engine-contract -- docker n        # Docker line N, rootful
-mise run engine-contract -- podman n1 --mode rootless
-mise run engine-contract -- podman n --mode rootful --no-reset
+DEVDESK_ENGINE_CONTRACT=1 mise run engine-contract -- docker n        # Docker line N, rootful
+DEVDESK_ENGINE_CONTRACT=1 mise run engine-contract -- podman n1 --mode rootless
+DEVDESK_ENGINE_CONTRACT=1 mise run engine-contract -- podman n --mode rootful --no-reset
 ```
+
+**Do not export `DEVDESK_ENGINE_CONTRACT`.** Set it for the one command, as above: an exported variable stays in
+your shell and opens the contract gate for every later `go test`, which would then reach your own engine. No task
+sets it for you.
 
 Usage: `contract.sh verify <docker|podman> <n|n1> [--mode rootful|rootless] [--no-reset]`.
 
 - **The gate comes first and applies on your machine.** Without `DEVDESK_ENGINE_CONTRACT=1` it prints `skipped` and
-  exits 0; with `CI` set it prints `refused` and exits 1, even with the variable; invalid arguments exit 2. None of
+  exits 0; with `CI`, `GITHUB_ACTIONS`, `GITLAB_CI`, `BUILDKITE` or `TF_BUILD` set it prints `refused` and exits 1, even
+  with the variable; invalid arguments exit 2. None of
   these reaches the VM host. The Go tests apply the same gate again inside the VM.
 - **Steps.** It builds one `linux/amd64` test binary per package that has a contract (`-trimpath`; only files known to
   git count), restores the VM's clean snapshot on the requested line (skipped with `--no-reset`, the line installed
   in the VM must still match), copies the binaries and `versions.env` to `/tmp/ddc-<run>`, runs
   `-test.run '^TestContract'` with an explicit environment (`env -i`), and removes the directory, also on failure.
-  Nothing is copied back; the exit code is the contracts'.
+  Nothing is copied back; the exit code is the contracts'. It prints how many contracts passed, were skipped and
+  failed; when none passed (an engine outside N and N-1 is skipped in verify mode) the exit code stays 0 and it says
+  `nothing was verified`.
 - **Mode.** Docker is rootful only (`--mode rootless` with docker is refused). Podman defaults to rootless, the
   mode the user `dd` runs; `--mode rootful` runs it as root. Rootless runs go through the user session of `dd`.
 - **Acts on the Incus host** (`DD_ENGINE_VMS_HOST`, `DD_ENGINE_VMS_PROJECT`, as above): never run it against a host

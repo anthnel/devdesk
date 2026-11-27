@@ -36,6 +36,8 @@ import (
 //	R2  a *_contract_test.go file declares only TestContract* functions (helpers go
 //	    in contract_support_test.go, which `-run '^TestContract'` does not select),
 //	    and none of them calls Parallel (the seams of internal/docker are global).
+//	    No package-level var or const either: it is evaluated when the test binary
+//	    starts, before any requireEngine(t) (review of OC-09a1, B3).
 //	R3  a TestContract* function outside a *_contract_test.go file, a call
 //	    requireEngine(x) with one argument, or a call engineguard.AllowRealEngine(...)
 //	    outside the files of the contracts, contract_support_test.go and
@@ -194,6 +196,15 @@ func contractSites(rel string, src []byte) ([]contractSite, error) {
 	for _, decl := range f.Decls {
 		label := funcLabel(decl)
 		fn, isFunc := decl.(*ast.FuncDecl)
+
+		// A package-level var or const is evaluated when the test binary starts, before
+		// any requireEngine(t): an initializer such as `var _ = exec.Command(...).Run()`
+		// would reach the engine in every run. A contract file declares none (imports and
+		// types stay allowed: they run nothing).
+		if gen, ok := decl.(*ast.GenDecl); ok && contract && (gen.Tok == token.VAR || gen.Tok == token.CONST) {
+			add(gen.Pos(), label, ruleOnlyContracts, "a contract file declares a package-level "+gen.Tok.String()+
+				", evaluated at init in every test binary before requireEngine(t)")
+		}
 
 		if isFunc {
 			isContractTest := fn.Recv == nil && strings.HasPrefix(fn.Name.Name, "TestContract")

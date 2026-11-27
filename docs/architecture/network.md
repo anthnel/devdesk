@@ -344,12 +344,14 @@ and the task that runs them. The one contract there is, `TestContractEngineAnswe
 - **The gate (`enginecontract.Decide`, a pure function of the environment).** The first rule that applies wins:
   1. `DEVDESK_ENGINE_CONTRACT` is not `1`: **skip**, with a message that says how to run the contracts. A plain
      `go test ./...` therefore skips every contract.
-  2. `CI` is not empty: **refuse** (`t.Fatal`), even with the variable. A contract never runs in CI.
+  2. `CI`, `GITHUB_ACTIONS`, `GITLAB_CI`, `BUILDKITE` or `TF_BUILD` is not empty (`engineguard.CIMarkers`, one list
+     for `Decide`, `engineguard.ContractGate` and `contract.sh`): **refuse** (`t.Fatal`), even with the variable. A
+     contract never runs in CI. A runner that sets none of these is not seen: this is defence in depth.
   3. `DEVDESK_ENGINE_CONTRACT_TOOL` is neither `docker` nor `podman`: refuse. No engine is assumed.
   4. `DEVDESK_FIXTURE_RECORDING=1`: the recording mode, which needs an absolute `DEVDESK_FIXTURE_OUT`, else refuse.
   5. Otherwise the verify mode.
 
-  "`CI` set and the variable absent" is a skip, not a refusal: the first rule wins. `contract.sh` applies the same
+  "A marker set and the variable absent" is a skip, not a refusal: the first rule wins. `contract.sh` applies the same
   two rules on the developer's machine before it reaches the VM host, and the tests of the child process and of
   the script (below) hold both.
 - **`requireEngine(t)`** (`internal/docker/contract_support_test.go`) is the first statement of every contract. It
@@ -386,9 +388,11 @@ and the task that runs them. The one contract there is, `TestContractEngineAnswe
     (or `x = ...`), `t` being the identifier of its own `*testing.T`. A nested call, a method, another argument or
     a statement before it is reported.
   - R2: such a file declares nothing but `TestContract*` functions (helpers go to `contract_support_test.go`, and
-    `-run '^TestContract'` selects every contract), and calls no `t.Parallel()`.
+    `-run '^TestContract'` selects every contract), no package-level `var` or `const` (evaluated at init, before
+    `requireEngine`), and calls no `t.Parallel()`.
   - R3: a `TestContract*` function outside a contract file, or a call to `requireEngine(` or
-    `engineguard.AllowRealEngine(` outside the contract files, `contract_support_test.go` and `internal/engineguard`.
+    `engineguard.AllowRealEngine(` outside the contract files, `contract_support_test.go`, `internal/engineguard` and
+    `internal/testutil/enginecontract/` (`Require` calls `AllowRealEngine`).
   - R4: a package with a contract file defines `requireEngine` in a `_test.go` file and its first statement calls
     `enginecontract.Require(`; an empty one fails.
   - A floor (at least one contract file), an exception table `contractExceptions` (empty, and an entry whose code
@@ -401,27 +405,38 @@ and the task that runs them. The one contract there is, `TestContractEngineAnswe
   only in a comment or a task `description`. `TestMiseEngineContractTasksStayOutOfTheStandardChecks`
   (`internal/nexusbench/mise_tasks_test.go`) holds the task out of `ci`, `check`, `test` and `test-race`.
 - **The task.** `mise run engine-contract -- <docker|podman> <n|n1> [--mode rootful|rootless] [--no-reset]` runs
-  `tools/engine-vms/contract.sh verify`. The task never sets the gate variable: the user exports
-  `DEVDESK_ENGINE_CONTRACT=1` in the shell, and the script skips (exit 0) without it and refuses (exit 1) when `CI`
-  is set, before any connection (`TestTheScriptAppliesTheGateBeforeAnyRemoteCall` reads the order); invalid
+  `tools/engine-vms/contract.sh verify`. The task never sets the gate variable: the user sets
+  `DEVDESK_ENGINE_CONTRACT=1` for the one command (`DEVDESK_ENGINE_CONTRACT=1 mise run engine-contract -- docker n`)
+  and **does not export it**, because an exported variable opens the gate for every later `go test` of the shell. The
+  script skips (exit 0) without it and refuses (exit 1) when `CI` or another marker is set, before any connection (`TestTheScriptAppliesTheGateBeforeAnyRemoteCall` reads the order); invalid
   arguments exit 2. Then it builds one `linux/amd64` test binary per package that has a contract (`-trimpath`),
   restores the VM unless `--no-reset`, copies the binaries and `versions.env` to `/tmp/ddc-<run>` in the VM, runs
   them with an explicit environment (`env -i`), as root for rootful or as the unprivileged user for rootless
-  (podman defaults to rootless, docker is rootful only), and removes the directory afterwards. Nothing is copied back.
-  It acts on the Incus host (`DD_ENGINE_VMS_HOST`).
-- **Contracts on the developer's own machine.** A developer who exports the variable and the tool by hand and
-  runs `go test -run '^TestContract' ./internal/docker` reaches their own engine. That is permitted and not
+  (podman defaults to rootless, docker is rootful only), and removes the directory afterwards. The directory is made
+  with `mkdir -m 0755` and no `-p`, so an existing path (a planted link, another run) fails the run instead of being
+  reused, and only a directory the script made is removed. Nothing is copied back. The run counts the top-level
+  `--- PASS`, `--- SKIP` and `--- FAIL` lines: when no contract passed (verify mode skips an engine outside N and
+  N-1, and a contract with no fixture) the exit code stays 0 and it prints `nothing was verified`. It acts on the Incus host (`DD_ENGINE_VMS_HOST`).
+- **Contracts on the developer's own machine.** A developer who sets the variable and the tool by hand (not
+  exported) and runs `go test -run '^TestContract' ./internal/docker` reaches their own engine. That is permitted and not
   encouraged: the only contract today reads, and the resource rules (labels, cleanup, an argv allow-list) arrive
   with OC-09a2.
 - **Only verifiable on the Incus host.** The probe templates above on the four versions; `contract.sh` end to end
   (cross-compilation, the copy, `vm_user` rootless, the cleanup trap); the real behavior of the pilot contract.
   None of this ran in CI or in the session that wrote it.
-- **Limits.** G5 misses a function value (`re := requireEngine`), a `var c = requireEngine(t)`, an aliased import of
+- **Limits.** R2 refuses any package-level `var` or `const` in a contract file (its initializer would run in every test binary
+  before `requireEngine`, e.g. `var _ = exec.Command(...).Run()`); a `var` that calls `requireEngine` elsewhere is an
+  R3 site. G5 misses a function value (`re := requireEngine`), an aliased import of
   `engineguard`, and a contract in a file not named `*_contract_test.go` that calls neither `requireEngine` nor
   `AllowRealEngine` (G1 makes it panic at run time instead). `TestGateOpenersOnSources` documents what the
   `mise.toml` and workflow guard cannot see: a name assembled at run time, and a script a task or a workflow calls
   (`contract.sh` passes the variable to the VM on purpose and applies the gate itself). The gate is the environment:
-  whoever exports the variable and unsets `CI` opens it. `mise run test-race` and `ci` never set it.
+  whoever exports the variable and unsets every CI marker opens it. `mise run test-race` and `ci` never set it.
+  **For OC-09a2, before any contract creates or removes a resource:** the gate must also require a marker of the test
+  VM itself (for example a non-empty `DEVDESK_ENGINE_CONTRACT_RUN` plus a marker file that only the VMs of
+  `tools/engine-vms` carry), so that a contract refuses to run outside a test VM. Today the only contract reads, and
+  the environment alone opens the gate on a developer's own machine; that stops being acceptable once a contract
+  writes. Not implemented here.
 
 ### Recorded fixtures — `internal/enginefixture` (OC-08a and OC-08b, DEVDESK-805, DEVDESK-942)
 

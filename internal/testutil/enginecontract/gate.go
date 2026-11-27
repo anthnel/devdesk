@@ -52,7 +52,8 @@ type Decision struct {
 //
 //  1. DEVDESK_ENGINE_CONTRACT is not "1": skip, so a plain `go test` ignores
 //     every contract, with a message that says how to run them.
-//  2. CI is not empty: refuse, even with the variable. A contract never runs in CI.
+//  2. CI, GITHUB_ACTIONS, GITLAB_CI, BUILDKITE or TF_BUILD is not empty: refuse, even with the
+//     variable. A contract never runs in CI.
 //  3. DEVDESK_ENGINE_CONTRACT_TOOL is neither docker nor podman: refuse; nothing is assumed.
 //  4. DEVDESK_FIXTURE_RECORDING is "1": the recording mode, which needs an
 //     absolute DEVDESK_FIXTURE_OUT, else refuse.
@@ -63,9 +64,9 @@ func Decide(getenv func(string) string) Decision {
 			engineguard.ContractEnv + "=1 outside CI (mise run engine-contract runs the contracts in the test VMs); " +
 			"see docs/architecture/network.md, \"Engine contracts\""}
 	}
-	if ci := getenv("CI"); ci != "" {
-		return Decision{Refuse: fmt.Sprintf("contract test refused: CI is set (CI=%q); "+
-			"contract tests never run in CI, even with %s=1 (OC-09a)", ci, engineguard.ContractEnv)}
+	if name, value := engineguard.CIMarker(getenv); name != "" {
+		return Decision{Refuse: fmt.Sprintf("contract test refused: CI is set (%s=%q); "+
+			"contract tests never run in CI, even with %s=1 (OC-09a)", name, value, engineguard.ContractEnv)}
 	}
 	tool := enginefixture.Tool(getenv(ToolEnv))
 	if tool != enginefixture.Docker && tool != enginefixture.Podman {

@@ -8,9 +8,12 @@ import (
 	"path/filepath"
 	"regexp"
 	"runtime"
+	"slices"
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/anthnel/devdesk/internal/engineguard"
 )
 
 // OC-09a1, criteria 1 and 5, on the side of the task: tools/engine-vms/contract.sh
@@ -40,7 +43,7 @@ func scriptEnv(kv ...string) []string {
 	var out []string
 	for _, e := range os.Environ() {
 		name, _, _ := strings.Cut(e, "=")
-		if name == "CI" || strings.HasPrefix(name, "DEVDESK_ENGINE_") || strings.HasPrefix(name, "DEVDESK_FIXTURE_") ||
+		if slices.Contains(engineguard.CIMarkers(), name) || strings.HasPrefix(name, "DEVDESK_ENGINE_") || strings.HasPrefix(name, "DEVDESK_FIXTURE_") ||
 			strings.HasPrefix(name, "DD_ENGINE_VMS_") {
 			continue
 		}

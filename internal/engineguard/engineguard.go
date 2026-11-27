@@ -327,14 +327,41 @@ func AllowDir(t testing.TB, dir string) {
 	})
 }
 
-// ContractGate is the gate of the tests that reach a real engine on purpose:
-// nil only when ContractEnv is "1" and CI is empty.
-func ContractGate(getenv func(string) string) error {
-	if getenv(ContractEnv) == "1" && getenv("CI") == "" {
-		return nil
+// ciMarkers are the variables whose presence says a CI system runs the process:
+// the generic CI, then those of GitHub Actions, GitLab CI, Buildkite and Azure
+// Pipelines (TF_BUILD). A runner that sets none of them is not seen; the gate is
+// defence in depth, not proof.
+var ciMarkers = []string{"CI", "GITHUB_ACTIONS", "GITLAB_CI", "BUILDKITE", "TF_BUILD"}
+
+// CIMarkers returns the names of the variables CIMarker reads. A test that opens
+// the contract gate on purpose empties every one of them.
+func CIMarkers() []string { return slices.Clone(ciMarkers) }
+
+// CIMarker returns the first CI marker that is not empty, with its value, or two
+// empty strings when none is.
+func CIMarker(getenv func(string) string) (name, value string) {
+	for _, n := range ciMarkers {
+		if v := getenv(n); v != "" {
+			return n, v
+		}
 	}
-	return fmt.Errorf("reaching a real container engine needs %s=1 and an empty CI (got %s=%q, CI=%q)",
-		ContractEnv, ContractEnv, getenv(ContractEnv), getenv("CI"))
+	return "", ""
+}
+
+// ContractGate is the gate of the tests that reach a real engine on purpose:
+// nil only when ContractEnv is "1" and no CI marker (CI, GITHUB_ACTIONS,
+// GITLAB_CI, BUILDKITE, TF_BUILD) is set. A closed gate comes first; a marker
+// refuses even with the variable.
+func ContractGate(getenv func(string) string) error {
+	if getenv(ContractEnv) != "1" {
+		return fmt.Errorf("reaching a real container engine needs %s=1 and no CI marker (got %s=%q, CI=%q)",
+			ContractEnv, ContractEnv, getenv(ContractEnv), getenv("CI"))
+	}
+	if name, value := CIMarker(getenv); name != "" {
+		return fmt.Errorf("reaching a real container engine is refused in CI: CI is set (%s=%q), even with %s=1",
+			name, value, ContractEnv)
+	}
+	return nil
 }
 
 // AllowRealEngine is what a contract test calls before it reaches the real

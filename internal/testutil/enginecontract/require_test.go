@@ -119,7 +119,7 @@ func openGate(t *testing.T, tool enginefixture.Tool) {
 	t.Setenv(enginecontract.RecordingEnv, "")
 	t.Setenv(enginecontract.OutEnv, "")
 	t.Setenv(engineguard.ContractEnv, "1")
-	t.Setenv("CI", "")
+	clearCIMarkers(t)
 }
 
 var podmanN = enginecontract.Engine{Tool: enginefixture.Podman, Version: "6.2.1", Mode: enginefixture.Rootless}

@@ -6,9 +6,12 @@ import (
 	"os"
 	"os/exec"
 	"regexp"
+	"slices"
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/anthnel/devdesk/internal/engineguard"
 )
 
 // OC-09a1 (DEVDESK-806), criteria 1 and 5: outside a contract run, no contract
@@ -39,7 +42,7 @@ func childEnvironment(t *testing.T, kv ...string) []string {
 	for _, e := range os.Environ() {
 		name, _, _ := strings.Cut(e, "=")
 		switch {
-		case name == "CI", name == "PATH", strings.HasPrefix(name, "DEVDESK_ENGINE_"),
+		case slices.Contains(engineguard.CIMarkers(), name), name == "PATH", strings.HasPrefix(name, "DEVDESK_ENGINE_"),
 			strings.HasPrefix(name, "DEVDESK_FIXTURE_"), strings.HasPrefix(name, "FAKECLI_"):
 			continue
 		}
