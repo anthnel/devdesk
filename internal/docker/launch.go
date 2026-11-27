@@ -127,7 +127,7 @@ func buildLaunchArgs(opts ContainerLaunchOptions) []string {
 // BuildLaunchCmd returns a ready-to-run exec.Cmd for the given options without executing it.
 // Use this when you need to hand off the process to a terminal (e.g. tea.ExecProcess for -it mode).
 func BuildLaunchCmd(opts ContainerLaunchOptions) (*exec.Cmd, error) {
-	if err := requireEngine(); err != nil {
+	if err := engineAvailable(); err != nil {
 		return nil, err
 	}
 	return runner.Build(buildLaunchArgs(opts)...), nil
@@ -136,7 +136,7 @@ func BuildLaunchCmd(opts ContainerLaunchOptions) (*exec.Cmd, error) {
 // LaunchContainer runs a new container with the given options and returns its ID/output.
 // Do NOT use this for interactive (-it) containers — use BuildLaunchCmd + tea.ExecProcess instead.
 func LaunchContainer(opts ContainerLaunchOptions) (string, error) {
-	if err := requireEngine(); err != nil {
+	if err := engineAvailable(); err != nil {
 		return "", err
 	}
 	output, err := dockerCombined(buildLaunchArgs(opts)...)
@@ -150,7 +150,7 @@ func LaunchContainer(opts ContainerLaunchOptions) (string, error) {
 // by running a short-lived throwaway container with /bin/sh -c "command -v <binary>".
 // Returns true if the binary is found, false otherwise.
 func VerifyEntrypoint(image, entrypoint string) (bool, error) {
-	if err := requireEngine(); err != nil {
+	if err := engineAvailable(); err != nil {
 		return false, err
 	}
 	_, err := dockerCombined("run", noImplicitPull, "--rm", "--entrypoint", "/bin/sh",

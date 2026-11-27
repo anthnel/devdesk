@@ -108,7 +108,7 @@ func (a *App) resolveSecretBackend() {
 //
 // A preference that does not resolve is **not** fatal and does not fall back to
 // the other engine. The previous shape is kept and the views report the absence
-// the way they always have when the binary is missing (requireEngine) — an
+// the way they always have when the binary is missing (engineAvailable) — an
 // error at the moment of use, naming the engine that was asked for, rather than
 // a silent substitution that answers about the wrong machine (§3.67).
 func (a *App) resolveContainerEngine() {

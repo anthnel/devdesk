@@ -44,7 +44,7 @@ func requireDockerEngine() error {
 	if engine.Current().Name != engine.Docker {
 		return ErrDockerOnly
 	}
-	return requireEngine()
+	return engineAvailable()
 }
 
 // InspectContainerNetworking reads one container's network attachment with
@@ -188,7 +188,7 @@ func bridgeNameFor(driver, option, id string) string {
 // ListContainersContext is ListContainers with a context that kills the
 // invocation when cancelled.
 func ListContainersContext(ctx context.Context, all bool) ([]Container, error) {
-	if err := requireEngine(); err != nil {
+	if err := engineAvailable(); err != nil {
 		return nil, err
 	}
 
