@@ -10,6 +10,7 @@ import (
 
 	"github.com/anthnel/devdesk/internal/config"
 	"github.com/anthnel/devdesk/internal/netcheck"
+	"github.com/anthnel/devdesk/internal/testutil/fakecli"
 	"github.com/anthnel/devdesk/internal/ui/testutil"
 )
 
@@ -19,6 +20,11 @@ import (
 // a refused port or a broken chain without either a network or Docker.
 
 func TestMain(m *testing.M) {
+	// The fake engine of path_engine_reads_test.go is this binary started under
+	// the name docker (internal/testutil/fakecli).
+	if code, ok := fakecli.AsTool(); ok {
+		os.Exit(code)
+	}
 	log.SetOutput(io.Discard)
 	code := m.Run()
 	log.SetOutput(os.Stderr)

@@ -2,13 +2,12 @@ package scan
 
 import (
 	"os"
-	"path/filepath"
-	"runtime"
 	"slices"
 	"strings"
 	"testing"
 
 	"github.com/anthnel/devdesk/internal/engine"
+	"github.com/anthnel/devdesk/internal/testutil/fakecli"
 	"github.com/anthnel/devdesk/internal/trust"
 )
 
@@ -318,23 +317,23 @@ func TestContainerBuildersCoverEveryLauncher(t *testing.T) {
 
 // TestContainerToolVersionCharacterization runs containerToolVersion through
 // the engine binary the shape names, which is the one existing injection
-// point: a script records its argv and prints it back.
+// point: a fake engine (internal/testutil/fakecli) records its argv.
 func TestContainerToolVersionCharacterization(t *testing.T) {
-	if runtime.GOOS == "windows" {
-		t.Skip("the fake engine is a shell script")
-	}
 	noProxyEnvironment(t)
-	script := filepath.Join(t.TempDir(), "docker")
-	if err := os.WriteFile(script, []byte("#!/bin/sh\nfor a in \"$@\"; do printf '%s\\n' \"$a\"; done\n"), 0o755); err != nil { //nolint:gosec // a test script must be executable
-		t.Fatal(err)
-	}
+	fake := fakecli.Install(t, fakecli.Scenario{
+		{Tool: "docker", Prefix: true, Reply: fakecli.Reply{Stdout: "v1\n"}},
+	})
 	shape := engine.ShapeFor(engine.Docker)
-	shape.Binary = script
+	shape.Binary = fake.InstallAt(t, t.TempDir(), "docker")
 	useEngine(t, shape)
 
 	got := containerToolVersion("aquasec/trivy", "--version")
-	want := "docker:run\n--rm\naquasec/trivy\n--version\n"
-	if got != want {
+
+	if want := "docker:v1\n"; got != want {
 		t.Errorf("containerToolVersion = %q, want %q", got, want)
+	}
+	wantArgs := []string{"run", "--rm", "aquasec/trivy", "--version"}
+	if inv := fake.Invocations(); len(inv) != 1 || !slices.Equal(inv[0].Args, wantArgs) {
+		t.Errorf("engine runs = %+v, want one with argv %q", inv, wantArgs)
 	}
 }

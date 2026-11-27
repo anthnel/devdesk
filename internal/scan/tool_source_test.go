@@ -1,12 +1,10 @@
 package scan
 
 import (
-	"os"
-	"path/filepath"
-	"runtime"
 	"testing"
 
 	"github.com/anthnel/devdesk/internal/config"
+	"github.com/anthnel/devdesk/internal/testutil/fakecli"
 )
 
 // D27. scan.trivy_path and scan.gitleaks_path were declared in the schema,
@@ -18,31 +16,19 @@ import (
 // in the else, so a binary on PATH always won. Asking for the pinned image
 // while trivy happened to be installed was not expressible.
 
-// installToolAt writes a fake tool at an explicit path outside PATH, which is
-// the situation trivy_path exists for.
-func installToolAt(t *testing.T, dir, name string) string {
+// installToolAt installs a fake tool at an explicit path outside PATH, which is
+// the situation trivy_path exists for, and makes it print output. PATH itself
+// holds nothing.
+func installToolAt(t *testing.T, output, name string) string {
 	t.Helper()
-	self, err := os.Executable()
-	if err != nil {
-		t.Fatalf("locating the test binary: %v", err)
-	}
-	body, err := os.ReadFile(self)
-	if err != nil {
-		t.Fatalf("reading the test binary: %v", err)
-	}
-	if runtime.GOOS == "windows" {
-		name += ".exe"
-	}
-	path := filepath.Join(dir, name)
-	if err := os.WriteFile(path, body, 0o755); err != nil {
-		t.Fatalf("installing %s: %v", path, err)
-	}
-	return path
+	fake := fakecli.Install(t, fakecli.Scenario{
+		{Tool: name, Prefix: true, Reply: fakecli.Reply{Stdout: output}},
+	})
+	return fake.InstallAt(t, t.TempDir(), name)
 }
 
 func TestAConfiguredBinaryPathIsWhatGetsRun(t *testing.T) {
-	installTools(t, "Version: 0.50.1") // an empty PATH: no trivy anywhere on it
-	custom := installToolAt(t, t.TempDir(), "trivy")
+	custom := installToolAt(t, "Version: 0.50.1", "trivy") // an empty PATH: no trivy anywhere on it
 
 	deps := Detect(config.ScanTools{Trivy: config.TrivyConfig{ToolConfig: config.ToolConfig{Binary: custom}}})
 
@@ -58,8 +44,7 @@ func TestAConfiguredBinaryPathIsWhatGetsRun(t *testing.T) {
 }
 
 func TestAConfiguredGitleaksPathIsWhatGetsRun(t *testing.T) {
-	installTools(t, "v8.18.0")
-	custom := installToolAt(t, t.TempDir(), "gitleaks")
+	custom := installToolAt(t, "v8.18.0", "gitleaks")
 
 	deps := Detect(config.ScanTools{Gitleaks: config.GitleaksConfig{ToolConfig: config.ToolConfig{Binary: custom}}})
 
@@ -152,8 +137,7 @@ func TestNothingInstalledIsReportedAsUnavailable(t *testing.T) {
 // wired to it rather than resolved by a copy of it.
 func TestPlumberIsResolvedLikeTheOtherTwo(t *testing.T) {
 	t.Run("a configured path is what gets run", func(t *testing.T) {
-		installTools(t, "plumber version 0.4.40")
-		custom := installToolAt(t, t.TempDir(), "plumber")
+		custom := installToolAt(t, "plumber version 0.4.40", "plumber")
 
 		deps := Detect(config.ScanTools{Plumber: config.ToolConfig{Binary: custom}})
 

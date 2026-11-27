@@ -1,50 +1,46 @@
 package scan
 
 import (
-	"os"
-	"path/filepath"
-	"runtime"
 	"strings"
 	"testing"
 
 	"github.com/anthnel/devdesk/internal/config"
+	"github.com/anthnel/devdesk/internal/testutil/fakecli"
 )
 
 // Detection probes the machine it runs on, which is exactly what a test must
-// not do. Instead the tools are installed on a PATH of the test's own making:
-// each one is a copy of the test binary, which already knows how to behave as a
-// scanner (see run_test.go).
+// not do. Instead the tools are installed on a PATH of the test's own making,
+// by the shared fake binary of internal/testutil/fakecli (OC-02): the test
+// binary started under the tool's name, answering a declared scenario.
 
-// installTools puts the named tools on an otherwise empty PATH and makes them
-// answer with output. An empty output is a tool that prints nothing, which is
-// how "docker has no such image" is expressed.
-func installTools(t *testing.T, output string, names ...string) {
+// installTools puts the named tools on an otherwise empty PATH and makes each of
+// them answer every argv with output. An empty output is a tool that prints
+// nothing, which is how "docker has no such image" is expressed. These tests are
+// about what detection concludes from the answers, not about the argv it sends,
+// so no argv is declared: a test that cares installs its own scenario.
+func installTools(t *testing.T, output string, names ...string) *fakecli.Fake {
 	t.Helper()
+	return installToolsRefusing(t, output, "", names...)
+}
 
-	self, err := os.Executable()
-	if err != nil {
-		t.Fatalf("locating the test binary: %v", err)
-	}
-	body, err := os.ReadFile(self)
-	if err != nil {
-		t.Fatalf("reading the test binary: %v", err)
-	}
-
-	dir := t.TempDir()
+// installToolsRefusing is installTools, except that a tool started with refused
+// as its first argument fails the way an unreachable daemon does. One binary is
+// asked several different things (`docker images` and `docker run` reach the
+// same fake), so failing is selected per subcommand. An empty refused refuses
+// nothing.
+func installToolsRefusing(t *testing.T, output, refused string, names ...string) *fakecli.Fake {
+	t.Helper()
+	var sc fakecli.Scenario
 	for _, name := range names {
-		if runtime.GOOS == "windows" {
-			name += ".exe"
+		if refused != "" {
+			sc = append(sc, fakecli.Exchange{
+				Tool: name, Args: []string{refused}, Prefix: true,
+				Reply: fakecli.Reply{Stderr: "cannot connect to the daemon\n", Exit: 1},
+			})
 		}
-		if err := os.WriteFile(filepath.Join(dir, name), body, 0o755); err != nil {
-			t.Fatalf("installing %s: %v", name, err)
-		}
+		sc = append(sc, fakecli.Exchange{Tool: name, Prefix: true, Reply: fakecli.Reply{Stdout: output}})
 	}
-
-	t.Setenv("PATH", dir)
-	t.Setenv(helperMode, "1")
-	t.Setenv(helperStdout, output)
-	t.Setenv(helperStderr, "")
-	t.Setenv(helperExit, "0")
+	return fakecli.Install(t, sc, names...)
 }
 
 // A tool installed natively is preferred over the container: it starts faster
@@ -113,8 +109,7 @@ func TestAnImageThatWasNeverPulledIsNotAvailable(t *testing.T) {
 // — but it has the same consequence, and reporting the tool as available would
 // mean failing later instead of now.
 func TestADaemonThatCannotBeReachedLeavesTheToolsUnavailable(t *testing.T) {
-	installTools(t, "sha256:2b1cbf1a4f0e", "docker")
-	t.Setenv(helperFailOn, "images")
+	installToolsRefusing(t, "sha256:2b1cbf1a4f0e", "images", "docker")
 
 	deps := Detect(config.ScanTools{})
 
@@ -129,8 +124,7 @@ func TestADaemonThatCannotBeReachedLeavesTheToolsUnavailable(t *testing.T) {
 // Failing to read a version is not failing to scan, so the tool stays usable
 // and the version simply says where it comes from.
 func TestAnImageThatWillNotReportItsVersionIsStillUsable(t *testing.T) {
-	installTools(t, "sha256:2b1cbf1a4f0e", "docker")
-	t.Setenv(helperFailOn, "run")
+	installToolsRefusing(t, "sha256:2b1cbf1a4f0e", "run", "docker")
 
 	deps := Detect(config.ScanTools{})
 

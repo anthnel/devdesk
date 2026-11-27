@@ -258,6 +258,17 @@ fails on a signalling call (`os.FindProcess`, `syscall.Kill`, `unix.Kill`,
 guard misses an aliased import, another package and an external binary; the seams are global, so
 no `t.Parallel`. See `docs/architecture/network.md`, "Seams and the signal guard".
 
+**Tests and the fake CLI (OC-02, DEVDESK-797).** A test that needs `docker`, `podman`, `kind`, `kubectl`
+or a scanner on `PATH` installs `fakecli.Install(t, scenario, tools...)` from `internal/testutil/fakecli`;
+the test binary answers as the tool (`os.Exit(fakecli.Main(m))` in `TestMain`, or `fakecli.AsTool()` first
+when `TestMain` prepares state). Strict: an undeclared argv fails the test with the argv received;
+`(*Fake).Invocations()` is the journal. Do not write another fake binary: `TestFakeCLIGuardWalk` fails on a
+`_test.go` that sets `PATH` and copies the test binary or writes a `#!` script (F2; the exceptions are the
+files of `legacyFakes`, which only shrinks, and a fake reached through `engine.Shape.Binary` or a configured
+path rather than `PATH` is not seen by the guard) and on a non-test file importing `fakecli` (F1).
+`Install` fails the test if the package has no `TestMain` calling `fakecli.Main` or `fakecli.AsTool`. `Install` uses
+`t.Setenv`, so no `t.Parallel`. See `docs/architecture/network.md`, "Tests and the fake CLI".
+
 **Test input and colour (DEVDESK-199).** Build keys only through
 `internal/ui/testutil` (`Key`, `Keys`, `Type`, `Paste`, `Text`, `IsText`), never a
 literal `tea.KeyPressMsg` or `tea.Key*`. `Key` returns a

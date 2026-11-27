@@ -384,7 +384,7 @@ func TestPullRequestStartsAJob(t *testing.T) {
 	// The work the run carries has to actually report, or the item never
 	// leaves the state it was admitted in — which is the whole of the queued
 	// row that would not stop spinning.
-	installFakeDocker(t, fakeScript{})
+	installFakeDocker(t, fakeScript{"docker pull": {}})
 	work, _ := testutil.MsgOf[jobs.StartMsg](cmd)
 	msgs := testutil.Msgs(work.Work("default"))
 	if len(msgs) == 0 {
