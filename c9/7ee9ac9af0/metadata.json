@@ -1,0 +1,58 @@
+{
+  "cli_version": "0.13.2",
+  "checkpoint_id": "c97ee9ac9af0",
+  "strategy": "manual-commit",
+  "branch": "feat/oc-03a-engine-guard-survey",
+  "checkpoints_count": 3,
+  "files_touched": [
+    "docs/architecture/network.md",
+    "internal/docker/engine_guard_test.go",
+    "internal/docker/exec.go",
+    "internal/engineguard/cmd/engine-survey/main.go",
+    "internal/engineguard/engineguard.go",
+    "internal/engineguard/engineguard_test.go",
+    "internal/engineguard/internal_test.go",
+    "internal/nexusbench/mise_tasks_test.go",
+    "internal/testutil/fakecli/engine_dir_test.go",
+    "internal/testutil/fakecli/fakecli.go",
+    "mise.toml"
+  ],
+  "sessions": [
+    {
+      "metadata": "/c9/7ee9ac9af0/0/metadata.json",
+      "transcript": "/c9/7ee9ac9af0/0/full.jsonl",
+      "compact_transcript": "/c9/7ee9ac9af0/0/transcript.jsonl",
+      "content_hash": "/c9/7ee9ac9af0/0/content_hash.txt",
+      "prompt": "/c9/7ee9ac9af0/0/prompt.txt"
+    }
+  ],
+  "token_usage": {
+    "input_tokens": 42,
+    "cache_creation_tokens": 21216,
+    "cache_read_tokens": 2222736,
+    "output_tokens": 9223,
+    "api_call_count": 13,
+    "subagent_tokens": {
+      "input_tokens": 88,
+      "cache_creation_tokens": 333249,
+      "cache_read_tokens": 2188293,
+      "output_tokens": 43679,
+      "api_call_count": 42
+    },
+    "subagent_tokens_complete": true
+  },
+  "redaction": {
+    "replacements": 7,
+    "layers": {
+      "betterleaks": 0,
+      "connection_string": 0,
+      "credential_key": 0,
+      "credential_value": 0,
+      "credentialed_uri": 0,
+      "entropy": 0,
+      "key_context": 7,
+      "provider_token": 0,
+      "shell_stdin": 0
+    }
+  }
+}
