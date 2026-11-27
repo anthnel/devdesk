@@ -87,8 +87,9 @@ func isAlnum(c byte) bool {
 	return (c >= '0' && c <= '9') || (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z')
 }
 
-// requireContainerID refuses id before a command is built for the verb, naming
-// the refused value so the footer says what was refused.
+// requireContainerID refuses id before a command is built for the verb. The
+// error quotes the refused value with %q, so a control sequence in it is escaped;
+// it reaches the log, the handlers show only a generic failure in the footer.
 func requireContainerID(verb, id string) error {
 	if IsContainerID(id) {
 		return nil

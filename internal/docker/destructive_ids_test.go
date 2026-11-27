@@ -29,15 +29,15 @@ import (
 // stub fails the test on any Build or Run, and the real engine is never reached.
 // The seams are global, so none of them calls t.Parallel.
 //
-// What the code is expected to offer (the sentinels are named by the tests that
-// already compile; the three missing ones are not referenced yet, see wantIs):
+// What the code offers (identifier.go and containers.go):
 //
-//	var ErrInvalidContainerID = errors.New("invalid container ID") // exists
-//	var ErrInvalidImageID     = errors.New("invalid image ID")     // to add
-//	var ErrInvalidVolumeName  = errors.New("invalid volume name")  // to add
-//	var ErrInvalidNetworkID   = errors.New("invalid network ID")   // to add: an ID or a name
+//	var ErrInvalidContainerID = errors.New("invalid container ID")
+//	var ErrInvalidImageID     = errors.New("invalid image ID")
+//	var ErrInvalidVolumeName  = errors.New("invalid volume name")
+//	var ErrInvalidNetworkID   = errors.New("invalid network ID") // an ID or a name
 //
-//	func IsImageID(s string) bool
+//	func IsContainerID(s string) bool
+//	func IsImageID(s string) bool // an optional "sha256:" prefix, then hex
 //	func IsVolumeName(s string) bool
 //	func IsNetworkRef(s string) bool
 //
@@ -74,6 +74,9 @@ var commonBadIDs = []badID{
 	{"a trailing newline", "0123456789ab\n"},
 	{"a leading dash on an otherwise valid ID", "-0123456789ab"},
 	{"a pipe", "0123456789ab | sh"},
+	{"Arabic-Indic digits, not ASCII", "٣٣٣٣٣٣٣٣٣٣٣٣"},
+	{"fullwidth digits and a letter, not ASCII", "０１２３４５６７８９ab"},
+	{"a non-ASCII byte after a valid ID", "0123456789ab\u00e9"},
 }
 
 // badIDs are the identifiers each kind refuses: the common ones, and what only
@@ -86,6 +89,10 @@ var badIDs = map[idKind][]badID{
 		badID{"a name, not an ID", "web"},
 	),
 	kindImage: append(slices.Clone(commonBadIDs),
+		badID{"the prefix alone", "sha256:"},
+		badID{"the prefix and an option", "sha256:-f"},
+		badID{"the prefix twice", "sha256:sha256:0123456789ab"},
+		badID{"a reference, not an ID", "nginx:latest"},
 		badID{"uppercase hex", "0123456789AB"},
 		badID{"too short", "0123456789a"},
 		badID{"too long", strings.Repeat("a", 65)},
@@ -107,9 +114,10 @@ var badIDs = map[idKind][]badID{
 // goodIDs are valid identifiers: each is one argv element.
 var goodIDs = map[idKind][]string{
 	kindContainer: {"0123456789ab", strings.Repeat("ab", 32)},
-	kindImage:     {"0123456789ab", strings.Repeat("ab", 32)},
-	kindVolume:    {"pgdata", "my-vol_1.x", "a1"},
-	kindNetwork:   {"backend", "my-net_1.x", "0123456789ab", strings.Repeat("ab", 32)},
+	kindImage:     {"0123456789ab", strings.Repeat("ab", 32), "sha256:0123456789ab"},
+	kindVolume:    {"pgdata", "my-vol_1.x", "a1", strings.Repeat("ab", 32)},
+	kindNetwork: {"backend", "my-net_1.x", "0123456789ab", strings.Repeat("ab", 32),
+		"proj_default", "proj-default", "podman", "bridge"},
 }
 
 // destructiveByIDCase is one destructive function, called one way.
@@ -119,9 +127,8 @@ type destructiveByIDCase struct {
 	// argv is the argv the function builds for id, engine-independent.
 	argv func(id string) []string
 	call func(id string) error
-	// wantIs is the sentinel the refusal wraps. Nil where the sentinel does not
-	// exist yet: the refusal is then checked for being an error only. When the
-	// production code adds it, set it here (see the header).
+	// wantIs is the sentinel the refusal wraps, always set: a refusal that is an
+	// error but not this one (a failure from further down, say) fails the test.
 	wantIs error
 }
 
@@ -286,6 +293,33 @@ func TestARefusedIDIsNamedInTheError(t *testing.T) {
 		}
 		if !strings.Contains(err.Error(), `"abc; rm -rf ~"`) {
 			t.Errorf("error = %q, want it to quote the refused value", err)
+		}
+	})
+}
+
+// The value a refusal quotes is escaped: a terminal control sequence or a
+// direction override in an identifier reaches the log as text, never as bytes
+// that the terminal would act on (%q).
+func TestARefusedIDIsEscapedInTheError(t *testing.T) {
+	const raw = "\x1b[31m\u202eabc"
+	forEachEngine(t, func(t *testing.T, _ engine.Shape) {
+		for _, fn := range destructiveByID {
+			t.Run(fn.label(), func(t *testing.T) {
+				stubStrict(t)
+
+				err := fn.call(raw)
+
+				if err == nil {
+					t.Fatalf("%s accepted %q", fn.name, raw)
+				}
+				msg := err.Error()
+				if strings.ContainsRune(msg, 0x1b) || strings.ContainsRune(msg, 0x202e) {
+					t.Errorf("error = %q, want the ESC and U+202E bytes escaped", msg)
+				}
+				if !strings.Contains(msg, `\x1b[31m\u202eabc`) {
+					t.Errorf("error = %q, want the escaped value", msg)
+				}
+			})
 		}
 	})
 }

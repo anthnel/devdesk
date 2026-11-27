@@ -232,9 +232,10 @@ information, and reports each site with file, line and enclosing function:
 - *Static*: `internal/engineguard/destructive_guard_test.go` (`TestDestructiveVerbsStayInTheirPackage`, a test of
   the whole module, reusing G2's helpers) parses every non-test `.go` file and fails, with file, line and
   enclosing function, on a site that builds the argv of a destructive subcommand (`kill`, `rm`, `stop`, `rmi`,
-  `prune` alone; `container|image|volume|network|system|builder|pod|machine` followed by `kill`, `rm`, `remove`,
-  `stop` or `prune`; `system reset`; kind's `delete cluster`) outside `internal/docker` and `internal/kind`. A
-  site is a `[]string` literal that spells the verb, or a call to `exec.Command(Context)` or to an argv helper
+  `prune` alone; `container|image|volume|network|system|builder|pod|machine|compose|buildx|stack|service|secret|config|context|manifest|plugin`
+  followed by `kill`, `rm`, `remove`, `stop`, `prune`, `reset`, `down`, `untag` or `disconnect`; kind's `delete cluster`) outside `internal/docker` and `internal/kind`. A
+  site is a `[]string` literal that spells the verb at any position of its leading run of constant words (a global
+  option such as `--context x` before it does not hide it), or a call to `exec.Command(Context)` or to an argv helper
   (`Build`, `mutate`, `mutateContext`, `prune`, `dockerOutput`, `dockerCombined`) with such a run of words.
   `TestNoExportedDockerFunctionTakesAnArgv` pins that no exported function of `internal/docker` takes an argv, so
   that "the verbs are built only in the package" is enough: other packages reach them through
@@ -242,7 +243,8 @@ information, and reports each site with file, line and enclosing function:
 - *Run time*: `internal/docker/destructive_ids_test.go` checks, under both engines and through the strict stub,
   that `StopContainer`, `RemoveContainer`, `RemoveImage`, `RemoveVolume` and `RemoveNetwork` refuse a malformed
   identifier before any argv is built (`TestDestructiveFunctionsRefuseAMalformedID`), return an error wrapping the
-  sentinel and quoting the value (`%q`, shown in the footer, Rule 128), and pass a valid one as one argv element,
+  sentinel and quoting the value (`%q`, so ESC or U+202E come out escaped; the text reaches the log, the handlers
+  show only `Action failed — check logs` in the footer, nothing was added there), and pass a valid one as one argv element,
   last (`TestDestructiveFunctionsPassAValidIDAsOneArgvElement`). `TestEveryDestructiveFunctionIsCovered` fails on
   an exported function of the package that spells a destructive word and is in neither table. The `Prune*`
   functions take no identifier; their argv is pinned. `RestartContainer`, `PauseContainer` and
@@ -253,11 +255,17 @@ information, and reports each site with file, line and enclosing function:
   `repo:tag`: `oci_resources` removes by `Image.ID`); volume `IsVolumeName` (`ErrInvalidVolumeName`,
   `[A-Za-z0-9][A-Za-z0-9_.-]*`, so an anonymous 64-hex volume passes); network `IsNetworkRef`
   (`ErrInvalidNetworkID`, a name of the volume alphabet or an ID: `Network.ID`, which is what the table passes).
-  `ShellCmd` and `DetectShell` do not validate yet (DEVDESK-939).
+  `ShellCmd` and `DetectShell` do not validate yet (DEVDESK-939). Known limit: a volume created by a third-party
+  driver may carry a name outside that alphabet (`a/b`, `a:b`); `IsVolumeName` refuses it, so `RemoveVolume`
+  cannot remove it from the TUI (the engine CLI still can).
+- `internal/kind` does not exist and is exempt in advance. `TestAnExemptHomeHasItsRunTimeInvariant` fails, with a
+  message that says what to add, as soon as it has a non-test file without a `TestEveryDestructiveFunctionIsCovered`
+  of its own (the counterpart of the one in `internal/docker`).
 - Limits, listed in the test header: an argv assembled word by word, a verb read from a variable, field or
   function result, a constant from another file, a shell line or script, a function value; the check is on words,
-  so a `[]string{"rm", path}` for `/bin/rm` is reported too; restart, pause, unpause and `compose down` are not
-  verbs of this guard; a package home is exempt as a whole, file by file.
+  so a `[]string{"rm", path}` for `/bin/rm` is reported too; restart, pause and unpause are not verbs of this
+  guard (they destroy nothing); an option whose value is a variable ends the run of constants, so the verb after it
+  is not seen, and neither is a verb behind an option placed between a group word and its verb (`compose -p x down`); a package home is exempt as a whole, file by file.
 
 ## OCI registries — `internal/oci`
 

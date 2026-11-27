@@ -29,25 +29,35 @@ import (
 // such an argv from an identifier validates it first and builds nothing for a
 // malformed one (internal/docker/destructive_ids_test.go).
 //
+// internal/kind does not exist yet and is exempt in advance. The obligation that
+// comes with it is pinned by TestAnExemptHomeHasItsRunTimeInvariant: the day the
+// package has a non-test file, it must also have a test named
+// TestEveryDestructiveFunctionIsCovered, the counterpart of the one in
+// internal/docker, or the suite fails and says so.
+//
 // The destructive subcommands:
 //
 //	kill, rm, stop, rmi, prune      alone ("docker rm ID")
 //	<noun> <verb>                   container, image, volume, network, system,
-//	                                builder, pod, machine followed by kill, rm,
-//	                                remove, stop or prune ("volume rm", "network rm",
-//	                                "system prune"); "system reset" too
+//	                                builder, pod, machine, compose, buildx, stack,
+//	                                service, secret, config, context, manifest,
+//	                                plugin followed by kill, rm, remove, stop, prune,
+//	                                reset, down, untag or disconnect ("volume rm",
+//	                                "network rm", "system prune", "compose down",
+//	                                "network disconnect", "image untag")
 //	delete cluster, delete clusters kind
 //
 // What counts as a site (each is reported once):
 //
-//	literal   a []string composite literal whose words start with one of those
-//	          (or whose first word names docker, podman, kind or kubectl and the
-//	          words after it do), once constants are folded.
+//	literal   a []string composite literal in which one of those starts at ANY
+//	          position of the leading run of constant words, so a global option
+//	          before the verb ("--context", "x", "rm", or the binary itself) does
+//	          not hide it. Constants are folded.
 //	call      a call whose callee is exec.Command or exec.CommandContext (the
 //	          words after the binary), or one of the helpers that take an argv
 //	          (argvCallees: Build, mutate, mutateContext, prune, dockerOutput,
-//	          dockerCombined), with a run of string arguments that starts with one
-//	          of those, at any position.
+//	          dockerCombined), with a run of string arguments in which one of those
+//	          starts at any position.
 //
 // Test files are not scanned: a test that reaches a real engine is guard G1's.
 //
@@ -62,9 +72,15 @@ import (
 //     the argv of /bin/rm is reported too, because nothing says it is not an
 //     engine argv. That is the price of not resolving types, and it errs on the
 //     side of the guard.
+//   - The words are read only while they are constants: an option whose value is
+//     a variable ("--context", ctx, "rm") ends the run and the verb after it is
+//     not seen. The "any position" rule also reads a verb that is the plain word
+//     of a []string, so a literal such as {"config", "rm"} that is not an engine
+//     argv is reported; the real module has none today, and an exception is the
+//     way out if one appears.
 //   - kubectl delete is not a verb of this guard (it is G2's launch, and
 //     internal/nexusbench has its own runner and guard); neither are restart,
-//     pause, unpause nor `compose down`.
+//     pause and unpause (they destroy nothing).
 //   - Calling docker.RemoveContainer(id) from another package is not a site:
 //     that is the intended way in, and the function validates id. No exported
 //     function of internal/docker takes an argv (TestNoExportedDockerFunctionTakesAnArgv),
@@ -81,10 +97,11 @@ var destructiveAlone = []string{"kill", "rm", "stop", "rmi", "prune"}
 
 // destructiveNouns are the command groups whose destructive verbs are listed in
 // destructiveGroupVerbs.
-var destructiveNouns = []string{"container", "image", "volume", "network", "system", "builder", "pod", "machine"}
+var destructiveNouns = []string{"container", "image", "volume", "network", "system", "builder", "pod", "machine",
+	"compose", "buildx", "stack", "service", "secret", "config", "context", "manifest", "plugin"}
 
 // destructiveGroupVerbs follow a destructiveNouns word.
-var destructiveGroupVerbs = []string{"kill", "rm", "remove", "stop", "prune", "reset"}
+var destructiveGroupVerbs = []string{"kill", "rm", "remove", "stop", "prune", "reset", "down", "untag", "disconnect"}
 
 // argvCallees are the functions, by name, whose string arguments are an argv.
 // They are internal/docker's own, so outside it a hit means a copy of them.
@@ -142,6 +159,19 @@ func destructiveVerbAt(words []string) string {
 		return words[0] + " " + words[1]
 	case len(words) >= 2 && words[0] == "delete" && (words[1] == "cluster" || words[1] == "clusters"):
 		return "delete " + words[1]
+	}
+	return ""
+}
+
+// destructiveVerbAnywhere is destructiveVerbAt at every position of words: a
+// global option before the verb (`docker --context x rm`, `compose -p x down`)
+// does not hide it. Only a run of constants is read, so an option whose value is
+// a variable ends the run (a known limit).
+func destructiveVerbAnywhere(words []string) string {
+	for i := range words {
+		if v := destructiveVerbAt(words[i:]); v != "" {
+			return v
+		}
 	}
 	return ""
 }
@@ -209,12 +239,8 @@ func scanDestructive(name string, src []byte) ([]destructiveSite, error) {
 					return true
 				}
 				words := constWords(n.Elts, consts)
-				if verb := destructiveVerbAt(words); verb != "" {
+				if verb := destructiveVerbAnywhere(words); verb != "" {
 					add(n.Pos(), verb, fmt.Sprintf("argv literal %q", words))
-				} else if len(words) > 1 && namesALaunchBinary(words[0]) {
-					if verb := destructiveVerbAt(words[1:]); verb != "" {
-						add(n.Pos(), verb, fmt.Sprintf("argv literal %q", words))
-					}
 				}
 			case *ast.CallExpr:
 				fn, binIdx := execCallee(n.Fun, execName)
@@ -233,7 +259,7 @@ func scanDestructive(name string, src []byte) ([]destructiveSite, error) {
 						continue
 					}
 					words := constWords(n.Args[i:], consts)
-					if verb := destructiveVerbAt(words); verb != "" {
+					if verb := destructiveVerbAnywhere(words); verb != "" {
 						add(n.Pos(), verb, fmt.Sprintf("%s(... %q ...)", callee, words))
 						break
 					}
@@ -490,6 +516,102 @@ func TestNoExportedDockerFunctionTakesAnArgv(t *testing.T) {
 	}
 }
 
+// ── The exempt home that does not exist yet ──────────────────────────────────
+
+// exemptHomeProblem returns what is wrong with the home dir (a slash path under
+// root) as far as the run-time invariant goes: "" when the package has no non-test
+// .go file (nothing to cover) or has the test that covers its destructive
+// functions, else a message that says what to add. The counterpart in
+// internal/docker is TestEveryDestructiveFunctionIsCovered
+// (destructive_ids_test.go).
+func exemptHomeProblem(root, dir string) string {
+	entries, err := os.ReadDir(filepath.Join(root, filepath.FromSlash(dir)))
+	if err != nil {
+		if os.IsNotExist(err) {
+			return ""
+		}
+		return fmt.Sprintf("reading %s: %v", dir, err)
+	}
+	hasCode, hasInvariant := false, false
+	for _, e := range entries {
+		if e.IsDir() || !strings.HasSuffix(e.Name(), ".go") {
+			continue
+		}
+		if !strings.HasSuffix(e.Name(), "_test.go") {
+			hasCode = true
+			continue
+		}
+		src, err := os.ReadFile(filepath.Join(root, filepath.FromSlash(dir), e.Name()))
+		if err != nil {
+			return fmt.Sprintf("reading %s/%s: %v", dir, e.Name(), err)
+		}
+		if strings.Contains(string(src), "func TestEveryDestructiveFunctionIsCovered(") {
+			hasInvariant = true
+		}
+	}
+	if hasCode && !hasInvariant {
+		return fmt.Sprintf("%s exists and is exempt from the static guard, but has no TestEveryDestructiveFunctionIsCovered: "+
+			"add the run-time counterpart of internal/docker/destructive_ids_test.go (each exported function that builds a "+
+			"destructive argv from an identifier refuses a malformed one before building anything) before relying on the exemption "+
+			"(OC-06, DEVDESK-803)", dir)
+	}
+	return ""
+}
+
+// internal/kind is exempt as a whole, file by file, and does not exist today. An
+// exemption without a counterpart would be a hole, so the package cannot appear
+// without the run-time test of internal/docker's own.
+func TestAnExemptHomeHasItsRunTimeInvariant(t *testing.T) {
+	root, err := launchModuleRoot()
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, dir := range destructiveHomes {
+		if p := exemptHomeProblem(root, dir); p != "" {
+			t.Error(p)
+		}
+	}
+}
+
+func TestExemptHomeProblemOnSources(t *testing.T) {
+	write := func(t *testing.T, files map[string]string) string {
+		t.Helper()
+		root := t.TempDir()
+		for name, src := range files {
+			full := filepath.Join(root, "internal", "kind", name)
+			if err := os.MkdirAll(filepath.Dir(full), 0o755); err != nil {
+				t.Fatal(err)
+			}
+			if err := os.WriteFile(full, []byte(src), 0o600); err != nil {
+				t.Fatal(err)
+			}
+		}
+		return root
+	}
+	tests := []struct {
+		name    string
+		files   map[string]string
+		wantErr bool
+	}{
+		{"no package yet", nil, false},
+		{"code without the test", map[string]string{"runner.go": "package kind\n"}, true},
+		{"code with an unrelated test", map[string]string{"runner.go": "package kind\n", "runner_test.go": "package kind\n"}, true},
+		{"code with the test", map[string]string{
+			"runner.go":               "package kind\n",
+			"destructive_ids_test.go": "package kind\nfunc TestEveryDestructiveFunctionIsCovered(t *testing.T) {}\n",
+		}, false},
+		{"only a test file", map[string]string{"x_test.go": "package kind\n"}, false},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := exemptHomeProblem(write(t, tt.files), "internal/kind")
+			if (got != "") != tt.wantErr {
+				t.Errorf("problem = %q, want an error: %v", got, tt.wantErr)
+			}
+		})
+	}
+}
+
 // ── The detector on sources ──────────────────────────────────────────────────
 //
 // Criterion 4: the guard is only worth something if it sees a violation. Each
@@ -566,6 +688,54 @@ func f(bin, id string) { _ = exec.Command(bin, "rm", "-f", id) }
 import run "os/exec"
 func f(id string) { _ = run.Command("docker", "stop", id) }
 `, []string{"3 stop"}},
+
+		// the wider vocabulary and the verb after global options
+		{"compose down", other, `package other
+import "os/exec"
+func f() { _ = exec.Command("docker", "compose", "down", "-v") }
+`, []string{"3 compose down"}},
+		{"compose rm", other, `package other
+func f() []string { return []string{"compose", "rm", "-f"} }
+`, []string{"2 compose rm"}},
+		{"buildx prune", other, `package other
+func f() []string { return []string{"buildx", "prune", "-f"} }
+`, []string{"2 buildx prune"}},
+		{"service rm; an untyped inner literal is not seen (limit)", other, `package other
+func f() { _ = [][]string{{"stack", "rm", "x"}}; _ = []string{"service", "rm", "x"} }
+`, []string{"2 service rm"}},
+		{"secret, config, context, manifest and plugin rm", other, `package other
+var a = []string{"secret", "rm", "x"}
+var b = []string{"config", "rm", "x"}
+var c = []string{"context", "rm", "x"}
+var d = []string{"manifest", "rm", "x"}
+var e = []string{"plugin", "rm", "x"}
+`, []string{"2 secret rm", "3 config rm", "4 context rm", "5 manifest rm", "6 plugin rm"}},
+		{"image untag", other, `package other
+func f(ref string) []string { return []string{"image", "untag", ref} }
+`, []string{"2 image untag"}},
+		{"network disconnect", other, `package other
+import "os/exec"
+func f(n, c string) { _ = exec.Command("docker", "network", "disconnect", n, c) }
+`, []string{"3 network disconnect"}},
+		{"a global option before the verb, in a call", other, `package other
+import "os/exec"
+func f(id string) { _ = exec.Command("docker", "--context", "prod", "rm", id) }
+`, []string{"3 rm"}},
+		{"a global option before the verb, in a literal", other, `package other
+func f(id string) []string { return []string{"--host", "tcp://x", "volume", "rm", id} }
+`, []string{"2 volume rm"}},
+		{"limit: an option between a group word and its verb hides it", other, `package other
+func f() []string { return []string{"docker", "-H", "x", "compose", "-p", "y", "down"} }
+`, nil},
+		{"a verb after a variable option value is not seen", other, `package other
+func f(ctx string) []string { return []string{"docker", "--context", ctx, "rm", "x"} }
+`, nil},
+		{"compose up is not destructive", other, `package other
+func f() []string { return []string{"compose", "up", "-d"} }
+`, nil},
+		{"a noun with a non-destructive verb", other, `package other
+func f() []string { return []string{"config", "ls", "context", "inspect"} }
+`, nil},
 
 		// an argv literal, however it is run afterwards
 		{"an argv literal", other, `package other

@@ -302,7 +302,9 @@ on a literal or a call that builds the argv of a destructive subcommand (`rm`, `
 packages call `docker.RemoveContainer(id)` and its siblings, which validate the identifier first (`IsContainerID`,
 `IsImageID`, `IsVolumeName`, `IsNetworkRef`, each with its `ErrInvalid...` sentinel) and build nothing for a malformed
 one (`internal/docker/destructive_ids_test.go`). A test passing an ID to these functions uses a valid one (12 to 64
-lowercase hex for a container, image or network, not `abc`). Limits: an argv built word by word, a verb from a variable
+lowercase hex for a container or an image; for a network that or a name; for a volume a name; not `abc`). The vocabulary includes `compose down`, `network disconnect`, `image untag`, and the verb is read at any position of the
+constant words. `internal/kind` is exempt until it exists, then needs its own `TestEveryDestructiveFunctionIsCovered`
+(`TestAnExemptHomeHasItsRunTimeInvariant`). Limits: an argv built word by word, a verb from a variable
 and a shell line are not seen; `ShellCmd` does not validate yet (DEVDESK-939). See `docs/architecture/network.md`, "Guard G3".
 
 **Test input and colour (DEVDESK-199).** Build keys only through
