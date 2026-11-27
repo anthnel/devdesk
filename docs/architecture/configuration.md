@@ -38,6 +38,8 @@ Config loaded from `~/.devdesk/config.yaml` with schema defined in `internal/con
   `expose`, an allow-list of tool names
 - `AgentUsage` - `agent_usage.prices`, the price table of the `:agent-usage` cost
   estimate (DEVDESK-47); no default, see below
+- `Containers` - `containers.sensitive_env`, names or patterns added to the
+  built-in ones that mask environment values (OC-12); no default, see below
 
 **`forge:` was `gitlab:`, and the rename is migrated rather than announced.**
 A context targets one platform (§3.6), so the section is named after the role
@@ -363,6 +365,44 @@ weaken a rule in silence). It is edited by hand; the configuration view does not
 touch it. Whether to verify at all is per context: `scan.image_verification`,
 `on` or `off`, a string rather than a bool so a file written before the key
 reads as `on` (D12) — and only `off` turns it off, so a typo verifies.
+
+**`containers.sensitive_env` — which environment variables are sensitive (OC-12, DEVDESK-810).**
+`internal/config/sensitive_env.go` and `internal/secretenv`. `secretenv` only
+classifies a variable *name* (`Matcher.Sensitive`); masking is the caller's job
+(OC-13, OC-14).
+
+```yaml
+containers:
+  sensitive_env:
+    - INTERNAL_URL     # a bare name is a pattern too
+    - ^CORP_           # anchored at the start
+    - _dsn$            # anchored at the end
+```
+
+- **Built-in patterns.** `TOKEN`, `SECRET`, `PASSWORD`, `KEY`, `CREDENTIAL`
+  (`secretenv.DefaultPatterns()`), case-insensitive, found anywhere in the name.
+  The list is blunt on purpose: a false positive hides a harmless value, a false
+  negative shows a secret. **Accepted false positives:** `KEYBOARD_LAYOUT` and
+  `MONKEY_COUNT` are masked because they contain `KEY`.
+- **Each entry is a Go regular expression** (`regexp` syntax), matched
+  case-insensitively and searched in the name with no implicit anchoring; use
+  `^` and `$` to narrow it. A name with no special character is therefore a
+  substring pattern: `INTERNAL_URL` also masks `MY_INTERNAL_URL_2`.
+- **The list adds, it never removes.** The built-in patterns always apply.
+- **An invalid entry does not fail the load.** An empty or blank entry, one that
+  matches the empty name (`|`, `a|`, `()`: it would match every name) or one that
+  does not compile makes
+  `ContainersConfig.SensitiveEnvMatcher()` return an error naming
+  `containers.sensitive_env`, the entry (quoted) and its 0-based index (`entry at index 1`). The matcher
+  returned next to the error still carries the built-in patterns and the valid
+  entries, so a typo never lowers the masking. `LoadContext` itself succeeds;
+  whoever builds the matcher reports the error. A nil `*secretenv.Matcher`
+  applies the built-in patterns.
+- **No default value, no migration.** `applyDefaults` and `Default()` do not
+  touch the section, `omitempty` keeps an empty list out of the file, and a
+  context without it loads and saves with no `containers` key. The list lives in
+  the context file, so it follows the active context and is written by
+  `config.Save()`.
 
 **`agent_usage.prices` — the price table of the cost estimate (DEVDESK-47).**
 `internal/config/agent_usage.go`. DevDesk ships **no price**: the table is
