@@ -230,6 +230,9 @@ func labSession(tool enginefixture.Tool, run string) *enginecontract.Session {
 		Engine: enginecontract.Engine{Tool: tool, Version: "6.2.1", Mode: enginefixture.Rootless},
 		RunID:  run,
 		Mode:   enginecontract.Verify,
+		// The tests of the helpers run scenarios nobody recorded: with RequireFixtures true (OC-09b2)
+		// they would fail on "no recorded fixture". Require never sets this.
+		MissingFixturesOK: true,
 	}
 }
 

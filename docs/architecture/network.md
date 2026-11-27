@@ -530,8 +530,9 @@ positional argument; a `-u` whose readable text has no `:`; a URL built by a cal
 ### Engine contracts — `requireEngine`, `internal/testutil/enginecontract` (OC-09a1, DEVDESK-806; OC-09a2, DEVDESK-943; OC-09a3, DEVDESK-944; OC-09b1, DEVDESK-807)
 
 A contract test calls the functions of a package against a real docker or podman, outside CI, in the disposable VMs
-of `tools/engine-vms`. The third story (OC-09a3) adds the recorder, described under "Recording" below; no real fixture is
-versioned before OC-09b2 (OC-09b1 adds the helpers and the contracts of the scenarios, "The first scenarios" below). The first story gives the gate, the entry point
+of `tools/engine-vms`. The third story (OC-09a3) adds the recorder, described under "Recording" below; OC-09b1 adds the helpers and the
+contracts of the scenarios ("The first scenarios" below) and OC-09b2 versions their fixtures: 40 recorded files, ten scenarios on four
+configurations, and `Verify` now compares. The first story gives the gate, the entry point
 every contract starts with, the guard that holds contracts to it, and the task that runs them; the second gives the
 resources a contract creates (labelled, named), the argv rule every call goes through, the cleanup that removes only
 what carries the label of the run, the mark of a test VM, and the sentinel. The contracts there are
@@ -792,8 +793,9 @@ scenarios listed under "The first scenarios".
   ends the contract (the script sets it only for such an id), and **a recording without it ends the contract too** (verifying does not
   need it): a recorded list would hold a container whose id nobody redacted. Nothing else foreign is expected in a list of a freshly reset VM: a
   container, a volume or a network of its own would appear in the fixture and make it vary, which a recording on the VMs shows.
-- **The first scenarios (OC-09b1).** Nine contracts, one scenario each, next to the existing `containers/rm-running`; no fixture is
-  versioned yet (the four recordings are OC-09b2): `containers/ps-health` (`TestContractPsReportsTheHealthOfAContainer`: `ListContainers(true)` after
+- **The first scenarios (OC-09b1).** Nine contracts, one scenario each, next to the existing `containers/rm-running`; their fixtures are
+  versioned since OC-09b2 (`internal/enginefixture/fixtures/<campaign>/<scenario>--<tool>-<version>-<mode>.cli`, `fixtures/README.md` lists them):
+  `containers/ps-health` (`TestContractPsReportsTheHealthOfAContainer`: `ListContainers(true)` after
   `healthContainer` and `waitHealthy`, compared with durations and timestamps tolerated, not the health), `containers/inspect-absent` (`TestContractInspectOfARemovedContainerIsRefused`: a container removed, then inspected;
   the inspect of a container that is there is out of scope: its id is unknown and its values volatile), `images/rmi-used`
   (`TestContractRemovingAnImageInUseIsRefused`), `networks/rm-used` (`TestContractRemovingANetworkInUseIsRefused`), `volumes/rm-used`
@@ -868,12 +870,13 @@ scenarios listed under "The first scenarios".
     with the lengths and the first line that differs; a line is cited **only if it passes `CheckLeaksAs`** (the exchange is
     redacted, not checked), else the report says it is not shown and names the rules (security finding B3). **When the campaign
     has fixtures for this engine (tool, version, mode) but none for the scenario, `Verify` fails (`Fatal`): a misspelled or
-    renamed scenario would compare nothing. With no fixture at all for the engine, `Verify` logs one line (`no recorded fixture
-    for ... record it with mise run engine-contract:record`) and returns; it does not skip.** A `t.Skip` ends the test (`runtime.Goexit`), so the assertions a contract makes after
-    `c.exchange` would never run on a checkout without fixtures, which is every checkout before OC-09b (team lead decision).
-    `enginecontract.RequireFixtures` (false today) turns that case into a hard failure; OC-09b2 sets it to true when it raises
-    `minVersionedFixtures`, and `TestVerifyFailsHardOnceFixturesAreVersioned` reads that floor from `stale_test.go` and fails if
-    the floor is raised and the constant is not. `VerifyAgainst(t, fixtures, ...)` is the
+    renamed scenario would compare nothing. With no fixture at all for the engine, `Verify` is a failure since OC-09b2 (`enginecontract.RequireFixtures` is
+    `true`, raised in the same change as `minVersionedFixtures = 40`; `TestVerifyFailsHardOnceFixturesAreVersioned` reads that floor from
+    `stale_test.go` and fails if the floor is above 0 and the constant is not)**: it said `no recorded fixture for ... record it with mise run
+    engine-contract:record` and returned before, because a `t.Skip` ends the test (`runtime.Goexit`) and the assertions a contract makes after
+    `c.exchange` would never run on a checkout without fixtures. `Session.MissingFixturesOK` is the one relaxation: the tests of the helpers
+    of `internal/docker`, which run scenarios nobody recorded on a fake engine, set it; `Require` never does, and `VerifyAgainstNotRequiring`
+    holds the old branch in the tests. `VerifyAgainst(t, fixtures, ...)` is the
     seam the tests use. `VersionsFile` defaults to `enginefixture.VersionsSourceFile()`.
   - *Back on the workstation.* Only when the contracts and the sentinel check passed (and at least one contract
     passed), the script packs **the one directory** `/tmp/ddc-<run>/out` (`vm_root ... tar -C ... -cf -`, capped at
@@ -923,9 +926,17 @@ scenarios listed under "The first scenarios".
 What an engine answered to one argv, kept as a text file and replayed byte for byte. `internal/enginefixture`
 is production code that starts nothing and never imports `testing` (`TestProductionCodeDoesNotImportTesting`);
 the helpers that serve a fixture are `_test.go` files of `internal/docker` and `internal/testutil/fakecli`.
-**No real fixture is versioned before OC-09b** (user decision, Q1 (A) of the plan): `fixtures/` holds only its
-`README.md` (`go:embed` refuses a directory with no file), `Campaigns()` is empty, and every mechanism is tested on
-the synthetic files of `internal/enginefixture/testdata/synthetic/*.cli`, each marked `recorded-by: synthetic`.
+**Since OC-09b2 `fixtures/` holds 40 real recordings** (user decision of OC-08, Q1 (A): none before): the ten scenarios of the contracts of
+`internal/docker` (`containers/{ps-health,rm-running,inspect-absent}`, `images/rmi-used`, `networks/rm-used`,
+`volumes/{ls,rm-used,prune-unused}`, `launch/{name-taken,port-taken}`) on docker 29.10.1 and 28.5.2 rootful and podman 6.2.1 and 5.8.11
+rootless, `recorded-by: engine-contract:record`, read by hand before they were committed. The mechanisms are still tested on the synthetic
+files of `internal/enginefixture/testdata/synthetic/*.cli`, each marked `recorded-by: synthetic`. **A fixture is a recording, never edited by
+hand:** record again with `DEVDESK_ENGINE_CONTRACT=1 mise run engine-contract:record -- <docker|podman> <n|n1> [--mode ...]` (a deny list is
+required), review the diff, commit. What differs by engine is in the fixtures, on purpose: the wording and the exit codes of the refusals
+(docker 1 and 125, podman 2, 125 and 126), the order of the rows of a `ps` (docker lists the newest first, podman the oldest), the image
+column, the volume prune (podman 5.8.11 removes the unused named volume and reports it; podman 6.2.1 and docker 28 and 29 keep it) and the
+mount point of a volume. The recorded values that move are fixed (timestamps, durations) or tolerated by the Comparer of the contract; the
+sentinel row of `ps-health` depends on the test VM, not on the run.
 
 - **File.** One exchange per file, `<campaign>/<scenario>--<tool>-<version>-<mode>.cli`, for example
   `rm-running--podman-6.2.1-rootless.cli`; `Parse` checks that the name agrees with the headers. Headers
@@ -1059,9 +1070,8 @@ the synthetic files of `internal/enginefixture/testdata/synthetic/*.cli`, each m
   `TestFixturesAreNotStale` (`stale_test.go`, the comparison lives in the test file as in Nexus) fails when a versioned fixture
   was recorded from an engine that is neither N nor N-1 of its tool, naming each file, its version, the supported ones and the
   way out (record again with `mise run engine-contract:record`); a pending fixture has no
-  answer to be stale, a skipped one is checked. While nothing is versioned, **`minVersionedFixtures = 0`** (the log line says
-  so instead of passing in silence), the same function runs on `testdata/synthetic`, and `TestSyntheticFixturesCoverBothVersionsOfBothTools`
-  keeps N and N-1 of both tools exercised. OC-09b raises the floor to what it versions; it never goes down. A Go list of the supported
+  answer to be stale, a skipped one is checked. **`minVersionedFixtures = 40`** since OC-09b2 (a deleted fixture fails; a new scenario or configuration raises it in the change that records it), the same function runs on `testdata/synthetic`, and `TestSyntheticFixturesCoverBothVersionsOfBothTools`
+  keeps N and N-1 of both tools exercised. The floor never goes down. A Go list of the supported
   versions for the run time (OC-83) will add its own test against `versions.env`.
 - **`record: pending` and the recording session** (OC-08b, `pending_test.go`). A pending file is the recorder's request without an
   answer: `Load` refuses it, so a campaign that holds one is out of the replay, stale and round-trip checks while it stays.
@@ -1161,7 +1171,7 @@ the synthetic files of `internal/enginefixture/testdata/synthetic/*.cli`, each m
   then run `mise run engine-contract:record` for the four configurations (Docker N and N-1, Podman N and N-1, plus Podman rootful),
   review the diff (the format is meant to be read), and commit. Nothing is deleted by a recording: remove a fixture of an old
   version by hand (`TestFixturesAreNotStale` says which).
-- Not here: the first real fixtures with the raised floor (OC-09b).
+- Not here: the scenarios of the other zones (kind, scan); a version bump records the four configurations again.
 
 ## OCI registries — `internal/oci`
 

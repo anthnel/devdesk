@@ -19,11 +19,13 @@ import (
 // file: no production code reaches the fixtures.
 
 const (
-	// minVersionedFixtures is how many versioned fixtures the embedded set must
-	// hold. It is 0 while no real fixture is versioned (user decision of OC-08,
-	// before OC-09b): the test says so in its log instead of passing in silence.
-	// OC-09b raises it to what it versions, and it never goes down.
-	minVersionedFixtures = 0
+	// minVersionedFixtures is how many versioned fixtures the embedded set must hold: the 10
+	// scenarios of OC-09b (containers: ps-health, rm-running, inspect-absent; images: rmi-used;
+	// networks: rm-used; volumes: ls, rm-used, prune-unused; launch: name-taken, port-taken), on the
+	// four configurations of tools/engine-vms (docker 29.10.1 and 28.5.2 rootful, podman 6.2.1 and
+	// 5.8.11 rootless). It never goes down: a deleted fixture fails the test. A new scenario or a new
+	// configuration raises it, in the same change that records it.
+	minVersionedFixtures = 40
 
 	// recordHint is where a stale fixture sends the reader: the task that records
 	// the fixtures of the current engine versions again (OC-09a3, DEVDESK-944).
@@ -177,7 +179,7 @@ func TestFixturesAreNotStale(t *testing.T) {
 	if err != nil {
 		t.Fatalf("All: %v", err)
 	}
-	t.Logf("%d versioned fixture(s) (floor minVersionedFixtures = %d, raised by OC-09b)", len(embedded), minVersionedFixtures)
+	t.Logf("%d versioned fixture(s) (floor minVersionedFixtures = %d)", len(embedded), minVersionedFixtures)
 	if len(embedded) < minVersionedFixtures {
 		t.Fatalf("%d versioned fixtures, want at least %d: a fixture was deleted, or the embedded set is empty", len(embedded), minVersionedFixtures)
 	}

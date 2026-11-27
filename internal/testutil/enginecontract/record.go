@@ -134,11 +134,11 @@ func writeFixture(out, campaign, name string, data []byte) error {
 }
 
 // RequireFixtures says whether Verify fails when the engine has no recorded fixture
-// at all. It is false until OC-09b versions the first fixtures; that story sets it to
-// true in the same change that raises minVersionedFixtures
-// (internal/enginefixture/stale_test.go), and TestVerifyFailsHardOnceFixturesAreVersioned
-// fails when the floor is raised and this is not.
-const RequireFixtures = false
+// at all. It is true since OC-09b2 versioned the first fixtures (minVersionedFixtures in
+// internal/enginefixture/stale_test.go is above 0), and TestVerifyFailsHardOnceFixturesAreVersioned
+// fails when the floor is raised and this is not. An engine outside N and N-1 never gets here
+// (Require skips it before any contract starts).
+const RequireFixtures = true
 
 // Verify compares what a contract just saw to the fixture recorded for the engine
 // and the scenario of the embedded campaign. A campaign nothing recorded is the
@@ -172,7 +172,7 @@ func (s *Session) Verify(t testing.TB, campaign, scenario string, ex enginefixtu
 // redacted but not checked.
 func (s *Session) VerifyAgainst(t testing.TB, fixtures []enginefixture.Fixture, scenario string, ex enginefixture.Exchange, r enginefixture.Redaction, cmp Comparer) {
 	t.Helper()
-	s.verifyAgainst(t, fixtures, scenario, ex, r, cmp, RequireFixtures)
+	s.verifyAgainst(t, fixtures, scenario, ex, r, cmp, RequireFixtures && !s.MissingFixturesOK)
 }
 
 func (s *Session) verifyAgainst(t testing.TB, fixtures []enginefixture.Fixture, scenario string, ex enginefixture.Exchange, r enginefixture.Redaction, cmp Comparer, require bool) {

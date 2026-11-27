@@ -16,6 +16,10 @@ type Session struct {
 	RunID  string
 	Mode   Mode
 	OutDir string
+	// MissingFixturesOK lets Verify log, and not fail, when the engine has no recorded fixture at
+	// all, whatever RequireFixtures says. Require never sets it: it is for the tests of the contract
+	// helpers (internal/docker), which run scenarios nobody recorded on a fake engine.
+	MissingFixturesOK bool
 }
 
 var bannerOnce sync.Once

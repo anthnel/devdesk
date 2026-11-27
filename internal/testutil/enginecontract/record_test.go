@@ -560,7 +560,7 @@ func TestVerifyWithoutAFixtureLogsHowToRecordOne(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			rt := verify(t, tt.fixtures, ex, red, nil)
+			rt := verifyNotRequiring(t, tt.fixtures, ex, red, nil)
 
 			if !rt.quiet() {
 				t.Fatalf("reported %s, want only a log: the contract must go on", rt.text())
@@ -575,15 +575,16 @@ func TestVerifyWithoutAFixtureLogsHowToRecordOne(t *testing.T) {
 	}
 }
 
-// Verify over the embedded set: a campaign nothing recorded is the same case.
-func TestVerifyOfACampaignThatIsNotEmbeddedLogsAndGoesOn(t *testing.T) {
+// Verify over the embedded set: a campaign nothing recorded is a failure now that fixtures are
+// versioned (RequireFixtures), and it names the task that records it.
+func TestVerifyOfACampaignThatIsNotEmbeddedFailsNamingTheRecordTask(t *testing.T) {
 	ex, red := rawInspect()
 	rt := &recT{TB: t}
 
 	rt.run(func() { verifySession().Verify(rt, "no-such-campaign-recorded", "inspect-absent", ex, red, nil) })
 
-	if !rt.quiet() || !strings.Contains(strings.Join(rt.logs, "\n"), "engine-contract:record") {
-		t.Errorf("errs %q, fatals %q, skips %q, logs %q, want only a log that names engine-contract:record", rt.errs, rt.fatals, rt.skips, rt.logs)
+	if len(rt.fatals) != 1 || !strings.Contains(rt.fatals[0], "engine-contract:record") {
+		t.Errorf("errs %q, fatals %q, skips %q, logs %q, want one Fatal that names engine-contract:record", rt.errs, rt.fatals, rt.skips, rt.logs)
 	}
 }
 

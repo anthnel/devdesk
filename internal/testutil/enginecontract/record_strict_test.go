@@ -35,7 +35,8 @@ func TestVerifyFailsWhenTheEngineHasFixturesButNotThisScenario(t *testing.T) {
 }
 
 // Fixtures of another version, another mode, or a skipped one are no fixture for
-// this engine: the contract logs and goes on (unchanged).
+// this engine: the contract logs and goes on when fixtures are not required (RequireFixtures is true
+// since OC-09b2: TestVerifyRequiringFixturesFailsWithoutOne holds the other branch).
 func TestVerifyLogsWhenOnlyOtherConfigurationsHaveFixtures(t *testing.T) {
 	ex, red := rawInspect()
 	for name, fixtures := range map[string][]enginefixture.Fixture{
@@ -44,7 +45,7 @@ func TestVerifyLogsWhenOnlyOtherConfigurationsHaveFixtures(t *testing.T) {
 		"a skipped one":   {recorded("6.2.1", enginefixture.Rootless, "skip: carries a duration")},
 	} {
 		t.Run(name, func(t *testing.T) {
-			rt := verify(t, fixtures, ex, red, nil)
+			rt := verifyNotRequiring(t, fixtures, ex, red, nil)
 			if !rt.quiet() || !strings.Contains(strings.Join(rt.logs, "\n"), "no recorded fixture") {
 				t.Errorf("errs %q, fatals %q, skips %q, logs %q, want only a log", rt.errs, rt.fatals, rt.skips, rt.logs)
 			}
