@@ -42,7 +42,9 @@ const (
 // Values of the "recorded-by" header.
 const (
 	recordedBySynthetic = "synthetic"
-	recordedByContract  = "engine-contract:record"
+	// RecordedByContract marks a fixture the contract recorder wrote
+	// (mise run engine-contract:record); the importer accepts nothing else.
+	RecordedByContract = "engine-contract:record"
 )
 
 const (
@@ -153,9 +155,29 @@ func parse(campaign, fileName, stem string, data []byte, checkName bool) (Fixtur
 	return f, nil
 }
 
+// ParseError is what Parse returns: the message names the file and may quote the
+// value it refused, which is fine for a file of the repository. Rule is the same
+// sentence without any value ("tool <value> is neither docker nor podman"), for a
+// caller that reads a file it does not trust and must not echo what it found
+// (Import, for a file that came out of a VM).
+type ParseError struct {
+	File string
+	Rule string
+	msg  string
+}
+
+func (e *ParseError) Error() string { return e.msg }
+
+// verbPattern matches a formatting verb of a message template.
+var verbPattern = regexp.MustCompile(`%[-+# 0-9.]*[a-zA-Z]`)
+
 // fail builds an error that names the file.
 func fail(fileName, format string, args ...any) error {
-	return fmt.Errorf("enginefixture: %s: %s", fileName, fmt.Sprintf(format, args...))
+	return &ParseError{
+		File: fileName,
+		Rule: verbPattern.ReplaceAllString(format, "<value>"),
+		msg:  fmt.Sprintf("enginefixture: %s: %s", fileName, fmt.Sprintf(format, args...)),
+	}
 }
 
 // readHeaders splits the file into its headers, in canonical order, and what
@@ -260,8 +282,8 @@ func metaOf(fileName string, values map[string]string) (Meta, error) {
 	if !validRecord(m.Record) {
 		return Meta{}, fail(fileName, "record %q is not replay, pending or \"skip: <reason>\"", m.Record)
 	}
-	if m.RecordedBy != "" && m.RecordedBy != recordedBySynthetic && m.RecordedBy != recordedByContract {
-		return Meta{}, fail(fileName, "recorded-by %q is neither %s nor %s", m.RecordedBy, recordedBySynthetic, recordedByContract)
+	if m.RecordedBy != "" && m.RecordedBy != recordedBySynthetic && m.RecordedBy != RecordedByContract {
+		return Meta{}, fail(fileName, "recorded-by %q is neither %s nor %s", m.RecordedBy, recordedBySynthetic, RecordedByContract)
 	}
 	if m.Record != RecordPending {
 		for _, key := range answerHeaders {

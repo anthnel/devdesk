@@ -389,3 +389,14 @@ run = "bash tools/engine-vms/destroy.sh"
 [tasks."engine-contract"]
 description = "Run the engine contract tests in a test VM (needs DEVDESK_ENGINE_CONTRACT=1 set for this command only, never exported, refused when CI is set; acts on the Incus host): -- <docker|podman> <n|n1> [--mode rootful|rootless] [--no-reset]"
 run = "bash tools/engine-vms/contract.sh verify"
+
+# engine-contract:record (OC-09a3, DEVDESK-944) is the same run in recording mode:
+# contract.sh sets the recording variables in the test VM only, brings the one output
+# directory back, checks it again on this machine and imports it into
+# internal/enginefixture/fixtures. Like engine-contract it is NOT part of ci, check,
+# test or test-race, never opens the gate itself, and refuses --no-reset (a recording
+# starts from the clean snapshot).
+
+[tasks."engine-contract:record"]
+description = "Record the engine fixtures in a test VM, redacted, then check them again here and import them into internal/enginefixture/fixtures (needs DEVDESK_ENGINE_CONTRACT=1 set for this command only, never exported, and DEVDESK_FIXTURE_DENYLIST naming a file of terms; refused when CI is set; acts on the Incus host and writes into the repository unless --keep-out is given): -- <docker|podman> <n|n1> [--mode rootful|rootless] [--keep-out <dir>]"
+run = "bash tools/engine-vms/contract.sh record"

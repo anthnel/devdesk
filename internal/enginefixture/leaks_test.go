@@ -404,7 +404,8 @@ func cleanCases() []cleanCase {
 		in(rAddress, "Podman second network", "10.89.255.254"),
 		in(rAddress, "published on every interface", "0.0.0.0:18080->80/tcp"),
 		in(rAddress, "loopback", "127.0.0.1:6379->6379/tcp"),
-		in(rAddress, "a public address", "8.8.8.8"),
+		// A public address is no longer clean: the public-address rule (OC-09a3) owns it, see leaks_public_test.go.
+		in(rAddress, "a documentation address", "203.0.113.7"),
 		in(rAddress, "a digest that starts like an IPv6 prefix", "sha256:fd00000000000000000000000000000000000000000000000000000000000001"),
 
 		// host-not-allowed

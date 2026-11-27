@@ -570,12 +570,15 @@ func TestMiseEngineSurveyTaskStaysOutOfTheStandardChecks(t *testing.T) {
 // in internal/testutil/enginecontract reads the whole file for it, and this test
 // reads the task).
 //
-// OC-09a3 adds engine-contract:record (contract.sh record); it joins this table.
+// engine-contract:record (OC-09a3, DEVDESK-944) is the second row: contract.sh record
+// records the fixtures in the VM and imports them on this machine. It is held to the
+// same rules, and TestMiseEngineContractRecordTask adds the ones that are its own.
 var miseEngineContractTasks = []struct {
 	name string
 	verb string // the contract.sh action the run line calls
 }{
 	{"engine-contract", "verify"},
+	{"engine-contract:record", "record"},
 }
 
 func TestMiseEngineContractTasksStayOutOfTheStandardChecks(t *testing.T) {
@@ -640,5 +643,44 @@ func TestMiseEngineContractTasksStayOutOfTheStandardChecks(t *testing.T) {
 				queue = append(queue, miseRefs(keys)...)
 			}
 		})
+	}
+}
+
+// engine-contract:record (DEVDESK-944, OC-09a3). The recording variable
+// (DEVDESK_FIXTURE_RECORDING) is set by contract.sh, in the environment of the test
+// binary in the VM, and by nothing else: not by this task (its env, its run line), not by
+// a task it depends on. The task says what it needs, what it does to the repository, and
+// the one option that keeps the result out of it.
+func TestMiseEngineContractRecordTask(t *testing.T) {
+	const name = "engine-contract:record"
+	f := loadMise(t)
+	task, ok := f.task(name)
+	if !ok {
+		t.Fatalf("mise.toml has no task %q", name)
+	}
+	desc := task["description"]
+	for _, want := range []string{"--keep-out", "internal/enginefixture/fixtures", "redacted"} {
+		if !strings.Contains(desc, want) {
+			t.Errorf("the description of %s does not contain %q:\n%s", name, want, desc)
+		}
+	}
+	for _, key := range []string{"env", "run", "depends", "depends_post", "wait_for", "dir", "shell"} {
+		if strings.Contains(task[key], "DEVDESK_FIXTURE_RECORDING") || strings.Contains(task[key], "DEVDESK_FIXTURE_OUT") {
+			t.Errorf("%s names the recording variables in %s: contract.sh sets them in the VM, a task never does:\n%s", name, key, task[key])
+		}
+	}
+	for _, key := range []string{"depends", "depends_post", "wait_for"} {
+		if strings.TrimSpace(task[key]) != "" {
+			t.Errorf("%s has %s = %q: nothing runs before or after the recorder but contract.sh", name, key, task[key])
+		}
+	}
+	// --no-reset is refused in the recording mode (a recording starts from the clean snapshot), so the
+	// task does not advertise it.
+	if strings.Contains(desc, "--no-reset") {
+		t.Errorf("the description of %s advertises --no-reset, which a recording refuses:\n%s", name, desc)
+	}
+	// And the verify task does not mention --keep-out, which only a recording has.
+	if verify, ok := f.task("engine-contract"); ok && strings.Contains(verify["description"], "--keep-out") {
+		t.Errorf("the description of engine-contract mentions --keep-out, which only engine-contract:record takes")
 	}
 }
