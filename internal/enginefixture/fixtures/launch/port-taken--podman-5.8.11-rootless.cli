@@ -1,0 +1,20 @@
+# tool: podman
+# version: 5.8.11
+# mode: rootless
+# recorded: 2026-11-27
+# scenario: a launch that publishes a port another container holds is refused
+# redacted: run
+# recorded-by: engine-contract:record
+# argv: ["run","--pull=never","-d","--name","ddc-fixture-run-c2","-p","127.0.0.1:18080:80","docker.io/library/alpine@sha256:f59abe656b692d901e184be3445e084786602108599d2a51d229c0f5a48c71bf"]
+# exit: 126
+# stdout: 0 bytes, text
+# stderr: 138 bytes, text
+
+--- stdout
+
+--- stderr
+Error: pasta failed with exit code 1:
+Listen failed for HOST TCP port 127.0.0.1/18080: Address in use
+Couldn't listen on requested ports
+
+

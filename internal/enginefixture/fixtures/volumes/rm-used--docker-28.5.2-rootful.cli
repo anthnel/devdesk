@@ -1,0 +1,17 @@
+# tool: docker
+# version: 28.5.2
+# mode: rootful
+# recorded: 2026-11-27
+# scenario: rm of a volume a container mounts is refused
+# redacted: ids, run
+# recorded-by: engine-contract:record
+# argv: ["volume","rm","ddc-fixture-run-v1"]
+# exit: 1
+# stdout: 0 bytes, text
+# stderr: 141 bytes, text
+
+--- stdout
+
+--- stderr
+Error response from daemon: remove ddc-fixture-run-v1: volume is in use - [c6fb2d45647efd80cdf694c554e07f5eafee91aaedbeb2b654fba8c4f27cd66f]
+

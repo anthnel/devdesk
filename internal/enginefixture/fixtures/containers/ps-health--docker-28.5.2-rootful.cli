@@ -1,0 +1,18 @@
+# tool: docker
+# version: 28.5.2
+# mode: rootful
+# recorded: 2026-11-27
+# scenario: ps lists a container with a healthcheck once it is healthy
+# redacted: durations, ids, run, timestamps
+# recorded-by: engine-contract:record
+# argv: ["ps","--all","--format","{{.ID}}\t{{.Names}}\t{{.Image}}\t{{.State}}\t{{.Status}}\t{{.CreatedAt}}\t{{.Ports}}"]
+# exit: 0
+# stdout: 198 bytes, text
+# stderr: 0 bytes, text
+
+--- stdout
+5400e34c3165	ddc-fixture-run-h1	alpine	running	Up 5 seconds (healthy)	2026-01-01 00:00:00 +0000 UTC	
+3a84144b327a	ddc-sentinel-fixture-run	alpine	running	Up 5 seconds	2026-01-01 00:00:00 +0000 UTC	
+
+--- stderr
+

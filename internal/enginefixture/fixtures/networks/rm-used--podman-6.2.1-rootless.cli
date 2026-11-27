@@ -1,0 +1,17 @@
+# tool: podman
+# version: 6.2.1
+# mode: rootless
+# recorded: 2026-11-27
+# scenario: rm of a network a container is connected to is refused
+# redacted: run
+# recorded-by: engine-contract:record
+# argv: ["network","rm","ddc-fixture-run-n1"]
+# exit: 2
+# stdout: 0 bytes, text
+# stderr: 132 bytes, text
+
+--- stdout
+
+--- stderr
+Error: "ddc-fixture-run-n1" has associated containers with it. Use -f to forcibly delete containers and pods: network is being used
+

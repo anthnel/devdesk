@@ -1,0 +1,18 @@
+# tool: docker
+# version: 29.10.1
+# mode: rootful
+# recorded: 2026-11-27
+# scenario: rm of a network a container is connected to is refused
+# redacted: ids, run
+# recorded-by: engine-contract:record
+# argv: ["network","rm","6560f07166bdae398acd7e4251e5f92c0a96688e9546dffbec5443d44c3b85f3"]
+# exit: 1
+# stdout: 0 bytes, text
+# stderr: 166 bytes, text
+
+--- stdout
+
+--- stderr
+Error response from daemon: error while removing network: network ddc-fixture-run-n1 has active endpoints (name:"ddc-fixture-run-c1" id:"df7c2de949f5")
+exit status 1
+

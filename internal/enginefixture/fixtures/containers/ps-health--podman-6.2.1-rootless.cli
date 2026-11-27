@@ -1,0 +1,18 @@
+# tool: podman
+# version: 6.2.1
+# mode: rootless
+# recorded: 2026-11-27
+# scenario: ps lists a container with a healthcheck once it is healthy
+# redacted: durations, ids, run, timestamps
+# recorded-by: engine-contract:record
+# argv: ["ps","--all","--format","{{.ID}}\t{{.Names}}\t{{.Image}}\t{{.State}}\t{{.Status}}\t{{.CreatedAt}}\t{{.Ports}}"]
+# exit: 0
+# stdout: 378 bytes, text
+# stderr: 0 bytes, text
+
+--- stdout
+3a84144b327a	ddc-sentinel-fixture-run	docker.io/library/alpine@sha256:f59abe656b692d901e184be3445e084786602108599d2a51d229c0f5a48c71bf	running	Up 5 seconds	2026-01-01 00:00:00 +0000 UTC	
+5400e34c3165	ddc-fixture-run-h1	docker.io/library/alpine@sha256:f59abe656b692d901e184be3445e084786602108599d2a51d229c0f5a48c71bf	running	Up 5 seconds (healthy)	2026-01-01 00:00:00 +0000 UTC	
+
+--- stderr
+

@@ -1,0 +1,17 @@
+# tool: docker
+# version: 28.5.2
+# mode: rootful
+# recorded: 2026-11-27
+# scenario: volume prune of a store that holds only the volume of the run
+# redacted: none
+# recorded-by: engine-contract:record
+# argv: ["volume","prune","-f"]
+# exit: 0
+# stdout: 26 bytes, text
+# stderr: 0 bytes, text
+
+--- stdout
+Total reclaimed space: 0B
+
+--- stderr
+
