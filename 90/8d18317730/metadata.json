@@ -1,0 +1,48 @@
+{
+  "cli_version": "0.13.2",
+  "checkpoint_id": "908d18317730",
+  "strategy": "manual-commit",
+  "branch": "feat/oc-19-ports-loopback-default",
+  "checkpoints_count": 1,
+  "files_touched": [
+    "docs/architecture/network.md"
+  ],
+  "sessions": [
+    {
+      "metadata": "/90/8d18317730/0/metadata.json",
+      "transcript": "/90/8d18317730/0/full.jsonl",
+      "compact_transcript": "/90/8d18317730/0/transcript.jsonl",
+      "content_hash": "/90/8d18317730/0/content_hash.txt",
+      "prompt": "/90/8d18317730/0/prompt.txt"
+    }
+  ],
+  "token_usage": {
+    "input_tokens": 16,
+    "cache_creation_tokens": 32367,
+    "cache_read_tokens": 2090624,
+    "output_tokens": 9705,
+    "api_call_count": 5,
+    "subagent_tokens": {
+      "input_tokens": 188,
+      "cache_creation_tokens": 428671,
+      "cache_read_tokens": 5378449,
+      "output_tokens": 68352,
+      "api_call_count": 88
+    },
+    "subagent_tokens_complete": true
+  },
+  "redaction": {
+    "replacements": 13,
+    "layers": {
+      "betterleaks": 0,
+      "connection_string": 0,
+      "credential_key": 0,
+      "credential_value": 0,
+      "credentialed_uri": 0,
+      "entropy": 0,
+      "key_context": 13,
+      "provider_token": 0,
+      "shell_stdin": 0
+    }
+  }
+}
