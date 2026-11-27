@@ -1,0 +1,46 @@
+{
+  "cli_version": "0.13.2",
+  "checkpoint_id": "9b7181c06828",
+  "strategy": "manual-commit",
+  "branch": "feat/oc-03b-engine-guard-panic",
+  "checkpoints_count": 4,
+  "files_touched": null,
+  "sessions": [
+    {
+      "metadata": "/9b/7181c06828/0/metadata.json",
+      "transcript": "/9b/7181c06828/0/full.jsonl",
+      "compact_transcript": "/9b/7181c06828/0/transcript.jsonl",
+      "content_hash": "/9b/7181c06828/0/content_hash.txt",
+      "prompt": "/9b/7181c06828/0/prompt.txt"
+    }
+  ],
+  "token_usage": {
+    "input_tokens": 56,
+    "cache_creation_tokens": 35783,
+    "cache_read_tokens": 8738187,
+    "output_tokens": 17662,
+    "api_call_count": 20,
+    "subagent_tokens": {
+      "input_tokens": 162,
+      "cache_creation_tokens": 527826,
+      "cache_read_tokens": 11422813,
+      "output_tokens": 111539,
+      "api_call_count": 77
+    },
+    "subagent_tokens_complete": true
+  },
+  "redaction": {
+    "replacements": 57,
+    "layers": {
+      "betterleaks": 0,
+      "connection_string": 0,
+      "credential_key": 0,
+      "credential_value": 15,
+      "credentialed_uri": 0,
+      "entropy": 12,
+      "key_context": 30,
+      "provider_token": 0,
+      "shell_stdin": 0
+    }
+  }
+}
