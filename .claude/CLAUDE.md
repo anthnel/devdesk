@@ -318,11 +318,13 @@ spells the verb), `PullImage` (its context-free wrapper, no production caller) a
 `internal/ui/oci_resources/image_update.go` (feeds `imagepull.Deps` only). To add one: key = file + function, `Sites` =
 the exact count, a reason a reviewer can disagree with; to remove one: delete the entry (an entry whose code is gone,
 whose count differs or without a reason fails; `pullMustSee` fails when the detector stops seeing the module's two
-known sites). A launch never pulls: `run --pull=never` (`noImplicitPull`, `internal/docker/launch.go`) is held by
+known sites). `TestNoPullBypassesTheSignatureCheck` (`internal/ui/oci_resources/pull_verify_test.go`) is a textual test
+that covers part of G8 on its own, for that one package. The paths to `imagepull.Pull` are `pullOneImageCmd` (registry
+browser and MCP `image_pull_start`, via `ImagePullRequestedMsg`) and `G` (`updateImageCmd`). A launch never pulls: `run --pull=never` (`noImplicitPull`, `internal/docker/launch.go`) is held by
 `internal/docker/launch_pull_test.go`, exact argv on both engines. Limits: the scanners' own `run --rm`
 (`internal/scan/container_run.go`) pulls their tool images unverified, `scan.image_verification` off makes
-`imagepull.Pull` pull the tag as before, kind's pulls (OC-71) are out of scope, a `[]string{"git", "pull"}` is reported
-(words, not programs), and a verb from a variable, an argv built word by word, a shell line and a function value are
+`imagepull.Pull` pull the tag as before, kind's pulls (OC-71) and the `skopeo copy` of `internal/nexusbench` (a development tool) are out of scope,
+a `[]string{"git", "pull"}` or the two-word `"--pull", "never"` is reported (words, not programs), and a verb from a variable, an argv built word by word, a shell line and a function value are
 not seen. See `docs/architecture/network.md`, "Guard G8".
 
 **Test input and colour (DEVDESK-199).** Build keys only through

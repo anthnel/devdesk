@@ -85,7 +85,12 @@ import (
 //     (docs/architecture/network.md), and no part of this guard.
 //   - imagepull.Pull itself, with scan.image_verification off, pulls the tag as it
 //     always did: that is the user's setting, not a path around it.
-//   - What kind pulls (OC-71) is out of scope here, as the story says.
+//   - What kind pulls (OC-71) is out of scope here, as the story says, and so is
+//     internal/nexusbench/skopeo.go, which runs `skopeo copy` from registry to
+//     registry (a development tool, no engine involved).
+//   - The two-word form "--pull", "never" is reported (the bare "--pull" is a
+//     pull word, and the guard does not read the next word): a false positive,
+//     accepted. A launch spells it --pull=never.
 
 const dockerPackage = "github.com/anthnel/devdesk/internal/docker"
 
@@ -144,7 +149,7 @@ var pullExceptions = []pullException{
 		Func:  "<package level>",
 		Sites: 1,
 		Reason: "permanent: the test seam `pullImageContext = docker.PullImageContext`. It only feeds imagepull.Deps " +
-			"(Model.pullDeps); TestNoCallerPullsWithoutVerifying (pull_verify_test.go) holds that nothing in the package " +
+			"(Model.pullDeps); TestNoPullBypassesTheSignatureCheck (pull_verify_test.go) holds that nothing in the package " +
 			"calls it directly.",
 	},
 }

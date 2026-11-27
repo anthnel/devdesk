@@ -77,13 +77,14 @@ func TestEntrypointProbeNeverPullsOnEveryEngine(t *testing.T) {
 	})
 }
 
-// An image the engine does not have makes `run --pull=never` exit 125 with the
-// engine's own message (measured on Docker and Podman, 2026-09-25). The launch
-// reports that and goes no further: the only argv the stub accepts is the run,
-// so a fallback `pull` would fail the test.
+// An image the engine does not have makes `run --pull=never` exit 125 on both
+// engines, with a message that says the image is absent (`No such image` or
+// `image not known`, docs/backlog.md). The launch reports that and goes no
+// further: the only argv the stub accepts is the run, so a fallback `pull` would
+// fail the test.
 func TestLaunchOfAMissingImageIsRefusedAndNothingIsPulled(t *testing.T) {
 	forEachEngine(t, func(t *testing.T, _ engine.Shape) {
-		const refusal = "Unable to find image 'ghost:1' locally\n"
+		const refusal = "Error: No such image: ghost:1\n"
 		s := stubStrict(t, reply{argv: []string{"run", "--pull=never", "ghost:1"}, out: refusal, err: errExit})
 
 		id, err := LaunchContainer(ContainerLaunchOptions{Image: "ghost:1"})
@@ -94,7 +95,7 @@ func TestLaunchOfAMissingImageIsRefusedAndNothingIsPulled(t *testing.T) {
 		if id != "" {
 			t.Errorf("LaunchContainer() id = %q, want none", id)
 		}
-		if !strings.Contains(err.Error(), "Unable to find image") {
+		if !strings.Contains(err.Error(), "No such image") {
 			t.Errorf("error = %q, want the engine's message", err)
 		}
 		if len(s.calls) != 1 {
@@ -119,7 +120,7 @@ func TestEntrypointProbeOfAMissingImageIsNotAPull(t *testing.T) {
 // Whatever the form sets, the flag is the first word after the verb and no other
 // word asks for a pull: a value the user typed cannot slide in ahead of it, and
 // no option adds `--pull=always`.
-func TestLaunchArgsCarryExactlyOneNoPullFlag(t *testing.T) {
+func TestLaunchArgsStartWithNoPullFlagAndAskForNoOtherPull(t *testing.T) {
 	for _, tt := range launchCases {
 		t.Run(tt.name, func(t *testing.T) {
 			got := buildLaunchArgs(tt.opts)

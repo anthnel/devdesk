@@ -285,17 +285,22 @@ information, and reports each site with file, line and enclosing function:
   it fails on a pull added anywhere else, from sources held in memory.
 - *Run time*: a launch never pulls. `buildLaunchArgs` and `VerifyEntrypoint` pass `--pull=never`
   (`internal/docker/launch_pull_test.go`: exact argv on both engines through the strict stub; a missing image
-  gives the engine's refusal and no second call). The two real paths to `Deps.Pull` are the registry browser's pull
-  (`internal/ui/oci_resources/commands.go`) and `G` (`image_update.go`; the MCP `image_pull_start` triggers `G`
-  through `internal/app/mcp_actions.go`), both through `imagepull.Pull`; the signature check of the Dockerfile
-  remediation (`internal/ui/security`) only calls `imagepull.Check`. The launch form only opens from a row of the
+  gives the engine's refusal and no second call). The two real paths to `imagepull.Pull` are `pullOneImageCmd` (`internal/ui/oci_resources/commands.go`), reached
+  from the registry browser and from the MCP `image_pull_start` (`internal/app/mcp_actions.go` emits
+  `ImagePullRequestedMsg`, `handleImagePullRequested` in `oci_resources/mcp.go` starts it; the `"G"` of
+  `mcpActionKeys` is only the equivalent key), and `G` itself (`updateImageCmd`, `image_update.go`). The signature check
+  of the Dockerfile remediation (`internal/ui/security`) only calls `imagepull.Check`. `TestNoPullBypassesTheSignatureCheck`
+  (`internal/ui/oci_resources/pull_verify_test.go`) is a textual test that covers part of G8 on its own, for that one
+  package. The launch form only opens from a row of the
   local Images table (`openLaunchForm`).
 - Limits, listed in the test header: an argv built word by word, a verb from a variable, a shell line, a function
-  value, a dot import of `internal/docker`; the check is on words (`[]string{"git", "pull"}` would be reported); an
+  value, a dot import of `internal/docker`; the check is on words (`[]string{"git", "pull"}` and the two-word
+  `"--pull", "never"` would be reported, a false positive accepted; a launch spells `--pull=never`); an
   implicit pull by `run`/`create`/`build` without a flag is not a verb: the scanners' own `run --rm`
   (`container_run.go`) pulls DevDesk's tool images unverified (declared exception, above); with
   `scan.image_verification` off `imagepull.Pull` pulls the tag unchecked, by the user's choice; kind's pulls
-  (OC-71) are out of scope. `--pull=never` was measured on Docker 29.7.2 and a Podman of 2026-09-25
+  (OC-71) are out of scope, and so is `internal/nexusbench/skopeo.go`, which runs `skopeo copy` from registry to
+  registry (a development tool). `--pull=never` was measured on Docker 29.7.2 and a Podman of 2026-09-25
   (exit 125 on a missing image), not on the N and N-1 versions of `docs/measurements/2026-11-27-engines.md`.
 
 ## OCI registries — `internal/oci`
