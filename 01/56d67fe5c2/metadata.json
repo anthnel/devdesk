@@ -1,0 +1,46 @@
+{
+  "cli_version": "0.13.2",
+  "checkpoint_id": "0156d67fe5c2",
+  "strategy": "manual-commit",
+  "branch": "feat/oc-09a2-contract-label-cleanup",
+  "checkpoints_count": 3,
+  "files_touched": null,
+  "sessions": [
+    {
+      "metadata": "/01/56d67fe5c2/0/metadata.json",
+      "transcript": "/01/56d67fe5c2/0/full.jsonl",
+      "compact_transcript": "/01/56d67fe5c2/0/transcript.jsonl",
+      "content_hash": "/01/56d67fe5c2/0/content_hash.txt",
+      "prompt": "/01/56d67fe5c2/0/prompt.txt"
+    }
+  ],
+  "token_usage": {
+    "input_tokens": 38,
+    "cache_creation_tokens": 39604,
+    "cache_read_tokens": 6210645,
+    "output_tokens": 15593,
+    "api_call_count": 12,
+    "subagent_tokens": {
+      "input_tokens": 284,
+      "cache_creation_tokens": 816412,
+      "cache_read_tokens": 19578482,
+      "output_tokens": 184808,
+      "api_call_count": 138
+    },
+    "subagent_tokens_complete": true
+  },
+  "redaction": {
+    "replacements": 60,
+    "layers": {
+      "betterleaks": 0,
+      "connection_string": 0,
+      "credential_key": 0,
+      "credential_value": 15,
+      "credentialed_uri": 0,
+      "entropy": 12,
+      "key_context": 33,
+      "provider_token": 0,
+      "shell_stdin": 0
+    }
+  }
+}
