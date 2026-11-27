@@ -1,0 +1,31 @@
+{
+  "cli_version": "0.13.2",
+  "checkpoint_id": "7df971e5d053",
+  "strategy": "manual-commit",
+  "branch": "feat/oc-09a1-engine-contract-gate",
+  "checkpoints_count": 2,
+  "files_touched": null,
+  "sessions": [
+    {
+      "metadata": "/7d/f971e5d053/0/metadata.json",
+      "transcript": "/7d/f971e5d053/0/full.jsonl",
+      "compact_transcript": "/7d/f971e5d053/0/transcript.jsonl",
+      "content_hash": "/7d/f971e5d053/0/content_hash.txt",
+      "prompt": "/7d/f971e5d053/0/prompt.txt"
+    }
+  ],
+  "redaction": {
+    "replacements": 58,
+    "layers": {
+      "betterleaks": 0,
+      "connection_string": 0,
+      "credential_key": 0,
+      "credential_value": 15,
+      "credentialed_uri": 0,
+      "entropy": 12,
+      "key_context": 31,
+      "provider_token": 0,
+      "shell_stdin": 0
+    }
+  }
+}
