@@ -1,0 +1,15 @@
+{
+  "tool_use_id": "toolu_01BkrLxVDLDC1QsXzJqTnvud",
+  "agent_id": "a4df930125a02d8d6",
+  "subagent_type": "project-tester",
+  "task_description": "Tests rouges OC-04 non bloquant",
+  "token_usage": {
+    "input_tokens": 36,
+    "cache_creation_tokens": 140607,
+    "cache_read_tokens": 1081271,
+    "output_tokens": 22612,
+    "api_call_count": 17
+  },
+  "started_at": "2026-11-26T21:09:46.75306276+01:00",
+  "completed_at": "2026-11-26T21:11:43.419474089+01:00"
+}

@@ -1,0 +1,15 @@
+{
+  "tool_use_id": "toolu_01UdidV2anabZftrtm1fpkA1",
+  "agent_id": "a2a38d107a4e9931a",
+  "subagent_type": "project-tester",
+  "task_description": "Tests rouges OC-02 fakecli",
+  "token_usage": {
+    "input_tokens": 24,
+    "cache_creation_tokens": 79181,
+    "cache_read_tokens": 534827,
+    "output_tokens": 31783,
+    "api_call_count": 12
+  },
+  "started_at": "2026-11-26T21:09:46.753277963+01:00",
+  "completed_at": "2026-11-26T21:12:20.181121218+01:00"
+}

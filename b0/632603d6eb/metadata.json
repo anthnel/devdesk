@@ -1,0 +1,48 @@
+{
+  "cli_version": "0.13.2",
+  "checkpoint_id": "b0632603d6eb",
+  "strategy": "manual-commit",
+  "branch": "feat/oc-07-per-engine-tests",
+  "checkpoints_count": 10,
+  "files_touched": [
+    "docs/architecture/network.md"
+  ],
+  "sessions": [
+    {
+      "metadata": "/b0/632603d6eb/0/metadata.json",
+      "transcript": "/b0/632603d6eb/0/full.jsonl",
+      "compact_transcript": "/b0/632603d6eb/0/transcript.jsonl",
+      "content_hash": "/b0/632603d6eb/0/content_hash.txt",
+      "prompt": "/b0/632603d6eb/0/prompt.txt"
+    }
+  ],
+  "token_usage": {
+    "input_tokens": 150,
+    "cache_creation_tokens": 397757,
+    "cache_read_tokens": 7463374,
+    "output_tokens": 75670,
+    "api_call_count": 58,
+    "subagent_tokens": {
+      "input_tokens": 726,
+      "cache_creation_tokens": 3078870,
+      "cache_read_tokens": 35019051,
+      "output_tokens": 611150,
+      "api_call_count": 350
+    },
+    "subagent_tokens_complete": true
+  },
+  "redaction": {
+    "replacements": 7,
+    "layers": {
+      "betterleaks": 0,
+      "connection_string": 0,
+      "credential_key": 0,
+      "credential_value": 0,
+      "credentialed_uri": 0,
+      "entropy": 0,
+      "key_context": 7,
+      "provider_token": 0,
+      "shell_stdin": 0
+    }
+  }
+}

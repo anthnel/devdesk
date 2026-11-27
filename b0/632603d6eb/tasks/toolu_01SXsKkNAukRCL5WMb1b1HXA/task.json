@@ -1,0 +1,15 @@
+{
+  "tool_use_id": "toolu_01SXsKkNAukRCL5WMb1b1HXA",
+  "agent_id": "a4b573e8023130d58",
+  "subagent_type": "project-tester",
+  "task_description": "Tests rouges OC-07 par moteur",
+  "token_usage": {
+    "input_tokens": 48,
+    "cache_creation_tokens": 86762,
+    "cache_read_tokens": 1320945,
+    "output_tokens": 27320,
+    "api_call_count": 24
+  },
+  "started_at": "2026-11-26T21:09:46.750663728+01:00",
+  "completed_at": "2026-11-26T21:11:59.358793267+01:00"
+}

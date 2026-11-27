@@ -1,0 +1,18 @@
+{
+  "tool_use_id": "toolu_0113BjAonF7HVpJ1cxw7NkAk",
+  "agent_id": "a7353990ceb855473",
+  "subagent_type": "product-team:pm",
+  "task_description": "Créer le backlog OCI dans Plane",
+  "files": [
+    "docs/product/oci-containers/plane-mapping.md"
+  ],
+  "token_usage": {
+    "input_tokens": 42,
+    "cache_creation_tokens": 358792,
+    "cache_read_tokens": 4422152,
+    "output_tokens": 119024,
+    "api_call_count": 21
+  },
+  "started_at": "2026-11-26T21:04:29.033260595+01:00",
+  "completed_at": "2026-11-26T21:04:29.033445446+01:00"
+}
