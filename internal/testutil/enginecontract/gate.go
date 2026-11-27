@@ -19,6 +19,10 @@ const (
 	RunEnv = "DEVDESK_ENGINE_CONTRACT_RUN"
 	// ImageEnv is the image of the containers a contract starts (OC-09a2).
 	ImageEnv = "DEVDESK_ENGINE_CONTRACT_IMAGE"
+	// SentinelEnv is the id (64 hexadecimal characters) of the container with no label
+	// that contract.sh starts before the contracts (OC-09b1): the one foreign resource
+	// a listing shows, which a recording redacts to a stable role.
+	SentinelEnv = "DEVDESK_ENGINE_CONTRACT_SENTINEL"
 	// VersionsEnv is the path of versions.env, as it is in the test VM.
 	VersionsEnv = "DEVDESK_ENGINE_VERSIONS"
 	// OutEnv is the directory a recording run writes to (OC-09a3).

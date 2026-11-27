@@ -9,9 +9,11 @@ import (
 	"os/user"
 	"regexp"
 	"slices"
+	"strconv"
 	"strings"
 	"sync"
 	"testing"
+	"time"
 
 	"github.com/anthnel/devdesk/internal/engine"
 	"github.com/anthnel/devdesk/internal/enginefixture"
@@ -46,6 +48,14 @@ type contract struct {
 	// tried is set the moment a creation is attempted, before the engine answers:
 	// a call that failed may still have made the resource, so the cleanup looks.
 	tried bool
+	// sleep is the pause waitHealthy takes between two reads: time.Sleep, which a test
+	// replaces so it does not wait.
+	sleep func(time.Duration)
+	// publicIDs are the ids of 64 hexadecimal characters a fixture may keep (public).
+	publicIDs []string
+	// imageUsers maps the id of an image usedImage returned to the containers of this
+	// run made from it: expectRmiRefusal sends an rmi only for an image listed here.
+	imageUsers map[string][]string
 }
 
 // requireEngine is the first statement of every contract test (guard G5). It
@@ -61,7 +71,7 @@ func requireEngine(t *testing.T) *contract {
 // newContract builds a contract for a session with no engine pinned, no runner
 // swapped and nothing registered: the unit tests of the helpers use it.
 func newContract(t testing.TB, s *enginecontract.Session) *contract {
-	return &contract{t: t, s: s, ours: map[string]string{}}
+	return &contract{t: t, s: s, ours: map[string]string{}, sleep: time.Sleep, imageUsers: map[string][]string{}}
 }
 
 // startContract is what requireEngine does once Require accepted the run. It pins
@@ -126,7 +136,29 @@ func (c *contract) sibling(suffix string) *contract {
 // returns its id.
 func (c *contract) container(role string, cmd ...string) string {
 	c.t.Helper()
+	return c.containerWith(role, nil, cmd...)
+}
+
+// containerWith is container with options between the name and the image (a volume,
+// a network, a healthcheck): the rule judges them like any other.
+func (c *contract) containerWith(role string, options []string, cmd ...string) string {
+	c.t.Helper()
 	c.requireLab()
+	image := c.pinnedImage()
+	if len(cmd) == 0 {
+		cmd = []string{"sleep", "600"}
+	}
+	name := enginecontract.ResourceName(c.s.RunID, role)
+	args := []string{"run", "-d", "--pull=never", "--label", enginecontract.Label(c.s.RunID), "--name", name}
+	args = append(args, options...)
+	args = append(args, image)
+	return c.create("container", role, name, IsContainerID, append(args, cmd...)...)
+}
+
+// pinnedImage is the image of the contracts, read from DEVDESK_ENGINE_CONTRACT_IMAGE:
+// a repository pinned by digest, or the contract ends.
+func (c *contract) pinnedImage() string {
+	c.t.Helper()
 	image := os.Getenv(enginecontract.ImageEnv)
 	if image == "" {
 		c.t.Fatalf("%s is empty: contract.sh sets it from CONTRACT_IMAGE in tools/engine-vms/versions.env, "+
@@ -136,12 +168,7 @@ func (c *contract) container(role string, cmd ...string) string {
 		c.t.Fatalf("%s=%q is not a repository pinned by digest (repository@sha256:<64 hex>): a tag moves, and a contract never pulls",
 			enginecontract.ImageEnv, image)
 	}
-	if len(cmd) == 0 {
-		cmd = []string{"sleep", "600"}
-	}
-	name := enginecontract.ResourceName(c.s.RunID, role)
-	args := []string{"run", "-d", "--pull=never", "--label", enginecontract.Label(c.s.RunID), "--name", name, image}
-	return c.create("container", role, name, IsContainerID, append(args, cmd...)...)
+	return image
 }
 
 // volume creates a volume of this run and returns its name.
@@ -166,12 +193,22 @@ func (c *contract) network(role string) string {
 // that is not a reference.
 func (c *contract) create(kind, role, name string, valid func(string) bool, args ...string) string {
 	c.t.Helper()
+	return c.createHinted("", kind, role, name, valid, args...)
+}
+
+// createHinted is create with a sentence added to the report of a failure, for a
+// creation whose failure has a likely cause the engine does not say (a port in use).
+func (c *contract) createHinted(hint, kind, role, name string, valid func(string) bool, args ...string) string {
+	c.t.Helper()
 	defer c.recording()()
 	c.tried = true
 	out, err := dockerOutput(args...)
 	ref := strings.TrimSpace(string(out))
 	if err != nil {
-		c.t.Fatalf("creating the %s %s failed: %v: %s", kind, name, err, failureDetail(out, err))
+		if hint != "" {
+			hint = ": " + hint
+		}
+		c.t.Fatalf("creating the %s %s failed: %v: %s%s", kind, name, err, failureDetail(out, err), hint)
 	}
 	if !valid(ref) {
 		c.t.Fatalf("creating the %s %s printed %q, want its reference", kind, name, ref)
@@ -207,6 +244,15 @@ func failureDetail(out []byte, err error) string {
 // contract goes on, so its own assertions after this call still run.
 func (c *contract) exchange(campaign, scenario, text string, call func()) enginefixture.Exchange {
 	c.t.Helper()
+	return c.exchangeWith(nil, campaign, scenario, text, call)
+}
+
+// exchangeWith is exchange with a Comparer for the streams of the exchange when
+// verifying: for an output that carries a value that moves with the clock (a
+// duration, a timestamp, a health state). The argv and the exit code are compared
+// exactly whatever the Comparer says; recording ignores it.
+func (c *contract) exchangeWith(cmp enginecontract.Comparer, campaign, scenario, text string, call func()) enginefixture.Exchange {
+	c.t.Helper()
 	if c.rec == nil {
 		c.t.Fatalf("%s/%s: the contract has no recorder: start it with requireEngine", campaign, scenario)
 	}
@@ -224,7 +270,7 @@ func (c *contract) exchange(campaign, scenario, text string, call func()) engine
 	if c.s.Mode == enginecontract.Record {
 		c.s.Record(c.t, campaign, scenario, text, raw, c.redaction())
 	} else {
-		c.s.Verify(c.t, campaign, scenario, raw, c.redaction(), nil)
+		c.s.Verify(c.t, campaign, scenario, raw, c.redaction(), cmp)
 	}
 	return raw
 }
@@ -232,16 +278,30 @@ func (c *contract) exchange(campaign, scenario, text string, call func()) engine
 // fullID is the id of a container or a network as the engine prints it whole.
 var fullID = regexp.MustCompile(`^[0-9a-f]{64}$`)
 
+// sentinelRole is the role the id of the sentinel container of contract.sh gets in a
+// fixture: the one foreign resource a listing shows (its name, ddc-sentinel-<run>,
+// loses the run id like any name).
+const sentinelRole = "sentinel"
+
 // redaction is what Redact must replace in this run's exchanges: the ids of the
-// resources the run made, each with its role, the run id, and the home, the user
+// resources the run made, each with its role, the id of the sentinel (the
+// SentinelEnv variable of contract.sh) as the role "sentinel", the run id, and the home, the user
 // and the host name of the machine that records (a lookup that fails leaves its
-// field empty, and the leak check is the net for what that lets through).
+// field empty, and the leak check is the net for what that lets through). The ids
+// public() declared are kept as they are.
 func (c *contract) redaction() enginefixture.Redaction {
-	r := enginefixture.Redaction{RunID: c.s.RunID, IDs: map[string]string{}}
+	r := enginefixture.Redaction{RunID: c.s.RunID, IDs: map[string]string{}, Public: slices.Clone(c.publicIDs)}
 	for ref, role := range c.ours {
 		if fullID.MatchString(ref) {
 			r.IDs[ref] = role
 		}
+	}
+	if id := os.Getenv(enginecontract.SentinelEnv); id != "" {
+		if !fullID.MatchString(id) {
+			c.t.Fatalf("%s=%q is not an id of 64 lower-case hexadecimal characters: contract.sh sets it from the sentinel it started",
+				enginecontract.SentinelEnv, id)
+		}
+		r.IDs[id] = sentinelRole
 	}
 	r.Home, _ = os.UserHomeDir()
 	if u, err := user.Current(); err == nil {
@@ -584,22 +644,30 @@ func parseEngineMode(tool enginefixture.Tool, out string) (enginefixture.Mode, e
 //     ddc-<run>-), --label (one must be exactly the label of the run), --pull
 //     (every one never, at least one), -e/--env KEY=value, --network (the default
 //     bridge, none, or a network of this run), -v/--volume (a named volume of this run,
-//     never a path), --entrypoint, -u/--user and -w/--workdir. Everything else is
+//     never a path), --entrypoint, -u/--user, -w/--workdir and --health-cmd,
+//     --health-interval, --health-timeout and --health-retries (a command run inside
+//     the container, nothing of the host). Everything else is
 //     refused, and the ones that would reach the host name their reason:
 //     --privileged, --replace, --mount, --cap-add, --device, --security-opt, --pid,
-//     --ipc, --uts, --userns, --volumes-from, --env-file. volume create and network
-//     create take only --label and one name that starts with ddc-<run>-. pod create is
-//     refused: no cleanup of pods exists.
+//     --ipc, --uts, --userns, --volumes-from, --env-file, and -p/--publish (a port of
+//     the host is published only inside a launch window, see launchWindowRule).
+//     volume create and network create take only --label and one name that starts with
+//     ddc-<run>-. pod create is refused: no cleanup of pods exists.
 //   - Destruction and state changes (rm, kill, stop, start, restart, pause,
 //     unpause, volume rm, network rm, network connect and disconnect) may name only
 //     resources of this run, by exact reference, and take only the options of the
 //     verb: rm -f, -v, -t; stop and kill -t and -s; restart -t; volume rm, network rm,
 //     start, pause, unpause, connect and disconnect none (so no --force, --all,
-//     --latest, --filter, --depend or --cidfile).
-//   - Refused as a whole: every prune (a prune acts on the whole store; OC-09b may
-//     allow one under a precondition), system, pull, push, load, import, build,
-//     commit, tag, login, logout, exec, cp, save, export, and rmi (an image is never
-//     made by a contract, contract.sh pulls the one it uses).
+//     --latest, --filter, --depend or --cidfile). healthcheck run <container of the
+//     run> (podman: its health state does not move by itself) takes no option either.
+//   - Refused as a whole: every prune (a prune acts on the whole store), system,
+//     pull, push, load, import, build, commit, tag, login, logout, exec, cp, save,
+//     export, and rmi (an image is never made by a contract, contract.sh pulls the
+//     one it uses). The windows below are the only exceptions, each for one argv, one
+//     call, and a condition a reader can check: pruneWindowRule (expectPrune),
+//     launchWindowRule (expectRefusal, portHolder) and rmiWindowRule
+//     (expectRmiRefusal). A window never widens this rule: it only names the argv it
+//     grants, and the rule keeps judging everything else.
 //   - The options that point the CLI at another engine or store (--url, --connection,
 //     --remote, --root, --runroot, --storage-driver, --host, -H, --context) are
 //     refused at any position of the argv.
@@ -745,6 +813,11 @@ func checkVerbArgv(runID string, ours func(string) bool, verb string, args []str
 		return checkTargetsArgv(ours, verb, args, false)
 	case "rmi":
 		return errImagesAreNeverOurs(args)
+	case "healthcheck":
+		// podman only: runs the check of a container once, which moves its health state.
+		if len(args) > 0 && args[0] == "run" {
+			return checkTargetsArgv(ours, "healthcheck run", args[1:], false)
+		}
 	}
 	return errUnknownVerb(append([]string{verb}, args...))
 }
@@ -778,6 +851,8 @@ var dangerousOptions = map[string]string{
 	"--userns":       "it can join a namespace of the host",
 	"--volumes-from": "it mounts what another container mounts",
 	"--env-file":     "it reads a file of the host",
+	"-p":             "it publishes a port of the host, which only a launch window may do, for one fixed loopback port",
+	"--publish":      "it publishes a port of the host, which only a launch window may do, for one fixed loopback port",
 	"--all":          "it picks its targets where the rule cannot see them",
 	"--latest":       "it picks its targets where the rule cannot see them",
 	"--filter":       "it picks its targets where the rule cannot see them",
@@ -854,7 +929,8 @@ var (
 	runSpec = optSpec{
 		bools: []string{"-d", "--detach", "--rm"},
 		valued: []string{"--name", "--label", "-l", "--pull", "-e", "--env", "--network", "--net",
-			"-v", "--volume", "--entrypoint", "-u", "--user", "-w", "--workdir"},
+			"-v", "--volume", "--entrypoint", "-u", "--user", "-w", "--workdir",
+			"--health-cmd", "--health-interval", "--health-timeout", "--health-retries"},
 	}
 	namedCreateSpec = optSpec{valued: []string{"--label"}}
 	// destructiveSpecs are the options of each destructive verb. Nothing else: a
@@ -871,6 +947,7 @@ var (
 		"network rm":         {},
 		"network connect":    {},
 		"network disconnect": {},
+		"healthcheck run":    {},
 	}
 	// defaultNetworks are the networks of the engines a contract may join: no
 	// network of the host.
@@ -974,4 +1051,509 @@ func checkTargetsArgv(ours func(string) bool, verb string, args []string, lastOn
 		}
 	}
 	return nil
+}
+
+// A window is the one way a contract sends an argv that contractArgvRule refuses, and
+// it is narrow on every side (OC-09b1, DEVDESK-807). It names the argv it grants, it
+// grants it once, it exists for the length of one call (withWindow puts the standard
+// rule back when the call returns), and what the call does besides is judged by the
+// standard rule as ever. The rule of the recorder is the allow list it always was: a
+// window never makes it wider for the other calls of the contract.
+
+// withWindow runs f with window as a second judge of the recorder: an argv the
+// window grants goes through, anything else is judged by the standard rule alone. A
+// refusal names both, so a report says why neither accepted the argv.
+func (c *contract) withWindow(window func(argv []string) error, f func()) {
+	c.t.Helper()
+	if c.rec == nil {
+		c.t.Fatalf("the contract has no recorder: start it with requireEngine")
+	}
+	standard := c.rec.allow
+	c.rec.allow = func(argv []string) error {
+		windowErr := window(argv)
+		if windowErr == nil {
+			return nil
+		}
+		standardErr := standard(argv)
+		if standardErr == nil {
+			return nil
+		}
+		return fmt.Errorf("%w (the window of this call refused it too: %v)", standardErr, windowErr)
+	}
+	defer func() { c.rec.allow = standard }()
+	f()
+}
+
+// builtinNetworks are the networks the engines make themselves: a store "of this run"
+// is allowed to hold them.
+var builtinNetworks = []string{"bridge", "host", "none", "podman"}
+
+// pruneListArgv is the read of the whole store of a kind, with no filter, that
+// expectPrune makes right before a prune; nil for a kind that has no prune window.
+// Only container, network and volume have one: an image prune and a system prune
+// reach what no contract made, and no function of DevDesk prunes with a filter.
+func pruneListArgv(kind string) []string {
+	switch kind {
+	case "container":
+		return []string{"ps", "-a", "-q", "--no-trunc"}
+	case "network":
+		return []string{"network", "ls", "--format", "{{.Name}}"}
+	case "volume":
+		return []string{"volume", "ls", "-q"}
+	}
+	return nil
+}
+
+// pruneWindowRule grants the one argv `<kind> prune -f`, once: what PruneContainers,
+// PruneNetworks and PruneVolumes send. Never -a or --all, never a filter, never
+// `system prune` or an image prune, never a kind it does not know. An argv it refuses
+// does not use its attempt.
+func pruneWindowRule(kind string) func(argv []string) error {
+	granted := false
+	return func(argv []string) error {
+		if pruneListArgv(kind) == nil {
+			return fmt.Errorf("there is no prune window for %q: only container, network and volume have one", kind)
+		}
+		if granted {
+			return errors.New("the prune window grants one attempt and it was used")
+		}
+		if !slices.Equal(argv, []string{kind, "prune", "-f"}) {
+			return fmt.Errorf("the prune window grants %q and nothing else, not %q", kind+" prune -f", argv)
+		}
+		granted = true
+		return nil
+	}
+}
+
+// expectPrune runs call, which must make exactly one prune of kind, in a window that
+// allows `<kind> prune -f` once, and returns the exchange as exchange does. A prune
+// acts on the whole store, so it is allowed only when the whole store of that kind
+// holds nothing but resources of this run, read right before the call: a foreign
+// resource, a listing that fails or a kind with no window ends the contract before
+// the engine is asked to prune, and says which resource it saw. A lab VM after a
+// reset holds the sentinel container, so a container prune never passes there; a
+// network prune is allowed the networks the engines make themselves.
+func (c *contract) expectPrune(campaign, scenario, text, kind string, call func()) enginefixture.Exchange {
+	c.t.Helper()
+	c.requireLab()
+	list := pruneListArgv(kind)
+	if list == nil {
+		c.t.Fatalf("%s/%s: no prune window for %q: only container, network and volume have one", campaign, scenario, kind)
+	}
+	c.requireOnlyThisRun(kind, list)
+	var ex enginefixture.Exchange
+	c.withWindow(pruneWindowRule(kind), func() { ex = c.exchange(campaign, scenario, text, call) })
+	return ex
+}
+
+// requireOnlyThisRun ends the contract unless list, the read of a whole store, names
+// only resources of this run (and the networks the engines make).
+func (c *contract) requireOnlyThisRun(kind string, list []string) {
+	c.t.Helper()
+	defer c.recording()()
+	out, err := dockerOutput(list...)
+	if err != nil {
+		c.t.Fatalf("cannot read the %s store before a prune, so nothing is pruned: %v: %s", kind, err, failureDetail(out, err))
+	}
+	for _, ref := range splitLines(out) {
+		if kind == "network" && slices.Contains(builtinNetworks, ref) {
+			continue
+		}
+		if !c.isOurs(ref) {
+			c.t.Fatalf("the %s store holds %s, which is not a resource of this run: a prune would remove it, so nothing is pruned", kind, ref)
+		}
+	}
+}
+
+// launchWindow is what a launch the engine is expected to refuse may name: the name of
+// the container (a name of this run), and Port, "" or the one published port
+// "127.0.0.1:<port>:<port>" on loopback.
+type launchWindow struct{ Name, Port string }
+
+// windowPortValid reports whether spec is "127.0.0.1:<host port>:<container port>":
+// loopback, both ports numbers of one to five digits and in range.
+func windowPortValid(spec string) bool {
+	parts := strings.Split(spec, ":")
+	if len(parts) != 3 || parts[0] != "127.0.0.1" {
+		return false
+	}
+	for _, p := range parts[1:] {
+		n, err := strconv.Atoi(p)
+		if err != nil || len(p) > 5 || n < 1 || n > 65535 || strings.Trim(p, "0123456789") != "" {
+			return false
+		}
+	}
+	return true
+}
+
+// launchWindowRule grants one `run` that names exactly the name of w, the pinned
+// image, optionally the one published port of w, and that the standard rule would
+// grant once the label of the run is added to the argv it judges (the launch DevDesk
+// builds has none): --pull=never, no host path, no host network, no privilege. The
+// label is the only thing added; the argv is judged from its parsed options, so a
+// word the parser read as a value cannot be read as an option by the rule. The
+// words after the image are the container's command. An argv it refuses does not use
+// its attempt.
+func launchWindowRule(runID, image string, ours func(ref string) bool, w launchWindow) func(argv []string) error {
+	standard := contractArgvRule(runID, ours)
+	granted := false
+	return func(argv []string) error {
+		if granted {
+			return errors.New("the launch window grants one launch and it was used")
+		}
+		if len(argv) == 0 || argv[0] != "run" {
+			return fmt.Errorf("the launch window grants one `run`, not %q", argv)
+		}
+		if w.Port != "" && !windowPortValid(w.Port) {
+			return fmt.Errorf("the port %q of the window is not 127.0.0.1:<port>:<port>", w.Port)
+		}
+		spec := runSpec
+		spec.valued = append(slices.Clone(runSpec.valued), "-p")
+		opts, positional, err := parseOptions("run", argv[1:], spec, true)
+		if err != nil {
+			return err
+		}
+		forwarded, err := windowOptions(runID, w, spec, opts)
+		if err != nil {
+			return err
+		}
+		if len(positional) == 0 || positional[0] != image {
+			return fmt.Errorf("the image %q is not the pinned image %q: the window grants the launch of that one", positional, image)
+		}
+		if err := standard(append(forwarded, positional...)); err != nil {
+			return err
+		}
+		granted = true
+		return nil
+	}
+}
+
+// windowOptions checks the options of a launch against the window (one --name, which
+// is its name; at most one -p, which is its port; no label of another run) and
+// returns the argv the standard rule judges: `run --label <run>`, then every option
+// but -p.
+func windowOptions(runID string, w launchWindow, spec optSpec, opts []option) ([]string, error) {
+	forwarded := []string{"run", "--label", enginecontract.Label(runID)}
+	names, ports := 0, 0
+	for _, o := range opts {
+		switch o.name {
+		case "--name":
+			names++
+			if o.value != w.Name {
+				return nil, fmt.Errorf("--name %s is not the name of the window, %s", o.value, w.Name)
+			}
+		case "-p":
+			ports++
+			if w.Port == "" || o.value != w.Port {
+				return nil, fmt.Errorf("the published port %q is not the port of the window (%q): the window grants one loopback port or none", o.value, w.Port)
+			}
+			continue
+		case "--label", "-l":
+			if key, value, _ := strings.Cut(o.value, "="); key == enginecontract.LabelKey && value != runID {
+				return nil, fmt.Errorf("the label %s is the label of another run", o.value)
+			}
+		}
+		forwarded = append(forwarded, o.name)
+		if slices.Contains(spec.valued, o.name) {
+			forwarded = append(forwarded, o.value)
+		}
+	}
+	if names != 1 {
+		return nil, fmt.Errorf("the window grants a launch with exactly one --name (%s), this one has %d", w.Name, names)
+	}
+	if ports > 1 {
+		return nil, errors.New("the window grants one published port at most")
+	}
+	return forwarded, nil
+}
+
+// windowRole matches what follows ddc-<run>- in the name of a window.
+var windowRole = regexp.MustCompile(`^[a-z0-9]{1,16}$`)
+
+// requireWindow ends the contract unless w names a resource of this run and, when it
+// names a port, one fixed loopback port: the window is whole before anything runs.
+func (c *contract) requireWindow(w launchWindow) {
+	c.t.Helper()
+	prefix := enginecontract.NamePrefix + c.s.RunID + "-"
+	if role, ok := strings.CutPrefix(w.Name, prefix); !ok || !windowRole.MatchString(role) {
+		c.t.Fatalf("the name %q of the window is not %s<role>, a name of this run", w.Name, prefix)
+	}
+	if w.Port != "" && !windowPortValid(w.Port) {
+		c.t.Fatalf("the port %q of the window is not 127.0.0.1:<port>:<port>: a window publishes one fixed port on loopback or none", w.Port)
+	}
+}
+
+// expectRefusal runs call, which must make exactly one launch the engine refuses (a
+// name taken, a port taken), in a window that allows that one `run`: the launch
+// DevDesk builds carries no label, so the standard rule refuses it. It returns the
+// exchange as exchange does and reports a launch the engine accepted. Afterwards it
+// looks at what carries the name of the window, because an engine may leave a
+// container behind when it fails (docker creates the container of a port it cannot
+// bind): one with no label is removed by its id, one of this run is left to the
+// cleanup, one of another run is reported and left alone. The look also happens when
+// the call ends the contract. Limit: a process killed in the window can leave a
+// container with no label, which the cleanup by label does not see; reset.sh does.
+func (c *contract) expectRefusal(campaign, scenario, text string, w launchWindow, call func()) enginefixture.Exchange {
+	c.t.Helper()
+	c.requireLab()
+	image := c.pinnedImage()
+	c.requireWindow(w)
+	defer c.removeStray(w.Name)
+	var ex enginefixture.Exchange
+	c.withWindow(launchWindowRule(c.s.RunID, image, c.isOurs, w), func() { ex = c.exchange(campaign, scenario, text, call) })
+	if ex.Exit == 0 {
+		c.t.Errorf("%s/%s: the engine accepted the launch of %s, which it should refuse; the container is removed", campaign, scenario, w.Name)
+	}
+	return ex
+}
+
+// removeStray looks for a container called name and deals with what it finds, see
+// expectRefusal. A lookup that fails for another reason than "no such container" is
+// reported.
+func (c *contract) removeStray(name string) {
+	c.t.Helper()
+	defer c.recording()()
+	format := `{{.Id}} {{index .Config.Labels "` + enginecontract.LabelKey + `"}}`
+	out, err := dockerOutput("inspect", "--type", "container", "--format", format, name)
+	if err != nil {
+		var exit *exec.ExitError
+		if errors.As(err, &exit) && strings.Contains(strings.ToLower(string(exit.Stderr)), "no such") {
+			return
+		}
+		c.t.Errorf("looking for a container called %s after the refusal: %v: %s", name, err, failureDetail(out, err))
+		return
+	}
+	fields := strings.Fields(string(out))
+	if len(fields) == 0 || !fullID.MatchString(fields[0]) {
+		c.t.Errorf("looking for a container called %s after the refusal: the engine printed %q, want its id and its label", name, strings.TrimSpace(string(out)))
+		return
+	}
+	id, label := fields[0], ""
+	if len(fields) > 1 {
+		label = fields[1]
+	}
+	switch {
+	case c.isOurs(id):
+		// A container the contract made: the name was taken by it.
+	case label == c.s.RunID:
+		c.tried = true // the cleanup finds it by its label
+	case label != "":
+		c.t.Errorf("the container %s called %s carries the label %q, which is not the one of this run: left alone", id, name, label)
+	default:
+		c.ours[id] = "stray"
+		if err := RemoveContainer(id, true); err != nil {
+			c.t.Errorf("removing the container %s the engine left behind under the name %s: %v", id, name, err)
+		}
+	}
+}
+
+// rmiWindowRule grants the one argv `rmi <imageID>`, once, for an id of 64
+// hexadecimal characters: no -f (it would remove the image from under the container),
+// no tag, no other image. An argv it refuses does not use its attempt.
+func rmiWindowRule(imageID string) func(argv []string) error {
+	granted := false
+	return func(argv []string) error {
+		if !fullID.MatchString(imageID) {
+			return fmt.Errorf("%q is not an image id of 64 lower-case hexadecimal characters: the rmi window grants nothing", imageID)
+		}
+		if granted {
+			return errors.New("the rmi window grants one attempt and it was used")
+		}
+		if !slices.Equal(argv, []string{"rmi", imageID}) {
+			return fmt.Errorf("the rmi window grants %q and nothing else, not %q", "rmi "+imageID, argv)
+		}
+		granted = true
+		return nil
+	}
+}
+
+// expectRmiRefusal runs call, which must make exactly one `rmi <imageID>` of an image
+// a container of this run uses, in a window that allows that one argv, and returns the
+// exchange as exchange does. The standard rule refuses every rmi (an image is never
+// made by a contract), and an rmi that succeeded would remove the image every later
+// contract starts, so the use of the image is read again right before the call
+// (`ps -a -q --no-trunc --filter ancestor=<id>`) and must list a container usedImage
+// made: an id usedImage did not return, a listing that fails or one without such a
+// container ends the contract before any rmi. An rmi the engine accepted is reported.
+func (c *contract) expectRmiRefusal(campaign, scenario, text, imageID string, call func()) enginefixture.Exchange {
+	c.t.Helper()
+	c.requireLab()
+	users := c.imageUsers[imageID]
+	if len(users) == 0 {
+		c.t.Fatalf("%s/%s: the image %s was not announced by usedImage: an rmi is sent only for an image a container of this run uses",
+			campaign, scenario, imageID)
+	}
+	c.requireImageInUse(imageID, users)
+	var ex enginefixture.Exchange
+	c.withWindow(rmiWindowRule(imageID), func() { ex = c.exchange(campaign, scenario, text, call) })
+	if ex.Exit == 0 {
+		c.t.Errorf("%s/%s: the image %s was removed, so the pinned image is gone for the next contract: pull it again with contract.sh",
+			campaign, scenario, imageID)
+	}
+	return ex
+}
+
+// requireImageInUse ends the contract unless the engine lists one of users among the
+// containers made from the image.
+func (c *contract) requireImageInUse(imageID string, users []string) {
+	c.t.Helper()
+	defer c.recording()()
+	out, err := dockerOutput("ps", "-a", "-q", "--no-trunc", "--filter", "ancestor="+imageID)
+	if err != nil {
+		c.t.Fatalf("cannot read which containers use the image %s, so it is not removed: %v: %s", imageID, err, failureDetail(out, err))
+	}
+	listed := splitLines(out)
+	if !slices.ContainsFunc(users, func(user string) bool { return slices.Contains(listed, user) }) {
+		c.t.Fatalf("no container of this run uses the image %s according to the engine (ancestor filter), so an rmi would remove it: "+
+			"on docker with the containerd image store the id and the filter may not agree", imageID)
+	}
+}
+
+// healthContainer starts a container of this run whose healthcheck is `true` every
+// second (one retry), and returns its id. The health state moves with time: waitHealthy
+// waits for it.
+func (c *contract) healthContainer(role string) string {
+	c.t.Helper()
+	return c.containerWith(role, []string{"--health-cmd", "true", "--health-interval", "1s", "--health-timeout", "2s", "--health-retries", "1"})
+}
+
+// healthReads is how many times waitHealthy reads the health state, one second apart.
+const healthReads = 20
+
+// waitHealthy reads the health state of a container of this run until it is healthy,
+// at most healthReads times, a second apart. An unhealthy container, a read that
+// fails and a state that never comes end the contract, naming what was read. On
+// podman each round first runs the check once (`healthcheck run`): the health state
+// of a container of the lab VM does not move by itself (measured 2026-11-27).
+func (c *contract) waitHealthy(id string) {
+	c.t.Helper()
+	defer c.recording()()
+	last := ""
+	for i := range healthReads {
+		if i > 0 {
+			c.sleep(time.Second)
+		}
+		if c.s.Engine.Tool == enginefixture.Podman {
+			_, _ = dockerOutput("healthcheck", "run", id) // a failing check is what the read below says
+		}
+		out, err := dockerOutput("inspect", "--type", "container", "--format", "{{.State.Health.Status}}", id)
+		if err != nil {
+			c.t.Fatalf("reading the health state of %s: %v: %s", id, err, failureDetail(out, err))
+		}
+		switch last = strings.TrimSpace(string(out)); last {
+		case "healthy":
+			return
+		case "unhealthy":
+			c.t.Fatalf("the container %s is unhealthy: its check `true` cannot fail", id)
+		}
+	}
+	c.t.Fatalf("the container %s is still %q after %d reads, a second apart", id, last, healthReads)
+}
+
+// portHolderPort is the host port of portHolder: fixed, so the argv a fixture holds
+// does not change from one recording to the next, and on loopback only. A lab VM has
+// nothing else on it; anywhere else the holder fails and says so.
+const portHolderPort = "18080"
+
+// portHolder starts a container of this run that publishes 127.0.0.1:18080 (to its
+// port 80) and returns its id and the host port. The standard rule refuses a published
+// port, so the creation goes through a launch window for that one name and that one
+// port, and the window closes when the call returns.
+func (c *contract) portHolder(role string) (id, port string) {
+	c.t.Helper()
+	c.requireLab()
+	image := c.pinnedImage()
+	name := enginecontract.ResourceName(c.s.RunID, role)
+	spec := "127.0.0.1:" + portHolderPort + ":80"
+	hint := "port " + portHolderPort + " on 127.0.0.1 is taken by something else, or this is not a clean lab VM: the port holder needs it"
+	window := launchWindowRule(c.s.RunID, image, c.isOurs, launchWindow{Name: name, Port: spec})
+	c.withWindow(window, func() {
+		id = c.createHinted(hint, "container", role, name, IsContainerID,
+			"run", "-d", "--pull=never", "--label", enginecontract.Label(c.s.RunID), "--name", name, "-p", spec, image, "sleep", "600")
+	})
+	return id, portHolderPort
+}
+
+// usedVolume creates a volume of this run and a container of this run that mounts it,
+// and returns the name of the volume and the id of the container.
+func (c *contract) usedVolume(volumeRole, containerRole string) (volume, container string) {
+	c.t.Helper()
+	volume = c.volume(volumeRole)
+	mount := enginecontract.ResourceName(c.s.RunID, volumeRole) + ":/data"
+	container = c.containerWith(containerRole, []string{"-v", mount})
+	return volume, container
+}
+
+// usedNetwork creates a network of this run and a container of this run that joins
+// it, and returns what the engine printed for the network (an id for docker, the name
+// for podman) and the id of the container.
+func (c *contract) usedNetwork(networkRole, containerRole string) (network, container string) {
+	c.t.Helper()
+	network = c.network(networkRole)
+	container = c.containerWith(containerRole, []string{"--network", enginecontract.ResourceName(c.s.RunID, networkRole)})
+	return network, container
+}
+
+// usedImage starts a container of this run and returns it with the id of the image it
+// was made from: 64 lower-case hexadecimal characters, read with `image inspect
+// --format {{.Id}}` (docker keeps "sha256:" in front, podman does not) and declared
+// public, since the scenarios print it. expectRmiRefusal checks the use of the image
+// by the engine's own ancestor filter: with the containerd image store of recent
+// docker the id and the filter may disagree, which only a lab VM shows.
+func (c *contract) usedImage(role string) (container, imageID string) {
+	c.t.Helper()
+	container = c.container(role)
+	imageID = c.publicImageID()
+	c.imageUsers[imageID] = append(c.imageUsers[imageID], container)
+	return container, imageID
+}
+
+// publicImageID reads the id of the pinned image, declares it public and returns it.
+func (c *contract) publicImageID() string {
+	c.t.Helper()
+	image := c.pinnedImage()
+	defer c.recording()()
+	out, err := dockerOutput("image", "inspect", "--format", "{{.Id}}", image)
+	id := strings.TrimPrefix(strings.TrimSpace(string(out)), "sha256:")
+	if err != nil || !fullID.MatchString(id) {
+		c.t.Fatalf("the id of the image %s: want 64 hexadecimal characters, the engine printed %q (%v)", image, strings.TrimSpace(string(out)), err)
+	}
+	c.public(id)
+	return id
+}
+
+// public declares ids a fixture may keep (Redaction.Public): the id of the pinned
+// image, which every scenario that prints it shares. Redact does not touch them, and
+// a recording that holds any other id of 64 hexadecimal characters is refused. An id
+// that is not 64 lower-case hexadecimal characters, or that is a resource of this
+// run (it is redacted, never public), ends the contract and declares nothing.
+func (c *contract) public(ids ...string) {
+	c.t.Helper()
+	for _, id := range ids {
+		if !fullID.MatchString(id) {
+			c.t.Fatalf("%q is not an id of 64 lower-case hexadecimal characters: no algorithm in front, no short form", id)
+		}
+		if c.isOurs(id) {
+			c.t.Fatalf("%s is the id of a resource of this run: it is redacted and never public", id)
+		}
+	}
+	for _, id := range ids {
+		if !slices.Contains(c.publicIDs, id) {
+			c.publicIDs = append(c.publicIDs, id)
+		}
+	}
+}
+
+// ownLaunch is the launch DevDesk makes for a container of the window: detached, from
+// the pinned image, with the given name and published ports ("18080:80" becomes
+// 127.0.0.1:18080:80, LoopbackPort).
+func (c *contract) ownLaunch(name string, ports ...string) ContainerLaunchOptions {
+	c.t.Helper()
+	return ContainerLaunchOptions{Name: name, Image: c.pinnedImage(), Ports: ports, Detach: true}
+}
+
+// saysAny reports whether text holds one of words, whatever the case.
+func saysAny(text []byte, words ...string) bool {
+	lower := strings.ToLower(string(text))
+	return slices.ContainsFunc(words, func(w string) bool { return strings.Contains(lower, strings.ToLower(w)) })
 }

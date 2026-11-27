@@ -527,16 +527,17 @@ a constant of another file (reported, so it needs an exception or a literal); a 
 positional argument; a `-u` whose readable text has no `:`; a URL built by a call whose literal arguments hold no
 `scheme://`; the environment lists are not checked.
 
-### Engine contracts — `requireEngine`, `internal/testutil/enginecontract` (OC-09a1, DEVDESK-806; OC-09a2, DEVDESK-943; OC-09a3, DEVDESK-944)
+### Engine contracts — `requireEngine`, `internal/testutil/enginecontract` (OC-09a1, DEVDESK-806; OC-09a2, DEVDESK-943; OC-09a3, DEVDESK-944; OC-09b1, DEVDESK-807)
 
 A contract test calls the functions of a package against a real docker or podman, outside CI, in the disposable VMs
 of `tools/engine-vms`. The third story (OC-09a3) adds the recorder, described under "Recording" below; no real fixture is
-versioned before OC-09b. The first story gives the gate, the entry point
+versioned before OC-09b2 (OC-09b1 adds the helpers and the contracts of the scenarios, "The first scenarios" below). The first story gives the gate, the entry point
 every contract starts with, the guard that holds contracts to it, and the task that runs them; the second gives the
 resources a contract creates (labelled, named), the argv rule every call goes through, the cleanup that removes only
 what carries the label of the run, the mark of a test VM, and the sentinel. The contracts there are
 `TestContractEngineAnswersItsVersion` (`engine_contract_test.go`, read-only), `TestContractRemovingARunningContainerIsRefused`
-and `TestContractCleanupTouchesOnlyThisRun` (`containers_contract_test.go`), all in `internal/docker`.
+and `TestContractCleanupTouchesOnlyThisRun` (`containers_contract_test.go`), all in `internal/docker`; OC-09b1 adds the nine
+scenarios listed under "The first scenarios".
 
 - **Where a contract lives.** In the package it contracts, as a `*_contract_test.go` file of that package, so it can
   call the unexported runner and record the argv DevDesk really builds. The decision is the environment, not a
@@ -654,22 +655,26 @@ and `TestContractCleanupTouchesOnlyThisRun` (`containers_contract_test.go`), all
     bare name would pass the host's; the value must not be a secret, a contract has none), `--network` (`bridge`,
     `none`, `podman` or a network of the run: never `host` or `container:`), `-v`/`--volume` (`name:/path[:opts]`
     where name is a volume of the run: never a path, so no bind mount and no engine socket), `--entrypoint`,
-    `-u`/`--user`, `-w`/`--workdir`. Everything else is refused with a message that cites `contractArgvRule`, and
+    `-u`/`--user`, `-w`/`--workdir`, and (OC-09b1) `--health-cmd`, `--health-interval`, `--health-timeout` and
+    `--health-retries`: they run a command inside the container and touch nothing of the host. Everything else is
+    refused with a message that cites `contractArgvRule`, and
     these say why: `--privileged`, `--replace`, `--mount`, `--cap-add`, `--device`, `--security-opt`, `--pid`, `--ipc`,
-    `--uts`, `--userns`, `--volumes-from`, `--env-file`. No published port: the contracts use none. A run with no
+    `--uts`, `--userns`, `--volumes-from`, `--env-file`, `-p` and `--publish` (a port is published only inside a launch
+    window, "Windows" below). A run with no
     `--name` is allowed (the engine names it); one with a `--name` outside the prefix is not.
   - `volume create` and `network create`: `--label` and exactly one name starting with `ddc-<run>-`; no `--opt`
     (a device option binds a host path), no driver. **`pod create` is refused** (label or not): no cleanup of pods
     exists, so one would stay in the store.
   - `rm`, `kill`, `stop`, `start`, `restart`, `pause`, `unpause`, `volume rm`, `network rm`, `network connect` and
-    `disconnect` may name only resources of this run, by exact reference (`ours`; connect and disconnect check the
+    `disconnect` (and, OC-09b1, podman's `healthcheck run`) may name only resources of this run, by exact reference (`ours`; connect and disconnect check the
     container, the last name), and take **only the options of the verb**: `rm` `-f`/`--force`, `-v`/`--volumes`,
     `-t`/`--time`; `stop` and `kill` `-t`/`--time` and `-s`/`--signal`; `restart` `-t`; `volume rm`, `network rm`,
-    `start`, `pause`, `unpause`, `connect` and `disconnect` none. So `--depend`, `--all`, `--latest`, `--filter`,
+    `start`, `pause`, `unpause`, `connect`, `disconnect` and `healthcheck run` none. So `--depend`, `--all`, `--latest`, `--filter`,
     `--cidfile`, `--ignore` and a `-f` on a network or a volume are refused.
   - Refused as a whole: every `prune` (the functions of DevDesk have no label filter, so a prune touches the whole
-    store; OC-09b may allow one under a precondition), `system`, `pull`, `push`, `load`, `import`, `build`, `commit`,
-    `tag`, `login`, `logout`, `exec`, `cp`, `save`, `export` and `rmi`.
+    store), `system`, `pull`, `push`, `load`, `import`, `build`, `commit`,
+    `tag`, `login`, `logout`, `exec`, `cp`, `save`, `export` and `rmi`. The three windows below are the only
+    exceptions, each for one argv.
   - `--url`, `--connection`, `--remote`, `--root`, `--runroot`, `--storage-driver`, `--host`, `-H` and `--context` are
     refused **at any position** of the argv (the command after an image included), and an argv that starts with an
     option is an unknown verb. A verb the rule does not know and an empty argv are refused with a message that names
@@ -711,9 +716,96 @@ and `TestContractCleanupTouchesOnlyThisRun` (`containers_contract_test.go`), all
   contracts, and after them (whatever their result: nothing between can leave the script) inspects the sentinel. If it
   is gone the run fails with "the cleanup touched a container without the label"; if the engine does not answer it
   fails with another message ("did not answer after the contracts"), which does not blame the cleanup. If the creation
-  prints no id the script removes the container by its name before it gives up. It is removed by its id, and
+  prints no id the script removes the container by its name before it gives up. It also gives the contracts the id
+  of the sentinel in `DEVDESK_ENGINE_CONTRACT_SENTINEL` (`enginecontract.SentinelEnv`, in the shared `vars`, only when
+  it is 64 hexadecimal characters, else the script stops with `die` and its trap removes the sentinel; "The sentinel in a
+  fixture" below). It is removed by its id, and
   nothing else the script removes in the engine. The tests in `script_sentinel_test.go` read the script's text for the order and
   the shape of those steps, and `TestVersionsEnvPinsTheContractImageByDigest` the pin; that the sentinel survives with each engine is verified only on the Incus host.
+- **Windows (OC-09b1, DEVDESK-807).** Some scenarios need an argv `contractArgvRule` refuses: a `prune`, a launch DevDesk
+  builds (it carries no label and, for a port, publishes one), an `rmi`. A **window** is how a contract sends one, and
+  it is narrow on every side: it names the one argv it grants, grants it **once** (an argv it refuses does not use the
+  attempt), exists for the length of one call (`withWindow` puts the standard rule back when the call returns, also
+  when the call ended the contract), and everything else the call does is judged by the standard rule as before. The
+  window is a second judge in front of the standard one: it is never a loosening of `contractArgvRule`, and a refusal
+  names both reasons. Three windows exist, each a pure function of its inputs (tested without an engine) and a method of `contract`:
+  - **Prune** (`pruneWindowRule(kind)`, `c.expectPrune(campaign, scenario, text, kind, call)`). `kind` is `container`,
+    `network` or `volume`, and the one argv is `<kind> prune -f`, what `PruneContainers`, `PruneNetworks` and
+    `PruneVolumes` send: never `-a` or `--all`, never a filter, never `system prune` or an image prune, no other kind.
+    The condition: **the whole store of that kind holds nothing but resources of this run**, read right before the call
+    (`ps -a -q --no-trunc`, `network ls --format {{.Name}}` with the networks the engines make, `volume ls -q`). A
+    foreign resource (named in the message), a listing that fails, a kind with no window or a missing lab mark ends the
+    contract before the engine is asked to prune. A lab VM after a reset holds the sentinel container, so the container
+    prune never passes there: the scenario that uses `expectPrune` today is the volume one.
+  - **Launch** (`launchWindowRule`, `launchWindow{Name, Port}`, `c.expectRefusal(campaign, scenario, text, w, call)`). One
+    `run` that names exactly `w.Name` (a name of this run), the pinned image, `--pull=never`, optionally `-p w.Port` (one
+    fixed loopback port, `127.0.0.1:<port>:<port>`; `0.0.0.0`, no address, an IPv6 one or an engine-picked one are refused,
+    and a window is declared whole before anything runs) and that the standard rule would grant once the label of the
+    run is added to the argv it judges: that is the only thing added, and the argv is rebuilt from the parsed options, so
+    a word read as a value is never read as an option by the rule. `expectRefusal` expects the engine to refuse (an
+    exit code of 0 is reported) and afterwards looks at what carries the name of the window, in a call of its own
+    (`inspect --type container --format '{{.Id}} {{index .Config.Labels "devdesk.test"}}' <name>`): docker creates the
+    container of a port it cannot bind, then fails. One with **no label** is removed by its id (`RemoveContainer`), one
+    of this run is the cleanup's, one with another run's label is reported and left alone. The look also happens when the
+    call ends the contract. `c.portHolder(role)` creates its container through the same window rule (labelled, with
+    `-p 127.0.0.1:18080:80`, `sleep 600`).
+  - **rmi** (`rmiWindowRule(imageID)`, `c.expectRmiRefusal(campaign, scenario, text, imageID, call)`). The one argv
+    `rmi <id>` of an image id of 64 hexadecimal characters that `usedImage` returned: never `-f`, a tag or a second image.
+    The use of the image is read again right before the call (`ps -a -q --no-trunc --filter ancestor=<id>`) and must
+    list a container this run made; otherwise the contract ends before any `rmi`, since an `rmi` that succeeded would remove the
+    image every later contract starts (it is reported when that happens anyway).
+- **Helpers (OC-09b1)**, all in `contract_support_test.go`, all labelled and named like `c.container` and all asking for the lab mark:
+  `c.healthContainer(role)` (`--health-cmd true --health-interval 1s --health-timeout 2s --health-retries 1`),
+  `c.waitHealthy(id)` (20 reads of `{{.State.Health.Status}}` a second apart through the `sleep` seam of `contract`; on podman
+  each round first runs `healthcheck run <id>`, because the health state of a container of the lab VM does not move by
+  itself, measured 2026-11-27; `unhealthy`, a failed read and 20 reads without `healthy` end the contract naming what was
+  read), `c.portHolder(role)` (port **18080** on `127.0.0.1`, fixed so a fixture does not change between recordings; a
+  VM with something else on it, or a machine that is not a lab, fails the contract naming the port),
+  `c.usedVolume(volumeRole, containerRole)`, `c.usedNetwork(networkRole, containerRole)` (the container joins the network by
+  name), `c.usedImage(role)` (a container and the id of its image, read with `image inspect --format {{.Id}}`, the algorithm
+  stripped) and `c.public(ids...)` (the ids a fixture may keep, `Redaction.Public`: 64 lower-case hexadecimal characters, never
+  an id of a resource of this run; `usedImage` declares the id of the image it read). `c.exchangeWith(cmp, ...)` is
+  `c.exchange` with a Comparer for verifying.
+- **Comparers (OC-09b1).** `enginecontract.Tolerating(kinds ...Tolerance)` judges two exchanges equal when their streams are
+  equal once every value of the tolerated kinds is replaced by one placeholder on both sides: `Durations` (`Up 3 seconds`,
+  `Created Less than a second ago`, `Up About an hour`: a number and a unit, `Less than a second`, `About a/an <unit>`, nothing
+  abbreviated), `Timestamps` (`2026-11-27 12:00:00 +0000 UTC`, with a fraction, a zone name or a monotonic reading, and
+  RFC 3339: the CreatedAt of `ps` and `network ls`) and `Health` (`(healthy)`, `(unhealthy)`, `(starting)`,
+  `(health: starting)`). Nothing else is tolerated (the number in `Exited (137)`, a port, a name, the word `ago`, a status
+  with a marker against one without). The argv and the exit code are still compared exactly first; an unknown kind panics when
+  the Comparer is made. `SameUpToDurations()` is `Tolerating(Durations)` and `SameUpToDurationsAndHealth()` is
+  `Tolerating(Durations, Health)`. The comparers spell no argv.
+- **The sentinel in a fixture (OC-09b1).** The sentinel container of `contract.sh` is in the store while the contracts run, so a
+  `ps` they record lists it: its id (a new one at every run) is the variable `DEVDESK_ENGINE_CONTRACT_SENTINEL`, and
+  `c.redaction()` maps it to the role `sentinel` (full id and the 12 characters `ps` prints), so two recordings give the same
+  fixture; its name `ddc-sentinel-<run>` loses the run id like every name. A value that is not 64 lower-case hexadecimal characters
+  ends the contract (the script sets it only for such an id). Nothing else foreign is expected in a list of a freshly reset VM: a
+  container, a volume or a network of its own would appear in the fixture and make it vary, which a recording on the VMs shows.
+- **The first scenarios (OC-09b1).** Nine contracts, one scenario each, next to the existing `containers/rm-running`; no fixture is
+  versioned yet (the four recordings are OC-09b2): `containers/ps-health` (`TestContractPsReportsTheHealthOfAContainer`: `ListContainers(true)` after
+  `healthContainer` and `waitHealthy`, compared with durations and timestamps tolerated, not the health), `containers/inspect-absent` (`TestContractInspectOfARemovedContainerIsRefused`: a container removed, then inspected;
+  the inspect of a container that is there is out of scope: its id is unknown and its values volatile), `images/rmi-used`
+  (`TestContractRemovingAnImageInUseIsRefused`), `networks/rm-used` (`TestContractRemovingANetworkInUseIsRefused`), `volumes/rm-used`
+  (`TestContractRemovingAVolumeInUseIsRefused`), `volumes/ls` (`TestContractListingVolumesShowsTheVolumesOfTheRun`),
+  `volumes/prune-unused` (`TestContractVolumePruneOfAStoreOnlyThisRuns`: docker 23 and later prunes anonymous volumes only, so
+  the named volume stays and its cleanup removes it; the contract logs which of the two happened), `launch/name-taken`
+  (`TestContractLaunchWithATakenNameIsRefused`: exit 125 on both engines, `already in use`) and `launch/port-taken`
+  (`TestContractLaunchOnATakenPortIsRefused`: exit 125 or 126, `already allocated`, `already in use` or `Address in use`).
+  The exit code and the words of the other refusals are logged where the two engines differ, and the fixture holds them.
+  The files are `containers_`, `images_`, `networks_`, `volumes_` and `launch_contract_test.go`; the helpers and the tests of the helpers
+  (`contract_window_internal_test.go`, `contract_prune_internal_test.go`, `contract_creation_internal_test.go`,
+  `contract_sentinel_internal_test.go`, `compare_test.go`, `compare_tolerating_test.go`) run with a `fakecli` engine and no real one.
+- **Limits of OC-09b1, and what only the VMs say.** `expectRefusal` does not handle `-e NAME`: the launch DevDesk builds for an
+  environment variable passes the name only, which the standard rule refuses (a bare name would pass the host's), so a scenario
+  with an environment is not a window. A process killed while a launch window is open can leave a container with **no label**
+  that the cleanup by label does not see (`reset.sh`, the default of `contract.sh`, does). The recorder does not pass an
+  environment to the engine (`dockerCmd.Env` is ignored). **To confirm on the four engines:** the wording of the
+  refusals (the assertions are loose on purpose); that `inspect` of a missing container says "no such" (`removeStray` and
+  `inspect-absent` rely on it); the health state of podman rootful and rootless with `healthcheck run`; that docker with
+  the containerd image store gives `image inspect --format {{.Id}}` an id the `ancestor` filter knows (the contract ends
+  with a message that says so when it does not); that `ps` prints the CreatedAt in the forms the comparer knows; and that the
+  stderr of docker's port refusal holds an endpoint id of 64 hexadecimal characters that `Redact` is not told about (a recording
+  would then be refused by `unknown-engine-id`, and a redaction for it belongs to OC-09b2).
 - **Contracts on the developer's own machine.** A read-only contract can run there, in verify mode, with the
   variable and the tool set by hand (not exported): `go test -run '^TestContractEngineAnswers' ./internal/docker`. One
   that creates or removes a resource is refused without the lab mark (above): outside a test VM it fails with a
@@ -747,14 +839,15 @@ and `TestContractCleanupTouchesOnlyThisRun` (`containers_contract_test.go`), all
   - *Verifying.* `Session.Verify(t, campaign, scenario, raw, redaction, cmp)` loads the embedded campaign, takes the
     fixture of the scenario for the engine (tool, version, mode; a skipped one is not selected), redacts the exchange and
     compares: argv and exit code exactly, the streams through the `Comparer` (`func(recorded, got Exchange) error`, nil =
-    exact; OC-09b gives one to the scenarios that carry a duration). A difference is an `Errorf` (the contract goes on)
+    exact; `enginecontract.Tolerating` and the two named Comparers give one to the scenarios that carry a duration, a
+    timestamp or a health state, "Comparers" below). A difference is an `Errorf` (the contract goes on)
     with the lengths and the first line that differs; a line is cited **only if it passes `CheckLeaksAs`** (the exchange is
     redacted, not checked), else the report says it is not shown and names the rules (security finding B3). **When the campaign
     has fixtures for this engine (tool, version, mode) but none for the scenario, `Verify` fails (`Fatal`): a misspelled or
     renamed scenario would compare nothing. With no fixture at all for the engine, `Verify` logs one line (`no recorded fixture
     for ... record it with mise run engine-contract:record`) and returns; it does not skip.** A `t.Skip` ends the test (`runtime.Goexit`), so the assertions a contract makes after
     `c.exchange` would never run on a checkout without fixtures, which is every checkout before OC-09b (team lead decision).
-    `enginecontract.RequireFixtures` (false today) turns that case into a hard failure; OC-09b sets it to true when it raises
+    `enginecontract.RequireFixtures` (false today) turns that case into a hard failure; OC-09b2 sets it to true when it raises
     `minVersionedFixtures`, and `TestVerifyFailsHardOnceFixturesAreVersioned` reads that floor from `stale_test.go` and fails if
     the floor is raised and the constant is not. `VerifyAgainst(t, fixtures, ...)` is the
     seam the tests use. `VersionsFile` defaults to `enginefixture.VersionsSourceFile()`.
