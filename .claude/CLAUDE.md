@@ -376,7 +376,7 @@ goes through the recorder of the contract and its allow list `contractArgvRule`,
 no `--privileged`, `--replace`, bind mount, host namespace, `--cap-add`, `--device`, `--security-opt`, published port; a destructive
 verb names only resources of the run and takes only its own options, so no `--force` on `network rm` or `--depend` on `rm`;
 `--host`, `-H`, `--context`, `--connection`, `--url`, `--remote`, `--root`, `--runroot`, `--storage-driver` are refused at any
-position; every `prune`, `system`, `pull`, `rmi` and `pod create` are refused; an unknown verb or option is refused: add it there
+position; every `prune`, `system`, `pull`, `rmi` and `pod create` are refused (but inside the three windows below); an unknown verb or option is refused: add it there
 with its reason). `Require` also refuses `DOCKER_HOST`, `DOCKER_CONTEXT`, `CONTAINER_HOST` and `CONTAINER_CONNECTION` (not the
 `~/.docker/config.json` context), and the image must be `repository@sha256:<64 hex>` (`contract.sh`: the exact alpine pin). The cleanup (`cleanupNow`, registered by `startContract`) lists by the
 label filter, **inspects the label of each candidate again**, removes only a label equal to the run through `Remove*` (G3), and
@@ -384,6 +384,17 @@ reports anything else without touching it. Creating or removing needs the lab ma
 valid and `/etc/dd/current` holding `n` or `n1` (`enginecontract.CheckLab`; root can forge the file on a dev machine, it stops an
 accident, not an adversary). `contract.sh` pulls `CONTRACT_IMAGE` (`versions.env`, pinned by digest) into the VM, the only pull,
 and checks a label-less sentinel container after the contracts (`vm_as_mode`). See `docs/architecture/network.md`, "Engine contracts".
+First scenarios (OC-09b1, DEVDESK-807): nine more contracts in `containers_`, `images_`, `networks_`, `volumes_` and `launch_contract_test.go`
+(`ps-health`, `inspect-absent`, `rmi-used`, `rm-used` for a network and a volume, `volumes/ls`, `volumes/prune-unused`, `name-taken`,
+`port-taken`), with helpers in `contract_support_test.go`: `healthContainer`, `waitHealthy`, `portHolder` (port 18080 on loopback),
+`usedVolume`, `usedNetwork`, `usedImage`, `public`, and three **windows** for the argv `contractArgvRule` refuses, each one argv, once, for one call, never a
+loosening of the rule: `expectPrune` (`<kind> prune -f` of container, network or volume, only when a read right before shows the whole
+store is this run's), `expectRefusal` (one `run` that names the window's name and optionally one loopback port; what the engine leaves
+behind under that name is removed by id) and `expectRmiRefusal` (`rmi <id>` only after the ancestor filter shows a container of the run uses the image). Comparers
+`enginecontract.Tolerating(Durations, Timestamps, Health)`, `SameUpToDurations` and `SameUpToDurationsAndHealth` leave the values that move with the clock out
+of a comparison; `contract.sh` passes the sentinel's id as `DEVDESK_ENGINE_CONTRACT_SENTINEL` and the recorder redacts it to the role `sentinel`.
+No fixture is versioned yet (OC-09b2 records the four configurations; `minVersionedFixtures` and `RequireFixtures` stay as they are). To confirm on the VMs: the
+wording of the refusals, the `inspect` of a missing container, podman's health state, docker with the containerd image store, the form of `CreatedAt`.
 
 **Tests and recorded CLI exchanges (DEVDESK-805, OC-08a).** `internal/enginefixture` holds what a docker or podman
 answered to one argv, one `.cli` text file per exchange (`# key: value` headers in a fixed order, stdout and stderr of

@@ -194,6 +194,11 @@ if [[ ! $sentinel =~ ^[0-9a-f]{12,64}$ ]]; then
   die "the sentinel was not created: $engine printed ${printed:-nothing}"
 fi
 
+# The sentinel is a resource of somebody else that a listing (`ps`) of the contracts shows, with an id that
+# changes at every run: the contracts get it as DEVDESK_ENGINE_CONTRACT_SENTINEL and the recorder redacts it
+# (id and name) to one stable role. Only the full id `run -d` prints is accepted, so the variable is 64 hex.
+[[ $sentinel =~ ^[0-9a-f]{64}$ ]] || die "the sentinel id is not the 64 hexadecimal characters run -d prints: $sentinel"
+
 # Explicit environment: nothing of the VM's own (a CI variable, a proxy) reaches a contract.
 vars=(
   "PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
@@ -201,6 +206,7 @@ vars=(
   "DEVDESK_ENGINE_CONTRACT_TOOL=$engine"
   "DEVDESK_ENGINE_CONTRACT_RUN=$run"
   "DEVDESK_ENGINE_CONTRACT_IMAGE=$CONTRACT_IMAGE"
+  "DEVDESK_ENGINE_CONTRACT_SENTINEL=$sentinel"
   "DEVDESK_ENGINE_VERSIONS=$vmdir/versions.env"
 )
 # Only a recording sets these, and only here, in the environment of the test binary in the VM.

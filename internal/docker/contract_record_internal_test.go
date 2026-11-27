@@ -43,6 +43,7 @@ func recordingContract(t *testing.T, shape engine.Shape, fake fakecli.Scenario) 
 	t.Helper()
 	openLab(t)
 	t.Setenv("HOME", "/home/alicetest")
+	t.Setenv(enginecontract.SentinelEnv, sentinelID) // a recording demands it (OC-09b1 hardening)
 	out := t.TempDir()
 	s := sessionOf(shape, labRunID)
 	s.Mode = enginecontract.Record

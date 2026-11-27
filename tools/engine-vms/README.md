@@ -156,7 +156,21 @@ Usage: `contract.sh verify <docker|podman> <n|n1> [--mode rootful|rootless] [--n
     or has no term, and the import runs with `--require-denylist`. Review the diff before committing: the fixtures are public
     text kept in the history. The import reports `written`, `unchanged`, `kept` against the target directory, so with
     `--keep-out` against that directory and not the repository.
-- Not confirmed on the VMs yet: a real recording on the four configurations.
+- **The sentinel reaches the contracts** (OC-09b1, DEVDESK-807). Besides the run id and the image, the explicit environment of the
+  contracts carries `DEVDESK_ENGINE_CONTRACT_SENTINEL=<id of the sentinel container>`, only when it is a full 64-hex id (the script
+  stops otherwise): a `ps` a contract records lists the sentinel, and the recorder redacts its id and its name to a stable role, so
+  two recordings give one fixture. A container, a volume or a network of the VM's own would show in a recorded list and make the fixture
+  vary: a freshly reset VM has none.
+- **The first scenarios** (OC-09b1) are contracts of `internal/docker` (`containers_`, `images_`, `networks_`, `volumes_` and
+  `launch_contract_test.go`, see `docs/architecture/network.md`, "Engine contracts"). They use **port 18080 on 127.0.0.1** (the port
+  holder of `launch/port-taken`), so a VM that listens there fails that contract naming the port; the lab VMs have nothing on it.
+  Two of them send an argv the standard rule refuses, each in a narrow window: a launch that the engine refuses, and an `rmi` of an image a
+  container of the run uses (it never removes the pinned image: it reads the use of the image first, and is reported if it ever
+  succeeds). A process killed while such a launch is open can leave a container with no label that the cleanup by label does not
+  see; `reset.sh` (the default of `contract.sh`) removes it.
+- Not confirmed on the VMs yet: a real recording on the four configurations, the scenarios of OC-09b1 (the wording of the refusals,
+  `inspect` of a missing container, the health state of podman, the id of the image with docker's containerd image store, the
+  forms of the creation time in `ps`).
 
 ## Threat model and limits
 
