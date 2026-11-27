@@ -53,6 +53,9 @@ type contract struct {
 	sleep func(time.Duration)
 	// publicIDs are the ids of 64 hexadecimal characters a fixture may keep (public).
 	publicIDs []string
+	// anonymousIDs is how many ids nobody owns the scenario of this contract accepts to
+	// replace (Redaction.Anonymous); 0 unless the contract declared it (anonymous).
+	anonymousIDs int
 	// imageUsers maps the id of an image usedImage returned to the containers of this
 	// run made from it: expectRmiRefusal sends an rmi only for an image listed here.
 	imageUsers map[string][]string
@@ -290,7 +293,7 @@ const sentinelRole = "sentinel"
 // field empty, and the leak check is the net for what that lets through). The ids
 // public() declared are kept as they are.
 func (c *contract) redaction() enginefixture.Redaction {
-	r := enginefixture.Redaction{RunID: c.s.RunID, IDs: map[string]string{}, Public: slices.Clone(c.publicIDs)}
+	r := enginefixture.Redaction{RunID: c.s.RunID, IDs: map[string]string{}, Public: slices.Clone(c.publicIDs), Anonymous: c.anonymousIDs}
 	for ref, role := range c.ours {
 		if fullID.MatchString(ref) {
 			r.IDs[ref] = role
@@ -1615,6 +1618,24 @@ func (c *contract) publicImageID() string {
 	}
 	c.public(id)
 	return id
+}
+
+// maxAnonymous bounds what a contract may declare: a message that names more ids than that is
+// not the refusal of one resource, and the recording is better refused.
+const maxAnonymous = 8
+
+// anonymous declares how many ids nobody owns the exchange of this contract may hold and
+// the recording replaces, in the order they appear, by stable placeholders (Redaction.Anonymous):
+// the network endpoint docker names when it refuses a port or a removal, a new id at every run
+// that no resource of the run owns. It is a maximum, never a default: one more id than declared
+// is refused by the recorder (rule unknown-engine-id), and a contract that has no such id does not
+// call it. The declaration holds for the contract, so a contract that declares it makes one scenario.
+func (c *contract) anonymous(n int) {
+	c.t.Helper()
+	if n < 1 || n > maxAnonymous {
+		c.t.Fatalf("anonymous(%d): declare between 1 and %d unknown ids, the most this scenario's message may name", n, maxAnonymous)
+	}
+	c.anonymousIDs = n
 }
 
 // public declares ids a fixture may keep (Redaction.Public): the id of the pinned

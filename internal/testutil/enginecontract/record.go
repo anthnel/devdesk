@@ -52,8 +52,9 @@ func (s *Session) Record(t testing.TB, campaign, scenario, text string, ex engin
 		t.Fatalf("recording %q/%q: the campaign and the scenario are lower-case words of letters, digits and single dashes, no \"--\"", campaign, scenario)
 	}
 
+	r = withPinnedImage(r)
 	redacted, header := enginefixture.Redact(ex, r)
-	if n := enginefixture.UnknownEngineIDs(redacted, withPinnedImage(r)); n > 0 {
+	if n := enginefixture.UnknownEngineIDs(redacted, r); n > 0 {
 		t.Fatalf("recording %s/%s refused: rule %s, %d word(s) of 64 hexadecimal characters that Redact was not told about "+
 			"(a container of another run, a sentinel); nothing was written, the text is not shown; declare a public id in Redaction.Public",
 			campaign, scenario, enginefixture.RuleUnknownEngineID, n)
@@ -84,7 +85,8 @@ func (s *Session) Record(t testing.TB, campaign, scenario, text string, ex engin
 }
 
 // withPinnedImage adds the digest of the pinned image (ImageEnv), which is public, to
-// the ids a recording may hold.
+// the ids a recording may hold; Redact and UnknownEngineIDs both get it, so a scenario that
+// anonymizes unknown ids leaves the digest in the argv alone.
 func withPinnedImage(r enginefixture.Redaction) enginefixture.Redaction {
 	if _, digest, ok := strings.Cut(os.Getenv(ImageEnv), "@sha256:"); ok && ValidImage(os.Getenv(ImageEnv)) {
 		r.Public = append(slices.Clone(r.Public), digest)
@@ -196,7 +198,7 @@ func (s *Session) verifyAgainst(t testing.TB, fixtures []enginefixture.Fixture, 
 			e.Tool, e.Version, e.Mode, scenario)
 		return
 	}
-	got, _ := enginefixture.Redact(ex, r)
+	got, _ := enginefixture.Redact(ex, withPinnedImage(r))
 	for _, d := range differences(recorded.Exchange, got, cmp) {
 		t.Errorf("scenario %q differs from %s: %s", scenario, recorded.Name, d)
 	}

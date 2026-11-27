@@ -43,6 +43,11 @@ func TestContractLaunchOnATakenPortIsRefused(t *testing.T) {
 	c := requireEngine(t)
 	_, port := c.portHolder("p1")
 	name := enginecontract.ResourceName(c.s.RunID, "c2")
+	// Docker's refusal names the network endpoint it set up for the container it made and then
+	// could not start (64 hexadecimal characters, new at every run), and no resource of the run owns
+	// it: the recording replaces up to two such ids (two words seen on docker 29.10.1) by stable
+	// placeholders, and refuses a third.
+	c.anonymous(2)
 
 	var err error
 	ex := c.expectRefusal("launch", "port-taken", "a launch that publishes a port another container holds is refused",

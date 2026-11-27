@@ -824,8 +824,8 @@ scenarios listed under "The first scenarios".
   `inspect-absent` rely on it); the health state of podman rootful and rootless with `healthcheck run`; that docker with
   the containerd image store gives `image inspect --format {{.Id}}` an id the `ancestor` filter knows (the contract ends
   with a message that says so when it does not); that `ps` prints the CreatedAt in the forms the comparer knows; and that the
-  stderr of docker's port refusal holds an endpoint id of 64 hexadecimal characters that `Redact` is not told about (a recording
-  would then be refused by `unknown-engine-id`, and a redaction for it belongs to OC-09b2).
+  stderr of docker's port refusal holds endpoint ids that `Redact` is not told about: it does (two words of 64 hexadecimal characters
+  on docker 29.10.1, the dry-run of OC-09b2), and `c.anonymous` is the answer ("Anonymous ids" below).
 - **Contracts on the developer's own machine.** A read-only contract can run there, in verify mode, with the
   variable and the tool set by hand (not exported): `go test -run '^TestContractEngineAnswers' ./internal/docker`. One
   that creates or removes a resource is refused without the lab mark (above): outside a test VM it fails with a
@@ -1089,6 +1089,23 @@ the synthetic files of `internal/enginefixture/testdata/synthetic/*.cli`, each m
   `CheckLeaksAs`, which cannot tell a digest from the id of a stranger's container. Chosen over a replacement by a placeholder
   because it keeps `Redact` simple and idempotent and fails where a human decides; the cost is that a scenario that prints an image
   id declares it in `Redaction.Public`.
+- **Anonymous ids** (OC-09b2, DEVDESK-807, `anonymous.go`). Docker's refusal of a published port names the network endpoint it set up for the
+  container it made and could not start (two words of 64 hexadecimal characters on docker 29.10.1, new at every run), and `network rm` of a
+  network in use names the endpoint of the container, `id:"<12 hex>"`. No resource of the run owns such an id, so `unknown-engine-id` refused
+  the recording of `launch/port-taken` on docker, and a fixture of `networks/rm-used` would have changed at every recording. A scenario that
+  has such a message declares **how many it accepts**: `c.anonymous(n)` (1 to 8; a contract helper, in `contract_support_test.go`) sets
+  `Redaction.Anonymous`, the most **distinct** unknown ids the scenario accepts to replace. With it above 0 `Redact` replaces each
+  hexadecimal word of 64 or of 12 characters that is not known (a role of `IDs`, a `Public` id, the placeholders) by `PlaceholderID("anon-1")`,
+  `("anon-2")`, ... in the order they appear (argv, stdout, stderr), the same word by the same placeholder, in any case, a word of 12 by the first
+  12 characters of the placeholder, and a short word that starts a long one met before (or after) shares its placeholder. A word **beyond the number
+  is left as it is**, and `UnknownEngineIDs` counts it (it also counts unknown words of 12 when `Anonymous` is above 0, and never otherwise), so the
+  recording is refused as before: the limit is never widened silently. The category in the `redacted` header stays `ids`. `Session.Record` and
+  `Session.Verify` give `Redact` the same `Public` as `UnknownEngineIDs` (with the digest of the pinned image), so the digest in an argv is not
+  anonymized. Declared where the message names such an id: `launch/port-taken` (`c.anonymous(2)`) and `networks/rm-used` (`c.anonymous(1)`).
+  Read and not declared: `volumes/rm-used` (docker names the container, which the run owns), `images/rmi-used` (the short id of the image is the
+  prefix of a public id, the container's is the run's), `containers/rm-running`, `launch/name-taken` (the container of the run). **Limit:** a
+  scenario that declares a number accepts any unknown word of 12 or 64 characters up to it, including one that is not an id (a 12-digit number);
+  keep the number as low as what was observed, and the other docker and podman versions are confirmed only by a recording.
 - **`Import`** (OC-09a3, `importer.go`). `Import(ImportOptions{From, Into, Supported, Deny, Local}) (ImportReport, error)` is what
   the workstation runs on the directory the recorder wrote, before anything reaches `fixtures/`; it trusts nothing the VM did and
   is **all or nothing**. `From` holds only regular files `<campaign>/<name>.cli` (campaign `^[a-z0-9-]+$`): a link (also as a

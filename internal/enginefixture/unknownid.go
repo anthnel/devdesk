@@ -18,21 +18,18 @@ const idLength = 64
 // about: a container of another run, a sentinel, a stranger's, so it must not reach
 // a fixture. The recorder refuses the exchange on a count above zero.
 //
-// Limits: only whole words of exactly 64 characters count (a longer hexadecimal
+// A scenario that declared Redaction.Anonymous also has its unknown words of 12 counted (the
+// short form of an id), which Redact replaced up to that number; the placeholders it put there
+// are known. Limits: only whole words of exactly 64 characters count (a longer hexadecimal
 // word, a sha512, is not an engine id), and a 64-hex word that is not an id of the
 // engine (a hash a container prints) is reported as well: declare it in r.Public.
 func UnknownEngineIDs(redacted Exchange, r Redaction) int {
-	known := map[string]bool{}
-	for _, role := range r.IDs {
-		known[PlaceholderID(role)] = true
-	}
-	for _, id := range r.Public {
-		known[strings.ToLower(id)] = true
-	}
+	known := knownIDWords(r)
 	count := func(text string) int {
 		n := 0
 		for _, word := range hexWords(text) {
-			if len(word) == idLength && !known[strings.ToLower(word)] {
+			// A word of 12 is an id only for a scenario that declared it accepts unknown ids.
+			if (len(word) == idLength || len(word) == shortIDLen && r.Anonymous > 0) && !known[strings.ToLower(word)] {
 				n++
 			}
 		}
