@@ -217,7 +217,7 @@ func TestMutateSurfacesCombinedOutputOnFailure(t *testing.T) {
 		err:    map[string]error{"stop": errors.New("exit status 1")},
 	})
 
-	err := StopContainer("nope")
+	err := StopContainer("0123456789ab")
 
 	if err == nil {
 		t.Fatal("StopContainer() returned nil on a failing invocation")

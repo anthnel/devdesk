@@ -3,6 +3,7 @@ package docker
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"strconv"
 	"strings"
 
@@ -334,6 +335,9 @@ func firstWord(s string) string {
 
 // RemoveImage removes a Docker image by ID. If force is true, uses -f flag.
 func RemoveImage(id string, force bool) error {
+	if !IsImageID(id) {
+		return fmt.Errorf("%s: %q is not an image ID: %w", cmdLabel("rmi"), id, ErrInvalidImageID)
+	}
 	args := []string{"rmi", id}
 	if force {
 		args = []string{"rmi", "-f", id}
