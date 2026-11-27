@@ -78,9 +78,29 @@ func engineBridgeNets() []netip.Prefix {
 // image that keeps it). It starts empty, and each entry says why.
 var ImageHomes = map[string]string{}
 
+// AllowedInternalNames lists the names in an internal zone that an engine or a
+// cluster writes itself and that say nothing about the recording machine, mapped to
+// the reason. An entry that starts with "*." admits any name under that suffix. Each
+// entry says why; a name that is not listed is reported by internal-name.
+var AllowedInternalNames = map[string]string{
+	"host.docker.internal":     "the name Docker Desktop and --add-host give to the host (ExtraHosts)",
+	"host.containers.internal": "the name Podman gives to the host (ExtraHosts, /etc/hosts of a container)",
+	"*.svc.cluster.local":      "the in-cluster service names of Kubernetes (kind)",
+}
+
+// AllowedSensitiveEnvNames lists the variables whose name looks sensitive and whose
+// value is public, mapped to the reason: the rule sensitive-env-value lets them
+// through. Each entry says why.
+var AllowedSensitiveEnvNames = map[string]string{
+	"GPG_KEY": "the python image sets it to the id of the public key that signs its sources",
+}
+
 // identityStopList holds the names too common to be an identity: a machine called
 // by one of them is not told apart by it.
-var identityStopList = []string{"root", "user", "admin", "runner", "ubuntu", "docker", "podman", "ci", "build", "test"}
+var identityStopList = []string{
+	"root", "user", "admin", "runner", "ubuntu", "docker", "podman", "ci", "build", "test",
+	"localhost", "debian", "fedora", "alpine", "node",
+}
 
 // minIdentityLen is the shortest name worth looking for.
 const minIdentityLen = 3
@@ -127,8 +147,9 @@ var (
 	// pathPrefix is what may precede a home directory: the start of the line, a
 	// blank or a character that opens or separates a value. "/home/" inside an
 	// image path ("team/home/api") has a letter before it and is not a home.
-	pathPrefix = `(?:^|[\s"'=:,|(\[])`
-	unixHome   = regexp.MustCompile(pathPrefix + `(?:/var/home|/home|/Users)/([^/\s"'<>:,;|()\[\]\\]+)`)
+	// A "file://" URL and a WSL mount of a Windows drive (/mnt/c/Users) are homes too.
+	pathPrefix = `(?:^|[\s"'=:,|(\[]|file://)`
+	unixHome   = regexp.MustCompile(pathPrefix + `(?:/var/home|/home|/Users|/mnt/[A-Za-z]/(?i:users))/([^/\s"'<>:,;|()\[\]\\]+)`)
 	rootHome   = regexp.MustCompile(pathPrefix + `/root(?:$|[^A-Za-z0-9_.-])`)
 	// winHome is a Windows profile, raw or JSON-escaped.
 	winHome = regexp.MustCompile(`(?i)[a-z]:\\+users\\+([^\\\s"'/]+)`)
@@ -165,11 +186,12 @@ func CheckLeaks(fixture string, data []byte, exact []string) []Leak {
 // local-identity. They are given, not read, so that a test can plant one.
 func CheckLeaksAs(fixture string, data []byte, exact, local []string) []Leak {
 	s := &leakScan{
-		fixture: fixture,
-		seen:    map[leakKey]bool{},
-		lab:     fixtureleak.ExactVariants(LabTerms),
-		local:   fixtureleak.ExactVariants(local),
-		exact:   fixtureleak.ExactVariants(exact),
+		fixture:   fixture,
+		seen:      map[leakKey]bool{},
+		lab:       fixtureleak.ExactVariants(labTerms(false)),
+		labStrict: fixtureleak.ExactVariants(labTerms(true)),
+		local:     fixtureleak.ExactVariants(local),
+		exact:     fixtureleak.ExactVariants(exact),
 	}
 	for _, u := range leakUnits(data) {
 		s.examine(u.line, u.text)
@@ -186,6 +208,7 @@ type leakKey struct {
 type leakScan struct {
 	fixture           string
 	lab, local, exact []string // lower-cased variants
+	labStrict         []string // the lab terms too short for a loose boundary
 	leaks             []Leak
 	seen              map[leakKey]bool
 }
@@ -284,8 +307,11 @@ func (s *leakScan) examineText(n int, text string) {
 	if fixtureleak.LocalAddresses(text, EngineBridgeNets) {
 		s.add(n, rulePrivateAddress)
 	}
-	if len(fixtureleak.InternalHostNames(text)) > 0 {
-		s.add(n, ruleInternalName)
+	for _, name := range fixtureleak.InternalHostNames(text) {
+		if !allowedInternalName(name) {
+			s.add(n, ruleInternalName)
+			break
+		}
 	}
 	if personalPath(text) {
 		s.add(n, rulePersonalPath)
@@ -299,6 +325,9 @@ func (s *leakScan) examineText(n int, text string) {
 			s.add(n, w.rule)
 		}
 	}
+	if containsStrictWord(lower, s.labStrict) {
+		s.add(n, ruleLabIdentity)
+	}
 	if sensitiveEnv(text) {
 		s.add(n, ruleSensitiveEnv)
 	}
@@ -307,12 +336,15 @@ func (s *leakScan) examineText(n int, text string) {
 // personalPath reports a home directory that is not the replacement one or an image's.
 func personalPath(text string) bool {
 	if strings.Contains(text, "/") {
-		if rootHome.MatchString(text) {
-			return true
-		}
-		for _, m := range unixHome.FindAllStringSubmatch(text, -1) {
-			if !allowedHome(m[1]) {
+		// JSON-escaped slashes ("\/home\/x") are read as slashes.
+		for _, t := range []string{text, strings.ReplaceAll(text, `\/`, "/")} {
+			if rootHome.MatchString(t) {
 				return true
+			}
+			for _, m := range unixHome.FindAllStringSubmatch(t, -1) {
+				if !allowedHome(m[1]) {
+					return true
+				}
 			}
 		}
 	}
@@ -335,22 +367,39 @@ func allowedHome(name string) bool {
 }
 
 // sensitiveEnv reports a NAME=value of a sensitive variable whose value is neither
-// empty nor "<redacted>".
+// empty nor "<redacted>". A quoted value is a value (X_PASSWORD="hunter2" leaks);
+// MY_TOKEN= and MY_TOKEN="" do not, and nor does a name of AllowedSensitiveEnvNames.
 func sensitiveEnv(text string) bool {
 	if !strings.Contains(text, "=") {
 		return false
 	}
 	for _, m := range envAssignment.FindAllStringSubmatchIndex(text, -1) {
-		if !secretenv.Default().Sensitive(text[m[2]:m[3]]) {
+		name := text[m[2]:m[3]]
+		if _, public := AllowedSensitiveEnvNames[name]; public || !secretenv.Default().Sensitive(name) {
 			continue
 		}
-		rest := text[m[1]:]
-		if strings.HasPrefix(rest, redactedValue) || rest == "" || strings.ContainsRune(" \t\"'", rune(rest[0])) {
-			continue
+		if !emptyOrRedacted(text[m[1]:]) {
+			return true
 		}
-		return true
 	}
 	return false
+}
+
+// emptyOrRedacted reads what follows "NAME=": nothing, a blank, a pair of quotes or a
+// lone quote (the one that closes a JSON string) and the value "<redacted>", quoted or
+// not, are no value; anything else is one.
+func emptyOrRedacted(rest string) bool {
+	// A JSON-escaped quote (\") is a quote.
+	if strings.HasPrefix(rest, `\"`) || strings.HasPrefix(rest, `\'`) {
+		rest = rest[1:]
+	}
+	if rest != "" && (rest[0] == '"' || rest[0] == '\'') {
+		rest = rest[1:]
+		if rest == "" || strings.ContainsRune(`"'`, rune(rest[0])) || strings.HasPrefix(rest, `\"`) || strings.HasPrefix(rest, `\'`) {
+			return true // "" or a lone closing quote, escaped or not
+		}
+	}
+	return rest == "" || strings.HasPrefix(rest, redactedValue) || strings.ContainsRune(" \t,]}", rune(rest[0]))
 }
 
 // containsWord reports whether one of the lower-cased variants sits in lower as a
@@ -367,6 +416,62 @@ func containsWord(lower string, variants []string) bool {
 				return true
 			}
 			from = i + 1
+		}
+	}
+	return false
+}
+
+// strictBoundaries are the characters that may stand next to a short lab term (a
+// term under minIdentityLen characters, "dd"): a blank, a quote, a path or value
+// separator. Neither "." nor "-" is one, so "dd.conf", "yyyy-MM-dd" and "dd-mm" are
+// not the lab user.
+const strictBoundaries = " \t\"'/:@,;()[]=\\|<>"
+
+// containsStrictWord is containsWord with the strict boundaries: the start or the
+// end of the line, or one of strictBoundaries, on each side.
+func containsStrictWord(lower string, variants []string) bool {
+	for _, v := range variants {
+		for from := 0; from < len(lower); {
+			i := strings.Index(lower[from:], v)
+			if i < 0 {
+				break
+			}
+			i += from
+			j := i + len(v)
+			if (i == 0 || strings.IndexByte(strictBoundaries, lower[i-1]) >= 0) &&
+				(j == len(lower) || strings.IndexByte(strictBoundaries, lower[j]) >= 0) {
+				return true
+			}
+			from = i + 1
+		}
+	}
+	return false
+}
+
+// labTerms returns the lab terms that need strict boundaries (short ones) or the
+// others.
+func labTerms(short bool) []string {
+	var out []string
+	for _, t := range LabTerms {
+		if (utf8.RuneCountInString(t) < minIdentityLen) == short {
+			out = append(out, t)
+		}
+	}
+	return out
+}
+
+// allowedInternalName reports a name of AllowedInternalNames, or under one of its
+// "*." entries.
+func allowedInternalName(name string) bool {
+	lower := strings.ToLower(name)
+	for entry := range AllowedInternalNames {
+		entry = strings.ToLower(entry)
+		if suffix, wild := strings.CutPrefix(entry, "*"); wild {
+			if len(lower) > len(suffix) && strings.HasSuffix(lower, suffix) {
+				return true
+			}
+		} else if lower == entry {
+			return true
 		}
 	}
 	return false

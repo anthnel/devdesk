@@ -17,7 +17,7 @@ func TestADotIsAWordBoundaryForTheNameRules(t *testing.T) {
 		{name: "lab/a fully qualified name", mutate: inStdout("jakku.corp.example"), planted: "jakku.corp.example", rules: []string{rLab}},
 		{name: "lab/in the middle of a name", mutate: inStdout("srv.jakku.example"), planted: "srv.jakku.example", rules: []string{rLab}},
 		{name: "lab/at the end of a name", mutate: inStdout("srv.example.dd-podman"), planted: "srv.example.dd-podman", rules: []string{rLab}},
-		{name: "lab/before the dot of a sentence", mutate: inStdout("logged in as dd."), planted: "logged in as dd.", rules: []string{rLab}},
+		{name: "lab/before the dot of a sentence", mutate: inStdout("logged in on jakku."), planted: "logged in on jakku.", rules: []string{rLab}},
 		{name: "local/a fully qualified name", mutate: inStdout("zedbox.corp.example"), planted: "zedbox.corp.example", rules: []string{rLocal}, local: []string{"zedbox"}},
 		{name: "local/in the middle of a name", mutate: inStdout("srv.zedbox.example"), planted: "srv.zedbox.example", rules: []string{rLocal}, local: []string{"zedbox"}},
 		{name: "local/in a URL", mutate: inStdout("http://127.0.0.1/zedbox.example/x"), planted: "zedbox.example", rules: []string{rLocal}, local: []string{"zedbox"}},

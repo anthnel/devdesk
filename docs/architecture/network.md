@@ -404,18 +404,18 @@ the synthetic files of `internal/enginefixture/testdata/synthetic/*.cli`, each m
   | `secret-token-format`, `jwt-like-value` | the formats of `fixtureleak` (GitHub and GitLab tokens, AWS key ids, a PEM private key; `eyJ` and 10 base64url characters) | |
   | `host-not-allowed` | the authority of an `http(s)` URL outside `AllowedHosts` (`127.0.0.1`, `localhost`, `index.docker.io`, `registry-1.docker.io`, `docker.io`, `quay.io`), or with `user@` | |
   | `private-or-link-local-address` | a private, link-local, CGNAT or unique-local address | `EngineBridgeNets`: `172.17.0.0/16` to `172.31.0.0/16` (the Docker pools) and `10.88.0.0/16`, `10.89.0.0/16` (Podman). `192.168.0.0/16`, `172.16.0.0/16` and a `10.x` lab bridge are refused |
-  | `internal-name` | a name in `.home.arpa`, `.lan`, `.internal`, `.local` | |
-  | `personal-path` | `/home/<x>`, `/var/home/<x>`, `/Users/<x>`, `/root`, `C:\Users\<x>` (raw or JSON-escaped), at the start of a line or after a blank or one of `" ' = : , \| ( [` | `<x>` is `fixture-user` (`PlaceholderUser`) or a key of `ImageHomes` (a home an image keeps, such as `/home/node`; empty at first, each entry with its reason) |
-  | `lab-identity` | `LabTerms`: the names already public in `tools/engine-vms/README.md` (the lab hosts and the lab user) | |
-  | `local-identity` | the host name and the user name of the machine that runs the test, **handed over by the test** (`MachineIdentities`, filtered by `LocalIdentityTerms`: three characters at least, not `root`, `user`, `admin`, `runner`, `ubuntu`, `docker`, `podman`, `ci`, `build`, `test`, not `fixture-*`) | |
+  | `internal-name` | a name in `.home.arpa`, `.lan`, `.internal`, `.local` | `AllowedInternalNames` (exported, name or `*.suffix` to a reason): `host.docker.internal`, `host.containers.internal`, `*.svc.cluster.local` (kind). `x.host.docker.internal` and the bare `svc.cluster.local` are refused |
+  | `personal-path` | `/home/<x>`, `/var/home/<x>`, `/Users/<x>`, `/mnt/<drive>/Users/<x>` (WSL), `/root`, `C:\Users\<x>` (raw or JSON-escaped), at the start of a line, after `file://`, or after a blank or one of `" ' = : , \| ( [`; JSON-escaped slashes (`\/home\/x`) are read as slashes | `<x>` is `fixture-user` (`PlaceholderUser`) or a key of `ImageHomes` (a home an image keeps, such as `/home/node`; empty at first, each entry with its reason) |
+  | `lab-identity` | `LabTerms`: the names already public in `tools/engine-vms/README.md` (the lab hosts and the lab user). The short term `dd` (under three characters) is matched at **strict boundaries** only: start or end of the line, a blank, a quote, `/ : @ , ; ( ) [ ] = \ \| < >`, never `.` or `-`, so `dd.conf` and `yyyy-MM-dd` pass | |
+  | `local-identity` | the host name and the user name of the machine that runs the test, **handed over by the test** (`MachineIdentities`, filtered by `LocalIdentityTerms`: three characters at least, not `root`, `user`, `admin`, `runner`, `ubuntu`, `docker`, `podman`, `ci`, `build`, `test`, `localhost`, `debian`, `fedora`, `alpine`, `node`, not `fixture-*`) | |
   | `exact-term` | each term of the external deny list (`DEVDESK_FIXTURE_DENYLIST`, one term per line, never in the repository) | |
-  | `sensitive-env-value` | `NAME=value` where `secretenv.Default().Sensitive(NAME)` holds | an empty value or `<redacted>` |
+  | `sensitive-env-value` | `NAME=value` where `secretenv.Default().Sensitive(NAME)` holds; a quoted value is a value (`X_PASSWORD="x"`, `export DB_PASSWORD='x'`) | an empty value (`NAME=`, `NAME=""`, `NAME=''`), `<redacted>` (quoted or not), and a name of `AllowedSensitiveEnvNames` (exported, name to a reason): `GPG_KEY`, the public key id of the python image |
   | `invisible-character` | U+200B to U+200F, U+202A to U+202E, U+2060, U+2066 to U+2069, U+FEFF: valid text that a reviewer cannot see (the stream encoding lets it through). The line is also read without them, so a split name is seen | |
 
-  The three name rules (`lab-identity`, `local-identity`, `exact-term`) match **at the word, ignoring the case, also
+  The name rules (`lab-identity`, `local-identity`, `exact-term`) match **at the word, ignoring the case, also
   JSON-escaped and URL-escaped** (`fixtureleak.ExactVariants`): a boundary is any character that is not a letter, a digit or
   an underscore, so `-`, `/`, `@` and **`.`** are boundaries and `zedbox` is seen in `zedbox.corp.example`, in
-  `srv.zedbox.example` and before the dot that ends a sentence, but not in `zedboxes` or `ddm-run`. `CheckLeaks` is
+  `srv.zedbox.example` and before the dot that ends a sentence, but not in `zedboxes` or `ddm-run` (the one exception is the short lab term `dd`, above). `CheckLeaks` is
   `CheckLeaksAs` without local identities: the test adds them, the check never reads the machine itself.
   The detectors without state (formats, URL authorities, addresses, internal names, exact variants, the deny list reader)
   are **`internal/fixtureleak`**, shared with `internal/nexusfixture` (the same code, moved unchanged; `TestDetectorsAreDeclaredOnce`
@@ -423,12 +423,22 @@ the synthetic files of `internal/enginefixture/testdata/synthetic/*.cli`, each m
   `TestFixturesLeakNothing` runs it on every `.cli` file of the tree (`fixtures/*/*.cli` and `testdata/*/*.cli`, pending files
   included) with the deny list and the machine identities, and logs how many terms it applied (a missing, empty or
   comment-only deny list says so: it never passes for an applied list).
-  **Limits**: a host name that is arbitrary, outside every internal zone, the lab and the local machine, is seen only through
-  the external deny list; a **short name** is seen only if the machine reports it (`MachineIdentities` keeps the host name
-  as `os.Hostname` returns it: when that is an FQDN, its first label is not a term of its own); a local network that is
-  `172.17.x` passes (it is an engine network); `ImageHomes` is kept by hand; a name that is not at a word boundary (`xzedbox`)
-  is not seen; the rule `sensitive-env-value` is as blunt as `secretenv` (a `KEY` in `KEYBOARD=...` is reported); a leak
-  hidden by an encoding other than base64 (an escape such as `\u0064\u0064` inside text) is not seen.
+  **Limits** (known false negatives and positives; none is hidden by a test):
+  - *False negatives.* A host name that is arbitrary, outside every internal zone, the lab and the local machine, is seen only
+    through the external deny list. A fully qualified host name whose **short name** is not in `MachineIdentities` is not seen:
+    `MachineIdentities` keeps the host name as `os.Hostname` returns it, so when that is an FQDN its first label is not a term
+    of its own. A local network in `172.17.x` passes (it is an engine network). A home written in a form the rule does not list
+    (a path outside `/home`, `/var/home`, `/Users`, `/mnt/<drive>/Users`, `/root`, `C:\Users`, after a prefix that is not in the
+    list) is not seen. A name that is not at a word boundary (`xzedbox`) is not seen. A leak hidden by an encoding other than
+    base64 (an escape such as `\u0064\u0064` inside text) is not seen. A URL to `host.docker.internal` is refused by
+    `host-not-allowed` (the exception list is for names, not for URL hosts).
+  - *False positives.* The short lab term `dd` still matches the command `dd if=...` (a blank is a strict boundary) and `dd` in a
+    path or after `=`. `sensitive-env-value` is as blunt as `secretenv` (`KEY` in `KEYBOARD=...`), and a variable of an image that
+    holds a public value under a sensitive name needs an entry in `AllowedSensitiveEnvNames` (`GPG_KEY` has one). A home an image
+    keeps (`/home/node`) needs an entry in `ImageHomes`. A name an engine writes itself in an internal zone needs an entry in
+    `AllowedInternalNames`.
+  - *Exception lists.* `ImageHomes`, `AllowedInternalNames` and `AllowedSensitiveEnvNames` are exported variables, empty or short
+    at first, **kept by hand**: each entry carries its reason, and an entry is a decision a reviewer can disagree with.
 - **Versions: N and N-1** (OC-08b, `internal/enginefixture/versions.go`). `tools/engine-vms/versions.env` is the single source
   (the VMs of OC-85 and the measure of OC-01 read it too); `ParseVersions` reads `DOCKER_N_VERSION`, `DOCKER_N1_VERSION`,
   `PODMAN_N_VERSION`, `PODMAN_N1_VERSION` (plain `NAME=value`, `#` comments including at the end of a line, other keys ignored;

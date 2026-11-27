@@ -48,11 +48,17 @@ func pendingIn(t testing.TB, patterns ...string) []string {
 				t.Fatal(err)
 			}
 			sc := bufio.NewScanner(bytes.NewReader(data))
+			// A header line may be longer than the 64 KiB a Scanner takes by default
+			// (an argv of a long command line): the buffer can hold the whole file.
+			sc.Buffer(make([]byte, 0, 4096), len(data)+1)
 			for sc.Scan() && sc.Text() != "" {
 				if sc.Text() == "# record: "+enginefixture.RecordPending {
 					pending = append(pending, file)
 					break
 				}
+			}
+			if err := sc.Err(); err != nil {
+				t.Fatalf("reading the headers of %s: %v", file, err)
 			}
 		}
 	}

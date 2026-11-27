@@ -353,8 +353,10 @@ reads N and N-1 from `tools/engine-vms/versions.env` (`ParseVersions`): a bump e
 refuses a `record: pending` file under `fixtures/`, and `DEVDESK_FIXTURE_RECORDING=1` when `CI` is set (a local session
 only); `TestRecordingSessionIsNeverSetByTheStandardChecks` keeps that variable out of `mise.toml` (outside the recorder
 tasks) and out of `.github/workflows`. A `record: skip: <reason>` fixture is kept and checked, left out of `ForConfig`
-and refused by `NewReplay`. Limits: an arbitrary host name is seen only through the deny list, a local network in `172.17.x`
-passes, `ImageHomes` is kept by hand. See `docs/architecture/network.md`, "Recorded fixtures".
+and refused by `NewReplay`. Exception lists, exported and kept by hand, each entry with its reason: `ImageHomes`,
+`AllowedInternalNames`, `AllowedSensitiveEnvNames`. Limits: an arbitrary host name or an FQDN whose short name is not in
+`MachineIdentities` is seen only through the deny list, a local network in `172.17.x` passes, the short lab term `dd` has strict
+boundaries (and still matches the command `dd`), `GPG_KEY` is allowed by name. See `docs/architecture/network.md`, "Recorded fixtures".
 
 **Test input and colour (DEVDESK-199).** Build keys only through
 `internal/ui/testutil` (`Key`, `Keys`, `Type`, `Paste`, `Text`, `IsText`), never a
