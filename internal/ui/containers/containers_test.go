@@ -25,9 +25,9 @@ import (
 // one. Assertions are on model state and on whether a command was returned at
 // all, per the contract internal/ui/testutil documents.
 //
-// Two key handlers are excluded on purpose: "s" and "S" call detectShell, which
-// runs `docker exec` synchronously inside Update. The tests drive them only in
-// states where they return before reaching it. See the note in docs/backlog.md.
+// The shell key (T) is the exception that proves the rule: its detection runs in
+// a Cmd, and engine_calls_unix_test.go executes that Cmd against a fake engine
+// script (fake_engine_unix_test.go), never a real docker or podman.
 
 // The view logs every Docker failure it is handed, and several fixtures are
 // failures on purpose.

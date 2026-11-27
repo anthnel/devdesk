@@ -73,10 +73,13 @@ Two things about the engine are worth knowing before changing this code:
   argv element, never a name. The inspect and `info` reads refuse a non-Docker
   engine with `ErrDockerOnly` before any invocation; output over 256 KiB
   (`maxInspectBytes`) is refused. `InspectContainer`, which returns the whole
-  `docker inspect` JSON (secrets included) with stdout and stderr merged and no
-  context, was not reused for that reason. The `info` format
+  `docker inspect` JSON (secrets included) with no context, was not reused for
+  that reason. It returns **stdout only** (OC-04, DEVDESK-800): a warning the
+  engine writes on stderr never enters the viewer's document; on failure the
+  message carries the stderr that `cliRunner` leaves on the `*exec.ExitError`. The `info` format
   (`{{.OperatingSystem}}`) is a docker-only literal and is not in
   `engine.Templates`.
+- **Shell in a container (`docker/shell.go`, OC-04, DEVDESK-800).** `DetectShell(id)` runs `<engine> exec <id> which bash` through the runner and answers `/bin/bash`, else `/bin/sh`. Any failure answers `/bin/sh`, and so does no answer within `shellDetectTimeout` (8 s, the call's `dockerCmd.Ctx`): the `exec -it` that follows then reports the real problem in its own terminal. It waits on the daemon, so the containers view calls it only from a `tea.Cmd` (`detectShellCmd`), never from `Update`: `T` sets `shellDetecting` (footer `Opening shell…` with the activity dot, `WantsBlink` true) and returns the Cmd; its `ShellDetectedMsg` clears the flag and `handleShellDetected` starts the shell, in place (`teaexec.Process`) or in a new window (`uiterminal.ForCmd`). A second `T` while one is pending is refused with a footer warning. The answer is routed to the containers view wherever the user is (`App.routeShellDetected`, `docs/architecture/app-shell.md`): if the view is off screen the message arrives with `Abandoned` set, the wait ends and **no shell is started**. `ShellCmd(id, shell)` builds `<engine> exec -it <id> <shell>` through `runner.Build`; its `Args` are the argv given to the terminal emulator.
 - `internal/docker/netdiag.go` — **gone**. §3.33 took the five probes that did not need a container, §3.43 the ports table, §3.44 the topology (and with it `docker/topology.go` and the last `--privileged`), §3.47 the route trace and the file itself (the trace came back in the process as `internal/nettrace`, DEVDESK-327). §3.61 removed the OCI connectivity test, and with it the last container this application runs for a diagnostic: `networks.go` now holds only `ListNetworks`, `CreateNetwork`, `RemoveNetwork`, `PruneNetworks` and `InspectNetwork`.
 
 ## OCI registries — `internal/oci`
