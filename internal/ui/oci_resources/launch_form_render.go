@@ -3,6 +3,7 @@ package ociresources
 import (
 	"strings"
 
+	"github.com/anthnel/devdesk/internal/docker"
 	"github.com/anthnel/devdesk/internal/ui/theme"
 )
 
@@ -33,12 +34,12 @@ func (f *LaunchForm) buildCommandLines() []string {
 	}
 	for i := range f.ports {
 		if f.ports[i].enabled {
-			args = append(args, "-p "+f.ports[i].mappingArg())
+			args = append(args, "-p "+docker.LoopbackPort(f.ports[i].mappingArg()))
 		}
 	}
 	for p := range strings.SplitSeq(f.extraPortsInput.Value(), ",") {
 		if p = strings.TrimSpace(p); p != "" {
-			args = append(args, "-p "+p)
+			args = append(args, "-p "+docker.LoopbackPort(p))
 		}
 	}
 	if ep := strings.TrimSpace(f.entrypointInput.Value()); ep != "" {

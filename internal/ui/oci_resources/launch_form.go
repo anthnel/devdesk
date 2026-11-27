@@ -532,9 +532,30 @@ func (f *LaunchForm) applyInvalid() {
 	}
 }
 
-// ValidationStatus is the footer line for the current errors, derived on every
-// call; the zero Status means none.
-func (f *LaunchForm) ValidationStatus() sharedcomponents.Status { return f.validation.Status() }
+// ValidationStatus is the footer line for the form, derived on every call (no
+// timer): the validation errors first, then a warning when a port is published
+// on all interfaces. The zero Status means nothing to say.
+func (f *LaunchForm) ValidationStatus() sharedcomponents.Status {
+	if st := f.validation.Status(); st.Text != "" {
+		return st
+	}
+	if spec, ok := f.allInterfacesPort(); ok {
+		return sharedcomponents.Status{Text: "Port " + spec + " is published on all interfaces", Level: sharedcomponents.LevelWarning}
+	}
+	return sharedcomponents.Status{}
+}
+
+// allInterfacesPort returns the first launched port whose spec names 0.0.0.0 or
+// [::] itself, typed or restored from the cache. Only the additional ports can
+// carry an address: the host port of an EXPOSE row is digits only.
+func (f *LaunchForm) allInterfacesPort() (string, bool) {
+	for p := range strings.SplitSeq(f.extraPortsInput.Value(), ",") {
+		if p = strings.TrimSpace(p); docker.PortExposedOnAllInterfaces(p) {
+			return p, true
+		}
+	}
+	return "", false
+}
 
 func (f *LaunchForm) submit() (*LaunchForm, tea.Cmd) {
 	ok := f.validation.Submit(f.validate())

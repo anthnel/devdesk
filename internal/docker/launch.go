@@ -10,7 +10,7 @@ type ContainerLaunchOptions struct {
 	Name        string   // container name (optional)
 	Image       string   // image to run
 	Entrypoint  string   // override default entrypoint (optional)
-	Ports       []string // "hostPort:containerPort"
+	Ports       []string // "hostPort:containerPort", "ip:hostPort:containerPort" or "containerPort", each with an optional "/proto"; LoopbackPort is applied to each
 	Env         []string // "KEY=VALUE"
 	Volumes     []string // "name:/path"
 	Network     string   // network name
@@ -26,6 +26,57 @@ type ContainerLaunchOptions struct {
 // image reaches this machine through imagepull.Pull, or not at all. Measured on
 // Docker and Podman: a missing image exits 125 with the engine's own message.
 const noImplicitPull = "--pull=never"
+
+// loopbackAddr is the host address a published port gets when its spec names none.
+const loopbackAddr = "127.0.0.1"
+
+// portAddress returns the host address a -p spec names, and whether the spec has
+// an address field at all. The forms are [ip:]hostPort:containerPort[/proto] and
+// containerPort[/proto]; an IPv6 address is in brackets, so a spec has an
+// address field when it starts with "[" or holds two colons (the host port may be
+// empty: "127.0.0.1::80"). The address itself is empty for ":8080:80".
+func portAddress(spec string) (addr string, ok bool) {
+	if strings.HasPrefix(spec, "[") {
+		end := strings.Index(spec, "]")
+		if end < 0 {
+			return "", false // malformed: left to the engine to refuse
+		}
+		return spec[:end+1], true
+	}
+	if strings.Count(spec, ":") >= 2 {
+		return spec[:strings.Index(spec, ":")], true
+	}
+	return "", false
+}
+
+// LoopbackPort returns spec with 127.0.0.1 as its host address when it names
+// none, so a port DevDesk publishes is reachable from this machine only (OC-19).
+// An address the user wrote is never rewritten, and applying it twice changes
+// nothing. A spec the engine would refuse is left for the engine to refuse.
+func LoopbackPort(spec string) string {
+	if spec == "" {
+		return spec
+	}
+	addr, ok := portAddress(spec)
+	switch {
+	case ok && addr != "":
+		return spec
+	case ok: // ":8080:80" or "::80": an empty address binds every interface
+		return loopbackAddr + spec
+	case strings.Contains(spec, ":"): // "8080:80"
+		return loopbackAddr + ":" + spec
+	default: // "80": the engine picks the host port
+		return loopbackAddr + "::" + spec
+	}
+}
+
+// PortExposedOnAllInterfaces reports whether spec itself names 0.0.0.0 or [::],
+// that is, the user asked for the port to be reachable from the network. A spec
+// with no address is not: LoopbackPort gives it 127.0.0.1.
+func PortExposedOnAllInterfaces(spec string) bool {
+	addr, ok := portAddress(spec)
+	return ok && (addr == "0.0.0.0" || addr == "[::]")
+}
 
 // buildLaunchArgs constructs the docker run argument list for the given options.
 func buildLaunchArgs(opts ContainerLaunchOptions) []string {
@@ -50,7 +101,7 @@ func buildLaunchArgs(opts ContainerLaunchOptions) []string {
 	}
 	for _, p := range opts.Ports {
 		if p != "" {
-			args = append(args, "-p", p)
+			args = append(args, "-p", LoopbackPort(p))
 		}
 	}
 	for _, e := range opts.Env {
