@@ -54,9 +54,9 @@ func TestPipeHelperProcess(t *testing.T) {
 	}
 	switch mode {
 	case "emit": // some lines on both streams, then exit with the given code
-		fmt.Fprintln(os.Stdout, "out-1")
-		fmt.Fprintln(os.Stderr, "err-1")
-		fmt.Fprintln(os.Stdout, "out-2")
+		_, _ = fmt.Fprintln(os.Stdout, "out-1")
+		_, _ = fmt.Fprintln(os.Stderr, "err-1")
+		_, _ = fmt.Fprintln(os.Stdout, "out-2")
 	case "hang": // one line, then nothing for a minute
 		fmt.Fprintln(os.Stdout, "first line")
 		time.Sleep(time.Minute)

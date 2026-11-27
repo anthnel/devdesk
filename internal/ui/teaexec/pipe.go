@@ -47,7 +47,7 @@ func (c *pipeCommand) Run() error {
 	if err != nil {
 		return err
 	}
-	defer r.Close()
+	defer func() { _ = r.Close() }()
 
 	c.producer.Stdout = w
 	c.producer.Stderr = w
