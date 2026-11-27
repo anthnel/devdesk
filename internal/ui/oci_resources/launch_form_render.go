@@ -3,19 +3,21 @@ package ociresources
 import (
 	"strings"
 
-	"charm.land/lipgloss/v2"
-
 	"github.com/anthnel/devdesk/internal/docker"
 	"github.com/anthnel/devdesk/internal/ui/theme"
 )
 
-// shellQuote wraps value in single quotes if it contains characters that would
-// be interpreted by a shell, making the clipboard-copied command paste-safe.
+// shellSafe holds the characters a POSIX shell passes through untouched in a word:
+// everything else (`* ? [ ~ # ; $ ( ) & | < >`, a space, a quote...) is quoted.
+const shellSafe = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789_./:@%+=,-"
+
+// shellQuote wraps value in single quotes unless it is made of shellSafe characters
+// only, making the clipboard-copied command paste-safe.
 func shellQuote(v string) string {
-	if strings.ContainsAny(v, " \t\"'`$\\!;|&<>(){}") {
-		return "'" + strings.ReplaceAll(v, "'", "'\\''") + "'"
+	if v != "" && strings.Trim(v, shellSafe) == "" {
+		return v
 	}
-	return v
+	return "'" + strings.ReplaceAll(v, "'", "'\\''") + "'"
 }
 
 // envRestoredHint replaces the Environment hint while a name restored from the
@@ -61,11 +63,11 @@ func (f *LaunchForm) buildCommandLines() []string {
 	}
 	for i := range f.ports {
 		if f.ports[i].enabled {
-			args = append(args, "-p "+docker.LoopbackPort(f.ports[i].mappingArg()))
+			args = append(args, "-p "+shellQuote(docker.LoopbackPort(f.ports[i].mappingArg())))
 		}
 	}
 	for _, p := range f.extraPortEntries() {
-		args = append(args, "-p "+docker.LoopbackPort(p))
+		args = append(args, "-p "+shellQuote(docker.LoopbackPort(p)))
 	}
 	if ep := strings.TrimSpace(f.entrypointInput.Value()); ep != "" {
 		args = append(args, "--entrypoint "+shellQuote(ep))
@@ -128,7 +130,7 @@ func (f *LaunchForm) commandPreviewLines() []string {
 		// Only the network flag starts a line with this word: the others are
 		// --name, --entrypoint, -p, -e, -v, --mount, --user.
 		if hostNetwork && strings.HasPrefix(strings.TrimSpace(line), "--network ") {
-			style = lipgloss.NewStyle().Background(theme.ColorBackground).Foreground(theme.ColorFooterWarn)
+			style = theme.PreviewWarnStyle
 		}
 		result = append(result, style.Render(line))
 	}

@@ -134,6 +134,12 @@ var (
 			Foreground(ColorDim).
 			Bold(false)
 
+	// PreviewWarnStyle is a line of the launch command preview that deserves a
+	// second look (the host network, OC-21): the warning colour, not bold.
+	PreviewWarnStyle = lipgloss.NewStyle().
+				Background(ColorBackground).
+				Foreground(ColorFooterWarn)
+
 	HelpStyle = lipgloss.NewStyle().
 			Background(ColorBackground).
 			Foreground(ColorDim).
@@ -774,6 +780,10 @@ func RefreshStyles() {
 		Background(ColorBackground).
 		Foreground(ColorDim).
 		Bold(false)
+
+	PreviewWarnStyle = lipgloss.NewStyle().
+		Background(ColorBackground).
+		Foreground(ColorFooterWarn)
 
 	HelpStyle = lipgloss.NewStyle().
 		Background(ColorBackground).

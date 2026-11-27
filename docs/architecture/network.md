@@ -489,7 +489,14 @@ Two things about the engine are worth knowing before changing this code:
     network the footer says `This container will share the network of this host` at
     level Warning, derived on every render (in the form and with the modal open; an
     Error of the form wins), and the preview shows the `--network host` line in
-    `theme.ColorFooterWarn`; the text `ctrl+y` copies stays plain.
+    `theme.ColorFooterWarn`; the text `ctrl+y` copies stays plain (`theme.PreviewWarnStyle` is the screen's
+    colour only). That copied text is pasted into a shell, so `shellQuote` quotes
+    every value that holds a character outside `[A-Za-z0-9_./:@%+=,-]` (`*`, `?`,
+    `[`, `~`, `#`, `;`, `$`, `(`, `&`, `|`, a space...), the `-p` entries included.
+    A submit that arrives while the modal holds another one, or after the launch of
+    the same form started (every `enter` builds one message, several can be in
+    flight), is dropped (`isDoubleSubmit`): the held launch is never replaced and no
+    modal opens over a form that is gone.
   - **A dash in the form** (`LaunchForm.dashFaults`, part of `validate`). Name,
     Entrypoint, User (trimmed) and each entry of Volumes and Additional ports (the
     entries the submit splits the field into) that start with `-` refuse the submit:
