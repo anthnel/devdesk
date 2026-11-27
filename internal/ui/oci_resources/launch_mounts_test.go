@@ -82,6 +82,7 @@ func isolateMountHost(t *testing.T) mountHost {
 	t.Setenv("USERPROFILE", h.home)
 	t.Setenv("XDG_RUNTIME_DIR", resolve(t.TempDir()))
 	t.Setenv("DOCKER_HOST", "")
+	t.Setenv("CONTAINER_HOST", "")
 	t.Chdir(h.cwd)
 	return h
 }

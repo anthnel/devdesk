@@ -46,8 +46,8 @@ import (
 //
 // Decisions the tests rely on:
 //
-//   - Only a path is a bind source: it starts with "/", "./", "../" or "~" (or is
-//     "." or ".."). "myvolume:/data" is a named volume, "/data" alone is an
+//   - Only a path is a bind source: it starts with "/", "." or "~" (so ".ssh" is
+//     a path, as the Docker CLI reads it). "myvolume:/data" is a named volume, "/data" alone is an
 //     anonymous volume (the one path is the container's), and neither is checked.
 //   - A leading "~" is expanded to HOME even though the engine would not do it: the
 //     hint a user typed is read the way they meant it (conservative).
@@ -90,6 +90,7 @@ func newMountEnv(t *testing.T) mountEnv {
 	t.Setenv("USERPROFILE", e.home)
 	t.Setenv("XDG_RUNTIME_DIR", e.xdg)
 	t.Setenv("DOCKER_HOST", "")
+	t.Setenv("CONTAINER_HOST", "")
 	t.Chdir(e.cwd)
 	return e
 }
@@ -166,7 +167,8 @@ func TestSensitiveMountsClassifiesTheVolumeForm(t *testing.T) {
 
 		// Criterion 3: normalised before the comparison.
 		{"dot-dot into /etc", []string{"/tmp/../etc:/x"}, []wantMount{{"/etc", MountSystemConfig, false}}},
-		{"dot-dot out of /etc", []string{"/etc/../tmp:/x"}, nil},
+		// /usr, not /tmp: the private HOME of these tests is under /tmp, and an ancestor of a sensitive path is sensitive (review 8).
+		{"dot-dot out of /etc", []string{"/etc/../usr:/x"}, nil},
 		{"dot-dot into ~/.ssh", []string{"{home}/projects/../.ssh:/x"}, []wantMount{{"{home}/.ssh", MountSSH, false}}},
 		{"tilde and dot-dot, nothing sensitive", []string{"~/../x:/x"}, nil},
 		{"a doubled slash and a dot", []string{"//etc/./ssl:/x"}, []wantMount{{"/etc/ssl", MountSystemConfig, false}}},
@@ -442,7 +444,8 @@ func TestSensitiveMountsResolvesSymbolicLinks(t *testing.T) {
 }
 
 // Criterion 3, the order of the two steps: the link is followed before the
-// ".." is applied. {tmp}/to-projects/../.ssh is {home}/.ssh for the kernel
+// ".." is applied (the kernel's reading; the daemon's, which cleans first, is
+// read too, see TestSensitiveMountsReadsABothWaysAfterALink). {tmp}/to-projects/../.ssh is {home}/.ssh for the kernel
 // (to-projects leads to {home}/projects), and {tmp}/.ssh for a Clean() that runs
 // first. Both the form -v and the form --mount.
 func TestSensitiveMountsResolvesLinksBeforeNormalising(t *testing.T) {
