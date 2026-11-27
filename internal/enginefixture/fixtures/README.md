@@ -10,4 +10,4 @@ mechanisms are tested on the synthetic files of `testdata/synthetic`, each
 marked `recorded-by: synthetic`.
 
 The format, the replay and the rules are described in
-`docs/architecture/network.md`, "Recorded engine fixtures".
+`docs/architecture/network.md`, "Recorded fixtures — `internal/enginefixture`".

@@ -308,7 +308,10 @@ func parseArgv(fileName, value string) ([]string, error) {
 	return argv, nil
 }
 
-// encodeArgv writes the argv as one line of compact JSON.
+// encodeArgv writes the argv as one line of compact JSON. encoding/json escapes
+// the C0 controls but writes DEL and the C1 controls (U+007F to U+009F) as they
+// are; they are written \u00xx here, so the header holds no raw control character
+// and Parse, which compares against this writing, accepts nothing else.
 func encodeArgv(argv []string) string {
 	var b bytes.Buffer
 	enc := json.NewEncoder(&b)
@@ -316,7 +319,15 @@ func encodeArgv(argv []string) string {
 	if err := enc.Encode(argv); err != nil {
 		return "null" // unreachable for a []string; null is refused by Parse
 	}
-	return strings.TrimSuffix(b.String(), "\n")
+	var out strings.Builder
+	for _, r := range strings.TrimSuffix(b.String(), "\n") {
+		if r >= 0x7f && isControl(r) {
+			fmt.Fprintf(&out, "\\u%04x", r)
+			continue
+		}
+		out.WriteRune(r)
+	}
+	return out.String()
 }
 
 // streamHeader is a parsed "<n> bytes, text|base64".

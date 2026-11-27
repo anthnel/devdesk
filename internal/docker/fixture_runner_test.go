@@ -5,6 +5,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"sync"
 	"testing"
 
 	"github.com/anthnel/devdesk/internal/engine"
@@ -31,11 +32,21 @@ import (
 //   - stdin is never recorded and is ignored;
 //   - a real ExitError.Stderr is truncated by Go above 64 KiB, this one is not.
 
-// fixtureRunner replays fixtures. It reports through t, like stubStrict.
+// fixtureRunner replays fixtures. It reports through t, like stubStrict. The code
+// under test calls the engine from several goroutines (Bubble Tea Cmds), so the
+// journal of calls is guarded; the replay itself is safe for concurrent use.
 type fixtureRunner struct {
 	t      testing.TB
 	replay *enginefixture.Replay
+	mu     sync.Mutex
 	calls  []dockerCmd
+}
+
+// record appends one call to the journal.
+func (f *fixtureRunner) record(dc dockerCmd) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.calls = append(f.calls, dc)
 }
 
 // fixtureExit is the error of a replayed non-zero exit.
@@ -96,7 +107,7 @@ func (f *fixtureRunner) answer(argv []string) (enginefixture.Fixture, bool) {
 
 func (f *fixtureRunner) Run(dc dockerCmd) ([]byte, error) {
 	f.t.Helper()
-	f.calls = append(f.calls, dc)
+	f.record(dc)
 	if dc.Helper != "" {
 		f.t.Errorf("a credential helper (%q) is not replayed: its identification calls have no fixture", dc.Helper)
 		return nil, errUnexpectedArgv
@@ -128,7 +139,7 @@ func (f *fixtureRunner) Run(dc dockerCmd) ([]byte, error) {
 // cannot reach a real engine: it names a path that does not exist.
 func (f *fixtureRunner) Build(args ...string) *exec.Cmd {
 	f.t.Helper()
-	f.calls = append(f.calls, dockerCmd{Args: args})
+	f.record(dockerCmd{Args: args})
 	f.answer(args)
 	return exec.Command(filepath.Join(f.t.TempDir(), "no-such-engine"), args...) //nolint:gosec // a path that does not exist, on purpose
 }

@@ -324,7 +324,7 @@ the synthetic files of `internal/enginefixture/testdata/synthetic/*.cli`, each m
   `recorded` (`YYYY-MM-DD`), `scenario`, `redacted` (what the recorder replaced, or `none`), `record` (optional:
   `replay`, `pending`, `skip: <reason>`), `recorded-by` (optional: `synthetic`, `engine-contract:record`), `argv`,
   `exit` (0 to 255), `stdout`, `stderr`. A different order, an unknown or a duplicate header is refused. `argv` is
-  one line of compact JSON without HTML escapes, without the binary name, not empty, valid UTF-8, no element with CR
+  one line of compact JSON without HTML escapes (DEL and the C1 controls are written `\u00xx`, so the header holds no raw control character), without the binary name, not empty, valid UTF-8, no element with CR
   or LF. `stdout` and `stderr` read `<n> bytes, text|base64`, `n` being the **decoded** length.
 - **Body.** A blank line, then `--- stdout\n`, the `n` bytes of stdout, one extra `\n`, `--- stderr\n`, the `m` bytes
   of stderr, one extra `\n`. **The length is what delimits a text stream**: a `--- stderr` line, a blank line or a
