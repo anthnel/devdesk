@@ -335,8 +335,11 @@ not seen. See `docs/architecture/network.md`, "Guard G8".
 entries (`dockerCmd.Env`, `cmd.Env`). A test of a launch asserts the argv with `fakecli` (`Invocation.Args`) **and** the
 child's environment (`Invocation.Env`), on both engines, never `-e KEY=VALUE`; an entry with no `=` or a name `docker.ValidEnvName`
 refuses makes both functions return `docker.ErrInvalidLaunchEnv` and start nothing (`internal/docker/launch_env_test.go`; the
-form half is `internal/ui/oci_resources/launch_env_test.go`). A launch log line takes `docker.LaunchLogText(err)`, never the engine's
-output. Still open: the preview and `ctrl+y` (OC-16), the cache (OC-17), the reserved names (OC-15). See
+form half is `internal/ui/oci_resources/launch_env_test.go`). A name the engine client or the loader reads (`DOCKER_HOST`, `HOME`, `PATH`,
+`LD_*`, `*_PROXY`, ...; `docker.ReservedEnvName`, case-insensitive, exact match plus the `LD_`/`DYLD_` prefixes and the `_PROXY` suffix) is
+refused the same way with `docker.ErrReservedLaunchEnv` (OC-15, DEVDESK-813; `launch_reserved_test.go` in both packages): a test that types a
+variable uses an ordinary name. A launch log line takes `docker.LaunchLogText(err)`, never the engine's
+output. Still open: the preview and `ctrl+y` (OC-16), the cache (OC-17). See
 `docs/architecture/network.md`, "A launch passes environment values to the child".
 
 **Tests and engine contracts (DEVDESK-806, OC-09a1).** A contract is a `TestContract*` function of a

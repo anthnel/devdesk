@@ -3,7 +3,6 @@ package ociresources
 import (
 	"fmt"
 	"path/filepath"
-	"slices"
 	"strconv"
 	"strings"
 
@@ -507,8 +506,16 @@ func validHostPort(s string) bool {
 // envKey is the validation key of the Environment field.
 const envKey = "env"
 
+// The footer sentences of the Environment field (Rule 140). Fixed, so the typed
+// name and value are never echoed.
+const (
+	envInvalidText  = "Each environment variable needs a valid name and a value"
+	envReservedText = "A reserved environment variable name cannot be set from this form"
+)
+
 // envEntryValid reports whether one Environment entry (trimmed, not blank) is
-// NAME=VALUE with a name docker.ValidEnvName accepts and a value. An empty value
+// NAME=VALUE with a name docker.ValidEnvName accepts and a value. Whether the
+// name is reserved is envFault's question. An empty value
 // is refused: a variable left empty is almost always one that was not filled in,
 // and a bare `-e NAME` would make the engine copy DevDesk's own variable (OC-14).
 // The launcher accepts `NAME=` itself (docker.LaunchContainer); only the form
@@ -517,6 +524,25 @@ const envKey = "env"
 func envEntryValid(entry string) bool {
 	name, value, ok := strings.Cut(entry, "=")
 	return ok && value != "" && docker.ValidEnvName(name)
+}
+
+// envFault returns the sentence for the first faulty Environment entry: a
+// reserved name (docker.ReservedEnvName, the launcher's rule) or an entry that
+// is not NAME=VALUE. The reserved sentence is for a well-formed entry only (a
+// "=" and a name ValidEnvName accepts, as the launcher checks them): `PATH` with
+// no "=" or a name that is not ASCII is merely malformed. Neither sentence
+// repeats the name or the value.
+func envFault(entries []string) (string, bool) {
+	for _, e := range entries {
+		name, _, hasValue := strings.Cut(e, "=")
+		switch {
+		case hasValue && docker.ValidEnvName(name) && docker.ReservedEnvName(name):
+			return envReservedText, true
+		case !envEntryValid(e):
+			return envInvalidText, true
+		}
+	}
+	return "", false
 }
 
 // envEntries returns the non-blank, trimmed entries of the Environment field.
@@ -545,11 +571,8 @@ func (f *LaunchForm) validate() []sharedcomponents.FieldError {
 			})
 		}
 	}
-	if slices.ContainsFunc(f.envEntries(), func(e string) bool { return !envEntryValid(e) }) {
-		errs = append(errs, sharedcomponents.FieldError{
-			Key:  envKey,
-			Text: "Each environment variable needs a valid name and a value",
-		})
+	if text, faulty := envFault(f.envEntries()); faulty {
+		errs = append(errs, sharedcomponents.FieldError{Key: envKey, Text: text})
 	}
 	return errs
 }
