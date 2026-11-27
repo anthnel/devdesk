@@ -3,25 +3,38 @@ package docker
 import (
 	"slices"
 	"testing"
+
+	"github.com/anthnel/devdesk/internal/engine"
 )
 
 func TestListNetworksParsesOutput(t *testing.T) {
-	stubOutput(t, "network",
-		"abc123\tbridge\tbridge\tlocal\t2026-08-01 10:00:00 +0200 CEST\n"+
-			"def456\thost\thost\tlocal\t2026-07-01 10:00:00 +0200 CEST\n")
+	forEachEngine(t, func(t *testing.T, shape engine.Shape) {
+		// Docker reports a scope; podman's template leaves that column empty
+		// (engine.podmanTemplates), so its output and the expected Network
+		// carry none. Row shapes stay hand-written until the OC-08 fixtures.
+		scope := "local"
+		if shape.Name == engine.Podman {
+			scope = ""
+		}
+		stubStrict(t, reply{
+			argv: []string{"network", "ls", "--format", shape.Templates.NetworkLS},
+			out: "abc123\tbridge\tbridge\t" + scope + "\t2026-08-01 10:00:00 +0200 CEST\n" +
+				"def456\thost\thost\t" + scope + "\t2026-07-01 10:00:00 +0200 CEST\n",
+		})
 
-	got, err := ListNetworks()
+		got, err := ListNetworks()
 
-	if err != nil {
-		t.Fatalf("ListNetworks() error = %v", err)
-	}
-	if len(got) != 2 {
-		t.Fatalf("ListNetworks() returned %d networks, want 2", len(got))
-	}
-	want := Network{ID: "abc123", Name: "bridge", Driver: "bridge", Scope: "local", Created: "2026-08-01 10:00:00 +0200 CEST"}
-	if got[0] != want {
-		t.Errorf("first network = %+v, want %+v", got[0], want)
-	}
+		if err != nil {
+			t.Fatalf("ListNetworks() error = %v", err)
+		}
+		if len(got) != 2 {
+			t.Fatalf("ListNetworks() returned %d networks, want 2", len(got))
+		}
+		want := Network{ID: "abc123", Name: "bridge", Driver: "bridge", Scope: scope, Created: "2026-08-01 10:00:00 +0200 CEST"}
+		if got[0] != want {
+			t.Errorf("first network = %+v, want %+v", got[0], want)
+		}
+	})
 }
 
 func TestCreateNetworkDefaultsToBridge(t *testing.T) {

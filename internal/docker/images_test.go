@@ -4,6 +4,8 @@ import (
 	"context"
 	"slices"
 	"testing"
+
+	"github.com/anthnel/devdesk/internal/engine"
 )
 
 func TestImageName(t *testing.T) {
@@ -48,6 +50,9 @@ func TestImageScanTarget(t *testing.T) {
 	}
 }
 
+// What ListImages reads depends on the engine twice over: the `image ls` and
+// `image inspect` templates are the shape's, and `system df -v` is scraped only
+// where the shape says its table is known (ParsesSystemDFVerbose).
 func TestListImagesParsesAndEnriches(t *testing.T) {
 	// `docker system df -v` is fixed-width; the columns must line up with the
 	// header offsets or the parser reads the wrong slices.
@@ -58,30 +63,43 @@ func TestListImagesParsesAndEnriches(t *testing.T) {
 		"Containers space usage:\n\n" +
 		"CONTAINER ID        IMAGE               COMMAND\n"
 
-	stub(t, &stubRunner{output: map[string][]byte{
-		"image": []byte("abc123456789\tnginx\t1.25\t140MB\t2026-08-01 10:00:00\n" +
-			"def123456789\tpostgres\t16\t400MB\t2026-07-30 10:00:00\n"),
-		"system": []byte(df),
-	}})
+	forEachEngine(t, func(t *testing.T, shape engine.Shape) {
+		replies := []reply{
+			{
+				argv: []string{"image", "ls", "--format", shape.Templates.ImageLS},
+				out: "abc123456789\tnginx\t1.25\t140MB\t2026-08-01 10:00:00\n" +
+					"def123456789\tpostgres\t16\t400MB\t2026-07-30 10:00:00\n",
+			},
+			{argv: []string{"image", "inspect", "--format", shape.Templates.ImageInspect, "abc123456789", "def123456789"}},
+		}
+		// nginx: unique size and container count as `image ls` and df -v give
+		// them. Without the df table only the `image ls` size is known and the
+		// count stays zero, which the table renders as a dim "-".
+		wantUnique, wantContainers := int64(140_000_000), 0
+		if shape.ParsesSystemDFVerbose() {
+			replies = append(replies, reply{argv: []string{"system", "df", "-v"}, out: df})
+			wantUnique, wantContainers = 142_000_000, 2
+		}
+		stubStrict(t, replies...)
 
-	got, err := ListImages()
+		got, err := ListImages()
 
-	if err != nil {
-		t.Fatalf("ListImages() error = %v", err)
-	}
-	if len(got) != 2 {
-		t.Fatalf("ListImages() returned %d images, want 2", len(got))
-	}
-	// UniqueSize starts from `docker image ls` then df -v overrides it.
-	if got[0].UniqueSize != 142_000_000 {
-		t.Errorf("UniqueSize = %d, want 142000000 from df -v", got[0].UniqueSize)
-	}
-	if got[0].Containers != 2 {
-		t.Errorf("Containers = %d, want 2", got[0].Containers)
-	}
-	if got[1].Containers != 0 {
-		t.Errorf("Containers = %d for postgres, want 0", got[1].Containers)
-	}
+		if err != nil {
+			t.Fatalf("ListImages() error = %v", err)
+		}
+		if len(got) != 2 {
+			t.Fatalf("ListImages() returned %d images, want 2", len(got))
+		}
+		if got[0].UniqueSize != wantUnique {
+			t.Errorf("%s: UniqueSize = %d, want %d", shape.Name, got[0].UniqueSize, wantUnique)
+		}
+		if got[0].Containers != wantContainers {
+			t.Errorf("%s: Containers = %d, want %d", shape.Name, got[0].Containers, wantContainers)
+		}
+		if got[1].Containers != 0 {
+			t.Errorf("%s: Containers = %d for postgres, want 0", shape.Name, got[1].Containers)
+		}
+	})
 }
 
 func TestParseImagesDiskUsage(t *testing.T) {
@@ -271,18 +289,28 @@ func TestParseImageInspectReadsTheRepoDigests(t *testing.T) {
 // A container's digests are those of the image it runs, read through its image
 // ID: a pull of the same tag since then does not change them.
 func TestContainerImageDigestsFollowTheImageTheContainerRuns(t *testing.T) {
-	stub(t, &stubRunner{output: map[string][]byte{
-		"container": []byte("sha256:aaaaaaaaaaaa1111\nsha256:bbbbbbbbbbbb2222\n"),
-		"image": []byte("sha256:aaaaaaaaaaaa1111\t10\t[\"alpine@sha256:old\"]\n" +
-			"sha256:bbbbbbbbbbbb2222\t20\t[]\n"),
-	}})
-	got := ContainerImageDigests([]string{"c1", "c2"})
-	if !slices.Equal(got["c1"], []string{"alpine@sha256:old"}) {
-		t.Errorf("c1 = %v", got["c1"])
-	}
-	if _, ok := got["c2"]; ok {
-		t.Errorf("a built image has digests: %v", got["c2"])
-	}
+	forEachEngine(t, func(t *testing.T, shape engine.Shape) {
+		stubStrict(t,
+			reply{
+				argv: []string{"container", "inspect", "--format", "{{.Image}}", "c1", "c2"},
+				out:  "sha256:aaaaaaaaaaaa1111\nsha256:bbbbbbbbbbbb2222\n",
+			},
+			reply{
+				argv: []string{"image", "inspect", "--format", shape.Templates.ImageInspect,
+					"sha256:aaaaaaaaaaaa1111", "sha256:bbbbbbbbbbbb2222"},
+				out: "sha256:aaaaaaaaaaaa1111\t10\t[\"alpine@sha256:old\"]\n" +
+					"sha256:bbbbbbbbbbbb2222\t20\t[]\n",
+			})
+
+		got := ContainerImageDigests([]string{"c1", "c2"})
+
+		if !slices.Equal(got["c1"], []string{"alpine@sha256:old"}) {
+			t.Errorf("c1 = %v", got["c1"])
+		}
+		if _, ok := got["c2"]; ok {
+			t.Errorf("a built image has digests: %v", got["c2"])
+		}
+	})
 }
 
 func TestSameImageID(t *testing.T) {
