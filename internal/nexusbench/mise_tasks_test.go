@@ -527,7 +527,9 @@ func TestMiseEngineSurveyTaskStaysOutOfTheStandardChecks(t *testing.T) {
 	if !ok {
 		t.Fatalf("mise.toml has no task %q", name)
 	}
-	for _, want := range []string{"DEVDESK_ENGINE_SURVEY=", "go test -count=1 ./...", "./internal/engineguard/cmd/engine-survey"} {
+	// The status of go test is kept and returned: a package that does not compile
+	// records nothing, so a task that exited 0 would turn it into a clean "none".
+	for _, want := range []string{"DEVDESK_ENGINE_SURVEY=", "go test -count=1 ./...", "st=$?", "exit \"$st\"", "INCOMPLETE", "./internal/engineguard/cmd/engine-survey"} {
 		if !strings.Contains(task["run"], want) {
 			t.Errorf("run of %s does not contain %q:\n%s", name, want, task["run"])
 		}

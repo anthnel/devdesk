@@ -9,7 +9,8 @@
 // record into a panic.
 //
 // The package is production code (internal/docker calls Check), so it imports
-// the standard library only and does nothing outside a test binary: Check
+// the standard library only, "testing" included (as internal/ports does, for
+// testing.Testing), and does nothing outside a test binary: Check
 // returns before it resolves anything, and the entry points reserved for tests
 // panic, as ports.IdentityForTest does.
 package engineguard
@@ -40,7 +41,7 @@ const (
 type Hit struct {
 	// Test is the top-level test function that reached it, as "package.TestName".
 	// A reach from a goroutine no test frame is on reads "(no test frame)" followed
-	// by the package and the first caller outside it.
+	// by the test binary, the package and the first caller outside it.
 	Test string
 	// Op is the runner operation: "LookPath", "Run" or "Build".
 	Op string
@@ -75,8 +76,9 @@ func Check(op, binary string) {
 	if abs, err := filepath.Abs(path); err == nil {
 		path = abs
 	}
+	dir := canonical(filepath.Dir(path)) // file system work stays outside the lock
 	mu.Lock()
-	reaching := realCount == 0 && !declared(filepath.Dir(path))
+	reaching := realCount == 0 && !declared(dir)
 	mu.Unlock()
 	if !reaching {
 		return
@@ -84,10 +86,9 @@ func Check(op, binary string) {
 	record(Hit{Test: callerTest(), Op: op, Binary: path})
 }
 
-// declared reports whether dir, once its symbolic links are resolved, is one of
-// the directories a test declared. The caller holds mu.
+// declared reports whether dir, already canonical, is one of the directories a
+// test declared. The caller holds mu.
 func declared(dir string) bool {
-	dir = canonical(dir)
 	return slices.ContainsFunc(allowed, func(d string) bool { return sameDir(d, dir) })
 }
 
@@ -169,8 +170,9 @@ func callerTest() string {
 }
 
 // noTestFrame describes a reach no test frame is on (a goroutine, a tea.Cmd):
-// the package that called Check and the first caller outside that package, so
-// that the list still says where to look.
+// the test binary (os.Args[0], such as "app.test", which says which package was
+// under test), the package that called Check and the first caller outside that
+// package, so that the list still says where to look.
 func noTestFrame(chain []string) string {
 	if len(chain) == 0 {
 		return "(no test frame)"
@@ -183,7 +185,7 @@ func noTestFrame(chain []string) string {
 			break
 		}
 	}
-	return "(no test frame) " + pkg + " " + caller
+	return "(no test frame) " + filepath.Base(os.Args[0]) + " " + pkg + " " + caller
 }
 
 // splitFunction cuts "a/b/pkg.Func.func1" into "pkg" and "Func.func1".

@@ -155,7 +155,8 @@ tests; the code under test starts it by name through `PATH`, as it starts the re
 ### Tests and the real engine — `internal/engineguard` (OC-03a, DEVDESK-798)
 
 Guard G1, **in survey mode**: nothing fails yet. `internal/engineguard` is production code (standard
-library only, because `internal/docker` imports it and `fakecli` imports `testing`); OC-03b turns the
+library only, `testing` included, as `internal/ports` does for `testing.Testing`; it cannot import
+  `fakecli`, which `internal/docker` would then pull into production); OC-03b turns the
 record into a panic once the tests it names are fixed.
 
 - `cliRunner.LookPath`, `Run` and `Build` (`internal/docker/exec.go`) each start with
@@ -170,7 +171,8 @@ record into a panic once the tests it names are fixed.
   `Test<TAB>Op<TAB>Binary` line per hit. The call goes on exactly as before.
 - `Hit.Test` is `package.TestName`, read on the stack (the first `Test*` function of a `_test.go` file,
   innermost first, so a subtest closure names its top-level test). With no test frame (a goroutine, a
-  `tea.Cmd`) it reads `(no test frame) <package> <first caller outside it>`.
+  `tea.Cmd`) it reads `(no test frame) <test binary> <package> <first caller outside it>`, the test
+  binary being `filepath.Base(os.Args[0])` (such as `app.test`), which says which package was under test.
 - Declaring: `fakecli.AllowFakeCLIDir(t, dir)` (`engineguard.AllowDir`) declares `dir` for the length of
   `t`. `fakecli.Install` calls it on its directory and `(*Fake).InstallAt` on the directory it links
   into; a test that builds a fake by another means calls it itself. `engineguard.Isolate(t)` gives the
@@ -184,11 +186,16 @@ record into a panic once the tests it names are fixed.
   suite) through `internal/engineguard/cmd/engine-survey`. It runs the whole suite, so it is heavy and is
   part of none of `ci`, `check`, `test` or `test-race`
   (`TestMiseEngineSurveyTaskStaysOutOfTheStandardChecks`).
-- Limits: each test process keeps its own record (the file is what joins them, and a process the code
+- Limits: only `Test*` functions are recognised, not `Fuzz*`, `Benchmark*` or `Example*`, and not a
+  method; a subtest started in a helper that is not a `Test*` function, a goroutine and a `tea.Cmd` have
+  no test frame, so they read `(no test frame) ...`; each test process keeps its own record (the file is what joins them, and a process the code
   under test starts is not a test binary); a reach from a goroutine has no test name, only the caller;
   a name `LookPath` cannot resolve is not seen; the credential helpers are judged on the binary they
   resolve to, like the engine; the declarations, the record and the gate are globals, so no
   `t.Parallel` in a test that uses them.
+- `mise run engine-survey` exits with the status of `go test`, and when it is not 0 the list is
+  prefixed with a warning that it is incomplete (a package that does not compile records nothing), so a
+  `none` is never read as a clean suite.
 
 ## OCI registries — `internal/oci`
 

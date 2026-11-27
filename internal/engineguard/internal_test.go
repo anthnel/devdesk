@@ -3,6 +3,8 @@ package engineguard
 import (
 	"os"
 	"path/filepath"
+	"strings"
+	"sync"
 	"testing"
 )
 
@@ -58,5 +60,53 @@ func TestTheTestOnlyEntryPointsPanicOutsideATestBinary(t *testing.T) {
 			}()
 			call()
 		})
+	}
+}
+
+func TestCheckIsSafeFromManyGoroutines(t *testing.T) {
+	Isolate(t)
+	declaredDir := t.TempDir()
+	AllowDir(t, declaredDir)
+	reached := filepath.Join(t.TempDir(), "docker")
+	allowed := filepath.Join(declaredDir, "docker")
+	for _, p := range []string{reached, allowed} {
+		if err := os.WriteFile(p, nil, 0o700); err != nil {
+			t.Fatal(err)
+		}
+	}
+	const workers, rounds = 8, 25
+
+	var wg sync.WaitGroup
+	for range workers {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			for range rounds {
+				Check("Run", reached)
+				Check("Run", allowed)
+				_ = Hits()
+			}
+		}()
+	}
+	wg.Wait()
+
+	hits := Hits()
+	if len(hits) != workers*rounds {
+		t.Fatalf("recorded %d hits, want %d (only the undeclared directory is a reach)", len(hits), workers*rounds)
+	}
+	for _, h := range hits {
+		// The goroutine is a closure of this test, so its frame still names the test.
+		if h.Binary != reached || !strings.HasSuffix(h.Test, ".TestCheckIsSafeFromManyGoroutines") {
+			t.Fatalf("Hit = %+v, want the undeclared binary, named after this test", h)
+		}
+	}
+}
+
+func TestNoTestFrameNamesTheTestBinaryThePackageAndTheCaller(t *testing.T) {
+	got := noTestFrame([]string{"docker.cliRunner.Run", "docker.dockerOutput", "containers.refreshCmd.func1"})
+
+	want := "(no test frame) " + filepath.Base(os.Args[0]) + " docker containers.refreshCmd.func1"
+	if got != want {
+		t.Errorf("noTestFrame() = %q, want %q", got, want)
 	}
 }
