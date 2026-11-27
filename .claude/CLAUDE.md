@@ -277,6 +277,23 @@ OC-03b will make it a panic). `mise run engine-survey` lists the offenders (heav
 which fails unless `DEVDESK_ENGINE_CONTRACT=1` and `CI` is empty. No `t.Parallel`. See
 `docs/architecture/network.md`, "Tests and the real engine".
 
+**Tests and engine launches (DEVDESK-802, OC-05, G2).** Guard G2 is static: `TestOnlyTheRunnersStartTheEngine`
+(`internal/engineguard/launch_guard_test.go`) reads every non-test `.go` file of the module with `go/parser` and fails,
+with file and line, on a site outside the runners: an `exec.Command`/`CommandContext` whose binary folds to `docker`,
+`podman`, `kind` or `kubectl` (literal, file-level constant, path, `engine.Docker`, `config.EnginePodman`), or a read of
+`engine.Shape.Binary`. The runners are `internal/docker/exec.go`, `internal/scan/container_run.go` and
+`internal/kind/runner.go` (optional until the kind stories create it; its rules are already on). Three named exceptions in
+`launchExceptions`: `imageIsLocal` (`internal/scan/scanner.go`) and `Detect` (`internal/scan/toolbox.go`), both
+**temporary** (they start or probe the engine from `internal/scan`, to move behind the runner), and
+`(*App).resolveContainerEngine` (`internal/app/configuration.go`), **permanent** (reads `Shape.Binary` for a log line only,
+nothing is started). The log pager (`V`) is not an exception since OC-84: it goes through `docker.LogsCmd`. To add one: key =
+file + function (not a line), `Sites` = the exact number of sites in it, a reason a reviewer can disagree with; the list is a
+debt register and does not grow for convenience. To remove one: delete the entry; an exception whose code is gone, whose
+count differs or which sits in a runner fails the test. Limits: a binary name built at run time (`exec.Command(tc.Name, ...)`),
+a constant from another file, a dot import of `engine`, a function value, `syscall.Exec`, a shell line (`sh -c "docker ..."`)
+and an external script are not seen; a runner is exempt as a whole; `_test.go` files are not scanned (they are G1's, at run
+time). See `docs/architecture/network.md`, "Tests and the real engine".
+
 **Test input and colour (DEVDESK-199).** Build keys only through
 `internal/ui/testutil` (`Key`, `Keys`, `Type`, `Paste`, `Text`, `IsText`), never a
 literal `tea.KeyPressMsg` or `tea.Key*`. `Key` returns a

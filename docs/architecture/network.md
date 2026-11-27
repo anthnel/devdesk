@@ -197,6 +197,36 @@ record into a panic once the tests it names are fixed.
   prefixed with a warning that it is incomplete (a package that does not compile records nothing), so a
   `none` is never read as a clean suite.
 
+**Guard G2, the static half (OC-05, DEVDESK-802).** `internal/engineguard/launch_guard_test.go`
+(`TestOnlyTheRunnersStartTheEngine`, package `engineguard_test`, a test of the whole module) answers "who may
+start the engine" at the source level, where G1 answers it at run time. It parses every non-test `.go` file under
+the module root (skipping `.worktrees`, `.git`, `vendor`, `testdata`, `docs-site`, `node_modules` and dot
+directories; a floor of 200 files read keeps a walk that reads nothing from passing) with `go/parser`, no type
+information, and reports each site with file, line and enclosing function:
+
+- *named*: `exec.Command` / `exec.CommandContext` whose binary argument folds to `docker`, `podman`, `kind` or
+  `kubectl` (a literal, a file-level constant, a concatenation, a path or `.exe` name, `engine.Docker`,
+  `engine.Podman`, `config.EngineDocker`, `config.EnginePodman`; the import may be renamed);
+- *binary*: a read of `engine.Shape.Binary` through `engine.Current()`, a variable assigned from
+  `engine.Current`, `ShapeFor` or `Resolve` in the same top-level declaration, or a parameter typed
+  `engine.Shape` / `*engine.Shape`. `exec.LookPath("docker")` is not a site.
+- Runners (`launchRunners`): `internal/docker/exec.go`, `internal/scan/container_run.go`, both required to
+  still carry a site, and `internal/kind/runner.go`, optional until it exists (kind and kubectl are refused
+  elsewhere from now on). A runner is exempt as a whole.
+- Exceptions (`launchExceptions`), keyed by file + function with an exact `Sites` count and a mandatory reason:
+  `imageIsLocal` (`internal/scan/scanner.go`) and `Detect` (`internal/scan/toolbox.go`) are temporary, to move
+  behind the docker runner; `(*App).resolveContainerEngine` (`internal/app/configuration.go`) is permanent
+  (it reads `Shape.Binary` for a log line, nothing is started). The pager `V` is not an exception: since OC-84
+  (DEVDESK-801) it reads `<engine> logs` from `docker.LogsCmd`, and `TestThePagerIsNotAnException` fails on one.
+  The guard fails on an exception whose code is gone, whose `Sites` differs from the count, without a reason,
+  or in a runner, and on a duplicate or a file that no longer exists.
+- Limits (pinned as cases of `TestLaunchDetectorOnSources`, so lifting one is a visible change): a name built
+  at run time (`exec.Command(tc.Name, ...)` in `internal/scan/run.go` and `tool_source.go` starts the engine
+  this way, from what `containerRun.cmd` returned); a constant from another file of the package; flow followed
+  only inside one top-level declaration, by name and without scopes; a dot import of `engine`, a function value,
+  `syscall.Exec`, `os.StartProcess`, an `exec.Cmd` literal with a `Path`; a shell line, a script, the CI;
+  `internal/nexusbench`, which has its own kubectl runner and guard. `_test.go` files are not scanned.
+
 ## OCI registries — `internal/oci`
 
 `internal/oci/oci.go` — an OCI **registry** HTTP client: list tags,
