@@ -141,7 +141,7 @@ tests; the code under test starts it by name through `PATH`, as it starts the re
   shape on top of `fakecli`), `scan` (`installTools`, `asScanner`, `installToolAt`, and the two
   `containerToolVersion` tests that reach the fake through `engine.Shape.Binary`), `ui/netdiag`
   (`recordedEngineCalls`), `engine`, `docker` (credential helpers). Still on their own fake, by decision: `nexusbench` (OC-02 follow-up), `app`
-  (`scan_tools_hermetic_test.go`, with OC-03b), and `browser` and `clipboard` for good (not engine
+  (`scan_tools_hermetic_test.go`, witness scripts for trivy, gitleaks and plumber: temporary, no story yet), and `browser` and `clipboard` for good (not engine
   tools).
 - Guard (`internal/testutil/fakecli/guard_test.go`, read with `go/parser`): F1, a non-test file
   importing `fakecli` (it imports `testing`); F2, a `_test.go` file that overrides `PATH` and copies
@@ -159,7 +159,7 @@ tests; the code under test starts it by name through `PATH`, as it starts the re
 
 ### Tests and the real engine — `internal/engineguard` (OC-03a, DEVDESK-798; OC-03b, DEVDESK-799)
 
-Guard G1. Since OC-03b a test binary that resolves an engine binary outside a directory `fakecli` declared
+Guard G1. Since DEVDESK-799 (OC-03b) a test binary that resolves an engine binary outside a directory `fakecli` declared
 **panics**; the survey OC-03a introduced stays as an opt-in mode (below). `internal/engineguard` is
 production code (standard library only, `testing` included, as `internal/ports` does for
 `testing.Testing`; it cannot import `fakecli`, which `internal/docker` would then pull into production).
