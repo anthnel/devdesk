@@ -1,0 +1,18 @@
+# tool: podman
+# version: 5.8.11
+# mode: rootful
+# recorded: 2026-11-27
+# scenario: inspect of an absent container fails on stderr
+# redacted: none
+# recorded-by: synthetic
+# argv: ["inspect","3f9d2c7a41be"]
+# exit: 125
+# stdout: 3 bytes, text
+# stderr: 38 bytes, text
+
+--- stdout
+[]
+
+--- stderr
+Error: no such object: "3f9d2c7a41be"
+

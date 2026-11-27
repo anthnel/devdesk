@@ -113,8 +113,8 @@ tests; the code under test starts it by name through `PATH`, as it starts the re
 
 - `fakecli.Install(t, src, tools...)` links the test binary under each tool name in a directory that
   becomes the whole `PATH` (a copy on Windows), and returns a `*Fake` (`Dir()`, `Invocations()`).
-  `Source` is `Exchanges() []Exchange`; `Scenario` is the literal one, and the point where a recorded
-  fixture replay (OC-08) plugs in. An `Exchange{Tool, Args, Prefix, Reply{Stdout, Stderr, Exit}}`
+  `Source` is `Exchanges() []Exchange`; `Scenario` is the literal one, and `fakecli.Fixtures` (OC-08a,
+  below) is the recorded one. An `Exchange{Tool, Args, Prefix, Reply{Stdout, Stderr, Exit}}`
   matches an argv element by element: exact beats prefix, the longest prefix wins, then the first
   declared; an empty `Args` with `Prefix` is a catch-all, an empty `Tool` any tool.
 - The test binary answers as the tool when `fakecli.Main(m)` is the body of `TestMain`
@@ -149,8 +149,13 @@ tests; the code under test starts it by name through `PATH`, as it starts the re
   `legacyFakes`, that only shrinks (a stale entry fails). It does not see a `PATH` set through
   `Cmd.Env`, a helper in another package, a fake reached through `engine.Shape.Binary` or a path in the
   configuration rather than `PATH` (the ones found are migrated, but a new one is not caught), or a shim
-  without either marker. The scenario and the journal are JSON, so an argv that is not valid UTF-8 is
-  rewritten on the way: keep it in mind for the fixture replay of OC-08.
+  without either marker.
+- Bytes (OC-08a): the streams of a `Reply` reach the code under test unchanged. The scenario travels from
+  `Install` to the tool process as `[]wireExchange` (unexported; `Stdout` and `Stderr` are `[]byte`, which
+  `encoding/json` writes as base64) and the tool writes them with `os.Stdout.Write`, so an invalid UTF-8 byte, a
+  NUL or a CR is served as it is (it used to become U+FFFD). The public `Reply{Stdout, Stderr string}` is
+  unchanged: a Go string holds any bytes. The argv of an exchange and the journal are still JSON, so an argv
+  that is not valid UTF-8 is rewritten on the way; `enginefixture.Parse` refuses such an argv.
 
 ### Tests and the real engine — `internal/engineguard` (OC-03a, DEVDESK-798)
 
@@ -302,6 +307,90 @@ information, and reports each site with file, line and enclosing function:
   (OC-71) are out of scope, and so is `internal/nexusbench/skopeo.go`, which runs `skopeo copy` from registry to
   registry (a development tool). `--pull=never` was measured on Docker 29.7.2 and a Podman of 2026-09-25
   (exit 125 on a missing image), not on the N and N-1 versions of `docs/measurements/2026-11-27-engines.md`.
+
+### Recorded fixtures — `internal/enginefixture` (OC-08a, DEVDESK-805)
+
+What an engine answered to one argv, kept as a text file and replayed byte for byte. `internal/enginefixture`
+is production code that starts nothing and never imports `testing` (`TestProductionCodeDoesNotImportTesting`);
+the helpers that serve a fixture are `_test.go` files of `internal/docker` and `internal/testutil/fakecli`.
+**No real fixture is versioned before OC-09b** (user decision, Q1 (A) of the plan): `fixtures/` holds only its
+`README.md` (`go:embed` refuses a directory with no file), `Campaigns()` is empty, and every mechanism is tested on
+the synthetic files of `internal/enginefixture/testdata/synthetic/*.cli`, each marked `recorded-by: synthetic`.
+
+- **File.** One exchange per file, `<campaign>/<scenario>--<tool>-<version>-<mode>.cli`, for example
+  `rm-running--podman-6.2.1-rootless.cli`; `Parse` checks that the name agrees with the headers. Headers
+  `# key: value` (one space after the colon, no space at either end, no control character) in **one canonical
+  order**: `tool` (`docker`, `podman`), `version` (`^\d+(\.\d+)+(-[0-9A-Za-z.]+)?$`), `mode` (`rootful`, `rootless`),
+  `recorded` (`YYYY-MM-DD`), `scenario`, `redacted` (what the recorder replaced, or `none`), `record` (optional:
+  `replay`, `pending`, `skip: <reason>`), `recorded-by` (optional: `synthetic`, `engine-contract:record`), `argv`,
+  `exit` (0 to 255), `stdout`, `stderr`. A different order, an unknown or a duplicate header is refused. `argv` is
+  one line of compact JSON without HTML escapes (DEL and the C1 controls are written `\u00xx`, so the header holds no raw control character), without the binary name, not empty, valid UTF-8, no element with CR
+  or LF. `stdout` and `stderr` read `<n> bytes, text|base64`, `n` being the **decoded** length.
+- **Body.** A blank line, then `--- stdout\n`, the `n` bytes of stdout, one extra `\n`, `--- stderr\n`, the `m` bytes
+  of stderr, one extra `\n`. **The length is what delimits a text stream**: a `--- stderr` line, a blank line or a
+  missing final newline inside a stream is data. An empty stream is an empty line. The extra `\n` is not part of the
+  stream, so stdout `[]\n` shows a blank line after `[]`. A mismatch is an error that gives the declared and the
+  found length. A base64 stream is cut at 76 columns and delimited by its terminator (the alphabet has no `-`).
+- **One writing only.** `Format(Parse(b)) == b` for every file `Parse` accepts (`FuzzParse`; `go test` runs the seeds
+  only, explore with `go test -fuzz=FuzzParse -fuzztime=60s ./internal/enginefixture`). LF only (a CR anywhere is
+  refused: `.gitattributes` cannot change a byte). `Format` writes **text** for UTF-8 without a control character
+  other than LF and TAB, and base64 otherwise; `Parse` refuses a `base64` stream that could have been `text`, a
+  `text` stream holding a control character (ESC, NUL, BEL, DEL or a C1 control would hide text from a reviewer or act
+  on a terminal; CR is one), and a non canonical base64. A `pending` file (the recorder writes it before it has run
+  anything) stops after `argv` and the blank line; it carries no `exit`, `stdout`, `stderr` or body. `LoadFS` and
+  `Load` refuse it with an error that names the file and says `pending`; `NewReplay` does too.
+- **No normalization at replay**: identifiers, timestamps, durations (`Up 5 seconds`) and the order of lines stay as
+  recorded. A test that reads a duration compares it to a clock it fixes. stdin is never recorded and the replay
+  ignores `dockerCmd.Stdin`.
+- **Loading.** `Load(campaign)` (embedded) and `LoadFS(fsys, campaign)` read `<campaign>/*.cli`, sorted by name, ignoring
+  other files and sub directories; an unknown campaign is an error that names it. `Campaigns()` lists the embedded
+  campaigns that hold a `.cli` file, sorted; `All()` loads them. `ForConfig(fixtures, tool, version, mode)` keeps one
+  configuration (whole version: `29.10` is not `29.10.1`), without touching its input.
+- **Replay.** `NewReplay(fixtures...)` refuses no fixture, a pending one, and two with the same key; the key is the
+  **tool and the argv, exact, element by element**, in order (no flag is reordered); version and mode are not in it,
+  so a test **chooses** its configuration (`ForConfig`) and two fixtures that differ only by them collide, and the error
+  names both. The same argv under `docker` and `podman` are two keys. `Answer(tool, argv)` returns a **copy**
+  (a caller's edit does not reach the next answer); `Unused()` lists, sorted, the fixtures never answered. Safe for
+  concurrent use. A sequence of states (`ps` before and after) is two `Replay`s.
+- **`fixtureRunner`** (`internal/docker/fixture_runner_test.go`, a `dockerRunner`, so a test file of that package;
+  `useFixtures(t, fixtures...)`). Immediate and in memory: tier T1. It looks up the fixture of `engine.Current().Name`
+  and `dc.Args`; with none it fails the test with `no fixture for <tool> <argv %q>` and returns `errUnexpectedArgv`;
+  at cleanup it fails for each fixture nothing asked for (the rigour of `stubStrict`), and restores the runner and the
+  engine. `dc.Helper` is refused (the credential helpers are not replayed). A `dc.Ctx` already done returns
+  `ctx.Err()`, like `exec.Cmd.Start`. Exit 0: stdout (then stderr when `Combined`), nil error. Non-zero: a
+  `*fixtureExit` (`Error()` is `exit status N`, `ExitCode()`), with `Stderr` unless `Combined`, as `CombinedOutput`
+  leaves `ExitError.Stderr` empty. `errors.As(err, &*exec.ExitError)` works (`InspectContainer` reads the engine's own
+  diagnostic that way) and yields an `ExitError` holding `Stderr`, **but its `ProcessState` is nil**: its `ExitCode()` is
+  `-1` and its `Error()` is `<nil>`. **Read the exit code through `interface{ ExitCode() int }`**, which both a real
+  `*exec.ExitError` and `*fixtureExit` satisfy (the rule for OC-24 and later). `Build` checks the argv with the same
+  rigour and returns a command to a path that does not exist, so running it reaches no engine; a test that must run
+  the result goes through `fakecli`.
+- **`fakecli.Fixtures(t, fixtures...) Source`** (`internal/testutil/fakecli/fixtures.go`). One exact exchange per fixture
+  (`Prefix` false, `Tool` the fixture's `# tool:` header, never `engine.Shape.Binary`, so guard G2 has nothing to
+  see) with the recorded bytes and exit code. A selection the replay cannot serve fails the test at once
+  (`Fatalf`, naming the fixtures). The strictness of `Install` applies: an argv no fixture holds fails the test
+  at its end with the tool and the argv; an unasked fixture is not a failure of `fakecli` (a source may be shared).
+- **Equivalence** (`internal/docker/fixture_equivalence_test.go`): each synthetic fixture goes through `fixtureRunner`
+  and through the real `cliRunner` against `fakecli.Fixtures`, with `Combined` false and true, and the bytes, the error
+  text, the exit code (by the interface) and `ExitError.Stderr` must be equal; `InspectContainer` and `ListContainers`
+  give the same result both ways. The `ps` fixture holds the argv DevDesk builds from `engine.Templates.PS`: if the
+  template changes, the fixture goes false, on purpose, and the test says so. The view (`internal/ui/containers`,
+  `fixture_smoke_test.go`) shows the rows of that fixture through `fakecli.Install(t, fakecli.Fixtures(t, f), "docker")`.
+- **Guard E1** (`TestOnlyTestsImportEngineFixture`, `internal/enginefixture/import_guard_test.go`): a non-test `.go` file
+  outside `internal/enginefixture` and `internal/testutil/fakecli` that imports `internal/enginefixture` fails the
+  suite with file and line (`go/parser`, imports only; floor of 200 files read; `TestE1DetectorOnSources` holds the
+  negative controls). The fixtures therefore never reach the `dk` binary (`go list -deps .` does not list the package).
+  G1, G2 and G3 need no exception: the package has no `exec.Command`, no read of `Shape.Binary` and no argv literal, the
+  argv living in `.cli` files and in `_test.go` files, which G3 does not read. Limits: an import path built at run time,
+  a `go:embed` of the directory from another package, a copy of the files.
+- **Limits**: with `Combined` the replay writes stdout then stderr, as `fakecli` does; a real engine may interleave them.
+  Go truncates a real `ExitError.Stderr` above 64 KiB (head and tail), the replay does not. stdin is ignored. A
+  non-UTF-8 argv is refused by `Parse`.
+- **What OC-08b adds** (not here): the leak check (`CheckLeaks`, the shared detectors of `internal/fixtureleak`, the
+  placeholders `fixture-user` and `fixture-host`), `versions.env` as the single source of the N and N-1 versions
+  and the stale test, `TestNoPendingFixtureIsVersioned` and the refusal of `DEVDESK_FIXTURE_RECORDING` in CI. Until it
+  lands, nothing scans a `.cli` file for a user name, a host or a secret: no real fixture is versioned, so there is
+  nothing to scan. The recorder and the first real fixtures are OC-09a and OC-09b.
 
 ## OCI registries — `internal/oci`
 
