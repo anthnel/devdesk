@@ -56,6 +56,10 @@ type Model struct {
 	// list, so marking every row would say something false. It gets a footer
 	// line of its own instead.
 	pruning bool
+	// pruneTargets is the list `P` froze when it opened the confirmation: what the
+	// user was shown is what is removed, whatever the table holds by the time they
+	// answer (OC-22, DEVDESK-820).
+	pruneTargets []docker.Container
 	// shellDetecting is true from `T` until the container has said which shell
 	// it has: the daemon is asked off the Update loop, and the footer shows the
 	// wait (status). One detection at a time.
@@ -101,10 +105,10 @@ type ContainerActionMsg struct {
 	Err    error
 }
 
-// ContainerPruneMsg signals result of a container prune operation
+// ContainerPruneMsg carries the outcome of removing the frozen list: one result
+// per container, in the order of the list.
 type ContainerPruneMsg struct {
-	Output string
-	Err    error
+	Report docker.RemovalReport
 }
 
 // PagerExitMsg signals return from a pager (less) or shell process

@@ -30,7 +30,7 @@ func (m Model) handleConfirmYes() (tea.Model, tea.Cmd) {
 		return m, removeImageCmd(img.ID, name)
 	case "prune-images":
 		m.pruning = "images"
-		return m, pruneImagesCmd()
+		return m, removeImagesCmd(m.pruneTargets)
 	case "delete-network":
 		net := m.getSelectedNetwork()
 		if net == nil {
@@ -50,7 +50,7 @@ func (m Model) handleConfirmYes() (tea.Model, tea.Cmd) {
 		return m, removeVolumeCmd(vol.Name)
 	case "prune-volumes":
 		m.pruning = "volumes"
-		return m, pruneVolumesCmd()
+		return m, removeVolumesCmd(m.pruneTargets)
 	case "delete-registry":
 		idx := m.getSelectedRegistryIndex()
 		if idx < 0 {
@@ -135,6 +135,11 @@ func (m Model) handleImageAction(msg ImageActionMsg) (tea.Model, tea.Cmd) {
 	m.updateImageTable() // drop the Running activity the marker put on the row
 	if msg.Err != nil {
 		log.Printf("ERROR [oci_resources] %s %s: %v", msg.Action, msg.Name, msg.Err)
+		if msg.Action == "remove" {
+			// `D` reads like `P`: an image already gone is an information, one a
+			// container uses a refusal that says why (OC-22).
+			return m, tea.Batch(m.footer.Removal(docker.SingleRemoval(msg.ID, msg.Err)), fetchImages())
+		}
 		return m, m.footer.Error("Action failed — check logs")
 	}
 	m.footer.Clear()
@@ -142,15 +147,24 @@ func (m Model) handleImageAction(msg ImageActionMsg) (tea.Model, tea.Cmd) {
 	return m, tea.Batch(jobs.ForgetTarget(msg.Name), fetchImages())
 }
 
-// handlePruneComplete processes prune results
+// handlePruneComplete reports what the removal of the frozen list of images did.
 func (m Model) handlePruneComplete(msg PruneCompleteMsg) (tea.Model, tea.Cmd) {
 	m.pruning = ""
-	if msg.Err != nil {
-		log.Printf("ERROR [oci_resources] prune: %v", msg.Err)
-		return m, m.footer.Error("Prune failed — check logs")
+	m.pruneTargets = nil
+	logNotRemoved("images", msg.Report)
+	return m, tea.Batch(m.footer.Removal(msg.Report), fetchImages())
+}
+
+// logNotRemoved logs what a batch did not remove, one line each.
+func logNotRemoved(what string, report docker.RemovalReport) {
+	for _, r := range report {
+		switch r.Status {
+		case docker.RemovalRefused:
+			log.Printf("ERROR [oci_resources] prune %s: %s refused (%s): %v", what, r.Target, r.Reason, r.Err)
+		case docker.RemovalGone:
+			log.Printf("INFO [oci_resources] prune %s: %s was already gone", what, r.Target)
+		}
 	}
-	m.footer.Clear()
-	return m, fetchImages()
 }
 
 // handleNetworksList processes the network list response
@@ -206,19 +220,19 @@ func (m Model) handleVolumeAction(msg VolumeActionMsg) (tea.Model, tea.Cmd) {
 	m.volumeTable.ClearBusy(msg.Name)
 	if msg.Err != nil {
 		log.Printf("ERROR [oci_resources] volume %s: %v", msg.Action, msg.Err)
+		if msg.Action == "remove" {
+			return m, tea.Batch(m.footer.Removal(docker.SingleRemoval(msg.Name, msg.Err)), fetchVolumes())
+		}
 		return m, m.footer.Error("Volume action failed — check logs")
 	}
 	m.footer.Clear()
 	return m, fetchVolumes()
 }
 
-// handleVolumePruneComplete processes volume prune results
+// handleVolumePruneComplete reports what the removal of the frozen list of volumes did.
 func (m Model) handleVolumePruneComplete(msg VolumePruneCompleteMsg) (tea.Model, tea.Cmd) {
 	m.pruning = ""
-	if msg.Err != nil {
-		log.Printf("ERROR [oci_resources] volume prune: %v", msg.Err)
-		return m, m.footer.Error("Volume prune failed — check logs")
-	}
-	m.footer.Clear()
-	return m, fetchVolumes()
+	m.pruneTargets = nil
+	logNotRemoved("volumes", msg.Report)
+	return m, tea.Batch(m.footer.Removal(msg.Report), fetchVolumes())
 }

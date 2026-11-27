@@ -200,7 +200,7 @@ func (m Model) GetHelpContent() help.Content {
 		KeyBindings: []help.KeyBinding{
 			{Key: keymap.Kill, Description: "Ask whether to stop or restart the selected container"},
 			{Key: "Space", Description: "Toggle pause: pause a running container, or resume a paused one"},
-			{Key: keymap.Prune, Description: "Prune: remove all stopped containers (with confirmation)"},
+			{Key: keymap.Prune, Description: "Prune: remove the stopped containers shown in the confirmation, one by one, never forced"},
 			{Key: keymap.Delete, Description: "Delete the selected container (with confirmation)"},
 			{Key: keymap.Terminal, Description: "Open an interactive shell (bash if available, sh otherwise) in the selected container. In place or in a new window, per app.terminal_new_window (running only)"},
 			{Key: keymap.Logs, Description: "Open the container's logs in the viewer (Esc returns here)"},

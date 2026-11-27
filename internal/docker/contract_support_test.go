@@ -348,7 +348,7 @@ func contractKinds(run string) []contractKind {
 			inspect: func(ref string) []string {
 				return []string{"inspect", "--type", "container", "--format", `{{index .Config.Labels "` + enginecontract.LabelKey + `"}}`, ref}
 			},
-			remove: func(ref string) error { return RemoveContainer(ref, true) },
+			remove: func(ref string) error { return forceRemoveContainerForTest(ref) },
 		},
 		{
 			name:    "network",
@@ -1120,8 +1120,8 @@ func pruneListArgv(kind string) []string {
 	return nil
 }
 
-// pruneWindowRule grants the one argv `<kind> prune -f`, once: what PruneContainers,
-// PruneNetworks and PruneVolumes send. Never -a or --all, never a filter, never
+// pruneWindowRule grants the one argv `<kind> prune -f`, once: what PruneNetworks and
+// pruneKindForTest (container, volume) send. Never -a or --all, never a filter, never
 // `system prune` or an image prune, never a kind it does not know. An argv it refuses
 // does not use its attempt.
 func pruneWindowRule(kind string) func(argv []string) error {
@@ -1445,7 +1445,7 @@ func (c *contract) removeStray(name string) {
 		c.t.Errorf("the container %s called %s carries the label %q, which is not the one of this run: left alone", id, name, label)
 	default:
 		c.ours[id] = "stray"
-		if err := RemoveContainer(id, true); err != nil {
+		if err := forceRemoveContainerForTest(id); err != nil {
 			c.t.Errorf("removing the container %s the engine left behind under the name %s: %v", id, name, err)
 		}
 	}

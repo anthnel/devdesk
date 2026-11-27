@@ -2,6 +2,9 @@ package ociresources
 
 import (
 	"fmt"
+	"log"
+	"slices"
+	"strings"
 
 	tea "charm.land/bubbletea/v2"
 
@@ -47,11 +50,57 @@ func (m Model) deleteSelectedImage() (tea.Model, tea.Cmd) {
 	return m, nil
 }
 
-// pruneImages shows confirm modal for pruning
+// pruneImages freezes the dangling images no container uses and asks for
+// confirmation. What is removed is that list and nothing else (OC-22); with none
+// there is nothing to confirm.
 func (m Model) pruneImages() (tea.Model, tea.Cmd) {
+	m.pruneTargets = danglingImageIDs(m.images)
+	if len(m.pruneTargets) == 0 {
+		return m, m.footer.Info("No dangling images to remove")
+	}
 	m.pendingAction = "prune-images"
-	m.confirmModal = sharedcomponents.NewConfirmModal("Prune Images", "Remove all dangling (unused) images?")
+	m.confirmModal = sharedcomponents.NewConfirmModal("Prune Images",
+		sharedcomponents.RemovalPreview("dangling images", shortIDs(m.pruneTargets)))
 	return m, nil
+}
+
+// danglingImageIDs lists, once each and in order, the images that have no tag and
+// that no container uses. An ID a tagged row also carries is not dangling, and a
+// malformed ID is left out.
+func danglingImageIDs(images []docker.Image) []string {
+	tagged := map[string]bool{}
+	for _, img := range images {
+		if !isDangling(img) {
+			tagged[img.ID] = true
+		}
+	}
+	var ids []string
+	for _, img := range images {
+		if !isDangling(img) || img.Containers != 0 || tagged[img.ID] || slices.Contains(ids, img.ID) {
+			continue
+		}
+		if !docker.IsImageID(img.ID) {
+			log.Printf("ERROR [oci_resources] prune: skipped an image with a malformed ID %q", img.ID)
+			continue
+		}
+		ids = append(ids, img.ID)
+	}
+	return ids
+}
+
+// isDangling reports whether an image has neither a repository nor a tag.
+func isDangling(img docker.Image) bool {
+	return img.Repository == "<none>" && img.Tag == "<none>"
+}
+
+// shortIDs shortens image IDs to the 12 characters `image ls` prints.
+func shortIDs(ids []string) []string {
+	short := make([]string, 0, len(ids))
+	for _, id := range ids {
+		id = strings.TrimPrefix(id, "sha256:")
+		short = append(short, id[:min(len(id), 12)])
+	}
+	return short
 }
 
 // scanSelectedImage launches a scan for the selected image using saved options

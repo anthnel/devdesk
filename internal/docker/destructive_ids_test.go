@@ -133,7 +133,9 @@ type destructiveByIDCase struct {
 }
 
 // label names the case in a subtest: the function and the argv words before the
-// identifier, so RemoveContainer with and without force are told apart.
+// identifier. There is one case per function since OC-22: RemoveContainer and
+// RemoveImage lost their force option, so `rm -f` and `rmi -f` are no longer argv
+// any function builds.
 func (c destructiveByIDCase) label() string {
 	argv := c.argv("ID")
 	return c.name + "_" + strings.Join(argv[:len(argv)-1], "_")
@@ -147,16 +149,10 @@ var destructiveByID = []destructiveByIDCase{
 		StopContainer, ErrInvalidContainerID},
 	{"RemoveContainer", kindContainer,
 		func(id string) []string { return []string{"rm", id} },
-		func(id string) error { return RemoveContainer(id, false) }, ErrInvalidContainerID},
-	{"RemoveContainer", kindContainer,
-		func(id string) []string { return []string{"rm", "-f", id} },
-		func(id string) error { return RemoveContainer(id, true) }, ErrInvalidContainerID},
+		RemoveContainer, ErrInvalidContainerID},
 	{"RemoveImage", kindImage,
 		func(id string) []string { return []string{"rmi", id} },
-		func(id string) error { return RemoveImage(id, false) }, ErrInvalidImageID},
-	{"RemoveImage", kindImage,
-		func(id string) []string { return []string{"rmi", "-f", id} },
-		func(id string) error { return RemoveImage(id, true) }, ErrInvalidImageID},
+		RemoveImage, ErrInvalidImageID},
 	{"RemoveVolume", kindVolume,
 		func(id string) []string { return []string{"volume", "rm", id} },
 		RemoveVolume, ErrInvalidVolumeName},
@@ -173,9 +169,6 @@ var destructiveWithoutID = []struct {
 	argv []string
 	call func() (string, error)
 }{
-	{"PruneContainers", []string{"container", "prune", "-f"}, PruneContainers},
-	{"PruneImages", []string{"image", "prune", "-f"}, PruneImages},
-	{"PruneVolumes", []string{"volume", "prune", "-f"}, PruneVolumes},
 	{"PruneNetworks", []string{"network", "prune", "-f"}, PruneNetworks},
 }
 

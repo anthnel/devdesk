@@ -55,8 +55,3 @@ func RemoveVolume(name string) error {
 	}
 	return mutate(cmdLabel("volume rm"), "volume", "rm", name)
 }
-
-// PruneVolumes removes all unused Docker volumes
-func PruneVolumes() (string, error) {
-	return prune(cmdLabel("volume prune"), "volume", "prune", "-f")
-}

@@ -704,13 +704,13 @@ information, and reports each site with file, line and enclosing function:
   that "the verbs are built only in the package" is enough: other packages reach them through
   `docker.RemoveContainer(id)` and its siblings, which validate the ID.
 - *Run time*: `internal/docker/destructive_ids_test.go` checks, under both engines and through the strict stub,
-  that `StopContainer`, `RemoveContainer`, `RemoveImage`, `RemoveVolume` and `RemoveNetwork` refuse a malformed
+  that `StopContainer`, `RemoveContainer`, `RemoveImage`, `RemoveVolume` and `RemoveNetwork` (none takes a force option since OC-22) refuse a malformed
   identifier before any argv is built (`TestDestructiveFunctionsRefuseAMalformedID`), return an error wrapping the
   sentinel and quoting the value (`%q`, so ESC or U+202E come out escaped; the text reaches the log, the handlers
   show only `Action failed — check logs` in the footer, nothing was added there), and pass a valid one as one argv element,
   last (`TestDestructiveFunctionsPassAValidIDAsOneArgvElement`). `TestEveryDestructiveFunctionIsCovered` fails on
-  an exported function of the package that spells a destructive word and is in neither table. The `Prune*`
-  functions take no identifier; their argv is pinned. `RestartContainer`, `PauseContainer` and
+  an exported function of the package that spells a destructive word and is in neither table. `PruneNetworks`
+  is the only prune left (see "Guard F and P" below); it takes no identifier and its argv is pinned. `RestartContainer`, `PauseContainer` and
   `UnpauseContainer` validate the container ID the same way (`lifecycle_ids_test.go`).
 - Formats (`internal/docker/identifier.go`), taken from what the callers pass, which is always a value read from
   `ps`, `image ls`, `volume ls` or `network ls`: container `IsContainerID` (`ErrInvalidContainerID`, lowercase
@@ -729,6 +729,64 @@ information, and reports each site with file, line and enclosing function:
   so a `[]string{"rm", path}` for `/bin/rm` is reported too; restart, pause and unpause are not verbs of this
   guard (they destroy nothing); an option whose value is a variable ends the run of constants, so the verb after it
   is not seen, and neither is a verb behind an option placed between a group word and its verb (`compose -p x down`); a package home is exempt as a whole, file by file.
+
+**Guard F and P, destroy what was previewed (OC-22, DEVDESK-820, requirements S2 and C2).** What `P` and `D` destroy is exactly what
+the confirmation showed, one identifier at a time, never forced, and never a volume a container uses, stopped or not.
+
+- *No force, no prune* (static): `internal/engineguard/destroy_previewed_guard_test.go` (`TestNoDestructiveArgvForcesOrPrunes`, reusing
+  G3's detector) reads the destructive argv that `internal/docker` and `internal/kind` build, where G3 is silent, and fails on `-f`,
+  `--force`, `-v`, `--volumes`, `-a`, `--all`, `--depend`, `--filter` (and `-fv`, `-vf`) next to a destructive verb (rule F), and on any
+  prune (rule P). `stop --time` is a delay, not a force. The one prune left is `PruneNetworks` (`pruneExceptions`, with its reason: the
+  Networks tab has no preview yet; delete the entry and the function when it gets one). `forceMustSee` fails when the detector stops
+  seeing `stop`, `rm`, `rmi`, `volume rm` or `network rm`. `RemoveContainer(id)` and `RemoveImage(id)` have no `force` parameter
+  (`TestNoRemovingFunctionTakesAForceFlag`), and `PruneContainers`, `PruneImages` and `PruneVolumes` no longer exist. The contracts that
+  remove a running container of their own run, or exercise the prune window of `expectPrune`, build `rm -f` and `<kind> prune -f` in test code
+  (`forceRemoveContainerForTest`, `forceRemoveImageForTest`, `pruneKindForTest`, `internal/docker/removal_helpers_test.go`), which no guard scans;
+  the argv rule of the contract (`contractArgvRule`) and the versioned fixtures (`volumes/prune-unused`, 40 files) are unchanged.
+- *The batch and its report*: `RemoveContainers`, `RemoveImages` and `RemoveVolumes` (`internal/docker/removal.go`) run one bare argv per target,
+  in order (`rm <id>`, `rmi <id>`, `volume rm <name>`), refuse a malformed target without building anything (`ReasonOther`, the error wraps the
+  `ErrInvalid...` sentinel) and go on with the next after any refusal, never retrying with a force option. They return a `RemovalReport`, one
+  `RemovalResult{Target, Status, Reason, Err}` per target: `RemovalRemoved`, `RemovalGone` (an information) or `RemovalRefused` with a
+  `RefusalReason` (`running`, `in use`, `other`). `RemovalReport.Summary()` is the footer line (`2 removed, 1 not removed (running), 1 already gone`)
+  and `components.FooterMessage.Removal` sets it: Info when everything was removed or gone, Warning when the engine explained a refusal, Error
+  when a refusal is `other` (Rule 128). `docker.SingleRemoval(target, err)` reads the error of one `Remove*` call the same way, so `D` on an item
+  that is already gone is an Info `1 already gone`, not `Action failed`.
+- *What the engine said* (`ClassifyRemoval`): the text of the error is read, in this order: the engine itself missing or unreachable
+  (`executable file not found`, `cannot connect to`, `permission denied`, ...) is `other`, **never** "already gone", whatever `not found` the text holds;
+  then running (`container is running`, `as it is running`, `container state improper`), in use (`image is being used`, `image used by`,
+  `volume is in use`, `volume is being used`, `has active endpoints`, `has associated containers`), then gone (`no such container|image|volume|network|object`,
+  `no container with name or id`, `no volume with name`, `image not known`, `network <name> not found`); anything else is `other`, the safe side. The running
+  and in-use wordings are the recorded ones of the four configurations (`containers/rm-running`, `images/rmi-used`, `volumes/rm-used`,
+  `networks/rm-used`; `TestRecordedRefusalsAreClassifiedOnEveryRecordedConfiguration`). **NOT RECORDED: the "No such ..." answers of `rm`, `rmi`,
+  `volume rm` and `network rm` for something that does not exist** (only `inspect-absent`, "no such object", is recorded): the wordings in
+  `goneMarkers` come from the engines' sources and from the tests of `removal_report_test.go`, and are to be recorded in an OC-09 scenario (a `*-absent`
+  scenario per kind). Until then an upgrade that rewords them makes the item a `not removed (see logs)` Error instead of `already gone`.
+- *The list is frozen when the confirmation opens*. `P` on Containers freezes, from all the containers the view holds whatever state filter the
+  table shows, those that are `exited`, `created` or `dead`; on Images, the dangling images (repository and tag both `<none>`) with no container
+  (`Image.Containers == 0`), once each, leaving out an ID a tagged row also carries; on Volumes, `docker.UnusedVolumes(volumes, users)` from `ListVolumeUsers`.
+  A malformed identifier is left out (and logged) at that moment. Nothing to remove opens no confirmation and the footer says so at Info
+  (`No stopped containers to remove`, `No dangling images to remove`, `No unused volumes to remove`). The confirmation (generic `ConfirmModal`, text
+  `components.RemovalPreview`: `Remove these N <what>?`, the first 8 names, `and N more`, `Only the items listed here are removed.`) never says "all"; its detailed
+  text is OC-27 and the detailed outcome OC-28. Confirming runs the frozen list through the `Remove*s` function as one `Cmd` that returns a
+  message carrying the `RemovalReport`; a refresh of the table in between (a container that stops, an image that becomes dangling) changes nothing
+  about the list, and a container that started or an image or volume that a container began to use is refused by the engine, reported, never forced.
+  Not on the jobs registry: the existing prune was not, and `m.pruning` keeps the footer's `Pruning ...…` line while it runs.
+- *Which containers use which volume* (`internal/docker/volume_users.go`): `ListVolumeUsers() (map[string][]string, error)` runs ONE
+  `<engine> ps -a -q --no-trunc` (the full IDs) and, when there is at least one, ONE grouped
+  `<engine> inspect --format {"Id":{{json .Id}},"Name":{{json .Name}},"Mounts":{{json .Mounts}}} <id>...`, never one call per volume or per container.
+  Each line is one JSON object; the answers are joined to the IDs **by `Id`, never by position**, the leading `/` of docker's `Name` is dropped, and only a
+  mount of `Type` `volume` with a `Name` is a volume (a bind mount, tmpfs or another type never is; anonymous volumes, a 64-hex name, count). It fails
+  closed: an error of `ps`, an ID that is not a container ID, an error of `inspect` (a container that disappeared between the two calls included), an empty or
+  unreadable output, an answer that does not match every ID asked exactly once, or a `Mounts` that is not a list, is an error and no map; the Volumes tab then
+  opens no confirmation and shows an Error. `VolumeUsers` is pure and `UnusedVolumes` keeps the order of the list; OC-25, OC-28 and OC-43 read the same map.
+  Probe of 2026-11 on docker 28.5.2 and 29.10.1, podman 5.8.11 and 6.2.1 (reported by the orchestrator): `ps --format {{.Mounts}}` prints, on podman, the
+  destinations of the mounts in brackets and never the volume names, and on docker a name, a source or a hash cut at 14 characters without
+  `--no-trunc`, so it would make a volume look unused; docker prints `inspect` in the reverse order of creation with a `Name` that starts with `/`, podman in order
+  of creation without it; the order of the mounts of one container is not stable between engines. **Not run on a real engine: the `inspect` template and the
+  unfiltered `ps -a -q --no-trunc`** (the contracts run the same `ps` with a label filter; the fixtures of `volume_users_test.go` are written by hand from the probe and are to be replaced by a recorded scenario, OC-09).
+  Limit: the IDs travel in one argv; on Windows (about 32 KB of command line, roughly 480 containers) an engine with more containers makes the
+  `inspect` fail, which is the fail-closed answer (no confirmation, an Error), not a wrong one.
+
 
 **Guard G8, every pull goes through `imagepull.Pull` (OC-10, DEVDESK-808, requirement S6).** Two halves.
 
@@ -999,8 +1057,8 @@ scenarios listed under "The first scenarios".
   window is a second judge in front of the standard one: it is never a loosening of `contractArgvRule`, and a refusal
   names both reasons. Three windows exist, each a pure function of its inputs (tested without an engine) and a method of `contract`:
   - **Prune** (`pruneWindowRule(kind)`, `c.expectPrune(campaign, scenario, text, kind, call)`). `kind` is `container`,
-    `network` or `volume`, and the one argv is `<kind> prune -f`, what `PruneContainers`, `PruneNetworks` and
-    `PruneVolumes` send: never `-a` or `--all`, never a filter, never `system prune` or an image prune, no other kind.
+    `network` or `volume`, and the one argv is `<kind> prune -f`, what `PruneNetworks` and, since OC-22, the test helper
+    `pruneKindForTest` send (production code has no other prune): never `-a` or `--all`, never a filter, never `system prune` or an image prune, no other kind.
     The condition: **the whole store of that kind holds nothing but resources of this run**, read right before the call
     (`ps -a -q --no-trunc`, `network ls --format {{.Name}}` with the networks the engines make, `volume ls -q`). A
     foreign resource (named in the message), a listing that fails, a kind with no window or a missing lab mark ends the

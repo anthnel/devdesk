@@ -85,16 +85,16 @@ func deleteScanCacheCmd(keys []string) tea.Cmd {
 // removeImageCmd removes a Docker image
 func removeImageCmd(id, name string) tea.Cmd {
 	return func() tea.Msg {
-		err := docker.RemoveImage(id, false)
+		err := docker.RemoveImage(id)
 		return ImageActionMsg{Action: "remove", ID: id, Name: name, Err: err}
 	}
 }
 
-// pruneImagesCmd prunes unused Docker images
-func pruneImagesCmd() tea.Cmd {
+// removeImagesCmd removes the images the confirmation showed, each by its own ID
+// (OC-22). ids is the list frozen when the modal opened.
+func removeImagesCmd(ids []string) tea.Cmd {
 	return func() tea.Msg {
-		output, err := docker.PruneImages()
-		return PruneCompleteMsg{Output: output, Err: err}
+		return PruneCompleteMsg{Report: docker.RemoveImages(ids)}
 	}
 }
 
@@ -242,11 +242,22 @@ func removeVolumeCmd(name string) tea.Cmd {
 	}
 }
 
-// pruneVolumesCmd prunes unused Docker volumes
-func pruneVolumesCmd() tea.Cmd {
+// readVolumeUsersCmd asks the engine which containers use which volumes (one
+// `ps -a` and one grouped `inspect`). volumes is the snapshot the preview is
+// computed from: it travels on the message so a refresh of the table in between
+// cannot change what the user is shown.
+func readVolumeUsersCmd(volumes []docker.Volume) tea.Cmd {
 	return func() tea.Msg {
-		output, err := docker.PruneVolumes()
-		return VolumePruneCompleteMsg{Output: output, Err: err}
+		users, err := docker.ListVolumeUsers()
+		return VolumePruneUsersMsg{Volumes: volumes, Users: users, Err: err}
+	}
+}
+
+// removeVolumesCmd removes the volumes the confirmation showed, each by its own
+// name (OC-22). names is the list frozen when the modal opened.
+func removeVolumesCmd(names []string) tea.Cmd {
+	return func() tea.Msg {
+		return VolumePruneCompleteMsg{Report: docker.RemoveVolumes(names)}
 	}
 }
 

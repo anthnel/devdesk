@@ -101,9 +101,7 @@ func (m Model) handleVolumesKeyMsg(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	case keymap.Delete:
 		return m.deleteSelectedVolume()
 	case keymap.Prune:
-		m.pendingAction = "prune-volumes"
-		m.confirmModal = sharedcomponents.NewConfirmModal("Prune Volumes", "Remove all unused volumes?")
-		return m, nil
+		return m.pruneVolumes()
 	case "ctrl+r":
 		m.loadingVols = true
 		return m, fetchVolumes()

@@ -110,10 +110,12 @@ var argvCallees = []string{"Build", "mutate", "mutateContext", "prune", "dockerO
 // destructiveMustSee are the verbs internal/docker builds today. The guard fails
 // when it stops seeing one in the package: it would be passing because the
 // detector went blind, not because nothing is built. kill and kind delete are
-// not listed: nothing builds them yet.
+// not listed: nothing builds them yet. The container, image and volume prunes left
+// the list with OC-22 (DEVDESK-820): nothing builds them any more, and
+// destroy_previewed_guard_test.go fails on one that comes back.
 var destructiveMustSee = []string{
 	"stop", "rm", "rmi", "volume rm", "network rm",
-	"container prune", "image prune", "volume prune", "network prune",
+	"network prune",
 }
 
 // destructiveException is a function outside the homes that builds a destructive

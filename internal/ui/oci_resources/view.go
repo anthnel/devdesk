@@ -606,7 +606,9 @@ func (m Model) GetHelpContent() help.Content {
 			{Key: "A (Images)", Description: "Scan every image. The confirmation carries a checkbox to purge the cached results first — unchecked, only what has never been scanned is scanned"},
 			{Key: "A (Images)", Description: "Scan all unscanned images using config defaults"},
 			{Key: keymap.Delete, Description: "Delete the selected resource (with confirmation)"},
-			{Key: keymap.Prune, Description: "Prune unused resources (with confirmation)"},
+			{Key: keymap.Prune + " (Images)", Description: "Remove the dangling images (no tag) no container uses. The confirmation lists them and removes exactly those, one by one, never forced; nothing to remove opens no confirmation"},
+			{Key: keymap.Prune + " (Networks)", Description: "Prune all unused networks (with confirmation)"},
+			{Key: keymap.Prune + " (Volumes)", Description: "Remove the volumes no container uses, stopped containers included. The engine is asked which containers use which volume first (if it cannot say, nothing is removed); the confirmation lists the volumes and removes exactly those, one by one, never forced"},
 			{Key: "enter (Networks)", Description: "Inspect the selected network — shows connected containers with IP and MAC addresses"},
 			{Key: "N (Networks)", Description: "Create a new network"},
 			{Key: "N (Volumes)", Description: "Create a new volume"},
@@ -655,7 +657,7 @@ func (m Model) GetHelpContent() help.Content {
 			},
 			{
 				Title: "Volumes Tab",
-				Body:  "Lists " + engTitle + " volumes (Name, Driver, Mountpoint). Press N to create a new volume, D to remove the selected one, P to prune all unused volumes.",
+				Body:  "Lists " + engTitle + " volumes (Name, Driver, Mountpoint). Press N to create a new volume, D to remove the selected one, P to remove the volumes no container uses (the list is shown first, and only it is removed).",
 			},
 			{
 				Title: "Registries Tab",

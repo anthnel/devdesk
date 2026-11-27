@@ -21,11 +21,11 @@ func TestContractRemovingAnImageInUseIsRefused(t *testing.T) {
 	// The sentinel of contract.sh and the container of the run both use the image, and the engine names
 	// whichever it finds first (docker 12 characters after "container", podman 64 after "used by").
 	ex := c.expectRmiRefusalWith(enginecontract.SameUpToContainerIDs(), "images", "rmi-used", "rmi of an image a container uses is refused", imageID, func() {
-		err = RemoveImage(imageID, false)
+		err = RemoveImage(imageID)
 	})
 
 	if err == nil {
-		t.Fatalf("RemoveImage(%s, false) = nil on an image a container uses, want the engine to refuse it", imageID)
+		t.Fatalf("RemoveImage(%s) = nil on an image a container uses, want the engine to refuse it", imageID)
 	}
 	if ex.Exit == 0 {
 		t.Errorf("exit code = 0 for a refused rmi, want non-zero")

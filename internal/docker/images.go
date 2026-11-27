@@ -333,16 +333,14 @@ func firstWord(s string) string {
 	return s
 }
 
-// RemoveImage removes a Docker image by ID. If force is true, uses -f flag.
-func RemoveImage(id string, force bool) error {
+// RemoveImage removes one image by ID: `rmi <id>`, nothing else. There is no
+// force option (OC-22, DEVDESK-820, C2): an image a container uses is refused by
+// the engine and reported, never removed from under the container.
+func RemoveImage(id string) error {
 	if !IsImageID(id) {
 		return fmt.Errorf("%s: %q is not an image ID: %w", cmdLabel("rmi"), id, ErrInvalidImageID)
 	}
-	args := []string{"rmi", id}
-	if force {
-		args = []string{"rmi", "-f", id}
-	}
-	return mutate(cmdLabel("rmi"), args...)
+	return mutate(cmdLabel("rmi"), "rmi", id)
 }
 
 // ContainersUsingImage names every container, running or not, created from the
@@ -380,11 +378,6 @@ func SameImageID(a, b string) bool {
 		return false
 	}
 	return strings.HasPrefix(a, b) || strings.HasPrefix(b, a)
-}
-
-// PruneImages removes all dangling (unused) images and returns the output
-func PruneImages() (string, error) {
-	return prune(cmdLabel("image prune"), "image", "prune", "-f")
 }
 
 // PullImage pulls a Docker image from a registry.

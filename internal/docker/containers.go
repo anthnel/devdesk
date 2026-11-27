@@ -283,21 +283,14 @@ func UnpauseContainer(id string) error {
 	return mutate(cmdLabel("unpause"), "unpause", id)
 }
 
-// RemoveContainer removes a container by ID. If force is true, uses -f flag.
-func RemoveContainer(id string, force bool) error {
+// RemoveContainer removes one container by ID: `rm <id>`, nothing else. There is
+// no force option (OC-22, DEVDESK-820, C2): the engine refuses a running
+// container and DevDesk reports the refusal, it never retries with `-f`.
+func RemoveContainer(id string) error {
 	if err := requireContainerID("rm", id); err != nil {
 		return err
 	}
-	args := []string{"rm", id}
-	if force {
-		args = []string{"rm", "-f", id}
-	}
-	return mutate(cmdLabel("rm"), args...)
-}
-
-// PruneContainers removes all stopped containers
-func PruneContainers() (string, error) {
-	return prune(cmdLabel("container prune"), "container", "prune", "-f")
+	return mutate(cmdLabel("rm"), "rm", id)
 }
 
 // ErrInvalidContainerID is wrapped by every function that refuses an ID before

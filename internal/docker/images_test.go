@@ -177,27 +177,15 @@ func TestParseExposedPorts(t *testing.T) {
 	}
 }
 
-func TestRemoveImageForceFlag(t *testing.T) {
-	tests := []struct {
-		name     string
-		force    bool
-		wantArgs []string
-	}{
-		{"without force", false, []string{"rmi", "0123456789ab"}},
-		{"with force", true, []string{"rmi", "-f", "0123456789ab"}},
+// RemoveImage has no force option since OC-22 (DEVDESK-820): the argv is `rmi <id>`.
+func TestRemoveImageIsNeverForced(t *testing.T) {
+	s := stub(t, &stubRunner{})
+
+	if err := RemoveImage("0123456789ab"); err != nil {
+		t.Fatalf("RemoveImage() error = %v", err)
 	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			s := stub(t, &stubRunner{})
-
-			if err := RemoveImage("0123456789ab", tt.force); err != nil {
-				t.Fatalf("RemoveImage() error = %v", err)
-			}
-			if !slices.Equal(s.lastArgs(), tt.wantArgs) {
-				t.Errorf("args = %v, want %v", s.lastArgs(), tt.wantArgs)
-			}
-		})
+	if want := []string{"rmi", "0123456789ab"}; !slices.Equal(s.lastArgs(), want) {
+		t.Errorf("args = %v, want %v", s.lastArgs(), want)
 	}
 }
 
@@ -239,7 +227,7 @@ func TestPullImageStillPulls(t *testing.T) {
 func TestOtherMutationsCarryNoContext(t *testing.T) {
 	s := stub(t, &stubRunner{})
 
-	if err := RemoveImage("0123456789ab", false); err != nil {
+	if err := RemoveImage("0123456789ab"); err != nil {
 		t.Fatalf("RemoveImage() error = %v", err)
 	}
 	if call := s.calls[len(s.calls)-1]; call.Ctx != nil {

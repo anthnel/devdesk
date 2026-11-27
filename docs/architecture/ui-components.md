@@ -496,7 +496,14 @@ Deliberately outside this:
 - **`prune`** — it acts on no row, so marking every row would say something
   false. It gets a footer line rendered from the view's own state (`m.pruning`),
   like `syncStatusLine` (§3.17), because a footer *message* expires after three
-  seconds (Rule 128) and `docker stop` outlives that by seven.
+  seconds (Rule 128) and `docker stop` outlives that by seven. Since OC-22
+  (DEVDESK-820) `P` removes a list frozen when the confirmation opens, one
+  identifier at a time, and its outcome is a `docker.RemovalReport` shown as
+  one footer message by `FooterMessage.Removal` (`2 removed, 1 not removed
+  (running), 1 already gone`: Info, Warning when the engine explained a refusal,
+  Error when it did not); the confirmation text is `components.RemovalPreview`.
+  `D` on an item that is already gone reads the same way (`1 already gone`,
+  Info). See `network.md`, "Guard F and P".
 - **`workspaces`** — it already had all of this, its own way (`scanningPaths`,
   `syncingPaths`, `deletingPaths`, `busy(path)`), and is in fact where the
   design came from. Its delete was the one action its own machinery did not
