@@ -285,9 +285,29 @@ func PruneContainers() (string, error) {
 	return prune(cmdLabel("container prune"), "container", "prune", "-f")
 }
 
+// ErrInvalidContainerID is wrapped by every function that refuses an ID before
+// building a command: an ID that is not lowercase hex of 12 to 64 characters
+// could be read by the engine as an option (`-f`) or as another argument.
+var ErrInvalidContainerID = errors.New("invalid container ID")
+
+// LogsCmd returns the ready-to-run `<engine> logs --tail N <id>` without
+// starting it, and with no stream set: the caller wires its output to a pager
+// (internal/ui/teaexec.Pipe). The ID is validated first, and a malformed one
+// builds nothing.
+func LogsCmd(id string, tail int) (*exec.Cmd, error) {
+	if !IsContainerID(id) {
+		return nil, fmt.Errorf("%s: %q is not a container ID: %w", cmdLabel("logs"), id, ErrInvalidContainerID)
+	}
+	return runner.Build("logs", "--tail", strconv.Itoa(tail), id), nil
+}
+
 // GetContainerLogs returns the last N lines of logs for a container.
 // When timestamps is true, each line is prefixed with its RFC3339Nano timestamp.
+// A malformed ID is refused before the engine is asked (ErrInvalidContainerID).
 func GetContainerLogs(id string, tail int, timestamps bool) (string, error) {
+	if !IsContainerID(id) {
+		return "", fmt.Errorf("%s: %q is not a container ID: %w", cmdLabel("logs"), id, ErrInvalidContainerID)
+	}
 	args := []string{"logs", "--tail", strconv.Itoa(tail)}
 	if timestamps {
 		args = append(args, "--timestamps")

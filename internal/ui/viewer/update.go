@@ -2,12 +2,15 @@ package viewer
 
 import (
 	"log"
+	"os"
 	"os/exec"
+	"runtime"
 	"time"
 
 	tea "charm.land/bubbletea/v2"
 	"github.com/anthnel/devdesk/internal/clipboard"
 	"github.com/anthnel/devdesk/internal/jobs"
+	"github.com/anthnel/devdesk/internal/pager"
 	"github.com/anthnel/devdesk/internal/ui/teaexec"
 
 	"github.com/anthnel/devdesk/internal/ui/keymap"
@@ -394,7 +397,10 @@ func (m Model) handleFollowTick(msg followTickMsg) (tea.Model, tea.Cmd) {
 	return m, tea.Batch(loadCmd(m.source), followTickCmd(src.FollowInterval(), msg.gen))
 }
 
-// openPager hands the document to the system pager.
+// openPager hands the document to the system pager: the source's command
+// (`<engine> logs`) piped into the pager that app.pager, PAGER or the platform
+// default names. A refused feed or an unreadable pager is reported in the
+// footer and nothing is started.
 //
 // It survives for one source and deliberately: `less` handles a gigabyte and
 // follows it, which a viewport holding the whole document in memory never will.
@@ -404,7 +410,24 @@ func (m Model) openPager() (tea.Model, tea.Cmd) {
 	if !ok {
 		return m, nil
 	}
-	return m, teaexec.Process(src.PagerCmd(), func(err error) tea.Msg {
+	feed, err := src.PagerFeed()
+	if err != nil {
+		report := m.footer.Error("Pager refused — " + err.Error())
+		return m, report
+	}
+	configured := ""
+	if m.config != nil {
+		configured = m.config.App.Pager
+	}
+	argv, err := pager.Resolve(configured, os.Getenv("PAGER"), runtime.GOOS)
+	if err != nil {
+		report := m.footer.Error("Cannot read the pager — " + err.Error())
+		return m, report
+	}
+	// The pager is started directly from the argv DevDesk cut: no shell reads
+	// the PAGER line or the container ID (OC-84, DEVDESK-801).
+	consumer := exec.Command(argv[0], argv[1:]...) //nolint:gosec // the user's own pager
+	return m, teaexec.Pipe(feed, consumer, func(err error) tea.Msg {
 		return PagerExitMsg{Err: err}
 	})
 }

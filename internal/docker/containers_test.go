@@ -197,21 +197,40 @@ func TestContainerLifecycleCommands(t *testing.T) {
 	}
 }
 
+// A malformed ID is refused before the engine is asked: "-f" would otherwise
+// be read as an option, and never end.
+func TestGetContainerLogsRefusesAMalformedID(t *testing.T) {
+	for _, id := range []string{"-f", "--follow", "abc", "", "abc; rm -rf ~"} {
+		t.Run(id, func(t *testing.T) {
+			stubStrict(t) // no argv declared: any Build or Run fails the test
+
+			got, err := GetContainerLogs(id, 50, false)
+
+			if !errors.Is(err, ErrInvalidContainerID) {
+				t.Errorf("GetContainerLogs(%q) error = %v, want ErrInvalidContainerID", id, err)
+			}
+			if got != "" {
+				t.Errorf("GetContainerLogs(%q) = %q, want nothing", id, got)
+			}
+		})
+	}
+}
+
 func TestGetContainerLogsBuildsArgs(t *testing.T) {
 	tests := []struct {
 		name       string
 		timestamps bool
 		wantArgs   []string
 	}{
-		{"without timestamps", false, []string{"logs", "--tail", "50", "abc"}},
-		{"with timestamps", true, []string{"logs", "--tail", "50", "--timestamps", "abc"}},
+		{"without timestamps", false, []string{"logs", "--tail", "50", "0123456789ab"}},
+		{"with timestamps", true, []string{"logs", "--tail", "50", "--timestamps", "0123456789ab"}},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			s := stubOutput(t, "logs", "line one\nline two\n")
 
-			got, err := GetContainerLogs("abc", 50, tt.timestamps)
+			got, err := GetContainerLogs("0123456789ab", 50, tt.timestamps)
 
 			if err != nil {
 				t.Fatalf("GetContainerLogs() error = %v", err)

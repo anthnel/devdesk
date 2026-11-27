@@ -55,7 +55,7 @@ func (s capableSource) WithTimestamps(on bool) viewerpkg.Source {
 // it. tea.Tick blocks its full duration and testutil.Msgs runs every command it
 // is handed — the reason components.FooterMsgDuration is a var (Rule 128).
 func (s capableSource) FollowInterval() time.Duration { return time.Millisecond }
-func (s capableSource) PagerCmd() *exec.Cmd           { return exec.Command("true") }
+func (s capableSource) PagerFeed() (*exec.Cmd, error) { return exec.Command("true"), nil }
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
 

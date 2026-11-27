@@ -10,9 +10,10 @@ const (
 // IsContainerID reports whether s is a well-formed Docker container ID:
 // a lowercase hexadecimal string of 12 to 64 characters.
 //
-// Container IDs are parsed from `docker ps` output and are later embedded in
-// shell command lines by the log and inspect pagers. Validating them keeps shell
-// metacharacters out of those command lines even if the parsing ever drifts.
+// Container IDs are parsed from `docker ps` output and are later passed as an
+// argv element to the engine (logs, inspect, exec). Validating them keeps an
+// option such as `-f`, or any other stray text, out of that argv even if the
+// parsing ever drifts.
 func IsContainerID(s string) bool {
 	if len(s) < minShortIDLen || len(s) > maxIDLen {
 		return false

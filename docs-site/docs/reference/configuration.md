@@ -15,6 +15,7 @@ default — an absent key is not an error, `config.Default()` fills it in.
 | `workspaces_dir` | string | `~/workspaces` | Scanned by Workspaces; default clone target for the forge explorer |
 | `ide_command` | string | | Command run by `O` (open in IDE) |
 | `terminal_command` | string | | e.g. `kitty --directory` — empty auto-detects |
+| `pager` | string | | Command `V` pipes a container log into, e.g. `less -R`. Empty uses `PAGER`, then `less -R` (`more` on Windows). Not run through a shell: quotes group words, nothing is expanded |
 | `terminal_new_window` | bool | `false` | `T` opens a separate terminal window instead of suspending the TUI in place. Off by default: no window can open under WSL, and none exists to open over SSH |
 | `show_hidden_files` | bool | `false` | Whether Workspaces lists dot-prefixed entries — governs both the listing and what `S`/`F`/`A` act on |
 | `secret_backend` | string | `auto` | `auto` \| `keyring` \| `git-credential` — pins the credential storage backend |
