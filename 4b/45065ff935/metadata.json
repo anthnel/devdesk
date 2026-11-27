@@ -1,0 +1,46 @@
+{
+  "cli_version": "0.13.2",
+  "checkpoint_id": "4b45065ff935",
+  "strategy": "manual-commit",
+  "branch": "feat/oc-15-reserved-env-names",
+  "checkpoints_count": 3,
+  "files_touched": null,
+  "sessions": [
+    {
+      "metadata": "/4b/45065ff935/0/metadata.json",
+      "transcript": "/4b/45065ff935/0/full.jsonl",
+      "compact_transcript": "/4b/45065ff935/0/transcript.jsonl",
+      "content_hash": "/4b/45065ff935/0/content_hash.txt",
+      "prompt": "/4b/45065ff935/0/prompt.txt"
+    }
+  ],
+  "token_usage": {
+    "input_tokens": 36,
+    "cache_creation_tokens": 36340,
+    "cache_read_tokens": 7302658,
+    "output_tokens": 15178,
+    "api_call_count": 11,
+    "subagent_tokens": {
+      "input_tokens": 184,
+      "cache_creation_tokens": 514207,
+      "cache_read_tokens": 6637415,
+      "output_tokens": 63260,
+      "api_call_count": 90
+    },
+    "subagent_tokens_complete": true
+  },
+  "redaction": {
+    "replacements": 165,
+    "layers": {
+      "betterleaks": 0,
+      "connection_string": 0,
+      "credential_key": 0,
+      "credential_value": 112,
+      "credentialed_uri": 0,
+      "entropy": 12,
+      "key_context": 41,
+      "provider_token": 0,
+      "shell_stdin": 0
+    }
+  }
+}
