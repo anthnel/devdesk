@@ -6,7 +6,6 @@ import (
 	"os/exec"
 	"strconv"
 	"strings"
-	"unicode"
 )
 
 // ContainerLaunchOptions holds parameters for running a container
@@ -90,16 +89,24 @@ func PortExposedOnAllInterfaces(spec string) bool {
 var ErrInvalidLaunchEnv = errors.New("invalid environment variable for the launch: each entry needs a valid name and a value")
 
 // ValidEnvName reports whether name is acceptable as the name of an environment
-// variable of a launch: not empty, no "=", no white space and no control
-// character. It is as permissive as the engines are (a name with a dot, a dash or
-// a leading digit passes); the reserved names are OC-15's. The launch form calls
-// it too, so the form and the launcher share one rule.
+// variable of a launch: ASCII only, matching ^[A-Za-z0-9_][A-Za-z0-9_.-]*$. A dot
+// or a dash inside the name and a leading digit pass; a leading dash does not, so
+// a name can never read as an engine flag. A wildcard (`*`, `?`) is refused too:
+// Podman expands `-e PREFIX*` to every variable of DevDesk's environment starting
+// with PREFIX, which would copy host secrets into the container. Anything outside
+// ASCII is refused (invisible and bidirectional characters, accents). The reserved
+// names (`PATH`, `DOCKER_HOST`, ...) are OC-15's. The launch form calls this
+// function too, so the form and the launcher share one rule.
 func ValidEnvName(name string) bool {
 	if name == "" {
 		return false
 	}
-	for _, r := range name {
-		if r == '=' || unicode.IsSpace(r) || unicode.IsControl(r) {
+	for i := 0; i < len(name); i++ {
+		c := name[i]
+		switch {
+		case c >= 'A' && c <= 'Z', c >= 'a' && c <= 'z', c >= '0' && c <= '9', c == '_':
+		case (c == '.' || c == '-') && i > 0:
+		default:
 			return false
 		}
 	}
@@ -227,13 +234,15 @@ func (e *LaunchError) Error() string { return e.label + " failed: " + e.output }
 func (e *LaunchError) Unwrap() error { return e.err }
 
 // Summary is the part of the error that is safe to log: the engine and the exit
-// code, none of its output.
+// code, none of its output. A process that did not start has no exit code; the
+// summary says so with a fixed phrase rather than the error text, which may name
+// an argument.
 func (e *LaunchError) Summary() string {
 	var exit *exec.ExitError
 	if errors.As(e.err, &exit) {
 		return e.label + " failed (exit code " + strconv.Itoa(exit.ExitCode()) + ")"
 	}
-	return e.label + " failed"
+	return e.label + " failed (could not start the process)"
 }
 
 // LaunchLogText returns what a log line may say about the error of a launch:

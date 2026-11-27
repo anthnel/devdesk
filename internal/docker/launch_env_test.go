@@ -388,7 +388,7 @@ func TestLaunchLogTextLeavesOtherErrorsAsTheyAre(t *testing.T) {
 	for _, err := range []error{ErrInvalidLaunchEnv, errors.New("docker not found"), &LaunchError{label: "docker run"}} {
 		want := err.Error()
 		if _, ok := err.(*LaunchError); ok {
-			want = "docker run failed"
+			want = "docker run failed (could not start the process)"
 		}
 		if got := LaunchLogText(err); got != want {
 			t.Errorf("LaunchLogText(%v) = %q, want %q", err, got, want)

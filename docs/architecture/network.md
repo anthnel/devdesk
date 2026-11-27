@@ -98,10 +98,14 @@ Two things about the engine are worth knowing before changing this code:
     entry has no `=` or a name `ValidEnvName` refuses: a bare `-e NAME` would copy
     DevDesk's own variable into the container. Blank entries are skipped. The text
     never holds the entry, nor even an equals sign.
-  - **One name rule.** `docker.ValidEnvName`: not empty, no `=`, no white space, no
-    control character. It is deliberately as permissive as the engines (a dot, a
-    dash or a leading digit pass); the reserved names (`PATH`, `LD_PRELOAD`, ...)
-    are OC-15. The launch form calls the same function, so the two cannot disagree.
+  - **One name rule.** `docker.ValidEnvName`: ASCII only,
+    `^[A-Za-z0-9_][A-Za-z0-9_.-]*$`. A dot or a dash inside the name and a leading
+    digit pass. Refused: a wildcard (`*`, `?`: Podman expands `-e PREFIX*` to every
+    variable of DevDesk's environment starting with `PREFIX`, so `*=x` would copy
+    `GITHUB_TOKEN`, the proxies or `SSH_AUTH_SOCK` into the container), `=`, white
+    space, a leading dash (it would read as an engine flag), and any non-ASCII
+    character (invisible and bidirectional ones such as U+200B and U+202E, accents,
+    emoji). The launch form calls the same function, so the two cannot disagree.
   - **`NAME=` (empty value).** The launcher accepts it (`-e EMPTY`, `EMPTY=` in the
     child's environment); the form refuses it (a variable left empty is almost
     always one that was not filled in).
@@ -116,10 +120,21 @@ Two things about the engine are worth knowing before changing this code:
     duplicates (`A=1, A=2`) the argv holds `-e A` twice and the last value wins in
     the child.
   - **The log.** A refused `run` returns a `*docker.LaunchError`: its `Error()`
-    keeps the engine's own output (the view shows a fixed sentence, the tests rely
-    on the diagnostic), but `handleContainerLaunchComplete` logs
-    `docker.LaunchLogText(err)`, which is `<engine> run failed (exit code N)` for
-    it and the error as it is for any other.
+    keeps the engine's own output (`TestALaunchThatDockerRefusesCarriesTheReason`
+    requires it in the error, and the view shows a fixed sentence), but
+    `handleContainerLaunchComplete` logs `docker.LaunchLogText(err)`, which is
+    `<engine> run failed (exit code N)` for it, `<engine> run failed (could not
+    start the process)` when the process never started (a fixed phrase, never the
+    error text), and the error as it is for any other. `Summary()` is the safe
+    form. `TestTheLaunchCompletionNeverLogsTheRawError` reads the source and fails
+    when that handler passes `msg.Err` to a log call. Limit: any new log site that
+    prints a `ContainerLaunchCompleteMsg.Err` is not seen by that guard.
+  - **Known limit until OC-15 is merged.** Beyond the syntax above, names are not
+    restricted, and the typed variables are in the environment of the engine CLI
+    process itself, so a name also drives the CLI, not only the container:
+    `DOCKER_HOST`, `CONTAINER_HOST`, `CONTAINER_CONNECTION`, `DOCKER_CONFIG`,
+    `HOME`, `PATH`, `LD_PRELOAD`, the `*_PROXY` variables and the like. The list of
+    reserved names is OC-15's, not this story's.
   - **Still to do.** OC-15 (reserved names), OC-16 (the command preview and `ctrl+y`
     still show `-e NAME=VALUE`: `buildCommandString` / `buildCommandLines`), OC-17
     (`launch-options.json` still stores the values: `ToCacheEntry`). The scanner
