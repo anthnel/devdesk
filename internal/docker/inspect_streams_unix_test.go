@@ -4,37 +4,33 @@ package docker
 
 import (
 	"encoding/json"
-	"os"
-	"path/filepath"
 	"strings"
 	"testing"
 
 	"github.com/anthnel/devdesk/internal/engine"
+	"github.com/anthnel/devdesk/internal/testutil/fakecli"
 )
 
 // OC-04 (DEVDESK-800), criterion 3: InspectContainer returns the engine's stdout
 // and nothing from its stderr.
 //
-// The engine is a script in a temp dir that the engine seam points at, run
+// The engine is a fakecli docker (declared to the engine guard, DEVDESK-799) that
+// answers a deprecation warning on stderr and the JSON document on stdout, run
 // through the real cliRunner: the test holds whichever way the package decides to
 // keep the two streams apart (a flag on dockerCmd, a second runner method...).
 // No real docker or podman is reached.
-const warningThenJSON = `#!/bin/sh
-echo "WARNING: this engine version is deprecated" >&2
-echo '[{"Id":"aaaa111122223333","Name":"/web"}]'
-`
-
-func installScriptEngine(t *testing.T, script string) {
+func installWarningThenJSONEngine(t *testing.T) {
 	t.Helper()
-	bin := filepath.Join(t.TempDir(), "engine")
-	if err := os.WriteFile(bin, []byte(script), 0o755); err != nil { //nolint:gosec // a test executable
-		t.Fatal(err)
-	}
+	fakecli.Install(t, fakecli.Scenario{{
+		Tool: "docker", Args: []string{"inspect"}, Prefix: true,
+		Reply: fakecli.Reply{
+			Stdout: `[{"Id":"aaaa111122223333","Name":"/web"}]` + "\n",
+			Stderr: "WARNING: this engine version is deprecated\n",
+		},
+	}}, "docker")
 	previousRunner, previousEngine := runner, engine.Current()
 	runner = cliRunner{}
-	shape := engine.ShapeFor("docker")
-	shape.Binary = bin
-	engine.SetCurrent(shape)
+	engine.SetCurrent(engine.ShapeFor("docker"))
 	t.Cleanup(func() {
 		runner = previousRunner
 		engine.SetCurrent(previousEngine)
@@ -42,7 +38,7 @@ func installScriptEngine(t *testing.T, script string) {
 }
 
 func TestInspectContainerReturnsStdoutOnly(t *testing.T) {
-	installScriptEngine(t, warningThenJSON)
+	installWarningThenJSONEngine(t)
 
 	got, err := InspectContainer("aaaa111122223333")
 

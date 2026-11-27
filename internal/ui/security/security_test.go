@@ -11,6 +11,7 @@ import (
 	tea "charm.land/bubbletea/v2"
 
 	"github.com/anthnel/devdesk/internal/config"
+	"github.com/anthnel/devdesk/internal/docker"
 	"github.com/anthnel/devdesk/internal/imagepull"
 	"github.com/anthnel/devdesk/internal/imageupdate"
 	"github.com/anthnel/devdesk/internal/netproxy"
@@ -37,6 +38,10 @@ func TestMain(m *testing.M) {
 	// No engine and no registry is reached from a test (§3.88).
 	localImageDigests = func([]string) map[string][]string { return nil }
 	checkImageUpdates = func([]string) map[string]imageupdate.Facts { return nil }
+	// Nor the daemon, through the inventory load (DEVDESK-799): "cannot tell" keeps
+	// every cached image, as a machine without an engine does. pulled(t, ...)
+	// answers a name list for the length of one test and restores this stub.
+	docker.ImageNames = func() (map[string]struct{}, bool) { return nil, false }
 	// Nor cosign, through the Remediation tab's signature checks (§3.82).
 	newPullDeps = func(*config.Config, *scan.Report) imagepull.Deps { return imagepull.Deps{} }
 	// Nor the developer's own HTTPS_PROXY, which would add a footer warning to

@@ -53,7 +53,7 @@ func TestAllowFakeCLIDir(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			engineguard.Isolate(t)
+			engineguard.SurveyMode(t) // a reach is recorded here, not refused
 			dir := t.TempDir()
 			binary := filepath.Join(dir, "docker")
 			if err := os.WriteFile(binary, nil, 0o700); err != nil {

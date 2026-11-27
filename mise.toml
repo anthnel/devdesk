@@ -74,7 +74,7 @@ env = { CGO_ENABLED = "1" }
 run = "go test -race ./..."
 
 [tasks.engine-survey]
-description = "List the tests that reach a real container engine (guard G1, survey mode, DEVDESK-798): runs the whole suite once, which is heavy, and prints each (test, operation, binary) outside a fakecli directory; never part of ci, check or test"
+description = "List the tests that reach a real container engine (guard G1, DEVDESK-798, DEVDESK-799): the guard panics by default and the survey is opt-in; this task runs the whole suite once in survey mode, which is heavy, and prints each (test, operation, binary) outside a fakecli directory; never part of ci, check or test"
 shell = "bash -c"
 # A failing package must not hide the list, so the list is printed whatever the
 # status of go test; the task then exits with that status, and says the list is

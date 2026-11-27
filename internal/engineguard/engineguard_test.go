@@ -12,11 +12,13 @@ import (
 	"github.com/anthnel/devdesk/internal/engineguard"
 )
 
-// OC-03a (DEVDESK-798): guard G1, survey mode. In a test binary, the runner
-// that starts a container engine tells this package which binary it resolved;
-// a binary outside every directory a test declared (fakecli declares its own)
-// is recorded, not refused. OC-03b reads the record, fixes the tests it names,
-// then turns the record into a panic.
+// OC-03a (DEVDESK-798): guard G1. In a test binary, the runner that starts a
+// container engine tells this package which binary it resolved; a binary outside
+// every directory a test declared (fakecli declares its own) is a reach. Since
+// OC-03b (DEVDESK-799, panic_test.go) a reach panics; the tests below pin the
+// survey mode OC-03a introduced, which is now opt-in (SurveyMode, or
+// DEVDESK_ENGINE_SURVEY in the environment of the suite): the reach is recorded,
+// not refused.
 //
 // The API these tests pin down (package internal/engineguard, standard library
 // only, production code: cliRunner calls it, so it cannot import fakecli):
@@ -28,6 +30,7 @@ import (
 //	engineguard.ReadSurvey(path) ([]Hit, error) // the hits the processes of a suite appended to SurveyEnv's file
 //	engineguard.AllowDir(t, dir)               // dir is a fakecli directory, for the length of t
 //	engineguard.Isolate(t)                     // a fresh record and no survey file, for the length of t
+//	engineguard.SurveyMode(t)                  // Isolate plus a survey file of its own: a reach is recorded, not refused (OC-03b)
 //	engineguard.ContractGate(getenv) error     // the T4 gate: DEVDESK_ENGINE_CONTRACT=1 and CI empty
 //	engineguard.AllowRealEngine(t)             // what a contract test's allowRealEngine(t) calls
 //	engineguard.SurveyEnv, engineguard.ContractEnv // "DEVDESK_ENGINE_SURVEY", "DEVDESK_ENGINE_CONTRACT"
@@ -46,10 +49,10 @@ func engineBinary(t *testing.T, name string) string {
 	return path
 }
 
-func TestARealEngineOutsideADeclaredDirIsRecordedNotRefused(t *testing.T) {
+func TestInSurveyModeARealEngineOutsideADeclaredDirIsRecordedNotRefused(t *testing.T) {
 	for _, op := range []string{"LookPath", "Run", "Build"} {
 		t.Run(op, func(t *testing.T) {
-			engineguard.Isolate(t)
+			engineguard.SurveyMode(t)
 			binary := engineBinary(t, "docker")
 
 			engineguard.Check(op, binary) // must neither panic nor fail the test
@@ -67,7 +70,7 @@ func TestARealEngineOutsideADeclaredDirIsRecordedNotRefused(t *testing.T) {
 			}
 			// The offender is named by its top-level test function, found on the
 			// stack: the list is read by a person fixing tests one by one.
-			if !strings.Contains(got.Test, "TestARealEngineOutsideADeclaredDirIsRecordedNotRefused") {
+			if !strings.Contains(got.Test, "TestInSurveyModeARealEngineOutsideADeclaredDirIsRecordedNotRefused") {
 				t.Errorf("Hit.Test = %q, want it to name the test that reached the engine", got.Test)
 			}
 		})
@@ -75,7 +78,7 @@ func TestARealEngineOutsideADeclaredDirIsRecordedNotRefused(t *testing.T) {
 }
 
 func TestABareNameIsResolvedThroughPathBeforeItIsJudged(t *testing.T) {
-	engineguard.Isolate(t)
+	engineguard.SurveyMode(t)
 	binary := engineBinary(t, "docker")
 	t.Setenv("PATH", filepath.Dir(binary))
 
@@ -122,7 +125,7 @@ func TestADeclaredDirectoryIsAccepted(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			engineguard.Isolate(t)
+			engineguard.SurveyMode(t)
 			binary := engineBinary(t, "docker")
 			holding := filepath.Dir(binary)
 			engineguard.AllowDir(t, tt.declare(t, holding, t.TempDir()))
@@ -137,7 +140,7 @@ func TestADeclaredDirectoryIsAccepted(t *testing.T) {
 }
 
 func TestADeclarationEndsWithItsTest(t *testing.T) {
-	engineguard.Isolate(t)
+	engineguard.SurveyMode(t)
 	binary := engineBinary(t, "docker")
 
 	t.Run("declares it", func(t *testing.T) {
@@ -160,7 +163,7 @@ func TestIsolateKeepsADeliberateReachOutOfTheSuiteRecord(t *testing.T) {
 	binary := engineBinary(t, "docker")
 
 	t.Run("inner", func(t *testing.T) {
-		engineguard.Isolate(t)
+		engineguard.SurveyMode(t)
 		engineguard.Check("Run", binary)
 		if hits := engineguard.Hits(); len(hits) != 1 {
 			t.Errorf("Hits() = %+v in the isolated test, want its own reach", hits)
@@ -238,7 +241,7 @@ func TestAllowRealEngineFollowsTheGate(t *testing.T) {
 			if _, set := tt.env["DEVDESK_ENGINE_CONTRACT"]; !set {
 				t.Setenv("DEVDESK_ENGINE_CONTRACT", "")
 			}
-			engineguard.Isolate(t)
+			engineguard.SurveyMode(t)
 			binary := engineBinary(t, "docker")
 
 			failed := false
@@ -320,19 +323,6 @@ func TestEveryProcessOfASuiteAppendsToTheSurveyFile(t *testing.T) {
 	}
 	if want := engineguard.Hits(); len(want) != 2 || !slices.Equal(got, want) {
 		t.Errorf("ReadSurvey() = %+v, want the two hits recorded in memory %+v", got, want)
-	}
-}
-
-func TestWithoutSurveyFileNothingIsWritten(t *testing.T) {
-	engineguard.Isolate(t) // clears the variable
-	dir := t.TempDir()
-	t.Chdir(dir)
-	binary := engineBinary(t, "docker")
-
-	engineguard.Check("Run", binary)
-
-	if entries, _ := os.ReadDir(dir); len(entries) != 0 {
-		t.Errorf("the working directory holds %d entries after a reach, want none: the file is opt-in", len(entries))
 	}
 }
 

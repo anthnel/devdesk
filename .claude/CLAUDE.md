@@ -269,12 +269,15 @@ path rather than `PATH` is not seen by the guard) and on a non-test file importi
 `Install` fails the test if the package has no `TestMain` calling `fakecli.Main` or `fakecli.AsTool`. `Install` uses
 `t.Setenv`, so no `t.Parallel`. See `docs/architecture/network.md`, "Tests and the fake CLI".
 
-**Tests and the real engine (DEVDESK-798, OC-03a).** In a test binary, `cliRunner.LookPath`, `Run` and
+**Tests and the real engine (DEVDESK-798, OC-03a; DEVDESK-799, OC-03b).** In a test binary, `cliRunner.LookPath`, `Run` and
 `Build` call `engineguard.Check`: an engine binary resolved outside a directory `fakecli` declared
-(`fakecli.AllowFakeCLIDir`, called by `Install` and `InstallAt`) is **recorded, not refused** (survey mode;
-OC-03b will make it a panic). `mise run engine-survey` lists the offenders (heavy: the whole suite, outside
-`ci`, `check` and `test`). A test that reaches a real engine on purpose calls `engineguard.AllowRealEngine(t)`,
-which fails unless `DEVDESK_ENGINE_CONTRACT=1` and `CI` is empty. No `t.Parallel`. See
+(`fakecli.AllowFakeCLIDir`, called by `Install` and `InstallAt`) **panics** with a message naming DEVDESK-799 and
+`docs/architecture/network.md`, as the DEVDESK-610 and DEVDESK-708 guards do. A test installs `fakecli.Install` (or declares the
+directory of a script engine with `fakecli.AllowFakeCLIDir`), or uses a seam of its package. The survey of OC-03a is opt-in: only
+with `DEVDESK_ENGINE_SURVEY` set is a reach recorded instead of refused, which `mise run engine-survey` does to list every
+offender at once (heavy: the whole suite, outside `ci`, `check` and `test`); `engineguard.SurveyMode(t)` is that mode for the
+tests of the guard itself. A test that reaches a real engine on purpose calls `engineguard.AllowRealEngine(t)`,
+which fails unless `DEVDESK_ENGINE_CONTRACT=1` and `CI` is empty. A panic in a goroutine ends the test binary. No `t.Parallel`. See
 `docs/architecture/network.md`, "Tests and the real engine".
 
 **Tests and engine launches (DEVDESK-802, OC-05, G2).** Guard G2 is static: `TestOnlyTheRunnersStartTheEngine`

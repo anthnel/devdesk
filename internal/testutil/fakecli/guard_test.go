@@ -61,13 +61,13 @@ var fakeGuardExcludedDirs = []string{".worktrees", ".git", "vendor", "testdata",
 //     --authfile and --policy files, the PID, TMPDIR, stdin).
 //     nexusbench/kubectl_test.go (records argv and stdin) goes with it.
 //     app/scan_tools_hermetic_test.go (witness scripts for trivy, gitleaks and
-//     plumber) is followed up with OC-03b.
+//     plumber, not an engine) is temporary, no story yet.
 //   - Permanent, assumed: browser and clipboard stand in for programs that are
 //     not engine tools (a browser opener, powershell).
 var legacyFakes = map[string]string{
 	"internal/nexusbench/helper_process_test.go": "temporary, OC-02 follow-up: hang, large stdout, authfile and policy capture, PID, TMPDIR, stdin",
 	"internal/nexusbench/kubectl_test.go":        "temporary, OC-02 follow-up: kubectl script that records argv and stdin",
-	"internal/app/scan_tools_hermetic_test.go":   "temporary, tracked with OC-03b: witness scripts for trivy, gitleaks and plumber",
+	"internal/app/scan_tools_hermetic_test.go":   "temporary, no story yet: witness scripts for trivy, gitleaks and plumber (scanners, not an engine)",
 	"internal/browser/browser_test.go":           "permanent: browser opener, not an engine tool",
 	"internal/clipboard/clipboard_test.go":       "permanent: powershell stand-in, not an engine tool",
 }

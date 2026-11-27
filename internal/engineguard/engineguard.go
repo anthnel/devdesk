@@ -3,10 +3,11 @@
 // which binary it resolved, and a binary outside every directory a test
 // declared (fakecli declares its own) is a test reaching a real engine.
 //
-// OC-03a, this step, only surveys: such a reach is recorded, in memory and,
-// when SurveyEnv names a file, appended to that file, and the call goes on as
-// it did. OC-03b reads the record, fixes the tests it names, then turns the
-// record into a panic.
+// Such a reach panics (OC-03b, DEVDESK-799), with a message that names the story
+// and docs/architecture/network.md. The survey of OC-03a stays as an opt-in
+// mode: when SurveyEnv names a file, a reach is recorded, in memory and in that
+// file, and the call goes on as it did (the mise task engine-survey runs the
+// whole suite that way to list the offenders).
 //
 // The package is production code (internal/docker calls Check), so it imports
 // the standard library only, "testing" included (as internal/ports does, for
@@ -83,7 +84,22 @@ func Check(op, binary string) {
 	if !reaching {
 		return
 	}
-	record(Hit{Test: callerTest(), Op: op, Binary: path})
+	h := Hit{Test: callerTest(), Op: op, Binary: path}
+	if os.Getenv(SurveyEnv) != "" {
+		record(h)
+		return
+	}
+	panic(refusal(h))
+}
+
+// refusal is the message of the panic. A panic rather than an error: an error
+// would be shown as an ordinary failed call and the test could pass, leaving the
+// guard silent (as refuseRealSignalUnderTest in internal/ports does).
+func refusal(h Hit) string {
+	return fmt.Sprintf("engineguard: %s was resolved outside a fakecli directory during a test (DEVDESK-799, G1): "+
+		"install a fake with fakecli.Install / AllowFakeCLIDir, or call engineguard.AllowRealEngine(t) in a contract test; "+
+		"see docs/architecture/network.md, \"Tests and the real engine\" (operation %s, reached by %s)",
+		h.Binary, h.Op, h.Test)
 }
 
 // declared reports whether dir, already canonical, is one of the directories a
@@ -264,9 +280,10 @@ func mustBeUnderTest(name string) {
 	}
 }
 
-// Isolate gives t a fresh record and no survey file, for the length of t: a test
-// that reaches an engine on purpose must not end up in the list of offenders.
-// Declared directories are left alone.
+// Isolate gives t a fresh record and no survey file, for the length of t, so a
+// reach panics whatever the mode of the suite (a test that reaches an engine on
+// purpose must not end up in the list of offenders). Declared directories are
+// left alone.
 func Isolate(t testing.TB) {
 	mustBeUnderTest("Isolate")
 	t.Helper()
@@ -280,6 +297,16 @@ func Isolate(t testing.TB) {
 		hits = previous
 		mu.Unlock()
 	})
+}
+
+// SurveyMode puts t in the mode of OC-03a: Isolate, plus a survey file of its
+// own, so a reach is recorded (Hits) and the call goes on instead of panicking.
+// It is for the tests of the guard itself and of the runner that calls it.
+func SurveyMode(t testing.TB) {
+	mustBeUnderTest("SurveyMode")
+	t.Helper()
+	Isolate(t)
+	t.Setenv(SurveyEnv, filepath.Join(t.TempDir(), "survey"))
 }
 
 // AllowDir declares dir, exactly (not its parents or children), as holding fake
@@ -312,7 +339,7 @@ func ContractGate(getenv func(string) string) error {
 
 // AllowRealEngine is what a contract test calls before it reaches the real
 // engine: it fails t, rather than skipping it, when the gate is closed, and
-// otherwise stops the guard recording the test's reaches for the length of t.
+// otherwise stops the guard refusing the test's reaches for the length of t.
 func AllowRealEngine(t testing.TB) {
 	mustBeUnderTest("AllowRealEngine")
 	t.Helper()
