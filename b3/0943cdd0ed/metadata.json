@@ -1,0 +1,46 @@
+{
+  "cli_version": "0.13.2",
+  "checkpoint_id": "b30943cdd0ed",
+  "strategy": "manual-commit",
+  "branch": "feat/oc-09a1-engine-contract-gate",
+  "checkpoints_count": 2,
+  "files_touched": null,
+  "sessions": [
+    {
+      "metadata": "/b3/0943cdd0ed/0/metadata.json",
+      "transcript": "/b3/0943cdd0ed/0/full.jsonl",
+      "compact_transcript": "/b3/0943cdd0ed/0/transcript.jsonl",
+      "content_hash": "/b3/0943cdd0ed/0/content_hash.txt",
+      "prompt": "/b3/0943cdd0ed/0/prompt.txt"
+    }
+  ],
+  "token_usage": {
+    "input_tokens": 42,
+    "cache_creation_tokens": 48505,
+    "cache_read_tokens": 6117154,
+    "output_tokens": 19079,
+    "api_call_count": 13,
+    "subagent_tokens": {
+      "input_tokens": 398,
+      "cache_creation_tokens": 1134979,
+      "cache_read_tokens": 25844868,
+      "output_tokens": 265110,
+      "api_call_count": 190
+    },
+    "subagent_tokens_complete": true
+  },
+  "redaction": {
+    "replacements": 58,
+    "layers": {
+      "betterleaks": 0,
+      "connection_string": 0,
+      "credential_key": 0,
+      "credential_value": 15,
+      "credentialed_uri": 0,
+      "entropy": 12,
+      "key_context": 31,
+      "provider_token": 0,
+      "shell_stdin": 0
+    }
+  }
+}
