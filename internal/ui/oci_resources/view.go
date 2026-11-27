@@ -625,7 +625,7 @@ func (m Model) GetHelpContent() help.Content {
 					"Sig: the signature of the content you have — the digest the image was pulled under — checked against your rules (~/.devdesk/trust.yaml) and the built-in ones, in the background when the list loads. A check mark is a proven signature; a dash, no rule covers the image (nothing is asked then); a hammer, built or loaded here, with no published signature to check; an hourglass, a check still running. A red cross is an unexpected identity, or no signature where a rule asks for one; an orange sign, a check that could not run. The column only informs: G is verified when it runs, whatever the cell says.\n" +
 					"With the Misconfiguration category on, a CFG column counts what Trivy found in the Dockerfile instructions baked into the layers, coloured by the worst severity among them; a dash means no misconfiguration stage read the image, which is not a zero.\n" +
 					"Press Enter to view the last scan details (loads from cache; falls back to scan if not yet scanned).\n" +
-					"Press Ctrl+E to launch a container from the selected image (opens a form with pre-filled port mappings from EXPOSE metadata).\n" +
+					"Press Ctrl+E to launch a container from the selected image (opens a form with pre-filled port mappings from EXPOSE metadata, published on 127.0.0.1).\n" +
 					"Press Ctrl+S to open the Security view for a configured scan.",
 			},
 			{
@@ -659,7 +659,7 @@ func (m Model) GetHelpContent() help.Content {
 			},
 			{
 				Title: "Launch Form",
-				Body:  "When launching a container, ports are pre-filled from the image's EXPOSE metadata. Fill in environment variables and volume mounts as comma-separated lists. The container runs detached (-d) by default. An image that is not present locally is not pulled.",
+				Body:  "When launching a container, ports are pre-filled from the image's EXPOSE metadata. Fill in environment variables and volume mounts as comma-separated lists. Ports are published on 127.0.0.1 only: a port without an address (8080:80, or 80 alone) is reachable from this machine and not from the network, and the preview and the copied command (Ctrl+Y) show the 127.0.0.1 form. To expose one on the network, type the address yourself in Additional ports (0.0.0.0:8080:80): the launch is allowed and the footer warns that the port is published on all interfaces. Only 0.0.0.0: or [::]: exposes a port on all interfaces; an empty host address (:8080:80) gives 127.0.0.1. Another address (192.168.1.10:8080:80) is kept as typed. The container runs detached (-d) by default. An image that is not present locally is not pulled.",
 			},
 		},
 	}

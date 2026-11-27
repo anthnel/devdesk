@@ -61,6 +61,25 @@ Two things about the engine are worth knowing before changing this code:
   (`foreach_test.go`) fails when `config.ContainerEngines()` and the engines the
   helper runs diverge; it stands in for the guard of `TestEveryConfiguredEngineHasAShape`
   (`internal/engine`), which cannot see the helper.
+- **Published ports are on 127.0.0.1 unless the user wrote an address (OC-19,
+  DEVDESK-817).** `buildLaunchArgs` passes every `-p` value through
+  `docker.LoopbackPort` (`launch.go`), so the same code serves Docker and Podman
+  (rootless included). A spec with no address gets `127.0.0.1:` (`8080:80` →
+  `127.0.0.1:8080:80`, `80` → `127.0.0.1::80`, `53/udp` → `127.0.0.1::53/udp`,
+  a range likewise); an address field is recognised by a leading `[` (IPv6) or two
+  colons, and is never rewritten, so `127.0.0.1:…`, `[::1]:…`, `192.168.1.10:…`
+  and `0.0.0.0:…` reach the engine as typed; an empty address (`:8080:80`, `::80`)
+  binds every interface and is treated as no address. It is idempotent, which lets
+  the form preview its result and the launcher apply it again. A malformed spec is
+  left to the engine to refuse. `docker.PortExposedOnAllInterfaces` is true when
+  the spec itself names `0.0.0.0` or `[::]`: the launch form
+  (`internal/ui/oci_resources`) then shows a Warning footer ("Port … is published
+  on all interfaces"), derived on every render in `LaunchForm.ValidationStatus`
+  with no timer and below any validation error; the launch is still allowed. The
+  form hands the specs over as typed, previews and `ctrl+y` copy the `LoopbackPort`
+  form, and the cache keeps the host port only, so an entry written before this
+  rule gets 127.0.0.1 when it is read. A non-loopback specific address is neither
+  rewritten nor warned about.
 
 - **Four typed, read-only reads for the path trace** (`container_network.go`,
   DEVDESK-330, DEVDESK-331), each with a `context.Context` that kills the

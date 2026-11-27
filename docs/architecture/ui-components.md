@@ -827,7 +827,7 @@ footer status while the form is open.
 |---|---|---|
 | status monitor (`ComponentForm`) | `internal/ui/status/components/component_form.go`, footer in `internal/ui/status/view.go` | Name and Target required; Timeout an integer 1 to 999 (`CharLimit` 3); Ping count an integer 1 to 99 (`CharLimit` 2); an empty Timeout or Ping count keeps its default |
 | forge creation (`CreationForm`) | `internal/ui/components/creation_form.go`, footer in `internal/ui/forge/explorer/view.go` | Name required (trimmed). Replaces the old `err` line in the form body |
-| container launch (`LaunchForm`) | `internal/ui/oci_resources/launch_form.go`, footer through `formStatus()` in `view.go` | host port of each ticked EXPOSE port: empty is accepted (the container port is used), otherwise ASCII digits 1 to 65535. Additional ports and Environment stay free-form; docker judges them |
+| container launch (`LaunchForm`) | `internal/ui/oci_resources/launch_form.go`, footer through `formStatus()` in `view.go` | host port of each ticked EXPOSE port: empty is accepted (the container port is used), otherwise ASCII digits 1 to 65535. Additional ports and Environment stay free-form; docker judges them. The same footer also carries the Warn `Port … is published on all interfaces` (OC-19) when an additional port names `0.0.0.0` or `[::]`, derived on every render with no timer, below any validation error (`LaunchForm.ValidationStatus`) |
 | forge sign-in (`internal/ui/forge/auth`) | `model.go`, `update.go`, `view.go` | token required (trimmed) |
 
 **Auth spinner fix.** In the sign-in view `handleEnterKey` set `authenticating`
