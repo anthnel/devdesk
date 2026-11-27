@@ -39,6 +39,10 @@ Two things about the engine are worth knowing before changing this code:
   a divergence raises no error — it produces wrong rows. No measurement has been
   taken against a real podman; `TestTheTwoTemplateSetsAreStillUnmeasured` fails
   the day the two sets stop matching, so a divergence is recorded deliberately.
+- **Supported engine versions (OC-01, DEVDESK-796).** The matrix DevDesk is
+  measured and tested against is Docker 29.10.1 (N) and 28.5.2 (N-1), and
+  Podman 6.2.1 (N) and 5.8.11 (N-1), rootless included. The dated measurements
+  are in `docs/measurements/2026-11-27-engines.md`.
 - **`system df -v` is scraped, not templated**, and is therefore disabled under
   podman (`Shape.ParsesSystemDFVerbose`). It is a fixed-width table read at
   offsets taken from its header line, and there is no `--format` that exposes
