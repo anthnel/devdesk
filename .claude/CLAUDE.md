@@ -307,6 +307,24 @@ constant words. `internal/kind` is exempt until it exists, then needs its own `T
 (`TestAnExemptHomeHasItsRunTimeInvariant`). Limits: an argv built word by word, a verb from a variable
 and a shell line are not seen; `ShellCmd` does not validate yet (DEVDESK-939). See `docs/architecture/network.md`, "Guard G3".
 
+**Tests and image pulls (DEVDESK-808, OC-10, G8).** Guard G8 is static and run-time: every pull goes through
+`imagepull.Pull`, so no path skips the signature check or `trust.yaml` (S6). `TestEveryPullGoesThroughImagepull`
+(`internal/engineguard/pull_guard_test.go`) fails, with file and line, on an argv that spells a pull outside
+`docker.PullImageContext` (a `[]string` literal, `exec.Command(Context)` or an argv helper with the word `pull`, or
+`--pull`/`--pull=<value>` other than `never` and `false`), and on a name of `docker.PullImage` or
+`docker.PullImageContext` outside `internal/imagepull` (that package is the home of the reference rule only, not
+exempt from the argv one). Three permanent exceptions in `pullExceptions`: `PullImageContext` (the one place that
+spells the verb), `PullImage` (its context-free wrapper, no production caller) and the `pullImageContext` test seam of
+`internal/ui/oci_resources/image_update.go` (feeds `imagepull.Deps` only). To add one: key = file + function, `Sites` =
+the exact count, a reason a reviewer can disagree with; to remove one: delete the entry (an entry whose code is gone,
+whose count differs or without a reason fails; `pullMustSee` fails when the detector stops seeing the module's two
+known sites). A launch never pulls: `run --pull=never` (`noImplicitPull`, `internal/docker/launch.go`) is held by
+`internal/docker/launch_pull_test.go`, exact argv on both engines. Limits: the scanners' own `run --rm`
+(`internal/scan/container_run.go`) pulls their tool images unverified, `scan.image_verification` off makes
+`imagepull.Pull` pull the tag as before, kind's pulls (OC-71) are out of scope, a `[]string{"git", "pull"}` is reported
+(words, not programs), and a verb from a variable, an argv built word by word, a shell line and a function value are
+not seen. See `docs/architecture/network.md`, "Guard G8".
+
 **Test input and colour (DEVDESK-199).** Build keys only through
 `internal/ui/testutil` (`Key`, `Keys`, `Type`, `Paste`, `Text`, `IsText`), never a
 literal `tea.KeyPressMsg` or `tea.Key*`. `Key` returns a

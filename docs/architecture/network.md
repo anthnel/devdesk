@@ -267,6 +267,37 @@ information, and reports each site with file, line and enclosing function:
   guard (they destroy nothing); an option whose value is a variable ends the run of constants, so the verb after it
   is not seen, and neither is a verb behind an option placed between a group word and its verb (`compose -p x down`); a package home is exempt as a whole, file by file.
 
+**Guard G8, every pull goes through `imagepull.Pull` (OC-10, DEVDESK-808, requirement S6).** Two halves.
+
+- *Static*: `internal/engineguard/pull_guard_test.go` (`TestEveryPullGoesThroughImagepull`, reusing G2's and G3's
+  helpers) reads every non-test `.go` file and fails, with file, line and function, on (a) a `[]string` literal, an
+  `exec.Command(Context)` or an argv helper call (the list of G3) in which any constant word is `pull` (so
+  `image pull`, `compose pull` and a verb after a global option or a variable are seen), or `--pull`, or
+  `--pull=<value>` other than `never` and `false`; (b) a reference to `docker.PullImage` or `docker.PullImageContext`
+  (called or taken as a value), or a call to them by bare name inside `internal/docker`. `imagepull` builds no
+  argv: it is handed `docker.PullImageContext` as `Deps.Pull`, so the guard has no exempt package for (a), and
+  `internal/imagepull` is the home of (b) only. Three named exceptions in `pullExceptions`, all permanent:
+  `PullImageContext` (the one place that spells the verb), `PullImage` (its context-free wrapper, no production
+  caller) and the `pullImageContext` test seam of `internal/ui/oci_resources/image_update.go`. Same rules as G2
+  and G3: key = file + function, `Sites` exact, a reason, an exception whose code is gone fails, and
+  `pullMustSee` fails the test if the detector stops seeing the two sites the module has today.
+  `TestAPullAddedElsewhereFailsTheGuardOnTheRealModule` and `TestPullDetectorOnSources` / `TestPullJudgement` show
+  it fails on a pull added anywhere else, from sources held in memory.
+- *Run time*: a launch never pulls. `buildLaunchArgs` and `VerifyEntrypoint` pass `--pull=never`
+  (`internal/docker/launch_pull_test.go`: exact argv on both engines through the strict stub; a missing image
+  gives the engine's refusal and no second call). The two real paths to `Deps.Pull` are the registry browser's pull
+  (`internal/ui/oci_resources/commands.go`) and `G` (`image_update.go`; the MCP `image_pull_start` triggers `G`
+  through `internal/app/mcp_actions.go`), both through `imagepull.Pull`; the signature check of the Dockerfile
+  remediation (`internal/ui/security`) only calls `imagepull.Check`. The launch form only opens from a row of the
+  local Images table (`openLaunchForm`).
+- Limits, listed in the test header: an argv built word by word, a verb from a variable, a shell line, a function
+  value, a dot import of `internal/docker`; the check is on words (`[]string{"git", "pull"}` would be reported); an
+  implicit pull by `run`/`create`/`build` without a flag is not a verb: the scanners' own `run --rm`
+  (`container_run.go`) pulls DevDesk's tool images unverified (declared exception, above); with
+  `scan.image_verification` off `imagepull.Pull` pulls the tag unchecked, by the user's choice; kind's pulls
+  (OC-71) are out of scope. `--pull=never` was measured on Docker 29.7.2 and a Podman of 2026-09-25
+  (exit 125 on a missing image), not on the N and N-1 versions of `docs/measurements/2026-11-27-engines.md`.
+
 ## OCI registries — `internal/oci`
 
 `internal/oci/oci.go` — an OCI **registry** HTTP client: list tags,
