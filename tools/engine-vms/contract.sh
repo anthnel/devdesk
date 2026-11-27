@@ -213,7 +213,7 @@ vars=(
 if [[ $action == record ]]; then
   vars+=("DEVDESK_FIXTURE_RECORDING=1" "DEVDESK_FIXTURE_OUT=$vmdir/out")
 fi
-status=0 passed=0 skipped=0 failed=0
+status=0 passed=0 skipped=0 failed=0 compared=0
 for f in "${binaries[@]}"; do
   log "running $f in $(vm_name "$engine") ($mode)"
   out=$work/$f.out
@@ -226,6 +226,8 @@ for f in "${binaries[@]}"; do
   passed=$((passed + $(grep -c '^--- PASS: ' "$out" || true)))
   skipped=$((skipped + $(grep -c '^--- SKIP: ' "$out" || true)))
   failed=$((failed + $(grep -c '^--- FAIL: ' "$out" || true)))
+  # Verify logs `compared <campaign>/<scenario> against <fixture>` each time it compared: a green run proves it did.
+  compared=$((compared + $(grep -c ': compared [a-z0-9-]*/[a-z0-9-]* against ' "$out" || true)))
 done
 
 # The sentinel check. Whatever the contracts did, it comes next: nothing between them and it can leave
@@ -243,13 +245,18 @@ fi
 vm_as_mode "$engine" rm -f "$sentinel" >/dev/null 2>&1 || true
 sentinel=""
 
-log "engine-contract: $passed passed, $skipped skipped, $failed failed (run $run)"
+log "engine-contract: $passed passed, $skipped skipped, $failed failed, $compared scenarios compared (run $run)"
 if [[ $action == record ]] && ((status == 0 && passed > 0)); then
   log "engine-contract: bringing the recorded fixtures back from $vmdir/out"
   vm_root "$engine" tar -C "$vmdir/out" -cf - . | head -c "$((max_archive + 1))" >"$work/recorded-out" || die "the recorded fixtures could not be brought back (or the archive is larger than $max_archive bytes)"
   unpack_recorded
   log "engine-contract: importing on this machine${keep:+ into $keep}"
   (cd "$root" && go run ./internal/enginefixture/cmd/engine-fixture-import --from "$recorded" --require-denylist ${into_args[@]+"${into_args[@]}"}) || status=1
+fi
+# Only a warning: a contract may have nothing to compare (a read-only one), but a verification in which
+# contracts passed and nothing was compared proves nothing about the fixtures.
+if [[ $action == verify ]] && ((passed > 0 && compared == 0)); then
+  log "engine-contract: WARNING: $passed contract(s) passed in verify mode but no scenario was compared against a fixture"
 fi
 if ((status)); then
   log "engine-contract: FAILED ($engine line $line, $mode, run $run, exit $status)"

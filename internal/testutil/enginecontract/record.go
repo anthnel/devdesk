@@ -198,6 +198,8 @@ func (s *Session) verifyAgainst(t testing.TB, fixtures []enginefixture.Fixture, 
 			e.Tool, e.Version, e.Mode, scenario)
 		return
 	}
+	// The line contract.sh counts: a green run must be able to prove that it compared.
+	t.Logf("compared %s/%s against %s", recorded.Campaign, scenario, recorded.Name)
 	got, _ := enginefixture.Redact(ex, withPinnedImage(r))
 	for _, d := range differences(recorded.Exchange, got, cmp) {
 		t.Errorf("scenario %q differs from %s: %s", scenario, recorded.Name, d)

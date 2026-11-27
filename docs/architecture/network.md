@@ -874,9 +874,13 @@ scenarios listed under "The first scenarios".
     `true`, raised in the same change as `minVersionedFixtures = 40`; `TestVerifyFailsHardOnceFixturesAreVersioned` reads that floor from
     `stale_test.go` and fails if the floor is above 0 and the constant is not)**: it said `no recorded fixture for ... record it with mise run
     engine-contract:record` and returned before, because a `t.Skip` ends the test (`runtime.Goexit`) and the assertions a contract makes after
-    `c.exchange` would never run on a checkout without fixtures. `Session.MissingFixturesOK` is the one relaxation: the tests of the helpers
-    of `internal/docker`, which run scenarios nobody recorded on a fake engine, set it; `Require` never does, and `VerifyAgainstNotRequiring`
-    holds the old branch in the tests. `VerifyAgainst(t, fixtures, ...)` is the
+    `c.exchange` would never run on a checkout without fixtures. **A green run proves its comparisons** (OC-09b2): each time `Verify` compares it logs `compared <campaign>/<scenario> against <fixture file name>`
+    (also when the comparison then reports a difference), and `no recorded fixture ...` when it compared nothing; `contract.sh` counts the first in each test
+    binary's output (`-test.v`), prints `N scenarios compared` in its summary line and, in verify mode, **warns** (it does not fail) when contracts passed and
+    none was compared. Negative controls with no engine, on the versioned fixtures: one byte of stdout changed fails `Verify`, and a scenario nobody recorded
+    fails it (`verify_compared_test.go`). `Session.MissingFixturesOK` is the one relaxation, set by `labSession` (the tests of the helpers) and by nothing
+    else: `TestOnlyTheSessionOfTheHelperTestsRelaxesTheFixtures` fails if another file of `internal/docker` names it, and `Require` never sets it. It exists for the tests of the helpers
+    of `internal/docker`, which run scenarios nobody recorded on a fake engine; `VerifyAgainstNotRequiring` holds the old branch in the tests. `VerifyAgainst(t, fixtures, ...)` is the
     seam the tests use. `VersionsFile` defaults to `enginefixture.VersionsSourceFile()`.
   - *Back on the workstation.* Only when the contracts and the sentinel check passed (and at least one contract
     passed), the script packs **the one directory** `/tmp/ddc-<run>/out` (`vm_root ... tar -C ... -cf -`, capped at
