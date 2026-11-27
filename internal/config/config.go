@@ -28,6 +28,10 @@ type Config struct {
 	// still lost on save.
 	AgentUsage AgentUsageConfig `yaml:"agent_usage,omitempty"`
 
+	// Containers holds the settings of the container views. No default, no
+	// migration: an absent section leaves the file as it was.
+	Containers ContainersConfig `yaml:"containers,omitempty"`
+
 	// GitLab is what `forge:` replaced. Same treatment as Docker above, and for
 	// the same reason: a context targets one forge, so the section is named
 	// after the role rather than after the one implementation there was.
