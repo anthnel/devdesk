@@ -58,6 +58,12 @@ case $engine in
   podman)
     fetch "https://github.com/mgoltzsche/podman-static/releases/download/v$PODMAN_N_VERSION/podman-linux-amd64.tar.gz" "$cache/podman-$PODMAN_N_VERSION.tgz" "$PODMAN_N_SHA256"
     fetch "https://github.com/mgoltzsche/podman-static/releases/download/v$PODMAN_N1_VERSION/podman-linux-amd64.tar.gz" "$cache/podman-$PODMAN_N1_VERSION.tgz" "$PODMAN_N1_SHA256"
+    # Second Compose provider, next to podman-compose (never replaces it). Hard failure on a sum mismatch.
+    fetch "https://github.com/docker/compose/releases/download/v$DOCKER_COMPOSE_VERSION/docker-compose-linux-x86_64" "$cache/docker-compose-$DOCKER_COMPOSE_VERSION" "$DOCKER_COMPOSE_SHA256"
+    install -m 0755 "$cache/docker-compose-$DOCKER_COMPOSE_VERSION" /usr/local/bin/docker-compose
+    # Which provider `podman compose` runs is chosen per call with PODMAN_COMPOSE_PROVIDER=<path>
+    # (or compose_providers in containers.conf). Nothing is set VM-wide: with both installed and
+    # no choice, podman tries docker-compose first, so measurements always name the provider.
     grep -q "^$DD_USER:" /etc/subuid || echo "$DD_USER:200000:65536" >>/etc/subuid
     grep -q "^$DD_USER:" /etc/subgid || echo "$DD_USER:200000:65536" >>/etc/subgid
     ;;

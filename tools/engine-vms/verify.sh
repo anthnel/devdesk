@@ -37,6 +37,8 @@ check_vm() { # engine
       ;;
     podman)
       expect "podman" "$(vm_user "$e" podman version -f '{{.Server.Version}}')" "$podmanv"
+      expect "docker-compose" "$(vm_user "$e" docker-compose version --short)" "$DOCKER_COMPOSE_VERSION"
+      log "podman-compose: $(vm_user "$e" podman-compose version 2>&1 | head -1)"
       log "podman rootless: $(vm_user "$e" podman info -f '{{.Host.Security.Rootless}}'), cgroup manager $(vm_user "$e" podman info -f '{{.Host.CgroupManager}}')"
       ;;
   esac

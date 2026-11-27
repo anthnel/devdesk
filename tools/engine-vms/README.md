@@ -12,7 +12,7 @@ project `devdesk-engine-tests` (label `user.devdesk=engine-tests`):
 | VM | Engine | Also installed |
 |---|---|---|
 | `dd-docker` | Docker Engine, rootful | kind (docker provider), kubectl |
-| `dd-podman` | Podman, rootful and rootless (user `dd`) | kind (podman provider, rootless), kubectl |
+| `dd-podman` | Podman, rootful and rootless (user `dd`) | kind (podman provider, rootless), kubectl, `docker-compose` (pinned) |
 
 Each VM holds both lines of the matrix, "N" (latest stable) and "N-1" (previous
 major for Docker and Podman, previous minor for kind). `versions.env` pins them
@@ -57,6 +57,22 @@ incus --project devdesk-engine-tests exec --cwd /home/dd dd-podman -- runuser -u
   env XDG_RUNTIME_DIR=/run/user/2000 bash       # rootless shell
 ```
 
+Compose providers in `dd-podman`: the standalone `docker-compose` is pinned in `versions.env`
+and installed by `provision.sh` in `/usr/local/bin` (idempotent, sum checked, hard failure on a
+mismatch). `podman-compose` is not provisioned: install the Ubuntu package without its
+dependencies (`apt-get download podman-compose`, then `dpkg -i --force-depends`, after
+`apt-get install python3-yaml python3-dotenv`); a plain `apt-get install podman-compose` pulls the
+Ubuntu `podman` and `crun`, which then shadow the pinned static runtime. `docker-compose` talks
+to the Podman API socket, which the static build does not start: run
+`podman system service --time 900 unix://$XDG_RUNTIME_DIR/podman/podman.sock` first.
+`create.sh` skips a VM that already has its `clean` snapshot, so a VM created before the pin
+gets `docker-compose` only by running `vm/provision.sh` in it again (the snapshot does not hold it).
+The two providers coexist. `podman compose` runs
+the first provider it finds, `docker-compose` before `podman-compose`, so always choose one
+explicitly per command: `PODMAN_COMPOSE_PROVIDER=/usr/local/bin/docker-compose podman compose ...`
+(or `PODMAN_COMPOSE_PROVIDER=podman-compose`). `compose_providers` in `containers.conf` would
+do the same but is not set, so nothing depends on a hidden default.
+
 Run the campaigns inside the VM, restore with `reset.sh` afterwards.
 
 ## Threat model and limits
@@ -70,7 +86,7 @@ Run the campaigns inside the VM, restore with `reset.sh` afterwards.
   not on the host. The VM boundary is the isolation; the VMs share the host's
   network bridge (`incusbr0`) and outbound access to docker.io, quay.io, ghcr.io and
   registry.k8s.io (no proxy is configured). Do not expose the engine sockets.
-- Downloads (kubectl, kind, Podman static build) are checked against the sha256
+- Downloads (kubectl, kind, Podman static build, docker-compose) are checked against the sha256
   in `versions.env`, taken from the release pages on 2026-11-26 (trust on first use).
   The Podman build is the third-party `mgoltzsche/podman-static`, not an
   official packaging. Docker comes from the signed Docker apt repository.
