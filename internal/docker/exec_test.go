@@ -198,14 +198,14 @@ func stubOutput(t *testing.T, subcommand, output string) *stubRunner {
 func TestRequireDockerReportsMissingBinary(t *testing.T) {
 	stub(t, &stubRunner{missing: true})
 
-	err := requireEngine()
+	err := engineAvailable()
 
 	if err == nil {
-		t.Fatal("requireEngine() returned nil when docker is absent")
+		t.Fatal("engineAvailable() returned nil when docker is absent")
 	}
 	// The message reaches the footer under Rule 128, so it must name the cause.
 	if got := err.Error(); got != "docker not found: executable file not found in $PATH" {
-		t.Errorf("requireEngine() = %q, want it to name the missing binary", got)
+		t.Errorf("engineAvailable() = %q, want it to name the missing binary", got)
 	}
 }
 

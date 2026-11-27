@@ -22,7 +22,7 @@ type Network struct {
 
 // ListNetworks returns a list of Docker networks
 func ListNetworks() ([]Network, error) {
-	if err := requireEngine(); err != nil {
+	if err := engineAvailable(); err != nil {
 		return nil, err
 	}
 	output, err := dockerOutput("network", "ls", "--format", templates().NetworkLS)
@@ -87,7 +87,7 @@ type networkInspectResult struct {
 
 // InspectNetwork returns the containers connected to a Docker network by ID or name.
 func InspectNetwork(id string) ([]NetworkContainer, error) {
-	if err := requireEngine(); err != nil {
+	if err := engineAvailable(); err != nil {
 		return nil, err
 	}
 	output, err := dockerOutput("network", "inspect", id)

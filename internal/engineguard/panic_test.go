@@ -97,7 +97,9 @@ func TestABinaryThatDoesNotResolveDoesNotPanic(t *testing.T) {
 
 func TestAnAcceptedAllowRealEngineStopsThePanic(t *testing.T) {
 	t.Setenv(engineguard.ContractEnv, "1")
-	t.Setenv("CI", "")
+	for _, name := range engineguard.CIMarkers() {
+		t.Setenv(name, "")
+	}
 	engineguard.Isolate(t)
 	binary := engineBinary(t, "docker")
 

@@ -15,7 +15,7 @@ type Volume struct {
 
 // ListVolumes returns a list of Docker volumes
 func ListVolumes() ([]Volume, error) {
-	if err := requireEngine(); err != nil {
+	if err := engineAvailable(); err != nil {
 		return nil, err
 	}
 	output, err := dockerOutput("volume", "ls", "--format", templates().VolumeLS)

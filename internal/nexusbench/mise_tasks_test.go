@@ -561,3 +561,84 @@ func TestMiseEngineSurveyTaskStaysOutOfTheStandardChecks(t *testing.T) {
 		}
 	}
 }
+
+// engine-contract (DEVDESK-806, OC-09a1) runs the engine contract tests in a
+// test VM through tools/engine-vms/contract.sh. It reaches an Incus host and the
+// engines of its VMs, so none of the standard checks may run it, and the variable
+// that opens the contract gate (DEVDESK_ENGINE_CONTRACT) is exported by the user,
+// never set by the task (the description says so; TestNothingOpensTheContractGate
+// in internal/testutil/enginecontract reads the whole file for it, and this test
+// reads the task).
+//
+// OC-09a3 adds engine-contract:record (contract.sh record); it joins this table.
+var miseEngineContractTasks = []struct {
+	name string
+	verb string // the contract.sh action the run line calls
+}{
+	{"engine-contract", "verify"},
+}
+
+func TestMiseEngineContractTasksStayOutOfTheStandardChecks(t *testing.T) {
+	f := loadMise(t)
+
+	for _, tt := range miseEngineContractTasks {
+		t.Run(tt.name, func(t *testing.T) {
+			task, ok := f.task(tt.name)
+			if !ok {
+				t.Fatalf("mise.toml has no task %q", tt.name)
+			}
+			desc := task["description"]
+			if strings.TrimSpace(desc) == "" {
+				t.Fatalf("%s has no description, so `mise tasks` lists it blank", tt.name)
+			}
+			for _, want := range []string{"DEVDESK_ENGINE_CONTRACT=1", "CI", "acts on the Incus host"} {
+				if !strings.Contains(desc, want) {
+					t.Errorf("the description of %s does not contain %q:\n%s", tt.name, want, desc)
+				}
+			}
+			re := regexp.MustCompile(`bash tools/engine-vms/contract\.sh ` + tt.verb + `(["'\s]|$)`)
+			if !re.MatchString(task["run"]) {
+				t.Errorf("run of %s does not call `bash tools/engine-vms/contract.sh %s`:\n%s", tt.name, tt.verb, task["run"])
+			}
+			// The user opens the gate; a task that did would open it for every caller.
+			for _, key := range []string{"env", "run", "depends", "depends_post", "wait_for"} {
+				if strings.Contains(task[key], "DEVDESK_ENGINE_CONTRACT") {
+					t.Errorf("%s sets or names DEVDESK_ENGINE_CONTRACT in %s: the user exports it, a task never does:\n%s", tt.name, key, task[key])
+				}
+			}
+			if strings.Contains(task["run"], "-race") || strings.Contains(task["run"], "go test") {
+				t.Errorf("run of %s is not the plain script call (compilation and execution are contract.sh's):\n%s", tt.name, task["run"])
+			}
+		})
+	}
+
+	// No standard task is, runs or depends on one of the contract tasks.
+	for _, root := range []string{"ci", "check", "test", "test-race"} {
+		t.Run("from "+root, func(t *testing.T) {
+			if _, ok := f.task(root); !ok {
+				t.Fatalf("mise.toml has no task %q", root)
+			}
+			seen := map[string]bool{}
+			queue := []string{root}
+			for len(queue) > 0 {
+				current := queue[0]
+				queue = queue[1:]
+				if seen[current] {
+					continue
+				}
+				seen[current] = true
+				if strings.HasPrefix(current, "engine-contract") {
+					t.Errorf("%s reaches %s", root, current)
+					continue
+				}
+				keys, _ := f.task(current)
+				for k, v := range keys {
+					if strings.Contains(v, "engine-contract") || strings.Contains(v, "contract.sh") {
+						t.Errorf("task %s (reached from %s) mentions the contract task or script in %s", current, root, k)
+					}
+				}
+				queue = append(queue, miseRefs(keys)...)
+			}
+		})
+	}
+}

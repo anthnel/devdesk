@@ -79,7 +79,7 @@ func parseContainers(output []byte) []Container {
 
 // GetContainerMetrics returns CPU/Memory/Net metrics for running containers
 func GetContainerMetrics() (map[string]Container, error) {
-	if err := requireEngine(); err != nil {
+	if err := engineAvailable(); err != nil {
 		return nil, err
 	}
 
@@ -182,7 +182,7 @@ func (c Capacity) OK() bool { return c.Cores > 0 && c.MemTotal > 0 }
 // of the process — silently, since a wrong denominator still produces a
 // plausible percentage.
 func FetchCapacity() (Capacity, error) {
-	if err := requireEngine(); err != nil {
+	if err := engineAvailable(); err != nil {
 		return Capacity{}, err
 	}
 	output, err := dockerOutput("info", "--format", templates().Info)

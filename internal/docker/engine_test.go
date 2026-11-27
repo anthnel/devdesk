@@ -24,15 +24,15 @@ func TestTheMissingBinaryIsNamedAfterTheConfiguredEngine(t *testing.T) {
 		s := stubStrict(t)
 		s.missing = true
 
-		err := requireEngine()
+		err := engineAvailable()
 
 		if err == nil {
-			t.Fatal("requireEngine() returned nil when the engine is absent")
+			t.Fatal("engineAvailable() returned nil when the engine is absent")
 		}
 		// Telling someone who pinned podman that docker is missing sends them
 		// looking for the wrong thing. The message reaches the footer (Rule 128).
 		if want := shape.Name + " not found"; !strings.HasPrefix(err.Error(), want) {
-			t.Errorf("requireEngine() = %q, want it to start with %q", err, want)
+			t.Errorf("engineAvailable() = %q, want it to start with %q", err, want)
 		}
 	})
 }

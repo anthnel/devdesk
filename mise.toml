@@ -377,3 +377,15 @@ run = "bash tools/engine-vms/reset.sh"
 [tasks."engine-vms:destroy"]
 description = "Delete the test VMs and the Incus project devdesk-engine-tests (asks first; acts on the Incus host)"
 run = "bash tools/engine-vms/destroy.sh"
+
+# engine-contract (OC-09a1, DEVDESK-806) runs the engine contract tests, the
+# *_contract_test.go files, in a test VM through tools/engine-vms/contract.sh. It
+# is NOT part of ci, check, test or test-race. The task never opens the contract
+# gate: the user sets the variable that does for the one command, never exported
+# (an exported variable opens the gate for every later go test of the shell), and
+# contract.sh refuses when CI is set. Arguments go after `--`, e.g.
+# `DEVDESK_ENGINE_CONTRACT=1 mise run engine-contract -- podman n1 --mode rootless`.
+
+[tasks."engine-contract"]
+description = "Run the engine contract tests in a test VM (needs DEVDESK_ENGINE_CONTRACT=1 set for this command only, never exported, refused when CI is set; acts on the Incus host): -- <docker|podman> <n|n1> [--mode rootful|rootless] [--no-reset]"
+run = "bash tools/engine-vms/contract.sh verify"

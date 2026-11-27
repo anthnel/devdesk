@@ -175,7 +175,7 @@ func TestIsolateKeepsADeliberateReachOutOfTheSuiteRecord(t *testing.T) {
 	}
 }
 
-func TestContractGate(t *testing.T) {
+func TestTheContractGateFollowsItsTwoVariables(t *testing.T) {
 	tests := []struct {
 		name    string
 		env     map[string]string
@@ -235,6 +235,10 @@ func TestAllowRealEngineFollowsTheGate(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			// The system that runs the suite may be a CI one: its markers must not decide.
+			for _, name := range engineguard.CIMarkers() {
+				t.Setenv(name, "")
+			}
 			for name, value := range tt.env {
 				t.Setenv(name, value)
 			}

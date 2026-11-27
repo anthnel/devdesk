@@ -105,10 +105,10 @@ func (cliRunner) Run(dc dockerCmd) ([]byte, error) {
 // it must not run in parallel.
 var runner dockerRunner = cliRunner{}
 
-// requireEngine reports the absence of the container engine, naming the one
+// engineAvailable reports the absence of the container engine, naming the one
 // that was actually looked for rather than "docker" — someone who pinned podman
 // is not helped by being told docker is missing.
-func requireEngine() error {
+func engineAvailable() error {
 	if err := runner.LookPath(); err != nil {
 		return fmt.Errorf("%s not found: %w", engine.Current().Name, err)
 	}

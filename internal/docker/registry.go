@@ -138,7 +138,7 @@ func readAuthFile(v any) error {
 // RegistryLogin authenticates with a Docker/OCI registry using `docker login`.
 // The password is passed via stdin to avoid exposing it in the process list.
 func RegistryLogin(registryURL, username, password string) error {
-	if err := requireEngine(); err != nil {
+	if err := engineAvailable(); err != nil {
 		return err
 	}
 	output, err := runner.Run(dockerCmd{
@@ -259,7 +259,7 @@ func helperHost(registryURL string) string {
 // removes all matching keys from the engine's auth file to handle cases where
 // logout leaves behind alias entries (e.g. docker.io vs https://index.docker.io/v1/).
 func RegistryLogout(registryURL string) error {
-	if err := requireEngine(); err != nil {
+	if err := engineAvailable(); err != nil {
 		return err
 	}
 	if err := mutate(cmdLabel("logout"), "logout", registryURL); err != nil {

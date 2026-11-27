@@ -45,7 +45,7 @@ func (img Image) ScanTarget() string {
 
 // ListImages returns a list of local Docker images
 func ListImages() ([]Image, error) {
-	if err := requireEngine(); err != nil {
+	if err := engineAvailable(); err != nil {
 		return nil, err
 	}
 
@@ -157,7 +157,7 @@ func parseRepoDigests(s string) []string {
 // that is gone, or an image with no digest, is absent.
 func ContainerImageDigests(containerIDs []string) map[string][]string {
 	out := map[string][]string{}
-	if len(containerIDs) == 0 || requireEngine() != nil {
+	if len(containerIDs) == 0 || engineAvailable() != nil {
 		return out
 	}
 	args := append([]string{"container", "inspect", "--format", "{{.Image}}"}, containerIDs...)
@@ -208,7 +208,7 @@ func ContainerImageDigests(containerIDs []string) map[string][]string {
 // several references is missing, and a Dockerfile's base often is.
 func ImageRepoDigests(refs []string) map[string][]string {
 	out := map[string][]string{}
-	if requireEngine() != nil {
+	if engineAvailable() != nil {
 		return out
 	}
 	for _, ref := range refs {
@@ -349,7 +349,7 @@ func RemoveImage(id string, force bool) error {
 // image or from an image built on it. An image one of them uses cannot be
 // removed without breaking it, and `rmi` would refuse anyway (§3.88).
 func ContainersUsingImage(imageID string) ([]string, error) {
-	if err := requireEngine(); err != nil {
+	if err := engineAvailable(); err != nil {
 		return nil, err
 	}
 	output, err := dockerOutput("ps", "-a", "--filter", "ancestor="+imageID, "--format", "{{.Names}}")
@@ -361,7 +361,7 @@ func ContainersUsingImage(imageID string) ([]string, error) {
 
 // ImageID returns the full ID of the image a reference names locally.
 func ImageID(ref string) (string, error) {
-	if err := requireEngine(); err != nil {
+	if err := engineAvailable(); err != nil {
 		return "", err
 	}
 	output, err := dockerOutput("image", "inspect", "--format", "{{.Id}}", ref)
@@ -398,7 +398,7 @@ func PullImage(imageName string) error {
 // the only one long enough for `K` to be offered on it, and cutting it leaves
 // nothing behind — Docker resumes a pull by layer (jobs.KindPull.Cancellable).
 func PullImageContext(ctx context.Context, imageName string) error {
-	if err := requireEngine(); err != nil {
+	if err := engineAvailable(); err != nil {
 		return err
 	}
 	return mutateContext(ctx, cmdLabel("pull"), "pull", imageName)
@@ -408,7 +408,7 @@ func PullImageContext(ctx context.Context, imageName string) error {
 // digest — never a tag, which could move between the check and the pull — and
 // then names it the way it was asked for (§3.82).
 func TagImage(source, target string) error {
-	if err := requireEngine(); err != nil {
+	if err := engineAvailable(); err != nil {
 		return err
 	}
 	return mutate(cmdLabel("tag"), "tag", source, target)
@@ -417,7 +417,7 @@ func TagImage(source, target string) error {
 // GetImageExposedPorts returns the container port specs declared by EXPOSE in an image.
 // Each entry uses the "port/protocol" format, e.g. "80/tcp" or "53/udp".
 func GetImageExposedPorts(imageName string) ([]string, error) {
-	if err := requireEngine(); err != nil {
+	if err := engineAvailable(); err != nil {
 		return nil, err
 	}
 	output, err := dockerOutput("image", "inspect", "--format", templates().ImageExposedPorts, imageName)
