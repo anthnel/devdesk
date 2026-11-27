@@ -3,6 +3,8 @@ package docker
 import (
 	"strings"
 	"testing"
+
+	"github.com/anthnel/devdesk/internal/testutil/enginecontract"
 )
 
 // An image a container uses cannot be removed without force (and a contract never forces:
@@ -16,7 +18,9 @@ func TestContractRemovingAnImageInUseIsRefused(t *testing.T) {
 	_, imageID := c.usedImage("c1")
 
 	var err error
-	ex := c.expectRmiRefusal("images", "rmi-used", "rmi of an image a container uses is refused", imageID, func() {
+	// The sentinel of contract.sh and the container of the run both use the image, and the engine names
+	// whichever it finds first (docker 12 characters after "container", podman 64 after "used by").
+	ex := c.expectRmiRefusalWith(enginecontract.SameUpToContainerIDs(), "images", "rmi-used", "rmi of an image a container uses is refused", imageID, func() {
 		err = RemoveImage(imageID, false)
 	})
 

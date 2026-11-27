@@ -1481,6 +1481,14 @@ func rmiWindowRule(imageID string) func(argv []string) error {
 // container ends the contract before any rmi. An rmi the engine accepted is reported.
 func (c *contract) expectRmiRefusal(campaign, scenario, text, imageID string, call func()) enginefixture.Exchange {
 	c.t.Helper()
+	return c.expectRmiRefusalWith(nil, campaign, scenario, text, imageID, call)
+}
+
+// expectRmiRefusalWith is expectRmiRefusal with a Comparer for the streams when verifying: the refusal
+// names one of the containers that use the image (the sentinel or the one of the run), so a contract passes
+// enginecontract.SameUpToContainerIDs().
+func (c *contract) expectRmiRefusalWith(cmp enginecontract.Comparer, campaign, scenario, text, imageID string, call func()) enginefixture.Exchange {
+	c.t.Helper()
 	c.requireLab()
 	users := c.imageUsers[imageID]
 	if len(users) == 0 {
@@ -1489,7 +1497,7 @@ func (c *contract) expectRmiRefusal(campaign, scenario, text, imageID string, ca
 	}
 	c.requireImageInUse(imageID, users)
 	var ex enginefixture.Exchange
-	c.withWindow(rmiWindowRule(imageID), func() { ex = c.exchange(campaign, scenario, text, call) })
+	c.withWindow(rmiWindowRule(imageID), func() { ex = c.exchangeWith(cmp, campaign, scenario, text, call) })
 	if ex.Exit == 0 {
 		c.t.Errorf("%s/%s: the image %s was removed, so the pinned image is gone for the next contract: pull it again with contract.sh",
 			campaign, scenario, imageID)

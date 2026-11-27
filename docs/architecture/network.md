@@ -780,7 +780,11 @@ scenarios listed under "The first scenarios".
   of the contract** (`ps-health` tolerates durations and timestamps only, and asserts `(healthy)` itself); `compare_test.go` pins that
   any marker equals any other, so the kind is documented, not narrowed to `starting`. The argv and the exit code are still compared exactly first; an unknown kind panics when
   the Comparer is made. `SameUpToDurations()` is `Tolerating(Durations)` and `SameUpToDurationsAndHealth()` is
-  `Tolerating(Durations, Health)`. The comparers spell no argv.
+  `Tolerating(Durations, Health)`. **`ContainerIDs`** (OC-09b2, `SameUpToContainerIDs()`) tolerates the id of a container right after `container ` or `used by`
+  (12 characters on docker, 64 on podman): the refusal of an `rmi` names **one** of the containers that use the image, and the engine takes the first it
+  finds in a table with no order, the sentinel or the container of the run, so a second recording or a verification may name the other (`images/rmi-used`
+  uses it). Narrow: the image id in the same message, `running` against `stopped`, the other words and an id after any other phrase still count.
+  The comparers spell no argv.
 - **The sentinel in a fixture (OC-09b1).** The sentinel container of `contract.sh` is in the store while the contracts run, so a
   `ps` they record lists it: its id (a new one at every run) is the variable `DEVDESK_ENGINE_CONTRACT_SENTINEL`, and
   `c.redaction()` maps it to the role `sentinel` (full id and the 12 characters `ps` prints), so two recordings give the same
