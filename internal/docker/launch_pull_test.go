@@ -36,7 +36,7 @@ var launchCases = []struct {
 		Interactive: true, TTY: true,
 	}, []string{
 		"run", "--pull=never", "--rm", "-d", "-i", "-t", "--name", "web", "--entrypoint", "/bin/sh",
-		"-p", "127.0.0.1:8080:80", "-e", "K=V", "-v", "data:/var/lib", "--network", "mynet", "--user", "1000:1000", "img",
+		"-p", "127.0.0.1:8080:80", "-e", "K", "-v", "data:/var/lib", "--network", "mynet", "--user", "1000:1000", "img",
 	}},
 }
 

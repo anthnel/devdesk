@@ -165,7 +165,7 @@ func (f *LaunchForm) renderFormContent() string {
 	// Environment variables
 	b.WriteString(f.renderTextFieldWithHint(
 		"Environment", f.envInput.View(), f.fieldEnv(),
-		"KEY=VALUE pairs separated by commas",
+		"NAME=VALUE pairs separated by commas (no comma in a value)",
 	))
 	b.WriteString("\n\n")
 

@@ -66,10 +66,14 @@ func TestBuildLaunchArgsSkipsEmptyRepeatedValues(t *testing.T) {
 		t.Errorf("buildLaunchArgs() = %v, contains an empty argument", got)
 	}
 	// OC-19: a port with no address is published on 127.0.0.1.
-	for _, want := range []string{"127.0.0.1:8080:80", "127.0.0.1:9090:90", "KEY=VALUE", "data:/var/lib"} {
+	// OC-14: the variable is passed by name, its value never enters argv.
+	for _, want := range []string{"127.0.0.1:8080:80", "127.0.0.1:9090:90", "KEY", "data:/var/lib"} {
 		if !slices.Contains(got, want) {
 			t.Errorf("buildLaunchArgs() = %v, missing %q", got, want)
 		}
+	}
+	if slices.Contains(got, "KEY=VALUE") || slices.Contains(got, "VALUE") {
+		t.Errorf("buildLaunchArgs() = %v, carries the value of an environment variable", got)
 	}
 	if n := slices.Index(got, "-p"); n < 0 {
 		t.Error("buildLaunchArgs() dropped the port flags entirely")

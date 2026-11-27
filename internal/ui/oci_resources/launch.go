@@ -36,7 +36,8 @@ func (m Model) handleLaunchOptionsCacheLoaded(msg LaunchOptionsCacheLoadedMsg) (
 // handleContainerLaunchComplete processes container launch results
 func (m Model) handleContainerLaunchComplete(msg ContainerLaunchCompleteMsg) (tea.Model, tea.Cmd) {
 	if msg.Err != nil {
-		log.Printf("ERROR [oci_resources] launch container: %v", msg.Err)
+		// The engine's output can echo an environment value: the log gets its summary.
+		log.Printf("ERROR [oci_resources] launch container: %s", docker.LaunchLogText(msg.Err))
 		m.lastLaunchOpts = nil
 		m.lastLaunchImage = ""
 		return m, m.footer.Error("Failed to launch container — check logs")

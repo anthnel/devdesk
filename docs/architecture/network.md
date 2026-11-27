@@ -81,6 +81,51 @@ Two things about the engine are worth knowing before changing this code:
   rule gets 127.0.0.1 when it is read. A non-loopback specific address is neither
   rewritten nor warned about.
 
+- **A launch passes environment values to the child, never in argv (OC-14,
+  DEVDESK-812, requirement S9).** `ContainerLaunchOptions.Env` stays a list of
+  `NAME=VALUE`. `buildLaunchArgs` emits `-e NAME` only (an entry that is not
+  launchable is left out), and the value travels in the environment of the child:
+  `launchEnviron` returns `os.Environ()` followed by exactly the typed entries
+  (nil when nothing was typed, so the child keeps DevDesk's environment as before;
+  `os/exec` keeps the last entry of a name). `BuildLaunchCmd` sets it as
+  `cmd.Env`; `LaunchContainer` passes it as the new `dockerCmd.Env` field, which
+  `cliRunner.Run` applies as `cmd.Env` when non-nil. The model is
+  `containerRun.cmd` (`internal/scan/container_run.go`, same `-e NAME` form for
+  the proxy). Both engines behave the same, with the engine's own documented
+  reading of `-e NAME` from the client environment.
+  - **Refusal.** `ErrInvalidLaunchEnv` is returned by `LaunchContainer` and
+    `BuildLaunchCmd` for the whole launch (nothing is started or built) when an
+    entry has no `=` or a name `ValidEnvName` refuses: a bare `-e NAME` would copy
+    DevDesk's own variable into the container. Blank entries are skipped. The text
+    never holds the entry, nor even an equals sign.
+  - **One name rule.** `docker.ValidEnvName`: not empty, no `=`, no white space, no
+    control character. It is deliberately as permissive as the engines (a dot, a
+    dash or a leading digit pass); the reserved names (`PATH`, `LD_PRELOAD`, ...)
+    are OC-15. The launch form calls the same function, so the two cannot disagree.
+  - **`NAME=` (empty value).** The launcher accepts it (`-e EMPTY`, `EMPTY=` in the
+    child's environment); the form refuses it (a variable left empty is almost
+    always one that was not filled in).
+  - **The form** (`internal/ui/oci_resources`): `validate()` returns one
+    `FieldError` of key `env` when an entry has no value or a refused name;
+    `applyInvalid()` underlines the field (`marks.Sync`, Rule 140), the footer
+    carries a fixed sentence at level Error derived on every render, and
+    `updateActiveInput` revalidates while the field is edited. Opening the form and
+    `ApplyCached` validate nothing: a name restored from the cache with no value
+    is refused at the submit only.
+  - **Limits.** A value cannot hold a comma (the field is split on commas). With
+    duplicates (`A=1, A=2`) the argv holds `-e A` twice and the last value wins in
+    the child.
+  - **The log.** A refused `run` returns a `*docker.LaunchError`: its `Error()`
+    keeps the engine's own output (the view shows a fixed sentence, the tests rely
+    on the diagnostic), but `handleContainerLaunchComplete` logs
+    `docker.LaunchLogText(err)`, which is `<engine> run failed (exit code N)` for
+    it and the error as it is for any other.
+  - **Still to do.** OC-15 (reserved names), OC-16 (the command preview and `ctrl+y`
+    still show `-e NAME=VALUE`: `buildCommandString` / `buildCommandLines`), OC-17
+    (`launch-options.json` still stores the values: `ToCacheEntry`). The scanner
+    `internal/scan/plumber.go` still puts `-e GH_TOKEN=<token>` in an argv: outside
+    this story.
+
 - **Four typed, read-only reads for the path trace** (`container_network.go`,
   DEVDESK-330, DEVDESK-331), each with a `context.Context` that kills the
   invocation: `InspectContainerNetworking(ctx, id)`, `ListContainersContext(ctx,

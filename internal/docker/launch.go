@@ -1,8 +1,12 @@
 package docker
 
 import (
+	"errors"
+	"os"
 	"os/exec"
+	"strconv"
 	"strings"
+	"unicode"
 )
 
 // ContainerLaunchOptions holds parameters for running a container
@@ -11,7 +15,7 @@ type ContainerLaunchOptions struct {
 	Image       string   // image to run
 	Entrypoint  string   // override default entrypoint (optional)
 	Ports       []string // "hostPort:containerPort", "ip:hostPort:containerPort" or "containerPort", each with an optional "/proto"; LoopbackPort is applied to each
-	Env         []string // "KEY=VALUE"
+	Env         []string // "NAME=VALUE"; the value reaches the child's environment, never argv (OC-14)
 	Volumes     []string // "name:/path"
 	Network     string   // network name
 	User        string   // user to run as (--user UID:GID or username, optional)
@@ -78,7 +82,76 @@ func PortExposedOnAllInterfaces(spec string) bool {
 	return ok && (addr == "0.0.0.0" || addr == "[::]")
 }
 
+// ErrInvalidLaunchEnv is returned, wrapped or not, when an Env entry has no "="
+// or a name ValidEnvName refuses. A bare `-e NAME` would make the engine copy
+// the variable of DevDesk's own environment into the container, so nothing is
+// started or built. The text never holds the entry, nor even an equals sign: the
+// entry may be a secret typed without its name, and the error reaches the log.
+var ErrInvalidLaunchEnv = errors.New("invalid environment variable for the launch: each entry needs a valid name and a value")
+
+// ValidEnvName reports whether name is acceptable as the name of an environment
+// variable of a launch: not empty, no "=", no white space and no control
+// character. It is as permissive as the engines are (a name with a dot, a dash or
+// a leading digit passes); the reserved names are OC-15's. The launch form calls
+// it too, so the form and the launcher share one rule.
+func ValidEnvName(name string) bool {
+	if name == "" {
+		return false
+	}
+	for _, r := range name {
+		if r == '=' || unicode.IsSpace(r) || unicode.IsControl(r) {
+			return false
+		}
+	}
+	return true
+}
+
+// launchEnvName returns the name of an Env entry, and whether the entry is
+// launchable: a valid name, then "=". An empty value is launchable (`EMPTY=`);
+// it is the form that refuses it.
+func launchEnvName(entry string) (string, bool) {
+	name, _, ok := strings.Cut(entry, "=")
+	return name, ok && ValidEnvName(name)
+}
+
+// validateLaunchEnv refuses the whole launch when one entry is not launchable.
+// Blank entries are skipped, as buildLaunchArgs skips them.
+func validateLaunchEnv(env []string) error {
+	for _, e := range env {
+		if e == "" {
+			continue
+		}
+		if _, ok := launchEnvName(e); !ok {
+			return ErrInvalidLaunchEnv
+		}
+	}
+	return nil
+}
+
+// launchEnviron returns the environment of the child: DevDesk's own, then
+// exactly the variables typed, so the last entry of a name wins (os/exec keeps
+// the last). It is nil when nothing was typed, which leaves the child with
+// DevDesk's environment as before. The explicit slice is what lets `-e NAME`
+// find its value without the value ever being in argv; the model is
+// containerRun.cmd (internal/scan).
+func launchEnviron(env []string) []string {
+	var typed []string
+	for _, e := range env {
+		if e != "" {
+			typed = append(typed, e)
+		}
+	}
+	if typed == nil {
+		return nil
+	}
+	return append(os.Environ(), typed...)
+}
+
 // buildLaunchArgs constructs the docker run argument list for the given options.
+// An Env entry is passed as `-e NAME`: its value travels in the environment of the
+// child (launchEnviron), never in argv, where the process list would show it. An
+// entry that is not launchable is left out; the callers refuse the launch first
+// (validateLaunchEnv).
 func buildLaunchArgs(opts ContainerLaunchOptions) []string {
 	args := []string{"run", noImplicitPull}
 	if opts.Remove {
@@ -105,8 +178,8 @@ func buildLaunchArgs(opts ContainerLaunchOptions) []string {
 		}
 	}
 	for _, e := range opts.Env {
-		if e != "" {
-			args = append(args, "-e", e)
+		if name, ok := launchEnvName(e); ok {
+			args = append(args, "-e", name)
 		}
 	}
 	for _, v := range opts.Volumes {
@@ -126,22 +199,66 @@ func buildLaunchArgs(opts ContainerLaunchOptions) []string {
 
 // BuildLaunchCmd returns a ready-to-run exec.Cmd for the given options without executing it.
 // Use this when you need to hand off the process to a terminal (e.g. tea.ExecProcess for -it mode).
+// Its Env is set as soon as a variable is typed (launchEnviron). A launch with an
+// entry ValidEnvName or the "=" refuses returns ErrInvalidLaunchEnv and no command.
 func BuildLaunchCmd(opts ContainerLaunchOptions) (*exec.Cmd, error) {
+	if err := validateLaunchEnv(opts.Env); err != nil {
+		return nil, err
+	}
 	if err := engineAvailable(); err != nil {
 		return nil, err
 	}
-	return runner.Build(buildLaunchArgs(opts)...), nil
+	cmd := runner.Build(buildLaunchArgs(opts)...)
+	cmd.Env = launchEnviron(opts.Env)
+	return cmd, nil
+}
+
+// LaunchError is a `run` the engine refused. Its text keeps the engine's own
+// diagnostic for the caller that shows it, but that diagnostic can echo what was
+// typed (an environment value), so a log line takes Summary instead.
+type LaunchError struct {
+	label  string
+	output string
+	err    error
+}
+
+func (e *LaunchError) Error() string { return e.label + " failed: " + e.output }
+
+func (e *LaunchError) Unwrap() error { return e.err }
+
+// Summary is the part of the error that is safe to log: the engine and the exit
+// code, none of its output.
+func (e *LaunchError) Summary() string {
+	var exit *exec.ExitError
+	if errors.As(e.err, &exit) {
+		return e.label + " failed (exit code " + strconv.Itoa(exit.ExitCode()) + ")"
+	}
+	return e.label + " failed"
+}
+
+// LaunchLogText returns what a log line may say about the error of a launch:
+// the summary of a *LaunchError, the engine's own output left out, and any other
+// error as it is (none of them holds an entry or its value).
+func LaunchLogText(err error) string {
+	var le *LaunchError
+	if errors.As(err, &le) {
+		return le.Summary()
+	}
+	return err.Error()
 }
 
 // LaunchContainer runs a new container with the given options and returns its ID/output.
 // Do NOT use this for interactive (-it) containers — use BuildLaunchCmd + tea.ExecProcess instead.
 func LaunchContainer(opts ContainerLaunchOptions) (string, error) {
+	if err := validateLaunchEnv(opts.Env); err != nil {
+		return "", err
+	}
 	if err := engineAvailable(); err != nil {
 		return "", err
 	}
-	output, err := dockerCombined(buildLaunchArgs(opts)...)
+	output, err := runner.Run(dockerCmd{Args: buildLaunchArgs(opts), Combined: true, Env: launchEnviron(opts.Env)})
 	if err != nil {
-		return "", errWithOutput(cmdLabel("run"), output)
+		return "", &LaunchError{label: cmdLabel("run"), output: strings.TrimSpace(string(output)), err: err}
 	}
 	return strings.TrimSpace(string(output)), nil
 }
