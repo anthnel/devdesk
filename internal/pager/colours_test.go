@@ -1,6 +1,7 @@
 package pager
 
 import (
+	"errors"
 	"slices"
 	"testing"
 )
@@ -37,5 +38,21 @@ func TestResolveKeepsTheColoursOfLess(t *testing.T) {
 				t.Errorf("Resolve(%q) = %q, want %q", tt.env, got, tt.want)
 			}
 		})
+	}
+}
+
+// A line whose program name is empty has nothing to start. It is refused with
+// its own error, not turned into an empty exec.
+func TestResolveRefusesAnEmptyProgram(t *testing.T) {
+	for _, line := range []string{`""`, `''`, `"" -R`, `'' less`} {
+		t.Run(line, func(t *testing.T) {
+			got, err := Resolve("", line, "linux")
+			if !errors.Is(err, ErrEmptyProgram) {
+				t.Errorf("Resolve(%q) = %q, %v; want ErrEmptyProgram", line, got, err)
+			}
+		})
+	}
+	if _, err := Resolve(`""`, "less", "linux"); !errors.Is(err, ErrEmptyProgram) {
+		t.Errorf("an empty configured program fell back instead of failing: %v", err)
 	}
 }

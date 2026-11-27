@@ -2,7 +2,10 @@ package viewer
 
 import (
 	"errors"
+	"os"
 	"os/exec"
+	"path/filepath"
+	"runtime"
 	"strings"
 	"testing"
 
@@ -45,8 +48,32 @@ type feedSource struct {
 
 func (s feedSource) PagerFeed() (*exec.Cmd, error) { return s.feed, s.err }
 
+// pagersOnPath makes the named programs findable: PATH becomes a directory of
+// empty executables, so openPager's look-up of the pager succeeds without any
+// real pager being started. It returns the directory.
+func pagersOnPath(t *testing.T, names ...string) string {
+	t.Helper()
+	dir := t.TempDir()
+	for _, name := range names {
+		files := []string{name}
+		if runtime.GOOS == "windows" {
+			files = append(files, name+".exe")
+		}
+		for _, f := range files {
+			if err := os.WriteFile(filepath.Join(dir, f), nil, 0o755); err != nil { //nolint:gosec // a stub the test must be able to look up
+				t.Fatal(err)
+			}
+		}
+	}
+	t.Setenv("PATH", dir)
+	return dir
+}
+
 func feedModel(t *testing.T, feed *exec.Cmd, err error) Model {
 	t.Helper()
+	// A pager that is not found is refused before the feed is asked for; these
+	// tests are about the feed and the pager line, so the usual ones exist.
+	pagersOnPath(t, "less", "less;", "most")
 	return open(t, feedSource{
 		capableSource: capableSource{fakeSource: fakeSource{
 			name: "logs · api", kind: viewerpkg.KindLog, content: "a\nb\n",
@@ -148,5 +175,78 @@ func TestPagerKeyHandsOverTheTerminalWithAGoodFeed(t *testing.T) {
 				t.Errorf("footer = %q, want none: nothing was refused", m.footer.Text())
 			}
 		})
+	}
+}
+
+// A pager that is not on PATH is reported before the feed is asked for, so no
+// engine command is built for it: the source's PagerFeed fails the test if it
+// is called. The footer names the pager and the reason, and nothing is handed
+// the terminal.
+func TestPagerKeyRefusesAPagerThatIsNotFound(t *testing.T) {
+	tests := []struct {
+		name  string
+		pager string
+		want  string
+	}{
+		{"a program that does not exist", "oc84-no-such-pager -R", "oc84-no-such-pager"},
+		{"the default pager on an empty PATH", "", "less"},
+		{"a shell metacharacter makes the first word a missing program", "less; touch x", "less;"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			testutil.FastTimers(t, &components.FooterMsgDuration)
+			m := open(t, noFeedSource{capableSource{fakeSource: fakeSource{
+				name: "logs · api", kind: viewerpkg.KindLog, content: "a\nb\n",
+			}}, t})
+			t.Setenv("PATH", t.TempDir()) // no pager, no engine
+			t.Setenv("PAGER", tt.pager)
+
+			m, cmd := step(t, m, testutil.Key("V"))
+
+			if got := m.footer.Level(); got != components.LevelError {
+				t.Errorf("footer level = %v, want Error", got)
+			}
+			text := m.footer.Text()
+			if !strings.Contains(strings.ToLower(text), "pager") || !strings.Contains(text, tt.want) {
+				t.Errorf("footer = %q, want it to name the pager (%q) and say it was not found", text, tt.want)
+			}
+			if cmd == nil {
+				t.Fatal("no command: the footer message would never clear")
+			}
+			for _, msg := range testutil.Msgs(cmd) {
+				if _, ok := msg.(components.ClearFooterMsg); !ok {
+					t.Errorf("V returned %T besides the footer's expiry: something was handed the terminal", msg)
+				}
+			}
+		})
+	}
+}
+
+// noFeedSource fails the test when its feed is asked for.
+type noFeedSource struct {
+	capableSource
+	t *testing.T
+}
+
+func (s noFeedSource) PagerFeed() (*exec.Cmd, error) {
+	s.t.Helper()
+	s.t.Error("PagerFeed was called although the pager could not be found")
+	return nil, errors.New("unexpected")
+}
+
+// A pager line whose program name is empty (PAGER='""') is refused, naming the
+// pager, and nothing runs.
+func TestPagerKeyRefusesAnEmptyPagerProgram(t *testing.T) {
+	testutil.FastTimers(t, &components.FooterMsgDuration)
+	t.Setenv("PAGER", `""`)
+	m := feedModel(t, exec.Command("echo", "never started"), nil)
+
+	m, _ = step(t, m, testutil.Key("V"))
+
+	if got := m.footer.Level(); got != components.LevelError {
+		t.Errorf("footer level = %v, want Error", got)
+	}
+	if text := strings.ToLower(m.footer.Text()); !strings.Contains(text, "pager") {
+		t.Errorf("footer = %q, want it to name the pager", m.footer.Text())
 	}
 }

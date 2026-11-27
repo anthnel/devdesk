@@ -347,11 +347,14 @@ source it is `docker.LogsCmd(ID, logsTail)`, which validates the ID with
 `IsContainerID` (`ErrInvalidContainerID`) and builds `<engine> logs --tail N ID`
 through the runner, with no stream set. `openPager` then:
 
-- reports a refused feed in the footer, level Error (`Pager refused — <reason>`);
 - resolves the pager with `pager.Resolve(cfg.App.Pager, os.Getenv("PAGER"),
   runtime.GOOS)` (config, then `PAGER`, then `less -R`, `more` on Windows; see
-  `configuration.md`, `app.pager`), reports an unreadable one in the footer, and
-  never falls back to another program;
+  `configuration.md`, `app.pager`), reports an unreadable or empty one in the
+  footer, and never falls back to another program;
+- looks the program up with `exec.LookPath` **before** asking for the feed, and
+  reports a missing one in the footer (`Cannot find the pager — ...`);
+- asks the source for the feed and reports a refusal in the footer, level Error
+  (`Pager refused — <reason>`);
 - returns `teaexec.Pipe(feed, pager, ...)`: the feed is started first with its
   stdout and stderr on one pipe (what `2>&1` did), the pager second with that
   pipe as stdin, and when the pager ends the feed is killed and waited for, so

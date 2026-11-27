@@ -208,7 +208,11 @@ ordinary character, and `$HOME`, `~` and globs are not expanded. A line that
 cannot be cut (an unterminated quote) is refused in the footer, never replaced
 by another pager. When the program is `less` and no argument already passes
 colours through (`-R`, `-r`, `--raw-control-chars`), `-R` is added, as the old
-fixed command line did. It has no field in `:cfg`.
+fixed command line did, and only then. `app.pager` and `PAGER` name an
+executable started without a shell: a Windows `.bat` or `.cmd` script is
+discouraged (Windows runs it through `cmd.exe`), and a line whose program is
+empty (`""`) or not found on `PATH` is refused in the footer before the engine's
+`logs` is built. It has no field in `:cfg`.
 
 **No secret goes in this file.** `GitLabConfig` has no `Token` and
 `RegistryConfig` has no `Password`; both live in the host secret store (see

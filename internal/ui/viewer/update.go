@@ -410,11 +410,6 @@ func (m Model) openPager() (tea.Model, tea.Cmd) {
 	if !ok {
 		return m, nil
 	}
-	feed, err := src.PagerFeed()
-	if err != nil {
-		report := m.footer.Error("Pager refused — " + err.Error())
-		return m, report
-	}
 	configured := ""
 	if m.config != nil {
 		configured = m.config.App.Pager
@@ -422,6 +417,17 @@ func (m Model) openPager() (tea.Model, tea.Cmd) {
 	argv, err := pager.Resolve(configured, os.Getenv("PAGER"), runtime.GOOS)
 	if err != nil {
 		report := m.footer.Error("Cannot read the pager — " + err.Error())
+		return m, report
+	}
+	// Looked up before the feed is built: a pager that is not there is reported
+	// at once, and no engine command is made for nothing.
+	if _, err := exec.LookPath(argv[0]); err != nil {
+		report := m.footer.Error("Cannot find the pager — " + err.Error())
+		return m, report
+	}
+	feed, err := src.PagerFeed()
+	if err != nil {
+		report := m.footer.Error("Pager refused — " + err.Error())
 		return m, report
 	}
 	// The pager is started directly from the argv DevDesk cut: no shell reads

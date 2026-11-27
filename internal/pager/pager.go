@@ -16,6 +16,10 @@ import (
 // never closes.
 var ErrUnterminatedQuote = errors.New("unterminated quote")
 
+// ErrEmptyProgram is returned by Resolve for a line whose program name is empty,
+// such as PAGER='""': there is nothing to start.
+var ErrEmptyProgram = errors.New("empty pager program name")
+
 // Split cuts a command line into argv elements.
 //
 // Elements are separated by blanks (space and tab). A single or double quote
@@ -65,7 +69,7 @@ func Split(line string) ([]string, error) {
 // if it is not blank, else env (the PAGER variable), else the platform default,
 // `less -R`, or `more` on Windows.
 //
-// A pager that cannot be read is an error, never a silent fallback: replacing
+// A pager that cannot be read, or whose program name is empty, is an error, never a silent fallback: replacing
 // it would run a program the user did not pick.
 //
 // `less` shows the colours of a log only with -R, which the pager used to be
@@ -86,6 +90,9 @@ func Resolve(configured, env, goos string) ([]string, error) {
 	argv, err := Split(line)
 	if err != nil {
 		return nil, err
+	}
+	if argv[0] == "" {
+		return nil, fmt.Errorf("%w in %q", ErrEmptyProgram, line)
 	}
 	if isLess(argv[0]) && !keepsColours(argv[1:]) {
 		argv = append(argv, "-R")
