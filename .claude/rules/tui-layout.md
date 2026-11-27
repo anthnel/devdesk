@@ -95,9 +95,9 @@ once.
     there is no `all` token, that would be a fifth state to select alongside
     four real ones. That is the difference from netdiag/Ports, where nothing
     active means "no opinion" and shows everything.
-  - `f` `c` `w` `v` `t` `n` `g` `s` (viewer): display, coloring, line
+  - `f` `c` `w` `v` `t` `n` `g` `s` `m` (viewer): display, coloring, line
     wrapping, verbosity, timestamps, line numbers, go-to-line, search case
-    sensitivity.
+    sensitivity, masked environment values of a container inspect (OC-13).
   - `t` `u` `l` `e` `n` `z` (netdiag/Ports): protocol and state filters.
   - `r` (OCI browser): registry shown.
   - `c` `h` `m` `l` (security): severities, **cumulative** — `c`+`h` asks for

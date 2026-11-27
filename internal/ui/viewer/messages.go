@@ -41,6 +41,9 @@ type PagerExitMsg struct {
 // system clipboard (`Y`).
 type ContentCopiedMsg struct {
 	Err error
+	// Masked says the copied text had its sensitive values hidden, so the
+	// footer can say that what is on the clipboard is not the raw document.
+	Masked bool
 }
 
 // IDEOpenedMsg reports the result of handing the document's path to the

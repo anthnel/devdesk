@@ -1,6 +1,7 @@
 package viewer
 
 import (
+	"fmt"
 	"log"
 	"os"
 	"os/exec"
@@ -11,11 +12,15 @@ import (
 	"github.com/anthnel/devdesk/internal/clipboard"
 	"github.com/anthnel/devdesk/internal/jobs"
 	"github.com/anthnel/devdesk/internal/pager"
+	"github.com/anthnel/devdesk/internal/secretenv"
 	"github.com/anthnel/devdesk/internal/ui/teaexec"
 
 	"github.com/anthnel/devdesk/internal/ui/keymap"
 	"github.com/anthnel/devdesk/internal/viewer"
 )
+
+// writeClipboard is the clipboard write, a variable so a test can take it.
+var writeClipboard = clipboard.WriteAll
 
 // Init loads the source, if there is one.
 func (m Model) Init() tea.Cmd {
@@ -118,8 +123,20 @@ func (m Model) handleDocumentLoaded(msg DocumentLoadedMsg) (tea.Model, tea.Cmd) 
 		log.Printf("ERROR [viewer] load %s: %v", msg.Name, msg.Err)
 		return m, m.footer.Error(loadErrorMessage(msg.Err))
 	}
+	content := msg.Content
+	if src, ok := m.maskable(); ok {
+		shown, count, err := m.maskedReading(src, msg.Content)
+		if err != nil {
+			return m.maskFailed(msg.Name, err)
+		}
+		m.raw, m.masked, content = msg.Content, count, shown
+	}
 	m.footer.Clear()
-	return m, m.applyDocument(viewer.Open(msg.Name, msg.Kind, msg.Content))
+	cmd := m.applyDocument(viewer.Open(msg.Name, msg.Kind, content))
+	if m.raw != nil {
+		cmd = tea.Batch(cmd, m.maskNotice())
+	}
+	return m, cmd
 }
 
 // loadErrorMessage names the two refusals and hides the rest behind the log
@@ -196,6 +213,8 @@ func (m Model) handleKeyMsg(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	case "c":
 		m.toggleHighlight()
 		return m, nil
+	case "m":
+		return m.toggleMask()
 	case "ctrl+r":
 		return m.reload()
 	case keymap.Copy:
@@ -441,14 +460,16 @@ func (m Model) openPager() (tea.Model, tea.Cmd) {
 // copyContent puts the document's own text on the clipboard — the source, not
 // what `f` currently renders: a rendered Markdown has its markers taken out,
 // and pasting that instead of the file itself would be the wrong text under
-// the right key.
+// the right key. The document is already the masked one while values are
+// hidden, so what is copied is exactly what is shown (OC-13).
 func (m Model) copyContent() (tea.Model, tea.Cmd) {
 	if !m.hasDocument() {
 		return m, nil
 	}
 	text := m.doc.Text
+	masked := m.raw != nil && !m.revealed
 	return m, func() tea.Msg {
-		return ContentCopiedMsg{Err: clipboard.WriteAll(text)}
+		return ContentCopiedMsg{Err: writeClipboard(text), Masked: masked}
 	}
 }
 
@@ -456,6 +477,9 @@ func (m Model) handleContentCopied(msg ContentCopiedMsg) (tea.Model, tea.Cmd) {
 	if msg.Err != nil {
 		log.Printf("ERROR [viewer] copy content: %v", msg.Err)
 		return m, m.footer.Error("Failed to copy content — check logs")
+	}
+	if msg.Masked {
+		return m, m.footer.Info("Content copied to the clipboard — values masked")
 	}
 	return m, m.footer.Info("Content copied to the clipboard")
 }
@@ -482,4 +506,83 @@ func (m Model) handleIDEOpened(msg IDEOpenedMsg) (tea.Model, tea.Cmd) {
 		return m, m.footer.Error("Failed to open in the IDE — check logs")
 	}
 	return m, nil
+}
+
+// ── Masked values (OC-13) ────────────────────────────────────────────────────
+
+// sensitiveMatcher is the context's classification of variable names. A bad
+// entry of containers.sensitive_env never lowers the masking: the matcher it
+// comes with still carries the defaults and the valid entries.
+func (m Model) sensitiveMatcher() *secretenv.Matcher {
+	if m.config == nil {
+		return nil // the default patterns
+	}
+	matcher, err := m.config.Containers.SensitiveEnvMatcher()
+	if err != nil {
+		log.Printf("WARN [viewer] %v", err)
+	}
+	return matcher
+}
+
+// maskedReading is what the document is built from: the raw bytes once the
+// values are revealed, the source's masked reading of them otherwise. The count
+// is the number of sensitive values either way, so the header can keep it while
+// they are shown.
+func (m Model) maskedReading(src viewer.Maskable, raw []byte) ([]byte, int, error) {
+	masked, count, err := src.Mask(raw, m.sensitiveMatcher())
+	if err != nil {
+		return nil, 0, err
+	}
+	if m.revealed {
+		return raw, count, nil
+	}
+	return masked, count, nil
+}
+
+// maskFailed reports a source whose content could not be masked. Nothing is
+// shown for it: falling back to the raw bytes would be the failure this exists
+// to prevent. A document already on screen stays as it was.
+func (m Model) maskFailed(name string, err error) (tea.Model, tea.Cmd) {
+	log.Printf("ERROR [viewer] mask %s: %v", name, err)
+	cmd := m.footer.Error("Cannot hide the sensitive values — check logs")
+	return m, cmd
+}
+
+// maskNotice says, in the footer, what state the values are in. In the masked
+// state it gives the count and the limit of the method: the patterns are
+// blunt and a secret under an unremarkable name is shown.
+func (m *Model) maskNotice() tea.Cmd {
+	if m.revealed {
+		return m.footer.Info("Environment values revealed — m masks them again")
+	}
+	noun := "values"
+	if m.masked == 1 {
+		noun = "value"
+	}
+	return m.footer.Info(fmt.Sprintf("%d environment %s masked — masking can miss secrets, m reveals them", m.masked, noun))
+}
+
+// toggleMask is `m`. It shows the same document the other way from the bytes
+// already held: nothing is read again, and the reader stays where they were
+// since masking changes values and not the shape of the document. Masking again
+// drops the search, which may hold what was just hidden.
+func (m Model) toggleMask() (tea.Model, tea.Cmd) {
+	src, ok := m.maskable()
+	if !ok || m.raw == nil || !m.hasDocument() {
+		return m, nil
+	}
+	m.revealed = !m.revealed
+	shown, count, err := m.maskedReading(src, m.raw)
+	if err != nil {
+		m.revealed = !m.revealed
+		return m.maskFailed(m.doc.Name, err)
+	}
+	m.masked = count
+	if !m.revealed {
+		// A query typed while the values were shown may be the secret itself.
+		m.bar.ClearSearch()
+	}
+	m.reshow(viewer.Open(m.doc.Name, src.Kind(), shown))
+	cmd := m.maskNotice()
+	return m, cmd
 }

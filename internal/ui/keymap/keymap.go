@@ -217,7 +217,7 @@ type Surface struct {
 // up to date.
 var localToggles = []Surface{
 	{"containers", "ui/containers/", []string{"r", "p", "s", "t", "z"}},
-	{"viewer", "ui/viewer/", []string{"f", "c", "w", "v", "t", "n", "g", "s"}},
+	{"viewer", "ui/viewer/", []string{"f", "c", "w", "v", "t", "n", "g", "s", "m"}},
 	{"netdiag/ports", "ui/netdiag/ports_model.go", []string{"t", "u", "l", "e", "n", "z"}},
 	{"netdiag/checks", "ui/netdiag/", []string{"p"}},
 	{"oci/browser", "ui/oci_resources/browser_", []string{"r"}},

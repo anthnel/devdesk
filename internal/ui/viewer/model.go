@@ -71,6 +71,17 @@ type Model struct {
 	// be left with ctrl+c — killing the application and handing the terminal
 	// back in the child's mode.
 	following bool
+	// raw is what the source last returned, kept only for a Maskable source:
+	// the document is built from what raw is shown as, and `m` shows it the
+	// other way without reading the source again. It is in memory and nowhere
+	// else, and it is never drawn, searched or copied while masked.
+	raw []byte
+	// revealed is the state `m` toggles. Zero is masked, so a viewer that is
+	// opened again, or one that never heard of `m`, starts hidden. It lives in
+	// this model alone: no configuration or cache file carries it (OC-13).
+	revealed bool
+	// masked is how many values the current document has hidden.
+	masked int
 	// followGen invalidates a tick loop the user has already stopped.
 	//
 	// tea.Tick blocks for its whole interval, so a tick scheduled before `F`
@@ -248,6 +259,16 @@ func (m *Model) applyDocument(doc viewer.Document) tea.Cmd {
 	return nil
 }
 
+// reshow puts another reading of the same document on screen: same structure,
+// other values. Unlike applyDocument it keeps the expansion state, the cursor and
+// the scroll position, because nothing about the document's shape has changed.
+func (m *Model) reshow(doc viewer.Document) {
+	m.doc = doc
+	m.lines = buildLines(doc, m.highlight, m.display == displayRendered)
+	m.rebuildTree()
+	m.rebuildText()
+}
+
 // toggleHighlight is `c`. It rebuilds the spans, which is the one thing that
 // costs anything here — and the reason it is a key rather than something
 // recomputed on every frame.
@@ -299,6 +320,12 @@ func (m *Model) toggleDisplay() {
 		m.rebuildText()
 		m.textViewport.GotoTop()
 	}
+}
+
+// maskable returns the source's masking capability, if it has one.
+func (m Model) maskable() (viewer.Maskable, bool) {
+	src, ok := m.source.(viewer.Maskable)
+	return src, ok
 }
 
 // formatLabel is what the header prints: the kind and the display, and the

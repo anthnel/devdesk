@@ -4,6 +4,8 @@ import (
 	"os/exec"
 	"path/filepath"
 	"time"
+
+	"github.com/anthnel/devdesk/internal/secretenv"
 )
 
 // Source is where a document came from, and it is carried rather than the bytes
@@ -75,6 +77,24 @@ type Pageable interface {
 	// source refuses to start it (a malformed container ID); nothing is
 	// launched.
 	PagerFeed() (*exec.Cmd, error)
+}
+
+// Maskable is a source whose content carries values that stay hidden until the
+// reader asks for them (S9, OC-13). It unlocks `m`.
+//
+// The viewer keeps the bytes Load returned and shows what Mask makes of them:
+// the masked text is the document, so what is drawn, searched and copied is one
+// and the same text. Only the source knows which parts of its own format are
+// sensitive, which is why the question is asked here and not answered by the
+// viewer; the matcher (secretenv, from containers.sensitive_env) is handed in
+// so a configured pattern applies everywhere the same way.
+type Maskable interface {
+	Source
+	// Mask returns the content with every sensitive value replaced by a mask of
+	// fixed length, and how many it replaced. An error means the content could
+	// not be read well enough to be sure what it hides: the caller shows nothing
+	// rather than the raw bytes. A nil matcher applies the default patterns.
+	Mask(raw []byte, matcher *secretenv.Matcher) (masked []byte, count int, err error)
 }
 
 // Pathed is a source backed by a real file on disk. It unlocks `O`, handing
