@@ -149,7 +149,12 @@ func readCampaign(from, campaign string) ([]batchFile, error) {
 		}
 		f, err := Parse(campaign, name, data)
 		if err != nil {
-			return nil, err
+			// The file came out of a VM: say which rule it breaks, not what it holds.
+			var pe *ParseError
+			if errors.As(err, &pe) {
+				return nil, fmt.Errorf("enginefixture: %s/%s: invalid format (%s)", campaign, name, pe.Rule)
+			}
+			return nil, fmt.Errorf("enginefixture: %s/%s: invalid format", campaign, name)
 		}
 		files = append(files, batchFile{fixture: f, data: data})
 	}
@@ -163,6 +168,10 @@ func readBounded(path string) ([]byte, error) {
 		return nil, err
 	}
 	defer func() { _ = file.Close() }()
+	// The listing said a regular file; what was opened is checked again (a swap in between).
+	if info, err := file.Stat(); err != nil || !info.Mode().IsRegular() {
+		return nil, errors.New("not a regular file")
+	}
 	data, err := io.ReadAll(io.LimitReader(file, maxImportFileBytes+1))
 	if err != nil {
 		return nil, err

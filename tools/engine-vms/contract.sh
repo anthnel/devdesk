@@ -43,6 +43,9 @@
 # checks the version against N and N-1 and runs the leak check with the external deny list
 # (DEVDESK_FIXTURE_DENYLIST, a file outside the repository, read from this machine's environment) and the
 # identities of this machine, before anything is written to internal/enginefixture/fixtures (or to --keep-out).
+# The deny list is required for a recording: without it (unset, unreadable, no active term) the script refuses
+# before any connection, and the import is run with --require-denylist as well. The strict extraction lives
+# in unpack_recorded.sh, which the tests source.
 # The contracts also need the mark of a test VM, /etc/dd/current (written by dd-use.sh): the lab check of
 # enginecontract refuses to create or remove a resource anywhere else.
 # Variables: the DD_ENGINE_VMS_* ones of lib.sh.
@@ -99,7 +102,17 @@ if [[ $engine == docker && $mode == rootless ]]; then
   exit 2
 fi
 
+# A recording needs the external deny list (the names only you know: domains, projects, customers): the import
+# refuses without it (--require-denylist), and so does this script, before anything is built or sent to the VM.
+if [[ $action == record ]]; then
+  if [[ -z ${DEVDESK_FIXTURE_DENYLIST:-} ]] || ! grep -qsv '^[[:space:]]*\(#\|$\)' -- "$DEVDESK_FIXTURE_DENYLIST"; then
+    echo "contract.sh: refused: record needs a deny list: set DEVDESK_FIXTURE_DENYLIST to a file of terms (domains, project and customer names), one per line, outside the repository (it is unset, unreadable or has no active term)" >&2
+    exit 1
+  fi
+fi
+
 . "$(dirname "${BASH_SOURCE[0]}")/lib.sh"
+. "$(dirname "${BASH_SOURCE[0]}")/unpack_recorded.sh"
 root=$(cd "$DD_DIR/../.." && pwd)
 
 # The one image of the contracts is alpine from Docker Hub, pinned by the digest of its index: nothing else
@@ -118,27 +131,6 @@ sentinel="" # the id of the container without a label, once this script created 
 # must live in the store the contracts use: the store of rootless podman is the user's, not root's.
 vm_as_mode() {
   if [[ $mode == rootless ]]; then vm_user "$engine" "$@"; else vm_root "$engine" "$@"; fi
-}
-
-# The tar of the output directory is what a VM sent: it is untrusted. Look at it before extracting
-# anything, then extract into a new private directory. engine-fixture-import checks every file again.
-max_archive=$((16 * 1024 * 1024))
-recorded=""
-unpack_recorded() {
-  local names listing entry
-  names=$(tar -tf "$work/recorded-out") || die "the recorded archive cannot be read"
-  listing=$(tar -tvf "$work/recorded-out") || die "the recorded archive cannot be read"
-  while IFS= read -r entry; do
-    [[ $entry =~ ^(\./?|(\./)?[a-z0-9-]+/?|(\./)?[a-z0-9-]+/[A-Za-z0-9._-]+\.cli)$ ]] ||
-      die "the recorded archive holds an entry that is not <campaign>/<name>.cli (absolute path, '..', odd name): refused"
-  done <<<"$names"
-  while IFS= read -r entry; do
-    [[ ${entry:0:1} == - || ${entry:0:1} == d ]] ||
-      die "the recorded archive holds a link or a special file: refused"
-  done <<<"$listing"
-  recorded=$(mktemp -d "$work/recorded.XXXXXX")
-  tar -xf "$work/recorded-out" -C "$recorded" --no-same-owner --no-same-permissions
-  chmod -R u+rwX,go-rwx "$recorded"
 }
 
 # shellcheck disable=SC2329 # called by the EXIT trap
@@ -249,10 +241,9 @@ log "engine-contract: $passed passed, $skipped skipped, $failed failed (run $run
 if [[ $action == record ]] && ((status == 0 && passed > 0)); then
   log "engine-contract: bringing the recorded fixtures back from $vmdir/out"
   vm_root "$engine" tar -C "$vmdir/out" -cf - . | head -c "$((max_archive + 1))" >"$work/recorded-out" || die "the recorded fixtures could not be brought back (or the archive is larger than $max_archive bytes)"
-  (($(wc -c <"$work/recorded-out") <= max_archive)) || die "the recorded archive is larger than $max_archive bytes: refused"
   unpack_recorded
   log "engine-contract: importing on this machine${keep:+ into $keep}"
-  (cd "$root" && go run ./internal/enginefixture/cmd/engine-fixture-import --from "$recorded" ${into_args[@]+"${into_args[@]}"}) || status=1
+  (cd "$root" && go run ./internal/enginefixture/cmd/engine-fixture-import --from "$recorded" --require-denylist ${into_args[@]+"${into_args[@]}"}) || status=1
 fi
 if ((status)); then
   log "engine-contract: FAILED ($engine line $line, $mode, run $run, exit $status)"

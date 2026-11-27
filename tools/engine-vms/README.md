@@ -140,7 +140,7 @@ Usage: `contract.sh verify <docker|podman> <n|n1> [--mode rootful|rootless] [--n
   contracts write each exchange, redacted and leak-checked, as a `.cli` fixture. When the contracts and the sentinel check
   passed, **the output directory, and nothing else**, comes back as a tar and is imported on your machine by
   `go run ./internal/enginefixture/cmd/engine-fixture-import --from <dir>`, which checks everything again (format,
-  one configuration, N and N-1, leak check with your deny list `DEVDESK_FIXTURE_DENYLIST` and your own identities) and
+  one configuration, N and N-1, leak check with your deny list and your own identities; a public IP address is a leak) and
   writes into `internal/enginefixture/fixtures`. It prints `engine-contract:record: <tool> <version> <mode>: N written,
   N unchanged, N kept, N not produced by this run`. A fixture identical to the existing one but for its date is not
   rewritten; one marked `record: skip: ...` is never touched; nothing is deleted.
@@ -149,10 +149,13 @@ Usage: `contract.sh verify <docker|podman> <n|n1> [--mode rootful|rootless] [--n
   - **`--no-reset` is refused** (exit 2): the fixtures describe what a clean VM answers, so a recording always restores
     the clean snapshot first.
   - **The tar is untrusted input.** It is listed and refused when an entry is not `<campaign>/<name>.cli` (absolute path,
-    `..`, a link, a special file, an odd name) or when it is over 16 MiB, then extracted into a new private temporary
+    `..`, a link, a special file, an odd name), when it is over 16 MiB or when the sizes it announces add up to more (a sparse file), then extracted into a new private temporary
     directory without `--same-owner` or `--same-permissions`; the importer reads every file again.
-  - Review the diff before committing: the fixtures are public text kept in the history. Set `DEVDESK_FIXTURE_DENYLIST` to a
-    file outside the repository (one term per line) so the import also looks for the names only you know.
+  - **A recording needs a deny list.** `DEVDESK_FIXTURE_DENYLIST` must name a file outside the repository with at least one term
+    per line (your domains, project and customer names). The script refuses before it touches the VM when it is unset, unreadable
+    or has no term, and the import runs with `--require-denylist`. Review the diff before committing: the fixtures are public
+    text kept in the history. The import reports `written`, `unchanged`, `kept` against the target directory, so with
+    `--keep-out` against that directory and not the repository.
 - Not confirmed on the VMs yet: a real recording on the four configurations.
 
 ## Threat model and limits

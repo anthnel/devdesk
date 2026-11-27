@@ -20,6 +20,9 @@ type Redaction struct {
 	RunID            string            // the run id of contract.sh
 	IDs              map[string]string // real 64-hex id -> role ("c1")
 	Home, User, Host string            // of the recording user and machine
+	// Public lists the 64-hex ids that may stay in a fixture (the digest of the pinned
+	// image, an image id). Redact does not read it: UnknownEngineIDs does.
+	Public []string
 }
 
 // PlaceholderID is the fixed id a role stands for in a fixture: 64 lower-case
@@ -38,8 +41,11 @@ func PlaceholderID(role string) string {
 //     characters of that placeholder, only as a whole hexadecimal word;
 //  3. the home directory, as a path prefix, by PlaceholderHome;
 //  4. the run id, by PlaceholderRun;
-//  5. the host name, by PlaceholderHost, between the characters of strictBoundaries
-//     (as the lab-identity rule reads a name);
+//  5. the host name, by PlaceholderHost, as a whole word (a dash, a dot or a slash
+//     separate words, as the local-identity rule reads a name); a host written as a
+//     fully qualified name loses its internal suffix too (.home.arpa, .lan, .local,
+//     .internal), or internal-name would refuse "fixture-host.lan", and the first
+//     label of such a host is replaced on its own;
 //  6. the user name, by PlaceholderUser, as a whole word.
 //
 // The host and the user are replaced only when LocalIdentityTerms keeps them: a
@@ -89,10 +95,12 @@ type redactStep struct {
 	repl     string
 	fold     bool // match whatever the case (ASCII)
 	boundary func(before, after []byte) bool
+	// absorb, when set, returns how many bytes after a match go with it.
+	absorb func(after []byte) int
 }
 
 func (s redactStep) run(b []byte) ([]byte, bool) {
-	return replaceBounded(b, s.term, s.repl, s.fold, s.boundary)
+	return replaceBounded(b, s)
 }
 
 // redactSteps lists the replacements in the order Redact applies them.
@@ -121,8 +129,8 @@ func redactSteps(r Redaction) []redactStep {
 	if r.RunID != "" && r.RunID != PlaceholderRun {
 		steps = append(steps, redactStep{category: "run", term: r.RunID, repl: PlaceholderRun})
 	}
-	for _, host := range LocalIdentityTerms(r.Host) {
-		steps = append(steps, redactStep{category: "host", term: host, repl: PlaceholderHost, fold: true, boundary: strictWord})
+	for _, host := range hostTerms(r.Host) {
+		steps = append(steps, redactStep{category: "host", term: host, repl: PlaceholderHost, fold: true, boundary: looseWord, absorb: internalSuffix})
 	}
 	for _, user := range LocalIdentityTerms(r.User) {
 		steps = append(steps, redactStep{category: "user", term: user, repl: PlaceholderUser, fold: true, boundary: looseWord})
@@ -133,12 +141,41 @@ func redactSteps(r Redaction) []redactStep {
 // shortIDLen is the length of the id ps prints.
 const shortIDLen = 12
 
-// replaceBounded replaces each occurrence of term in data by repl, where boundary
-// (nil: anywhere) accepts the bytes before and after it. data is not modified; the
-// bool says whether anything was replaced, and then the result is a new slice.
-func replaceBounded(data []byte, term, repl string, fold bool, boundary func(before, after []byte) bool) ([]byte, bool) {
-	hay, needle := data, []byte(term)
-	if fold {
+// hostTerms lists the names to look for: the host as given, and its first label when
+// it is a fully qualified name, longest first, each only if LocalIdentityTerms keeps it.
+func hostTerms(host string) []string {
+	names := []string{host}
+	if short, _, ok := strings.Cut(host, "."); ok {
+		names = append(names, short)
+	}
+	return LocalIdentityTerms(names...)
+}
+
+// internalSuffixes are the zones internal-name refuses; a host name is not kept
+// with one of them after the placeholder.
+var internalSuffixes = []string{".home.arpa", ".lan", ".local", ".internal"}
+
+// internalSuffix returns the length of the internal zone that starts after, or 0.
+func internalSuffix(after []byte) int {
+	lower := asciiLower(after[:min(len(after), len(".home.arpa")+1)])
+	for _, suffix := range internalSuffixes {
+		if !bytes.HasPrefix(lower, []byte(suffix)) {
+			continue
+		}
+		if rest := lower[len(suffix):]; len(rest) == 0 || !isNameByte(rest[0]) || rest[0] == '/' {
+			return len(suffix)
+		}
+	}
+	return 0
+}
+
+// replaceBounded replaces each occurrence of the step's term in data by its
+// replacement, where its boundary (nil: anywhere) accepts the bytes before and after
+// it. data is not modified; the bool says whether anything was replaced, and then the
+// result is a new slice.
+func replaceBounded(data []byte, step redactStep) ([]byte, bool) {
+	hay, needle, repl := data, []byte(step.term), step.repl
+	if step.fold {
 		hay, needle = asciiLower(data), asciiLower(needle)
 	}
 	var out []byte
@@ -150,9 +187,12 @@ func replaceBounded(data []byte, term, repl string, fold bool, boundary func(bef
 		}
 		i += pos
 		end := i + len(needle)
-		if boundary != nil && !boundary(data[:i], data[end:]) {
+		if step.boundary != nil && !step.boundary(data[:i], data[end:]) {
 			pos = i + 1
 			continue
+		}
+		if step.absorb != nil {
+			end += step.absorb(data[end:])
 		}
 		out = append(out, data[last:i]...)
 		out = append(out, repl...)
@@ -203,14 +243,6 @@ func homePath(before, after []byte) bool {
 // "_", ".", "-" or "/".
 func isNameByte(c byte) bool {
 	return c == '_' || c == '.' || c == '-' || c == '/' || '0' <= c && c <= '9' || 'a' <= c && c <= 'z' || 'A' <= c && c <= 'Z'
-}
-
-// strictWord accepts a name between the characters of strictBoundaries (or a line
-// break), or at either end of the text, as the lab-identity rule reads a name.
-func strictWord(before, after []byte) bool {
-	const separators = strictBoundaries + "\r\n"
-	return (len(before) == 0 || strings.IndexByte(separators, before[len(before)-1]) >= 0) &&
-		(len(after) == 0 || strings.IndexByte(separators, after[0]) >= 0)
 }
 
 // looseWord accepts a name that is a whole word: the characters around it are not

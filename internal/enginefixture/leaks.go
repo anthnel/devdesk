@@ -307,6 +307,9 @@ func (s *leakScan) examineText(n int, text string) {
 	if fixtureleak.LocalAddresses(text, EngineBridgeNets) {
 		s.add(n, rulePrivateAddress)
 	}
+	if publicAddress(text) {
+		s.add(n, rulePublicAddress)
+	}
 	for _, name := range fixtureleak.InternalHostNames(text) {
 		if !allowedInternalName(name) {
 			s.add(n, ruleInternalName)

@@ -555,11 +555,8 @@ func TestVerifyWithoutAFixtureLogsHowToRecordOne(t *testing.T) {
 		{"only another version", []enginefixture.Fixture{recorded("5.8.11", enginefixture.Rootless, "")}},
 		{"only another mode", []enginefixture.Fixture{recorded("6.2.1", enginefixture.Rootful, "")}},
 		{"only a skipped one", []enginefixture.Fixture{recorded("6.2.1", enginefixture.Rootless, "skip: carries a duration")}},
-		{"only another scenario", []enginefixture.Fixture{func() enginefixture.Fixture {
-			f := recorded("6.2.1", enginefixture.Rootless, "")
-			f.Scenario, f.Name = "other", "other--podman-6.2.1-rootless"
-			return f
-		}()}},
+		// "Only another scenario of this engine" used to be here: it is now a failure (a misspelled
+		// or renamed scenario), see TestVerifyFailsWhenTheEngineHasFixturesButNotThisScenario.
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {

@@ -398,5 +398,5 @@ run = "bash tools/engine-vms/contract.sh verify"
 # starts from the clean snapshot).
 
 [tasks."engine-contract:record"]
-description = "Record the engine fixtures in a test VM, redacted, then check them again here and import them into internal/enginefixture/fixtures (needs DEVDESK_ENGINE_CONTRACT=1 set for this command only, never exported, refused when CI is set; acts on the Incus host and writes into the repository unless --keep-out is given): -- <docker|podman> <n|n1> [--mode rootful|rootless] [--keep-out <dir>]"
+description = "Record the engine fixtures in a test VM, redacted, then check them again here and import them into internal/enginefixture/fixtures (needs DEVDESK_ENGINE_CONTRACT=1 set for this command only, never exported, and DEVDESK_FIXTURE_DENYLIST naming a file of terms; refused when CI is set; acts on the Incus host and writes into the repository unless --keep-out is given): -- <docker|podman> <n|n1> [--mode rootful|rootless] [--keep-out <dir>]"
 run = "bash tools/engine-vms/contract.sh record"

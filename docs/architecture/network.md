@@ -525,6 +525,10 @@ and `TestContractCleanupTouchesOnlyThisRun` (`containers_contract_test.go`), all
   fixtures describe what a clean VM answers, so a recording always restores the clean snapshot. `--keep-out <dir>`
   (absolute, record only) sends the result there instead of the repository: the dry run. Like the gate, these checks come
   before any connection.
+  **A recording needs the external deny list** (security finding M1): `DEVDESK_FIXTURE_DENYLIST` must name a file with at least one
+  active term (domains, project and customer names, one per line, outside the repository). `contract.sh record` refuses (exit 1,
+  `record needs a deny list: set DEVDESK_FIXTURE_DENYLIST to a file of terms ...`) when it is unset, unreadable or without a term,
+  after the arguments and before anything is built or sent to the VM, and imports with `--require-denylist`. Verifying needs none.
   - *In the VM.* `contract.sh` creates `/tmp/ddc-<run>/out` (`mkdir -m 0700`, then the `chown` of the work directory, so a
     rootless recorder owns it) and adds `DEVDESK_FIXTURE_RECORDING=1` and `DEVDESK_FIXTURE_OUT=/tmp/ddc-<run>/out` to the
     explicit environment of the test binary, **only for a record and only there**: they are not in the shared `vars`, in
@@ -536,7 +540,7 @@ and `TestContractCleanupTouchesOnlyThisRun` (`containers_contract_test.go`), all
     characters, each with its role, the run id, `os.UserHomeDir`, `user.Current` and `os.Hostname`) and calls
     `Session.Record`, else `Session.Verify`. `Record` needs Mode Record, an absolute `OutDir` **and the lab mark**
     (`RequireLab`: a developer who set the variables by hand on his machine writes nothing), checks the campaign and the
-    scenario (`^[a-z0-9][a-z0-9-]*$`, no `--`), redacts, formats, and runs `CheckLeaksAs` with `MachineIdentities()`: a
+    scenario (`^[a-z0-9][a-z0-9-]*$`, no `--`), redacts, refuses an id nobody announced (`UnknownEngineIDs`), formats, and runs `CheckLeaksAs` with `MachineIdentities()`: a
     leak ends the test naming the rules and lines, **never the text**, and nothing is written. The file is
     `<out>/<campaign>/<scenario>--<tool>-<version>-<mode>.cli` (`recorded` is today in UTC, `recorded-by:
     engine-contract:record`), created with `O_EXCL` and never through a link: an output directory or a campaign directory
@@ -545,18 +549,25 @@ and `TestContractCleanupTouchesOnlyThisRun` (`containers_contract_test.go`), all
     fixture of the scenario for the engine (tool, version, mode; a skipped one is not selected), redacts the exchange and
     compares: argv and exit code exactly, the streams through the `Comparer` (`func(recorded, got Exchange) error`, nil =
     exact; OC-09b gives one to the scenarios that carry a duration). A difference is an `Errorf` (the contract goes on)
-    with the lengths and the first line that differs, printable because redacted. **With no fixture for the scenario and
-    the engine, `Verify` logs one line (`no recorded fixture for ... record it with mise run engine-contract:record`) and
-    returns; it does not skip.** A `t.Skip` ends the test (`runtime.Goexit`), so the assertions a contract makes after
+    with the lengths and the first line that differs; a line is cited **only if it passes `CheckLeaksAs`** (the exchange is
+    redacted, not checked), else the report says it is not shown and names the rules (security finding B3). **When the campaign
+    has fixtures for this engine (tool, version, mode) but none for the scenario, `Verify` fails (`Fatal`): a misspelled or
+    renamed scenario would compare nothing. With no fixture at all for the engine, `Verify` logs one line (`no recorded fixture
+    for ... record it with mise run engine-contract:record`) and returns; it does not skip.** A `t.Skip` ends the test (`runtime.Goexit`), so the assertions a contract makes after
     `c.exchange` would never run on a checkout without fixtures, which is every checkout before OC-09b (team lead decision).
-    OC-09b turns that case into a hard failure as soon as fixtures are versioned. `VerifyAgainst(t, fixtures, ...)` is the
+    `enginecontract.RequireFixtures` (false today) turns that case into a hard failure; OC-09b sets it to true when it raises
+    `minVersionedFixtures`, and `TestVerifyFailsHardOnceFixturesAreVersioned` reads that floor from `stale_test.go` and fails if
+    the floor is raised and the constant is not. `VerifyAgainst(t, fixtures, ...)` is the
     seam the tests use. `VersionsFile` defaults to `enginefixture.VersionsSourceFile()`.
   - *Back on the workstation.* Only when the contracts and the sentinel check passed (and at least one contract
     passed), the script packs **the one directory** `/tmp/ddc-<run>/out` (`vm_root ... tar -C ... -cf -`, capped at
     16 MiB; nothing else leaves the VM: no `scp`, `rsync` or `file pull`). **The extraction is strict, because the tar
-    is untrusted input** (`unpack_recorded`): it is first listed twice (`tar -tf`, `tar -tvf`) and refused as a whole
-    when an entry is not `./`, `<campaign>/` or `<campaign>/<name>.cli` (so no absolute path, no `..`, no odd name), or
-    is not a regular file or a directory (a symbolic or hard link, a device or a FIFO); it is then extracted into a new
+    is untrusted input** (`unpack_recorded` in `tools/engine-vms/unpack_recorded.sh`, which `contract.sh` sources and
+    `script_unpack_test.go` runs on booby-trapped archives): it is first listed twice (`tar -tf`, `tar -tvf`) and refused as a
+    whole when the archive is over 16 MiB, when an entry is not `./`, `<campaign>/` or `<campaign>/<name>.cli` (so no absolute
+    path, no `..`, no odd name), when an entry is not a regular file or a directory (a symbolic or hard link, a device or a
+    FIFO), or when the sizes the listing announces add up to more than 16 MiB (security finding B4: a sparse member is a few
+    kilobytes in the archive and gigabytes extracted); it is then extracted into a new
     `mktemp -d` under the temporary directory of the script, with `--no-same-owner` and `--no-same-permissions` (never
     `-P`), and `chmod go-rwx`. That directory goes to `go run ./internal/enginefixture/cmd/engine-fixture-import --from
     <it> [--into <keep-out>]`, which parses and checks everything again (below), after the sentinel check and only on
@@ -687,6 +698,7 @@ the synthetic files of `internal/enginefixture/testdata/synthetic/*.cli`, each m
   | `secret-token-format`, `jwt-like-value` | the formats of `fixtureleak` (GitHub and GitLab tokens, AWS key ids, a PEM private key; `eyJ` and 10 base64url characters) | |
   | `host-not-allowed` | the authority of an `http(s)` URL outside `AllowedHosts` (`127.0.0.1`, `localhost`, `index.docker.io`, `registry-1.docker.io`, `docker.io`, `quay.io`), or with `user@` | |
   | `private-or-link-local-address` | a private, link-local, CGNAT or unique-local address | `EngineBridgeNets`: `172.17.0.0/16` to `172.31.0.0/16` (the Docker pools) and `10.88.0.0/16`, `10.89.0.0/16` (Podman). `192.168.0.0/16`, `172.16.0.0/16` and a `10.x` lab bridge are refused |
+  | `public-address` | a public IPv4 address or a global IPv6 address (`2000::/3`), in any header, stream or decoded base64 stream (OC-09a3, security finding M2; `enginefixture` only, `fixtureleak` and Nexus are unchanged) | loopback, `0.0.0.0/8`, multicast, `240.0.0.0/4` (netmasks, broadcast), the documentation ranges (`192.0.2.0/24`, `198.51.100.0/24`, `203.0.113.0/24`, `2001:db8::/32`), `EngineBridgeNets`, and what the private rule owns. Not an address: a dotted quad followed by `.<digit>` (OID, five-field version), preceded by `.`, `-`, `v` or the word `version`, an octet above 255. Heuristic, erring toward reporting: `1.2.3.4` alone is an address |
   | `internal-name` | a name in `.home.arpa`, `.lan`, `.internal`, `.local` | `AllowedInternalNames` (exported, name or `*.suffix` to a reason): `host.docker.internal`, `host.containers.internal`, `*.svc.cluster.local` (kind). `x.host.docker.internal` and the bare `svc.cluster.local` are refused |
   | `personal-path` | `/home/<x>`, `/var/home/<x>`, `/Users/<x>`, `/mnt/<drive>/Users/<x>` (WSL), `/root`, `C:\Users\<x>` (raw or JSON-escaped), at the start of a line, after `file://`, or after a blank or one of `" ' = : , \| ( [`; JSON-escaped slashes (`\/home\/x`) are read as slashes | `<x>` is `fixture-user` (`PlaceholderUser`) or a key of `ImageHomes` (a home an image keeps, such as `/home/node`; empty at first, each entry with its reason) |
   | `lab-identity` | `LabTerms`: the names already public in `tools/engine-vms/README.md` (the lab hosts and the lab user). The short term `dd` (under three characters) is matched at **strict boundaries** only: start or end of the line, a blank, a quote, `/ : @ , ; ( ) [ ] = \ \| < >`, never `.` or `-`, so `dd.conf` and `yyyy-MM-dd` pass | |
@@ -751,17 +763,35 @@ the synthetic files of `internal/enginefixture/testdata/synthetic/*.cli`, each m
   accept it. Order: the full ids; their 12-character prefix (as `ps` prints it) as a whole hexadecimal word only; the home, as a path
   prefix (at the start, after a blank or a character that opens a value, or `file://`; followed by the end, `/` or a character that
   cannot continue a name: `/var/lib/root` and `/rootfs` are not `/root`); the run id (`PlaceholderRun`, `fixture-run`); the host
-  (the strict boundaries of `lab-identity`, any case); the user (a whole word, any case). The host and the user are replaced
+  (a whole word, any case, a dot or a dash being a boundary as in `local-identity`; a host written as a fully qualified name also
+  loses an internal suffix `.home.arpa`, `.lan`, `.local` or `.internal`, so `fixture-host.lan` never stays for `internal-name` to
+  refuse, and the first label of a qualified host is replaced on its own); the user (a whole word, any case). The host and the user are replaced
   **only when `LocalIdentityTerms` keeps them**: `root` and the lab user `dd` (two characters) stay, and `CheckLeaks`
   (`lab-identity`) refuses them, which makes the recording fail instead of leaking: that is the net. Durations and timestamps are
   not normalized (decision of OC-08). `Redact(Redact(x)) == Redact(x)`.
+- **`UnknownEngineIDs`** (OC-09a3, security finding B2, `unknownid.go`). `Redact` leaves a 64-hex word it was not told about alone (it may
+  be a public digest), so the recorder asks `UnknownEngineIDs(redacted, redaction)` and ends the recording under the rule
+  `unknown-engine-id` (`RuleUnknownEngineID`, naming the count, never the id) when a whole word of exactly 64 hexadecimal characters
+  is neither the placeholder of a role of `Redaction.IDs` nor in `Redaction.Public` (the ids a contract declares public: an image id;
+  the digest of the pinned image, `DEVDESK_ENGINE_CONTRACT_IMAGE`, is added by `Session.Record`). It is not one of the rules of
+  `CheckLeaksAs`, which cannot tell a digest from the id of a stranger's container. Chosen over a replacement by a placeholder
+  because it keeps `Redact` simple and idempotent and fails where a human decides; the cost is that a scenario that prints an image
+  id declares it in `Redaction.Public`.
 - **`Import`** (OC-09a3, `importer.go`). `Import(ImportOptions{From, Into, Supported, Deny, Local}) (ImportReport, error)` is what
   the workstation runs on the directory the recorder wrote, before anything reaches `fixtures/`; it trusts nothing the VM did and
   is **all or nothing**. `From` holds only regular files `<campaign>/<name>.cli` (campaign `^[a-z0-9-]+$`): a link (also as a
   campaign), any other file (also at the root), a sub directory, an empty batch is an error. Each file is parsed again and says
   `recorded-by: engine-contract:record` (`RecordedByContract`; empty, `synthetic` are refused) with no `record` header (pending,
   skip, replay are refused). **The whole batch is one configuration** (tool, version, mode), whose version is one of `Supported`
-  (N and N-1), and `CheckLeaksAs(Deny, Local)` finds nothing. An error names files and rules, never the text found; on any error
+  (N and N-1), and `CheckLeaksAs(Deny, Local)` finds nothing. An error names files and rules, never the text found; **a file that does not parse is reported as
+  `<campaign>/<file>: invalid format (<rule>)`**, the rule being `ParseError.Rule` (the message template, without its values), never a
+  header value, since the file came out of a VM; the file that is opened is checked to be regular (`fstat`). **All or nothing,
+  precisely:** every check (read, parse, one configuration, N and N-1, leaks, the existing target) happens before the first write and
+  is all or nothing. The writing is in two phases (temporary files next to the targets, then one rename each) and the rename phase is
+  **not atomic for the batch**: if the second rename fails, the first fixture stays installed (an I/O failure, reported). Chosen over a
+  rollback because the files installed are valid and checked, and the next run reports them as `Unchanged`. `Unchanged`, `Kept` and
+  `NotProduced` compare with `Into`: **with `--keep-out` that is the keep-out directory, not the repository**, so a first dry run
+  reports everything as written. On any error
   the target is not touched (not a file, a directory or a temporary file). An existing file of `Into` that parses not, or is not a
   regular file, is an error too. Then: identical to the existing file but for `recorded` is `Unchanged` (not rewritten: bytes and
   modification time stay); an existing `record: skip: ...` is `Kept` (never overwritten); anything else is `Written`, in two
@@ -772,8 +802,11 @@ the synthetic files of `internal/enginefixture/testdata/synthetic/*.cli`, each m
 - **`engine-fixture-import`** (OC-09a3, `internal/enginefixture/cmd/engine-fixture-import`). A production `main` under the
   directory E1 already admits (it starts no process: no `os/exec`, `testing`, `enginecontract`, `fakecli`, `docker`, `engine` or
   `engineguard`, `TestTheCommandStartsNothingAndImportsNoEngineCode`). `engine-fixture-import --from <dir> [--into <dir>]
-  [--versions <file>]` (defaults: the source tree's `fixtures/` and `versions.env`) applies `MachineIdentities()` and the external
-  deny list of `DEVDESK_FIXTURE_DENYLIST` (an unreadable file is an error that names the variable). Exit 0 done, 1 refused or failed
+  [--versions <file>] [--require-denylist]` (defaults: the source tree's `fixtures/` and `versions.env`) applies `MachineIdentities()`
+  and the external deny list of `DEVDESK_FIXTURE_DENYLIST` (an unreadable file is an error that names the variable).
+  **`--require-denylist`** (what `contract.sh record` passes; security finding M1) refuses the import, exit 1, when the variable is
+  unset or names a file with no active term: the names of an instance (domains, projects, customers) are known to nobody but you, and
+  without them a fixture could carry one. Without the option, a missing list is only a note on stdout. Exit 0 done, 1 refused or failed
   (nothing written, nothing on stdout, `engine-fixture-import: <error>` on stderr), 2 usage. The first line of stdout is
   `engine-contract:record: <tool> <version> <mode>: N written, N unchanged, N kept, N not produced by this run`, then one line per
   fixture of each list and the state of the deny list. `contract.sh record` runs it (above).
