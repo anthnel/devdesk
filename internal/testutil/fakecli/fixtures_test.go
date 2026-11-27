@@ -160,7 +160,7 @@ func TestAnUnaskedFixtureIsNotAFailureOfFakecli(t *testing.T) {
 
 // Fixtures is a Source: the Install contract is untouched.
 func TestFixturesIsASource(t *testing.T) {
-	var src fakecli.Source = fakecli.Fixtures(t, scenario(t, "rm-running", enginefixture.Podman))
+	src := fakecli.Fixtures(t, scenario(t, "rm-running", enginefixture.Podman))
 
 	if got := src.Exchanges(); len(got) != 1 || got[0].Tool != "podman" {
 		t.Errorf("Exchanges() = %+v, want one podman exchange", got)

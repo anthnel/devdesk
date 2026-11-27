@@ -136,7 +136,7 @@ func TestLoadRefusesAnUnknownCampaign(t *testing.T) {
 	}
 }
 
-// go:embed refuses a directory with no file, which is why README.md exists.
+// The embed directive refuses a directory with no file, which is why README.md exists.
 func TestTheFixturesDirectoryKeepsItsReadme(t *testing.T) {
 	if _, err := os.Stat(filepath.Join("fixtures", "README.md")); err != nil {
 		t.Errorf("fixtures/README.md: %v: go:embed needs a file in fixtures/ while no .cli is versioned", err)
