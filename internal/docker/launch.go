@@ -95,8 +95,8 @@ var ErrInvalidLaunchEnv = errors.New("invalid environment variable for the launc
 // Podman expands `-e PREFIX*` to every variable of DevDesk's environment starting
 // with PREFIX, which would copy host secrets into the container. Anything outside
 // ASCII is refused (invisible and bidirectional characters, accents). The reserved
-// names (`PATH`, `DOCKER_HOST`, ...) are OC-15's. The launch form calls this
-// function too, so the form and the launcher share one rule.
+// names (`PATH`, `DOCKER_HOST`, ...) are a second rule, ReservedEnvName. The launch
+// form calls both functions too, so the form and the launcher share one rule.
 func ValidEnvName(name string) bool {
 	if name == "" {
 		return false
@@ -114,22 +114,28 @@ func ValidEnvName(name string) bool {
 }
 
 // launchEnvName returns the name of an Env entry, and whether the entry is
-// launchable: a valid name, then "=". An empty value is launchable (`EMPTY=`);
-// it is the form that refuses it.
+// well formed: a valid name, then "=". An empty value is accepted (`EMPTY=`); it
+// is the form that refuses it. Whether the name is reserved is a separate
+// question (ReservedEnvName), asked by validateLaunchEnv.
 func launchEnvName(entry string) (string, bool) {
 	name, _, ok := strings.Cut(entry, "=")
 	return name, ok && ValidEnvName(name)
 }
 
-// validateLaunchEnv refuses the whole launch when one entry is not launchable.
-// Blank entries are skipped, as buildLaunchArgs skips them.
+// validateLaunchEnv refuses the whole launch when one entry is not launchable:
+// ErrInvalidLaunchEnv for a malformed one, ErrReservedLaunchEnv for a reserved
+// name. Blank entries are skipped, as buildLaunchArgs skips them.
 func validateLaunchEnv(env []string) error {
 	for _, e := range env {
 		if e == "" {
 			continue
 		}
-		if _, ok := launchEnvName(e); !ok {
+		name, ok := launchEnvName(e)
+		if !ok {
 			return ErrInvalidLaunchEnv
+		}
+		if ReservedEnvName(name) {
+			return ErrReservedLaunchEnv
 		}
 	}
 	return nil
@@ -137,14 +143,16 @@ func validateLaunchEnv(env []string) error {
 
 // launchEnviron returns the environment of the child: DevDesk's own, then
 // exactly the variables typed, so the last entry of a name wins (os/exec keeps
-// the last). It is nil when nothing was typed, which leaves the child with
+// the last). A reserved name is never appended, even though the callers refuse
+// the launch first (validateLaunchEnv): the child is the engine CLI, which such
+// a name would drive. It is nil when nothing was typed, which leaves the child with
 // DevDesk's environment as before. The explicit slice is what lets `-e NAME`
 // find its value without the value ever being in argv; the model is
 // containerRun.cmd (internal/scan).
 func launchEnviron(env []string) []string {
 	var typed []string
 	for _, e := range env {
-		if e != "" {
+		if name, _, _ := strings.Cut(e, "="); e != "" && !ReservedEnvName(name) {
 			typed = append(typed, e)
 		}
 	}
@@ -157,8 +165,8 @@ func launchEnviron(env []string) []string {
 // buildLaunchArgs constructs the docker run argument list for the given options.
 // An Env entry is passed as `-e NAME`: its value travels in the environment of the
 // child (launchEnviron), never in argv, where the process list would show it. An
-// entry that is not launchable is left out; the callers refuse the launch first
-// (validateLaunchEnv).
+// entry that is not launchable, or whose name is reserved, is left out; the
+// callers refuse the launch first (validateLaunchEnv).
 func buildLaunchArgs(opts ContainerLaunchOptions) []string {
 	args := []string{"run", noImplicitPull}
 	if opts.Remove {
@@ -185,7 +193,7 @@ func buildLaunchArgs(opts ContainerLaunchOptions) []string {
 		}
 	}
 	for _, e := range opts.Env {
-		if name, ok := launchEnvName(e); ok {
+		if name, ok := launchEnvName(e); ok && !ReservedEnvName(name) {
 			args = append(args, "-e", name)
 		}
 	}
@@ -207,7 +215,8 @@ func buildLaunchArgs(opts ContainerLaunchOptions) []string {
 // BuildLaunchCmd returns a ready-to-run exec.Cmd for the given options without executing it.
 // Use this when you need to hand off the process to a terminal (e.g. tea.ExecProcess for -it mode).
 // Its Env is set as soon as a variable is typed (launchEnviron). A launch with an
-// entry ValidEnvName or the "=" refuses returns ErrInvalidLaunchEnv and no command.
+// entry ValidEnvName or the "=" refuses returns ErrInvalidLaunchEnv, and one with a
+// reserved name ErrReservedLaunchEnv, and no command either way.
 func BuildLaunchCmd(opts ContainerLaunchOptions) (*exec.Cmd, error) {
 	if err := validateLaunchEnv(opts.Env); err != nil {
 		return nil, err

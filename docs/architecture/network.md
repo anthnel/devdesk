@@ -129,13 +129,59 @@ Two things about the engine are worth knowing before changing this code:
     form. `TestTheLaunchCompletionNeverLogsTheRawError` reads the source and fails
     when that handler passes `msg.Err` to a log call. Limit: any new log site that
     prints a `ContainerLaunchCompleteMsg.Err` is not seen by that guard.
-  - **Known limit until OC-15 is merged.** Beyond the syntax above, names are not
-    restricted, and the typed variables are in the environment of the engine CLI
-    process itself, so a name also drives the CLI, not only the container:
-    `DOCKER_HOST`, `CONTAINER_HOST`, `CONTAINER_CONNECTION`, `DOCKER_CONFIG`,
-    `HOME`, `PATH`, `LD_PRELOAD`, the `*_PROXY` variables and the like. The list of
-    reserved names is OC-15's, not this story's.
-  - **Still to do.** OC-15 (reserved names), OC-16 (the command preview and `ctrl+y`
+  - **Reserved names (OC-15, DEVDESK-813).** The typed variables are in the
+    environment of the engine CLI process itself, so a name also drives the CLI,
+    not only the container (`DOCKER_HOST=tcp://other:2375` would send `docker run`
+    to another daemon). `docker.ReservedEnvName(name)`
+    (`internal/docker/launch_reserved.go`) refuses such a name, ignoring case, and
+    the form and the launcher share it with `ValidEnvName`. `LaunchContainer` and
+    `BuildLaunchCmd` return `docker.ErrReservedLaunchEnv` (an
+    `ErrInvalidLaunchEnv` too, `errors.Is`), with a fixed text that holds neither
+    the name nor the value (a name field can hold a pasted secret), before
+    anything is started or built; `launchEnviron` and `buildLaunchArgs` also drop
+    a reserved entry, so `cmd.Env` never holds one the form typed, whatever the
+    caller did. The form (`envFault` in `launch_form.go`) underlines the field
+    (Rule 140) and the footer says, at level Error, `A reserved environment
+    variable name cannot be set from this form` for the first faulty entry, with
+    the same timing as the OC-14 errors (nothing before the first refused submit,
+    then live). The match is exact on the name, plus two prefixes and one suffix:
+    - **docker client** (read by the CLI, documented environment variables of
+      `docker`): `DOCKER_HOST` (the daemon), `DOCKER_CONFIG` (client
+      configuration and credentials directory), `DOCKER_CONTEXT` (selected
+      context, overrides `DOCKER_HOST`), `DOCKER_TLS_VERIFY` and
+      `DOCKER_CERT_PATH` (TLS to the daemon), `DOCKER_API_VERSION` (pinned API).
+    - **podman client** (podman's manual): `CONTAINER_HOST` and
+      `CONTAINER_CONNECTION` (the remote service, and they turn remote mode on),
+      `CONTAINERS_CONF`, `CONTAINERS_STORAGE_CONF` and
+      `CONTAINERS_REGISTRIES_CONF` (the files it loads), `REGISTRY_AUTH_FILE`
+      (registry credentials), `XDG_RUNTIME_DIR` and `XDG_CONFIG_HOME` (rootless
+      sockets and configuration; also how the docker CLI finds a rootless socket).
+    - **what both resolve things through**: `HOME` (`~/.docker`,
+      `~/.config/containers`, `~/.ssh`), `PATH` (which credential helper,
+      `ssh` or compose plugin is started), `SSH_AUTH_SOCK` (the agent an
+      `ssh://` host uses).
+    - **prefixes** `LD_` and `DYLD_` (`LD_PRELOAD`, `LD_LIBRARY_PATH`,
+      `DYLD_INSERT_LIBRARIES`): the dynamic loader runs the typed library inside
+      the CLI.
+    - **suffix** `_PROXY` (`HTTP_PROXY`, `NO_PROXY`, `MY_PROXY`, any case): the
+      CLI's own connections (daemon, registry) would go through the proxy typed.
+      Not `PROXY` alone, not `MY_PROXYX`.
+    - Not reserved, on purpose: `DOCKER_HOSTNAME`, `MY_PATH`, `PATHS`,
+      `HOMEPAGE`, `CONTAINERS_X_Y`, `LDAP_URL`, `XDG_DATA_HOME`. A name that
+      merely looks like one is an ordinary variable of the container. Tests:
+      `internal/docker/launch_reserved_test.go` (the table, both engines, a
+      strict stub that fails on any engine call for a refusal, a fuzz target whose
+      seeds run in `go test`) and
+      `internal/ui/oci_resources/launch_reserved_test.go`.
+    - **Limits.** It is a deny list: a name outside it that drives an exotic
+      client setting is not seen. Known and left out for now: `DOCKER_TLS`,
+      `DOCKER_CUSTOM_HEADERS`, `DOCKER_DEFAULT_PLATFORM`, `CONTAINER_SSHKEY`,
+      `CONTAINER_PASSPHRASE`, `PODMAN_CONNECTIONS_CONF`, `CONTAINERS_CONF_OVERRIDE`,
+      `STORAGE_DRIVER`, `STORAGE_OPTS`, `TMPDIR`, `XDG_DATA_HOME`, `BUILDKIT_*`.
+      Names are compared as typed; non-ASCII names are already refused by
+      `ValidEnvName`. A name cached by an older build and restored into the form is
+      refused at the submit like any other.
+  - **Still to do.** OC-16 (the command preview and `ctrl+y`
     still show `-e NAME=VALUE`: `buildCommandString` / `buildCommandLines`), OC-17
     (`launch-options.json` still stores the values: `ToCacheEntry`). The scanner
     `internal/scan/plumber.go` still puts `-e GH_TOKEN=<token>` in an argv: outside
