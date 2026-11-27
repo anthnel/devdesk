@@ -2225,7 +2225,8 @@ the loopback warning and the guard. What matters for scanning:
   `plumberTokenEnv` gives `containerRun.Env` the `NAME=value` entry, which
   `containerRun.cmd` appends to the child's environment. Neither argv, `String()`,
   `Loggable()`, `GetPlumberCommand` nor `plumberVerbatim` holds the value; an empty
-  token declares nothing. A native plumber binary already got it through
+  token declares nothing, and the shown command carries `-e GH_TOKEN` (a name is
+  not a secret) without any value. A native plumber binary already got it through
   `cmd.Env` only (`plumberBinaryEnv`). Tests: `plumber_token_env_test.go`
   (canary token, exact argv and environment on Docker and Podman, the child's
   environment as the fake engine's journal records it). The static guard

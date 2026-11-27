@@ -19,7 +19,7 @@ import (
 
 // canaryToken is a value no other test or default uses, so a hit anywhere is
 // this token.
-const canaryToken = "canary-tok-8f3a91c2d7e45b60"
+const canaryToken = "canary-not-a-secret-xyz"
 
 var tokenVariables = []struct {
 	provider string
@@ -184,4 +184,48 @@ func countOf(env []string, entry string) int {
 		}
 	}
 	return n
+}
+
+// The shown command names the variable, as the real one does, and never holds a
+// value: a variable name is not a secret.
+func TestTheShownCommandNamesTheTokenVariableWithoutAValue(t *testing.T) {
+	noProxyEnvironment(t)
+	forEachEngine(t, func(t *testing.T, _ string) {
+		for _, tc := range tokenVariables {
+			t.Run(tc.provider, func(t *testing.T) {
+				tool := ToolSpec{Source: ToolSourceContainer}
+				opts := PlumberOptions{Provider: tc.provider, Token: canaryToken}
+
+				for what, s := range map[string]string{
+					"GetPlumberCommand": GetPlumberCommand("/repo", tool, opts),
+					"Loggable":          plumberCommand("/repo", tool, opts).Loggable(),
+				} {
+					if !strings.Contains(s, " -e "+tc.name+" ") {
+						t.Errorf("%s does not show `-e %s`: %s", what, tc.name, s)
+					}
+					if strings.Contains(s, canaryToken) || strings.Contains(s, "<token>") || strings.Contains(s, tc.name+"=") {
+						t.Errorf("%s shows a value: %s", what, s)
+					}
+				}
+				if env := plumberCommand("/repo", tool, opts).Env; env != nil {
+					t.Errorf("the shown command carries an environment: %v", env)
+				}
+				// No token, no variable.
+				if s := GetPlumberCommand("/repo", tool, PlumberOptions{Provider: tc.provider}); strings.Contains(s, tc.name) {
+					t.Errorf("a command with no token names %s: %s", tc.name, s)
+				}
+			})
+		}
+	})
+}
+
+// plumberSafeDirectory spells the mount path as a literal (the guard S9 cannot fold a
+// constant of another file); this keeps it equal to the path the repository is
+// mounted at.
+func TestPlumberSafeDirectoryFollowsTheMount(t *testing.T) {
+	want := []string{"-e", "GIT_CONFIG_COUNT=1", "-e", "GIT_CONFIG_KEY_0=safe.directory",
+		"-e", "GIT_CONFIG_VALUE_0=" + containerScanPath}
+	if !slices.Equal(plumberSafeDirectory, want) {
+		t.Errorf("plumberSafeDirectory = %q, want %q", plumberSafeDirectory, want)
+	}
 }

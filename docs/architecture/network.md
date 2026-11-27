@@ -487,17 +487,25 @@ information, and reports each site with file, line and enclosing function:
 `internal/engineguard/secret_argv_guard_test.go` (`TestNoSecretIsPutInAnArgv`, reusing G2's and G3's helpers) reads every
 non-test `.go` file and fails, with file, line and function, on a word list (a `[]string` literal, the arguments of
 `append` after the first, of `exec.Command(Context)` after the binary, of an argv helper of G3) that has: `-e`, `--env`
-or `-env` followed by a word with an `=` and a part that is not a constant (`"-e", name + "=" + token`, the plumber bug);
-a word `--env=`, `--password=`, `--token=`, `--secret=` or `--api-key=` with a dynamic part; `--password`, `--token`,
-`--secret`... followed by a dynamic word; `-H`/`--header` followed by a dynamic word naming Authorization, a token, a
-bearer, a cookie or an API key; `login ... -p <dynamic>`. One named exception in `secretExceptions` (same rules as G2,
-G3 and G8: key = file + function, `Sites` exact, a reason, fails when its code is gone):
-`plumberSafeDirectory`, whose value is the constant `containerScanPath` of another file. The survey of the module
-(DEVDESK-945) found no other site: `docker login` uses `--password-stdin`, cosign passes `-e NAME`, git carries its
-credential in `GIT_CONFIG_*` of the environment, `git credential approve` reads stdin, the launch form passes
-`-e NAME` (DEVDESK-812). Limits, listed in the test header: a bare variable after `-e` (`"-e", kv`), an argv assembled
-across statements, a flag held in a variable, a constant of another file (reported, so it needs an exception), a shell
-line and a secret passed as a bare positional argument are not seen; the environment lists are not checked.
+or `-env` followed by a word with an `=` and a part that is not a constant (`"-e", name + "=" + token`, the plumber bug),
+a call counting as such a word when the literal texts of its arguments hold an `=` (`fmt.Sprintf("%s=%s", n, v)`,
+`strings.Join(..., "=")`); a word `--env=`, `--password=`, `--token=`, `--secret=`, `--api-key=`, `--creds=`,
+`--src-creds=`, `--dest-creds=` or `--build-arg=K=` with a dynamic part; `--password`, `--token`, `--secret`, `--creds`,
+`--src-creds`, `--dest-creds`... followed by a dynamic word; `--build-arg` followed by `K=<dynamic>`; `-u` followed by
+`user:<dynamic>` (curl); a word holding `scheme://` then a dynamic part before the `@` (credentials in a URL); `-H`/`--header`
+followed by a dynamic word naming Authorization, a token, a bearer, a cookie or an API key, or by a word with nothing constant
+in it (a header held whole in a variable; the real module has none); `login ... -p <dynamic>`. The register
+`secretExceptions` is empty: the one site it held, `plumberSafeDirectory`, spells its value as a literal now
+(`GIT_CONFIG_VALUE_0=/scan`, kept equal to `containerScanPath` by `TestPlumberSafeDirectoryFollowsTheMount`), because the
+guard cannot fold a constant of another file and reads it as dynamic. Same rules as G2, G3 and G8 if one is ever needed:
+key = file + function, `Sites` exact, a reason, fails when its code is gone. The survey of the module (DEVDESK-945)
+found no other site: `docker login` uses `--password-stdin`, cosign passes `-e NAME`, git carries its credential in
+`GIT_CONFIG_*` of the environment, `git credential approve` reads stdin, the launch form passes `-e NAME` (DEVDESK-812),
+skopeo uses an authfile. Limits, listed in the test header and still not seen: a bare variable after `-e`
+(`"-e", kv`) and a call whose literal arguments hold no `=`; an argv assembled across statements; a flag held in a variable;
+a constant of another file (reported, so it needs an exception or a literal); a shell line; a secret passed as a bare
+positional argument; a `-u` whose readable text has no `:`; a URL built by a call whose literal arguments hold no
+`scheme://`; the environment lists are not checked.
 
 ### Engine contracts — `requireEngine`, `internal/testutil/enginecontract` (OC-09a1, DEVDESK-806; OC-09a2, DEVDESK-943; OC-09a3, DEVDESK-944)
 

@@ -45,7 +45,10 @@ const plumberConfigMount = "/plumber.yaml"
 var plumberSafeDirectory = []string{
 	"-e", "GIT_CONFIG_COUNT=1",
 	"-e", "GIT_CONFIG_KEY_0=safe.directory",
-	"-e", "GIT_CONFIG_VALUE_0=" + containerScanPath,
+	// A literal, not containerScanPath: the static guard S9 reads a value it cannot
+	// fold as a possible secret. TestPlumberSafeDirectoryFollowsTheMount keeps the
+	// two in step.
+	"-e", "GIT_CONFIG_VALUE_0=/scan",
 }
 
 // PlumberOptions is what one plumber run needs beyond the tool itself.
@@ -290,9 +293,15 @@ func GetPlumberCommand(target string, tool ToolSpec, opts PlumberOptions) string
 	return plumberCommand(target, tool, opts).String()
 }
 
-// plumberCommand is GetPlumberCommand as a value, for the log. The token is
-// left out, as it is for the display.
+// plumberCommand is GetPlumberCommand as a value, for the log. It shows `-e GH_TOKEN`
+// when a token is set, as the real command has it: a variable name is not a
+// secret. The value never gets here: the token is swapped for a placeholder and
+// the environment is dropped, so nothing of it can be printed.
 func plumberCommand(target string, tool ToolSpec, opts PlumberOptions) toolCmd {
-	opts.Token = ""
-	return plumberArgs(target, tool, opts, "<report>")
+	if opts.Token != "" {
+		opts.Token = "<token>"
+	}
+	cmd := plumberArgs(target, tool, opts, "<report>")
+	cmd.Env = nil
+	return cmd
 }

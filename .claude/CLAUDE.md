@@ -223,7 +223,7 @@ guard it.
 A forge token follows the same rule (DEVDESK-945, S9): plumber's `GH_TOKEN` / `GITLAB_TOKEN` is `-e NAME` in argv and
 `NAME=value` in `containerRun.Env`, never `-e NAME=value`; the static guard `TestNoSecretIsPutInAnArgv`
 (`internal/engineguard/secret_argv_guard_test.go`, `docs/architecture/network.md`, "Guard S9") fails on a word list that puts a
-dynamic value after `-e`, `--password`, `--token`, `-H Authorization...` or `login -p`, with one named exception.
+dynamic value after `-e`, `--password`, `--token`, `-H Authorization...`, `--creds`, `--build-arg K=`, `-u user:` or `login -p`, with no exception today.
 The renderers (helm, kustomize) run with the network cut (DEVDESK-767, D180):
 `containerRun.Offline` (`--network none`, no proxy) from an image, `offlineEnviron` from a binary,
 except kustomize with `scan.tools.kustomize.allow_remote_bases: true`; a refused remote base is the

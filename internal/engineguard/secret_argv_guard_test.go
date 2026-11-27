@@ -27,15 +27,29 @@ import (
 //
 //	env flag    `-e`, `--env` or `-env` followed by a word that has an `=` and a
 //	            part that is not a constant: `"-e", name + "=" + token`, the shape
-//	            of the plumber bug. `"-e", name` is the good form and is not seen.
-//	env option  a word `--env=...`, `--password=...`, `--token=...`, `--secret=...`
-//	            or `--api-key=...` with a part that is not a constant.
+//	            of the plumber bug, or a call that spells one
+//	            (`fmt.Sprintf("%s=%s", n, v)`, `strings.Join(..., "=")`: the literal
+//	            texts of its arguments are read). `"-e", name` is the good form
+//	            and is not seen.
+//	env option  a word `--env=...`, `--password=...`, `--token=...`, `--secret=...`,
+//	            `--api-key=...`, `--creds=...`, `--src-creds=...`,
+//	            `--dest-creds=...` or `--build-arg=K=...` with a part that is not a
+//	            constant.
 //	secret flag `--password`, `--passwd`, `--token`, `--secret`, `--api-key`,
-//	            `--registry-password` or `--registry-token` followed by a word
-//	            that is not a constant (`--password-stdin` is another word).
+//	            `--registry-password`, `--registry-token`, `--creds`,
+//	            `--src-creds` or `--dest-creds` (skopeo) followed by a word that is
+//	            not a constant (`--password-stdin` is another word).
+//	build arg   `--build-arg` followed by `K=` and a part that is not a constant.
+//	user:secret `-u` (curl) followed by a word with a `:` then a part that is not
+//	            a constant (`-u user:<dynamic>`); `-u user` alone is not seen, it
+//	            is how `docker login` names its user.
+//	URL         any word of the list holding `scheme://` then a part that is not a
+//	            constant before the `@` (credentials in the URL).
 //	header      `-H` or `--header` followed by a word with an Authorization,
 //	            token, bearer, cookie or api-key part and a part that is not a
-//	            constant.
+//	            constant, or by a word with nothing constant at all (a header held
+//	            whole in a variable: nothing says it is not a secret, and the real
+//	            module has none).
 //	login -p    a list that holds the word `login`, then `-p` followed by a word
 //	            that is not a constant (`-p` is a port everywhere else).
 //
@@ -47,11 +61,14 @@ import (
 // Limits, stated here and not hidden:
 //
 //   - A bare variable after `-e` (`"-e", kv`) is not seen: nothing says whether
-//     it holds `NAME` or `NAME=value`. The same goes for an argv assembled word by
-//     word across two statements, a flag read from a variable, a constant defined
-//     in another file (it is dynamic here, so it is reported, and a named
-//     exception says why it is harmless), a shell line (`sh -c "... --password
-//     x"`), a script, and a secret passed as a bare positional argument.
+//     it holds `NAME` or `NAME=value`; nor is a call whose literal arguments hold
+//     no `=` (`"-e", join(name, value)`): the guard reads the text it can see. The
+//     same goes for an argv assembled word by word across two statements, a flag
+//     read from a variable, a constant defined in another file (it is dynamic
+//     here, so it is reported, and a named exception says why it is harmless), a
+//     shell line (`sh -c "... --password x"`), a script, a secret passed as a bare
+//     positional argument (`--src-creds` and the like only when written as a
+//     flag), a `-u` whose value has no `:` in the text the guard can read, and a URL built by a call whose literal arguments hold no `scheme://`.
 //   - The environment is not checked: `cmd.Env = append(env, "TOKEN="+t)` is the
 //     good form, and a word list is not told apart from an environment list by
 //     syntax alone (`[]string{"A=" + v}`); only the flags above make it an argv.
@@ -60,12 +77,15 @@ import (
 // secretFlags are the flags whose next word is a secret.
 var secretFlags = []string{
 	"--password", "--passwd", "--token", "--secret", "--api-key", "--registry-password", "--registry-token",
+	"--creds", "--src-creds", "--dest-creds",
 }
 
 var (
 	envFlags       = []string{"-e", "--env", "-env"}
 	headerFlags    = []string{"-H", "--header"}
-	secretOption   = regexp.MustCompile(`(?i)^--?(env|password|passwd|token|secret|api[-_]?key|registry-password|registry-token)=`)
+	secretOption   = regexp.MustCompile(`(?i)^--?(env|password|passwd|token|secret|api[-_]?key|registry-password|registry-token|creds|src-creds|dest-creds|build-arg=[^=]+)=`)
+	urlCredentials = regexp.MustCompile(`[A-Za-z][A-Za-z0-9+.-]*://[^/?#@]*\x00[^/?#@]*@`)
+	userSecret     = regexp.MustCompile(`:.*\x00`)
 	secretHeader   = regexp.MustCompile(`(?i)(authorization|token|bearer|cookie|api[-_]?key)`)
 	dynamicMarker  = "\x00"
 	secretLoginCmd = "login"
@@ -77,6 +97,9 @@ const (
 	secretRuleFlag      = "secret flag with a value"
 	secretRuleHeader    = "secret header with a value"
 	secretRuleLoginPass = "login -p with a value"
+	secretRuleBuildArg  = "build arg with a value"
+	secretRuleUserPass  = "user:secret with a value"
+	secretRuleURL       = "credentials in a URL"
 )
 
 // secretException is a function that builds such a word and why it is harmless.
@@ -90,16 +113,9 @@ type secretException struct {
 	Reason string
 }
 
-var secretExceptions = []secretException{
-	{
-		File:  "internal/scan/plumber.go",
-		Func:  "<package level>",
-		Sites: 1,
-		Reason: "permanent: plumberSafeDirectory is `-e GIT_CONFIG_VALUE_0=` + containerScanPath, a constant of another " +
-			"file (the guard folds constants of the file only). The value is the path the repository is mounted at, " +
-			"not a secret. The token is not there: it is `-e GH_TOKEN` and the value is in containerRun.Env (DEVDESK-945).",
-	},
-}
+// The register is empty: the plumber site it used to hold (`GIT_CONFIG_VALUE_0=` +
+// containerScanPath) is now a literal, which the guard reads as a constant.
+var secretExceptions = []secretException{}
 
 // secretSite is one word list that puts a dynamic value where a secret goes.
 type secretSite struct {
@@ -131,8 +147,46 @@ func wordShape(e ast.Expr, consts map[string]string) (string, bool) {
 			r, rd := wordShape(e.Y, consts)
 			return l + r, ld || rd
 		}
+	case *ast.CallExpr:
+		// A call is dynamic, and the literal texts of its arguments are all that
+		// can be read of it: fmt.Sprintf("%s=%s", ...), strings.Join(x, "=").
+		return dynamicMarker + callLiterals(e, consts), true
 	}
 	return dynamicMarker, true
+}
+
+// callLiterals joins the constant strings found in the arguments of c, nested
+// calls and composite literals included, each after a marker.
+func callLiterals(c *ast.CallExpr, consts map[string]string) string {
+	var b strings.Builder
+	var walk func(e ast.Expr)
+	walk = func(e ast.Expr) {
+		if s, ok := constString(e, consts, nil); ok {
+			b.WriteString(s)
+			return
+		}
+		switch e := e.(type) {
+		case *ast.CallExpr:
+			for _, a := range e.Args {
+				walk(a)
+			}
+		case *ast.CompositeLit:
+			for _, a := range e.Elts {
+				walk(a)
+			}
+		case *ast.BinaryExpr:
+			walk(e.X)
+			walk(e.Y)
+		case *ast.ParenExpr:
+			walk(e.X)
+		default:
+			b.WriteString(dynamicMarker)
+		}
+	}
+	for _, a := range c.Args {
+		walk(a)
+	}
+	return b.String()
 }
 
 // judgeWords returns the problems of one word list, as (rule, what) pairs.
@@ -153,11 +207,17 @@ func judgeWords(words []ast.Expr, consts map[string]string) [][2]string {
 			continue
 		case slices.Contains(envFlags, prev) && strings.Contains(shape, "="):
 			out = append(out, [2]string{secretRuleEnvFlag, fmt.Sprintf("%s %q", prev, shape)})
+		case prev == "--build-arg" && strings.Contains(shape, "="):
+			out = append(out, [2]string{secretRuleBuildArg, fmt.Sprintf("--build-arg %q", shape)})
+		case prev == "-u" && userSecret.MatchString(shape):
+			out = append(out, [2]string{secretRuleUserPass, fmt.Sprintf("-u %q", shape)})
+		case urlCredentials.MatchString(shape):
+			out = append(out, [2]string{secretRuleURL, fmt.Sprintf("%q", shape)})
 		case secretOption.MatchString(shape):
 			out = append(out, [2]string{secretRuleOption, fmt.Sprintf("%q", shape)})
 		case slices.Contains(secretFlags, prev):
 			out = append(out, [2]string{secretRuleFlag, fmt.Sprintf("%s %q", prev, shape)})
-		case slices.Contains(headerFlags, prev) && secretHeader.MatchString(shape):
+		case slices.Contains(headerFlags, prev) && (secretHeader.MatchString(shape) || shape == dynamicMarker):
 			out = append(out, [2]string{secretRuleHeader, fmt.Sprintf("%s %q", prev, shape)})
 		case login && prev == "-p":
 			out = append(out, [2]string{secretRuleLoginPass, fmt.Sprintf("-p %q", shape)})
@@ -329,6 +389,18 @@ func TestTheSecretArgvDetectorSeesEachShape(t *testing.T) {
 		{"token flag", `exec.CommandContext(ctx, "tool", "--token", tok)`, secretRuleFlag},
 		{"authorization header", `[]string{"-H", "Authorization: Bearer " + tok}`, secretRuleHeader},
 		{"login -p", `[]string{"login", "-u", user, "-p", pass}`, secretRuleLoginPass},
+		{"skopeo creds flag", `[]string{"copy", "--src-creds", user + ":" + pass}`, secretRuleFlag},
+		{"skopeo dest creds flag", `[]string{"copy", "--dest-creds", creds}`, secretRuleFlag},
+		{"skopeo creds option", `[]string{"copy", "--creds=" + user + ":" + pass}`, secretRuleOption},
+		{"build arg", `[]string{"build", "--build-arg", "TOKEN=" + tok}`, secretRuleBuildArg},
+		{"build arg option", `[]string{"build", "--build-arg=TOKEN=" + tok}`, secretRuleOption},
+		{"curl user", `[]string{"-u", "me:" + pass, url}`, secretRuleUserPass},
+		{"sprintf after -e", `[]string{"-e", fmt.Sprintf("%s=%s", name, tok)}`, secretRuleEnvFlag},
+		{"join after -e", `[]string{"-e", strings.Join([]string{name, tok}, "=")}`, secretRuleEnvFlag},
+		{"sprintf after --env", `append(args, "--env", fmt.Sprintf("TOKEN=%s", tok))`, secretRuleEnvFlag},
+		{"credentials in a URL", `[]string{"clone", "https://" + user + ":" + tok + "@" + host + "/x.git"}`, secretRuleURL},
+		{"sprintf header", `[]string{"-H", fmt.Sprintf("Authorization: Bearer %s", tok)}`, secretRuleHeader},
+		{"header held whole", `[]string{"-H", header}`, secretRuleHeader},
 
 		{"the fix, name only", `[]string{"-e", name}`, ""},
 		{"a constant assignment", `[]string{"-e", "GIT_CONFIG_COUNT=1"}`, ""},
@@ -336,6 +408,16 @@ func TestTheSecretArgvDetectorSeesEachShape(t *testing.T) {
 		{"stdin password", `[]string{"login", "-u", user, "--password-stdin"}`, ""},
 		{"a port", `[]string{"run", "-p", port + ":80"}`, ""},
 		{"a header without a secret", `[]string{"-H", "Accept: " + mediaType}`, ""},
+		{"a call that is a name", `[]string{"-e", strings.ToUpper(name)}`, ""},
+		{"a name from a call", `[]string{"-e", nameOf(kind)}`, ""},
+		{"a constant creds flag", `[]string{"copy", "--src-no-creds"}`, ""},
+		{"a build arg that is a constant", `[]string{"build", "--build-arg", "VERSION=1"}`, ""},
+		{"a build arg that is a name", `[]string{"build", "--build-arg", name}`, ""},
+		{"docker login user", `[]string{"login", reg, "-u", user, "--password-stdin"}`, ""},
+		{"curl user without a secret", `[]string{"-u", user, url}`, ""},
+		{"a URL without credentials", `[]string{"clone", "https://" + host + "/" + path}`, ""},
+		{"a URL with a constant user", `[]string{"clone", "ssh://git@" + host + "/x.git"}`, ""},
+		{"a constant header", `[]string{"-H", "Accept: application/json"}`, ""},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			src := "package p\nimport \"os/exec\"\nconst fixed = \"1\"\nvar _ = exec.Command\nfunc f() { _ = " + tc.body + " }\n"
