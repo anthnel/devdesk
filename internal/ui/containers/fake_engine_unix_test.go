@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/anthnel/devdesk/internal/engine"
+	"github.com/anthnel/devdesk/internal/testutil/fakecli"
 )
 
 // fakeEngine is a stand-in for the engine binary: a small shell script in
@@ -21,6 +22,11 @@ import (
 // engine through os/exec today and may launch it through the docker runner
 // tomorrow (OC-04, OC-05): both end at engine.Current().Binary, so a test written
 // against the binary holds for either design.
+//
+// Its directory is declared to the engine guard (fakecli.AllowFakeCLIDir,
+// DEVDESK-799): the engine is reached through engine.Shape.Binary, not through
+// PATH, so fakecli.Install does not declare it, and this script stays because
+// fakecli cannot hold a daemon that blocks on a FIFO.
 //
 // What it does, driven by environment variables the test sets with t.Setenv:
 //   - every invocation appends its argv (space-joined) to the log;
@@ -63,6 +69,7 @@ func installFakeEngine(t *testing.T) *fakeEngine {
 	if err := os.WriteFile(f.bin, []byte(fakeEngineScript), 0o755); err != nil { //nolint:gosec // a test executable
 		t.Fatal(err)
 	}
+	fakecli.AllowFakeCLIDir(t, dir)
 	t.Setenv("FAKE_ENGINE_LOG", f.log)
 	t.Setenv("FAKE_ENGINE_BLOCK", "")
 	t.Setenv("FAKE_ENGINE_NO_BASH", "")

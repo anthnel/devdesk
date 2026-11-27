@@ -14,6 +14,8 @@ import (
 	tea "charm.land/bubbletea/v2"
 
 	"github.com/anthnel/devdesk/internal/config"
+	"github.com/anthnel/devdesk/internal/engine"
+	"github.com/anthnel/devdesk/internal/testutil/fakecli"
 	"github.com/anthnel/devdesk/internal/testutil/fakekeyring"
 	"github.com/anthnel/devdesk/internal/ui/components"
 	"github.com/anthnel/devdesk/internal/ui/testutil"
@@ -23,6 +25,10 @@ import (
 // write under the home directory config resolves against, so it is
 // redirected for the whole package — the same reason internal/app does this.
 func TestMain(m *testing.M) {
+	// fakecli.Install links this binary as the tools a test names (DEVDESK-799).
+	if code, ok := fakecli.AsTool(); ok {
+		os.Exit(code)
+	}
 	log.SetOutput(io.Discard)
 
 	home, err := os.MkdirTemp("", "devdesk-setup-test")
@@ -588,13 +594,41 @@ func TestCheckSecretBackendCmdReportsAnUnreachablePinnedKeyring(t *testing.T) {
 	}
 }
 
+// restoreEngine puts engine.Current back when the test ends:
+// checkContainerEngineCmd sets it, as the wizard process does.
+func restoreEngine(t *testing.T) {
+	t.Helper()
+	previous := engine.Current()
+	t.Cleanup(func() { engine.SetCurrent(previous) })
+}
+
+// The engine is a fakecli docker (DEVDESK-799): the real one of the machine is
+// never resolved.
 func TestCheckContainerEngineCmdReturnsAWellFormedMessage(t *testing.T) {
+	restoreEngine(t)
+	fakecli.Install(t, fakecli.Scenario{{Tool: "docker", Prefix: true, Reply: fakecli.Reply{Stdout: "4\t8589934592\n"}}}, "docker")
+
 	msg, ok := testutil.MsgOf[ContainerEngineCheckedMsg](checkContainerEngineCmd("auto"))
+
 	if !ok {
 		t.Fatal("checkContainerEngineCmd returned no ContainerEngineCheckedMsg")
 	}
-	if !msg.Missing && msg.Name == "" {
-		t.Error("a non-missing result must name the engine it checked")
+	if msg.Missing || msg.Err != nil || msg.Name != engine.Docker {
+		t.Errorf("message = %+v, want the docker engine, found and answering", msg)
+	}
+}
+
+func TestCheckContainerEngineCmdReportsAMissingEngine(t *testing.T) {
+	restoreEngine(t)
+	fakecli.Install(t, fakecli.Scenario{}) // PATH holds no engine
+
+	msg, ok := testutil.MsgOf[ContainerEngineCheckedMsg](checkContainerEngineCmd("auto"))
+
+	if !ok {
+		t.Fatal("checkContainerEngineCmd returned no ContainerEngineCheckedMsg")
+	}
+	if !msg.Missing {
+		t.Errorf("message = %+v, want Missing when no engine is on PATH", msg)
 	}
 }
 

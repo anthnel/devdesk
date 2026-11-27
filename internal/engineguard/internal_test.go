@@ -41,6 +41,21 @@ func TestOutsideATestBinaryTheGuardDoesNothingAndResolvesNothing(t *testing.T) {
 	}
 }
 
+func TestOutsideATestBinaryTheGuardDoesNotPanicEither(t *testing.T) {
+	Isolate(t) // no survey file: in a test binary this reach would panic
+	previousLook, previousUnder := lookPath, underTest
+	lookPath = func(name string) (string, error) { return "/opt/real/" + name, nil }
+	underTest = func() bool { return false }
+	t.Cleanup(func() { lookPath, underTest = previousLook, previousUnder })
+
+	defer func() {
+		if r := recover(); r != nil {
+			t.Errorf("Check panicked in a production run: %v", r)
+		}
+	}()
+	Check("Run", "docker")
+}
+
 func TestTheTestOnlyEntryPointsPanicOutsideATestBinary(t *testing.T) {
 	calls := map[string]func(){
 		"Isolate":         func() { Isolate(t) },
@@ -64,7 +79,7 @@ func TestTheTestOnlyEntryPointsPanicOutsideATestBinary(t *testing.T) {
 }
 
 func TestCheckIsSafeFromManyGoroutines(t *testing.T) {
-	Isolate(t)
+	SurveyMode(t) // a reach from a goroutine would end the binary otherwise
 	declaredDir := t.TempDir()
 	AllowDir(t, declaredDir)
 	reached := filepath.Join(t.TempDir(), "docker")

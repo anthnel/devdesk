@@ -157,12 +157,12 @@ tests; the code under test starts it by name through `PATH`, as it starts the re
   unchanged: a Go string holds any bytes. The argv of an exchange and the journal are still JSON, so an argv
   that is not valid UTF-8 is rewritten on the way; `enginefixture.Parse` refuses such an argv.
 
-### Tests and the real engine — `internal/engineguard` (OC-03a, DEVDESK-798)
+### Tests and the real engine — `internal/engineguard` (OC-03a, DEVDESK-798; OC-03b, DEVDESK-799)
 
-Guard G1, **in survey mode**: nothing fails yet. `internal/engineguard` is production code (standard
-library only, `testing` included, as `internal/ports` does for `testing.Testing`; it cannot import
-  `fakecli`, which `internal/docker` would then pull into production); OC-03b turns the
-record into a panic once the tests it names are fixed.
+Guard G1. Since OC-03b a test binary that resolves an engine binary outside a directory `fakecli` declared
+**panics**; the survey OC-03a introduced stays as an opt-in mode (below). `internal/engineguard` is
+production code (standard library only, `testing` included, as `internal/ports` does for
+`testing.Testing`; it cannot import `fakecli`, which `internal/docker` would then pull into production).
 
 - `cliRunner.LookPath`, `Run` and `Build` (`internal/docker/exec.go`) each start with
   `engineguard.Check(op, binary)`. `Run` calls it after `name` is computed, so the credential helpers
@@ -171,24 +171,43 @@ record into a panic once the tests it names are fixed.
 - In a test binary `Check` resolves the name with `exec.LookPath` (a name that resolves to nothing is not
   recorded: nothing can start), then compares the **directory** of the resolved binary, with symbolic
   links resolved, to the declared directories. A directory is declared exactly: not its parents, not its
-  children. A binary elsewhere is a `Hit{Test, Op, Binary}` (`Op` is `LookPath`, `Run` or `Build`), kept in
-  memory (`Hits()`) and, when `DEVDESK_ENGINE_SURVEY` names a file, appended to it with `O_APPEND`, one
-  `Test<TAB>Op<TAB>Binary` line per hit. The call goes on exactly as before.
+  children. A binary elsewhere is a reach (`Hit{Test, Op, Binary}`, `Op` is `LookPath`, `Run` or `Build`) and
+  the default answer is a panic: `<binary> was resolved outside a fakecli directory during a test
+  (DEVDESK-799, G1): install a fake with fakecli.Install / AllowFakeCLIDir, or call
+  engineguard.AllowRealEngine(t) in a contract test; see docs/architecture/network.md, "Tests and the real
+  engine" (operation <op>, reached by <test>)`. A panic rather than an error, like DEVDESK-610 and
+  DEVDESK-708: an error would look like an ordinary failed call and the test could pass. It happens before
+  anything is started. In a goroutine or a `tea.Cmd` nobody recovers it, so it ends the whole test binary:
+  that is the point, and it names the test binary and caller.
+- **Survey mode (opt-in).** Only when `DEVDESK_ENGINE_SURVEY` is set to a file, a reach is not refused: it is
+  kept in memory (`Hits()`) and appended to that file with `O_APPEND`, one `Test<TAB>Op<TAB>Binary` line per
+  hit, and the call goes on exactly as before. Tests of the guard and of the runner that need that mode
+  call `engineguard.SurveyMode(t)` (`Isolate` plus a survey file of its own).
 - `Hit.Test` is `package.TestName`, read on the stack (the first `Test*` function of a `_test.go` file,
   innermost first, so a subtest closure names its top-level test). With no test frame (a goroutine, a
   `tea.Cmd`) it reads `(no test frame) <test binary> <package> <first caller outside it>`, the test
   binary being `filepath.Base(os.Args[0])` (such as `app.test`), which says which package was under test.
 - Declaring: `fakecli.AllowFakeCLIDir(t, dir)` (`engineguard.AllowDir`) declares `dir` for the length of
   `t`. `fakecli.Install` calls it on its directory and `(*Fake).InstallAt` on the directory it links
-  into; a test that builds a fake by another means calls it itself. `engineguard.Isolate(t)` gives the
-  test a fresh record and no survey file, so a test that reaches an engine on purpose stays out of the list.
+  into; a test that builds a fake by another means calls it itself (a script engine reached through
+  `engine.Shape.Binary`, such as the one of `ui/containers`, declares its directory with it).
+  `engineguard.Isolate(t)` gives the test a fresh record and no survey file, so a reach panics whatever
+  mode the suite is in and a test that reaches an engine on purpose stays out of the list.
 - `engineguard.AllowRealEngine(t)` is for the contract tests that may reach a real engine: it calls
   `t.Fatalf`, never `Skip`, unless `DEVDESK_ENGINE_CONTRACT=1` and `CI` is empty
-  (`engineguard.ContractGate`), then stops recording that test's reaches. `Isolate`, `AllowDir` and
-  `AllowRealEngine` panic outside a test binary.
+  (`engineguard.ContractGate`), then stops refusing that test's reaches. `Isolate`, `SurveyMode`, `AllowDir`
+  and `AllowRealEngine` panic outside a test binary.
+- Negative controls: `TestATestThatStartsARealBinaryPanics` (`internal/engineguard/panic_control_test.go`)
+  runs an offending test in a child process (this test binary, one test) and checks that it dies on the
+  panic and goes no further; `TestCliRunnerPanicsForAnEngineOutsideTheFakeCLIDirs` does the same through
+  `cliRunner` (`recover`). Neither starts an engine.
+- What a test uses instead of a real engine: `fakecli.Install` (the package needs a `TestMain` calling
+  `fakecli.Main` or `AsTool`) or `fakecli.AllowFakeCLIDir` for a script it writes; a seam of the package
+  when there is one (`docker.ImageNames`, stubbed in the `TestMain` of `ui/security`).
 - `mise run engine-survey` runs `go test -count=1 ./...` with `DEVDESK_ENGINE_SURVEY` set to a temporary
   file, then prints `engineguard.Summary` (sorted, one line per distinct reach, or `none: ...` for a clean
-  suite) through `internal/engineguard/cmd/engine-survey`. It runs the whole suite, so it is heavy and is
+  suite) through `internal/engineguard/cmd/engine-survey`. Since OC-03b it is the only way to list every
+  offender at once instead of stopping at the first panic. It runs the whole suite, so it is heavy and is
   part of none of `ci`, `check`, `test` or `test-race`
   (`TestMiseEngineSurveyTaskStaysOutOfTheStandardChecks`).
 - Limits: only `Test*` functions are recognised, not `Fuzz*`, `Benchmark*` or `Example*`, and not a

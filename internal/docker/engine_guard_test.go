@@ -12,10 +12,11 @@ import (
 	"github.com/anthnel/devdesk/internal/testutil/fakecli"
 )
 
-// OC-03a (DEVDESK-798), guard G1 in survey mode: cliRunner.LookPath, Run and
-// Build tell internal/engineguard which binary they resolved. Outside a
-// directory fakecli declared the reach is recorded and the call goes on as it
-// did; nothing here starts a real engine (the "real" binary is an empty file).
+// OC-03a (DEVDESK-798), guard G1: cliRunner.LookPath, Run and Build tell
+// internal/engineguard which binary they resolved. Outside a directory fakecli
+// declared the reach panics (OC-03b, DEVDESK-799); in survey mode (SurveyMode
+// here) it is recorded and the call goes on as it did. Nothing here starts a
+// real engine (the "real" binary is an empty file).
 
 // useBinary makes cliRunner drive binary, as a configured engine path does.
 func useBinary(t *testing.T, binary string) {
@@ -51,10 +52,10 @@ var runnerOps = []struct {
 	{"Build", func(r cliRunner) error { _ = r.Build("ps"); return nil }},
 }
 
-func TestCliRunnerRecordsAnEngineOutsideTheFakeCLIDirs(t *testing.T) {
+func TestInSurveyModeCliRunnerRecordsAnEngineOutsideTheFakeCLIDirs(t *testing.T) {
 	for _, tt := range runnerOps {
 		t.Run(tt.op, func(t *testing.T) {
-			engineguard.Isolate(t)
+			engineguard.SurveyMode(t)
 			binary := emptyEngine(t)
 			useBinary(t, binary)
 
@@ -70,7 +71,7 @@ func TestCliRunnerRecordsAnEngineOutsideTheFakeCLIDirs(t *testing.T) {
 			if hits[0].Op != tt.op || hits[0].Binary != binary {
 				t.Errorf("Hit = %+v, want operation %q and binary %q", hits[0], tt.op, binary)
 			}
-			if !strings.Contains(hits[0].Test, "TestCliRunnerRecordsAnEngineOutsideTheFakeCLIDirs") {
+			if !strings.Contains(hits[0].Test, "TestInSurveyModeCliRunnerRecordsAnEngineOutsideTheFakeCLIDirs") {
 				t.Errorf("Hit.Test = %q, want the test that reached the engine", hits[0].Test)
 			}
 		})
@@ -78,7 +79,7 @@ func TestCliRunnerRecordsAnEngineOutsideTheFakeCLIDirs(t *testing.T) {
 }
 
 func TestSurveyModeLeavesTheCommandItBuildsAlone(t *testing.T) {
-	engineguard.Isolate(t)
+	engineguard.SurveyMode(t)
 	binary := emptyEngine(t)
 	useBinary(t, binary)
 
@@ -146,7 +147,7 @@ func TestACredentialHelperIsJudgedLikeTheEngine(t *testing.T) {
 
 func TestInstallingFakeCLIDoesNotBlessEveryOtherBinary(t *testing.T) {
 	fakecli.Install(t, fakecli.Scenario{{Prefix: true}}, engine.Docker)
-	engineguard.Isolate(t)
+	engineguard.SurveyMode(t)
 	binary := emptyEngine(t)
 	useBinary(t, binary)
 
@@ -154,5 +155,32 @@ func TestInstallingFakeCLIDoesNotBlessEveryOtherBinary(t *testing.T) {
 
 	if hits := engineguard.Hits(); len(hits) != 1 || hits[0].Binary != binary {
 		t.Errorf("Hits() = %+v, want the engine outside the fakecli directory recorded", hits)
+	}
+}
+
+// The negative control through the runner itself: with no survey, a test that
+// drives an engine outside a fakecli directory panics before anything is
+// started (the "engine" is an empty file, and nothing could run it anyway).
+func TestCliRunnerPanicsForAnEngineOutsideTheFakeCLIDirs(t *testing.T) {
+	for _, tt := range runnerOps {
+		t.Run(tt.op, func(t *testing.T) {
+			engineguard.Isolate(t)
+			binary := emptyEngine(t)
+			useBinary(t, binary)
+
+			defer func() {
+				got := recover()
+				if got == nil {
+					t.Fatalf("%s returned, want a panic: a test must not reach a real engine", tt.op)
+				}
+				msg, _ := got.(string)
+				for _, want := range []string{"DEVDESK-799", "network.md", binary} {
+					if !strings.Contains(msg, want) {
+						t.Errorf("panic = %q, want it to contain %q", msg, want)
+					}
+				}
+			}()
+			_ = tt.call(cliRunner{})
+		})
 	}
 }

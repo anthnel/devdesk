@@ -12,6 +12,7 @@ import (
 
 	"github.com/anthnel/devdesk/internal/config"
 	"github.com/anthnel/devdesk/internal/docker"
+	"github.com/anthnel/devdesk/internal/testutil/fakecli"
 	sharedcomponents "github.com/anthnel/devdesk/internal/ui/components"
 	"github.com/anthnel/devdesk/internal/ui/indicator"
 	"github.com/anthnel/devdesk/internal/ui/keymap"
@@ -1228,6 +1229,9 @@ func TestOnlyTheLogSourceCarriesTheOptionalCapabilities(t *testing.T) {
 // string is parsed by cmd.exe at all (OC-84, DEVDESK-801).
 func TestThePagerFeedIsAnArgvWithoutAShell(t *testing.T) {
 	const id = "aaaa111122223333"
+	// PagerFeed only builds the command; a fake docker keeps the engine of the
+	// machine from being resolved (DEVDESK-799).
+	fakecli.Install(t, fakecli.Scenario{}, "docker")
 	cmd, err := logsSource{ID: id, Container: "api"}.PagerFeed()
 	if err != nil {
 		t.Fatalf("PagerFeed() error = %v", err)
