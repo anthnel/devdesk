@@ -1,0 +1,50 @@
+{
+  "cli_version": "0.13.2",
+  "checkpoint_id": "eb62c8d88c48",
+  "strategy": "manual-commit",
+  "branch": "feat/oc-10-pull-guard",
+  "checkpoints_count": 6,
+  "files_touched": [
+    "docs/architecture/network.md",
+    "internal/docker/launch_pull_test.go",
+    "internal/engineguard/pull_guard_test.go"
+  ],
+  "sessions": [
+    {
+      "metadata": "/eb/62c8d88c48/0/metadata.json",
+      "transcript": "/eb/62c8d88c48/0/full.jsonl",
+      "compact_transcript": "/eb/62c8d88c48/0/transcript.jsonl",
+      "content_hash": "/eb/62c8d88c48/0/content_hash.txt",
+      "prompt": "/eb/62c8d88c48/0/prompt.txt"
+    }
+  ],
+  "token_usage": {
+    "input_tokens": 56,
+    "cache_creation_tokens": 58079,
+    "cache_read_tokens": 5448523,
+    "output_tokens": 16204,
+    "api_call_count": 19,
+    "subagent_tokens": {
+      "input_tokens": 272,
+      "cache_creation_tokens": 591408,
+      "cache_read_tokens": 9459654,
+      "output_tokens": 110038,
+      "api_call_count": 134
+    },
+    "subagent_tokens_complete": true
+  },
+  "redaction": {
+    "replacements": 21,
+    "layers": {
+      "betterleaks": 0,
+      "connection_string": 0,
+      "credential_key": 0,
+      "credential_value": 0,
+      "credentialed_uri": 0,
+      "entropy": 0,
+      "key_context": 21,
+      "provider_token": 0,
+      "shell_stdin": 0
+    }
+  }
+}
