@@ -182,6 +182,30 @@ func TestShellCmdRefusesAMalformedContainerID(t *testing.T) {
 	})
 }
 
+// A shell other than the two DetectShell answers is refused on both engines, and
+// no argv is built: the session only starts what the detection chose.
+func TestShellCmdRefusesAnUnknownShell(t *testing.T) {
+	forEachEngine(t, func(t *testing.T, _ engine.Shape) {
+		for _, shell := range []string{"", "sh", "/bin/zsh", "/bin/sh -c id", "-c", "/bin/sh; id"} {
+			t.Run(shell, func(t *testing.T) {
+				s := stubStrict(t) // no argv declared: any Build or Run fails the test
+
+				cmd, err := ShellCmd(shellID, shell)
+
+				if cmd != nil {
+					t.Errorf("ShellCmd(%q) built %q, want no command", shell, cmd.Args)
+				}
+				if !errors.Is(err, ErrInvalidShell) {
+					t.Errorf("ShellCmd(%q) error = %v, want ErrInvalidShell", shell, err)
+				}
+				if len(s.calls) != 0 {
+					t.Errorf("ShellCmd(%q) reached the runner with %q", shell, s.lastArgs())
+				}
+			})
+		}
+	})
+}
+
 // InspectContainer's failure message: the engine's stderr when the runner kept it
 // on the ExitError, the error's own text otherwise (never an empty message).
 func TestInspectContainerFailureCarriesStderrOrTheError(t *testing.T) {

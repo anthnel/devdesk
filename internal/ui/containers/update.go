@@ -409,9 +409,16 @@ func detectShellCmd(containerID string) tea.Cmd {
 	}
 }
 
+// maxLoggedIDLen bounds a refused ID in the log: it comes from outside and may be
+// of any length.
+const maxLoggedIDLen = 80
+
 // refuseShell tells the user a shell was not opened because the container ID is
 // not one. The refused value goes to the log, quoted, never to the footer.
 func (m *Model) refuseShell(id string) tea.Cmd {
+	if len(id) > maxLoggedIDLen {
+		id = id[:maxLoggedIDLen] + "…"
+	}
 	log.Printf("ERROR [containers] shell: rejected malformed container ID %q", id)
 	return m.footer.Error("Cannot open a shell — container ID refused")
 }

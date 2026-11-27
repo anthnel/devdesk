@@ -239,3 +239,22 @@ func TestShellDetectedRefusesAnInvalidContainerID(t *testing.T) {
 		}
 	}
 }
+
+// AC2, defence in depth: a detection that failed (the ID was refused where it ran)
+// carries an Err; with a well-formed ID in the message no shell is started either,
+// and the footer says so at level Error.
+func TestShellDetectedWithAnErrorStartsNothing(t *testing.T) {
+	for _, newWindow := range []bool{false, true} {
+		mode := map[bool]string{false: "in place", true: "in a new window"}[newWindow]
+		t.Run(mode, func(t *testing.T) {
+			testutil.FastTimers(t, &sharedcomponents.FooterMsgDuration)
+			fake := shellTools(t, "", false)
+			m := runningWeb(t, newWindow)
+
+			m, cmd := step(t, m, ShellDetectedMsg{ID: webID, Shell: "", Err: docker.ErrInvalidContainerID})
+			m, shown := settleRefusal(t, m, cmd)
+
+			expectRefused(t, m, shown, webID, fake)
+		})
+	}
+}

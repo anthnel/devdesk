@@ -2,6 +2,8 @@ package docker
 
 import (
 	"context"
+	"errors"
+	"fmt"
 	"os/exec"
 	"time"
 )
@@ -11,6 +13,10 @@ const (
 	shellBash = "/bin/bash"
 	shellSh   = "/bin/sh"
 )
+
+// ErrInvalidShell is wrapped by ShellCmd when the shell is neither of the two
+// above: the session only ever starts what DetectShell answers.
+var ErrInvalidShell = errors.New("invalid shell")
 
 // shellDetectTimeout bounds the detection: a daemon that does not answer must
 // not keep the footer on "Opening shell…" for good. A variable so a test can
@@ -44,11 +50,14 @@ func DetectShell(id string) (string, error) {
 // starting it, for a caller that hands the process to a terminal. Its Args are
 // the full argv (the engine binary first), which is what a terminal emulator
 // launched in a new window is given: the session is an argv, never an
-// interpreter's command line. A malformed container ID builds nothing
-// (ErrInvalidContainerID).
+// interpreter's command line. A malformed container ID (ErrInvalidContainerID)
+// or a shell other than /bin/bash and /bin/sh (ErrInvalidShell) builds nothing.
 func ShellCmd(id, shell string) (*exec.Cmd, error) {
 	if err := requireContainerID("exec", id); err != nil {
 		return nil, err
+	}
+	if shell != shellBash && shell != shellSh {
+		return nil, fmt.Errorf("%s: %q is not a shell DevDesk opens: %w", cmdLabel("exec"), shell, ErrInvalidShell)
 	}
 	return runner.Build("exec", "-it", id, shell), nil
 }

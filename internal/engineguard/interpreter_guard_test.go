@@ -28,8 +28,11 @@ import (
 // that is not a constant:
 //
 //	interpreter  sh, bash, zsh, dash, ash, ksh, fish, /bin/sh, /bin/bash, ...,
-//	             cmd, cmd.exe, powershell, powershell.exe, pwsh (a constant word)
-//	flag         -c (and -lc, -ic, ...), /c, /k, -Command, -EncodedCommand
+//	             cmd, cmd.exe, powershell, powershell.exe, pwsh (a constant word,
+//	             compared without regard to case: CMD.EXE, PowerShell)
+//	flag         sh family: -c (and -lc, -ic, ...); cmd: /c, /k (any case);
+//	             powershell and pwsh: -Command, -c, -EncodedCommand, -enc, -e, -ec
+//	             (any case)
 //	dynamic      the word right after the flag is not a constant: a variable, a
 //	             call, a concatenation with one (`"command -v "+name`,
 //	             `fmt.Sprintf("docker exec -it %s sh", id)`)
@@ -38,12 +41,17 @@ import (
 // append after its first, the arguments of exec.Command(Context) from the binary
 // on, and the arguments of the argv helpers G3 knows.
 //
-// Limits, stated rather than discovered: a constant script (`sh -c "true"`) is not
-// reported, it holds no run-time value; a binary or a flag held in a variable, a
-// list built word by word and a script written to a file are not seen; only the
-// word right after the flag is judged, so `cmd /c start <url>` (the words that
-// follow `/c` are one command line there) is not reported; a runner is not
-// exempt: there is no home for this, only the register below.
+// What it covers is a host-side word list that names a shell or a Windows command
+// interpreter and hands it a dynamic command line. Limits, stated rather than
+// discovered: a constant script (`sh -c "true"`) is not reported, it holds no
+// run-time value; a binary or a flag held in a variable, a list built word by word
+// and a script written to a file are not seen; an abbreviated PowerShell flag
+// (`-comm`) is not seen; only the word right after the flag is judged, so
+// `cmd /c start <url>` (the words that follow `/c` are one command line there,
+// internal/browser, DEVDESK-940) is not reported; programs that also run a command
+// line given as an argument are not interpreters here: `python -c`, `node -e`,
+// `perl -e`, `wsl -e`, `ssh host <command>`, `su -c`, `env`, `xargs`; a runner is
+// not exempt: there is no home for this, only the register below.
 
 // interpreterWords are the programs that read a command line.
 var interpreterWords = []string{
@@ -52,11 +60,45 @@ var interpreterWords = []string{
 	"cmd", "cmd.exe", "powershell", "powershell.exe", "pwsh", "pwsh.exe",
 }
 
-// interpreterFlags are the options that make the next word the command line.
-var interpreterFlags = []string{"/c", "/k", "-Command", "-command", "-EncodedCommand"}
+// interpreterFlags, per family of interpreter, are the options that make the next
+// word the command line, in lower case: the comparison is case-insensitive for
+// the Windows ones (cmd /C, powershell -COMMAND).
+var (
+	cmdFlags        = []string{"/c", "/k", "/r"}
+	powershellFlags = []string{"-c", "-command", "-encodedcommand", "-enc", "-e", "-ec"}
+)
 
-// shellDashC matches -c and its combinations (-lc, -ic, -ec).
+// shellDashC matches -c and its combinations (-lc, -ic, -ec), for the sh family.
 var shellDashC = regexp.MustCompile(`^-[a-z]*c$`)
+
+// interpreterFamily names the family of an interpreter word: "cmd", "powershell"
+// or "sh". It is "" for a word that is not an interpreter. The word is compared in
+// lower case.
+func interpreterFamily(word string) string {
+	switch w := strings.ToLower(word); {
+	case w == "cmd" || w == "cmd.exe":
+		return "cmd"
+	case w == "powershell" || w == "powershell.exe" || w == "pwsh" || w == "pwsh.exe":
+		return "powershell"
+	case slices.Contains(interpreterWords, w):
+		return "sh"
+	}
+	return ""
+}
+
+// isInterpreterFlag reports whether flag makes the next word a command line for an
+// interpreter of the family.
+func isInterpreterFlag(family, flag string) bool {
+	switch family {
+	case "cmd":
+		return slices.Contains(cmdFlags, strings.ToLower(flag))
+	case "powershell":
+		return slices.Contains(powershellFlags, strings.ToLower(flag))
+	case "sh":
+		return shellDashC.MatchString(flag) && !strings.HasPrefix(flag, "--")
+	}
+	return false
+}
 
 const interpreterRule = "interpreter given a command line built at run time"
 
@@ -73,8 +115,8 @@ type interpreterException struct {
 
 // The register. VerifyEntrypoint (internal/docker/launch.go) is in it as a
 // temporary debt: it runs `sh -c "command -v "+entrypoint` in a throwaway
-// container with the entrypoint typed in the launch form. The entry goes when the
-// check goes through an argv or the name is validated.
+// container with the entrypoint typed in the launch form (DEVDESK-947). The entry
+// goes when the check goes through an argv or the name is validated.
 var interpreterExceptions = []interpreterException{
 	{
 		File:  "internal/docker/launch.go",
@@ -82,7 +124,8 @@ var interpreterExceptions = []interpreterException{
 		Sites: 1,
 		Reason: "temporary: the entrypoint typed in the launch form is spliced into `sh -c \"command -v \"+entrypoint`, run in a " +
 			"throwaway `run --rm` container of the image the user is about to launch; to move to an argv or a validation of the " +
-			"name (follow-up story). It does not reach the host's interpreter, and the user already chooses what that container runs.",
+			"name (DEVDESK-947). It runs in a 600 ms debounce while the entrypoint is typed, before the form is validated; the container " +
+			"is a throwaway one on the default network with no host mount, and it is not the host's interpreter.",
 	},
 	{
 		File:  "internal/testutil/stepshell/stepshell.go",
@@ -109,17 +152,16 @@ func (s interpreterSite) String() string {
 // judgeInterpreter returns the problems of one word list, as `what` texts.
 func judgeInterpreter(words []ast.Expr, consts map[string]string) []string {
 	var out []string
-	interpreter := ""
+	interpreter, family := "", ""
 	for i, w := range words {
 		s, ok := constString(w, consts, nil)
 		if !ok {
 			continue
 		}
 		switch {
-		case interpreter == "" && slices.Contains(interpreterWords, s):
-			interpreter = s
-		case interpreter != "" && i+1 < len(words) &&
-			(slices.Contains(interpreterFlags, s) || (shellDashC.MatchString(s) && !strings.HasPrefix(s, "--"))):
+		case interpreter == "" && interpreterFamily(s) != "":
+			interpreter, family = s, interpreterFamily(s)
+		case interpreter != "" && i+1 < len(words) && isInterpreterFlag(family, s):
 			if shape, dynamic := wordShape(words[i+1], consts); dynamic {
 				out = append(out, fmt.Sprintf("%s %s followed by %s", interpreter, s, strings.ReplaceAll(shape, dynamicMarker, "<dynamic>")))
 			}
@@ -279,6 +321,13 @@ func TestTheInterpreterDetectorOnSources(t *testing.T) {
 		{"combined flag", `func f(c string) { _ = exec.Command("bash", "-lc", c) }`, 1},
 		{"powershell", `func f(c string) { _ = exec.Command("powershell", "-NoProfile", "-Command", c) }`, 1},
 		{"cmd /c with the command line", `func f(c string) { _ = exec.Command("cmd", "/c", c) }`, 1},
+		{"cmd /C upper case", `func f(c string) { _ = exec.Command("cmd", "/C", c) }`, 1},
+		{"CMD.EXE upper case", `func f(c string) { _ = exec.Command("CMD.EXE", "/c", c) }`, 1},
+		{"PowerShell -COMMAND", `func f(c string) { _ = exec.Command("PowerShell", "-COMMAND", c) }`, 1},
+		{"pwsh -enc", `func f(c string) { _ = exec.Command("pwsh", "-enc", c) }`, 1},
+		{"powershell -e", `func f(c string) { _ = exec.Command("powershell.exe", "-e", c) }`, 1},
+		{"bash -e is not a command line", `func f(c string) { _ = exec.Command("bash", "-e", c) }`, 0},
+		{"python -c is outside the guard", `func f(c string) { _ = exec.Command("python3", "-c", c) }`, 0},
 		{"append", `func f(c string) []string { a := []string{"sh"}; return append(a, "-c", c) }`, 0}, // limit: the interpreter is in another list
 		{"a constant script", `func f() { _ = exec.Command("sh", "-c", "true") }`, 0},
 		{"an argv array, the good form", `func f(id string) { _ = exec.Command("docker", "exec", "-it", id, "/bin/sh") }`, 0},
