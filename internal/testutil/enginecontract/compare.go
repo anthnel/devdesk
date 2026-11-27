@@ -20,7 +20,10 @@ const (
 	// network) and "2026-11-27T12:00:00.5Z" (RFC 3339).
 	Timestamps
 	// Health: the marker a status carries, "(healthy)", "(unhealthy)", "(starting)" or
-	// "(health: starting)". A status with a marker and one without still differ.
+	// "(health: starting)". A status with a marker and one without still differ. **It makes
+	// "(healthy)" equal to "(unhealthy)": never use it when the health state is what a
+	// contract is about** (ps-health does not). It is for an output where the health only
+	// happens to be printed and has not settled.
 	Health
 
 	allTolerances = Durations | Timestamps | Health

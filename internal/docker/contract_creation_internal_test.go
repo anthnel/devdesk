@@ -454,6 +454,7 @@ func TestARecordingKeepsADeclaredPublicIDAndRefusesAStranger(t *testing.T) {
 		readIDs := []string{"images", "-q", "--no-trunc"}
 		record := func(t *testing.T, declare bool) (written []byte, ct *contractT, ended bool) {
 			t.Helper()
+			t.Setenv(enginecontract.SentinelEnv, sentinelID) // a recording demands it (OC-09b1 hardening)
 			steps := append(usedImageSteps(shape), replyTo(fakecli.Reply{Stdout: idImg + "\n"}, readIDs...))
 			c, ct, _ := startOnFake(t, shape, steps...)
 			out := t.TempDir()

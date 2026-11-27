@@ -776,14 +776,17 @@ scenarios listed under "The first scenarios".
   abbreviated), `Timestamps` (`2026-11-27 12:00:00 +0000 UTC`, with a fraction, a zone name or a monotonic reading, and
   RFC 3339: the CreatedAt of `ps` and `network ls`) and `Health` (`(healthy)`, `(unhealthy)`, `(starting)`,
   `(health: starting)`). Nothing else is tolerated (the number in `Exited (137)`, a port, a name, the word `ago`, a status
-  with a marker against one without). The argv and the exit code are still compared exactly first; an unknown kind panics when
+  with a marker against one without). **`Health` makes `(healthy)` equal to `(unhealthy)`: never use it when the health state is the subject
+  of the contract** (`ps-health` tolerates durations and timestamps only, and asserts `(healthy)` itself); `compare_test.go` pins that
+  any marker equals any other, so the kind is documented, not narrowed to `starting`. The argv and the exit code are still compared exactly first; an unknown kind panics when
   the Comparer is made. `SameUpToDurations()` is `Tolerating(Durations)` and `SameUpToDurationsAndHealth()` is
   `Tolerating(Durations, Health)`. The comparers spell no argv.
 - **The sentinel in a fixture (OC-09b1).** The sentinel container of `contract.sh` is in the store while the contracts run, so a
   `ps` they record lists it: its id (a new one at every run) is the variable `DEVDESK_ENGINE_CONTRACT_SENTINEL`, and
   `c.redaction()` maps it to the role `sentinel` (full id and the 12 characters `ps` prints), so two recordings give the same
   fixture; its name `ddc-sentinel-<run>` loses the run id like every name. A value that is not 64 lower-case hexadecimal characters
-  ends the contract (the script sets it only for such an id). Nothing else foreign is expected in a list of a freshly reset VM: a
+  ends the contract (the script sets it only for such an id), and **a recording without it ends the contract too** (verifying does not
+  need it): a recorded list would hold a container whose id nobody redacted. Nothing else foreign is expected in a list of a freshly reset VM: a
   container, a volume or a network of its own would appear in the fixture and make it vary, which a recording on the VMs shows.
 - **The first scenarios (OC-09b1).** Nine contracts, one scenario each, next to the existing `containers/rm-running`; no fixture is
   versioned yet (the four recordings are OC-09b2): `containers/ps-health` (`TestContractPsReportsTheHealthOfAContainer`: `ListContainers(true)` after
@@ -799,6 +802,19 @@ scenarios listed under "The first scenarios".
   The files are `containers_`, `images_`, `networks_`, `volumes_` and `launch_contract_test.go`; the helpers and the tests of the helpers
   (`contract_window_internal_test.go`, `contract_prune_internal_test.go`, `contract_creation_internal_test.go`,
   `contract_sentinel_internal_test.go`, `compare_test.go`, `compare_tolerating_test.go`) run with a `fakecli` engine and no real one.
+- **A recorded list holds this run and the sentinel (OC-09b1 hardening).** `c.exchangeListing(kind, cmp, ...)` is `exchangeWith` for a
+  call whose output lists a whole store (`ps-health`, `volumes/ls`): first it reads the store as a prune does (`ps -a -q --no-trunc`,
+  `network ls`, `volume ls -q`). Recording ends the contract before anything is recorded when the read fails or the store holds
+  anything that is neither of this run nor the sentinel (a container a killed run left behind must not enter a fixture); verifying only
+  logs it. `findContainer` never matches a row with an empty id (an empty string is a prefix of every id).
+  `volumes/prune-unused` requires that the report and the state agree (`volumePruneAgrees`: a report that names the volume means it is gone,
+  one that does not means it is listed); the outcome differs by engine and version: podman 5.8.11 removes the unused named volume,
+  podman 6.2.1 and docker 28 and 29 do not.
+- **A label that reads `<no value>` (limit).** The templates that read a label (`{{index .Config.Labels "devdesk.test"}}`) print `<no value>`
+  for a missing one on docker, so `labelValue` reads `<no value>` as no label, and a label whose value is literally `<no value>` is read
+  the same way. The ambiguity is kept: a template that tells the two apart (`{{json .Config.Labels}}`) changes the argv the cleanup and the
+  stray look pin (`resourceKinds`, `strayInspectArgv`), and the effect is small: the label of this run is a run id, and the container a
+  window removes must also carry the exact name of that window, which no other launch can have.
 - **Limits of OC-09b1, and what only the VMs say.** `expectRefusal` does not handle `-e NAME`: the launch DevDesk builds for an
   environment variable passes the name only, which the standard rule refuses (a bare name would pass the host's), so a scenario
   with an environment is not a window. A process killed while a launch window is open can leave a container with **no label**

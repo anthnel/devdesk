@@ -98,7 +98,7 @@ func TestContractPsReportsTheHealthOfAContainer(t *testing.T) {
 		list []Container
 		err  error
 	)
-	c.exchangeWith(enginecontract.Tolerating(enginecontract.Durations, enginecontract.Timestamps),
+	c.exchangeListing("container", enginecontract.Tolerating(enginecontract.Durations, enginecontract.Timestamps),
 		"containers", "ps-health", "ps lists a container with a healthcheck once it is healthy", func() {
 			list, err = ListContainers(true)
 		})
@@ -106,11 +106,10 @@ func TestContractPsReportsTheHealthOfAContainer(t *testing.T) {
 	if err != nil {
 		t.Fatalf("ListContainers(true) = %v", err)
 	}
-	i := slices.IndexFunc(list, func(ctr Container) bool { return strings.HasPrefix(id, ctr.ID) })
-	if i < 0 {
+	got, found := findContainer(list, id)
+	if !found {
 		t.Fatalf("ListContainers(true) = %d container(s), none is %s, which this run started", len(list), id)
 	}
-	got := list[i]
 	if got.State != "running" {
 		t.Errorf("State = %q, want %q", got.State, "running")
 	}

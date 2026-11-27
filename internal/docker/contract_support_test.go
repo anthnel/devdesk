@@ -296,7 +296,12 @@ func (c *contract) redaction() enginefixture.Redaction {
 			r.IDs[ref] = role
 		}
 	}
-	if id := os.Getenv(enginecontract.SentinelEnv); id != "" {
+	id := os.Getenv(enginecontract.SentinelEnv)
+	if id == "" && c.s.Mode == enginecontract.Record {
+		c.t.Fatalf("recording without %s: contract.sh sets it from the sentinel, and a recorded list would hold a container "+
+			"whose id nobody redacted (a recording is run by `mise run engine-contract:record` only)", enginecontract.SentinelEnv)
+	}
+	if id != "" {
 		if !fullID.MatchString(id) {
 			c.t.Fatalf("%s=%q is not an id of 64 lower-case hexadecimal characters: contract.sh sets it from the sentinel it started",
 				enginecontract.SentinelEnv, id)
@@ -1152,19 +1157,94 @@ func (c *contract) expectPrune(campaign, scenario, text, kind string, call func(
 // only resources of this run (and the networks the engines make).
 func (c *contract) requireOnlyThisRun(kind string, list []string) {
 	c.t.Helper()
-	defer c.recording()()
-	out, err := dockerOutput(list...)
+	refs, out, err := c.readStore(list)
 	if err != nil {
 		c.t.Fatalf("cannot read the %s store before a prune, so nothing is pruned: %v: %s", kind, err, failureDetail(out, err))
 	}
-	for _, ref := range splitLines(out) {
-		if kind == "network" && slices.Contains(builtinNetworks, ref) {
-			continue
-		}
-		if !c.isOurs(ref) {
-			c.t.Fatalf("the %s store holds %s, which is not a resource of this run: a prune would remove it, so nothing is pruned", kind, ref)
+	if foreign := c.foreignRefs(kind, refs, false); len(foreign) > 0 {
+		c.t.Fatalf("the %s store holds %s, which is not a resource of this run: a prune would remove it, so nothing is pruned", kind, foreign[0])
+	}
+}
+
+// readStore reads a whole store (a list with no filter) through the recorder.
+func (c *contract) readStore(list []string) (refs []string, out []byte, err error) {
+	c.t.Helper()
+	defer c.recording()()
+	out, err = dockerOutput(list...)
+	if err != nil {
+		return nil, out, err
+	}
+	return splitLines(out), out, nil
+}
+
+// foreignRefs are the references of a store that are not resources of this run: not the
+// networks the engines make, and, with allowSentinel, not the sentinel of contract.sh.
+func (c *contract) foreignRefs(kind string, refs []string, allowSentinel bool) []string {
+	sentinel := os.Getenv(enginecontract.SentinelEnv)
+	var foreign []string
+	for _, ref := range refs {
+		switch {
+		case kind == "network" && slices.Contains(builtinNetworks, ref):
+		case allowSentinel && sentinel != "" && ref == sentinel:
+		case c.isOurs(ref):
+		default:
+			foreign = append(foreign, ref)
 		}
 	}
+	return foreign
+}
+
+// exchangeListing is exchangeWith for a call whose output lists a whole store (a `ps`, a
+// `volume ls`): a fixture of a list must hold this run and the sentinel and nothing a killed
+// run left behind. Recording reads the store first (the same read as a prune) and ends the
+// contract, before anything is recorded, when it cannot or when it holds another resource;
+// verifying only logs what it found, since a VM that was not reset may hold more.
+func (c *contract) exchangeListing(kind string, cmp enginecontract.Comparer, campaign, scenario, text string, call func()) enginefixture.Exchange {
+	c.t.Helper()
+	list := pruneListArgv(kind)
+	if list == nil {
+		c.t.Fatalf("%s/%s: %q is not a kind of store a listing is checked for", campaign, scenario, kind)
+	}
+	recording := c.s.Mode == enginecontract.Record
+	refs, out, err := c.readStore(list)
+	switch foreign := c.foreignRefs(kind, refs, true); {
+	case err != nil && recording:
+		c.t.Fatalf("%s/%s: cannot read the %s store before recording a list of it: %v: %s", campaign, scenario, kind, err, failureDetail(out, err))
+	case err != nil:
+		c.t.Logf("%s/%s: cannot read the %s store: %v", campaign, scenario, kind, err)
+	case len(foreign) > 0 && recording:
+		c.t.Fatalf("%s/%s: the %s store holds %s, which is neither of this run nor the sentinel: a fixture of a list must not hold "+
+			"what a killed run left behind (reset the VM)", campaign, scenario, kind, foreign[0])
+	case len(foreign) > 0:
+		c.t.Logf("%s/%s: the %s store holds %d resource(s) that are neither of this run nor the sentinel: %q", campaign, scenario, kind, len(foreign), foreign)
+	}
+	return c.exchangeWith(cmp, campaign, scenario, text, call)
+}
+
+// findContainer is the row of a listing whose (short) id starts id. A row with no id is
+// never a match: an empty string is a prefix of every id.
+func findContainer(list []Container, id string) (Container, bool) {
+	i := slices.IndexFunc(list, func(ctr Container) bool { return ctr.ID != "" && strings.HasPrefix(id, ctr.ID) })
+	if i < 0 {
+		return Container{}, false
+	}
+	return list[i], true
+}
+
+// volumePruneAgrees checks that what a volume prune reported agrees with what is left: a
+// report that names the volume (as a word, docker under "Deleted Volumes:", podman one name
+// a line) means it is gone, and one that does not means it is still listed. Engines and
+// versions differ on whether an unused named volume is removed (podman 5.8.11 removes it,
+// docker 28 and 29 and podman 6.2.1 do not), so neither outcome is required.
+func volumePruneAgrees(report, volume string, stillListed bool) error {
+	reported := slices.Contains(strings.Fields(report), volume)
+	switch {
+	case reported && stillListed:
+		return fmt.Errorf("the prune reports having removed %s, which is still listed", volume)
+	case !reported && !stillListed:
+		return fmt.Errorf("%s is no longer listed, but the prune does not report having removed it (%q)", volume, strings.TrimSpace(report))
+	}
+	return nil
 }
 
 // launchWindow is what a launch the engine is expected to refuse may name: the name of

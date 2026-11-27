@@ -43,7 +43,7 @@ func TestContractListingVolumesShowsTheVolumesOfTheRun(t *testing.T) {
 		list []Volume
 		err  error
 	)
-	c.exchange("volumes", "ls", "volume ls shows the volume of the run", func() {
+	c.exchangeListing("volume", nil, "volumes", "ls", "volume ls shows the volume of the run", func() {
 		list, err = ListVolumes()
 	})
 
@@ -60,10 +60,11 @@ func TestContractListingVolumesShowsTheVolumesOfTheRun(t *testing.T) {
 }
 
 // A volume prune of a store that holds only the volumes of this run is allowed (expectPrune reads the
-// store first). What it removes depends on the engine: docker 23 and later removes unused
-// anonymous volumes only, so the volume of the run stays and its cleanup removes it, podman
-// removes every unused volume. The report is the engine's; the contract requires none of
-// the two outcomes and logs which one happened.
+// store first). What it removes differs by engine and version, measured on the lab VMs: podman 5.8.11
+// removes the unused named volume and reports it, podman 6.2.1 and docker 28 and 29 do not (docker 23
+// and later prunes anonymous volumes only), so the volume stays and its cleanup removes it. The contract
+// requires neither outcome, it requires that the report and the state agree: a report that names the volume
+// means it is no longer listed, and one that does not means it still is. The fixture holds the report.
 // OC-09b1 (DEVDESK-807), scenario volumes/prune-unused.
 func TestContractVolumePruneOfAStoreOnlyThisRuns(t *testing.T) {
 	c := requireEngine(t)
@@ -84,7 +85,10 @@ func TestContractVolumePruneOfAStoreOnlyThisRuns(t *testing.T) {
 	if listErr != nil {
 		t.Fatalf("ListVolumes() = %v", listErr)
 	}
-	gone := !slices.ContainsFunc(left, func(v Volume) bool { return v.Name == name })
+	stillListed := slices.ContainsFunc(left, func(v Volume) bool { return v.Name == name })
+	if err := volumePruneAgrees(report, name, stillListed); err != nil {
+		t.Error(err)
+	}
 	t.Logf("%s %s %s: volume prune removed the unused named volume: %v, report %q",
-		c.s.Engine.Tool, c.s.Engine.Version, c.s.Engine.Mode, gone, report)
+		c.s.Engine.Tool, c.s.Engine.Version, c.s.Engine.Mode, !stillListed, report)
 }
