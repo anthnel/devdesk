@@ -3,6 +3,7 @@ package ociresources
 import (
 	"fmt"
 	"path/filepath"
+	"slices"
 	"strconv"
 	"strings"
 
@@ -316,11 +317,13 @@ func (f *LaunchForm) handleKeyMsg(msg tea.KeyPressMsg) (*LaunchForm, tea.Cmd) {
 	case "left":
 		if f.focusedField == f.fieldNetwork() && len(f.networks) > 0 {
 			f.networkIdx = (f.networkIdx - 1 + len(f.networks)) % len(f.networks)
+			f.revalidate()
 			return f, nil
 		}
 	case "right":
 		if f.focusedField == f.fieldNetwork() && len(f.networks) > 0 {
 			f.networkIdx = (f.networkIdx + 1) % len(f.networks)
+			f.revalidate()
 			return f, nil
 		}
 
@@ -432,15 +435,18 @@ func (f *LaunchForm) updateActiveInput(msg tea.Msg) (*LaunchForm, tea.Cmd) {
 	switch {
 	case f.focusedField == 0:
 		f.nameInput, cmd = f.nameInput.Update(msg)
+		f.revalidate()
 	case f.isPortField(f.focusedField):
 		portIdx := f.focusedField - f.firstPortField()
 		f.ports[portIdx].hostPortInput, cmd = f.ports[portIdx].hostPortInput.Update(msg)
 		f.revalidate()
 	case f.focusedField == f.fieldExtraPorts():
 		f.extraPortsInput, cmd = f.extraPortsInput.Update(msg)
+		f.revalidate()
 	case f.focusedField == f.fieldEntrypoint():
 		prev := f.entrypointInput.Value()
 		f.entrypointInput, cmd = f.entrypointInput.Update(msg)
+		f.revalidate()
 		if newVal := f.entrypointInput.Value(); newVal != prev {
 			verifyCmd := f.onEntrypointChanged(newVal)
 			cmd = tea.Batch(cmd, verifyCmd)
@@ -451,8 +457,10 @@ func (f *LaunchForm) updateActiveInput(msg tea.Msg) (*LaunchForm, tea.Cmd) {
 		f.revalidate()
 	case f.focusedField == f.fieldVolumes():
 		f.volInput, cmd = f.volInput.Update(msg)
+		f.revalidate()
 	case f.focusedField == f.fieldUser():
 		f.userInput, cmd = f.userInput.Update(msg)
+		f.revalidate()
 	}
 	return f, cmd
 }
@@ -614,13 +622,92 @@ func (f *LaunchForm) envEntries() []string {
 	return entries
 }
 
-// validate returns the invalid host ports of the ticked EXPOSE ports, in
-// display order, then the Environment field when an entry is not NAME=VALUE.
-// Additional ports stay free-form. Nothing runs at opening or on ApplyCached: a
-// name restored from the cache with no value is refused at the submit only.
-// The text never repeats what was typed: a value may be a secret.
-func (f *LaunchForm) validate() []sharedcomponents.FieldError {
+// The validation keys of the fields that refuse a value starting with a dash
+// (OC-21). The image is not editable and Network is a cycle field: their error
+// is in the footer alone, there is nothing to underline.
+const (
+	nameKey       = "name"
+	entrypointKey = "entrypoint"
+	volumesKey    = "volumes"
+	userKey       = "user"
+	extraPortsKey = "extra-ports"
+	networkKey    = "network"
+	imageKey      = "image"
+)
+
+// dashFaultText is the footer sentence of a value that starts with a dash. It is
+// fixed, so the typed value (it may be a secret, or an engine flag) is never echoed.
+func dashFaultText(label string) string { return label + " cannot start with a dash" }
+
+// startsWithDash reports whether s reads as an engine flag. The launcher refuses
+// the same values (docker.ErrInvalidLaunchOption), after the trim the submit applies.
+func startsWithDash(s string) bool { return strings.HasPrefix(s, "-") }
+
+// anyStartsWithDash reports whether an entry of list starts with a dash.
+func anyStartsWithDash(list []string) bool {
+	return slices.ContainsFunc(list, startsWithDash)
+}
+
+// extraPortEntries returns the non-blank, trimmed entries of Additional ports.
+func (f *LaunchForm) extraPortEntries() []string {
+	var entries []string
+	for p := range strings.SplitSeq(f.extraPortsInput.Value(), ",") {
+		if p = strings.TrimSpace(p); p != "" {
+			entries = append(entries, p)
+		}
+	}
+	return entries
+}
+
+// selectedNetwork returns the network the cycle field holds, "" when none.
+func (f *LaunchForm) selectedNetwork() string {
+	if len(f.networks) == 0 {
+		return ""
+	}
+	return f.networks[f.networkIdx]
+}
+
+// dashFaults returns the fields whose value starts with a dash, in display order.
+// Name, Entrypoint and User are trimmed, as the submit trims them; an entry of
+// Volumes or Additional ports is one of the trimmed entries the submit splits the
+// field into. The footer names the first field only: it gets the sentence, the
+// others are underlined and carry no text, so they do not read as "(+N more)".
+func (f *LaunchForm) dashFaults() []sharedcomponents.FieldError {
+	volumes, mounts := splitVolumeField(f.volInput.Value())
+	checks := []struct {
+		key, label string
+		faulty     bool
+	}{
+		{imageKey, "Image", startsWithDash(f.image)},
+		{nameKey, "Name", startsWithDash(strings.TrimSpace(f.nameInput.Value()))},
+		{entrypointKey, "Entrypoint", startsWithDash(strings.TrimSpace(f.entrypointInput.Value()))},
+		{volumesKey, "Volumes", anyStartsWithDash(volumes) || anyStartsWithDash(mounts)},
+		{userKey, "User", startsWithDash(strings.TrimSpace(f.userInput.Value()))},
+		{networkKey, "Network", startsWithDash(f.selectedNetwork())},
+		{extraPortsKey, "Additional ports", anyStartsWithDash(f.extraPortEntries())},
+	}
 	var errs []sharedcomponents.FieldError
+	for _, c := range checks {
+		if !c.faulty {
+			continue
+		}
+		e := sharedcomponents.FieldError{Key: c.key}
+		if len(errs) == 0 {
+			e.Text = dashFaultText(c.label)
+		}
+		errs = append(errs, e)
+	}
+	return errs
+}
+
+// validate returns what keeps the form from launching, in display order: a value
+// that starts with a dash (OC-21), the invalid host ports of the ticked EXPOSE
+// ports, then the Environment field when an entry is not NAME=VALUE.
+// Additional ports stay free-form beyond the dash. Nothing runs at opening or on
+// ApplyCached: a name restored from the cache with no value is refused at the
+// submit only. The text never repeats what was typed: a value may be a secret.
+func (f *LaunchForm) validate() []sharedcomponents.FieldError {
+	errs := f.dashFaults()
 	for i := range f.ports {
 		if f.ports[i].enabled && !validHostPort(f.ports[i].hostPortInput.Value()) {
 			errs = append(errs, sharedcomponents.FieldError{
@@ -642,9 +729,15 @@ func (f *LaunchForm) revalidate() {
 	f.applyInvalid()
 }
 
-// applyInvalid underlines the host ports and the Environment field that
-// currently fail validation, restyling only those whose state changed.
+// applyInvalid underlines the inputs that currently fail validation, restyling
+// only those whose state changed.
 func (f *LaunchForm) applyInvalid() {
+	for key, in := range map[string]*textinput.Model{
+		nameKey: &f.nameInput, entrypointKey: &f.entrypointInput, volumesKey: &f.volInput,
+		userKey: &f.userInput, extraPortsKey: &f.extraPortsInput,
+	} {
+		f.marks.Sync(key, in, f.validation.Invalid(key))
+	}
 	for i := range f.ports {
 		f.marks.Sync(portKey(i), &f.ports[i].hostPortInput, f.validation.Invalid(portKey(i)))
 	}
@@ -652,11 +745,15 @@ func (f *LaunchForm) applyInvalid() {
 }
 
 // ValidationStatus is the footer line for the form, derived on every call (no
-// timer): the validation errors first, then a warning when a port is published
-// on all interfaces. The zero Status means nothing to say.
+// timer): the validation errors first, then a warning while the network is the
+// host's (OC-21), then a warning when a port is published on all interfaces. The
+// zero Status means nothing to say.
 func (f *LaunchForm) ValidationStatus() sharedcomponents.Status {
 	if st := f.validation.Status(); st.Text != "" {
 		return st
+	}
+	if docker.SharesHostNetwork(f.selectedNetwork()) {
+		return sharedcomponents.Status{Text: hostNetworkFooterText, Level: sharedcomponents.LevelWarning}
 	}
 	if spec, ok := f.allInterfacesPort(); ok {
 		return sharedcomponents.Status{Text: "Port " + spec + " is published on all interfaces", Level: sharedcomponents.LevelWarning}
@@ -668,8 +765,8 @@ func (f *LaunchForm) ValidationStatus() sharedcomponents.Status {
 // [::] itself, typed or restored from the cache. Only the additional ports can
 // carry an address: the host port of an EXPOSE row is digits only.
 func (f *LaunchForm) allInterfacesPort() (string, bool) {
-	for p := range strings.SplitSeq(f.extraPortsInput.Value(), ",") {
-		if p = strings.TrimSpace(p); docker.PortExposedOnAllInterfaces(p) {
+	for _, p := range f.extraPortEntries() {
+		if docker.PortExposedOnAllInterfaces(p) {
 			return p, true
 		}
 	}
@@ -699,17 +796,11 @@ func (f *LaunchForm) submit() (*LaunchForm, tea.Cmd) {
 		}
 	}
 	// Extra port mappings: comma-separated host:container pairs
-	for p := range strings.SplitSeq(f.extraPortsInput.Value(), ",") {
-		if p = strings.TrimSpace(p); p != "" {
-			opts.Ports = append(opts.Ports, p)
-		}
-	}
+	opts.Ports = append(opts.Ports, f.extraPortEntries()...)
 	// Env vars: comma-separated NAME=VALUE entries, validated above
 	opts.Env = f.envEntries()
 	// Volume mounts: -v entries and --mount values, split by splitVolumeField
 	opts.Volumes, opts.Mounts = splitVolumeField(f.volInput.Value())
-	if len(f.networks) > 0 {
-		opts.Network = f.networks[f.networkIdx]
-	}
+	opts.Network = f.selectedNetwork()
 	return f, func() tea.Msg { return LaunchFormSubmitMsg{Opts: opts} }
 }

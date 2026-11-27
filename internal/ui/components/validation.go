@@ -9,7 +9,9 @@ import (
 )
 
 // FieldError is one field that failed validation. Key names the field in the
-// form's own vocabulary; Text is the sentence shown in the footer.
+// form's own vocabulary; Text is the sentence shown in the footer. An empty Text
+// marks its field without a sentence of its own (the footer already says it for a
+// sibling), and it is not counted in "(+N more)".
 type FieldError struct{ Key, Text string }
 
 // Validation is what a form's submit found, kept live once a submit was
@@ -59,7 +61,13 @@ func (v Validation) Status() Status {
 		return Status{}
 	}
 	text := v.errs[0].Text
-	if n := len(v.errs) - 1; n > 0 {
+	n := -1 // the first sentence is not "more"
+	for _, e := range v.errs {
+		if e.Text != "" {
+			n++
+		}
+	}
+	if n > 0 {
 		text = fmt.Sprintf("%s (+%d more)", text, n)
 	}
 	return Status{Text: text, Level: LevelError}

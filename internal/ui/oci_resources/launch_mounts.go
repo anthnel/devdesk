@@ -15,7 +15,9 @@ import (
 // OC-20 (DEVDESK-818, S4): a launch that mounts something sensitive of the host
 // asks first. The classification is docker.SensitiveMounts; this file is the
 // form's half: the --mount values of the Volumes field, the check at the submit
-// and the modal that holds the launch back.
+// and the modal that holds the launch back. OC-21 (DEVDESK-819) puts the host
+// network (docker.SharesHostNetwork) behind the same modal: one modal however
+// many reasons, never two in a row.
 
 // The two actions of the modal. The engine socket gets a named action of its own
 // so that no habit (a letter, an enter) can answer for the user.
@@ -24,16 +26,35 @@ const (
 	mountEngineSocketText = "Mount the engine socket"
 )
 
+// The host network in the modal (OC-21). The sentence and the action are fixed:
+// nothing typed is repeated. With sensitive mounts the action of the mount modal
+// is extended by hostNetworkJoin, so the named choice keeps naming every reason.
+const (
+	hostNetworkTitle      = "Host network"
+	hostNetworkReasonText = "The container shares the network of this host, loopback included"
+	hostNetworkActionText = "Use the host network"
+	hostNetworkJoin       = " and use the host network"
+	mountAndHostAction    = "Mount" + hostNetworkJoin
+	mountsAndHostTitle    = "Sensitive mounts and host network"
+	socketAndHostTitle    = "Engine socket and host network"
+)
+
+// hostNetworkFooterText is the footer line while the network field holds the host
+// network, at level Warning and derived on every render (Rule 128), in the form and
+// while the modal is open.
+const hostNetworkFooterText = "This container will share the network of this host"
+
 // engineSocketFooterText is the footer line while the modal names an engine
 // socket, at level Error and derived on every render (Rule 128), so it does not
 // vanish after 3 s.
 const engineSocketFooterText = "Mounting the engine socket gives the container control of the engine"
 
 // mountCheck is a launch held back by the modal: what was submitted and what
-// made it sensitive.
+// made it sensitive, the mounts and/or the host network.
 type mountCheck struct {
-	msg    LaunchFormSubmitMsg
-	mounts []docker.SensitiveMount
+	msg         LaunchFormSubmitMsg
+	mounts      []docker.SensitiveMount
+	hostNetwork bool
 }
 
 // splitVolumeField splits the Volumes field into -v entries and --mount values.
@@ -115,24 +136,35 @@ func hasEngineSocket(mounts []docker.SensitiveMount) bool {
 // the padding (4).
 const mountModalChrome = 6
 
-// newMountModal builds the modal for the mounts of a launch: the resolved path of
-// each with its reason, one action and Cancel (the default). width is the
-// terminal's: the text is wrapped to fit it, a path hard-wrapped so that none of
-// it is cut off; 0 leaves the text as it is.
-func newMountModal(mounts []docker.SensitiveMount, width int) *sharedcomponents.ChoiceModal {
+// newMountModal builds the modal for a held launch: the resolved path of each
+// sensitive mount with its reason, the host network when it is one, one action and
+// Cancel (the default). width is the terminal's: the text is wrapped to fit it, a
+// path hard-wrapped so that none of it is cut off; 0 leaves the text as it is.
+func newMountModal(check *mountCheck, width int) *sharedcomponents.ChoiceModal {
 	limit := 0
 	if width > 0 {
 		limit = max(width-mountModalChrome, 16)
 	}
+	if len(check.mounts) == 0 {
+		return sharedcomponents.NewChoiceModal(hostNetworkTitle, wrapText(hostNetworkReasonText, limit, 0), hostNetworkActionText)
+	}
 	var b strings.Builder
 	title, action := "Sensitive mounts", mountAnywayLabel
-	if hasEngineSocket(mounts) {
+	socket := hasEngineSocket(check.mounts)
+	if socket {
 		title, action = "Engine socket", mountEngineSocketText
 		b.WriteString(wrapText("Mounting the engine socket gives the container control of the engine.", limit, 0) + "\n")
 	}
 	b.WriteString(wrapText("This launch mounts sensitive parts of this host:", limit, 0))
-	for _, m := range mounts {
+	for _, m := range check.mounts {
 		b.WriteString("\n\n" + wrapPath(printable(m.Path), limit) + "\n" + wrapText(m.Reason, limit, 2))
+	}
+	if check.hostNetwork {
+		b.WriteString("\n\n" + wrapText(hostNetworkReasonText, limit, 0))
+		title, action = mountsAndHostTitle, mountAndHostAction
+		if socket {
+			title, action = socketAndHostTitle, mountEngineSocketText+hostNetworkJoin
+		}
 	}
 	return sharedcomponents.NewChoiceModal(title, b.String(), action)
 }
@@ -166,24 +198,36 @@ func indentLines(s string, indent int) string {
 	return strings.Join(lines, "\n")
 }
 
-// holdForSensitiveMounts opens the modal when the submitted launch mounts
-// something sensitive and reports whether it did. The form stays under it, with
-// its values and its focus (Cancel gives it back); nothing is started.
-func (m Model) holdForSensitiveMounts(msg LaunchFormSubmitMsg) (Model, bool) {
+// holdForConfirmation opens the modal when the submitted launch mounts something
+// sensitive of the host or uses the host network, and reports whether it did. The
+// form stays under it, with its values and its focus (Cancel gives it back);
+// nothing is started.
+func (m Model) holdForConfirmation(msg LaunchFormSubmitMsg) (Model, bool) {
 	// Whatever the form's state: a submit that outlives it (esc was pressed while
 	// the message was in flight) is held like any other, never launched unasked.
-	mounts := docker.SensitiveMounts(msg.Opts)
-	if len(mounts) == 0 {
+	check := &mountCheck{
+		msg:         msg,
+		mounts:      docker.SensitiveMounts(msg.Opts),
+		hostNetwork: docker.SharesHostNetwork(msg.Opts.Network),
+	}
+	if len(check.mounts) == 0 && !check.hostNetwork {
 		return m, false
 	}
-	categories := make([]string, len(mounts))
-	for i, s := range mounts {
-		categories[i] = string(s.Category)
+	var reasons []string
+	if len(check.mounts) > 0 {
+		categories := make([]string, len(check.mounts))
+		for i, s := range check.mounts {
+			categories[i] = string(s.Category)
+		}
+		reasons = append(reasons, "sensitive mounts "+strings.Join(categories, ","))
+	}
+	if check.hostNetwork {
+		reasons = append(reasons, "host network")
 	}
 	// Categories only: a path may hold what its owner did not mean to log.
-	log.Printf("INFO [oci_resources] launch held for confirmation: sensitive mounts %s", strings.Join(categories, ","))
-	m.mountModal = newMountModal(mounts, m.width)
-	m.mountPending = &mountCheck{msg: msg, mounts: mounts}
+	log.Printf("INFO [oci_resources] launch held for confirmation: %s", strings.Join(reasons, ", "))
+	m.mountModal = newMountModal(check, m.width)
+	m.mountPending = check
 	return m, true
 }
 

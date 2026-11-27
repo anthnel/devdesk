@@ -455,6 +455,70 @@ Two things about the engine are worth knowing before changing this code:
     `internal/docker/launch_mounts_argv_test.go`,
     `internal/ui/oci_resources/launch_mounts_test.go`.
 
+- **A launch refuses what reads as a flag and asks before the host network (OC-21,
+  DEVDESK-819, requirement S4).** Nothing the form or the launcher is given can
+  produce `--privileged`, `--pid=host` or `--cap-add=SYS_ADMIN`: `buildLaunchArgs`
+  emits only `--pull=never`, `--rm`, `-d`, `-i`, `-t`, `--name`, `--entrypoint`,
+  `-p`, `-e`, `-v`, `--mount`, `--network` and `--user`, each typed value one argv
+  element (`launch_privileged_test.go`, a property over 700 draws on both engines).
+  - **The launcher.** `LaunchContainer` and `BuildLaunchCmd` return
+    `docker.ErrInvalidLaunchOption` (`validateLaunchOptions`, before the
+    environment check and before the engine is looked up: nothing is built or
+    started) when `Image`, `Name`, `Entrypoint`, `User`, `Network` or an entry of
+    `Ports`, `Volumes` or `Mounts` starts with `-`, untrimmed (the form trims).
+    The error and `LaunchLogText` never hold the value, nor the field. `Ports` is in
+    the list although `LoopbackPort` rewrites a spec: it only prefixes a spec that
+    names no address, and `--privileged;x:80` holds two colons, so it read
+    `--privileged;x` as an address and left the element as it was. `Env` is left
+    alone: `NAME=-x` is a value, it travels in the child's environment (OC-14), and
+    a name starting with a dash is refused by `ValidEnvName`. A dash anywhere but
+    first, a path (`/`, `.`, `~`), a volume name and a `--mount` value pass.
+  - **The host network is the form's to ask about**, as the mounts are (OC-20):
+    `docker.SharesHostNetwork(network)` is `host` once trimmed, without regard to
+    case, and the launcher does not call it (`TestLaunchContainerDoesNotSecondGuessTheNetwork`:
+    `--network host` stays two argv elements). The submit holds the launch behind the
+    modal of OC-20 (`holdForConfirmation`, `mountCheck.hostNetwork`): **one modal
+    however many reasons**, Cancel by default, `left` then `enter` the only way to
+    the action, no letter answers. Host network alone: title `Host network`, the
+    sentence `The container shares the network of this host, loopback included` and
+    the action `Use the host network`. With sensitive mounts it names every mount
+    and that sentence, and the action reads `Mount and use the host network`, or
+    `Mount the engine socket and use the host network` (the footer is then the
+    socket's Error). A network restored from the cache is asked about like a chosen
+    one, interactive launches included. While the Network field holds the host
+    network the footer says `This container will share the network of this host` at
+    level Warning, derived on every render (in the form and with the modal open; an
+    Error of the form wins), and the preview shows the `--network host` line in
+    `theme.ColorFooterWarn`; the text `ctrl+y` copies stays plain (`theme.PreviewWarnStyle` is the screen's
+    colour only). That copied text is pasted into a shell, so `shellQuote` quotes
+    every value that holds a character outside `[A-Za-z0-9_./:@%+=,-]` (`*`, `?`,
+    `[`, `~`, `#`, `;`, `$`, `(`, `&`, `|`, a space...), the `-p` entries included.
+    A submit that arrives while the modal holds another one, or after the launch of
+    the same form started (every `enter` builds one message, several can be in
+    flight), is dropped (`isDoubleSubmit`): the held launch is never replaced and no
+    modal opens over a form that is gone.
+  - **A dash in the form** (`LaunchForm.dashFaults`, part of `validate`). Name,
+    Entrypoint, User (trimmed) and each entry of Volumes and Additional ports (the
+    entries the submit splits the field into) that start with `-` refuse the submit:
+    the input is underlined (`theme.StyleInvalidField`, `marks.Sync`), revalidated on
+    each change after the first refused submit, and the footer says
+    `<Label> cannot start with a dash` at level Error (Rule 140), the first field on
+    screen only (the others are underlined with no sentence: a `FieldError` with an
+    empty `Text` is not counted in `(+N more)`). Network (a cycle field) and Image
+    (not a field) have nothing to underline: the footer alone says `Network cannot
+    start with a dash` or `Image cannot start with a dash`. The form accepts only what
+    `BuildLaunchCmd` accepts (`TestAnyCombinationOfFormFieldsIsSafe`, 300 draws).
+  - **Limits.** `container:<id>` (joining another container's network namespace) and
+    `none` are not classified: no modal, `--network` as typed, and never a `--pid` or
+    `--ipc` with it (follow-up). The entrypoint is one argv element, which both
+    engines read as the path of one executable (`sh -c "x"` is stored safely, then
+    fails in the engine); `VerifyEntrypoint` still splices it into `sh -c "command -v
+    ..."` (the temporary exception of guard I1, DEVDESK-947). The check is on what
+    starts the value: a value that reads as a flag after a separator the engine
+    splits on is not a dash value. Tests: `internal/docker/launch_privileged_test.go`,
+    `internal/ui/oci_resources/launch_dash_values_test.go`,
+    `internal/ui/oci_resources/launch_host_network_test.go`.
+
 - **Four typed, read-only reads for the path trace** (`container_network.go`,
   DEVDESK-330, DEVDESK-331), each with a `context.Context` that kills the
   invocation: `InspectContainerNetworking(ctx, id)`, `ListContainersContext(ctx,

@@ -66,12 +66,26 @@ func (m Model) handleClipboardCopy(msg ClipboardCopyMsg) (tea.Model, tea.Cmd) {
 }
 
 // handleLaunchFormSubmitWithCache holds the launch for a confirmation when it
-// mounts something sensitive of the host (OC-20), and starts it otherwise.
+// mounts something sensitive of the host (OC-20) or uses the host network
+// (OC-21), and starts it otherwise.
 func (m Model) handleLaunchFormSubmitWithCache(msg LaunchFormSubmitMsg) (tea.Model, tea.Cmd) {
-	if held, ok := m.holdForSensitiveMounts(msg); ok {
+	if m.isDoubleSubmit() {
+		log.Printf("INFO [oci_resources] launch submit ignored: another one is held or already started")
+		return m, nil
+	}
+	if held, ok := m.holdForConfirmation(msg); ok {
 		return held, nil
 	}
 	return m.startLaunch(msg)
+}
+
+// isDoubleSubmit reports whether a submit arrives while another one of the same
+// form is held behind the modal or already started (every enter builds one message,
+// and several can be in flight): it is dropped, so no modal opens over a form that
+// is gone and the held launch is never replaced by another. A submit that outlives
+// a form closed by esc is not one: nothing was started, so it is held like any other.
+func (m Model) isDoubleSubmit() bool {
+	return m.mountPending != nil || (m.launchForm == nil && m.lastLaunchOpts != nil)
 }
 
 // startLaunch snapshots form state into the pending save fields before

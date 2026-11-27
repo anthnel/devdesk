@@ -59,7 +59,7 @@ func TestLaunchFormPreviewShowsLoopbackForAnAdditionalPortWithoutAddress(t *test
 		{"container port only", "80", []string{"-p 127.0.0.1::80"}},
 		{"several", "8080:80, 9090:90/tcp", []string{"-p 127.0.0.1:8080:80", "-p 127.0.0.1:9090:90/tcp"}},
 		{"explicit loopback is kept", "127.0.0.1:8080:80", []string{"-p 127.0.0.1:8080:80"}},
-		{"explicit IPv6 loopback is kept", "[::1]:8080:80", []string{"-p [::1]:8080:80"}},
+		{"explicit IPv6 loopback is kept", "[::1]:8080:80", []string{"-p '[::1]:8080:80'"}}, // quoted: brackets are a shell pattern
 		{"explicit LAN address is kept", "192.168.1.10:8080:80", []string{"-p 192.168.1.10:8080:80"}},
 	}
 	for _, tt := range tests {

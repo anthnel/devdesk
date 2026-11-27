@@ -21,7 +21,7 @@ func (m *Model) resize(width, height int) {
 	}
 	if m.mountPending != nil {
 		// Wrapped again for the new width; the focus is back on Cancel, the safe side.
-		m.mountModal = newMountModal(m.mountPending.mounts, width)
+		m.mountModal = newMountModal(m.mountPending, width)
 	}
 	if m.resourceForm != nil {
 		m.resourceForm.SetWidth(width - 2)

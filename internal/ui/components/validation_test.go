@@ -187,3 +187,42 @@ func TestInvalidMarksRestylesOnlyOnAChange(t *testing.T) {
 		t.Error("keys must be tracked independently")
 	}
 }
+
+// A FieldError with an empty Text marks its field and says nothing of its own:
+// it is invalid, it is not counted in "(+N more)", and Status stays coherent
+// whatever its position among the others (OC-21).
+func TestValidationAFieldErrorWithNoTextMarksItsFieldOnly(t *testing.T) {
+	silent := FieldError{Key: "s"}
+	tests := []struct {
+		name string
+		errs []FieldError
+		want string
+	}{
+		{"a sentence then a mark", []FieldError{errA, silent}, "A bad"},
+		{"a sentence, a mark, a sentence", []FieldError{errA, silent, errB}, "A bad (+1 more)"},
+		{"two marks after a sentence", []FieldError{errA, silent, silent, errB, errC}, "A bad (+2 more)"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			var v Validation
+			v.Submit(tt.errs)
+
+			if !v.Invalid("s") {
+				t.Error("the field with no text is not marked invalid")
+			}
+			if st := v.Status(); st.Text != tt.want || st.Level != LevelError {
+				t.Errorf("Status() = {%q, level %v}, want {%q, LevelError}", st.Text, st.Level, tt.want)
+			}
+		})
+	}
+
+	t.Run("the marks clear with the errors", func(t *testing.T) {
+		var v Validation
+		v.Submit([]FieldError{errA, silent})
+		v.Revalidate([]FieldError{errB})
+
+		if v.Invalid("s") || v.Status().Text != "B bad" {
+			t.Errorf("after revalidation: s invalid %v, Status %+v", v.Invalid("s"), v.Status())
+		}
+	})
+}
