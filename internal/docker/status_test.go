@@ -3,6 +3,8 @@ package docker
 import (
 	"testing"
 	"time"
+
+	"github.com/anthnel/devdesk/internal/engine"
 )
 
 const day = 24 * time.Hour
@@ -56,18 +58,22 @@ func TestParseStatus(t *testing.T) {
 }
 
 func TestListContainersFillsFacts(t *testing.T) {
-	stubOutput(t, "ps",
-		"abc123\tjob\tbusybox\texited\tExited (2) 1 minute ago\t2026-07-31 09:00:00 +0200 CEST\t\n")
+	forEachEngine(t, func(t *testing.T, shape engine.Shape) {
+		stubStrict(t, reply{
+			argv: []string{"ps", "--all", "--format", shape.Templates.PS},
+			out:  "abc123\tjob\tbusybox\texited\tExited (2) 1 minute ago\t2026-07-31 09:00:00 +0200 CEST\t\n",
+		})
 
-	got, err := ListContainers(true)
-	if err != nil {
-		t.Fatalf("ListContainers() error = %v", err)
-	}
-	if len(got) != 1 {
-		t.Fatalf("got %d containers, want 1", len(got))
-	}
-	want := StatusFacts{ExitCode: 2, HasExitCode: true, Age: time.Minute, HasAge: true}
-	if got[0].Facts != want {
-		t.Errorf("Facts = %+v, want %+v", got[0].Facts, want)
-	}
+		got, err := ListContainers(true)
+		if err != nil {
+			t.Fatalf("ListContainers() error = %v", err)
+		}
+		if len(got) != 1 {
+			t.Fatalf("got %d containers, want 1", len(got))
+		}
+		want := StatusFacts{ExitCode: 2, HasExitCode: true, Age: time.Minute, HasAge: true}
+		if got[0].Facts != want {
+			t.Errorf("Facts = %+v, want %+v", got[0].Facts, want)
+		}
+	})
 }

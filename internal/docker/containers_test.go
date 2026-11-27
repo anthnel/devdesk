@@ -6,84 +6,102 @@ import (
 	"slices"
 	"testing"
 	"time"
+
+	"github.com/anthnel/devdesk/internal/engine"
 )
 
+// The `ps` template is the engine's own (engine.Templates.PS), so the parse is
+// checked once per engine against the argv that engine is asked for.
 func TestListContainersParsesTabSeparatedOutput(t *testing.T) {
-	stubOutput(t, "ps",
-		"abc123\tweb\tnginx:1.25\trunning\tUp 2 hours\t2026-08-01 10:00:00 +0200 CEST\t0.0.0.0:80->80/tcp\n"+
-			"def456\tdb\tpostgres:16\texited\tExited (0) 5 minutes ago\t2026-07-31 09:00:00 +0200 CEST\t\n")
+	forEachEngine(t, func(t *testing.T, shape engine.Shape) {
+		stubStrict(t, reply{
+			argv: []string{"ps", "--all", "--format", shape.Templates.PS},
+			out: "abc123\tweb\tnginx:1.25\trunning\tUp 2 hours\t2026-08-01 10:00:00 +0200 CEST\t0.0.0.0:80->80/tcp\n" +
+				"def456\tdb\tpostgres:16\texited\tExited (0) 5 minutes ago\t2026-07-31 09:00:00 +0200 CEST\t\n",
+		})
 
-	got, err := ListContainers(true)
+		got, err := ListContainers(true)
 
-	if err != nil {
-		t.Fatalf("ListContainers() error = %v", err)
-	}
-	if len(got) != 2 {
-		t.Fatalf("ListContainers() returned %d containers, want 2", len(got))
-	}
-	want := Container{
-		ID: "abc123", Name: "web", Image: "nginx:1.25", State: "running",
-		Status: "Up 2 hours", CreatedAt: "2026-08-01 10:00:00 +0200 CEST",
-		Facts: StatusFacts{Age: 2 * time.Hour, HasAge: true},
-		Ports: []PortBinding{
-			{HostPort: "80", ContainerPort: "80", Protocol: "tcp", Scope: ScopeAll, V4: true},
-		},
-	}
-	if !reflect.DeepEqual(got[0], want) {
-		t.Errorf("first container = %+v, want %+v", got[0], want)
-	}
-	// An empty trailing field must not drop the row or shift the others.
-	if len(got[1].Ports) != 0 || got[1].Name != "db" {
-		t.Errorf("second container = %+v, want db with no ports", got[1])
-	}
+		if err != nil {
+			t.Fatalf("ListContainers() error = %v", err)
+		}
+		if len(got) != 2 {
+			t.Fatalf("ListContainers() returned %d containers, want 2", len(got))
+		}
+		want := Container{
+			ID: "abc123", Name: "web", Image: "nginx:1.25", State: "running",
+			Status: "Up 2 hours", CreatedAt: "2026-08-01 10:00:00 +0200 CEST",
+			Facts: StatusFacts{Age: 2 * time.Hour, HasAge: true},
+			Ports: []PortBinding{
+				{HostPort: "80", ContainerPort: "80", Protocol: "tcp", Scope: ScopeAll, V4: true},
+			},
+		}
+		if !reflect.DeepEqual(got[0], want) {
+			t.Errorf("first container = %+v, want %+v", got[0], want)
+		}
+		// An empty trailing field must not drop the row or shift the others.
+		if len(got[1].Ports) != 0 || got[1].Name != "db" {
+			t.Errorf("second container = %+v, want db with no ports", got[1])
+		}
+	})
 }
 
-// docker ps emits fewer columns on older engines; a short row must be kept when
+// `ps` emits fewer columns on older engines; a short row must be kept when
 // it carries the four fields the UI needs, and skipped when it does not.
 func TestListContainersHandlesShortRows(t *testing.T) {
-	stubOutput(t, "ps", "abc\tweb\tnginx\trunning\nbroken\trow\n")
+	forEachEngine(t, func(t *testing.T, shape engine.Shape) {
+		stubStrict(t, reply{
+			argv: []string{"ps", "--format", shape.Templates.PS},
+			out:  "abc\tweb\tnginx\trunning\nbroken\trow\n",
+		})
 
-	got, err := ListContainers(false)
+		got, err := ListContainers(false)
 
-	if err != nil {
-		t.Fatalf("ListContainers() error = %v", err)
-	}
-	if len(got) != 1 {
-		t.Fatalf("ListContainers() returned %d containers, want 1 (the 2-field row is unusable)", len(got))
-	}
-	if got[0].Status != "" || got[0].State != "running" {
-		t.Errorf("container = %+v, want the four present fields and empty extras", got[0])
-	}
+		if err != nil {
+			t.Fatalf("ListContainers() error = %v", err)
+		}
+		if len(got) != 1 {
+			t.Fatalf("ListContainers() returned %d containers, want 1 (the 2-field row is unusable)", len(got))
+		}
+		if got[0].Status != "" || got[0].State != "running" {
+			t.Errorf("container = %+v, want the four present fields and empty extras", got[0])
+		}
+	})
 }
 
 func TestListContainersPassesAllFlag(t *testing.T) {
 	tests := []struct {
-		name    string
-		all     bool
-		wantAll bool
+		name string
+		all  bool
+		// want builds the exact argv for the engine under test: --all comes
+		// before --format, and --format must survive the flag insertion or
+		// parsing breaks.
+		want func(engine.Templates) []string
 	}{
-		{"all=true asks for stopped containers", true, true},
-		{"all=false lists running only", false, false},
+		{"all=true asks for stopped containers", true, func(tp engine.Templates) []string {
+			return []string{"ps", "--all", "--format", tp.PS}
+		}},
+		{"all=false lists running only", false, func(tp engine.Templates) []string {
+			return []string{"ps", "--format", tp.PS}
+		}},
 	}
 
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			s := stubOutput(t, "ps", "")
+	forEachEngine(t, func(t *testing.T, shape engine.Shape) {
+		for _, tt := range tests {
+			t.Run(tt.name, func(t *testing.T) {
+				want := tt.want(shape.Templates)
+				s := stubStrict(t, reply{argv: want})
 
-			if _, err := ListContainers(tt.all); err != nil {
-				t.Fatalf("ListContainers() error = %v", err)
-			}
+				if _, err := ListContainers(tt.all); err != nil {
+					t.Fatalf("ListContainers() error = %v", err)
+				}
 
-			args := s.lastArgs()
-			if got := slices.Contains(args, "--all"); got != tt.wantAll {
-				t.Errorf("args = %v, --all present = %v, want %v", args, got, tt.wantAll)
-			}
-			// --format must survive the flag insertion, or parsing breaks.
-			if !slices.Contains(args, "--format") {
-				t.Errorf("args = %v, missing --format", args)
-			}
-		})
-	}
+				if !slices.Equal(s.lastArgs(), want) {
+					t.Errorf("args = %q, want %q", s.lastArgs(), want)
+				}
+			})
+		}
+	})
 }
 
 func TestListContainersReportsMissingDocker(t *testing.T) {
@@ -95,51 +113,60 @@ func TestListContainersReportsMissingDocker(t *testing.T) {
 }
 
 func TestGetContainerMetricsParsesPercentagesAndIO(t *testing.T) {
-	stubOutput(t, "stats",
-		"abc123\t12.34%\t150MiB / 8GiB\t1.83%\t1.2kB / 3.4kB\t5MB / 10MB\n")
+	forEachEngine(t, func(t *testing.T, shape engine.Shape) {
+		stubStrict(t, reply{
+			argv: []string{"stats", "--no-stream", "--format", shape.Templates.Stats},
+			out:  "abc123\t12.34%\t150MiB / 8GiB\t1.83%\t1.2kB / 3.4kB\t5MB / 10MB\n",
+		})
 
-	got, err := GetContainerMetrics()
+		got, err := GetContainerMetrics()
 
-	if err != nil {
-		t.Fatalf("GetContainerMetrics() error = %v", err)
-	}
-	m, ok := got["abc123"]
-	if !ok {
-		t.Fatalf("GetContainerMetrics() = %v, missing the container ID key", got)
-	}
-	if m.CPUPercent != 12.34 {
-		t.Errorf("CPUPercent = %v, want 12.34", m.CPUPercent)
-	}
-	if m.MemPercent != 1.83 {
-		t.Errorf("MemPercent = %v, want 1.83", m.MemPercent)
-	}
-	if m.MemUsage != "150MiB / 8GiB" {
-		t.Errorf("MemUsage = %q, want it kept verbatim", m.MemUsage)
-	}
-	if m.NetRX != 1200 || m.NetTX != 3400 {
-		t.Errorf("NetRX/NetTX = %d/%d, want 1200/3400", m.NetRX, m.NetTX)
-	}
-	if m.BlockRX != 5_000_000 || m.BlockTX != 10_000_000 {
-		t.Errorf("BlockRX/BlockTX = %d/%d, want 5000000/10000000", m.BlockRX, m.BlockTX)
-	}
+		if err != nil {
+			t.Fatalf("GetContainerMetrics() error = %v", err)
+		}
+		m, ok := got["abc123"]
+		if !ok {
+			t.Fatalf("GetContainerMetrics() = %v, missing the container ID key", got)
+		}
+		if m.CPUPercent != 12.34 {
+			t.Errorf("CPUPercent = %v, want 12.34", m.CPUPercent)
+		}
+		if m.MemPercent != 1.83 {
+			t.Errorf("MemPercent = %v, want 1.83", m.MemPercent)
+		}
+		if m.MemUsage != "150MiB / 8GiB" {
+			t.Errorf("MemUsage = %q, want it kept verbatim", m.MemUsage)
+		}
+		if m.NetRX != 1200 || m.NetTX != 3400 {
+			t.Errorf("NetRX/NetTX = %d/%d, want 1200/3400", m.NetRX, m.NetTX)
+		}
+		if m.BlockRX != 5_000_000 || m.BlockTX != 10_000_000 {
+			t.Errorf("BlockRX/BlockTX = %d/%d, want 5000000/10000000", m.BlockRX, m.BlockTX)
+		}
+	})
 }
 
 // Engines that omit the BlockIO column still produce usable rows.
 func TestGetContainerMetricsToleratesMissingBlockIO(t *testing.T) {
-	stubOutput(t, "stats", "abc\t1.0%\t10MiB / 1GiB\t1.0%\t1kB / 2kB\n")
+	forEachEngine(t, func(t *testing.T, shape engine.Shape) {
+		stubStrict(t, reply{
+			argv: []string{"stats", "--no-stream", "--format", shape.Templates.Stats},
+			out:  "abc\t1.0%\t10MiB / 1GiB\t1.0%\t1kB / 2kB\n",
+		})
 
-	got, err := GetContainerMetrics()
+		got, err := GetContainerMetrics()
 
-	if err != nil {
-		t.Fatalf("GetContainerMetrics() error = %v", err)
-	}
-	m := got["abc"]
-	if m.BlockIO != "" || m.BlockRX != 0 {
-		t.Errorf("BlockIO = %q / %d, want the zero value", m.BlockIO, m.BlockRX)
-	}
-	if m.NetRX != 1000 {
-		t.Errorf("NetRX = %d, want the row still parsed", m.NetRX)
-	}
+		if err != nil {
+			t.Fatalf("GetContainerMetrics() error = %v", err)
+		}
+		m := got["abc"]
+		if m.BlockIO != "" || m.BlockRX != 0 {
+			t.Errorf("BlockIO = %q / %d, want the zero value", m.BlockIO, m.BlockRX)
+		}
+		if m.NetRX != 1000 {
+			t.Errorf("NetRX = %d, want the row still parsed", m.NetRX)
+		}
+	})
 }
 
 func TestContainerLifecycleCommands(t *testing.T) {
@@ -201,23 +228,28 @@ func TestGetContainerLogsBuildsArgs(t *testing.T) {
 }
 
 func TestFetchContainerStatsCountsByState(t *testing.T) {
-	stubOutput(t, "ps", "running\nrunning\npaused\nexited\ncreated\ndead\n")
+	forEachEngine(t, func(t *testing.T, shape engine.Shape) {
+		stubStrict(t, reply{
+			argv: []string{"ps", "-a", "--format", shape.Templates.PSState},
+			out:  "running\nrunning\npaused\nexited\ncreated\ndead\n",
+		})
 
-	got := FetchContainerStats()
+		got := FetchContainerStats()
 
-	if !got.Available {
-		t.Error("Available = false although docker responded")
-	}
-	if got.Running != 2 {
-		t.Errorf("Running = %d, want 2", got.Running)
-	}
-	if got.Paused != 1 {
-		t.Errorf("Paused = %d, want 1", got.Paused)
-	}
-	// Everything that is neither running nor paused counts as stopped.
-	if got.Stopped != 3 {
-		t.Errorf("Stopped = %d, want 3 (exited, created, dead)", got.Stopped)
-	}
+		if !got.Available {
+			t.Errorf("Available = false although %s responded", shape.Name)
+		}
+		if got.Running != 2 {
+			t.Errorf("Running = %d, want 2", got.Running)
+		}
+		if got.Paused != 1 {
+			t.Errorf("Paused = %d, want 1", got.Paused)
+		}
+		// Everything that is neither running nor paused counts as stopped.
+		if got.Stopped != 3 {
+			t.Errorf("Stopped = %d, want 3 (exited, created, dead)", got.Stopped)
+		}
+	})
 }
 
 // The dashboard renders these counters unconditionally, so a host without

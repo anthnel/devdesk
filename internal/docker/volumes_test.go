@@ -3,29 +3,35 @@ package docker
 import (
 	"slices"
 	"testing"
+
+	"github.com/anthnel/devdesk/internal/engine"
 )
 
 func TestListVolumesParsesOutput(t *testing.T) {
-	stubOutput(t, "volume",
-		"pgdata\tlocal\t/var/lib/docker/volumes/pgdata/_data\n"+
-			"cache\tlocal\n")
+	forEachEngine(t, func(t *testing.T, shape engine.Shape) {
+		stubStrict(t, reply{
+			argv: []string{"volume", "ls", "--format", shape.Templates.VolumeLS},
+			out: "pgdata\tlocal\t/var/lib/docker/volumes/pgdata/_data\n" +
+				"cache\tlocal\n",
+		})
 
-	got, err := ListVolumes()
+		got, err := ListVolumes()
 
-	if err != nil {
-		t.Fatalf("ListVolumes() error = %v", err)
-	}
-	if len(got) != 2 {
-		t.Fatalf("ListVolumes() returned %d volumes, want 2", len(got))
-	}
-	want := Volume{Name: "pgdata", Driver: "local", Mountpoint: "/var/lib/docker/volumes/pgdata/_data"}
-	if got[0] != want {
-		t.Errorf("first volume = %+v, want %+v", got[0], want)
-	}
-	// A missing mountpoint must not drop the row.
-	if got[1].Name != "cache" || got[1].Mountpoint != "" {
-		t.Errorf("second volume = %+v, want cache with no mountpoint", got[1])
-	}
+		if err != nil {
+			t.Fatalf("ListVolumes() error = %v", err)
+		}
+		if len(got) != 2 {
+			t.Fatalf("ListVolumes() returned %d volumes, want 2", len(got))
+		}
+		want := Volume{Name: "pgdata", Driver: "local", Mountpoint: "/var/lib/docker/volumes/pgdata/_data"}
+		if got[0] != want {
+			t.Errorf("first volume = %+v, want %+v", got[0], want)
+		}
+		// A missing mountpoint must not drop the row.
+		if got[1].Name != "cache" || got[1].Mountpoint != "" {
+			t.Errorf("second volume = %+v, want cache with no mountpoint", got[1])
+		}
+	})
 }
 
 func TestCreateVolumeOmitsEmptyDriver(t *testing.T) {

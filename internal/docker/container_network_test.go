@@ -245,23 +245,27 @@ func TestEngineOperatingSystem(t *testing.T) {
 
 func TestListContainersContextArgs(t *testing.T) {
 	const row = "0123456789ab\tweb-1\tnginx\trunning\tUp 1 hour\t1 hour ago\t\n"
-	for _, all := range []bool{false, true} {
-		s := stubOutput(t, "ps", row)
-		got, err := ListContainersContext(context.Background(), all)
-		if err != nil || len(got) != 1 || got[0].Name != "web-1" {
-			t.Fatalf("all=%v got %+v, %v", all, got, err)
+	forEachEngine(t, func(t *testing.T, shape engine.Shape) {
+		for _, all := range []bool{false, true} {
+			want := []string{"ps", "--format", shape.Templates.PS}
+			if all {
+				want = []string{"ps", "--all", "--format", shape.Templates.PS}
+			}
+			s := stubStrict(t, reply{argv: want, out: row})
+
+			got, err := ListContainersContext(context.Background(), all)
+
+			if err != nil || len(got) != 1 || got[0].Name != "web-1" {
+				t.Fatalf("all=%v got %+v, %v", all, got, err)
+			}
+			if len(s.calls) != 1 {
+				t.Errorf("all=%v calls = %v, want exactly %v", all, allArgs(s), want)
+			}
+			if s.calls[0].Ctx == nil {
+				t.Errorf("all=%v Ctx is nil", all)
+			}
 		}
-		want := []string{"ps", "--format", templates().PS}
-		if all {
-			want = []string{"ps", "--all", "--format", templates().PS}
-		}
-		if len(s.calls) != 1 || !slices.Equal(s.calls[0].Args, want) {
-			t.Errorf("all=%v calls = %v, want %v", all, allArgs(s), want)
-		}
-		if s.calls[0].Ctx == nil {
-			t.Errorf("all=%v Ctx is nil", all)
-		}
-	}
+	})
 }
 
 func TestEngineReadsHonourCancellation(t *testing.T) {

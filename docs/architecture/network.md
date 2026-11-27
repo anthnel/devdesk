@@ -43,6 +43,20 @@ Two things about the engine are worth knowing before changing this code:
   podman (`Shape.ParsesSystemDFVerbose`). It is a fixed-width table read at
   offsets taken from its header line, and there is no `--format` that exposes
   per-image unique size.
+- **Tests run once per engine, with a strict stub (OC-07, DEVDESK-804).** A test
+  of `internal/docker` whose result depends on the engine goes through
+  `forEachEngine(t, fn)` (`exec_test.go`): one subtest per `engine.Names()`,
+  `useEngine` applied, the original engine restored by a `Cleanup` registered
+  before `fn` runs. It pairs with `stubStrict(t, reply{argv, out, err}...)`: a
+  `stubRunner` with a `report` is strict, matches the whole argv (so a wrong
+  template fails, where the old stub only read the subcommand) and fails the test
+  with the argv quoted through `%q` for `Run` and `Build` alike; a reply the
+  code never asked for fails it too, at cleanup. Strictness is
+  opt-in: a `stubRunner` without `report` keeps its per-subcommand behaviour, so
+  tests migrate one by one. `TestForEachEngineCoversEveryConfiguredEngine`
+  (`foreach_test.go`) fails when `config.ContainerEngines()` and the engines the
+  helper runs diverge; it stands in for the guard of `TestEveryConfiguredEngineHasAShape`
+  (`internal/engine`), which cannot see the helper.
 
 - **Four typed, read-only reads for the path trace** (`container_network.go`,
   DEVDESK-330, DEVDESK-331), each with a `context.Context` that kills the
