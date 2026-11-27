@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	"github.com/anthnel/devdesk/internal/engine"
+	"github.com/anthnel/devdesk/internal/engineguard"
 )
 
 // dockerCmd describes one CLI invocation.
@@ -59,11 +60,13 @@ type dockerRunner interface {
 type cliRunner struct{}
 
 func (cliRunner) LookPath() error {
+	engineguard.Check("LookPath", engine.Current().Binary)
 	_, err := exec.LookPath(engine.Current().Binary)
 	return err
 }
 
 func (cliRunner) Build(args ...string) *exec.Cmd {
+	engineguard.Check("Build", engine.Current().Binary)
 	return exec.Command(engine.Current().Binary, args...) //nolint:gosec // the binary is a declared engine name or a path the user configured
 }
 
@@ -82,6 +85,7 @@ func (cliRunner) Run(dc dockerCmd) ([]byte, error) {
 	if dc.Helper != "" {
 		name = credentialHelperPrefix + dc.Helper
 	}
+	engineguard.Check("Run", name)
 	cmd := exec.Command(name, dc.Args...) //nolint:gosec // helper name comes from the engine's own auth file
 	if dc.Ctx != nil {
 		cmd = exec.CommandContext(dc.Ctx, name, dc.Args...) //nolint:gosec // same argument as above

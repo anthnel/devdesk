@@ -269,6 +269,14 @@ path rather than `PATH` is not seen by the guard) and on a non-test file importi
 `Install` fails the test if the package has no `TestMain` calling `fakecli.Main` or `fakecli.AsTool`. `Install` uses
 `t.Setenv`, so no `t.Parallel`. See `docs/architecture/network.md`, "Tests and the fake CLI".
 
+**Tests and the real engine (DEVDESK-798, OC-03a).** In a test binary, `cliRunner.LookPath`, `Run` and
+`Build` call `engineguard.Check`: an engine binary resolved outside a directory `fakecli` declared
+(`fakecli.AllowFakeCLIDir`, called by `Install` and `InstallAt`) is **recorded, not refused** (survey mode;
+OC-03b will make it a panic). `mise run engine-survey` lists the offenders (heavy: the whole suite, outside
+`ci`, `check` and `test`). A test that reaches a real engine on purpose calls `engineguard.AllowRealEngine(t)`,
+which fails unless `DEVDESK_ENGINE_CONTRACT=1` and `CI` is empty. No `t.Parallel`. See
+`docs/architecture/network.md`, "Tests and the real engine".
+
 **Test input and colour (DEVDESK-199).** Build keys only through
 `internal/ui/testutil` (`Key`, `Keys`, `Type`, `Paste`, `Text`, `IsText`), never a
 literal `tea.KeyPressMsg` or `tea.Key*`. `Key` returns a
