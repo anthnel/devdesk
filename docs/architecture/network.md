@@ -152,6 +152,44 @@ tests; the code under test starts it by name through `PATH`, as it starts the re
   without either marker. The scenario and the journal are JSON, so an argv that is not valid UTF-8 is
   rewritten on the way: keep it in mind for the fixture replay of OC-08.
 
+### Tests and the real engine — `internal/engineguard` (OC-03a, DEVDESK-798)
+
+Guard G1, **in survey mode**: nothing fails yet. `internal/engineguard` is production code (standard
+library only, because `internal/docker` imports it and `fakecli` imports `testing`); OC-03b turns the
+record into a panic once the tests it names are fixed.
+
+- `cliRunner.LookPath`, `Run` and `Build` (`internal/docker/exec.go`) each start with
+  `engineguard.Check(op, binary)`. `Run` calls it after `name` is computed, so the credential helpers
+  (`docker-credential-<helper>`) go through the guard as the engine does. Outside a test binary
+  (`testing.Testing()`) `Check` returns at once and resolves nothing.
+- In a test binary `Check` resolves the name with `exec.LookPath` (a name that resolves to nothing is not
+  recorded: nothing can start), then compares the **directory** of the resolved binary, with symbolic
+  links resolved, to the declared directories. A directory is declared exactly: not its parents, not its
+  children. A binary elsewhere is a `Hit{Test, Op, Binary}` (`Op` is `LookPath`, `Run` or `Build`), kept in
+  memory (`Hits()`) and, when `DEVDESK_ENGINE_SURVEY` names a file, appended to it with `O_APPEND`, one
+  `Test<TAB>Op<TAB>Binary` line per hit. The call goes on exactly as before.
+- `Hit.Test` is `package.TestName`, read on the stack (the first `Test*` function of a `_test.go` file,
+  innermost first, so a subtest closure names its top-level test). With no test frame (a goroutine, a
+  `tea.Cmd`) it reads `(no test frame) <package> <first caller outside it>`.
+- Declaring: `fakecli.AllowFakeCLIDir(t, dir)` (`engineguard.AllowDir`) declares `dir` for the length of
+  `t`. `fakecli.Install` calls it on its directory and `(*Fake).InstallAt` on the directory it links
+  into; a test that builds a fake by another means calls it itself. `engineguard.Isolate(t)` gives the
+  test a fresh record and no survey file, so a test that reaches an engine on purpose stays out of the list.
+- `engineguard.AllowRealEngine(t)` is for the contract tests that may reach a real engine: it calls
+  `t.Fatalf`, never `Skip`, unless `DEVDESK_ENGINE_CONTRACT=1` and `CI` is empty
+  (`engineguard.ContractGate`), then stops recording that test's reaches. `Isolate`, `AllowDir` and
+  `AllowRealEngine` panic outside a test binary.
+- `mise run engine-survey` runs `go test -count=1 ./...` with `DEVDESK_ENGINE_SURVEY` set to a temporary
+  file, then prints `engineguard.Summary` (sorted, one line per distinct reach, or `none: ...` for a clean
+  suite) through `internal/engineguard/cmd/engine-survey`. It runs the whole suite, so it is heavy and is
+  part of none of `ci`, `check`, `test` or `test-race`
+  (`TestMiseEngineSurveyTaskStaysOutOfTheStandardChecks`).
+- Limits: each test process keeps its own record (the file is what joins them, and a process the code
+  under test starts is not a test binary); a reach from a goroutine has no test name, only the caller;
+  a name `LookPath` cannot resolve is not seen; the credential helpers are judged on the binary they
+  resolve to, like the engine; the declarations, the record and the gate are globals, so no
+  `t.Parallel` in a test that uses them.
+
 ## OCI registries — `internal/oci`
 
 `internal/oci/oci.go` — an OCI **registry** HTTP client: list tags,

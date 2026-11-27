@@ -516,3 +516,46 @@ func TestMiseRecordTaskNeedsNoKubectlAndSaysWhatItNeeds(t *testing.T) {
 		}
 	}
 }
+
+// engine-survey (DEVDESK-798, OC-03a) runs the whole suite once to list the tests
+// that reach a real container engine. It is heavy, so none of the standard checks
+// may run it, and it must hand the survey file to the processes of the suite.
+func TestMiseEngineSurveyTaskStaysOutOfTheStandardChecks(t *testing.T) {
+	const name = "engine-survey"
+	f := loadMise(t)
+	task, ok := f.task(name)
+	if !ok {
+		t.Fatalf("mise.toml has no task %q", name)
+	}
+	for _, want := range []string{"DEVDESK_ENGINE_SURVEY=", "go test -count=1 ./...", "./internal/engineguard/cmd/engine-survey"} {
+		if !strings.Contains(task["run"], want) {
+			t.Errorf("run of %s does not contain %q:\n%s", name, want, task["run"])
+		}
+	}
+	if strings.TrimSpace(task["description"]) == "" {
+		t.Errorf("%s has no description, so `mise tasks` lists it blank", name)
+	}
+	for _, root := range []string{"ci", "check", "test", "test-race"} {
+		seen := map[string]bool{}
+		queue := []string{root}
+		for len(queue) > 0 {
+			current := queue[0]
+			queue = queue[1:]
+			if seen[current] {
+				continue
+			}
+			seen[current] = true
+			if current == name {
+				t.Errorf("%s reaches %s", root, name)
+				continue
+			}
+			keys, _ := f.task(current)
+			for k, v := range keys {
+				if strings.Contains(v, name) {
+					t.Errorf("task %s (reached from %s) mentions %q in %s", current, root, name, k)
+				}
+			}
+			queue = append(queue, miseRefs(keys)...)
+		}
+	}
+}
