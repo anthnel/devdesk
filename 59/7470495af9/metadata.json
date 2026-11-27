@@ -1,0 +1,61 @@
+{
+  "cli_version": "0.13.2",
+  "checkpoint_id": "597470495af9",
+  "strategy": "manual-commit",
+  "branch": "feat/oc-06-destructive-verbs-guard",
+  "checkpoints_count": 2,
+  "files_touched": [
+    "docs/architecture/network.md",
+    "internal/docker/containers.go",
+    "internal/docker/containers_test.go",
+    "internal/docker/destructive_ids_test.go",
+    "internal/docker/engine_test.go",
+    "internal/docker/exec_test.go",
+    "internal/docker/identifier.go",
+    "internal/docker/images.go",
+    "internal/docker/images_test.go",
+    "internal/docker/lifecycle_ids_test.go",
+    "internal/docker/networks.go",
+    "internal/docker/volumes.go",
+    "internal/engineguard/destructive_guard_test.go",
+    "internal/ui/oci_resources/commands_test.go"
+  ],
+  "sessions": [
+    {
+      "metadata": "/59/7470495af9/0/metadata.json",
+      "transcript": "/59/7470495af9/0/full.jsonl",
+      "compact_transcript": "/59/7470495af9/0/transcript.jsonl",
+      "content_hash": "/59/7470495af9/0/content_hash.txt",
+      "prompt": "/59/7470495af9/0/prompt.txt"
+    }
+  ],
+  "token_usage": {
+    "input_tokens": 38,
+    "cache_creation_tokens": 26057,
+    "cache_read_tokens": 2915511,
+    "output_tokens": 10368,
+    "api_call_count": 12,
+    "subagent_tokens": {
+      "input_tokens": 118,
+      "cache_creation_tokens": 419590,
+      "cache_read_tokens": 3912352,
+      "output_tokens": 65703,
+      "api_call_count": 56
+    },
+    "subagent_tokens_complete": true
+  },
+  "redaction": {
+    "replacements": 16,
+    "layers": {
+      "betterleaks": 0,
+      "connection_string": 0,
+      "credential_key": 0,
+      "credential_value": 0,
+      "credentialed_uri": 0,
+      "entropy": 0,
+      "key_context": 16,
+      "provider_token": 0,
+      "shell_stdin": 0
+    }
+  }
+}
