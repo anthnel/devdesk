@@ -1654,7 +1654,15 @@ it.
 **The API.** `teaexec.Process(*exec.Cmd, tea.ExecCallback)` replaces
 `tea.ExecProcess`; `teaexec.Command(tea.ExecCommand, tea.ExecCallback)` replaces
 `tea.Exec`. Both return a `tea.Cmd`. `Process` sets a stream only when it is
-nil, like Bubble Tea's own `osExecCommand`.
+nil, like Bubble Tea's own `osExecCommand`. `teaexec.Pipe(producer, consumer
+*exec.Cmd, fn)` (and `NewPipe`, the `tea.ExecCommand` behind it, run through
+`Command`, so the settle delay applies) is `producer | consumer` with a Go pipe
+and no shell (OC-84, DEVDESK-801): the producer starts first with stdout and
+stderr on one pipe, the consumer second with the pipe as stdin (`SetStdin` is
+ignored; a pager reads its keys from the terminal itself), and when the consumer
+ends the producer is killed and waited for. Only the consumer's error is
+returned; a producer or a consumer that cannot start fails the run and ends
+what was started. The `V` pager of the viewer is its one user.
 
 **The rule.** No code outside the package calls `tea.ExecProcess`, `tea.Exec` or
 `tea.Suspend`. `source_guard_test.go` (`TestNoDirectTeaExecOutsideTeaexec`) scans

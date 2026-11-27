@@ -11,7 +11,7 @@
 //
 // Nothing done in the ExecCallback can fix this, as it runs after the race is
 // decided. Holding the terminal for a minimum time inside Run lets the old
-// goroutine finish. Every exec goes through Process or Command; a source guard
+// goroutine finish. Every exec goes through Process, Command or Pipe; a source guard
 // forbids calling tea.ExecProcess, tea.Exec and tea.Suspend elsewhere.
 package teaexec
 

@@ -338,21 +338,33 @@ their reasons apply to any text this application shows. Every `docker inspect`
 pager path is gone, Windows temp files included. `V` survives for logs alone,
 because `less` handles a gigabyte and follows it.
 
-**`PagerCmd` carries no quote, on either branch.** Go's `exec.Command` escapes
-an argument's inner quotes as `\"` when it builds a Windows command line, and
-`cmd.exe` does not understand that escaping — it reads the backslashes as part
-of the path. So `more "%TEMP%\devdesk-logs.txt"` reached cmd as
-`C:\C:\Users\...\devdesk-logs.txt\`, which it refused, and `V` returned to
-DevDesk instantly with an exit status nobody rendered: on Windows the pager
-never once worked. Measured by running the exact string through
-`exec.Command`, not deduced.
+**`V` pipes an argv into the pager, with no shell (OC-84, DEVDESK-801).** The
+first design handed `sh -c "<engine> logs ... | ${PAGER:-less} -R"` (and
+`cmd /c` on Windows) to the terminal, which put the container ID, the engine
+path and the `PAGER` value on a shell command line. That path is gone.
+`Pageable.PagerFeed() (*exec.Cmd, error)` replaces `PagerCmd`: for the logs
+source it is `docker.LogsCmd(ID, logsTail)`, which validates the ID with
+`IsContainerID` (`ErrInvalidContainerID`) and builds `<engine> logs --tail N ID`
+through the runner, with no stream set. `openPager` then:
 
-The temp file went with the quotes, because its stated reason was false: **`more`
-reads a pipe** — `dir | more` is its canonical use. The two branches now differ
-only in the shell and the pager's name, nothing touches disk, and no path needs
-quoting. The container ID is still interpolated into a shell string, which is
-safe only because it comes from `docker ps`; do not extend that to a value the
-user types.
+- resolves the pager with `pager.Resolve(cfg.App.Pager, os.Getenv("PAGER"),
+  runtime.GOOS)` (config, then `PAGER`, then `less -R`, `more` on Windows; see
+  `configuration.md`, `app.pager`), reports an unreadable or empty one in the
+  footer, and never falls back to another program;
+- looks the program up with `exec.LookPath` **before** asking for the feed, and
+  reports a missing one in the footer (`Cannot find the pager — ...`);
+- asks the source for the feed and reports a refusal in the footer, level Error
+  (`Pager refused — <reason>`);
+- returns `teaexec.Pipe(feed, pager, ...)`: the feed is started first with its
+  stdout and stderr on one pipe (what `2>&1` did), the pager second with that
+  pipe as stdin, and when the pager ends the feed is killed and waited for, so
+  `logs` never outlives the pager. Only the pager's error comes back.
+
+The guard `pager_guard_test.go` fails on a shell name, a `-c` or `/c` flag, or a
+pipeline fragment among the string literals of `update.go`, `viewer/source.go`
+and `containers/sources.go`. The Windows quote trap of the old design (Go's
+`\"` escaping against `cmd.exe`) no longer applies, since no string is parsed
+by `cmd.exe`; the temp file went earlier, because `more` reads a pipe.
 
 A failed pager is now **reported** (`Pager failed — check logs`). One that
 cannot start comes back in milliseconds and is indistinguishable from one the

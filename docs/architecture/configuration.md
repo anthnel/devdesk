@@ -197,6 +197,23 @@ cycling auto → docker → podman would otherwise re-resolve three times.
 views is not enough on its own — they would be rebuilt against the engine that
 is still resolved.
 
+**`app.pager`** is the command `V` pipes a container log into (OC-84,
+DEVDESK-801), a command line such as `less -R` or `bat --paging=always`. It is
+`omitempty`: absent means the `PAGER` environment variable, then `less -R`
+(`more` on Windows); a blank value counts as absent. `internal/pager.Split` cuts
+the line into argv elements itself (blanks separate, single or double quotes
+group, a backslash is an ordinary character) and the program is started
+directly: **no shell reads it**, so `;`, `|`, `$(...)` or a backtick is an
+ordinary character, and `$HOME`, `~` and globs are not expanded. A line that
+cannot be cut (an unterminated quote) is refused in the footer, never replaced
+by another pager. When the program is `less` and no argument already passes
+colours through (`-R`, `-r`, `--raw-control-chars`), `-R` is added, as the old
+fixed command line did, and only then. `app.pager` and `PAGER` name an
+executable started without a shell: a Windows `.bat` or `.cmd` script is
+discouraged (Windows runs it through `cmd.exe`), and a line whose program is
+empty (`""`) or not found on `PATH` is refused in the footer before the engine's
+`logs` is built. It has no field in `:cfg`.
+
 **No secret goes in this file.** `GitLabConfig` has no `Token` and
 `RegistryConfig` has no `Password`; both live in the host secret store (see
 Credentials Management). Do not add a secret-bearing field back — the schema is

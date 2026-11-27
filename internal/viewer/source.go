@@ -69,7 +69,12 @@ type Followable interface {
 // do. Every other pager path in the application is deleted by this view.
 type Pageable interface {
 	Source
-	PagerCmd() *exec.Cmd
+	// PagerFeed returns the command whose combined output is paged, built as
+	// an argv and not started: the viewer pipes it into the pager it resolved
+	// itself (teaexec.Pipe), and no shell is involved. An error means the
+	// source refuses to start it (a malformed container ID); nothing is
+	// launched.
+	PagerFeed() (*exec.Cmd, error)
 }
 
 // Pathed is a source backed by a real file on disk. It unlocks `O`, handing

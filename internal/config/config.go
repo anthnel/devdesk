@@ -175,6 +175,12 @@ type AppConfig struct {
 	IDECommand      string `yaml:"ide_command"`
 	TerminalCommand string `yaml:"terminal_command"` // e.g. "kitty --directory" — empty = auto-detect
 
+	// Pager is the command `V` pipes a container log into, e.g. "less -R" or
+	// "bat --paging=always". Empty means the PAGER environment variable, then
+	// less -R (more on Windows). DevDesk splits the line itself and starts the
+	// program directly: no shell reads it (internal/pager, OC-84).
+	Pager string `yaml:"pager,omitempty"`
+
 	// TerminalNewWindow decides what T does: open a shell in place, suspending
 	// the TUI (false, the default), or launch a separate terminal window (true).
 	//

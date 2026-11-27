@@ -1,13 +1,10 @@
 package containers
 
 import (
-	"fmt"
 	"os/exec"
-	"runtime"
 	"time"
 
 	"github.com/anthnel/devdesk/internal/docker"
-	"github.com/anthnel/devdesk/internal/engine"
 	"github.com/anthnel/devdesk/internal/viewer"
 )
 
@@ -84,49 +81,17 @@ const followInterval = 2 * time.Second
 // one.
 func (s logsSource) FollowInterval() time.Duration { return followInterval }
 
-// PagerCmd hands the log to the system pager.
+// PagerFeed is the command whose output the viewer pipes into the system pager.
 //
 // This is the one pager path the viewer keeps, and it is kept for a reason the
 // viewport cannot answer: `less` handles a gigabyte and follows it, while the
 // viewport holds the whole document in memory.
 //
-// **No quotes, on either branch, and that is load-bearing on Windows.** The
-// Windows branch used to write to a temp file and page that:
-//
-//	docker logs --tail 500 ID > "%TEMP%\devdesk-logs.txt" 2>&1 && more "%TEMP%\devdesk-logs.txt"
-//
-// It never worked. Go's exec.Command escapes an argument's inner quotes as `\"`
-// when it builds the Windows command line, and cmd.exe does not understand that
-// escaping — it sees the backslashes as part of the path. The result was
-// `C:\C:\Users\...\devdesk-logs.txt\`, cmd answering "the filename, directory
-// name or volume label syntax is incorrect", and the pager returning to DevDesk
-// instantly with an exit status nobody rendered. Measured, by running the exact
-// string through exec.Command.
-//
-// The temp file went with it, because the reason given for it was not true:
-// `more` reads a pipe perfectly well — `dir | more` is its canonical use — so
-// the two branches now differ only in the shell and the pager's name. Nothing
-// is written to disk, and no path needs quoting.
-//
-// The container ID is interpolated into a shell string, which is only safe
-// because it comes from the engine's own `ps`. Do not extend this to a value
-// the user types.
-//
-// The engine binary is interpolated too, and deliberately **not** quoted:
-// TestThePagerCommandCarriesNoQuote forbids a quote anywhere in this command,
-// because exec.Command escapes it and cmd.exe does not understand that — a
-// debugging session's worth of reason, and not one to undo for this.
-//
-// The stated cost: an app.container_engine set to a path containing a space
-// breaks `V` here, and only here — every other invocation goes through
-// exec.Command, which needs no quoting at all. A name (docker, podman) and any
-// ordinary path are unaffected.
-func (s logsSource) PagerCmd() *exec.Cmd {
-	bin := engine.Current().Binary
-	if runtime.GOOS == "windows" {
-		return exec.Command("cmd", "/c",
-			fmt.Sprintf("%s logs --tail %d %s 2>&1 | more", bin, logsTail, s.ID))
-	}
-	return exec.Command("sh", "-c",
-		fmt.Sprintf("%s logs --tail %d %s 2>&1 | ${PAGER:-less} -R", bin, logsTail, s.ID))
+// It is an argv built by docker.LogsCmd from a validated ID, never a string for
+// a shell (OC-84, DEVDESK-801): the viewer connects its output to the pager's
+// stdin with a Go pipe (teaexec.Pipe), and an engine path containing a space,
+// which the old `sh -c` and `cmd /c` forms could not carry, works here like
+// anywhere else.
+func (s logsSource) PagerFeed() (*exec.Cmd, error) {
+	return docker.LogsCmd(s.ID, logsTail)
 }
