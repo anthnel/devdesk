@@ -79,6 +79,52 @@ Two things about the engine are worth knowing before changing this code:
   `engine.Templates`.
 - `internal/docker/netdiag.go` — **gone**. §3.33 took the five probes that did not need a container, §3.43 the ports table, §3.44 the topology (and with it `docker/topology.go` and the last `--privileged`), §3.47 the route trace and the file itself (the trace came back in the process as `internal/nettrace`, DEVDESK-327). §3.61 removed the OCI connectivity test, and with it the last container this application runs for a diagnostic: `networks.go` now holds only `ListNetworks`, `CreateNetwork`, `RemoveNetwork`, `PruneNetworks` and `InspectNetwork`.
 
+### Tests and the fake CLI — `internal/testutil/fakecli` (OC-02, DEVDESK-797)
+
+One fake binary stands in for `docker`, `podman`, `kind`, `kubectl` and the scanners in
+tests; the code under test starts it by name through `PATH`, as it starts the real tool.
+
+- `fakecli.Install(t, src, tools...)` links the test binary under each tool name in a directory that
+  becomes the whole `PATH` (a copy on Windows), and returns a `*Fake` (`Dir()`, `Invocations()`).
+  `Source` is `Exchanges() []Exchange`; `Scenario` is the literal one, and the point where a recorded
+  fixture replay (OC-08) plugs in. An `Exchange{Tool, Args, Prefix, Reply{Stdout, Stderr, Exit}}`
+  matches an argv element by element: exact beats prefix, the longest prefix wins, then the first
+  declared; an empty `Args` with `Prefix` is a catch-all, an empty `Tool` any tool.
+- The test binary answers as the tool when `fakecli.Main(m)` is the body of `TestMain`
+  (`os.Exit(fakecli.Main(m))`). A `TestMain` that prepares state first (a temporary `HOME`) calls
+  `fakecli.AsTool()` before it, as `internal/ui/oci_resources`, `internal/scan` and `internal/ui/netdiag` do.
+  Without it the fake would run the whole suite again each time it is started, so `Install` and
+  `InstallAt` fail the test (`t.Fatalf`) unless `AsTool` ran in the process (an atomic flag set at the top
+  of `AsTool`, which `Main` calls). A tool name installed twice in one directory fails too, instead of
+  writing through the first link into the test binary.
+- `(*Fake).InstallAt(t, dir, name)` links one more tool outside `PATH` and answers the same scenario: the
+  binary a configuration names by its path (`scan.trivy_path`) or an engine shape's `Binary`
+  (`engine.Shape.Binary`, `scan` container tests, `netdiag` path reads). The child environment is what
+  the code under test gave it, and `Invocation.Env` reads it back.
+- Strict mode: an argv no exchange covers is written on the tool's stderr as `%q`, exits 127, and
+  fails the test at cleanup with the tool and the argv. `Invocations()` holds every run (tool, argv,
+  environment, matched), oldest first; the journal is one JSON line per run in a file under
+  `t.TempDir()`.
+- `Install` sets `PATH` through `t.Setenv`: no `t.Parallel`, and no real tool is reachable.
+- Strictness: `ui/oci_resources` declares every argv it expects (`fakeScript` keys are prefixes). The
+  `scan` helpers `installTools`, `asScanner` and `installToolAt` answer every argv of their tools with a
+  `Prefix` catch-all, so they are not strict, as before: those tests are about what detection or the
+  runner concludes from the answer, not about the argv. A test that cares installs its own scenario.
+- Migrated: `ui/oci_resources` (`installFakeDocker`/`installFakeTools` keep their prefix-script
+  shape on top of `fakecli`), `scan` (`installTools`, `asScanner`, `installToolAt`, and the two
+  `containerToolVersion` tests that reach the fake through `engine.Shape.Binary`), `ui/netdiag`
+  (`recordedEngineCalls`), `engine`, `docker` (credential helpers). Still on their own fake, by decision: `nexusbench` (OC-02 follow-up), `app`
+  (`scan_tools_hermetic_test.go`, with OC-03b), and `browser` and `clipboard` for good (not engine
+  tools).
+- Guard (`internal/testutil/fakecli/guard_test.go`, read with `go/parser`): F1, a non-test file
+  importing `fakecli` (it imports `testing`); F2, a `_test.go` file that overrides `PATH` and copies
+  the test binary (`os.Executable`) or writes a `#!` script. F2 has a list of exceptions,
+  `legacyFakes`, that only shrinks (a stale entry fails). It does not see a `PATH` set through
+  `Cmd.Env`, a helper in another package, a fake reached through `engine.Shape.Binary` or a path in the
+  configuration rather than `PATH` (the ones found are migrated, but a new one is not caught), or a shim
+  without either marker. The scenario and the journal are JSON, so an argv that is not valid UTF-8 is
+  rewritten on the way: keep it in mind for the fixture replay of OC-08.
+
 ## OCI registries — `internal/oci`
 
 `internal/oci/oci.go` — an OCI **registry** HTTP client: list tags,

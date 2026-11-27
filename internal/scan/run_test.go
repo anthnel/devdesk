@@ -3,39 +3,30 @@ package scan
 import (
 	"context"
 	"errors"
-	"fmt"
 	"io"
 	"log"
 	"os"
 	"os/exec"
-	"slices"
-	"strconv"
 	"strings"
 	"testing"
 
 	"github.com/anthnel/devdesk/internal/netproxy"
+	"github.com/anthnel/devdesk/internal/testutil/fakecli"
 	"github.com/anthnel/devdesk/internal/trust"
 )
 
 // The package drives trivy and gitleaks as subprocesses, so the production
-// runner cannot be exercised without both installed. Instead the test binary
-// re-executes itself: TestMain notices the helper variables and behaves the way
-// a scanner does — a report on stdout, progress on stderr, and an exit code that
-// may mean "I found something" rather than "I failed".
-const (
-	helperMode   = "DEVDESK_SCAN_HELPER"
-	helperStdout = "DEVDESK_SCAN_HELPER_STDOUT"
-	helperStderr = "DEVDESK_SCAN_HELPER_STDERR"
-	helperExit   = "DEVDESK_SCAN_HELPER_EXIT"
-	// helperFailOn names an argument the helper refuses. One binary is asked
-	// several different things — `docker images` and `docker run` both go to
-	// the same fake — so failing has to be selectable per subcommand.
-	helperFailOn = "DEVDESK_SCAN_HELPER_FAIL_ON"
-)
+// runner cannot be exercised without both installed. Instead the shared fake
+// binary of internal/testutil/fakecli (OC-02) is started under the name
+// "scanner" and behaves the way a scanner does — a report on stdout, progress on
+// stderr, and an exit code that may mean "I found something" rather than "I
+// failed".
 
 func TestMain(m *testing.M) {
-	if os.Getenv(helperMode) == "1" {
-		os.Exit(runAsHelper())
+	// The fake docker, trivy... of installTools and the scanner of asScanner are
+	// this binary started under another name; they answer before anything else.
+	if code, ok := fakecli.AsTool(); ok {
+		os.Exit(code)
 	}
 	// Scan logs the command of every stage it starts, which is useful in the
 	// application and pure noise across a suite that runs hundreds of them.
@@ -59,36 +50,14 @@ func TestMain(m *testing.M) {
 	os.Exit(m.Run())
 }
 
-func runAsHelper() int {
-	if refused := os.Getenv(helperFailOn); refused != "" && slices.Contains(os.Args[1:], refused) {
-		_, _ = fmt.Fprintln(os.Stderr, "cannot connect to the daemon")
-		return 1
-	}
-	if out := os.Getenv(helperStdout); out != "" {
-		_, _ = fmt.Fprint(os.Stdout, out)
-	}
-	if diag := os.Getenv(helperStderr); diag != "" {
-		for line := range strings.SplitSeq(diag, "\n") {
-			_, _ = fmt.Fprintln(os.Stderr, line)
-		}
-	}
-	code, _ := strconv.Atoi(os.Getenv(helperExit))
-	return code
-}
-
-// asScanner points a toolCmd at the test binary and tells it what to produce.
+// asScanner installs a "scanner" that answers any argv with the given stdout,
+// stderr and exit code, and returns the toolCmd that starts it.
 func asScanner(t *testing.T, stdout, stderr string, exit int) toolCmd {
 	t.Helper()
-	self, err := os.Executable()
-	if err != nil {
-		t.Fatalf("locating the test binary: %v", err)
-	}
-	t.Setenv(helperMode, "1")
-	t.Setenv(helperStdout, stdout)
-	t.Setenv(helperStderr, stderr)
-	t.Setenv(helperExit, strconv.Itoa(exit))
-	t.Setenv(helperFailOn, "")
-	return toolCmd{Name: self}
+	fakecli.Install(t, fakecli.Scenario{
+		{Tool: "scanner", Prefix: true, Reply: fakecli.Reply{Stdout: stdout, Stderr: stderr, Exit: exit}},
+	}, "scanner")
+	return toolCmd{Name: "scanner"}
 }
 
 // ── The production runner ────────────────────────────────────────────────────

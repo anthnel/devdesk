@@ -2,14 +2,13 @@ package scan
 
 import (
 	"os"
-	"path/filepath"
-	"runtime"
 	"slices"
 	"strings"
 	"testing"
 
 	"github.com/anthnel/devdesk/internal/engine"
 	"github.com/anthnel/devdesk/internal/netproxy"
+	"github.com/anthnel/devdesk/internal/testutil/fakecli"
 )
 
 // DEVDESK-583, step 3: every `<engine> run --rm` goes through containerRun.cmd,
@@ -392,33 +391,37 @@ func TestContainerVersionCmdProxy(t *testing.T) {
 }
 
 // TestContainerToolVersionProxyEnvironment runs containerToolVersion through a
-// fake engine: the proxy names are in its argv, the values only in the
-// environment it was started with.
+// fake engine (internal/testutil/fakecli, reached through the binary the shape
+// names): the proxy names are in its argv, the values only in the environment
+// it was started with.
 func TestContainerToolVersionProxyEnvironment(t *testing.T) {
-	if runtime.GOOS == "windows" {
-		t.Skip("the fake engine is a shell script")
-	}
 	useProxy(t, forwardOf(fullProxy))
-	script := filepath.Join(t.TempDir(), "docker")
-	body := "#!/bin/sh\nfor a in \"$@\"; do printf '%s\\n' \"$a\"; done\n" +
-		"printf 'env:HTTP_PROXY=%s\\n' \"$HTTP_PROXY\"\n" +
-		"printf 'env:https_proxy=%s\\n' \"$https_proxy\"\n" +
-		"printf 'env:no_proxy=%s\\n' \"$no_proxy\"\n"
-	if err := os.WriteFile(script, []byte(body), 0o755); err != nil { //nolint:gosec // a test script must be executable
-		t.Fatal(err)
-	}
+	fake := fakecli.Install(t, fakecli.Scenario{
+		{Tool: "docker", Prefix: true, Reply: fakecli.Reply{Stdout: "v1\n"}},
+	})
 	shape := engine.ShapeFor(engine.Docker)
-	shape.Binary = script
+	shape.Binary = fake.InstallAt(t, t.TempDir(), "docker")
 	useEngine(t, shape)
 
 	got := containerToolVersion("aquasec/trivy", "--version")
-	want := "docker:run\n--rm\n" +
-		"-e\nHTTP_PROXY\n-e\nhttp_proxy\n-e\nHTTPS_PROXY\n-e\nhttps_proxy\n-e\nNO_PROXY\n-e\nno_proxy\n" +
-		"aquasec/trivy\n--version\n" +
-		"env:HTTP_PROXY=" + fwdHTTPValue + "\n" +
-		"env:https_proxy=" + fwdHTTPSValue + "\n" +
-		"env:no_proxy=" + fwdNoValue + "\n"
-	if got != want {
-		t.Errorf("containerToolVersion =\n%q\nwant\n%q", got, want)
+
+	if want := "docker:v1\n"; got != want {
+		t.Errorf("containerToolVersion = %q, want %q", got, want)
+	}
+	wantArgs := []string{"run", "--rm",
+		"-e", "HTTP_PROXY", "-e", "http_proxy", "-e", "HTTPS_PROXY", "-e", "https_proxy", "-e", "NO_PROXY", "-e", "no_proxy",
+		"aquasec/trivy", "--version"}
+	inv := fake.Invocations()
+	if len(inv) != 1 || !slices.Equal(inv[0].Args, wantArgs) {
+		t.Fatalf("engine runs = %+v, want one with argv %q", inv, wantArgs)
+	}
+	for _, want := range []string{
+		"HTTP_PROXY=" + fwdHTTPValue,
+		"https_proxy=" + fwdHTTPSValue,
+		"no_proxy=" + fwdNoValue,
+	} {
+		if !slices.Contains(inv[0].Env, want) {
+			t.Errorf("the engine environment lacks %q", want)
+		}
 	}
 }

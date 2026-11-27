@@ -26,6 +26,10 @@ import (
 func TestFetchImagesCarriesTheList(t *testing.T) {
 	installFakeDocker(t, fakeScript{
 		"docker image ls": {Stdout: "aaa1111\tapi\tv1\t400MB\t2 days ago\n"},
+		// The list is then completed with disk usage and digests; neither
+		// is what this test is about.
+		"docker system df":     {},
+		"docker image inspect": {},
 	})
 
 	msg, ok := run(t, fetchImages()).(ImagesListMsg)
@@ -62,7 +66,7 @@ func TestFetchImagesReportsAnAbsentDocker(t *testing.T) {
 // message carries both now: the name is still what is shown, and the ID is what
 // lifts the busy marker off the row (§3.22).
 func TestRemoveImageReportsBothTheIDAndTheName(t *testing.T) {
-	installFakeDocker(t, fakeScript{})
+	installFakeDocker(t, fakeScript{"docker rmi": {}})
 
 	msg := run(t, removeImageCmd("sha256:aaa1111", "api:v1")).(ImageActionMsg)
 
@@ -113,7 +117,7 @@ func TestPruneImagesCarriesTheReclaimReport(t *testing.T) {
 }
 
 func TestPullReportsTheImageItWasAskedFor(t *testing.T) {
-	installFakeDocker(t, fakeScript{})
+	installFakeDocker(t, fakeScript{"docker pull": {}})
 
 	msgs := testutil.Msgs(pullOneImageCmd("registry.example.com/api:v1", unverifiedPull()))
 	if len(msgs) != 2 {
@@ -211,7 +215,10 @@ func TestFetchVolumesReportsAnAbsentDocker(t *testing.T) {
 // Create and remove differ only in the verb, and the view distinguishes them by
 // the Action field alone — a wrong one would report "created" after a deletion.
 func TestNetworkAndVolumeActionsNameWhatTheyDid(t *testing.T) {
-	installFakeDocker(t, fakeScript{})
+	installFakeDocker(t, fakeScript{
+		"docker network create": {}, "docker network rm": {},
+		"docker volume create": {}, "docker volume rm": {},
+	})
 
 	cases := []struct {
 		name   string
@@ -383,7 +390,7 @@ func TestALaunchThatDockerRefusesCarriesTheReason(t *testing.T) {
 // survive the round trip unchanged — the command is debounced and the user
 // keeps typing while it runs.
 func TestEntrypointVerificationCarriesItsSequenceNumber(t *testing.T) {
-	installFakeDocker(t, fakeScript{})
+	installFakeDocker(t, fakeScript{"docker run": {}})
 
 	msg := run(t, verifyEntrypointCmd(7, "api:v1", "/bin/sh")).(EntrypointVerifyFinishedMsg)
 
@@ -410,7 +417,7 @@ func TestAnEntrypointThatIsNotInTheImageIsReportedAsMissing(t *testing.T) {
 // ── Registry login ───────────────────────────────────────────────────────────
 
 func TestRegistryLoginNamesTheRegistryItAuthenticatedAgainst(t *testing.T) {
-	installFakeDocker(t, fakeScript{})
+	installFakeDocker(t, fakeScript{"docker login": {}})
 
 	msg := run(t, registryLoginCmd("registry.example.com", "anthnel", "s3cret")).(RegistryLoginCompleteMsg)
 
@@ -438,7 +445,7 @@ func TestRejectedCredentialsAreCarriedIntoTheLoginMessage(t *testing.T) {
 }
 
 func TestRegistryLogoutNamesTheRegistry(t *testing.T) {
-	installFakeDocker(t, fakeScript{})
+	installFakeDocker(t, fakeScript{"docker logout": {}})
 
 	msg := run(t, registryLogoutCmd("registry.example.com")).(RegistryLogoutCompleteMsg)
 

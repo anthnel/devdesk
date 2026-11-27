@@ -245,7 +245,7 @@ func TestCopyingTheCommandReportsEitherWay(t *testing.T) {
 // One form creates both, and the kind is the only thing that decides which
 // Docker object comes out of it.
 func TestTheResourceFormCreatesWhicheverKindItWasOpenedFor(t *testing.T) {
-	installFakeDocker(t, fakeScript{})
+	installFakeDocker(t, fakeScript{"docker network create": {}, "docker volume create": {}})
 	m := loadedModel(t)
 
 	network, cmd := step(t, m, ResourceFormSubmitMsg{Kind: resourceFormNetwork, Name: "devdesk", Driver: "bridge"})

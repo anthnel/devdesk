@@ -17,6 +17,7 @@ import (
 	"github.com/anthnel/devdesk/internal/imagesearch"
 	"github.com/anthnel/devdesk/internal/imageupdate"
 	"github.com/anthnel/devdesk/internal/scan"
+	"github.com/anthnel/devdesk/internal/testutil/fakecli"
 	"github.com/anthnel/devdesk/internal/trust"
 	sharedcomponents "github.com/anthnel/devdesk/internal/ui/components"
 	"github.com/anthnel/devdesk/internal/ui/keymap"
@@ -29,8 +30,9 @@ import (
 // as messages and assert on model state.
 //
 // commands_test.go executes the commands themselves instead, against a fake
-// docker on a PATH of the test's own making (see installFakeTools) and against
-// httptest servers standing in for registries.
+// docker on a PATH of the test's own making (see installFakeTools, which
+// installs internal/testutil/fakecli) and against httptest servers standing in
+// for registries.
 //
 // HOME is redirected for the whole package: the launch form and the registry
 // list persist through config.Save, and the scan cache writes to ~/.devdesk.
@@ -40,11 +42,11 @@ import (
 var productionImageSearcher imagesearch.Searcher
 
 func TestMain(m *testing.M) {
-	// The fake docker is a copy of this binary, so helper mode has to be
-	// answered before anything else — including the temporary HOME, which a
-	// subprocess must neither create nor delete.
-	if os.Getenv(helperMode) == "1" {
-		os.Exit(runAsHelper())
+	// The fake docker is this binary started under another name, so that mode
+	// has to be answered before anything else — including the temporary HOME,
+	// which a subprocess must neither create nor delete.
+	if code, ok := fakecli.AsTool(); ok {
+		os.Exit(code)
 	}
 
 	log.SetOutput(io.Discard)
@@ -70,7 +72,6 @@ func TestMain(m *testing.M) {
 
 	code := m.Run()
 
-	removeFakeTools()
 	_ = os.RemoveAll(home)
 	log.SetOutput(os.Stderr)
 	os.Exit(code)

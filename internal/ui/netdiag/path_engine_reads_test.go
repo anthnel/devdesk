@@ -2,60 +2,30 @@ package netdiag
 
 import (
 	"context"
-	"os"
 	"slices"
-	"strings"
 	"testing"
 	"time"
 
 	"github.com/anthnel/devdesk/internal/engine"
+	"github.com/anthnel/devdesk/internal/testutil/fakecli"
 )
 
-// envFakeEngineLog names the file the fake engine binary appends its argv to.
-const envFakeEngineLog = "DEVDESK_TEST_FAKE_ENGINE_LOG"
-
-// init turns this test binary into a recording fake engine when the
-// environment asks for it: it appends its arguments, one line per call, and
-// exits before the testing flags are parsed. No real docker is involved.
-func init() {
-	logPath := os.Getenv(envFakeEngineLog)
-	if logPath == "" {
-		return
-	}
-	f, err := os.OpenFile(logPath, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0o600)
-	if err != nil {
-		os.Exit(3)
-	}
-	_, _ = f.WriteString(strings.Join(os.Args[1:], "\x1f") + "\n")
-	_ = f.Close()
-	os.Exit(0)
-}
-
-// recordedEngineCalls points the current engine at this test binary and
-// returns a reader for the recorded argument lists.
+// recordedEngineCalls points the current engine at a fake engine
+// (internal/testutil/fakecli) and returns a reader for the recorded argument
+// lists. No real docker is involved. The fake answers every argv with nothing
+// and success, as the recording binary it replaces did.
 func recordedEngineCalls(t *testing.T) func() [][]string {
 	t.Helper()
-	logPath := t.TempDir() + string(os.PathSeparator) + "engine.log"
-	t.Setenv(envFakeEngineLog, logPath)
-	self, err := os.Executable()
-	if err != nil {
-		t.Fatalf("os.Executable: %v", err)
-	}
+	fake := fakecli.Install(t, fakecli.Scenario{{Tool: "docker", Prefix: true}})
 	prev := engine.Current()
 	shape := prev
-	shape.Name, shape.Binary = engine.Docker, self
+	shape.Name, shape.Binary = engine.Docker, fake.InstallAt(t, t.TempDir(), "docker")
 	engine.SetCurrent(shape)
 	t.Cleanup(func() { engine.SetCurrent(prev) })
 	return func() [][]string {
-		raw, err := os.ReadFile(logPath)
-		if err != nil {
-			return nil
-		}
 		var calls [][]string
-		for _, line := range strings.Split(strings.TrimSpace(string(raw)), "\n") {
-			if line != "" {
-				calls = append(calls, strings.Split(line, "\x1f"))
-			}
+		for _, inv := range fake.Invocations() {
+			calls = append(calls, inv.Args)
 		}
 		return calls
 	}

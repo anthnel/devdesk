@@ -2,13 +2,16 @@ package docker
 
 import (
 	"os"
-	"path/filepath"
-	"runtime"
 	"strings"
 	"testing"
 
 	"github.com/anthnel/devdesk/internal/engine"
+	"github.com/anthnel/devdesk/internal/testutil/fakecli"
 )
+
+// TestMain lets the test binary answer as the fake credential helpers of
+// internal/testutil/fakecli when it is started under their name.
+func TestMain(m *testing.M) { os.Exit(fakecli.Main(m)) }
 
 // The whole point of §3.67: nothing in this package names an engine any more.
 // These tests pin the three places where that could regress — the message when
@@ -156,21 +159,15 @@ func ranSubcommand(s *stubRunner, subcommand string) bool {
 
 // Both engines run docker-credential-<name>: podman reuses docker's helpers
 // rather than naming its own (measured, see credentialHelperPrefix). The real
-// runner is used, against a helper script on PATH — a podman-credential-probe
-// beside it must never be the one called.
+// runner is used, against helpers installed by the shared fake binary
+// (internal/testutil/fakecli) — a podman-credential-probe beside it must never
+// be the one called, and the strict mode fails the test if it is asked anything
+// but `get`.
 func TestTheCredentialHelperIsDockersUnderEveryEngine(t *testing.T) {
-	if runtime.GOOS == "windows" {
-		t.Skip("the helper stand-ins are shell scripts")
-	}
-	dir := t.TempDir()
-	write := func(name, body string) {
-		if err := os.WriteFile(filepath.Join(dir, name), []byte("#!/bin/sh\n"+body+"\n"), 0o755); err != nil {
-			t.Fatal(err)
-		}
-	}
-	write("docker-credential-probe", `echo '{"Username":"alice","Secret":"s3cret"}'`)
-	write("podman-credential-probe", `exit 1`)
-	t.Setenv("PATH", dir+string(os.PathListSeparator)+os.Getenv("PATH"))
+	fake := fakecli.Install(t, fakecli.Scenario{
+		{Tool: "docker-credential-probe", Args: []string{"get"}, Reply: fakecli.Reply{Stdout: `{"Username":"alice","Secret":"s3cret"}` + "\n"}},
+		{Tool: "podman-credential-probe", Args: []string{"get"}, Reply: fakecli.Reply{Exit: 1}},
+	}, "docker-credential-probe", "podman-credential-probe")
 
 	for _, name := range engine.Names() {
 		t.Run(name, func(t *testing.T) {
@@ -182,5 +179,12 @@ func TestTheCredentialHelperIsDockersUnderEveryEngine(t *testing.T) {
 				t.Errorf("getCredsFromHelper() = %q, %v — want docker-credential-probe's answer", secret, ok)
 			}
 		})
+	}
+
+	// The podman helper is never the one called, under either engine.
+	for _, inv := range fake.Invocations() {
+		if inv.Tool == "podman-credential-probe" {
+			t.Errorf("podman-credential-probe was run with %q; both engines use docker's helpers", inv.Args)
+		}
 	}
 }

@@ -7,6 +7,7 @@ import (
 	"github.com/anthnel/devdesk/internal/cache"
 	"github.com/anthnel/devdesk/internal/config"
 	"github.com/anthnel/devdesk/internal/scan"
+	"github.com/anthnel/devdesk/internal/testutil/fakecli"
 	"github.com/anthnel/devdesk/internal/ui/testutil"
 )
 
@@ -23,9 +24,9 @@ const trivyReport = `{"Results":[{"Target":"api:v1","Vulnerabilities":[
 	{"VulnerabilityID":"CVE-3","Severity":"HIGH","PkgName":"curl","InstalledVersion":"8.0.0"}
 ]}]}`
 
-func installFakeTrivy(t *testing.T, report string) {
+func installFakeTrivy(t *testing.T, report string) *fakecli.Fake {
 	t.Helper()
-	installFakeTools(t, fakeScript{
+	return installFakeTools(t, fakeScript{
 		"trivy --version": {Stdout: "Version: 0.50.1"},
 		"trivy image":     {Stdout: report},
 	}, "trivy")
@@ -84,8 +85,7 @@ func TestAScanLeavesItsCountsAndItsFullReportOnDisk(t *testing.T) {
 // trivy would otherwise resolve "orphan" to "orphan:latest" and try to pull it
 // from a registry.
 func TestAnUntaggedImageIsScannedByIDAndCachedByName(t *testing.T) {
-	installFakeTrivy(t, `{"Results":[]}`)
-	invocations := recordInvocations(t)
+	fake := installFakeTrivy(t, `{"Results":[]}`)
 
 	msgs := testutil.Msgs(scanOneImageCmd(
 		imageScanJob{Name: "orphan", Target: "ddd4444"}, vulnScan(), make(chan struct{}, 1)))
@@ -100,16 +100,16 @@ func TestAnUntaggedImageIsScannedByIDAndCachedByName(t *testing.T) {
 		}
 	})
 
-	var scanned string
-	for _, line := range invocations() {
-		if strings.HasPrefix(line, "trivy image") {
-			scanned = line
+	var scanned []string
+	for _, inv := range fake.Invocations() {
+		if inv.Tool == "trivy" && len(inv.Args) > 0 && inv.Args[0] == "image" {
+			scanned = inv.Args
 		}
 	}
-	if scanned == "" {
-		t.Fatalf("trivy was never asked to scan an image; invocations: %v", invocations())
+	if scanned == nil {
+		t.Fatalf("trivy was never asked to scan an image; invocations: %+v", fake.Invocations())
 	}
-	if !strings.HasSuffix(scanned, " ddd4444") {
+	if scanned[len(scanned)-1] != "ddd4444" {
 		t.Errorf("trivy was asked to scan %q, want the image ID as the target", scanned)
 	}
 }

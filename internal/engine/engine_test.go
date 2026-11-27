@@ -2,23 +2,35 @@ package engine
 
 import (
 	"os"
+	"os/exec"
 	"path/filepath"
 	"reflect"
-	"runtime"
 	"strings"
 	"testing"
+
+	"github.com/anthnel/devdesk/internal/testutil/fakecli"
 )
 
-// fakeBinary writes an executable named name into a directory that is put at
-// the head of PATH, so exec.LookPath finds it and nothing else does.
-func fakeBinary(t *testing.T, dir, name string) {
+// TestMain lets the test binary answer as a fake tool when fakecli starts it
+// under a tool name; without it Install refuses to run.
+func TestMain(m *testing.M) { os.Exit(fakecli.Main(m)) }
+
+// installEngines puts executables named names alone on PATH, so exec.LookPath
+// finds them and nothing else does. They come from the shared fake binary of
+// internal/testutil/fakecli (OC-02) and are only looked up here, never run.
+func installEngines(t *testing.T, names ...string) {
 	t.Helper()
-	if runtime.GOOS == "windows" {
-		name += ".bat"
+	fakecli.Install(t, nil, names...)
+}
+
+// pathOf is where the installed tool name resolves on PATH.
+func pathOf(t *testing.T, name string) string {
+	t.Helper()
+	path, err := exec.LookPath(name)
+	if err != nil {
+		t.Fatalf("%s is not on PATH: %v", name, err)
 	}
-	if err := os.WriteFile(filepath.Join(dir, name), []byte("#!/bin/sh\n"), 0o755); err != nil {
-		t.Fatalf("write fake %s: %v", name, err)
-	}
+	return path
 }
 
 // onlyPath replaces PATH with dir for the duration of the test.
@@ -40,11 +52,7 @@ func TestAutoPrefersDockerThenPodman(t *testing.T) {
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			dir := t.TempDir()
-			for _, bin := range tc.installed {
-				fakeBinary(t, dir, bin)
-			}
-			onlyPath(t, dir)
+			installEngines(t, tc.installed...)
 
 			shape, err := Resolve(Auto)
 			if err != nil {
@@ -65,9 +73,7 @@ func TestAutoPrefersDockerThenPodman(t *testing.T) {
 // on load for the configuration view's sake, not because anything downstream
 // needs it.
 func TestAnEmptyPreferenceMeansAuto(t *testing.T) {
-	dir := t.TempDir()
-	fakeBinary(t, dir, "podman")
-	onlyPath(t, dir)
+	installEngines(t, "podman")
 
 	shape, err := Resolve("")
 	if err != nil {
@@ -102,9 +108,7 @@ func TestAPinnedEngineNeverFallsBackToTheOther(t *testing.T) {
 		{Docker, "podman"},
 	} {
 		t.Run(tc.pinned+" pinned, "+tc.installed+" installed", func(t *testing.T) {
-			dir := t.TempDir()
-			fakeBinary(t, dir, tc.installed)
-			onlyPath(t, dir)
+			installEngines(t, tc.installed)
 
 			shape, err := Resolve(tc.pinned)
 			if err == nil {
@@ -118,14 +122,8 @@ func TestAPinnedEngineNeverFallsBackToTheOther(t *testing.T) {
 }
 
 func TestAConfiguredPathIsRunAsGiven(t *testing.T) {
-	dir := t.TempDir()
-	fakeBinary(t, dir, "podman")
-	onlyPath(t, dir)
-
-	path := filepath.Join(dir, "podman")
-	if runtime.GOOS == "windows" {
-		path += ".bat"
-	}
+	installEngines(t, "podman")
+	path := pathOf(t, "podman")
 
 	shape, err := Resolve(path)
 	if err != nil {
@@ -144,14 +142,8 @@ func TestAConfiguredPathIsRunAsGiven(t *testing.T) {
 // docker-compatible CLI behaves like. Getting this wrong costs the auth file
 // location, not the invocation — so the fallback is the compatible one.
 func TestAnUnrecognisedPathIsTreatedAsDocker(t *testing.T) {
-	dir := t.TempDir()
-	fakeBinary(t, dir, "nerdctl")
-	onlyPath(t, dir)
-
-	path := filepath.Join(dir, "nerdctl")
-	if runtime.GOOS == "windows" {
-		path += ".bat"
-	}
+	installEngines(t, "nerdctl")
+	path := pathOf(t, "nerdctl")
 
 	shape, err := Resolve(path)
 	if err != nil {
