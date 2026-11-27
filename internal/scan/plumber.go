@@ -106,9 +106,16 @@ func plumberArgs(target string, tool ToolSpec, opts PlumberOptions, outPath stri
 			flags = append(flags, "-v", opts.ConfigPath+":"+plumberConfigMount+":ro")
 		}
 		flags = append(flags, plumberSafeDirectory...)
-		flags = append(flags, plumberTokenEnv(opts)...)
+		// The name only: the value travels in the child's environment
+		// (containerRun.Env), never in argv, which any local user can read
+		// (DEVDESK-945).
+		if opts.Token != "" {
+			flags = append(flags, "-e", plumberTokenName(opts))
+		}
 		flags = append(flags, "-w", containerScanPath)
-		cmd := containerRun{Flags: flags, Image: plumberImage(tool.Image), Argv: options}.cmd()
+		cmd := containerRun{
+			Flags: flags, Image: plumberImage(tool.Image), Argv: options, Env: plumberTokenEnv(opts),
+		}.cmd()
 		cmd.Verbatim = plumberVerbatim
 		return cmd
 	}
@@ -119,8 +126,8 @@ func plumberArgs(target string, tool ToolSpec, opts PlumberOptions, outPath stri
 }
 
 // plumberVerbatim is what DevDesk writes in plumber's argv with a key=value
-// shape: the log keeps it readable, whereas the token variable next to it
-// (`-e GH_TOKEN=...`) is masked.
+// shape: the log keeps it readable. The token is not among them and is not in
+// argv at all: only its variable name is (`-e GH_TOKEN`).
 var plumberVerbatim = []string{
 	"--print=false",
 	"GIT_CONFIG_COUNT=1",
@@ -128,22 +135,28 @@ var plumberVerbatim = []string{
 	"GIT_CONFIG_VALUE_0=" + containerScanPath,
 }
 
-// plumberTokenEnv passes the context's token to a containerised plumber.
+// plumberTokenName is the variable plumber reads its forge token from.
 //
-// The variable differs by forge, and naming both would send a GitLab token to
-// GitHub on a repository that answers to neither. An empty token declares
-// nothing rather than an empty variable: plumber treats "set but empty" as an
-// attempt, and its diagnostic is then about a rejected credential rather than
-// about a missing one.
+// It differs by forge, and naming both would send a GitLab token to GitHub on a
+// repository that answers to neither.
+func plumberTokenName(opts PlumberOptions) string {
+	if opts.Provider == providerGitLab {
+		return "GITLAB_TOKEN"
+	}
+	return "GH_TOKEN"
+}
+
+// plumberTokenEnv is the `NAME=value` entry a containerised plumber receives
+// through the environment of the engine's process; argv names the variable
+// with `-e NAME` and holds no value (DEVDESK-945, same rule as the proxy
+// variables). An empty token declares nothing rather than an empty variable:
+// plumber treats "set but empty" as an attempt, and its diagnostic is then about
+// a rejected credential rather than about a missing one.
 func plumberTokenEnv(opts PlumberOptions) []string {
 	if opts.Token == "" {
 		return nil
 	}
-	name := "GH_TOKEN"
-	if opts.Provider == providerGitLab {
-		name = "GITLAB_TOKEN"
-	}
-	return []string{"-e", name + "=" + opts.Token}
+	return []string{plumberTokenName(opts) + "=" + opts.Token}
 }
 
 func plumberImage(image string) string {
@@ -258,11 +271,7 @@ func plumberOutput(tool ToolSpec) (path string, read func([]byte) ([]byte, error
 // plumberBinaryEnv hands the token to a plumber running on this machine. Same
 // rule as the container's: one variable, chosen by provider.
 func plumberBinaryEnv(opts PlumberOptions) []string {
-	name := "GH_TOKEN"
-	if opts.Provider == providerGitLab {
-		name = "GITLAB_TOKEN"
-	}
-	return append(os.Environ(), name+"="+opts.Token)
+	return append(os.Environ(), plumberTokenEnv(opts)...)
 }
 
 // checkPlumberConfig refuses a rules file that cannot be read, before anything

@@ -231,8 +231,8 @@ Two things about the engine are worth knowing before changing this code:
   - **Still to do.** OC-16 (the command preview and `ctrl+y`
     still show `-e NAME=VALUE`: `buildCommandString` / `buildCommandLines`), OC-17
     (`launch-options.json` still stores the values: `ToCacheEntry`). The scanner
-    `internal/scan/plumber.go` still puts `-e GH_TOKEN=<token>` in an argv: outside
-    this story.
+    `internal/scan/plumber.go` put `-e GH_TOKEN=<token>` in an argv: fixed by
+    DEVDESK-945 (`-e GH_TOKEN`, the value in `containerRun.Env`), with the static guard S9 below.
 
 - **Four typed, read-only reads for the path trace** (`container_network.go`,
   DEVDESK-330, DEVDESK-331), each with a `context.Context` that kills the
@@ -480,6 +480,24 @@ information, and reports each site with file, line and enclosing function:
   (OC-71) are out of scope, and so is `internal/nexusbench/skopeo.go`, which runs `skopeo copy` from registry to
   registry (a development tool). `--pull=never` was measured on Docker 29.7.2 and a Podman of 2026-09-25
   (exit 125 on a missing image), not on the N and N-1 versions of `docs/measurements/2026-11-27-engines.md`.
+
+**Guard S9, no secret in an argv (DEVDESK-945, requirement S9).** A command line is readable by every local user
+(`ps`, `/proc/<pid>/cmdline`) and ends up in audit logs: a secret travels in the child's environment (`-e NAME` in argv,
+`NAME=value` in `cmd.Env` or `containerRun.Env`), on stdin (`--password-stdin`) or in a file.
+`internal/engineguard/secret_argv_guard_test.go` (`TestNoSecretIsPutInAnArgv`, reusing G2's and G3's helpers) reads every
+non-test `.go` file and fails, with file, line and function, on a word list (a `[]string` literal, the arguments of
+`append` after the first, of `exec.Command(Context)` after the binary, of an argv helper of G3) that has: `-e`, `--env`
+or `-env` followed by a word with an `=` and a part that is not a constant (`"-e", name + "=" + token`, the plumber bug);
+a word `--env=`, `--password=`, `--token=`, `--secret=` or `--api-key=` with a dynamic part; `--password`, `--token`,
+`--secret`... followed by a dynamic word; `-H`/`--header` followed by a dynamic word naming Authorization, a token, a
+bearer, a cookie or an API key; `login ... -p <dynamic>`. One named exception in `secretExceptions` (same rules as G2,
+G3 and G8: key = file + function, `Sites` exact, a reason, fails when its code is gone):
+`plumberSafeDirectory`, whose value is the constant `containerScanPath` of another file. The survey of the module
+(DEVDESK-945) found no other site: `docker login` uses `--password-stdin`, cosign passes `-e NAME`, git carries its
+credential in `GIT_CONFIG_*` of the environment, `git credential approve` reads stdin, the launch form passes
+`-e NAME` (DEVDESK-812). Limits, listed in the test header: a bare variable after `-e` (`"-e", kv`), an argv assembled
+across statements, a flag held in a variable, a constant of another file (reported, so it needs an exception), a shell
+line and a secret passed as a bare positional argument are not seen; the environment lists are not checked.
 
 ### Engine contracts — `requireEngine`, `internal/testutil/enginecontract` (OC-09a1, DEVDESK-806; OC-09a2, DEVDESK-943; OC-09a3, DEVDESK-944)
 

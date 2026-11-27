@@ -197,9 +197,11 @@ func containerBuilders() []builderCase {
 			},
 			args: "run --rm -v /repo:/scan:ro -v /home/u/plumber.yaml:/plumber.yaml:ro " +
 				"-e GIT_CONFIG_COUNT=1 -e GIT_CONFIG_KEY_0=safe.directory -e GIT_CONFIG_VALUE_0=/scan " +
-				"-e GITLAB_TOKEN=t0k3n -w /scan getplumber/plumber analyze --score --print=false --output /out.json " +
+				"-e GITLAB_TOKEN -w /scan getplumber/plumber analyze --score --print=false --output /out.json " +
 				"--provider " + providerGitLab + " --branch main --gitlab-url https://gitlab.example.com " +
-				"--config /plumber.yaml"},
+				"--config /plumber.yaml",
+			// The value is in the child's environment, never in argv (DEVDESK-945).
+			env: []string{"GITLAB_TOKEN=t0k3n"}},
 
 		// kubeconform.go
 		{name: "kubeconform without cache",
