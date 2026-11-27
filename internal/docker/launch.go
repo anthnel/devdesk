@@ -89,6 +89,43 @@ func PortExposedOnAllInterfaces(spec string) bool {
 // entry may be a secret typed without its name, and the error reaches the log.
 var ErrInvalidLaunchEnv = errors.New("invalid environment variable for the launch: each entry needs a valid name and a value")
 
+// ErrInvalidLaunchOption is returned, wrapped or not, when Image, Name, Entrypoint,
+// User, Network or an entry of Ports, Volumes or Mounts starts with "-" (OC-21,
+// S4). Every typed value is one argv element, and an element that starts with a
+// dash can be read by the engine as an option of its own (`--privileged`,
+// `--pid=host`, `--cap-add=SYS_ADMIN`), so nothing is started or built. The text
+// holds neither the field nor the value: it may be a secret typed in the wrong
+// field, and the error reaches the log.
+var ErrInvalidLaunchOption = errors.New("invalid launch option: a value cannot start with a dash")
+
+// validateLaunchOptions refuses the whole launch when a typed value reads as a
+// flag. Blank entries of the lists are skipped, as buildLaunchArgs skips them. An
+// Env value is not looked at: it travels in the environment of the child, never in
+// argv (OC-14), and a name that starts with a dash is refused by ValidEnvName.
+func validateLaunchOptions(opts ContainerLaunchOptions) error {
+	for _, v := range []string{opts.Image, opts.Name, opts.Entrypoint, opts.User, opts.Network} {
+		if strings.HasPrefix(v, "-") {
+			return ErrInvalidLaunchOption
+		}
+	}
+	for _, list := range [][]string{opts.Ports, opts.Volumes, opts.Mounts} {
+		for _, v := range list {
+			if strings.HasPrefix(v, "-") {
+				return ErrInvalidLaunchOption
+			}
+		}
+	}
+	return nil
+}
+
+// SharesHostNetwork reports whether network is the host network: "host", once
+// trimmed and without regard to case. The launcher does not ask about it, as it
+// does not for a sensitive mount: the launch form does, at the submit (OC-21).
+// `container:<id>` and `none` are not classified.
+func SharesHostNetwork(network string) bool {
+	return strings.EqualFold(strings.TrimSpace(network), "host")
+}
+
 // ValidEnvName reports whether name is acceptable as the name of an environment
 // variable of a launch: ASCII only, matching ^[A-Za-z0-9_][A-Za-z0-9_.-]*$. A dot
 // or a dash inside the name and a leading digit pass; a leading dash does not, so
@@ -222,8 +259,12 @@ func buildLaunchArgs(opts ContainerLaunchOptions) []string {
 // Use this when you need to hand off the process to a terminal (e.g. tea.ExecProcess for -it mode).
 // Its Env is set as soon as a variable is typed (launchEnviron). A launch with an
 // entry ValidEnvName or the "=" refuses returns ErrInvalidLaunchEnv, and one with a
-// reserved name ErrReservedLaunchEnv, and no command either way.
+// reserved name ErrReservedLaunchEnv, and no command either way. A typed value that
+// starts with a dash returns ErrInvalidLaunchOption (OC-21), with no command either.
 func BuildLaunchCmd(opts ContainerLaunchOptions) (*exec.Cmd, error) {
+	if err := validateLaunchOptions(opts); err != nil {
+		return nil, err
+	}
 	if err := validateLaunchEnv(opts.Env); err != nil {
 		return nil, err
 	}
@@ -274,6 +315,9 @@ func LaunchLogText(err error) string {
 // LaunchContainer runs a new container with the given options and returns its ID/output.
 // Do NOT use this for interactive (-it) containers — use BuildLaunchCmd + tea.ExecProcess instead.
 func LaunchContainer(opts ContainerLaunchOptions) (string, error) {
+	if err := validateLaunchOptions(opts); err != nil {
+		return "", err
+	}
 	if err := validateLaunchEnv(opts.Env); err != nil {
 		return "", err
 	}

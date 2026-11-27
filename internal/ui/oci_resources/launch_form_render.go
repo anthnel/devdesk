@@ -3,6 +3,8 @@ package ociresources
 import (
 	"strings"
 
+	"charm.land/lipgloss/v2"
+
 	"github.com/anthnel/devdesk/internal/docker"
 	"github.com/anthnel/devdesk/internal/ui/theme"
 )
@@ -62,10 +64,8 @@ func (f *LaunchForm) buildCommandLines() []string {
 			args = append(args, "-p "+docker.LoopbackPort(f.ports[i].mappingArg()))
 		}
 	}
-	for p := range strings.SplitSeq(f.extraPortsInput.Value(), ",") {
-		if p = strings.TrimSpace(p); p != "" {
-			args = append(args, "-p "+docker.LoopbackPort(p))
-		}
+	for _, p := range f.extraPortEntries() {
+		args = append(args, "-p "+docker.LoopbackPort(p))
 	}
 	if ep := strings.TrimSpace(f.entrypointInput.Value()); ep != "" {
 		args = append(args, "--entrypoint "+shellQuote(ep))
@@ -80,8 +80,8 @@ func (f *LaunchForm) buildCommandLines() []string {
 	for _, v := range mounts {
 		args = append(args, "--mount "+shellQuote(v))
 	}
-	if len(f.networks) > 0 {
-		args = append(args, "--network "+shellQuote(f.networks[f.networkIdx]))
+	if network := f.selectedNetwork(); network != "" {
+		args = append(args, "--network "+shellQuote(network))
 	}
 	if user := strings.TrimSpace(f.userInput.Value()); user != "" {
 		args = append(args, "--user "+shellQuote(user))
@@ -116,12 +116,21 @@ func (f *LaunchForm) buildCommandString() string {
 	return strings.Join(parts, " ")
 }
 
-// commandPreviewLines returns the dim-styled command lines for the right column
+// commandPreviewLines returns the dim-styled command lines for the right column.
+// The `--network host` line is in the warning colour (OC-21): the colour is the
+// screen's, the text copied by ctrl+y stays plain.
 func (f *LaunchForm) commandPreviewLines() []string {
 	cmdLines := f.buildCommandLines()
+	hostNetwork := docker.SharesHostNetwork(f.selectedNetwork())
 	result := make([]string, 0, len(cmdLines))
 	for _, line := range cmdLines {
-		result = append(result, theme.DimStyle.Render(line))
+		style := theme.DimStyle
+		// Only the network flag starts a line with this word: the others are
+		// --name, --entrypoint, -p, -e, -v, --mount, --user.
+		if hostNetwork && strings.HasPrefix(strings.TrimSpace(line), "--network ") {
+			style = lipgloss.NewStyle().Background(theme.ColorBackground).Foreground(theme.ColorFooterWarn)
+		}
+		result = append(result, style.Render(line))
 	}
 	return result
 }

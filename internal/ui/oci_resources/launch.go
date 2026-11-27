@@ -66,9 +66,10 @@ func (m Model) handleClipboardCopy(msg ClipboardCopyMsg) (tea.Model, tea.Cmd) {
 }
 
 // handleLaunchFormSubmitWithCache holds the launch for a confirmation when it
-// mounts something sensitive of the host (OC-20), and starts it otherwise.
+// mounts something sensitive of the host (OC-20) or uses the host network
+// (OC-21), and starts it otherwise.
 func (m Model) handleLaunchFormSubmitWithCache(msg LaunchFormSubmitMsg) (tea.Model, tea.Cmd) {
-	if held, ok := m.holdForSensitiveMounts(msg); ok {
+	if held, ok := m.holdForConfirmation(msg); ok {
 		return held, nil
 	}
 	return m.startLaunch(msg)

@@ -119,7 +119,7 @@ type Model struct {
 	lastLaunchOpts  *cache.LaunchOptionsEntry
 	// Forms (viewport-based, Rule 112)
 	launchForm         *LaunchForm
-	mountModal         *sharedcomponents.ChoiceModal // OC-20: asks about the sensitive mounts of a submitted launch; the form stays under it
+	mountModal         *sharedcomponents.ChoiceModal // OC-20, OC-21: asks about the sensitive mounts and the host network of a submitted launch; the form stays under it
 	mountPending       *mountCheck                   // the launch the modal holds back
 	resourceForm       *ResourceCreateForm
 	networkInspectForm *NetworkInspectForm
