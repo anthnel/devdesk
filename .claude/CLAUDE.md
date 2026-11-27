@@ -91,7 +91,7 @@ touching, and update it in the same commit as the code.
 | [`viewer.md`](../docs/architecture/viewer.md) | `internal/viewer` + `internal/ui/viewer` — kinds, displays, colouring, search, follow |
 | [`scanning.md`](../docs/architecture/scanning.md) | Trivy, Gitleaks, plumber, `scan.Categorize`, the `:sec` inventory, the two scan caches, image signatures (`internal/trust`, the cosign verifier) |
 | [`registries.md`](../docs/architecture/registries.md) | the registry/group model and the discovered-members cache |
-| [`network.md`](../docs/architecture/network.md) | `internal/docker` and `internal/oci` (typed `StatusError`, `...Context` variants), `internal/netproxy` (the proxy entry point every HTTP and TLS connection goes through, and its guard test, DEVDESK-581), the proxy passed to scanner containers (`netproxy.Forward`, `scan.containerRun.cmd`, the `TestContainerGuard*` guard, DEVDESK-583), `internal/imagesearch` and the registry browser's image search level, image updates (`internal/imageupdate`, the Update column), verified pulls (`internal/imagepull`), the netdiag view, `internal/ports` (the signal seam `realOS.kill`, the process identity check, DEVDESK-709, DEVDESK-711), `internal/netiface`, `internal/nettrace` (the path trace: unprivileged UDP + `IP_RECVERR` on Linux, ICMP echo through `iphlpapi` on native Windows) |
+| [`network.md`](../docs/architecture/network.md) | `internal/docker` and `internal/oci` (typed `StatusError`, `...Context` variants), `internal/netproxy` (the proxy entry point every HTTP and TLS connection goes through, and its guard test, DEVDESK-581), the proxy passed to scanner containers (`netproxy.Forward`, `scan.containerRun.cmd`, the `TestContainerGuard*` guard, DEVDESK-583), `internal/imagesearch` and the registry browser's image search level, image updates (`internal/imageupdate`, the Update column), verified pulls (`internal/imagepull`), the recorded engine fixtures and their replay (`internal/enginefixture`, `fakecli.Fixtures`, DEVDESK-805), the netdiag view, `internal/ports` (the signal seam `realOS.kill`, the process identity check, DEVDESK-709, DEVDESK-711), `internal/netiface`, `internal/nettrace` (the path trace: unprivileged UDP + `IP_RECVERR` on Linux, ICMP echo through `iphlpapi` on native Windows) |
 | [`mcp.md`](../docs/architecture/mcp.md) | the MCP server the TUI serves over HTTP |
 | [`templates.md`](../docs/architecture/templates.md) | `internal/template` + `internal/ui/templates` — the repository-template catalog, its three sources, how files are fetched, and the `:templates` view |
 | [`ui-components.md`](../docs/architecture/ui-components.md) | `components.FooterMessage`, `internal/ui/datatable`, and the activity indicator column (`internal/ui/indicator`, `datatable.IndicatorColumn`, the row sentences `components.DescribeRow`) |
@@ -326,6 +326,19 @@ browser and MCP `image_pull_start`, via `ImagePullRequestedMsg`) and `G` (`updat
 `imagepull.Pull` pull the tag as before, kind's pulls (OC-71) and the `skopeo copy` of `internal/nexusbench` (a development tool) are out of scope,
 a `[]string{"git", "pull"}` or the two-word `"--pull", "never"` is reported (words, not programs), and a verb from a variable, an argv built word by word, a shell line and a function value are
 not seen. See `docs/architecture/network.md`, "Guard G8".
+
+**Tests and recorded CLI exchanges (DEVDESK-805, OC-08a).** `internal/enginefixture` holds what a docker or podman
+answered to one argv, one `.cli` text file per exchange (`# key: value` headers in a fixed order, stdout and stderr of
+declared length, base64 for what is not safe text, LF only, `Format(Parse(b)) == b`; `record: pending` is never loaded).
+`Parse`, `Load`/`LoadFS`, `ForConfig(fixtures, tool, version, mode)`, then `NewReplay`: the key is the tool and the exact
+argv, the test picks its configuration, `Answer` returns a copy, `Unused()` lists what nothing asked. In `internal/docker`
+a test calls `useFixtures(t, f...)` (`fixture_runner_test.go`, in memory; a non-zero exit is a `*fixtureExit`, read its code
+through `interface{ ExitCode() int }`, not `ExitError.ExitCode()`, which is -1 there); a view test calls
+`fakecli.Install(t, fakecli.Fixtures(t, f...), "docker")`, and `fixture_equivalence_test.go` holds the two paths equal.
+`fakecli` carries the bytes of a `Reply` unchanged. Only `_test.go` files and `internal/testutil/fakecli` import
+`enginefixture` (guard E1, `TestOnlyTestsImportEngineFixture`). **No real fixture is versioned before OC-09b**: the
+mechanisms run on `internal/enginefixture/testdata/synthetic` (`recorded-by: synthetic`). The leak check, the N / N-1
+stale test and the pending-file test are OC-08b. See `docs/architecture/network.md`, "Recorded fixtures".
 
 **Test input and colour (DEVDESK-199).** Build keys only through
 `internal/ui/testutil` (`Key`, `Keys`, `Type`, `Paste`, `Text`, `IsText`), never a

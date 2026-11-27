@@ -87,8 +87,8 @@ type Exchange struct {
 }
 
 // Source supplies the exchanges a fake answers. Scenario is the usual one;
-// anything else that can list exchanges (a recorded fixture replay, OC-08)
-// plugs in here without a change to this package.
+// anything else that can list exchanges (Fixtures, the recorded fixtures of
+// OC-08) plugs in here without a change to this package.
 type Source interface {
 	Exchanges() []Exchange
 }
@@ -158,7 +158,7 @@ func Install(t testing.TB, src Source, tools ...string) *Fake {
 	if src != nil {
 		exchanges = src.Exchanges()
 	}
-	body, err := json.Marshal(exchanges)
+	body, err := json.Marshal(toWire(exchanges))
 	if err != nil {
 		t.Fatalf("fakecli: encoding the scenario: %v", err)
 	}
@@ -297,7 +297,7 @@ func serve(state, tool string, argv []string) int {
 		_, _ = fmt.Fprintf(os.Stderr, "fakecli: unreadable scenario: %v\n", err)
 		return unmatchedExit
 	}
-	var exchanges []Exchange
+	var exchanges []wireExchange
 	if err := json.Unmarshal(raw, &exchanges); err != nil {
 		_, _ = fmt.Fprintf(os.Stderr, "fakecli: unreadable scenario: %v\n", err)
 		return unmatchedExit
@@ -313,14 +313,41 @@ func serve(state, tool string, argv []string) int {
 		return unmatchedExit
 	}
 
-	_, _ = fmt.Fprint(os.Stdout, chosen.Reply.Stdout)
-	_, _ = fmt.Fprint(os.Stderr, chosen.Reply.Stderr)
-	return chosen.Reply.Exit
+	_, _ = os.Stdout.Write(chosen.Stdout)
+	_, _ = os.Stderr.Write(chosen.Stderr)
+	return chosen.Exit
+}
+
+// wireExchange is how an Exchange travels from Install to the tool process: the
+// two streams are byte slices, which encoding/json writes as base64, so every
+// byte of a Reply reaches the code under test. A string field would not: JSON
+// text rewrites an invalid UTF-8 byte as U+FFFD. The public Exchange and Reply
+// keep their string fields; a Go string holds any bytes, and []byte(string)
+// keeps each of them.
+type wireExchange struct {
+	Tool   string
+	Args   []string
+	Prefix bool
+	Stdout []byte
+	Stderr []byte
+	Exit   int
+}
+
+// toWire converts the declared exchanges to their transport form.
+func toWire(exchanges []Exchange) []wireExchange {
+	out := make([]wireExchange, len(exchanges))
+	for i, e := range exchanges {
+		out[i] = wireExchange{
+			Tool: e.Tool, Args: e.Args, Prefix: e.Prefix,
+			Stdout: []byte(e.Reply.Stdout), Stderr: []byte(e.Reply.Stderr), Exit: e.Reply.Exit,
+		}
+	}
+	return out
 }
 
 // pick returns the exchange answering the argv, or nil.
-func pick(exchanges []Exchange, tool string, argv []string) *Exchange {
-	var best *Exchange
+func pick(exchanges []wireExchange, tool string, argv []string) *wireExchange {
+	var best *wireExchange
 	for i := range exchanges {
 		e := &exchanges[i]
 		if e.Tool != "" && e.Tool != tool {
@@ -338,9 +365,10 @@ func pick(exchanges []Exchange, tool string, argv []string) *Exchange {
 	return best
 }
 
-// The journal and the scenario are JSON: an argv or an environment value that is
-// not valid UTF-8 is rewritten on the way (U+FFFD). Keep it in mind for the
-// fixture replay of OC-08, which compares recorded argv.
+// The journal and the argv of the scenario are JSON: an argv or an environment
+// value that is not valid UTF-8 is rewritten on the way (U+FFFD). The streams
+// of a reply are not affected (wireExchange); the recorded argv of a fixture is
+// valid UTF-8 by rule (enginefixture.Parse).
 //
 // journal appends one entry with a single write, so concurrent tools never
 // interleave inside a line.

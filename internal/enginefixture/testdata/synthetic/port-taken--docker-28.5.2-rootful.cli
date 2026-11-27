@@ -1,0 +1,18 @@
+# tool: docker
+# version: 28.5.2
+# mode: rootful
+# recorded: 2026-11-27
+# scenario: run with a published port that is taken
+# redacted: none
+# recorded-by: synthetic
+# argv: ["run","-d","--name","ddm-run2","-p","18080:80","alpine:3.20","sleep","5"]
+# exit: 125
+# stdout: 65 bytes, text
+# stderr: 164 bytes, text
+
+--- stdout
+3f9d2c7a41be5e8f0a1b2c3d4e5f60718293a4b5c6d7e8f9012345678abcdef0
+
+--- stderr
+docker: Error response from daemon: driver failed programming external connectivity on endpoint ddm-run2: Bind for 0.0.0.0:18080 failed: port is already allocated.
+

@@ -1,0 +1,17 @@
+# tool: docker
+# version: 29.10.1
+# mode: rootful
+# recorded: 2026-11-27
+# scenario: rm of a running container is refused
+# redacted: none
+# recorded-by: synthetic
+# argv: ["rm","ddm-run"]
+# exit: 1
+# stdout: 0 bytes, text
+# stderr: 136 bytes, text
+
+--- stdout
+
+--- stderr
+Error response from daemon: cannot remove container "ddm-run": container is running: stop the container before removing or force remove
+

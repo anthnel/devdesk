@@ -1,0 +1,17 @@
+# tool: docker
+# version: 29.10.1
+# mode: rootful
+# recorded: 2026-11-27
+# scenario: stdout that is not text
+# redacted: none
+# recorded-by: synthetic
+# argv: ["export","ddm-run"]
+# exit: 0
+# stdout: 3 bytes, base64
+# stderr: 39 bytes, text
+
+--- stdout
+/wAN
+--- stderr
+warning: the output is a binary stream
+

@@ -1,0 +1,16 @@
+# tool: podman
+# version: 6.2.1
+# mode: rootful
+# recorded: 2026-11-27
+# scenario: stdout without a final newline
+# redacted: none
+# recorded-by: synthetic
+# argv: ["version","--format","{{.Client.Version}}"]
+# exit: 0
+# stdout: 5 bytes, text
+# stderr: 0 bytes, text
+
+--- stdout
+6.2.1
+--- stderr
+
