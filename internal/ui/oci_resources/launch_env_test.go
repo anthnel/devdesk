@@ -466,8 +466,8 @@ func TestAFailedLaunchLogsNoValueAndNoStderr(t *testing.T) {
 	}
 }
 
-// OC-16 will take the values out of the preview and of ctrl+y. Until then the
-// preview must at least survive an entry the form has not validated yet.
+// The preview must survive an entry the form has not validated yet (what it
+// prints for one is pinned in launch_preview_names_test.go, OC-16).
 func TestThePreviewSurvivesAnEnvironmentEntryThatIsNotValidated(t *testing.T) {
 	for _, env := range []string{"API_TOKEN", "=x", "API_TOKEN=", "A B=c", ",,"} {
 		t.Run(env, func(t *testing.T) {

@@ -522,8 +522,22 @@ const (
 // asks for a value. A value holding a comma cannot be typed: the field is split
 // on commas.
 func envEntryValid(entry string) bool {
+	_, ok := envEntryName(entry)
+	return ok
+}
+
+// envEntryName returns the name of a well-formed Environment entry: NAME=VALUE
+// with a name docker.ValidEnvName accepts, as typed (no trimming of the name), and
+// a value that is not empty and not only "=" characters (`abcdef==` is a base64
+// token pasted into the field, not a variable whose value is "="). It is the
+// one rule of the form's validation and of the preview, so the preview never
+// names a variable the launch would refuse.
+func envEntryName(entry string) (string, bool) {
 	name, value, ok := strings.Cut(entry, "=")
-	return ok && value != "" && docker.ValidEnvName(name)
+	if !ok || strings.Trim(value, "=") == "" || !docker.ValidEnvName(name) {
+		return "", false
+	}
+	return name, true
 }
 
 // envFault returns the sentence for the first faulty Environment entry: a

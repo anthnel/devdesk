@@ -343,7 +343,7 @@ form half is `internal/ui/oci_resources/launch_env_test.go`). A name the engine 
 `LD_*`, `*_PROXY`, ...; `docker.ReservedEnvName`, case-insensitive, exact match plus the `LD_`/`DYLD_` prefixes and the `_PROXY` suffix) is
 refused the same way with `docker.ErrReservedLaunchEnv` (OC-15, DEVDESK-813; `launch_reserved_test.go` in both packages): a test that types a
 variable uses an ordinary name. A launch log line takes `docker.LaunchLogText(err)`, never the engine's
-output. Still open: the preview and `ctrl+y` (OC-16), the cache (OC-17). See
+output. The preview and `ctrl+y` show `-e NAME` and never a value (OC-16, DEVDESK-814; an entry that is not `NAME=VALUE` shows as `-e <invalid>`; the clipboard seam is `writeClipboard`, `launch_preview_names_test.go`). Still open: the cache (OC-17). See
 `docs/architecture/network.md`, "A launch passes environment values to the child".
 
 **Tests and engine contracts (DEVDESK-806, OC-09a1).** A contract is a `TestContract*` function of a
