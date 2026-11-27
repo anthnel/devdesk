@@ -1,0 +1,15 @@
+{
+  "tool_use_id": "toolu_01LbvAtjU4Fhv6PJH2AYDm6P",
+  "agent_id": "a2539e83baa646e03",
+  "subagent_type": "product-team:pm",
+  "task_description": "Créer story jeton MCP presse-papiers",
+  "token_usage": {
+    "input_tokens": 8,
+    "cache_creation_tokens": 53659,
+    "cache_read_tokens": 142107,
+    "output_tokens": 1688,
+    "api_call_count": 4
+  },
+  "started_at": "2026-11-27T19:25:01.404909828+01:00",
+  "completed_at": "2026-11-27T19:25:16.606781176+01:00"
+}

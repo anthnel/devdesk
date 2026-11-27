@@ -1,0 +1,15 @@
+{
+  "tool_use_id": "toolu_012SFnmCBE1JLcZZGE98wLDJ",
+  "agent_id": "aa74ff836b04eece6",
+  "subagent_type": "dev-team:devops",
+  "task_description": "Pousser et ouvrir PR OC-16",
+  "token_usage": {
+    "input_tokens": 14,
+    "cache_creation_tokens": 50404,
+    "cache_read_tokens": 282095,
+    "output_tokens": 1938,
+    "api_call_count": 7
+  },
+  "started_at": "2026-11-27T19:21:09.822646634+01:00",
+  "completed_at": "2026-11-27T19:21:10.974666009+01:00"
+}
