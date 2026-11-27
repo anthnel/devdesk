@@ -745,7 +745,11 @@ scenarios listed under "The first scenarios".
     a word read as a value is never read as an option by the rule. `expectRefusal` expects the engine to refuse (an
     exit code of 0 is reported) and afterwards looks at what carries the name of the window, in a call of its own
     (`inspect --type container --format '{{.Id}} {{index .Config.Labels "devdesk.test"}}' <name>`): docker creates the
-    container of a port it cannot bind, then fails. One with **no label** is removed by its id (`RemoveContainer`), one
+    container of a port it cannot bind, then fails (**measured on docker 29.10.1 and 28.5.2: the container exists, exit 125;
+    podman 6.2.1 and 5.8.11 make none, exit 126**). The name is the window's, so no other launch can carry it. A container that
+    docker made has no label, and the template prints `<no value>` for it (podman may print an empty string): the line is cut at its
+    first space (an id has none), the rest is the label, and `<no value>` or nothing means "no label" (`labelValue`; the cleanup reads
+    its label the same way and says "has no label"). One with **no label** is removed by its full id (`RemoveContainer`), one
     of this run is the cleanup's, one with another run's label is reported and left alone. The look also happens when the
     call ends the contract. `c.portHolder(role)` creates its container through the same window rule (labelled, with
     `-p 127.0.0.1:18080:80`, `sleep 600`).

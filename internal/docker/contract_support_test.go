@@ -391,9 +391,11 @@ func (c *contract) cleanupKind(k contractKind) []string {
 	var verified []string
 	for _, ref := range candidates {
 		out, err := dockerOutput(k.inspect(ref)...)
-		switch label := strings.TrimSpace(string(out)); {
+		switch label := labelValue(string(out)); {
 		case err != nil:
 			c.t.Errorf("cleanup: cannot read the label of the %s %s, left alone: %v: %s", k.name, ref, err, failureDetail(out, err))
+		case label == "":
+			c.t.Errorf("cleanup: the %s %s was listed under %s but has no label, left alone", k.name, ref, enginecontract.Label(c.s.RunID))
 		case label != c.s.RunID:
 			c.t.Errorf("cleanup: the %s %s was listed under %s but carries the label %q, left alone",
 				k.name, ref, enginecontract.Label(c.s.RunID), label)
@@ -1307,9 +1309,23 @@ func (c *contract) expectRefusal(campaign, scenario, text string, w launchWindow
 	return ex
 }
 
+// noLabelPrinted is what a template that indexes a missing label prints on docker (measured on
+// 29.10.1 and 28.5.2); podman may print an empty string. Both mean "no label".
+const noLabelPrinted = "<no value>"
+
+// labelValue is the label a template printed, trimmed, with "no label" as "".
+func labelValue(printed string) string {
+	label := strings.TrimSpace(printed)
+	if label == noLabelPrinted {
+		return ""
+	}
+	return label
+}
+
 // removeStray looks for a container called name and deals with what it finds, see
-// expectRefusal. A lookup that fails for another reason than "no such container" is
-// reported.
+// expectRefusal: the name is the window's, so no other launch can have given it. One with no
+// label is the container of the refused run and is removed by its full id. A lookup that fails
+// for another reason than "no such container" is reported.
 func (c *contract) removeStray(name string) {
 	c.t.Helper()
 	defer c.recording()()
@@ -1323,15 +1339,14 @@ func (c *contract) removeStray(name string) {
 		c.t.Errorf("looking for a container called %s after the refusal: %v: %s", name, err, failureDetail(out, err))
 		return
 	}
-	fields := strings.Fields(string(out))
-	if len(fields) == 0 || !fullID.MatchString(fields[0]) {
+	// The line is the id, a space and the label: cut at the first space (an id has none), the
+	// rest is the label, whatever it holds. A container with no label prints "<no value>" on docker.
+	id, rest, _ := strings.Cut(strings.TrimSpace(string(out)), " ")
+	if !fullID.MatchString(id) {
 		c.t.Errorf("looking for a container called %s after the refusal: the engine printed %q, want its id and its label", name, strings.TrimSpace(string(out)))
 		return
 	}
-	id, label := fields[0], ""
-	if len(fields) > 1 {
-		label = fields[1]
-	}
+	label := labelValue(rest)
 	switch {
 	case c.isOurs(id):
 		// A container the contract made: the name was taken by it.
