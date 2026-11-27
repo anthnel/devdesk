@@ -212,10 +212,14 @@ Backspace. An action that resettled behind `Ctrl` would be reclaiming a spot
 
 `Ctrl+Shift` is not an option: the control code erases case, so `ctrl+a` and
 `ctrl+shift+a` both emit 0x01. Telling them apart requires the Kitty keyboard
-protocol or `modifyOtherKeys`. Bubble Tea v2 can ask for the Kitty
-enhancements, but DevDesk does not request them, and a key that exists on some
-terminals only would contradict Rule 101 — and even then the terminal emulator
-claims some first (`ctrl+shift+c/v/t/w/n`).
+protocol or `modifyOtherKeys`. Bubble Tea v2.1.1 always enables the basic
+Kitty disambiguation and `modifyOtherKeys=2`, whatever the view says, and
+DevDesk leaves `View.KeyboardEnhancements` at its zero value (no key release,
+repeat, alternate or all-keys reporting). A terminal that supports either may
+therefore report `ctrl+shift+a` or `ctrl+i` as distinct keys, but a key that
+exists on some terminals only would contradict Rule 101, and the terminal
+emulator claims some first (`ctrl+shift+c/v/t/w/n`). No new combination:
+`TestOnlyThreeCtrlCombinationsSurvive` holds.
 
 **A paste is not a key.** Bubble Tea v2 delivers a bracketed paste as
 `tea.PasteMsg`, never as `tea.KeyPressMsg`. The router hands it to the focused

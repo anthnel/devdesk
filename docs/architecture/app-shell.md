@@ -561,7 +561,7 @@ naming file, line and rule. A convention nothing verifies is what produced the
 `Shift` carries the actions because the other families are amputated: `Ctrl`
 encodes only ASCII 0x40–0x5F and the tty confiscates four of them, `Alt` is not
 Meta on macOS by default, and `Ctrl+Shift` is indistinguable from `Ctrl` without
-a keyboard protocol DevDesk does not request (Bubble Tea v2 can, Rule 101 forbids relying on it). The reasoning lives in the
+a keyboard protocol DevDesk cannot rely on (Bubble Tea v2.1.1 always enables the basic Kitty disambiguation and `modifyOtherKeys=2`, DevDesk requests nothing more through `View.KeyboardEnhancements`, and terminals differ: Rule 101 forbids relying on it). The reasoning lives in the
 package doc so it does not have to be rediscovered.
 
 **No bare letter is navigation.** `h j k l g G` are gone application-wide — from
