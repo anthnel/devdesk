@@ -345,8 +345,18 @@ called, R4 the definition starts with `enginecontract.Require(`; `contractExcept
 `TestOnlyTestsImportEngineContract` (only `_test.go` files import `enginecontract`), `TestNothingOpensTheContractGate`
 (`mise.toml` and the workflows never set the variable) and the child-process test
 `TestEveryContractIsSkippedOrRefusedOutsideAContractRun`. The production function that reports a missing binary is
-`engineAvailable()` (it was `requireEngine()`). The probe templates are the plan's, **to be confirmed on the test VMs**; labels
-and cleanup (OC-09a2) and recording (OC-09a3) are not there yet. See `docs/architecture/network.md`, "Engine contracts".
+`engineAvailable()` (it was `requireEngine()`). The probe templates are the plan's, **to be confirmed on the test VMs**; recording
+(OC-09a3) is not there yet.
+Resources (OC-09a2, DEVDESK-943): everything a contract creates carries the label `devdesk.test=<run id>` and the name
+`ddc-<run id>-<role>` (`c.container`, `c.volume`, `c.network`, from `DEVDESK_ENGINE_CONTRACT_IMAGE`, never pulled), and every call
+goes through the recorder of the contract and its allow list `contractArgvRule` (a creation needs the label, `run` and `create`
+`--pull=never`, a destructive verb may name only resources of the run, every `prune`, `system`, `pull`, `rmi`... are refused, an
+unknown verb is refused: add it there with its reason). The cleanup (`cleanupNow`, registered by `startContract`) lists by the
+label filter, **inspects the label of each candidate again**, removes only a label equal to the run through `Remove*` (G3), and
+reports anything else without touching it. Creating or removing needs the lab mark on top of the gate: `DEVDESK_ENGINE_CONTRACT_RUN`
+valid and `/etc/dd/current` holding `n` or `n1` (`enginecontract.CheckLab`; root can forge the file on a dev machine, it stops an
+accident, not an adversary). `contract.sh` pulls `CONTRACT_IMAGE` (`versions.env`, pinned by digest) into the VM, the only pull,
+and checks a label-less sentinel container after the contracts (`vm_as_mode`). See `docs/architecture/network.md`, "Engine contracts".
 
 **Tests and recorded CLI exchanges (DEVDESK-805, OC-08a).** `internal/enginefixture` holds what a docker or podman
 answered to one argv, one `.cli` text file per exchange (`# key: value` headers in a fixed order, stdout and stderr of

@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
-# Run the engine contract tests (the *_contract_test.go files) in a test VM (OC-09a1, DEVDESK-806).
+# Run the engine contract tests (the *_contract_test.go files) in a test VM (OC-09a1, DEVDESK-806; labels and
+# cleanup, OC-09a2, DEVDESK-943).
 # Usage: contract.sh verify <docker|podman> <n|n1> [--mode rootful|rootless] [--no-reset]
 #   verify     run the contracts and compare what they see to the recorded fixtures
 #   --mode     docker is rootful only; podman defaults to rootless (the mode kind and most users have)
@@ -14,9 +15,16 @@
 # Exit codes: 0 done or skipped, 1 refused or failed, 2 invalid arguments.
 #
 # What it does, in order: builds one test binary per package that has a contract (linux/amd64,
-# -trimpath), restores the VM (unless --no-reset), copies the binaries and versions.env to
-# /tmp/ddc-<run> in the VM, runs them there with an explicit environment, under root (rootful) or the
-# unprivileged user (rootless), then removes the directory, on success or not. Nothing is copied back.
+# -trimpath), restores the VM (unless --no-reset), pulls CONTRACT_IMAGE (versions.env, pinned by digest)
+# into the VM, once: this script is the only place that pulls, the Go code never does. It then starts a
+# sentinel container WITHOUT any label, copies the binaries and versions.env to /tmp/ddc-<run> in the VM,
+# runs them there with an explicit environment, under root (rootful) or the unprivileged user (rootless),
+# checks that the sentinel survived, then removes the sentinel by its id and the directory, on success or
+# not. The contracts label what they create with devdesk.test=<run> and remove only what carries that
+# label, so a sentinel that is gone means a cleanup that touched a container without the label: the
+# run fails. Nothing is copied back.
+# The contracts also need the mark of a test VM, /etc/dd/current (written by dd-use.sh): the lab check of
+# enginecontract refuses to create or remove a resource anywhere else.
 # Variables: the DD_ENGINE_VMS_* ones of lib.sh.
 set -euo pipefail
 
@@ -68,9 +76,19 @@ run=$(date -u +%Y%m%d)-$(od -An -N4 -tx1 /dev/urandom | tr -d ' \n')
 vmdir=/tmp/ddc-$run
 work=$(mktemp -d)
 touched=0 # set once this script created the directory in the VM
+sentinel="" # the id of the container without a label, once this script created it
+
+# Run a command in the VM as the user of the mode: the unprivileged one (rootless) or root. The sentinel
+# must live in the store the contracts use: the store of rootless podman is the user's, not root's.
+vm_as_mode() {
+  if [[ $mode == rootless ]]; then vm_user "$engine" "$@"; else vm_root "$engine" "$@"; fi
+}
+
 # shellcheck disable=SC2329 # called by the EXIT trap
 cleanup() {
   rm -rf "$work"
+  # Only an id: a failed creation must not turn into a removal of whatever the output said.
+  if [[ $sentinel =~ ^[0-9a-f]{12,64}$ ]]; then vm_as_mode "$engine" rm -f "$sentinel" >/dev/null 2>&1 || true; fi
   if ((touched)); then vm_root "$engine" rm -rf "$vmdir" >/dev/null 2>&1 || true; fi
 }
 trap cleanup EXIT
@@ -107,12 +125,22 @@ done
 vm_root "$engine" tee "$vmdir/versions.env" <"$DD_DIR/versions.env" >/dev/null
 if [[ $mode == rootless ]]; then vm_root "$engine" chown -R "$DD_USER" "$vmdir"; fi
 
+# The one image the contracts start, pinned by digest in versions.env, pulled here and nowhere else
+# (the contracts run `--pull=never`).
+vm_as_mode "$engine" pull "$CONTRACT_IMAGE" >/dev/null
+
+# The sentinel: a container created without the label, the negative control of the cleanup. It is
+# checked after the contracts and must still be there.
+sentinel=$(vm_as_mode "$engine" run -d --pull=never --name "ddc-sentinel-$run" "$CONTRACT_IMAGE" sleep 3600)
+[[ $sentinel =~ ^[0-9a-f]{12,64}$ ]] || die "the sentinel was not created: $engine printed ${sentinel:-nothing}"
+
 # Explicit environment: nothing of the VM's own (a CI variable, a proxy) reaches a contract.
 vars=(
   "PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
   "DEVDESK_ENGINE_CONTRACT=1"
   "DEVDESK_ENGINE_CONTRACT_TOOL=$engine"
   "DEVDESK_ENGINE_CONTRACT_RUN=$run"
+  "DEVDESK_ENGINE_CONTRACT_IMAGE=$CONTRACT_IMAGE"
   "DEVDESK_ENGINE_VERSIONS=$vmdir/versions.env"
 )
 status=0 passed=0 skipped=0 failed=0
@@ -129,6 +157,15 @@ for f in "${binaries[@]}"; do
   skipped=$((skipped + $(grep -c '^--- SKIP: ' "$out" || true)))
   failed=$((failed + $(grep -c '^--- FAIL: ' "$out" || true)))
 done
+
+# The sentinel check. Whatever the contracts did, it comes next: nothing between them and it can leave
+# the script, so a failed run still says whether the cleanup stayed within its label.
+if ! vm_as_mode "$engine" inspect "$sentinel" >/dev/null 2>&1; then
+  log "engine-contract: FAILED: the cleanup touched a container without the label (sentinel $sentinel, run $run)"
+  status=1
+fi
+vm_as_mode "$engine" rm -f "$sentinel" >/dev/null 2>&1 || true
+sentinel=""
 
 log "engine-contract: $passed passed, $skipped skipped, $failed failed (run $run)"
 if ((status)); then
