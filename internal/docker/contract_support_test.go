@@ -6,6 +6,8 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
+	"os/user"
+	"regexp"
 	"slices"
 	"strings"
 	"sync"
@@ -195,11 +197,14 @@ func failureDetail(out []byte, err error) string {
 	return strings.Join(parts, ": ")
 }
 
-// exchange runs call, which must make exactly one engine exchange, and returns it.
-// A fixture is one exchange: none (the call never reached the engine, or the rule
-// refused it) and two or more are both a failure of the contract. Recording and
-// verifying against a fixture join here in OC-09a3; for now the exchange is
-// returned as it happened and its argv and exit code are logged.
+// exchange runs call, which must make exactly one engine exchange, and returns it
+// as it happened (the contract asserts on the real ids). A fixture is one exchange:
+// none (the call never reached the engine, or the rule refused it) and two or more
+// are both a failure of the contract. The exchange is then redacted and, in a
+// recording session, written as a fixture of campaign (Session.Record: the output
+// directory of the VM, after the leak check); in a verifying one it is compared to
+// the fixture recorded for the engine (Session.Verify), and with none recorded the
+// contract goes on, so its own assertions after this call still run.
 func (c *contract) exchange(campaign, scenario, text string, call func()) enginefixture.Exchange {
 	c.t.Helper()
 	if c.rec == nil {
@@ -215,7 +220,35 @@ func (c *contract) exchange(campaign, scenario, text string, call func()) engine
 	}
 	e := window[0]
 	c.t.Logf("%s/%s: %q exit %d", campaign, scenario, e.Argv, e.Exit)
-	return enginefixture.Exchange{Argv: e.Argv, Exit: e.Exit, Stdout: e.Stdout, Stderr: e.Stderr}
+	raw := enginefixture.Exchange{Argv: e.Argv, Exit: e.Exit, Stdout: e.Stdout, Stderr: e.Stderr}
+	if c.s.Mode == enginecontract.Record {
+		c.s.Record(c.t, campaign, scenario, text, raw, c.redaction())
+	} else {
+		c.s.Verify(c.t, campaign, scenario, raw, c.redaction(), nil)
+	}
+	return raw
+}
+
+// fullID is the id of a container or a network as the engine prints it whole.
+var fullID = regexp.MustCompile(`^[0-9a-f]{64}$`)
+
+// redaction is what Redact must replace in this run's exchanges: the ids of the
+// resources the run made, each with its role, the run id, and the home, the user
+// and the host name of the machine that records (a lookup that fails leaves its
+// field empty, and the leak check is the net for what that lets through).
+func (c *contract) redaction() enginefixture.Redaction {
+	r := enginefixture.Redaction{RunID: c.s.RunID, IDs: map[string]string{}}
+	for ref, role := range c.ours {
+		if fullID.MatchString(ref) {
+			r.IDs[ref] = role
+		}
+	}
+	r.Home, _ = os.UserHomeDir()
+	if u, err := user.Current(); err == nil {
+		r.User = u.Username
+	}
+	r.Host, _ = os.Hostname()
+	return r
 }
 
 // contractKind is one kind of resource the cleanup handles: how to list the ones

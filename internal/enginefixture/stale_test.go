@@ -25,9 +25,9 @@ const (
 	// OC-09b raises it to what it versions, and it never goes down.
 	minVersionedFixtures = 0
 
-	// recordHint is where a stale fixture sends the reader, until the task
-	// engine-contract:record exists (OC-09a replaces it).
-	recordHint = "tools/engine-vms/README.md"
+	// recordHint is where a stale fixture sends the reader: the task that records
+	// the fixtures of the current engine versions again (OC-09a3, DEVDESK-944).
+	recordHint = "mise run engine-contract:record"
 )
 
 // stale returns the fixtures whose engine version is neither N nor N-1 of their
@@ -140,8 +140,13 @@ func TestStaleMessageNamesTheFixturesTheVersionsAndTheWayOut(t *testing.T) {
 			t.Errorf("the message does not contain %q:\n%s", want, msg)
 		}
 	}
-	if _, err := os.Stat(filepath.Join("..", "..", filepath.FromSlash(recordHint))); err != nil {
-		t.Errorf("the message sends the reader to %s, which does not exist: %v", recordHint, err)
+	// The way out must exist: the task the message names is declared in mise.toml.
+	mise, err := os.ReadFile(filepath.Join("..", "..", "mise.toml"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if task := strings.TrimPrefix(recordHint, "mise run "); !strings.Contains(string(mise), `[tasks."`+task+`"]`) {
+		t.Errorf("the message sends the reader to %s, but mise.toml declares no task %q", recordHint, task)
 	}
 }
 

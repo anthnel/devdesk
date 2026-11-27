@@ -328,10 +328,11 @@ information, and reports each site with file, line and enclosing function:
   registry (a development tool). `--pull=never` was measured on Docker 29.7.2 and a Podman of 2026-09-25
   (exit 125 on a missing image), not on the N and N-1 versions of `docs/measurements/2026-11-27-engines.md`.
 
-### Engine contracts — `requireEngine`, `internal/testutil/enginecontract` (OC-09a1, DEVDESK-806; OC-09a2, DEVDESK-943)
+### Engine contracts — `requireEngine`, `internal/testutil/enginecontract` (OC-09a1, DEVDESK-806; OC-09a2, DEVDESK-943; OC-09a3, DEVDESK-944)
 
 A contract test calls the functions of a package against a real docker or podman, outside CI, in the disposable VMs
-of `tools/engine-vms`. Nothing here records a fixture yet (OC-09a3). The first story gives the gate, the entry point
+of `tools/engine-vms`. The third story (OC-09a3) adds the recorder, described under "Recording" below; no real fixture is
+versioned before OC-09b. The first story gives the gate, the entry point
 every contract starts with, the guard that holds contracts to it, and the task that runs them; the second gives the
 resources a contract creates (labelled, named), the argv rule every call goes through, the cleanup that removes only
 what carries the label of the run, the mark of a test VM, and the sentinel. The contracts there are
@@ -420,10 +421,10 @@ and `TestContractCleanupTouchesOnlyThisRun` (`containers_contract_test.go`), all
   them with an explicit environment (`env -i`), as root for rootful or as the unprivileged user for rootless
   (podman defaults to rootless, docker is rootful only), and removes the directory afterwards. The directory is made
   with `mkdir -m 0755` and no `-p`, so an existing path (a planted link, another run) fails the run instead of being
-  reused, and only a directory the script made is removed. Nothing is copied back. Since OC-09a2 it also pulls
+  reused, and only a directory the script made is removed. Verifying copies nothing back. Since OC-09a2 it also pulls
   `CONTRACT_IMAGE` into the VM and starts the sentinel before the contracts, and checks it after them (below). The run counts the top-level
   `--- PASS`, `--- SKIP` and `--- FAIL` lines: when no contract passed (verify mode skips an engine outside N and
-  N-1, and a contract with no fixture) the exit code stays 0 and it prints `nothing was verified`. It acts on the Incus host (`DD_ENGINE_VMS_HOST`).
+  N-1, and a contract with no fixture) the exit code stays 0 and it prints `nothing was done by verify` (`record` for a recording). It acts on the Incus host (`DD_ENGINE_VMS_HOST`).
 - **The lab mark (OC-09a2, security decision M1).** Before a contract creates or removes the least resource
   (`c.container`, `c.volume`, `c.network`, `c.cleanupNow`; `c.requireLab()`, `Session.RequireLab`), the run must prove
   it is in a test VM, on top of the gate: `DEVDESK_ENGINE_CONTRACT_RUN` is set and is a valid run id (`contract.sh`
@@ -518,6 +519,52 @@ and `TestContractCleanupTouchesOnlyThisRun` (`containers_contract_test.go`), all
   variable and the tool set by hand (not exported): `go test -run '^TestContractEngineAnswers' ./internal/docker`. One
   that creates or removes a resource is refused without the lab mark (above): outside a test VM it fails with a
   message that points to `mise run engine-contract`.
+- **Recording (OC-09a3, DEVDESK-944).** `DEVDESK_ENGINE_CONTRACT=1 mise run engine-contract:record -- <docker|podman>
+  <n|n1> [--mode rootful|rootless] [--keep-out <dir>]` runs `contract.sh record`, which does what `verify` does and
+  more. The log line names the action (`... mode record`). `--no-reset` is **refused** (exit 2, the message says why): the
+  fixtures describe what a clean VM answers, so a recording always restores the clean snapshot. `--keep-out <dir>`
+  (absolute, record only) sends the result there instead of the repository: the dry run. Like the gate, these checks come
+  before any connection.
+  - *In the VM.* `contract.sh` creates `/tmp/ddc-<run>/out` (`mkdir -m 0700`, then the `chown` of the work directory, so a
+    rootless recorder owns it) and adds `DEVDESK_FIXTURE_RECORDING=1` and `DEVDESK_FIXTURE_OUT=/tmp/ddc-<run>/out` to the
+    explicit environment of the test binary, **only for a record and only there**: they are not in the shared `vars`, in
+    `mise.toml` or in any workflow, and the script never reads them from the host (`TestTheScriptSetsTheRecordingVariablesOnlyForARecordInTheVM`).
+    `Decide` turns them into mode Record, which needs an absolute `OutDir`; `Require` refuses a version outside N and N-1
+    in this mode (verifying skips).
+  - *`c.exchange` and `Session.Record`.* `c.exchange(campaign, scenario, text, call)` still demands exactly one exchange in
+    its window and returns it raw. In a recording session it also builds the `Redaction` (the ids of `c.ours` of 64 hex
+    characters, each with its role, the run id, `os.UserHomeDir`, `user.Current` and `os.Hostname`) and calls
+    `Session.Record`, else `Session.Verify`. `Record` needs Mode Record, an absolute `OutDir` **and the lab mark**
+    (`RequireLab`: a developer who set the variables by hand on his machine writes nothing), checks the campaign and the
+    scenario (`^[a-z0-9][a-z0-9-]*$`, no `--`), redacts, formats, and runs `CheckLeaksAs` with `MachineIdentities()`: a
+    leak ends the test naming the rules and lines, **never the text**, and nothing is written. The file is
+    `<out>/<campaign>/<scenario>--<tool>-<version>-<mode>.cli` (`recorded` is today in UTC, `recorded-by:
+    engine-contract:record`), created with `O_EXCL` and never through a link: an output directory or a campaign directory
+    that is a link, and a file already there (two contracts for one scenario), end the test.
+  - *Verifying.* `Session.Verify(t, campaign, scenario, raw, redaction, cmp)` loads the embedded campaign, takes the
+    fixture of the scenario for the engine (tool, version, mode; a skipped one is not selected), redacts the exchange and
+    compares: argv and exit code exactly, the streams through the `Comparer` (`func(recorded, got Exchange) error`, nil =
+    exact; OC-09b gives one to the scenarios that carry a duration). A difference is an `Errorf` (the contract goes on)
+    with the lengths and the first line that differs, printable because redacted. **With no fixture for the scenario and
+    the engine, `Verify` logs one line (`no recorded fixture for ... record it with mise run engine-contract:record`) and
+    returns; it does not skip.** A `t.Skip` ends the test (`runtime.Goexit`), so the assertions a contract makes after
+    `c.exchange` would never run on a checkout without fixtures, which is every checkout before OC-09b (team lead decision).
+    OC-09b turns that case into a hard failure as soon as fixtures are versioned. `VerifyAgainst(t, fixtures, ...)` is the
+    seam the tests use. `VersionsFile` defaults to `enginefixture.VersionsSourceFile()`.
+  - *Back on the workstation.* Only when the contracts and the sentinel check passed (and at least one contract
+    passed), the script packs **the one directory** `/tmp/ddc-<run>/out` (`vm_root ... tar -C ... -cf -`, capped at
+    16 MiB; nothing else leaves the VM: no `scp`, `rsync` or `file pull`). **The extraction is strict, because the tar
+    is untrusted input** (`unpack_recorded`): it is first listed twice (`tar -tf`, `tar -tvf`) and refused as a whole
+    when an entry is not `./`, `<campaign>/` or `<campaign>/<name>.cli` (so no absolute path, no `..`, no odd name), or
+    is not a regular file or a directory (a symbolic or hard link, a device or a FIFO); it is then extracted into a new
+    `mktemp -d` under the temporary directory of the script, with `--no-same-owner` and `--no-same-permissions` (never
+    `-P`), and `chmod go-rwx`. That directory goes to `go run ./internal/enginefixture/cmd/engine-fixture-import --from
+    <it> [--into <keep-out>]`, which parses and checks everything again (below), after the sentinel check and only on
+    success. The script writes nothing under `internal/` itself. A failed import fails the run. Limits: the checks of
+    the listing are about shape, `Import` is the one that reads the content; the listing was exercised with GNU tar only.
+- **Only verifiable on the Incus host (OC-09a3).** A real recording with each of the four engines (the ids, home, host
+  and user that really appear, that `Redact` then `CheckLeaksAs` is clean on them), the tar of a rootless output
+  directory, `contract.sh record` end to end, and the import of that batch with `--keep-out`.
 - **Only verifiable on the Incus host.** The probe templates above on the four versions; `contract.sh` end to end
   (cross-compilation, the copy, `vm_user` rootless, the cleanup trap); the real behavior of the pilot contract; the
   label filter and the `inspect` label templates of the cleanup on the four versions; that the sentinel survives a
@@ -683,7 +730,7 @@ the synthetic files of `internal/enginefixture/testdata/synthetic/*.cli`, each m
   this file are copied by hand, and a bump edits `versions.env`, `versions_test.go` and this section in the same change.
   `TestFixturesAreNotStale` (`stale_test.go`, the comparison lives in the test file as in Nexus) fails when a versioned fixture
   was recorded from an engine that is neither N nor N-1 of its tool, naming each file, its version, the supported ones and the
-  way out (record again, `tools/engine-vms/README.md` until the task `engine-contract:record` exists); a pending fixture has no
+  way out (record again with `mise run engine-contract:record`); a pending fixture has no
   answer to be stale, a skipped one is checked. While nothing is versioned, **`minVersionedFixtures = 0`** (the log line says
   so instead of passing in silence), the same function runs on `testdata/synthetic`, and `TestSyntheticFixturesCoverBothVersionsOfBothTools`
   keeps N and N-1 of both tools exercised. OC-09b raises the floor to what it versions; it never goes down. A Go list of the supported
@@ -696,8 +743,45 @@ the synthetic files of `internal/enginefixture/testdata/synthetic/*.cli`, each m
   `TestRecordingSessionIsNeverSetByTheStandardChecks` reads `mise.toml` and `.github/workflows/*.y*ml`: none names the variable
   outside a recorder task (`engine-contract:record`, `nexus-bench:record`), so no standard check can turn the guard off. The leak
   check still reads the pending files.
-- Not here: the recorder, `Redact` (it must produce what `CheckLeaks` lets through: a test "Redact then Check is clean" is
-  OC-09a's) and the first real fixtures with the raised floor (OC-09b).
+- **`Redact`** (OC-09a3, `redact.go`, no `testing`, starts nothing). `Redact(ex Exchange, r Redaction) (Exchange, string)` turns what
+  a real engine answered into what a fixture may hold; the string is the `redacted` header (the categories that replaced
+  something, `home, host, ids, run, user` sorted, or `none`). It works on bytes (argv, stdout, stderr, a stream that is not UTF-8
+  included), does not edit its input and leaves the exit code alone. `Redaction{RunID, IDs (real 64-hex id -> role), Home, User,
+  Host}`; `PlaceholderID(role)` is `hex(sha256("devdesk-fixture/"+role))`, 64 characters, so the validators of `internal/docker`
+  accept it. Order: the full ids; their 12-character prefix (as `ps` prints it) as a whole hexadecimal word only; the home, as a path
+  prefix (at the start, after a blank or a character that opens a value, or `file://`; followed by the end, `/` or a character that
+  cannot continue a name: `/var/lib/root` and `/rootfs` are not `/root`); the run id (`PlaceholderRun`, `fixture-run`); the host
+  (the strict boundaries of `lab-identity`, any case); the user (a whole word, any case). The host and the user are replaced
+  **only when `LocalIdentityTerms` keeps them**: `root` and the lab user `dd` (two characters) stay, and `CheckLeaks`
+  (`lab-identity`) refuses them, which makes the recording fail instead of leaking: that is the net. Durations and timestamps are
+  not normalized (decision of OC-08). `Redact(Redact(x)) == Redact(x)`.
+- **`Import`** (OC-09a3, `importer.go`). `Import(ImportOptions{From, Into, Supported, Deny, Local}) (ImportReport, error)` is what
+  the workstation runs on the directory the recorder wrote, before anything reaches `fixtures/`; it trusts nothing the VM did and
+  is **all or nothing**. `From` holds only regular files `<campaign>/<name>.cli` (campaign `^[a-z0-9-]+$`): a link (also as a
+  campaign), any other file (also at the root), a sub directory, an empty batch is an error. Each file is parsed again and says
+  `recorded-by: engine-contract:record` (`RecordedByContract`; empty, `synthetic` are refused) with no `record` header (pending,
+  skip, replay are refused). **The whole batch is one configuration** (tool, version, mode), whose version is one of `Supported`
+  (N and N-1), and `CheckLeaksAs(Deny, Local)` finds nothing. An error names files and rules, never the text found; on any error
+  the target is not touched (not a file, a directory or a temporary file). An existing file of `Into` that parses not, or is not a
+  regular file, is an error too. Then: identical to the existing file but for `recorded` is `Unchanged` (not rewritten: bytes and
+  modification time stay); an existing `record: skip: ...` is `Kept` (never overwritten); anything else is `Written`, in two
+  phases (temporary files next to the targets, then renames). The files of `Into` of the same configuration that the batch did
+  not produce are `NotProduced`: listed, **never deleted** (a skipped one is the human's and not listed). `SourceDir()` and
+  `VersionsSourceFile()` locate the fixtures directory and `tools/engine-vms/versions.env` through `runtime.Caller`; under
+  `-trimpath` they answer an empty path and an error that names the source tree.
+- **`engine-fixture-import`** (OC-09a3, `internal/enginefixture/cmd/engine-fixture-import`). A production `main` under the
+  directory E1 already admits (it starts no process: no `os/exec`, `testing`, `enginecontract`, `fakecli`, `docker`, `engine` or
+  `engineguard`, `TestTheCommandStartsNothingAndImportsNoEngineCode`). `engine-fixture-import --from <dir> [--into <dir>]
+  [--versions <file>]` (defaults: the source tree's `fixtures/` and `versions.env`) applies `MachineIdentities()` and the external
+  deny list of `DEVDESK_FIXTURE_DENYLIST` (an unreadable file is an error that names the variable). Exit 0 done, 1 refused or failed
+  (nothing written, nothing on stdout, `engine-fixture-import: <error>` on stderr), 2 usage. The first line of stdout is
+  `engine-contract:record: <tool> <version> <mode>: N written, N unchanged, N kept, N not produced by this run`, then one line per
+  fixture of each list and the state of the deny list. `contract.sh record` runs it (above).
+- **Recording a new version** (the procedure of a bump): edit `versions.env`, `versions_test.go` and this file (the numbers above),
+  then run `mise run engine-contract:record` for the four configurations (Docker N and N-1, Podman N and N-1, plus Podman rootful),
+  review the diff (the format is meant to be read), and commit. Nothing is deleted by a recording: remove a fixture of an old
+  version by hand (`TestFixturesAreNotStale` says which).
+- Not here: the first real fixtures with the raised floor (OC-09b).
 
 ## OCI registries — `internal/oci`
 

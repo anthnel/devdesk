@@ -42,7 +42,9 @@ const (
 // Values of the "recorded-by" header.
 const (
 	recordedBySynthetic = "synthetic"
-	recordedByContract  = "engine-contract:record"
+	// RecordedByContract marks a fixture the contract recorder wrote
+	// (mise run engine-contract:record); the importer accepts nothing else.
+	RecordedByContract = "engine-contract:record"
 )
 
 const (
@@ -260,8 +262,8 @@ func metaOf(fileName string, values map[string]string) (Meta, error) {
 	if !validRecord(m.Record) {
 		return Meta{}, fail(fileName, "record %q is not replay, pending or \"skip: <reason>\"", m.Record)
 	}
-	if m.RecordedBy != "" && m.RecordedBy != recordedBySynthetic && m.RecordedBy != recordedByContract {
-		return Meta{}, fail(fileName, "recorded-by %q is neither %s nor %s", m.RecordedBy, recordedBySynthetic, recordedByContract)
+	if m.RecordedBy != "" && m.RecordedBy != recordedBySynthetic && m.RecordedBy != RecordedByContract {
+		return Meta{}, fail(fileName, "recorded-by %q is neither %s nor %s", m.RecordedBy, recordedBySynthetic, RecordedByContract)
 	}
 	if m.Record != RecordPending {
 		for _, key := range answerHeaders {

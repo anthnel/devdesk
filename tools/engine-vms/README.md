@@ -77,7 +77,7 @@ Run the campaigns inside the VM, restore with `reset.sh` afterwards.
 
 ## Contract runs
 
-OC-09a1 (DEVDESK-806), labels and cleanup OC-09a2 (DEVDESK-943). `contract.sh` runs the engine contract tests (the `*_contract_test.go` files, see
+OC-09a1 (DEVDESK-806), labels and cleanup OC-09a2 (DEVDESK-943), recording OC-09a3 (DEVDESK-944). `contract.sh` runs the engine contract tests (the `*_contract_test.go` files, see
 `docs/architecture/network.md`, "Engine contracts") against the engine of a VM:
 
 ```bash
@@ -90,7 +90,8 @@ DEVDESK_ENGINE_CONTRACT=1 mise run engine-contract -- podman n --mode rootful --
 your shell and opens the contract gate for every later `go test`, which would then reach your own engine. No task
 sets it for you.
 
-Usage: `contract.sh verify <docker|podman> <n|n1> [--mode rootful|rootless] [--no-reset]`.
+Usage: `contract.sh verify <docker|podman> <n|n1> [--mode rootful|rootless] [--no-reset]` and
+`contract.sh record <docker|podman> <n|n1> [--mode rootful|rootless] [--keep-out <dir>]` (below).
 
 - **The gate comes first and applies on your machine.** Without `DEVDESK_ENGINE_CONTRACT=1` it prints `skipped` and
   exits 0; with `CI`, `GITHUB_ACTIONS`, `GITLAB_CI`, `BUILDKITE` or `TF_BUILD` set it prints `refused` and exits 1, even
@@ -102,7 +103,7 @@ Usage: `contract.sh verify <docker|podman> <n|n1> [--mode rootful|rootless] [--n
   `-test.run '^TestContract'` with an explicit environment (`env -i`), and removes the directory, also on failure.
   Nothing is copied back; the exit code is the contracts'. It prints how many contracts passed, were skipped and
   failed; when none passed (an engine outside N and N-1 is skipped in verify mode) the exit code stays 0 and it says
-  `nothing was verified`.
+  `nothing was done by verify`.
 - **The image.** `CONTRACT_IMAGE` in `versions.env` (`docker.io/library/alpine@sha256:...`, pinned by the digest of
   the multi-arch index; the date and the source are in the comment, trust on first use like the other sums) is the
   only image the contracts start. After the reset `contract.sh` pulls it into the VM, once, as the user of the mode
@@ -133,7 +134,26 @@ Usage: `contract.sh verify <docker|podman> <n|n1> [--mode rootful|rootless] [--n
   confirmed on the VMs yet**: the first run on Docker 29.10.1 / 28.5.2 and Podman 6.2.1 / 5.8.11 is that
   confirmation, and a template an engine rejects fails the contract with the engine's own message.
 - The label filters and the `inspect` templates of the cleanup are, like the probe, **not confirmed on the VMs yet**.
-- Not there yet: recording fixtures and `engine-contract:record` (OC-09a3).
+- **Recording** (`mise run engine-contract:record`, OC-09a3). Same gate, same steps, with the action `record`: the test binary
+  runs with `DEVDESK_FIXTURE_RECORDING=1` and `DEVDESK_FIXTURE_OUT=/tmp/ddc-<run>/out` in its explicit environment (set by
+  the script in the VM only, never read from your shell), the output directory is made for the user of the mode, and the
+  contracts write each exchange, redacted and leak-checked, as a `.cli` fixture. When the contracts and the sentinel check
+  passed, **the output directory, and nothing else**, comes back as a tar and is imported on your machine by
+  `go run ./internal/enginefixture/cmd/engine-fixture-import --from <dir>`, which checks everything again (format,
+  one configuration, N and N-1, leak check with your deny list `DEVDESK_FIXTURE_DENYLIST` and your own identities) and
+  writes into `internal/enginefixture/fixtures`. It prints `engine-contract:record: <tool> <version> <mode>: N written,
+  N unchanged, N kept, N not produced by this run`. A fixture identical to the existing one but for its date is not
+  rewritten; one marked `record: skip: ...` is never touched; nothing is deleted.
+  - **`--keep-out <dir>`** (absolute) sends the result to `<dir>` instead of the repository: the dry run, nothing is
+    versioned (`DEVDESK_ENGINE_CONTRACT=1 mise run engine-contract:record -- podman n --mode rootless --keep-out /tmp/oc09a-dry`).
+  - **`--no-reset` is refused** (exit 2): the fixtures describe what a clean VM answers, so a recording always restores
+    the clean snapshot first.
+  - **The tar is untrusted input.** It is listed and refused when an entry is not `<campaign>/<name>.cli` (absolute path,
+    `..`, a link, a special file, an odd name) or when it is over 16 MiB, then extracted into a new private temporary
+    directory without `--same-owner` or `--same-permissions`; the importer reads every file again.
+  - Review the diff before committing: the fixtures are public text kept in the history. Set `DEVDESK_FIXTURE_DENYLIST` to a
+    file outside the repository (one term per line) so the import also looks for the names only you know.
+- Not confirmed on the VMs yet: a real recording on the four configurations.
 
 ## Threat model and limits
 

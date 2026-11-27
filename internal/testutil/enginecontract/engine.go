@@ -1,10 +1,7 @@
 package enginecontract
 
 import (
-	"errors"
 	"fmt"
-	"path/filepath"
-	"runtime"
 	"strings"
 
 	"github.com/anthnel/devdesk/internal/enginefixture"
@@ -22,18 +19,18 @@ type Engine struct {
 type Probe func(tool enginefixture.Tool) (Engine, error)
 
 // VersionsFile is the path of versions.env: VersionsEnv when set (in the test VM
-// the script pushes its copy there), else the file of the repository this source
-// file sits in. A binary built with -trimpath has no such path, and the VM always
-// sets the variable.
+// the script pushes its copy there), else the file of the source tree, as the
+// importer reads it (enginefixture.VersionsSourceFile). A binary built with
+// -trimpath has no source tree, and the VM always sets the variable.
 func VersionsFile(getenv func(string) string) (string, error) {
 	if v := getenv(VersionsEnv); v != "" {
 		return v, nil
 	}
-	_, file, _, ok := runtime.Caller(0)
-	if !ok {
-		return "", errors.New("enginecontract: the path of the source is unknown: set " + VersionsEnv)
+	file, err := enginefixture.VersionsSourceFile()
+	if err != nil {
+		return "", fmt.Errorf("%w: set %s", err, VersionsEnv)
 	}
-	return filepath.Join(filepath.Dir(file), "..", "..", "..", "tools", "engine-vms", "versions.env"), nil
+	return file, nil
 }
 
 // CheckSupported reports whether the engine is one of the two versions (N and

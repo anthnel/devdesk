@@ -162,6 +162,11 @@ func TestE1DetectorOnSources(t *testing.T) {
 		{"a _test.go file", "internal/docker/replay_test.go", "package docker\n\n" + imp + "\n", nil},
 		{"fakecli, which imports testing itself", "internal/testutil/fakecli/fixtures.go", "package fakecli\n\n" + imp + "\n", nil},
 		{"enginefixture itself", "internal/enginefixture/load.go", "package enginefixture\n\n" + imp + "\n", nil},
+		// OC-09a3: the importer command lives under internal/enginefixture, which E1 already admits
+		// (any depth below the directory). It reads and writes fixture files and never reaches dk.
+		{"the engine-fixture-import command, under enginefixture", "internal/enginefixture/cmd/engine-fixture-import/main.go", "package main\n\n" + imp + "\n", nil},
+		{"a command of another directory is not admitted by that", "internal/engineguard/cmd/engine-fixture-import/main.go", "package main\n\n" + imp + "\n", []int{3}},
+		{"a directory that only starts like enginefixture", "internal/enginefixture2/cmd/x/main.go", "package main\n\n" + imp + "\n", []int{3}},
 		{"enginecontract, the contract helpers (C1 keeps them out of production)", "internal/testutil/enginecontract/engine.go", "package enginecontract\n\n" + imp + "\n", nil},
 		{"a file of a subdirectory of enginecontract", "internal/testutil/enginecontract/x/y.go", "package y\n\n" + imp + "\n", nil},
 		{"a sibling directory of enginecontract", "internal/testutil/enginecontract2/x.go", "package x\n\n" + imp + "\n", []int{3}},

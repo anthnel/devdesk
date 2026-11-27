@@ -1,11 +1,18 @@
 #!/usr/bin/env bash
 # Run the engine contract tests (the *_contract_test.go files) in a test VM (OC-09a1, DEVDESK-806; labels and
-# cleanup, OC-09a2, DEVDESK-943).
+# cleanup, OC-09a2, DEVDESK-943; recording, OC-09a3, DEVDESK-944).
 # Usage: contract.sh verify <docker|podman> <n|n1> [--mode rootful|rootless] [--no-reset]
+#        contract.sh record <docker|podman> <n|n1> [--mode rootful|rootless] [--keep-out <dir>]
 #   verify     run the contracts and compare what they see to the recorded fixtures
+#   record     run the contracts in recording mode: they write their exchanges, redacted, to a directory of the
+#              VM; once the run and the sentinel check passed, that one directory comes back and is imported
+#              on this machine (see below)
 #   --mode     docker is rootful only; podman defaults to rootless (the mode kind and most users have)
 #   --no-reset keep the VM as it is instead of restoring its clean snapshot first (faster to iterate;
-#              the line installed in the VM must still be the one asked for)
+#              the line installed in the VM must still be the one asked for). Refused with record: the
+#              fixtures describe what a clean VM answers, so a recording always starts from the clean snapshot.
+#   --keep-out import into <dir> (absolute) instead of internal/enginefixture/fixtures: a dry run, the
+#              repository is not touched (record only)
 # The gate comes first and applies on this machine: without DEVDESK_ENGINE_CONTRACT=1 in the
 # environment nothing happens (exit 0); with CI, GITHUB_ACTIONS, GITLAB_CI, BUILDKITE or TF_BUILD set
 # nothing happens either (exit 1), even with the variable. Set the variable for the one command, as
@@ -22,7 +29,20 @@
 # checks that the sentinel survived, then removes the sentinel by its id and the directory, on success or
 # not. The contracts label what they create with devdesk.test=<run> and remove only what carries that
 # label, so a sentinel that is gone means a cleanup that touched a container without the label: the
-# run fails. Nothing is copied back.
+# run fails. When verifying, nothing is copied back.
+#
+# Recording (record). The test binary gets DEVDESK_FIXTURE_RECORDING=1 and DEVDESK_FIXTURE_OUT=<dir>/out in its
+# explicit environment, and only there: nothing of this machine's environment is passed through. <dir>/out is made
+# before the run, for the user of the mode (the recorder writes as that user). Each exchange is redacted and runs
+# through the leak check in the VM before it is written. Only when the contracts and the sentinel check passed, the
+# one directory <dir>/out comes back as a tar, nothing else leaves the VM. That tar is untrusted input: it is
+# listed first and refused when an entry is not <campaign>/<name>.cli (an absolute path, "..", a link, a special
+# file, a name outside that shape) or when it is larger than 16 MiB; it is then extracted into a new private
+# temporary directory (mktemp -d, no --same-owner, no --same-permissions), and
+# `go run ./internal/enginefixture/cmd/engine-fixture-import --from <that directory>` parses every file again,
+# checks the version against N and N-1 and runs the leak check with the external deny list
+# (DEVDESK_FIXTURE_DENYLIST, a file outside the repository, read from this machine's environment) and the
+# identities of this machine, before anything is written to internal/enginefixture/fixtures (or to --keep-out).
 # The contracts also need the mark of a test VM, /etc/dd/current (written by dd-use.sh): the lab check of
 # enginecontract refuses to create or remove a resource anywhere else.
 # Variables: the DD_ENGINE_VMS_* ones of lib.sh.
@@ -30,6 +50,7 @@ set -euo pipefail
 
 usage() {
   echo "usage: contract.sh verify <docker|podman> <n|n1> [--mode rootful|rootless] [--no-reset]" >&2
+  echo "       contract.sh record <docker|podman> <n|n1> [--mode rootful|rootless] [--keep-out <dir>]" >&2
   exit 2
 }
 
@@ -47,18 +68,28 @@ for marker in CI GITHUB_ACTIONS GITLAB_CI BUILDKITE TF_BUILD; do
 done
 
 action=${1:-} engine=${2:-} line=${3:-}
-[[ $action == verify ]] || usage
+case $action in verify | record) ;; *) usage ;; esac
 case $engine in docker | podman) ;; *) usage ;; esac
 case $line in n | n1) ;; *) usage ;; esac
 shift 3
-mode="" reset=1
+mode="" reset=1 keep="" into_args=()
 while (($#)); do
   case $1 in
     --mode) (($# >= 2)) || usage; mode=$2; shift 2 ;;
     --no-reset) reset=0; shift ;;
+    --keep-out) (($# >= 2)) || usage; keep=$2; shift 2 ;;
     *) usage ;;
   esac
 done
+if [[ $action == record && $reset == 0 ]]; then
+  echo "contract.sh: --no-reset is refused with record: the fixtures describe what a clean VM answers, so a recording always restores the clean snapshot first" >&2
+  exit 2
+fi
+if [[ -n $keep ]]; then
+  [[ $action == record ]] || usage
+  [[ $keep == /* ]] || { echo "contract.sh: --keep-out takes an absolute directory, not '$keep'" >&2; exit 2; }
+  into_args=(--into "$keep")
+fi
 if [[ -z $mode ]]; then
   if [[ $engine == podman ]]; then mode=rootless; else mode=rootful; fi
 fi
@@ -89,6 +120,27 @@ vm_as_mode() {
   if [[ $mode == rootless ]]; then vm_user "$engine" "$@"; else vm_root "$engine" "$@"; fi
 }
 
+# The tar of the output directory is what a VM sent: it is untrusted. Look at it before extracting
+# anything, then extract into a new private directory. engine-fixture-import checks every file again.
+max_archive=$((16 * 1024 * 1024))
+recorded=""
+unpack_recorded() {
+  local names listing entry
+  names=$(tar -tf "$work/recorded-out") || die "the recorded archive cannot be read"
+  listing=$(tar -tvf "$work/recorded-out") || die "the recorded archive cannot be read"
+  while IFS= read -r entry; do
+    [[ $entry =~ ^(\./?|(\./)?[a-z0-9-]+/?|(\./)?[a-z0-9-]+/[A-Za-z0-9._-]+\.cli)$ ]] ||
+      die "the recorded archive holds an entry that is not <campaign>/<name>.cli (absolute path, '..', odd name): refused"
+  done <<<"$names"
+  while IFS= read -r entry; do
+    [[ ${entry:0:1} == - || ${entry:0:1} == d ]] ||
+      die "the recorded archive holds a link or a special file: refused"
+  done <<<"$listing"
+  recorded=$(mktemp -d "$work/recorded.XXXXXX")
+  tar -xf "$work/recorded-out" -C "$recorded" --no-same-owner --no-same-permissions
+  chmod -R u+rwX,go-rwx "$recorded"
+}
+
 # shellcheck disable=SC2329 # called by the EXIT trap
 cleanup() {
   rm -rf "$work"
@@ -98,7 +150,7 @@ cleanup() {
 }
 trap cleanup EXIT
 
-log "engine-contract: $engine line $line, $mode, run $run, mode verify"
+log "engine-contract: $engine line $line, $mode, run $run, mode $action"
 
 # One test binary per package that holds a contract.
 mapfile -t packages < <(git -C "$root" ls-files '*_contract_test.go' | xargs -n1 dirname | sort -u)
@@ -128,6 +180,10 @@ for f in "${binaries[@]}"; do
   vm_root "$engine" chmod 0755 "$vmdir/$f"
 done
 vm_root "$engine" tee "$vmdir/versions.env" <"$DD_DIR/versions.env" >/dev/null
+# The recorder writes here, as the user of the mode: the chown below hands it over when that user is not root.
+if [[ $action == record ]]; then
+  vm_root "$engine" mkdir -m 0700 "$vmdir/out"
+fi
 if [[ $mode == rootless ]]; then vm_root "$engine" chown -R "$DD_USER" "$vmdir"; fi
 
 # The one image the contracts start, pinned by digest in versions.env, pulled here and nowhere else
@@ -155,6 +211,10 @@ vars=(
   "DEVDESK_ENGINE_CONTRACT_IMAGE=$CONTRACT_IMAGE"
   "DEVDESK_ENGINE_VERSIONS=$vmdir/versions.env"
 )
+# Only a recording sets these, and only here, in the environment of the test binary in the VM.
+if [[ $action == record ]]; then
+  vars+=("DEVDESK_FIXTURE_RECORDING=1" "DEVDESK_FIXTURE_OUT=$vmdir/out")
+fi
 status=0 passed=0 skipped=0 failed=0
 for f in "${binaries[@]}"; do
   log "running $f in $(vm_name "$engine") ($mode)"
@@ -186,12 +246,20 @@ vm_as_mode "$engine" rm -f "$sentinel" >/dev/null 2>&1 || true
 sentinel=""
 
 log "engine-contract: $passed passed, $skipped skipped, $failed failed (run $run)"
+if [[ $action == record ]] && ((status == 0 && passed > 0)); then
+  log "engine-contract: bringing the recorded fixtures back from $vmdir/out"
+  vm_root "$engine" tar -C "$vmdir/out" -cf - . | head -c "$((max_archive + 1))" >"$work/recorded-out" || die "the recorded fixtures could not be brought back (or the archive is larger than $max_archive bytes)"
+  (($(wc -c <"$work/recorded-out") <= max_archive)) || die "the recorded archive is larger than $max_archive bytes: refused"
+  unpack_recorded
+  log "engine-contract: importing on this machine${keep:+ into $keep}"
+  (cd "$root" && go run ./internal/enginefixture/cmd/engine-fixture-import --from "$recorded" ${into_args[@]+"${into_args[@]}"}) || status=1
+fi
 if ((status)); then
   log "engine-contract: FAILED ($engine line $line, $mode, run $run, exit $status)"
 elif ((passed == 0)); then
   # An engine outside N and N-1 is skipped in verify mode, and so is a contract that found no
   # fixture: the exit code stays 0, but nothing was checked and the message must not say it was.
-  log "engine-contract: WARNING: nothing was verified: no contract passed ($skipped skipped); see the SKIP lines above"
+  log "engine-contract: WARNING: nothing was done by $action: no contract passed ($skipped skipped); see the SKIP lines above"
 else
   log "engine-contract: done ($engine line $line, $mode, run $run)"
 fi
