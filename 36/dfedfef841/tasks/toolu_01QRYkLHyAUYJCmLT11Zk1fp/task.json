@@ -1,0 +1,15 @@
+{
+  "tool_use_id": "toolu_01QRYkLHyAUYJCmLT11Zk1fp",
+  "agent_id": "aac296b84d0c23c36",
+  "subagent_type": "dev-team:devops",
+  "task_description": "Nettoyer worktrees OCI fusionnés",
+  "token_usage": {
+    "input_tokens": 8,
+    "cache_creation_tokens": 43573,
+    "cache_read_tokens": 118595,
+    "output_tokens": 1241,
+    "api_call_count": 4
+  },
+  "started_at": "2026-11-27T10:13:59.227192516+01:00",
+  "completed_at": "2026-11-27T10:14:14.852534138+01:00"
+}

@@ -1,0 +1,71 @@
+{
+  "cli_version": "0.13.2",
+  "checkpoint_id": "36dfedfef841",
+  "strategy": "manual-commit",
+  "branch": "feat/oc-84-pager-argv",
+  "checkpoints_count": 1,
+  "files_touched": [
+    "docs-site/docs/reference/configuration.md",
+    "docs/architecture/app-shell.md",
+    "docs/architecture/configuration.md",
+    "docs/architecture/network.md",
+    "docs/architecture/viewer.md",
+    "internal/config/config.go",
+    "internal/docker/containers.go",
+    "internal/docker/containers_test.go",
+    "internal/docker/identifier.go",
+    "internal/docker/logs_cmd_test.go",
+    "internal/pager/colours_test.go",
+    "internal/pager/pager.go",
+    "internal/pager/pager_test.go",
+    "internal/ui/containers/pager_feed_test.go",
+    "internal/ui/containers/sources.go",
+    "internal/ui/containers/update_test.go",
+    "internal/ui/teaexec/pipe.go",
+    "internal/ui/teaexec/pipe_test.go",
+    "internal/ui/teaexec/teaexec.go",
+    "internal/ui/viewer/pager_guard_test.go",
+    "internal/ui/viewer/pager_test.go",
+    "internal/ui/viewer/update.go",
+    "internal/ui/viewer/viewer_test.go",
+    "internal/viewer/source.go"
+  ],
+  "sessions": [
+    {
+      "metadata": "/36/dfedfef841/0/metadata.json",
+      "transcript": "/36/dfedfef841/0/full.jsonl",
+      "compact_transcript": "/36/dfedfef841/0/transcript.jsonl",
+      "content_hash": "/36/dfedfef841/0/content_hash.txt",
+      "prompt": "/36/dfedfef841/0/prompt.txt"
+    }
+  ],
+  "token_usage": {
+    "input_tokens": 47,
+    "cache_creation_tokens": 82478,
+    "cache_read_tokens": 1493015,
+    "output_tokens": 14425,
+    "api_call_count": 19,
+    "subagent_tokens": {
+      "input_tokens": 74,
+      "cache_creation_tokens": 208718,
+      "cache_read_tokens": 2662404,
+      "output_tokens": 52737,
+      "api_call_count": 37
+    },
+    "subagent_tokens_complete": true
+  },
+  "redaction": {
+    "replacements": 1,
+    "layers": {
+      "betterleaks": 0,
+      "connection_string": 0,
+      "credential_key": 0,
+      "credential_value": 0,
+      "credentialed_uri": 0,
+      "entropy": 0,
+      "key_context": 1,
+      "provider_token": 0,
+      "shell_stdin": 0
+    }
+  }
+}
