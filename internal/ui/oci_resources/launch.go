@@ -52,13 +52,17 @@ func (m Model) handleContainerLaunchComplete(msg ContainerLaunchCompleteMsg) (te
 	return m, nil
 }
 
+// commandCopiedText is the footer notice after ctrl+y: the copied command names
+// each environment variable and carries none of its value (OC-16).
+const commandCopiedText = "Command copied to clipboard, environment values are not copied"
+
 // handleClipboardCopy processes the result of copying the docker command to clipboard (Rule 128).
 func (m Model) handleClipboardCopy(msg ClipboardCopyMsg) (tea.Model, tea.Cmd) {
 	if msg.Err != nil {
 		log.Printf("ERROR [oci_resources] clipboard copy: %v", msg.Err)
 		return m, m.footer.Error("Failed to copy command to clipboard")
 	}
-	return m, m.footer.Info("Docker command copied to clipboard")
+	return m, m.footer.Info(commandCopiedText)
 }
 
 // handleLaunchFormSubmit dispatches the container launch.

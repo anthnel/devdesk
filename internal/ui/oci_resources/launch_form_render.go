@@ -16,7 +16,28 @@ func shellQuote(v string) string {
 	return v
 }
 
-// buildCommandLines returns the docker run command split into continuation lines
+// invalidEnvMarker stands in the preview for an Environment entry whose name
+// docker.ValidEnvName refuses. The entry may be a secret typed in the name
+// position, so it is never repeated. In a shell the marker is a redirection, so a
+// pasted command fails instead of running without the variable.
+const invalidEnvMarker = "<invalid>"
+
+// previewEnvName returns what the preview and the ctrl+y copy show for one
+// Environment entry: the name alone, as the launcher passes it (`-e NAME`, the
+// value travels in the child's environment, OC-14), whatever the variable is.
+// An entry with no "=" is shown by its name when it is a valid one; a name
+// ValidEnvName refuses is replaced by invalidEnvMarker.
+func previewEnvName(entry string) string {
+	name, _, _ := strings.Cut(entry, "=")
+	name = strings.TrimSpace(name)
+	if !docker.ValidEnvName(name) {
+		return invalidEnvMarker
+	}
+	return name
+}
+
+// buildCommandLines returns the docker run command split into continuation lines.
+// Environment values are never part of it: see previewEnvName.
 func (f *LaunchForm) buildCommandLines() []string {
 	var args []string
 
@@ -45,10 +66,8 @@ func (f *LaunchForm) buildCommandLines() []string {
 	if ep := strings.TrimSpace(f.entrypointInput.Value()); ep != "" {
 		args = append(args, "--entrypoint "+shellQuote(ep))
 	}
-	for e := range strings.SplitSeq(f.envInput.Value(), ",") {
-		if e = strings.TrimSpace(e); e != "" {
-			args = append(args, "-e "+shellQuote(e))
-		}
+	for _, e := range f.envEntries() {
+		args = append(args, "-e "+previewEnvName(e))
 	}
 	for v := range strings.SplitSeq(f.volInput.Value(), ",") {
 		if v = strings.TrimSpace(v); v != "" {

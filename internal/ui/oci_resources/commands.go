@@ -337,10 +337,14 @@ func saveLaunchOptionsCmd(imageKey string, entry cache.LaunchOptionsEntry) tea.C
 	}
 }
 
+// writeClipboard is the clipboard seam: tests replace it so no test touches the
+// clipboard of the machine.
+var writeClipboard = clipboard.WriteAll
+
 // copyToClipboardCmd writes the given text to the system clipboard (Rule 110: I/O in Cmd).
 func copyToClipboardCmd(text string) tea.Cmd {
 	return func() tea.Msg {
-		err := clipboard.WriteAll(text)
+		err := writeClipboard(text)
 		return ClipboardCopyMsg{Err: err}
 	}
 }

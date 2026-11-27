@@ -228,9 +228,23 @@ Two things about the engine are worth knowing before changing this code:
       `--env-file /dev/fd/3` instead, which would keep a name from reaching the
       CLI's own environment, was set aside by decision D13 of the OC plan (not the backlog's D13): DevDesk refuses, it
       does not use an `--env-file`.
-  - **Still to do.** OC-16 (the command preview and `ctrl+y`
-    still show `-e NAME=VALUE`: `buildCommandString` / `buildCommandLines`), OC-17
-    (`launch-options.json` still stores the values: `ToCacheEntry`). The scanner
+  - **The preview and `ctrl+y` (OC-16, DEVDESK-814).** `buildCommandLines` (the
+    two-column preview) and `buildCommandString` (what `ctrl+y` copies) print the
+    launcher's own words: `-e NAME`, never a value, for every variable (no
+    "sensitive" class). `previewEnvName` cuts the entry at its first `=` and trims
+    the name; a name `docker.ValidEnvName` refuses (an entry with no `=` included:
+    it may be a secret typed in the name position) is replaced by the fixed marker
+    `-e <invalid>`, never repeated. The marker is a redirection in a shell, so a
+    pasted command fails instead of running without the variable. Reserved names
+    (OC-15) are not filtered here: the form refuses them at the submit. The
+    clipboard goes through the seam `writeClipboard` (`commands.go`, tests replace
+    it) and the footer after a copy is the Info `commandCopiedText` ("Command
+    copied to clipboard, environment values are not copied"). The form help says
+    the same (Launch Form section). The only place the value is still drawn is the
+    Environment input the user types in. Tests:
+    `internal/ui/oci_resources/launch_preview_names_test.go`.
+  - **Still to do.** OC-17 (`launch-options.json` still stores the values:
+    `ToCacheEntry`). The scanner
     `internal/scan/plumber.go` put `-e GH_TOKEN=<token>` in an argv: fixed by
     DEVDESK-945 (`-e GH_TOKEN`, the value in `containerRun.Env`), with the static guard S9 below.
 
