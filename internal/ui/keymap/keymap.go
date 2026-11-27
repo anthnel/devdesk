@@ -30,10 +30,14 @@
 //	               the application receives nothing.                → 0
 //	Ctrl+Shift   : the control code erases case — ctrl+a and ctrl+shift+a
 //	               both emit 0x01. Telling them apart requires the Kitty
-//	               keyboard protocol or modifyOtherKeys, which bubbletea
-//	               v1.3.10 does not enable (that's WithKeyboardEnhancements()
-//	               in v2). And even then the emulator claims them first:
+//	               keyboard protocol or modifyOtherKeys. Bubble Tea v2.1.1
+//	               always enables the basic Kitty disambiguation and
+//	               modifyOtherKeys=2, and DevDesk sets nothing in
+//	               View.KeyboardEnhancements, so a terminal that supports
+//	               either may report these keys as distinct. Many do not,
+//	               and the emulator claims the common ones first:
 //	               ctrl+shift+c/v/t/w/n are copy, paste, tab, close, window.
+//	               The vocabulary must not depend on any of it (Rule 101).
 //	                                                                  → 0
 //	Shift+letter : no constraint. Works on every emulator, every platform,
 //	               through SSH and tmux.                             → 26
