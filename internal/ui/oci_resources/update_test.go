@@ -556,7 +556,12 @@ func TestDeleteAsksFirstAndNamesTheImage(t *testing.T) {
 }
 
 func TestPruneAsksFirst(t *testing.T) {
-	m := feed(t, prunableModel(t), testutil.Key(keymap.Prune))
+	m := prunableModel(t)
+	m, cmd := step(t, m, testutil.Key(keymap.Prune))
+	if m.confirmModal != nil || cmd == nil {
+		t.Fatal("'p' opened the confirmation before the engine said which containers use the images")
+	}
+	m = feed(t, m, ImagePruneUsersMsg{Candidates: []string{"eee5555aaaa1"}})
 
 	if m.confirmModal == nil {
 		t.Fatal("'p' pruned without asking")

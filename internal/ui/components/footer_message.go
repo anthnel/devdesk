@@ -155,6 +155,9 @@ type FooterMessage struct {
 	level    Level
 	id       uint64
 	blinkOff bool
+	// removal is true while the message is the bilan of a removal (Removal): a list
+	// refresh must not wipe it before it is read (ClearUnlessRemoval).
+	removal bool
 }
 
 // Info, Warn and Error set the message and return its expiry timer. Call them
@@ -171,6 +174,7 @@ func (f *FooterMessage) set(text string, level Level) tea.Cmd {
 	}
 	f.text = text
 	f.level = level
+	f.removal = false
 	f.id = footerMsgSeq.Add(1)
 
 	id := f.id
@@ -183,7 +187,17 @@ func (f *FooterMessage) set(text string, level Level) tea.Cmd {
 func (f *FooterMessage) Clear() {
 	f.text = ""
 	f.level = LevelInfo
+	f.removal = false
 	f.id = 0
+}
+
+// ClearUnlessRemoval is Clear for the handlers of a list that reloads: they drop the
+// error of the previous load, not the bilan of a removal, which would otherwise
+// vanish with the first refresh after it (OC-22). The bilan leaves with its timer.
+func (f *FooterMessage) ClearUnlessRemoval() {
+	if !f.removal {
+		f.Clear()
+	}
 }
 
 // Handle consumes what the component owns and reports whether it did: a
@@ -198,6 +212,7 @@ func (f *FooterMessage) Handle(msg tea.Msg) bool {
 		// message nothing ever clears.
 		f.text = msg.Text
 		f.level = msg.Level
+		f.removal = false
 		f.id = msg.ID
 		return true
 

@@ -751,39 +751,58 @@ the confirmation showed, one identifier at a time, never forced, and never a vol
   and `components.FooterMessage.Removal` sets it: Info when everything was removed or gone, Warning when the engine explained a refusal, Error
   when a refusal is `other` (Rule 128). `docker.SingleRemoval(target, err)` reads the error of one `Remove*` call the same way, so `D` on an item
   that is already gone is an Info `1 already gone`, not `Action failed`.
-- *What the engine said* (`ClassifyRemoval`): the text of the error is read, in this order: the engine itself missing or unreachable
+- *What the engine said* (`ClassifyRemoval`): only the engine's own words are read (a failed mutation is an `engineError{Label, Output}`: DevDesk's label,
+  `docker rm`, is never matched), in this order: the engine itself missing or unreachable
   (`executable file not found`, `cannot connect to`, `permission denied`, ...) is `other`, **never** "already gone", whatever `not found` the text holds;
   then running (`container is running`, `as it is running`, `container state improper`), in use (`image is being used`, `image used by`,
   `volume is in use`, `volume is being used`, `has active endpoints`, `has associated containers`), then gone (`no such container|image|volume|network|object`,
-  `no container with name or id`, `no volume with name`, `image not known`, `network <name> not found`); anything else is `other`, the safe side. The running
+  `no container with ID or name`, `no volume with name`, `image not known`, and docker's `network <name> not found` only for `network rm` and only when it is the whole text, `^Error response from daemon: network [a-z0-9_.-]+ not found$`); anything else is `other`, the safe side. The running
   and in-use wordings are the recorded ones of the four configurations (`containers/rm-running`, `images/rmi-used`, `volumes/rm-used`,
-  `networks/rm-used`; `TestRecordedRefusalsAreClassifiedOnEveryRecordedConfiguration`). **NOT RECORDED: the "No such ..." answers of `rm`, `rmi`,
-  `volume rm` and `network rm` for something that does not exist** (only `inspect-absent`, "no such object", is recorded): the wordings in
-  `goneMarkers` come from the engines' sources and from the tests of `removal_report_test.go`, and are to be recorded in an OC-09 scenario (a `*-absent`
-  scenario per kind). Until then an upgrade that rewords them makes the item a `not removed (see logs)` Error instead of `already gone`.
+  `networks/rm-used`; `TestRecordedRefusalsAreClassifiedOnEveryRecordedConfiguration`). **NOT A VERSIONED FIXTURE: the "No such ..." answers of `rm`, `rmi`,
+  `volume rm` and `network rm` for something that does not exist** (only `inspect-absent`, "no such object", is recorded). The container, image and volume
+  wordings were read by probe on jakku, docker 29.10.1 and 28.5.2, podman 6.2.1 and 5.8.11 rootless (2026-11): docker `No such container: X`, `No such image: X`,
+  `get X: no such volume`; podman `no container with ID or name "X" found: no such container`, `X: image not known`, `no volume with name "X" found: no such volume`;
+  running, docker `cannot remove container "X": container is running: stop the container before removing or force remove` (exit 1), podman `cannot remove
+  container <64 hex> as it is running - running or paused containers cannot be removed without force: container state improper` (exit 2); volume in use, docker
+  `remove V: volume is in use - [<64 hex>, ...]`, podman `volume V is being used by the following container(s): ...: volume is being used`. They are in
+  `removal_probe_test.go` verbatim, marked as such, and are to be recorded in an OC-09 scenario (a `*-absent` scenario per kind); the network ones are known from the
+  engines' sources only. Until then an upgrade that rewords them makes the item a `not removed (see logs)` Error instead of `already gone`.
 - *The list is frozen when the confirmation opens*. `P` on Containers freezes, from all the containers the view holds whatever state filter the
-  table shows, those that are `exited`, `created` or `dead`; on Images, the dangling images (repository and tag both `<none>`) with no container
-  (`Image.Containers == 0`), once each, leaving out an ID a tagged row also carries; on Volumes, `docker.UnusedVolumes(volumes, users)` from `ListVolumeUsers`.
+  table shows, those that are `exited`, `created` or `dead`; on Images, the dangling images (repository and tag both `<none>`), once each, leaving out an ID a tagged
+  row also carries and one the list counts a container for, then **asked of the engine, image by image**: `docker.ImagesInUse` runs one
+  `ps -a --filter ancestor=<id>` per candidate (`ContainersUsingImage`, which also counts a container built on a child image), fail closed (an error is no
+  confirmation and an Error, never "unused"). The count of the image list is not enough: it is joined by `repository:tag`, which every dangling image shares, and podman
+  always reports 0, so the preview would list images in use; the engine's `rmi` without force would refuse them (`not removed (in use)`), but the preview would have lied. The
+  cost is one `ps` per dangling image; on Volumes, `docker.UnusedVolumes(volumes, users)` from `ListVolumeUsers`.
   A malformed identifier is left out (and logged) at that moment. Nothing to remove opens no confirmation and the footer says so at Info
   (`No stopped containers to remove`, `No dangling images to remove`, `No unused volumes to remove`). The confirmation (generic `ConfirmModal`, text
-  `components.RemovalPreview`: `Remove these N <what>?`, the first 8 names, `and N more`, `Only the items listed here are removed.`) never says "all"; its detailed
+  `components.RemovalPreview`: `Remove these N <what>?`, the first 8 names, `and K more (not shown)`, then `These N will be removed, including the K not shown.`, or `Exactly the items listed above will be
+  removed.` when nothing is hidden) never says "all", and draws names through `components.Printable` (escape sequences stripped, control, format and
+  line-separator characters shown as `?`); the log lines of a removal quote the targets and the engine's text with `%q`. Its detailed
   text is OC-27 and the detailed outcome OC-28. Confirming runs the frozen list through the `Remove*s` function as one `Cmd` that returns a
   message carrying the `RemovalReport`; a refresh of the table in between (a container that stops, an image that becomes dangling) changes nothing
   about the list, and a container that started or an image or volume that a container began to use is refused by the engine, reported, never forced.
+  The answer of the engine to a preview (`ImagePruneUsersMsg`, `VolumePruneUsersMsg`) is dropped, with an Info `Prune cancelled`, when it arrives while another
+  confirmation is open or on another tab, and a second `P` is refused (Warning) while a prune reads or removes (`m.pruning`): no answer opens a confirmation over
+  something else. The bilan outlives the list refresh that follows it: the list handlers call `FooterMessage.ClearUnlessRemoval`, which drops the error of the
+  previous load and keeps a bilan until its own timer (`TestTheBilanOfAPruneSurvivesTheRefreshThatFollows`).
+  Limit: the lists hold short IDs (12 characters, as `ps` and `image ls` print them), and `rm <short id>` is resolved by the engine, which may read a container
+  name equal to the short ID of another container before the ID prefix: follow-up story.
   Not on the jobs registry: the existing prune was not, and `m.pruning` keeps the footer's `Pruning ...…` line while it runs.
 - *Which containers use which volume* (`internal/docker/volume_users.go`): `ListVolumeUsers() (map[string][]string, error)` runs ONE
   `<engine> ps -a -q --no-trunc` (the full IDs) and, when there is at least one, ONE grouped
-  `<engine> inspect --format {"Id":{{json .Id}},"Name":{{json .Name}},"Mounts":{{json .Mounts}}} <id>...`, never one call per volume or per container.
+  `<engine> inspect --format {{json .}} <id>...` (the whole inspect, one JSON object per line, read for `Id`, `Name` and `Mounts` only; a narrower template that names `.Id` fails on
+  podman, "can't evaluate field Id", exit 125, its template field being `.ID`), never one call per volume or per container.
   Each line is one JSON object; the answers are joined to the IDs **by `Id`, never by position**, the leading `/` of docker's `Name` is dropped, and only a
   mount of `Type` `volume` with a `Name` is a volume (a bind mount, tmpfs or another type never is; anonymous volumes, a 64-hex name, count). It fails
   closed: an error of `ps`, an ID that is not a container ID, an error of `inspect` (a container that disappeared between the two calls included), an empty or
   unreadable output, an answer that does not match every ID asked exactly once, or a `Mounts` that is not a list, is an error and no map; the Volumes tab then
   opens no confirmation and shows an Error. `VolumeUsers` is pure and `UnusedVolumes` keeps the order of the list; OC-25, OC-28 and OC-43 read the same map.
-  Probe of 2026-11 on docker 28.5.2 and 29.10.1, podman 5.8.11 and 6.2.1 (reported by the orchestrator): `ps --format {{.Mounts}}` prints, on podman, the
+  Probe 2026-11 on jakku, docker 29.10.1 and 28.5.2, podman 6.2.1 and 5.8.11 rootless: `ps -a -q --no-trunc` prints the 64-hex IDs, stopped containers included;
+  the raw JSON has `Id`, `Name` and `Mounts` on the four; `Mounts[].Name` is present for named and anonymous volumes and absent for a bind mount; podman adds `Options`. `ps --format {{.Mounts}}` prints, on podman, the
   destinations of the mounts in brackets and never the volume names, and on docker a name, a source or a hash cut at 14 characters without
   `--no-trunc`, so it would make a volume look unused; docker prints `inspect` in the reverse order of creation with a `Name` that starts with `/`, podman in order
-  of creation without it; the order of the mounts of one container is not stable between engines. **Not run on a real engine: the `inspect` template and the
-  unfiltered `ps -a -q --no-trunc`** (the contracts run the same `ps` with a label filter; the fixtures of `volume_users_test.go` are written by hand from the probe and are to be replaced by a recorded scenario, OC-09).
+  of creation without it; the order of the mounts of one container is not stable between engines. **Not a versioned fixture**: the exchanges of `volume_users_test.go` are written by hand from the probe and are to be replaced by a recorded scenario (OC-09).
   Limit: the IDs travel in one argv; on Windows (about 32 KB of command line, roughly 480 containers) an engine with more containers makes the
   `inspect` fail, which is the fail-closed answer (no confirmation, an Error), not a wrong one.
 

@@ -192,6 +192,17 @@ type ImageActionMsg struct {
 	Err    error
 }
 
+// ImagePruneUsersMsg is the engine's answer to "which containers were created from
+// these images", read when `P` is pressed on the Images tab. Candidates are the
+// dangling images the list showed at that moment; Users maps an ID to the containers
+// that use it. A non-nil Err means the engine could not say, which is never read as
+// "unused".
+type ImagePruneUsersMsg struct {
+	Candidates []string
+	Users      map[string][]string
+	Err        error
+}
+
 // PruneCompleteMsg carries the outcome of removing the frozen list of images: one
 // result per image, in the order of the list.
 type PruneCompleteMsg struct {

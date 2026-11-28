@@ -90,6 +90,17 @@ func removeImageCmd(id, name string) tea.Cmd {
 	}
 }
 
+// readImageUsersCmd asks the engine which containers were created from each candidate
+// image (docker.ImagesInUse): the preview of `P` on the Images tab is computed from
+// the answer. The candidates travel on the message so a refresh of the table cannot
+// change what the user is shown.
+func readImageUsersCmd(candidates []string) tea.Cmd {
+	return func() tea.Msg {
+		users, err := docker.ImagesInUse(candidates)
+		return ImagePruneUsersMsg{Candidates: candidates, Users: users, Err: err}
+	}
+}
+
 // removeImagesCmd removes the images the confirmation showed, each by its own ID
 // (OC-22). ids is the list frozen when the modal opened.
 func removeImagesCmd(ids []string) tea.Cmd {

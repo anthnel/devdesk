@@ -3,6 +3,7 @@ package docker
 import (
 	"errors"
 	"fmt"
+	"regexp"
 	"strings"
 )
 
@@ -131,6 +132,8 @@ func removeBatch(targets []string, remove func(string) error) RemovalReport {
 // engine that says the thing does not exist is RemovalGone. Everything else is
 // RemovalRefused, with the reason when the text is one DevDesk knows and ReasonOther
 // when it is not: "could not tell" is never read as "already gone".
+//
+// Only the engine's own words are read (engineText), never DevDesk's label.
 func ClassifyRemoval(err error) (RemovalStatus, RefusalReason) {
 	if err == nil {
 		return RemovalRemoved, ""
@@ -138,30 +141,51 @@ func ClassifyRemoval(err error) (RemovalStatus, RefusalReason) {
 	if invalidTarget(err) {
 		return RemovalRefused, ReasonOther
 	}
-	text := strings.ToLower(err.Error())
+	label, text := engineText(err)
+	lower := strings.ToLower(text)
 	// The engine itself is missing or unreachable: nothing was looked up, so
 	// whatever "not found" the text holds says nothing about the target.
-	if containsAny(text, notReachableMarkers) {
+	if containsAny(lower, notReachableMarkers) {
 		return RemovalRefused, ReasonOther
 	}
-	if containsAny(text, runningMarkers) {
+	if containsAny(lower, runningMarkers) {
 		return RemovalRefused, ReasonRunning
 	}
-	if containsAny(text, inUseMarkers) {
+	if containsAny(lower, inUseMarkers) {
 		return RemovalRefused, ReasonInUse
 	}
-	if containsAny(text, goneMarkers) || dockerNetworkGone(text) {
+	if containsAny(lower, goneMarkers) || dockerNetworkGone(label, text) {
 		return RemovalGone, ""
 	}
 	return RemovalRefused, ReasonOther
 }
 
+// engineText splits an error of a Remove* call into DevDesk's label and the engine's
+// text. A mutation error carries them apart; any other error that reads `<label>
+// failed: <text>` is split on that phrase; anything else is all engine text with no
+// label.
+func engineText(err error) (label, text string) {
+	var ee *engineError
+	if errors.As(err, &ee) {
+		return ee.Label, ee.Output
+	}
+	full := err.Error()
+	if i := strings.Index(full, " failed: "); i >= 0 {
+		return full[:i], full[i+len(" failed: "):]
+	}
+	return "", full
+}
+
+// dockerNetworkGoneRE is docker's answer to `network rm` of a network that does not
+// exist, probed on docker 28.5.2 and 29.10.1.
+var dockerNetworkGoneRE = regexp.MustCompile(`^Error response from daemon: network [a-z0-9_.-]+ not found$`)
+
 // dockerNetworkGone reads docker's `network <name> not found`, whose middle word is
-// the name asked for and so cannot be a fixed marker. The text has to end there:
-// "not found" elsewhere (a path, a binary) is not this.
-func dockerNetworkGone(text string) bool {
-	text = strings.TrimSpace(text)
-	return strings.Contains(text, "network ") && strings.HasSuffix(text, " not found")
+// the name asked for and so cannot be a fixed marker. It applies to `network rm`
+// only, and to nothing but the whole text of the engine: a "not found" anywhere
+// else (a path, a binary) is not this.
+func dockerNetworkGone(label, text string) bool {
+	return strings.HasSuffix(label, "network rm") && dockerNetworkGoneRE.MatchString(strings.TrimSpace(text))
 }
 
 func invalidTarget(err error) bool {
@@ -215,9 +239,12 @@ var inUseMarkers = []string{
 	"has associated containers",
 }
 
-// goneMarkers are the wordings for something that does not exist. NOT RECORDED for
-// rm, rmi, volume rm and network rm (only `inspect` of an absent container is, as
-// "no such object"): they are the engines' known texts, to be recorded in an OC-09
+// goneMarkers are the wordings for something that does not exist, probed on docker
+// 29.10.1 and 28.5.2 and podman 6.2.1 and 5.8.11 rootless (2026-11): docker `No such
+// container: X`, `No such image: X`, `get X: no such volume`; podman `no container
+// with ID or name "X" found: no such container`, `X: image not known`, `no volume
+// with name "X" found: no such volume`. NOT a versioned fixture (only `inspect` of an
+// absent container is recorded, as "no such object"): to be recorded in an OC-09
 // scenario. A wording that changes with an upgrade falls to ReasonOther, the safe side.
 var goneMarkers = []string{
 	"no such container",
@@ -225,9 +252,10 @@ var goneMarkers = []string{
 	"no such volume",
 	"no such network",
 	"no such object",
+	"no container with id or name",
 	"no container with name or id",
 	"no volume with name",
 	"image not known",
-	"network not found",
+	"network not found", // podman: unable to find network with name or ID X: network not found
 	"no such pod",
 }

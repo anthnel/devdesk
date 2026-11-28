@@ -43,13 +43,12 @@ import (
 //	//      `<engine> inspect --format <template> <id> <id> ...` (never one per
 //	//      volume or per container; zero containers means no inspect at all).
 //	//
-//	// The template is the same on both engines and prints one JSON object per
-//	// line, with these three keys and nothing tab-separated (docker prints a tab
-//	// literally, see below):
-//	//
-//	//   {"Id":{{json .Id}},"Name":{{json .Name}},"Mounts":{{json .Mounts}}}
-//	//
-//	// The reader keeps only Id, Name and Mounts, so `{{json .}}` would read as well.
+//	// The template is `{{json .}}`, the same on both engines: one JSON object per
+//	// line, nothing tab-separated. (The narrower `{"Id":{{json .Id}},...}` the first
+//	// draft used fails on podman, "can't evaluate field Id", exit 125: its template
+//	// field is `.ID`; probe 2026-11 on jakku, docker 29.10.1 and 28.5.2, podman 6.2.1
+//	// and 5.8.11 rootless. TestListVolumeUsersAsksForTheWholeInspect pins it.)
+//	// The reader keeps only Id, Name and Mounts.
 //	// The answers are joined to the IDs by Id, never by position (docker prints
 //	// the containers in REVERSE order of creation, podman in order), and the
 //	// leading "/" of docker's Name is dropped (podman has none).
@@ -71,8 +70,8 @@ import (
 // docker prints name or source or hash comma-separated with no type, cut at 14
 // characters without --no-trunc. Both would make a volume look unused.
 //
-// NOT RECORDED: the bytes of the exchanges below are written by hand from that
-// probe (docker `Name` prefixed with "/", reverse order of creation; podman in
+// NOT A VERSIONED FIXTURE: the bytes of the exchanges below are written by hand from
+// that probe (docker `Name` prefixed with "/", reverse order of creation; podman in
 // order, no "/"; `Name` of a volume mount is the volume's name, a hash of 64 hex
 // for an anonymous one, empty for a bind). They are to be replaced by a recorded
 // fixture (an OC-09 scenario) and marked as such.
@@ -476,6 +475,43 @@ func TestListVolumeUsersFailsClosed(t *testing.T) {
 					t.Errorf("more than one grouped inspect, or a per-volume call: %+v", invocations)
 				}
 			})
+		}
+	})
+}
+
+// The template is `{{json .}}`: podman rejects a template that names `.Id` (its field
+// is `.ID`), and the JSON it prints carries `Id`, `Name` and `Mounts` like docker's.
+func TestListVolumeUsersAsksForTheWholeInspect(t *testing.T) {
+	forEachEngine(t, func(t *testing.T, shape engine.Shape) {
+		ctrs := probeContainers(shape)
+		_, invocations, err := listOnFake(t, shape,
+			fakecli.Reply{Stdout: psOutput(ctrs)}, fakecli.Reply{Stdout: inspectOutput(shape, ctrs)})
+		if err != nil {
+			t.Fatalf("ListVolumeUsers() error = %v", err)
+		}
+
+		inspect := invocations[1].Args
+		i := slices.Index(inspect, "--format")
+		if i < 0 || inspect[i+1] != "{{json .}}" {
+			t.Errorf("inspect argv = %q, want `--format {{json .}}`, the one template both engines accept", inspect)
+		}
+	})
+}
+
+// A bind mount has no Name in the JSON (the key is absent, not empty) and a podman
+// mount carries Options: neither may fail the reading.
+func TestListVolumeUsersToleratesABindMountWithNoNameAndExtraKeys(t *testing.T) {
+	forEachEngine(t, func(t *testing.T, shape engine.Shape) {
+		line := fmt.Sprintf(`{"Id":%q,"Name":"/db","Mounts":[{"Type":"bind","Source":"/tmp","Destination":"/t","Mode":"","RW":true,"Propagation":"rprivate","Options":["rbind"]},`+
+			`{"Type":"volume","Name":"pgdata","Source":"/v","Destination":"/d","Driver":"local","Options":["nosuid"]}]}`+"\n", probeID(1))
+
+		users, _, err := listOnFake(t, shape, fakecli.Reply{Stdout: probeID(1) + "\n"}, fakecli.Reply{Stdout: line})
+
+		if err != nil {
+			t.Fatalf("ListVolumeUsers() error = %v", err)
+		}
+		if len(users) != 1 || !slices.Equal(users["pgdata"], []string{"db"}) {
+			t.Errorf("users = %v, want only pgdata used by db", users)
 		}
 	})
 }

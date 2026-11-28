@@ -254,7 +254,8 @@ func TestTheBlinkRunsForAnActionOnAnotherTab(t *testing.T) {
 // A prune acts on no row, so marking every row would say something false. It
 // gets a line of its own.
 func TestAPruneSaysSoWithoutMarkingAnyRow(t *testing.T) {
-	m := feed(t, prunableModel(t), testutil.Key(keymap.Prune), sharedcomponents.ConfirmModalYesMsg{})
+	m := feed(t, prunableModel(t), testutil.Key(keymap.Prune),
+		ImagePruneUsersMsg{Candidates: []string{"eee5555aaaa1"}}, sharedcomponents.ConfirmModalYesMsg{})
 	if m.pruning != "images" {
 		t.Fatalf("pruning = %q after confirming, want the images prune marked", m.pruning)
 	}

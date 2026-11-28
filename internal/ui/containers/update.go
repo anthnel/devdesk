@@ -370,6 +370,9 @@ func (m Model) deleteSelectedContainer() (tea.Model, tea.Cmd) {
 // table shows, and is the only thing the confirmation removes (OC-22). With none
 // there is nothing to confirm.
 func (m Model) pruneContainers() (tea.Model, tea.Cmd) {
+	if m.pruning {
+		return m, m.footer.Warn("Already pruning — wait for the removal to end")
+	}
 	m.pruneTargets = stoppedContainers(m.containerTable.Items())
 	if len(m.pruneTargets) == 0 {
 		return m, m.footer.Info("No stopped containers to remove")
@@ -583,9 +586,9 @@ func (m Model) handlePruneComplete(msg ContainerPruneMsg) (tea.Model, tea.Cmd) {
 	for _, r := range msg.Report {
 		switch r.Status {
 		case docker.RemovalRefused:
-			log.Printf("ERROR [containers] prune: %s refused (%s): %v", r.Target, r.Reason, r.Err)
+			log.Printf("ERROR [containers] prune: %q refused (%s): %q", r.Target, r.Reason, r.Err.Error())
 		case docker.RemovalGone:
-			log.Printf("INFO [containers] prune: %s was already gone", r.Target)
+			log.Printf("INFO [containers] prune: %q was already gone", r.Target)
 		}
 	}
 	return m, tea.Batch(m.footer.Removal(msg.Report), fetchContainers())
@@ -598,7 +601,7 @@ func (m Model) handleContainersList(msg ContainersListMsg) (tea.Model, tea.Cmd) 
 		log.Printf("ERROR [containers] list: %v", msg.Err)
 		return m, m.footer.Error("Failed to load containers — check logs")
 	}
-	m.footer.Clear()
+	m.footer.ClearUnlessRemoval() // the bilan of a P or a D outlives the refresh that follows it
 	m.containerTable.SetItems(withKnownMetrics(msg.Containers, m.containerTable.Items()))
 	// A new list is a new population — a container started, stopped, or
 	// published a port — and the table only measures the first one on its own.

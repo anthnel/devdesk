@@ -606,7 +606,7 @@ func (m Model) GetHelpContent() help.Content {
 			{Key: "A (Images)", Description: "Scan every image. The confirmation carries a checkbox to purge the cached results first — unchecked, only what has never been scanned is scanned"},
 			{Key: "A (Images)", Description: "Scan all unscanned images using config defaults"},
 			{Key: keymap.Delete, Description: "Delete the selected resource (with confirmation)"},
-			{Key: keymap.Prune + " (Images)", Description: "Remove the dangling images (no tag) no container uses. The confirmation lists them and removes exactly those, one by one, never forced; nothing to remove opens no confirmation"},
+			{Key: keymap.Prune + " (Images)", Description: "Remove the dangling images (no tag). The engine is asked which containers were created from each (if it cannot say, nothing is removed) and those are left out; the confirmation lists the rest and removes exactly those, one by one, never forced, so an image that gets used meanwhile is reported as not removed; nothing to remove opens no confirmation"},
 			{Key: keymap.Prune + " (Networks)", Description: "Prune all unused networks (with confirmation)"},
 			{Key: keymap.Prune + " (Volumes)", Description: "Remove the volumes no container uses, stopped containers included. The engine is asked which containers use which volume first (if it cannot say, nothing is removed); the confirmation lists the volumes and removes exactly those, one by one, never forced"},
 			{Key: "enter (Networks)", Description: "Inspect the selected network — shows connected containers with IP and MAC addresses"},

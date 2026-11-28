@@ -83,7 +83,7 @@ func (m Model) handleImagesList(msg ImagesListMsg) (tea.Model, tea.Cmd) {
 			m.refusePendingRequests("Cannot list images: "+msg.Err.Error()),
 		)
 	}
-	m.footer.Clear()
+	m.footer.ClearUnlessRemoval() // the bilan of a P or a D outlives the refresh that follows it
 	m.images = msg.Images
 	m.listed = true
 	now := time.Now()
@@ -160,9 +160,9 @@ func logNotRemoved(what string, report docker.RemovalReport) {
 	for _, r := range report {
 		switch r.Status {
 		case docker.RemovalRefused:
-			log.Printf("ERROR [oci_resources] prune %s: %s refused (%s): %v", what, r.Target, r.Reason, r.Err)
+			log.Printf("ERROR [oci_resources] prune %s: %q refused (%s): %q", what, r.Target, r.Reason, r.Err.Error())
 		case docker.RemovalGone:
-			log.Printf("INFO [oci_resources] prune %s: %s was already gone", what, r.Target)
+			log.Printf("INFO [oci_resources] prune %s: %q was already gone", what, r.Target)
 		}
 	}
 }
@@ -209,7 +209,7 @@ func (m Model) handleVolumesList(msg VolumesListMsg) (tea.Model, tea.Cmd) {
 		log.Printf("ERROR [oci_resources] volume list: %v", msg.Err)
 		return m, m.footer.Error("Failed to load volumes — check logs")
 	}
-	m.footer.Clear()
+	m.footer.ClearUnlessRemoval()
 	m.volumeTable.SetItems(msg.Volumes)
 
 	return m, nil

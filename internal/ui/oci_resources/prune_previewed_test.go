@@ -117,7 +117,7 @@ var anonVolume = strings.Repeat("ab", 32)
 // starts with "/"; podman in order, with no "/"). Both are reproduced here: the
 // join is by ID, never by position.
 //
-// NOT RECORDED: written by hand from the probe of 2026-11 on the four recorded
+// NOT A VERSIONED FIXTURE: written by hand from the probe of 2026-11 on the four recorded
 // configurations; to be replaced by a recorded fixture.
 type fakeUsers struct{ ps, inspect fakecli.Reply }
 
@@ -175,6 +175,10 @@ func engineWith(t *testing.T, shape engine.Shape, users fakeUsers, exchanges ...
 	scenario := fakecli.Scenario{
 		{Tool: tool, Args: []string{"ps"}, Prefix: true, Reply: users.ps},
 		{Tool: tool, Args: []string{"inspect"}, Prefix: true, Reply: users.inspect},
+		// `ps -a --filter ancestor=<image>`: the containers created from one image.
+		// The longest prefix wins, so this answers nothing (no container uses the
+		// dangling images of the fixtures) and the full `ps` above stays the volumes'.
+		{Tool: tool, Args: []string{"ps", "-a", "--filter"}, Prefix: true},
 		{Tool: tool, Args: []string{"image", "ls"}, Prefix: true},
 		{Tool: tool, Args: []string{"image", "inspect"}, Prefix: true},
 		{Tool: tool, Args: []string{"system", "df"}, Prefix: true},
@@ -325,7 +329,7 @@ func recorded(t *testing.T, campaign, scenario string, tool enginefixture.Tool) 
 // goneImage and goneVolume are what an engine says for something that does not
 // exist.
 //
-// NOT RECORDED (see goneText in internal/docker/removal_report_test.go): known
+// NOT A VERSIONED FIXTURE (see goneText in internal/docker/removal_report_test.go): known
 // wordings, to be recorded in an OC-09 scenario.
 func goneImage(shape engine.Shape, id string) fakecli.Reply {
 	if shape.Name == engine.Podman {

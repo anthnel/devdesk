@@ -179,10 +179,24 @@ func mutateContext(ctx context.Context, label string, args ...string) error {
 // report, using the engine's own diagnostic.
 func mutationError(label string, output []byte, err error) error {
 	if err != nil {
-		return fmt.Errorf("%s failed: %s", label, strings.TrimSpace(string(output)))
+		return &engineError{Label: label, Output: strings.TrimSpace(string(output)), Err: err}
 	}
 	return nil
 }
+
+// engineError is a failed mutation: the label DevDesk gives the call ("docker rm")
+// and, apart from it, what the engine printed. Its text is the one the footer and the
+// logs always had, `<label> failed: <output>`; keeping the two parts apart lets
+// ClassifyRemoval read the engine's words and not DevDesk's own label (OC-22).
+type engineError struct {
+	Label  string
+	Output string
+	Err    error
+}
+
+func (e *engineError) Error() string { return e.Label + " failed: " + e.Output }
+
+func (e *engineError) Unwrap() error { return e.Err }
 
 // prune runs a prune subcommand and returns its trimmed report.
 func prune(label string, args ...string) (string, error) {

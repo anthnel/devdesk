@@ -215,11 +215,11 @@ func recordedRefusals(t *testing.T, campaign, scenario string, tool enginefixtur
 
 // goneReply is what an engine says for a container that does not exist.
 //
-// NOT RECORDED (see goneText in internal/docker/removal_report_test.go): the
+// NOT A VERSIONED FIXTURE (probed; see goneText in internal/docker/removal_report_test.go): the
 // wordings are the engines' known ones, to be recorded in an OC-09 scenario.
 func goneReply(shape engine.Shape, id string) fakecli.Reply {
 	if shape.Name == engine.Podman {
-		return fakecli.Reply{Stderr: `Error: no container with name or ID "` + id + `" found: no such container` + "\n", Exit: 1}
+		return fakecli.Reply{Stderr: `Error: no container with ID or name "` + id + `" found: no such container` + "\n", Exit: 1}
 	}
 	return fakecli.Reply{Stderr: "Error response from daemon: No such container: " + id + "\n", Exit: 1}
 }

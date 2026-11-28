@@ -99,10 +99,19 @@ func (m Model) pruneVolumes() (tea.Model, tea.Cmd) {
 // handleVolumePruneUsers freezes the volumes nobody uses and asks for confirmation.
 // When the engine could not say who uses what, nothing is unused: no confirmation
 // opens.
+//
+// An answer that arrives after the view moved on (another modal open, another tab)
+// is dropped, never turned into a confirmation over something else.
 func (m Model) handleVolumePruneUsers(msg VolumePruneUsersMsg) (tea.Model, tea.Cmd) {
+	if m.pruning != "volumes" {
+		return m, nil
+	}
 	m.pruning = ""
+	if m.confirmModal != nil || m.activeTab != tabVolumes {
+		return m, m.footer.Info(lateAnswerMessage)
+	}
 	if msg.Err != nil {
-		log.Printf("ERROR [oci_resources] prune volumes: reading the volume users: %v", msg.Err)
+		log.Printf("ERROR [oci_resources] prune volumes: reading the volume users: %q", msg.Err.Error())
 		return m, m.footer.Error("Cannot tell which volumes are in use — check logs")
 	}
 	m.pruneTargets = nil

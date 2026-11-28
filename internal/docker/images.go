@@ -357,6 +357,28 @@ func ContainersUsingImage(imageID string) ([]string, error) {
 	return splitLines(output), nil
 }
 
+// ImagesInUse maps each image ID to the containers, running or not, created from it
+// or from an image built on it (ContainersUsingImage): one `ps -a --filter ancestor=`
+// per image, joined by ID, which is what lets a preview of `image prune` say that no
+// container uses an image (OC-22). It fails closed: an invalid ID or any error of the
+// engine is an error and no map, never "unused".
+func ImagesInUse(ids []string) (map[string][]string, error) {
+	users := make(map[string][]string, len(ids))
+	for _, id := range ids {
+		if !IsImageID(id) {
+			return nil, fmt.Errorf("%s: %q is not an image ID: %w", cmdLabel("ps"), id, ErrInvalidImageID)
+		}
+		names, err := ContainersUsingImage(strings.TrimPrefix(id, "sha256:"))
+		if err != nil {
+			return nil, err
+		}
+		if len(names) > 0 {
+			users[id] = names
+		}
+	}
+	return users, nil
+}
+
 // ImageID returns the full ID of the image a reference names locally.
 func ImageID(ref string) (string, error) {
 	if err := engineAvailable(); err != nil {

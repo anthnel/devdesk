@@ -330,19 +330,20 @@ func targetOf(kind string) string {
 // goneText is what an engine says for a missing thing. The two engines do not use
 // the same words, and neither uses the one `inspect` uses.
 //
-// NOT RECORDED: unlike the refusals below, no fixture holds the answer of `rm`,
-// `rmi`, `volume rm` or `network rm` for something that does not exist (the
-// recorded `inspect-absent` is checked separately, below). These are the wordings
-// of docker 2x and podman 5/6 as known from their sources, and must be recorded
-// (a `*-absent` scenario per kind, OC-09 style) before they are relied on: until
-// then, a change of wording on an engine upgrade makes the item a refusal
-// (ReasonOther), which is the safe direction.
+// NOT A VERSIONED FIXTURE: unlike the refusals below, no fixture holds the answer of
+// `rm`, `rmi`, `volume rm` or `network rm` for something that does not exist (the
+// recorded `inspect-absent` is checked separately, below). The container, image and
+// volume wordings were read by probe on docker 29.10.1 and 28.5.2 and podman 6.2.1
+// and 5.8.11 rootless (2026-11; removal_probe_test.go holds them verbatim); the network
+// ones are known from the engines' sources. They are to be recorded (a `*-absent`
+// scenario per kind, OC-09 style): until then, a change of wording on an engine
+// upgrade makes the item a refusal (ReasonOther), which is the safe direction.
 func goneText(tool, kind, target string) string {
 	switch tool + "/" + kind {
 	case "docker/container":
 		return "Error response from daemon: No such container: " + target + "\n"
 	case "podman/container":
-		return `Error: no container with name or ID "` + target + `" found: no such container` + "\n"
+		return `Error: no container with ID or name "` + target + `" found: no such container` + "\n"
 	case "docker/image":
 		return "Error response from daemon: No such image: " + target + "\n"
 	case "podman/image":

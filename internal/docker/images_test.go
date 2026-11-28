@@ -2,6 +2,7 @@ package docker
 
 import (
 	"context"
+	"errors"
 	"slices"
 	"testing"
 
@@ -327,4 +328,47 @@ func TestContainersUsingImageFiltersByAncestor(t *testing.T) {
 	if args := r.calls[len(r.calls)-1].Args; !slices.Contains(args, "ancestor=abc123") || !slices.Contains(args, "-a") {
 		t.Errorf("args = %v, want every container filtered by ancestor", args)
 	}
+}
+
+// ImagesInUse is the join by image ID behind the preview of `P` on the Images tab
+// (OC-22): one `ps -a --filter ancestor=<id>` per image, fail closed.
+func TestImagesInUse(t *testing.T) {
+	forEachEngine(t, func(t *testing.T, _ engine.Shape) {
+		ps := func(id string) []string {
+			return []string{"ps", "-a", "--filter", "ancestor=" + id, "--format", "{{.Names}}"}
+		}
+		stubStrict(t,
+			reply{argv: ps("d1d1d1d1d1d1"), out: "web\nworker\n"},
+			reply{argv: ps("d2d2d2d2d2d2")},
+		)
+
+		users, err := ImagesInUse([]string{"d1d1d1d1d1d1", "sha256:d2d2d2d2d2d2"})
+
+		if err != nil {
+			t.Fatalf("ImagesInUse() = %v", err)
+		}
+		if got := users["d1d1d1d1d1d1"]; !slices.Equal(got, []string{"web", "worker"}) {
+			t.Errorf("users of the first image = %v, want web and worker", got)
+		}
+		if len(users) != 1 {
+			t.Errorf("users = %v, want only the image a container uses", users)
+		}
+	})
+}
+
+func TestImagesInUseFailsClosed(t *testing.T) {
+	forEachEngine(t, func(t *testing.T, _ engine.Shape) {
+		stubStrict(t, reply{
+			argv: []string{"ps", "-a", "--filter", "ancestor=d1d1d1d1d1d1", "--format", "{{.Names}}"},
+			err:  errors.New("exit status 1"),
+		})
+		if users, err := ImagesInUse([]string{"d1d1d1d1d1d1"}); err == nil || users != nil {
+			t.Errorf("ImagesInUse() = %v, %v, want an error and no map when the engine fails", users, err)
+		}
+
+		stubStrict(t) // no declared argv: an invalid ID builds nothing
+		if _, err := ImagesInUse([]string{"-f"}); !errors.Is(err, ErrInvalidImageID) {
+			t.Errorf("ImagesInUse(-f) = %v, want ErrInvalidImageID and no call", err)
+		}
+	})
 }

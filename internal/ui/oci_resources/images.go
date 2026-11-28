@@ -50,11 +50,46 @@ func (m Model) deleteSelectedImage() (tea.Model, tea.Cmd) {
 	return m, nil
 }
 
-// pruneImages freezes the dangling images no container uses and asks for
-// confirmation. What is removed is that list and nothing else (OC-22); with none
-// there is nothing to confirm.
+// pruneImages starts the preview of `P` on the Images tab. The candidates are the
+// dangling images the list says no container uses; the engine is then asked, image by
+// image, which containers were created from each (VolumePruneUsersMsg's twin,
+// ImagePruneUsersMsg), because the list's count is joined by repository:tag, which
+// every dangling image shares, and podman always reports 0. The confirmation opens
+// from that answer. Nothing is removed here.
 func (m Model) pruneImages() (tea.Model, tea.Cmd) {
-	m.pruneTargets = danglingImageIDs(m.images)
+	if m.pruning != "" {
+		return m, m.footer.Warn(busyMessage)
+	}
+	candidates := danglingImageIDs(m.images)
+	if len(candidates) == 0 {
+		return m, m.footer.Info("No dangling images to remove")
+	}
+	m.pruning = "images"
+	return m, readImageUsersCmd(candidates)
+}
+
+// handleImagePruneUsers freezes the dangling images no container uses and asks for
+// confirmation. When the engine could not say, nothing is unused: no confirmation.
+// An answer that arrives after the view moved on (another modal, another tab) is
+// dropped, never turned into a confirmation over something else.
+func (m Model) handleImagePruneUsers(msg ImagePruneUsersMsg) (tea.Model, tea.Cmd) {
+	if m.pruning != "images" {
+		return m, nil
+	}
+	m.pruning = ""
+	if m.confirmModal != nil || m.activeTab != tabImages {
+		return m, m.footer.Info(lateAnswerMessage)
+	}
+	if msg.Err != nil {
+		log.Printf("ERROR [oci_resources] prune images: reading which containers use the images: %q", msg.Err.Error())
+		return m, m.footer.Error("Cannot tell which images are in use — check logs")
+	}
+	m.pruneTargets = nil
+	for _, id := range msg.Candidates {
+		if len(msg.Users[id]) == 0 {
+			m.pruneTargets = append(m.pruneTargets, id)
+		}
+	}
 	if len(m.pruneTargets) == 0 {
 		return m, m.footer.Info("No dangling images to remove")
 	}
@@ -64,8 +99,12 @@ func (m Model) pruneImages() (tea.Model, tea.Cmd) {
 	return m, nil
 }
 
+// lateAnswerMessage is what the footer says when the engine's answer to a preview
+// arrives after the user went elsewhere.
+const lateAnswerMessage = "Prune cancelled — the view changed while the engine was asked"
+
 // danglingImageIDs lists, once each and in order, the images that have no tag and
-// that no container uses. An ID a tagged row also carries is not dangling, and a
+// that the list does not show used (the engine is asked next, see pruneImages). An ID a tagged row also carries is not dangling, and a
 // malformed ID is left out.
 func danglingImageIDs(images []docker.Image) []string {
 	tagged := map[string]bool{}

@@ -35,10 +35,16 @@ type ContainerMounts struct {
 	Mounts []Mount `json:"Mounts"`
 }
 
-// volumeUsersTemplate prints one JSON object per container, with the three keys the
-// reader needs. The same on both engines; `{{json .}}` would read as well, the reader
-// keeps only these three.
-const volumeUsersTemplate = `{"Id":{{json .Id}},"Name":{{json .Name}},"Mounts":{{json .Mounts}}}`
+// volumeUsersTemplate prints the whole inspect of a container as one JSON object per
+// line, the same text on both engines. The reader keeps three keys, Id, Name and
+// Mounts, and ignores the rest. A narrower template (`{"Id":{{json .Id}},...}`) does
+// not work: podman rejects `.Id` ("can't evaluate field Id", exit 125), its template
+// field is `.ID`, while the JSON it prints has `Id` on both engines.
+//
+// Probe 2026-11 on jakku, docker 29.10.1 and 28.5.2, podman 6.2.1 and 5.8.11 rootless:
+// `Name` has a leading "/" on docker and none on podman; `Mounts[].Name` is present
+// for named and anonymous volumes and absent for a bind mount; podman adds `Options`.
+const volumeUsersTemplate = `{{json .}}`
 
 // VolumeUsers maps a volume name to the names of the containers that mount it,
 // whatever their state: sorted, without duplicates, named and anonymous volumes
