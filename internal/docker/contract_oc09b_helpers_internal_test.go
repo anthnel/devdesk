@@ -21,9 +21,8 @@ import (
 //
 //	// (1) prune: allowed only when the whole store holds nothing but resources of
 //	// the run, read right before the call. kind is "container", "network" or
-//	// "volume"; the one argv is `<kind> prune -f`, what PruneContainers,
-//	// PruneNetworks and PruneVolumes send. Never -a, never `system prune`, never an
-//	// image prune.
+//	// "volume"; the one argv is `<kind> prune -f`, what PruneNetworks and
+//	// pruneKindForTest send. Never -a, never `system prune`, never an image prune.
 //	func pruneWindowRule(kind string) func(argv []string) error // pure; true once, then refuses
 //	func (c *contract) expectPrune(campaign, scenario, text, kind string, call func()) enginefixture.Exchange
 //

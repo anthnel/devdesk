@@ -3,6 +3,7 @@ package ociresources
 import (
 	"fmt"
 	"log"
+	"slices"
 
 	tea "charm.land/bubbletea/v2"
 
@@ -81,5 +82,53 @@ func (m Model) deleteSelectedVolume() (tea.Model, tea.Cmd) {
 	}
 	m.pendingAction = "delete-volume"
 	m.confirmModal = sharedcomponents.NewConfirmModal("Remove Volume", fmt.Sprintf("Remove volume '%s'?", vol.Name))
+	return m, nil
+}
+
+// pruneVolumes starts the preview of `P` on the Volumes tab: it asks the engine
+// which containers use which volumes, stopped ones included (VolumePruneUsersMsg),
+// and the confirmation opens from the answer. Nothing is removed here.
+func (m Model) pruneVolumes() (tea.Model, tea.Cmd) {
+	if m.pruning != "" {
+		return m, m.footer.Warn(busyMessage)
+	}
+	m.pruning = "volumes"
+	return m, readVolumeUsersCmd(slices.Clone(m.volumeTable.Items()))
+}
+
+// handleVolumePruneUsers freezes the volumes nobody uses and asks for confirmation.
+// When the engine could not say who uses what, nothing is unused: no confirmation
+// opens.
+//
+// An answer that arrives after the view moved on (another modal open, another tab)
+// is dropped, never turned into a confirmation over something else.
+func (m Model) handleVolumePruneUsers(msg VolumePruneUsersMsg) (tea.Model, tea.Cmd) {
+	if m.pruning != "volumes" {
+		return m, nil
+	}
+	m.pruning = ""
+	if msg.Abandoned {
+		return m, nil // the user is in another view: the wait ends, nothing opens
+	}
+	if m.confirmModal != nil || m.activeTab != tabVolumes {
+		return m, m.footer.Info(lateAnswerMessage)
+	}
+	if msg.Err != nil {
+		log.Printf("ERROR [oci_resources] prune volumes: reading the volume users: %q", msg.Err.Error())
+		return m, m.footer.Error("Cannot tell which volumes are in use — check logs")
+	}
+	m.pruneTargets = nil
+	for _, v := range docker.UnusedVolumes(msg.Volumes, msg.Users) {
+		if !docker.IsVolumeName(v.Name) {
+			log.Printf("ERROR [oci_resources] prune: skipped a volume with a malformed name %q", v.Name)
+			continue
+		}
+		m.pruneTargets = append(m.pruneTargets, v.Name)
+	}
+	if len(m.pruneTargets) == 0 {
+		return m, m.footer.Info("No unused volumes to remove")
+	}
+	m.pendingAction = "prune-volumes"
+	m.confirmModal = sharedcomponents.NewConfirmModal("Prune Volumes", sharedcomponents.RemovalPreview("unused volumes", m.pruneTargets))
 	return m, nil
 }

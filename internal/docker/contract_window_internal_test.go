@@ -323,8 +323,8 @@ func TestExpectRefusalDoesNotLetTheCallDoAnythingElse(t *testing.T) {
 		mustReachTheEnd(t, ct, func() {
 			c.expectRefusal("campaign", "name-taken", "a launch that also tries other things", windowOf(name, ""), func() {
 				_ = launchCall(name)()
-				_ = RemoveContainer(idB, true)
-				_, _ = PruneVolumes()
+				_ = forceRemoveContainerForTest(idB)
+				_, _ = pruneKindForTest("volume")
 				_ = RemoveVolume("pgdata")
 			})
 		})
@@ -507,7 +507,7 @@ func TestExpectRmiRefusalRecordsTheRefusalOfAnImageInUse(t *testing.T) {
 
 		mustReachTheEnd(t, ct, func() {
 			_, imageID = c.usedImage("c1")
-			ex = c.expectRmiRefusal("campaign", "rmi-used", "rmi of an image a container uses is refused", imageID, func() { err = RemoveImage(imageID, false) })
+			ex = c.expectRmiRefusal("campaign", "rmi-used", "rmi of an image a container uses is refused", imageID, func() { err = RemoveImage(imageID) })
 		})
 
 		if err == nil || ex.Exit == 0 || !strings.Contains(string(ex.Stderr), "in use") {
@@ -593,7 +593,7 @@ func TestExpectRmiRefusalReportsAnImageThatWasRemoved(t *testing.T) {
 
 		mustReachTheEnd(t, ct, func() {
 			_, imageID := c.usedImage("c1")
-			c.expectRmiRefusal("campaign", "rmi-used", "an rmi the engine accepted", imageID, func() { _ = RemoveImage(imageID, false) })
+			c.expectRmiRefusal("campaign", "rmi-used", "an rmi the engine accepted", imageID, func() { _ = RemoveImage(imageID) })
 		})
 
 		if len(ct.errs) != 1 || !strings.Contains(strings.ToLower(ct.errs[0]), "removed") {
@@ -609,7 +609,7 @@ func TestExpectRmiRefusalDoesNotLetTheCallForceTheRemoval(t *testing.T) {
 
 		ended := ct.run(func() {
 			_, imageID := c.usedImage("c1")
-			c.expectRmiRefusal("campaign", "rmi-used", "a forced rmi", imageID, func() { _ = RemoveImage(imageID, true) })
+			c.expectRmiRefusal("campaign", "rmi-used", "a forced rmi", imageID, func() { _ = forceRemoveImageForTest(imageID) })
 		})
 
 		if !ended || len(ct.errs) == 0 {

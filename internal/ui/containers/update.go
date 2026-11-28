@@ -365,14 +365,42 @@ func (m Model) deleteSelectedContainer() (tea.Model, tea.Cmd) {
 	return m, nil
 }
 
-// pruneContainers shows confirm modal for pruning stopped containers
+// pruneContainers freezes the stopped containers and asks for confirmation. The
+// list is read from all the containers the view holds, whatever state filter the
+// table shows, and is the only thing the confirmation removes (OC-22). With none
+// there is nothing to confirm.
 func (m Model) pruneContainers() (tea.Model, tea.Cmd) {
+	if m.pruning {
+		return m, m.footer.Warn("Already pruning — wait for the removal to end")
+	}
+	m.pruneTargets = stoppedContainers(m.containerTable.Items())
+	if len(m.pruneTargets) == 0 {
+		return m, m.footer.Info("No stopped containers to remove")
+	}
 	m.pendingAction = "confirm-prune"
-	m.confirmModal = sharedcomponents.NewConfirmModal(
-		"Prune Containers",
-		"Remove all stopped containers?\n\nThis will permanently delete all containers\nthat are not currently running.",
-	)
+	m.confirmModal = sharedcomponents.NewConfirmModal("Prune Containers",
+		sharedcomponents.RemovalPreview("stopped containers", containerNames(m.pruneTargets)))
 	return m, nil
+}
+
+// stoppedContainers keeps the containers `P` may remove: exited, created or dead,
+// with an ID that is one. A running, paused, restarting or removing container never
+// qualifies.
+func stoppedContainers(all []docker.Container) []docker.Container {
+	var stopped []docker.Container
+	for _, c := range all {
+		switch c.State {
+		case "exited", "created", "dead":
+		default:
+			continue
+		}
+		if !docker.IsContainerID(c.ID) {
+			log.Printf("ERROR [containers] prune: skipped a container with a malformed ID %q", c.ID)
+			continue
+		}
+		stopped = append(stopped, c)
+	}
+	return stopped
 }
 
 // shellSelectedContainer opens a shell in the selected container, in place or
@@ -522,7 +550,7 @@ func (m Model) handleConfirmYes() (tea.Model, tea.Cmd) {
 	switch action {
 	case "confirm-prune":
 		m.pruning = true
-		return m, pruneContainers()
+		return m, removeContainers(containerIDs(m.pruneTargets))
 	default: // confirm-delete
 		c := m.getSelectedContainer()
 		if c == nil {
@@ -532,15 +560,38 @@ func (m Model) handleConfirmYes() (tea.Model, tea.Cmd) {
 	}
 }
 
-// handlePruneComplete processes the prune result
+// containerNames lists the names of containers, in order.
+func containerNames(containers []docker.Container) []string {
+	names := make([]string, 0, len(containers))
+	for _, c := range containers {
+		names = append(names, c.Name)
+	}
+	return names
+}
+
+// containerIDs lists the IDs of containers, in order.
+func containerIDs(containers []docker.Container) []string {
+	ids := make([]string, 0, len(containers))
+	for _, c := range containers {
+		ids = append(ids, c.ID)
+	}
+	return ids
+}
+
+// handlePruneComplete reports what the removal of the frozen list did: how many
+// containers went, which ones the engine refused and why, and which were already gone.
 func (m Model) handlePruneComplete(msg ContainerPruneMsg) (tea.Model, tea.Cmd) {
 	m.pruning = false
-	if msg.Err != nil {
-		log.Printf("ERROR [containers] prune: %v", msg.Err)
-		return m, m.footer.Error("Prune failed — check logs")
+	m.pruneTargets = nil
+	for _, r := range msg.Report {
+		switch r.Status {
+		case docker.RemovalRefused:
+			log.Printf("ERROR [containers] prune: %q refused (%s): %q", r.Target, r.Reason, r.Err.Error())
+		case docker.RemovalGone:
+			log.Printf("INFO [containers] prune: %q was already gone", r.Target)
+		}
 	}
-	m.footer.Clear()
-	return m, fetchContainers()
+	return m, tea.Batch(m.footer.Removal(msg.Report), fetchContainers())
 }
 
 // handleContainersList processes the container list response
@@ -550,7 +601,7 @@ func (m Model) handleContainersList(msg ContainersListMsg) (tea.Model, tea.Cmd) 
 		log.Printf("ERROR [containers] list: %v", msg.Err)
 		return m, m.footer.Error("Failed to load containers — check logs")
 	}
-	m.footer.Clear()
+	m.footer.ClearUnlessRemoval() // the bilan of a P or a D outlives the refresh that follows it
 	m.containerTable.SetItems(withKnownMetrics(msg.Containers, m.containerTable.Items()))
 	// A new list is a new population — a container started, stopped, or
 	// published a port — and the table only measures the first one on its own.
@@ -629,6 +680,11 @@ func (m Model) handleContainerAction(msg ContainerActionMsg) (tea.Model, tea.Cmd
 	m.containerTable.ClearBusy(msg.ID)
 	if msg.Err != nil {
 		log.Printf("ERROR [containers] %s %s: %v", msg.Action, msg.Name, msg.Err)
+		if msg.Action == "remove" {
+			// `D` reads like `P`: a container already gone is an information, a
+			// running one a refusal that says why, not "Action failed".
+			return m, tea.Batch(m.footer.Removal(docker.SingleRemoval(msg.ID, msg.Err)), fetchContainers())
+		}
 		return m, m.footer.Error("Action failed — check logs")
 	}
 	m.footer.Clear()

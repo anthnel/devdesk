@@ -13,7 +13,9 @@ import (
 
 // OC-09b1 (DEVDESK-807), helper (1): the condition of a prune. contractArgvRule
 // refuses every prune, because a prune acts on the whole store and the functions of
-// DevDesk (PruneContainers, PruneNetworks, PruneVolumes) take no label filter. The
+// DevDesk take no label filter. Since OC-22 (DEVDESK-820) production code prunes
+// only networks (PruneNetworks); the container and volume prunes of this window are
+// built by pruneKindForTest (removal_helpers_test.go), in test code. The
 // scenarios of OC-09b may still want one, so a contract may open a window for ONE
 // `<kind> prune -f`, and only when the store of that kind holds nothing but
 // resources of the run, read just before the call. A foreign resource, a listing
@@ -43,7 +45,7 @@ func pruneKindCases() []pruneKindCase {
 			kind: "container", list: []string{"ps", "-a", "-q", "--no-trunc"},
 			ours: []string{idA}, only: idA + "\n", withStranger: idA + "\n" + idB + "\n", stranger: idB,
 			argv: []string{"container", "prune", "-f"},
-			call: func() error { _, err := PruneContainers(); return err },
+			call: func() error { _, err := pruneKindForTest("container"); return err },
 		},
 		{
 			kind: "network", list: []string{"network", "ls", "--format", "{{.Name}}"},
@@ -55,7 +57,7 @@ func pruneKindCases() []pruneKindCase {
 			kind: "volume", list: []string{"volume", "ls", "-q"},
 			ours: []string{vol}, only: vol + "\n", withStranger: vol + "\npgdata\n", stranger: "pgdata",
 			argv: []string{"volume", "prune", "-f"},
-			call: func() error { _, err := PruneVolumes(); return err },
+			call: func() error { _, err := pruneKindForTest("volume"); return err },
 		},
 	}
 }

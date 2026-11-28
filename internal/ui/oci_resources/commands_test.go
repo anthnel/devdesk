@@ -101,18 +101,15 @@ func TestRemoveImageKeepsDockersOwnDiagnostic(t *testing.T) {
 	}
 }
 
-func TestPruneImagesCarriesTheReclaimReport(t *testing.T) {
-	installFakeDocker(t, fakeScript{
-		"docker image prune": {Stdout: "Total reclaimed space: 1.2GB\n"},
-	})
+// OC-22: the prune is one `rmi <id>` per image of the frozen list, and its message
+// carries one result per image.
+func TestRemoveImagesCarriesTheRemovalReport(t *testing.T) {
+	installFakeDocker(t, fakeScript{"docker rmi": {}})
 
-	msg := run(t, pruneImagesCmd()).(PruneCompleteMsg)
+	msg := run(t, removeImagesCmd([]string{"a1a1a1a1a1a1", "d2d2d2d2d2d2"})).(PruneCompleteMsg)
 
-	if msg.Err != nil {
-		t.Fatalf("Err = %v", msg.Err)
-	}
-	if msg.Output != "Total reclaimed space: 1.2GB" {
-		t.Errorf("Output = %q, want the trimmed report", msg.Output)
+	if len(msg.Report) != 2 || msg.Report.Count(docker.RemovalRemoved) != 2 {
+		t.Errorf("Report = %+v, want both images removed", msg.Report)
 	}
 }
 
@@ -267,20 +264,25 @@ func TestACreateThatDockerRefusesIsCarriedIntoTheMessage(t *testing.T) {
 	}
 }
 
-func TestPruningNetworksAndVolumesCarriesTheirReports(t *testing.T) {
+func TestPruningNetworksCarriesItsReport(t *testing.T) {
 	installFakeDocker(t, fakeScript{
 		"docker network prune": {Stdout: "Deleted Networks:\nold-net\n"},
-		"docker volume prune":  {Stdout: "Total reclaimed space: 40MB\n"},
 	})
 
 	networks := run(t, pruneNetworksCmd()).(NetworkPruneCompleteMsg)
 	if networks.Err != nil || !strings.Contains(networks.Output, "old-net") {
 		t.Errorf("network prune = %+v, want the deleted list", networks)
 	}
+}
 
-	volumes := run(t, pruneVolumesCmd()).(VolumePruneCompleteMsg)
-	if volumes.Err != nil || volumes.Output != "Total reclaimed space: 40MB" {
-		t.Errorf("volume prune = %+v, want the trimmed report", volumes)
+// OC-22: the volumes are removed by name, one `volume rm <name>` each.
+func TestRemoveVolumesCarriesTheRemovalReport(t *testing.T) {
+	installFakeDocker(t, fakeScript{"docker volume rm": {}})
+
+	msg := run(t, removeVolumesCmd([]string{"scratch", "spare"})).(VolumePruneCompleteMsg)
+
+	if len(msg.Report) != 2 || msg.Report.Count(docker.RemovalRemoved) != 2 {
+		t.Errorf("Report = %+v, want both volumes removed", msg.Report)
 	}
 }
 

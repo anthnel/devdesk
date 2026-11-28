@@ -64,7 +64,7 @@ func restartContainer(id, name string) tea.Cmd {
 // removeContainer removes a container
 func removeContainer(id, name string) tea.Cmd {
 	return func() tea.Msg {
-		err := docker.RemoveContainer(id, false)
+		err := docker.RemoveContainer(id)
 		return ContainerActionMsg{Action: "remove", ID: id, Name: name, Err: err}
 	}
 }
@@ -85,11 +85,12 @@ func unpauseContainer(id, name string) tea.Cmd {
 	}
 }
 
-// pruneContainers removes all stopped containers
-func pruneContainers() tea.Cmd {
+// removeContainers removes the containers the confirmation showed, each by its own
+// ID, and reports one result per ID (OC-22). ids is the list frozen when the
+// modal opened; the command reads nothing else.
+func removeContainers(ids []string) tea.Cmd {
 	return func() tea.Msg {
-		output, err := docker.PruneContainers()
-		return ContainerPruneMsg{Output: output, Err: err}
+		return ContainerPruneMsg{Report: docker.RemoveContainers(ids)}
 	}
 }
 

@@ -2,7 +2,10 @@ package docker
 
 import (
 	"context"
+	"errors"
+	"os/exec"
 	"slices"
+	"strings"
 	"testing"
 
 	"github.com/anthnel/devdesk/internal/engine"
@@ -177,27 +180,15 @@ func TestParseExposedPorts(t *testing.T) {
 	}
 }
 
-func TestRemoveImageForceFlag(t *testing.T) {
-	tests := []struct {
-		name     string
-		force    bool
-		wantArgs []string
-	}{
-		{"without force", false, []string{"rmi", "0123456789ab"}},
-		{"with force", true, []string{"rmi", "-f", "0123456789ab"}},
+// RemoveImage has no force option since OC-22 (DEVDESK-820): the argv is `rmi <id>`.
+func TestRemoveImageIsNeverForced(t *testing.T) {
+	s := stub(t, &stubRunner{})
+
+	if err := RemoveImage("0123456789ab"); err != nil {
+		t.Fatalf("RemoveImage() error = %v", err)
 	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			s := stub(t, &stubRunner{})
-
-			if err := RemoveImage("0123456789ab", tt.force); err != nil {
-				t.Fatalf("RemoveImage() error = %v", err)
-			}
-			if !slices.Equal(s.lastArgs(), tt.wantArgs) {
-				t.Errorf("args = %v, want %v", s.lastArgs(), tt.wantArgs)
-			}
-		})
+	if want := []string{"rmi", "0123456789ab"}; !slices.Equal(s.lastArgs(), want) {
+		t.Errorf("args = %v, want %v", s.lastArgs(), want)
 	}
 }
 
@@ -239,7 +230,7 @@ func TestPullImageStillPulls(t *testing.T) {
 func TestOtherMutationsCarryNoContext(t *testing.T) {
 	s := stub(t, &stubRunner{})
 
-	if err := RemoveImage("0123456789ab", false); err != nil {
+	if err := RemoveImage("0123456789ab"); err != nil {
 		t.Fatalf("RemoveImage() error = %v", err)
 	}
 	if call := s.calls[len(s.calls)-1]; call.Ctx != nil {
@@ -332,11 +323,160 @@ func TestSameImageID(t *testing.T) {
 func TestContainersUsingImageFiltersByAncestor(t *testing.T) {
 	r := &stubRunner{output: map[string][]byte{"ps": []byte("web\nworker\n")}}
 	stub(t, r)
-	got, err := ContainersUsingImage("abc123")
+	got, err := ContainersUsingImage("abc123456789")
 	if err != nil || !slices.Equal(got, []string{"web", "worker"}) {
 		t.Fatalf("ContainersUsingImage = %v, %v", got, err)
 	}
-	if args := r.calls[len(r.calls)-1].Args; !slices.Contains(args, "ancestor=abc123") || !slices.Contains(args, "-a") {
+	if args := r.calls[len(r.calls)-1].Args; !slices.Contains(args, "ancestor=abc123456789") || !slices.Contains(args, "-a") {
 		t.Errorf("args = %v, want every container filtered by ancestor", args)
 	}
 }
+
+// ImagesInUse is the join by image ID behind the preview of `P` on the Images tab
+// (OC-22): one `ps -a --filter ancestor=<id>` per image, fail closed.
+func TestImagesInUse(t *testing.T) {
+	forEachEngine(t, func(t *testing.T, _ engine.Shape) {
+		ps := func(id string) []string {
+			return []string{"ps", "-a", "--filter", "ancestor=" + id, "--format", "{{.Names}}"}
+		}
+		stubStrict(t,
+			reply{argv: ps("d1d1d1d1d1d1"), out: "web\nworker\n"},
+			reply{argv: ps("d2d2d2d2d2d2")},
+		)
+
+		users, err := ImagesInUse(context.Background(), []string{"d1d1d1d1d1d1", "sha256:d2d2d2d2d2d2"})
+
+		if err != nil {
+			t.Fatalf("ImagesInUse() = %v", err)
+		}
+		if got := users["d1d1d1d1d1d1"]; !slices.Equal(got, []string{"web", "worker"}) {
+			t.Errorf("users of the first image = %v, want web and worker", got)
+		}
+		if len(users) != 1 {
+			t.Errorf("users = %v, want only the image a container uses", users)
+		}
+	})
+}
+
+func TestImagesInUseFailsClosed(t *testing.T) {
+	forEachEngine(t, func(t *testing.T, _ engine.Shape) {
+		stubStrict(t, reply{
+			argv: []string{"ps", "-a", "--filter", "ancestor=d1d1d1d1d1d1", "--format", "{{.Names}}"},
+			err:  errors.New("exit status 1"),
+		})
+		if users, err := ImagesInUse(context.Background(), []string{"d1d1d1d1d1d1"}); err == nil || users != nil {
+			t.Errorf("ImagesInUse() = %v, %v, want an error and no map when the engine fails", users, err)
+		}
+
+		stubStrict(t) // no declared argv: an invalid ID builds nothing
+		if _, err := ImagesInUse(context.Background(), []string{"-f"}); !errors.Is(err, ErrInvalidImageID) {
+			t.Errorf("ImagesInUse(-f) = %v, want ErrInvalidImageID and no call", err)
+		}
+	})
+}
+
+// The ancestor filter never carries `sha256:`: podman answers an empty list (exit 0)
+// for `ancestor=sha256:<64 hex>` although a container exists, which would read as
+// "unused" (probe 2026-11, podman 6.2.1 and 5.8.11 rootless). `<64 hex>` and `<12 hex>`
+// work on the four configurations. Recorded by probe, not a versioned fixture.
+func TestTheAncestorFilterNeverCarriesThePrefix(t *testing.T) {
+	long := strings.Repeat("ab", 32)
+	for _, in := range []struct{ name, id, want string }{
+		{"prefixed, 64 hex", "sha256:" + long, long},
+		{"64 hex", long, long},
+		{"12 hex", "0123456789ab", "0123456789ab"},
+		{"prefixed, 12 hex", "sha256:0123456789ab", "0123456789ab"},
+	} {
+		t.Run(in.name, func(t *testing.T) {
+			forEachEngine(t, func(t *testing.T, _ engine.Shape) {
+				s := stubStrict(t, reply{
+					argv: []string{"ps", "-a", "--filter", "ancestor=" + in.want, "--format", "{{.Names}}"},
+					out:  "web\n",
+				})
+
+				plain, err := ContainersUsingImage(in.id)
+				if err != nil || !slices.Equal(plain, []string{"web"}) {
+					t.Fatalf("ContainersUsingImage(%q) = %v, %v", in.id, plain, err)
+				}
+				used, err := ImagesInUse(context.Background(), []string{in.id})
+				if err != nil || !slices.Equal(used[in.id], []string{"web"}) {
+					t.Fatalf("ImagesInUse(%q) = %v, %v", in.id, used, err)
+				}
+				for _, c := range s.calls {
+					if slices.Contains(c.Args, "ancestor=sha256:"+in.want) {
+						t.Errorf("the filter kept the prefix: %q", c.Args)
+					}
+				}
+			})
+		})
+	}
+}
+
+// A malformed ID is a closed failure for both, and builds nothing.
+func TestTheAncestorFilterRefusesAMalformedID(t *testing.T) {
+	forEachEngine(t, func(t *testing.T, _ engine.Shape) {
+		for _, bad := range []string{"", "-f", "sha256:", "abc", "web:latest", "sha256:xyz123456789"} {
+			s := stubStrict(t)
+			if _, err := ContainersUsingImage(bad); !errors.Is(err, ErrInvalidImageID) {
+				t.Errorf("ContainersUsingImage(%q) = %v, want ErrInvalidImageID", bad, err)
+			}
+			if users, err := ImagesInUse(context.Background(), []string{bad}); !errors.Is(err, ErrInvalidImageID) || users != nil {
+				t.Errorf("ImagesInUse(%q) = %v, %v, want ErrInvalidImageID and no map", bad, users, err)
+			}
+			if len(s.calls) != 0 {
+				t.Errorf("a malformed ID %q reached the engine: %q", bad, s.lastArgs())
+			}
+		}
+	})
+}
+
+// The deadline covers the whole loop (OC-22, M2): an expired context ends it before
+// the next call, mid-loop included, and it is an error, never "unused".
+func TestImagesInUseStopsAtItsDeadline(t *testing.T) {
+	forEachEngine(t, func(t *testing.T, _ engine.Shape) {
+		ctx, cancel := context.WithCancel(context.Background())
+		cancel()
+		s := stubStrict(t)
+		if users, err := ImagesInUse(ctx, []string{"d1d1d1d1d1d1"}); err == nil || users != nil || len(s.calls) != 0 {
+			t.Errorf("ImagesInUse on an expired context = %v, %v after %d call(s), want an error before any call", users, err, len(s.calls))
+		}
+
+		// The deadline passes during the first call: the second is never started.
+		ctx, cancel = context.WithCancel(context.Background())
+		defer cancel()
+		r := &cancelAfterFirst{cancel: cancel}
+		previous := runner
+		runner = r
+		t.Cleanup(func() { runner = previous })
+
+		users, err := ImagesInUse(ctx, []string{"d1d1d1d1d1d1", "d2d2d2d2d2d2"})
+
+		if err == nil || users != nil {
+			t.Errorf("ImagesInUse = %v, %v, want an error and no map once the deadline passed", users, err)
+		}
+		if r.runs != 1 {
+			t.Errorf("%d engine calls, want 1: the deadline is read between the calls", r.runs)
+		}
+		if r.ctx == nil {
+			t.Error("the call in flight carried no context, so the deadline could not stop it")
+		}
+	})
+}
+
+// cancelAfterFirst is a runner whose first call ends the context it was given.
+type cancelAfterFirst struct {
+	cancel context.CancelFunc
+	runs   int
+	ctx    context.Context
+}
+
+func (*cancelAfterFirst) LookPath() error { return nil }
+
+func (r *cancelAfterFirst) Run(cmd dockerCmd) ([]byte, error) {
+	r.runs++
+	r.ctx = cmd.Ctx
+	r.cancel()
+	return nil, nil
+}
+
+func (*cancelAfterFirst) Build(...string) *exec.Cmd { return nil }

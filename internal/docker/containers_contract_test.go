@@ -26,11 +26,11 @@ func TestContractRemovingARunningContainerIsRefused(t *testing.T) {
 
 	var err error
 	ex := c.exchange("containers", "rm-running", "rm of a running container is refused", func() {
-		err = RemoveContainer(id, false)
+		err = RemoveContainer(id)
 	})
 
 	if err == nil {
-		t.Fatalf("RemoveContainer(%s, false) = nil on a running container, want the engine to refuse it", id)
+		t.Fatalf("RemoveContainer(%s) = nil on a running container, want the engine to refuse it", id)
 	}
 	if ex.Exit == 0 {
 		t.Errorf("exit code = 0 for a refused removal, want non-zero")
@@ -131,8 +131,8 @@ func TestContractPsReportsTheHealthOfAContainer(t *testing.T) {
 func TestContractInspectOfARemovedContainerIsRefused(t *testing.T) {
 	c := requireEngine(t)
 	id := c.container("c1")
-	if err := RemoveContainer(id, true); err != nil {
-		t.Fatalf("RemoveContainer(%s, true) = %v, want the container gone before it is inspected", id, err)
+	if err := forceRemoveContainerForTest(id); err != nil {
+		t.Fatalf("forceRemoveContainerForTest(%s) = %v, want the container gone before it is inspected", id, err)
 	}
 
 	var err error

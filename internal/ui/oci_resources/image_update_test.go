@@ -34,18 +34,16 @@ func stubEngine(t *testing.T, e *engineStub) {
 	containersUsingImage = func(id string) ([]string, error) { e.calls = append(e.calls, "ps "+id); return e.users, nil }
 	pullImageContext = func(_ context.Context, ref string) error { e.calls = append(e.calls, "pull "+ref); return e.pullErr }
 	imageIDOf = func(ref string) (string, error) { return e.newID, nil }
-	removeImage = func(id string, force bool) error {
+	// The seam has no force parameter since OC-22: an update cannot force a removal.
+	removeImage = func(id string) error {
 		e.calls = append(e.calls, "rmi "+id)
-		if force {
-			t.Error("an update forced a removal")
-		}
 		return e.removeErr
 	}
 	t.Cleanup(func() {
 		containersUsingImage = prev[0].(func(string) ([]string, error))
 		pullImageContext = prev[1].(func(context.Context, string) error)
 		imageIDOf = prev[2].(func(string) (string, error))
-		removeImage = prev[3].(func(string, bool) error)
+		removeImage = prev[3].(func(string) error)
 	})
 }
 

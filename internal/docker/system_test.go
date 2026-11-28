@@ -139,6 +139,8 @@ func TestFetchOCIStatsUnavailable(t *testing.T) {
 	})
 }
 
+// Since OC-22 (DEVDESK-820) only the networks have a prune function; the containers,
+// the images and the volumes are removed by identifier (removal_report_test.go).
 func TestPruneCommands(t *testing.T) {
 	tests := []struct {
 		name     string
@@ -146,10 +148,7 @@ func TestPruneCommands(t *testing.T) {
 		key      string
 		wantArgs []string
 	}{
-		{"containers", PruneContainers, "container", []string{"container", "prune", "-f"}},
-		{"images", PruneImages, "image", []string{"image", "prune", "-f"}},
 		{"networks", PruneNetworks, "network", []string{"network", "prune", "-f"}},
-		{"volumes", PruneVolumes, "volume", []string{"volume", "prune", "-f"}},
 	}
 
 	for _, tt := range tests {

@@ -177,6 +177,14 @@ func loadedModel(t *testing.T) Model {
 	)
 }
 
+// prunableModel is loadedModel with one dangling image (no repository, no tag, no
+// container) added: `P` on the Images tab has something to confirm (OC-22).
+func prunableModel(t *testing.T) Model {
+	t.Helper()
+	dangling := docker.Image{ID: "eee5555aaaa1", Repository: "<none>", Tag: "<none>"}
+	return feed(t, loadedModel(t), ImagesListMsg{Images: append(imageFixtures(), dangling)})
+}
+
 func feed(t *testing.T, m Model, msgs ...tea.Msg) Model {
 	t.Helper()
 	for _, msg := range msgs {

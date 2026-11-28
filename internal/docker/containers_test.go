@@ -179,8 +179,7 @@ func TestContainerLifecycleCommands(t *testing.T) {
 		{"restart", func() error { return RestartContainer("0123456789ab") }, []string{"restart", "0123456789ab"}},
 		{"pause", func() error { return PauseContainer("0123456789ab") }, []string{"pause", "0123456789ab"}},
 		{"unpause", func() error { return UnpauseContainer("0123456789ab") }, []string{"unpause", "0123456789ab"}},
-		{"remove", func() error { return RemoveContainer("0123456789ab", false) }, []string{"rm", "0123456789ab"}},
-		{"remove forced", func() error { return RemoveContainer("0123456789ab", true) }, []string{"rm", "-f", "0123456789ab"}},
+		{"remove", func() error { return RemoveContainer("0123456789ab") }, []string{"rm", "0123456789ab"}},
 	}
 
 	for _, tt := range tests {

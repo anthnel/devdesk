@@ -2,6 +2,9 @@ package ociresources
 
 import (
 	"fmt"
+	"log"
+	"slices"
+	"strings"
 
 	tea "charm.land/bubbletea/v2"
 
@@ -47,11 +50,99 @@ func (m Model) deleteSelectedImage() (tea.Model, tea.Cmd) {
 	return m, nil
 }
 
-// pruneImages shows confirm modal for pruning
+// pruneImages starts the preview of `P` on the Images tab. The candidates are the
+// dangling images the list says no container uses; the engine is then asked, image by
+// image, which containers were created from each (VolumePruneUsersMsg's twin,
+// ImagePruneUsersMsg), because the list's count is joined by repository:tag, which
+// every dangling image shares, and podman always reports 0. The confirmation opens
+// from that answer. Nothing is removed here.
 func (m Model) pruneImages() (tea.Model, tea.Cmd) {
+	if m.pruning != "" {
+		return m, m.footer.Warn(busyMessage)
+	}
+	candidates := danglingImageIDs(m.images)
+	if len(candidates) == 0 {
+		return m, m.footer.Info("No dangling images to remove")
+	}
+	m.pruning = "images"
+	return m, readImageUsersCmd(candidates)
+}
+
+// handleImagePruneUsers freezes the dangling images no container uses and asks for
+// confirmation. When the engine could not say, nothing is unused: no confirmation.
+// An answer that arrives after the view moved on (another modal, another tab) is
+// dropped, never turned into a confirmation over something else.
+func (m Model) handleImagePruneUsers(msg ImagePruneUsersMsg) (tea.Model, tea.Cmd) {
+	if m.pruning != "images" {
+		return m, nil
+	}
+	m.pruning = ""
+	if msg.Abandoned {
+		return m, nil // the user is in another view: the wait ends, nothing opens
+	}
+	if m.confirmModal != nil || m.activeTab != tabImages {
+		return m, m.footer.Info(lateAnswerMessage)
+	}
+	if msg.Err != nil {
+		log.Printf("ERROR [oci_resources] prune images: reading which containers use the images: %q", msg.Err.Error())
+		return m, m.footer.Error("Cannot tell which images are in use — check logs")
+	}
+	m.pruneTargets = nil
+	for _, id := range msg.Candidates {
+		if len(msg.Users[id]) == 0 {
+			m.pruneTargets = append(m.pruneTargets, id)
+		}
+	}
+	if len(m.pruneTargets) == 0 {
+		return m, m.footer.Info("No dangling images to remove")
+	}
 	m.pendingAction = "prune-images"
-	m.confirmModal = sharedcomponents.NewConfirmModal("Prune Images", "Remove all dangling (unused) images?")
+	m.confirmModal = sharedcomponents.NewConfirmModal("Prune Images",
+		sharedcomponents.RemovalPreview("dangling images", shortIDs(m.pruneTargets)))
 	return m, nil
+}
+
+// lateAnswerMessage is what the footer says when the engine's answer to a preview
+// arrives after the user went elsewhere.
+const lateAnswerMessage = "Prune cancelled — the view changed while the engine was asked"
+
+// danglingImageIDs lists, once each and in order, the images that have no tag and
+// that the list does not show used (the engine is asked next, see pruneImages). An ID a tagged row also carries is not dangling, and a
+// malformed ID is left out.
+func danglingImageIDs(images []docker.Image) []string {
+	tagged := map[string]bool{}
+	for _, img := range images {
+		if !isDangling(img) {
+			tagged[img.ID] = true
+		}
+	}
+	var ids []string
+	for _, img := range images {
+		if !isDangling(img) || img.Containers != 0 || tagged[img.ID] || slices.Contains(ids, img.ID) {
+			continue
+		}
+		if !docker.IsImageID(img.ID) {
+			log.Printf("ERROR [oci_resources] prune: skipped an image with a malformed ID %q", img.ID)
+			continue
+		}
+		ids = append(ids, img.ID)
+	}
+	return ids
+}
+
+// isDangling reports whether an image has neither a repository nor a tag.
+func isDangling(img docker.Image) bool {
+	return img.Repository == "<none>" && img.Tag == "<none>"
+}
+
+// shortIDs shortens image IDs to the 12 characters `image ls` prints.
+func shortIDs(ids []string) []string {
+	short := make([]string, 0, len(ids))
+	for _, id := range ids {
+		id = strings.TrimPrefix(id, "sha256:")
+		short = append(short, id[:min(len(id), 12)])
+	}
+	return short
 }
 
 // scanSelectedImage launches a scan for the selected image using saved options

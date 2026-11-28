@@ -556,7 +556,12 @@ func TestDeleteAsksFirstAndNamesTheImage(t *testing.T) {
 }
 
 func TestPruneAsksFirst(t *testing.T) {
-	m := feed(t, loadedModel(t), testutil.Key(keymap.Prune))
+	m := prunableModel(t)
+	m, cmd := step(t, m, testutil.Key(keymap.Prune))
+	if m.confirmModal != nil || cmd == nil {
+		t.Fatal("'p' opened the confirmation before the engine said which containers use the images")
+	}
+	m = feed(t, m, ImagePruneUsersMsg{Candidates: []string{"eee5555aaaa1"}})
 
 	if m.confirmModal == nil {
 		t.Fatal("'p' pruned without asking")
@@ -613,7 +618,6 @@ func TestNetworkAndVolumeActionsAskFirst(t *testing.T) {
 		{"delete a network", 1, keymap.Delete},
 		{"prune networks", 1, keymap.Prune},
 		{"delete a volume", 2, keymap.Delete},
-		{"prune volumes", 2, keymap.Prune},
 	}
 
 	for _, tt := range tests {
@@ -644,17 +648,16 @@ func TestNetworkActionFailureIsReported(t *testing.T) {
 	}
 }
 
-// A successful prune refetches rather than reporting: the reclaimed space is
+// A successful network prune refetches rather than reporting: the reclaimed space is
 // visible in the list that comes back, and a message would just be noise.
-// A failure has to say so, since nothing visible changes.
+// A failure has to say so, since nothing visible changes. (The images and the
+// volumes report what they removed since OC-22: see TestPruneOfImagesAndVolumesReportsTheBilan.)
 func TestPruneReportsOnlyFailures(t *testing.T) {
 	tests := []struct {
 		ok     tea.Msg
 		failed tea.Msg
 	}{
-		{PruneCompleteMsg{Output: "Total reclaimed space: 1.2GB"}, PruneCompleteMsg{Err: errors.New("no")}},
 		{NetworkPruneCompleteMsg{Output: "Deleted Networks: devdesk"}, NetworkPruneCompleteMsg{Err: errors.New("no")}},
-		{VolumePruneCompleteMsg{Output: "Total reclaimed space: 300MB"}, VolumePruneCompleteMsg{Err: errors.New("no")}},
 	}
 
 	for _, tt := range tests {
@@ -670,6 +673,35 @@ func TestPruneReportsOnlyFailures(t *testing.T) {
 		if !failed.footer.IsSet() {
 			t.Errorf("%T reported nothing", tt.failed)
 		}
+	}
+}
+
+// OC-22: removing the frozen list of images or volumes ends in a one-line bilan, at
+// the level the outcome calls for, and refetches the list.
+func TestPruneOfImagesAndVolumesReportsTheBilan(t *testing.T) {
+	removed := docker.RemovalReport{{Target: "x", Status: docker.RemovalRemoved}}
+	failed := docker.RemovalReport{{Target: "x", Status: docker.RemovalRefused, Reason: docker.ReasonOther, Err: errors.New("no")}}
+	for _, kind := range []struct {
+		name string
+		msg  func(docker.RemovalReport) tea.Msg
+	}{
+		{"images", func(r docker.RemovalReport) tea.Msg { return PruneCompleteMsg{Report: r} }},
+		{"volumes", func(r docker.RemovalReport) tea.Msg { return VolumePruneCompleteMsg{Report: r} }},
+	} {
+		t.Run(kind.name, func(t *testing.T) {
+			m, cmd := step(t, loadedModel(t), kind.msg(removed))
+			if m.footer.Text() != "1 removed" || m.footer.Level() != sharedcomponents.LevelInfo {
+				t.Errorf("footer = %q at %v, want the Info bilan \"1 removed\"", m.footer.Text(), m.footer.Level())
+			}
+			if cmd == nil {
+				t.Error("a removal did not refetch")
+			}
+
+			bad := feed(t, loadedModel(t), kind.msg(failed))
+			if bad.footer.Level() != sharedcomponents.LevelError || !strings.Contains(bad.footer.Text(), "1 not removed") {
+				t.Errorf("footer = %q at %v, want an Error that says 1 not removed", bad.footer.Text(), bad.footer.Level())
+			}
+		})
 	}
 }
 
@@ -794,7 +826,7 @@ func TestFooterMessagesExpire(t *testing.T) {
 		NetworksListMsg{Err: errors.New("docker daemon not running")},
 		VolumesListMsg{Err: errors.New("docker daemon not running")},
 		NetworkActionMsg{Action: "remove", Err: errors.New("pre-defined network")},
-		PruneCompleteMsg{Err: errors.New("no such image")},
+		PruneCompleteMsg{Report: docker.RemovalReport{{Target: "x", Status: docker.RemovalRefused, Reason: docker.ReasonOther, Err: errors.New("no such image")}}},
 	}
 
 	for _, msg := range tests {

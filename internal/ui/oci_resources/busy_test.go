@@ -254,7 +254,8 @@ func TestTheBlinkRunsForAnActionOnAnotherTab(t *testing.T) {
 // A prune acts on no row, so marking every row would say something false. It
 // gets a line of its own.
 func TestAPruneSaysSoWithoutMarkingAnyRow(t *testing.T) {
-	m := feed(t, loadedModel(t), testutil.Key(keymap.Prune), sharedcomponents.ConfirmModalYesMsg{})
+	m := feed(t, prunableModel(t), testutil.Key(keymap.Prune),
+		ImagePruneUsersMsg{Candidates: []string{"eee5555aaaa1"}}, sharedcomponents.ConfirmModalYesMsg{})
 	if m.pruning != "images" {
 		t.Fatalf("pruning = %q after confirming, want the images prune marked", m.pruning)
 	}
@@ -266,7 +267,7 @@ func TestAPruneSaysSoWithoutMarkingAnyRow(t *testing.T) {
 		t.Errorf("actionLine = %q, want the prune named", got)
 	}
 
-	m = feed(t, m, PruneCompleteMsg{Output: "reclaimed 1.2GB"})
+	m = feed(t, m, PruneCompleteMsg{Report: docker.RemovalReport{{Target: "aaa111111111", Status: docker.RemovalRemoved}}})
 	if m.pruning != "" {
 		t.Errorf("pruning = %q after the prune landed, want it cleared", m.pruning)
 	}

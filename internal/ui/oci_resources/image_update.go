@@ -148,7 +148,7 @@ func updateImageCmd(target string, old docker.Image, deps imagepull.Deps) tea.Cm
 				done.Unchanged = true
 				return done
 			}
-			done.RemoveErr = removeImage(old.ID, false)
+			done.RemoveErr = removeImage(old.ID)
 			return done
 		},
 	)

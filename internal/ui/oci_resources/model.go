@@ -127,6 +127,10 @@ type Model struct {
 	// acts on no row — marking every row would say something false — so it gets
 	// a footer line of its own instead.
 	pruning string
+	// pruneTargets is the list `P` froze when it opened the confirmation: the IDs of
+	// the images or the names of the volumes the user was shown. Confirming removes
+	// these and nothing else (OC-22, DEVDESK-820).
+	pruneTargets []string
 	// Shared state
 	// footer is the one line of transient state below the tab bar (Rule 128).
 	footer        sharedcomponents.FooterMessage
@@ -188,10 +192,25 @@ type ImageActionMsg struct {
 	Err    error
 }
 
-// PruneCompleteMsg signals result of image prune
+// ImagePruneUsersMsg is the engine's answer to "which containers were created from
+// these images", read when `P` is pressed on the Images tab. Candidates are the
+// dangling images the list showed at that moment; Users maps an ID to the containers
+// that use it. A non-nil Err means the engine could not say, which is never read as
+// "unused".
+//
+// Abandoned is set by the router when the user is in another view: the view still
+// hears the answer, so its pending state ends, but no confirmation opens.
+type ImagePruneUsersMsg struct {
+	Candidates []string
+	Users      map[string][]string
+	Err        error
+	Abandoned  bool
+}
+
+// PruneCompleteMsg carries the outcome of removing the frozen list of images: one
+// result per image, in the order of the list.
 type PruneCompleteMsg struct {
-	Output string
-	Err    error
+	Report docker.RemovalReport
 }
 
 // ScanRequestMsg is sent when user requests a security scan on a single image
@@ -267,10 +286,24 @@ type VolumeActionMsg struct {
 	Err    error
 }
 
-// VolumePruneCompleteMsg signals result of volume prune
+// VolumePruneUsersMsg is the engine's answer to "which containers use which volumes",
+// read when `P` is pressed on the Volumes tab. Volumes is the table's list at that
+// moment; the preview is computed from it and from Users, and from nothing else.
+// A non-nil Err means the engine could not say, which is never read as "unused".
+//
+// Abandoned is set by the router when the user is in another view: the view still
+// hears the answer, so its pending state ends, but no confirmation opens.
+type VolumePruneUsersMsg struct {
+	Volumes   []docker.Volume
+	Users     map[string][]string
+	Err       error
+	Abandoned bool
+}
+
+// VolumePruneCompleteMsg carries the outcome of removing the frozen list of volumes:
+// one result per volume, in the order of the list.
 type VolumePruneCompleteMsg struct {
-	Output string
-	Err    error
+	Report docker.RemovalReport
 }
 
 // Messages — Registry Browser

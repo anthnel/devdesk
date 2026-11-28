@@ -863,7 +863,9 @@ func TestPruneResultHandling(t *testing.T) {
 			t.Fatal("the prune was not marked as running")
 		}
 
-		m, cmd := step(t, m, ContainerPruneMsg{Output: "Total reclaimed space: 1.2GB"})
+		m, cmd := step(t, m, ContainerPruneMsg{Report: docker.RemovalReport{
+			{Target: "bbbb111122223333", Status: docker.RemovalRemoved},
+		}})
 
 		if m.pruning {
 			t.Error("the view still reads as pruning after the prune completed")
@@ -871,12 +873,17 @@ func TestPruneResultHandling(t *testing.T) {
 		if cmd == nil {
 			t.Error("a completed prune did not refresh the list")
 		}
+		if got := m.footer.Text(); got != "1 removed" {
+			t.Errorf("footer = %q, want the one-line bilan", got)
+		}
 	})
 
 	t.Run("failure surfaces a short message", func(t *testing.T) {
 		m := loadedModel(t)
 
-		m, cmd := step(t, m, ContainerPruneMsg{Err: errors.New("daemon refused")})
+		m, cmd := step(t, m, ContainerPruneMsg{Report: docker.RemovalReport{
+			{Target: "bbbb111122223333", Status: docker.RemovalRefused, Reason: docker.ReasonOther, Err: errors.New("daemon refused")},
+		}})
 
 		if !m.footer.IsSet() {
 			t.Error("a failed prune said nothing")

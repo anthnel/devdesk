@@ -1071,6 +1071,23 @@ and `routeShellDetected` does the rest:
 
 Covered by `internal/app/containers_shell_test.go`.
 
+### The answers of a `P` (OC-22, DEVDESK-820)
+
+`P` in the OCI view (Images and Volumes tabs) and in `containers` starts work whose
+answer must reach the view that asked, wherever the user is, or the view stays on
+`Pruning …` for good: `ociresources.ImagePruneUsersMsg` and `VolumePruneUsersMsg`
+(the engine's answer to the preview), `PruneCompleteMsg`, `VolumePruneCompleteMsg`,
+`NetworkPruneCompleteMsg` and `containers.ContainerPruneMsg` (the outcome of the
+removal). `App.update` has one case for each and `routeAnswer` does the rest: on
+screen the active view hears it, off screen the view the router holds does, through
+`routeToView`. The two preview answers get `Abandoned` set when the OCI view is not
+the current one: the wait ends (`m.pruning = ""`) and **no confirmation opens**, so
+nothing can be confirmed behind the user's back. The outcomes are applied as they
+are: the bilan is in the footer when the user comes back. Covered by
+`internal/app/prune_routing_test.go`. Not routed, as before: the action messages of
+`D` (`ContainerActionMsg`, `ImageActionMsg`, `VolumeActionMsg`), which leave their row
+marked busy when the user walks away.
+
 ### The jobs registry — `internal/jobs`
 
 One bookkeeping of everything long-running, owned by the router

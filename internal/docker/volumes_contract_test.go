@@ -75,11 +75,11 @@ func TestContractVolumePruneOfAStoreOnlyThisRuns(t *testing.T) {
 		err    error
 	)
 	c.expectPrune("volumes", "prune-unused", "volume prune of a store that holds only the volume of the run", "volume", func() {
-		report, err = PruneVolumes()
+		report, err = pruneKindForTest("volume")
 	})
 
 	if err != nil {
-		t.Fatalf("PruneVolumes() = %v on a store that holds only %s", err, name)
+		t.Fatalf("volume prune = %v on a store that holds only %s", err, name)
 	}
 	left, listErr := ListVolumes()
 	if listErr != nil {

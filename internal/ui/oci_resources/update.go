@@ -129,6 +129,12 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case VolumeActionMsg:
 		return m.handleVolumeAction(msg)
 
+	case ImagePruneUsersMsg:
+		return m.handleImagePruneUsers(msg)
+
+	case VolumePruneUsersMsg:
+		return m.handleVolumePruneUsers(msg)
+
 	case VolumePruneCompleteMsg:
 		return m.handleVolumePruneComplete(msg)
 
