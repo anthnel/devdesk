@@ -426,3 +426,12 @@ user quit at once, which is exactly how a command line broken since the day it
 was written went unnoticed — the log line was there all along, and nobody reads
 a log to find out why a key did nothing.
 
+
+## A failed load says why when the source can (OC-24, DEVDESK-822)
+
+`loadErrorMessage` (`internal/ui/viewer/update.go`) names the two refusals it owns (`File is too large to view`,
+`Not a text file`), then reads an optional `UserMessage() string` from the error through `errors.As` and shows that
+sentence (through `components.Printable`: control and bidi characters become `?`, an escape sequence is stripped, and a sentence that is empty after that is the generic one) at level Error (a container's inspect with the daemon down: `Cannot reach the Docker daemon — is it running?`).
+Any other failure, an empty sentence included, stays `Failed to open — check logs`. The viewer imports no engine package
+(`TestTheViewerDoesNotImportDocker`): the source's error says what may be shown, and `docker.UnavailableError` is the
+one that does. The log line uses `LogText()` of the error when it has one (the redacted cause), `Error()` otherwise.

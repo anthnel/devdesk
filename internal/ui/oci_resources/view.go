@@ -93,12 +93,34 @@ func (m Model) RenderFooter(width int) string {
 	return strings.Join(parts, "\n")
 }
 
+// engineDownOfActiveTab is the engine state of the tab on screen: only that one is
+// said, the others are kept for when their tab comes back (OC-24).
+func (m Model) engineDownOfActiveTab() sharedcomponents.EngineDown {
+	switch m.activeTab {
+	case tabImages:
+		return m.imagesDown
+	case tabNetworks:
+		return m.networksDown
+	case tabVolumes:
+		return m.volumesDown
+	}
+	return sharedcomponents.EngineDown{}
+}
+
 // status is what the view derives on every frame: the active tab's load, which
-// stays first and carries no row detail, then the selected image's own activity
+// stays first and carries no row detail, then an engine that could not be asked
+// for that tab's list (OC-24), then the selected image's own activity
 // composed with the running action or the batch progress. None has a timer.
 func (m Model) status() sharedcomponents.Status {
+	// The load of an empty table stays first: a ctrl+r answers with the dot, then
+	// the engine state comes back with the list that failed again (OC-24). The
+	// table is empty while the engine is down, so the load is never hidden, and
+	// WantsBlink (footerLoading) is false whenever the state is what is shown.
 	if text, ok := m.loadingLabel(); ok {
 		return sharedcomponents.Status{Text: text, Activity: true}
+	}
+	if down := m.engineDownOfActiveTab(); down.Active() {
+		return down.Status()
 	}
 	st := sharedcomponents.Status{Text: m.actionLine()}
 	if st.Text == "" {

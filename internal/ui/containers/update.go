@@ -598,9 +598,9 @@ func (m Model) handlePruneComplete(msg ContainerPruneMsg) (tea.Model, tea.Cmd) {
 func (m Model) handleContainersList(msg ContainersListMsg) (tea.Model, tea.Cmd) {
 	m.loading = false
 	if msg.Err != nil {
-		log.Printf("ERROR [containers] list: %v", msg.Err)
-		return m, m.footer.Error("Failed to load containers — check logs")
+		return m.handleContainersListFailure(msg.Err)
 	}
+	m.engineDown.Clear()
 	m.footer.ClearUnlessRemoval() // the bilan of a P or a D outlives the refresh that follows it
 	m.containerTable.SetItems(withKnownMetrics(msg.Containers, m.containerTable.Items()))
 	// A new list is a new population — a container started, stopped, or
@@ -611,6 +611,21 @@ func (m Model) handleContainersList(msg ContainersListMsg) (tea.Model, tea.Cmd) 
 	// into fixed-width columns.
 	m.containerTable.Remeasure()
 	return m, m.updates.updatesCmd(msg.Containers, time.Now())
+}
+
+// handleContainersListFailure reports a list that failed. An engine that could not
+// be asked at all becomes the derived engineDown state and the table is emptied
+// (Rule 139: it stays a table, header and no rows), because the rows of the last
+// list would offer actions bound to fail. Any other failure keeps the generic
+// message and the rows it did not touch.
+func (m Model) handleContainersListFailure(err error) (tea.Model, tea.Cmd) {
+	log.Printf("ERROR [containers] list: %s", docker.LogText(err))
+	if m.engineDown.Observe(err) {
+		m.footer.ClearUnlessRemoval()
+		m.containerTable.SetItems(nil)
+		return m, nil
+	}
+	return m, m.footer.Error("Failed to load containers — check logs")
 }
 
 // handleContainerMetrics merges metrics into existing containers.
@@ -679,11 +694,14 @@ func withKnownMetrics(fresh, known []docker.Container) []docker.Container {
 func (m Model) handleContainerAction(msg ContainerActionMsg) (tea.Model, tea.Cmd) {
 	m.containerTable.ClearBusy(msg.ID)
 	if msg.Err != nil {
-		log.Printf("ERROR [containers] %s %s: %v", msg.Action, msg.Name, msg.Err)
+		log.Printf("ERROR [containers] %s %s: %s", msg.Action, msg.Name, docker.LogText(msg.Err))
 		if msg.Action == "remove" {
 			// `D` reads like `P`: a container already gone is an information, a
 			// running one a refusal that says why, not "Action failed".
 			return m, tea.Batch(m.footer.Removal(docker.SingleRemoval(msg.ID, msg.Err)), fetchContainers())
+		}
+		if m.engineDown.Observe(msg.Err) {
+			return m, nil
 		}
 		return m, m.footer.Error("Action failed — check logs")
 	}

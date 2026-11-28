@@ -998,6 +998,41 @@ A view must not use it. Going through here would be a second way to do what a
 field already does, and the message would be adopted by whatever view is active
 rather than by the one that meant it.
 
+## `components.EngineDown` — an engine that could not be asked (OC-24, DEVDESK-822)
+
+A **derived state**, not a footer message: `Status{Text: sentence, Level: LevelError}`, no timer, no `Activity`
+(`internal/ui/components/engine_down.go`). Why a `Status`: a timed `footer.Error` expires after 3 s while `:containers` refreshes every 2 s
+and `:oci` every 10 s, so the line would blink or vanish (D47); `Status.Level` was added for exactly this ("what is true right now").
+
+- **API.** The zero value is "the engine is fine", usable as a struct field. `Observe(err) bool` records the fixed sentence of a
+  `*docker.UnavailableError` found in `err`'s chain (`docker.UnavailableMessage`) and reports true; any other error, `nil` included,
+  leaves the state as it was and reports false (a view then shows its generic `... — check logs`). `Clear()` ends the state;
+  `Active()`, `Text()` and `Status()` read it. No `WantsBlink`: there is no `Activity`.
+- **How a view uses it.** A field `engineDown` (`:containers`) or one per tab (`imagesDown`, `networksDown`, `volumesDown` on `:oci`). In
+  `Update()`, a failed list calls `Observe`: when it holds, the table is emptied (`SetItems(nil)`; Rule 139, the body stays
+  `m.table.View()`, header and no rows, the count at 0 in `GetHeaderInfo`) and **no footer message is set**; a stale message is cleared with
+  `ClearUnlessRemoval`, so the bilan of a `P` or `D` survives. When it does not hold the view keeps its generic message and its rows. The
+  first list that succeeds calls `Clear()` (the Networks list clears the footer with `ClearUnlessRemoval`, like the others: the footer is
+  shared by the tabs and every refresh lists the three). The other callers of `Observe`, exactly: the container action (not `remove`), the image action (not `remove`), the network action and the network prune, the volume action (not
+  `remove`) and the network inspect. A launch and the prunes of containers, images and volumes do not call it: their failures go through the
+  `Removal` bilan or their own messages. An action that is observed keeps its rows.
+- **The load comes before the state.** `status()` returns the load line of an empty table first and the engine state after it: a `ctrl+r` (or
+  the first open) shows `Loading ...` with its dot, then the state returns with the list that fails again. The table is empty while the
+  engine is down, so the load is never hidden, and `WantsBlink` (which reads the load) is false whenever the state is what is shown, so no
+  blink runs without a dot. The tick refreshes do not set the load flag, so they never hide the state.
+- **Precedence (Rule 128).** The footer shows error, then warning, then info, then status: a timed message the user has not read comes
+  first and the state returns when it expires (`TestAFooterMessageStillWinsOverTheEngineState`). The state is a `Status` at level Error, drawn in the
+  footer's error style, centred.
+- **`:oci` is per tab.** Each tab reads the engine on its own and a state is true of the read that set it, so `status()` shows the state of
+  the **active** tab only (`engineDownOfActiveTab`); the others are kept for when their tab comes back. A failed Images list also empties `m.images`
+  and sets `listed` back to false, so an agent's scan request that comes next waits for a list that answers and is refused with the sentence.
+- **Logs.** A view that shows these errors logs `docker.LogText(err)`, not `%v`: the first line of the engine's words, URL credentials
+  replaced by `***@`. The viewer reads the sentence of a failed load through an optional `UserMessage() string` (`errors.As`) and does not
+  import `internal/docker` (`TestTheViewerDoesNotImportDocker`).
+- **Tests.** `internal/ui/components/engine_down_test.go`, then `engine_down_test.go` and `engine_down_probes_test.go` in `internal/ui/containers`
+  and `internal/ui/oci_resources` (a `fakecli` that answers the probed stderr, never a real engine) and `internal/ui/viewer/engine_down_test.go`.
+  See `docs/architecture/network.md`, "Engine unavailability".
+
 ## Text contrast on the shipped themes (DEVDESK-764)
 
 Six text colours (`ColorText`, `ColorDim`, `ColorSubTitleFg`, `ColorWarn`, `ColorFooterWarn`,

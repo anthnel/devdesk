@@ -55,12 +55,19 @@ func (m Model) RenderFooter(width int) string {
 	return strings.Join(parts, "\n")
 }
 
-// status is what the view derives on every frame: the load, else the selected
+// status is what the view derives on every frame: the load, else an engine that
+// cannot be asked (OC-24), else the selected
 // row's state in words followed by the progress of what is running. Neither has
 // a timer, and both are displaced by a message.
 func (m Model) status() sharedcomponents.Status {
+	// The load of an empty table stays first: a ctrl+r answers with the dot, then
+	// the engine state comes back with the list that failed again (OC-24). The
+	// table is empty while the engine is down, so the load is never hidden.
 	if m.loading && len(m.containerTable.Items()) == 0 {
 		return sharedcomponents.Status{Text: "Loading containers...", Activity: true}
+	}
+	if m.engineDown.Active() {
+		return m.engineDown.Status()
 	}
 	return sharedcomponents.Status{Detail: m.selectedDetail(), Text: m.progressLine(), Activity: m.shellDetecting}
 }
