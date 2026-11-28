@@ -2,6 +2,7 @@ package mcp
 
 import (
 	"context"
+	"errors"
 	"log"
 	"sort"
 	"strings"
@@ -62,10 +63,24 @@ func registerContainersList(s *sdk.Server, _ *Env) {
 	}, func(_ context.Context, _ *sdk.CallToolRequest, in containersListIn) (*sdk.CallToolResult, containersListOut, error) {
 		list, err := listContainers(in.All)
 		if err != nil {
-			return nil, containersListOut{}, err
+			return nil, containersListOut{}, agentFacingError(err)
 		}
 		return nil, containersListOut{Containers: list}, nil
 	})
+}
+
+// agentFacingError is what an agent is told when a read of the engine fails. An
+// engine that could not be asked is one fixed sentence (docker.UnavailableMessage):
+// the text of the engine, its socket path and the URL it was reached by are not for
+// a client of the MCP server (OC-24). Any other error keeps its own text, which
+// carries no engine output since *UnavailableError and the reads' errors keep
+// that for the log.
+func agentFacingError(err error) error {
+	if message, ok := docker.UnavailableMessage(err); ok {
+		log.Printf("ERROR [mcp/docker] %s", docker.LogText(err))
+		return errors.New(message)
+	}
+	return err
 }
 
 // listContainers reports what the daemon holds.
@@ -163,7 +178,7 @@ func registerImagesList(s *sdk.Server, _ *Env) {
 	}, func(_ context.Context, _ *sdk.CallToolRequest, _ any) (*sdk.CallToolResult, imagesListOut, error) {
 		list, err := listLocalImages()
 		if err != nil {
-			return nil, imagesListOut{}, err
+			return nil, imagesListOut{}, agentFacingError(err)
 		}
 		return nil, imagesListOut{Images: list}, nil
 	})

@@ -27,7 +27,7 @@ func ListNetworks() ([]Network, error) {
 	}
 	output, err := dockerOutput("network", "ls", "--format", templates().NetworkLS)
 	if err != nil {
-		return nil, wrapErr(cmdLabel("network ls"), err)
+		return nil, readFailure(cmdLabel("network ls"), err)
 	}
 
 	var networks []Network
@@ -92,7 +92,7 @@ func InspectNetwork(id string) ([]NetworkContainer, error) {
 	}
 	output, err := dockerOutput("network", "inspect", id)
 	if err != nil {
-		return nil, wrapErr(cmdLabel("network inspect"), err)
+		return nil, readFailure(cmdLabel("network inspect"), err)
 	}
 	return parseNetworkInspect(output)
 }

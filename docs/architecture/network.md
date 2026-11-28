@@ -1578,6 +1578,87 @@ sentinel row of `ps-health` depends on the test VM, not on the run.
   version by hand (`TestFixturesAreNotStale` says which).
 - Not here: the scenarios of the other zones (kind, scan); a version bump records the four configurations again.
 
+### Engine unavailability — `docker.UnavailableError` (OC-24, DEVDESK-822)
+
+What a read says when the engine cannot be asked at all: the binary is not on `PATH`, the daemon (or the Podman machine or
+service) does not answer, or the socket refuses this user. This part is the **classification** (`internal/docker/unavailable.go`) and
+`engine.Unresolved`; the footer state and the views (`components.EngineDown`, `:containers`, `:oci`) come after it, as does the
+inspect viewer and the MCP refusal text (`handleImagesList` still sends the engine's raw text to a pending agent request).
+
+- **The type.** `*UnavailableError{Reason, Engine, Label}` with `Reason` one of `EngineNotFound`, `EngineUnreachable`,
+  `EnginePermissionDenied` (`UnavailabilityUnknown` is the zero value: not one of these). `Engine` is `engine.Current().Name` when the
+  call failed, `Label` is `cmdLabel(...)` (`docker ps`). `errors.Is` answers the sentinels `ErrEngineNotFound`, `ErrEngineUnreachable`,
+  `ErrEnginePermissionDenied`; `Unwrap` keeps the cause, so `errors.As` to `*exec.ExitError` still works. `Error()` is **fixed and holds no word of the engine**
+  (`docker not found: <why exec says so>`, or `<label> failed: engine unreachable` / `engine access denied`); the cause is read
+  through `LogText()` (and `docker.LogText(err)` for any error), which a log line uses; `UserMessage()` is **one fixed sentence per class and engine**, never built
+  from the engine's text, an URL, a path or a variable name (criterion 6): `Docker not found on PATH — install it or set
+  app.container_engine`, `Cannot reach the Docker daemon — is it running?`, `Permission denied on the Docker socket — add your user to
+  the docker group`, and the Podman ones (`Podman not found on PATH...`, `Cannot reach Podman — is the Podman machine or service
+  running?`, `Permission denied on the Podman socket — check that your user may open it`; the last two are **proposed, to be validated by
+  the techwriter**, plan question Q2). When `app.container_engine` is a **path** (the binary holds a `/` or `\`, `UnavailableError.ByPath`,
+  read by `configuredByPath()` in `exec.go`, where G2 allows it) the "not found" sentence is `Docker not found — check app.container_engine`
+  (or `Podman`), since nothing was looked up on `PATH`; a bare name keeps the sentence of criterion 1. `UnavailableMessage(err)` finds the
+  sentence in a chain.
+- **Where it is returned.** `engineAvailable()` (the `LookPath` failure, whatever the runner says), and `readFailure(label, err)`, which
+  replaced `wrapErr` in `ListContainersContext`, `ListImages`, `ListVolumes`, `ListNetworks`, `InspectNetwork` and `InspectContainer`
+  (which types an unavailable engine first, and keeps `errWithOutput` for any other failure, the text the recorded fixtures pin). A
+  failure that is not classified keeps `<label> failed: <err>` as its `Error()` (a `*readError` wrapping the error) and its `LogText()` adds
+  ` (<first line of stderr>)`, redacted the same way. Still on `wrapErr` (the views that show the sentence do not read them yet): the reads of `container_network.go`
+  (`InspectContainerNetworking`, the bridge read, `EngineOperatingSystem`), `ListVolumeUsers`, `ImagesInUse`, the image inspects,
+  `stats` and `info`. `ClassifyRemoval` reads an
+  `*UnavailableError` as `RemovalRefused, ReasonOther` before any text.
+- **What is read.** `ClassifyUnavailable(err)` reads the engine's own words only: `exec.ErrNotFound` (or a `fork/exec` path error
+  whose file does not exist, a configured path) for a missing binary, then the `Stderr` of an `*exec.ExitError` or the `Output` of an
+  `*engineError`, never DevDesk's label (`TestClassifyReadsTheEngineTextNotTheLabel`), and an error built from text
+  (`errors.New`) is never read. At most three non-empty lines, each lower-cased and **anchored at its start**; permission before
+  unreachable. It is called on a failure only: a command that exits 0 is never an error, whatever it printed (podman's subuid warnings,
+  P5), and **for reads only, never on the combined output of `run`, `exec` or `logs`**: a `docker:cli` container started without the
+  socket prints exactly DK-A, and that is the container's answer, not the engine's.
+- **The markers, and where they come from** (`docs/measurements/2026-11-28-engine-unavailable.md`, docker 29.10.1 and 28.5.2, podman
+  6.2.1 and 5.8.11):
+
+  | Class | Line starts with | Probe |
+  |---|---|---|
+  | permission | `permission denied while trying to connect to the docker ` (covers `...docker API at` of 29 and `...Docker daemon socket at` of 28) | D4 |
+  | unreachable | `cannot connect to the docker daemon at ` (29 and 28) | D1, D2, D5, D1b and D2c on 28 |
+  | unreachable | `failed to connect to the docker api at ` (29 only), unless the line ends in `permission denied` (not measured, not claimed) | D1b, D2c |
+  | permission | `error: unable to connect to podman socket:` and, after the first `: connect: `, `permission denied` | P3 |
+  | unreachable | the same line and, after `: connect: `, `no such file or directory` or `connection refused` | P2a to P2e, P3c |
+
+  Podman puts its cause on the **second** line (`Cannot connect to Podman. Please verify...` is the first, and the same for all three
+  causes), and 5.8.11 ends it with `: unix://<path>`: the cause is read as a prefix after `: connect: `. Any other cause (an ssh
+  failure, a timeout) stays unknown.
+- **What is deliberately unknown.** A lone `permission denied`, `no such file or directory` or `connection refused` (a mkdir, a path, a
+  registry); Podman's local failures (P4c `error opening namespace handles: Permission denied`, `Failed to obtain podman
+  configuration: mkdir /root/libpod: permission denied`, P4d `creating runtime static files directory`); the subuid warnings (P5, exit 0);
+  the daemon's answers about an object (`No such container`, `no such object`, a missing network). `TestNoRecordedEngineAnswerReadsAsUnavailable`
+  runs the 40 versioned fixtures through the classifier and expects them all unknown (criterion 5, negative control).
+- **Why not `notReachableMarkers`.** That list (`removal.go`) is wide on purpose: it keeps a doubtful removal failure from being read
+  as `gone`, so doubt means "not removed". OC-24 has the opposite direction: a cause is announced only when it is certain, and a doubt
+  shows the generic `... — check logs`. The two lists coexist; do not merge them.
+- **The log.** The cause kept (`LogText()`, never `Error()`) is one line of the engine's text (the line that decided the class, for a
+  classified failure; the first line otherwise). Every URL in it is reduced by `redactURL`: the userinfo up to the **last** `@` is
+  replaced (`scheme://user:pass@` becomes `scheme://***@`, a password holding `/` or `@` goes too) and the query and fragment are cut
+  (`?token=...`); it is cut by hand rather than through `url.Parse`, which fails on a log line such as `tcp://h:2375.` and would then leave the
+  text as it was. Control characters (`unicode.IsControl`, C1 and U+009B included) and the bidi marks U+202A to U+202E and U+2066 to
+  U+2069 are dropped; the redaction comes before the cut at 200 bytes (`TestRedactCause`, `TestRedactCauseCutsAfterRedacting`).
+- **Where the sentence replaces the text.** The two paths that carry an error to an MCP client send the fixed sentence:
+  `containers_list` and `images_list` (`internal/mcp/docker_tools.go`, `agentFacingError`) and the refusal of a scan request that waited
+  for the image list (`internal/ui/oci_resources/results.go`, `imagesRefusal`: `Cannot list images: <sentence>`, or `Cannot list images —
+  check logs` for an unknown failure). `agentFacingError` hands an error that is not an `*UnavailableError` through unchanged: its `Error()`
+  holds no engine output any more. The views' own footers and logs move to the sentence and to `LogText()` with the views (next PR).
+- **Limits.** The texts are client texts that change with a version (docker 28 to 29 already did); the probes are a table of dated
+  answers in `unavailable_probe_test.go` (the model is `removal_probe_test.go`), **not versioned fixtures** (the 40 hold none of the
+  three cases, and the contract bench cannot produce them: root passes the socket permission, `DOCKER_HOST` and `--remote` are refused;
+  a follow-up task versions them, with DEVDESK-949). Docker rootless, Docker Desktop, docker contexts and a Podman machine on macOS or
+  Windows were not measured. A socket-activated stopped daemon (D3) answers and exits 0: it is not detectable by an error. A local
+  Podman client has no daemon (P1): the Podman classes only occur for a remote client (`--remote`, `--url`, `CONTAINER_HOST`).
+- **`engine.Unresolved(preference)`.** When `engine.Resolve` fails (the pinned binary is absent), `resolveContainerEngine` installs
+  `engine.SetCurrent(engine.Unresolved(preference))`: the shape of the engine the configuration **names**, without a `LookPath` (`docker`
+  or `podman` name themselves, `""` and `auto` are docker, a path goes through `engineOfPath`). Without it, `podman` pinned and absent
+  left the previous shape current and the sentence said `Docker not found`. The function reads no `Shape.Binary`, so the site count of its
+  G2 exception is unchanged. The views still report the absence at the moment of use, and nothing falls back to the other engine.
+
 ## OCI registries — `internal/oci`
 
 `internal/oci/oci.go` — an OCI **registry** HTTP client: list tags,

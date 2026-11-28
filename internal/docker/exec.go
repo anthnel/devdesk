@@ -115,12 +115,25 @@ var runner dockerRunner = cliRunner{}
 
 // engineAvailable reports the absence of the container engine, naming the one
 // that was actually looked for rather than "docker" — someone who pinned podman
-// is not helped by being told docker is missing.
+// is not helped by being told docker is missing. The error is an
+// *UnavailableError of reason EngineNotFound (OC-24), whose text keeps the
+// "<engine> not found: <why>" the logs always had.
 func engineAvailable() error {
 	if err := runner.LookPath(); err != nil {
-		return fmt.Errorf("%s not found: %w", engine.Current().Name, err)
+		name := engine.Current().Name
+		return &UnavailableError{
+			Reason: EngineNotFound, Engine: name, Label: name,
+			ByPath: configuredByPath(), cause: redactCause(err.Error()), err: err,
+		}
 	}
 	return nil
+}
+
+// configuredByPath reports that app.container_engine named a file rather than
+// docker or podman. It reads the binary here, in the runner file, where guard G2
+// allows it.
+func configuredByPath() bool {
+	return strings.ContainsAny(engine.Current().Binary, `/\`)
 }
 
 // cmdLabel builds the prefix a failed invocation is reported under — "docker

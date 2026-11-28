@@ -200,7 +200,7 @@ func ListContainersContext(ctx context.Context, all bool) ([]Container, error) {
 
 	output, err := runner.Run(dockerCmd{Args: args, Ctx: ctx})
 	if err != nil {
-		return nil, wrapErr(cmdLabel("ps"), err)
+		return nil, readFailure(cmdLabel("ps"), err)
 	}
 	return parseContainers(output), nil
 }

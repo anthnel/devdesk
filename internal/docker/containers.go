@@ -341,9 +341,13 @@ func InspectContainer(id string) ([]byte, error) {
 	// Stdout only: a warning the engine writes on stderr (a deprecation notice,
 	// a cgroup remark) would otherwise land inside the JSON document the viewer
 	// shows. A failure keeps the engine's own diagnostic, which cliRunner
-	// leaves on the *exec.ExitError (OC-04, DEVDESK-800).
+	// leaves on the *exec.ExitError (OC-04, DEVDESK-800). An engine that could not be asked is
+	// typed first (OC-24); any other failure keeps the text recorded fixtures pin.
 	output, err := dockerOutput("inspect", id)
 	if err != nil {
+		if ClassifyUnavailable(err) != UnavailabilityUnknown {
+			return nil, readFailure(cmdLabel("inspect"), err)
+		}
 		var exitErr *exec.ExitError
 		if errors.As(err, &exitErr) && len(exitErr.Stderr) > 0 {
 			return nil, errWithOutput(cmdLabel("inspect"), exitErr.Stderr)

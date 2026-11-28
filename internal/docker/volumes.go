@@ -20,7 +20,7 @@ func ListVolumes() ([]Volume, error) {
 	}
 	output, err := dockerOutput("volume", "ls", "--format", templates().VolumeLS)
 	if err != nil {
-		return nil, wrapErr(cmdLabel("volume ls"), err)
+		return nil, readFailure(cmdLabel("volume ls"), err)
 	}
 
 	var volumes []Volume

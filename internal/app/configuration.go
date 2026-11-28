@@ -107,15 +107,20 @@ func (a *App) resolveSecretBackend() {
 // that does not exist.
 //
 // A preference that does not resolve is **not** fatal and does not fall back to
-// the other engine. The previous shape is kept and the views report the absence
-// the way they always have when the binary is missing (engineAvailable) — an
-// error at the moment of use, naming the engine that was asked for, rather than
-// a silent substitution that answers about the wrong machine (§3.67).
+// the other engine. The configured engine becomes the current one anyway
+// (engine.Unresolved), and the views report the absence the way they always have
+// when the binary is missing (engineAvailable) — an error at the moment of use,
+// naming the engine that was asked for, rather than a silent substitution that
+// answers about the wrong machine (§3.67).
 func (a *App) resolveContainerEngine() {
 	preference := a.config.App.ContainerEngine
 	shape, err := engine.Resolve(preference)
 	if err != nil {
 		log.Printf("ERROR [app] resolve container engine %q: %v", preference, err)
+		// The configured engine stays the current one, unresolved, so the views name it
+		// when they report it absent (OC-24). Shape.Binary is not read here: guard G2
+		// counts the sites of this function.
+		engine.SetCurrent(engine.Unresolved(preference))
 		return
 	}
 	engine.SetCurrent(shape)
