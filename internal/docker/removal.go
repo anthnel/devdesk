@@ -178,7 +178,7 @@ func engineText(err error) (label, text string) {
 
 // dockerNetworkGoneRE is docker's answer to `network rm` of a network that does not
 // exist, probed on docker 28.5.2 and 29.10.1.
-var dockerNetworkGoneRE = regexp.MustCompile(`^Error response from daemon: network [a-z0-9_.-]+ not found$`)
+var dockerNetworkGoneRE = regexp.MustCompile(`^Error response from daemon: network [A-Za-z0-9_.-]+ not found$`)
 
 // dockerNetworkGone reads docker's `network <name> not found`, whose middle word is
 // the name asked for and so cannot be a fixed marker. It applies to `network rm`
@@ -245,7 +245,8 @@ var inUseMarkers = []string{
 // with ID or name "X" found: no such container`, `X: image not known`, `no volume
 // with name "X" found: no such volume`. NOT a versioned fixture (only `inspect` of an
 // absent container is recorded, as "no such object"): to be recorded in an OC-09
-// scenario. A wording that changes with an upgrade falls to ReasonOther, the safe side.
+// scenario (DEVDESK-949). A wording that changes with an upgrade falls to ReasonOther,
+// the safe side.
 var goneMarkers = []string{
 	"no such container",
 	"no such image",

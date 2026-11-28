@@ -107,6 +107,9 @@ func (m Model) handleVolumePruneUsers(msg VolumePruneUsersMsg) (tea.Model, tea.C
 		return m, nil
 	}
 	m.pruning = ""
+	if msg.Abandoned {
+		return m, nil // the user is in another view: the wait ends, nothing opens
+	}
 	if m.confirmModal != nil || m.activeTab != tabVolumes {
 		return m, m.footer.Info(lateAnswerMessage)
 	}

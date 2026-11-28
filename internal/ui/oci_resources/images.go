@@ -77,6 +77,9 @@ func (m Model) handleImagePruneUsers(msg ImagePruneUsersMsg) (tea.Model, tea.Cmd
 		return m, nil
 	}
 	m.pruning = ""
+	if msg.Abandoned {
+		return m, nil // the user is in another view: the wait ends, nothing opens
+	}
 	if m.confirmModal != nil || m.activeTab != tabImages {
 		return m, m.footer.Info(lateAnswerMessage)
 	}

@@ -58,7 +58,7 @@ var pruneExceptions = []pruneException{
 	{
 		File: "internal/docker/networks.go", Func: "PruneNetworks", Sites: 1,
 		Reason: "network prune is outside OC-22 (DEVDESK-820), which covers containers, images and volumes: " +
-			"the Networks tab has no preview yet. Delete this entry, and the function, when it gets one",
+			"the Networks tab has no preview yet (DEVDESK-949). Delete this entry, and the function, when it gets one",
 	},
 }
 

@@ -834,6 +834,24 @@ func (a *App) update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case containers.ShellDetectedMsg:
 		return a.routeShellDetected(msg)
 
+	// ── The removals P started in the OCI and containers views (OC-22) ────
+	// Their answers arrive wherever the user is, and the view must hear them to
+	// end its pending state (`m.pruning`). A preview answer heard off screen opens
+	// no confirmation.
+	case ociresources.ImagePruneUsersMsg:
+		msg.Abandoned = a.currentView != command.ViewOCIResources
+		return a.routeAnswer(command.ViewOCIResources, msg)
+
+	case ociresources.VolumePruneUsersMsg:
+		msg.Abandoned = a.currentView != command.ViewOCIResources
+		return a.routeAnswer(command.ViewOCIResources, msg)
+
+	case ociresources.PruneCompleteMsg, ociresources.VolumePruneCompleteMsg, ociresources.NetworkPruneCompleteMsg:
+		return a.routeAnswer(command.ViewOCIResources, msg)
+
+	case containers.ContainerPruneMsg:
+		return a.routeAnswer(command.ViewContainers, msg)
+
 	default:
 		return a, a.forwardToActiveView(msg)
 	}
@@ -852,6 +870,17 @@ func (a *App) routeShellDetected(msg containers.ShellDetectedMsg) (tea.Model, te
 	}
 	msg.Abandoned = true
 	return a.routeToView(command.ViewContainers, msg)
+}
+
+// routeAnswer hands the answer of work a view started back to that view, on screen
+// or not: on screen through the active view, off screen through the view the router
+// holds, which is not created for it. Unlike routeWork it has no job registry to
+// update: the work is a removal the view tracks itself.
+func (a *App) routeAnswer(target command.ViewType, msg tea.Msg) (tea.Model, tea.Cmd) {
+	if a.currentView == target {
+		return a, a.forwardToActiveView(msg)
+	}
+	return a.routeToView(target, msg)
 }
 
 // routeNetdiagWork hands work netdiag started back to it, on screen or not. On

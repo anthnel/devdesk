@@ -90,13 +90,23 @@ func removeImageCmd(id, name string) tea.Cmd {
 	}
 }
 
+// imageUsersDeadline bounds the whole read of "which containers use these images". A
+// variable so a test can make it expire.
+var imageUsersDeadline = 60 * time.Second
+
 // readImageUsersCmd asks the engine which containers were created from each candidate
 // image (docker.ImagesInUse): the preview of `P` on the Images tab is computed from
 // the answer. The candidates travel on the message so a refresh of the table cannot
 // change what the user is shown.
+//
+// The read costs one engine call per candidate, so it has a deadline for the whole
+// loop (imageUsersDeadline): past it the answer is an error, which is "could not
+// tell", never "unused".
 func readImageUsersCmd(candidates []string) tea.Cmd {
 	return func() tea.Msg {
-		users, err := docker.ImagesInUse(candidates)
+		ctx, cancel := context.WithTimeout(context.Background(), imageUsersDeadline)
+		defer cancel()
+		users, err := docker.ImagesInUse(ctx, candidates)
 		return ImagePruneUsersMsg{Candidates: candidates, Users: users, Err: err}
 	}
 }

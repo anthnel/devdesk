@@ -90,6 +90,7 @@ func TestDockerNetworkNotFoundIsReadOnlyForNetworkRm(t *testing.T) {
 		{"network rm, the whole text", &engineError{Label: "docker network rm", Output: "Error response from daemon: network backend not found", Err: exit}, RemovalGone},
 		{"network rm, more text around it", &engineError{Label: "docker network rm", Output: "Error response from daemon: network backend not found in the file /x", Err: exit}, RemovalRefused},
 		{"network rm, a path that is not found", &engineError{Label: "docker network rm", Output: "open /var/run/network x not found", Err: exit}, RemovalRefused},
+		{"network rm, a name with capitals", &engineError{Label: "docker network rm", Output: "Error response from daemon: network Backend_Net-1 not found", Err: exit}, RemovalGone},
 		{"another verb", &engineError{Label: "docker volume rm", Output: "Error response from daemon: network backend not found", Err: exit}, RemovalRefused},
 	}
 	for _, tt := range tests {

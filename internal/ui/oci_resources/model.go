@@ -197,10 +197,14 @@ type ImageActionMsg struct {
 // dangling images the list showed at that moment; Users maps an ID to the containers
 // that use it. A non-nil Err means the engine could not say, which is never read as
 // "unused".
+//
+// Abandoned is set by the router when the user is in another view: the view still
+// hears the answer, so its pending state ends, but no confirmation opens.
 type ImagePruneUsersMsg struct {
 	Candidates []string
 	Users      map[string][]string
 	Err        error
+	Abandoned  bool
 }
 
 // PruneCompleteMsg carries the outcome of removing the frozen list of images: one
@@ -286,10 +290,14 @@ type VolumeActionMsg struct {
 // read when `P` is pressed on the Volumes tab. Volumes is the table's list at that
 // moment; the preview is computed from it and from Users, and from nothing else.
 // A non-nil Err means the engine could not say, which is never read as "unused".
+//
+// Abandoned is set by the router when the user is in another view: the view still
+// hears the answer, so its pending state ends, but no confirmation opens.
 type VolumePruneUsersMsg struct {
-	Volumes []docker.Volume
-	Users   map[string][]string
-	Err     error
+	Volumes   []docker.Volume
+	Users     map[string][]string
+	Err       error
+	Abandoned bool
 }
 
 // VolumePruneCompleteMsg carries the outcome of removing the frozen list of volumes:

@@ -737,7 +737,7 @@ the confirmation showed, one identifier at a time, never forced, and never a vol
   G3's detector) reads the destructive argv that `internal/docker` and `internal/kind` build, where G3 is silent, and fails on `-f`,
   `--force`, `-v`, `--volumes`, `-a`, `--all`, `--depend`, `--filter` (and `-fv`, `-vf`) next to a destructive verb (rule F), and on any
   prune (rule P). `stop --time` is a delay, not a force. The one prune left is `PruneNetworks` (`pruneExceptions`, with its reason: the
-  Networks tab has no preview yet; delete the entry and the function when it gets one). `forceMustSee` fails when the detector stops
+  Networks tab has no preview yet, DEVDESK-949; delete the entry and the function when it gets one). `forceMustSee` fails when the detector stops
   seeing `stop`, `rm`, `rmi`, `volume rm` or `network rm`. `RemoveContainer(id)` and `RemoveImage(id)` have no `force` parameter
   (`TestNoRemovingFunctionTakesAForceFlag`), and `PruneContainers`, `PruneImages` and `PruneVolumes` no longer exist. The contracts that
   remove a running container of their own run, or exercise the prune window of `expectPrune`, build `rm -f` and `<kind> prune -f` in test code
@@ -765,7 +765,7 @@ the confirmation showed, one identifier at a time, never forced, and never a vol
   running, docker `cannot remove container "X": container is running: stop the container before removing or force remove` (exit 1), podman `cannot remove
   container <64 hex> as it is running - running or paused containers cannot be removed without force: container state improper` (exit 2); volume in use, docker
   `remove V: volume is in use - [<64 hex>, ...]`, podman `volume V is being used by the following container(s): ...: volume is being used`. They are in
-  `removal_probe_test.go` verbatim, marked as such, and are to be recorded in an OC-09 scenario (a `*-absent` scenario per kind); the network ones are known from the
+  `removal_probe_test.go` verbatim, marked as such, and are to be recorded in an OC-09 scenario (a `*-absent` scenario per kind, DEVDESK-949); the network ones are known from the
   engines' sources only. Until then an upgrade that rewords them makes the item a `not removed (see logs)` Error instead of `already gone`.
 - *The list is frozen when the confirmation opens*. `P` on Containers freezes, from all the containers the view holds whatever state filter the
   table shows, those that are `exited`, `created` or `dead`; on Images, the dangling images (repository and tag both `<none>`), once each, leaving out an ID a tagged
@@ -773,7 +773,11 @@ the confirmation showed, one identifier at a time, never forced, and never a vol
   `ps -a --filter ancestor=<id>` per candidate (`ContainersUsingImage`, which also counts a container built on a child image), fail closed (an error is no
   confirmation and an Error, never "unused"). The count of the image list is not enough: it is joined by `repository:tag`, which every dangling image shares, and podman
   always reports 0, so the preview would list images in use; the engine's `rmi` without force would refuse them (`not removed (in use)`), but the preview would have lied. The
-  cost is one `ps` per dangling image; on Volumes, `docker.UnusedVolumes(volumes, users)` from `ListVolumeUsers`.
+  cost is one `ps` per dangling image, so the whole loop has a deadline (`imageUsersDeadline`, 60 s, a `context` passed to the engine call and read between the
+  calls: `docker.ImagesInUse(ctx, ids)`, `ContainersUsingImageContext`): past it the answer is an error, which is no confirmation and an Error, never "unused". The
+  filter is always `ancestor=<id>` with the `sha256:` prefix removed: podman answers an **empty list with exit 0** for `ancestor=sha256:<64 hex>` although the container
+  exists (probe 2026-11, podman 6.2.1 and 5.8.11 rootless), which would read as "unused"; `<12 hex>` and `<64 hex>` work on the four configurations, and `image ls`
+  prints 12-hex IDs without the prefix. An ID that is not an image ID is a closed failure (`ErrInvalidImageID`, no call); on Volumes, `docker.UnusedVolumes(volumes, users)` from `ListVolumeUsers`.
   A malformed identifier is left out (and logged) at that moment. Nothing to remove opens no confirmation and the footer says so at Info
   (`No stopped containers to remove`, `No dangling images to remove`, `No unused volumes to remove`). The confirmation (generic `ConfirmModal`, text
   `components.RemovalPreview`: `Remove these N <what>?`, the first 8 names, `and K more (not shown)`, then `These N will be removed, including the K not shown.`, or `Exactly the items listed above will be
@@ -782,12 +786,13 @@ the confirmation showed, one identifier at a time, never forced, and never a vol
   text is OC-27 and the detailed outcome OC-28. Confirming runs the frozen list through the `Remove*s` function as one `Cmd` that returns a
   message carrying the `RemovalReport`; a refresh of the table in between (a container that stops, an image that becomes dangling) changes nothing
   about the list, and a container that started or an image or volume that a container began to use is refused by the engine, reported, never forced.
-  The answer of the engine to a preview (`ImagePruneUsersMsg`, `VolumePruneUsersMsg`) is dropped, with an Info `Prune cancelled`, when it arrives while another
+  The answer of the engine to a preview (`ImagePruneUsersMsg`, `VolumePruneUsersMsg`) is routed to the OCI view wherever the user is (`app-shell.md`, "The answers of a `P`") and,
+  when the user is in another view (`Abandoned`) it ends the wait and opens nothing; it is dropped, with an Info `Prune cancelled`, when it arrives while another
   confirmation is open or on another tab, and a second `P` is refused (Warning) while a prune reads or removes (`m.pruning`): no answer opens a confirmation over
   something else. The bilan outlives the list refresh that follows it: the list handlers call `FooterMessage.ClearUnlessRemoval`, which drops the error of the
   previous load and keeps a bilan until its own timer (`TestTheBilanOfAPruneSurvivesTheRefreshThatFollows`).
   Limit: the lists hold short IDs (12 characters, as `ps` and `image ls` print them), and `rm <short id>` is resolved by the engine, which may read a container
-  name equal to the short ID of another container before the ID prefix: follow-up story.
+  name equal to the short ID of another container before the ID prefix: DEVDESK-949 (with `network prune` and the contract scenarios not recorded yet).
   Not on the jobs registry: the existing prune was not, and `m.pruning` keeps the footer's `Pruning ...…` line while it runs.
 - *Which containers use which volume* (`internal/docker/volume_users.go`): `ListVolumeUsers() (map[string][]string, error)` runs ONE
   `<engine> ps -a -q --no-trunc` (the full IDs) and, when there is at least one, ONE grouped
@@ -802,7 +807,8 @@ the confirmation showed, one identifier at a time, never forced, and never a vol
   the raw JSON has `Id`, `Name` and `Mounts` on the four; `Mounts[].Name` is present for named and anonymous volumes and absent for a bind mount; podman adds `Options`. `ps --format {{.Mounts}}` prints, on podman, the
   destinations of the mounts in brackets and never the volume names, and on docker a name, a source or a hash cut at 14 characters without
   `--no-trunc`, so it would make a volume look unused; docker prints `inspect` in the reverse order of creation with a `Name` that starts with `/`, podman in order
-  of creation without it; the order of the mounts of one container is not stable between engines. **Not a versioned fixture**: the exchanges of `volume_users_test.go` are written by hand from the probe and are to be replaced by a recorded scenario (OC-09).
+  of creation without it; the order of the mounts of one container is not stable between engines. Probe validated on the four configurations: `inspect --format '{{json .}}'` (one JSON line per container, raw key `Id` on podman too, `Name` with a `/`
+  only on docker, `Mounts[].Name` absent for a bind mount) and `ps -a -q --no-trunc` (64 hex, stopped containers included). **Not a versioned fixture**: the exchanges of `volume_users_test.go` are written by hand from the probe and are to be replaced by a recorded scenario (OC-09).
   Limit: the IDs travel in one argv; on Windows (about 32 KB of command line, roughly 480 containers) an engine with more containers makes the
   `inspect` fail, which is the fail-closed answer (no confirmation, an Error), not a wrong one.
 

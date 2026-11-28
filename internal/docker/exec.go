@@ -25,7 +25,8 @@ type dockerCmd struct {
 	Helper string
 	// Ctx kills the process when it is cancelled. Nil for the invocations
 	// nobody can stop — which is all of them but the pull, the one long call
-	// this package makes that `K` is offered on (jobs.KindPull.Cancellable).
+	// this package makes that `K` is offered on (jobs.KindPull.Cancellable), and
+	// the per-image reads of ImagesInUse, which a deadline bounds (OC-22).
 	// A nil Ctx builds exactly the command it built before.
 	Ctx context.Context
 	// Env is the whole environment of the child when non-nil (os/exec's

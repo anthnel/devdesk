@@ -336,7 +336,7 @@ func targetOf(kind string) string {
 // volume wordings were read by probe on docker 29.10.1 and 28.5.2 and podman 6.2.1
 // and 5.8.11 rootless (2026-11; removal_probe_test.go holds them verbatim); the network
 // ones are known from the engines' sources. They are to be recorded (a `*-absent`
-// scenario per kind, OC-09 style): until then, a change of wording on an engine
+// scenario per kind, OC-09 style, DEVDESK-949): until then, a change of wording on an engine
 // upgrade makes the item a refusal (ReasonOther), which is the safe direction.
 func goneText(tool, kind, target string) string {
 	switch tool + "/" + kind {

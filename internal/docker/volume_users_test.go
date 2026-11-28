@@ -74,7 +74,7 @@ import (
 // that probe (docker `Name` prefixed with "/", reverse order of creation; podman in
 // order, no "/"; `Name` of a volume mount is the volume's name, a hash of 64 hex
 // for an anonymous one, empty for a bind). They are to be replaced by a recorded
-// fixture (an OC-09 scenario) and marked as such.
+// fixture (an OC-09 scenario, DEVDESK-949) and marked as such.
 
 func TestVolumeUsers(t *testing.T) {
 	anon := strings.Repeat("ab", 32)

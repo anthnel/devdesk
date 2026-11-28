@@ -330,7 +330,7 @@ func recorded(t *testing.T, campaign, scenario string, tool enginefixture.Tool) 
 // exist.
 //
 // NOT A VERSIONED FIXTURE (see goneText in internal/docker/removal_report_test.go): known
-// wordings, to be recorded in an OC-09 scenario.
+// wordings, to be recorded in an OC-09 scenario (DEVDESK-949).
 func goneImage(shape engine.Shape, id string) fakecli.Reply {
 	if shape.Name == engine.Podman {
 		return fakecli.Reply{Stderr: "Error: " + id + ": image not known\n", Exit: 1}

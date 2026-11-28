@@ -2,8 +2,10 @@ package ociresources
 
 import (
 	"errors"
+	"slices"
 	"strings"
 	"testing"
+	"time"
 
 	tea "charm.land/bubbletea/v2"
 
@@ -218,6 +220,69 @@ func TestAPruneIsRefusedWhileAnotherRuns(t *testing.T) {
 				if _, timer := msg.(sharedcomponents.ClearFooterMsg); !timer {
 					t.Errorf("P while another prune runs started %T", msg)
 				}
+			}
+		})
+	}
+}
+
+// The read of "which containers use these images" costs one call per image, so it has
+// a deadline for the whole loop: past it, an Error and no confirmation (M2).
+func TestPruneImagesStopsWhenTheReadPassesItsDeadline(t *testing.T) {
+	previous := imageUsersDeadline
+	imageUsersDeadline = -time.Second // already expired when the read starts
+	t.Cleanup(func() { imageUsersDeadline = previous })
+	eachEngine(t, func(t *testing.T, shape engine.Shape) {
+		fake := engineWith(t, shape, fakeUsers{})
+		m := imagesModel(t, ociImages()...)
+
+		m, cmd := step(t, m, testutil.Key(keymap.Prune))
+		m = drive(t, m, cmd)
+
+		if m.confirmModal != nil {
+			t.Error("P opened a confirmation although the read did not finish")
+		}
+		footerIs(t, m, sharedcomponents.LevelError)
+		if m.pruning != "" {
+			t.Errorf("pruning = %q after the answer, want it cleared", m.pruning)
+		}
+		for _, inv := range fake.Invocations() {
+			if slices.Contains(inv.Args, "--filter") {
+				t.Errorf("the engine was asked after the deadline: %q", inv.Args)
+			}
+		}
+		if calls := destructive(fake); len(calls) != 0 {
+			t.Errorf("ran %q after a read that did not finish", calls)
+		}
+	})
+}
+
+// An answer the router marks abandoned (the user is in another view) ends the wait
+// and opens nothing, whatever it says.
+func TestAnAbandonedAnswerEndsTheWaitAndOpensNothing(t *testing.T) {
+	answers := map[string]tea.Msg{
+		"images":  ImagePruneUsersMsg{Candidates: []string{imgDangle1}, Abandoned: true},
+		"volumes": VolumePruneUsersMsg{Volumes: ociVolumes(), Abandoned: true},
+	}
+	for kind, answer := range answers {
+		t.Run(kind, func(t *testing.T) {
+			var m Model
+			if kind == "images" {
+				m = imagesModel(t, ociImages()...)
+			} else {
+				m = volumesModel(t, ociVolumes()...)
+			}
+			m, _ = step(t, m, testutil.Key(keymap.Prune))
+			if m.pruning != kind {
+				t.Fatalf("setup: pruning = %q, want %q", m.pruning, kind)
+			}
+
+			m = feed(t, m, answer)
+
+			if m.confirmModal != nil || len(m.pruneTargets) != 0 {
+				t.Error("an abandoned answer opened a confirmation")
+			}
+			if m.pruning != "" {
+				t.Errorf("pruning = %q, want the wait ended", m.pruning)
 			}
 		})
 	}

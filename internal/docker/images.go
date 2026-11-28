@@ -347,10 +347,32 @@ func RemoveImage(id string) error {
 // image or from an image built on it. An image one of them uses cannot be
 // removed without breaking it, and `rmi` would refuse anyway (§3.88).
 func ContainersUsingImage(imageID string) ([]string, error) {
+	return ContainersUsingImageContext(context.Background(), imageID)
+}
+
+// ContainersUsingImageContext is ContainersUsingImage that stops when ctx ends.
+//
+// The filter is `ancestor=<id>` with the `sha256:` prefix always removed: podman
+// answers an empty list, with exit 0, for `ancestor=sha256:<64 hex>` although the
+// container exists (probe 2026-11 on podman 6.2.1 and 5.8.11 rootless), which would
+// read as "unused". `<12 hex>` and `<64 hex>` work on docker and podman. An ID that
+// is not an image ID is refused before the engine is asked.
+func ContainersUsingImageContext(ctx context.Context, imageID string) ([]string, error) {
+	id := strings.TrimPrefix(imageID, "sha256:")
+	if !IsImageID(id) {
+		return nil, fmt.Errorf("%s: %q is not an image ID: %w", cmdLabel("ps"), imageID, ErrInvalidImageID)
+	}
 	if err := engineAvailable(); err != nil {
 		return nil, err
 	}
-	output, err := dockerOutput("ps", "-a", "--filter", "ancestor="+imageID, "--format", "{{.Names}}")
+	if err := ctx.Err(); err != nil {
+		return nil, wrapErr(cmdLabel("ps"), err)
+	}
+	cmd := dockerCmd{Args: []string{"ps", "-a", "--filter", "ancestor=" + id, "--format", "{{.Names}}"}}
+	if ctx.Done() != nil { // a Background context has nothing to cancel: the command stays as it was
+		cmd.Ctx = ctx
+	}
+	output, err := runner.Run(cmd)
 	if err != nil {
 		return nil, wrapErr(cmdLabel("ps"), err)
 	}
@@ -358,17 +380,16 @@ func ContainersUsingImage(imageID string) ([]string, error) {
 }
 
 // ImagesInUse maps each image ID to the containers, running or not, created from it
-// or from an image built on it (ContainersUsingImage): one `ps -a --filter ancestor=`
-// per image, joined by ID, which is what lets a preview of `image prune` say that no
-// container uses an image (OC-22). It fails closed: an invalid ID or any error of the
-// engine is an error and no map, never "unused".
-func ImagesInUse(ids []string) (map[string][]string, error) {
+// or from an image built on it: one `ps -a --filter ancestor=` per image
+// (ContainersUsingImageContext), joined by ID, which is what lets a preview of
+// `image prune` say that no container uses an image (OC-22). The deadline of ctx
+// covers the whole loop: it is read between the calls, and it stops the call in
+// flight. It fails closed: an invalid ID, an expired ctx or any error of the engine is
+// an error and no map, never "unused".
+func ImagesInUse(ctx context.Context, ids []string) (map[string][]string, error) {
 	users := make(map[string][]string, len(ids))
 	for _, id := range ids {
-		if !IsImageID(id) {
-			return nil, fmt.Errorf("%s: %q is not an image ID: %w", cmdLabel("ps"), id, ErrInvalidImageID)
-		}
-		names, err := ContainersUsingImage(strings.TrimPrefix(id, "sha256:"))
+		names, err := ContainersUsingImageContext(ctx, id)
 		if err != nil {
 			return nil, err
 		}
