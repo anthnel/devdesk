@@ -1,0 +1,31 @@
+{
+  "cli_version": "0.13.2",
+  "checkpoint_id": "28874ad2ec49",
+  "strategy": "manual-commit",
+  "branch": "feat/oc-24-engine-views",
+  "checkpoints_count": 1,
+  "files_touched": null,
+  "sessions": [
+    {
+      "metadata": "/28/874ad2ec49/0/metadata.json",
+      "transcript": "/28/874ad2ec49/0/full.jsonl",
+      "compact_transcript": "/28/874ad2ec49/0/transcript.jsonl",
+      "content_hash": "/28/874ad2ec49/0/content_hash.txt",
+      "prompt": "/28/874ad2ec49/0/prompt.txt"
+    }
+  ],
+  "redaction": {
+    "replacements": 499,
+    "layers": {
+      "betterleaks": 98,
+      "connection_string": 0,
+      "credential_key": 0,
+      "credential_value": 308,
+      "credentialed_uri": 17,
+      "entropy": 28,
+      "key_context": 62,
+      "provider_token": 0,
+      "shell_stdin": 0
+    }
+  }
+}
