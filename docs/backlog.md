@@ -98,6 +98,15 @@ decided together and fixed in one pass; see [§1.2](#12-the-five-parked-defects)
 
 ### 1.1 Fixed
 
+**D188 — DEVDESK-823 (OC-25): which containers use an image, a volume or a network is one snapshot read with the lists (two engine calls), joined on the IDs and names the measurements allow, and "unknown" is never "unused"; `Stop and delete` is `StopContainer` then `RemoveContainer`. Decided (architect, 2026-11-28; the user can overrule).**
+
+1. **One snapshot, not a read at the key press.** `docker.ListContainerUsage` is the two calls of OC-22's `ListVolumeUsers` (`ps -a -q --no-trunc`, one grouped `inspect`), decoding also `Image` and `NetworkSettings.Networks`. Criteria 2 to 4 say `D` calls the engine for nothing, so the data is read before; a snapshot up to one refresh old is covered by criterion 5 (the engine still refuses). Rejected: a read at the key press (contradicts the criterion, three different reads, a pending state), and `ps --format` (a typed reference, truncated mount names).
+2. **Joins from the measurement of 2026-11-28** (docker 29.10.1 and 28.5.2, podman 6.2.1 and 5.8.11, rootful and rootless): image on `Image` without `sha256:`, exact; volume on `Mounts[]`; network on the NAME. Rejected: `ancestor` (podman 4 of 7), `network inspect .Containers` (running only), `NetworkID` as the key (empty on a created docker container, `none` on podman's none network).
+3. **Fail closed, per kind.** `Mounts` stays strict (OC-22, no regression on `P`); `Image` and `Networks` are tolerant and make their own kind unknown, for every question, since the unreadable container might be the user. A null `Networks` is known only for `pasta` and `slirp4netns`.
+4. **`StopAndRemoveContainer` composes, it does not spell.** It calls the two validated wrappers and reads both errors with `SingleRemoval`: no new argv, no force, no timeout, one report. G3 lists it in `destructiveComposed`; a static test reads its body.
+5. **Not decided here (PR 2 and the user):** the network sentence and the singular `delete it first` (proposed), the title and text of the `Stop and delete` modal, a paused container, the frozen target of `D`.
+6. **Plane:** DEVDESK-823. **Sources:** `.claude/plans/DEVDESK-823-plan.md`, `docs/architecture/network.md` "Who uses an image, a volume or a network", `docs/measurements/2026-11-28-container-usage-shapes.md`.
+
 **D187 — DEVDESK-822 (OC-24): an engine that cannot be asked is a typed error classified from a short list of probed, anchored markers, and its sentence is a closed set of constants. Decided (architect, 2026-11-28; the user can overrule).**
 
 1. **Typed at the source.** `internal/docker` returns `*UnavailableError{Reason, Engine, Label}` (sentinels `ErrEngineNotFound`, `ErrEngineUnreachable`, `ErrEnginePermissionDenied`) from `engineAvailable()` and `readFailure` (the list reads, `InspectNetwork`, `InspectContainer`). One reading of the stderr, at the only place that owns the `*exec.ExitError`. Rejected: classifying in each view (six sites, the error stays text, criterion 7 not met).

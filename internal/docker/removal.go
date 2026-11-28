@@ -267,3 +267,23 @@ var goneMarkers = []string{
 	"network not found", // podman: unable to find network with name or ID X: network not found
 	"no such pod",
 }
+
+// StopAndRemoveContainer stops the container, then removes the same ID: `stop <id>`,
+// then `rm <id>`, never forced (OC-25, DEVDESK-823). A stop that fails removes nothing.
+//
+// It is StopContainer then RemoveContainer: the identifier is validated by the first,
+// `stop <id>` and `rm <id>` are written there and nowhere else, and the engine's
+// grace delay applies, as for `K`. A stop that fails ends it: the error is read like a
+// removal's, so a container that is already gone is RemovalGone and one nobody could
+// ask is a refusal. A `rm` the engine refuses (the container started again between
+// the two) is a refusal too, read the same way: nothing is retried and nothing forced.
+//
+// It BLOCKS: `stop` waits for the engine's grace delay (10 s by default, or the
+// container's own StopTimeout) before it kills, so a caller runs it in a tea.Cmd, never
+// from Update or View, and answers with the report as a message.
+func StopAndRemoveContainer(id string) RemovalReport {
+	if err := StopContainer(id); err != nil {
+		return SingleRemoval(id, err)
+	}
+	return SingleRemoval(id, RemoveContainer(id))
+}

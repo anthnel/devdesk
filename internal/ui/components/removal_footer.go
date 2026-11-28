@@ -64,3 +64,57 @@ func RemovalPreview(what string, items []string) string {
 	}
 	return b.String()
 }
+
+// RefusalKind is what `D` was asked to delete when it refuses because containers use it.
+type RefusalKind int
+
+const (
+	RefusalImage RefusalKind = iota
+	RefusalVolume
+	RefusalNetwork
+)
+
+const (
+	// inUseNames is how many container names the refusal lists before "and N more".
+	inUseNames = 3
+	// inUseNameWidth is the most cells one name, or the item itself, takes, so a single
+	// long name (an anonymous volume is 64 characters) cannot push the other names and
+	// what to do off the footer.
+	inUseNameWidth = 40
+)
+
+// InUseRefusal is the footer line of `D` on an item containers use (OC-25), for the
+// caller to show at level Warning. Names keep the order given (the caller sorted
+// them), go through Printable, are cut to 40 cells with an ellipsis, and beyond three
+// become "and N more". An image adds what to do, the other kinds do not.
+//
+// With no user there is nothing to refuse, and a sentence that says "used by" nobody
+// would be false: it returns "" and the caller shows nothing (and so does not start the
+// deletion's refusal). Showing it is the caller's mistake, not a message.
+func InUseRefusal(kind RefusalKind, item string, users []string) string {
+	if len(users) == 0 {
+		return ""
+	}
+	shown := users[:min(len(users), inUseNames)]
+	names := make([]string, 0, len(shown))
+	for _, u := range shown {
+		names = append(names, ansi.Truncate(Printable(u), inUseNameWidth, "…"))
+	}
+	list := strings.Join(names, ", ")
+	if more := len(users) - len(shown); more > 0 {
+		list += fmt.Sprintf(" and %d more", more)
+	}
+	item = ansi.Truncate(Printable(item), inUseNameWidth, "…")
+	switch kind {
+	case RefusalVolume:
+		return fmt.Sprintf("Cannot delete volume %s: used by %s", item, list)
+	case RefusalNetwork:
+		return fmt.Sprintf("Cannot delete network %s: used by %s", item, list)
+	default:
+		first := "them"
+		if len(users) == 1 {
+			first = "it"
+		}
+		return fmt.Sprintf("Cannot delete %s: used by %s — delete %s first", item, list, first)
+	}
+}

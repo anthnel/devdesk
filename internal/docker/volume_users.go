@@ -1,7 +1,6 @@
 package docker
 
 import (
-	"encoding/json"
 	"fmt"
 	"slices"
 	"strings"
@@ -35,17 +34,6 @@ type ContainerMounts struct {
 	Mounts []Mount `json:"Mounts"`
 }
 
-// volumeUsersTemplate prints the whole inspect of a container as one JSON object per
-// line, the same text on both engines. The reader keeps three keys, Id, Name and
-// Mounts, and ignores the rest. A narrower template (`{"Id":{{json .Id}},...}`) does
-// not work: podman rejects `.Id` ("can't evaluate field Id", exit 125), its template
-// field is `.ID`, while the JSON it prints has `Id` on both engines.
-//
-// Probe 2026-11 on jakku, docker 29.10.1 and 28.5.2, podman 6.2.1 and 5.8.11 rootless:
-// `Name` has a leading "/" on docker and none on podman; `Mounts[].Name` is present
-// for named and anonymous volumes and absent for a bind mount; podman adds `Options`.
-const volumeUsersTemplate = `{{json .}}`
-
 // VolumeUsers maps a volume name to the names of the containers that mount it,
 // whatever their state: sorted, without duplicates, named and anonymous volumes
 // alike, never a bind mount.
@@ -77,43 +65,16 @@ func UnusedVolumes(volumes []Volume, users map[string][]string) []Volume {
 	return unused
 }
 
-// ListVolumeUsers reads every container, stopped ones included, with ONE
-// `<engine> ps -a -q --no-trunc` and, when there is at least one, ONE grouped
-// `<engine> inspect --format <template> <id>...`: never a call per volume or per
-// container. The answers are joined to the IDs by Id, never by position (docker
-// prints the containers in reverse order of creation, podman in order).
-//
-// It fails closed: an error of `ps`, an ID that is not a container ID, an error of
-// `inspect` (a container that disappeared between the two calls included), an output
-// that is empty or unreadable while IDs exist, one that does not answer exactly once
-// for every ID asked, or a Mounts that is not a list, is an error and no map. A caller
-// never mistakes "could not tell" for "unused".
+// ListVolumeUsers is the volume part of ListContainerUsage (OC-25), the same read
+// `D` on an image or a network uses: ONE `ps -a -q --no-trunc` and, when there is at
+// least one container, ONE grouped `inspect`, never a call per volume or per
+// container, and the same failures: an error and no map, never "unused".
 func ListVolumeUsers() (map[string][]string, error) {
-	if err := engineAvailable(); err != nil {
-		return nil, err
-	}
-	out, err := dockerOutput("ps", "-a", "-q", "--no-trunc")
-	if err != nil {
-		return nil, wrapErr(cmdLabel("ps"), err)
-	}
-	ids, err := parseContainerIDs(out)
+	u, err := ListContainerUsage()
 	if err != nil {
 		return nil, err
 	}
-	if len(ids) == 0 {
-		return map[string][]string{}, nil
-	}
-
-	args := append([]string{"inspect", "--format", volumeUsersTemplate}, ids...)
-	out, err = dockerOutput(args...)
-	if err != nil {
-		return nil, wrapErr(cmdLabel("inspect"), err)
-	}
-	containers, err := parseContainerMounts(out, ids)
-	if err != nil {
-		return nil, err
-	}
-	return VolumeUsers(containers), nil
+	return u.volumes, nil
 }
 
 // parseContainerIDs reads the IDs `ps -q` printed, one per line, each validated and
@@ -130,34 +91,4 @@ func parseContainerIDs(out []byte) ([]string, error) {
 		}
 	}
 	return ids, nil
-}
-
-// parseContainerMounts reads one JSON object per line and checks that it answers
-// exactly once for every ID asked. An Id matches an asked ID when equal, or when it
-// extends it (an engine that ignored --no-trunc printed short IDs).
-func parseContainerMounts(out []byte, asked []string) ([]ContainerMounts, error) {
-	answered := make([]bool, len(asked))
-	var containers []ContainerMounts
-	for _, line := range splitLines(out) {
-		var c ContainerMounts
-		if err := json.Unmarshal([]byte(line), &c); err != nil {
-			return nil, fmt.Errorf("%s: unreadable output: %w", cmdLabel("inspect"), err)
-		}
-		i := slices.IndexFunc(asked, func(id string) bool { return c.ID == id || (c.ID != "" && strings.HasPrefix(c.ID, id)) })
-		if i < 0 || answered[i] {
-			return nil, fmt.Errorf("%s: unexpected answer for container %q", cmdLabel("inspect"), c.ID)
-		}
-		answered[i] = true
-		c.Name = strings.TrimPrefix(c.Name, "/")
-		if c.Name == "" {
-			c.Name = c.ID[:min(len(c.ID), minShortIDLen)]
-		}
-		containers = append(containers, c)
-	}
-	for i, ok := range answered {
-		if !ok {
-			return nil, fmt.Errorf("%s: no answer for container %s", cmdLabel("inspect"), asked[i])
-		}
-	}
-	return containers, nil
 }

@@ -162,3 +162,8 @@ faire sur podman par `ancestor` (4 sur 7) ; seule la jointure par ID est sûre. 
 - une image tirée d'un registre (`RepoDigests`) ; `ImageName` d'une image `<none>` sous podman ;
 - `network connect` sur un conteneur arrêté, `Networks` sous un pod podman, un réseau `macvlan`/`ipvlan`/`host` ;
 - Docker rootless, Podman distant, Compose.
+- la jointure de l'image sur une image **tirée**, multi-plateforme ou d'un magasin containerd : `Image` de l'`inspect` contre l'ID de `image ls` (l'image sondée est importée) ;
+- `network rm` d'un réseau auquel est attaché un conteneur **arrêté** : le refus du moteur n'est pas mesuré, `NetworkUsers` est le seul garde-fou ;
+- un `inspect` groupé d'environ 500 conteneurs : la ligne de commande Windows (32 767 caractères) est dépassée, la lecture échoue fermée ;
+- un `Networks` vide `{}` avec `NetworkMode` `container:<id>`, `host`, macvlan, ipvlan, pods ;
+- l'ordre des lignes de l'`inspect` groupé n'est mesuré que pour deux arguments (celui des arguments) : rien ne doit s'y fier.

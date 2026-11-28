@@ -172,6 +172,25 @@ var destructiveWithoutID = []struct {
 	{"PruneNetworks", []string{"network", "prune", "-f"}, PruneNetworks},
 }
 
+// destructiveComposed are the exported destructive functions that run two destructive
+// calls through the validated wrappers instead of spelling an argv of their own
+// (OC-25, DEVDESK-823): StopAndRemoveContainer is `StopContainer` then `RemoveContainer`.
+// Their identifier is validated once, by the first wrapper, before anything is built; a
+// malformed one is a single refused result that wraps the sentinel. They are not in
+// destructiveByID because they run two argv, not one, and their body holds no
+// destructive word: TestEveryDestructiveFunctionIsCovered keeps it that way (it fails on a
+// composed function whose body spells a verb; the guard F/P of internal/engineguard,
+// TestStopAndRemoveContainerReusesTheValidatedWrappers, reads the same function from
+// the other side).
+var destructiveComposed = []struct {
+	name   string
+	kind   idKind
+	call   func(id string) RemovalReport
+	wantIs error
+}{
+	{"StopAndRemoveContainer", kindContainer, StopAndRemoveContainer, ErrInvalidContainerID},
+}
+
 // Criterion 2: a malformed identifier is refused before any argv is built, by
 // every destructive function, under both engines. The strict stub has no declared
 // argv, so any Build or Run fails the test and names the argv; the journal is
@@ -317,6 +336,30 @@ func TestARefusedIDIsEscapedInTheError(t *testing.T) {
 	})
 }
 
+// Criterion 2 for the composed functions: a malformed identifier builds nothing (neither
+// the `stop` nor the `rm`), under both engines, and the refusal wraps the sentinel and
+// names nothing of the engine. The strict stub has no declared argv.
+func TestComposedDestructiveFunctionsRefuseAMalformedID(t *testing.T) {
+	forEachEngine(t, func(t *testing.T, _ engine.Shape) {
+		for _, fn := range destructiveComposed {
+			for _, bad := range badIDs[fn.kind] {
+				t.Run(fn.name+"/"+bad.label, func(t *testing.T) {
+					s := stubStrict(t)
+
+					report := fn.call(bad.id)
+
+					if len(s.calls) != 0 {
+						t.Errorf("%s(%q) reached the runner with %q, want no argv built for a malformed identifier", fn.name, bad.id, s.lastArgs())
+					}
+					if len(report) != 1 || report[0].Status != RemovalRefused || !errors.Is(report[0].Err, fn.wantIs) {
+						t.Errorf("%s(%q) = %+v, want one refusal wrapping %v", fn.name, bad.id, report, fn.wantIs)
+					}
+				})
+			}
+		}
+	})
+}
+
 // "All" in criterion 2 has to be checked, not hoped for: the exported functions
 // of the package whose body spells a destructive subcommand are read from the
 // source, and each one must be in a table above. A new KillContainer, or a
@@ -336,9 +379,18 @@ func TestEveryDestructiveFunctionIsCovered(t *testing.T) {
 	for _, fn := range destructiveWithoutID {
 		want[fn.name] = true
 	}
+	composed := map[string]bool{}
+	for _, fn := range destructiveComposed {
+		composed[fn.name] = true
+	}
 	for _, name := range got {
+		if composed[name] {
+			t.Errorf("%s is a composed destructive function (destructiveComposed) but spells a destructive subcommand itself: "+
+				"it must call StopContainer and RemoveContainer, so the identifier is validated and the argv written once", name)
+			continue
+		}
 		if !want[name] {
-			t.Errorf("%s builds a destructive subcommand but is in neither destructiveByID nor destructiveWithoutID: "+
+			t.Errorf("%s builds a destructive subcommand but is in none of destructiveByID, destructiveWithoutID and destructiveComposed: "+
 				"add it, with the invalid identifiers it must refuse", name)
 		}
 	}
