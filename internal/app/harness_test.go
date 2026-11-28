@@ -21,6 +21,7 @@ import (
 	"github.com/anthnel/devdesk/internal/netproxy"
 	"github.com/anthnel/devdesk/internal/scan"
 	"github.com/anthnel/devdesk/internal/shared"
+	"github.com/anthnel/devdesk/internal/testutil/fakecli"
 	"github.com/anthnel/devdesk/internal/testutil/fakekeyring"
 	"github.com/anthnel/devdesk/internal/ui/help"
 	"github.com/anthnel/devdesk/internal/ui/shortcut"
@@ -42,6 +43,12 @@ import (
 // commands safe to execute instead of merely assertable.
 
 func TestMain(m *testing.M) {
+	// The fake engine of canary_launch_test.go is this binary started under
+	// another name (internal/testutil/fakecli); answer it before anything else,
+	// including the temporary HOME.
+	if code, ok := fakecli.AsTool(); ok {
+		os.Exit(code)
+	}
 	log.SetOutput(io.Discard)
 
 	home, err := os.MkdirTemp("", "devdesk-app-test")

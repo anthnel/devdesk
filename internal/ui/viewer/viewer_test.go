@@ -11,12 +11,18 @@ import (
 	tea "charm.land/bubbletea/v2"
 
 	"github.com/anthnel/devdesk/internal/config"
+	"github.com/anthnel/devdesk/internal/testutil/fakecli"
 	viewerpkg "github.com/anthnel/devdesk/internal/viewer"
 )
 
 // The view logs every load failure, and several fixtures are failures on
 // purpose.
 func TestMain(m *testing.M) {
+	// The fake docker of canary_inspect_test.go is this binary started under
+	// another name (internal/testutil/fakecli).
+	if code, ok := fakecli.AsTool(); ok {
+		os.Exit(code)
+	}
 	log.SetOutput(io.Discard)
 
 	code := m.Run()

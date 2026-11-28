@@ -314,6 +314,56 @@ Two things about the engine are worth knowing before changing this code:
   - **Elsewhere.** The scanner
     `internal/scan/plumber.go` put `-e GH_TOKEN=<token>` in an argv: fixed by
     DEVDESK-945 (`-e GH_TOKEN`, the value in `containerRun.Env`), with the static guard S9 below.
+  - **The canary test (OC-23, DEVDESK-821, S8).** `SECRET=canary` is typed where a
+    secret could be typed, and a test proves it is nowhere it must not be.
+    `internal/testutil/canary` is the helper: `canary.Value` / `Entry`, `canary.Surface`
+    (a named place; `Read` returns its parts and the error of what it could not read) with the
+    constructors `Static`, `Text`, `Lines`, `Files` (every file name **and** content under a
+    directory), `Environ` (the entries of the process environment **added or changed since the
+    surface was built**, key and value, with the paths under `os.TempDir()` replaced by a marker
+    since a test's temporary directories carry its name), `Recorder` (what a seam such as the
+    clipboard received), `CaptureLog` (the `log` package) and `Home` (HOME, USERPROFILE and the
+    XDG and Windows profile variables inside a directory of its own, plus its `Files` surface),
+    `canary.Surfaces` (a list with `Add`), `AssertAbsent(t, surfaces...)` (one failure per surface,
+    named, with the place and an excerpt in which the value is replaced by `<canary>`; a surface that
+    could not be read in full is a failure of its own, whatever its text says), `AssertPresent` (the
+    proof the test can see the value: the child's environment, the revealed inspect) and
+    `AssertWired(t, home, surface)` (writes a witness file holding the value under `home` and checks
+    the Files surface sees it, so a surface built on another directory than the one the code writes to
+    cannot pass for nothing). The value is looked for as the text itself in any letter case, as its
+    hex encoding in any letter case (of the value as written or in capitals, hex digits in either
+    case), and as base64 at every alignment, that is whatever bytes come before and after it in the
+    encoded text (standard and URL alphabets, padded or not; `Variants` lists them), for the value and
+    for the whole `NAME=VALUE` entry.
+    Only `_test.go` files import it (`TestOnlyTestsImportCanary`, rule C2, in the package). To add a
+    place that can hold a value (OC-41 layers, OC-66 kubeconfig, OC-50 Compose), add one
+    `Surface` to the list the test already has: `surfaces.Add(canary.Text("kubeconfig", read))`.
+    The tests: `internal/ui/oci_resources/canary_launch_test.go` (form, preview, ctrl+y, argv, child
+    environment, the launch cache, a refusal that repeats the value on stderr, the log, the footer
+    and the rendered view, on both engines), `internal/ui/viewer/canary_inspect_test.go` (the inspect of
+    both engines, `Config.Env` and Podman's `Config.CreateCommand`, masked by default in the tree and
+    in the text display, `Y`, `m` as the negative control, `ctrl+r`, the close and a reopen; its
+    clipboard seam is `viewer.SwapClipboard` of `export_test.go`) and `internal/app/canary_launch_test.go`
+    (the router's own surfaces: screen, window title, progress bar, jobs registry and failures, the
+    `:jobs` view). **Persistent** means a file under HOME (the XDG and Windows profile
+    directories are inside it), the launch cache, the log: asserted clean after `m` and the
+    close. The clipboard and the screen are not persistent; they are asserted per state (masked
+    by default, readable after `m`, which is what `m` is for). Out of the surfaces on purpose: the
+    Environment input while the form is open (the user typed the value there; the test proves it
+    holds it, then reads the rest of the form without it), the child's environment, and the
+    error value of a refused launch (`docker.LaunchError` keeps the engine's output; what is
+    shown or written is asserted). Limits: a value split over two writes, encrypted or reversed is
+    not seen; a surface nobody added is not read; the interactive launch (`-it`, `teaexec`) and a
+    real clipboard are not covered; a test that adds a surface that legitimately shows the value
+    must exclude it by construction, not by a looser assertion. **`TMPDIR`, `TEMP` and `TMP` are not
+    isolated by `Home`:** a temporary file DevDesk writes outside HOME is not seen by the HOME
+    surface. Isolating them would put the fake CLI's own scenario and journal (which hold the
+    value on purpose) and every `t.TempDir()` of the test under a directory the walk reads. A story
+    that makes DevDesk write a temporary file with a value-bearing document (OC-66 kubeconfig, OC-50
+    Compose file, OC-41 layers extracted to disk) adds a `canary.Files` surface on the directory it
+    hands the code under test, and `AssertWired` on it. `Environ` does not see a leaked value that is
+    itself a path under the temporary directory, nor a variable already in the environment when the
+    surface was built.
 
 - **A launch asks before it mounts something sensitive of the host (OC-20,
   DEVDESK-818, requirement S4).** `docker.SensitiveMounts(opts)`
