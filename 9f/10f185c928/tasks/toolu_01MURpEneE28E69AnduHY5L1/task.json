@@ -1,0 +1,15 @@
+{
+  "tool_use_id": "toolu_01MURpEneE28E69AnduHY5L1",
+  "agent_id": "a43ed7f5d2b895ff1",
+  "subagent_type": "product-team:pm",
+  "task_description": "PM: créer modules et stories Plane git-graph",
+  "token_usage": {
+    "input_tokens": 38,
+    "cache_creation_tokens": 314061,
+    "cache_read_tokens": 3705350,
+    "output_tokens": 87021,
+    "api_call_count": 19
+  },
+  "started_at": "2026-11-26T21:11:13.03970708+01:00",
+  "completed_at": "2026-11-26T21:20:13.828125538+01:00"
+}

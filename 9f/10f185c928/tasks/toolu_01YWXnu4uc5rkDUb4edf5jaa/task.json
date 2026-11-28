@@ -1,0 +1,15 @@
+{
+  "tool_use_id": "toolu_01YWXnu4uc5rkDUb4edf5jaa",
+  "agent_id": "af3d5d3a77a422afa",
+  "subagent_type": "product-team:pm",
+  "task_description": "PM: stories de suivi 785 et 791",
+  "token_usage": {
+    "input_tokens": 10,
+    "cache_creation_tokens": 56615,
+    "cache_read_tokens": 182576,
+    "output_tokens": 4912,
+    "api_call_count": 5
+  },
+  "started_at": "2026-11-26T19:53:28.607623614+01:00",
+  "completed_at": "2026-11-26T19:54:04.830548755+01:00"
+}

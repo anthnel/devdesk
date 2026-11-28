@@ -1,0 +1,15 @@
+{
+  "tool_use_id": "toolu_01EaiggPvdb3pnwDHWdELV6D",
+  "agent_id": "a9552a47cc931aba5",
+  "subagent_type": "dev-team:devops",
+  "task_description": "Devops PR 791 raccourci W About",
+  "token_usage": {
+    "input_tokens": 34,
+    "cache_creation_tokens": 104474,
+    "cache_read_tokens": 657191,
+    "output_tokens": 5469,
+    "api_call_count": 16
+  },
+  "started_at": "2026-11-26T19:50:03.700564928+01:00",
+  "completed_at": "2026-11-26T20:04:14.729154762+01:00"
+}

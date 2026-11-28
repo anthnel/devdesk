@@ -1,0 +1,18 @@
+{
+  "tool_use_id": "toolu_01RF1mNdCxWPKRxrpLEjAdZu",
+  "agent_id": "a4de10ace72053b37",
+  "subagent_type": "product-team:pm",
+  "task_description": "PM: rédiger stories.md git-graph",
+  "files": [
+    "docs/product/oci-containers/brief.md"
+  ],
+  "token_usage": {
+    "input_tokens": 20,
+    "cache_creation_tokens": 145349,
+    "cache_read_tokens": 682970,
+    "output_tokens": 56374,
+    "api_call_count": 9
+  },
+  "started_at": "2026-11-26T20:16:32.368431695+01:00",
+  "completed_at": "2026-11-26T20:16:32.368891902+01:00"
+}

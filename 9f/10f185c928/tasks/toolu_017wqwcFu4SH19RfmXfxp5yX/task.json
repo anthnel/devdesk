@@ -1,0 +1,15 @@
+{
+  "tool_use_id": "toolu_017wqwcFu4SH19RfmXfxp5yX",
+  "agent_id": "af9f17d1f44737841",
+  "subagent_type": "product-team:pm",
+  "task_description": "PM: consigner critique et décision",
+  "token_usage": {
+    "input_tokens": 16,
+    "cache_creation_tokens": 95689,
+    "cache_read_tokens": 396697,
+    "output_tokens": 13718,
+    "api_call_count": 7
+  },
+  "started_at": "2026-11-26T20:03:26.175109654+01:00",
+  "completed_at": "2026-11-26T20:04:51.353609679+01:00"
+}

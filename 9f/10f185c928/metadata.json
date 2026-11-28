@@ -1,0 +1,58 @@
+{
+  "cli_version": "0.13.2",
+  "checkpoint_id": "9f10f185c928",
+  "strategy": "manual-commit",
+  "branch": "main",
+  "checkpoints_count": 12,
+  "files_touched": [
+    "docs/architecture/scanning.md",
+    "docs/backlog.md",
+    "docs/journal.md",
+    "docs/product/git-graph/brief.md",
+    "docs/product/git-graph/critique.md",
+    "docs/product/git-graph/feasibility.md",
+    "docs/product/git-graph/research.md",
+    "docs/product/git-graph/stories.md",
+    "docs/product/oci-containers/brief.md",
+    "docs/product/oci-containers/plane-mapping.md",
+    "internal/ui/components/field_clamp.go"
+  ],
+  "sessions": [
+    {
+      "metadata": "/9f/10f185c928/0/metadata.json",
+      "transcript": "/9f/10f185c928/0/full.jsonl",
+      "compact_transcript": "/9f/10f185c928/0/transcript.jsonl",
+      "content_hash": "/9f/10f185c928/0/content_hash.txt",
+      "prompt": "/9f/10f185c928/0/prompt.txt"
+    }
+  ],
+  "token_usage": {
+    "input_tokens": 100,
+    "cache_creation_tokens": 440018,
+    "cache_read_tokens": 10831879,
+    "output_tokens": 52462,
+    "api_call_count": 36,
+    "subagent_tokens": {
+      "input_tokens": 304,
+      "cache_creation_tokens": 1721772,
+      "cache_read_tokens": 15714118,
+      "output_tokens": 397583,
+      "api_call_count": 142
+    },
+    "subagent_tokens_complete": true
+  },
+  "redaction": {
+    "replacements": 40,
+    "layers": {
+      "betterleaks": 0,
+      "connection_string": 0,
+      "credential_key": 0,
+      "credential_value": 0,
+      "credentialed_uri": 0,
+      "entropy": 16,
+      "key_context": 24,
+      "provider_token": 0,
+      "shell_stdin": 0
+    }
+  }
+}
