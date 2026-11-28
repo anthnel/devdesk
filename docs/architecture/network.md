@@ -928,6 +928,57 @@ a constant of another file (reported, so it needs an exception or a literal); a 
 positional argument; a `-u` whose readable text has no `:`; a URL built by a call whose literal arguments hold no
 `scheme://`; the environment lists are not checked.
 
+### Who uses an image, a volume or a network, and `StopAndRemoveContainer` (OC-25, DEVDESK-823)
+
+Delivered here: the docker layer and the footer sentence. **Not delivered here** (the second PR of OC-25): the views that read the snapshot
+(`:oci` greys `D` and refuses with the sentence, `:containers` offers `Stop and delete` on a running container) and the router message.
+
+- **`ContainerUsage` (`internal/docker/container_usage.go`).** `ListContainerUsage()` (a deadline of its own, 60 s) and
+  `ListContainerUsageContext(ctx)` read every container, stopped and merely created ones included, with ONE `ps -a -q --no-trunc` and,
+  when there is a container, ONE grouped `inspect --format {{json .}} <ids...>`: two calls whatever the number of containers, never one
+  per image, volume or network. `ListVolumeUsers` (OC-22, `P` on Volumes) is now the volume part of the same read (one code path, one
+  set of failures). Rejected: `ps --filter ancestor=` (docker counts a container of a derived image, podman answers 4 of 7 on the same
+  data, and `rmi <id>` refuses neither), `network inspect --format {{json .Containers}}` (running containers only: a network a stopped
+  container holds would read as free), `ps --format {{.Image}}` and `{{.Mounts}}` (a typed reference, truncated names).
+- **The joins** (shapes of `docs/measurements/2026-11-28-container-usage-shapes.md`, docker 29.10.1 and 28.5.2, podman 6.2.1 and 5.8.11,
+  rootful and rootless, 2026-11-28; not versioned fixtures, an OC-09 scenario to add, DEVDESK-949): the image on `Image` of the inspect, with
+  `sha256:` removed (docker prints it, podman does not), against the short or full ID of the list (`SameImageID`), exact and never through
+  `Config.Image`, `ImageName` or a tag; the volume on `Mounts[]` of type `volume` with a name (anonymous volumes included, a bind never);
+  the network on its NAME, the key of `NetworkSettings.Networks` (the `NetworkID` is empty for a docker container that was only created
+  and is `none` for podman's none network, so it is never the key). Names are sorted, without duplicate, without docker's leading `/`,
+  and the 12-character ID when a container has none.
+- **Unknown is not unused (fail closed).** `ImageUsers(id)`, `VolumeUsers(name)` and `NetworkUsers(n)`, each `(names, known)`, answer `known == false`
+  when the usage was never read (the zero value, or the one returned with an error), when the question is malformed (not an image ID, an empty volume name, a network with no name) and when the
+  image or the networks of ANY container could not be read: that container might be the user. `Image` and `NetworkSettings` are decoded
+  apart and tolerantly, so an unexpected shape makes one kind unknown and leaves the volumes known (`Mounts` stays strict, as in OC-22:
+  a `Mounts` that is not a list is an error). A null `Networks` is a fact, "on no managed network", only for a `NetworkMode` of `pasta` or
+  `slirp4netns` (rootless podman, no network asked for); with any other mode, or no `HostConfig`, it is unknown. Any error (`ps`, `inspect`,
+  an ID that is not a container ID, a missing, repeated or foreign answer, an expired or cancelled context read before each call) is an
+  error and a usage that was never read. Read failures go through `readFailure` (OC-24), so a missing or stopped engine is an
+  `*UnavailableError`.
+- **Cost.** Measured on 57 containers: 0.2 s and 360 KB at the worst (podman rootless) for the two calls; not measured with several hundred
+  containers, a loaded machine or a remote client.
+- **Limits, to settle before or in the second PR.**
+  (a) The image join was measured on an **imported** image only (`ddprobe/app`, `import`): for a pulled, multi-platform or containerd-store image,
+  `Image` of the inspect against the ID of `image ls` is **not measured** and must be before the sentence of the second PR is trusted.
+  (b) `network rm` against an attached **stopped** container is not measured: for a network, `NetworkUsers` is the only safeguard, so the second PR re-reads
+  the usage right before the `network rm`. (c) A grouped `inspect` of about 500 containers goes over the Windows command line (32 767 characters): it
+  fails closed (an error, so `D` stays greyed or asks), it is not split. (d) Nothing stops two usage reads from running at once and the size of the
+  output is not capped: one read in flight at a time and a cap are the second PR's. (e) An empty `Networks` is "on no network" unless the
+  NetworkMode is `container:<id>` (unknown); `host`, macvlan, ipvlan and pods are not measured.
+- **`StopAndRemoveContainer(id) RemovalReport`** (`internal/docker/removal.go`) is `StopContainer(id)` then `RemoveContainer(id)`: `stop <id>`
+  then `rm <id>`, one result for the one target, no option (no `-f`, no `--time`: the engine's grace delay applies, as for `K`). It spells no
+  verb itself, so the identifier is validated once, by the first wrapper, and G3's table of destructive functions lists it apart
+  (`destructiveComposed`, `TestEveryDestructiveFunctionIsCovered` fails if its body ever spells a verb). A stop that fails removes nothing; its
+  error and the error of the `rm` are read by `SingleRemoval`, so a container already gone is `RemovalGone`, one restarted between the two is
+  `ReasonRunning`, an engine nobody could ask or an unknown text is `ReasonOther`. The static guard `TestStopAndRemoveContainerReusesTheValidatedWrappers`
+  (`internal/engineguard/stop_and_remove_guard_test.go`) reads the body, because a function that builds no argv could grow an option word by word
+  without any literal for F/P to see. Limit: it reads that one body, not the helpers it calls.
+- **`components.InUseRefusal(kind, item, users)`** (`internal/ui/components/removal_footer.go`) is the footer line for the future `D` refusal:
+  `Cannot delete nginx:1.27: used by web, api — delete them first` (`delete it first` for one container), `Cannot delete volume pgdata: used by db`,
+  `Cannot delete network appnet: used by web, api` (the network sentence and the singular are proposed, to be validated). With no user it returns `""` (nothing to refuse, the caller shows nothing). Names and the item go through `Printable`,
+  are cut to 40 cells with `…` (the item too: an anonymous volume has 64 characters), and beyond three names become `and N more`.
+
 ### Engine contracts — `requireEngine`, `internal/testutil/enginecontract` (OC-09a1, DEVDESK-806; OC-09a2, DEVDESK-943; OC-09a3, DEVDESK-944; OC-09b1, DEVDESK-807)
 
 A contract test calls the functions of a package against a real docker or podman, outside CI, in the disposable VMs
