@@ -38,7 +38,11 @@ type Model struct {
 	// unfocused is true while the terminal is blurred: the tick skips its read.
 	unfocused bool
 	// footer is the one line of transient state below the viewport (Rule 128).
-	footer       sharedcomponents.FooterMessage
+	footer sharedcomponents.FooterMessage
+	// engineDown is the derived state of an engine that could not be asked at all
+	// (binary absent, daemon down, socket refused; OC-24). It has no timer: status()
+	// reads it on every frame, and the first list that succeeds ends it.
+	engineDown   sharedcomponents.EngineDown
 	confirmModal *sharedcomponents.ConfirmModal
 	// choiceModal is K's Stop / Restart / Cancel. Separate from confirmModal
 	// because the two answer different messages, and one field holding either

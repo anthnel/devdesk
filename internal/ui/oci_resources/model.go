@@ -131,6 +131,12 @@ type Model struct {
 	// the images or the names of the volumes the user was shown. Confirming removes
 	// these and nothing else (OC-22, DEVDESK-820).
 	pruneTargets []string
+	// imagesDown, networksDown and volumesDown are the derived states of an engine
+	// that could not be asked for that tab's list (OC-24, DEVDESK-822). One per tab,
+	// because the tabs read the engine on their own and a state is true of the read
+	// that set it; status() shows the one of the active tab. No timer: the first
+	// list of the tab that succeeds ends it.
+	imagesDown, networksDown, volumesDown sharedcomponents.EngineDown
 	// Shared state
 	// footer is the one line of transient state below the tab bar (Rule 128).
 	footer        sharedcomponents.FooterMessage

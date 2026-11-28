@@ -17,8 +17,11 @@ func (m Model) handleNetworkInspectLoaded(msg NetworkInspectLoadedMsg) (tea.Mode
 		return m, nil
 	}
 	if msg.Err != nil {
-		log.Printf("ERROR [oci_resources] network inspect %s: %v", msg.NetworkID, msg.Err)
+		log.Printf("ERROR [oci_resources] network inspect %s: %s", msg.NetworkID, docker.LogText(msg.Err))
 		m.networkInspectForm = nil
+		if m.networksDown.Observe(msg.Err) {
+			return m, nil
+		}
 		return m, m.footer.Error("Failed to inspect network — check logs")
 	}
 	m.networkInspectForm.SetContainers(msg.Containers)

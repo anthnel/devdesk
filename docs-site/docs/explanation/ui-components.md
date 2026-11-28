@@ -48,6 +48,10 @@ A `Status` — an in-progress action, a hint, a loading table — is derived fre
 
 Precedence when rendering the footer is **error → warning → info → status**: an unread failure always takes priority over showing that something is still in progress.
 
+### A failure that stays true is a `Status` too
+
+"The engine does not answer" is not an event that happened once: it is what is true right now. A timed error would vanish after three seconds while the list refreshes every few seconds, and the line would blink. The container and OCI views therefore hold it as a state (`components.EngineDown`): one fixed sentence at the error level (`Docker not found on PATH — install it or set app.container_engine`, `Cannot reach the Docker daemon — is it running?`, `Permission denied on the Docker socket — add your user to the docker group`, and the Podman equivalents), derived on every frame, untouched by the footer's expiry, and gone at the first list that succeeds. A message the user has not read yet, such as the result of a removal, is still shown first. The sentence is never built from the engine's own text; the cause goes to the log.
+
 ### A loading table stays a table
 
 When a table-backed view is loading data, the *table itself* stays on screen — with its header and columns — and the loading indication is a `Status` in the footer: the shared activity dot (`●`/`○`, the same glyph as the row dots) both for work the router tracks and for a view loading its own data (the view asks the router to animate the dot). The braille spinner is removed from the code, and a guard keeps it out. A body that swapped itself out for a loading screen while loading would visibly lose its header and columns for the duration of every refresh, then regain them — a layout jump on every single reload. As a direct consequence, an "empty" message like "No images found" is only shown once loading has actually finished; otherwise the table would be announcing the absence of results it hasn't even finished looking for yet.

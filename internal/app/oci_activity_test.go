@@ -148,6 +148,19 @@ func TestOCIShowsAPullFailureThatSecDoesNot(t *testing.T) {
 	wantNotFailed(t, a, secImage)
 }
 
+// feedWithoutTheList feeds the router what cmd answers, except the image list: the
+// router of these tests has no engine on PATH, so the reload the removal asks for
+// fails as "not found" and, since OC-24, an engine that cannot be asked empties the
+// table. That is the view's own test; here the rows must stay for the failure memory.
+func feedWithoutTheList(a *App, cmd tea.Cmd) {
+	for _, msg := range testutil.Msgs(cmd) {
+		if _, isList := msg.(ociresources.ImagesListMsg); isList {
+			continue
+		}
+		a.Update(msg)
+	}
+}
+
 // A removal that succeeded drops the failure; one that failed keeps it.
 func TestOCISuccessfulRemovalClearsTheFailure(t *testing.T) {
 	requireNoRealFooterWait(t)
@@ -156,17 +169,13 @@ func TestOCISuccessfulRemovalClearsTheFailure(t *testing.T) {
 	failScanFromSec(a, secImage)
 
 	_, cmd := a.Update(ociresources.ImageActionMsg{Action: "remove", ID: "aaa1111", Name: secImage, Err: errors.New("in use")})
-	for _, msg := range testutil.Msgs(cmd) {
-		a.Update(msg)
-	}
+	feedWithoutTheList(a, cmd)
 	if !remembered(a, jobs.KindScan, secImage, "default") {
 		t.Fatal("a refused removal dropped the failure")
 	}
 
 	_, cmd = a.Update(ociresources.ImageActionMsg{Action: "remove", ID: "aaa1111", Name: secImage})
-	for _, msg := range testutil.Msgs(cmd) {
-		a.Update(msg)
-	}
+	feedWithoutTheList(a, cmd)
 	if remembered(a, jobs.KindScan, secImage, "default") {
 		t.Error("the failure survived the removal of the image")
 	}

@@ -1581,9 +1581,11 @@ sentinel row of `ps-health` depends on the test VM, not on the run.
 ### Engine unavailability — `docker.UnavailableError` (OC-24, DEVDESK-822)
 
 What a read says when the engine cannot be asked at all: the binary is not on `PATH`, the daemon (or the Podman machine or
-service) does not answer, or the socket refuses this user. This part is the **classification** (`internal/docker/unavailable.go`) and
-`engine.Unresolved`; the footer state and the views (`components.EngineDown`, `:containers`, `:oci`) come after it, as does the
-inspect viewer and the MCP refusal text (`handleImagesList` still sends the engine's raw text to a pending agent request).
+service) does not answer, or the socket refuses this user. This covers the **classification** (`internal/docker/unavailable.go`),
+`engine.Unresolved`, and the views that show it: `components.EngineDown` (`docs/architecture/ui-components.md`), `:containers`, the three
+tabs of `:oci`, the network inspect and the inspect viewer. Not done: the other reads that still use `wrapErr` (below), the actions
+that still return the engine's own error (the views read an `*UnavailableError` there when one comes), and the versioned fixtures of
+the three cases.
 
 - **The type.** `*UnavailableError{Reason, Engine, Label}` with `Reason` one of `EngineNotFound`, `EngineUnreachable`,
   `EnginePermissionDenied` (`UnavailabilityUnknown` is the zero value: not one of these). `Engine` is `engine.Current().Name` when the
@@ -1646,7 +1648,14 @@ inspect viewer and the MCP refusal text (`handleImagesList` still sends the engi
   `containers_list` and `images_list` (`internal/mcp/docker_tools.go`, `agentFacingError`) and the refusal of a scan request that waited
   for the image list (`internal/ui/oci_resources/results.go`, `imagesRefusal`: `Cannot list images: <sentence>`, or `Cannot list images —
   check logs` for an unknown failure). `agentFacingError` hands an error that is not an `*UnavailableError` through unchanged: its `Error()`
-  holds no engine output any more. The views' own footers and logs move to the sentence and to `LogText()` with the views (next PR).
+  holds no engine output any more. The views' own footers and logs use the sentence and `LogText()` (see "The views" below).
+- **The views.** `:containers` and each `:oci` tab (Images, Networks, Volumes) hold a `components.EngineDown`: a failed list that
+  `Observe` accepts shows the sentence as a derived `Status` at level Error (no timer, so it survives the footer's expiry, the refresh tick and a
+  resize), empties the table (Rule 139: the body stays the table), and ends at the first list that succeeds; a failure `Observe` refuses keeps
+  `Failed to load <x> — check logs` and its rows. `:oci` shows the state of the active tab only. The failed network inspect shows the Networks
+  tab's sentence, otherwise `Failed to inspect network — check logs`. The viewer (`loadErrorMessage`) shows `UserMessage()` of a failed
+  load (a container's inspect with the daemon down), else `Failed to open — check logs`; an absent container is the engine answering and keeps the
+  generic text. Every view that shows one of these errors logs `docker.LogText(err)`.
 - **Limits.** The texts are client texts that change with a version (docker 28 to 29 already did); the probes are a table of dated
   answers in `unavailable_probe_test.go` (the model is `removal_probe_test.go`), **not versioned fixtures** (the 40 hold none of the
   three cases, and the contract bench cannot produce them: root passes the socket permission, `DOCKER_HOST` and `--remote` are refused;

@@ -80,11 +80,18 @@ func (m Model) handleImagesList(msg ImagesListMsg) (tea.Model, tea.Cmd) {
 		// the reason rather than left waiting (§3.61). The reason is the fixed
 		// sentence of an engine that could not be asked, never the engine's text
 		// (OC-24): an agent is a client of the MCP server.
-		return m, tea.Batch(
-			m.footer.Error("Failed to load images — check logs"),
-			m.refusePendingRequests(imagesRefusal(msg.Err)),
-		)
+		refused := m.refusePendingRequests(imagesRefusal(msg.Err))
+		if m.imagesDown.Observe(msg.Err) {
+			// The rows would offer actions bound to fail, and "listed" no longer
+			// holds: a request that comes next waits for a list that answers.
+			m.footer.ClearUnlessRemoval()
+			m.images, m.listed = nil, false
+			m.updateImageTable()
+			return m, refused
+		}
+		return m, tea.Batch(m.footer.Error("Failed to load images — check logs"), refused)
 	}
+	m.imagesDown.Clear()
 	m.footer.ClearUnlessRemoval() // the bilan of a P or a D outlives the refresh that follows it
 	m.images = msg.Images
 	m.listed = true
@@ -136,11 +143,14 @@ func (m Model) handleImageAction(msg ImageActionMsg) (tea.Model, tea.Cmd) {
 	m.imageTable.ClearBusy(msg.ID)
 	m.updateImageTable() // drop the Running activity the marker put on the row
 	if msg.Err != nil {
-		log.Printf("ERROR [oci_resources] %s %s: %v", msg.Action, msg.Name, msg.Err)
+		log.Printf("ERROR [oci_resources] %s %s: %s", msg.Action, msg.Name, docker.LogText(msg.Err))
 		if msg.Action == "remove" {
 			// `D` reads like `P`: an image already gone is an information, one a
 			// container uses a refusal that says why (OC-22).
 			return m, tea.Batch(m.footer.Removal(docker.SingleRemoval(msg.ID, msg.Err)), fetchImages())
+		}
+		if m.imagesDown.Observe(msg.Err) {
+			return m, nil
 		}
 		return m, m.footer.Error("Action failed — check logs")
 	}
@@ -173,10 +183,18 @@ func logNotRemoved(what string, report docker.RemovalReport) {
 func (m Model) handleNetworksList(msg NetworksListMsg) (tea.Model, tea.Cmd) {
 	m.loadingNets = false
 	if msg.Err != nil {
-		log.Printf("ERROR [oci_resources] network list: %v", msg.Err)
+		log.Printf("ERROR [oci_resources] network list: %s", docker.LogText(msg.Err))
+		if m.networksDown.Observe(msg.Err) {
+			m.footer.ClearUnlessRemoval()
+			m.networkTable.SetItems(nil)
+			return m, nil
+		}
 		return m, m.footer.Error("Failed to load networks — check logs")
 	}
-	m.footer.Clear()
+	m.networksDown.Clear()
+	// The footer is shared by the tabs and every refresh lists the three: the
+	// bilan of a P or a D on Images or Volumes outlives this list.
+	m.footer.ClearUnlessRemoval()
 	m.networkTable.SetItems(msg.Networks)
 
 	return m, nil
@@ -186,7 +204,10 @@ func (m Model) handleNetworksList(msg NetworksListMsg) (tea.Model, tea.Cmd) {
 func (m Model) handleNetworkAction(msg NetworkActionMsg) (tea.Model, tea.Cmd) {
 	m.networkTable.ClearBusy(msg.ID)
 	if msg.Err != nil {
-		log.Printf("ERROR [oci_resources] network %s: %v", msg.Action, msg.Err)
+		log.Printf("ERROR [oci_resources] network %s: %s", msg.Action, docker.LogText(msg.Err))
+		if m.networksDown.Observe(msg.Err) {
+			return m, nil
+		}
 		return m, m.footer.Error("Network action failed — check logs")
 	}
 	m.footer.Clear()
@@ -197,7 +218,10 @@ func (m Model) handleNetworkAction(msg NetworkActionMsg) (tea.Model, tea.Cmd) {
 func (m Model) handleNetworkPruneComplete(msg NetworkPruneCompleteMsg) (tea.Model, tea.Cmd) {
 	m.pruning = ""
 	if msg.Err != nil {
-		log.Printf("ERROR [oci_resources] network prune: %v", msg.Err)
+		log.Printf("ERROR [oci_resources] network prune: %s", docker.LogText(msg.Err))
+		if m.networksDown.Observe(msg.Err) {
+			return m, nil
+		}
 		return m, m.footer.Error("Network prune failed — check logs")
 	}
 	m.footer.Clear()
@@ -208,9 +232,15 @@ func (m Model) handleNetworkPruneComplete(msg NetworkPruneCompleteMsg) (tea.Mode
 func (m Model) handleVolumesList(msg VolumesListMsg) (tea.Model, tea.Cmd) {
 	m.loadingVols = false
 	if msg.Err != nil {
-		log.Printf("ERROR [oci_resources] volume list: %v", msg.Err)
+		log.Printf("ERROR [oci_resources] volume list: %s", docker.LogText(msg.Err))
+		if m.volumesDown.Observe(msg.Err) {
+			m.footer.ClearUnlessRemoval()
+			m.volumeTable.SetItems(nil)
+			return m, nil
+		}
 		return m, m.footer.Error("Failed to load volumes — check logs")
 	}
+	m.volumesDown.Clear()
 	m.footer.ClearUnlessRemoval()
 	m.volumeTable.SetItems(msg.Volumes)
 
@@ -221,9 +251,12 @@ func (m Model) handleVolumesList(msg VolumesListMsg) (tea.Model, tea.Cmd) {
 func (m Model) handleVolumeAction(msg VolumeActionMsg) (tea.Model, tea.Cmd) {
 	m.volumeTable.ClearBusy(msg.Name)
 	if msg.Err != nil {
-		log.Printf("ERROR [oci_resources] volume %s: %v", msg.Action, msg.Err)
+		log.Printf("ERROR [oci_resources] volume %s: %s", msg.Action, docker.LogText(msg.Err))
 		if msg.Action == "remove" {
 			return m, tea.Batch(m.footer.Removal(docker.SingleRemoval(msg.Name, msg.Err)), fetchVolumes())
+		}
+		if m.volumesDown.Observe(msg.Err) {
+			return m, nil
 		}
 		return m, m.footer.Error("Volume action failed — check logs")
 	}

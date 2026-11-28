@@ -29,6 +29,8 @@ Docker's. One case goes further: the detailed per-image disk usage breakdown
 at column offsets, and Podman's output doesn't line up with them, so that
 specific view is disabled rather than shown wrong.
 
+When the engine cannot be asked at all, the container and OCI views say which of three things is wrong, in the footer, until it is fixed: the binary is not on `PATH` (or at the path `app.container_engine` names), the daemon (or the Podman machine or service) does not answer, or the socket refuses your user. The table is emptied but stays on screen with its header, since rows from the last list would offer actions that are bound to fail, and the line disappears at the first list that succeeds. On `:oci` each tab (Images, Networks, Volumes) has its own state and only the active one is shown. Opening a container's inspect, or a network's, with the engine down says the same thing. Any other failure keeps the generic `... — check logs`; the details, with URL credentials removed, are in the log. The Podman sentences are proposals and a local Podman client has no daemon, so they only appear for a remote client.
+
 Most views don't need to know which engine is active, but one place does: the
 OCI resources registry browser (`B` from the Images tab) builds the reference
 it hands to `pull` (`G`) itself, and under Podman that reference needs an
