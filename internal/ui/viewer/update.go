@@ -1,6 +1,7 @@
 package viewer
 
 import (
+	"errors"
 	"fmt"
 	"log"
 	"os"
@@ -13,6 +14,7 @@ import (
 	"github.com/anthnel/devdesk/internal/jobs"
 	"github.com/anthnel/devdesk/internal/pager"
 	"github.com/anthnel/devdesk/internal/secretenv"
+	"github.com/anthnel/devdesk/internal/ui/components"
 	"github.com/anthnel/devdesk/internal/ui/teaexec"
 
 	"github.com/anthnel/devdesk/internal/ui/keymap"
@@ -120,7 +122,7 @@ func (m *Model) resize(width, height int) {
 func (m Model) handleDocumentLoaded(msg DocumentLoadedMsg) (tea.Model, tea.Cmd) {
 	m.loading = false
 	if msg.Err != nil {
-		log.Printf("ERROR [viewer] load %s: %v", msg.Name, msg.Err)
+		log.Printf("ERROR [viewer] load %s: %s", msg.Name, loadLogText(msg.Err))
 		return m, m.footer.Error(loadErrorMessage(msg.Err))
 	}
 	content := msg.Content
@@ -139,18 +141,39 @@ func (m Model) handleDocumentLoaded(msg DocumentLoadedMsg) (tea.Model, tea.Cmd) 
 	return m, cmd
 }
 
-// loadErrorMessage names the two refusals and hides the rest behind the log
-// (Rule 128): "file is too large" is something the user can act on, an OS error
-// string in a footer is not.
+// loadErrorMessage names the two refusals, shows the fixed sentence of an error
+// that carries one, and hides the rest behind the log (Rule 128): "file is too
+// large" is something the user can act on, an OS error string in a footer is not.
+//
+// The sentence is read through an optional `UserMessage() string` and errors.As,
+// so the viewer knows no engine package: a source's error says what may be shown
+// (OC-24, an inspect whose engine could not be asked).
 func loadErrorMessage(err error) string {
 	switch err {
 	case viewer.ErrTooLarge:
 		return "File is too large to view"
 	case viewer.ErrBinary:
 		return "Not a text file"
-	default:
-		return "Failed to open — check logs"
 	}
+	var sentence interface{ UserMessage() string }
+	if errors.As(err, &sentence) {
+		// Drawn through Printable: the sentence comes from outside the viewer, and a
+		// terminal sequence or a bidi mark in it must not reach the screen.
+		if message := components.Printable(sentence.UserMessage()); message != "" {
+			return message
+		}
+	}
+	return "Failed to open — check logs"
+}
+
+// loadLogText is the text of a failed load for the log: an error that holds a
+// redacted cause of its own (LogText) gives that, any other its Error().
+func loadLogText(err error) string {
+	var logged interface{ LogText() string }
+	if errors.As(err, &logged) {
+		return logged.LogText()
+	}
+	return err.Error()
 }
 
 // handlePagerExit takes the pager's return, and says so when it failed.
