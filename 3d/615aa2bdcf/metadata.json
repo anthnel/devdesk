@@ -1,0 +1,46 @@
+{
+  "cli_version": "0.13.2",
+  "checkpoint_id": "3d615aa2bdcf",
+  "strategy": "manual-commit",
+  "branch": "test/oc-23-canary",
+  "checkpoints_count": 3,
+  "files_touched": null,
+  "sessions": [
+    {
+      "metadata": "/3d/615aa2bdcf/0/metadata.json",
+      "transcript": "/3d/615aa2bdcf/0/full.jsonl",
+      "compact_transcript": "/3d/615aa2bdcf/0/transcript.jsonl",
+      "content_hash": "/3d/615aa2bdcf/0/content_hash.txt",
+      "prompt": "/3d/615aa2bdcf/0/prompt.txt"
+    }
+  ],
+  "token_usage": {
+    "input_tokens": 50,
+    "cache_creation_tokens": 79766,
+    "cache_read_tokens": 4940851,
+    "output_tokens": 24982,
+    "api_call_count": 17,
+    "subagent_tokens": {
+      "input_tokens": 700,
+      "cache_creation_tokens": 2281271,
+      "cache_read_tokens": 67369904,
+      "output_tokens": 340506,
+      "api_call_count": 339
+    },
+    "subagent_tokens_complete": true
+  },
+  "redaction": {
+    "replacements": 492,
+    "layers": {
+      "betterleaks": 98,
+      "connection_string": 0,
+      "credential_key": 0,
+      "credential_value": 308,
+      "credentialed_uri": 14,
+      "entropy": 28,
+      "key_context": 58,
+      "provider_token": 0,
+      "shell_stdin": 0
+    }
+  }
+}
