@@ -52,7 +52,7 @@ func ListImages() ([]Image, error) {
 	// {{.Size}} from docker image ls gives disk usage (not content size)
 	output, err := dockerOutput("image", "ls", "--format", templates().ImageLS)
 	if err != nil {
-		return nil, wrapErr(cmdLabel("image ls"), err)
+		return nil, readFailure(cmdLabel("image ls"), err)
 	}
 
 	var images []Image

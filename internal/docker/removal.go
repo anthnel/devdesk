@@ -141,6 +141,13 @@ func ClassifyRemoval(err error) (RemovalStatus, RefusalReason) {
 	if invalidTarget(err) {
 		return RemovalRefused, ReasonOther
 	}
+	// An engine that could not be asked looked nothing up (OC-24): whatever its
+	// cause holds says nothing about the target. The second test is a belt for an
+	// error that is still the engine's text (an *engineError): it is never "gone".
+	var unavailable *UnavailableError
+	if errors.As(err, &unavailable) || ClassifyUnavailable(err) != UnavailabilityUnknown {
+		return RemovalRefused, ReasonOther
+	}
 	label, text := engineText(err)
 	lower := strings.ToLower(text)
 	// The engine itself is missing or unreachable: nothing was looked up, so

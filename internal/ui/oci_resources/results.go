@@ -75,12 +75,14 @@ func (m Model) handleConfirmYes() (tea.Model, tea.Cmd) {
 func (m Model) handleImagesList(msg ImagesListMsg) (tea.Model, tea.Cmd) {
 	m.loading = false
 	if msg.Err != nil {
-		log.Printf("ERROR [oci_resources] list: %v", msg.Err)
+		log.Printf("ERROR [oci_resources] list: %s", docker.LogText(msg.Err))
 		// Whatever an agent asked for while this was loading is refused with
-		// the daemon's reason rather than left waiting (§3.61).
+		// the reason rather than left waiting (§3.61). The reason is the fixed
+		// sentence of an engine that could not be asked, never the engine's text
+		// (OC-24): an agent is a client of the MCP server.
 		return m, tea.Batch(
 			m.footer.Error("Failed to load images — check logs"),
-			m.refusePendingRequests("Cannot list images: "+msg.Err.Error()),
+			m.refusePendingRequests(imagesRefusal(msg.Err)),
 		)
 	}
 	m.footer.ClearUnlessRemoval() // the bilan of a P or a D outlives the refresh that follows it
@@ -235,4 +237,14 @@ func (m Model) handleVolumePruneComplete(msg VolumePruneCompleteMsg) (tea.Model,
 	m.pruneTargets = nil
 	logNotRemoved("volumes", msg.Report)
 	return m, tea.Batch(m.footer.Removal(msg.Report), fetchVolumes())
+}
+
+// imagesRefusal is the reason an agent's pending request is refused with when the
+// image list failed: the fixed sentence when the engine could not be asked, a
+// generic one otherwise.
+func imagesRefusal(err error) string {
+	if message, ok := docker.UnavailableMessage(err); ok {
+		return "Cannot list images: " + message
+	}
+	return "Cannot list images — check logs"
 }

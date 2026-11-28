@@ -289,3 +289,45 @@ func TestSetCurrentIsWhatCurrentReports(t *testing.T) {
 		t.Errorf("Current().Name = %q after SetCurrent(podman), want %q", got, Podman)
 	}
 }
+
+// OC-24 (DEVDESK-822), step 2. When the configured engine is absent, Resolve fails and
+// the router keeps the previous shape, so the views would say "Docker not found" to
+// someone who pinned podman. Unresolved builds the shape of the engine the preference
+// NAMES, without looking anything up: the router installs it when Resolve fails.
+func TestUnresolvedNamesTheConfiguredEngine(t *testing.T) {
+	tests := []struct {
+		preference string
+		wantName   string
+		wantBinary string
+	}{
+		{"podman", Podman, "podman"},
+		{"docker", Docker, "docker"},
+		{"", Docker, "docker"},
+		{Auto, Docker, "docker"},
+		// A path is read like Resolve reads it (engineOfPath) and run as given.
+		{"/opt/x/podman-remote", Podman, "/opt/x/podman-remote"},
+		{"/opt/x/nerdctl", Docker, "/opt/x/nerdctl"},
+	}
+	for _, tt := range tests {
+		t.Run("preference "+tt.preference, func(t *testing.T) {
+			// Nothing is installed and nothing may be looked up: PATH holds an empty directory.
+			onlyPath(t, t.TempDir())
+			before := Current()
+
+			got := Unresolved(tt.preference)
+
+			if got.Name != tt.wantName {
+				t.Errorf("Unresolved(%q).Name = %q, want %q", tt.preference, got.Name, tt.wantName)
+			}
+			if got.Binary != tt.wantBinary {
+				t.Errorf("Unresolved(%q).Binary = %q, want %q", tt.preference, got.Binary, tt.wantBinary)
+			}
+			if want := ShapeFor(tt.wantName).Templates; got.Templates != want {
+				t.Errorf("Unresolved(%q).Templates are not the %s templates", tt.preference, tt.wantName)
+			}
+			if Current() != before {
+				t.Errorf("Unresolved(%q) changed the current engine: it builds a shape, the caller installs it", tt.preference)
+			}
+		})
+	}
+}
