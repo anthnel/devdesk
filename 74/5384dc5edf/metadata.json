@@ -1,0 +1,46 @@
+{
+  "cli_version": "0.13.2",
+  "checkpoint_id": "745384dc5edf",
+  "strategy": "manual-commit",
+  "branch": "feat/oc-25-delete-refusals",
+  "checkpoints_count": 1,
+  "files_touched": null,
+  "sessions": [
+    {
+      "metadata": "/74/5384dc5edf/0/metadata.json",
+      "transcript": "/74/5384dc5edf/0/full.jsonl",
+      "compact_transcript": "/74/5384dc5edf/0/transcript.jsonl",
+      "content_hash": "/74/5384dc5edf/0/content_hash.txt",
+      "prompt": "/74/5384dc5edf/0/prompt.txt"
+    }
+  ],
+  "token_usage": {
+    "input_tokens": 14,
+    "cache_creation_tokens": 18033,
+    "cache_read_tokens": 1154402,
+    "output_tokens": 7591,
+    "api_call_count": 4,
+    "subagent_tokens": {
+      "input_tokens": 114,
+      "cache_creation_tokens": 425772,
+      "cache_read_tokens": 6432406,
+      "output_tokens": 60033,
+      "api_call_count": 55
+    },
+    "subagent_tokens_complete": true
+  },
+  "redaction": {
+    "replacements": 500,
+    "layers": {
+      "betterleaks": 98,
+      "connection_string": 0,
+      "credential_key": 0,
+      "credential_value": 308,
+      "credentialed_uri": 17,
+      "entropy": 28,
+      "key_context": 63,
+      "provider_token": 0,
+      "shell_stdin": 0
+    }
+  }
+}
