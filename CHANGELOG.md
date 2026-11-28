@@ -1,5 +1,35 @@
 # Changelog
 
+## [2.3.0](https://github.com/anthnel/devdesk/compare/v2.2.0...v2.3.0) (2026-11-28)
+
+
+### Features
+
+* **about:** open the online help with W ([#511](https://github.com/anthnel/devdesk/issues/511)) ([d0ae0d0](https://github.com/anthnel/devdesk/commit/d0ae0d0b5f33b5e57cf631e57b204fa0450bd1d9))
+* **config:** add sensitive environment variable names with a configurable list (DEVDESK-810) ([#519](https://github.com/anthnel/devdesk/issues/519)) ([ea01857](https://github.com/anthnel/devdesk/commit/ea0185745e9bd71fcaaa80973b40d46a0b1fa0f7))
+* **containers:** confirm sensitive bind mounts and the engine socket (OC-20, DEVDESK-818) ([#543](https://github.com/anthnel/devdesk/issues/543)) ([cb80930](https://github.com/anthnel/devdesk/commit/cb80930bb5b544d184409cb1d52e847160b9c2ed))
+* **containers:** confirm the host network and refuse flag-like launch values (OC-21, DEVDESK-819) ([#544](https://github.com/anthnel/devdesk/issues/544)) ([1236d85](https://github.com/anthnel/devdesk/commit/1236d850a0df4e7e5b2d22f359ef893cf3d34d9d))
+* **containers:** destroy exactly what the confirmation showed, never forced (OC-22, DEVDESK-820) ([#545](https://github.com/anthnel/devdesk/issues/545)) ([dc0b4c5](https://github.com/anthnel/devdesk/commit/dc0b4c5024b9bf40e1f71961d1960c966fd61ca3))
+* **containers:** mask the environment values of an inspect by default (DEVDESK-811) ([#541](https://github.com/anthnel/devdesk/issues/541)) ([78185da](https://github.com/anthnel/devdesk/commit/78185daaa86137fe32c257fc1cffb65a589769bb))
+* **containers:** say in the views whether the engine is missing, stopped or refusing access (OC-24, DEVDESK-822) ([#548](https://github.com/anthnel/devdesk/issues/548)) ([f1e659b](https://github.com/anthnel/devdesk/commit/f1e659b717ab5abd2f78c6aa2f7ff5836b4fb9af))
+* **docker:** say whether the engine is missing, stopped or refusing access (OC-24, DEVDESK-822) ([#547](https://github.com/anthnel/devdesk/issues/547)) ([a2bb0fd](https://github.com/anthnel/devdesk/commit/a2bb0fdfd6fb4fee6e01a98d263ae32068e79a9d))
+* **oci:** publish container ports on 127.0.0.1 by default (DEVDESK-817) ([#518](https://github.com/anthnel/devdesk/issues/518)) ([1a31857](https://github.com/anthnel/devdesk/commit/1a3185759a9a33c82ede9d5f2a0993353138289d))
+* **tools:** Incus engine test VMs on jakku (DEVDESK-795) ([#516](https://github.com/anthnel/devdesk/issues/516)) ([15b7a68](https://github.com/anthnel/devdesk/commit/15b7a686f639f096cdf729cd72c163f84daec1bb))
+
+
+### Bug Fixes
+
+* **containers:** detect the shell off the Update loop and keep inspect JSON clean (DEVDESK-800) ([#514](https://github.com/anthnel/devdesk/issues/514)) ([9836076](https://github.com/anthnel/devdesk/commit/98360763528c9050839bf6654e30ca1978175f63))
+* **containers:** keep only variable names in the launch cache (DEVDESK-815) ([#540](https://github.com/anthnel/devdesk/issues/540)) ([3ba7f64](https://github.com/anthnel/devdesk/commit/3ba7f64b3c2d2317c1c75081252d553d047d34bd))
+* **containers:** pass launch environment values to the child, never in argv (DEVDESK-812) ([#534](https://github.com/anthnel/devdesk/issues/534)) ([65f378f](https://github.com/anthnel/devdesk/commit/65f378f3fa8321e3032c601dc2329ef0553848e8))
+* **containers:** refuse reserved environment names in the launch form (DEVDESK-813) ([#535](https://github.com/anthnel/devdesk/issues/535)) ([c84e70c](https://github.com/anthnel/devdesk/commit/c84e70c168c2798f34c7a0f265c0b3689f6cb1c1))
+* **containers:** run the log pager without a shell (DEVDESK-801) ([#520](https://github.com/anthnel/devdesk/issues/520)) ([f20522d](https://github.com/anthnel/devdesk/commit/f20522db8b8b792e13ca259fe6d677df7d1d0fe0))
+* **containers:** show the launch command and copy it without environment values (DEVDESK-814) ([#537](https://github.com/anthnel/devdesk/issues/537)) ([ef8a313](https://github.com/anthnel/devdesk/commit/ef8a313e1d99beb980bde909f6ea0294e39da7e9))
+* **docker:** validate identifiers before every destructive verb and add the G3 guard (DEVDESK-803) ([#525](https://github.com/anthnel/devdesk/issues/525)) ([b44aa4e](https://github.com/anthnel/devdesk/commit/b44aa4efc095b84234c8aa6412005c46e41fa6e3))
+* **docker:** validate the container ID before opening a shell (OC-18, DEVDESK-816) ([#542](https://github.com/anthnel/devdesk/issues/542)) ([5ebba56](https://github.com/anthnel/devdesk/commit/5ebba560939ef254fda6b6bd7202e87a1238ca0b))
+* **fields:** keep the palette and FilterBar search fields inside their box ([#510](https://github.com/anthnel/devdesk/issues/510)) ([9d18f86](https://github.com/anthnel/devdesk/commit/9d18f86d10a77018e3e811a701c3b6d506a662af))
+* **scan:** keep the forge token out of the plumber argv (DEVDESK-945) ([#536](https://github.com/anthnel/devdesk/issues/536)) ([ee2fb09](https://github.com/anthnel/devdesk/commit/ee2fb0971926c1e58dda0354755b96b34d2bdcb5))
+
 ## [2.2.0](https://github.com/anthnel/devdesk/compare/v2.1.0...v2.2.0) (2026-11-25)
 
 
